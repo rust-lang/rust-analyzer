@@ -269,6 +269,20 @@ fn foo() {
     }
 
     #[test]
+    fn test_join_doc_comment() {
+        let before = r"
+/// Rust is a systems programming language that runs
+/// blazingly fast, prevents segfaults, and guarantees <|>
+/// thread safety.
+";
+        let after = r"
+/// Rust is a systems programming language that runs
+/// blazingly fast, prevents segfaults, and guarantees <|> thread safety.
+";
+        check_join_lines(before, after);
+    }
+
+    #[test]
     fn test_join_lines_lambda_block() {
         check_join_lines(r"
 pub fn reparse(&self, edit: &AtomEdit) -> File {
