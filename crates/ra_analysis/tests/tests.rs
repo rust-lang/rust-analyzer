@@ -269,6 +269,17 @@ fn test_find_all_refs_for_param_inside() {
 }
 
 #[test]
+fn test_find_all_refs_for_fn_param() {
+    let code = r#"
+    fn foo(i<|> : u32) -> u32 {
+        i
+    }"#;
+
+    let refs = get_all_refs(code);
+    assert_eq!(refs.len(), 2);
+}
+
+#[test]
 fn test_complete_crate_path() {
     let snap = analysis(&[
         ("/lib.rs", "mod foo; struct Spam;"),

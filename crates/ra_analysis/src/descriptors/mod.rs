@@ -1,8 +1,11 @@
 pub(crate) mod module;
 
+use ra_editor::resolve_local_name;
+
 use ra_syntax::{
     ast::{self, AstNode, NameOwner},
     text_utils::is_subrange,
+    TextRange
 };
 
 #[derive(Debug, Clone)]
@@ -59,5 +62,51 @@ impl FnDescriptor {
             );
         }
         res
+    }
+}
+
+#[derive(Debug)]
+pub struct ReferenceDescriptor {
+    pub range: TextRange,
+    pub name: String
+}
+
+#[derive(Debug)]
+pub struct DeclarationDescriptor<'a> {
+    pat: ast::BindPat<'a>,
+    pub range: TextRange
+}
+
+impl<'a> DeclarationDescriptor<'a> {
+    pub fn new(pat: ast::BindPat) -> DeclarationDescriptor {
+        let range = pat.syntax().range();
+
+        DeclarationDescriptor {
+            pat,
+            range
+        }
+    }
+
+    pub fn find_all_refs(&self) -> Vec<ReferenceDescriptor> {
+        let name = match self.pat.name() {
+            Some(name) => name,
+            None => return Default::default()
+        };
+
+        let fn_def = match name.syntax().ancestors().find_map(ast::FnDef::cast) {
+            Some(def) => def,
+            None => return Default::default()
+        };
+
+        let refs : Vec<_> = fn_def.syntax().descendants()
+            .filter_map(ast::NameRef::cast)
+            .filter(|name_ref| resolve_local_name(*name_ref) == Some((name.text(), name.syntax().range())))
+            .map(|name_ref| ReferenceDescriptor {
+                name: name_ref.syntax().text().to_string(),
+                range : name_ref.syntax().range(),
+            })
+            .collect();
+
+        refs
     }
 }
