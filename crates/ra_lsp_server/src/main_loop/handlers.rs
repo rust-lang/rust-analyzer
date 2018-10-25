@@ -562,9 +562,11 @@ pub fn handle_code_action(
     let range = params.range.conv_with(&line_index);
 
     let assists = world.analysis().assists(file_id, range)?.into_iter();
-    let fixes = world
+    let diags = world
         .analysis()
-        .diagnostics(file_id)?
+        .diagnostics(file_id);
+    info!("handle_code_action: {:?} {:?}", world.analysis(), diags);
+    let fixes = diags?
         .into_iter()
         .filter_map(|d| Some((d.range, d.fix?)))
         .filter(|(range, _fix)| contains_offset_nonstrict(*range, range.start()))

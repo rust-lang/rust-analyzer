@@ -1,7 +1,6 @@
 pub(crate) mod input;
 
 use std::{
-    fmt,
     sync::Arc,
 };
 
@@ -17,15 +16,9 @@ use crate::{
     FileId,
 };
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub(crate) struct RootDatabase {
     runtime: salsa::Runtime<RootDatabase>,
-}
-
-impl fmt::Debug for RootDatabase {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.write_str("RootDatabase { ... }")
-    }
 }
 
 impl salsa::Database for RootDatabase {
@@ -36,6 +29,7 @@ impl salsa::Database for RootDatabase {
 
 pub(crate) fn check_canceled(db: &impl salsa::Database) -> Cancelable<()> {
     if db.salsa_runtime().is_current_revision_canceled() {
+        log::info!("cancled revision at {:?}", db.salsa_runtime());
         Err(Canceled)
     } else {
         Ok(())
