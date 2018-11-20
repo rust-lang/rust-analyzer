@@ -343,7 +343,13 @@ impl AnalysisImpl {
 
         let decl = DeclarationDescriptor::new(binding);
 
-        let mut ret = vec![(position.file_id, decl.range)];
+        let mut ret = vec![];
+
+        match decl.name_range() {
+            Some(range) => ret.push((position.file_id, range)),
+            _ => {}
+        }
+
         ret.extend(
             decl.find_all_refs()
                 .into_iter()

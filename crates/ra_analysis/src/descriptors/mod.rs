@@ -4,7 +4,7 @@ pub(crate) mod module;
 use std::sync::Arc;
 
 use ra_syntax::{
-    ast::{self, AstNode, FnDefNode},
+    ast::{self, AstNode, FnDefNode, NameOwner},
     TextRange,
 };
 
@@ -54,14 +54,18 @@ pub struct ReferenceDescriptor {
 #[derive(Debug)]
 pub struct DeclarationDescriptor<'a> {
     pat: ast::BindPat<'a>,
-    pub range: TextRange,
 }
 
 impl<'a> DeclarationDescriptor<'a> {
     pub fn new(pat: ast::BindPat) -> DeclarationDescriptor {
-        let range = pat.syntax().range();
+        DeclarationDescriptor { pat }
+    }
 
-        DeclarationDescriptor { pat, range }
+    /// Returns the range of the name associated with the declaration
+    pub fn name_range(&self) -> Option<TextRange> {
+        let name = self.pat.name()?;
+
+        Some(name.syntax().range())
     }
 
     pub fn find_all_refs(&self) -> Vec<ReferenceDescriptor> {
