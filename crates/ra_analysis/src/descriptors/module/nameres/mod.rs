@@ -14,6 +14,8 @@
 //! modifications (that is, typing inside a function shold not change IMIs),
 //! such that the results of name resolution can be preserved unless the module
 //! structure itself is modified.
+mod ptr;
+
 use std::{
     sync::Arc,
     time::Instant,
@@ -126,6 +128,7 @@ pub(crate) fn item_map(
     log::info!("item_map: {:?}", elapsed);
     Ok(Arc::new(res))
 }
+
 
 /// Resolution is basically `DefId` atm, but it should account for stuff like
 /// multiple namespaces, ambiguity and errors.
