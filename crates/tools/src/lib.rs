@@ -2,7 +2,8 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
     fs::copy,
-    io::{Error, ErrorKind}
+    io::{Error, ErrorKind},
+    env,
 };
 
 use failure::bail;
@@ -15,7 +16,19 @@ pub type Result<T> = std::result::Result<T, failure::Error>;
 pub const GRAMMAR: &str = "crates/ra_syntax/src/grammar.ron";
 pub const SYNTAX_KINDS: &str = "crates/ra_syntax/src/syntax_kinds/generated.rs.tera";
 pub const AST: &str = "crates/ra_syntax/src/ast/generated.rs.tera";
-const TOOLCHAIN: &str = "1.31.0";
+
+fn toolchain() -> &'static str {
+    // in rustup, stable and 1.31.0 are different toolchains even if they are,
+    // in fact, the same.
+    //
+    // Locally, we enforce 1.31.0 for all contributors.
+    // On CI, we can just use stable b/c we controll it.
+    if env::var("CI").is_ok() {
+        "stable"
+    } else {
+        "1.31.0"
+    }
+}
 
 #[derive(Debug)]
 pub struct Test {
@@ -91,7 +104,7 @@ pub fn run(cmdline: &str, dir: &str) -> Result<()> {
 
 pub fn run_rustfmt(mode: Mode) -> Result<()> {
     match Command::new("rustup")
-        .args(&["run", TOOLCHAIN, "--", "cargo", "fmt", "--version"])
+        .args(&["run", toolchain(), "--", "cargo", "fmt", "--version"])
         .stderr(Stdio::null())
         .stdout(Stdio::null())
         .status()
@@ -102,19 +115,19 @@ pub fn run_rustfmt(mode: Mode) -> Result<()> {
 
     if mode == Verify {
         run(
-            &format!("rustup run {} -- cargo fmt -- --check", TOOLCHAIN),
+            &format!("rustup run {} -- cargo fmt -- --check", toolchain()),
             ".",
         )?;
     } else {
-        run(&format!("rustup run {} -- cargo fmt", TOOLCHAIN), ".")?;
+        run(&format!("rustup run {} -- cargo fmt", toolchain()), ".")?;
     }
     Ok(())
 }
 
 fn install_rustfmt() -> Result<()> {
-    run(&format!("rustup install {}", TOOLCHAIN), ".")?;
+    run(&format!("rustup install {}", toolchain()), ".")?;
     run(
-        &format!("rustup component add rustfmt --toolchain {}", TOOLCHAIN),
+        &format!("rustup component add rustfmt --toolchain {}", toolchain()),
         ".",
     )
 }
