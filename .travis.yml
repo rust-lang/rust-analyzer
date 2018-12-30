@@ -30,6 +30,7 @@ matrix:
         - os: windows
           #if: branch = master
           before_script:
+              - git config --global core.autocrlf false
               - git add --renormalize .
           <<: *rust_build
 
