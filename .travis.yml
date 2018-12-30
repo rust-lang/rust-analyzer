@@ -29,6 +29,8 @@ matrix:
 
         - os: windows
           #if: branch = master
+          before_script:
+              - git add --renormalize .
           <<: *rust_build
 
     allow_failures:
