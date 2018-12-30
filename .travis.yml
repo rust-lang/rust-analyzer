@@ -29,9 +29,6 @@ matrix:
 
         - os: windows
           #if: branch = master
-          before_script:
-              - dos2unix ./crates/ra_syntax/tests/data/parser/**/*.txt
-              - dos2unix ./crates/ra_syntax/tests/data/parser/**/*.rs
           <<: *rust_build
 
     allow_failures:
