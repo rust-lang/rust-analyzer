@@ -50,25 +50,12 @@ impl Enum {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumData {
     pub(crate) name: Option<Name>,
-    pub(crate) variants: Vec<(Name, Arc<VariantData>)>,
 }
 
 impl EnumData {
     fn new(enum_def: &ast::EnumDef) -> Self {
         let name = enum_def.name().map(|n| n.as_name());
-        let variants = if let Some(evl) = enum_def.variant_list() {
-            evl.variants()
-                .map(|v| {
-                    (
-                        v.name().map(|n| n.as_name()).unwrap_or_else(Name::missing),
-                        Arc::new(VariantData::new(v.flavor())),
-                    )
-                })
-                .collect()
-        } else {
-            Vec::new()
-        };
-        EnumData { name, variants }
+        EnumData { name }
     }
 
     pub(crate) fn enum_data_query(

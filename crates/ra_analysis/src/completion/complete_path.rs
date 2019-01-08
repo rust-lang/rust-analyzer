@@ -3,6 +3,8 @@ use crate::{
     completion::{CompletionItem, CompletionItemKind, Completions, CompletionKind, CompletionContext},
 };
 
+use hir::EnumVariant;
+
 pub(super) fn complete_path(acc: &mut Completions, ctx: &CompletionContext) -> Cancelable<()> {
     let (path, module) = match (&ctx.path_prefix, &ctx.module) {
         (Some(path), Some(module)) => (path.clone(), module),
@@ -21,14 +23,16 @@ pub(super) fn complete_path(acc: &mut Completions, ctx: &CompletionContext) -> C
                     .add_to(acc)
             });
         }
-        hir::Def::Enum(e) => e
-            .variants(ctx.db)?
-            .into_iter()
-            .for_each(|(name, _variant)| {
+        hir::Def::Enum(e) => e.variant_ids().into_iter().for_each(|&variant_id| {
+            let enum_variant = EnumVariant::new(variant_id, e.def_id());
+            let variant_name = enum_variant.name(ctx.db);
+
+            if let Ok(Some(name)) = variant_name {
                 CompletionItem::new(CompletionKind::Reference, name.to_string())
                     .kind(CompletionItemKind::EnumVariant)
                     .add_to(acc)
-            }),
+            }
+        }),
         _ => return Ok(()),
     };
     Ok(())
