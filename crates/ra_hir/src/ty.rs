@@ -449,10 +449,12 @@ pub fn type_for_enum(db: &impl HirDatabase, s: Enum) -> Cancelable<Ty> {
     })
 }
 
-pub fn type_for_enum_variant(db: &impl HirDatabase, s: EnumVariant) -> Cancelable<Ty> {
-    // TODO: need some way to get at the enum
-    let e: Enum = unimplemented!();
-    type_for_enum(db, e)
+pub fn type_for_enum_variant(db: &impl HirDatabase, ev: EnumVariant) -> Cancelable<Ty> {
+    let enum_def = ev.enum_def_id().resolve(db)?;
+    match enum_def {
+        Def::Enum(e) => type_for_enum(db, e),
+        _ => panic!("expected enum as enum variant's ancestor"),
+    }
 }
 
 pub(super) fn type_for_def(db: &impl HirDatabase, def_id: DefId) -> Cancelable<Ty> {
@@ -791,7 +793,7 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
             Def::EnumVariant(ev) => {
                 let ty = type_for_enum_variant(self.db, ev)?;
                 (ty, Some(def_id))
-            },
+            }
             _ => (Ty::Unknown, None),
         })
     }

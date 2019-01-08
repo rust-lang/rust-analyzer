@@ -78,6 +78,7 @@ impl Module {
     pub fn defenition_source(&self, db: &impl HirDatabase) -> Cancelable<(FileId, ModuleSource)> {
         self.defenition_source_impl(db)
     }
+
     /// Returns a node which declares this module, either a `mod foo;` or a `mod foo {}`.
     /// `None` for the crate root.
     pub fn declaration_source(
@@ -91,20 +92,24 @@ impl Module {
     pub fn krate(&self, db: &impl HirDatabase) -> Cancelable<Option<Crate>> {
         self.krate_impl(db)
     }
+
     /// Topmost parent of this module. Every module has a `crate_root`, but some
     /// might miss `krate`. This can happen if a module's file is not included
     /// into any module tree of any target from Cargo.toml.
     pub fn crate_root(&self, db: &impl HirDatabase) -> Cancelable<Module> {
         self.crate_root_impl(db)
     }
+
     /// Finds a child module with the specified name.
     pub fn child(&self, db: &impl HirDatabase, name: &Name) -> Cancelable<Option<Module>> {
         self.child_impl(db, name)
     }
+
     /// Finds a parent module.
     pub fn parent(&self, db: &impl HirDatabase) -> Cancelable<Option<Module>> {
         self.parent_impl(db)
     }
+
     pub fn path_to_root(&self, db: &impl HirDatabase) -> Cancelable<Vec<Module>> {
         let mut res = vec![self.clone()];
         let mut curr = self.clone();
@@ -114,13 +119,16 @@ impl Module {
         }
         Ok(res)
     }
+
     /// Returns a `ModuleScope`: a set of items, visible in this module.
     pub fn scope(&self, db: &impl HirDatabase) -> Cancelable<ModuleScope> {
         self.scope_impl(db)
     }
+
     pub fn resolve_path(&self, db: &impl HirDatabase, path: &Path) -> Cancelable<PerNs<DefId>> {
         self.resolve_path_impl(db, path)
     }
+
     pub fn problems(
         &self,
         db: &impl HirDatabase,
@@ -160,18 +168,21 @@ impl VariantData {
             _ => &[],
         }
     }
+
     pub fn is_struct(&self) -> bool {
         match self {
             VariantData::Struct(..) => true,
             _ => false,
         }
     }
+
     pub fn is_tuple(&self) -> bool {
         match self {
             VariantData::Tuple(..) => true,
             _ => false,
         }
     }
+
     pub fn is_unit(&self) -> bool {
         match self {
             VariantData::Unit => true,
@@ -268,16 +279,25 @@ impl FnSignature {
 impl Function {
 pub struct EnumVariant {
     pub(crate) def_id: DefId,
+    pub(crate) enum_def_id: DefId,
 }
 
 impl EnumVariant {
-    pub(crate) fn new(def_id: DefId) -> Self {
-        EnumVariant { def_id }
+    pub(crate) fn new(def_id: DefId, enum_def_id: DefId) -> Self {
+        EnumVariant {
+            def_id,
+            enum_def_id,
+        }
     }
 
     pub fn def_id(&self) -> DefId {
         self.def_id
     }
+
+    pub fn enum_def_id(&self) -> DefId {
+        self.enum_def_id
+    }
+
     pub fn name(&self, db: &impl HirDatabase) -> Cancelable<Option<Name>> {
         Ok(db.enum_variant_data(self.def_id)?.name.clone())
     }
