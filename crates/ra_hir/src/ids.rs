@@ -187,6 +187,9 @@ impl DefId {
                     .expect("enum node should have item id");
                 let variants = file_items[enum_item_id]
                     .children()
+                    .find(|node| node.kind() == SyntaxKind::ENUM_VARIANT_LIST)
+                    .unwrap()
+                    .children()
                     .filter(|node| node.kind() == SyntaxKind::ENUM_VARIANT)
                     .map(|node| {
                         let variant_item_id = file_items.id_of(file_id, node);
@@ -216,7 +219,9 @@ impl DefId {
                     .expect("enum variant node should have item id");
                 let enum_node: &SyntaxNode = file_items[variant_item_id]
                     .parent()
-                    .expect("enum variant should have enum ancestor");
+                    .expect("enum variant should have enum variant list ancestor")
+                    .parent()
+                    .expect("enum variant list should have enum ancestor");
                 let enum_item_id = file_items.id_of(file_id, enum_node);
                 let enum_source_item_id = SourceItemId {
                     item_id: Some(enum_item_id),
@@ -270,7 +275,6 @@ impl DefKind {
             SyntaxKind::MODULE => PerNs::types(DefKind::Module),
             SyntaxKind::STRUCT_DEF => PerNs::both(DefKind::Struct, DefKind::StructCtor),
             SyntaxKind::ENUM_DEF => PerNs::types(DefKind::Enum),
-            SyntaxKind::ENUM_VARIANT => PerNs::types(DefKind::EnumVariant),
             // These define items, but don't have their own DefKinds yet:
             SyntaxKind::TRAIT_DEF => PerNs::types(DefKind::Item),
             SyntaxKind::TYPE_DEF => PerNs::types(DefKind::Item),

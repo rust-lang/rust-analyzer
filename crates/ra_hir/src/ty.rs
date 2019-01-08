@@ -453,7 +453,7 @@ pub fn type_for_enum_variant(db: &impl HirDatabase, ev: EnumVariant) -> Cancelab
     let enum_def = ev.enum_def_id().resolve(db)?;
     match enum_def {
         Def::Enum(e) => type_for_enum(db, e),
-        _ => panic!("expected enum as enum variant's ancestor"),
+        _ => unreachable!("expected enum as enum variant's ancestor"),
     }
 }
 

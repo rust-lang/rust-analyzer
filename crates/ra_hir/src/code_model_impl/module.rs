@@ -139,25 +139,27 @@ impl Module {
             let module = match curr.resolve(db)? {
                 Def::Module(it) => it,
                 Def::Enum(e) => {
-                    if let Some(suffix) = segments.get(idx + 1) {
-                        assert!(segments.len() == idx);
-
+                    if segments.len() == idx + 1 {
+                        // enum variant
                         let matching_variant = e
                             .variant_ids()
                             .iter()
-                            .map(|&variant_id| {
-                                let variant = EnumVariant::new(variant_id, e.def_id());
-                                let variant_name: Name = variant
+                            .filter_map(|&variant_id| {
+                                EnumVariant::new(variant_id, e.def_id())
                                     .name(db)
-                                    .expect("enum variant should have a name (1)")
-                                    .expect("enum variant should have a name (2)");
-                                (variant_id, variant_name)
+                                    .ok()
+                                    .and_then(|variant_name| variant_name.map(|n| (variant_id, n)))
                             })
-                            .find(|(_variant_id, variant_name)| variant_name == suffix)
-                            .expect("enum does not have a variant with given name");
+                            .find(|(_variant_id, variant_name)| variant_name == name);
 
-                        return Ok(PerNs::types(matching_variant.0));
+                        if let Some(variant) = matching_variant {
+                            return Ok(PerNs::both(variant.0, e.def_id()));
+                        } else {
+                            return Ok(PerNs::none());
+                        }
                     } else {
+                        // enum
+                        assert_eq!(segments.len(), idx);
                         return Ok(PerNs::types(e.def_id()));
                     }
                 }
