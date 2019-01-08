@@ -42,8 +42,8 @@ impl StructData {
 }
 
 impl Enum {
-    pub(crate) fn new(def_id: DefId) -> Self {
-        Enum { def_id }
+    pub(crate) fn new(def_id: DefId, variants: Vec<DefId>) -> Self {
+        Enum { def_id, variants }
     }
 }
 

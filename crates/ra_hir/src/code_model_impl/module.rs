@@ -2,9 +2,8 @@ use ra_db::{Cancelable, SourceRootId, FileId};
 use ra_syntax::{ast, SyntaxNode, AstNode, TreePtr};
 
 use crate::{
-    Module, ModuleSource, Problem,
-    Crate, DefId, DefLoc, DefKind, Name, Path, PathKind, PerNs, Def,
-    module_tree::ModuleId,
+    Module, ModuleSource, Problem, EnumVariant,
+    Crate, DefId, DefLoc, DefKind, Name, Path, PathKind, PerNs, Def, ModuleId,
     nameres::ModuleScope,
     db::HirDatabase,
 };
@@ -140,10 +139,24 @@ impl Module {
             let module = match curr.resolve(db)? {
                 Def::Module(it) => it,
                 Def::Enum(e) => {
-                    if let Some(variant_name) = segments.get(idx + 1) {
+                    if let Some(suffix) = segments.get(idx + 1) {
                         assert!(segments.len() == idx);
-                        // TODO: get variant def id
-                        return Ok(PerNs::types(e.def_id()));
+
+                        let matching_variant = e
+                            .variant_ids()
+                            .iter()
+                            .map(|&variant_id| {
+                                let variant = EnumVariant::new(variant_id, e.def_id());
+                                let variant_name: Name = variant
+                                    .name(db)
+                                    .expect("enum variant should have a name (1)")
+                                    .expect("enum variant should have a name (2)");
+                                (variant_id, variant_name)
+                            })
+                            .find(|(_variant_id, variant_name)| variant_name == suffix)
+                            .expect("enum does not have a variant with given name");
+
+                        return Ok(PerNs::types(matching_variant.0));
                     } else {
                         return Ok(PerNs::types(e.def_id()));
                     }

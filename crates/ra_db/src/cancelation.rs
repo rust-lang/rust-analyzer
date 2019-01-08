@@ -11,7 +11,7 @@
 //! In this situation, we want to react to modification as quckly as possible.
 //! At the same time, in-progress results are not very interesting, because they
 //! are invalidated by the edit anyway. So, we first cancel all in-flight
-//! requests, and then apply modification knowing that it won't intrfere with
+//! requests, and then apply modification knowing that it won't interfere with
 //! any background processing (this bit is handled by salsa, see
 //! `BaseDatabase::check_canceled` method).
 

@@ -176,7 +176,33 @@ impl DefId {
                 Def::Struct(struct_def)
             }
             DefKind::Enum => {
-                let enum_def = Enum::new(self);
+                // FIXME: this isn't great. all this work just to get the `DefId`
+                // of the ancestor `Enum`
+                // TODO: deduplicate!
+                let file_id = loc.source_item_id.file_id;
+                let file_items = db.file_items(file_id);
+                let enum_item_id = loc
+                    .source_item_id
+                    .item_id
+                    .expect("enum node should have item id");
+                let variants = file_items[enum_item_id]
+                    .children()
+                    .filter(|node| node.kind() == SyntaxKind::ENUM_VARIANT)
+                    .map(|node| {
+                        let variant_item_id = file_items.id_of(file_id, node);
+                        let variant_source_item_id = SourceItemId {
+                            item_id: Some(variant_item_id),
+                            ..loc.source_item_id
+                        };
+                        let variant_loc = DefLoc {
+                            kind: DefKind::EnumVariant,
+                            source_item_id: variant_source_item_id,
+                            ..loc
+                        };
+                        variant_loc.id(db)
+                    });
+
+                let enum_def = Enum::new(self, variants.collect());
                 Def::Enum(enum_def)
             }
             DefKind::EnumVariant => {
@@ -187,7 +213,7 @@ impl DefId {
                 let variant_item_id = loc
                     .source_item_id
                     .item_id
-                    .expect("enum node should have item id");
+                    .expect("enum variant node should have item id");
                 let enum_node: &SyntaxNode = file_items[variant_item_id]
                     .parent()
                     .expect("enum variant should have enum ancestor");
@@ -203,6 +229,7 @@ impl DefId {
                 };
                 let enum_def_id = enum_loc.id(db);
                 let enum_variant_def = EnumVariant::new(self, enum_def_id);
+
                 Def::EnumVariant(enum_variant_def)
             }
             DefKind::StructCtor => Def::Item,

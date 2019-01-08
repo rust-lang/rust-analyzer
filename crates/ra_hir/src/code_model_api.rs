@@ -213,6 +213,7 @@ impl Struct {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Enum {
     pub(crate) def_id: DefId,
+    pub(crate) variants: Vec<DefId>,
 }
 
 impl Enum {
@@ -224,8 +225,13 @@ impl Enum {
         Ok(db.enum_data(self.def_id)?.name.clone())
     }
 
+    // TODO: deprecate in favour of variant_ids?
     pub fn variants(&self, db: &impl HirDatabase) -> Cancelable<Vec<(Name, Arc<VariantData>)>> {
         Ok(db.enum_data(self.def_id)?.variants.clone())
+    }
+
+    pub fn variant_ids(&self) -> &[DefId] {
+        &self.variants
     }
 }
 
