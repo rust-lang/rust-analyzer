@@ -2,10 +2,14 @@ use ra_db::{SourceRootId, LocationIntener, Cancelable, FileId};
 use ra_syntax::{TreePtr, SyntaxKind, SyntaxNode, SourceFile, AstNode, ast};
 use ra_arena::{Arena, RawId, impl_arena_id};
 
+<<<<<<< HEAD
 use crate::{
     HirDatabase, PerNs, Def, Function, Struct, Enum, ImplBlock, Crate,
     module_tree::ModuleId,
 };
+=======
+use crate::{HirDatabase, PerNs, ModuleId, Def, Function, Struct, Enum, EnumVariant, ImplBlock, Crate};
+>>>>>>> 98252869... Implement type inference for Enum Variants (WIP)
 
 use crate::code_model_api::Module;
 
@@ -145,6 +149,7 @@ pub(crate) enum DefKind {
     Function,
     Struct,
     Enum,
+    EnumVariant,
     Item,
 
     StructCtor,
@@ -173,6 +178,10 @@ impl DefId {
             DefKind::Enum => {
                 let enum_def = Enum::new(self);
                 Def::Enum(enum_def)
+            }
+            DefKind::EnumVariant => {
+                let enum_variant_def = EnumVariant::new(self);
+                Def::EnumVariant(enum_variant_def)
             }
             DefKind::StructCtor => Def::Item,
             DefKind::Item => Def::Item,
@@ -212,6 +221,7 @@ impl DefKind {
             SyntaxKind::MODULE => PerNs::types(DefKind::Module),
             SyntaxKind::STRUCT_DEF => PerNs::both(DefKind::Struct, DefKind::StructCtor),
             SyntaxKind::ENUM_DEF => PerNs::types(DefKind::Enum),
+            SyntaxKind::ENUM_VARIANT => PerNs::types(DefKind::EnumVariant),
             // These define items, but don't have their own DefKinds yet:
             SyntaxKind::TRAIT_DEF => PerNs::types(DefKind::Item),
             SyntaxKind::TYPE_DEF => PerNs::types(DefKind::Item),
@@ -254,7 +264,9 @@ impl SourceFileItems {
 
     fn init(&mut self, source_file: &SourceFile) {
         source_file.syntax().descendants().for_each(|it| {
-            if let Some(module_item) = ast::ModuleItem::cast(it) {
+            if let Some(enum_variant) = ast::EnumVariant::cast(it) {
+                self.alloc(enum_variant.syntax().to_owned());
+            } else if let Some(module_item) = ast::ModuleItem::cast(it) {
                 self.alloc(module_item.syntax().to_owned());
             } else if let Some(macro_call) = ast::MacroCall::cast(it) {
                 self.alloc(macro_call.syntax().to_owned());

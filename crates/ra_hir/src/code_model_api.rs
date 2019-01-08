@@ -238,12 +238,6 @@ impl FnSignature {
     pub fn ret_type(&self) -> &TypeRef {
         &self.ret_type
     }
-}
-
-impl Function {
-    pub fn def_id(&self) -> DefId {
-        self.def_id
-    }
 
     pub fn source(&self, db: &impl HirDatabase) -> TreePtr<ast::FnDef> {
         self.source_impl(db)
@@ -268,5 +262,27 @@ impl Function {
 
     pub fn infer(&self, db: &impl HirDatabase) -> Cancelable<Arc<InferenceResult>> {
         db.infer(self.def_id)
+    }    
+}
+
+impl Function {
+pub struct EnumVariant {
+    pub(crate) def_id: DefId,
+}
+
+impl EnumVariant {
+    pub(crate) fn new(def_id: DefId) -> Self {
+        EnumVariant { def_id }
+    }
+
+    pub fn def_id(&self) -> DefId {
+        self.def_id
+    }
+    pub fn name(&self, db: &impl HirDatabase) -> Cancelable<Option<Name>> {
+        Ok(db.enum_variant_data(self.def_id)?.name.clone())
+    }
+
+    pub fn variant_data(&self, db: &impl HirDatabase) -> Cancelable<Arc<VariantData>> {
+        Ok(db.enum_variant_data(self.def_id)?.variant_data.clone())
     }
 }

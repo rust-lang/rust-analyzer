@@ -134,7 +134,7 @@ impl Module {
             };
             let module = match curr.resolve(db)? {
                 Def::Module(it) => it,
-                // TODO here would be the place to handle enum variants...
+                Def::EnumVariant(ev) => return Ok(PerNs::values(ev.def_id)),
                 _ => return Ok(PerNs::none()),
             };
             let scope = module.scope(db)?;

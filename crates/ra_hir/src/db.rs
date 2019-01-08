@@ -12,7 +12,7 @@ use crate::{
     module_tree::{ModuleId, ModuleTree},
     nameres::{ItemMap, InputModuleItems},
     ty::{InferenceResult, Ty},
-    adt::{StructData, EnumData},
+    adt::{StructData, EnumData, EnumVariantData},
     impl_block::ModuleImplBlocks,
 };
 
@@ -44,6 +44,11 @@ pub trait HirDatabase: SyntaxDatabase
     fn enum_data(def_id: DefId) -> Cancelable<Arc<EnumData>> {
         type EnumDataQuery;
         use fn crate::adt::EnumData::enum_data_query;
+    }
+
+    fn enum_variant_data(def_id: DefId) -> Cancelable<Arc<EnumVariantData>> {
+        type EnumVariantDataQuery;
+        use fn crate::adt::EnumVariantData::enum_variant_data_query;
     }
 
     fn infer(def_id: DefId) -> Cancelable<Arc<InferenceResult>> {
@@ -80,10 +85,12 @@ pub trait HirDatabase: SyntaxDatabase
         type InputModuleItemsQuery;
         use fn query_definitions::input_module_items;
     }
+
     fn item_map(source_root_id: SourceRootId) -> Cancelable<Arc<ItemMap>> {
         type ItemMapQuery;
         use fn query_definitions::item_map;
     }
+
     fn module_tree(source_root_id: SourceRootId) -> Cancelable<Arc<ModuleTree>> {
         type ModuleTreeQuery;
         use fn crate::module_tree::ModuleTree::module_tree_query;

@@ -56,6 +56,20 @@ pub use self::code_model_api::{
     Crate, CrateDependency,
     Def,
     Module, ModuleSource, Problem,
+<<<<<<< HEAD
     Struct, Enum, VariantData, StructField,
     Function, FnSignature,
 };
+=======
+    Struct, Enum, EnumVariant, VariantData, StructField,
+};
+
+pub enum Def {
+    Module(Module),
+    Function(Function),
+    Struct(Struct),
+    Enum(Enum),
+    EnumVariant(EnumVariant),
+    Item,
+}
+>>>>>>> 98252869... Implement type inference for Enum Variants (WIP)

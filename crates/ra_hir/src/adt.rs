@@ -83,6 +83,34 @@ impl EnumData {
     }
 }
 
+// FIXME: simply reuse StructData?
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumVariantData {
+    pub(crate) name: Option<Name>,
+    pub(crate) variant_data: Arc<VariantData>,
+}
+
+impl EnumVariantData {
+    fn new(variant_def: &ast::EnumVariant) -> EnumVariantData {
+        let name = variant_def.name().map(|n| n.as_name());
+        let variant_data = VariantData::new(variant_def.flavor());
+        let variant_data = Arc::new(variant_data);
+        EnumVariantData { name, variant_data }
+    }
+
+    pub(crate) fn enum_variant_data_query(
+        db: &impl HirDatabase,
+        def_id: DefId,
+    ) -> Cancelable<Arc<EnumVariantData>> {
+        let def_loc = def_id.loc(db);
+        assert!(def_loc.kind == DefKind::EnumVariant);
+        let syntax = db.file_item(def_loc.source_item_id);
+        let variant_def = ast::EnumVariant::cast(&syntax)
+            .expect("enum variant def should point to EnumVariant node");
+        Ok(Arc::new(EnumVariantData::new(variant_def)))
+    }
+}
+
 impl VariantData {
     fn new(flavor: StructFlavor) -> Self {
         match flavor {
