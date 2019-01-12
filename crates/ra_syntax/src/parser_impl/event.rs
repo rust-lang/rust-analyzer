@@ -251,15 +251,26 @@ fn n_attached_trivias<'a>(
     match kind {
         CONST_DEF | TYPE_DEF | STRUCT_DEF | ENUM_DEF | FN_DEF | TRAIT_DEF | MODULE => {
             let mut res = 0;
+            // Whether we have stopped and are assumming that all later trivia is floating
+            let mut stopped = false;
             for (i, (kind, text)) in trivias.enumerate() {
                 match kind {
                     WHITESPACE => {
-                        if text.contains("\n\n") {
-                            break;
+                        if text.matches("\n").count() >= 2 && !stopped {
+                            res = i;
+                            stopped = true;
                         }
                     }
                     COMMENT => {
-                        res = i + 1;
+                        use crate::ast::CommentFlavor::{self, *};
+                        match CommentFlavor::of_str(text) {
+                            Doc => stopped = false,
+                            ModuleDoc => stopped = true,
+                            _ => {}
+                        }
+                        if !stopped {
+                            res = i + 1;
+                        }
                     }
                     _ => (),
                 }

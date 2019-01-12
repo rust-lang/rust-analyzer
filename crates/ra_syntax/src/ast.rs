@@ -163,16 +163,7 @@ impl Attr {
 
 impl Comment {
     pub fn flavor(&self) -> CommentFlavor {
-        let text = self.text();
-        if text.starts_with("///") {
-            CommentFlavor::Doc
-        } else if text.starts_with("//!") {
-            CommentFlavor::ModuleDoc
-        } else if text.starts_with("//") {
-            CommentFlavor::Line
-        } else {
-            CommentFlavor::Multiline
-        }
+        CommentFlavor::of_str(self.text())
     }
 
     pub fn is_doc_comment(&self) -> bool {
@@ -208,6 +199,18 @@ impl CommentFlavor {
             Doc => "///",
             ModuleDoc => "//!",
             Multiline => "/*",
+        }
+    }
+
+    pub fn of_str(text: &str) -> Self {
+        if text.starts_with("///") {
+            CommentFlavor::Doc
+        } else if text.starts_with("//!") {
+            CommentFlavor::ModuleDoc
+        } else if text.starts_with("//") {
+            CommentFlavor::Line
+        } else {
+            CommentFlavor::Multiline
         }
     }
 
@@ -613,7 +616,7 @@ impl SelfParam {
 fn test_doc_comment_of_items() {
     let file = SourceFile::parse(
         r#"
-        //! doc
+        /// doc
         // non-doc
         mod foo {}
         "#,
