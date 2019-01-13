@@ -6,6 +6,7 @@
 mod flip_comma;
 mod add_derive;
 mod add_impl;
+mod introduce_match;
 mod introduce_variable;
 mod change_visibility;
 mod split_import;
@@ -24,6 +25,7 @@ pub use self::{
     flip_comma::flip_comma,
     add_derive::add_derive,
     add_impl::add_impl,
+    introduce_match::introduce_match,
     introduce_variable::introduce_variable,
     change_visibility::change_visibility,
     split_import::split_import,
@@ -37,6 +39,7 @@ pub fn assists(file: &SourceFile, range: TextRange) -> Vec<LocalEdit> {
         flip_comma,
         add_derive,
         add_impl,
+        introduce_match,
         introduce_variable,
         change_visibility,
         split_import,
