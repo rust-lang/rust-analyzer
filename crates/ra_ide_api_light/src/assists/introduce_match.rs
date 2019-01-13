@@ -1,14 +1,15 @@
-use ra_syntax::TextUnit;
+use ra_syntax::{ast::{self, AstNode}, TextUnit};
 
 use crate::assists::{AssistCtx, Assist};
 
 pub fn introduce_match<'a>(ctx: AssistCtx) -> Option<Assist> {
-    let expr = ctx.covering_node();
+    let node = ctx.covering_node();
+    let _expr = node.ancestors().filter_map(ast::Expr::cast).next()?;
 
     ctx.build("introduce match", move |edit| {
-        let first_part = format!("match {} {{\n    ", expr.text());
+        let first_part = format!("match {} {{\n    ", node.text());
         let match_expr = format!("{}_ => (),\n}}", first_part);
-        edit.replace_node_and_indent(expr, match_expr.into_boxed_str());
+        edit.replace_node_and_indent(node, match_expr.into_boxed_str());
 
         // FIXME: Set cursor at beginning of first match arm.
         // The following doesn't work because of re-indentation:
@@ -16,7 +17,7 @@ pub fn introduce_match<'a>(ctx: AssistCtx) -> Option<Assist> {
         // edit.set_cursor(expr.range().start() + TextUnit::of_str(&first_part));
         //
         // Workaround:
-        edit.set_cursor(expr.range().start() + TextUnit::of_str("match "));
+        edit.set_cursor(node.range().start() + TextUnit::of_str("match "));
     })
 }
 
