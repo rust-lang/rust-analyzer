@@ -470,7 +470,7 @@ impl Analysis {
         &self,
         position: FilePosition,
         new_name: &str,
-    ) -> Cancelable<Vec<SourceFileEdit>> {
+    ) -> Cancelable<Option<SourceChange>> {
         self.with_db(|db| db.rename(position, new_name))?
     }
 
