@@ -361,7 +361,7 @@ fn test(x: &str, y: isize) {
 }
 
 #[test]
-fn infer_simple_pattern() {
+fn infer_pattern() {
     check_inference(
         r#"
 fn test(x: &i32) {
@@ -383,6 +383,7 @@ fn test(x: &i32) {
     let ref ref_to_x = x;
     let mut mut_x = x;
     let ref mut mut_ref_to_x = x;
+    let k = mut_ref_to_x;
 }
 "#,
         "pattern.txt",
@@ -410,6 +411,9 @@ fn test() {
         E::A { x } => x,
         E::B => 1,
     };
+
+    let ref d @ E::A { .. } = e;
+    d;
 }
 "#,
         "adt_pattern.txt",
