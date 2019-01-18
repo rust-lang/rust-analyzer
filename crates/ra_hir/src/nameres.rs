@@ -14,23 +14,20 @@
 //! modifications (that is, typing inside a function should not change IMIs),
 //! so that the results of name resolution can be preserved unless the module
 //! structure itself is modified.
+pub(crate) mod lower;
+use lower::*;
+
 use std::sync::Arc;
 
 use rustc_hash::{FxHashMap, FxHashSet};
-use ra_syntax::{
-    TextRange,
-    SyntaxKind::{self, *},
-    ast::{self, AstNode}
-};
-use ra_db::{SourceRootId, FileId};
+use ra_syntax::SyntaxKind::*;
+use ra_db::SourceRootId;
 
 use crate::{
-    HirFileId,
     DefId, DefLoc, DefKind,
-    SourceItemId, SourceFileItemId, SourceFileItems,
     Path, PathKind,
     HirDatabase, Crate,
-    Name, AsName,
+    Name,
     module_tree::{ModuleId, ModuleTree},
 };
 
@@ -56,64 +53,6 @@ impl ModuleScope {
     }
 }
 
-/// A set of items and imports declared inside a module, without relation to
-/// other modules.
-///
-/// This sits in-between raw syntax and name resolution and allows us to avoid
-/// recomputing name res: if two instance of `InputModuleItems` are the same, we
-/// can avoid redoing name resolution.
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct InputModuleItems {
-    pub(crate) items: Vec<ModuleItem>,
-    imports: Vec<Import>,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub(crate) struct ModuleItem {
-    pub(crate) id: SourceItemId,
-    pub(crate) name: Name,
-    kind: SyntaxKind,
-    vis: Vis,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum Vis {
-    // Priv,
-    Other,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Import {
-    path: Path,
-    kind: ImportKind,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NamedImport {
-    pub file_item_id: SourceFileItemId,
-    pub relative_range: TextRange,
-}
-
-impl NamedImport {
-    // FIXME: this is only here for one use-case in completion. Seems like a
-    // pretty gross special case.
-    pub fn range(&self, db: &impl HirDatabase, file_id: FileId) -> TextRange {
-        let source_item_id = SourceItemId {
-            file_id: file_id.into(),
-            item_id: Some(self.file_item_id),
-        };
-        let syntax = db.file_item(source_item_id);
-        let offset = syntax.range().start();
-        self.relative_range + offset
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum ImportKind {
-    Glob,
-    Named(NamedImport),
-}
-
 /// `Resolution` is basically `DefId` atm, but it should account for stuff like
 /// multiple namespaces, ambiguity and errors.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,7 +60,7 @@ pub struct Resolution {
     /// None for unresolved
     pub def_id: PerNs<DefId>,
     /// ident by whitch this is imported into local scope.
-    pub import: Option<NamedImport>,
+    pub import: Option<ImportId>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -210,92 +149,12 @@ impl<T> PerNs<T> {
     }
 }
 
-impl InputModuleItems {
-    pub(crate) fn add_item(
-        &mut self,
-        file_id: HirFileId,
-        file_items: &SourceFileItems,
-        item: &ast::ModuleItem,
-    ) -> Option<()> {
-        match item.kind() {
-            ast::ModuleItemKind::StructDef(it) => {
-                self.items.push(ModuleItem::new(file_id, file_items, it)?)
-            }
-            ast::ModuleItemKind::EnumDef(it) => {
-                self.items.push(ModuleItem::new(file_id, file_items, it)?)
-            }
-            ast::ModuleItemKind::FnDef(it) => {
-                self.items.push(ModuleItem::new(file_id, file_items, it)?)
-            }
-            ast::ModuleItemKind::TraitDef(it) => {
-                self.items.push(ModuleItem::new(file_id, file_items, it)?)
-            }
-            ast::ModuleItemKind::TypeDef(it) => {
-                self.items.push(ModuleItem::new(file_id, file_items, it)?)
-            }
-            ast::ModuleItemKind::ImplBlock(_) => {
-                // impls don't define items
-            }
-            ast::ModuleItemKind::UseItem(it) => self.add_use_item(file_items, it),
-            ast::ModuleItemKind::ExternCrateItem(_) => {
-                // TODO
-            }
-            ast::ModuleItemKind::ConstDef(it) => {
-                self.items.push(ModuleItem::new(file_id, file_items, it)?)
-            }
-            ast::ModuleItemKind::StaticDef(it) => {
-                self.items.push(ModuleItem::new(file_id, file_items, it)?)
-            }
-            ast::ModuleItemKind::Module(it) => {
-                self.items.push(ModuleItem::new(file_id, file_items, it)?)
-            }
-        }
-        Some(())
-    }
-
-    fn add_use_item(&mut self, file_items: &SourceFileItems, item: &ast::UseItem) {
-        let file_item_id = file_items.id_of_unchecked(item.syntax());
-        let start_offset = item.syntax().range().start();
-        Path::expand_use_item(item, |path, range| {
-            let kind = match range {
-                None => ImportKind::Glob,
-                Some(range) => ImportKind::Named(NamedImport {
-                    file_item_id,
-                    relative_range: range - start_offset,
-                }),
-            };
-            self.imports.push(Import { kind, path })
-        })
-    }
-}
-
-impl ModuleItem {
-    fn new(
-        file_id: HirFileId,
-        file_items: &SourceFileItems,
-        item: &impl ast::NameOwner,
-    ) -> Option<ModuleItem> {
-        let name = item.name()?.as_name();
-        let kind = item.syntax().kind();
-        let vis = Vis::Other;
-        let item_id = Some(file_items.id_of_unchecked(item.syntax()));
-        let id = SourceItemId { file_id, item_id };
-        let res = ModuleItem {
-            id,
-            name,
-            kind,
-            vis,
-        };
-        Some(res)
-    }
-}
-
 pub(crate) struct Resolver<'a, DB> {
     db: &'a DB,
-    input: &'a FxHashMap<ModuleId, Arc<InputModuleItems>>,
+    input: &'a FxHashMap<ModuleId, Arc<LoweredModule>>,
     source_root: SourceRootId,
     module_tree: Arc<ModuleTree>,
-    processed_imports: FxHashSet<(ModuleId, usize)>,
+    processed_imports: FxHashSet<(ModuleId, ImportId)>,
     result: ItemMap,
 }
 
@@ -305,7 +164,7 @@ where
 {
     pub(crate) fn new(
         db: &'a DB,
-        input: &'a FxHashMap<ModuleId, Arc<InputModuleItems>>,
+        input: &'a FxHashMap<ModuleId, Arc<LoweredModule>>,
         source_root: SourceRootId,
         module_tree: Arc<ModuleTree>,
     ) -> Resolver<'a, DB> {
@@ -338,7 +197,7 @@ where
         self.result
     }
 
-    fn populate_module(&mut self, module_id: ModuleId, input: Arc<InputModuleItems>) {
+    fn populate_module(&mut self, module_id: ModuleId, input: Arc<LoweredModule>) {
         let mut module_items = ModuleScope::default();
 
         // Populate extern crates prelude
@@ -361,14 +220,14 @@ where
                 }
             };
         }
-        for import in input.imports.iter() {
-            if let Some(name) = import.path.segments.iter().last() {
-                if let ImportKind::Named(import) = import.kind {
+        for (import_id, import_data) in input.imports.iter() {
+            if let Some(name) = import_data.path.segments.iter().last() {
+                if !import_data.is_glob {
                     module_items.items.insert(
                         name.clone(),
                         Resolution {
                             def_id: PerNs::none(),
-                            import: Some(import),
+                            import: Some(import_id),
                         },
                     );
                 }
@@ -422,23 +281,27 @@ where
     }
 
     fn resolve_imports(&mut self, module_id: ModuleId) {
-        for (i, import) in self.input[&module_id].imports.iter().enumerate() {
-            if self.processed_imports.contains(&(module_id, i)) {
+        for (import_id, import_data) in self.input[&module_id].imports.iter() {
+            if self.processed_imports.contains(&(module_id, import_id)) {
                 // already done
                 continue;
             }
-            if self.resolve_import(module_id, import) {
-                log::debug!("import {:?} resolved (or definite error)", import);
-                self.processed_imports.insert((module_id, i));
+            if self.resolve_import(module_id, import_id, import_data) {
+                log::debug!("import {:?} resolved (or definite error)", import_id);
+                self.processed_imports.insert((module_id, import_id));
             }
         }
     }
 
-    fn resolve_import(&mut self, module_id: ModuleId, import: &Import) -> bool {
+    fn resolve_import(
+        &mut self,
+        module_id: ModuleId,
+        import_id: ImportId,
+        import: &ImportData,
+    ) -> bool {
         log::debug!("resolving import: {:?}", import);
-        let ptr = match import.kind {
-            ImportKind::Glob => return false,
-            ImportKind::Named(ptr) => ptr,
+        if import.is_glob {
+            return false;
         };
 
         let mut curr: ModuleId = match import.path.kind {
@@ -499,7 +362,7 @@ where
                                 self.update(module_id, |items| {
                                     let res = Resolution {
                                         def_id,
-                                        import: Some(ptr),
+                                        import: Some(import_id),
                                     };
                                     items.items.insert(name.clone(), res);
                                 });
@@ -535,7 +398,7 @@ where
                 self.update(module_id, |items| {
                     let res = Resolution {
                         def_id,
-                        import: Some(ptr),
+                        import: Some(import_id),
                     };
                     items.items.insert(name.clone(), res);
                 })
