@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use hir::{
-    self, Problem, source_binder,
+    self, Problem, source_binder
 };
 use ra_db::{
     FilesDatabase, SourceRoot, SourceRootId, SyntaxDatabase,
@@ -9,16 +9,16 @@ use ra_db::{
 };
 use ra_ide_api_light::{self, assists, LocalEdit, Severity};
 use ra_syntax::{
-    TextRange, AstNode, SourceFile,
-    ast::{self, NameOwner},
-    algo::find_node_at_offset,
+    algo::find_node_at_offset, ast::{self, NameOwner}, AstNode,
+    SourceFile,
+    TextRange,
 };
 
 use crate::{
     AnalysisChange,
     CrateId, db, Diagnostic, FileId, FilePosition, FileRange, FileSystemEdit,
     Query, RootChange, SourceChange, SourceFileEdit,
-    symbol_index::{LibrarySymbolsQuery, FileSymbol},
+    symbol_index::{FileSymbol, LibrarySymbolsQuery},
 };
 
 impl db::RootDatabase {
@@ -110,6 +110,7 @@ impl db::RootDatabase {
         };
         vec![krate.crate_id()]
     }
+
     pub(crate) fn find_all_refs(&self, position: FilePosition) -> Vec<(FileId, TextRange)> {
         let file = self.source_file(position.file_id);
         // Find the binding associated with the offset
@@ -230,19 +231,6 @@ impl db::RootDatabase {
             .collect()
     }
 
-    pub(crate) fn rename(&self, position: FilePosition, new_name: &str) -> Vec<SourceFileEdit> {
-        self.find_all_refs(position)
-            .iter()
-            .map(|(file_id, text_range)| SourceFileEdit {
-                file_id: *file_id,
-                edit: {
-                    let mut builder = ra_text_edit::TextEditBuilder::default();
-                    builder.replace(*text_range, new_name.into());
-                    builder.finish()
-                },
-            })
-            .collect::<Vec<_>>()
-    }
     pub(crate) fn index_resolve(&self, name_ref: &ast::NameRef) -> Vec<FileSymbol> {
         let name = name_ref.text();
         let mut query = Query::new(name.to_string());

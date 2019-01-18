@@ -12,7 +12,6 @@ use gen_lsp_server::{
 use lsp_types::NumberOrString;
 use ra_ide_api::{Canceled, FileId, LibraryData};
 use ra_vfs::VfsTask;
-use rayon;
 use rustc_hash::FxHashSet;
 use serde::{de::DeserializeOwned, Serialize};
 use threadpool::ThreadPool;
@@ -412,10 +411,7 @@ struct PoolDispatcher<'a> {
 }
 
 impl<'a> PoolDispatcher<'a> {
-    fn on<'b, R>(
-        &'b mut self,
-        f: fn(ServerWorld, R::Params) -> Result<R::Result>,
-    ) -> Result<&'b mut Self>
+    fn on<R>(&mut self, f: fn(ServerWorld, R::Params) -> Result<R::Result>) -> Result<&mut Self>
     where
         R: req::Request,
         R::Params: DeserializeOwned + Send + 'static,
