@@ -23,6 +23,7 @@ mod hover;
 mod call_info;
 mod syntax_highlighting;
 mod parent_module;
+mod rename;
 
 use std::{fmt, sync::Arc};
 
@@ -464,8 +465,8 @@ impl Analysis {
         &self,
         position: FilePosition,
         new_name: &str,
-    ) -> Cancelable<Vec<SourceFileEdit>> {
-        self.with_db(|db| db.rename(position, new_name))
+    ) -> Cancelable<Option<SourceChange>> {
+        self.with_db(|db| rename::rename(db, position, new_name))
     }
 
     fn with_db<F: FnOnce(&db::RootDatabase) -> T + std::panic::UnwindSafe, T>(

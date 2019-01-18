@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use gen_lsp_server::ErrorCode;
 use lsp_types::{
     CodeActionResponse, CodeLens, Command, Diagnostic, DiagnosticSeverity,
@@ -7,7 +5,7 @@ use lsp_types::{
     FoldingRangeKind, FoldingRangeParams, Hover, HoverContents, Location, MarkupContent,
     MarkupKind, ParameterInformation, ParameterLabel, Position, PrepareRenameResponse, Range,
     RenameParams, SignatureInformation, SymbolInformation, TextDocumentIdentifier, TextEdit,
-    WorkspaceEdit,
+    WorkspaceEdit
 };
 use ra_ide_api::{
     FileId, FilePosition, FileRange, FoldKind, Query, RangeInfo, RunnableKind, Severity,
@@ -467,27 +465,17 @@ pub fn handle_rename(world: ServerWorld, params: RenameParams) -> Result<Option<
         .into());
     }
 
-    let renames = world
+    let optional_change = world
         .analysis()
         .rename(FilePosition { file_id, offset }, &*params.new_name)?;
-    if renames.is_empty() {
-        return Ok(None);
-    }
+    let change = match optional_change {
+        None => return Ok(None),
+        Some(it) => it,
+    };
 
-    let mut changes = HashMap::new();
-    for edit in renames {
-        changes
-            .entry(file_id.try_conv_with(&world)?)
-            .or_insert_with(Vec::new)
-            .extend(edit.edit.conv_with(&line_index));
-    }
+    let source_change_req = change.try_conv_with(&world)?;
 
-    Ok(Some(WorkspaceEdit {
-        changes: Some(changes),
-
-        // TODO: return this instead if client/server support it. See #144
-        document_changes: None,
-    }))
+    Ok(Some(source_change_req.workspace_edit))
 }
 
 pub fn handle_references(
