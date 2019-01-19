@@ -67,6 +67,7 @@ pub(crate) enum CompletionKind {
     /// "Secret sauce" completions.
     Magic,
     Snippet,
+    Postfix,
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -176,7 +177,6 @@ impl<'a> Builder<'a> {
         self.insert_text = Some(insert_text.into());
         self
     }
-    #[allow(unused)]
     pub(crate) fn insert_text_format(
         mut self,
         insert_text_format: InsertTextFormat,
@@ -192,12 +192,10 @@ impl<'a> Builder<'a> {
         self.kind = Some(kind);
         self
     }
-    #[allow(unused)]
     pub(crate) fn text_edit(mut self, text_edit: AtomTextEdit) -> Builder<'a> {
         self.text_edit = Some(text_edit);
         self
     }
-    #[allow(unused)]
     pub(crate) fn additional_text_edits(mut self, additional_text_edits: TextEdit) -> Builder<'a> {
         self.additional_text_edits = Some(additional_text_edits);
         self
