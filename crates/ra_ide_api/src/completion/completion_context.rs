@@ -73,7 +73,7 @@ impl<'a> CompletionContext<'a> {
         self.source_range
     }
 
-    pub(crate) fn skip_punctuation_source_range(&mut self, punctuation: char) {
+    fn skip_punctuation_source_range(&mut self, punctuation: char) {
         // If leaf contains punctuations, we skip source range to the current offset.
         // Since we need to filter on source range's text with completions.
         if self
