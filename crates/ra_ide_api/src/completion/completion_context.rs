@@ -15,6 +15,7 @@ use crate::{db, FilePosition};
 pub(crate) struct CompletionContext<'a> {
     pub(super) db: &'a db::RootDatabase,
     pub(super) offset: TextUnit,
+    pub(super) source_range: TextRange,
     pub(super) leaf: &'a SyntaxNode,
     pub(super) module: Option<hir::Module>,
     pub(super) function: Option<hir::Function>,
@@ -49,6 +50,7 @@ impl<'a> CompletionContext<'a> {
             leaf,
             offset: position.offset,
             module,
+            source_range: leaf.range(),
             function: None,
             function_syntax: None,
             use_item_syntax: None,
@@ -65,14 +67,23 @@ impl<'a> CompletionContext<'a> {
         Some(ctx)
     }
 
-    // The range of the identifier that is being completed.
-    // This is purely advisory and can be used, for example, to highlight this range in the editor.
-    // Clients are expected to ignore this field.
+    // The range of the identifier that is being completed. Completions should starts with
+    // the range's corresponding text if you want to show in completion candidates.
     pub(crate) fn source_range(&self) -> TextRange {
-        match self.leaf.kind() {
-            // workaroud when completion is triggered by trigger characters.
-            DOT | COLONCOLON => TextRange::from_to(self.offset, self.offset),
-            _ => self.leaf.range(),
+        self.source_range
+    }
+
+    pub(crate) fn skip_punctuation_source_range(&mut self, punctuation: char) {
+        // If leaf contains punctuations, we skip source range to the current offset.
+        // Since we need to filter on source range's text with completions.
+        if self
+            .leaf
+            .text()
+            .to_string()
+            .chars()
+            .all(|c| c == punctuation)
+        {
+            self.source_range = TextRange::from_to(self.offset, self.offset)
         }
     }
 
@@ -123,6 +134,9 @@ impl<'a> CompletionContext<'a> {
         }
 
         self.use_item_syntax = self.leaf.ancestors().find_map(ast::UseItem::cast);
+        if self.use_item_syntax.is_some() {
+            self.skip_punctuation_source_range(':');
+        }
 
         self.function_syntax = self
             .leaf
@@ -147,6 +161,7 @@ impl<'a> CompletionContext<'a> {
                 if !path.is_ident() {
                     path.segments.pop().unwrap();
                     self.path_prefix = Some(path);
+                    self.skip_punctuation_source_range(':');
                     return;
                 }
             }
@@ -204,6 +219,10 @@ impl<'a> CompletionContext<'a> {
                 .map(|e| e.syntax().range())
                 .and_then(|r| find_node_with_range(original_file.syntax(), r));
             self.is_call = true;
+        }
+
+        if self.dot_receiver.is_some() {
+            self.skip_punctuation_source_range('.');
         }
     }
 }
