@@ -163,11 +163,20 @@ pub struct StructField {
     pub(crate) type_ref: TypeRef,
 }
 
+fn structfield_key_deriv(v: &StructField) -> &str {
+    v.name.as_str()
+}
+
+def_sorted_vec! {
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct StructFieldVec: StructField => &str, structfield_key_deriv
+}
+
 /// Fields of an enum variant or struct
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VariantData {
-    Struct(Vec<StructField>),
-    Tuple(Vec<StructField>),
+    Struct(StructFieldVec),
+    Tuple(StructFieldVec),
     Unit,
 }
 
@@ -230,9 +239,11 @@ impl VariantData {
     }
 
     pub(crate) fn get_field_type_ref(&self, field_name: &Name) -> Option<&TypeRef> {
-        self.fields()
-            .iter()
-            .find(|f| f.name == *field_name)
-            .map(|f| &f.type_ref)
+        match self {
+            VariantData::Struct(fields) | VariantData::Tuple(fields) => {
+                fields.find(&field_name.as_str()).map(|f| &f.type_ref)
+            }
+            _ => None,
+        }
     }
 }
