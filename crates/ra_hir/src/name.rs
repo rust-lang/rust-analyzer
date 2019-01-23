@@ -27,6 +27,10 @@ impl Name {
         Name { text }
     }
 
+    pub(crate) fn as_str(&self) -> &str {
+        self.text.as_str()
+    }
+
     pub(crate) fn missing() -> Name {
         Name::new("[missing name]".into())
     }

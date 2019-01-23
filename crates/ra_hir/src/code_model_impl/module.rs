@@ -174,10 +174,8 @@ impl Module {
                 }
                 Def::Enum(e) => {
                     // enum variant
-                    let matching_variant = e
-                        .variants(db)
-                        .into_iter()
-                        .find(|(n, _variant)| n == &segment.name);
+                    let variants = e.variants(db);
+                    let matching_variant = variants.find(&segment.name.as_str());
 
                     match matching_variant {
                         Some((_n, variant)) => PerNs::both(variant.def_id(), e.def_id()),

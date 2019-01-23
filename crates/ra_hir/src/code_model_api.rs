@@ -11,7 +11,7 @@ use crate::{
     db::HirDatabase,
     expr::BodySyntaxMapping,
     ty::InferenceResult,
-    adt::VariantData,
+    adt::{VariantData, VariantVec},
     generics::GenericParams,
     code_model_impl::def_id_to_ast,
 };
@@ -226,7 +226,7 @@ impl Enum {
         db.enum_data(self.def_id).name.clone()
     }
 
-    pub fn variants(&self, db: &impl HirDatabase) -> Vec<(Name, EnumVariant)> {
+    pub fn variants(&self, db: &impl HirDatabase) -> VariantVec {
         db.enum_data(self.def_id).variants.clone()
     }
 

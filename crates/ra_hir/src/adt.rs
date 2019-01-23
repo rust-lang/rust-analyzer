@@ -1,6 +1,7 @@
 //! This module contains the implementation details of the HIR for ADTs, i.e.
 //! structs and enums (and unions).
 
+use sortedvec::def_sorted_vec;
 use std::sync::Arc;
 
 use ra_syntax::{
@@ -71,14 +72,23 @@ fn get_def_id(
     loc.id(db)
 }
 
+fn variant_key_deriv(v: &(Name, EnumVariant)) -> &str {
+    v.0.as_str()
+}
+
+def_sorted_vec! {
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct VariantVec: (Name, EnumVariant) => &str, variant_key_deriv
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumData {
     pub(crate) name: Option<Name>,
-    pub(crate) variants: Vec<(Name, EnumVariant)>,
+    pub(crate) variants: VariantVec,
 }
 
 impl EnumData {
-    fn new(enum_def: &ast::EnumDef, variants: Vec<(Name, EnumVariant)>) -> Self {
+    fn new(enum_def: &ast::EnumDef, variants: VariantVec) -> Self {
         let name = enum_def.name().map(|n| n.as_name());
         EnumData { name, variants }
     }
@@ -101,7 +111,7 @@ impl EnumData {
                 })
                 .collect()
         } else {
-            Vec::new()
+            VariantVec::default()
         };
         Arc::new(EnumData::new(enum_def, variants))
     }
