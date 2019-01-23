@@ -1,16 +1,16 @@
 use rustc_hash::FxHashSet;
-use sortedvec::def_sorted_vec;
+use sortedvec::sortedvec;
 use relative_path::RelativePathBuf;
 
 use crate::FileId;
 
-fn key_deriv(v: &(FileId, RelativePathBuf)) -> &str {
-    v.1.as_relative_path().as_str()
-}
-
-def_sorted_vec! {
+sortedvec! {
     #[derive(Debug, Clone)]
-    pub struct FileMap: (FileId, RelativePathBuf) => &str, key_deriv
+    pub struct FileMap {
+        fn key_deriv(v: &(FileId, RelativePathBuf)) -> &str {
+            v.1.as_relative_path().as_str()
+        }
+    }
 }
 
 impl FileMap {

@@ -1,7 +1,7 @@
 //! This module contains the implementation details of the HIR for ADTs, i.e.
 //! structs and enums (and unions).
 
-use sortedvec::def_sorted_vec;
+use sortedvec::sortedvec;
 use std::sync::Arc;
 
 use ra_syntax::{
@@ -72,13 +72,13 @@ fn get_def_id(
     loc.id(db)
 }
 
-fn variant_key_deriv(v: &(Name, EnumVariant)) -> &str {
-    v.0.as_str()
-}
-
-def_sorted_vec! {
+sortedvec! {
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct VariantVec: (Name, EnumVariant) => &str, variant_key_deriv
+    pub struct VariantVec {
+        fn variant_key_deriv(v: &(Name, EnumVariant)) -> &str {
+            v.0.as_str()
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -163,13 +163,13 @@ pub struct StructField {
     pub(crate) type_ref: TypeRef,
 }
 
-fn structfield_key_deriv(v: &StructField) -> &str {
-    v.name.as_str()
-}
-
-def_sorted_vec! {
+sortedvec! {
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct StructFieldVec: StructField => &str, structfield_key_deriv
+    pub struct StructFieldVec {
+        fn structfield_key_deriv(v: &StructField) -> &str {
+            v.name.as_str()
+        }
+    }
 }
 
 /// Fields of an enum variant or struct

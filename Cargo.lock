@@ -727,7 +727,7 @@ dependencies = [
  "relative-path 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-hash 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "salsa 0.10.0-alpha1 (registry+https://github.com/rust-lang/crates.io-index)",
- "sortedvec 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sortedvec 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "test_utils 0.1.0",
 ]
 
@@ -747,7 +747,7 @@ dependencies = [
  "ra_syntax 0.1.0",
  "relative-path 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-hash 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "sortedvec 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sortedvec 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "test_utils 0.1.0",
 ]
 
@@ -1217,7 +1217,7 @@ dependencies = [
 
 [[package]]
 name = "sortedvec"
-version = "0.3.2"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -1712,7 +1712,7 @@ dependencies = [
 "checksum slug 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "b3bc762e6a4b6c6fcaade73e77f9ebc6991b676f88bb2358bddb56560f073373"
 "checksum smallvec 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)" = "b73ea3738b47563803ef814925e69be00799a8c07420be8b996f8e98fb2336db"
 "checksum smol_str 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)" = "9af1035bc5d742ab6b7ab16713e41cc2ffe78cb474f6f43cd696b2d16052007e"
-"checksum sortedvec 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "33fd996bf5673d05c9056c51b8b34dbd85266a3ccde48ef64abc2dd8fed3c442"
+"checksum sortedvec 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a378717ca50d93776db613950bc76fb438644d4cee92a1e701981282b05d650c"
 "checksum stable_deref_trait 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "dba1a27d3efae4351c8051072d619e3ade2820635c3958d826bfea39d59b54c8"
 "checksum strsim 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "bb4f380125926a99e52bc279241539c018323fab05ad6368b56f93d9369ff550"
 "checksum superslice 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b50b13d42370e0f5fc62eafdd5c2d20065eaf5458dab215ff3e20e63eea96b30"

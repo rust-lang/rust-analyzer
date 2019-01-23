@@ -5,7 +5,7 @@ version = "0.1.0"
 authors = ["Aleksey Kladov <aleksey.kladov@gmail.com>"]
 
 [dependencies]
-sortedvec = "0.3"
+sortedvec = "0.4"
 relative-path = "0.4.0"
 salsa = "0.10.0-alpha1"
 rustc-hash = "1.0"

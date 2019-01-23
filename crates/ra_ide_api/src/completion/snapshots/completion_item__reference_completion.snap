@@ -7,7 +7,7 @@ source: "crates\\ra_ide_api\\src\\completion\\completion_item.rs"
 [
     CompletionItem {
         completion_kind: Reference,
-        label: "Foo",
+        label: "Bar",
         kind: Some(
             EnumVariant
         ),
@@ -21,7 +21,7 @@ source: "crates\\ra_ide_api\\src\\completion\\completion_item.rs"
     },
     CompletionItem {
         completion_kind: Reference,
-        label: "Bar",
+        label: "Foo",
         kind: Some(
             EnumVariant
         ),
