@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use ra_syntax::{
     TextRange, TextUnit, SourceFile, AstNode, SyntaxNode, TreeArc, SyntaxNodePtr,
-    ast::{self, NameOwner},
+    ast,
 };
 
 use crate::{HirDatabase, MacroCallId};
@@ -21,7 +21,6 @@ use crate::{HirDatabase, MacroCallId};
 pub enum MacroDef {
     CTry,
     Vec,
-    QueryGroup,
 }
 
 impl MacroDef {
@@ -42,8 +41,6 @@ impl MacroDef {
                 MacroDef::CTry
             } else if name_ref.text() == "vec" {
                 MacroDef::Vec
-            } else if name_ref.text() == "query_group" {
-                MacroDef::QueryGroup
             } else {
                 return None;
             }
@@ -62,7 +59,6 @@ impl MacroDef {
         match self {
             MacroDef::CTry => self.expand_ctry(input),
             MacroDef::Vec => self.expand_vec(input),
-            MacroDef::QueryGroup => self.expand_query_group(input),
         }
     }
     fn expand_ctry(self, input: MacroInput) -> Option<MacroExpansion> {
@@ -96,30 +92,6 @@ impl MacroDef {
         let ptr = SyntaxNodePtr::new(array_expr.syntax());
         let src_range = TextRange::offset_len(0.into(), TextUnit::of_str(&input.text));
         let ranges_map = vec![(src_range, array_expr.syntax().range())];
-        let res = MacroExpansion {
-            text,
-            ranges_map,
-            ptr,
-        };
-        Some(res)
-    }
-    fn expand_query_group(self, input: MacroInput) -> Option<MacroExpansion> {
-        let anchor = "trait ";
-        let pos = input.text.find(anchor)? + anchor.len();
-        let trait_name = input.text[pos..]
-            .chars()
-            .take_while(|c| c.is_alphabetic())
-            .collect::<String>();
-        if trait_name.is_empty() {
-            return None;
-        }
-        let src_range = TextRange::offset_len((pos as u32).into(), TextUnit::of_str(&trait_name));
-        let text = format!(r"trait {} {{ }}", trait_name);
-        let file = SourceFile::parse(&text);
-        let trait_def = file.syntax().descendants().find_map(ast::TraitDef::cast)?;
-        let name = trait_def.name()?;
-        let ptr = SyntaxNodePtr::new(trait_def.syntax());
-        let ranges_map = vec![(src_range, name.syntax().range())];
         let res = MacroExpansion {
             text,
             ranges_map,
