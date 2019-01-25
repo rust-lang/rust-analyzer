@@ -204,6 +204,7 @@ impl Builder {
         self.documentation = docs.map(Into::into);
         self
     }
+
     pub(super) fn from_resolution(
         mut self,
         ctx: &CompletionContext,
@@ -214,19 +215,34 @@ impl Builder {
             None => return self,
             Some(it) => it,
         };
-        let (kind, docs) = match def {
-            hir::ModuleDef::Module(it) => (CompletionItemKind::Module, it.docs(ctx.db)),
+        let (kind, docs, detail) = match def {
+            hir::ModuleDef::Module(it) => {
+                (CompletionItemKind::Module, it.docs(ctx.db), Some("mod"))
+            }
             hir::ModuleDef::Function(func) => return self.from_function(ctx, func),
-            hir::ModuleDef::Struct(it) => (CompletionItemKind::Struct, it.docs(ctx.db)),
-            hir::ModuleDef::Enum(it) => (CompletionItemKind::Enum, it.docs(ctx.db)),
-            hir::ModuleDef::EnumVariant(it) => (CompletionItemKind::EnumVariant, it.docs(ctx.db)),
-            hir::ModuleDef::Const(it) => (CompletionItemKind::Const, it.docs(ctx.db)),
-            hir::ModuleDef::Static(it) => (CompletionItemKind::Static, it.docs(ctx.db)),
-            hir::ModuleDef::Trait(it) => (CompletionItemKind::Trait, it.docs(ctx.db)),
-            hir::ModuleDef::Type(it) => (CompletionItemKind::TypeAlias, it.docs(ctx.db)),
+            hir::ModuleDef::Struct(it) => {
+                (CompletionItemKind::Struct, it.docs(ctx.db), Some("struct"))
+            }
+            hir::ModuleDef::Enum(it) => (CompletionItemKind::Enum, it.docs(ctx.db), Some("enum")),
+            hir::ModuleDef::EnumVariant(it) => {
+                (CompletionItemKind::EnumVariant, it.docs(ctx.db), None)
+            }
+            hir::ModuleDef::Const(it) => {
+                (CompletionItemKind::Const, it.docs(ctx.db), Some("const"))
+            }
+            hir::ModuleDef::Static(it) => {
+                (CompletionItemKind::Static, it.docs(ctx.db), Some("static"))
+            }
+            hir::ModuleDef::Trait(it) => {
+                (CompletionItemKind::Trait, it.docs(ctx.db), Some("trait"))
+            }
+            hir::ModuleDef::Type(it) => {
+                (CompletionItemKind::TypeAlias, it.docs(ctx.db), Some("type"))
+            }
         };
         self.kind = Some(kind);
         self.documentation = docs;
+        self.detail = detail.map(|it| it.into());
 
         self
     }
