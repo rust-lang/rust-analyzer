@@ -23,8 +23,6 @@ impl FileMap {
     }
 
     fn iter<'a>(&'a self) -> impl Iterator<Item = (FileId, &'a RelativePath)> + 'a {
-        self.0
-            .iter()
-            .map(|(id, path)| (*id, path.as_relative_path()))
+        self.0.iter().map(|(id, path)| (*id, path.as_relative_path()))
     }
 }

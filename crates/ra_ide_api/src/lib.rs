@@ -136,16 +136,8 @@ impl AnalysisChange {
         path: RelativePathBuf,
         text: Arc<String>,
     ) {
-        let file = AddFile {
-            file_id,
-            path,
-            text,
-        };
-        self.roots_changed
-            .entry(root_id)
-            .or_default()
-            .added
-            .push(file);
+        let file = AddFile { file_id, path, text };
+        self.roots_changed.entry(root_id).or_default().added.push(file);
     }
 
     pub fn change_file(&mut self, file_id: FileId, new_text: Arc<String>) {
@@ -154,11 +146,7 @@ impl AnalysisChange {
 
     pub fn remove_file(&mut self, root_id: SourceRootId, file_id: FileId, path: RelativePathBuf) {
         let file = RemoveFile { file_id, path };
-        self.roots_changed
-            .entry(root_id)
-            .or_default()
-            .removed
-            .push(file);
+        self.roots_changed.entry(root_id).or_default().removed.push(file);
     }
 
     pub fn add_library(&mut self, data: LibraryData) {
@@ -186,15 +174,8 @@ pub struct SourceFileEdit {
 
 #[derive(Debug)]
 pub enum FileSystemEdit {
-    CreateFile {
-        source_root: SourceRootId,
-        path: RelativePathBuf,
-    },
-    MoveFile {
-        src: FileId,
-        dst_source_root: SourceRootId,
-        dst_path: RelativePathBuf,
-    },
+    CreateFile { source_root: SourceRootId, path: RelativePathBuf },
+    MoveFile { src: FileId, dst_source_root: SourceRootId, dst_path: RelativePathBuf },
 }
 
 #[derive(Debug)]
@@ -275,9 +256,7 @@ impl AnalysisHost {
     /// Returns a snapshot of the current state, which you can query for
     /// semantic information.
     pub fn analysis(&self) -> Analysis {
-        Analysis {
-            db: self.db.snapshot(),
-        }
+        Analysis { db: self.db.snapshot() }
     }
 
     /// Applies changes to the current state of the world. If there are
@@ -508,17 +487,9 @@ impl LibraryData {
         let mut root_change = RootChange::default();
         root_change.added = files
             .into_iter()
-            .map(|(file_id, path, text)| AddFile {
-                file_id,
-                path,
-                text,
-            })
+            .map(|(file_id, path, text)| AddFile { file_id, path, text })
             .collect();
-        LibraryData {
-            root_id,
-            root_change,
-            symbol_index,
-        }
+        LibraryData { root_id, root_change, symbol_index }
     }
 }
 

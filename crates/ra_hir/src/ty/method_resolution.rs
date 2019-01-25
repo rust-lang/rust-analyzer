@@ -46,18 +46,13 @@ impl CrateImplBlocks {
         ty: &Ty,
     ) -> impl Iterator<Item = ImplBlock> + 'a {
         let fingerprint = TyFingerprint::for_impl(ty);
-        fingerprint
-            .and_then(|f| self.impls.get(&f))
-            .into_iter()
-            .flat_map(|i| i.iter())
-            .map(move |(module_id, impl_id)| {
-                let module = Module {
-                    krate: self.krate.crate_id,
-                    module_id: *module_id,
-                };
+        fingerprint.and_then(|f| self.impls.get(&f)).into_iter().flat_map(|i| i.iter()).map(
+            move |(module_id, impl_id)| {
+                let module = Module { krate: self.krate.crate_id, module_id: *module_id };
                 let module_impl_blocks = db.impls_in_module(module);
                 ImplBlock::from_id(module_impl_blocks, *impl_id)
-            })
+            },
+        )
     }
 
     fn collect_recursive(&mut self, db: &impl HirDatabase, module: &Module) {
@@ -96,10 +91,8 @@ impl CrateImplBlocks {
         db: &impl HirDatabase,
         krate: Crate,
     ) -> Arc<CrateImplBlocks> {
-        let mut crate_impl_blocks = CrateImplBlocks {
-            krate: krate.clone(),
-            impls: FxHashMap::default(),
-        };
+        let mut crate_impl_blocks =
+            CrateImplBlocks { krate: krate.clone(), impls: FxHashMap::default() };
         if let Some(module) = krate.root_module(db) {
             crate_impl_blocks.collect_recursive(db, &module);
         }

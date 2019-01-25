@@ -12,9 +12,6 @@ fn verify_template_generation() {
 #[test]
 fn check_code_formatting() {
     if let Err(error) = run_rustfmt(Verify) {
-        panic!(
-            "{}. Please format the code by running `cargo format`",
-            error
-        );
+        panic!("{}. Please format the code by running `cargo format`", error);
     }
 }

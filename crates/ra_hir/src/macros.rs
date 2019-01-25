@@ -51,9 +51,7 @@ impl MacroDef {
 
         let input = {
             let arg = macro_call.token_tree()?.syntax();
-            MacroInput {
-                text: arg.text().to_string(),
-            }
+            MacroInput { text: arg.text().to_string() }
         };
         Some((def, input))
     }
@@ -82,11 +80,7 @@ impl MacroDef {
         let ptr = SyntaxNodePtr::new(match_arg.syntax());
         let src_range = TextRange::offset_len(0.into(), TextUnit::of_str(&input.text));
         let ranges_map = vec![(src_range, match_arg.syntax().range())];
-        let res = MacroExpansion {
-            text,
-            ranges_map,
-            ptr,
-        };
+        let res = MacroExpansion { text, ranges_map, ptr };
         Some(res)
     }
     fn expand_vec(self, input: MacroInput) -> Option<MacroExpansion> {
@@ -96,20 +90,14 @@ impl MacroDef {
         let ptr = SyntaxNodePtr::new(array_expr.syntax());
         let src_range = TextRange::offset_len(0.into(), TextUnit::of_str(&input.text));
         let ranges_map = vec![(src_range, array_expr.syntax().range())];
-        let res = MacroExpansion {
-            text,
-            ranges_map,
-            ptr,
-        };
+        let res = MacroExpansion { text, ranges_map, ptr };
         Some(res)
     }
     fn expand_query_group(self, input: MacroInput) -> Option<MacroExpansion> {
         let anchor = "trait ";
         let pos = input.text.find(anchor)? + anchor.len();
-        let trait_name = input.text[pos..]
-            .chars()
-            .take_while(|c| c.is_alphabetic())
-            .collect::<String>();
+        let trait_name =
+            input.text[pos..].chars().take_while(|c| c.is_alphabetic()).collect::<String>();
         if trait_name.is_empty() {
             return None;
         }
@@ -120,11 +108,7 @@ impl MacroDef {
         let name = trait_def.name()?;
         let ptr = SyntaxNodePtr::new(trait_def.syntax());
         let ranges_map = vec![(src_range, name.syntax().range())];
-        let res = MacroExpansion {
-            text,
-            ranges_map,
-            ptr,
-        };
+        let res = MacroExpansion { text, ranges_map, ptr };
         Some(res)
     }
 }

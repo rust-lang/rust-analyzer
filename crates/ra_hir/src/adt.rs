@@ -59,19 +59,13 @@ impl StructData {
 }
 
 fn variants(enum_def: &ast::EnumDef) -> impl Iterator<Item = &ast::EnumVariant> {
-    enum_def
-        .variant_list()
-        .into_iter()
-        .flat_map(|it| it.variants())
+    enum_def.variant_list().into_iter().flat_map(|it| it.variants())
 }
 
 impl EnumVariant {
     pub fn source_impl(&self, db: &impl HirDatabase) -> (HirFileId, TreeArc<ast::EnumVariant>) {
         let (file_id, enum_def) = self.parent.source(db);
-        let var = variants(&*enum_def)
-            .nth(self.idx as usize)
-            .unwrap()
-            .to_owned();
+        let var = variants(&*enum_def).nth(self.idx as usize).unwrap().to_owned();
         (file_id, var)
     }
 }
@@ -94,10 +88,7 @@ impl EnumData {
             .enumerate()
             .filter_map(|(idx, variant_def)| {
                 let name = variant_def.name()?.as_name();
-                let var = EnumVariant {
-                    parent: e,
-                    idx: idx as u32,
-                };
+                let var = EnumVariant { parent: e, idx: idx as u32 };
                 Some((name, var))
             })
             .collect();
@@ -118,11 +109,7 @@ impl EnumVariantData {
         let name = variant_def.name().map(|n| n.as_name());
         let variant_data = VariantData::new(variant_def.flavor());
         let variant_data = Arc::new(variant_data);
-        EnumVariantData {
-            name,
-            variant_data,
-            parent_enum,
-        }
+        EnumVariantData { name, variant_data, parent_enum }
     }
 
     pub(crate) fn enum_variant_data_query(
@@ -132,9 +119,7 @@ impl EnumVariantData {
         let (file_id, variant_def) = var.source(db);
         let enum_def = variant_def.parent_enum();
         let ctx = LocationCtx::new(db, var.module(db), file_id);
-        let e = Enum {
-            id: ctx.to_def(enum_def),
-        };
+        let e = Enum { id: ctx.to_def(enum_def) };
         Arc::new(EnumVariantData::new(&*variant_def, e))
     }
 }
@@ -213,9 +198,6 @@ impl VariantData {
     }
 
     pub(crate) fn get_field_type_ref(&self, field_name: &Name) -> Option<&TypeRef> {
-        self.fields()
-            .iter()
-            .find(|f| f.name == *field_name)
-            .map(|f| &f.type_ref)
+        self.fields().iter().find(|f| f.name == *field_name).map(|f| &f.type_ref)
     }
 }

@@ -52,9 +52,7 @@ impl FnScopes {
     }
 
     pub fn scope_chain_for<'a>(&'a self, expr: ExprId) -> impl Iterator<Item = ScopeId> + 'a {
-        generate(self.scope_for(expr), move |&scope| {
-            self.scopes[scope].parent
-        })
+        generate(self.scope_for(expr), move |&scope| self.scopes[scope].parent)
     }
 
     pub fn resolve_local_name<'a>(
@@ -72,17 +70,11 @@ impl FnScopes {
     }
 
     fn root_scope(&mut self) -> ScopeId {
-        self.scopes.alloc(ScopeData {
-            parent: None,
-            entries: vec![],
-        })
+        self.scopes.alloc(ScopeData { parent: None, entries: vec![] })
     }
 
     fn new_scope(&mut self, parent: ScopeId) -> ScopeId {
-        self.scopes.alloc(ScopeData {
-            parent: Some(parent),
-            entries: vec![],
-        })
+        self.scopes.alloc(ScopeData { parent: Some(parent), entries: vec![] })
     }
 
     fn add_bindings(&mut self, body: &Body, scope: ScopeId, pat: PatId) {
@@ -90,10 +82,7 @@ impl FnScopes {
             Pat::Bind { name, .. } => {
                 // bind can have a subpattern, but it's actually not allowed
                 // to bind to things in there
-                let entry = ScopeEntry {
-                    name: name.clone(),
-                    pat,
-                };
+                let entry = ScopeEntry { name: name.clone(), pat };
                 self.scopes[scope].entries.push(entry)
             }
             p => p.walk_child_pats(|pat| self.add_bindings(body, scope, pat)),
@@ -102,9 +91,7 @@ impl FnScopes {
 
     fn add_params_bindings(&mut self, scope: ScopeId, params: &[PatId]) {
         let body = Arc::clone(&self.body);
-        params
-            .into_iter()
-            .for_each(|pat| self.add_bindings(&body, scope, *pat));
+        params.into_iter().for_each(|pat| self.add_bindings(&body, scope, *pat));
     }
 
     fn set_scope(&mut self, node: ExprId, scope: ScopeId) {
@@ -140,9 +127,7 @@ impl ScopeEntryWithSyntax {
 
 impl ScopesWithSyntaxMapping {
     pub fn scope_chain<'a>(&'a self, node: &SyntaxNode) -> impl Iterator<Item = ScopeId> + 'a {
-        generate(self.scope_for(node), move |&scope| {
-            self.scopes.scopes[scope].parent
-        })
+        generate(self.scope_for(node), move |&scope| self.scopes.scopes[scope].parent)
     }
 
     pub fn scope_chain_for_offset<'a>(
@@ -156,10 +141,7 @@ impl ScopesWithSyntaxMapping {
             .filter_map(|(id, scope)| Some((self.syntax_mapping.expr_syntax(*id)?, scope)))
             // find containing scope
             .min_by_key(|(ptr, _scope)| {
-                (
-                    !(ptr.range().start() <= offset && offset <= ptr.range().end()),
-                    ptr.range().len(),
-                )
+                (!(ptr.range().start() <= offset && offset <= ptr.range().end()), ptr.range().len())
             })
             .map(|(ptr, scope)| self.adjust(ptr, *scope, offset));
 
@@ -254,9 +236,7 @@ fn compute_block_scopes(
 ) {
     for stmt in statements {
         match stmt {
-            Statement::Let {
-                pat, initializer, ..
-            } => {
+            Statement::Let { pat, initializer, .. } => {
                 if let Some(expr) = initializer {
                     scopes.set_scope(*expr, scope);
                     compute_expr_scopes(*expr, body, scopes, scope);
@@ -281,21 +261,13 @@ fn compute_expr_scopes(expr: ExprId, body: &Body, scopes: &mut FnScopes, scope: 
         Expr::Block { statements, tail } => {
             compute_block_scopes(&statements, *tail, body, scopes, scope);
         }
-        Expr::For {
-            iterable,
-            pat,
-            body: body_expr,
-        } => {
+        Expr::For { iterable, pat, body: body_expr } => {
             compute_expr_scopes(*iterable, body, scopes, scope);
             let scope = scopes.new_scope(scope);
             scopes.add_bindings(body, scope, *pat);
             compute_expr_scopes(*body_expr, body, scopes, scope);
         }
-        Expr::Lambda {
-            args,
-            body: body_expr,
-            ..
-        } => {
+        Expr::Lambda { args, body: body_expr, .. } => {
             let scope = scopes.new_scope(scope);
             scopes.add_params_bindings(scope, &args);
             compute_expr_scopes(*body_expr, body, scopes, scope);

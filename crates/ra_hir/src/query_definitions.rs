@@ -34,10 +34,7 @@ pub(super) fn file_item(
 ) -> TreeArc<SyntaxNode> {
     match source_item_id.item_id {
         Some(id) => db.file_items(source_item_id.file_id)[id].to_owned(),
-        None => db
-            .hir_source_file(source_item_id.file_id)
-            .syntax()
-            .to_owned(),
+        None => db.hir_source_file(source_item_id.file_id).syntax().to_owned(),
     }
 }
 
@@ -46,15 +43,7 @@ pub(super) fn item_map(db: &impl HirDatabase, crate_id: CrateId) -> Arc<ItemMap>
     let module_tree = db.module_tree(crate_id);
     let input = module_tree
         .modules()
-        .map(|module_id| {
-            (
-                module_id,
-                db.lower_module_module(Module {
-                    krate: crate_id,
-                    module_id,
-                }),
-            )
-        })
+        .map(|module_id| (module_id, db.lower_module_module(Module { krate: crate_id, module_id })))
         .collect::<FxHashMap<_, _>>();
 
     let resolver = Resolver::new(db, &input, crate_id);

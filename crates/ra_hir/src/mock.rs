@@ -33,8 +33,7 @@ impl MockDatabase {
         let mut db = MockDatabase::default();
         let mut source_root = SourceRoot::default();
         let file_id = db.add_file(WORKSPACE, &mut source_root, "/main.rs", text);
-        db.query_mut(ra_db::SourceRootQuery)
-            .set(WORKSPACE, Arc::new(source_root.clone()));
+        db.query_mut(ra_db::SourceRootQuery).set(WORKSPACE, Arc::new(source_root.clone()));
         (db, source_root, file_id)
     }
 
@@ -45,8 +44,7 @@ impl MockDatabase {
     }
 
     pub(crate) fn set_crate_graph(&mut self, crate_graph: CrateGraph) {
-        self.query_mut(ra_db::CrateGraphQuery)
-            .set((), Arc::new(crate_graph));
+        self.query_mut(ra_db::CrateGraphQuery).set((), Arc::new(crate_graph));
     }
 
     fn from_fixture(fixture: &str) -> (MockDatabase, SourceRoot, Option<FilePosition>) {
@@ -66,10 +64,7 @@ impl MockDatabase {
         let mut source_root = SourceRoot::default();
         for entry in parse_fixture(fixture) {
             if entry.text.contains(CURSOR_MARKER) {
-                assert!(
-                    position.is_none(),
-                    "only one marker (<|>) per fixture is allowed"
-                );
+                assert!(position.is_none(), "only one marker (<|>) per fixture is allowed");
                 position = Some(self.add_file_with_position(
                     source_root_id,
                     &mut source_root,
@@ -80,8 +75,7 @@ impl MockDatabase {
                 self.add_file(source_root_id, &mut source_root, &entry.meta, &entry.text);
             }
         }
-        self.query_mut(ra_db::SourceRootQuery)
-            .set(source_root_id, Arc::new(source_root.clone()));
+        self.query_mut(ra_db::SourceRootQuery).set(source_root_id, Arc::new(source_root.clone()));
         (source_root, position)
     }
 
@@ -100,10 +94,8 @@ impl MockDatabase {
         self.file_counter += 1;
         let text = Arc::new(text.to_string());
         self.query_mut(ra_db::FileTextQuery).set(file_id, text);
-        self.query_mut(ra_db::FileRelativePathQuery)
-            .set(file_id, path.clone());
-        self.query_mut(ra_db::FileSourceRootQuery)
-            .set(file_id, source_root_id);
+        self.query_mut(ra_db::FileRelativePathQuery).set(file_id, path.clone());
+        self.query_mut(ra_db::FileSourceRootQuery).set(file_id, source_root_id);
         source_root.files.insert(path, file_id);
 
         if is_crate_root {
@@ -148,12 +140,9 @@ impl Default for MockDatabase {
             interner: Default::default(),
             file_counter: 0,
         };
-        db.query_mut(ra_db::CrateGraphQuery)
-            .set((), Default::default());
-        db.query_mut(ra_db::LocalRootsQuery)
-            .set((), Default::default());
-        db.query_mut(ra_db::LibraryRootsQuery)
-            .set((), Default::default());
+        db.query_mut(ra_db::CrateGraphQuery).set((), Default::default());
+        db.query_mut(ra_db::LocalRootsQuery).set((), Default::default());
+        db.query_mut(ra_db::LibraryRootsQuery).set((), Default::default());
         db
     }
 }

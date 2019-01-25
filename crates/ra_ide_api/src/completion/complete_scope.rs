@@ -29,13 +29,9 @@ pub(super) fn complete_scope(acc: &mut Completions, ctx: &CompletionContext) {
             }
         })
         .for_each(|(name, res)| {
-            CompletionItem::new(
-                CompletionKind::Reference,
-                ctx.source_range(),
-                name.to_string(),
-            )
-            .from_resolution(ctx, res)
-            .add_to(acc)
+            CompletionItem::new(CompletionKind::Reference, ctx.source_range(), name.to_string())
+                .from_resolution(ctx, res)
+                .add_to(acc)
         });
 }
 

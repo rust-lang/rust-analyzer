@@ -265,9 +265,7 @@ mod tests {
                 }
             }
         }
-        let result = text_edit_bulder
-            .finish()
-            .apply(&*analysis.file_text(file_id.unwrap()));
+        let result = text_edit_bulder.finish().apply(&*analysis.file_text(file_id.unwrap()));
         assert_eq_text!(expected, &*result);
     }
 }

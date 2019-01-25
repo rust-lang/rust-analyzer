@@ -536,11 +536,7 @@ fn infer(content: &str) -> String {
     let (db, _, file_id) = MockDatabase::with_single_file(content);
     let source_file = db.source_file(file_id);
     let mut acc = String::new();
-    for fn_def in source_file
-        .syntax()
-        .descendants()
-        .filter_map(ast::FnDef::cast)
-    {
+    for fn_def in source_file.syntax().descendants().filter_map(ast::FnDef::cast) {
         let func = source_binder::function_from_source(&db, file_id, fn_def).unwrap();
         let inference_result = func.infer(&db);
         let body_syntax_mapping = func.body_syntax_mapping(&db);
@@ -627,8 +623,7 @@ fn typing_whitespace_inside_a_function_should_not_invalidate_types() {
     "
     .to_string();
 
-    db.query_mut(ra_db::FileTextQuery)
-        .set(pos.file_id, Arc::new(new_text));
+    db.query_mut(ra_db::FileTextQuery).set(pos.file_id, Arc::new(new_text));
 
     {
         let events = db.log_executed(|| {

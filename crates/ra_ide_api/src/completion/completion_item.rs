@@ -102,10 +102,7 @@ impl CompletionItem {
     }
     /// What string is used for filtering.
     pub fn lookup(&self) -> &str {
-        self.lookup
-            .as_ref()
-            .map(|it| it.as_str())
-            .unwrap_or(self.label())
+        self.lookup.as_ref().map(|it| it.as_str()).unwrap_or(self.label())
     }
 
     pub fn insert_text_format(&self) -> InsertTextFormat {
@@ -324,10 +321,8 @@ pub(crate) fn check_completion(test_name: &str, code: &str, kind: CompletionKind
     };
     let completions = completions(&analysis.db, position).unwrap();
     let completion_items: Vec<CompletionItem> = completions.into();
-    let kind_completions: Vec<CompletionItem> = completion_items
-        .into_iter()
-        .filter(|c| c.completion_kind == kind)
-        .collect();
+    let kind_completions: Vec<CompletionItem> =
+        completion_items.into_iter().filter(|c| c.completion_kind == kind).collect();
     assert_debug_snapshot_matches!(test_name, kind_completions);
 }
 

@@ -67,10 +67,7 @@ struct CrateData {
 
 impl CrateData {
     fn new(file_id: FileId) -> CrateData {
-        CrateData {
-            file_id,
-            dependencies: Vec::new(),
-        }
+        CrateData { file_id, dependencies: Vec::new() }
     }
 
     fn add_dep(&mut self, name: SmolStr, crate_id: CrateId) {
@@ -115,10 +112,7 @@ impl CrateGraph {
         self.arena[&crate_id].file_id
     }
     pub fn crate_id_for_crate_root(&self, file_id: FileId) -> Option<CrateId> {
-        let (&crate_id, _) = self
-            .arena
-            .iter()
-            .find(|(_crate_id, data)| data.file_id == file_id)?;
+        let (&crate_id, _) = self.arena.iter().find(|(_crate_id, data)| data.file_id == file_id)?;
         Some(crate_id)
     }
     pub fn dependencies<'a>(
@@ -177,11 +171,8 @@ pub trait FilesDatabase: salsa::Database {
 fn source_root_crates(db: &impl FilesDatabase, id: SourceRootId) -> Arc<Vec<CrateId>> {
     let root = db.source_root(id);
     let graph = db.crate_graph();
-    let res = root
-        .files
-        .values()
-        .filter_map(|&it| graph.crate_id_for_crate_root(it))
-        .collect::<Vec<_>>();
+    let res =
+        root.files.values().filter_map(|&it| graph.crate_id_for_crate_root(it)).collect::<Vec<_>>();
     Arc::new(res)
 }
 
@@ -195,15 +186,9 @@ mod tests {
         let crate1 = graph.add_crate_root(FileId(1u32));
         let crate2 = graph.add_crate_root(FileId(2u32));
         let crate3 = graph.add_crate_root(FileId(3u32));
-        assert!(graph
-            .add_dep(crate1, SmolStr::new("crate2"), crate2)
-            .is_ok());
-        assert!(graph
-            .add_dep(crate2, SmolStr::new("crate3"), crate3)
-            .is_ok());
-        assert!(graph
-            .add_dep(crate3, SmolStr::new("crate1"), crate1)
-            .is_err());
+        assert!(graph.add_dep(crate1, SmolStr::new("crate2"), crate2).is_ok());
+        assert!(graph.add_dep(crate2, SmolStr::new("crate3"), crate3).is_ok());
+        assert!(graph.add_dep(crate3, SmolStr::new("crate1"), crate1).is_err());
     }
 
     #[test]
@@ -212,11 +197,7 @@ mod tests {
         let crate1 = graph.add_crate_root(FileId(1u32));
         let crate2 = graph.add_crate_root(FileId(2u32));
         let crate3 = graph.add_crate_root(FileId(3u32));
-        assert!(graph
-            .add_dep(crate1, SmolStr::new("crate2"), crate2)
-            .is_ok());
-        assert!(graph
-            .add_dep(crate2, SmolStr::new("crate3"), crate3)
-            .is_ok());
+        assert!(graph.add_dep(crate1, SmolStr::new("crate2"), crate2).is_ok());
+        assert!(graph.add_dep(crate2, SmolStr::new("crate3"), crate3).is_ok());
     }
 }

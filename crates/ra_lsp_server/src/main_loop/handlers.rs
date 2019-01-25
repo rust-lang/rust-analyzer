@@ -44,12 +44,7 @@ pub fn handle_extend_selection(
         .into_iter()
         .map_conv_with(&line_index)
         .map(|range| FileRange { file_id, range })
-        .map(|frange| {
-            world
-                .analysis()
-                .extend_selection(frange)
-                .map(|it| it.conv_with(&line_index))
-        })
+        .map(|frange| world.analysis().extend_selection(frange).map(|it| it.conv_with(&line_index)))
         .collect::<Cancelable<Vec<_>>>()?;
     Ok(req::ExtendSelectionResult { selections })
 }
@@ -65,10 +60,7 @@ pub fn handle_find_matching_brace(
         .into_iter()
         .map_conv_with(&line_index)
         .map(|offset| {
-            world
-                .analysis()
-                .matching_brace(FilePosition { file_id, offset })
-                .unwrap_or(offset)
+            world.analysis().matching_brace(FilePosition { file_id, offset }).unwrap_or(offset)
         })
         .map_conv_with(&line_index)
         .collect();
@@ -169,11 +161,7 @@ pub fn handle_workspace_symbol(
     let all_symbols = params.query.contains('#');
     let libs = params.query.contains('*');
     let query = {
-        let query: String = params
-            .query
-            .chars()
-            .filter(|&c| c != '#' && c != '*')
-            .collect();
+        let query: String = params.query.chars().filter(|&c| c != '#' && c != '*').collect();
         let mut q = Query::new(query);
         if !all_symbols {
             q.only_types();
@@ -345,10 +333,7 @@ pub fn handle_completion(
         Some(items) => items,
     };
     let line_index = world.analysis().file_line_index(position.file_id);
-    let items = items
-        .into_iter()
-        .map(|item| item.conv_with(&line_index))
-        .collect();
+    let items = items.into_iter().map(|item| item.conv_with(&line_index)).collect();
 
     Ok(Some(req::CompletionResponse::Array(items)))
 }
@@ -401,10 +386,7 @@ pub fn handle_signature_help(
             })
             .collect();
         let documentation = call_info.doc.map(|value| {
-            Documentation::MarkupContent(MarkupContent {
-                kind: MarkupKind::Markdown,
-                value,
-            })
+            Documentation::MarkupContent(MarkupContent { kind: MarkupKind::Markdown, value })
         });
         let sig_info = SignatureInformation {
             label: call_info.label,
@@ -476,9 +458,8 @@ pub fn handle_rename(world: ServerWorld, params: RenameParams) -> Result<Option<
         .into());
     }
 
-    let optional_change = world
-        .analysis()
-        .rename(FilePosition { file_id, offset }, &*params.new_name)?;
+    let optional_change =
+        world.analysis().rename(FilePosition { file_id, offset }, &*params.new_name)?;
     let change = match optional_change {
         None => return Ok(None),
         Some(it) => it,
@@ -497,14 +478,10 @@ pub fn handle_references(
     let line_index = world.analysis().file_line_index(file_id);
     let offset = params.position.conv_with(&line_index);
 
-    let refs = world
-        .analysis()
-        .find_all_refs(FilePosition { file_id, offset })?;
+    let refs = world.analysis().find_all_refs(FilePosition { file_id, offset })?;
 
     Ok(Some(
-        refs.into_iter()
-            .filter_map(|r| to_location(r.0, r.1, &world, &line_index).ok())
-            .collect(),
+        refs.into_iter().filter_map(|r| to_location(r.0, r.1, &world, &line_index).ok()).collect(),
     ))
 }
 
@@ -529,11 +506,7 @@ pub fn handle_formatting(
     let output = rustfmt.wait_with_output()?;
     let captured_stdout = String::from_utf8(output.stdout)?;
     if !output.status.success() {
-        failure::bail!(
-            "rustfmt exited with error code {}: {}.",
-            output.status,
-            captured_stdout,
-        );
+        failure::bail!("rustfmt exited with error code {}: {}.", output.status, captured_stdout,);
     }
 
     Ok(Some(vec![TextEdit {
@@ -550,10 +523,7 @@ pub fn handle_code_action(
     let line_index = world.analysis().file_line_index(file_id);
     let range = params.range.conv_with(&line_index);
 
-    let assists = world
-        .analysis()
-        .assists(FileRange { file_id, range })?
-        .into_iter();
+    let assists = world.analysis().assists(FileRange { file_id, range })?.into_iter();
     let fixes = world
         .analysis()
         .diagnostics(file_id)?
@@ -630,16 +600,11 @@ pub fn handle_document_highlight(
     let file_id = params.text_document.try_conv_with(&world)?;
     let line_index = world.analysis().file_line_index(file_id);
 
-    let refs = world
-        .analysis()
-        .find_all_refs(params.try_conv_with(&world)?)?;
+    let refs = world.analysis().find_all_refs(params.try_conv_with(&world)?)?;
 
     Ok(Some(
         refs.into_iter()
-            .map(|r| DocumentHighlight {
-                range: r.1.conv_with(&line_index),
-                kind: None,
-            })
+            .map(|r| DocumentHighlight { range: r.1.conv_with(&line_index), kind: None })
             .collect(),
     ))
 }
@@ -671,10 +636,7 @@ pub fn publish_decorations(
     file_id: FileId,
 ) -> Result<req::PublishDecorationsParams> {
     let uri = world.file_id_to_uri(file_id)?;
-    Ok(req::PublishDecorationsParams {
-        uri,
-        decorations: highlight(&world, file_id)?,
-    })
+    Ok(req::PublishDecorationsParams { uri, decorations: highlight(&world, file_id)? })
 }
 
 fn highlight(world: &ServerWorld, file_id: FileId) -> Result<Vec<Decoration>> {
@@ -683,10 +645,7 @@ fn highlight(world: &ServerWorld, file_id: FileId) -> Result<Vec<Decoration>> {
         .analysis()
         .highlight(file_id)?
         .into_iter()
-        .map(|h| Decoration {
-            range: h.range.conv_with(&line_index),
-            tag: h.tag,
-        })
+        .map(|h| Decoration { range: h.range.conv_with(&line_index), tag: h.tag })
         .collect();
     Ok(res)
 }

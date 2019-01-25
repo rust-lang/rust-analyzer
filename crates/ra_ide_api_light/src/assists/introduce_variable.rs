@@ -48,11 +48,7 @@ fn anchor_stmt(expr: &ast::Expr) -> Option<&SyntaxNode> {
         if ast::Stmt::cast(node).is_some() {
             return true;
         }
-        if let Some(expr) = node
-            .parent()
-            .and_then(ast::Block::cast)
-            .and_then(|it| it.expr())
-        {
+        if let Some(expr) = node.parent().and_then(ast::Block::cast).and_then(|it| it.expr()) {
             if expr.syntax() == node {
                 return true;
             }

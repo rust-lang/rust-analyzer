@@ -71,10 +71,7 @@ impl NavigationTarget {
 
     pub(crate) fn from_module(db: &RootDatabase, module: hir::Module) -> NavigationTarget {
         let (file_id, source) = module.definition_source(db);
-        let name = module
-            .name(db)
-            .map(|it| it.to_string().into())
-            .unwrap_or_default();
+        let name = module.name(db).map(|it| it.to_string().into()).unwrap_or_default();
         match source {
             ModuleSource::SourceFile(node) => {
                 NavigationTarget::from_syntax(file_id, name, None, node.syntax())
@@ -86,10 +83,7 @@ impl NavigationTarget {
     }
 
     pub(crate) fn from_module_to_decl(db: &RootDatabase, module: hir::Module) -> NavigationTarget {
-        let name = module
-            .name(db)
-            .map(|it| it.to_string().into())
-            .unwrap_or_default();
+        let name = module.name(db).map(|it| it.to_string().into()).unwrap_or_default();
         if let Some((file_id, source)) = module.declaration_source(db) {
             return NavigationTarget::from_syntax(file_id, name, None, source.syntax());
         }
@@ -111,52 +105,31 @@ impl NavigationTarget {
             hir::ModuleDef::Function(func) => Some(NavigationTarget::from_function(db, func)),
             hir::ModuleDef::Struct(s) => {
                 let (file_id, node) = s.source(db);
-                Some(NavigationTarget::from_named(
-                    file_id.original_file(db),
-                    &*node,
-                ))
+                Some(NavigationTarget::from_named(file_id.original_file(db), &*node))
             }
             hir::ModuleDef::Const(s) => {
                 let (file_id, node) = s.source(db);
-                Some(NavigationTarget::from_named(
-                    file_id.original_file(db),
-                    &*node,
-                ))
+                Some(NavigationTarget::from_named(file_id.original_file(db), &*node))
             }
             hir::ModuleDef::Static(s) => {
                 let (file_id, node) = s.source(db);
-                Some(NavigationTarget::from_named(
-                    file_id.original_file(db),
-                    &*node,
-                ))
+                Some(NavigationTarget::from_named(file_id.original_file(db), &*node))
             }
             hir::ModuleDef::Enum(e) => {
                 let (file_id, node) = e.source(db);
-                Some(NavigationTarget::from_named(
-                    file_id.original_file(db),
-                    &*node,
-                ))
+                Some(NavigationTarget::from_named(file_id.original_file(db), &*node))
             }
             hir::ModuleDef::EnumVariant(var) => {
                 let (file_id, node) = var.source(db);
-                Some(NavigationTarget::from_named(
-                    file_id.original_file(db),
-                    &*node,
-                ))
+                Some(NavigationTarget::from_named(file_id.original_file(db), &*node))
             }
             hir::ModuleDef::Trait(e) => {
                 let (file_id, node) = e.source(db);
-                Some(NavigationTarget::from_named(
-                    file_id.original_file(db),
-                    &*node,
-                ))
+                Some(NavigationTarget::from_named(file_id.original_file(db), &*node))
             }
             hir::ModuleDef::Type(e) => {
                 let (file_id, node) = e.source(db);
-                Some(NavigationTarget::from_named(
-                    file_id.original_file(db),
-                    &*node,
-                ))
+                Some(NavigationTarget::from_named(file_id.original_file(db), &*node))
             }
         }
     }

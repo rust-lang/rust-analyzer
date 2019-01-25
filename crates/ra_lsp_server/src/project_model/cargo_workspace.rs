@@ -153,10 +153,8 @@ impl CargoWorkspace {
         for node in resolve.nodes {
             let source = pkg_by_id[&node.id];
             for dep_node in node.deps {
-                let dep = PackageDependency {
-                    name: dep_node.name.into(),
-                    pkg: pkg_by_id[&dep_node.pkg],
-                };
+                let dep =
+                    PackageDependency { name: dep_node.name.into(), pkg: pkg_by_id[&dep_node.pkg] };
                 packages[source].dependencies.push(dep);
             }
         }
@@ -167,8 +165,6 @@ impl CargoWorkspace {
         self.packages.iter().map(|(id, _pkg)| id)
     }
     pub fn target_by_root(&self, root: &Path) -> Option<Target> {
-        self.packages()
-            .filter_map(|pkg| pkg.targets(self).find(|it| it.root(self) == root))
-            .next()
+        self.packages().filter_map(|pkg| pkg.targets(self).find(|it| it.root(self) == root)).next()
     }
 }

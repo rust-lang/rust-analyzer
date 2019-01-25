@@ -81,11 +81,8 @@ impl ConvWith for CompletionItem {
     fn conv_with(mut self, ctx: &LineIndex) -> ::lsp_types::CompletionItem {
         let atom_text_edit = AtomTextEdit::replace(self.source_range(), self.insert_text());
         let text_edit = (&atom_text_edit).conv_with(ctx);
-        let additional_text_edits = if let Some(edit) = self.take_text_edit() {
-            Some(edit.conv_with(ctx))
-        } else {
-            None
-        };
+        let additional_text_edits =
+            if let Some(edit) = self.take_text_edit() { Some(edit.conv_with(ctx)) } else { None };
 
         let documentation = self.documentation().map(|value| {
             Documentation::MarkupContent(MarkupContent {
@@ -118,10 +115,7 @@ impl ConvWith for Position {
     type Output = TextUnit;
 
     fn conv_with(self, line_index: &LineIndex) -> TextUnit {
-        let line_col = LineCol {
-            line: self.line as u32,
-            col_utf16: self.character as u32,
-        };
+        let line_col = LineCol { line: self.line as u32, col_utf16: self.character as u32 };
         line_index.offset(line_col)
     }
 }
@@ -141,10 +135,7 @@ impl ConvWith for TextRange {
     type Output = Range;
 
     fn conv_with(self, line_index: &LineIndex) -> Range {
-        Range::new(
-            self.start().conv_with(line_index),
-            self.end().conv_with(line_index),
-        )
+        Range::new(self.start().conv_with(line_index), self.end().conv_with(line_index))
     }
 }
 
@@ -153,10 +144,7 @@ impl ConvWith for Range {
     type Output = TextRange;
 
     fn conv_with(self, line_index: &LineIndex) -> TextRange {
-        TextRange::from_to(
-            self.start.conv_with(line_index),
-            self.end.conv_with(line_index),
-        )
+        TextRange::from_to(self.start.conv_with(line_index), self.end.conv_with(line_index))
     }
 }
 
@@ -165,10 +153,7 @@ impl ConvWith for TextEdit {
     type Output = Vec<lsp_types::TextEdit>;
 
     fn conv_with(self, line_index: &LineIndex) -> Vec<lsp_types::TextEdit> {
-        self.as_atoms()
-            .into_iter()
-            .map_conv_with(line_index)
-            .collect()
+        self.as_atoms().into_iter().map_conv_with(line_index).collect()
     }
 }
 
@@ -302,11 +287,7 @@ impl TryConvWith for SourceChange {
             changes: None,
             document_changes: Some(DocumentChanges::Operations(document_changes)),
         };
-        Ok(req::SourceChange {
-            label: self.label,
-            workspace_edit,
-            cursor_position,
-        })
+        Ok(req::SourceChange { label: self.label, workspace_edit, cursor_position })
     }
 }
 
@@ -319,16 +300,8 @@ impl TryConvWith for SourceFileEdit {
             version: None,
         };
         let line_index = world.analysis().file_line_index(self.file_id);
-        let edits = self
-            .edit
-            .as_atoms()
-            .iter()
-            .map_conv_with(&line_index)
-            .collect();
-        Ok(TextDocumentEdit {
-            text_document,
-            edits,
-        })
+        let edits = self.edit.as_atoms().iter().map_conv_with(&line_index).collect();
+        Ok(TextDocumentEdit { text_document, edits })
     }
 }
 
@@ -341,18 +314,10 @@ impl TryConvWith for FileSystemEdit {
                 let uri = world.path_to_uri(source_root, &path)?;
                 ResourceOp::Create(CreateFile { uri, options: None })
             }
-            FileSystemEdit::MoveFile {
-                src,
-                dst_source_root,
-                dst_path,
-            } => {
+            FileSystemEdit::MoveFile { src, dst_source_root, dst_path } => {
                 let old_uri = world.file_id_to_uri(src)?;
                 let new_uri = world.path_to_uri(dst_source_root, &dst_path)?;
-                ResourceOp::Rename(RenameFile {
-                    old_uri,
-                    new_uri,
-                    options: None,
-                })
+                ResourceOp::Rename(RenameFile { old_uri, new_uri, options: None })
             }
         };
         Ok(res)
@@ -380,11 +345,8 @@ pub fn to_location_link(
 
     let target_range = target.info.full_range().conv_with(&tgt_line_index);
 
-    let target_selection_range = target
-        .info
-        .focus_range()
-        .map(|it| it.conv_with(&tgt_line_index))
-        .unwrap_or(target_range);
+    let target_selection_range =
+        target.info.focus_range().map(|it| it.conv_with(&tgt_line_index)).unwrap_or(target_range);
 
     let res = LocationLink {
         origin_selection_range: Some(target.range.conv_with(line_index)),

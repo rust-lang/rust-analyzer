@@ -9,11 +9,7 @@ use ra_vfs::{Vfs, VfsChange};
 
 #[test]
 fn test_vfs_works() -> std::io::Result<()> {
-    let files = [
-        ("a/foo.rs", "hello"),
-        ("a/bar.rs", "world"),
-        ("a/b/baz.rs", "nested hello"),
-    ];
+    let files = [("a/foo.rs", "hello"), ("a/bar.rs", "world"), ("a/b/baz.rs", "nested hello")];
 
     let dir = tempdir()?;
     for (path, text) in files.iter() {
@@ -46,14 +42,10 @@ fn test_vfs_works() -> std::io::Result<()> {
             })
             .collect::<HashSet<_>>();
 
-        let expected_files = [
-            ("foo.rs", "hello"),
-            ("bar.rs", "world"),
-            ("baz.rs", "nested hello"),
-        ]
-        .iter()
-        .map(|(path, text)| (path.to_string(), text.to_string()))
-        .collect::<HashSet<_>>();
+        let expected_files = [("foo.rs", "hello"), ("bar.rs", "world"), ("baz.rs", "nested hello")]
+            .iter()
+            .map(|(path, text)| (path.to_string(), text.to_string()))
+            .collect::<HashSet<_>>();
 
         assert_eq!(files, expected_files);
     }

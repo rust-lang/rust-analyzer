@@ -113,11 +113,9 @@ fn structure_node(node: &SyntaxNode) -> Option<StructureNode> {
             let target_trait = im.target_trait();
             let label = match target_trait {
                 None => format!("impl {}", target_type.syntax().text()),
-                Some(t) => format!(
-                    "impl {} for {}",
-                    t.syntax().text(),
-                    target_type.syntax().text(),
-                ),
+                Some(t) => {
+                    format!("impl {} for {}", t.syntax().text(), target_type.syntax().text(),)
+                }
             };
 
             let node = StructureNode {

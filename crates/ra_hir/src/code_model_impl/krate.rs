@@ -24,10 +24,7 @@ impl Crate {
         let module_tree = db.module_tree(self.crate_id);
         let module_id = module_tree.modules().next()?;
 
-        let module = Module {
-            krate: self.crate_id,
-            module_id,
-        };
+        let module = Module { krate: self.crate_id, module_id };
         Some(module)
     }
 }

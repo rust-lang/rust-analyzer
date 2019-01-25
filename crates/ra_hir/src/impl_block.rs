@@ -26,17 +26,11 @@ impl ImplBlock {
         item: ImplItem,
     ) -> Option<ImplBlock> {
         let impl_id = *module_impl_blocks.impls_by_def.get(&item)?;
-        Some(ImplBlock {
-            module_impl_blocks,
-            impl_id,
-        })
+        Some(ImplBlock { module_impl_blocks, impl_id })
     }
 
     pub(crate) fn from_id(module_impl_blocks: Arc<ModuleImplBlocks>, impl_id: ImplId) -> ImplBlock {
-        ImplBlock {
-            module_impl_blocks,
-            impl_id,
-        }
+        ImplBlock { module_impl_blocks, impl_id }
     }
 
     fn impl_data(&self) -> &ImplData {
@@ -89,11 +83,7 @@ impl ImplData {
         } else {
             Vec::new()
         };
-        ImplData {
-            target_trait,
-            target_type,
-            items,
-        }
+        ImplData { target_trait, target_type, items }
     }
 
     pub fn target_trait(&self) -> Option<&TypeRef> {
@@ -142,10 +132,7 @@ pub struct ModuleImplBlocks {
 
 impl ModuleImplBlocks {
     fn new() -> Self {
-        ModuleImplBlocks {
-            impls: Arena::default(),
-            impls_by_def: FxHashMap::default(),
-        }
+        ModuleImplBlocks { impls: Arena::default(), impls_by_def: FxHashMap::default() }
     }
 
     fn collect(&mut self, db: &impl HirDatabase, module: Module) {
@@ -153,10 +140,9 @@ impl ModuleImplBlocks {
         let file_id: HirFileId = file_id.into();
         let node = match &module_source {
             ModuleSource::SourceFile(node) => node.syntax(),
-            ModuleSource::Module(node) => node
-                .item_list()
-                .expect("inline module should have item list")
-                .syntax(),
+            ModuleSource::Module(node) => {
+                node.item_list().expect("inline module should have item list").syntax()
+            }
         };
 
         for impl_block_ast in node.children().filter_map(ast::ImplBlock::cast) {

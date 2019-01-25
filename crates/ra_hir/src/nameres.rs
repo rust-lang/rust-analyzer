@@ -84,31 +84,19 @@ pub struct PerNs<T> {
 
 impl<T> PerNs<T> {
     pub fn none() -> PerNs<T> {
-        PerNs {
-            types: None,
-            values: None,
-        }
+        PerNs { types: None, values: None }
     }
 
     pub fn values(t: T) -> PerNs<T> {
-        PerNs {
-            types: None,
-            values: Some(t),
-        }
+        PerNs { types: None, values: Some(t) }
     }
 
     pub fn types(t: T) -> PerNs<T> {
-        PerNs {
-            types: Some(t),
-            values: None,
-        }
+        PerNs { types: Some(t), values: None }
     }
 
     pub fn both(types: T, values: T) -> PerNs<T> {
-        PerNs {
-            types: Some(types),
-            values: Some(values),
-        }
+        PerNs { types: Some(types), values: Some(values) }
     }
 
     pub fn is_none(&self) -> bool {
@@ -135,24 +123,15 @@ impl<T> PerNs<T> {
     }
 
     pub fn as_ref(&self) -> PerNs<&T> {
-        PerNs {
-            types: self.types.as_ref(),
-            values: self.values.as_ref(),
-        }
+        PerNs { types: self.types.as_ref(), values: self.values.as_ref() }
     }
 
     pub fn and_then<U>(self, f: impl Fn(T) -> Option<U>) -> PerNs<U> {
-        PerNs {
-            types: self.types.and_then(&f),
-            values: self.values.and_then(&f),
-        }
+        PerNs { types: self.types.and_then(&f), values: self.values.and_then(&f) }
     }
 
     pub fn map<U>(self, f: impl Fn(T) -> U) -> PerNs<U> {
-        PerNs {
-            types: self.types.map(&f),
-            values: self.values.map(&f),
-        }
+        PerNs { types: self.types.map(&f), values: self.values.map(&f) }
     }
 }
 
@@ -232,10 +211,7 @@ where
                 if !import_data.is_glob {
                     module_items.items.insert(
                         segment.name.clone(),
-                        Resolution {
-                            def: PerNs::none(),
-                            import: Some(import_id),
-                        },
+                        Resolution { def: PerNs::none(), import: Some(import_id) },
                     );
                 }
             }
@@ -248,10 +224,7 @@ where
 
         // Populate modules
         for (name, module_id) in module_id.children(&self.module_tree) {
-            let module = Module {
-                module_id,
-                krate: self.krate,
-            };
+            let module = Module { module_id, krate: self.krate };
             self.add_module_item(&mut module_items, name, PerNs::types(module.into()));
         }
 
@@ -286,21 +259,14 @@ where
         if import.is_glob {
             return ReachedFixedPoint::Yes;
         };
-        let original_module = Module {
-            krate: self.krate,
-            module_id,
-        };
+        let original_module = Module { krate: self.krate, module_id };
         let (def, reached_fixedpoint) =
-            self.result
-                .resolve_path_fp(self.db, original_module, &import.path);
+            self.result.resolve_path_fp(self.db, original_module, &import.path);
 
         if reached_fixedpoint == ReachedFixedPoint::Yes {
             let last_segment = import.path.segments.last().unwrap();
             self.update(module_id, |items| {
-                let res = Resolution {
-                    def,
-                    import: Some(import_id),
-                };
+                let res = Resolution { def, import: Some(import_id) };
                 items.items.insert(last_segment.name.clone(), res);
             });
             log::debug!(
@@ -397,10 +363,8 @@ impl ItemMap {
                 ModuleDef::Enum(e) => {
                     // enum variant
                     tested_by!(item_map_enum_importing);
-                    let matching_variant = e
-                        .variants(db)
-                        .into_iter()
-                        .find(|(n, _variant)| n == &segment.name);
+                    let matching_variant =
+                        e.variants(db).into_iter().find(|(n, _variant)| n == &segment.name);
 
                     match matching_variant {
                         Some((_n, variant)) => PerNs::both(variant.into(), (*e).into()),

@@ -44,10 +44,7 @@ struct RootFilter {
 
 impl RootFilter {
     fn new(root: PathBuf) -> RootFilter {
-        RootFilter {
-            root,
-            file_filter: has_rs_extension,
-        }
+        RootFilter { root, file_filter: has_rs_extension }
     }
     /// Check if this root can contain `path`. NB: even if this returns
     /// true, the `path` might actually be conained in some nested root.
@@ -123,11 +120,7 @@ impl Vfs {
                     nested.iter().all(|it| it != entry.path())
                 }
             };
-            let task = io::Task {
-                root,
-                path: path.clone(),
-                filter: Box::new(filter),
-            };
+            let task = io::Task { root, path: path.clone(), filter: Box::new(filter) };
             res.worker.inp.send(task).unwrap();
         }
         let roots = res.roots.iter().map(|(id, _)| id).collect();
@@ -166,12 +159,7 @@ impl Vfs {
                 let text = fs::read_to_string(path).unwrap_or_default();
                 let text = Arc::new(text);
                 let file = self.add_file(root, rel_path.clone(), Arc::clone(&text));
-                let change = VfsChange::AddFile {
-                    file,
-                    text,
-                    root,
-                    path: rel_path,
-                };
+                let change = VfsChange::AddFile { file, text, root, path: rel_path };
                 self.pending_changes.push(change);
                 Some(file)
             };
@@ -202,10 +190,7 @@ impl Vfs {
             files.push((file, path, text));
         }
 
-        let change = VfsChange::AddRoot {
-            root: task.root,
-            files,
-        };
+        let change = VfsChange::AddRoot { root: task.root, files };
         self.pending_changes.push(change);
     }
 
@@ -220,12 +205,7 @@ impl Vfs {
             } else {
                 let file = self.add_file(root, path.clone(), Arc::clone(&text));
                 res = Some(file);
-                VfsChange::AddFile {
-                    file,
-                    text,
-                    root,
-                    path,
-                }
+                VfsChange::AddFile { file, text, root, path }
             };
             self.pending_changes.push(change);
         }
@@ -296,33 +276,16 @@ impl Vfs {
             .roots
             .iter()
             .find_map(|(root, data)| data.can_contain(path).map(|it| (root, it)))?;
-        let file = self.root2files[&root]
-            .iter()
-            .map(|&it| it)
-            .find(|&file| self.files[file].path == path);
+        let file =
+            self.root2files[&root].iter().map(|&it| it).find(|&file| self.files[file].path == path);
         Some((root, path, file))
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum VfsChange {
-    AddRoot {
-        root: VfsRoot,
-        files: Vec<(VfsFile, RelativePathBuf, Arc<String>)>,
-    },
-    AddFile {
-        root: VfsRoot,
-        file: VfsFile,
-        path: RelativePathBuf,
-        text: Arc<String>,
-    },
-    RemoveFile {
-        root: VfsRoot,
-        file: VfsFile,
-        path: RelativePathBuf,
-    },
-    ChangeFile {
-        file: VfsFile,
-        text: Arc<String>,
-    },
+    AddRoot { root: VfsRoot, files: Vec<(VfsFile, RelativePathBuf, Arc<String>)> },
+    AddFile { root: VfsRoot, file: VfsFile, path: RelativePathBuf, text: Arc<String> },
+    RemoveFile { root: VfsRoot, file: VfsFile, path: RelativePathBuf },
+    ChangeFile { file: VfsFile, text: Arc<String> },
 }

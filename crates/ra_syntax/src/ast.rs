@@ -121,12 +121,8 @@ pub trait DocCommentsOwner: AstNode {
             .filter(|comment| comment.is_doc_comment())
             .map(|comment| {
                 let prefix = comment.prefix();
-                let trimmed = comment
-                    .text()
-                    .as_str()
-                    .trim()
-                    .trim_start_matches(prefix)
-                    .trim_start();
+                let trimmed =
+                    comment.text().as_str().trim().trim_start_matches(prefix).trim_start();
                 trimmed.to_owned()
             })
             .join("\n")
@@ -316,10 +312,7 @@ pub enum PathSegmentKind<'a> {
 
 impl PathSegment {
     pub fn parent_path(&self) -> &Path {
-        self.syntax()
-            .parent()
-            .and_then(Path::cast)
-            .expect("segments are always nested in paths")
+        self.syntax().parent().and_then(Path::cast).expect("segments are always nested in paths")
     }
 
     pub fn kind(&self) -> Option<PathSegmentKind> {
@@ -387,10 +380,7 @@ pub struct AstChildren<'a, N> {
 
 impl<'a, N> AstChildren<'a, N> {
     fn new(parent: &'a SyntaxNode) -> Self {
-        AstChildren {
-            inner: parent.children(),
-            ph: PhantomData,
-        }
+        AstChildren { inner: parent.children(), ph: PhantomData }
     }
 }
 
@@ -617,11 +607,7 @@ impl SelfParam {
         let borrowed = self.syntax().children().any(|n| n.kind() == AMP);
         if borrowed {
             // check for a `mut` coming after the & -- `mut &self` != `&mut self`
-            if self
-                .syntax()
-                .children()
-                .skip_while(|n| n.kind() != AMP)
-                .any(|n| n.kind() == MUT_KW)
+            if self.syntax().children().skip_while(|n| n.kind() != AMP).any(|n| n.kind() == MUT_KW)
             {
                 SelfParamFlavor::MutRef
             } else {

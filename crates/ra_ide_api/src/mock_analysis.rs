@@ -42,10 +42,7 @@ impl MockAnalysis {
         let mut res = MockAnalysis::new();
         for entry in parse_fixture(fixture) {
             if entry.text.contains(CURSOR_MARKER) {
-                assert!(
-                    position.is_none(),
-                    "only one marker (<|>) per fixture is allowed"
-                );
+                assert!(position.is_none(), "only one marker (<|>) per fixture is allowed");
                 position = Some(res.add_file_with_position(&entry.meta, &entry.text));
             } else {
                 res.add_file(&entry.meta, &entry.text);

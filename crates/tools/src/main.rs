@@ -32,15 +32,8 @@ fn main() -> Result<()> {
         .subcommand(SubCommand::with_name("format-hook"))
         .subcommand(SubCommand::with_name("fuzz-tests"))
         .get_matches();
-    let mode = if matches.is_present("verify") {
-        Verify
-    } else {
-        Overwrite
-    };
-    match matches
-        .subcommand_name()
-        .expect("Subcommand must be specified")
-    {
+    let mode = if matches.is_present("verify") { Verify } else { Overwrite };
+    match matches.subcommand_name().expect("Subcommand must be specified") {
         "install-code" => install_code_extension()?,
         "gen-tests" => gen_tests(mode)?,
         "gen-syntax" => generate(Overwrite)?,
@@ -135,11 +128,7 @@ fn existing_tests(dir: &Path, ok: bool) -> Result<HashMap<String, (PathBuf, Test
             file_name[5..file_name.len() - 3].to_string()
         };
         let text = fs::read_to_string(&path)?;
-        let test = Test {
-            name: name.clone(),
-            text,
-            ok,
-        };
+        let test = Test { name: name.clone(), text, ok };
         if let Some(old) = res.insert(name, (path, test)) {
             println!("Duplicate test: {:?}", old);
         }
@@ -162,10 +151,7 @@ fn install_code_extension() -> Result<()> {
             "./editors/code",
         )?;
     } else {
-        run(
-            r"code --install-extension ./ra-lsp-0.0.1.vsix --force",
-            "./editors/code",
-        )?;
+        run(r"code --install-extension ./ra-lsp-0.0.1.vsix --force", "./editors/code")?;
     }
     Ok(())
 }

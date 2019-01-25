@@ -24,16 +24,11 @@ impl salsa::Database for RootDatabase {
 
 impl Default for RootDatabase {
     fn default() -> RootDatabase {
-        let mut db = RootDatabase {
-            runtime: salsa::Runtime::default(),
-            interner: Default::default(),
-        };
-        db.query_mut(ra_db::CrateGraphQuery)
-            .set((), Default::default());
-        db.query_mut(ra_db::LocalRootsQuery)
-            .set((), Default::default());
-        db.query_mut(ra_db::LibraryRootsQuery)
-            .set((), Default::default());
+        let mut db =
+            RootDatabase { runtime: salsa::Runtime::default(), interner: Default::default() };
+        db.query_mut(ra_db::CrateGraphQuery).set((), Default::default());
+        db.query_mut(ra_db::LocalRootsQuery).set((), Default::default());
+        db.query_mut(ra_db::LibraryRootsQuery).set((), Default::default());
         db
     }
 }

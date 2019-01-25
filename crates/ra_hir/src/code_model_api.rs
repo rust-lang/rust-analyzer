@@ -69,17 +69,7 @@ pub enum ModuleDef {
     Trait(Trait),
     Type(Type),
 }
-impl_froms!(
-    ModuleDef: Module,
-    Function,
-    Struct,
-    Enum,
-    EnumVariant,
-    Const,
-    Static,
-    Trait,
-    Type
-);
+impl_froms!(ModuleDef: Module, Function, Struct, Enum, EnumVariant, Const, Static, Trait, Type);
 
 pub enum ModuleSource {
     SourceFile(TreeArc<ast::SourceFile>),
@@ -88,13 +78,8 @@ pub enum ModuleSource {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum Problem {
-    UnresolvedModule {
-        candidate: RelativePathBuf,
-    },
-    NotDirOwner {
-        move_to: RelativePathBuf,
-        candidate: RelativePathBuf,
-    },
+    UnresolvedModule { candidate: RelativePathBuf },
+    NotDirOwner { move_to: RelativePathBuf, candidate: RelativePathBuf },
 }
 
 impl Module {
@@ -216,10 +201,7 @@ impl Struct {
             .variant_data
             .fields()
             .iter()
-            .map(|it| StructField {
-                parent: (*self).into(),
-                name: it.name.clone(),
-            })
+            .map(|it| StructField { parent: (*self).into(), name: it.name.clone() })
             .collect()
     }
 
@@ -296,10 +278,7 @@ impl EnumVariant {
         self.variant_data(db)
             .fields()
             .iter()
-            .map(|it| StructField {
-                parent: (*self).into(),
-                name: it.name.clone(),
-            })
+            .map(|it| StructField { parent: (*self).into(), name: it.name.clone() })
             .collect()
     }
 }
@@ -364,10 +343,7 @@ impl Function {
     pub fn scopes(&self, db: &impl HirDatabase) -> ScopesWithSyntaxMapping {
         let scopes = db.fn_scopes(*self);
         let syntax_mapping = db.body_syntax_mapping(*self);
-        ScopesWithSyntaxMapping {
-            scopes,
-            syntax_mapping,
-        }
+        ScopesWithSyntaxMapping { scopes, syntax_mapping }
     }
 
     pub fn signature(&self, db: &impl HirDatabase) -> Arc<FnSignature> {

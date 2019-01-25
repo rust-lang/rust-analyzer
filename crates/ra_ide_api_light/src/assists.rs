@@ -55,9 +55,7 @@ pub struct LocalEdit {
 }
 
 fn non_trivia_sibling(node: &SyntaxNode, direction: Direction) -> Option<&SyntaxNode> {
-    node.siblings(direction)
-        .skip(1)
-        .find(|node| !node.kind().is_trivia())
+    node.siblings(direction).skip(1).find(|node| !node.kind().is_trivia())
 }
 
 /// `AssistCtx` allows to apply an assist or check if it could be applied.
@@ -111,11 +109,7 @@ struct AssistBuilder {
 
 impl<'a> AssistCtx<'a> {
     pub fn new(source_file: &'a SourceFile, range: TextRange) -> AssistCtx {
-        AssistCtx {
-            source_file,
-            range,
-            should_compute_edit: false,
-        }
+        AssistCtx { source_file, range, should_compute_edit: false }
     }
 
     pub fn apply(mut self, assist: fn(AssistCtx) -> Option<Assist>) -> Option<LocalEdit> {

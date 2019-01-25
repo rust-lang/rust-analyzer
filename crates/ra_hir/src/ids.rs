@@ -168,11 +168,7 @@ impl<N: AstNode> Hash for ItemLoc<N> {
 
 impl<N: AstNode> Clone for ItemLoc<N> {
     fn clone(&self) -> ItemLoc<N> {
-        ItemLoc {
-            module: self.module,
-            raw: self.raw,
-            _ty: PhantomData,
-        }
+        ItemLoc { module: self.module, raw: self.raw, _ty: PhantomData }
     }
 }
 
@@ -185,11 +181,7 @@ pub(crate) struct LocationCtx<DB> {
 
 impl<'a, DB: HirDatabase> LocationCtx<&'a DB> {
     pub(crate) fn new(db: &'a DB, module: Module, file_id: HirFileId) -> LocationCtx<&'a DB> {
-        LocationCtx {
-            db,
-            module,
-            file_id,
-        }
+        LocationCtx { db, module, file_id }
     }
     pub(crate) fn to_def<N, DEF>(self, ast: &N) -> DEF
     where
@@ -208,11 +200,7 @@ pub(crate) trait AstItemDef<N: AstNode>: ArenaId + Clone {
             file_id: ctx.file_id,
             item_id: Some(items.id_of(ctx.file_id, ast.syntax())),
         };
-        let loc = ItemLoc {
-            module: ctx.module,
-            raw,
-            _ty: PhantomData,
-        };
+        let loc = ItemLoc { module: ctx.module, raw, _ty: PhantomData };
 
         Self::interner(ctx.db.as_ref()).loc2id(&loc)
     }
@@ -220,9 +208,8 @@ pub(crate) trait AstItemDef<N: AstNode>: ArenaId + Clone {
         let int = Self::interner(db.as_ref());
         let loc = int.id2loc(self);
         let syntax = db.file_item(loc.raw);
-        let ast = N::cast(&syntax)
-            .unwrap_or_else(|| panic!("invalid ItemLoc: {:?}", loc.raw))
-            .to_owned();
+        let ast =
+            N::cast(&syntax).unwrap_or_else(|| panic!("invalid ItemLoc: {:?}", loc.raw)).to_owned();
         (loc.raw.file_id, ast)
     }
     fn module(self, db: &impl HirDatabase) -> Module {
@@ -317,10 +304,7 @@ pub struct SourceFileItems {
 
 impl SourceFileItems {
     pub(crate) fn new(file_id: HirFileId, source_file: &SourceFile) -> SourceFileItems {
-        let mut res = SourceFileItems {
-            file_id,
-            arena: Arena::default(),
-        };
+        let mut res = SourceFileItems { file_id, arena: Arena::default() };
         res.init(source_file);
         res
     }
@@ -357,11 +341,7 @@ impl SourceFileItems {
         // This should not happen. Let's try to give a sensible diagnostics.
         if let Some((id, i)) = self.arena.iter().find(|(_id, i)| i.range() == item.range()) {
             // FIXME(#288): whyyy are we getting here?
-            log::error!(
-                "unequal syntax nodes with the same range:\n{:?}\n{:?}",
-                item,
-                i
-            );
+            log::error!("unequal syntax nodes with the same range:\n{:?}\n{:?}", item, i);
             return id;
         }
         panic!(

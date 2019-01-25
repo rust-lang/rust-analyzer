@@ -80,13 +80,9 @@ impl LoweredModule {
         let mut source_map = ImportSourceMap::default();
         let mut res = LoweredModule::default();
         match source {
-            ModuleSource::SourceFile(it) => res.fill(
-                &mut source_map,
-                db,
-                module,
-                file_id,
-                &mut it.items_with_macros(),
-            ),
+            ModuleSource::SourceFile(it) => {
+                res.fill(&mut source_map, db, module, file_id, &mut it.items_with_macros())
+            }
             ModuleSource::Module(it) => {
                 if let Some(item_list) = it.item_list() {
                     res.fill(
@@ -121,10 +117,7 @@ impl LoweredModule {
                     let item_id = file_items.id_of_unchecked(macro_call.syntax());
                     let loc = MacroCallLoc {
                         module,
-                        source_item_id: SourceItemId {
-                            file_id,
-                            item_id: Some(item_id),
-                        },
+                        source_item_id: SourceItemId { file_id, item_id: Some(item_id) },
                     };
                     let id = loc.id(db);
                     let file_id = HirFileId::from(id);
@@ -164,22 +157,19 @@ impl LoweredModule {
             ast::ModuleItemKind::FnDef(it) => {
                 if let Some(name) = it.name() {
                     let func = Function { id: ctx.to_def(it) };
-                    self.declarations
-                        .insert(name.as_name(), PerNs::values(func.into()));
+                    self.declarations.insert(name.as_name(), PerNs::values(func.into()));
                 }
             }
             ast::ModuleItemKind::TraitDef(it) => {
                 if let Some(name) = it.name() {
                     let t = Trait { id: ctx.to_def(it) };
-                    self.declarations
-                        .insert(name.as_name(), PerNs::types(t.into()));
+                    self.declarations.insert(name.as_name(), PerNs::types(t.into()));
                 }
             }
             ast::ModuleItemKind::TypeDef(it) => {
                 if let Some(name) = it.name() {
                     let t = Type { id: ctx.to_def(it) };
-                    self.declarations
-                        .insert(name.as_name(), PerNs::types(t.into()));
+                    self.declarations.insert(name.as_name(), PerNs::types(t.into()));
                 }
             }
             ast::ModuleItemKind::ImplBlock(_) => {
@@ -194,15 +184,13 @@ impl LoweredModule {
             ast::ModuleItemKind::ConstDef(it) => {
                 if let Some(name) = it.name() {
                     let c = Const { id: ctx.to_def(it) };
-                    self.declarations
-                        .insert(name.as_name(), PerNs::values(c.into()));
+                    self.declarations.insert(name.as_name(), PerNs::values(c.into()));
                 }
             }
             ast::ModuleItemKind::StaticDef(it) => {
                 if let Some(name) = it.name() {
                     let s = Static { id: ctx.to_def(it) };
-                    self.declarations
-                        .insert(name.as_name(), PerNs::values(s.into()));
+                    self.declarations.insert(name.as_name(), PerNs::values(s.into()));
                 }
             }
             ast::ModuleItemKind::Module(_) => {
@@ -213,10 +201,7 @@ impl LoweredModule {
 
     fn add_use_item(&mut self, source_map: &mut ImportSourceMap, item: &ast::UseItem) {
         Path::expand_use_item(item, |path, segment| {
-            let import = self.imports.alloc(ImportData {
-                path,
-                is_glob: segment.is_none(),
-            });
+            let import = self.imports.alloc(ImportData { path, is_glob: segment.is_none() });
             if let Some(segment) = segment {
                 source_map.insert(import, segment)
             }

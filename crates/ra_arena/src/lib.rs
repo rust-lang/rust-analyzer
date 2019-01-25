@@ -43,10 +43,7 @@ pub struct Arena<ID: ArenaId, T> {
 
 impl<ID: ArenaId, T: fmt::Debug> fmt::Debug for Arena<ID, T> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Arena")
-            .field("len", &self.len())
-            .field("data", &self.data)
-            .finish()
+        fmt.debug_struct("Arena").field("len", &self.len()).field("data", &self.data).finish()
     }
 }
 
@@ -79,19 +76,13 @@ impl<ID: ArenaId, T> Arena<ID, T> {
         ID::from_raw(id)
     }
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = (ID, &'a T)> {
-        self.data
-            .iter()
-            .enumerate()
-            .map(|(idx, value)| (ID::from_raw(RawId(idx as u32)), value))
+        self.data.iter().enumerate().map(|(idx, value)| (ID::from_raw(RawId(idx as u32)), value))
     }
 }
 
 impl<ID: ArenaId, T> Default for Arena<ID, T> {
     fn default() -> Arena<ID, T> {
-        Arena {
-            data: Vec::new(),
-            _ty: PhantomData,
-        }
+        Arena { data: Vec::new(), _ty: PhantomData }
     }
 }
 

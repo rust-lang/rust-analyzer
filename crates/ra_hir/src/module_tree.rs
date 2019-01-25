@@ -151,10 +151,7 @@ impl ModuleTree {
         let mut visited = FxHashSet::default();
 
         let source_root = db.source_root(source_root_id);
-        let source = SourceItemId {
-            file_id: file_id.into(),
-            item_id: None,
-        };
+        let source = SourceItemId { file_id: file_id.into(), item_id: None };
         let module_id = self.init_subtree(db, &source_root, &mut visited, &mut roots, None, source);
         roots.insert(file_id, module_id);
     }
@@ -169,11 +166,7 @@ impl ModuleTree {
         source: SourceItemId,
     ) -> ModuleId {
         visited.insert(source);
-        let id = self.alloc_mod(ModuleData {
-            source,
-            parent,
-            children: Vec::new(),
-        });
+        let id = self.alloc_mod(ModuleData { source, parent, children: Vec::new() });
         for sub in db.submodules(source).iter() {
             let link = self.alloc_link(LinkData {
                 source: sub.source,
@@ -198,10 +191,7 @@ impl ModuleTree {
                             visited,
                             roots,
                             Some(link),
-                            SourceItemId {
-                                file_id: file_id.into(),
-                                item_id: None,
-                            },
+                            SourceItemId { file_id: file_id.into(), item_id: None },
                         ),
                     })
                     .collect::<Vec<_>>();
@@ -242,9 +232,7 @@ impl ModuleId {
         Some(tree.links[link].owner)
     }
     pub(crate) fn crate_root(self, tree: &ModuleTree) -> ModuleId {
-        generate(Some(self), move |it| it.parent(tree))
-            .last()
-            .unwrap()
+        generate(Some(self), move |it| it.parent(tree)).last().unwrap()
     }
     pub(crate) fn child(self, tree: &ModuleTree, name: &Name) -> Option<ModuleId> {
         let link = tree.mods[self]

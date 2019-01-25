@@ -20,10 +20,7 @@ use crate::{
 
 /// Locates the module by `FileId`. Picks topmost module in the file.
 pub fn module_from_file_id(db: &impl HirDatabase, file_id: FileId) -> Option<Module> {
-    let module_source = SourceItemId {
-        file_id: file_id.into(),
-        item_id: None,
-    };
+    let module_source = SourceItemId { file_id: file_id.into(), item_id: None };
     module_from_source(db, module_source)
 }
 
@@ -59,10 +56,7 @@ fn module_from_inline(
     let file_id = file_id.into();
     let file_items = db.file_items(file_id);
     let item_id = file_items.id_of(file_id, module.syntax());
-    let source = SourceItemId {
-        file_id,
-        item_id: Some(item_id),
-    };
+    let source = SourceItemId { file_id, item_id: Some(item_id) };
     module_from_source(db, source)
 }
 
@@ -72,11 +66,7 @@ pub fn module_from_child_node(
     file_id: FileId,
     child: &SyntaxNode,
 ) -> Option<Module> {
-    if let Some(m) = child
-        .ancestors()
-        .filter_map(ast::Module::cast)
-        .find(|it| !it.has_semi())
-    {
+    if let Some(m) = child.ancestors().filter_map(ast::Module::cast).find(|it| !it.has_semi()) {
         module_from_inline(db, file_id.into(), m)
     } else {
         module_from_file_id(db, file_id.into())
@@ -85,13 +75,11 @@ pub fn module_from_child_node(
 
 fn module_from_source(db: &impl HirDatabase, source: SourceItemId) -> Option<Module> {
     let source_root_id = db.file_source_root(source.file_id.as_original_file());
-    db.source_root_crates(source_root_id)
-        .iter()
-        .find_map(|&krate| {
-            let module_tree = db.module_tree(krate);
-            let module_id = module_tree.find_module_by_source(source)?;
-            Some(Module { krate, module_id })
-        })
+    db.source_root_crates(source_root_id).iter().find_map(|&krate| {
+        let module_tree = db.module_tree(krate);
+        let module_id = module_tree.find_module_by_source(source)?;
+        Some(Module { krate, module_id })
+    })
 }
 
 pub fn function_from_position(db: &impl HirDatabase, position: FilePosition) -> Option<Function> {
@@ -118,9 +106,7 @@ pub fn function_from_module(
     let (file_id, _) = module.definition_source(db);
     let file_id = file_id.into();
     let ctx = LocationCtx::new(db, module, file_id);
-    Function {
-        id: ctx.to_def(fn_def),
-    }
+    Function { id: ctx.to_def(fn_def) }
 }
 
 pub fn function_from_child_node(

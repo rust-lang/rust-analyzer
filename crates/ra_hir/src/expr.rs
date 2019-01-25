@@ -86,9 +86,7 @@ impl BodySyntaxMapping {
     }
 
     pub fn node_expr(&self, node: &ast::Expr) -> Option<ExprId> {
-        self.expr_syntax_mapping
-            .get(&SyntaxNodePtr::new(node.syntax()))
-            .cloned()
+        self.expr_syntax_mapping.get(&SyntaxNodePtr::new(node.syntax())).cloned()
     }
 
     pub fn pat_syntax(&self, pat: PatId) -> Option<SyntaxNodePtr> {
@@ -100,9 +98,7 @@ impl BodySyntaxMapping {
     }
 
     pub fn node_pat(&self, node: &ast::Pat) -> Option<PatId> {
-        self.pat_syntax_mapping
-            .get(&SyntaxNodePtr::new(node.syntax()))
-            .cloned()
+        self.pat_syntax_mapping.get(&SyntaxNodePtr::new(node.syntax())).cloned()
     }
 
     pub fn body(&self) -> &Arc<Body> {
@@ -227,11 +223,7 @@ pub struct StructLitField {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Statement {
-    Let {
-        pat: PatId,
-        type_ref: Option<TypeRef>,
-        initializer: Option<ExprId>,
-    },
+    Let { pat: PatId, type_ref: Option<TypeRef>, initializer: Option<ExprId> },
     Expr(ExprId),
 }
 
@@ -240,11 +232,7 @@ impl Expr {
         match self {
             Expr::Missing => {}
             Expr::Path(_) => {}
-            Expr::If {
-                condition,
-                then_branch,
-                else_branch,
-            } => {
+            Expr::If { condition, then_branch, else_branch } => {
                 f(*condition);
                 f(*then_branch);
                 if let Some(else_branch) = else_branch {
@@ -422,11 +410,7 @@ impl Pat {
                 args.iter().map(|pat| *pat).for_each(f);
             }
             Pat::Ref { pat, .. } => f(*pat),
-            Pat::Slice {
-                prefix,
-                rest,
-                suffix,
-            } => {
+            Pat::Slice { prefix, rest, suffix } => {
                 let total_iter = prefix.iter().chain(rest.iter()).chain(suffix.iter());
                 total_iter.map(|pat| *pat).for_each(f);
             }
@@ -479,10 +463,7 @@ impl ExprCollector {
     }
 
     fn empty_block(&mut self) -> ExprId {
-        let block = Expr::Block {
-            statements: Vec::new(),
-            tail: None,
-        };
+        let block = Expr::Block { statements: Vec::new(), tail: None };
         self.exprs.alloc(block)
     }
 
@@ -502,34 +483,15 @@ impl ExprCollector {
                         .unwrap_or_else(|| self.empty_block());
                     let placeholder_pat = self.pats.alloc(Pat::Missing);
                     let arms = vec![
-                        MatchArm {
-                            pats: vec![pat],
-                            expr: then_branch,
-                        },
-                        MatchArm {
-                            pats: vec![placeholder_pat],
-                            expr: else_branch,
-                        },
+                        MatchArm { pats: vec![pat], expr: then_branch },
+                        MatchArm { pats: vec![placeholder_pat], expr: else_branch },
                     ];
-                    self.alloc_expr(
-                        Expr::Match {
-                            expr: match_expr,
-                            arms,
-                        },
-                        syntax_ptr,
-                    )
+                    self.alloc_expr(Expr::Match { expr: match_expr, arms }, syntax_ptr)
                 } else {
                     let condition = self.collect_expr_opt(e.condition().and_then(|c| c.expr()));
                     let then_branch = self.collect_block_opt(e.then_branch());
                     let else_branch = e.else_branch().map(|e| self.collect_block(e));
-                    self.alloc_expr(
-                        Expr::If {
-                            condition,
-                            then_branch,
-                            else_branch,
-                        },
-                        syntax_ptr,
-                    )
+                    self.alloc_expr(Expr::If { condition, then_branch, else_branch }, syntax_ptr)
                 }
             }
             ast::ExprKind::BlockExpr(e) => self.collect_block_opt(e.block()),
@@ -555,14 +517,7 @@ impl ExprCollector {
                 let iterable = self.collect_expr_opt(e.iterable());
                 let pat = self.collect_pat_opt(e.pat());
                 let body = self.collect_block_opt(e.loop_body());
-                self.alloc_expr(
-                    Expr::For {
-                        iterable,
-                        pat,
-                        body,
-                    },
-                    syntax_ptr,
-                )
+                self.alloc_expr(Expr::For { iterable, pat, body }, syntax_ptr)
             }
             ast::ExprKind::CallExpr(e) => {
                 let callee = self.collect_expr_opt(e.expr());
@@ -580,18 +535,8 @@ impl ExprCollector {
                 } else {
                     Vec::new()
                 };
-                let method_name = e
-                    .name_ref()
-                    .map(|nr| nr.as_name())
-                    .unwrap_or_else(Name::missing);
-                self.alloc_expr(
-                    Expr::MethodCall {
-                        receiver,
-                        method_name,
-                        args,
-                    },
-                    syntax_ptr,
-                )
+                let method_name = e.name_ref().map(|nr| nr.as_name()).unwrap_or_else(Name::missing);
+                self.alloc_expr(Expr::MethodCall { receiver, method_name, args }, syntax_ptr)
             }
             ast::ExprKind::MatchExpr(e) => {
                 let expr = self.collect_expr_opt(e.expr());
@@ -609,11 +554,8 @@ impl ExprCollector {
                 self.alloc_expr(Expr::Match { expr, arms }, syntax_ptr)
             }
             ast::ExprKind::PathExpr(e) => {
-                let path = e
-                    .path()
-                    .and_then(Path::from_ast)
-                    .map(Expr::Path)
-                    .unwrap_or(Expr::Missing);
+                let path =
+                    e.path().and_then(Path::from_ast).map(Expr::Path).unwrap_or(Expr::Missing);
                 self.alloc_expr(path, syntax_ptr)
             }
             ast::ExprKind::ContinueExpr(_e) => {
@@ -662,21 +604,11 @@ impl ExprCollector {
                     Vec::new()
                 };
                 let spread = e.spread().map(|s| self.collect_expr(s));
-                self.alloc_expr(
-                    Expr::StructLit {
-                        path,
-                        fields,
-                        spread,
-                    },
-                    syntax_ptr,
-                )
+                self.alloc_expr(Expr::StructLit { path, fields, spread }, syntax_ptr)
             }
             ast::ExprKind::FieldExpr(e) => {
                 let expr = self.collect_expr_opt(e.expr());
-                let name = e
-                    .name_ref()
-                    .map(|nr| nr.as_name())
-                    .unwrap_or_else(Name::missing);
+                let name = e.name_ref().map(|nr| nr.as_name()).unwrap_or_else(Name::missing);
                 self.alloc_expr(Expr::Field { expr, name }, syntax_ptr)
             }
             ast::ExprKind::TryExpr(e) => {
@@ -713,14 +645,7 @@ impl ExprCollector {
                     }
                 }
                 let body = self.collect_expr_opt(e.body());
-                self.alloc_expr(
-                    Expr::Lambda {
-                        args,
-                        arg_types,
-                        body,
-                    },
-                    syntax_ptr,
-                )
+                self.alloc_expr(Expr::Lambda { args, arg_types, body }, syntax_ptr)
             }
             ast::ExprKind::BinExpr(e) => {
                 let lhs = self.collect_expr_opt(e.lhs());
@@ -798,11 +723,7 @@ impl ExprCollector {
                     let pat = self.collect_pat_opt(stmt.pat());
                     let type_ref = stmt.type_ref().map(TypeRef::from_ast);
                     let initializer = stmt.initializer().map(|e| self.collect_expr(e));
-                    Statement::Let {
-                        pat,
-                        type_ref,
-                        initializer,
-                    }
+                    Statement::Let { pat, type_ref, initializer }
                 }
                 ast::StmtKind::ExprStmt(stmt) => {
                     Statement::Expr(self.collect_expr_opt(stmt.expr()))
@@ -810,10 +731,7 @@ impl ExprCollector {
             })
             .collect();
         let tail = block.expr().map(|e| self.collect_expr(e));
-        self.alloc_expr(
-            Expr::Block { statements, tail },
-            SyntaxNodePtr::new(block.syntax()),
-        )
+        self.alloc_expr(Expr::Block { statements, tail }, SyntaxNodePtr::new(block.syntax()))
     }
 
     fn collect_block_opt(&mut self, block: Option<&ast::Block>) -> ExprId {
@@ -827,17 +745,10 @@ impl ExprCollector {
     fn collect_pat(&mut self, pat: &ast::Pat) -> PatId {
         let pattern = match pat.kind() {
             ast::PatKind::BindPat(bp) => {
-                let name = bp
-                    .name()
-                    .map(|nr| nr.as_name())
-                    .unwrap_or_else(Name::missing);
+                let name = bp.name().map(|nr| nr.as_name()).unwrap_or_else(Name::missing);
                 let annotation = BindingAnnotation::new(bp.is_mutable(), bp.is_ref());
                 let subpat = bp.pat().map(|subpat| self.collect_pat(subpat));
-                Pat::Bind {
-                    name,
-                    mode: annotation,
-                    subpat,
-                }
+                Pat::Bind { name, mode: annotation, subpat }
             }
             ast::PatKind::TupleStructPat(p) => {
                 let path = p.path().and_then(Path::from_ast);
@@ -860,9 +771,8 @@ impl ExprCollector {
             ast::PatKind::PlaceholderPat(_) => Pat::Wild,
             ast::PatKind::StructPat(p) => {
                 let path = p.path().and_then(Path::from_ast);
-                let field_pat_list = p
-                    .field_pat_list()
-                    .expect("every struct should have a field list");
+                let field_pat_list =
+                    p.field_pat_list().expect("every struct should have a field list");
                 let mut fields: Vec<_> = field_pat_list
                     .bind_pats()
                     .map(|bind_pat| {
@@ -880,10 +790,7 @@ impl ExprCollector {
                 });
                 fields.extend(iter);
 
-                Pat::Struct {
-                    path: path,
-                    args: fields,
-                }
+                Pat::Struct { path: path, args: fields }
             }
 
             // TODO: implement
@@ -902,12 +809,7 @@ impl ExprCollector {
     }
 
     fn into_body_syntax_mapping(self, params: Vec<PatId>, body_expr: ExprId) -> BodySyntaxMapping {
-        let body = Body {
-            exprs: self.exprs,
-            pats: self.pats,
-            params,
-            body_expr,
-        };
+        let body = Body { exprs: self.exprs, pats: self.pats, params, body_expr };
         BodySyntaxMapping {
             body: Arc::new(body),
             expr_syntax_mapping: self.expr_syntax_mapping,
@@ -926,10 +828,7 @@ pub(crate) fn collect_fn_body_syntax(node: &ast::FnDef) -> BodySyntaxMapping {
 
         if let Some(self_param) = param_list.self_param() {
             let self_param = SyntaxNodePtr::new(
-                self_param
-                    .self_kw()
-                    .expect("self param without self keyword")
-                    .syntax(),
+                self_param.self_kw().expect("self param without self keyword").syntax(),
             );
             let param = collector.alloc_pat(
                 Pat::Bind {

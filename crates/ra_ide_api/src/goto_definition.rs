@@ -55,17 +55,12 @@ pub(crate) fn reference_definition(
         };
 
         // Next check if it is a method
-        if let Some(method_call) = name_ref
-            .syntax()
-            .parent()
-            .and_then(ast::MethodCallExpr::cast)
-        {
+        if let Some(method_call) = name_ref.syntax().parent().and_then(ast::MethodCallExpr::cast) {
             let infer_result = function.infer(db);
             let syntax_mapping = function.body_syntax_mapping(db);
             let expr = ast::Expr::cast(method_call.syntax()).unwrap();
-            if let Some(func) = syntax_mapping
-                .node_expr(expr)
-                .and_then(|it| infer_result.method_resolution(it))
+            if let Some(func) =
+                syntax_mapping.node_expr(expr).and_then(|it| infer_result.method_resolution(it))
             {
                 return Exact(NavigationTarget::from_function(db, func));
             };
@@ -74,11 +69,8 @@ pub(crate) fn reference_definition(
     // Then try module name resolution
     if let Some(module) = hir::source_binder::module_from_child_node(db, file_id, name_ref.syntax())
     {
-        if let Some(path) = name_ref
-            .syntax()
-            .ancestors()
-            .find_map(ast::Path::cast)
-            .and_then(hir::Path::from_ast)
+        if let Some(path) =
+            name_ref.syntax().ancestors().find_map(ast::Path::cast).and_then(hir::Path::from_ast)
         {
             let resolved = module.resolve_path(db, &path);
             if let Some(def_id) = resolved.take_types().or(resolved.take_values()) {
@@ -89,11 +81,7 @@ pub(crate) fn reference_definition(
         }
     }
     // If that fails try the index based approach.
-    let navs = db
-        .index_resolve(name_ref)
-        .into_iter()
-        .map(NavigationTarget::from_symbol)
-        .collect();
+    let navs = db.index_resolve(name_ref).into_iter().map(NavigationTarget::from_symbol).collect();
     Approximate(navs)
 }
 
