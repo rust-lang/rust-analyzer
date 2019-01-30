@@ -56,10 +56,6 @@ impl Module {
         source_map.get(&source, import)
     }
 
-    pub(crate) fn krate_impl(&self, _db: &impl HirDatabase) -> Option<Crate> {
-        Some(Crate::new(self.krate))
-    }
-
     pub(crate) fn crate_root_impl(&self, db: &impl HirDatabase) -> Module {
         let module_tree = db.module_tree(self.krate);
         let module_id = self.module_id.crate_root(&module_tree);

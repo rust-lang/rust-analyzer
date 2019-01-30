@@ -128,7 +128,7 @@ impl Module {
 
     /// Returns the crate this module is part of.
     pub fn krate(&self, db: &impl HirDatabase) -> Option<Crate> {
-        self.krate_impl(db)
+        Some(Crate::new(self.krate))
     }
 
     /// Topmost parent of this module. Every module has a `crate_root`, but some
