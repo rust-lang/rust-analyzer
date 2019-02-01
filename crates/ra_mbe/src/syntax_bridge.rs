@@ -1,6 +1,6 @@
 use ra_syntax::{ast, TextRange, TextUnit, AstNode, SyntaxNode, SyntaxKind::*, SourceFile, TreeArc};
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq, Hash)]
 pub struct TokenMap {
     tokens: Vec<TextRange>,
 }
@@ -19,10 +19,17 @@ impl TokenMap {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct RangesMap {
     // FIXME: account for cases where single input range maps to many output ranges.
     data: Vec<(TextRange, TextRange)>,
+}
+
+// FIXME: remove this impl
+impl From<Vec<(TextRange, TextRange)>> for RangesMap {
+    fn from(data: Vec<(TextRange, TextRange)>) -> RangesMap {
+        RangesMap { data }
+    }
 }
 
 impl RangesMap {

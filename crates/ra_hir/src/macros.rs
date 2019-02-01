@@ -14,7 +14,7 @@ use ra_syntax::{
     ast::{self, NameOwner, ModuleItemOwner},
 };
 use rustc_hash::FxHashMap;
-use mbe::MacroRules;
+use mbe::{MacroRules, RangesMap};
 
 use crate::{PersistentHirDatabase, MacroCallId, Name, AsName, Module, ModuleSource};
 
@@ -41,7 +41,7 @@ impl MacroDef {
             return None;
         }
         let name = macro_call.name()?.as_name();
-        let tt = token_tree(macro_call)?;
+        let (tt, _) = token_tree(macro_call)?;
         let rules = MacroRules::parse(&tt)?;
         Some((name, MacroDef::MacroRules(Arc::new(rules))))
     }
@@ -62,18 +62,18 @@ impl MacroDef {
             MacroDef::Vec => self.expand_vec(input),
             MacroDef::QueryGroup => self.expand_query_group(input),
             MacroDef::MacroRules(rules) => {
-                if let Some(tt) = input.tt.as_ref().and_then(|it| rules.expand(it)) {
-                    let text = tt.to_string();
-                    let file = SourceFile::parse(&text);
-                    let ptr = SyntaxNodePtr::new(file.syntax());
-                    Some(MacroExpansion {
-                        text,
-                        ranges_map: Vec::new(),
-                        ptr,
-                    })
-                } else {
-                    None
+                if let Some((tt, token_map)) = &input.tt {
+                    if let Some(tt) = rules.expand(tt) {
+                        let (file, ranges_map) = mbe::parse_token_tree(&tt, &token_map);
+                        let ptr = SyntaxNodePtr::new(file.syntax());
+                        return Some(MacroExpansion {
+                            text: file.syntax().text().to_string(),
+                            ranges_map,
+                            ptr,
+                        });
+                    }
                 }
+                return None;
             }
         }
     }
@@ -83,7 +83,7 @@ impl MacroDef {
         let array_expr = file.syntax().descendants().find_map(ast::ArrayExpr::cast)?;
         let ptr = SyntaxNodePtr::new(array_expr.syntax());
         let src_range = TextRange::offset_len(0.into(), TextUnit::of_str(&input.text));
-        let ranges_map = vec![(src_range, array_expr.syntax().range())];
+        let ranges_map = vec![(src_range, array_expr.syntax().range())].into();
         let res = MacroExpansion {
             text,
             ranges_map,
@@ -107,7 +107,7 @@ impl MacroDef {
         let trait_def = file.syntax().descendants().find_map(ast::TraitDef::cast)?;
         let name = trait_def.name()?;
         let ptr = SyntaxNodePtr::new(trait_def.syntax());
-        let ranges_map = vec![(src_range, name.syntax().range())];
+        let ranges_map = vec![(src_range, name.syntax().range())].into();
         let res = MacroExpansion {
             text,
             ranges_map,
@@ -117,11 +117,11 @@ impl MacroDef {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct MacroInput {
     // FIXME: remove text
     text: String,
-    tt: Option<tt::Subtree>,
+    tt: Option<(tt::Subtree, mbe::TokenMap)>,
 }
 
 impl MacroInput {
@@ -135,13 +135,13 @@ impl MacroInput {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct MacroExpansion {
     // FIXME: should be tt::Subtree
     text: String,
     /// Correspondence between ranges in the original source code and ranges in
     /// the macro.
-    ranges_map: Vec<(TextRange, TextRange)>,
+    ranges_map: RangesMap,
     /// Implementation detail: internally, a macro is expanded to the whole file,
     /// even if it is an expression. This `ptr` selects the actual expansion from
     /// the expanded file.
@@ -160,27 +160,11 @@ impl MacroExpansion {
     }
     /// Maps range in the source code to the range in the expanded code.
     pub fn map_range_forward(&self, src_range: TextRange) -> Option<TextRange> {
-        for (s_range, t_range) in self.ranges_map.iter() {
-            if src_range.is_subrange(&s_range) {
-                let src_at_zero_range = src_range - src_range.start();
-                let src_range_offset = src_range.start() - s_range.start();
-                let src_range = src_at_zero_range + src_range_offset + t_range.start();
-                return Some(src_range);
-            }
-        }
-        None
+        self.ranges_map.map_forward(src_range)
     }
     /// Maps range in the expanded code to the range in the source code.
     pub fn map_range_back(&self, tgt_range: TextRange) -> Option<TextRange> {
-        for (s_range, t_range) in self.ranges_map.iter() {
-            if tgt_range.is_subrange(&t_range) {
-                let tgt_at_zero_range = tgt_range - tgt_range.start();
-                let tgt_range_offset = tgt_range.start() - t_range.start();
-                let src_range = tgt_at_zero_range + tgt_range_offset + s_range.start();
-                return Some(src_range);
-            }
-        }
-        None
+        self.ranges_map.map_back(tgt_range)
     }
 }
 
@@ -200,7 +184,7 @@ pub(crate) fn expand_macro_invocation(
     def.expand(input).map(Arc::new)
 }
 
-fn token_tree(call: &ast::MacroCall) -> Option<tt::Subtree> {
+fn token_tree(call: &ast::MacroCall) -> Option<(tt::Subtree, mbe::TokenMap)> {
     call.token_tree().and_then(mbe::ast_to_token_tree)
 }
 
