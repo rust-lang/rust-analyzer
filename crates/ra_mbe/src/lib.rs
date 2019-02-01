@@ -24,7 +24,10 @@ use ra_syntax::SmolStr;
 
 pub use tt::{Delimiter, Punct};
 
-pub use crate::syntax_bridge::ast_to_token_tree;
+pub use crate::syntax_bridge::{
+    ast_to_token_tree, parse_token_tree,
+    TokenMap, RangesMap,
+};
 
 /// This struct contains AST for a single `macro_rules` defenition. What might
 /// be very confusing is that AST has almost exactly the same shape as
@@ -105,7 +108,7 @@ pub(crate) struct Var {
 
 #[cfg(test)]
 mod tests {
-    use ra_syntax::{ast, AstNode};
+    use ra_syntax::{ast, AstNode, TextRange};
 
     use super::*;
 
@@ -150,16 +153,20 @@ impl_froms!(TokenTree: Leaf, Subtree);
             .find_map(ast::MacroCall::cast)
             .unwrap();
 
-        let (definition_tt, _token_map) =
-            ast_to_token_tree(macro_definition.token_tree().unwrap()).unwrap();
-        let (invocation_tt, _token_map) =
+        let (definition_tt, _) = ast_to_token_tree(macro_definition.token_tree().unwrap()).unwrap();
+        let (invocation_tt, token_map) =
             ast_to_token_tree(macro_invocation.token_tree().unwrap()).unwrap();
         let rules = crate::MacroRules::parse(&definition_tt).unwrap();
         let expansion = rules.expand(&invocation_tt).unwrap();
+        let (file, ranges_map) = parse_token_tree(&expansion, &token_map);
         assert_eq!(
-            expansion.to_string(),
+            file.syntax().text().to_string(),
             "impl From < Leaf > for TokenTree {fn from (it : Leaf) -> TokenTree {TokenTree :: Leaf (it)}} \
              impl From < Subtree > for TokenTree {fn from (it : Subtree) -> TokenTree {TokenTree :: Subtree (it)}}"
+        );
+        assert_eq!(
+            ranges_map.map_forward(TextRange::from_to(1.into(), 10.into())),
+            Some(TextRange::from_to(23.into(), 32.into())),
         )
     }
 }

@@ -1,12 +1,6 @@
-use ra_syntax::{ast, TextRange, AstNode, SyntaxNode, SyntaxKind::*};
+use ra_syntax::{ast, TextRange, TextUnit, AstNode, SyntaxNode, SyntaxKind::*, SourceFile, TreeArc};
 
-pub fn ast_to_token_tree(ast: &ast::TokenTree) -> Option<(tt::Subtree, TokenMap)> {
-    let mut token_map = TokenMap::default();
-    let sub = convert_tt(ast.syntax(), &mut token_map)?;
-    Some((sub, token_map))
-}
-
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct TokenMap {
     tokens: Vec<TextRange>,
 }
@@ -23,6 +17,55 @@ impl TokenMap {
         let id = id.0 as usize;
         self.tokens.get(id).map(|&it| it)
     }
+}
+
+#[derive(Debug, Default)]
+pub struct RangesMap {
+    // FIXME: account for cases where single input range maps to many output ranges.
+    data: Vec<(TextRange, TextRange)>,
+}
+
+impl RangesMap {
+    /// Maps range in the source code to the range in the expanded code.
+    pub fn map_forward(&self, src_range: TextRange) -> Option<TextRange> {
+        for (s_range, t_range) in self.data.iter() {
+            if src_range.is_subrange(&s_range) {
+                let src_at_zero_range = src_range - src_range.start();
+                let src_range_offset = src_range.start() - s_range.start();
+                let src_range = src_at_zero_range + src_range_offset + t_range.start();
+                return Some(src_range);
+            }
+        }
+        None
+    }
+    /// Maps range in the expanded code to the range in the source code.
+    pub fn map_back(&self, tgt_range: TextRange) -> Option<TextRange> {
+        for (s_range, t_range) in self.data.iter() {
+            if tgt_range.is_subrange(&t_range) {
+                let tgt_at_zero_range = tgt_range - tgt_range.start();
+                let tgt_range_offset = tgt_range.start() - t_range.start();
+                let src_range = tgt_at_zero_range + tgt_range_offset + s_range.start();
+                return Some(src_range);
+            }
+        }
+        None
+    }
+}
+
+pub fn ast_to_token_tree(ast: &ast::TokenTree) -> Option<(tt::Subtree, TokenMap)> {
+    let mut token_map = TokenMap::default();
+    let sub = convert_tt(ast.syntax(), &mut token_map)?;
+    Some((sub, token_map))
+}
+
+pub fn parse_token_tree(
+    tt: &tt::Subtree,
+    token_map: &TokenMap,
+) -> (TreeArc<SourceFile>, RangesMap) {
+    let mut buf = String::new();
+    let mut ranges_map = RangesMap::default();
+    subtree_to_string(token_map, &mut buf, &mut ranges_map, tt);
+    (SourceFile::parse(&buf), ranges_map)
 }
 
 fn convert_tt(tt: &SyntaxNode, token_map: &mut TokenMap) -> Option<tt::Subtree> {
@@ -87,4 +130,49 @@ fn convert_tt(tt: &SyntaxNode, token_map: &mut TokenMap) -> Option<tt::Subtree> 
         token_trees,
     };
     Some(res)
+}
+
+fn subtree_to_string(
+    token_map: &TokenMap,
+    buf: &mut String,
+    ranges_map: &mut RangesMap,
+    subtree: &tt::Subtree,
+) {
+    let (l, r) = match subtree.delimiter {
+        tt::Delimiter::Parenthesis => ("(", ")"),
+        tt::Delimiter::Brace => ("{", "}"),
+        tt::Delimiter::Bracket => ("[", "]"),
+        tt::Delimiter::None => ("", ""),
+    };
+    buf.push_str(l);
+    let mut needs_space = false;
+    for tt in subtree.token_trees.iter() {
+        if needs_space {
+            buf.push_str(" ");
+        }
+        needs_space = true;
+        match tt {
+            tt::TokenTree::Leaf(leaf) => match leaf {
+                tt::Leaf::Ident(i) => {
+                    if let Some(src_range) = token_map.token_range(i.id) {
+                        let tgt_range = TextRange::offset_len(
+                            TextUnit::of_str(buf),
+                            TextUnit::of_str(i.text.as_str()),
+                        );
+                        ranges_map.data.push((src_range, tgt_range));
+                    }
+                    buf.push_str(i.text.as_str());
+                }
+                tt::Leaf::Punct(p) => {
+                    needs_space = p.spacing == tt::Spacing::Alone;
+                    buf.push(p.char);
+                }
+                tt::Leaf::Literal(it) => buf.push_str(it.text.as_str()),
+            },
+            tt::TokenTree::Subtree(subtree) => {
+                subtree_to_string(token_map, buf, ranges_map, subtree)
+            }
+        }
+    }
+    buf.push_str(r);
 }
