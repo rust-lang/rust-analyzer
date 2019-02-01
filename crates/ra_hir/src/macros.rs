@@ -49,9 +49,10 @@ impl MacroDef {
         };
 
         let input = {
-            let arg = macro_call.token_tree()?.syntax();
+            let arg = macro_call.token_tree()?;
             MacroInput {
-                text: arg.text().to_string(),
+                text: arg.syntax().text().to_string(),
+                tt: mbe::ast_to_token_tree(arg),
             }
         };
         Some((def, input))
@@ -61,6 +62,20 @@ impl MacroDef {
         match self {
             MacroDef::Vec => self.expand_vec(input),
             MacroDef::QueryGroup => self.expand_query_group(input),
+            MacroDef::MacroRules(rules) => {
+                if let Some(tt) = input.tt.as_ref().and_then(|it| rules.expand(it)) {
+                    let text = tt.to_string();
+                    let file = SourceFile::parse(&text);
+                    let ptr = SyntaxNodePtr::new(file.syntax());
+                    Some(MacroExpansion {
+                        text,
+                        ranges_map: Vec::new(),
+                        ptr,
+                    })
+                } else {
+                    None
+                }
+            }
         }
     }
     fn expand_vec(self, input: MacroInput) -> Option<MacroExpansion> {
@@ -105,13 +120,14 @@ impl MacroDef {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroInput {
-    // Should be token trees
-    pub text: String,
+    // FIXME: remove text
+    text: String,
+    tt: Option<tt::Subtree>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MacroExpansion {
-    /// The result of macro expansion. Should be token tree as well.
+    // FIXME: should be tt::Subtree
     text: String,
     /// Correspondence between ranges in the original source code and ranges in
     /// the macro.

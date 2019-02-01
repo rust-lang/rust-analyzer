@@ -18,14 +18,14 @@ use std::fmt;
 
 use smol_str::SmolStr;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TokenTree {
     Leaf(Leaf),
     Subtree(Subtree),
 }
 impl_froms!(TokenTree: Leaf, Subtree);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Leaf {
     Literal(Literal),
     Punct(Punct),
@@ -33,13 +33,13 @@ pub enum Leaf {
 }
 impl_froms!(Leaf: Literal, Punct, Ident);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Subtree {
     pub delimiter: Delimiter,
     pub token_trees: Vec<TokenTree>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Delimiter {
     Parenthesis,
     Brace,
@@ -47,24 +47,24 @@ pub enum Delimiter {
     None,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Literal {
     pub text: SmolStr,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Punct {
     pub char: char,
     pub spacing: Spacing,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Spacing {
     Alone,
     Joint,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Ident {
     pub text: SmolStr,
 }
