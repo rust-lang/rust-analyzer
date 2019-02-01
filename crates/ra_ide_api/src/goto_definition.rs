@@ -270,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn goto_defenition_works_for_macros() {
+    fn goto_definition_works_for_macros() {
         check_goto(
             "
             //- /lib.rs

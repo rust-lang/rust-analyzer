@@ -29,7 +29,7 @@ pub use crate::syntax_bridge::{
     TokenMap, RangesMap,
 };
 
-/// This struct contains AST for a single `macro_rules` defenition. What might
+/// This struct contains AST for a single `macro_rules` definition. What might
 /// be very confusing is that AST has almost exactly the same shape as
 /// `tt::TokenTree`, but there's a crucial difference: in macro rules, `$ident`
 /// and `$()*` have special meaning (see `Var` and `Repeat` data structures)
