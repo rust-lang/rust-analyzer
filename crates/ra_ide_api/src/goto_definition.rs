@@ -1,6 +1,6 @@
 use ra_db::{FileId, SourceDatabase};
 use ra_syntax::{
-    AstNode, ast,
+    AstNode, ast, TextRange,
     algo::find_node_at_offset,
 };
 use test_utils::tested_by;
@@ -16,7 +16,37 @@ pub(crate) fn goto_definition(
     if let Some(macro_call) = find_node_at_offset::<ast::MacroCall>(syntax, position.offset) {
         if let Some(module) = hir::source_binder::module_from_position(db, position) {
             if let Some(expansion) = hir::source_binder::expand_macro(db, module, macro_call) {
-                eprintln!("expansion = {:?}", expansion);
+                let src_offset =
+                    position.offset - macro_call.token_tree()?.syntax().range().start();
+                if let Some(r) =
+                    expansion.map_range_forward(TextRange::offset_len(src_offset, 0.into()))
+                {
+                    let tgt_offset = r.start();
+                    let syntax = expansion.syntax();
+                    if let Some(name_ref) =
+                        find_node_at_offset::<ast::NameRef>(&*syntax, tgt_offset)
+                    {
+                        if let Some(path) = name_ref
+                            .syntax()
+                            .ancestors()
+                            .find_map(ast::Path::cast)
+                            .and_then(hir::Path::from_ast)
+                        {
+                            let resolved = module.resolve_path(db, &path);
+                            if let Some(def_id) = resolved.take_types().or(resolved.take_values()) {
+                                let navs =
+                                    ReferenceResult::Exact(NavigationTarget::from_def(db, def_id))
+                                        .to_vec();
+
+                                if let Some(range) =
+                                    expansion.map_range_back(name_ref.syntax().range())
+                                {
+                                    return Some(RangeInfo::new(range, navs));
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -51,7 +81,6 @@ pub(crate) fn reference_definition(
     file_id: FileId,
     name_ref: &ast::NameRef,
 ) -> ReferenceResult {
-    use self::ReferenceResult::*;
     if let Some(function) =
         hir::source_binder::function_from_child_node(db, file_id, name_ref.syntax())
     {
@@ -59,7 +88,7 @@ pub(crate) fn reference_definition(
         // First try to resolve the symbol locally
         if let Some(entry) = scope.resolve_local_name(name_ref) {
             let nav = NavigationTarget::from_scope_entry(file_id, &entry);
-            return Exact(nav);
+            return ReferenceResult::Exact(nav);
         };
 
         // Next check if it is a method
@@ -76,7 +105,7 @@ pub(crate) fn reference_definition(
                 .node_expr(expr)
                 .and_then(|it| infer_result.method_resolution(it))
             {
-                return Exact(NavigationTarget::from_function(db, func));
+                return ReferenceResult::Exact(NavigationTarget::from_function(db, func));
             };
         }
         // It could also be a field access
@@ -89,7 +118,7 @@ pub(crate) fn reference_definition(
                 .node_expr(expr)
                 .and_then(|it| infer_result.field_resolution(it))
             {
-                return Exact(NavigationTarget::from_field(db, field));
+                return ReferenceResult::Exact(NavigationTarget::from_field(db, field));
             };
         }
     }
@@ -104,7 +133,7 @@ pub(crate) fn reference_definition(
         {
             let resolved = module.resolve_path(db, &path);
             if let Some(def_id) = resolved.take_types().or(resolved.take_values()) {
-                return Exact(NavigationTarget::from_def(db, def_id));
+                return ReferenceResult::Exact(NavigationTarget::from_def(db, def_id));
             }
         }
     }
@@ -114,7 +143,7 @@ pub(crate) fn reference_definition(
         .into_iter()
         .map(NavigationTarget::from_symbol)
         .collect();
-    Approximate(navs)
+    ReferenceResult::Approximate(navs)
 }
 
 fn name_definition(
@@ -261,7 +290,7 @@ mod tests {
             }
             impl_froms!(Typable<|>Def: Function);
             ",
-            "TypableDef ENUM_DEF FileId(1) [17; 26) [17; 21)",
+            "TypableDef ENUM_DEF FileId(1) [230; 277) [239; 249)",
         )
     }
 }
