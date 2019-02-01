@@ -178,7 +178,7 @@ pub(crate) fn expand_macro_invocation(
     if let Some((def, input)) = MacroDef::from_call(macro_call) {
         return def.expand(input).map(Arc::new);
     }
-    let defs = macro_definitions(db, loc.module);
+    let defs = db.macro_definitions(loc.module);
     let def = defs.get(&macro_name(macro_call)?.as_name())?;
     let input = MacroInput::from_ast(macro_call)?;
     def.expand(input).map(Arc::new)
