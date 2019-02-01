@@ -170,10 +170,23 @@ fn expand_tt(
         crate::TokenTree::Repeat(repeat) => {
             let mut token_trees = Vec::new();
             nesting.push(0);
+            let mut iter = 0;
             while let Some(t) = expand_subtree(&repeat.subtree, bindings, nesting) {
                 let idx = nesting.pop().unwrap();
                 nesting.push(idx + 1);
-                token_trees.push(t.into())
+                token_trees.push(t.into());
+                if iter > 64 {
+                    // FIXME: current implementation does zero validation, so we
+                    // might end up in a situation when a group binds no
+                    // variables, which will cause us to loop infinitelly.
+                    //
+                    // This is an ugly hack to prevent the looping, we need to
+                    // implement a proper fix. We should validate that each
+                    // group binds at least one variable, and that all variables
+                    // are bound on the appropriate levels.
+                    break;
+                }
+                iter += 1;
             }
             nesting.pop().unwrap();
             tt::Subtree {
