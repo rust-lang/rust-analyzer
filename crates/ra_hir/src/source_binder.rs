@@ -5,6 +5,8 @@
 ///
 /// So, this modules should not be used during hir construction, it exists
 /// purely for "IDE needs".
+use std::sync::Arc;
+
 use ra_db::{FileId, FilePosition};
 use ra_syntax::{
     SmolStr, TextRange, SyntaxNode,
@@ -15,7 +17,8 @@ use ra_syntax::{
 use crate::{
     HirDatabase, Function, ModuleDef, Struct, Enum,
     AsName, Module, HirFileId, Crate, Trait,
-    ids::{LocationCtx, SourceFileItemId},
+    ids::{LocationCtx, SourceFileItemId, MacroCallLoc, SourceItemId},
+    macros::MacroExpansion,
 };
 
 /// Locates the module by `FileId`. Picks topmost module in the file.
@@ -200,4 +203,21 @@ pub fn macro_symbols(db: &impl HirDatabase, file_id: FileId) -> Vec<(SmolStr, Te
     }
 
     res
+}
+
+pub fn expand_macro(
+    db: &impl HirDatabase,
+    module: Module,
+    macro_call: &ast::MacroCall,
+) -> Option<Arc<MacroExpansion>> {
+    let (file_id, _) = module.definition_source(db);
+    let file_id: HirFileId = file_id.into();
+    let file_items = db.file_items(file_id);
+    let item_id = file_items.id_of(file_id, macro_call.syntax());
+    let loc = MacroCallLoc {
+        module,
+        source_item_id: SourceItemId { file_id, item_id },
+    };
+    let id = loc.id(db);
+    db.expand_macro_invocation(id)
 }

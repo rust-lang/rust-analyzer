@@ -2,9 +2,10 @@ use std::sync::Arc;
 
 use ra_syntax::{SyntaxNode, TreeArc, SourceFile};
 use ra_db::{SourceDatabase, salsa};
+use rustc_hash::FxHashMap;
 
 use crate::{
-    MacroCallId, HirFileId,
+    MacroCallId, HirFileId, Name,
     SourceFileItems, SourceItemId, Crate, Module, HirInterner,
     query_definitions,
     Function, FnSignature, ExprScopes,
@@ -17,12 +18,16 @@ use crate::{
     impl_block::{ModuleImplBlocks, ImplSourceMap},
     generics::{GenericParams, GenericDef},
     ids::SourceFileItemId,
+    macros::MacroDef,
 };
 
 #[salsa::query_group(PersistentHirDatabaseStorage)]
 pub trait PersistentHirDatabase: SourceDatabase + AsRef<HirInterner> {
     #[salsa::invoke(HirFileId::hir_parse)]
     fn hir_parse(&self, file_id: HirFileId) -> TreeArc<SourceFile>;
+
+    #[salsa::invoke(crate::macros::macro_definitions)]
+    fn macro_definitions(&self, module: Module) -> Arc<FxHashMap<Name, MacroDef>>;
 
     #[salsa::invoke(crate::macros::expand_macro_invocation)]
     fn expand_macro_invocation(&self, invoc: MacroCallId) -> Option<Arc<MacroExpansion>>;

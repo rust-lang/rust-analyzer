@@ -11,11 +11,12 @@ use std::sync::Arc;
 
 use ra_syntax::{
     TextRange, TextUnit, SourceFile, AstNode, SyntaxNode, TreeArc, SyntaxNodePtr,
-    ast::{self, NameOwner},
+    ast::{self, NameOwner, ModuleItemOwner},
 };
+use rustc_hash::FxHashMap;
 use mbe::MacroRules;
 
-use crate::{MacroCallId, PersistentHirDatabase};
+use crate::{PersistentHirDatabase, MacroCallId, Name, AsName, Module, ModuleSource};
 
 // Hard-coded defs for now :-(
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,30 +36,28 @@ impl MacroDef {
         Some((off, exp))
     }
 
+    pub(crate) fn from_macro_rules(macro_call: &ast::MacroCall) -> Option<(Name, MacroDef)> {
+        if macro_name(macro_call)?.text() != "macro_rules" {
+            return None;
+        }
+        let name = macro_call.name()?.as_name();
+        let tt = token_tree(macro_call)?;
+        let rules = MacroRules::parse(&tt)?;
+        Some((name, MacroDef::MacroRules(Arc::new(rules))))
+    }
+
     fn from_call(macro_call: &ast::MacroCall) -> Option<(MacroDef, MacroInput)> {
-        let def = {
-            let path = macro_call.path()?;
-            let name_ref = path.segment()?.name_ref()?;
-            if name_ref.text() == "vec" {
-                MacroDef::Vec
-            } else if name_ref.text() == "query_group" {
-                MacroDef::QueryGroup
-            } else {
-                return None;
-            }
+        let def = match macro_name(macro_call)?.text().as_str() {
+            "vec" => MacroDef::Vec,
+            "query_group" => MacroDef::QueryGroup,
+            _ => return None,
         };
 
-        let input = {
-            let arg = macro_call.token_tree()?;
-            MacroInput {
-                text: arg.syntax().text().to_string(),
-                tt: mbe::ast_to_token_tree(arg),
-            }
-        };
+        let input = MacroInput::from_ast(macro_call)?;
         Some((def, input))
     }
 
-    fn expand(self, input: MacroInput) -> Option<MacroExpansion> {
+    fn expand(&self, input: MacroInput) -> Option<MacroExpansion> {
         match self {
             MacroDef::Vec => self.expand_vec(input),
             MacroDef::QueryGroup => self.expand_query_group(input),
@@ -78,7 +77,7 @@ impl MacroDef {
             }
         }
     }
-    fn expand_vec(self, input: MacroInput) -> Option<MacroExpansion> {
+    fn expand_vec(&self, input: MacroInput) -> Option<MacroExpansion> {
         let text = format!(r"fn dummy() {{ {}; }}", input.text);
         let file = SourceFile::parse(&text);
         let array_expr = file.syntax().descendants().find_map(ast::ArrayExpr::cast)?;
@@ -92,7 +91,7 @@ impl MacroDef {
         };
         Some(res)
     }
-    fn expand_query_group(self, input: MacroInput) -> Option<MacroExpansion> {
+    fn expand_query_group(&self, input: MacroInput) -> Option<MacroExpansion> {
         let anchor = "trait ";
         let pos = input.text.find(anchor)? + anchor.len();
         let trait_name = input.text[pos..]
@@ -123,6 +122,17 @@ pub struct MacroInput {
     // FIXME: remove text
     text: String,
     tt: Option<tt::Subtree>,
+}
+
+impl MacroInput {
+    pub(crate) fn from_ast(macro_call: &ast::MacroCall) -> Option<MacroInput> {
+        let arg = macro_call.token_tree()?;
+        let res = MacroInput {
+            text: arg.syntax().text().to_string(),
+            tt: token_tree(macro_call),
+        };
+        Some(res)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -181,7 +191,51 @@ pub(crate) fn expand_macro_invocation(
     let loc = invoc.loc(db);
     let syntax = db.file_item(loc.source_item_id);
     let macro_call = ast::MacroCall::cast(&syntax).unwrap();
-
-    let (def, input) = MacroDef::from_call(macro_call)?;
+    if let Some((def, input)) = MacroDef::from_call(macro_call) {
+        return def.expand(input).map(Arc::new);
+    }
+    let defs = macro_definitions(db, loc.module);
+    let def = defs.get(&macro_name(macro_call)?.as_name())?;
+    let input = MacroInput::from_ast(macro_call)?;
     def.expand(input).map(Arc::new)
+}
+
+fn token_tree(call: &ast::MacroCall) -> Option<tt::Subtree> {
+    call.token_tree().and_then(mbe::ast_to_token_tree)
+}
+
+fn macro_name(macro_call: &ast::MacroCall) -> Option<&ast::NameRef> {
+    let path = macro_call.path()?;
+    let name_ref = path.segment()?.name_ref()?;
+    Some(name_ref)
+}
+
+pub(crate) fn macro_definitions(
+    db: &impl PersistentHirDatabase,
+    module: Module,
+) -> Arc<FxHashMap<Name, MacroDef>> {
+    let (_file_id, source) = module.definition_source(db);
+    let mut res = FxHashMap::default();
+    match source {
+        ModuleSource::SourceFile(it) => fill(&mut res, &mut it.items_with_macros()),
+        ModuleSource::Module(it) => {
+            if let Some(item_list) = it.item_list() {
+                fill(&mut res, &mut item_list.items_with_macros())
+            }
+        }
+    };
+    return Arc::new(res);
+
+    fn fill(acc: &mut FxHashMap<Name, MacroDef>, items: &mut Iterator<Item = ast::ItemOrMacro>) {
+        for item in items {
+            match item {
+                ast::ItemOrMacro::Item(_) => continue,
+                ast::ItemOrMacro::Macro(macro_call) => {
+                    if let Some((name, def)) = MacroDef::from_macro_rules(macro_call) {
+                        acc.insert(name, def);
+                    }
+                }
+            }
+        }
+    }
 }

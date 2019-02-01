@@ -13,6 +13,13 @@ pub(crate) fn goto_definition(
 ) -> Option<RangeInfo<Vec<NavigationTarget>>> {
     let file = db.parse(position.file_id);
     let syntax = file.syntax();
+    if let Some(macro_call) = find_node_at_offset::<ast::MacroCall>(syntax, position.offset) {
+        if let Some(module) = hir::source_binder::module_from_position(db, position) {
+            if let Some(expansion) = hir::source_binder::expand_macro(db, module, macro_call) {
+                eprintln!("expansion = {:?}", expansion);
+            }
+        }
+    }
     if let Some(name_ref) = find_node_at_offset::<ast::NameRef>(syntax, position.offset) {
         let navs = reference_definition(db, position.file_id, name_ref).to_vec();
         return Some(RangeInfo::new(name_ref.syntax().range(), navs.to_vec()));
@@ -231,5 +238,30 @@ mod tests {
             ",
             "spam NAMED_FIELD_DEF FileId(1) [17; 26) [17; 21)",
         );
+    }
+
+    #[test]
+    fn goto_defenition_works_for_macros() {
+        check_goto(
+            "
+            //- /lib.rs
+            macro_rules! impl_froms {
+                ($e:ident: $($v:ident), *) => {
+                    $(
+                        impl From<$v> for $e {
+                            fn from(it: $v) -> $e {
+                                $e::$v(it)
+                            }
+                        }
+                    )*
+                }
+            }
+            pub enum TypableDef {
+                Function(Function),
+            }
+            impl_froms!(Typable<|>Def: Function);
+            ",
+            "TypableDef ENUM_DEF FileId(1) [17; 26) [17; 21)",
+        )
     }
 }
