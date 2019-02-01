@@ -150,14 +150,16 @@ impl_froms!(TokenTree: Leaf, Subtree);
             .find_map(ast::MacroCall::cast)
             .unwrap();
 
-        let definition_tt = ast_to_token_tree(macro_definition.token_tree().unwrap()).unwrap();
-        let invocation_tt = ast_to_token_tree(macro_invocation.token_tree().unwrap()).unwrap();
+        let (definition_tt, _token_map) =
+            ast_to_token_tree(macro_definition.token_tree().unwrap()).unwrap();
+        let (invocation_tt, _token_map) =
+            ast_to_token_tree(macro_invocation.token_tree().unwrap()).unwrap();
         let rules = crate::MacroRules::parse(&definition_tt).unwrap();
         let expansion = rules.expand(&invocation_tt).unwrap();
         assert_eq!(
-        expansion.to_string(),
-        "impl From < Leaf > for TokenTree {fn from (it : Leaf) -> TokenTree {TokenTree :: Leaf (it)}} \
-         impl From < Subtree > for TokenTree {fn from (it : Subtree) -> TokenTree {TokenTree :: Subtree (it)}}"
-    )
+            expansion.to_string(),
+            "impl From < Leaf > for TokenTree {fn from (it : Leaf) -> TokenTree {TokenTree :: Leaf (it)}} \
+             impl From < Subtree > for TokenTree {fn from (it : Subtree) -> TokenTree {TokenTree :: Subtree (it)}}"
+        )
     }
 }

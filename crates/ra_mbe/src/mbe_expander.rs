@@ -185,6 +185,7 @@ fn expand_tt(
         crate::TokenTree::Leaf(leaf) => match leaf {
             crate::Leaf::Ident(ident) => tt::Leaf::from(tt::Ident {
                 text: ident.text.clone(),
+                id: tt::TokenId::unspecified(),
             })
             .into(),
             crate::Leaf::Punct(punct) => tt::Leaf::from(punct.clone()).into(),
