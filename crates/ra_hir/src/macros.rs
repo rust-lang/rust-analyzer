@@ -13,14 +13,16 @@ use ra_syntax::{
     TextRange, TextUnit, SourceFile, AstNode, SyntaxNode, TreeArc, SyntaxNodePtr,
     ast::{self, NameOwner},
 };
+use mbe::MacroRules;
 
 use crate::{MacroCallId, PersistentHirDatabase};
 
 // Hard-coded defs for now :-(
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MacroDef {
     Vec,
     QueryGroup,
+    MacroRules(Arc<MacroRules>),
 }
 
 impl MacroDef {

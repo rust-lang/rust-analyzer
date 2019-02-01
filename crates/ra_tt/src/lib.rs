@@ -18,14 +18,14 @@ use std::fmt;
 
 use smol_str::SmolStr;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenTree {
     Leaf(Leaf),
     Subtree(Subtree),
 }
 impl_froms!(TokenTree: Leaf, Subtree);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Leaf {
     Literal(Literal),
     Punct(Punct),
@@ -33,13 +33,13 @@ pub enum Leaf {
 }
 impl_froms!(Leaf: Literal, Punct, Ident);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Subtree {
     pub delimiter: Delimiter,
     pub token_trees: Vec<TokenTree>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Delimiter {
     Parenthesis,
     Brace,
@@ -47,7 +47,7 @@ pub enum Delimiter {
     None,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Literal {
     pub text: SmolStr,
 }
@@ -64,7 +64,7 @@ pub enum Spacing {
     Joint,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ident {
     pub text: SmolStr,
 }
