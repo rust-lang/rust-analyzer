@@ -47,6 +47,11 @@ pub enum Delimiter {
     None,
 }
 
+#[derive(Clone, Debug)]
+pub struct Expr {
+    pub text: SmolStr,
+}
+
 #[derive(Debug, Clone)]
 pub struct Literal {
     pub text: SmolStr,
@@ -75,6 +80,12 @@ impl fmt::Display for TokenTree {
             TokenTree::Leaf(it) => fmt::Display::fmt(it, f),
             TokenTree::Subtree(it) => fmt::Display::fmt(it, f),
         }
+    }
+}
+
+impl fmt::Display for Expr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.text, f)
     }
 }
 
