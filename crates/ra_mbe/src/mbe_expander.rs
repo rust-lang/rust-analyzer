@@ -5,6 +5,7 @@ use rustc_hash::FxHashMap;
 use ra_syntax::SmolStr;
 
 use crate::tt_cursor::TtCursor;
+use crate::RepeatKind;
 
 pub(crate) fn exapnd(rules: &crate::MacroRules, input: &tt::Subtree) -> Option<tt::Subtree> {
     rules.rules.iter().find_map(|it| expand_rule(it, input))
@@ -103,6 +104,30 @@ impl Bindings {
     }
 }
 
+fn match_separator(separator: Option<char>, input: &mut TtCursor) -> Option<()> {
+    if let Some(separator) = separator {
+        if !input.is_eof() {
+            if input.eat_punct()?.char != separator {
+                return None;
+            }
+        }
+    }
+    Some(())
+}
+
+fn match_repeat(
+    subtree: &crate::Subtree,
+    res: &mut Bindings,
+    separator: Option<char>,
+    input: &mut TtCursor,
+) -> Option<()> {
+    while let Some(nested) = match_lhs(subtree, input) {
+        res.push_nested(nested)?;
+        match_separator(separator, input)?;
+    }
+    Some(())
+}
+
 fn match_lhs(pattern: &crate::Subtree, input: &mut TtCursor) -> Option<Bindings> {
     let mut res = Bindings::default();
     for pat in pattern.token_trees.iter() {
@@ -135,20 +160,23 @@ fn match_lhs(pattern: &crate::Subtree, input: &mut TtCursor) -> Option<Bindings>
             },
             crate::TokenTree::Repeat(crate::Repeat {
                 subtree,
-                kind: _,
+                kind,
                 separator,
-            }) => {
-                while let Some(nested) = match_lhs(subtree, input) {
-                    res.push_nested(nested)?;
-                    if let Some(separator) = *separator {
-                        if !input.is_eof() {
-                            if input.eat_punct()?.char != separator {
-                                return None;
-                            }
-                        }
+            }) => match kind {
+                RepeatKind::ZeroOrMore => {
+                    match_repeat(subtree, &mut res, *separator, input)?;
+                }
+                RepeatKind::OneOrMore => {
+                    res.push_nested(match_lhs(subtree, input)?)?;
+                    match_separator(*separator, input)?;
+                    match_repeat(subtree, &mut res, *separator, input)?;
+                }
+                RepeatKind::ZeroOrOne => {
+                    if let Some(nested) = match_lhs(subtree, input) {
+                        res.push_nested(nested)?;
                     }
                 }
-            }
+            },
             _ => {}
         }
     }

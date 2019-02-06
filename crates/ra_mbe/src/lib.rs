@@ -280,4 +280,23 @@ impl_froms!(TokenTree: Leaf, Subtree);
         assert_expansion(&rules, "foo! { Foo,# Bar }", "struct Foo ; struct Bar ;");
     }
 
+    #[test]
+    fn test_match_star_vs_group_pattern() {
+        let rules = create_rules(
+            r#"
+        macro_rules! foo {
+            ($ ($ i:ident)+) => (
+                mod plus_matched {}
+            );
+            ($ ($ i:ident)*) => (
+                mod asterisk_matched {}
+            );
+        }
+"#,
+        );
+
+        assert_expansion(&rules, "foo! {  }", "mod asterisk_matched {}");
+        assert_expansion(&rules, "foo! { foo }", "mod plus_matched {}");
+    }
+
 }
