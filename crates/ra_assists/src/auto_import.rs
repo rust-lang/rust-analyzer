@@ -513,6 +513,10 @@ pub(crate) fn auto_import(mut ctx: AssistCtx<impl HirDatabase>) -> Option<Assist
         return None;
     }
 
+    ctx.add_action(format!("import {} in the current file", fmt_segments(&segments)), |edit| {
+        apply_auto_import(current_file.syntax(), path, &segments, edit);
+    });
+
     for module in path.syntax().ancestors().filter_map(ast::Module::cast) {
         if let (Some(item_list), Some(name)) = (module.item_list(), module.name()) {
             ctx.add_action(
@@ -523,10 +527,6 @@ pub(crate) fn auto_import(mut ctx: AssistCtx<impl HirDatabase>) -> Option<Assist
             );
         }
     }
-
-    ctx.add_action(format!("import {} in the current file", fmt_segments(&segments)), |edit| {
-        apply_auto_import(current_file.syntax(), path, &segments, edit);
-    });
 
     for function in path.syntax().ancestors().filter_map(ast::FnDef::cast) {
         if let (Some(block), Some(name)) = (function.body(), function.name()) {
@@ -805,10 +805,10 @@ mod foo {
     }
 }
     ",
-            // 0 in bar
-            // 1 in foo
-            // 2 in current file
-            0,
+            // 0 in current file
+            // 1 in bar
+            // 2 in foo
+            1,
         );
     }
 
@@ -832,10 +832,10 @@ mod foo {
     }
 }
     ",
-            // 0 in bar
-            // 1 in foo
-            // 2 in current file
-            1,
+            // 0 in current file
+            // 1 in bar
+            // 2 in foo
+            2,
         );
     }
 
@@ -859,10 +859,10 @@ mod foo {
     }
 }
     ",
-            // 0 in bar
-            // 1 in foo
-            // 2 in current file
-            2,
+            // 0 in current file
+            // 1 in bar
+            // 2 in foo
+            0,
         );
     }
 
