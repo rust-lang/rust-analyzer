@@ -516,7 +516,7 @@ pub(crate) fn auto_import(mut ctx: AssistCtx<impl HirDatabase>) -> Option<Assist
     for module in path.syntax().ancestors().filter_map(ast::Module::cast) {
         if let (Some(item_list), Some(name)) = (module.item_list(), module.name()) {
             ctx.add_action(
-                format!("import {} in the mod {}", fmt_segments(&segments), name.text()),
+                format!("import {} in mod {}", fmt_segments(&segments), name.text()),
                 |edit| {
                     apply_auto_import(item_list.syntax(), path, &segments, edit);
                 },
@@ -527,6 +527,17 @@ pub(crate) fn auto_import(mut ctx: AssistCtx<impl HirDatabase>) -> Option<Assist
     ctx.add_action(format!("import {} in the current file", fmt_segments(&segments)), |edit| {
         apply_auto_import(current_file.syntax(), path, &segments, edit);
     });
+
+    for function in path.syntax().ancestors().filter_map(ast::FnDef::cast) {
+        if let (Some(block), Some(name)) = (function.body(), function.name()) {
+            ctx.add_action(
+                format!("import {} in fn {}", fmt_segments(&segments), name.text()),
+                |edit| {
+                    apply_auto_import(block.syntax(), path, &segments, edit);
+                },
+            );
+        }
+    }
 
     ctx.build()
 }
@@ -794,11 +805,14 @@ mod foo {
     }
 }
     ",
-    0
+            // 0 in bar
+            // 1 in foo
+            // 2 in current file
+            0,
         );
     }
 
-     #[test]
+    #[test]
     fn test_auto_import_file_add_use_no_anchor_in_mod() {
         check_assist_nth_action(
             auto_import,
@@ -818,7 +832,10 @@ mod foo {
     }
 }
     ",
-    1
+            // 0 in bar
+            // 1 in foo
+            // 2 in current file
+            1,
         );
     }
 
@@ -842,7 +859,64 @@ mod foo {
     }
 }
     ",
-    2
+            // 0 in bar
+            // 1 in foo
+            // 2 in current file
+            2,
+        );
+    }
+
+    #[test]
+    fn test_auto_import_file_add_use_no_anchor_in_fn() {
+        check_assist_nth_action(
+            auto_import,
+            "
+fn foo() {
+    fn bar() {
+        std::fmt::Debug<|>
+    }
+}
+    ",
+            "
+fn foo() {
+    fn bar() {
+        use std::fmt::Debug;
+
+        Debug<|>
+    }
+}
+    ",
+            // 0: in file
+            // 1: in fn bar
+            // 2: in fn foo
+            1,
+        );
+    }
+
+    #[test]
+    fn test_auto_import_file_add_use_no_anchor_in_fn_fn() {
+        check_assist_nth_action(
+            auto_import,
+            "
+fn foo() {
+    fn bar() {
+        std::fmt::Debug<|>
+    }
+}
+    ",
+            "
+fn foo() {
+    use std::fmt::Debug;
+
+    fn bar() {
+        Debug<|>
+    }
+}
+    ",
+            // 0: in file
+            // 1: in fn bar
+            // 2: in fn foo
+            2,
         );
     }
 }
