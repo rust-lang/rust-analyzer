@@ -5,6 +5,10 @@ use crossbeam_channel::RecvTimeoutError;
 use ra_vfs::{Vfs, VfsChange};
 use tempfile::tempdir;
 
+fn sleep() {
+    std::thread::sleep(std::time::Duration::from_millis(2000));
+}
+
 fn process_tasks(vfs: &mut Vfs, num_tasks: u32) {
     for _ in 0..num_tasks {
         let task = vfs.task_receiver().recv_timeout(Duration::from_secs(3)).unwrap();
@@ -40,7 +44,7 @@ fn test_vfs_works() -> std::io::Result<()> {
 
     let a_root = dir.path().join("a");
     let b_root = dir.path().join("a/b");
-
+    sleep();
     let (mut vfs, _) = Vfs::new(vec![a_root, b_root]);
     process_tasks(&mut vfs, 2);
     {
@@ -66,8 +70,9 @@ fn test_vfs_works() -> std::io::Result<()> {
 
         assert_eq!(files, expected_files);
     }
-
+    sleep();
     fs::write(&dir.path().join("a/b/baz.rs"), "quux").unwrap();
+    sleep();
     process_tasks(&mut vfs, 1);
     assert_match!(
         vfs.commit_changes().as_slice(),
@@ -83,7 +88,9 @@ fn test_vfs_works() -> std::io::Result<()> {
     );
 
     // changing file on disk while overlayed doesn't generate a VfsChange
+    sleep();
     fs::write(&dir.path().join("a/b/baz.rs"), "corge").unwrap();
+    sleep();
     process_tasks(&mut vfs, 1);
     assert_match!(vfs.commit_changes().as_slice(), []);
 
@@ -107,17 +114,20 @@ fn test_vfs_works() -> std::io::Result<()> {
         [VfsChange::RemoveFile { path, .. }],
         assert_eq!(path, "spam.rs")
     );
-
+    sleep();
     fs::create_dir_all(dir.path().join("a/sub1/sub2")).unwrap();
     fs::write(dir.path().join("a/sub1/sub2/new.rs"), "new hello").unwrap();
+    sleep();
     process_tasks(&mut vfs, 1);
     assert_match!(vfs.commit_changes().as_slice(), [VfsChange::AddFile { text, path, .. }], {
         assert_eq!(text.as_str(), "new hello");
         assert_eq!(path, "sub1/sub2/new.rs");
     });
 
+    sleep();
     fs::rename(&dir.path().join("a/sub1/sub2/new.rs"), &dir.path().join("a/sub1/sub2/new1.rs"))
         .unwrap();
+    sleep();
     process_tasks(&mut vfs, 2);
     assert_match!(
         vfs.commit_changes().as_slice(),
@@ -128,8 +138,9 @@ fn test_vfs_works() -> std::io::Result<()> {
             assert_eq!(text.as_str(), "new hello");
         }
     );
-
+    sleep();
     fs::remove_file(&dir.path().join("a/sub1/sub2/new1.rs")).unwrap();
+    sleep();
     process_tasks(&mut vfs, 1);
     assert_match!(
         vfs.commit_changes().as_slice(),
@@ -150,8 +161,10 @@ fn test_vfs_works() -> std::io::Result<()> {
     }
 
     // should be ignored
+    sleep();
     fs::create_dir_all(dir.path().join("a/target")).unwrap();
     fs::write(&dir.path().join("a/target/new.rs"), "ignore me").unwrap();
+    sleep();
 
     assert_match!(
         vfs.task_receiver().recv_timeout(Duration::from_millis(300)), // slightly more than watcher debounce delay
