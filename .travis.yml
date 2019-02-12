@@ -8,10 +8,7 @@ build: &rust_build
     language: rust
     rust: stable
     script:
-        - rustup component add rustfmt
-        - rustup component add rust-src
-        - cargo test --no-run  # let's measure compile time separately
-        - cargo test
+        - cargo test --package ra_vfs
     env:
         - RUSTFLAGS="-D warnings", CARGO_INCREMENTAL=0
 
@@ -19,6 +16,7 @@ matrix:
     include:
         - os: mac
           <<: *rust_build
+
         - language: node_js
           node_js: node
           before_script: false
