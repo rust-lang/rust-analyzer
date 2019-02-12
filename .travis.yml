@@ -17,7 +17,7 @@ build: &rust_build
 
 matrix:
     include:
-        - os: linux
+        - os: mac
           <<: *rust_build
         - language: node_js
           node_js: node
