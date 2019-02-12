@@ -72,6 +72,7 @@ pub fn main_loop(
     log::info!("server initialized, serving requests");
 
     let mut pending_requests = FxHashSet::default();
+    let mut pending_responses = FxHashSet::default();
     let mut subs = Subscriptions::new();
     let main_res = main_loop_inner(
         internal_mode,
@@ -83,6 +84,7 @@ pub fn main_loop(
         task_receiver.clone(),
         &mut state,
         &mut pending_requests,
+        &mut pending_responses,
         &mut subs,
     );
 
@@ -154,12 +156,15 @@ fn main_loop_inner(
     task_receiver: Receiver<Task>,
     state: &mut ServerWorldState,
     pending_requests: &mut FxHashSet<u64>,
+    pending_responses: &mut FxHashSet<u64>,
     subs: &mut Subscriptions,
 ) -> Result<()> {
     // We try not to index more than THREADPOOL_SIZE - 3 libraries at the same
     // time to always have a thread ready to react to input.
     let mut in_flight_libraries = 0;
     let mut pending_libraries = Vec::new();
+
+    let mut next_req_id = 0;
 
     let (libdata_sender, libdata_receiver) = unbounded();
     loop {
@@ -220,10 +225,20 @@ fn main_loop_inner(
                     }
                 }
                 RawMessage::Notification(not) => {
-                    on_notification(msg_sender, state, pending_requests, subs, not)?;
+                    on_notification(msg_sender, state, pending_requests, pending_responses, subs, not, &mut next_req_id)?;
                     state_changed = true;
                 }
-                RawMessage::Response(resp) => log::error!("unexpected response: {:?}", resp),
+                RawMessage::Response(resp) => {
+                    // TODO: is it possible to never receiver a reply?
+                    if pending_responses.remove(&resp.id) {
+                       // TODO: Turn this into on_response
+                       // Relevant to: workspace/applyEdit and workspace/configuration
+
+                    }
+                    else {
+                        log::error!("unexpected response: {:?}", resp)
+                    }
+                }
             },
         };
 
@@ -321,8 +336,10 @@ fn on_notification(
     msg_sender: &Sender<RawMessage>,
     state: &mut ServerWorldState,
     pending_requests: &mut FxHashSet<u64>,
+    pending_responses: &mut FxHashSet<u64>,
     subs: &mut Subscriptions,
     not: RawNotification,
+    next_req_id: &mut u64,
 ) -> Result<()> {
     let not = match not.cast::<req::Cancel>() {
         Ok(params) => {
@@ -382,6 +399,21 @@ fn on_notification(
         }
         Err(not) => not,
     };
+    let not = match not.cast::<req::DidChangeConfiguration>() {
+       Ok(params) => {
+            let settings = params.settings;
+            // Waiting on https://github.com/gluon-lang/lsp-types/pull/99
+            let config_params = req::ConfigurationParams::default(); //{ items: Vec::new() };
+            let msg = RawRequest::new::<req::WorkspaceConfiguration>(*next_req_id, &config_params);
+            pending_responses.insert(*next_req_id);
+            *next_req_id = *next_req_id + 1;
+            msg_sender.send(RawMessage::Request(msg)).unwrap();
+
+            return Ok(());
+       }
+       Err(not) => not,
+    };
+    
     log::error!("unhandled notification: {:?}", not);
     Ok(())
 }
