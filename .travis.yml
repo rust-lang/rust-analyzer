@@ -10,7 +10,7 @@ build: &rust_build
     script:
         - cargo test --package ra_vfs
     env:
-        - RUSTFLAGS="-D warnings", CARGO_INCREMENTAL=0
+        - RUSTFLAGS="-D warnings", CARGO_INCREMENTAL=0, RUST_BACKTRACE=short
 
 matrix:
     include:
