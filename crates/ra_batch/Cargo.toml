@@ -7,6 +7,7 @@ authors = ["rust-analyzer developers"]
 [dependencies]
 log = "0.4.5"
 rustc-hash = "1.0"
+dunce = "0.1.1"
 
 failure = "0.1.4"
 
