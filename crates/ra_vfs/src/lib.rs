@@ -129,6 +129,21 @@ impl Roots {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum VfsHandleTaskResult {
+    DidWork,
+    NoWork,
+}
+
+impl VfsHandleTaskResult {
+    pub fn did_work(&self) -> bool {
+        match *self {
+            VfsHandleTaskResult::DidWork => true,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VfsFile(pub RawId);
 impl_arena_id!(VfsFile);
 
@@ -221,7 +236,7 @@ impl Vfs {
         self.worker.receiver()
     }
 
-    pub fn handle_task(&mut self, task: io::TaskResult) {
+    pub fn handle_task(&mut self, task: io::TaskResult) -> VfsHandleTaskResult {
         match task {
             TaskResult::BulkLoadRoot { root, files } => {
                 let mut cur_files = Vec::new();
@@ -256,10 +271,14 @@ impl Vfs {
                     (Some(file), Some(text)) => {
                         self.do_change_file(file, text, false);
                     }
-                    (None, None) => (),
+                    (None, None) => {
+                        return VfsHandleTaskResult::NoWork;
+                    }
                 }
             }
         }
+
+        VfsHandleTaskResult::DidWork
     }
 
     fn do_add_file(

@@ -5,11 +5,16 @@ use crossbeam_channel::RecvTimeoutError;
 use ra_vfs::{Vfs, VfsChange};
 use tempfile::tempdir;
 
-fn process_tasks(vfs: &mut Vfs, num_tasks: u32) {
-    for _ in 0..num_tasks {
+fn process_tasks(vfs: &mut Vfs, num_work_tasks: u32) {
+    let mut number_of_tasks_completed = 0;
+
+    // NOTE: This will panic with Timeout if there are no more tasks available
+    while number_of_tasks_completed < num_work_tasks {
         let task = vfs.task_receiver().recv_timeout(Duration::from_secs(3)).unwrap();
         log::debug!("{:?}", task);
-        vfs.handle_task(task);
+        if vfs.handle_task(task).did_work() {
+            number_of_tasks_completed += 1;
+        }
     }
 }
 
