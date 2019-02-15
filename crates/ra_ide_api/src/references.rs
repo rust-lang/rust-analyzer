@@ -15,7 +15,11 @@ use crate::{
     SourceFileEdit,
 };
 
-pub(crate) fn find_all_refs(db: &RootDatabase, position: FilePosition) -> Vec<(FileId, TextRange)> {
+pub(crate) fn find_all_refs(
+    db: &RootDatabase,
+    position: FilePosition,
+    include_declaration: bool,
+) -> Vec<(FileId, TextRange)> {
     let file = db.parse(position.file_id);
     // Find the binding associated with the offset
     let (binding, descr) = match find_binding(db, &file, position) {
@@ -23,11 +27,16 @@ pub(crate) fn find_all_refs(db: &RootDatabase, position: FilePosition) -> Vec<(F
         Some(it) => it,
     };
 
-    let mut ret = binding
-        .name()
-        .into_iter()
-        .map(|name| (position.file_id, name.syntax().range()))
-        .collect::<Vec<_>>();
+    let mut ret = if include_declaration {
+        binding
+            .name()
+            .into_iter()
+            .map(|name| (position.file_id, name.syntax().range()))
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+
     ret.extend(
         descr
             .scopes(db)
@@ -149,7 +158,7 @@ fn rename_reference(
     position: FilePosition,
     new_name: &str,
 ) -> Option<SourceChange> {
-    let edit = find_all_refs(db, position)
+    let edit = find_all_refs(db, position, true)
         .iter()
         .map(|(file_id, text_range)| SourceFileEdit {
             file_id: *file_id,

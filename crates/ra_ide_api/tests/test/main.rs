@@ -44,14 +44,63 @@ fn test_resolve_crate_root() {
     assert_eq!(host.analysis().crate_for(mod_file).unwrap(), vec![crate_id]);
 }
 
-fn get_all_refs(text: &str) -> Vec<(FileId, TextRange)> {
+fn get_refs(text: &str, include_declaration: bool) -> Vec<(FileId, TextRange)> {
     let (analysis, position) = single_file_with_position(text);
-    analysis.find_all_refs(position).unwrap()
+    analysis.find_all_refs(position, include_declaration).unwrap()
+}
+
+fn get_all_refs(text: &str) -> Vec<(FileId, TextRange)> {
+    get_refs(text, true)
 }
 
 fn get_symbols_matching(text: &str, query: &str) -> Vec<NavigationTarget> {
     let (analysis, _) = single_file(text);
     analysis.symbol_search(Query::new(query.into())).unwrap()
+}
+
+#[test]
+fn test_find_refs_without_declaration_for_local() {
+    let code = r#"
+    fn main() {
+        let mut i = 1;
+        let j = 1;
+        i = i + j;
+
+        {
+            i<|> = 0;
+        }
+
+        i = 5;
+    }"#;
+
+    let refs = get_refs(code, false);
+    assert_eq!(refs.len(), 4);
+}
+
+#[test]
+fn test_find_refs_without_declaration_for_fn_param() {
+    let code = r#"
+    fn foo(v<|>al: u32) -> u32 {
+        let _ = val;
+        let _ = val;
+    }
+    "#;
+
+    let refs = get_refs(code, false);
+    assert_eq!(refs.len(), 2);
+}
+
+#[test]
+fn test_find_refs_without_declaration_for_fn_local() {
+    let code = r#"
+    fn foo(val: u32) -> u32 {
+        let _ = val<|>;
+        let _ = val;
+    }
+    "#;
+
+    let refs = get_refs(code, false);
+    assert_eq!(refs.len(), 2);
 }
 
 #[test]

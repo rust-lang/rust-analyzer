@@ -456,7 +456,7 @@ pub fn handle_prepare_rename(
 
     // We support renaming references like handle_rename does.
     // In the future we may want to reject the renaming of things like keywords here too.
-    let refs = world.analysis().find_all_refs(position)?;
+    let refs = world.analysis().find_all_refs(position, true)?;
     let r = match refs.first() {
         Some(r) => r,
         None => return Ok(None),
@@ -500,8 +500,10 @@ pub fn handle_references(
     let file_id = params.text_document.try_conv_with(&world)?;
     let line_index = world.analysis().file_line_index(file_id);
     let offset = params.position.conv_with(&line_index);
+    let include_declaration = params.context.include_declaration;
 
-    let refs = world.analysis().find_all_refs(FilePosition { file_id, offset })?;
+    let refs =
+        world.analysis().find_all_refs(FilePosition { file_id, offset }, include_declaration)?;
 
     Ok(Some(
         refs.into_iter().filter_map(|r| to_location(r.0, r.1, &world, &line_index).ok()).collect(),
@@ -712,7 +714,7 @@ pub fn handle_document_highlight(
     let file_id = params.text_document.try_conv_with(&world)?;
     let line_index = world.analysis().file_line_index(file_id);
 
-    let refs = world.analysis().find_all_refs(params.try_conv_with(&world)?)?;
+    let refs = world.analysis().find_all_refs(params.try_conv_with(&world)?, true)?;
 
     Ok(Some(
         refs.into_iter()
