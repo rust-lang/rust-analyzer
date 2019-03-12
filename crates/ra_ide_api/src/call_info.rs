@@ -3,7 +3,7 @@ use ra_db::SourceDatabase;
 use ra_syntax::{
     AstNode, SyntaxNode, TextUnit,
     SyntaxKind::FN_DEF,
-    ast::{self, ArgListOwner},
+    ast::{self, ArgListOwner, TypeAscriptionOwner},
     algo::find_node_at_offset,
 };
 use hir::Docs;
@@ -111,11 +111,17 @@ fn param_list(node: &ast::FnDef) -> Vec<String> {
             res.push(self_param.syntax().text().to_string())
         }
 
-        // Maybe use param.pat here? See if we can just extract the name?
-        //res.extend(param_list.params().map(|p| p.syntax().text().to_string()));
-        res.extend(
-            param_list.params().filter_map(|p| p.pat()).map(|pat| pat.syntax().text().to_string()),
-        );
+        res.extend(param_list.params().filter_map(|param| {
+            let pat = param.pat()?;
+            let mut string = pat.syntax().text().to_string();
+
+            if let Some(typ) = param.ascribed_type() {
+                string.push_str(": ");
+                typ.syntax().text().push_to(&mut string);
+            }
+
+            Some(string)
+        }));
     }
     res
 }
@@ -140,7 +146,7 @@ mod tests {
 fn bar() { foo(<|>3, ); }"#,
         );
 
-        assert_eq!(info.parameters, vec!("x".to_string(), "y".to_string()));
+        assert_eq!(info.parameters, vec!("x: u32", "y: u32"));
         assert_eq!(info.active_parameter, Some(0));
     }
 
@@ -151,7 +157,7 @@ fn bar() { foo(<|>3, ); }"#,
 fn bar() { foo(3, <|>); }"#,
         );
 
-        assert_eq!(info.parameters, vec!("x".to_string(), "y".to_string()));
+        assert_eq!(info.parameters, vec!("x: u32", "y: u32"));
         assert_eq!(info.active_parameter, Some(1));
     }
 
@@ -184,7 +190,7 @@ fn bar() {
 }"#,
         );
 
-        assert_eq!(info.parameters, vec!["&self".to_string()]);
+        assert_eq!(info.parameters, vec!["&self"]);
         assert_eq!(info.active_parameter, None);
     }
 
@@ -206,7 +212,7 @@ fn bar() {
 }"#,
         );
 
-        assert_eq!(info.parameters, vec!["&self".to_string(), "x".to_string()]);
+        assert_eq!(info.parameters, vec!["&self", "x: i32"]);
         assert_eq!(info.active_parameter, Some(1));
     }
 
@@ -226,9 +232,9 @@ fn bar() {
 "#,
         );
 
-        assert_eq!(info.parameters, vec!["j".to_string()]);
+        assert_eq!(info.parameters, vec!["j: u32"]);
         assert_eq!(info.active_parameter, Some(0));
-        assert_eq!(info.label, "fn foo(j: u32) -> u32".to_string());
+        assert_eq!(info.label, "fn foo(j: u32) -> u32");
         assert_eq!(info.doc.map(|it| it.into()), Some("test".to_string()));
     }
 
@@ -254,9 +260,9 @@ pub fn do() {
 }"#,
         );
 
-        assert_eq!(info.parameters, vec!["x".to_string()]);
+        assert_eq!(info.parameters, vec!["x: i32"]);
         assert_eq!(info.active_parameter, Some(0));
-        assert_eq!(info.label, "pub fn add_one(x: i32) -> i32".to_string());
+        assert_eq!(info.label, "pub fn add_one(x: i32) -> i32");
         assert_eq!(
             info.doc.map(|it| it.into()),
             Some(
@@ -300,7 +306,7 @@ pub fn do_it() {
 }"#,
         );
 
-        assert_eq!(info.parameters, vec!["x".to_string()]);
+        assert_eq!(info.parameters, vec!["x: i32"]);
         assert_eq!(info.active_parameter, Some(0));
         assert_eq!(info.label, "pub fn add_one(x: i32) -> i32".to_string());
         assert_eq!(
@@ -353,7 +359,7 @@ pub fn foo() {
 "#,
         );
 
-        assert_eq!(info.parameters, vec!["&mut self".to_string(), "ctx".to_string()]);
+        assert_eq!(info.parameters, vec!["&mut self", "ctx: &mut Self::Context"]);
         assert_eq!(info.active_parameter, Some(1));
         assert_eq!(
             info.doc.map(|it| it.into()),
