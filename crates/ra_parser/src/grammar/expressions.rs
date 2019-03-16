@@ -55,7 +55,7 @@ pub(crate) fn expr_block_contents(p: &mut Parser) {
         // test block_items
         // fn a() { fn b() {} }
         let m = p.start();
-        let has_attrs = p.at(POUND);
+        p.at(POUND);
         attributes::outer_attributes(p);
         if p.at(LET_KW) {
             let_stmt(p, m);
@@ -73,35 +73,30 @@ pub(crate) fn expr_block_contents(p: &mut Parser) {
             // test pub_expr
             // fn foo() { pub 92; } //FIXME
             items::MaybeItem::None => {
-                if has_attrs {
+                let is_blocklike = expressions::expr_stmt(p) == BlockLike::Block;
+                if p.at(R_CURLY) {
                     m.abandon(p);
-                    p.error("expected a let statement or an item after attributes in block");
                 } else {
-                    let is_blocklike = expressions::expr_stmt(p) == BlockLike::Block;
-                    if p.at(R_CURLY) {
-                        m.abandon(p);
+                    // test no_semi_after_block
+                    // fn foo() {
+                    //     if true {}
+                    //     loop {}
+                    //     match () {}
+                    //     while true {}
+                    //     for _ in () {}
+                    //     {}
+                    //     {}
+                    //     macro_rules! test {
+                    //          () => {}
+                    //     }
+                    //     test!{}
+                    // }
+                    if is_blocklike {
+                        p.eat(SEMI);
                     } else {
-                        // test no_semi_after_block
-                        // fn foo() {
-                        //     if true {}
-                        //     loop {}
-                        //     match () {}
-                        //     while true {}
-                        //     for _ in () {}
-                        //     {}
-                        //     {}
-                        //     macro_rules! test {
-                        //          () => {}
-                        //     }
-                        //     test!{}
-                        // }
-                        if is_blocklike {
-                            p.eat(SEMI);
-                        } else {
-                            p.expect(SEMI);
-                        }
-                        m.complete(p, EXPR_STMT);
+                        p.expect(SEMI);
                     }
+                    m.complete(p, EXPR_STMT);
                 }
             }
         }
