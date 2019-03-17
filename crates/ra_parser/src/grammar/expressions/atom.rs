@@ -43,6 +43,7 @@ pub(super) const ATOM_EXPR_FIRST: TokenSet =
         L_BRACK,
         PIPE,
         MOVE_KW,
+        POUND,
         IF_KW,
         WHILE_KW,
         MATCH_KW,
@@ -68,6 +69,7 @@ pub(super) fn atom_expr(p: &mut Parser, r: Restrictions) -> Option<(CompletedMar
         L_BRACK => array_expr(p),
         PIPE => lambda_expr(p),
         MOVE_KW if la == PIPE => lambda_expr(p),
+        POUND => attr_expr(p),
         IF_KW => if_expr(p),
 
         LOOP_KW => loop_expr(p, None),
@@ -203,6 +205,18 @@ fn lambda_expr(p: &mut Parser) -> CompletedMarker {
     }
     expr(p);
     m.complete(p, LAMBDA_EXPR)
+}
+
+// test attr_expr
+// fn main() {
+//     #[a] (#[b] 1 + #[c] 2);
+//     #[d] f(#[e] (), #[f] #[g] [])
+// }
+fn attr_expr(p: &mut Parser) -> CompletedMarker {
+    let m = p.start();
+    attributes::outer_attributes(p);
+    expr(p);
+    m.complete(p, ATTR_EXPR)
 }
 
 // test if_expr

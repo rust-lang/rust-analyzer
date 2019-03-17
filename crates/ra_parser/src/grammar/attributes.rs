@@ -6,10 +6,13 @@ pub(super) fn inner_attributes(p: &mut Parser) {
     }
 }
 
-pub(super) fn outer_attributes(p: &mut Parser) {
+pub(super) fn outer_attributes(p: &mut Parser) -> bool {
+    let mut has_attrs = false;
     while p.at(POUND) {
+        has_attrs = true;
         attribute(p, false)
     }
+    has_attrs
 }
 
 fn attribute(p: &mut Parser, inner: bool) {

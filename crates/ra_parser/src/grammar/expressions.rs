@@ -56,7 +56,7 @@ pub(crate) fn expr_block_contents(p: &mut Parser) {
         // fn a() { fn b() {} }
         let m = p.start();
         p.at(POUND);
-        attributes::outer_attributes(p);
+        let has_attrs = attributes::outer_attributes(p);
         if p.at(LET_KW) {
             let_stmt(p, m);
             continue;
@@ -75,7 +75,13 @@ pub(crate) fn expr_block_contents(p: &mut Parser) {
             items::MaybeItem::None => {
                 let is_blocklike = expressions::expr_stmt(p) == BlockLike::Block;
                 if p.at(R_CURLY) {
-                    m.abandon(p);
+                    if has_attrs {
+                        // test attr_expr_at_block_end
+                        // fn foo() { #[attr] foo() }
+                        m.complete(p, ATTR_EXPR);
+                    } else {
+                        m.abandon(p);
+                    }
                 } else {
                     // test no_semi_after_block
                     // fn foo() {

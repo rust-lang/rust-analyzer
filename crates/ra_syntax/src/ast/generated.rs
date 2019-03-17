@@ -214,6 +214,38 @@ impl Attr {
     }
 }
 
+// AttrExpr
+#[derive(Debug, PartialEq, Eq, Hash)]
+#[repr(transparent)]
+pub struct AttrExpr {
+    pub(crate) syntax: SyntaxNode,
+}
+unsafe impl TransparentNewType for AttrExpr {
+    type Repr = rowan::SyntaxNode<RaTypes>;
+}
+
+impl AstNode for AttrExpr {
+    fn cast(syntax: &SyntaxNode) -> Option<&Self> {
+        match syntax.kind() {
+            ATTR_EXPR => Some(AttrExpr::from_repr(syntax.into_repr())),
+            _ => None,
+        }
+    }
+    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+}
+
+impl ToOwned for AttrExpr {
+    type Owned = TreeArc<AttrExpr>;
+    fn to_owned(&self) -> TreeArc<AttrExpr> { TreeArc::cast(self.syntax.to_owned()) }
+}
+
+
+impl AttrExpr {
+    pub fn expr(&self) -> Option<&Expr> {
+        super::child_opt(self)
+    }
+}
+
 // BinExpr
 #[derive(Debug, PartialEq, Eq, Hash)]
 #[repr(transparent)]
@@ -808,6 +840,7 @@ pub enum ExprKind<'a> {
     ParenExpr(&'a ParenExpr),
     PathExpr(&'a PathExpr),
     LambdaExpr(&'a LambdaExpr),
+    AttrExpr(&'a AttrExpr),
     IfExpr(&'a IfExpr),
     LoopExpr(&'a LoopExpr),
     ForExpr(&'a ForExpr),
@@ -853,6 +886,11 @@ impl<'a> From<&'a PathExpr> for &'a Expr {
 }
 impl<'a> From<&'a LambdaExpr> for &'a Expr {
     fn from(n: &'a LambdaExpr) -> &'a Expr {
+        Expr::cast(&n.syntax).unwrap()
+    }
+}
+impl<'a> From<&'a AttrExpr> for &'a Expr {
+    fn from(n: &'a AttrExpr) -> &'a Expr {
         Expr::cast(&n.syntax).unwrap()
     }
 }
@@ -976,6 +1014,7 @@ impl AstNode for Expr {
             | PAREN_EXPR
             | PATH_EXPR
             | LAMBDA_EXPR
+            | ATTR_EXPR
             | IF_EXPR
             | LOOP_EXPR
             | FOR_EXPR
@@ -1017,6 +1056,7 @@ impl Expr {
             PAREN_EXPR => ExprKind::ParenExpr(ParenExpr::cast(&self.syntax).unwrap()),
             PATH_EXPR => ExprKind::PathExpr(PathExpr::cast(&self.syntax).unwrap()),
             LAMBDA_EXPR => ExprKind::LambdaExpr(LambdaExpr::cast(&self.syntax).unwrap()),
+            ATTR_EXPR => ExprKind::AttrExpr(AttrExpr::cast(&self.syntax).unwrap()),
             IF_EXPR => ExprKind::IfExpr(IfExpr::cast(&self.syntax).unwrap()),
             LOOP_EXPR => ExprKind::LoopExpr(LoopExpr::cast(&self.syntax).unwrap()),
             FOR_EXPR => ExprKind::ForExpr(ForExpr::cast(&self.syntax).unwrap()),

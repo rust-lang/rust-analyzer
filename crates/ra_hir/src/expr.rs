@@ -700,6 +700,7 @@ impl ExprCollector {
                 let body = self.collect_expr_opt(e.body());
                 self.alloc_expr(Expr::Lambda { args, arg_types, body }, syntax_ptr)
             }
+            ast::ExprKind::AttrExpr(e) => self.collect_expr_opt(e.expr()),
             ast::ExprKind::BinExpr(e) => {
                 let lhs = self.collect_expr_opt(e.lhs());
                 let rhs = self.collect_expr_opt(e.rhs());
