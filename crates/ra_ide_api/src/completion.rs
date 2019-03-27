@@ -11,6 +11,7 @@ mod complete_snippet;
 mod complete_path;
 mod complete_scope;
 mod complete_postfix;
+mod complete_impl_fn;
 
 use ra_db::SourceDatabase;
 use ra_syntax::{ast::{self, AstNode}, SyntaxKind::{ATTR, COMMENT}};
@@ -68,6 +69,7 @@ pub(crate) fn completions(db: &db::RootDatabase, position: FilePosition) -> Opti
     complete_struct_literal::complete_struct_literal(&mut acc, &ctx);
     complete_pattern::complete_pattern(&mut acc, &ctx);
     complete_postfix::complete_postfix(&mut acc, &ctx);
+    complete_impl_fn::complete_impl_fn(&mut acc, &ctx);
     Some(acc)
 }
 
