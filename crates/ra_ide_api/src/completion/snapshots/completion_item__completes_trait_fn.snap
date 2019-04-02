@@ -1,5 +1,5 @@
 ---
-created: "2019-03-27T19:56:32.722488483Z"
+created: "2019-04-03T13:35:32.054576177Z"
 creator: insta@0.7.4
 source: crates/ra_ide_api/src/completion/completion_item.rs
 expression: kind_completions
@@ -7,8 +7,9 @@ expression: kind_completions
 [
     CompletionItem {
         label: "foo",
-        source_range: [108; 108),
-        delete: [108; 108),
-        insert: "foo"
+        source_range: [122; 122),
+        delete: [122; 122),
+        insert: "fn foo(a: u32)-> bool { $0 }",
+        kind: Function
     }
 ]
