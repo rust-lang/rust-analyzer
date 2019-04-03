@@ -98,9 +98,44 @@ mod tests {
             r"
             trait T {
                 fn foo(a: u32) -> bool;
+                fn bar();
             }
 
             impl T for () {
+                <|>
+            }
+            ",
+        );
+    }
+
+    #[ignore]
+    #[test]
+    fn test_completes_assoc_const() {
+        complete(
+            "completes_assoc_const",
+            r"
+            trait T {
+                const C: u32;
+            }
+
+            impl T for bool {
+                <|>
+            }
+            ",
+        );
+    }
+
+    #[ignore]
+    #[test]
+    fn test_completes_assoc_type() {
+        complete(
+            "completes_assoc_type",
+            r"
+            trait T {
+                type A;
+            }
+
+            impl T for bool {
                 <|>
             }
             ",
