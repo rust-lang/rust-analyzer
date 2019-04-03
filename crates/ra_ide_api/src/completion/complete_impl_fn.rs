@@ -10,7 +10,12 @@ use crate::completion::{
     CompletionContext, Completions,
 };
 
+// TODO Avoid double `fn` in `fn <|>`
 pub(super) fn complete_impl_fn(acc: &mut Completions, ctx: &CompletionContext) {
+    if !ctx.is_new_item {
+        return;
+    }
+
     let impl_node = match find_node_at_offset::<ast::ImplBlock>(ctx.token.parent(), ctx.offset) {
         Some(impl_node) => impl_node,
         None => return,
@@ -108,7 +113,26 @@ mod tests {
         );
     }
 
-    #[ignore]
+    #[test]
+    fn test_dont_complete_trait_fn_inside_fn() {
+        complete(
+            "dont_complete_trait_fn_inside_fn",
+            r"
+            trait T {
+                fn foo();
+                fn bar();
+            }
+
+            impl T for () {
+                fn foo() {
+                    <|>
+                }
+            }
+            ",
+        );
+    }
+
+    #[ignore] // FIXME: Support associated constants
     #[test]
     fn test_completes_assoc_const() {
         complete(
@@ -125,7 +149,7 @@ mod tests {
         );
     }
 
-    #[ignore]
+    #[ignore] // FIXME: Support associated types
     #[test]
     fn test_completes_assoc_type() {
         complete(
