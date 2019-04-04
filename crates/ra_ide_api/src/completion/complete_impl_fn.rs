@@ -1,7 +1,7 @@
 use ra_syntax::{
     algo::{find_node_at_offset},
     ast::{self, FnDef, ImplItem, ImplItemKind, NameOwner},
-    AstNode, TreeArc, SmolStr, SyntaxKind,
+    AstNode, TreeArc, SmolStr,
 };
 use hir::{Resolver, db::HirDatabase};
 
@@ -34,7 +34,7 @@ pub(super) fn complete_impl_fn(acc: &mut Completions, ctx: &CompletionContext) {
     let def_name = |def| -> Option<&SmolStr> { FnDef::name(def).map(ast::Name::text) };
 
     let trait_fns = {
-        let trait_items = match trait_def.syntax().descendants().find_map(ast::ItemList::cast) {
+        let trait_items = match trait_def.item_list() {
             Some(item_list) => item_list.impl_items(),
             None => return,
         };
@@ -58,19 +58,8 @@ pub(super) fn complete_impl_fn(acc: &mut Completions, ctx: &CompletionContext) {
 }
 
 fn build_func(def: &ast::FnDef) -> String {
-    let mut buf = String::new();
-
-    for child in def.syntax().children() {
-        match (child.prev_sibling().map(|c| c.kind()), child.kind()) {
-            (_, SyntaxKind::SEMI) => buf.push_str(" { unimplemented!() }"),
-            (_, SyntaxKind::ATTR) | (_, SyntaxKind::COMMENT) => {}
-            (Some(SyntaxKind::ATTR), SyntaxKind::WHITESPACE)
-            | (Some(SyntaxKind::COMMENT), SyntaxKind::WHITESPACE) => {}
-            _ => child.text().push_to(&mut buf),
-        };
-    }
-
-    format!("fn {} {{ $0 }}", buf.trim_end())
+    let header: String = def.syntax().children().map(|child| child.text().to_string()).collect();
+    format!("fn {} {{ $0 }}", header)
 }
 
 // TODO de-duplicate from `add_missing_impl_members`
