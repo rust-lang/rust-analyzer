@@ -30,6 +30,31 @@ impl<'a> Parser<'a> {
         self.parse(ra_parser::parse_path)
     }
 
+    pub fn parse_expr(self) -> Option<tt::TokenTree> {
+        let expr = self.parse(ra_parser::parse_expr);
+        expr.map(|mut tt| {
+            // Add a parenthesis for complex expression
+            match tt {
+                tt::TokenTree::Subtree(ref mut subtree) => {
+                    if let tt::Delimiter::None = subtree.delimiter {
+                        subtree.delimiter = tt::Delimiter::Parenthesis;
+                    }
+
+                    tt
+                }
+                _ => tt,
+            }
+        })
+    }
+
+    pub fn parse_ty(self) -> Option<tt::TokenTree> {
+        self.parse(ra_parser::parse_ty)
+    }
+
+    pub fn parse_pat(self) -> Option<tt::TokenTree> {
+        self.parse(ra_parser::parse_pat)
+    }
+
     fn parse<F>(self, f: F) -> Option<tt::TokenTree>
     where
         F: FnOnce(&dyn TokenSource, &mut dyn TreeSink),

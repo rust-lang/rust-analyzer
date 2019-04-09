@@ -21,8 +21,8 @@ enum WalkCursor {
 #[derive(Debug)]
 struct SubTreeWalker<'a> {
     pos: usize,
-    stack: Vec<(&'a tt::Subtree, Option<usize>)>,
     cursor: WalkCursor,
+    stack: Vec<(&'a tt::Subtree, Option<usize>)>,
     last_steps: Vec<usize>,
     subtree: &'a tt::Subtree,
 }
@@ -300,16 +300,26 @@ impl<'a> WalkerOwner<'a> {
         let mut walker = self.walker.borrow_mut();
 
         while walker.pos - self.offset < n {
-            if let WalkCursor::Token(u, tt) = &walker.cursor {
-                if walker.stack.len() == 1 {
-                    // We only collect the topmost child
-                    res.push(&walker.stack[0].0.token_trees[*u]);
-                    if let Some(tt) = tt {
-                        for i in 0..tt.n_tokens - 1 {
-                            res.push(&walker.stack[0].0.token_trees[u + i]);
+            match walker.stack.len() {
+                // We collect the topmost child token
+                1 => {
+                    if let WalkCursor::Token(u, tt) = &walker.cursor {
+                        res.push(&walker.stack[0].0.token_trees[*u]);
+                        if let Some(tt) = tt {
+                            for i in 0..tt.n_tokens - 1 {
+                                res.push(&walker.stack[0].0.token_trees[u + i]);
+                            }
                         }
                     }
                 }
+                // And collect the second level node subtree
+                2 => {
+                    if let WalkCursor::DelimiterBegin(Some(_)) = walker.cursor {
+                        let last_idx = walker.stack[1].1;
+                        res.push(&walker.stack[0].0.token_trees[last_idx.unwrap()]);
+                    }
+                }
+                _ => {}
             }
 
             walker.forward();

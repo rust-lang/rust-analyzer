@@ -432,4 +432,52 @@ SOURCE_FILE@[0; 40)
         );
         assert_expansion(&rules, "foo! { foo, bar }", "fn foo () {let a = foo ; let b = bar ;}");
     }
+
+    #[test]
+    fn test_expr() {
+        let rules = create_rules(
+            r#"
+        macro_rules! foo {
+            ($ i:expr) => {
+                 fn bar() { $ i; } 
+            }
+        }
+"#,
+        );
+        assert_expansion(
+            &rules,
+            "foo! { 2 + 2 * baz(3).quux() }",
+            "fn bar () {(2 + 2 * baz (3) . quux ()) ;}",
+        );
+    }
+
+    #[test]
+    fn test_ty() {
+        let rules = create_rules(
+            r#"
+        macro_rules! foo {
+            ($ i:ty) => (
+                fn bar() -> $ i { unimplemented!() }
+            )
+        }
+"#,
+        );
+        assert_expansion(
+            &rules,
+            "foo! { Baz<u8> }",
+            "fn bar () -> Baz < u8 > {unimplemented ! ()}",
+        );
+    }
+
+    #[test]
+    fn test_pat() {
+        let rules = create_rules(
+            r#"
+        macro_rules! foo {
+            ($ i:pat) => { fn foo() { let $ i; } }
+        }
+"#,
+        );
+        assert_expansion(&rules, "foo! { (a, b) }", "fn foo () {let (a , b) ;}");
+    }
 }
