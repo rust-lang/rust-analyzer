@@ -823,7 +823,7 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
                 }
                 ret_ty
             },
-            Expr::MacroCall {macro_name,args} => {
+            Expr::MacroCall {macro_name,path} => {
                 Ty::Unknown
             }
             Expr::MethodCall { receiver, args, method_name, generic_args } => {

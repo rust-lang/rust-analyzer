@@ -192,7 +192,7 @@ pub enum Expr {
     },
     MacroCall {
         macro_name:Name,
-        args:Vec<ExprId>,
+        path:Option<Path>
     },
     Match {
         expr: ExprId,
@@ -321,10 +321,11 @@ impl Expr {
                     f(*arg);
                 }
             },
-            Expr::MacroCall {args,..} => {
-                for arg in args {
-                    f(*arg);
-                }
+            Expr::MacroCall {..} => {
+               
+                // for arg in args {
+                //     f(*arg);
+                // }
             }
             Expr::Match { expr, arms } => {
                 f(*expr);
@@ -802,13 +803,19 @@ impl ExprCollector {
             ast::ExprKind::IndexExpr(_e) => self.alloc_expr(Expr::Missing, syntax_ptr),
             ast::ExprKind::RangeExpr(_e) => self.alloc_expr(Expr::Missing, syntax_ptr),
             ast::ExprKind::MacroCall(e) => {
-                let name = e.name().map(|nr| nr.as_name()).unwrap_or_else(Name::missing);
-                // let args = if let Some(arg_list) = e.arg_list() {
-                //     arg_list.args().map(|e| self.collect_expr(e)).collect()
-                // } else {
-                //     Vec::new()
-                // };
-                self.alloc_expr(Expr::Missing, syntax_ptr)
+                let macro_name = e.name().map(|nr| nr.as_name()).unwrap_or_else(Name::missing);
+                let path = e.path().and_then(Path::from_ast);
+                let expanded = if let Some(tt) = e.token_tree() {
+                    if let Some((tt,_)) = mbe::ast_to_token_tree(tt) {
+                        Some(mbe::token_tree_to_ast_item_list(&tt))
+                    }else {
+                        None
+                    }
+                }else {
+                    None
+                };
+                
+                self.alloc_expr(Expr::MacroCall{macro_name,path}, syntax_ptr)
             }
         }
     }
