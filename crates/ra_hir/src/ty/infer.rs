@@ -822,6 +822,9 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
                     self.infer_expr(*arg, &Expectation::has_type(param));
                 }
                 ret_ty
+            },
+            Expr::MacroCall {macro_name,args} => {
+                Ty::Unknown
             }
             Expr::MethodCall { receiver, args, method_name, generic_args } => {
                 let receiver_ty = self.infer_expr(*receiver, &Expectation::none());

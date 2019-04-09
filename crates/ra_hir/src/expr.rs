@@ -190,6 +190,10 @@ pub enum Expr {
         args: Vec<ExprId>,
         generic_args: Option<GenericArgs>,
     },
+    MacroCall {
+        macro_name:Name,
+        args:Vec<ExprId>,
+    },
     Match {
         expr: ExprId,
         arms: Vec<MatchArm>,
@@ -313,6 +317,11 @@ impl Expr {
             }
             Expr::MethodCall { receiver, args, .. } => {
                 f(*receiver);
+                for arg in args {
+                    f(*arg);
+                }
+            },
+            Expr::MacroCall {args,..} => {
                 for arg in args {
                     f(*arg);
                 }
@@ -792,7 +801,15 @@ impl ExprCollector {
             ast::ExprKind::Label(_e) => self.alloc_expr(Expr::Missing, syntax_ptr),
             ast::ExprKind::IndexExpr(_e) => self.alloc_expr(Expr::Missing, syntax_ptr),
             ast::ExprKind::RangeExpr(_e) => self.alloc_expr(Expr::Missing, syntax_ptr),
-            ast::ExprKind::MacroCall(_e) => self.alloc_expr(Expr::Missing, syntax_ptr),
+            ast::ExprKind::MacroCall(e) => {
+                let name = e.name().map(|nr| nr.as_name()).unwrap_or_else(Name::missing);
+                // let args = if let Some(arg_list) = e.arg_list() {
+                //     arg_list.args().map(|e| self.collect_expr(e)).collect()
+                // } else {
+                //     Vec::new()
+                // };
+                self.alloc_expr(Expr::Missing, syntax_ptr)
+            }
         }
     }
 
