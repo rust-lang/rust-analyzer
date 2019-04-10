@@ -1,6 +1,6 @@
 use ra_syntax::{
     algo::{find_node_at_offset},
-    ast::{self, FnDef, ImplItem, ImplItemKind, NameOwner},
+    ast::{self, FnDef, ItemList, ImplItem, ImplItemKind, NameOwner},
     SyntaxKind::FN_DEF,
     AstNode, TreeArc, SmolStr,
 };
@@ -22,8 +22,9 @@ pub(super) fn complete_impl_fn(acc: &mut Completions, ctx: &CompletionContext) {
         Some(impl_node) => impl_node,
         None => return,
     };
-    let impl_item_list = match impl_node.item_list() {
-        Some(impl_item_list) => impl_item_list,
+
+    let impl_fns = match impl_node.item_list() {
+        Some(impl_item_list) => fn_defs(impl_item_list).collect::<Vec<_>>(),
         None => return,
     };
 
@@ -31,32 +32,35 @@ pub(super) fn complete_impl_fn(acc: &mut Completions, ctx: &CompletionContext) {
         Some(trait_def) => trait_def,
         None => return,
     };
-
-    let fn_def_opt = |kind| if let ImplItemKind::FnDef(def) = kind { Some(def) } else { None };
-    let def_name = |def| -> Option<&SmolStr> { FnDef::name(def).map(ast::Name::text) };
-
-    let trait_fns = {
-        let trait_items = match trait_def.item_list() {
-            Some(item_list) => item_list.impl_items(),
-            None => return,
-        };
-        trait_items.map(ImplItem::kind).filter_map(fn_def_opt).collect::<Vec<_>>()
+    let trait_items = match trait_def.item_list() {
+        Some(item_list) => item_list,
+        None => return,
     };
 
-    let impl_items = impl_item_list.impl_items();
-    let impl_fns = impl_items.map(ImplItem::kind).filter_map(fn_def_opt).collect::<Vec<_>>();
+    let def_name = |def| -> Option<&SmolStr> { FnDef::name(def).map(ast::Name::text) };
+    for trait_fn in fn_defs(trait_items) {
+        if let Some(name) = def_name(trait_fn) {
+            if impl_fns.iter().any(|i| def_name(i) == Some(name)) {
+                continue;
+            }
 
-    trait_fns
-        .into_iter()
-        .filter(|t| def_name(t).is_some())
-        .filter(|t| impl_fns.iter().all(|i| def_name(i) != def_name(t)))
-        .map(|t| (def_name(t).unwrap(), build_func(t, is_after_fn_keyword)))
-        .for_each(|(name, func)| {
+            let func = build_func(trait_fn, is_after_fn_keyword);
             CompletionItem::new(CompletionKind::Reference, ctx.source_range(), name.clone())
                 .kind(CompletionItemKind::Function)
                 .insert_snippet(func)
-                .add_to(acc)
-        });
+                .add_to(acc);
+        }
+    }
+}
+
+fn fn_defs(item_list: &ItemList) -> impl Iterator<Item = &FnDef> {
+    item_list.impl_items().map(ImplItem::kind).filter_map(|kind| {
+        if let ImplItemKind::FnDef(def) = kind {
+            Some(def)
+        } else {
+            None
+        }
+    })
 }
 
 fn build_func(def: &ast::FnDef, is_after_fn_keyword: bool) -> String {
