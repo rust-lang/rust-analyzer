@@ -1,6 +1,7 @@
 use ra_syntax::{
     algo::{find_node_at_offset},
     ast::{self, FnDef, ImplItem, ImplItemKind, NameOwner},
+    SyntaxKind::FN_DEF,
     AstNode, TreeArc, SmolStr,
 };
 use hir::{Resolver, db::HirDatabase};
@@ -10,11 +11,12 @@ use crate::completion::{
     CompletionContext, Completions,
 };
 
-// TODO Avoid double `fn` in `fn <|>`
 pub(super) fn complete_impl_fn(acc: &mut Completions, ctx: &CompletionContext) {
-    if !ctx.is_new_item {
-        return;
-    }
+    let is_after_fn_keyword = match ctx.token.prev_sibling_or_token() {
+        Some(token) if token.kind() == FN_DEF => true,
+        _ if ctx.is_new_item => false,
+        _ => return,
+    };
 
     let impl_node = match find_node_at_offset::<ast::ImplBlock>(ctx.token.parent(), ctx.offset) {
         Some(impl_node) => impl_node,
@@ -48,7 +50,7 @@ pub(super) fn complete_impl_fn(acc: &mut Completions, ctx: &CompletionContext) {
         .into_iter()
         .filter(|t| def_name(t).is_some())
         .filter(|t| impl_fns.iter().all(|i| def_name(i) != def_name(t)))
-        .map(|t| (def_name(t).unwrap(), build_func(t)))
+        .map(|t| (def_name(t).unwrap(), build_func(t, is_after_fn_keyword)))
         .for_each(|(name, func)| {
             CompletionItem::new(CompletionKind::Reference, ctx.source_range(), name.clone())
                 .kind(CompletionItemKind::Function)
@@ -57,9 +59,13 @@ pub(super) fn complete_impl_fn(acc: &mut Completions, ctx: &CompletionContext) {
         });
 }
 
-fn build_func(def: &ast::FnDef) -> String {
+fn build_func(def: &ast::FnDef, is_after_fn_keyword: bool) -> String {
     let header: String = def.syntax().children().map(|child| child.text().to_string()).collect();
-    format!("fn {} {{ $0 }}", header)
+    if is_after_fn_keyword {
+        format!("{} {{ $0 }}", header)
+    } else {
+        format!("fn {} {{ $0 }}", header)
+    }
 }
 
 // TODO de-duplicate from `add_missing_impl_members`
@@ -115,6 +121,37 @@ mod tests {
         source_range: [148; 148),
         delete: [148; 148),
         insert: "fn foo(a: u32)-> bool { $0 }",
+        kind: Function
+    }
+]"###);
+    }
+
+    #[test]
+    fn test_completes_trait_after_fn_keyword() {
+        assert_debug_snapshot_matches!(complete(
+            r"
+            trait T {
+                fn foo(a: u32) -> bool;
+                fn bar();
+            }
+
+            impl T for () {
+                fn <|>
+            }
+            ",
+        ), @r###"[
+    CompletionItem {
+        label: "bar",
+        source_range: [151; 151),
+        delete: [151; 151),
+        insert: "bar() { $0 }",
+        kind: Function
+    },
+    CompletionItem {
+        label: "foo",
+        source_range: [151; 151),
+        delete: [151; 151),
+        insert: "foo(a: u32)-> bool { $0 }",
         kind: Function
     }
 ]"###);
