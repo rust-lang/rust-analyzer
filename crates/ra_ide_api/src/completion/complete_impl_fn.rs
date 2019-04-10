@@ -79,16 +79,19 @@ fn resolve_target_trait_def(
 
 #[cfg(test)]
 mod tests {
-    use crate::completion::{CompletionKind, completion_item::check_completion};
+    use crate::completion::{
+        completion_item::{do_completion, CompletionItem},
+        CompletionKind,
+};
+    use insta::assert_debug_snapshot_matches;
 
-    fn complete(test_name: &str, code: &str) {
-        check_completion(test_name, code, CompletionKind::Reference)
+    fn complete(code: &str) -> Vec<CompletionItem> {
+        do_completion(code, CompletionKind::Reference)
     }
 
     #[test]
     fn test_completes_trait_fn() {
-        complete(
-            "completes_trait_fn",
+        assert_debug_snapshot_matches!(complete(
             r"
             trait T {
                 fn foo(a: u32) -> bool;
@@ -99,13 +102,27 @@ mod tests {
                 <|>
             }
             ",
-        );
+        ), @r###"[
+    CompletionItem {
+        label: "bar",
+        source_range: [148; 148),
+        delete: [148; 148),
+        insert: "fn bar() { $0 }",
+        kind: Function
+    },
+    CompletionItem {
+        label: "foo",
+        source_range: [148; 148),
+        delete: [148; 148),
+        insert: "fn foo(a: u32)-> bool { $0 }",
+        kind: Function
+    }
+]"###);
     }
 
     #[test]
     fn test_dont_complete_trait_fn_inside_fn() {
-        complete(
-            "dont_complete_trait_fn_inside_fn",
+        assert_debug_snapshot_matches!(complete(
             r"
             trait T {
                 fn foo();
@@ -117,15 +134,28 @@ mod tests {
                     <|>
                 }
             }
-            ",
-        );
+            "), @r###"[
+    CompletionItem {
+        label: "Self",
+        source_range: [165; 165),
+        delete: [165; 165),
+        insert: "Self",
+        kind: TypeParam
+    },
+    CompletionItem {
+        label: "T",
+        source_range: [165; 165),
+        delete: [165; 165),
+        insert: "T",
+        kind: Trait
+    }
+]"###);
     }
 
     #[ignore] // FIXME: Support associated constants
     #[test]
     fn test_completes_assoc_const() {
-        complete(
-            "completes_assoc_const",
+        assert_debug_snapshot_matches!(complete(
             r"
             trait T {
                 const C: u32;
@@ -134,15 +164,13 @@ mod tests {
             impl T for bool {
                 <|>
             }
-            ",
-        );
+            "), @r###""###);
     }
 
     #[ignore] // FIXME: Support associated types
     #[test]
     fn test_completes_assoc_type() {
-        complete(
-            "completes_assoc_type",
+        assert_debug_snapshot_matches!(complete(
             r"
             trait T {
                 type A;
@@ -151,7 +179,6 @@ mod tests {
             impl T for bool {
                 <|>
             }
-            ",
-        );
+            "), @r###""###);
     }
 }
