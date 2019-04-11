@@ -1,8 +1,8 @@
 use ra_syntax::{
     algo::{find_node_at_offset},
-    ast::{self, FnDef, ItemList, ImplItem, ImplItemKind, NameOwner},
-    SyntaxKind::FN_DEF,
-    AstNode, TreeArc, SmolStr,
+    ast::{self, ImplItem, ImplItemKind},
+    SyntaxKind::{CONST_DEF, FN_DEF, TYPE_ALIAS_DEF},
+    AstNode, TreeArc, SmolStr, SyntaxKind
 };
 use hir::{Resolver, db::HirDatabase};
 
@@ -12,9 +12,9 @@ use crate::completion::{
 };
 
 pub(super) fn complete_impl_fn(acc: &mut Completions, ctx: &CompletionContext) {
-    let is_after_fn_keyword = match ctx.token.prev_sibling_or_token() {
-        Some(token) if token.kind() == FN_DEF => true,
-        _ if ctx.is_new_item => false,
+    let after_keyword = match ctx.token.prev_sibling_or_token().map(|t| t.kind()) {
+        k @ Some(FN_DEF) | k @ Some(TYPE_ALIAS_DEF) | k @ Some(CONST_DEF) => k,
+        _ if ctx.is_new_item => None,
         _ => return,
     };
 
@@ -23,8 +23,8 @@ pub(super) fn complete_impl_fn(acc: &mut Completions, ctx: &CompletionContext) {
         None => return,
     };
 
-    let impl_fns = match impl_node.item_list() {
-        Some(impl_item_list) => fn_defs(impl_item_list).collect::<Vec<_>>(),
+    let found_impl_names = match impl_node.item_list() {
+        Some(impl_item_list) => impl_item_list.impl_items().map(impl_item_text).collect::<Vec<_>>(),
         None => return,
     };
 
@@ -37,38 +37,38 @@ pub(super) fn complete_impl_fn(acc: &mut Completions, ctx: &CompletionContext) {
         None => return,
     };
 
-    let def_name = |def| -> Option<&SmolStr> { FnDef::name(def).map(ast::Name::text) };
-    for trait_fn in fn_defs(trait_items) {
-        if let Some(name) = def_name(trait_fn) {
-            if impl_fns.iter().any(|i| def_name(i) == Some(name)) {
+    for impl_item in trait_items.impl_items() {
+        if let Some(name) = impl_item_text(impl_item) {
+            if found_impl_names.iter().any(|n| *n == Some(name)) {
                 continue;
             }
 
-            let func = build_func(trait_fn, is_after_fn_keyword);
+            let item = build_item(impl_item, after_keyword);
             CompletionItem::new(CompletionKind::Reference, ctx.source_range(), name.clone())
                 .kind(CompletionItemKind::Function)
-                .insert_snippet(func)
+                .insert_snippet(item)
                 .add_to(acc);
         }
     }
 }
 
-fn fn_defs(item_list: &ItemList) -> impl Iterator<Item = &FnDef> {
-    item_list.impl_items().map(ImplItem::kind).filter_map(|kind| {
-        if let ImplItemKind::FnDef(def) = kind {
-            Some(def)
-        } else {
-            None
-        }
-    })
+fn impl_item_text(item: &ImplItem) -> Option<&SmolStr> {
+    let name = match item.kind() {
+        ImplItemKind::FnDef(f) => ast::NameOwner::name(f),
+        ImplItemKind::TypeAliasDef(ta) => ast::NameOwner::name(ta),
+        ImplItemKind::ConstDef(c) => ast::NameOwner::name(c),
+    };
+    name.map(ast::Name::text)
 }
 
-fn build_func(def: &ast::FnDef, is_after_fn_keyword: bool) -> String {
+fn build_item(def: &ast::ImplItem, after_keyword: Option<SyntaxKind>) -> String {
     let header: String = def.syntax().children().map(|child| child.text().to_string()).collect();
-    if is_after_fn_keyword {
-        format!("{} {{ $0 }}", header)
-    } else {
-        format!("fn {} {{ $0 }}", header)
+
+    let keyword = |kw| if after_keyword.is_some() { String::new() } else { format!("{} ", kw) };
+    match def.kind() {
+        ImplItemKind::FnDef(_) => format!("{}{} {{ $0 }}", keyword("fn"), header),
+        ImplItemKind::TypeAliasDef(_) => format!("{}{} = $0;", keyword("type"), header),
+        ImplItemKind::ConstDef(_) => format!("{}{} = $0;", keyword("const"), header),
     }
 }
 
@@ -193,7 +193,7 @@ mod tests {
 ]"###);
     }
 
-    #[ignore] // FIXME: Support associated constants
+    #[ignore] // TODO support associated constants
     #[test]
     fn test_completes_assoc_const() {
         assert_debug_snapshot_matches!(complete(
@@ -208,7 +208,6 @@ mod tests {
             "), @r###""###);
     }
 
-    #[ignore] // FIXME: Support associated types
     #[test]
     fn test_completes_assoc_type() {
         assert_debug_snapshot_matches!(complete(
@@ -220,6 +219,14 @@ mod tests {
             impl T for bool {
                 <|>
             }
-            "), @r###""###);
+            "), @r###"[
+    CompletionItem {
+        label: "A",
+        source_range: [108; 108),
+        delete: [108; 108),
+        insert: "type A = $0;",
+        kind: Function
+    }
+]"###);
     }
 }
