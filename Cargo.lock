@@ -635,7 +635,7 @@ dependencies = [
 [[package]]
 name = "lsp-types"
 version = "0.57.0"
-source = "git+https://github.com/matklad/lsp-types?branch=selection-range#6e37d45bcf411c18c22ab29ec155946ff001339e"
+source = "git+https://github.com/matklad/lsp-types?branch=selection-range#6b8b7173ad94bd282d053418af10caf828e726f4"
 dependencies = [
  "bitflags 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-derive 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
