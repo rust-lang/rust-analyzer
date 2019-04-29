@@ -22,7 +22,12 @@ fn expand_rule(rule: &crate::Rule, input: &tt::Subtree) -> Result<tt::Subtree, E
         return Err(ExpandError::UnexpectedToken);
     }
 
-    let mut ctx = ExpandCtx { bindings: &bindings, nesting: Vec::new(), var_expanded: false };
+    let mut ctx = ExpandCtx {
+        bindings: &bindings,
+        nesting: Vec::new(),
+        var_expanded: false,
+        macro_rules_checker: Default::default(),
+    };
 
     expand_subtree(&rule.rhs, &mut ctx)
 }
@@ -80,7 +85,7 @@ struct Bindings {
 #[derive(Debug)]
 enum Binding {
     Simple(tt::TokenTree),
-    Nested(Vec<Binding>),
+    Nested(FxHashMap<usize, Binding>),
 }
 
 impl Bindings {
@@ -89,7 +94,7 @@ impl Bindings {
             .inner
             .get(name)
             .ok_or(ExpandError::BindingError(format!("could not find binding `{}`", name)))?;
-        for &idx in nesting.iter() {
+        for idx in nesting.iter() {
             b = match b {
                 Binding::Simple(_) => break,
                 Binding::Nested(bs) => bs.get(idx).ok_or(ExpandError::BindingError(format!(
@@ -107,13 +112,15 @@ impl Bindings {
         }
     }
 
-    fn push_nested(&mut self, nested: Bindings) -> Result<(), ExpandError> {
+    fn push_nested(&mut self, id: usize, nested: Bindings) -> Result<(), ExpandError> {
         for (key, value) in nested.inner {
             if !self.inner.contains_key(&key) {
-                self.inner.insert(key.clone(), Binding::Nested(Vec::new()));
+                self.inner.insert(key.clone(), Binding::Nested(Default::default()));
             }
             match self.inner.get_mut(&key) {
-                Some(Binding::Nested(it)) => it.push(value),
+                Some(Binding::Nested(it)) => {
+                    it.insert(id, value);
+                }
                 _ => {
                     return Err(ExpandError::BindingError(format!(
                         "could not find binding `{}`",
@@ -202,8 +209,24 @@ fn match_lhs(pattern: &crate::Subtree, input: &mut TtCursor) -> Result<Bindings,
                             );
                         }
                         "vis" => {
-                            let vis = input.eat_vis().ok_or(ExpandError::UnexpectedToken)?.clone();
-                            res.inner.insert(text.clone(), Binding::Simple(vis.into()));
+                            // `vis` is optional
+                            if let Some(vis) = input.try_eat_vis() {
+                                let vis = vis.clone();
+                                res.inner.insert(text.clone(), Binding::Simple(vis.into()));
+                            } else {
+                                // FIXME: Do we have a better way to represent an empty token ?
+                                // Insert an empty subtree for empty token
+                                res.inner.insert(
+                                    text.clone(),
+                                    Binding::Simple(
+                                        tt::Subtree {
+                                            delimiter: tt::Delimiter::None,
+                                            token_trees: vec![],
+                                        }
+                                        .into(),
+                                    ),
+                                );
+                            }
                         }
 
                         _ => return Err(ExpandError::UnexpectedToken),
@@ -232,7 +255,6 @@ fn match_lhs(pattern: &crate::Subtree, input: &mut TtCursor) -> Result<Bindings,
                 loop {
                     match match_lhs(subtree, input) {
                         Ok(nested) => {
-                            counter += 1;
                             limit -= 1;
                             if limit == 0 {
                                 log::warn!("match_lhs excced in repeat pattern exceed limit => {:#?}\n{:#?}\n{:#?}\n{:#?}", subtree, input, kind, separator);
@@ -240,7 +262,8 @@ fn match_lhs(pattern: &crate::Subtree, input: &mut TtCursor) -> Result<Bindings,
                             }
 
                             memento = input.save();
-                            res.push_nested(nested)?;
+                            res.push_nested(counter, nested)?;
+                            counter += 1;
                             if counter == 1 {
                                 if let crate::RepeatKind::ZeroOrOne = kind {
                                     break;
@@ -303,11 +326,76 @@ fn match_lhs(pattern: &crate::Subtree, input: &mut TtCursor) -> Result<Bindings,
     Ok(res)
 }
 
+#[derive(Debug, Eq, PartialEq)]
+enum InnerMacroRulesState {
+    None,
+    MacroRules,
+    Ident,
+    Excl,
+    Subtree,
+}
+
+/// A state machine to check whether we are inside macro_rules
+#[derive(Debug, Default)]
+struct MacroRulesChecker {
+    inner: Vec<InnerMacroRulesState>,
+    last: Option<usize>,
+}
+
+impl MacroRulesChecker {
+    fn begin_subtree(&mut self) {
+        if let Some(InnerMacroRulesState::Ident) = self.inner.last() {
+            let old = self.inner.last_mut();
+            *old.unwrap() = InnerMacroRulesState::Subtree;
+            self.last = Some(self.inner.len());
+        } else {
+            self.last = None;
+        }
+    }
+
+    fn end_subtree(&mut self) {
+        if let Some(len) = self.last {
+            self.inner.truncate(len);
+        }
+    }
+
+    fn is_inside(&self) -> bool {
+        if let Some(InnerMacroRulesState::Subtree) = self.inner.last() {
+            true
+        } else {
+            false
+        }
+    }
+
+    fn update(&mut self, new_state: InnerMacroRulesState) {
+        match self.inner.last() {
+            Some(InnerMacroRulesState::Subtree) | None
+                if new_state == InnerMacroRulesState::MacroRules =>
+            {
+                self.inner.push(InnerMacroRulesState::MacroRules);
+            }
+            Some(InnerMacroRulesState::MacroRules) if new_state == InnerMacroRulesState::Excl => {
+                *self.inner.last_mut().unwrap() = InnerMacroRulesState::Excl;
+            }
+            Some(InnerMacroRulesState::Excl) if new_state == InnerMacroRulesState::Ident => {
+                *self.inner.last_mut().unwrap() = InnerMacroRulesState::Ident;
+            }
+            Some(InnerMacroRulesState::Subtree) | None => {
+                // Do nothing
+            }
+            Some(_) => {
+                self.inner.pop();
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 struct ExpandCtx<'a> {
     bindings: &'a Bindings,
     nesting: Vec<usize>,
     var_expanded: bool,
+    macro_rules_checker: MacroRulesChecker,
 }
 
 fn expand_subtree(
@@ -318,6 +406,14 @@ fn expand_subtree(
         .token_trees
         .iter()
         .map(|it| expand_tt(it, ctx))
+        .filter(|it| {
+            // Filter empty subtree
+            if let Ok(tt::TokenTree::Subtree(subtree)) = it {
+                subtree.delimiter != tt::Delimiter::None || !subtree.token_trees.is_empty()
+            } else {
+                true
+            }
+        })
         .collect::<Result<Vec<_>, ExpandError>>()?;
 
     Ok(tt::Subtree { token_trees, delimiter: template.delimiter })
@@ -341,8 +437,16 @@ fn expand_tt(
     template: &crate::TokenTree,
     ctx: &mut ExpandCtx,
 ) -> Result<tt::TokenTree, ExpandError> {
+    let mut macro_rules_state = InnerMacroRulesState::None;
+
     let res: tt::TokenTree = match template {
-        crate::TokenTree::Subtree(subtree) => expand_subtree(subtree, ctx)?.into(),
+        crate::TokenTree::Subtree(subtree) => {
+            ctx.macro_rules_checker.begin_subtree();
+            let res = expand_subtree(subtree, ctx)?.into();
+            ctx.macro_rules_checker.end_subtree();
+
+            res
+        }
         crate::TokenTree::Repeat(repeat) => {
             let mut token_trees: Vec<tt::TokenTree> = Vec::new();
             ctx.nesting.push(0);
@@ -353,6 +457,7 @@ fn expand_tt(
             let mut counter = 0;
 
             let mut some_var_expanded = false;
+            let old_var_expanded = ctx.var_expanded;
             ctx.var_expanded = false;
 
             while let Ok(t) = expand_subtree(&repeat.subtree, ctx) {
@@ -403,7 +508,7 @@ fn expand_tt(
                 }
             }
 
-            ctx.var_expanded = some_var_expanded;
+            ctx.var_expanded = some_var_expanded || old_var_expanded;
 
             ctx.nesting.pop().unwrap();
             for _ in 0..has_seps {
@@ -420,29 +525,72 @@ fn expand_tt(
         }
         crate::TokenTree::Leaf(leaf) => match leaf {
             crate::Leaf::Ident(ident) => {
+                if ident.text == "macro_rules" {
+                    macro_rules_state = InnerMacroRulesState::MacroRules;
+                } else {
+                    macro_rules_state = InnerMacroRulesState::Ident;
+                }
+
                 tt::Leaf::from(tt::Ident { text: ident.text.clone(), id: TokenId::unspecified() })
                     .into()
             }
-            crate::Leaf::Punct(punct) => tt::Leaf::from(punct.clone()).into(),
+            crate::Leaf::Punct(punct) => {
+                if punct.char == '!' {
+                    macro_rules_state = InnerMacroRulesState::Excl;
+                }
+
+                tt::Leaf::from(punct.clone()).into()
+            }
             crate::Leaf::Var(v) => {
                 if v.text == "crate" {
                     // FIXME: Properly handle $crate token
                     tt::Leaf::from(tt::Ident { text: "$crate".into(), id: TokenId::unspecified() })
                         .into()
                 } else {
-                    let tkn = ctx.bindings.get(&v.text, &ctx.nesting)?.clone();
-                    ctx.var_expanded = true;
+                    match ctx.bindings.get(&v.text, &ctx.nesting) {
+                        Ok(tkn) => {
+                            let tkn = tkn.clone();
+                            ctx.var_expanded = true;
 
-                    if let tt::TokenTree::Subtree(subtree) = tkn {
-                        reduce_single_token(subtree)
-                    } else {
-                        tkn
+                            if let tt::TokenTree::Subtree(subtree) = tkn {
+                                reduce_single_token(subtree)
+                            } else {
+                                tkn
+                            }
+                        }
+                        // Note that it is possible if $var is not part of the current macro
+                        // For example:
+                        // ```
+                        // macro_rules! foo {
+                        //  ($a:ident, $b:ident, $c:tt) => {
+                        //     macro_rules! bar {
+                        //         ($bi:ident) => {
+                        //             fn $bi() -> u8 {$c}
+                        //         }
+                        //     }
+                        // }
+                        //
+                        // $bi is not part of the current macro variabl
+                        Err(err) => {
+                            if ctx.macro_rules_checker.is_inside() {
+                                tt::Leaf::from(tt::Ident {
+                                    text: v.text.clone(),
+                                    id: TokenId::unspecified(),
+                                })
+                                .into()
+                            } else {
+                                return Err(err);
+                            }
+                        }
                     }
                 }
             }
             crate::Leaf::Literal(l) => tt::Leaf::from(tt::Literal { text: l.text.clone() }).into(),
         },
     };
+
+    ctx.macro_rules_checker.update(macro_rules_state);
+
     Ok(res)
 }
 
