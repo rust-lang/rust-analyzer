@@ -148,30 +148,21 @@ fn convert_tt(
         match child {
             SyntaxElement::Token(token) => {
                 if token.kind().is_punct() {
-                    let mut prev = None;
-                    for char in token.text().chars() {
-                        if let Some(char) = prev {
-                            token_trees.push(
-                                tt::Leaf::from(tt::Punct { char, spacing: tt::Spacing::Joint })
-                                    .into(),
-                            );
-                        }
-                        prev = Some(char)
-                    }
-                    if let Some(char) = prev {
-                        let spacing = match child_iter.peek() {
-                            Some(SyntaxElement::Token(token)) => {
-                                if token.kind().is_punct() {
-                                    tt::Spacing::Joint
-                                } else {
-                                    tt::Spacing::Alone
-                                }
-                            }
-                            _ => tt::Spacing::Alone,
-                        };
+                    assert!(token.text().len() == 1, "Input ast::token punct must be single char.");
+                    let char = token.text().chars().next().unwrap();
 
-                        token_trees.push(tt::Leaf::from(tt::Punct { char, spacing }).into());
-                    }
+                    let spacing = match child_iter.peek() {
+                        Some(SyntaxElement::Token(token)) => {
+                            if token.kind().is_punct() {
+                                tt::Spacing::Joint
+                            } else {
+                                tt::Spacing::Alone
+                            }
+                        }
+                        _ => tt::Spacing::Alone,
+                    };
+
+                    token_trees.push(tt::Leaf::from(tt::Punct { char, spacing }).into());
                 } else {
                     let child: tt::TokenTree = if token.kind() == SyntaxKind::TRUE_KW
                         || token.kind() == SyntaxKind::FALSE_KW

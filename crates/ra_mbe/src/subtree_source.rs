@@ -52,13 +52,6 @@ impl<'a> TokenSeq<'a> {
             TokenSeq::Seq(tokens) => tokens.len(),
         }
     }
-
-    fn child_slice(&self, pos: usize) -> &[tt::TokenTree] {
-        match self {
-            TokenSeq::Subtree(subtree) => &subtree.token_trees[pos - 1..],
-            TokenSeq::Seq(tokens) => &tokens[pos..],
-        }
-    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -114,10 +107,7 @@ impl<'a> SubTreeWalker<'a> {
                     self.stack.push((ts, 0));
                     WalkCursor::Token(0, convert_delim(subtree.delimiter, false))
                 }
-                tt::TokenTree::Leaf(leaf) => {
-                    let next_tokens = self.ts.child_slice(0);
-                    WalkCursor::Token(0, convert_leaf(&next_tokens, leaf))
-                }
+                tt::TokenTree::Leaf(leaf) => WalkCursor::Token(0, convert_leaf(leaf)),
             },
             DelimToken::Delim(delim, is_end) => {
                 assert!(!is_end);
@@ -190,10 +180,7 @@ impl<'a> SubTreeWalker<'a> {
                     self.stack.push((ts, pos));
                     WalkCursor::Token(new_idx, convert_delim(subtree.delimiter, backward))
                 }
-                tt::TokenTree::Leaf(leaf) => {
-                    let next_tokens = top.child_slice(pos);
-                    WalkCursor::Token(pos, convert_leaf(&next_tokens, leaf))
-                }
+                tt::TokenTree::Leaf(leaf) => WalkCursor::Token(pos, convert_leaf(leaf)),
             },
             DelimToken::Delim(delim, is_end) => {
                 WalkCursor::Token(pos, convert_delim(*delim, is_end))
@@ -388,33 +375,6 @@ where
     }
 }
 
-// FIXME: Remove this function
-fn convert_multi_char_punct<'b, I>(
-    p: &tt::Punct,
-    iter: &mut TokenPeek<'b, I>,
-) -> Option<(SyntaxKind, bool, &'static str, usize)>
-where
-    I: Iterator<Item = &'b tt::TokenTree>,
-{
-    if let Some((m, is_joint_to_next)) = iter.current_punct3(p) {
-        if let Some((kind, text)) = match m {
-            _ => None,
-        } {
-            return Some((kind, is_joint_to_next, text, 3));
-        }
-    }
-
-    if let Some((m, is_joint_to_next)) = iter.current_punct2(p) {
-        if let Some((kind, text)) = match m {
-            _ => None,
-        } {
-            return Some((kind, is_joint_to_next, text, 2));
-        }
-    }
-
-    None
-}
-
 fn convert_delim(d: tt::Delimiter, closing: bool) -> TtToken {
     let (kinds, texts) = match d {
         tt::Delimiter::Parenthesis => ([L_PAREN, R_PAREN], "()"),
@@ -450,36 +410,28 @@ fn convert_ident(ident: &tt::Ident) -> TtToken {
     TtToken { kind, is_joint_to_next: false, text: ident.text.clone(), n_tokens: 1 }
 }
 
-fn convert_punct(p: &tt::Punct, next_tokens: &[tt::TokenTree]) -> TtToken {
-    let mut iter = next_tokens.iter();
-    iter.next();
-    let mut peek = TokenPeek::new(iter);
-
-    if let Some((kind, is_joint_to_next, text, size)) = convert_multi_char_punct(p, &mut peek) {
-        TtToken { kind, is_joint_to_next, text: text.into(), n_tokens: size }
-    } else {
-        let kind = match p.char {
-            // lexer may produce combpund tokens for these ones
-            '.' => DOT,
-            ':' => COLON,
-            '=' => EQ,
-            '!' => EXCL,
-            '-' => MINUS,
-            c => SyntaxKind::from_char(c).unwrap(),
-        };
-        let text = {
-            let mut buf = [0u8; 4];
-            let s: &str = p.char.encode_utf8(&mut buf);
-            SmolStr::new(s)
-        };
-        TtToken { kind, is_joint_to_next: p.spacing == tt::Spacing::Joint, text, n_tokens: 1 }
-    }
+fn convert_punct(p: &tt::Punct) -> TtToken {
+    let kind = match p.char {
+        // lexer may produce combpund tokens for these ones
+        '.' => DOT,
+        ':' => COLON,
+        '=' => EQ,
+        '!' => EXCL,
+        '-' => MINUS,
+        c => SyntaxKind::from_char(c).unwrap(),
+    };
+    let text = {
+        let mut buf = [0u8; 4];
+        let s: &str = p.char.encode_utf8(&mut buf);
+        SmolStr::new(s)
+    };
+    TtToken { kind, is_joint_to_next: p.spacing == tt::Spacing::Joint, text, n_tokens: 1 }
 }
 
-fn convert_leaf(tokens: &[tt::TokenTree], leaf: &tt::Leaf) -> TtToken {
+fn convert_leaf(leaf: &tt::Leaf) -> TtToken {
     match leaf {
         tt::Leaf::Literal(l) => convert_literal(l),
         tt::Leaf::Ident(ident) => convert_ident(ident),
-        tt::Leaf::Punct(punct) => convert_punct(punct, tokens),
+        tt::Leaf::Punct(punct) => convert_punct(punct),
     }
 }
