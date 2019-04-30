@@ -45,13 +45,6 @@ impl<'a> TokenSeq<'a> {
             }
         }
     }
-
-    fn len(&self) -> usize {
-        match self {
-            TokenSeq::Subtree(subtree) => subtree.token_trees.len() + 2,
-            TokenSeq::Seq(tokens) => tokens.len(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -128,24 +121,6 @@ impl<'a> SubTreeWalker<'a> {
         self.stack.last().map(|(t, _)| t).unwrap_or(&self.ts)
     }
 
-    /// Move cursor backward by 1 step
-    fn backward(&mut self) {
-        if self.last_steps.is_empty() {
-            return;
-        }
-
-        self.pos -= 1;
-        let last_step = self.last_steps.pop().unwrap();
-
-        self.cursor = match self.cursor {
-            WalkCursor::Token(idx, _) => self.walk_token(idx, last_step, true),
-            WalkCursor::Eof => {
-                let len = self.top().len();
-                self.walk_token(len, last_step, true)
-            }
-        }
-    }
-
     /// Move cursor forward by 1 step        
     fn forward(&mut self) {
         if self.is_eof() {
@@ -157,28 +132,22 @@ impl<'a> SubTreeWalker<'a> {
         self.last_steps.push(step);
 
         if let WalkCursor::Token(u, _) = self.cursor {
-            self.cursor = self.walk_token(u, step, false)
+            self.cursor = self.walk_token(u, step)
         }
     }
 
     /// Traversal child token
-    fn walk_token(&mut self, pos: usize, offset: usize, backward: bool) -> WalkCursor {
+    fn walk_token(&mut self, pos: usize, offset: usize) -> WalkCursor {
         let top = self.stack.last().map(|(t, _)| t).unwrap_or(&self.ts);
 
-        if backward && pos < offset {
-            let (_, last_idx) = self.stack.pop().unwrap();
-            return self.walk_token(last_idx, offset, backward);
-        }
-
-        let pos = if backward { pos - offset } else { pos + offset };
+        let pos = pos + offset;
 
         match top.get(pos) {
             DelimToken::Token(token) => match token {
                 tt::TokenTree::Subtree(subtree) => {
                     let ts = TokenSeq::from(subtree);
-                    let new_idx = if backward { ts.len() - 1 } else { 0 };
                     self.stack.push((ts, pos));
-                    WalkCursor::Token(new_idx, convert_delim(subtree.delimiter, backward))
+                    WalkCursor::Token(0, convert_delim(subtree.delimiter, false))
                 }
                 tt::TokenTree::Leaf(leaf) => WalkCursor::Token(pos, convert_leaf(leaf)),
             },
@@ -188,8 +157,7 @@ impl<'a> SubTreeWalker<'a> {
             DelimToken::End => {
                 // it is the top level
                 if let Some((_, last_idx)) = self.stack.pop() {
-                    assert!(!backward);
-                    self.walk_token(last_idx, offset, backward)
+                    self.walk_token(last_idx, offset)
                 } else {
                     WalkCursor::Eof
                 }
@@ -237,11 +205,10 @@ impl<'a> WalkerOwner<'a> {
 
     fn set_pos(&self, pos: usize) {
         let mut walker = self.walker.borrow_mut();
+        assert!(walker.pos <= pos);
+
         while pos > walker.pos && !walker.is_eof() {
             walker.forward();
-        }
-        while pos < walker.pos {
-            walker.backward();
         }
     }
 
@@ -259,7 +226,10 @@ impl<'a> WalkerOwner<'a> {
                             res.push(token);
                         }
                     }
-                } else if walker.stack.len() == 1 {
+                }
+                // Check whether the second level is a subtree
+                // if so, collect its parent which is topmost child
+                else if walker.stack.len() == 1 {
                     if let DelimToken::Delim(_, is_end) = walker.top().get(*u) {
                         if !is_end {
                             let (_, last_idx) = &walker.stack[0];

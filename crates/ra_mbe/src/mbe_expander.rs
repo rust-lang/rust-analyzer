@@ -271,20 +271,9 @@ fn match_lhs(pattern: &crate::Subtree, input: &mut TtCursor) -> Result<Bindings,
                             }
 
                             if let Some(separator) = separator {
-                                use crate::Separator::*;
-
                                 if !input
                                     .eat_seperator()
-                                    .map(|sep| match (sep, separator) {
-                                        (Ident(ref a), Ident(ref b)) => a.text == b.text,
-                                        (Literal(ref a), Literal(ref b)) => a.text == b.text,
-                                        (Puncts(ref a), Puncts(ref b)) if a.len() == b.len() => {
-                                            let a_iter = a.iter().map(|a| a.char);
-                                            let b_iter = b.iter().map(|b| b.char);
-                                            a_iter.eq(b_iter)
-                                        }
-                                        _ => false,
-                                    })
+                                    .map(|sep| sep == *separator)
                                     .unwrap_or(false)
                                 {
                                     input.rollback(memento);
@@ -456,6 +445,11 @@ fn expand_tt(
             let mut has_seps = 0;
             let mut counter = 0;
 
+            // We store the old var expaned value, and restore it later
+            // It is because before this `$repeat`,
+            // it is possible some variables already expanad in the same subtree
+            //
+            // `some_var_expanded` keep check if the deeper subtree has expanded variables
             let mut some_var_expanded = false;
             let old_var_expanded = ctx.var_expanded;
             ctx.var_expanded = false;
@@ -465,6 +459,9 @@ fn expand_tt(
                 if !ctx.var_expanded {
                     break;
                 }
+
+                // Reset `ctx.var_expaneded` to see if there is other expaned variable
+                // in the next matching
                 some_var_expanded = true;
                 ctx.var_expanded = false;
 
@@ -508,6 +505,7 @@ fn expand_tt(
                 }
             }
 
+            // Restore the `var_expanded` by combining old one and the new one
             ctx.var_expanded = some_var_expanded || old_var_expanded;
 
             ctx.nesting.pop().unwrap();

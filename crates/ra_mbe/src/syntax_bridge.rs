@@ -240,7 +240,7 @@ impl<'a, Q: Querier> TreeSink for TtTreeSink<'a, Q> {
         self.buf.clear();
         self.inner.token(kind, text);
 
-        // Add a white space to token, only if it is not a delimiter
+        // Add a white space between tokens, only if both are not delimiters
         if !is_delimiter(kind) {
             let (last_kind, _, last_joint_to_next) = self.src_querier.token(self.token_pos - 1);
             if !last_joint_to_next && last_kind.is_punct() {
