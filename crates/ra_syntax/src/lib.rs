@@ -25,6 +25,7 @@ mod syntax_error;
 mod parsing;
 mod validation;
 mod ptr;
+mod text;
 
 pub mod algo;
 pub mod ast;

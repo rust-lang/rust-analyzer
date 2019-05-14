@@ -145,3 +145,48 @@ impl PartialEq<&'_ str> for SyntaxText<'_> {
         self == *rhs
     }
 }
+
+use crate::text::Str;
+use std::ops::Range;
+
+#[derive(Clone)]
+pub struct SyntaxText<'a> {
+    node: &'a SyntaxNode,
+    range: TextRange,
+}
+
+/// A non-trivial implementation: `Str` backed by a syntax node, which stores
+/// text in the leaf tokens.
+///
+/// Note that this is an example where we ideally want `Slice` type different
+/// from Self.
+///
+/// Slicing Nodes is a relatively rare operation, so we can be faster if we
+/// don't store and check `range`.
+impl<'a> Str<'a> for SyntaxText<'a> {
+    fn len(&self) -> usize {
+        u32::from(self.range.len()) as usize
+    }
+
+    fn slice(&self, range: Range<usize>) -> Self {
+        let start = self.range.start() + TextUnit::from_usize(range.start);
+        let end = self.range.start() + TextUnit::from_usize(range.end);
+        assert!(end <= self.range.end());
+        SyntaxText { node: self.node, range: TextRange::from_to(start, end) }
+    }
+
+    type Chunks = Box<dyn Iterator<Item = &'a str> + 'a>;
+    fn chunks(&self) -> Self::Chunks {
+        let range = self.range;
+        let it = self.node.descendants_with_tokens().filter_map(move |el| match el {
+            SyntaxElement::Token(t) => {
+                let text = t.text();
+                let range = range.intersection(&t.range())?;
+                let range = range - t.range().start();
+                Some(&text[range])
+            }
+            SyntaxElement::Node(_) => None,
+        });
+        Box::new(it)
+    }
+}
