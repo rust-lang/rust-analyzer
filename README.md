@@ -11,7 +11,7 @@ https://github.com/rust-lang/compiler-team/tree/master/working-groups/rls-2.0
 
 Work on the Rust Analyzer is sponsored by
 
-[![Ferrous Systems](https://ferrous-systems.com/images/ferrous-systems-mono-pos.png)](https://ferrous-systems.com/)
+[![Ferrous Systems](https://ferrous-systems.com/images/ferrous-systems-mono-pos.svg)](https://ferrous-systems.com/)
 
 ## Language Server Quick Start
 
