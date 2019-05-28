@@ -2,7 +2,7 @@ use std::{fmt, ops};
 
 use crate::{SyntaxNode, TextRange, TextUnit, SyntaxElement};
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct SyntaxText<'a> {
     node: &'a SyntaxNode,
     range: TextRange,

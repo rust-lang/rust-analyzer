@@ -22,7 +22,7 @@ pub(crate) fn merge_match_arms(mut ctx: AssistCtx<impl HirDatabase>) -> Option<A
     if match_arm_expr.syntax().text().len() != next_arm_expr.syntax().text().len()
         && match_arm_expr.syntax().text() != next_arm_expr.syntax().text()
     {
-        return None;
+        // return None;
     }
 
     let buf = build_buffer(match_arm.pats());
@@ -90,7 +90,7 @@ fn build_buffer<'a>(pats: impl Iterator<Item = &'a Pat>) -> String {
 mod tests {
     use super::*;
 
-    use crate::helpers::{check_assist,check_assist_target};
+    use crate::helpers::{check_assist,check_assist_target,check_assist_not_applicable};
 
     #[test]
     fn merge_match_arms_target() {
@@ -187,6 +187,72 @@ mod tests {
                 match x {
                     Foo | 
                     Bar => <|>()
+                    Baz => ()
+                }
+            }
+            "#,
+        );
+    }
+
+    #[test]
+    fn test_merge_match_arms_not_applicable() {
+        check_assist_not_applicable(
+            merge_match_arms,
+            r#"
+            enum A {
+                Foo,
+                Bar,
+                Baz
+            }
+            fn f() {
+                let x = A::Foo;
+
+                let y = "Foo".into();
+               
+                match x {
+                    Foo <|> => y.+= "Bar"
+                    Bar => ()
+                    Baz => ()
+                }
+            }
+            "#,
+        );
+    }
+
+    #[test]
+    fn merge_match_arms_complex_patterns() {
+        check_assist(
+            merge_match_arms,
+            r#"
+            enum A {
+                Foo(i32,i32),
+                Bar(i32),
+                Baz
+            }
+            fn f() {
+                let x = A::Foo(1,3);
+               
+                match x {
+                    Foo(1,_) <|> | Foo(_,3) => ()
+                    Bar(_) => <|>()
+                    Baz => ()
+                }
+            }
+            "#,
+             r#"
+            enum A {
+                Foo(i32,i32),
+                Bar(i32),
+                Baz
+            }
+            fn f() {
+                let x = A::Foo(1,3);
+
+                ley y = "Foo".into()
+               
+                match x {
+                    Foo(1,_) | Foo(_,3) | 
+                    Bar(_) => ()
                     Baz => ()
                 }
             }
