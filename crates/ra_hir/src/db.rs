@@ -33,8 +33,13 @@ pub trait AstDatabase: SourceDatabase {
     #[salsa::transparent]
     #[salsa::invoke(crate::source_id::AstIdMap::file_item_query)]
     fn ast_id_to_node(&self, file_id: HirFileId, ast_id: ErasedFileAstId) -> TreeArc<SyntaxNode>;
+
     #[salsa::invoke(crate::ids::HirFileId::parse_or_expand_query)]
+    #[salsa::transparent]
     fn parse_or_expand(&self, file_id: HirFileId) -> Option<TreeArc<SyntaxNode>>;
+
+    #[salsa::invoke(crate::ids::HirFileId::parse_macro_query)]
+    fn parse_macro(&self, macro_file: ids::MacroFile) -> Option<TreeArc<SyntaxNode>>;
 
     #[salsa::invoke(crate::ids::macro_def_query)]
     fn macro_def(&self, macro_id: MacroDefId) -> Option<Arc<mbe::MacroRules>>;

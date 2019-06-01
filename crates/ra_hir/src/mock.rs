@@ -3,7 +3,7 @@ use std::{sync::Arc, panic};
 use parking_lot::Mutex;
 use ra_db::{
     FilePosition, FileId, CrateGraph, SourceRoot, SourceRootId, SourceDatabase, salsa,
-    Edition,
+    Edition, TreeCache,
 };
 use relative_path::RelativePathBuf;
 use test_utils::{parse_fixture, CURSOR_MARKER, extract_offset};
@@ -24,6 +24,13 @@ pub struct MockDatabase {
     events: Mutex<Option<Vec<salsa::Event<MockDatabase>>>>,
     runtime: salsa::Runtime<MockDatabase>,
     files: FxHashMap<String, FileId>,
+    tree_cache: Arc<TreeCache>,
+}
+
+impl AsRef<TreeCache> for MockDatabase {
+    fn as_ref(&self) -> &TreeCache {
+        &*self.tree_cache
+    }
 }
 
 impl panic::RefUnwindSafe for MockDatabase {}
@@ -200,6 +207,7 @@ impl Default for MockDatabase {
             events: Default::default(),
             runtime: salsa::Runtime::default(),
             files: FxHashMap::default(),
+            tree_cache: Default::default(),
         };
         db.set_crate_graph(Default::default());
         db
@@ -213,6 +221,7 @@ impl salsa::ParallelDatabase for MockDatabase {
             runtime: self.runtime.snapshot(self),
             // only the root database can be used to get file_id by path.
             files: FxHashMap::default(),
+            tree_cache: Arc::clone(&self.tree_cache),
         })
     }
 }

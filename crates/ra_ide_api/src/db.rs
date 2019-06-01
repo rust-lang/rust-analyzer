@@ -4,7 +4,7 @@ use std::{
 };
 
 use ra_db::{
-    CheckCanceled, FileId, Canceled, SourceDatabase,
+    CheckCanceled, FileId, Canceled, SourceDatabase, TreeCache,
     salsa,
 };
 
@@ -21,8 +21,15 @@ use crate::{LineIndex, symbol_index::{self, SymbolsDatabase}};
 #[derive(Debug)]
 pub(crate) struct RootDatabase {
     runtime: salsa::Runtime<RootDatabase>,
+    tree_cache: Arc<TreeCache>,
     pub(crate) last_gc: time::Instant,
     pub(crate) last_gc_check: time::Instant,
+}
+
+impl AsRef<TreeCache> for RootDatabase {
+    fn as_ref(&self) -> &TreeCache {
+        &*self.tree_cache
+    }
 }
 
 impl salsa::Database for RootDatabase {
@@ -45,6 +52,7 @@ impl Default for RootDatabase {
             runtime: salsa::Runtime::default(),
             last_gc: time::Instant::now(),
             last_gc_check: time::Instant::now(),
+            tree_cache: Default::default(),
         };
         db.set_crate_graph(Default::default());
         db.set_local_roots(Default::default());
@@ -59,6 +67,7 @@ impl salsa::ParallelDatabase for RootDatabase {
             runtime: self.runtime.snapshot(self),
             last_gc: self.last_gc.clone(),
             last_gc_check: self.last_gc_check.clone(),
+            tree_cache: Arc::clone(&self.tree_cache),
         })
     }
 }

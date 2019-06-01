@@ -224,9 +224,7 @@ impl RootDatabase {
 
         let sweep = SweepStrategy::default().discard_values().sweep_all_revisions();
 
-        self.query(ra_db::ParseQuery).sweep(sweep);
-
-        self.query(hir::db::ParseOrExpandQuery).sweep(sweep);
+        self.query(hir::db::ParseMacroQuery).sweep(sweep);
         self.query(hir::db::AstIdMapQuery).sweep(sweep);
 
         self.query(hir::db::RawItemsWithSourceMapQuery).sweep(sweep);

@@ -16,8 +16,8 @@ use crate::{
     symbol_index::{SymbolIndex, LibrarySymbolsQuery},
 };
 
-pub(crate) fn syntax_tree_stats(db: &RootDatabase) -> SyntaxTreeStats {
-    db.query(hir::db::ParseOrExpandQuery).entries::<SyntaxTreeStats>()
+pub(crate) fn syntax_tree_stats(_db: &RootDatabase) -> SyntaxTreeStats {
+    SyntaxTreeStats::default()
 }
 
 pub(crate) fn status(db: &RootDatabase) -> String {

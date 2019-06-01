@@ -1,6 +1,8 @@
 //! ra_db defines basic database traits. The concrete DB is defined by ra_ide_api.
+
 mod cancellation;
 mod input;
+mod tree_cache;
 
 use std::{panic, sync::Arc};
 
@@ -14,6 +16,7 @@ pub use crate::{
     input::{
         FileId, CrateId, SourceRoot, SourceRootId, CrateGraph, Dependency, Edition,
     },
+    tree_cache::TreeCache,
 };
 
 pub trait CheckCanceled {
@@ -68,11 +71,12 @@ pub struct FileRange {
 /// Database which stores all significant input facts: source code and project
 /// model. Everything else in rust-analyzer is derived from these queries.
 #[salsa::query_group(SourceDatabaseStorage)]
-pub trait SourceDatabase: CheckCanceled + std::fmt::Debug {
+pub trait SourceDatabase: CheckCanceled + std::fmt::Debug + AsRef<TreeCache> {
     /// Text of the file.
     #[salsa::input]
     fn file_text(&self, file_id: FileId) -> Arc<String>;
     // Parses the file into the syntax tree.
+    #[salsa::transparent]
     #[salsa::invoke(parse_query)]
     fn parse(&self, file_id: FileId) -> Parse;
     /// Path to a file, relative to the root of its source root.
@@ -101,5 +105,11 @@ fn source_root_crates(db: &impl SourceDatabase, id: SourceRootId) -> Arc<Vec<Cra
 fn parse_query(db: &impl SourceDatabase, file_id: FileId) -> Parse {
     let _p = profile("parse_query");
     let text = db.file_text(file_id);
-    SourceFile::parse(&*text)
+    let cache: &TreeCache = db.as_ref();
+    if let Some(parse) = cache.get(file_id) {
+        return parse;
+    }
+    let parse = SourceFile::parse(&*text);
+    cache.insert(file_id, parse.clone());
+    parse
 }

@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use rustc_hash::FxHashMap;
 
 use ra_db::{
-    CrateGraph, FileId, SourceRoot, SourceRootId, SourceDatabase, salsa,
+    CrateGraph, FileId, SourceRoot, SourceRootId, SourceDatabase, salsa, TreeCache,
 };
 use ra_hir::db;
 use ra_project_model::ProjectWorkspace;
@@ -25,6 +25,13 @@ type Result<T> = std::result::Result<T, failure::Error>;
 #[derive(Debug)]
 pub struct BatchDatabase {
     runtime: salsa::Runtime<BatchDatabase>,
+    tree_cache: Arc<TreeCache>,
+}
+
+impl AsRef<TreeCache> for BatchDatabase {
+    fn as_ref(&self) -> &TreeCache {
+        &*self.tree_cache
+    }
 }
 
 impl salsa::Database for BatchDatabase {
@@ -42,7 +49,8 @@ fn vfs_root_to_id(r: ra_vfs::VfsRoot) -> SourceRootId {
 
 impl BatchDatabase {
     pub fn load(crate_graph: CrateGraph, vfs: &mut Vfs) -> BatchDatabase {
-        let mut db = BatchDatabase { runtime: salsa::Runtime::default() };
+        let mut db =
+            BatchDatabase { runtime: salsa::Runtime::default(), tree_cache: Default::default() };
         db.set_crate_graph(Arc::new(crate_graph));
 
         // wait until Vfs has loaded all roots
