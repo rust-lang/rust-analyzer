@@ -94,6 +94,12 @@ impl HirFileId {
             }
         }
     }
+    pub(crate) fn remove_parse_tree(&self, db: &impl AstDatabase) {
+        match self.0 {
+            HirFileIdRepr::File(file_id) => db.remove_parse(file_id),
+            HirFileIdRepr::Macro(macro_file) => db.remove_parse_macro(macro_file),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -208,6 +208,7 @@ impl RootDatabase {
     }
 
     pub(crate) fn maybe_collect_garbage(&mut self) {
+        return;
         if self.last_gc_check.elapsed() > GC_COOLDOWN {
             self.last_gc_check = time::Instant::now();
             let retained_trees = syntax_tree_stats(self).retained;
@@ -221,11 +222,10 @@ impl RootDatabase {
     pub(crate) fn collect_garbage(&mut self) {
         let _p = profile("RootDatabase::collect_garbage");
         self.last_gc = time::Instant::now();
-
+        return;
         let sweep = SweepStrategy::default().discard_values().sweep_all_revisions();
 
         self.query(ra_db::ParseQuery).sweep(sweep);
-
         self.query(hir::db::ParseMacroQuery).sweep(sweep);
         self.query(hir::db::MacroDefQuery).sweep(sweep);
         self.query(hir::db::MacroArgQuery).sweep(sweep);
