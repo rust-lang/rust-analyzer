@@ -33,6 +33,18 @@ export function registerCargoWatchProvider(
     return provider;
 }
 
+function areDiagnosticsEqual(
+    left: vscode.Diagnostic,
+    right: vscode.Diagnostic
+): boolean {
+    return (
+        left.source === right.source &&
+        left.severity === right.severity &&
+        left.range.isEqual(right.range) &&
+        left.message === right.message
+    );
+}
+
 export class CargoWatchProvider implements vscode.Disposable {
     private readonly diagnosticCollection: vscode.DiagnosticCollection;
     private readonly statusDisplay: StatusDisplay;
@@ -247,7 +259,15 @@ export class CargoWatchProvider implements vscode.Disposable {
                 const diagnostics: vscode.Diagnostic[] = [
                     ...(this.diagnosticCollection!.get(fileUrl) || [])
                 ];
-                diagnostics.push(diagnostic);
+
+                // If we're building multiple targets it's possible we've already seen this diagnostic
+                const isDuplicate = diagnostics.some(d =>
+                    areDiagnosticsEqual(d, diagnostic)
+                );
+
+                if (!isDuplicate) {
+                    diagnostics.push(diagnostic);
+                }
 
                 this.diagnosticCollection!.set(fileUrl, diagnostics);
             }
