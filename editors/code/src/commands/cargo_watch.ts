@@ -33,18 +33,6 @@ export function registerCargoWatchProvider(
     return provider;
 }
 
-function areDiagnosticsEqual(
-    left: vscode.Diagnostic,
-    right: vscode.Diagnostic
-): boolean {
-    return (
-        left.source === right.source &&
-        left.severity === right.severity &&
-        left.range.isEqual(right.range) &&
-        left.message === right.message
-    );
-}
-
 export class CargoWatchProvider implements vscode.Disposable {
     private readonly diagnosticCollection: vscode.DiagnosticCollection;
     private readonly statusDisplay: StatusDisplay;
@@ -174,6 +162,18 @@ export class CargoWatchProvider implements vscode.Disposable {
                 return vscode.DiagnosticSeverity.Warning;
             }
             return vscode.DiagnosticSeverity.Information;
+        }
+
+        function areDiagnosticsEqual(
+            left: vscode.Diagnostic,
+            right: vscode.Diagnostic
+        ): boolean {
+            return (
+                left.source === right.source &&
+                left.severity === right.severity &&
+                left.range.isEqual(right.range) &&
+                left.message === right.message
+            );
         }
 
         // Reference:
