@@ -3,10 +3,10 @@
 //! Specifically, it generates the `SyntaxKind` enum and a number of newtype
 //! wrappers around `SyntaxNode` which implement `ra_syntax::AstNode`.
 
-use std::{collections::BTreeMap, fs};
+use std::fs;
 
 use proc_macro2::{Punct, Spacing};
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
 use ron;
 use serde::Deserialize;
 
@@ -14,6 +14,10 @@ use crate::{
     codegen::{self, update, Mode},
     project_root, Result,
 };
+
+use asdl::*;
+
+const TOKEN_TYPES: [&'static str; 1] = ["commentIter"];
 
 pub fn generate_syntax(mode: Mode) -> Result<()> {
     let grammar = project_root().join(codegen::GRAMMAR);
@@ -26,140 +30,258 @@ pub fn generate_syntax(mode: Mode) -> Result<()> {
     let syntax_kinds = generate_syntax_kinds(&grammar)?;
     update(syntax_kinds_file.as_path(), &syntax_kinds, mode)?;
 
+    let asdl_file = project_root().join(codegen::ASDL);
+    let asdl = Asdl::parse(&fs::read_to_string(asdl_file)?)?;
     let ast_file = project_root().join(codegen::AST);
-    let ast = generate_ast(&grammar)?;
+    let ast = generate_ast(&asdl)?;
     update(ast_file.as_path(), &ast, mode)?;
 
     Ok(())
 }
 
-fn generate_ast(grammar: &Grammar) -> Result<String> {
-    let nodes = grammar.ast.iter().map(|(name, ast_node)| {
-        let variants =
-            ast_node.variants.iter().map(|var| format_ident!("{}", var)).collect::<Vec<_>>();
-        let name = format_ident!("{}", name);
+fn generate_sum_type(sty: &SumType, asdl: &Asdl) -> impl ToTokens {
+    let name = format_ident!("{}", capitalize(&sty.id));
+    let variants = sty.constructors.iter().map(|c| format_ident!("{}", c.id)).collect::<Vec<_>>();
+    let kinds = variants
+        .iter()
+        .map(|name| format_ident!("{}", to_upper_snake_case(&name.to_string())))
+        .collect::<Vec<_>>();
 
-        let adt = if variants.is_empty() {
-            let kind = format_ident!("{}", to_upper_snake_case(&name.to_string()));
-            quote! {
-                #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-                pub struct #name {
-                    pub(crate) syntax: SyntaxNode,
+    let constructors = sty
+        .constructors
+        .iter()
+        .filter(|c| {
+            // do not generate special type if constructor has only one required field
+            c.fields.is_empty() || c.fields.len() > 1 || c.fields[0].arity != Arity::Required
+        })
+        .map(|c| generate_type(&c.id, &c.fields, asdl));
+
+    let attributes = generate_fields(&sty.id, &sty.attributes, asdl);
+
+    quote! {
+        #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+        pub enum #name {
+            #(#variants(#variants),)*
+        }
+
+        #(
+        impl From<#variants> for #name {
+            fn from(node: #variants) -> #name {
+                #name::#variants(node)
+            }
+        }
+        )*
+
+        impl AstNode for #name {
+            fn can_cast(kind: SyntaxKind) -> bool {
+                match kind {
+                    #(#kinds)|* => true,
+                    _ => false,
                 }
+            }
+            fn cast(syntax: SyntaxNode) -> Option<Self> {
+                let res = match syntax.kind() {
+                    #(
+                    #kinds => #name::#variants(#variants { syntax }),
+                    )*
+                    _ => return None,
+                };
+                Some(res)
+            }
+            fn syntax(&self) -> &SyntaxNode {
+                match self {
+                    #(
+                    #name::#variants(it) => &it.syntax,
+                    )*
+                }
+            }
+        }
 
-                impl AstNode for #name {
-                    fn can_cast(kind: SyntaxKind) -> bool {
-                        match kind {
-                            #kind => true,
-                            _ => false,
+        #attributes
+
+        #(#constructors)*
+    }
+}
+
+fn generate_type(name: &str, fields: &Vec<Field>, asdl: &Asdl) -> impl ToTokens {
+    let type_name = format_ident!("{}", capitalize(name));
+    let kind = format_ident!("{}", to_upper_snake_case(name));
+    let fields = generate_fields(name, fields, asdl);
+    quote! {
+        #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+        pub struct #type_name {
+            pub(crate) syntax: SyntaxNode,
+        }
+
+        impl AstNode for #type_name {
+            fn can_cast(kind: SyntaxKind) -> bool {
+                match kind {
+                    #kind => true,
+                    _ => false,
+                }
+            }
+            fn cast(syntax: SyntaxNode) -> Option<Self> {
+                if Self::can_cast(syntax.kind()) { Some(Self { syntax }) } else { None }
+            }
+            fn syntax(&self) -> &SyntaxNode { &self.syntax }
+        }
+
+        #fields
+    }
+}
+
+fn generate_fields(name: &str, fields: &Vec<Field>, asdl: &Asdl) -> impl ToTokens {
+    if fields.is_empty() {
+        quote! {}
+    } else {
+        let type_name = format_ident!("{}", capitalize(name));
+        let methods = fields.iter().map(|f| {
+            let method_name = format_ident!("{}", to_lower_snake_case(&f.id));
+            let ty = format_ident!("{}", capitalize(&f.type_id));
+            match f.arity {
+                Arity::Optional => {
+                    quote! {
+                        pub fn #method_name(&self) -> Option<#ty> {
+                           super::child_opt(self)
                         }
                     }
-                    fn cast(syntax: SyntaxNode) -> Option<Self> {
-                        if Self::can_cast(syntax.kind()) { Some(Self { syntax }) } else { None }
+                }
+                Arity::Repeated => {
+                    quote! {
+                        pub fn #method_name(&self) -> AstChildren<#ty> {
+                            super::children(self)
+                        }
                     }
-                    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+                }
+                Arity::Required => {
+                    if TOKEN_TYPES.contains(&f.type_id.as_str()) {
+                        quote! {
+                            pub fn #method_name(&self) -> #ty {
+                                #ty::new(self.syntax().children_with_tokens())
+                            }
+                        }
+                    } else {
+                        quote! {
+                            // not implemented generation for required field #method_name and type #ty
+                        }
+                    }
+                }
+            }
+        });
+        let traits = generate_traits(name, fields, asdl);
+        quote! {
+            impl #type_name {
+                #(#methods)*
+            }
+
+            #traits
+        }
+    }
+}
+
+fn generate_traits(name: &str, fields: &Vec<Field>, asdl: &Asdl) -> impl ToTokens {
+    let type_name = format_ident!("{}", capitalize(name));
+    let inf_traits = infer_traits(fields, asdl);
+    let traits = inf_traits.iter().map(|trait_name| {
+        if let Some(tr) = asdl.get_type_by_name(trait_name).and_then(to_prod_type) {
+            let trait_methods = tr.fields.iter().map(|f| {
+                let method_name = format_ident!("{}", to_lower_snake_case(&f.id));
+                let ty = format_ident!("{}", capitalize(&f.type_id));
+                match f.arity {
+                    Arity::Optional => {
+                        quote! {
+                            fn #method_name(&self) -> Option<#ty> {
+                                 self.#method_name()
+                            }
+                        }
+                    }
+                    Arity::Repeated => {
+                        quote! {
+                            fn #method_name(&self) -> AstChildren<#ty> {
+                                 self.#method_name()
+                            }
+                        }
+                    }
+                    Arity::Required => {
+                        quote! {
+                            fn #method_name(&self) -> #ty {
+                                 self.#method_name()
+                            }
+                        }
+                    }
+                }
+            });
+            let trait_name = format_ident!("{}", capitalize(trait_name));
+            quote! {
+                impl ast::#trait_name for #type_name {
+                    #(#trait_methods)*
                 }
             }
         } else {
-            let kinds = variants
-                .iter()
-                .map(|name| format_ident!("{}", to_upper_snake_case(&name.to_string())))
-                .collect::<Vec<_>>();
-
             quote! {
-                #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-                pub enum #name {
-                    #(#variants(#variants),)*
-                }
-
-                #(
-                impl From<#variants> for #name {
-                    fn from(node: #variants) -> #name {
-                        #name::#variants(node)
-                    }
-                }
-                )*
-
-                impl AstNode for #name {
-                    fn can_cast(kind: SyntaxKind) -> bool {
-                        match kind {
-                            #(#kinds)|* => true,
-                            _ => false,
-                        }
-                    }
-                    fn cast(syntax: SyntaxNode) -> Option<Self> {
-                        let res = match syntax.kind() {
-                            #(
-                            #kinds => #name::#variants(#variants { syntax }),
-                            )*
-                            _ => return None,
-                        };
-                        Some(res)
-                    }
-                    fn syntax(&self) -> &SyntaxNode {
-                        match self {
-                            #(
-                            #name::#variants(it) => &it.syntax,
-                            )*
-                        }
-                    }
-                }
-            }
-        };
-
-        let traits = ast_node.traits.iter().map(|trait_name| {
-            let trait_name = format_ident!("{}", trait_name);
-            quote!(impl ast::#trait_name for #name {})
-        });
-
-        let collections = ast_node.collections.iter().map(|(name, kind)| {
-            let method_name = format_ident!("{}", name);
-            let kind = format_ident!("{}", kind);
-            quote! {
-                pub fn #method_name(&self) -> AstChildren<#kind> {
-                    AstChildren::new(&self.syntax)
-                }
-            }
-        });
-
-        let options = ast_node.options.iter().map(|attr| {
-            let method_name = match attr {
-                Attr::Type(t) => format_ident!("{}", to_lower_snake_case(&t)),
-                Attr::NameType(n, _) => format_ident!("{}", n),
-            };
-            let ty = match attr {
-                Attr::Type(t) | Attr::NameType(_, t) => format_ident!("{}", t),
-            };
-            quote! {
-                pub fn #method_name(&self) -> Option<#ty> {
-                    AstChildren::new(&self.syntax).next()
-                }
-            }
-        });
-
-        quote! {
-            #adt
-
-            #(#traits)*
-
-            impl #name {
-                #(#collections)*
-                #(#options)*
+                // can't get methods for trait #trait_name
             }
         }
     });
+    quote! {
+        #(#traits)*
+    }
+}
+
+fn generate_ast(asdl: &Asdl) -> Result<String> {
+    let sum_types =
+        asdl.types.iter().filter_map(to_sum_type).map(|sty| generate_sum_type(&sty, asdl));
+    let prod_types = asdl
+        .types
+        .iter()
+        .filter_map(to_prod_type)
+        .filter(|ty| !is_trait(ty))
+        .map(|pty| generate_type(&pty.id, &pty.fields, asdl));
 
     let ast = quote! {
         use crate::{
             SyntaxNode, SyntaxKind::{self, *},
-            ast::{self, AstNode, AstChildren},
+            ast::{self, AstNode, AstChildren, traits::CommentIter},
         };
 
-        #(#nodes)*
+        #(#sum_types)*
+        #(#prod_types)*
     };
 
     let pretty = codegen::reformat(ast)?;
     Ok(pretty)
+}
+
+fn is_trait(ty: &ProdType) -> bool {
+    ty.id.ends_with("Owner")
+}
+
+fn to_prod_type(ty: &Type) -> Option<&ProdType> {
+    match ty {
+        Type::ProdType(pty) => Some(pty),
+        _ => None,
+    }
+}
+
+fn to_sum_type(ty: &Type) -> Option<&SumType> {
+    match ty {
+        Type::SumType(sty) => Some(sty),
+        _ => None,
+    }
+}
+
+fn infer_traits(fields: &Vec<Field>, asdl: &Asdl) -> Vec<String> {
+    asdl.types
+        .iter()
+        .filter_map(to_prod_type)
+        .filter(|t| is_trait(*t))
+        .filter(|tr| contains_fields(fields, &tr.fields))
+        .map(|tr| tr.id.clone())
+        .collect()
+}
+
+fn contains_fields(outer: &Vec<Field>, inner: &Vec<Field>) -> bool {
+    inner.iter().filter(|f| outer.contains(f)).count() == inner.len()
 }
 
 fn generate_syntax_kinds(grammar: &Grammar) -> Result<String> {
@@ -282,21 +404,6 @@ struct Grammar {
     literals: Vec<String>,
     tokens: Vec<String>,
     nodes: Vec<String>,
-    ast: BTreeMap<String, AstNode>,
-}
-
-#[derive(Deserialize, Debug)]
-struct AstNode {
-    #[serde(default)]
-    #[serde(rename = "enum")]
-    variants: Vec<String>,
-
-    #[serde(default)]
-    traits: Vec<String>,
-    #[serde(default)]
-    collections: Vec<(String, String)>,
-    #[serde(default)]
-    options: Vec<Attr>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -331,5 +438,12 @@ fn to_lower_snake_case(s: &str) -> String {
 
         buf.push(c.to_ascii_lowercase());
     }
+    buf
+}
+
+fn capitalize(s: &str) -> String {
+    let mut buf = String::with_capacity(s.len());
+    buf.push(s.chars().next().unwrap().to_ascii_uppercase());
+    buf.push_str(&s[1..]);
     buf
 }

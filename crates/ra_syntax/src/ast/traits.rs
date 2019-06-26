@@ -5,45 +5,33 @@
 use itertools::Itertools;
 
 use crate::{
-    ast::{self, child_opt, children, AstChildren, AstNode, AstToken},
+    ast::{self, AstChildren, AstNode, AstToken},
     match_ast,
     syntax_node::{SyntaxElementChildren, SyntaxNodeChildren},
 };
 
 pub trait TypeAscriptionOwner: AstNode {
-    fn ascribed_type(&self) -> Option<ast::TypeRef> {
-        child_opt(self)
-    }
+    fn ascribed_type(&self) -> Option<ast::TypeRef>;
 }
 
 pub trait NameOwner: AstNode {
-    fn name(&self) -> Option<ast::Name> {
-        child_opt(self)
-    }
+    fn name(&self) -> Option<ast::Name>;
 }
 
 pub trait VisibilityOwner: AstNode {
-    fn visibility(&self) -> Option<ast::Visibility> {
-        child_opt(self)
-    }
+    fn visibility(&self) -> Option<ast::Visibility>;
 }
 
 pub trait LoopBodyOwner: AstNode {
-    fn loop_body(&self) -> Option<ast::BlockExpr> {
-        child_opt(self)
-    }
+    fn loop_body(&self) -> Option<ast::BlockExpr>;
 }
 
 pub trait ArgListOwner: AstNode {
-    fn arg_list(&self) -> Option<ast::ArgList> {
-        child_opt(self)
-    }
+    fn arg_list(&self) -> Option<ast::ArgList>;
 }
 
 pub trait FnDefOwner: AstNode {
-    fn functions(&self) -> AstChildren<ast::FnDef> {
-        children(self)
-    }
+    fn functions(&self) -> AstChildren<ast::FnDef>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,9 +41,8 @@ pub enum ItemOrMacro {
 }
 
 pub trait ModuleItemOwner: AstNode {
-    fn items(&self) -> AstChildren<ast::ModuleItem> {
-        children(self)
-    }
+    fn items(&self) -> AstChildren<ast::ModuleItem>;
+
     fn items_with_macros(&self) -> ItemOrMacroIter {
         ItemOrMacroIter(self.syntax().children())
     }
@@ -81,34 +68,25 @@ impl Iterator for ItemOrMacroIter {
 }
 
 pub trait TypeParamsOwner: AstNode {
-    fn type_param_list(&self) -> Option<ast::TypeParamList> {
-        child_opt(self)
-    }
+    fn type_param_list(&self) -> Option<ast::TypeParamList>;
 
-    fn where_clause(&self) -> Option<ast::WhereClause> {
-        child_opt(self)
-    }
+    fn where_clause(&self) -> Option<ast::WhereClause>;
 }
 
 pub trait TypeBoundsOwner: AstNode {
-    fn type_bound_list(&self) -> Option<ast::TypeBoundList> {
-        child_opt(self)
-    }
+    fn type_bound_list(&self) -> Option<ast::TypeBoundList>;
 }
 
 pub trait AttrsOwner: AstNode {
-    fn attrs(&self) -> AstChildren<ast::Attr> {
-        children(self)
-    }
+    fn attrs(&self) -> AstChildren<ast::Attr>;
+
     fn has_atom_attr(&self, atom: &str) -> bool {
         self.attrs().filter_map(|x| x.as_simple_atom()).any(|x| x == atom)
     }
 }
 
 pub trait DocCommentsOwner: AstNode {
-    fn doc_comments(&self) -> CommentIter {
-        CommentIter { iter: self.syntax().children_with_tokens() }
-    }
+    fn doc_comments(&self) -> CommentIter;
 
     /// Returns the textual content of a doc comment block as a single string.
     /// That is, strips leading `///` (+ optional 1 character of whitespace),
@@ -155,6 +133,12 @@ pub trait DocCommentsOwner: AstNode {
 
 pub struct CommentIter {
     iter: SyntaxElementChildren,
+}
+
+impl CommentIter {
+    pub fn new(iter: SyntaxElementChildren) -> Self {
+        CommentIter { iter }
+    }
 }
 
 impl Iterator for CommentIter {
