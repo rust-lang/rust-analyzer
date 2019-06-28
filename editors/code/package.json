@@ -16,10 +16,12 @@
         "vscode": "^1.33.0"
     },
     "scripts": {
-        "vscode:prepublish": "npm run compile",
+        "vscode:prepublish": "webpack --mode production",
+        "webpack": "webpack --mode development",
+        "webpack-dev": "webpack --mode development --watch",
         "package": "vsce package",
-        "compile": "tsc -p ./ && shx cp src/utils/terminateProcess.sh out/utils/terminateProcess.sh",
         "watch": "tsc -watch -p ./",
+        "test-compile": "tsc -p ./",
         "postinstall": "node ./node_modules/vscode/bin/install",
         "fix": "prettier **/*.{json,ts} --write && tslint --project . --fix",
         "lint": "tslint --project .",
@@ -41,11 +43,14 @@
         "@types/seedrandom": "^2.4.28",
         "prettier": "^1.17.0",
         "shx": "^0.3.1",
+        "ts-loader": "^6.0.4",
         "tslint": "^5.16.0",
         "tslint-config-prettier": "^1.18.0",
         "typescript": "^3.4.4",
         "vsce": "^1.59.0",
-        "vscode": "^1.1.33"
+        "vscode": "^1.1.33",
+        "webpack": "^4.35.0",
+        "webpack-cli": "^3.3.5"
     },
     "activationEvents": [
         "onLanguage:rust",
@@ -53,7 +58,7 @@
         "onCommand:rust-analyzer.collectGarbage",
         "workspaceContains:**/Cargo.toml"
     ],
-    "main": "./out/extension",
+    "main": "./dist/extension",
     "contributes": {
         "taskDefinitions": [
             {

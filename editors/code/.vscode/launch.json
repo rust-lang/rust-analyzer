@@ -11,8 +11,8 @@
             "request": "launch",
             "runtimeExecutable": "${execPath}",
             "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
-            "outFiles": ["${workspaceFolder}/out/**/*.js"],
-            "preLaunchTask": "npm: watch"
+            "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+            "preLaunchTask": "npm: webpack"
         },
         {
             "name": "Extension Tests",
@@ -25,7 +25,7 @@
                 "--extensionTestsPath=${workspaceFolder}/out/test"
             ],
             "outFiles": ["${workspaceFolder}/out/test/**/*.js"],
-            "preLaunchTask": "npm: watch"
+            "preLaunchTask": "npm: test-compile"
         }
     ]
 }
