@@ -2,14 +2,20 @@ use ra_db::SourceDatabase;
 use ra_syntax::{
     AstNode, TreeArc,
     ast::{self, DocCommentsOwner},
-    algo::{find_covering_element, find_node_at_offset, ancestors_at_offset, visit::{visitor, Visitor}},
+    algo::{
+        find_covering_element, find_node_at_offset, ancestors_at_offset,
+        visit::{visitor, Visitor},
+    },
 };
 use hir::{HirDisplay, HasSource};
 
 use crate::{
     db::RootDatabase,
     RangeInfo, FilePosition, FileRange,
-    display::{rust_code_markup, rust_code_markup_with_doc, ShortLabel, docs_from_symbol, description_from_symbol},
+    display::{
+        rust_code_markup, rust_code_markup_with_doc, ShortLabel, docs_from_symbol,
+        description_from_symbol,
+    },
     name_ref_kind::{NameRefKind::*, classify_name_ref},
 };
 
@@ -257,7 +263,9 @@ pub(crate) fn type_of(db: &RootDatabase, frange: FileRange) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use ra_syntax::TextRange;
-    use crate::mock_analysis::{single_file_with_position, single_file_with_range, analysis_and_position};
+    use crate::mock_analysis::{
+        single_file_with_position, single_file_with_range, analysis_and_position,
+    };
 
     fn trim_markup(s: &str) -> &str {
         s.trim_start_matches("```rust\n").trim_end_matches("\n```")

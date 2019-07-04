@@ -3,8 +3,8 @@ use std::sync::Arc;
 use ra_syntax::ast;
 
 use crate::{
-    HirDatabase, DefDatabase, AstDatabase, HasSource,
-    Module, StructField, Struct, Enum, EnumVariant, Static, Const, Function, Union, Trait, TypeAlias, FieldSource, MacroDef,
+    HirDatabase, DefDatabase, AstDatabase, HasSource, Module, StructField, Struct, Enum,
+    EnumVariant, Static, Const, Function, Union, Trait, TypeAlias, FieldSource, MacroDef,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

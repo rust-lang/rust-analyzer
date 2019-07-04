@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Output, Stdio},
     io::{Error as IoError, ErrorKind},
-    error::Error
+    error::Error,
 };
 
 use itertools::Itertools;

@@ -4,7 +4,7 @@ use crate::{
     SyntaxToken, SyntaxElement, SmolStr,
     ast::{self, AstNode, AstChildren, children, child_opt},
     SyntaxKind::*,
-    T
+    T,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

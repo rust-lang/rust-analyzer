@@ -1,9 +1,8 @@
 use ra_syntax::{TreeArc, ast};
 
 use crate::{
-    HirFileId, DefDatabase, AstDatabase, Module, ModuleSource,
-    StructField, Struct, Enum, Union, EnumVariant, Function, Static, Trait, Const, TypeAlias,
-    FieldSource, MacroDef, ids::AstItemDef,
+    HirFileId, DefDatabase, AstDatabase, Module, ModuleSource, StructField, Struct, Enum, Union,
+    EnumVariant, Function, Static, Trait, Const, TypeAlias, FieldSource, MacroDef, ids::AstItemDef,
 };
 
 pub struct Source<T> {

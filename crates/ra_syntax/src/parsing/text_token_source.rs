@@ -1,10 +1,7 @@
 use ra_parser::TokenSource;
 use ra_parser::Token as PToken;
 
-use crate::{
-    SyntaxKind::EOF, TextRange, TextUnit,
-    parsing::lexer::Token,
-};
+use crate::{SyntaxKind::EOF, TextRange, TextUnit, parsing::lexer::Token};
 
 pub(crate) struct TextTokenSource<'t> {
     text: &'t str,

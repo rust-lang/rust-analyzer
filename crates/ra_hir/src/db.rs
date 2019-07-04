@@ -5,19 +5,20 @@ use ra_syntax::{SyntaxNode, TreeArc, SmolStr, ast};
 use ra_db::{SourceDatabase, salsa};
 
 use crate::{
-    HirFileId, MacroDefId, AstIdMap, ErasedFileAstId, Crate, Module, MacroCallLoc,
-    Function, FnData, ExprScopes, TypeAlias,
-    Struct, Enum, StructField,
-    Const, ConstData, Static,
-    DefWithBody, Trait,
-    ids,
+    HirFileId, MacroDefId, AstIdMap, ErasedFileAstId, Crate, Module, MacroCallLoc, Function,
+    FnData, ExprScopes, TypeAlias, Struct, Enum, StructField, Const, ConstData, Static,
+    DefWithBody, Trait, ids,
     nameres::{Namespace, ImportSourceMap, RawItems, CrateDefMap},
-    ty::{InferenceResult, Ty, method_resolution::CrateImplBlocks, TypableDef, CallableDef, FnSig, TypeCtor, GenericPredicate, Substs},
+    ty::{
+        InferenceResult, Ty, method_resolution::CrateImplBlocks, TypableDef, CallableDef, FnSig,
+        TypeCtor, GenericPredicate, Substs,
+    },
     adt::{StructData, EnumData},
     impl_block::{ModuleImplBlocks, ImplSourceMap, ImplBlock},
     generics::{GenericParams, GenericDef},
     traits::TraitData,
-    lang_item::{LangItems, LangItemTarget}, type_alias::TypeAliasData,
+    lang_item::{LangItems, LangItemTarget},
+    type_alias::TypeAliasData,
 };
 
 /// We store all interned things in the single QueryGroup.

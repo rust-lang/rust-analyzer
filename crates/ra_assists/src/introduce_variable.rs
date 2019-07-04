@@ -3,7 +3,9 @@ use hir::db::HirDatabase;
 use ra_syntax::{
     ast::{self, AstNode},
     SyntaxNode, TextUnit,
-    SyntaxKind::{WHITESPACE, MATCH_ARM, LAMBDA_EXPR, PATH_EXPR, BREAK_EXPR, LOOP_EXPR, RETURN_EXPR, COMMENT},
+    SyntaxKind::{
+        WHITESPACE, MATCH_ARM, LAMBDA_EXPR, PATH_EXPR, BREAK_EXPR, LOOP_EXPR, RETURN_EXPR, COMMENT,
+    },
 };
 
 use crate::{AssistCtx, Assist, AssistId};
@@ -121,7 +123,9 @@ fn anchor_stmt(expr: &ast::Expr) -> Option<(&SyntaxNode, bool)> {
 mod tests {
     use test_utils::covers;
 
-    use crate::helpers::{check_assist_range_not_applicable, check_assist_range, check_assist_range_target};
+    use crate::helpers::{
+        check_assist_range_not_applicable, check_assist_range, check_assist_range_target,
+    };
 
     use super::*;
 

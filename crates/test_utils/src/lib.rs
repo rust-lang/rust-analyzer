@@ -3,7 +3,7 @@ pub mod marks;
 
 use std::{
     fs,
-    path::{Path, PathBuf}
+    path::{Path, PathBuf},
 };
 
 use text_unit::{TextRange, TextUnit};

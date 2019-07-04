@@ -1,7 +1,10 @@
 use std::cell::RefCell;
 
 use itertools::Itertools;
-use hir::{source_binder, diagnostics::{Diagnostic as _, DiagnosticSink}};
+use hir::{
+    source_binder,
+    diagnostics::{Diagnostic as _, DiagnosticSink},
+};
 use ra_db::SourceDatabase;
 use ra_syntax::{
     T, Location, TextRange, SyntaxNode,

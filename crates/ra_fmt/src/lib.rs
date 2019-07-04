@@ -3,7 +3,9 @@
 use std::iter::successors;
 use itertools::Itertools;
 use ra_syntax::{
-    SyntaxNode, SyntaxKind::*, SyntaxToken, SyntaxKind, T,
+    SyntaxNode,
+    SyntaxKind::*,
+    SyntaxToken, SyntaxKind, T,
     ast::{self, AstNode, AstToken},
 };
 

@@ -1,8 +1,7 @@
 use hir::db::HirDatabase;
 use ra_syntax::{
     ast::{self, AstNode},
-    TextUnit,
-    T
+    TextUnit, T,
 };
 use crate::{AssistCtx, Assist, AssistId};
 

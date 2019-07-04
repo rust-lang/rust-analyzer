@@ -6,7 +6,10 @@ mod navigation_target;
 mod structure;
 mod short_label;
 
-use ra_syntax::{ast::{self, AstNode, TypeParamsOwner}, SyntaxKind::{ATTR, COMMENT}};
+use ra_syntax::{
+    ast::{self, AstNode, TypeParamsOwner},
+    SyntaxKind::{ATTR, COMMENT},
+};
 
 pub use navigation_target::NavigationTarget;
 pub use structure::{StructureNode, file_structure};

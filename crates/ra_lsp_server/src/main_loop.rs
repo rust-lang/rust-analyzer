@@ -5,9 +5,7 @@ pub(crate) mod pending_requests;
 use std::{fmt, path::PathBuf, sync::Arc, time::Instant, error::Error};
 
 use crossbeam_channel::{select, unbounded, Receiver, RecvError, Sender};
-use gen_lsp_server::{
-    handle_shutdown, ErrorCode, RawMessage, RawNotification, RawRequest, RawResponse,
-};
+use gen_lsp_server::{handle_shutdown, ErrorCode, RawMessage, RawNotification, RawRequest, RawResponse};
 use lsp_types::NumberOrString;
 use ra_ide_api::{Canceled, FileId, LibraryData};
 use ra_vfs::VfsTask;
@@ -23,8 +21,7 @@ use crate::{
     project_model::workspace_loader,
     req,
     world::{WorldSnapshot, WorldState},
-    Result,
-    InitializationOptions,
+    Result, InitializationOptions,
 };
 
 const THREADPOOL_SIZE: usize = 8;

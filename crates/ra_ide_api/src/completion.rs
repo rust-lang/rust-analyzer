@@ -15,13 +15,11 @@ mod complete_postfix;
 use ra_db::SourceDatabase;
 
 use crate::{
-    db,
-    FilePosition,
+    db, FilePosition,
     completion::{
         completion_item::{Completions, CompletionKind},
         completion_context::CompletionContext,
     },
-
 };
 #[cfg(test)]
 use crate::completion::completion_item::{do_completion, check_completion};

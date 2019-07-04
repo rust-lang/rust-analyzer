@@ -1,22 +1,11 @@
 use relative_path::{RelativePath, RelativePathBuf};
 use hir::{ModuleSource, source_binder, Either};
 use ra_db::{SourceDatabase};
-use ra_syntax::{
-    AstNode, SyntaxNode, SourceFile,
-    ast,
-    algo::find_node_at_offset,
-};
+use ra_syntax::{AstNode, SyntaxNode, SourceFile, ast, algo::find_node_at_offset};
 
 use crate::{
-    db::RootDatabase,
-    FilePosition,
-    FileRange,
-    FileId,
-    NavigationTarget,
-    FileSystemEdit,
-    SourceChange,
-    SourceFileEdit,
-    TextRange,
+    db::RootDatabase, FilePosition, FileRange, FileId, NavigationTarget, FileSystemEdit,
+    SourceChange, SourceFileEdit, TextRange,
 };
 
 #[derive(Debug, Clone)]
@@ -213,10 +202,9 @@ mod tests {
     use insta::assert_debug_snapshot_matches;
     use test_utils::assert_eq_text;
     use crate::{
-        mock_analysis::single_file_with_position,
-        mock_analysis::analysis_and_position,
-        FileId, ReferenceSearchResult
-};
+        mock_analysis::single_file_with_position, mock_analysis::analysis_and_position, FileId,
+        ReferenceSearchResult,
+    };
 
     #[test]
     fn test_find_all_refs_for_local() {

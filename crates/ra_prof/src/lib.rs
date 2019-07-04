@@ -7,7 +7,10 @@ use std::{
     io::{stderr, Write},
     iter::repeat,
     collections::HashSet,
-    sync::{RwLock, atomic::{AtomicBool, Ordering}},
+    sync::{
+        RwLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use once_cell::sync::Lazy;

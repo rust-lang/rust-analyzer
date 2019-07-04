@@ -1,7 +1,6 @@
 use ra_text_edit::AtomTextEdit;
 use ra_syntax::{
-    AstNode, SyntaxNode, SourceFile, TextUnit, TextRange, SyntaxToken, Parse,
-    ast,
+    AstNode, SyntaxNode, SourceFile, TextUnit, TextRange, SyntaxToken, Parse, ast,
     algo::{find_token_at_offset, find_covering_element, find_node_at_offset},
     SyntaxKind::*,
 };

@@ -8,12 +8,10 @@ use ra_syntax::{TextUnit, TextRange, SourceFile, Parse};
 use relative_path::RelativePathBuf;
 use ra_prof::profile;
 
-pub use ::salsa as salsa;
+pub use ::salsa;
 pub use crate::{
     cancellation::Canceled,
-    input::{
-        FileId, CrateId, SourceRoot, SourceRootId, CrateGraph, Dependency, Edition,
-    },
+    input::{FileId, CrateId, SourceRoot, SourceRootId, CrateGraph, Dependency, Edition},
 };
 
 pub trait CheckCanceled {

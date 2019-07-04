@@ -6,10 +6,7 @@ mod text_token_source;
 mod text_tree_sink;
 mod reparsing;
 
-use crate::{
-    SyntaxError,
-    syntax_node::GreenNode,
-};
+use crate::{SyntaxError, syntax_node::GreenNode};
 
 pub use self::lexer::{tokenize, classify_literal, Token};
 

@@ -1,4 +1,4 @@
-use crate::{ ty::ApplicationTy, expr::BinaryOp};
+use crate::{ty::ApplicationTy, expr::BinaryOp};
 use super::{Ty, TypeCtor, InferTy};
 
 pub(super) fn binary_op_return_ty(op: BinaryOp, rhs_ty: Ty) -> Ty {

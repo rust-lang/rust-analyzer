@@ -21,10 +21,7 @@ use tempfile::TempDir;
 use thread_worker::Worker;
 use test_utils::{parse_fixture, find_mismatch};
 
-use ra_lsp_server::{
-    main_loop, req,
-    InitializationOptions,
-};
+use ra_lsp_server::{main_loop, req, InitializationOptions};
 
 pub struct Project<'a> {
     fixture: &'a str,

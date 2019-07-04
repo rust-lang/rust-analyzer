@@ -1,4 +1,7 @@
-use crate::{Assist, AssistId, AssistCtx, ast_editor::{AstEditor, AstBuilder}};
+use crate::{
+    Assist, AssistId, AssistCtx,
+    ast_editor::{AstEditor, AstBuilder},
+};
 
 use hir::{HasSource, db::HirDatabase};
 use ra_syntax::{SmolStr, TreeArc};

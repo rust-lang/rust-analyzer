@@ -8,10 +8,11 @@ use std::sync::Arc;
 use ra_syntax::ast::{self, NameOwner, TypeParamsOwner, TypeBoundsOwner, DefaultTypeParamOwner};
 
 use crate::{
-    HasSource,
-    Name, AsName, Function, Struct, Union, Enum, Trait, TypeAlias, ImplBlock, Container, AdtDef,
+    HasSource, Name, AsName, Function, Struct, Union, Enum, Trait, TypeAlias, ImplBlock, Container,
+    AdtDef,
     db::{HirDatabase, DefDatabase, AstDatabase},
-    path::Path, type_ref::TypeRef,
+    path::Path,
+    type_ref::TypeRef,
 };
 
 /// Data about a generic parameter (to a function, struct, impl, ...).

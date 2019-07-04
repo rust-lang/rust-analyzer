@@ -8,9 +8,7 @@ use crate::completion::{
     Completions, CompletionKind, CompletionItemKind, CompletionContext, CompletionItem,
 };
 
-use crate::display::{
-    function_label, const_label, type_label,
-};
+use crate::display::{function_label, const_label, type_label};
 
 impl Completions {
     pub(crate) fn add_field(

@@ -8,9 +8,7 @@ use ra_syntax::{TreeArc, AstNode, ast, SyntaxNode};
 use ra_prof::profile;
 use mbe::MacroRules;
 
-use crate::{
-    Module, DefDatabase, AstId, FileAstId, AstDatabase, Source, InternDatabase,
-};
+use crate::{Module, DefDatabase, AstId, FileAstId, AstDatabase, Source, InternDatabase};
 
 /// hir makes heavy use of ids: integer (u32) handlers to various things. You
 /// can think of id as a pointer (but without a lifetime) or a file descriptor

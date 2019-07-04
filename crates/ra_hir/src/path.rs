@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use ra_syntax::{ast::{self, NameOwner}, AstNode};
+use ra_syntax::{
+    ast::{self, NameOwner},
+    AstNode,
+};
 
 use crate::{Name, AsName, type_ref::TypeRef};
 

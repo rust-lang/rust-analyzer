@@ -2,10 +2,7 @@ use std::fmt;
 
 use ra_parser::ParseError;
 
-use crate::{
-    TextRange, TextUnit,
-    validation::EscapeError,
-};
+use crate::{TextRange, TextUnit, validation::EscapeError};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SyntaxError {

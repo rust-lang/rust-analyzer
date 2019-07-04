@@ -1,8 +1,7 @@
 use ra_db::SourceDatabase;
 use crate::db::RootDatabase;
 use ra_syntax::{
-    SourceFile, TextRange, AstNode, SyntaxToken, SyntaxElement,
-    algo,
+    SourceFile, TextRange, AstNode, SyntaxToken, SyntaxElement, algo,
     SyntaxKind::{STRING, RAW_STRING},
 };
 

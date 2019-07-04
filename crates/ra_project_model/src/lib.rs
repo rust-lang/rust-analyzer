@@ -6,7 +6,7 @@ use std::{
     fs::File,
     io::BufReader,
     path::{Path, PathBuf},
-    error::Error
+    error::Error,
 };
 
 use rustc_hash::FxHashMap;

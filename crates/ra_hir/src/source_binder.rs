@@ -17,9 +17,12 @@ use ra_syntax::{
 };
 
 use crate::{
-    HirDatabase, Function, Struct, Enum, Const, Static, Either, DefWithBody, PerNs, Name,
-    AsName, Module, HirFileId, Crate, Trait, Resolver, Ty, Path, MacroDef,
-    expr::{BodySourceMap, scope::{ScopeId, ExprScopes}},
+    HirDatabase, Function, Struct, Enum, Const, Static, Either, DefWithBody, PerNs, Name, AsName,
+    Module, HirFileId, Crate, Trait, Resolver, Ty, Path, MacroDef,
+    expr::{
+        BodySourceMap,
+        scope::{ScopeId, ExprScopes},
+    },
     ids::LocationCtx,
     expr, AstId,
 };

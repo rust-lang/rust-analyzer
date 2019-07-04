@@ -15,7 +15,7 @@ use crate::{
     resolve::Resolver,
     traits::TraitItem,
     generics::HasGenericParams,
-    ty::primitive::{UncertainIntTy, UncertainFloatTy}
+    ty::primitive::{UncertainIntTy, UncertainFloatTy},
 };
 use super::{TraitRef, Canonical, autoderef};
 

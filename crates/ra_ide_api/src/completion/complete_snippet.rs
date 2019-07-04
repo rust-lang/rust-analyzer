@@ -1,4 +1,7 @@
-use crate::completion::{CompletionItem, Completions, CompletionKind, CompletionItemKind, CompletionContext, completion_item::Builder};
+use crate::completion::{
+    CompletionItem, Completions, CompletionKind, CompletionItemKind, CompletionContext,
+    completion_item::Builder,
+};
 
 fn snippet(ctx: &CompletionContext, label: &str, snippet: &str) -> Builder {
     CompletionItem::new(CompletionKind::Snippet, ctx.source_range(), label)

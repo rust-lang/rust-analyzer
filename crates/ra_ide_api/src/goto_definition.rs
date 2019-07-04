@@ -1,6 +1,7 @@
 use ra_db::{FileId, SourceDatabase};
 use ra_syntax::{
-    AstNode, ast::{self, DocCommentsOwner},
+    AstNode,
+    ast::{self, DocCommentsOwner},
     algo::{
         find_node_at_offset,
         visit::{visitor, Visitor},

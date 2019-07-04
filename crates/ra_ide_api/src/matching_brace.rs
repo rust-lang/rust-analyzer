@@ -3,7 +3,7 @@ use ra_syntax::{
     algo::find_token_at_offset,
     SyntaxKind::{self},
     ast::AstNode,
-    T
+    T,
 };
 
 pub fn matching_brace(file: &SourceFile, offset: TextUnit) -> Option<TextUnit> {

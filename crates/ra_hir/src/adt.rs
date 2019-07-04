@@ -6,13 +6,12 @@ use std::sync::Arc;
 use ra_arena::{RawId, Arena, impl_arena_id};
 use ra_syntax::{
     TreeArc,
-    ast::{self, NameOwner, StructKind, TypeAscriptionOwner}
+    ast::{self, NameOwner, StructKind, TypeAscriptionOwner},
 };
 
 use crate::{
-    Name, AsName, Struct, Union, Enum, EnumVariant, Crate, AstDatabase,
-    HirDatabase, StructField, FieldSource, Source, HasSource,
-    type_ref::TypeRef, DefDatabase,
+    Name, AsName, Struct, Union, Enum, EnumVariant, Crate, AstDatabase, HirDatabase, StructField,
+    FieldSource, Source, HasSource, type_ref::TypeRef, DefDatabase,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

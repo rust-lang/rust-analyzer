@@ -1,10 +1,7 @@
 use std::fmt::Write;
 use itertools::Itertools;
 
-use hir::{
-    AdtDef, FieldSource, HasSource,
-    db::HirDatabase,
-};
+use hir::{AdtDef, FieldSource, HasSource, db::HirDatabase};
 use ra_syntax::ast::{self, AstNode};
 
 use crate::{AssistCtx, Assist, AssistId};

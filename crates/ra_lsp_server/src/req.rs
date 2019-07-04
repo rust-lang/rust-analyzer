@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 use url_serde;
 
 pub use lsp_types::{
-    notification::*, request::*, ApplyWorkspaceEditParams, CodeActionParams, CodeLens, CodeLensParams,
-    CompletionParams, CompletionResponse, DocumentOnTypeFormattingParams, DocumentSymbolParams,
-    DocumentSymbolResponse, ExecuteCommandParams, Hover, InitializeResult,
+    notification::*, request::*, ApplyWorkspaceEditParams, CodeActionParams, CodeLens,
+    CodeLensParams, CompletionParams, CompletionResponse, DocumentOnTypeFormattingParams,
+    DocumentSymbolParams, DocumentSymbolResponse, ExecuteCommandParams, Hover, InitializeResult,
     PublishDiagnosticsParams, ReferenceParams, SignatureHelp, TextDocumentEdit,
-    TextDocumentPositionParams, TextEdit, WorkspaceEdit, WorkspaceSymbolParams,
-    MessageType, ShowMessageParams,
+    TextDocumentPositionParams, TextEdit, WorkspaceEdit, WorkspaceSymbolParams, MessageType,
+    ShowMessageParams,
 };
 
 pub enum AnalyzerStatus {}

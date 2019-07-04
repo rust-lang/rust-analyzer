@@ -1,19 +1,19 @@
-use std::{
-    fmt,
-    iter::FromIterator,
-    sync::Arc,
-};
+use std::{fmt, iter::FromIterator, sync::Arc};
 
 use ra_syntax::{TreeArc, SyntaxNode, Parse, AstNode};
 use ra_db::{
     FileTextQuery, SourceRootId,
-    salsa::{Database, debug::{DebugQueryTable, TableEntry}},
+    salsa::{
+        Database,
+        debug::{DebugQueryTable, TableEntry},
+    },
 };
 use ra_prof::{Bytes, memory_usage};
 use hir::MacroFile;
 
 use crate::{
-    FileId, db::RootDatabase,
+    FileId,
+    db::RootDatabase,
     symbol_index::{SymbolIndex, LibrarySymbolsQuery},
 };
 

@@ -4,18 +4,26 @@ pub(crate) mod docs;
 use std::sync::Arc;
 
 use ra_db::{CrateId, SourceRootId, Edition, FileId};
-use ra_syntax::{ast::{self, NameOwner, TypeAscriptionOwner}, TreeArc};
+use ra_syntax::{
+    ast::{self, NameOwner, TypeAscriptionOwner},
+    TreeArc,
+};
 
 use crate::{
-    Name, AsName, AstId, Ty, Either, KnownName, HasSource,
-    HirDatabase, DefDatabase, AstDatabase,
+    Name, AsName, AstId, Ty, Either, KnownName, HasSource, HirDatabase, DefDatabase, AstDatabase,
     type_ref::TypeRef,
     nameres::{ModuleScope, Namespace, ImportId, CrateModuleId},
     expr::{Body, BodySourceMap, validation::ExprValidator},
-    ty::{TraitRef, InferenceResult, primitive::{IntTy, FloatTy, Signedness, IntBitness, FloatBitness}},
+    ty::{
+        TraitRef, InferenceResult,
+        primitive::{IntTy, FloatTy, Signedness, IntBitness, FloatBitness},
+    },
     adt::{EnumVariantId, StructFieldId, VariantDef},
     generics::HasGenericParams,
-    ids::{FunctionId, StructId, EnumId, AstItemDef, ConstId, StaticId, TraitId, TypeAliasId, MacroDefId},
+    ids::{
+        FunctionId, StructId, EnumId, AstItemDef, ConstId, StaticId, TraitId, TypeAliasId,
+        MacroDefId,
+    },
     impl_block::ImplBlock,
     resolve::Resolver,
     diagnostics::{DiagnosticSink},

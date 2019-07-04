@@ -5,8 +5,7 @@ use std::{
 
 use lsp_types::Url;
 use ra_ide_api::{
-    Analysis, AnalysisChange, AnalysisHost, CrateGraph, FileId, LibraryData,
-    SourceRootId
+    Analysis, AnalysisChange, AnalysisHost, CrateGraph, FileId, LibraryData, SourceRootId,
 };
 use ra_vfs::{Vfs, VfsChange, VfsFile, VfsRoot};
 use relative_path::RelativePathBuf;
@@ -17,8 +16,7 @@ use crate::{
     main_loop::pending_requests::{CompletedRequest, LatestRequests},
     project_model::ProjectWorkspace,
     vfs_filter::IncludeRustFiles,
-    Result,
-    LspError,
+    Result, LspError,
 };
 
 /// `WorldState` is the primary mutable state of the language server

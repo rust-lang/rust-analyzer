@@ -32,7 +32,7 @@ mod tests {
         AnalysisChange, CrateGraph,
         mock_analysis::{analysis_and_position, MockAnalysis},
         Edition::Edition2018,
-};
+    };
 
     #[test]
     fn test_resolve_parent_module() {

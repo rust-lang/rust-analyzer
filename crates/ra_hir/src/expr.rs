@@ -6,16 +6,22 @@ use rustc_hash::FxHashMap;
 use ra_arena::{Arena, RawId, impl_arena_id, map::ArenaMap};
 use ra_syntax::{
     SyntaxNodePtr, AstPtr, AstNode,
-    ast::{self, TryBlockBodyOwner, LoopBodyOwner, ArgListOwner, NameOwner, LiteralKind,ArrayExprKind, TypeAscriptionOwner},
+    ast::{
+        self, TryBlockBodyOwner, LoopBodyOwner, ArgListOwner, NameOwner, LiteralKind,
+        ArrayExprKind, TypeAscriptionOwner,
+    },
 };
 
 use crate::{
-    Path, Name, HirDatabase, Resolver,DefWithBody, Either, HirFileId, MacroCallLoc, MacroFileKind,
+    Path, Name, HirDatabase, Resolver, DefWithBody, Either, HirFileId, MacroCallLoc, MacroFileKind,
     HasSource,
     name::AsName,
     type_ref::{Mutability, TypeRef},
 };
-use crate::{path::GenericArgs, ty::primitive::{IntTy, UncertainIntTy, FloatTy, UncertainFloatTy}};
+use crate::{
+    path::GenericArgs,
+    ty::primitive::{IntTy, UncertainIntTy, FloatTy, UncertainFloatTy},
+};
 
 pub use self::scope::ExprScopes;
 

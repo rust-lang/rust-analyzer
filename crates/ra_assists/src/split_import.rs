@@ -1,11 +1,7 @@
 use std::iter::successors;
 
 use hir::db::HirDatabase;
-use ra_syntax::{
-    T,
-    TextUnit, AstNode,
-    ast,
-};
+use ra_syntax::{T, TextUnit, AstNode, ast};
 
 use crate::{AssistCtx, Assist, AssistId};
 

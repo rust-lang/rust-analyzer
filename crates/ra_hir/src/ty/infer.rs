@@ -27,8 +27,8 @@ use ra_prof::profile;
 use test_utils::tested_by;
 
 use crate::{
-    Function, StructField, Path, Name, FnData, AdtDef, ConstData, HirDatabase,
-    DefWithBody, ImplItem,
+    Function, StructField, Path, Name, FnData, AdtDef, ConstData, HirDatabase, DefWithBody,
+    ImplItem,
     type_ref::{TypeRef, Mutability},
     expr::{
         Body, Expr, BindingAnnotation, Literal, ExprId, Pat, PatId, UnaryOp, BinaryOp, Statement,
@@ -1418,7 +1418,7 @@ mod diagnostics {
         expr::ExprId,
         diagnostics::{DiagnosticSink, NoSuchField},
         HirDatabase, Function, HasSource,
-};
+    };
 
     #[derive(Debug, PartialEq, Eq, Clone)]
     pub(super) enum InferenceDiagnostic {

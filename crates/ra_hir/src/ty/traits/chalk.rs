@@ -3,7 +3,10 @@ use std::sync::Arc;
 
 use log::debug;
 
-use chalk_ir::{TypeId, ImplId, TypeKindId, Parameter, Identifier, cast::Cast, PlaceholderIndex, UniverseIndex, TypeName};
+use chalk_ir::{
+    TypeId, ImplId, TypeKindId, Parameter, Identifier, cast::Cast, PlaceholderIndex, UniverseIndex,
+    TypeName,
+};
 use chalk_rust_ir::{AssociatedTyDatum, TraitDatum, StructDatum, ImplDatum};
 
 use test_utils::tested_by;
@@ -12,9 +15,12 @@ use ra_db::salsa::{InternId, InternKey};
 use crate::{
     Trait, HasGenericParams, ImplBlock, Crate,
     db::HirDatabase,
-    ty::{TraitRef, Ty, ApplicationTy, TypeCtor, Substs, GenericPredicate, CallableDef, ProjectionTy},
+    ty::{
+        TraitRef, Ty, ApplicationTy, TypeCtor, Substs, GenericPredicate, CallableDef, ProjectionTy,
+    },
     ty::display::HirDisplay,
-    generics::GenericDef, TypeAlias, ImplItem,
+    generics::GenericDef,
+    TypeAlias, ImplItem,
 };
 use super::ChalkContext;
 

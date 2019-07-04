@@ -4,9 +4,7 @@ use std::{path::Path, collections::HashSet, error::Error};
 
 use rustc_hash::FxHashMap;
 
-use ra_db::{
-    CrateGraph, FileId, SourceRootId,
-};
+use ra_db::{CrateGraph, FileId, SourceRootId};
 use ra_ide_api::{AnalysisHost, AnalysisChange};
 use ra_project_model::{ProjectWorkspace, ProjectRoot};
 use ra_vfs::{Vfs, VfsChange};

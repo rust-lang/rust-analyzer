@@ -1,7 +1,6 @@
 use hir::db::HirDatabase;
 use ra_syntax::{
-    TextUnit,
-    SyntaxElement,
+    TextUnit, SyntaxElement,
     ast::{MatchArm, AstNode, AstToken, IfExpr},
     ast,
 };
@@ -84,7 +83,7 @@ pub(crate) fn move_arm_cond_to_match_guard(mut ctx: AssistCtx<impl HirDatabase>)
 mod tests {
     use super::*;
 
-    use crate::helpers::{ check_assist, check_assist_target, check_assist_not_applicable };
+    use crate::helpers::{check_assist, check_assist_target, check_assist_not_applicable};
 
     #[test]
     fn move_guard_to_arm_body_target() {

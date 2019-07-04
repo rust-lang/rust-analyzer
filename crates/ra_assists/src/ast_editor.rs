@@ -2,7 +2,9 @@ use std::{iter, ops::RangeInclusive};
 
 use arrayvec::ArrayVec;
 use ra_text_edit::TextEditBuilder;
-use ra_syntax::{AstNode, TreeArc, ast, SyntaxKind::*, SyntaxElement, SourceFile, InsertPosition, Direction, T};
+use ra_syntax::{
+    AstNode, TreeArc, ast, SyntaxKind::*, SyntaxElement, SourceFile, InsertPosition, Direction, T,
+};
 use ra_fmt::leading_indent;
 use hir::Name;
 

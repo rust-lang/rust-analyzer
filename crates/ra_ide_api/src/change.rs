@@ -1,7 +1,4 @@
-use std::{
-    fmt, time,
-    sync::Arc,
-};
+use std::{fmt, time, sync::Arc};
 
 use rustc_hash::FxHashMap;
 use ra_db::{

@@ -1,9 +1,11 @@
 use hir::db::HirDatabase;
 use ra_syntax::{
-    T,
-    AstNode, SyntaxNode, TextUnit,
+    T, AstNode, SyntaxNode, TextUnit,
     ast::{self, VisibilityOwner, NameOwner},
-    SyntaxKind::{VISIBILITY, FN_DEF, MODULE, STRUCT_DEF, ENUM_DEF, TRAIT_DEF, IDENT, WHITESPACE, COMMENT, ATTR},
+    SyntaxKind::{
+        VISIBILITY, FN_DEF, MODULE, STRUCT_DEF, ENUM_DEF, TRAIT_DEF, IDENT, WHITESPACE, COMMENT,
+        ATTR,
+    },
 };
 
 use crate::{AssistCtx, Assist, AssistId};

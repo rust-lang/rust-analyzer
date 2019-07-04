@@ -1,10 +1,7 @@
-use hir::{
-    HirDisplay, Ty,
-    db::HirDatabase,
-};
+use hir::{HirDisplay, Ty, db::HirDatabase};
 use ra_syntax::{
     T,
-    ast::{LetStmt, PatKind, NameOwner, AstNode}
+    ast::{LetStmt, PatKind, NameOwner, AstNode},
 };
 
 use crate::{AssistCtx, Assist, AssistId};
@@ -56,7 +53,7 @@ fn is_unknown(ty: &Ty) -> bool {
 mod tests {
     use super::*;
 
-    use crate::helpers::{ check_assist, check_assist_target, check_assist_not_applicable };
+    use crate::helpers::{check_assist, check_assist_target, check_assist_not_applicable};
 
     #[test]
     fn add_explicit_type_target() {

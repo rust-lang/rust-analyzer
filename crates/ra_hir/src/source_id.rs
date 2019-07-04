@@ -1,4 +1,8 @@
-use std::{marker::PhantomData, sync::Arc, hash::{Hash, Hasher}};
+use std::{
+    marker::PhantomData,
+    sync::Arc,
+    hash::{Hash, Hasher},
+};
 
 use ra_arena::{Arena, RawId, impl_arena_id};
 use ra_syntax::{SyntaxNodePtr, TreeArc, SyntaxNode, AstNode, ast};

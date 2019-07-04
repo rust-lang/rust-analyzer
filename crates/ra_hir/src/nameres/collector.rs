@@ -6,14 +6,11 @@ use ra_db::FileId;
 use ra_syntax::ast;
 
 use crate::{
-    Function, Module, Struct, Union, Enum, Const, Static, Trait, TypeAlias, MacroDef,
-    DefDatabase, HirFileId, Name, Path,
-    KnownName, AstId,
+    Function, Module, Struct, Union, Enum, Const, Static, Trait, TypeAlias, MacroDef, DefDatabase,
+    HirFileId, Name, Path, KnownName, AstId,
     nameres::{
-        Resolution, PerNs, ModuleDef, ReachedFixedPoint, ResolveMode,
-        CrateDefMap, CrateModuleId, ModuleData, ItemOrMacro,
-        diagnostics::DefDiagnostic,
-        raw,
+        Resolution, PerNs, ModuleDef, ReachedFixedPoint, ResolveMode, CrateDefMap, CrateModuleId,
+        ModuleData, ItemOrMacro, diagnostics::DefDiagnostic, raw,
     },
     ids::{AstItemDef, LocationCtx, MacroCallLoc, MacroCallId, MacroDefId, MacroFileKind},
     either::Either,

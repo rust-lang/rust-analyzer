@@ -2,9 +2,10 @@ use ra_db::SourceDatabase;
 use ra_syntax::{
     Direction, SyntaxNode, TextRange, TextUnit, SyntaxElement,
     algo::{find_covering_element, find_token_at_offset, TokenAtOffset},
-    SyntaxKind::*, SyntaxToken,
+    SyntaxKind::*,
+    SyntaxToken,
     ast::{self, AstNode, AstToken},
-    T
+    T,
 };
 
 use crate::{FileRange, db::RootDatabase};

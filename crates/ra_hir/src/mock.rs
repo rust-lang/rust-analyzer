@@ -2,8 +2,7 @@ use std::{sync::Arc, panic};
 
 use parking_lot::Mutex;
 use ra_db::{
-    FilePosition, FileId, CrateGraph, SourceRoot, SourceRootId, SourceDatabase, salsa,
-    Edition,
+    FilePosition, FileId, CrateGraph, SourceRoot, SourceRootId, SourceDatabase, salsa, Edition,
 };
 use relative_path::RelativePathBuf;
 use test_utils::{parse_fixture, CURSOR_MARKER, extract_offset};

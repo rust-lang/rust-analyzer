@@ -1,18 +1,11 @@
 use crate::{
     completion::{
-        completion_item::{
-            Completions,
-            Builder,
-            CompletionKind,
-        },
+        completion_item::{Completions, Builder, CompletionKind},
         completion_context::CompletionContext,
     },
-    CompletionItem
+    CompletionItem,
 };
-use ra_syntax::{
-    ast::AstNode,
-    TextRange
-};
+use ra_syntax::{ast::AstNode, TextRange};
 use ra_text_edit::TextEditBuilder;
 
 fn postfix_snippet(ctx: &CompletionContext, label: &str, detail: &str, snippet: &str) -> Builder {

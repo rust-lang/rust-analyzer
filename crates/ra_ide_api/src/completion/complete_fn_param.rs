@@ -1,7 +1,6 @@
 use ra_syntax::{
     algo::visit::{visitor_ctx, VisitorCtx},
-    ast,
-    AstNode,
+    ast, AstNode,
 };
 use rustc_hash::FxHashMap;
 

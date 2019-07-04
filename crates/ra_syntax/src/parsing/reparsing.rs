@@ -10,8 +10,8 @@ use ra_text_edit::AtomTextEdit;
 use ra_parser::Reparser;
 
 use crate::{
-    SyntaxKind::*, TextRange, TextUnit, SyntaxError,
-    algo,
+    SyntaxKind::*,
+    TextRange, TextUnit, SyntaxError, algo,
     syntax_node::{GreenNode, SyntaxNode, GreenToken, SyntaxElement},
     parsing::{
         text_token_source::TextTokenSource,

@@ -64,13 +64,9 @@ use ra_prof::profile;
 use once_cell::sync::Lazy;
 
 use crate::{
-    ModuleDef, Name, Crate, Module, MacroDef, AsName, BuiltinType, AstDatabase,
-    DefDatabase, Path, PathKind, HirFileId, Trait,
-    ids::MacroDefId,
-    diagnostics::DiagnosticSink,
-    nameres::diagnostics::DefDiagnostic,
-    either::Either,
-    AstId,
+    ModuleDef, Name, Crate, Module, MacroDef, AsName, BuiltinType, AstDatabase, DefDatabase, Path,
+    PathKind, HirFileId, Trait, ids::MacroDefId, diagnostics::DiagnosticSink,
+    nameres::diagnostics::DefDiagnostic, either::Either, AstId,
 };
 
 pub(crate) use self::raw::{RawItems, ImportSourceMap};
@@ -518,8 +514,8 @@ mod diagnostics {
     use crate::{
         AstId, DefDatabase, AstDatabase,
         nameres::CrateModuleId,
-        diagnostics::{DiagnosticSink, UnresolvedModule}
-};
+        diagnostics::{DiagnosticSink, UnresolvedModule},
+    };
 
     #[derive(Debug, PartialEq, Eq)]
     pub(super) enum DefDiagnostic {

@@ -1,9 +1,5 @@
 use hir::db::HirDatabase;
-use ra_syntax::{
-    T,
-    Direction,
-    algo::non_trivia_sibling,
-};
+use ra_syntax::{T, Direction, algo::non_trivia_sibling};
 
 use crate::{AssistCtx, Assist, AssistId};
 

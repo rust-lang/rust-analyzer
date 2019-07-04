@@ -7,7 +7,10 @@ use ra_syntax::{
     ast::{self, NameOwner, AttrsOwner},
 };
 
-use crate::{DefDatabase, Name, AsName, Path, HirFileId, ModuleSource, AstIdMap, FileAstId, Either, AstDatabase};
+use crate::{
+    DefDatabase, Name, AsName, Path, HirFileId, ModuleSource, AstIdMap, FileAstId, Either,
+    AstDatabase,
+};
 
 /// `RawItems` is a set of top-level items in a file (except for impls).
 ///

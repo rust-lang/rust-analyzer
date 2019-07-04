@@ -9,8 +9,8 @@ use std::sync::Arc;
 use std::iter;
 
 use crate::{
-    Function, Struct, Union, StructField, Enum, EnumVariant, Path, ModuleDef, TypeAlias, Const, Static,
-    HirDatabase, BuiltinType,
+    Function, Struct, Union, StructField, Enum, EnumVariant, Path, ModuleDef, TypeAlias, Const,
+    Static, HirDatabase, BuiltinType,
     type_ref::TypeRef,
     nameres::Namespace,
     resolve::{Resolver, Resolution},

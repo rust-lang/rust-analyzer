@@ -1,8 +1,5 @@
 use ra_db::SourceDatabase;
-use ra_syntax::{
-    AstNode, ast,
-    algo::find_token_at_offset
-};
+use ra_syntax::{AstNode, ast, algo::find_token_at_offset};
 
 use crate::{FilePosition, NavigationTarget, db::RootDatabase, RangeInfo};
 

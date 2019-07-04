@@ -1,10 +1,13 @@
 use clap::{App, SubCommand};
 use core::str;
 use ra_tools::{
-    generate, gen_tests, install_format_hook, run, run_with_output, run_rustfmt,
-    Overwrite, Result, run_fuzzer, run_clippy,
+    generate, gen_tests, install_format_hook, run, run_with_output, run_rustfmt, Overwrite, Result,
+    run_fuzzer, run_clippy,
 };
-use std::{path::{PathBuf}, env};
+use std::{
+    path::{PathBuf},
+    env,
+};
 
 fn main() -> Result<()> {
     let matches = App::new("tasks")

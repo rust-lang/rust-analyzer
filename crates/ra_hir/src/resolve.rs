@@ -10,7 +10,10 @@ use crate::{
     name::{Name, KnownName},
     nameres::{PerNs, CrateDefMap, CrateModuleId},
     generics::GenericParams,
-    expr::{scope::{ExprScopes, ScopeId}, PatId},
+    expr::{
+        scope::{ExprScopes, ScopeId},
+        PatId,
+    },
     impl_block::ImplBlock,
     path::Path,
     either::Either,

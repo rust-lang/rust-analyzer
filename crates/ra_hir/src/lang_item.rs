@@ -4,8 +4,8 @@ use rustc_hash::FxHashMap;
 use ra_syntax::{SmolStr, TreeArc, ast::AttrsOwner};
 
 use crate::{
-    Crate, DefDatabase, Enum, Function, HirDatabase, ImplBlock, Module,
-    Static, Struct, Trait, ModuleDef, AstDatabase, HasSource
+    Crate, DefDatabase, Enum, Function, HirDatabase, ImplBlock, Module, Static, Struct, Trait,
+    ModuleDef, AstDatabase, HasSource,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

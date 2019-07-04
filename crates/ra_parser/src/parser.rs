@@ -6,7 +6,7 @@ use crate::{
     SyntaxKind::{self, ERROR, EOF, TOMBSTONE},
     TokenSource, ParseError, TokenSet,
     event::Event,
-    T
+    T,
 };
 
 /// `Parser` struct provides the low-level API for

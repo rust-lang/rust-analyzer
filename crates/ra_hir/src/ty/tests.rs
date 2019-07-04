@@ -4,14 +4,15 @@ use std::fmt::Write;
 use insta::assert_snapshot_matches;
 
 use ra_db::{SourceDatabase, salsa::Database, FilePosition};
-use ra_syntax::{algo, ast::{self, AstNode}, SyntaxKind::*};
+use ra_syntax::{
+    algo,
+    ast::{self, AstNode},
+    SyntaxKind::*,
+};
 use test_utils::covers;
 
 use crate::{
-    mock::MockDatabase,
-    ty::display::HirDisplay,
-    ty::InferenceResult,
-    expr::BodySourceMap,
+    mock::MockDatabase, ty::display::HirDisplay, ty::InferenceResult, expr::BodySourceMap,
     SourceAnalyzer,
 };
 

@@ -1,4 +1,5 @@
-use crate::{SyntaxKind::*,
+use crate::{
+    SyntaxKind::*,
     ast::{self, AttrsOwner, AstNode},
     SyntaxError,
     SyntaxErrorKind::*,

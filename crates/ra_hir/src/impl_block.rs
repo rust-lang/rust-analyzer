@@ -4,18 +4,18 @@ use rustc_hash::FxHashMap;
 use ra_arena::{Arena, RawId, impl_arena_id, map::ArenaMap};
 use ra_syntax::{
     AstPtr, SourceFile, TreeArc,
-    ast::{self, AstNode}
+    ast::{self, AstNode},
 };
 
 use crate::{
-    Const, TypeAlias, Function, HirFileId, AstDatabase, HasSource, Source,
-    HirDatabase, DefDatabase, TraitRef,
+    Const, TypeAlias, Function, HirFileId, AstDatabase, HasSource, Source, HirDatabase,
+    DefDatabase, TraitRef,
     type_ref::TypeRef,
     ids::LocationCtx,
     resolve::Resolver,
     ty::Ty,
     generics::HasGenericParams,
-    code_model::{Module, ModuleSource}
+    code_model::{Module, ModuleSource},
 };
 
 #[derive(Debug, Default, PartialEq, Eq)]

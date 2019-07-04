@@ -1,4 +1,7 @@
-use std::{fmt, ops::{self, Bound}};
+use std::{
+    fmt,
+    ops::{self, Bound},
+};
 
 use crate::{SmolStr, SyntaxNode, TextRange, TextUnit, SyntaxElement};
 
