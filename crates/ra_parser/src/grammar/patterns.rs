@@ -145,7 +145,21 @@ fn path_pat(p: &mut Parser) -> CompletedMarker {
 fn tuple_pat_fields(p: &mut Parser) {
     assert!(p.at(T!['(']));
     p.bump();
-    pat_list(p, T![')']);
+    while !p.at(EOF) && !p.at(T![')']) {
+        match p.current() {
+            T![..] => p.bump(),
+            _ => {
+                if !p.at_ts(PATTERN_FIRST) {
+                    p.error("expected a pattern");
+                    break;
+                }
+                pattern(p)
+            }
+        }
+        if !p.at(T![')']) {
+            p.expect(T![,]);
+        }
+    }
     p.expect(T![')']);
 }
 
@@ -225,20 +239,21 @@ fn tuple_pat(p: &mut Parser) -> CompletedMarker {
 // test slice_pat
 // fn main() {
 //     let [a, b, ..] = [];
+//     let [a, b..] = [];
 // }
 fn slice_pat(p: &mut Parser) -> CompletedMarker {
     assert!(p.at(T!['[']));
     let m = p.start();
     p.bump();
-    pat_list(p, T![']']);
-    p.expect(T![']']);
-    m.complete(p, SLICE_PAT)
-}
-
-fn pat_list(p: &mut Parser, ket: SyntaxKind) {
-    while !p.at(EOF) && !p.at(ket) {
+    while !p.at(EOF) && !p.at(T![']']) {
         match p.current() {
             T![..] => p.bump(),
+            IDENT if p.nth(1) == T![..] => {
+                let m_sub = p.start();
+                p.bump();
+                p.bump();
+                m_sub.complete(p, SUBSLICE_PAT);
+            }
             _ => {
                 if !p.at_ts(PATTERN_FIRST) {
                     p.error("expected a pattern");
@@ -247,10 +262,12 @@ fn pat_list(p: &mut Parser, ket: SyntaxKind) {
                 pattern(p)
             }
         }
-        if !p.at(ket) {
+        if !p.at(T![']']) {
             p.expect(T![,]);
         }
     }
+    p.expect(T![']']);
+    m.complete(p, SLICE_PAT)
 }
 
 // test bind_pat

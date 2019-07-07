@@ -168,6 +168,7 @@ Grammar(
         "SLICE_PAT",
         "RANGE_PAT",
         "LITERAL_PAT",
+        "SUBSLICE_PAT",
 
         // atoms
         "TUPLE_EXPR",
@@ -686,7 +687,7 @@ Grammar(
         "LifetimeArg": (),
 
         "MacroItems": (
-            traits: [ "ModuleItemOwner", "FnDefOwner" ],            
+            traits: [ "ModuleItemOwner", "FnDefOwner" ],
         ),
 
         "MacroStmts" : (
