@@ -37,8 +37,12 @@ pub(super) fn pattern_r(p: &mut Parser, recovery_set: TokenSet) {
         if p.at(T![...]) || p.at(T![..=]) || p.at(T![..]) {
             let m = lhs.precede(p);
             p.bump();
-            atom_pat(p, recovery_set);
-            m.complete(p, RANGE_PAT);
+            if let Some(_) = atom_pat(p, recovery_set) {
+                m.complete(p, RANGE_PAT);
+            } else {
+                m.abandon(p);
+                p.err_recover("expected pattern", recovery_set);
+            }
         }
         // test marco_pat
         // fn main() {
@@ -145,7 +149,21 @@ fn path_pat(p: &mut Parser) -> CompletedMarker {
 fn tuple_pat_fields(p: &mut Parser) {
     assert!(p.at(T!['(']));
     p.bump();
-    pat_list(p, T![')']);
+    while !p.at(EOF) && !p.at(T![')']) {
+        match p.current() {
+            T![..] => p.bump(),
+            _ => {
+                if !p.at_ts(PATTERN_FIRST) {
+                    p.error("expected a pattern");
+                    break;
+                }
+                pattern(p);
+            }
+        }
+        if !p.at(T![')']) {
+            p.expect(T![,]);
+        }
+    }
     p.expect(T![')']);
 }
 
@@ -229,28 +247,45 @@ fn tuple_pat(p: &mut Parser) -> CompletedMarker {
 fn slice_pat(p: &mut Parser) -> CompletedMarker {
     assert!(p.at(T!['[']));
     let m = p.start();
+    // test subslice_pat
+    // fn main() {
+    //     let [a, b..] = [];
+    //     let &[ref a.., ref b] = [];
+    // }
     p.bump();
-    pat_list(p, T![']']);
-    p.expect(T![']']);
-    m.complete(p, SLICE_PAT)
-}
 
-fn pat_list(p: &mut Parser, ket: SyntaxKind) {
-    while !p.at(EOF) && !p.at(ket) {
-        match p.current() {
-            T![..] => p.bump(),
-            _ => {
-                if !p.at_ts(PATTERN_FIRST) {
-                    p.error("expected a pattern");
-                    break;
-                }
-                pattern(p)
+    while !p.at(EOF) && !p.at(T![']']) {
+        let la0 = p.nth(0);
+        let la1 = p.nth(1);
+        if la0 == T![ref]
+            || la0 == T![mut]
+            || la0 == T![box]
+            || (la0 == IDENT
+                && !(la1 == T![::] || la1 == T!['('] || la1 == T!['{'] || la1 == T![!]))
+        {
+            let m = p.start();
+            bind_pat(p, true);
+            if p.current() == T![..] {
+                p.bump();
+                m.complete(p, SUBSLICE_PAT);
+            } else {
+                m.abandon(p);
             }
+        } else if la0 == T![..] {
+            p.bump();
+        } else {
+            if !p.at_ts(PATTERN_FIRST) {
+                p.error("expected a pattern");
+                break;
+            }
+            pattern(p);
         }
-        if !p.at(ket) {
+        if !p.at(T![']']) {
             p.expect(T![,]);
         }
     }
+    p.expect(T![']']);
+    m.complete(p, SLICE_PAT)
 }
 
 // test bind_pat
