@@ -45,7 +45,7 @@ matrix:
             - npm run vscode:prepublish
           script:
             - npm ci
-            - npm run travis
+            - npm run prettier-version
           env:
             - CXX="g++-4.9", CC="gcc-4.9"
 

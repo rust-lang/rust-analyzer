@@ -25,6 +25,7 @@
         "lint": "tslint --project .",
         "test": "node node_modules/vscode/bin/test",
         "prettier": "prettier **/*.{json,ts}",
+        "prettier-version": "prettier --version",
         "travis": "npm run compile && npm run test && npm run lint && npm run prettier -- --check"
     },
     "prettier": {
