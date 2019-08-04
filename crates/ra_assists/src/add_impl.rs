@@ -61,6 +61,22 @@ mod tests {
     }
 
     #[test]
+    fn add_impl_respects_current_indentation() {
+        check_assist(
+            add_impl,
+            r#"mod Bar {
+    struct Foo {<|>}
+}"#,
+            r#"mod Bar {
+    struct Foo {}
+
+    impl Foo {
+    <|>
+    }
+}"#);
+    }
+
+    #[test]
     fn add_impl_target() {
         check_assist_target(
             add_impl,
