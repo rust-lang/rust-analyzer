@@ -1,19 +1,24 @@
-use crate::{Assist, AssistCtx, AssistId, TextUnit};
+use crate::{Assist, AssistCtx, AssistId, TextRange, TextUnit};
 use hir::{db::HirDatabase, HasSource};
 use ra_db::FilePosition;
-use ra_syntax::ast::{self, AstNode, NameOwner, TypeAscriptionOwner};
+use ra_syntax::{
+    ast::{self, AstNode, NameOwner, TypeAscriptionOwner},
+    T
+};
 
 pub(crate) fn add_new(mut ctx: AssistCtx<impl HirDatabase>) -> Option<Assist> {
     let impl_node = ctx.node_at_offset::<ast::ImplBlock>()?;
+    let item_list = impl_node.item_list()?;
+    let items: Vec<_> = item_list.impl_items().collect();
 
-    // Don't attempt to create a `new` funtion if one already exists.
-    let fn_name = |item: ast::ImplItem| {
+    // Don't attempt to create a `new` function if one already exists.
+    let fn_name = |item: &ast::ImplItem| {
         match item.kind() {
             ast::ImplItemKind::FnDef(def) => def.name(),
             _ => None
         }
     };
-    if impl_node.item_list()?.impl_items().filter_map(fn_name).any(|n| n.text() == "new") {
+    if items.iter().filter_map(fn_name).any(|n| n.text() == "new") {
         return None;
     }
 
@@ -31,7 +36,7 @@ pub(crate) fn add_new(mut ctx: AssistCtx<impl HirDatabase>) -> Option<Assist> {
 
     ctx.add_action(AssistId("add_new"), "add new", |edit| {
         let mut buf = String::new();
-        buf.push_str("fn new(");
+        buf.push_str("\n    fn new(");
         let fields: Vec<_> = field_def_list.fields().filter_map(|f| {
             Some((f.name()?.syntax().text(), f.ascribed_type()?.syntax().text()))
         }).collect();
@@ -53,14 +58,33 @@ pub(crate) fn add_new(mut ctx: AssistCtx<impl HirDatabase>) -> Option<Assist> {
             first = false;
         }
         buf.push_str(" }\n");
-        buf.push_str("    }");
+        buf.push_str("    }\n");
+        let mut roffset = 1;
+        if items.len() > 0 {
+            buf.push_str("\n    ");
+            roffset += 5;
+        }
 
-        // TODO: not this!
-        let insert_position = impl_node.syntax().text_range().end() - TextUnit::from_usize(2);
+        let l_paren = item_list.syntax().children_with_tokens().find(|it| it.kind() == T!['{']);
+        if l_paren.is_none() {
+            return;
+        }
+        let replace_start = l_paren.unwrap().text_range().start() + TextUnit::from_usize(1);
+        let replace_end = if items.len() > 0 {
+            items[0].syntax().text_range().start()
+        } else {
+            let r_paren = item_list.syntax().children_with_tokens().find(|it| it.kind() == T!['}']);
+            if r_paren.is_none() {
+                return;
+            }
+            r_paren.unwrap().text_range().start()
+        };
+        let replace_range = TextRange::from_to(replace_start, replace_end);
+
         let insert_len = buf.len();
         edit.target(impl_node.syntax().text_range());
-        edit.insert(insert_position, buf);
-        edit.set_cursor(insert_position + TextUnit::from_usize(insert_len));
+        edit.replace(replace_range, buf);
+        edit.set_cursor(replace_start + TextUnit::from_usize(insert_len - roffset));
     });
 
     ctx.build()
@@ -88,10 +112,6 @@ mod tests {
     use super::*;
     use crate::helpers::{check_assist, check_assist_not_applicable};
 
-    // TODO:
-    //  handle, and add tests for non-empty impl blocks
-    //  support adding and removing fields to new function... what UI is available for this?
-
     #[test]
     fn test_add_new_no_fields() {
         check_assist(
@@ -102,6 +122,25 @@ struct Foo { }
 impl Foo {
     <|>
 }"#,
+            r#"
+struct Foo { }
+
+impl Foo {
+    fn new() -> Self {
+        Foo { }
+    }<|>
+}"#
+        );
+    }
+
+ #[test]
+    fn test_add_new_with_no_whitespace_in_impl() {
+        check_assist(
+            add_new,
+            r#"
+struct Foo { }
+
+impl Foo <|>{}"#,
             r#"
 struct Foo { }
 
@@ -213,6 +252,41 @@ impl<'a, 'b, T, U> Foo<'a, 'b, T, U> {
     fn new(x: &'a T, y: &'b U) -> Self {
         Foo { x, y }
     }<|>
+}"#
+        );
+    }
+
+    #[test]
+    fn test_add_new_into_non_empty_impl_block() {
+        check_assist(
+            add_new,
+            r#"
+struct Foo {
+    x: i32
+}
+
+impl Foo {
+    fn a() { }
+<|>
+    fn b() -> i32 {
+        7
+    }
+}"#,
+            r#"
+struct Foo {
+    x: i32
+}
+
+impl Foo {
+    fn new(x: i32) -> Self {
+        Foo { x }
+    }<|>
+
+    fn a() { }
+
+    fn b() -> i32 {
+        7
+    }
 }"#
         );
     }
