@@ -89,14 +89,11 @@ mod tests {
     use crate::helpers::{check_assist, check_assist_not_applicable};
 
     // TODO:
-    //  handle, and add tests for:
-    //      type parameters
-    //      lifetime parameters
-    //      non-empty impl blocks
+    //  handle, and add tests for non-empty impl blocks
     //  support adding and removing fields to new function... what UI is available for this?
 
     #[test]
-    fn test_add_new() {
+    fn test_add_new_no_fields() {
         check_assist(
             add_new,
             r#"
@@ -112,7 +109,12 @@ impl Foo {
     fn new() -> Self {
         Foo { }
     }<|>
-}"#);
+}"#
+        );
+    }
+
+    #[test]
+    fn test_add_new_one_field() {
         check_assist(
             add_new,
             r#"
@@ -132,7 +134,12 @@ impl Foo {
     fn new(x: i32) -> Self {
         Foo { x }
     }<|>
-}"#);
+}"#
+        );
+    }
+
+    #[test]
+    fn test_add_new_two_fields() {
         check_assist(
             add_new,
             r#"
@@ -154,7 +161,60 @@ impl Foo {
     fn new(x: i32, y: String) -> Self {
         Foo { x, y }
     }<|>
-}"#);
+}"#
+        );
+    }
+
+    #[test]
+    fn test_add_new_with_type_parameter() {
+        check_assist(
+            add_new,
+            r#"
+struct Foo<T> {
+    x: T
+}
+
+impl<T> Foo<T> {
+    <|>
+}"#,
+            r#"
+struct Foo<T> {
+    x: T
+}
+
+impl<T> Foo<T> {
+    fn new(x: T) -> Self {
+        Foo { x }
+    }<|>
+}"#
+        );
+    }
+
+    #[test]
+    fn test_add_new_with_lifetime_parameters() {
+        check_assist(
+            add_new,
+            r#"
+struct Foo<'a, 'b, T, U> {
+    x: &'a T,
+    y: &'b U
+}
+
+impl<'a, 'b, T, U> Foo<'a, 'b, T, U> {
+    <|>
+}"#,
+            r#"
+struct Foo<'a, 'b, T, U> {
+    x: &'a T,
+    y: &'b U
+}
+
+impl<'a, 'b, T, U> Foo<'a, 'b, T, U> {
+    fn new(x: &'a T, y: &'b U) -> Self {
+        Foo { x, y }
+    }<|>
+}"#
+        );
     }
 
     #[test]
