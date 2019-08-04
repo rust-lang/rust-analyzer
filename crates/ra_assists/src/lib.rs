@@ -101,6 +101,7 @@ mod split_import;
 mod remove_dbg;
 pub mod auto_import;
 mod add_missing_impl_members;
+mod add_new;
 mod move_guard;
 
 fn all_assists<DB: HirDatabase>() -> &'static [fn(AssistCtx<DB>) -> Option<Assist>] {
@@ -120,6 +121,7 @@ fn all_assists<DB: HirDatabase>() -> &'static [fn(AssistCtx<DB>) -> Option<Assis
         auto_import::auto_import,
         add_missing_impl_members::add_missing_impl_members,
         add_missing_impl_members::add_missing_default_members,
+        add_new::add_new,
         inline_local_variable::inline_local_varialbe,
         move_guard::move_guard_to_arm_body,
         move_guard::move_arm_cond_to_match_guard,
