@@ -6,6 +6,18 @@ use ra_syntax::ast::{self, AstNode, NameOwner, TypeAscriptionOwner};
 pub(crate) fn add_new(mut ctx: AssistCtx<impl HirDatabase>) -> Option<Assist> {
     let impl_node = ctx.node_at_offset::<ast::ImplBlock>()?;
 
+    // Don't attempt to create a `new` funtion if one already exists.
+    let fn_name = |item: ast::ImplItem| {
+        match item.kind() {
+            ast::ImplItemKind::FnDef(def) => def.name(),
+            _ => None
+        }
+    };
+    if impl_node.item_list()?.impl_items().filter_map(fn_name).any(|n| n.text() == "new") {
+        return None;
+    }
+
+    // Find the type that this impl block is for, returning None if that type is not a struct.
     let struct_def = {
         let file_id = ctx.frange.file_id;
         let position = FilePosition { file_id, offset: impl_node.syntax().text_range().start() };
@@ -33,12 +45,10 @@ pub(crate) fn add_new(mut ctx: AssistCtx<impl HirDatabase>) -> Option<Assist> {
             first = false;
         }
         buf.push_str(") -> Self {\n");
-        buf.push_str(&format!("        {} {{ ", struct_name.syntax().text()));
+        buf.push_str(&format!("        {} {{", struct_name.syntax().text()));
         let mut first = true;
         for field in &fields {
-            if !first {
-                buf.push_str(", ");
-            }
+            buf.push_str(if first { " " } else { ", " });
             buf.push_str(&format!("{}", field.0));
             first = false;
         }
@@ -78,13 +88,51 @@ mod tests {
     use super::*;
     use crate::helpers::{check_assist, check_assist_not_applicable};
 
-    // TODO: handle, and add tests for:
-    //  type parameters
-    //  lifetime parameters
-    //  non-empty impl blocks
+    // TODO:
+    //  handle, and add tests for:
+    //      type parameters
+    //      lifetime parameters
+    //      non-empty impl blocks
+    //  support adding and removing fields to new function... what UI is available for this?
 
     #[test]
     fn test_add_new() {
+        check_assist(
+            add_new,
+            r#"
+struct Foo { }
+
+impl Foo {
+    <|>
+}"#,
+            r#"
+struct Foo { }
+
+impl Foo {
+    fn new() -> Self {
+        Foo { }
+    }<|>
+}"#);
+        check_assist(
+            add_new,
+            r#"
+struct Foo {
+    x: i32
+}
+
+impl Foo {
+    <|>
+}"#,
+            r#"
+struct Foo {
+    x: i32
+}
+
+impl Foo {
+    fn new(x: i32) -> Self {
+        Foo { x }
+    }<|>
+}"#);
         check_assist(
             add_new,
             r#"
@@ -106,6 +154,22 @@ impl Foo {
     fn new(x: i32, y: String) -> Self {
         Foo { x, y }
     }<|>
+}"#);
+    }
+
+    #[test]
+    fn test_add_new_not_applicable_if_new_already_exists() {
+        check_assist_not_applicable(
+            add_new,
+            r#"
+struct Foo {
+    x: i32,
+    y: String
+}
+
+impl Foo {
+    <|>
+    fn new() { }
 }"#);
     }
 
