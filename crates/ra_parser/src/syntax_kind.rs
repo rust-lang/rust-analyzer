@@ -23,4 +23,11 @@ impl SyntaxKind {
             _ => false,
         }
     }
+
+    pub fn is_whitespace(self) -> bool {
+        match self {
+            SyntaxKind::WHITESPACE => true,
+            _ => false,
+        }
+    }
 }

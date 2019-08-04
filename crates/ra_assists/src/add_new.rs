@@ -33,13 +33,33 @@ pub(crate) fn add_new(mut ctx: AssistCtx<impl HirDatabase>) -> Option<Assist> {
     let field_def_list = children.find_map(ast::NamedFieldDefList::cast)?;
 
     ctx.add_action(AssistId("add_new"), "add new", |edit| {
+        // We'll overwrite the contents of the impl body from its opening curly brace to its
+        // first non-whitespace token, which for empty bodies will be their closing brace.
+        let l_paren = item_list.syntax().children_with_tokens().find(|it| it.kind() == T!['{']);
+        if l_paren.is_none() {
+            return;
+        }
+        let replace_start = l_paren.unwrap().text_range().start() + TextUnit::from_usize(1);
+        let first_element_inside_body = item_list
+            .syntax()
+            .children_with_tokens()
+            .skip_while(|it| it.kind() != T!['{'])
+            .skip_while(|it| it.kind() == T!['{'])
+            .find(|it| !it.kind().is_whitespace());
+        if first_element_inside_body.is_none() {
+            return;
+        }
+        let replace_end = first_element_inside_body.clone().unwrap().text_range().start();
+        let replace_range = TextRange::from_to(replace_start, replace_end);
+
+        // Construct the `new` function. Note that the indentation here is hard-coded.
+        // See https://github.com/rust-analyzer/rust-analyzer/issues/1645
         let mut buf = String::new();
         buf.push_str("\n    fn new(");
         let fields: Vec<_> = field_def_list
             .fields()
             .filter_map(|f| Some((f.name()?.syntax().text(), f.ascribed_type()?.syntax().text())))
             .collect();
-
         let mut first = true;
         for field in &fields {
             if !first {
@@ -59,26 +79,10 @@ pub(crate) fn add_new(mut ctx: AssistCtx<impl HirDatabase>) -> Option<Assist> {
         buf.push_str(" }\n");
         buf.push_str("    }\n");
         let mut roffset = 1;
-        if items.len() > 0 {
+        if first_element_inside_body.unwrap().kind() != T!['}'] {
             buf.push_str("\n    ");
             roffset += 5;
         }
-
-        let l_paren = item_list.syntax().children_with_tokens().find(|it| it.kind() == T!['{']);
-        if l_paren.is_none() {
-            return;
-        }
-        let replace_start = l_paren.unwrap().text_range().start() + TextUnit::from_usize(1);
-        let replace_end = if items.len() > 0 {
-            items[0].syntax().text_range().start()
-        } else {
-            let r_paren = item_list.syntax().children_with_tokens().find(|it| it.kind() == T!['}']);
-            if r_paren.is_none() {
-                return;
-            }
-            r_paren.unwrap().text_range().start()
-        };
-        let replace_range = TextRange::from_to(replace_start, replace_end);
 
         let insert_len = buf.len();
         edit.target(impl_node.syntax().text_range());
@@ -147,6 +151,31 @@ impl Foo {
     fn new() -> Self {
         Foo { }
     }<|>
+}"#,
+        );
+    }
+
+    #[test]
+    fn test_add_new_does_not_clobber_comments() {
+        check_assist(
+            add_new,
+            r#"
+struct Foo { }
+
+impl Foo {
+    // somethingsomething
+<|>
+}"#,
+            r#"
+struct Foo { }
+
+impl Foo {
+    fn new() -> Self {
+        Foo { }
+    }<|>
+
+    // somethingsomething
+
 }"#,
         );
     }
