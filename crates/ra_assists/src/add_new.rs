@@ -3,7 +3,7 @@ use hir::{db::HirDatabase, HasSource};
 use ra_db::FilePosition;
 use ra_syntax::{
     ast::{self, AstNode, NameOwner, TypeAscriptionOwner},
-    T
+    T,
 };
 
 pub(crate) fn add_new(mut ctx: AssistCtx<impl HirDatabase>) -> Option<Assist> {
@@ -12,11 +12,9 @@ pub(crate) fn add_new(mut ctx: AssistCtx<impl HirDatabase>) -> Option<Assist> {
     let items: Vec<_> = item_list.impl_items().collect();
 
     // Don't attempt to create a `new` function if one already exists.
-    let fn_name = |item: &ast::ImplItem| {
-        match item.kind() {
-            ast::ImplItemKind::FnDef(def) => def.name(),
-            _ => None
-        }
+    let fn_name = |item: &ast::ImplItem| match item.kind() {
+        ast::ImplItemKind::FnDef(def) => def.name(),
+        _ => None,
     };
     if items.iter().filter_map(fn_name).any(|n| n.text() == "new") {
         return None;
@@ -37,9 +35,10 @@ pub(crate) fn add_new(mut ctx: AssistCtx<impl HirDatabase>) -> Option<Assist> {
     ctx.add_action(AssistId("add_new"), "add new", |edit| {
         let mut buf = String::new();
         buf.push_str("\n    fn new(");
-        let fields: Vec<_> = field_def_list.fields().filter_map(|f| {
-            Some((f.name()?.syntax().text(), f.ascribed_type()?.syntax().text()))
-        }).collect();
+        let fields: Vec<_> = field_def_list
+            .fields()
+            .filter_map(|f| Some((f.name()?.syntax().text(), f.ascribed_type()?.syntax().text())))
+            .collect();
 
         let mut first = true;
         for field in &fields {
@@ -129,11 +128,11 @@ impl Foo {
     fn new() -> Self {
         Foo { }
     }<|>
-}"#
+}"#,
         );
     }
 
- #[test]
+    #[test]
     fn test_add_new_with_no_whitespace_in_impl() {
         check_assist(
             add_new,
@@ -148,7 +147,7 @@ impl Foo {
     fn new() -> Self {
         Foo { }
     }<|>
-}"#
+}"#,
         );
     }
 
@@ -173,7 +172,7 @@ impl Foo {
     fn new(x: i32) -> Self {
         Foo { x }
     }<|>
-}"#
+}"#,
         );
     }
 
@@ -200,7 +199,7 @@ impl Foo {
     fn new(x: i32, y: String) -> Self {
         Foo { x, y }
     }<|>
-}"#
+}"#,
         );
     }
 
@@ -225,7 +224,7 @@ impl<T> Foo<T> {
     fn new(x: T) -> Self {
         Foo { x }
     }<|>
-}"#
+}"#,
         );
     }
 
@@ -252,7 +251,7 @@ impl<'a, 'b, T, U> Foo<'a, 'b, T, U> {
     fn new(x: &'a T, y: &'b U) -> Self {
         Foo { x, y }
     }<|>
-}"#
+}"#,
         );
     }
 
@@ -287,7 +286,7 @@ impl Foo {
     fn b() -> i32 {
         7
     }
-}"#
+}"#,
         );
     }
 
@@ -304,10 +303,11 @@ struct Foo {
 impl Foo {
     <|>
     fn new() { }
-}"#);
+}"#,
+        );
     }
 
-     #[test]
+    #[test]
     fn test_add_new_ignores_enums() {
         check_assist_not_applicable(
             add_new,
@@ -319,7 +319,7 @@ enum Foo {
 
 impl Foo {
     <|>
-}"#
+}"#,
         );
     }
 }
