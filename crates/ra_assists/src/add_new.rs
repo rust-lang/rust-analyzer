@@ -28,7 +28,6 @@ pub(crate) fn add_new(mut ctx: AssistCtx<impl HirDatabase>) -> Option<Assist> {
         resolve_target_struct_def(ctx.db, &analyzer, &impl_node)?
     };
 
-    let struct_name = struct_def.name()?;
     let mut children = struct_def.syntax().children();
     let field_def_list = children.find_map(ast::NamedFieldDefList::cast)?;
 
@@ -69,7 +68,7 @@ pub(crate) fn add_new(mut ctx: AssistCtx<impl HirDatabase>) -> Option<Assist> {
             first = false;
         }
         buf.push_str(") -> Self {\n");
-        buf.push_str(&format!("        {} {{", struct_name.syntax().text()));
+        buf.push_str("        Self {");
         let mut first = true;
         for field in &fields {
             buf.push_str(if first { " " } else { ", " });
@@ -130,7 +129,7 @@ struct Foo { }
 
 impl Foo {
     fn new() -> Self {
-        Foo { }
+        Self { }
     }<|>
 }"#,
         );
@@ -149,7 +148,7 @@ struct Foo { }
 
 impl Foo {
     fn new() -> Self {
-        Foo { }
+        Self { }
     }<|>
 }"#,
         );
@@ -171,7 +170,7 @@ struct Foo { }
 
 impl Foo {
     fn new() -> Self {
-        Foo { }
+        Self { }
     }<|>
 
     // somethingsomething
@@ -199,7 +198,7 @@ struct Foo {
 
 impl Foo {
     fn new(x: i32) -> Self {
-        Foo { x }
+        Self { x }
     }<|>
 }"#,
         );
@@ -226,7 +225,7 @@ struct Foo {
 
 impl Foo {
     fn new(x: i32, y: String) -> Self {
-        Foo { x, y }
+        Self { x, y }
     }<|>
 }"#,
         );
@@ -251,7 +250,7 @@ struct Foo<T> {
 
 impl<T> Foo<T> {
     fn new(x: T) -> Self {
-        Foo { x }
+        Self { x }
     }<|>
 }"#,
         );
@@ -278,7 +277,7 @@ struct Foo<'a, 'b, T, U> {
 
 impl<'a, 'b, T, U> Foo<'a, 'b, T, U> {
     fn new(x: &'a T, y: &'b U) -> Self {
-        Foo { x, y }
+        Self { x, y }
     }<|>
 }"#,
         );
@@ -307,7 +306,7 @@ struct Foo {
 
 impl Foo {
     fn new(x: i32) -> Self {
-        Foo { x }
+        Self { x }
     }<|>
 
     fn a() { }
