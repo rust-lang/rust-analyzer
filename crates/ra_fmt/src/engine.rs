@@ -1,20 +1,30 @@
 use crate::dsl;
-
 use ra_syntax::{
     ast::{self, AstNode, AstToken},
     Parse, SmolStr, SourceFile,
     SyntaxElement, TextUnit,
     SyntaxKind, SyntaxKind::*, 
     SyntaxNode, SyntaxToken, T,
-    WalkEvent,
+    WalkEvent, TextRange,
 };
+use std::collections::HashMap;
 
 #[derive(Debug)]
 
 struct FmtTree {
     /// owned original root node
-    original: SyntaxNode,
+    original_node: SyntaxNode,
+    /// We store `SpaceBlock`s in array. With this setup, we can refer to a
+    /// specific block by index, dodging many lifetime issues.
     blocks: Vec<SpaceBlock>,
+    /// Maps offset to an index of the block, for which the offset is the start
+    /// offset.
+    by_start_offset: HashMap<TextUnit, usize>,
+    /// Maps offset to an index of the block, for which the offset is the end
+    /// offset.
+    by_end_offset: HashMap<TextUnit, usize>,
+    // Arbitrary non-whitespace edits created by the last formatter phase.
+    //fixes: Vec<AtomEdit>,
 }
 
 #[derive(Debug)]
@@ -57,7 +67,7 @@ impl SpaceBlock {
     fn new(original: OriginalSpace) -> SpaceBlock {
         let semantic_newline = match &original {
             OriginalSpace::Some(token) => {
-                token.text().contains('\n') && is_line_comment(token.prev_sibling_or_token())
+                token.text().contains('\n')
             }
             OriginalSpace::None { .. } => false,
         };
@@ -96,13 +106,12 @@ impl SpaceBlock {
 }
 
 impl FmtTree {
-    pub(super) fn new(org_node: SyntaxNode) -> Self {
+    pub(super) fn new(original_node: SyntaxNode) -> Self {
         Self {
-            org_node,
+            original_node,
             blocks: vec![],
             by_start_offset: HashMap::default(),
             by_end_offset: HashMap::default(),
-            fixes: vec![],
         }
     }
 }
@@ -117,9 +126,11 @@ fn walk(node: &SyntaxNode) -> impl Iterator<Item = SyntaxElement> {
     })
 }
 
-fn format_pass(rules: &dsl::SpacingDsl, root: &SyntaxNode) {
-
+fn format_pass(space_rules: &dsl::SpacingDsl, root: &SyntaxNode) {
+    let mut fmt_root = FmtTree::new(root.clone());
     for node in walk(root) {
-
+       for rule in space_rules.matching(node.clone()) {
+           rule.apply(&node, &mut fmt_root)
+       } 
     }
 }

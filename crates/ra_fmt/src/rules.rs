@@ -5,10 +5,14 @@ use ra_syntax::{
     SyntaxKind::*,
     SyntaxNode, SyntaxToken, T,
 };
-use std::iter::successors;
+use crate::dsl::SpacingDsl;
 
-pub(crate) struct SpacingDsl {
+pub(crate) fn spacing() -> SpacingDsl {
+    let mut space_dsl = SpacingDsl::default();
 
+    space_dsl
+        .test("pub(crate)struct Test{x:usize}")
+        .inside()
 }
 
 // #[cfg(test)]
