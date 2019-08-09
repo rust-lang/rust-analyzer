@@ -1,5 +1,10 @@
 //! This crate provides some utilities for indenting rust code.
 //!
+mod scratch;
+mod rules;
+mod dsl;
+mod engine;
+
 use itertools::Itertools;
 use ra_syntax::{
     ast::{self, AstNode, AstToken},
