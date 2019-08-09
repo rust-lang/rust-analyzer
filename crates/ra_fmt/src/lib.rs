@@ -1,6 +1,9 @@
 //! This crate provides some utilities for indenting rust code.
-
-use std::iter::successors;
+//!
+mod scratch;
+mod rules;
+mod dsl;
+mod engine;
 
 use itertools::Itertools;
 use ra_syntax::{
