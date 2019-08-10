@@ -117,7 +117,6 @@ from_array!(0, 1, 2, 3, 4, 5, 6, 7, 8);
 ///
 /// This is generic over `P: AsRef<Pattern>`, so it works with any type which
 /// contains a pattern.
-#[derive(Debug)]
 pub(crate) struct PatternSet<P> {
     by_kind: HashMap<SyntaxKind, Vec<P>>,
     unconstrained: Vec<P>,
