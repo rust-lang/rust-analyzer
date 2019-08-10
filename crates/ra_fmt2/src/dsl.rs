@@ -1,5 +1,5 @@
-use crate::{pattern::{Pattern, PatternSet}};
-use ra_syntax::{SyntaxElement, SyntaxKind::*,};
+use crate::pattern::{Pattern, PatternSet};
+use ra_syntax::{SyntaxElement, SyntaxKind::*};
 use std::iter::successors;
 
 /// `SpacingRule` describes whitespace requirements between `SyntaxElement` Note
@@ -93,7 +93,7 @@ impl SpacingDsl {
         self
     }
 }
-    /// A builder to conveniently specify a single rule.
+/// A builder to conveniently specify a single rule.
 pub(crate) struct SpacingRuleBuilder<'a> {
     dsl: &'a mut SpacingDsl,
     parent: Pattern,
