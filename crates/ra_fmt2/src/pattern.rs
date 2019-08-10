@@ -147,6 +147,7 @@ impl<'a, P: AsRef<Pattern>> PatternSet<&'a P> {
         self.by_kind
             .get(&element.kind())
             .into_iter()
+            //.inspect(|n| println!("{:?}", n)) //TODO LOOK AT PATTERN AND KIND 
             .flat_map(|vec| vec.iter())
             .chain(self.unconstrained.iter())
             .map(|&p| p)

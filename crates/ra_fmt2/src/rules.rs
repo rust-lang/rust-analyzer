@@ -101,10 +101,10 @@ mod tests {
         after: String,
     }
 
-    impl TestCase {
-        fn from_before_after(before: String, after: String) -> TestCase {
-            TestCase { name: None, before, after }
-        }
+//     impl TestCase {
+//         fn from_before_after(before: String, after: String) -> TestCase {
+//             TestCase { name: None, before, after }
+//         }
 
         fn run(&self) -> Result<(), String> {
             let name = self.name.as_ref().map(|it| it.as_str()).unwrap_or("");
