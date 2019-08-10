@@ -1,4 +1,4 @@
-use ra_syntax::{ SyntaxElement, SyntaxKind, };
+use ra_syntax::{SyntaxElement, SyntaxKind};
 
 use std::{
     collections::{HashMap, HashSet},
@@ -6,7 +6,7 @@ use std::{
     sync::Arc,
 };
 
-#[derive(Clone, )]
+#[derive(Clone)]
 pub(crate) struct Pattern {
     kinds: Option<HashSet<SyntaxKind>>,
     pred: Arc<dyn (Fn(&SyntaxElement) -> bool)>,
@@ -99,7 +99,6 @@ macro_rules! from_array {
 }
 from_array!(0, 1, 2, 3, 4, 5, 6, 7, 8);
 
-
 /// `PatternSet` allows to match many patterns at the same time efficiently.
 ///
 /// This is generic over `P: AsRef<Pattern>`, so it works with any type which
@@ -134,6 +133,7 @@ impl<'a, P: AsRef<Pattern>> PatternSet<&'a P> {
         self.by_kind
             .get(&element.kind())
             .into_iter()
+            //.inspect(|n| println!("{:?}", n)) //TODO LOOK AT PATTERN AND KIND 
             .flat_map(|vec| vec.iter())
             .chain(self.unconstrained.iter())
             .map(|&p| p)
