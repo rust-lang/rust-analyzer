@@ -1,4 +1,10 @@
 //! This crate provides some utilities for indenting rust code.
+//!
+mod scratch;
+mod rules;
+mod dsl;
+mod engine;
+mod pattern;
 
 use itertools::Itertools;
 use ra_syntax::{
@@ -7,6 +13,7 @@ use ra_syntax::{
     SyntaxKind::*,
     SyntaxNode, SyntaxToken, T,
 };
+use std::iter::successors;
 
 pub fn reindent(text: &str, indent: &str) -> String {
     let indent = format!("\n{}", indent);
@@ -33,9 +40,11 @@ fn prev_tokens(token: SyntaxToken) -> impl Iterator<Item = SyntaxToken> {
     successors(token.prev_token(), |token| token.prev_token())
 }
 
-pub fn extract_trivial_expression(expr: &ast::BlockExpr) -> Option<ast::Expr> {
-    let block = expr.block()?;
+pub fn extract_trivial_expression(block: &ast::Block) -> Option<ast::Expr> {
     let expr = block.expr()?;
+    if expr.syntax().text().contains_char('\n') {
+        return None;
+    }
     let non_trivial_children = block.syntax().children().filter(|it| match it.kind() {
         WHITESPACE | T!['{'] | T!['}'] => false,
         _ => it != expr.syntax(),

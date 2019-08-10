@@ -952,6 +952,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ra_fmt2"
+version = "0.1.0"
+dependencies = [
+ "itertools 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ra_syntax 0.1.0",
+]
+
+[[package]]
 name = "ra_hir"
 version = "0.1.0"
 dependencies = [
