@@ -14,7 +14,7 @@ pub(crate) struct Pattern {
 
 impl fmt::Debug for Pattern {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Pattern { ... }")
+        write!(f, "Pattern {:?}", self.kinds)
     }
 }
 
@@ -47,6 +47,19 @@ impl Pattern {
             }
         }
         (self.pred)(element)
+    }
+}
+
+impl ops::BitAnd for Pattern {
+    type Output = Self;
+    fn bitand(self, other: Pattern) -> Pattern {
+        let kinds = match (self.kinds, other.kinds) {
+            (Some(lhs), Some(rhs)) => Some(lhs.intersection(&rhs).cloned().collect::<HashSet<_>>()),
+            (Some(k), None) | (None, Some(k)) => Some(k),
+            (None, None) => None,
+        };
+        let (p1, p2) = (self.pred, other.pred);
+        Pattern::new(kinds, move |ele| p1(ele) && p2(ele))
     }
 }
 

@@ -1,5 +1,5 @@
 use crate::{pattern::{Pattern, PatternSet}};
-use ra_syntax::{SyntaxElement,};
+use ra_syntax::{SyntaxElement, SyntaxKind::*,};
 use std::iter::successors;
 
 /// `SpacingRule` describes whitespace requirements between `SyntaxElement` Note
@@ -69,7 +69,7 @@ pub(crate) struct SpacingDsl {
 }
 
 impl SpacingDsl {
-    pub(crate) fn rule(&mut self, rule: SpacingRule) -> &mut SpacingDsl {
+    pub(crate) fn rule(&mut self, rule: SpacingRule) -> &mut Self {
         self.rules.push(rule);
         self
     }
@@ -82,6 +82,15 @@ impl SpacingDsl {
             between: None,
             loc: None,
         }
+    }
+
+    pub(crate) fn test(&mut self, before: &'static str, after: &'static str) -> &mut Self {
+        #[cfg(test)]
+        {
+            self.tests.push((before, after));
+        }
+        let _ = (before, after);
+        self
     }
 }
     /// A builder to conveniently specify a single rule.
@@ -147,7 +156,8 @@ impl<'a> SpacingRuleBuilder<'a> {
     pub(crate) fn single_space_or_newline(self) -> &'a mut SpacingDsl {
         self.finish(SpaceValue::SingleOrNewline)
     }
-    /// Enforce a absence of whitespace or a newline character.
+    /// Enforce an
+    /// absence of whitespace or a newline character.
     pub(crate) fn no_space_or_newline(self) -> &'a mut SpacingDsl {
         self.finish(SpaceValue::NoneOrNewline)
     }
@@ -189,10 +199,10 @@ impl<'a> SpacingRuleBuilder<'a> {
 
 pub(crate) fn prev_non_whitespace_sibling(element: &SyntaxElement) -> Option<SyntaxElement> {
     successors(element.prev_sibling_or_token(), |it| it.prev_sibling_or_token())
-        .find(|it| it.kind() != TOKEN_WHITESPACE)
+        .find(|it| it.kind() != WHITESPACE)
 }
 
 pub(crate) fn next_non_whitespace_sibling(element: &SyntaxElement) -> Option<SyntaxElement> {
     successors(element.next_sibling_or_token(), |it| it.next_sibling_or_token())
-        .find(|it| it.kind() != TOKEN_WHITESPACE)
+        .find(|it| it.kind() != WHITESPACE)
 }
