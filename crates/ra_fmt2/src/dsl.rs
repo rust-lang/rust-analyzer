@@ -1,11 +1,11 @@
 use crate::pattern::{Pattern, PatternSet};
+use crate::trav_util::{next_non_whitespace_sibling, prev_non_whitespace_sibling};
 use ra_syntax::{SyntaxElement, SyntaxKind::*};
-use std::iter::successors;
 
 /// `SpacingRule` describes whitespace requirements between `SyntaxElement` Note
 /// that it doesn't handle indentation (first whitespace on a line), there's
 /// `IndentRule` for that!
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct SpacingRule {
     /// An element to which this spacing rule applies
     pub(crate) pattern: Pattern,
@@ -195,14 +195,4 @@ impl<'a> SpacingRuleBuilder<'a> {
         }
         self.dsl
     }
-}
-
-pub(crate) fn prev_non_whitespace_sibling(element: &SyntaxElement) -> Option<SyntaxElement> {
-    successors(element.prev_sibling_or_token(), |it| it.prev_sibling_or_token())
-        .find(|it| it.kind() != WHITESPACE)
-}
-
-pub(crate) fn next_non_whitespace_sibling(element: &SyntaxElement) -> Option<SyntaxElement> {
-    successors(element.next_sibling_or_token(), |it| it.next_sibling_or_token())
-        .find(|it| it.kind() != WHITESPACE)
 }

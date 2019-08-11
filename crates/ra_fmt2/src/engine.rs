@@ -76,16 +76,6 @@ impl SpacingRule {
     }
 }
 
-fn walk(node: &SyntaxNode) -> impl Iterator<Item = SyntaxElement> {
-    node.preorder_with_tokens().filter_map(|event| {
-        if let WalkEvent::Enter(ele) = event {
-            Some(ele)
-        } else {
-            None
-        }
-    })
-}
-
 pub fn format_pass(space_rules: &SpacingDsl, root: &SyntaxNode) {
     let mut fmt_root = FmtModel::new(root.clone());
 
