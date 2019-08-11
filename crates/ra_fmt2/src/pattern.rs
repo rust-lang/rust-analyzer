@@ -35,7 +35,9 @@ impl Pattern {
     pub(crate) fn with_parent(self, parent: Pattern) -> Pattern {
         let Pattern { kinds, pred } = self;
         Pattern::new(kinds, move |element| {
-            (pred)(element) && element.parent().map(|it| parent.matches(&it.into())) == Some(true)
+            (pred)(element) && element.parent()
+                .map(|it| {println!("{:?}", it); it})
+                .map(|it| parent.matches(&it.into())) == Some(true)
         })
     }
 
@@ -103,6 +105,7 @@ from_array!(0, 1, 2, 3, 4, 5, 6, 7, 8);
 ///
 /// This is generic over `P: AsRef<Pattern>`, so it works with any type which
 /// contains a pattern.
+#[derive(Debug)]
 pub(crate) struct PatternSet<P> {
     by_kind: HashMap<SyntaxKind, Vec<P>>,
     unconstrained: Vec<P>,
@@ -133,7 +136,7 @@ impl<'a, P: AsRef<Pattern>> PatternSet<&'a P> {
         self.by_kind
             .get(&element.kind())
             .into_iter()
-            //.inspect(|n| println!("{:?}", n)) //TODO LOOK AT PATTERN AND KIND 
+            //.inspect(|n| println!("{:?}", n)) // TODO LOOK AT PATTERN AND KIND
             .flat_map(|vec| vec.iter())
             .chain(self.unconstrained.iter())
             .map(|&p| p)
