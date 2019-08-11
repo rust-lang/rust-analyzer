@@ -325,7 +325,7 @@ fn api_walkthrough() {
 ///
 /// Syntax:
 ///
-/// ```notrust
+/// ```plain
 /// match_ast! {
 ///     match <NODE_VAR> {
 ///         ast::<NODE TYPE1> => <HANDLER FN1>, &mut <ERRORS VEC>,
@@ -353,9 +353,7 @@ macro_rules! match_ast {
     (match $node:ident {
         $($p:ty => $f:ident, $err:expr),+
         $(,)*  // consumes trailing commas
-    }
-    ) => {
-        {
+    }) => {{
             $(
                 if <$p>::can_cast($node.kind()) {
                     if let Some(it) = <$p>::cast($node.clone()) {
@@ -367,8 +365,7 @@ macro_rules! match_ast {
             {
                 ()
             }
-        }
-    };
+    }};
 }
 
 /// Same as `match_ast!` but calls `.name_ref()` function on matched nodes.
@@ -390,9 +387,7 @@ macro_rules! match_ast_nameref {
     (match $node:ident {
         $($p:ty => $f:ident, $err:expr),+
         $(,)* // consumes trailing commas
-    }
-    ) => {
-        {
+    }) => {{
             $(
                 if <$p>::can_cast($node.kind()) {
                     if let Some(it) = <$p>::cast($node.clone()) {
@@ -404,6 +399,5 @@ macro_rules! match_ast_nameref {
             {
                 ()
             }
-        }
-    };
+    }};
 }
