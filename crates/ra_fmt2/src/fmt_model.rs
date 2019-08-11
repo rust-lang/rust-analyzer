@@ -1,25 +1,14 @@
+use crate::edit_tree::EditTree;
+
 use ra_syntax::{
     NodeOrToken, SmolStr,
     SyntaxElement, TextUnit,
-    SyntaxKind::*, 
+    SyntaxKind::{self, *}, 
     SyntaxNode, SyntaxToken, T,
     WalkEvent, TextRange,
 };
+
 use std::collections::HashMap;
-
-// TODO make more like intellij's fmt model 
-// Model holds immutable tree and mutable intermediate model to produce diff
-// the model will probably have to create its own tree to add the extra 
-// info to each token/node:
-//
-// [1,2,3];
-// can be Brace token, ident, comma all of which knows their own rules and apply
-// them accordingly to produce [1, 2, 3]; ???
-
-#[derive(Debug)]
-struct EditTree {
-    
-}
 
 #[derive(Debug)]
 pub(super) struct FmtModel {

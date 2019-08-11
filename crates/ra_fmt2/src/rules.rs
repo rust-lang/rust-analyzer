@@ -1,3 +1,4 @@
+use crate::dsl::SpacingDsl;
 use itertools::Itertools;
 use ra_syntax::{
     ast::{self, AstNode, AstToken},
@@ -5,16 +6,24 @@ use ra_syntax::{
     SyntaxKind::*,
     SyntaxNode, SyntaxToken, T,
 };
-use crate::dsl::SpacingDsl;
 
 pub(crate) fn spacing() -> SpacingDsl {
     let mut space_dsl = SpacingDsl::default();
 
     space_dsl
         .test("let x = [1,2,3];", "let x = [1, 2, 3];")
-        .inside(ARRAY_EXPR).after(T![,]).single_space();
-        // more rules to come
-    
+        .inside(ARRAY_EXPR).after(T![,]).single_space()
+
+        .test("struct Test{x:usize}", "struct Test { x:usize }")
+        .inside(NAMED_FIELD_DEF_LIST).around(T!['{']).single_space()
+        .inside(NAMED_FIELD_DEF_LIST).before(T!['}']).single_space_or_optional_newline()
+
+        .test("pub(crate)struct", "pub(crate) struct")
+        .inside(STRUCT_DEF).before(STRUCT_KW).single_space()
+        
+        ;
+    // more rules to come
+
     space_dsl
 }
 
