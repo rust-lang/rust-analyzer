@@ -318,3 +318,92 @@ fn api_walkthrough() {
     }
     assert_eq!(exprs_cast, exprs_visit);
 }
+
+/// Generates `if let` chain to match provided `SyntaxNode` with `ast::*` nodes and to call
+/// corresponding function with node that matched. Collects syntax errors to the
+/// `Vec<SyntaxError>` provided.
+///
+/// Syntax:
+///
+/// ```notrust
+/// match_ast! {
+///     match <NODE_VAR> {
+///         ast::<NODE TYPE1> => <HANDLER FN1>, &mut <ERRORS VEC>,
+///         ast::<NODE TYPE2> => <HANDLER FN2>, &mut <ERRORS VEC>,
+///         ...
+///         ast::<NODE TYPEn> => <HANDLER FNn>, &mut <ERRORS VEC>,
+///     }
+/// }
+/// ```
+///
+/// Example:
+/// ```rust
+/// let mut errors = Vec::new();
+/// for node in nodes {
+///     match_ast! {
+///         match node {
+///             ast::Literal => validate_literal, &mut errors,
+///             ast::Block => validate_block_node, &mut errors,
+///         }
+///     }
+/// }
+/// ```
+#[macro_export]
+macro_rules! match_ast {
+    (match $node:ident {
+        $($p:ty => $f:ident, $err:expr),+
+        $(,)*  // consumes trailing commas
+    }
+    ) => {
+        {
+            $(
+                if <$p>::can_cast($node.kind()) {
+                    if let Some(it) = <$p>::cast($node.clone()) {
+                        $f(it, $err)
+                    }
+                } else
+            )+
+
+            {
+                ()
+            }
+        }
+    };
+}
+
+/// Same as `match_ast!` but calls `.name_ref()` function on matched nodes.
+///
+/// Example:
+/// ```rust
+/// let mut errors = Vec::new();
+/// for node in nodes {
+///     match_ast_nameref! {
+///         match node {
+///              ast::FieldExpr => validate_numeric_name, &mut errors,
+///              ast::NamedField => validate_numeric_name, &mut errors,
+///         }
+///     }
+/// }
+/// ```
+#[macro_export]
+macro_rules! match_ast_nameref {
+    (match $node:ident {
+        $($p:ty => $f:ident, $err:expr),+
+        $(,)* // consumes trailing commas
+    }
+    ) => {
+        {
+            $(
+                if <$p>::can_cast($node.kind()) {
+                    if let Some(it) = <$p>::cast($node.clone()) {
+                        $f(it.name_ref(), $err)
+                    }
+                } else
+            )+
+
+            {
+                ()
+            }
+        }
+    };
+}

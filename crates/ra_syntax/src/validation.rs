@@ -3,8 +3,9 @@ mod block;
 use ra_rustc_lexer::unescape;
 
 use crate::{
-    algo::visit::{visitor_ctx, VisitorCtx},
-    ast, AstNode, SyntaxError, SyntaxErrorKind,
+    ast, match_ast, match_ast_nameref,
+    validation::block::validate_block_node,
+    AstNode, SyntaxError, SyntaxErrorKind,
     SyntaxKind::{BYTE, BYTE_STRING, CHAR, INT_NUMBER, STRING},
     SyntaxNode, SyntaxToken, TextUnit, T,
 };
@@ -96,14 +97,23 @@ impl From<ra_rustc_lexer::unescape::EscapeError> for SyntaxErrorKind {
 
 pub(crate) fn validate(root: &SyntaxNode) -> Vec<SyntaxError> {
     let mut errors = Vec::new();
+
     for node in root.descendants() {
-        let _ = visitor_ctx(&mut errors)
-            .visit::<ast::Literal, _>(validate_literal)
-            .visit::<ast::Block, _>(block::validate_block_node)
-            .visit::<ast::FieldExpr, _>(|it, errors| validate_numeric_name(it.name_ref(), errors))
-            .visit::<ast::NamedField, _>(|it, errors| validate_numeric_name(it.name_ref(), errors))
-            .accept(&node);
+        match_ast! {
+            match node {
+                ast::Literal => validate_literal, &mut errors,
+                ast::Block => validate_block_node, &mut errors,
+            }
+        }
+
+        match_ast_nameref! {
+            match node {
+                ast::FieldExpr => validate_numeric_name, &mut errors,
+                ast::NamedField => validate_numeric_name, &mut errors,
+            }
+        }
     }
+
     errors
 }
 
