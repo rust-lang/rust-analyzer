@@ -5,7 +5,7 @@ use crate::trav_util::{walk, walk_nodes, walk_tokens};
 
 use ra_syntax::{
     NodeOrToken, SmolStr, SyntaxElement,
-    SyntaxKind::{self, *},
+    SyntaxKind::{self, *}, Direction,
     SyntaxNode, SyntaxToken, TextRange, TextUnit, WalkEvent, T,
 };
 use rowan::{GreenNode, cursor};
@@ -31,10 +31,16 @@ struct Whitespace {
 
 impl Whitespace {
     fn new(token: SyntaxToken) -> Self {
+        let additional_spaces = if token.kind() == WHITESPACE {
+            let len = token.text_range();
+            (len.end() - len.start()).into()
+        } else {
+            0
+        };
         Self {
             original: token,
             indent_spaces: 0,
-            additional_spaces: 0,
+            additional_spaces,
         }
     }
 }
@@ -68,33 +74,34 @@ impl Default for SynBlock {
 
 // each block will have knowledge of spacing and indent, 
 impl SynBlock {
-    pub(crate) fn build_block(
+    pub(crate) fn build_block<P: AsRef<Pattern>>(
         element: SyntaxElement,
+        p_set: &PatternSet<&P>,
     ) -> Self {
-        let prev_whitespace = if let NodeOrToken::Token(tkn) = &element {
-            println!("found tkn");
-            if tkn.prev_token().unwrap().kind() == WHITESPACE {
-                println!("found ws");
-                tkn.prev_token().map(Whitespace::new)
-            } else {
-                None
-            }
+        let prev_whitespace = if let NodeOrToken::Token(token) = &element {
+            println!("found Node {:?}", element);
+            let patterns = p_set.matching(element.clone()).collect::<Vec<_>>();
+            token.prev_token().map(|tkn| {
+                if let Some(p) = patterns.iter().find(|pat| pat.as_ref().matches(&element)) {
+                    println!("\n{:?}\n{:?}\n", p.as_ref(), tkn);
+                    Some(Whitespace::new(tkn))
+                } else {
+                    None
+                }
+            }).unwrap_or(None)
         } else {
             None
         };
         // recursivly add to children
         let children = match &element {
             NodeOrToken::Node(node) => {
-                node.children()
-                    .map(|n| Self::build_block(NodeOrToken::Node(n)))
+                node.children_with_tokens()
+                    .map(|n| Self::build_block(n, &p_set))
                     .collect::<Vec<_>>()
             },
-            NodeOrToken::Token(token) => {
-                let mut tkns = vec![];
-                while let Some(tkn) = token.next_token() {
-                    tkns.push(Self::build_block(NodeOrToken::Token(tkn)));
-                }
-                tkns
+            NodeOrToken::Token(_) => {
+                println!("IN TOKEN ET");
+                vec![]
             }
         };
         let (parent, range) = match &element {
@@ -122,6 +129,10 @@ impl SynBlock {
         })
     }
 
+    // pub(crate) fn get_spacing(&self) -> Whitespace {
+
+    // }
+
     /// Remove after dev?
     fn to_string(&self) -> String {
         self.text.to_string()
@@ -148,13 +159,16 @@ impl EditTree {
         mut self,
         root: &SyntaxNode,
     ) -> Self {
-        self.blocks = SynBlock::build_block(NodeOrToken::Node(root.clone()));
+        let space = spacing();
+        let ws_rules = PatternSet::new(space.rules.iter());
+
+        self.blocks = SynBlock::build_block(NodeOrToken::Node(root.clone()), &ws_rules);
         self
     }
 
     /// only for dev, we dont need to convert or diff in editTree
     pub(crate) fn to_string(&self) -> String {
-        let ordered = self.blocks.walk().map(|blk| blk.to_string()).collect::<String>();
-        ordered
+        self.blocks.walk().map(|blk| blk.to_string()).collect::<String>()
+        
     }
 }
