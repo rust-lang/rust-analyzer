@@ -14,8 +14,9 @@ use ra_syntax::{
     SyntaxNode, SyntaxToken, T,
 };
 
+// will be removed
 #[test]
-fn try_it() {
+fn show_me_the_progress() {
     let rs_file = "pub(crate)struct Test {x: String}";
 
     let p = SourceFile::parse(&rs_file);
@@ -23,20 +24,11 @@ fn try_it() {
     // fix this, this call is not great do some other way
     let space = spacing();
     let ws_rules = PatternSet::new(space.rules.iter());
-    // println!("{:#?}", p);
-    syn_tree
-        .preorder_with_tokens()
-        .filter_map(|ev| match ev {
-            ra_syntax::WalkEvent::Enter(el) => Some(el).filter(|t| t.kind() != WHITESPACE),
-            ra_syntax::WalkEvent::Leave(_) => None,
-        })
-        .for_each(|n| println!("{:?}", n));
+
     println!();
-    walk_nodes(&syn_tree).for_each(|n| {
-        println!("Node {:?}", n);
-        walk_tokens(&n).for_each(|t| println!("    TOK {:?}", t));
-    });
-    let fmt = EditTree::from_root(&syn_tree, ws_rules);
+
+    let fmt = EditTree::new(&syn_tree);
     println!("{:#?}", fmt);
-    fmt.to_string();
+    let x = fmt.to_string();
+    println!("{:#?}", x);
 }
