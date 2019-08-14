@@ -10,6 +10,7 @@ use ra_syntax::{
     SyntaxKind::{self, *},
     SyntaxNode, SyntaxToken, TextRange, TextUnit, WalkEvent, T,
 };
+use rowan::{GreenNode, cursor};
 
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
