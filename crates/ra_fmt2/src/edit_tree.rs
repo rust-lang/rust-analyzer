@@ -8,6 +8,7 @@ use ra_syntax::{
     SyntaxKind::{self, *},
     SyntaxNode, SyntaxToken, TextRange, TextUnit, WalkEvent, T,
 };
+use rowan::{GreenNode, cursor};
 
 use std::collections::{HashMap, HashSet};
 
@@ -21,95 +22,139 @@ use std::collections::{HashMap, HashSet};
 // them accordingly to produce [1, 2, 3]; ???
 
 #[derive(Debug)]
-// this will probably be an enum that holds a struct for space/indent/ect
-struct AtomEdit {
-    space_loc: SpaceLoc,
-    val: SpaceValue,
-    start: TextUnit,
+/// Whitespace holds all whitespace info for each SynBlock
+struct Whitespace {
+    original: SyntaxToken,
+    indent_spaces: u32,
+    additional_spaces: u32,
 }
 
-impl AtomEdit {}
+impl Whitespace {
+    fn new(token: SyntaxToken) -> Self {
+        Self {
+            original: token,
+            indent_spaces: 0,
+            additional_spaces: 0,
+        }
+    }
+}
 
 #[derive(Debug)]
 pub(crate) struct SynBlock {
     //indent: some enum?
-    kind: SyntaxKind,
-    node: SyntaxNode,
-    tokens: Vec<SyntaxToken>,
+    element: SyntaxElement,
+    text: SmolStr,
+    parent: Option<SyntaxNode>,
+    children: Vec<SynBlock>,
     range: TextRange,
-    edits: Vec<AtomEdit>,
-    ws_rules: Vec<SpacingRule>,
+    prev_whitespace: Option<Whitespace>,
+}
+
+impl Default for SynBlock {
+    fn default() -> Self {
+        // TODO not sure if importing rowan just for this is worth it find another way?
+        let empty_root = SyntaxNode::new_root(GreenNode::new(cursor::SyntaxKind(0), Box::new([])));
+        let element = NodeOrToken::Node(empty_root);
+        Self {
+            element,
+            text: SmolStr::default(),
+            parent: None,
+            children: vec![],
+            range: TextRange::from_to(TextUnit::from(0), TextUnit::from(0)),
+            prev_whitespace: None,
+        }
+    }
+}
+
+// each block will have knowledge of spacing and indent, 
+impl SynBlock {
+    pub(crate) fn build_block(
+        element: SyntaxElement,
+    ) -> Self {
+        let prev_whitespace = if let NodeOrToken::Token(tkn) = &element {
+            println!("found tkn");
+            if tkn.prev_token().unwrap().kind() == WHITESPACE {
+                println!("found ws");
+                tkn.prev_token().map(Whitespace::new)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        // recursivly add to children
+        let children = match &element {
+            NodeOrToken::Node(node) => {
+                node.children()
+                    .map(|n| Self::build_block(NodeOrToken::Node(n)))
+                    .collect::<Vec<_>>()
+            },
+            NodeOrToken::Token(token) => {
+                let mut tkns = vec![];
+                while let Some(tkn) = token.next_token() {
+                    tkns.push(Self::build_block(NodeOrToken::Token(tkn)));
+                }
+                tkns
+            }
+        };
+        let (parent, range) = match &element {
+            NodeOrToken::Node(node) => (node.parent(), node.text_range()),
+            NodeOrToken::Token(token) => (Some(token.parent()), token.text_range())
+        };
+        let text = match &element {
+            NodeOrToken::Node(node) => SmolStr::from(node.text().to_string()),
+            NodeOrToken::Token(token) => token.text().clone()
+        };
+
+        Self {
+            element,
+            text,
+            parent,
+            children,
+            range,
+            prev_whitespace,
+        }
+    }
+
+    pub(crate) fn walk(&self) -> impl Iterator<Item=&SynBlock> {
+        self.children.iter().flat_map(|kid| {
+            &kid.children
+        })
+    }
+
+    /// Remove after dev?
+    fn to_string(&self) -> String {
+        self.text.to_string()
+    }
 }
 
 #[derive(Debug)]
 pub(crate) struct EditTree {
-    blocks: Vec<SynBlock>,
-    flat_edit: Vec<SyntaxElement>,
-    edits: Vec<AtomEdit>,
-}
-
-// each block will have knowledge of spacing and indent, 
-// 
-impl SynBlock {
-    pub(crate) fn build_block(
-        node: SyntaxNode,
-        // this must change when indent comes back to generic?
-        patt: &PatternSet<&'_ SpacingRule>,
-    ) -> Self {
-        // are there node rules?
-        let mut ws_rules = patt.matching(NodeOrToken::Node(node.clone()))
-            .cloned()
-            .collect::<Vec<_>>();
-        
-        let mut token_rules = walk_tokens(&node)
-            .flat_map::<Vec<_>, _>(|t| patt.matching(NodeOrToken::Token(t)).collect())
-            // TODO get rid of clone?
-            .cloned()
-            .collect::<Vec<SpacingRule>>();
-        
-        ws_rules.append(&mut token_rules);
-        //println!("{:?}", ws_rules);
-        Self {
-            kind: node.kind(),
-            node: node.clone(),
-            tokens: walk_tokens(&node).collect(),
-            range: node.text_range(),
-            edits: vec![],
-            ws_rules,
-        }
-    }
+    blocks: SynBlock,
 }
 
 impl Default for EditTree {
     fn default() -> Self {
-        Self {
-            blocks: vec![],
-            flat_edit: vec![],
-            edits: vec![],
-        }
+        Self { blocks: SynBlock::default() }
     }
 }
 
 impl EditTree {
-    pub(crate) fn from_root(root: &SyntaxNode, patt: PatternSet<&'_ SpacingRule>) -> Self {
-        Self::default().build_tree(root, patt)
+    pub(crate) fn new(root: &SyntaxNode) -> Self {
+        Self::default().build_tree(root)
     }
 
-    pub(crate) fn build_tree(
+    fn build_tree(
         mut self,
         root: &SyntaxNode,
-        patt: PatternSet<&'_ SpacingRule>,
     ) -> Self {
-        self.blocks = walk_nodes(root).map(|n| SynBlock::build_block(n, &patt)).collect();
+        self.blocks = SynBlock::build_block(NodeOrToken::Node(root.clone()));
         self
     }
 
+    /// only for dev, we dont need to convert or diff in editTree
     pub(crate) fn to_string(&self) -> String {
-        let ordered = walk_tokens(&self.blocks[0].node)
-            .map(|t| t.to_string())
-            .collect::<String>();
-        //let set: HashSet<SyntaxElement> = HashSet::from_iter(ordered);
-        println!("{:?}", ordered);
+        let ordered = self.blocks.walk().map(|blk| blk.to_string()).collect::<String>();
         ordered
     }
 }

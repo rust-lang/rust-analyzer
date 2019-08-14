@@ -2,12 +2,12 @@ use crate::pattern::{Pattern, PatternSet};
 use crate::trav_util::{next_non_whitespace_sibling, prev_non_whitespace_sibling};
 use ra_syntax::{SyntaxElement, SyntaxKind::*};
 
-/// `SpacingRule` describes whitespace requirements between `SyntaxElement` Note
-/// that it doesn't handle indentation (first whitespace on a line), there's
-/// `IndentRule` for that!
+/// `SpacingRule` describes whitespace requirements between `SyntaxElement`.
+/// Note that it doesn't handle indentation (first whitespace on a line), there's
+/// `IndentRule` for that.
 #[derive(Debug, Clone)]
 pub(crate) struct SpacingRule {
-    /// An element to which this spacing rule applies
+    /// An element to which this spacing rule applies.
     pub(crate) pattern: Pattern,
     /// How much space to add/remove at the start or end of the element.
     pub(crate) space: Space,
@@ -60,10 +60,12 @@ pub(crate) enum SpaceLoc {
     Around,
 }
 
-/// A builder to conveniently specify a set of `SpacingRule`s
+/// A builder to conveniently specify a set of `SpacingRule`s.
 #[derive(Debug, Default)]
 pub(crate) struct SpacingDsl {
     pub(crate) rules: Vec<SpacingRule>,
+    /// Vec of tuples of before and after examples of formatting rules.
+    /// Used only when `cargo test` is run.
     #[cfg(test)]
     pub(crate) tests: Vec<(&'static str, &'static str)>,
 }
@@ -83,7 +85,7 @@ impl SpacingDsl {
             loc: None,
         }
     }
-
+    /// Adds test cases only if `cargo test` is run.
     pub(crate) fn test(&mut self, before: &'static str, after: &'static str) -> &mut Self {
         #[cfg(test)]
         {
