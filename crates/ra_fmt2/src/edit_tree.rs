@@ -7,7 +7,7 @@ use crate::whitespace::Whitespace;
 
 use ra_syntax::{
     NodeOrToken, SmolStr, SyntaxElement,
-    SyntaxKind::{self, *},
+    SyntaxKind::{self, *}, Direction,
     SyntaxNode, SyntaxToken, TextRange, TextUnit, WalkEvent, T,
 };
 use rowan::{GreenNode, cursor};
