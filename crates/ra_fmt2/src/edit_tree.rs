@@ -7,7 +7,7 @@ use crate::whitespace::Whitespace;
 
 use ra_syntax::{
     NodeOrToken, SmolStr, SyntaxElement,
-    SyntaxKind::{self, *}, Direction,
+    SyntaxKind::{self, *},
     SyntaxNode, SyntaxToken, TextRange, TextUnit, WalkEvent, T,
 };
 use rowan::{GreenNode, cursor};
@@ -64,7 +64,7 @@ impl Block {
     /// Returns `Block` from either `SyntaxNode` or `SyntaxToken`.
     pub(crate) fn build_block(element: SyntaxElement) -> Block {
         // recursivly add to children
-        let children = match &element {
+        let first_child = match &element {
             NodeOrToken::Node(node) => {
                 node.children_with_tokens()
                 .filter(|ele| match ele{
@@ -83,6 +83,18 @@ impl Block {
         let text = match &element {
             NodeOrToken::Node(node) => SmolStr::from(node.text().to_string()),
             NodeOrToken::Token(token) => token.text().clone(),
+        };
+        let prev_whitespace = if let NodeOrToken::Token(token) = &element {
+            token.prev_token().and_then(|tkn| {
+                // does it make sense to create whitespace if token is not ws
+                if tkn.kind() == WHITESPACE{
+                    Some(Whitespace::new(tkn))   
+                } else {
+                    None
+                }
+            })
+        } else {
+            None
         };
 
         let whitespace = Rc::new(RefCell::new(Whitespace::new(&element)));
