@@ -17,7 +17,7 @@ use ra_syntax::{
 // will be removed
 #[test]
 fn show_me_the_progress() {
-    let rs_file = "pub(crate)struct Test {x: String }";
+    let rs_file = "{}";
 
     let p = SourceFile::parse(&rs_file);
     let syn_tree = p.syntax_node();
@@ -26,7 +26,7 @@ fn show_me_the_progress() {
 
     println!();
 
-    let fmt = EditTree::new(&syn_tree);
+    let fmt = EditTree::new(syn_tree);
     //println!("{:#?}", fmt);
     let x = fmt.to_string();
     println!("{:#?}", x);
