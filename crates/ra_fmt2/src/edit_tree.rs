@@ -88,7 +88,7 @@ impl Block {
             token.prev_token().and_then(|tkn| {
                 // does it make sense to create whitespace if token is not ws
                 if tkn.kind() == WHITESPACE{
-                    Some(Whitespace::new(&tkn))   
+                    Some(Whitespace::new(tkn))   
                 } else {
                     None
                 }
