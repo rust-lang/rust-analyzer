@@ -23,16 +23,16 @@ use std::rc::Rc;
 // can be Brace token, ident, comma all of which knows their own rules and apply
 // them accordingly to produce [1, 2, 3]; ???
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug)]
 /// Whitespace holds all whitespace information for each Block
-pub(crate) struct Whitespace<'w> {
-    original: &'w SyntaxToken,
+pub(crate) struct Whitespace {
+    original: SyntaxToken,
     indent_spaces: u32,
     additional_spaces: u32,
 }
 
-impl<'w> Whitespace<'w> {
-    fn new(token: &'w SyntaxToken) -> Whitespace<'w> {
+impl Whitespace {
+    fn new(token: SyntaxToken) -> Whitespace {
         let additional_spaces = if token.kind() == WHITESPACE {
             let len = token.text_range();
             (len.end() - len.start()).into()
@@ -50,45 +50,43 @@ impl<'w> Whitespace<'w> {
 #[derive(Clone, Debug)]
 /// Holds nodes and tokens as a tree with whitespace information
 /// 
-pub(crate) struct Block<'b> {
+pub(crate) struct Block {
     //indent: some enum?
-    element: &'b SyntaxElement,
+    element: SyntaxElement,
     text: SmolStr,
-    parent: Cell<Option<&'b Block<'b>>>,
-    next_sib: Cell<Option<&'b Block<'b>>>,
-    first_child: Cell<Option<&'b Block<'b>>>,
+    parent: Box<Option<Block>>,
+    next_sib: Box<Option<Block>>,
+    first_child: Box<Option<Block>>,
     range: TextRange,
-    prev_whitespace: Option<Whitespace<'b>>,
+    prev_whitespace: Option<Whitespace>,
 }
 
 // each block will have knowledge of spacing and indent, 
-impl<'b> Block<'b> {
-    pub(crate) fn build_block<'a>(element: &'b SyntaxElement) -> Block<'b> {
+impl Block {
+    pub(crate) fn build_block(element: SyntaxElement) -> Block {
         // recursivly add to children
         let first_child = match &element {
             NodeOrToken::Node(node) => {
                 if let Some(kid) = node.first_child_or_token() {
-                    let child = Block::build_block(&kid);
-                    Some(child)
+                    println!("child or token");
+                    Box::new(Some(Block::build_block(kid)))
                 } else {
-                    None
+                    Box::new(None)
                 }
             },
             NodeOrToken::Token(_) => {
-                None
+                Box::new(None)
             }
         };
         let next_sib = if let Some(s) = element.next_sibling_or_token() {
-            let sib_block = Block::build_block(&s);
-            Some(sib_block)
+            Box::new(Some(Block::build_block(s)))
         } else {
-            None
+            Box::new(None)
         };
         let parent = if let Some(node) = element.parent() {
-            let p = Self::build_block(&NodeOrToken::Node(node));
-            Cell::new(Some(&p))
+            Box::new(Some(Block::build_block(NodeOrToken::Node(node))))
         } else {
-            Cell::new(None)
+            Box::new(None)
         };
         let range = match &element {
             NodeOrToken::Node(node) => node.text_range(),
@@ -102,7 +100,7 @@ impl<'b> Block<'b> {
             token.prev_token().and_then(|tkn| {
                 // does it make sense to create whitespace if token is not ws
                 if tkn.kind() == WHITESPACE{
-                    Some(Whitespace::new(&tkn))   
+                    Some(Whitespace::new(tkn))   
                 } else {
                     None
                 }
@@ -111,40 +109,44 @@ impl<'b> Block<'b> {
             None
         };
 
+        println!("out of build_block");
         Self {
-            element: &element,
+            element,
             text,
             parent,
-            first_child: Cell::new(first_child.as_ref()),
-            next_sib: Cell::new(next_sib.as_ref()),
+            first_child,
+            next_sib,
             range,
             prev_whitespace,
         }
     }
 
     /// Compare pointers to check if two Blocks are equal.
-    fn compare(&self, other: &Block<'b>) -> bool {
+    fn compare(&self, other: &Block) -> bool {
         self as *const _ == other as *const _
     }
 
     /// Returns an iterator of parents from current element.
-    fn ancestors(&self) -> Parents<'b> {
-        Parents( self.parent.get() )
+    fn ancestors(&self) -> Parents<'_> {
+        // what is the best way to do this Rc, Box, Cell with refs?
+        Parents( self.parent.as_ref().as_ref() )
     }
 
     /// Returns an iterator of any sibling nodes and tokens from current element.
-    fn siblings_with_tokens(&self) -> NextSibling<'b> {
-        NextSibling( self.next_sib.get() )
+    fn siblings_with_tokens(&self) -> NextSibling<'_> {
+        NextSibling( self.next_sib.as_ref().as_ref() )
     }
 
     /// Walk all the blocks 
-    fn traverse(&'b self) -> WalkBlocks<'b> {
+    fn traverse(&self) -> WalkBlocks<'_> {
+        println!("in traverse");
         WalkBlocks { root: self, next: Some(Branch::Continue(self)) }
     }
 
     /// Returns `Whitespace` which has knowledge of whitespace around current token.
-    pub(crate) fn get_spacing(&self, tkn: &'b SyntaxToken) -> Whitespace<'b> {
-        Whitespace::new(tkn)
+    pub(crate) fn get_spacing(&self, tkn: SyntaxToken) -> Option<&Whitespace> {
+        // TODO walk tree find `tkn` then return matches whitespace
+        self.prev_whitespace.as_ref()
     }
 
     /// Remove after dev
@@ -153,12 +155,12 @@ impl<'b> Block<'b> {
     }
 }
 
-pub(crate) struct Parents<'p>(Option<&'p Block<'p>>);
+pub(crate) struct Parents<'p>(Option<&'p Block>);
 impl<'p> Iterator for Parents<'p> {
-    type Item = &'p Block<'p>;
+    type Item = &'p Block;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(blk) = self.0.take() {
-            self.0 = blk.parent.get();
+            self.0 = blk.parent.as_ref().as_ref();
             Some(blk)
         } else {
             None
@@ -166,12 +168,12 @@ impl<'p> Iterator for Parents<'p> {
     }
 }
 
-pub(crate) struct NextSibling<'s>(Option<&'s Block<'s>>);
+pub(crate) struct NextSibling<'s>(Option<&'s Block>);
 impl<'s> Iterator for NextSibling<'s> {
-    type Item = &'s Block<'s>;
+    type Item = &'s Block;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(blk) = self.0.take() {
-            self.0 = blk.next_sib.get();
+            self.0 = blk.next_sib.as_ref().as_ref();
             Some(blk)
         } else {
             None
@@ -201,18 +203,19 @@ impl<T> std::ops::Deref for Branch<T> {
 
 #[derive(Debug, Clone)]
 pub(crate) struct WalkBlocks<'b> {
-    root: &'b Block<'b>,
-    next: Option<Branch<&'b Block<'b>>>,
+    root: &'b Block,
+    next: Option<Branch<&'b Block>>,
 }
 
 impl<'b> Iterator for WalkBlocks<'b> {
-    type Item = Branch<&'b Block<'b>>;
+    type Item = Branch<&'b Block>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(branch) = self.next.take() {
+            println!("in WalkBlock");
             self.next = match branch {
                 Branch::Continue(block) => {
-                    if let Some(child) = block.first_child.get() {
+                    if let Some(child) = block.first_child.as_ref() {
                         Some(Branch::Continue(child))
                     } else {
                         Some(Branch::Terminal(block))
@@ -223,10 +226,10 @@ impl<'b> Iterator for WalkBlocks<'b> {
                     if block.compare(self.root) {
                         None
                     // reached end of children move on to next sibling
-                    } else if let Some(sibling) = block.next_sib.get() {
+                    } else if let Some(sibling) = block.next_sib.as_ref() {
                         Some(Branch::Continue(sibling))
                     // no child or sibling move up level to current Block's parent
-                    } else if let Some(parent) = block.parent.get() {
+                    } else if let Some(parent) = block.parent.as_ref() {
                         // we reached the end of branch so current's parent's sibling is next
                         Some(Branch::Terminal(parent))
                     } else {
@@ -242,23 +245,26 @@ impl<'b> Iterator for WalkBlocks<'b> {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct EditTree<'e> {
-    root: Block<'e>,
+pub(crate) struct EditTree {
+    root: Block,
 }
 
-impl<'e> EditTree<'e> {
+impl EditTree {
     pub(crate) fn new(root: SyntaxNode) -> Self {
         EditTree::build_tree(root)
     }
 
-    fn build_tree<'a: 'e>(root: SyntaxNode) -> EditTree<'e> {
+    fn build_tree(root: SyntaxNode) -> EditTree {
+        println!("build_tree");
         let ele = NodeOrToken::Node(root.clone());
-        let root = Block::build_block(&ele);
+        let root = Block::build_block(ele);
+        println!("build_tree block built");
         EditTree { root }
     }
 
     /// only for dev, we dont need to convert or diff in editTree
-    pub(crate) fn to_string(&'e self) -> String {
+    pub(crate) fn to_string(&self) -> String {
+        println!("to_string");
         self.root.traverse().map(|blk| blk.to_string()).collect::<String>()
         
     }
