@@ -13,7 +13,7 @@ use ra_syntax::{
 use rowan::{GreenNode, cursor};
 
 use std::collections::{HashMap, HashSet};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 // TODO make more like intellij's fmt model
@@ -88,7 +88,7 @@ impl Block {
             token.prev_token().and_then(|tkn| {
                 // does it make sense to create whitespace if token is not ws
                 if tkn.kind() == WHITESPACE{
-                    Some(Whitespace::new(tkn))   
+                    Some(Whitespace::new(&tkn))   
                 } else {
                     None
                 }
