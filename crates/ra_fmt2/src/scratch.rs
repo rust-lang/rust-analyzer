@@ -21,14 +21,13 @@ fn show_me_the_progress() {
 
     let p = SourceFile::parse(&rs_file);
     let syn_tree = p.syntax_node();
-    // fix this, this call is not great do some other way
     let space = spacing();
     let ws_rules = PatternSet::new(space.rules.iter());
 
     println!();
 
     let fmt = EditTree::new(&syn_tree);
-    println!("{:#?}", fmt);
+    //println!("{:#?}", fmt);
     let x = fmt.to_string();
     println!("{:#?}", x);
 }
