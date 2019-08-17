@@ -102,6 +102,7 @@ impl Block {
     }
 
     /// Compare pointers to check if two Blocks are equal.
+    /// Remove??
     fn compare(&self, other: &Block) -> bool {
         self as *const _ == other as *const _
     }
@@ -109,6 +110,11 @@ impl Block {
     /// Returns an iterator of children from current element.
     fn children(&self) -> impl Iterator<Item=&Block> {
         self.children.iter()
+    }
+
+    /// Returns an iterator of children from current element.
+    pub(crate) fn to_element(&self) -> SyntaxElement {
+        self.element
     }
 
     /// Traverse all blocks in order, convenience for order_flatten_blocks.

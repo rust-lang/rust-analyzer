@@ -5,6 +5,7 @@
 
 mod dsl;
 mod edit_tree;
+mod fmt_diff;
 mod pattern;
 mod rules;
 mod scratch;
