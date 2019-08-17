@@ -10,11 +10,8 @@ use ra_syntax::{
     SyntaxKind::{self, *},
     SyntaxNode, SyntaxToken, TextRange, TextUnit, WalkEvent, T,
 };
-use rowan::{GreenNode, cursor};
 
 use std::collections::{HashMap, HashSet};
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
 
 // TODO make more like intellij's fmt model
 // Model holds immutable tree and mutable intermediate model to produce diff
@@ -84,11 +81,11 @@ impl Block {
             NodeOrToken::Node(node) => SmolStr::from(node.text().to_string()),
             NodeOrToken::Token(token) => token.text().clone(),
         };
-        let prev_whitespace = if let NodeOrToken::Token(token) = &element {
-            token.prev_token().and_then(|tkn| {
-                // does it make sense to create whitespace if token is not ws
-                if tkn.kind() == WHITESPACE{
-                    Some(Whitespace::new(tkn))   
+        let whitespace = if let NodeOrToken::Token(token) = &element {
+            token.prev_token().and_then(|prev_tkn| {
+                // does it make sense to create whitespace if token is not ws??
+                if prev_tkn.kind() == WHITESPACE{
+                    Some(Whitespace::new(prev_tkn))
                 } else {
                     None
                 }
