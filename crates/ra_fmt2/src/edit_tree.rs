@@ -8,11 +8,8 @@ use ra_syntax::{
     SyntaxKind::{self, *},
     SyntaxNode, SyntaxToken, TextRange, TextUnit, WalkEvent, T,
 };
-use rowan::{GreenNode, cursor};
 
 use std::collections::{HashMap, HashSet};
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
 
 // TODO make more like intellij's fmt model
 // Model holds immutable tree and mutable intermediate model to produce diff
@@ -24,7 +21,8 @@ use std::rc::Rc;
 // them accordingly to produce [1, 2, 3]; ???
 
 #[derive(Clone, Debug)]
-/// Whitespace holds all whitespace information for each Block
+/// Whitespace holds all whitespace information for each Block.
+/// Accessed from any Block's get_whitespace fn.
 pub(crate) struct Whitespace {
     original: SyntaxToken,
     indent_spaces: u32,
@@ -56,7 +54,7 @@ pub(crate) struct Block {
     children: Vec<Block>,
     text: SmolStr,
     range: TextRange,
-    prev_whitespace: Option<Whitespace>,
+    whitespace: Option<Whitespace>,
 }
 
 // each block will have knowledge of spacing and indent, 
@@ -81,11 +79,11 @@ impl Block {
             NodeOrToken::Node(node) => SmolStr::from(node.text().to_string()),
             NodeOrToken::Token(token) => token.text().clone()
         };
-        let prev_whitespace = if let NodeOrToken::Token(token) = &element {
-            token.prev_token().and_then(|tkn| {
-                // does it make sense to create whitespace if token is not ws
-                if tkn.kind() == WHITESPACE{
-                    Some(Whitespace::new(tkn))   
+        let whitespace = if let NodeOrToken::Token(token) = &element {
+            token.prev_token().and_then(|prev_tkn| {
+                // does it make sense to create whitespace if token is not ws??
+                if prev_tkn.kind() == WHITESPACE{
+                    Some(Whitespace::new(prev_tkn))
                 } else {
                     None
                 }
@@ -99,7 +97,7 @@ impl Block {
             text,
             children,
             range,
-            prev_whitespace,
+            whitespace,
         }
     }
 
@@ -134,7 +132,7 @@ impl Block {
     /// Returns `Whitespace` which has knowledge of whitespace around current token.
     pub(crate) fn get_spacing(&self, tkn: SyntaxToken) -> Option<&Whitespace> {
         // TODO walk tree find `tkn` then return matches whitespace
-        self.prev_whitespace.as_ref()
+        self.whitespace.as_ref()
     }
 
     /// Remove after dev
@@ -144,7 +142,10 @@ impl Block {
 }
 
 #[derive(Debug, Clone)]
-struct Traversal<'t> {
+/// Traversal struct is the Iterator for flattened
+/// ordered Block's, needed to fixes lifetime issue when
+/// returning impl Iterator<_> for Block and EditTree.
+pub(super) struct Traversal<'t> {
     blocks: Vec<&'t Block>,
     idx: usize,
 }
@@ -172,6 +173,10 @@ impl EditTree {
         let ele = NodeOrToken::Node(root.clone());
         let root = Block::build_block(ele);
         EditTree { root }
+    }
+
+    pub(crate) fn walk(&self) -> Traversal {
+        Traversal { blocks: self.root.order_flatten_blocks(), idx: 0, }
     }
 
     /// only for dev, we dont need to convert or diff in editTree

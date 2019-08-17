@@ -3,11 +3,11 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-mod scratch;
-mod edit_tree;
-mod rules;
 mod dsl;
-// mod engine;
+mod edit_tree;
 mod pattern;
+mod rules;
+mod scratch;
+// mod engine;
 // mod fmt_model;
 mod trav_util;
