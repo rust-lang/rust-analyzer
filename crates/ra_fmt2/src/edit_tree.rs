@@ -64,7 +64,7 @@ impl Block {
     /// Returns `Block` from either `SyntaxNode` or `SyntaxToken`.
     pub(crate) fn build_block(element: SyntaxElement) -> Block {
         // recursivly add to children
-        let first_child = match &element {
+        let children = match &element {
             NodeOrToken::Node(node) => {
                 node.children_with_tokens()
                 .filter(|ele| match ele{
