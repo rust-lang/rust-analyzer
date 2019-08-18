@@ -1,5 +1,5 @@
-use crate::dsl::{SpacingDsl, SpacingRule, SpaceLoc, SpaceValue};
-use crate::edit_tree::{EditTree, Block};
+use crate::dsl::{SpaceLoc, SpaceValue, SpacingDsl, SpacingRule};
+use crate::edit_tree::{Block, EditTree};
 use crate::pattern::{Pattern, PatternSet};
 use crate::rules::spacing;
 use crate::trav_util::{walk, walk_nodes, walk_tokens};
@@ -11,45 +11,55 @@ use ra_syntax::{
 };
 
 use std::cell::RefCell;
+use std::rc::Rc;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct DiffView {
-    // some diffing info not just a string
-    diffs: Vec<String>
+    // TODO more diffing info not just a string
+    diffs: Vec<SmolStr>,
+    original: SmolStr,
 }
 
-#[derive(Debug)]
-/// 
-pub(crate) struct FmtDiff<'d> {
+#[derive(Debug, Clone)]
+///
+pub(crate) struct FmtDiff {
     edit_tree: EditTree,
-    spacing: PatternSet<&'d SpacingRule>,
     diff: RefCell<DiffView>,
 }
 
-impl<'d> FmtDiff<'d> {
+impl FmtDiff {
     pub(crate) fn new(edit_tree: EditTree) -> Self {
-        let space_rules = spacing();
-        let spacing = PatternSet::new(space_rules.rules.iter());
+        let original = edit_tree.text();
+        let diff = RefCell::new(DiffView { diffs: vec![], original });
 
-        let diff = RefCell::new(DiffView { diffs: vec![], });
-
-        Self { edit_tree, spacing, diff, }
+        Self { edit_tree, diff }
     }
 
     fn check_spacing(&self, rule: &SpacingRule, block: &Block) {
-        
+        // refcell for here for mutating DiffView?
+        if let Some(whitespace) = block.get_spacing() {
+            println!("WHITESPACE {:#?}", whitespace);
+            // is this a terible idea
+            if whitespace != rule {
+                self.diff.borrow_mut().update(rule)
+            }
+        } else {
+            // total diff
+        }
     }
 
-    pub(crate) fn compare(&self) -> DiffView {
+    pub(crate) fn spacing_diff(&self) -> DiffView {
+        let space_rules = spacing();
+        let spacing = PatternSet::new(space_rules.rules.iter());
+
         for block in self.edit_tree.walk() {
-            for rule in self.spacing.matching(block.to_element()) {
+            for rule in spacing.matching(block.to_element()) {
+                println!("BLOCK {:#?}\nRULE {:?}", block, rule);
+
+                // creates DiffView
                 self.check_spacing(rule, block)
             }
-        };
-        self.diff.into_inner()
+        }
+        self.diff.clone().into_inner()
     }
-}
-
-impl SpacingRule {
-    fn check_spacing(&self) 
 }
