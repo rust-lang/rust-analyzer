@@ -12,16 +12,20 @@ pub(crate) fn spacing() -> SpacingDsl {
 
     space_dsl
         .test("let x = [1,2,3];", "let x = [1, 2, 3];")
-        .inside(ARRAY_EXPR).after(T![,]).single_space()
-
+        .inside(ARRAY_EXPR)
+        .after(T![,])
+        .single_space()
         .test("struct Test{x:usize}", "struct Test { x:usize }")
-        .inside(NAMED_FIELD_DEF_LIST).around(T!['{']).single_space()
-        .inside(NAMED_FIELD_DEF_LIST).before(T!['}']).single_space_or_optional_newline()
-
+        .inside(NAMED_FIELD_DEF_LIST)
+        .around(T!['{'])
+        .single_space()
+        .inside(NAMED_FIELD_DEF_LIST)
+        .before(T!['}'])
+        .single_space_or_optional_newline()
         .test("pub(crate)struct", "pub(crate) struct")
-        .inside(STRUCT_DEF).before(STRUCT_KW).single_space()
-        
-        ;
+        .inside(STRUCT_DEF)
+        .before(STRUCT_KW)
+        .single_space();
     // more rules to come
 
     space_dsl

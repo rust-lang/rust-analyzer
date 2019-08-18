@@ -1,7 +1,8 @@
-use crate::dsl::{SpacingDsl, SpacingRule, SpaceLoc, SpaceValue};
+use crate::dsl::{Space, SpaceLoc, SpaceValue, SpacingDsl, SpacingRule};
 use crate::pattern::{Pattern, PatternSet};
 use crate::rules::spacing;
 use crate::trav_util::{walk, walk_nodes, walk_tokens};
+use crate::whitespace::{Spaces, Whitespace};
 
 use ra_syntax::{
     NodeOrToken, SmolStr, SyntaxElement,
@@ -21,33 +22,8 @@ use std::collections::{HashMap, HashSet};
 // them accordingly to produce [1, 2, 3]; ???
 
 #[derive(Clone, Debug)]
-/// Whitespace holds all whitespace information for each Block.
-/// Accessed from any Block's get_whitespace fn.
-pub(crate) struct Whitespace {
-    original: SyntaxToken,
-    indent_spaces: u32,
-    additional_spaces: u32,
-}
-
-impl Whitespace {
-    fn new(token: SyntaxToken) -> Whitespace {
-        let additional_spaces = if token.kind() == WHITESPACE {
-            let len = token.text_range();
-            (len.end() - len.start()).into()
-        } else {
-            0
-        };
-        Self {
-            original: token,
-            indent_spaces: 0,
-            additional_spaces,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
 /// Holds nodes and tokens as a tree with whitespace information
-/// 
+///
 pub(crate) struct Block {
     //indent: some enum?
     element: SyntaxElement,
@@ -57,48 +33,55 @@ pub(crate) struct Block {
     whitespace: Option<Whitespace>,
 }
 
-// each block will have knowledge of spacing and indent, 
+// each block will have knowledge of spacing and indent,
 impl Block {
     pub(crate) fn build_block(element: SyntaxElement) -> Block {
         // recursivly add to children
         let children = match &element {
             NodeOrToken::Node(node) => {
-                node.children_with_tokens()
-                    .map(Self::build_block)
-                    .collect::<Vec<_>>()
-            },
-            NodeOrToken::Token(_) => {
-                vec![]
+                node.children_with_tokens().map(Self::build_block).collect::<Vec<_>>()
             }
+            NodeOrToken::Token(_) => vec![],
         };
         let range = match &element {
             NodeOrToken::Node(node) => node.text_range(),
-            NodeOrToken::Token(token) => token.text_range()
+            NodeOrToken::Token(token) => token.text_range(),
         };
         let text = match &element {
             NodeOrToken::Node(node) => SmolStr::from(node.text().to_string()),
-            NodeOrToken::Token(token) => token.text().clone()
+            NodeOrToken::Token(token) => token.text().clone(),
         };
-        let whitespace = if let NodeOrToken::Token(token) = &element {
-            token.prev_token().and_then(|prev_tkn| {
-                // does it make sense to create whitespace if token is not ws??
-                if prev_tkn.kind() == WHITESPACE{
-                    Some(Whitespace::new(prev_tkn))
-                } else {
-                    None
+        let whitespace = if let NodeOrToken::Token(tkn) = &element {
+            match &(tkn.prev_token(), tkn.next_token()) {
+                (Some(prev), Some(next)) => {
+                    // TODO make sure WHITESPACE includes \n
+                    if prev.kind() == WHITESPACE || next.kind() == WHITESPACE {
+                        Some(Whitespace::new((Some(prev.clone()), Some(next.clone()))))
+                    } else {
+                        None
+                    }
                 }
-            })
+                (Some(prev), None) => {
+                    if prev.kind() == WHITESPACE {
+                        Some(Whitespace::new((Some(prev.clone()), None)))
+                    } else {
+                        None
+                    }
+                }
+                (None, Some(next)) => {
+                    if next.kind() == WHITESPACE {
+                        Some(Whitespace::new((None, Some(next.clone()))))
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            }
         } else {
             None
         };
 
-        Self {
-            element,
-            text,
-            children,
-            range,
-            whitespace,
-        }
+        Self { element, text, children, range, whitespace }
     }
 
     /// Compare pointers to check if two Blocks are equal.
@@ -108,18 +91,18 @@ impl Block {
     }
 
     /// Returns an iterator of children from current element.
-    fn children(&self) -> impl Iterator<Item=&Block> {
+    fn children(&self) -> impl Iterator<Item = &Block> {
         self.children.iter()
     }
 
     /// Returns an iterator of children from current element.
     pub(crate) fn to_element(&self) -> SyntaxElement {
-        self.element
+        self.element.clone()
     }
 
     /// Traverse all blocks in order, convenience for order_flatten_blocks.
-    pub(crate) fn traverse(&self) -> impl Iterator<Item=&Block> {
-        Traversal { blocks: self.order_flatten_blocks(), idx: 0, }
+    pub(crate) fn traverse(&self) -> impl Iterator<Item = &Block> {
+        Traversal { blocks: self.order_flatten_blocks(), idx: 0 }
     }
 
     /// Vec of all Blocks in order, parent then children.
@@ -131,13 +114,12 @@ impl Block {
                 let mut kids = Block::order_flatten_blocks(blk);
                 blocks.append(&mut kids);
             }
-        };
+        }
         blocks
     }
 
     /// Returns `Whitespace` which has knowledge of whitespace around current token.
-    pub(crate) fn get_spacing(&self, tkn: SyntaxToken) -> Option<&Whitespace> {
-        // TODO walk tree find `tkn` then return matches whitespace
+    pub(crate) fn get_spacing(&self) -> Option<&Whitespace> {
         self.whitespace.as_ref()
     }
 
@@ -182,7 +164,12 @@ impl EditTree {
     }
 
     pub(crate) fn walk(&self) -> Traversal {
-        Traversal { blocks: self.root.order_flatten_blocks(), idx: 0, }
+        Traversal { blocks: self.root.order_flatten_blocks(), idx: 0 }
+    }
+
+    /// Returns the SmolStr of the root node, the whole text
+    pub(crate) fn text(&self) -> SmolStr {
+        self.root.text.clone()
     }
 
     /// only for dev, we dont need to convert or diff in editTree
