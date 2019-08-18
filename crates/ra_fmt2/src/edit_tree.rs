@@ -81,15 +81,32 @@ impl Block {
             NodeOrToken::Node(node) => SmolStr::from(node.text().to_string()),
             NodeOrToken::Token(token) => token.text().clone(),
         };
-        let whitespace = if let NodeOrToken::Token(token) = &element {
-            token.prev_token().and_then(|prev_tkn| {
-                // does it make sense to create whitespace if token is not ws??
-                if prev_tkn.kind() == WHITESPACE{
-                    Some(Whitespace::new(prev_tkn))
-                } else {
-                    None
+        let whitespace = if let NodeOrToken::Token(tkn) = &element {
+            match &(tkn.prev_token(), tkn.next_token()) {
+                (Some(prev), Some(next)) => {
+                    // TODO make sure WHITESPACE includes \n
+                    if prev.kind() == WHITESPACE || next.kind() == WHITESPACE {
+                        Some(Whitespace::new((Some(prev.clone()), Some(next.clone()))))
+                    } else {
+                        None
+                    }
                 }
-            })
+                (Some(prev), None) => {
+                    if prev.kind() == WHITESPACE {
+                        Some(Whitespace::new((Some(prev.clone()), None)))
+                    } else {
+                        None
+                    }
+                }
+                (None, Some(next)) => {
+                    if next.kind() == WHITESPACE {
+                        Some(Whitespace::new((None, Some(next.clone()))))
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            }
         } else {
             None
         };

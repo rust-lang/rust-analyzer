@@ -2,6 +2,7 @@ use crate::edit_tree::EditTree;
 use crate::engine::FmtDiff;
 use crate::pattern::PatternSet;
 use crate::fmt_diff::FmtDiff;
+use crate::pattern::PatternSet;
 /// experiment purposes
 ///
 // use crate::engine;
