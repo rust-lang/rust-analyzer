@@ -28,6 +28,9 @@ fn show_me_the_progress() {
     println!();
 
     let fmt = EditTree::new(syn_tree);
+    // println!("{:#?}", fmt);
     let diff = FmtDiff::new(fmt);
-    diff.spacing_diff();
+    // println!("{:#?}", diff);
+    let d = diff.spacing_diff();
+    println!("{:?}", d)
 }

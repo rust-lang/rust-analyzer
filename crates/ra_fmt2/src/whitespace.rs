@@ -48,8 +48,12 @@ impl Whitespace {
     pub(crate) fn new(pair: (Option<SyntaxToken>, Option<SyntaxToken>)) -> Whitespace {
         let (surrounding, new_line) = match &pair {
             (Some(prev), Some(next)) => {
-                let prev_space = calc_num_space(&prev);
-                let next_space = calc_num_space(&next);
+                let prev_space = if prev.kind() == WHITESPACE {
+                    calc_num_space(&prev)
+                } else {0};
+                let next_space = if next.kind() == WHITESPACE {
+                    calc_num_space(&next)
+                } else {0};
 
                 // maybe deal with in build block like whitespace check??
                 let new_line =
@@ -58,7 +62,9 @@ impl Whitespace {
                 ((prev_space, next_space), new_line)
             }
             (Some(prev), None) => {
-                let prev_space = calc_num_space(&prev);
+                let prev_space = if prev.kind() == WHITESPACE {
+                    calc_num_space(&prev)
+                } else {0};
 
                 // maybe deal with in build block like whitespace check??
                 let new_line = (prev.text().as_str().contains('\n'), false);
@@ -66,7 +72,9 @@ impl Whitespace {
                 ((prev_space, 0), new_line)
             }
             (None, Some(next)) => {
-                let next_space = calc_num_space(&next);
+                let next_space = if next.kind() == WHITESPACE {
+                    calc_num_space(&next)
+                } else {0};
 
                 // maybe deal with in build block like whitespace check??
                 let new_line = (false, next.text().as_str().contains('\n'));
@@ -99,25 +107,40 @@ impl Whitespace {
 
     pub(crate) fn match_space_before(&self, value: &SpaceValue) -> bool {
         match value {
-            SpaceValue::Single => self.surrounding.1 > 0,()
-            SpaceValue::SingleOrNewline => self.surrounding.1 > 0 || self.new_line.1,
-            SpaceValue::SingleOptionalNewline => self.surrounding.1 > 0 || self.new_line.1,
-            SpaceValue::Newline => self.new_line.1,
-            SpaceValue::NoneOrNewline => self.surrounding.1 == 0 || self.new_line.1,
-            SpaceValue::NoneOptionalNewline => self.surrounding.1 > 0 && self.new_line.1,
-            SpaceValue::None => self.surrounding.1 == 0 || !self.new_line.1,
+            SpaceValue::Single => self.surrounding.0 > 0,
+            SpaceValue::SingleOrNewline => self.surrounding.0 > 0 || self.new_line.0,
+            SpaceValue::SingleOptionalNewline => self.surrounding.0 > 0 || self.new_line.0,
+            SpaceValue::Newline => self.new_line.0,
+            SpaceValue::NoneOrNewline => self.surrounding.0 == 0 || self.new_line.0,
+            SpaceValue::NoneOptionalNewline => self.surrounding.0 > 0 && self.new_line.0,
+            SpaceValue::None => self.surrounding.0 == 0 || !self.new_line.0,
         }
     }
 
     pub(crate) fn match_space_around(&self, value: &SpaceValue) -> bool {
         match value {
-            SpaceValue::Single => self.surrounding.1 > 0,()
-            SpaceValue::SingleOrNewline => self.surrounding.1 > 0 || self.new_line.1,
-            SpaceValue::SingleOptionalNewline => self.surrounding.1 > 0 || self.new_line.1,
-            SpaceValue::Newline => self.new_line.1,
-            SpaceValue::NoneOrNewline => self.surrounding.1 == 0 || self.new_line.1,
-            SpaceValue::NoneOptionalNewline => self.surrounding.1 > 0 && self.new_line.1,
-            SpaceValue::None => self.surrounding.1 == 0 || !self.new_line.1,
+            SpaceValue::Single => self.surrounding.0 > 0 && self.surrounding.1 > 0,
+            SpaceValue::SingleOrNewline => {
+                (self.surrounding.0 > 0 && self.surrounding.1 > 0)
+                || (self.new_line.0 && self.new_line.1)
+            },
+            SpaceValue::SingleOptionalNewline => {
+                (self.surrounding.0 > 0 && self.surrounding.1 > 0)
+                || (self.new_line.0 && self.new_line.1)
+            },
+            SpaceValue::Newline => self.new_line.0 && self.new_line.1,
+            SpaceValue::NoneOrNewline => {
+                (self.surrounding.0 == 0 && self.surrounding.1 == 0)
+                || (self.new_line.0 && self.new_line.1)
+            },
+            SpaceValue::NoneOptionalNewline => {
+                (self.surrounding.0 > 0 && self.surrounding.1 > 0)
+                && (self.new_line.0 && self.new_line.1)
+            },
+            SpaceValue::None => {
+                (self.surrounding.0 == 0 && self.surrounding.1 == 0)
+                && (!self.new_line.0 && !self.new_line.1)
+            },
         }
     }
 }
