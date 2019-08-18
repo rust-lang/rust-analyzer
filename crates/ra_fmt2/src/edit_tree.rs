@@ -82,28 +82,17 @@ impl Block {
             NodeOrToken::Token(token) => token.text().clone(),
         };
         let whitespace = if let NodeOrToken::Token(tkn) = &element {
+            // whitespace::new checks if token is actually WHITESPACE
             match &(tkn.prev_token(), tkn.next_token()) {
                 (Some(prev), Some(next)) => {
                     // TODO make sure WHITESPACE includes \n
-                    if prev.kind() == WHITESPACE || next.kind() == WHITESPACE {
-                        Some(Whitespace::new((Some(prev.clone()), Some(next.clone()))))
-                    } else {
-                        None
-                    }
+                    Some(Whitespace::new((Some(prev.clone()), Some(next.clone()))))
                 }
                 (Some(prev), None) => {
-                    if prev.kind() == WHITESPACE {
-                        Some(Whitespace::new((Some(prev.clone()), None)))
-                    } else {
-                        None
-                    }
+                    Some(Whitespace::new((Some(prev.clone()), None)))
                 }
                 (None, Some(next)) => {
-                    if next.kind() == WHITESPACE {
-                        Some(Whitespace::new((None, Some(next.clone()))))
-                    } else {
-                        None
-                    }
+                    Some(Whitespace::new((None, Some(next.clone()))))
                 }
                 _ => None,
             }
