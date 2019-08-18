@@ -52,28 +52,17 @@ impl Block {
             NodeOrToken::Token(token) => token.text().clone(),
         };
         let whitespace = if let NodeOrToken::Token(tkn) = &element {
+            // whitespace::new checks if token is actually WHITESPACE
             match &(tkn.prev_token(), tkn.next_token()) {
                 (Some(prev), Some(next)) => {
                     // TODO make sure WHITESPACE includes \n
-                    if prev.kind() == WHITESPACE || next.kind() == WHITESPACE {
-                        Some(Whitespace::new((Some(prev.clone()), Some(next.clone()))))
-                    } else {
-                        None
-                    }
+                    Some(Whitespace::new((Some(prev.clone()), Some(next.clone()))))
                 }
                 (Some(prev), None) => {
-                    if prev.kind() == WHITESPACE {
-                        Some(Whitespace::new((Some(prev.clone()), None)))
-                    } else {
-                        None
-                    }
+                    Some(Whitespace::new((Some(prev.clone()), None)))
                 }
                 (None, Some(next)) => {
-                    if next.kind() == WHITESPACE {
-                        Some(Whitespace::new((None, Some(next.clone()))))
-                    } else {
-                        None
-                    }
+                    Some(Whitespace::new((None, Some(next.clone()))))
                 }
                 _ => None,
             }
@@ -91,6 +80,11 @@ impl Block {
     }
 
     /// Returns an iterator of children from current element.
+    pub(crate) fn text_range(&self) -> TextRange {
+        self.range
+    }
+
+    /// Returns an iterator of children from current element.
     fn children(&self) -> impl Iterator<Item = &Block> {
         self.children.iter()
     }
@@ -98,6 +92,25 @@ impl Block {
     /// Returns an iterator of children from current element.
     pub(crate) fn to_element(&self) -> SyntaxElement {
         self.element.clone()
+    }
+
+    pub(crate) fn siblings_contain(&self, pat: &str) -> bool {
+        if let Some(tkn) = self.element.clone().into_token() {
+            walk_tokens(&tkn.parent())
+                // TODO there is probably a better way to do this
+                .scan(tkn, |s, t| {
+                    let ret = t.text().as_str() == pat;// && token's siblings have `pat` 
+                    //                                 struct Foo {x:String("\n" or " "here)}
+                    //                                 depending on the prior nodes tokens??
+                    *s = t;
+                    Some(ret)
+                })
+                .any(|t| {
+                    t
+                })
+        } else {
+            false
+        }
     }
 
     /// Traverse all blocks in order, convenience for order_flatten_blocks.
