@@ -1,6 +1,6 @@
 use crate::edit_tree::EditTree;
-use crate::pattern::PatternSet;
 use crate::fmt_diff::FmtDiff;
+use crate::pattern::PatternSet;
 /// experiment purposes
 ///
 // use crate::engine;
@@ -28,7 +28,6 @@ fn show_me_the_progress() {
     println!();
 
     let fmt = EditTree::new(syn_tree);
-    //println!("{:#?}", fmt);
-    let x = fmt.to_string();
-    println!("{:#?}", x);
+    let diff = FmtDiff::new(fmt);
+    diff.spacing_diff();
 }

@@ -35,9 +35,15 @@ impl Pattern {
     pub(crate) fn with_parent(self, parent: Pattern) -> Pattern {
         let Pattern { kinds, pred } = self;
         Pattern::new(kinds, move |element| {
-            (pred)(element) && element.parent()
-                .map(|it| {println!("{:?}", it); it})
-                .map(|it| parent.matches(&it.into())) == Some(true)
+            (pred)(element)
+                && element
+                    .parent()
+                    .map(|it| {
+                        println!("{:?}", it);
+                        it
+                    })
+                    .map(|it| parent.matches(&it.into()))
+                    == Some(true)
         })
     }
 
