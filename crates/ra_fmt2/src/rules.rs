@@ -17,6 +17,7 @@ pub(crate) fn spacing() -> SpacingDsl {
         .test("struct Test{x:usize    }", "struct Test { x: usize }")
         .inside(NAMED_FIELD_DEF_LIST).before(T!['{']).single_space()
         .inside(NAMED_FIELD_DEF_LIST).after(T!['{']).single_space_or_optional_newline()
+        .inside(NAMED_FIELD_DEF_LIST).after(T![:]).single_space()
         .inside(NAMED_FIELD_DEF_LIST).before(T!['}']).single_space_or_optional_newline()
         .inside(NAMED_FIELD_DEF_LIST).after(T!['}']).single_space_or_optional_newline()
         .inside(NAMED_FIELD_DEF).after(T![:]).single_space()
@@ -101,10 +102,33 @@ mod tests {
         after: String,
     }
 
-//     impl TestCase {
-//         fn from_before_after(before: String, after: String) -> TestCase {
-//             TestCase { name: None, before, after }
-//         }
+        fn run(&self) -> Result<(), String> {
+            let name = self.name.as_ref().map(|it| it.as_str()).unwrap_or("");
+            let expected = &self.after;
+            let actual = &format_str(&self.before).unwrap().to_string();
+            if expected != actual {
+                return Err(format!(
+                    "\n\nAssertion failed: wrong formatting\
+                     \nTest: {}\n\
+                     \nBefore:\n{:?}\n\
+                     \nAfter:\n{:?}\n\
+                     \nExpected:\n{:?}\n",
+                    name, self.before, actual, self.after,
+                ));
+            }
+            let second_round = &format_str(actual).unwrap().to_string();
+            if actual != second_round {
+                return Err(format!(
+                    "\n\nAssertion failed: formatting is not idempotent\
+                     \nTest: {}\n\
+                     \nBefore:\n{}\n\
+                     \nAfter:\n{}\n",
+                    name, actual, second_round,
+                ));
+            }
+            Ok(())
+        }
+    }
 
         fn run(&self) -> Result<(), String> {
             let name = self.name.as_ref().map(|it| it.as_str()).unwrap_or("");

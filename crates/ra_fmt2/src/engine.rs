@@ -52,6 +52,8 @@ impl FmtDiff {
                 // creates DiffView
                 self.check_spacing(rule, block)
             }
+        } else {
+            self.diff.borrow_mut().collect_edits(block, rule);
         }
         // take care of EOF new line this is HACKY
         let rule = SpacingRule {
