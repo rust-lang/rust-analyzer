@@ -84,23 +84,12 @@ impl Block {
 
         let whitespace = if let NodeOrToken::Token(tkn) = &element {
             // whitespace::new checks if token is actually WHITESPACE
-            match &(tkn.prev_token(), tkn.next_token()) {
-                (Some(prev), Some(next)) => {
-                    Some(Whitespace::new((Some(prev.clone()), Some(next.clone()))))
-                }
-                (Some(prev), None) => {
-                    Some(Whitespace::new((Some(prev.clone()), None)))
-                }
-                (None, Some(next)) => {
-                    Some(Whitespace::new((None, Some(next.clone()))))
-                }
-                _ => None,
-            }
+            Some(Whitespace::new(tkn))
         } else if let Some(root) = element.as_node() {
             if root.kind() == SOURCE_FILE {
                 if let Some(eof) = root.last_token() {
-                    // no prev token last token can be must be "\n" 
-                    Some(Whitespace::new((None, Some(eof.clone()))))
+                    // no prev token last token can be must be "\n"
+                    Whitespace::from_eof(eof)
                 } else {
                     None
                 }

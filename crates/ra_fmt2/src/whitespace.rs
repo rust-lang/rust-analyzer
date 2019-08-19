@@ -12,6 +12,23 @@ use ra_syntax::{
 
 use std::collections::{HashMap, HashSet};
 
+pub trait WhitespaceAbstract {
+    /// Walks siblings to search for pat.
+    fn siblings_contain(&self, pat: &str) -> bool;
+    /// Checks if previous token is whitespace kind.
+    fn prev_is_whitespace(&self) -> bool;
+    /// Text range of current token.
+    fn text_range(&self) -> TextRange;
+    /// Previous token's length.
+    fn prev_tkn_len(&self) -> usize;
+    /// Current token's length.
+    fn text_len(&self) -> usize;
+    /// Current token's start position.
+    fn text_start(&self) -> usize;
+    /// Current token's end position.
+    fn text_end(&self) -> usize;
+}
+
 #[derive(Clone, Debug)]
 /// Whitespace holds all whitespace information for each Block.
 /// Accessed from any Block's get_whitespace fn.
@@ -23,6 +40,38 @@ pub(crate) struct Whitespace {
     pub(crate) new_line: (bool, bool),
     // Start and end location of token.
     pub(crate) locations: (u32, u32),
+}
+
+impl WhitespaceAbstract for Whitespace {
+    fn siblings_contain(&self, pat: &str) -> bool {
+        self.siblings_contain(pat)
+    }
+    fn prev_is_whitespace(&self) -> bool {
+        if let Some(prev) = &self.surounding_pair.0 {
+            prev.kind() == WHITESPACE
+        } else {
+            false
+        }
+    }
+    fn text_range(&self) -> TextRange {
+        self.original.text_range()
+    }
+    fn text_len(&self) -> usize {
+        self.text_range().len().to_usize()
+    }
+    fn prev_tkn_len(&self) -> usize {
+        if let Some(prev) = &self.surounding_pair.0 {
+            prev.text_range().len().to_usize()
+        } else {
+            0
+        }
+    }
+    fn text_start(&self) -> usize {
+        self.text_range().start().to_usize()
+    }
+    fn text_end(&self) -> usize {
+        self.text_range().end().to_usize()
+    }
 }
 
 impl Whitespace {
@@ -198,6 +247,22 @@ impl Whitespace {
         } else {
             false
         }
+        // Whitespace {
+        //     surounding_pair: (None, Some(eof)),
+        //     original: eof.clone(),
+        //     indent_spaces: 0,
+        //     new_line: (false, false),
+        //     // additional_spaces,
+        //     locations: (0, 0),
+        // }
+    }
+
+    pub(crate) fn siblings_contain(&self, pat: &str) -> bool {
+        walk_tokens(&self.original.parent())
+            // TODO there is probably a better/more accurate way to do this
+            .any(|tkn| {
+                tkn.text().as_str() == pat
+            })
     }
 
     // TODO check if NewLine needs to check for space
