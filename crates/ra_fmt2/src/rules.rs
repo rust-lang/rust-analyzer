@@ -1,4 +1,4 @@
-use crate::dsl::{self, SpacingDsl};
+use crate::dsl::{self, SpacingDsl, IndentDsl, IndentValue};
 use itertools::Itertools;
 use ra_syntax::{
     ast::{self, AstNode, AstToken},
@@ -14,22 +14,43 @@ pub(crate) fn spacing() -> SpacingDsl {
         .test("fn main() { let x = [1,2,3]; }", "fn main() { let x = [1, 2, 3]; }")
         .inside(ARRAY_EXPR).after(T![,]).single_space()
 
-        .test("struct Test{x:usize}", "struct Test { x: usize }")
+        .test("struct Test{x:usize    }", "struct Test { x: usize }")
         .inside(NAMED_FIELD_DEF_LIST).before(T!['{']).single_space()
         .inside(NAMED_FIELD_DEF_LIST).after(T!['{']).single_space_or_optional_newline()
-        .inside(NAMED_FIELD_DEF_LIST).after(T![:]).single_space()
+        .inside(NAMED_FIELD_DEF).after(T![:]).single_space()
         .inside(NAMED_FIELD_DEF_LIST).before(T!['}']).single_space_or_optional_newline()
 
         .test("pub(crate)struct Test { x: u8 }", "pub(crate) struct Test { x: u8 }")
-        .inside(VISIBILITY).after(T![')']).single_space();
+        .inside(VISIBILITY).after(T![')']).single_space()
 
-        // .rule(dsl::SpacingRule {
-        //     pattern: SOURCE_FILE.into(),
-        //     space: dsl::Space { loc: dsl::SpaceLoc::After, value: dsl::SpaceValue::Newline }
-        // });
+        .rule(dsl::SpacingRule {
+            pattern: SOURCE_FILE.into(),
+            space: dsl::Space { loc: dsl::SpaceLoc::After, value: dsl::SpaceValue::Newline }
+        });
     // more rules to come
 
     space_dsl
+}
+
+pub(crate) fn indentation() -> IndentDsl {
+    let mut indent_dsl = IndentDsl::default();
+
+    indent_dsl
+        .anchor(NAMED_FIELD_DEF_LIST)
+        .rule("Indent struct fields")
+            .not_matching([T!['{'], T!['}']])
+            .set(IndentValue::Indent)
+            .test(r#"
+                struct Test {
+                x: String,
+                }"#, r#"
+                struct Test {
+                    x: String,
+                }"#);
+
+    // more rules to come
+
+    indent_dsl
 }
 
 #[cfg(test)]
@@ -101,8 +122,8 @@ mod tests {
                 return Err(format!(
                     "\n\nAssertion failed: formatting is not idempotent\
                      \nTest: {}\n\
-                     \nBefore:\n{}\n\
-                     \nAfter:\n{}\n",
+                     \nBefore:\n{:?}\n\
+                     \nAfter:\n{:?}\n",
                     name, actual, second_round,
                 ));
             }

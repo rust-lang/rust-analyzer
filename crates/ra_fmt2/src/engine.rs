@@ -33,17 +33,16 @@ impl FmtDiff {
     /// 
     /// # Arguments
     ///
-    /// * `block` - A &Block that is always a token.
-    /// * `rule` - A &SpaceRule.
+    /// * `block` - A `Block` that is always a token.
+    /// * `rule` - A `SpaceRule`.
     fn check_spacing(&self, rule: &SpacingRule, block: &Block) {
-        // refcell for here for mutating DiffView?
         if let Some(whitespace) = block.get_spacing() {
             // is this a terible idea impl-ing eq??
             if whitespace != rule {
-                self.diff.borrow_mut().collect_edits(block, rule);
+                self.diff.borrow_mut().collect_space_edits(block, rule);
             }
         } else {
-            self.diff.borrow_mut().collect_edits(block, rule);
+            self.diff.borrow_mut().collect_space_edits(block, rule);
         }
     }
 
@@ -53,7 +52,6 @@ impl FmtDiff {
         for block in self.edit_tree.walk() {
             for rule in spacing.matching(block.to_element()) {
                 // creates DiffView
-                println!("{:?}", rule);
                 self.check_spacing(rule, block)
             }
         }
@@ -68,7 +66,7 @@ pub(crate) fn format_pass(space_dsl: &SpacingDsl, root: &SyntaxNode) -> DiffView
 
     let mut diff = FmtDiff::new(fmt).spacing_diff(space_dsl);
 
-    println!("original: {}\nformatted: {:?}", orig, diff.apply().unwrap());
+    println!("original: {:?}\nformatted: {:?}", orig, diff.apply().unwrap());
 
     diff
 }
