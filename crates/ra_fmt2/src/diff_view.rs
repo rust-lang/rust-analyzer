@@ -3,7 +3,7 @@ use crate::edit_tree::{Block, EditTree};
 use crate::pattern::{Pattern, PatternSet};
 use crate::rules::spacing;
 use crate::trav_util::{walk, walk_nodes, walk_tokens};
-use crate::whitespace::Whitespace;
+use crate::whitespace::{Whitespace, WhitespaceAbstract};
 
 use ra_syntax::{
     NodeOrToken, SmolStr, SyntaxElement,
@@ -15,7 +15,9 @@ use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum SpaceEdit {
+    /// Replace holds position of token, text to insert and lenghth of replaced text.
     Replace((usize, SmolStr), usize),
+    /// Insert holds position of token, text to insert.
     Insert((usize, SmolStr)),
 }
 
@@ -26,23 +28,29 @@ enum Edit {
 }
 
 impl Edit {
-    fn from_block(blk: &Block, text: &str, space: SpaceLoc) -> Self {
+    fn from_block(ws_abs: &dyn WhitespaceAbstract, text: &str, space: SpaceLoc) -> Self {
         match space {
             SpaceLoc::After => {
-                let edit = (blk.text_range().end().to_usize(), SmolStr::from(text));
-                let is_ws = blk.kind() == WHITESPACE;
-                let len = blk.text_range().len().to_usize();
-                if len > 1 && is_ws {
+                // len of offending token
+                let len = ws_abs.text_len();
+
+                let edit = (ws_abs.text_end(), SmolStr::from(text));
+                
+                println!("len {} {:?}", len, ws_abs.text_range());
+                if len > 1 && ws_abs.prev_is_whitespace() {
                     Edit::Space(SpaceEdit::Replace(edit, len))
                 } else {
                     Edit::Space(SpaceEdit::Insert(edit))
                 }
             },
             SpaceLoc::Before => {
-                let edit = (blk.text_range().start().to_usize(), SmolStr::from(text));
-                let is_ws = blk.kind() == WHITESPACE;
-                let len = blk.text_range().len().to_usize();
-                if len > 1 && is_ws {
+                // len of offending token
+                let len = ws_abs.prev_tkn_len();
+
+                let edit = (ws_abs.text_start(), SmolStr::from(text));
+                
+                println!("len {} {:?}", len, ws_abs.text_range());
+                if len > 1 && ws_abs.prev_is_whitespace() {
                     Edit::Space(SpaceEdit::Replace(edit, len))
                 } else {
                     Edit::Space(SpaceEdit::Insert(edit))
@@ -69,32 +77,32 @@ impl DiffView {
         Self { edits: BTreeSet::default(), original, }
     }
 
-    pub(crate) fn collect_space_edits(&mut self, block: &Block, rule: &SpacingRule) {
+    pub(crate) fn collect_space_edits(&mut self, ws_abs: &dyn WhitespaceAbstract, rule: &SpacingRule) {
         match rule.space.loc {
-            SpaceLoc::After => self.collect_space_after(block, rule.space),
-            SpaceLoc::Before => self.collect_space_before(block, rule.space),
-            SpaceLoc::Around => self.collect_space_around(block, rule.space),
+            SpaceLoc::After => self.collect_space_after(ws_abs, rule.space),
+            SpaceLoc::Before => self.collect_space_before(ws_abs, rule.space),
+            SpaceLoc::Around => self.collect_space_around(ws_abs, rule.space),
         }
     }
 
-    fn collect_space_after(&mut self, block: &Block, space: Space) {
+    fn collect_space_after(&mut self, ws_abs: &dyn WhitespaceAbstract, space: Space) {
         match space.value {
             SpaceValue::Single => {
-                let edit = Edit::from_block(block, " ", space.loc);
+                let edit = Edit::from_block(ws_abs, " ", space.loc);
                 self.edits.insert(edit);
             },
             SpaceValue::Newline => {
-                let edit = Edit::from_block(block, "\n", space.loc);
+                let edit = Edit::from_block(ws_abs, "\n", space.loc);
                 self.edits.insert(edit);
 ;            },
             SpaceValue::SingleOptionalNewline => {
-                if !block.siblings_contain("\n") {
+                if !ws_abs.siblings_contain("\n") {
                     println!("SIBLINGS CONTAIN FALSE");
-                    let edit = Edit::from_block(block, " ", space.loc);
+                    let edit = Edit::from_block(ws_abs, " ", space.loc);
                     self.edits.insert(edit);
-;                } else {
+                } else {
                     println!("SIBLINGS CONTAIN TRUE");
-                    let edit = Edit::from_block(block, "\n", space.loc);
+                    let edit = Edit::from_block(ws_abs, "\n", space.loc);
                     self.edits.insert(edit);
                 }
             },
@@ -102,24 +110,24 @@ impl DiffView {
         }
     }
 
-    fn collect_space_before(&mut self, block: &Block, space: Space) {
+    fn collect_space_before(&mut self, ws_abs: &dyn WhitespaceAbstract, space: Space) {
         match space.value {
             SpaceValue::Single => {
-                let edit = Edit::from_block(block, " ", space.loc);
+                let edit = Edit::from_block(ws_abs, " ", space.loc);
                 self.edits.insert(edit);
 ;            },
             SpaceValue::Newline => {
-                let edit = Edit::from_block(block, "\n", space.loc);
+                let edit = Edit::from_block(ws_abs, "\n", space.loc);
                 self.edits.insert(edit);
             },
             SpaceValue::SingleOptionalNewline => {
-                if !block.siblings_contain("\n") {
+                if !ws_abs.siblings_contain("\n") {
                     println!("SIBLINGS CONTAIN FALSE");
-                    let edit = Edit::from_block(block, " ", space.loc);
+                    let edit = Edit::from_block(ws_abs, " ", space.loc);
                     self.edits.insert(edit);
-;                } else {
+                } else {
                     println!("SIBLINGS CONTAIN TRUE");
-                    let edit = Edit::from_block(block, "\n", space.loc);
+                    let edit = Edit::from_block(ws_abs, "\n", space.loc);
                     self.edits.insert(edit);
                 }
             },
@@ -127,19 +135,19 @@ impl DiffView {
         }
     }
 
-    fn collect_space_around(&mut self, block: &Block, space: Space) {
+    fn collect_space_around(&mut self, ws_abs: &dyn WhitespaceAbstract, space: Space) {
         match space.value {
             SpaceValue::Single => {
                 let pair = vec![
-                    Edit::from_block(block, " ", SpaceLoc::Before),
-                    Edit::from_block(block, " ", SpaceLoc::After),
+                    Edit::from_block(ws_abs, " ", SpaceLoc::Before),
+                    Edit::from_block(ws_abs, " ", SpaceLoc::After),
                 ];
                 self.edits.extend(pair)
             },
             SpaceValue::Newline => {
                 let pair = vec![
-                    Edit::from_block(block, "\n", SpaceLoc::Before),
-                    Edit::from_block(block, "\n", SpaceLoc::After),
+                    Edit::from_block(ws_abs, "\n", SpaceLoc::Before),
+                    Edit::from_block(ws_abs, "\n", SpaceLoc::After),
                 ];
                 self.edits.extend(pair)
             },
@@ -163,11 +171,11 @@ impl DiffView {
                             fmt.splice(pos..pos, text.as_bytes().iter().cloned());
                             space_added += text.len();
                         },
-                        SpaceEdit::Replace((mut pos, text), len) => {
+                        SpaceEdit::Replace((mut pos, text), orig_tkn_len) => {
                             println!("REPLACE pos: {} text: {:?}", pos, text);
                             pos += space_added;
-                            fmt.splice(pos..pos+len, text.as_bytes().iter().cloned());
-                            space_added -= (len - text.len());
+                            fmt.splice(pos..pos+orig_tkn_len, text.as_bytes().iter().cloned());
+                            space_added -= orig_tkn_len - text.len();
                         },
                     }
                     

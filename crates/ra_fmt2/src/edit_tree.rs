@@ -2,7 +2,7 @@ use crate::dsl::{Space, SpaceLoc, SpaceValue, SpacingDsl, SpacingRule};
 use crate::pattern::{Pattern, PatternSet};
 use crate::rules::spacing;
 use crate::trav_util::{walk, walk_nodes, walk_tokens};
-use crate::whitespace::{Whitespace};
+use crate::whitespace::{Whitespace, WhitespaceAbstract};
 
 use ra_syntax::{
     NodeOrToken, SmolStr, SyntaxElement,
@@ -33,6 +33,42 @@ pub(crate) struct Block {
     whitespace: Option<Whitespace>,
 }
 
+impl WhitespaceAbstract for Block {
+    fn siblings_contain(&self, pat: &str) -> bool {
+        self.siblings_contain(pat)
+    }
+    fn prev_is_whitespace(&self) -> bool {
+        match &self.element {
+            NodeOrToken::Node(node) => match node.prev_sibling_or_token() {
+                Some(NodeOrToken::Token(tkn)) => tkn.kind() == WHITESPACE,
+                _ => false,
+            },
+            NodeOrToken::Token(tkn) => tkn.kind() == WHITESPACE,
+        }
+    }
+    fn text_range(&self) -> TextRange {
+        self.text_range()
+    }
+    fn prev_tkn_len(&self) -> usize {
+        match &self.element {
+            NodeOrToken::Node(node) => match node.prev_sibling_or_token() {
+                Some(NodeOrToken::Token(tkn)) => tkn.text_range().len().to_usize(),
+                _ => 0,
+            },
+            NodeOrToken::Token(tkn) => tkn.text_range().len().to_usize(),
+        }
+    }
+    fn text_len(&self) -> usize {
+        self.text_range().len().to_usize()
+    }
+    fn text_start(&self) -> usize {
+        self.text_range().start().to_usize()
+    }
+    fn text_end(&self) -> usize {
+        self.text_range().end().to_usize()
+    }
+}
+
 // each block will have knowledge of spacing and indent,
 impl Block {
     pub(crate) fn build_block(element: SyntaxElement) -> Block {
@@ -54,23 +90,12 @@ impl Block {
 
         let whitespace = if let NodeOrToken::Token(tkn) = &element {
             // whitespace::new checks if token is actually WHITESPACE
-            match &(tkn.prev_token(), tkn.next_token()) {
-                (Some(prev), Some(next)) => {
-                    Some(Whitespace::new((Some(prev.clone()), Some(next.clone()))))
-                }
-                (Some(prev), None) => {
-                    Some(Whitespace::new((Some(prev.clone()), None)))
-                }
-                (None, Some(next)) => {
-                    Some(Whitespace::new((None, Some(next.clone()))))
-                }
-                _ => None,
-            }
+            Some(Whitespace::new(tkn))
         } else if let Some(root) = element.as_node() {
             if root.kind() == SOURCE_FILE {
                 if let Some(eof) = root.last_token() {
-                    // no prev token last token can be must be "\n" 
-                    Some(Whitespace::new((None, Some(eof.clone()))))
+                    // no prev token last token can be must be "\n"
+                    Whitespace::from_eof(eof)
                 } else {
                     None
                 }
