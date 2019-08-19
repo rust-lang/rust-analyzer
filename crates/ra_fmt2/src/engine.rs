@@ -39,7 +39,7 @@ impl FmtDiff {
         if let Some(whitespace) = block.get_spacing() {
             // is this a terible idea impl-ing eq??
             if whitespace != rule {
-                self.diff.borrow_mut().collect_space_edits(block, rule);
+                self.diff.borrow_mut().collect_space_edits(whitespace, rule);
             }
         } else {
             self.diff.borrow_mut().collect_space_edits(block, rule);
