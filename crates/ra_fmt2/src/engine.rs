@@ -1,6 +1,8 @@
+use crate::diff_view::DiffView;
 use crate::dsl::{self, SpaceLoc, SpaceValue, SpacingRule, SpacingDsl};
-use crate::fmt_model::{FmtModel, SpaceBlock, BlockPosition};
+use crate::edit_tree::{EditTree, Block};
 use crate::pattern::PatternSet;
+use crate::rules::spacing;
 use crate::trav_util::{has_newline};
 
 use ra_syntax::{
@@ -10,80 +12,71 @@ use ra_syntax::{
     SyntaxNode, SyntaxToken, TextRange, TextUnit, WalkEvent, T,
 };
 use std::collections::HashMap;
+use std::cell::RefCell;
 
-impl SpaceLoc {
-    fn is_before(self) -> bool {
-        match self {
-            SpaceLoc::Before | SpaceLoc::Around => true,
-            SpaceLoc::After => false,
+#[derive(Debug, Clone)]
+///
+pub(crate) struct FmtDiff {
+    edit_tree: EditTree,
+    diff: RefCell<DiffView>,
+}
+
+impl FmtDiff {
+    pub(crate) fn new(edit_tree: EditTree) -> Self {
+        let original = edit_tree.text();
+        let diff = RefCell::new(DiffView::new(original));
+
+        Self { edit_tree, diff }
+    }
+
+    /// Checks if `Whitespace` and `SpacingRule` match then mutates `DiffView`.
+    /// 
+    /// # Arguments
+    ///
+    /// * `block` - A &Block that is always a token.
+    /// * `rule` - A &SpaceRule.
+    fn check_spacing(&self, rule: &SpacingRule, block: &Block) {
+        // refcell for here for mutating DiffView?
+        if let Some(whitespace) = block.get_spacing() {
+            // is this a terible idea impl-ing eq??
+            if whitespace != rule {
+                self.diff.borrow_mut().collect_edits(block, rule);
+            }
+        } else {
+            self.diff.borrow_mut().collect_edits(block, rule);
         }
     }
-    fn is_after(self) -> bool {
-        match self {
-            SpaceLoc::After | SpaceLoc::Around => true,
-            SpaceLoc::Before => false,
+
+    pub(crate) fn spacing_diff(self, space_rules: &SpacingDsl) -> DiffView {
+        let spacing = PatternSet::new(space_rules.rules.iter());
+
+        for block in self.edit_tree.walk() {
+            for rule in spacing.matching(block.to_element()) {
+                // creates DiffView
+                println!("{:?}", rule);
+                self.check_spacing(rule, block)
+            }
         }
+        self.diff.into_inner()
     }
 }
 
-fn ensure_space(element: &SyntaxElement, block: &mut SpaceBlock, value: SpaceValue) {
-    match value {
-        SpaceValue::Single => block.set_text(" "),
-        SpaceValue::SingleOptionalNewline => {
-            if !block.has_newline() {
-                block.set_text(" ")
-            }
-        }
-        SpaceValue::Newline => block.set_text("\n"),
-        SpaceValue::None => block.set_text(""),
-        SpaceValue::NoneOptionalNewline => {
-            if !block.has_newline() {
-                block.set_text("")
-            }
-        }
-        SpaceValue::SingleOrNewline => {
-            let parent_is_multiline = element.parent().map_or(false, |it| has_newline(&it));
-            if parent_is_multiline {
-                block.set_line_break_preserving_existing_newlines()
-            } else {
-                block.set_text(" ")
-            }
-        }
-        SpaceValue::NoneOrNewline => {
-            let parent_is_multiline = element.parent().map_or(false, |it| has_newline(&it));
-            if parent_is_multiline {
-                block.set_line_break_preserving_existing_newlines()
-            } else {
-                block.set_text("")
-            }
-        }
-    }
+pub(crate) fn format_pass(space_dsl: &SpacingDsl, root: &SyntaxNode) -> DiffView {
+    let fmt = EditTree::new(root.clone());
+
+    let orig = fmt.text().to_string();
+
+    let mut diff = FmtDiff::new(fmt).spacing_diff(space_dsl);
+
+    println!("original: {}\nformatted: {:?}", orig, diff.apply().unwrap());
+
+    diff
 }
 
-impl SpacingRule {
-    pub(super) fn apply(&self, ele: &SyntaxElement, model: &mut FmtModel) {
-        if !self.pattern.matches(ele) {
-            return;
-        }
-        if self.space.loc.is_before() {
-            let block = model.block_for(ele, BlockPosition::Before);
-            ensure_space(ele, block, self.space.value);
-        }
-        if self.space.loc.is_after() {
-            let block = model.block_for(ele, BlockPosition::After);
-            ensure_space(ele, block, self.space.value);
-        }
-    }
-}
+pub(crate) fn format_str(code: &str) -> Result<String, ()> {
+    let p = SourceFile::parse(code);
+    let root = p.syntax_node();
+    let space = spacing();
 
-pub fn format_pass(space_rules: &SpacingDsl, root: &SyntaxNode) {
-    let mut fmt_root = FmtModel::new(root.clone());
-
-    let rules_set = PatternSet::new(space_rules.rules.iter());
-
-    for node in walk(root) {
-        for rule in rules_set.matching(node.clone()) {
-            rule.apply(&node, &mut fmt_root)
-        }
-    }
+    format_pass(&space, &root).apply()
 }
