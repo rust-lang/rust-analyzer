@@ -39,7 +39,7 @@ impl Pattern {
                 && element
                     .parent()
                     .map(|it| {
-                        println!("{:?}", it);
+                        // println!("{:?}", it);
                         it
                     })
                     .map(|it| parent.matches(&it.into()))
