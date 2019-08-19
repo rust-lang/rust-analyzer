@@ -198,3 +198,176 @@ impl<'a> SpacingRuleBuilder<'a> {
         self.dsl
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Modality {
+    Positive,
+    Negative,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum IndentValue {
+    Indent,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct RuleName(&'static str);
+
+impl RuleName {
+    fn new(name: &'static str) -> RuleName {
+        assert!(name.chars().next().unwrap().is_uppercase(), "rule names should be capitalized");
+        assert!(!name.ends_with('.'), "rule names should not end with '.'");
+        RuleName(name)
+    }
+}
+
+/// `IndentRule` describes how an element should be indented.
+///
+/// `IndentRule`s are only effective for elements which begin the line.
+///
+/// Note that currently we support only two kinds of indentation:
+/// * the same, as parent (default)
+/// * indent relative to the parent.
+///
+/// For this reason, `indent_value` is mostly unused.
+#[derive(Debug)]
+pub(crate) struct IndentRule {
+    pub(crate) name: RuleName,
+    pub(crate) parent: Pattern,
+
+    /// Depending on `child_modality`, this pattern selects/discards elements
+    pub(crate) child: Option<Pattern>,
+    pub(crate) child_modality: Modality,
+
+    /// Pattern that should match the anchoring element, relative to which we
+    /// calculate the indent
+    ///
+    /// in
+    ///
+    /// ```nix
+    /// {
+    ///   f = x:
+    ///      x * 2
+    ///   ;
+    /// }
+    /// ```
+    ///
+    /// when we indent lambda body, `x * 2` is the thing to which the `pattern`
+    /// applies and `f = x ...` is the thing to which the `anchor_pattern`
+    /// applies.
+    pub(crate) anchor_pattern: Option<Pattern>,
+    pub(crate) indent_value: IndentValue,
+}
+
+/// A builder to conveniently specify a set of `IndentRule`s.
+#[derive(Default)]
+pub(crate) struct IndentDsl {
+    pub(crate) rules: Vec<IndentRule>,
+    pub(crate) anchors: Vec<Pattern>,
+    #[cfg(test)]
+    pub(crate) tests: Vec<(&'static str, &'static str)>,
+}
+
+impl IndentDsl {
+    /// Specifies that an element should be treated as indent anchor even if it
+    /// isn't the first on the line.
+    ///
+    /// For example, in
+    ///
+    /// ```nix
+    /// { foo ? bar
+    /// , baz ? quux {
+    ///     y = z;
+    ///   }
+    /// }
+    /// ```
+    ///
+    /// we want to indent `y = z;` relative to `baz ? ...`, although it doesn't
+    /// start on the first line.
+    pub(crate) fn anchor(&mut self, pattern: impl Into<Pattern>) -> &mut IndentDsl {
+        self.anchors.push(pattern.into());
+        self
+    }
+    /// Adds a new indent rule with the given name
+    pub(crate) fn rule<'a>(&'a mut self, rule_name: &'static str) -> IndentRuleBuilder<'a> {
+        IndentRuleBuilder::new(self, rule_name)
+    }
+    pub(crate) fn test(&mut self, before: &'static str, after: &'static str) -> &mut IndentDsl {
+        #[cfg(test)]
+        {
+            self.tests.push((before, after));
+        }
+        let _ = (before, after);
+        self
+    }
+}
+
+/// A builder to conveniently specify a single `IndentRule`.
+pub(crate) struct IndentRuleBuilder<'a> {
+    dsl: &'a mut IndentDsl,
+    rule_name: &'static str,
+    parent: Option<Pattern>,
+    child: Option<Pattern>,
+    child_modality: Modality,
+    anchor_pattern: Option<Pattern>,
+}
+
+impl<'a> IndentRuleBuilder<'a> {
+    fn new(dsl: &'a mut IndentDsl, rule_name: &'static str) -> IndentRuleBuilder<'a> {
+        IndentRuleBuilder {
+            dsl,
+            rule_name,
+            parent: None,
+            child: None,
+            child_modality: Modality::Positive,
+            anchor_pattern: None,
+        }
+    }
+
+    /// Rule applies if element's parent matches.
+    pub(crate) fn inside(mut self, parent: impl Into<Pattern>) -> Self {
+        let prev = self.parent.replace(parent.into());
+        assert!(prev.is_none());
+        self
+    }
+
+    /// Rule applies if element itself matches.
+    pub(crate) fn matching(self, child: impl Into<Pattern>) -> Self {
+        self.matching_modality(child.into(), Modality::Positive)
+    }
+
+    /// Rule applies if element itself does *not* match.
+    pub(crate) fn not_matching(self, child: impl Into<Pattern>) -> Self {
+        self.matching_modality(child.into(), Modality::Negative)
+    }
+
+    fn matching_modality(mut self, child: Pattern, child_modality: Modality) -> Self {
+        let prev = self.child.replace(child);
+        assert!(prev.is_none());
+        self.child_modality = child_modality;
+        self
+    }
+
+    /// Which indent does the rule applies?
+    pub(crate) fn set(self, indent_value: IndentValue) -> &'a mut IndentDsl {
+        let dsl = self.dsl;
+        let name = self.rule_name;
+        let rule = IndentRule {
+            name: RuleName::new(name),
+            parent: self.parent.unwrap_or_else(|| panic!("incomplete rule: {}", name)),
+            child: self.child,
+            child_modality: self.child_modality,
+            anchor_pattern: self.anchor_pattern,
+            indent_value,
+        };
+        dsl.rules.push(rule);
+        dsl
+    }
+
+    /// Only apply this rule when `cond` is true for the anchor node, relative
+    /// to which we compute indentation level.
+    pub(crate) fn when_anchor(mut self, cond: fn(&SyntaxElement) -> bool) -> Self {
+        self.anchor_pattern = Some(cond.into());
+        self
+    }
+}
