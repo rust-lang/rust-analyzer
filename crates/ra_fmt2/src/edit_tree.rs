@@ -97,16 +97,9 @@ impl Block {
     pub(crate) fn siblings_contain(&self, pat: &str) -> bool {
         if let Some(tkn) = self.element.clone().into_token() {
             walk_tokens(&tkn.parent())
-                // TODO there is probably a better way to do this
-                .scan(tkn, |s, t| {
-                    let ret = t.text().as_str() == pat;// && token's siblings have `pat` 
-                    //                                 struct Foo {x:String("\n" or " "here)}
-                    //                                 depending on the prior nodes tokens??
-                    *s = t;
-                    Some(ret)
-                })
-                .any(|t| {
-                    t
+                // TODO there is probably a better/more accurate way to do this
+                .any(|tkn| {
+                    tkn.text().as_str() == pat
                 })
         } else {
             false
@@ -120,7 +113,7 @@ impl Block {
 
     /// Vec of all Blocks in order, parent then children.
     fn order_flatten_blocks(&self) -> Vec<&Block> {
-        let mut blocks = vec![];
+        let mut blocks = vec![self];
         for blk in self.children() {
             blocks.push(blk);
             if !blk.children.is_empty() {
