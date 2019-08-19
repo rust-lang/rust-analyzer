@@ -81,11 +81,11 @@ impl Block {
             NodeOrToken::Node(node) => SmolStr::from(node.text().to_string()),
             NodeOrToken::Token(token) => token.text().clone(),
         };
+
         let whitespace = if let NodeOrToken::Token(tkn) = &element {
             // whitespace::new checks if token is actually WHITESPACE
             match &(tkn.prev_token(), tkn.next_token()) {
                 (Some(prev), Some(next)) => {
-                    // TODO make sure WHITESPACE includes \n
                     Some(Whitespace::new((Some(prev.clone()), Some(next.clone()))))
                 }
                 (Some(prev), None) => {
@@ -95,6 +95,17 @@ impl Block {
                     Some(Whitespace::new((None, Some(next.clone()))))
                 }
                 _ => None,
+            }
+        } else if let Some(root) = element.as_node() {
+            if root.kind() == SOURCE_FILE {
+                if let Some(eof) = root.last_token() {
+                    // no prev token last token can be must be "\n" 
+                    Some(Whitespace::new((None, Some(eof.clone()))))
+                } else {
+                    None
+                }
+            } else {
+                None
             }
         } else {
             None

@@ -17,13 +17,13 @@ pub(crate) fn spacing() -> SpacingDsl {
         .test("struct Test{x:usize    }", "struct Test { x: usize }")
         .inside(NAMED_FIELD_DEF_LIST).before(T!['{']).single_space()
         .inside(NAMED_FIELD_DEF_LIST).after(T!['{']).single_space_or_optional_newline()
-        .inside(NAMED_FIELD_DEF_LIST).after(T![:]).single_space()
+        .inside(NAMED_FIELD_DEF).after(T![:]).single_space()
         .inside(NAMED_FIELD_DEF_LIST).before(T!['}']).single_space_or_optional_newline()
         .inside(NAMED_FIELD_DEF_LIST).after(T!['}']).single_space_or_optional_newline()
         .inside(NAMED_FIELD_DEF).after(T![:]).single_space()
 
         .test("pub(crate)struct Test { x: u8 }", "pub(crate) struct Test { x: u8 }")
-        .inside(VISIBILITY).after(T![')']).single_space();
+        .inside(VISIBILITY).after(T![')']).single_space()
 
 
         // must be done in engine so as not to disturb precidence or keeping track of Syntax Blocks "\n"
@@ -121,8 +121,8 @@ mod tests {
                 return Err(format!(
                     "\n\nAssertion failed: formatting is not idempotent\
                      \nTest: {}\n\
-                     \nBefore:\n{}\n\
-                     \nAfter:\n{}\n",
+                     \nBefore:\n{:?}\n\
+                     \nAfter:\n{:?}\n",
                     name, actual, second_round,
                 ));
             }
