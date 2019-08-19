@@ -1,5 +1,5 @@
 use crate::edit_tree::EditTree;
-use crate::fmt_diff::FmtDiff;
+use crate::engine::FmtDiff;
 use crate::pattern::PatternSet;
 /// experiment purposes
 ///
@@ -15,22 +15,24 @@ use ra_syntax::{
     SyntaxNode, SyntaxToken, T,
 };
 
-// will be removed
+/// will be removed
 #[test]
 fn show_me_the_progress() {
     let rs_file = "pub(crate) struct Test{x:String}";
-
-    let p = SourceFile::parse(&rs_file);
+    let rs_arr = "fn main() { let examp = [0,1,2]; }";
+    let p = SourceFile::parse(&rs_arr);
     let syn_tree = p.syntax_node();
+    println!("{:?}", syn_tree);
     let space = spacing();
     let ws_rules = PatternSet::new(space.rules.iter());
 
     println!();
 
     let fmt = EditTree::new(syn_tree);
-    // println!("{:#?}", fmt);
+    let orig = fmt.text().to_string();
+    println!("{:#?}", fmt);
     let diff = FmtDiff::new(fmt);
-    // println!("{:#?}", diff);
-    let d = diff.spacing_diff();
-    println!("{:?}", d)
+    let mut d = diff.spacing_diff(&space);
+
+    println!("original: {}\nformatted: {:?}", orig, d.apply().unwrap())
 }
