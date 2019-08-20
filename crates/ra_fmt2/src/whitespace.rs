@@ -17,9 +17,13 @@ use std::collections::{HashMap, HashSet};
 /// When no whitespace is found the insert index of the final `SmolStr`
 /// must be computed from a block. This also makes it posible to treat the 
 /// root node as any other node or token (EOF case).
-pub trait WhitespaceAbstract {
+pub trait WhitespaceAbstract: std::fmt::Debug {
     /// Walks siblings to search for pat.
     fn siblings_contain(&self, pat: &str) -> bool;
+    /// Match pattern with previous token.
+    fn match_prev(&self, pat: &str) -> bool;
+    /// Match pattern with next token.
+    fn match_next(&self, pat: &str) -> bool;
     /// Checks if previous token is whitespace kind.
     fn prev_is_whitespace(&self) -> bool;
     /// Checks if next token is whitespace kind.
@@ -62,6 +66,20 @@ pub(crate) struct Whitespace {
 impl WhitespaceAbstract for Whitespace {
     fn siblings_contain(&self, pat: &str) -> bool {
         self.siblings_contain(pat)
+    }
+    fn match_prev(&self, pat: &str) -> bool {
+        if let Some(tkn) = &self.surounding_pair.0 {
+            tkn.text() == pat
+        } else {
+            false
+        }
+    }
+    fn match_next(&self, pat: &str) -> bool {
+        if let Some(tkn) = &self.surounding_pair.1 {
+            tkn.text() == pat
+        } else {
+            false
+        }
     }
     fn prev_is_whitespace(&self) -> bool {
         if let Some(prev) = &self.surounding_pair.0 {
