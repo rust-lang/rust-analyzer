@@ -199,6 +199,10 @@ impl<'a> SpacingRuleBuilder<'a> {
     }
 }
 
+///
+/// 
+/// 
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Modality {
     Positive,

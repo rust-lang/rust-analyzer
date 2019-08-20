@@ -48,7 +48,7 @@ impl FmtDiff {
 
     pub(crate) fn spacing_diff(self, space_rules: &SpacingDsl) -> DiffView {
         let spacing = PatternSet::new(space_rules.rules.iter());
-
+        
         for block in self.edit_tree.walk() {
             for rule in spacing.matching(block.to_element()) {
                 // creates DiffView
@@ -61,14 +61,7 @@ impl FmtDiff {
 
 pub(crate) fn format_pass(space_dsl: &SpacingDsl, root: &SyntaxNode) -> DiffView {
     let fmt = EditTree::new(root.clone());
-
-    let orig = fmt.text().to_string();
-
-    let mut diff = FmtDiff::new(fmt).spacing_diff(space_dsl);
-
-    println!("original: {:?}\nformatted: {:?}", orig, diff.apply().unwrap());
-
-    diff
+    FmtDiff::new(fmt).spacing_diff(space_dsl)
 }
 
 pub(crate) fn format_str(code: &str) -> Result<String, ()> {
