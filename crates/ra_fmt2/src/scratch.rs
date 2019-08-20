@@ -18,12 +18,12 @@ use ra_syntax::{
 /// will be removed
 #[test]
 fn show_me_the_progress() {
-    let rs_file = "pub(crate) struct Test{x:String   }";
+    let rs_file = "pub(crate) struct Test    { x:  String   }";
     let rs_arr = "fn main() { let examp = [0,1,2]; }";
 
     let p = SourceFile::parse(&rs_file);
     let syn_tree = p.syntax_node();
-    println!("{:?}", syn_tree);
+    //println!("{:?}", syn_tree);
     let space = spacing();
     let ws_rules = PatternSet::new(space.rules.iter());
 
@@ -31,7 +31,7 @@ fn show_me_the_progress() {
 
     let fmt = EditTree::new(syn_tree);
     let orig = fmt.text().to_string();
-    println!("{:#?}", fmt);
+    //println!("{:#?}", fmt);
     let diff = FmtDiff::new(fmt);
     let mut d = diff.spacing_diff(&space);
 

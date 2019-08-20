@@ -46,6 +46,15 @@ impl WhitespaceAbstract for Block {
             NodeOrToken::Token(tkn) => tkn.kind() == WHITESPACE,
         }
     }
+    fn next_is_whitespace(&self) -> bool {
+        match &self.element {
+            NodeOrToken::Node(node) => match node.next_sibling_or_token() {
+                Some(NodeOrToken::Token(tkn)) => tkn.kind() == WHITESPACE,
+                _ => false,
+            },
+            NodeOrToken::Token(tkn) => tkn.kind() == WHITESPACE,
+        }
+    }
     fn text_range(&self) -> TextRange {
         self.text_range()
     }
@@ -58,14 +67,14 @@ impl WhitespaceAbstract for Block {
             NodeOrToken::Token(tkn) => tkn.text_range().len().to_usize(),
         }
     }
-    fn text_len(&self) -> usize {
-        self.text_range().len().to_usize()
-    }
-    fn text_start(&self) -> usize {
-        self.text_range().start().to_usize()
-    }
-    fn text_end(&self) -> usize {
-        self.text_range().end().to_usize()
+    fn next_tkn_len(&self) -> usize {
+        match &self.element {
+            NodeOrToken::Node(node) => match node.next_sibling_or_token() {
+                Some(NodeOrToken::Token(tkn)) => tkn.text_range().len().to_usize(),
+                _ => 0,
+            },
+            NodeOrToken::Token(tkn) => tkn.text_range().len().to_usize(),
+        }
     }
 }
 

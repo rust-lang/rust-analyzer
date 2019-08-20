@@ -17,8 +17,8 @@ pub(crate) fn spacing() -> SpacingDsl {
         .test("struct Test{x:usize    }", "struct Test { x: usize }")
         .inside(NAMED_FIELD_DEF_LIST).before(T!['{']).single_space()
         .inside(NAMED_FIELD_DEF_LIST).after(T!['{']).single_space_or_optional_newline()
-        .inside(NAMED_FIELD_DEF).after(T![:]).single_space()
         .inside(NAMED_FIELD_DEF_LIST).before(T!['}']).single_space_or_optional_newline()
+        .inside(NAMED_FIELD_DEF).after(T![:]).single_space()
 
         .test("pub(crate)struct Test { x: u8 }", "pub(crate) struct Test { x: u8 }")
         .inside(VISIBILITY).after(T![')']).single_space()
@@ -68,8 +68,8 @@ mod tests {
         TestCase {
             name: None,
             // TODO add to this test as we go
-            before: "struct Test{x: u8}".into(),
-            after: "struct Test { x: u8 }".into(),
+            before: "struct Test  {x: u8  }".into(),
+            after: "struct Test { x: u8 }\n".into(),
         }
         .run()
         .map_err(|e| panic!(e))

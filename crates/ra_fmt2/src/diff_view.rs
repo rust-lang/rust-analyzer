@@ -13,14 +13,44 @@ use ra_syntax::{
 
 use std::collections::BTreeSet;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// SpaceEdit enum keeps track of edit kind and holds edit location and text.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum SpaceEdit {
     /// Replace holds position of token, text to insert and lenghth of replaced text.
-    Replace((usize, SmolStr), usize),
+    Replace((isize, SmolStr), (isize, isize)),
     /// Insert holds position of token, text to insert.
-    Insert((usize, SmolStr)),
+    Insert((isize, SmolStr)),
 }
 
+impl Ord for SpaceEdit {
+    fn cmp(&self, rhs: &SpaceEdit) -> std::cmp::Ordering {
+        let loc = match self {
+            SpaceEdit::Replace((loc, _), _) => loc,
+            SpaceEdit::Insert((loc, _)) => loc,
+        };
+        let rhs_loc = match rhs {
+            SpaceEdit::Replace((loc, _), _) => loc,
+            SpaceEdit::Insert((loc, _)) => loc,
+        };
+        loc.cmp(rhs_loc)
+    }
+}
+
+impl PartialOrd for SpaceEdit {
+    fn partial_cmp(&self, rhs: &SpaceEdit) -> Option<std::cmp::Ordering> {
+        let loc = match self {
+            SpaceEdit::Replace((loc, _), _) => loc,
+            SpaceEdit::Insert((loc, _)) => loc,
+        };
+        let rhs_loc = match rhs {
+            SpaceEdit::Replace((loc, _), _) => loc,
+            SpaceEdit::Insert((loc, _)) => loc,
+        };
+        loc.partial_cmp(rhs_loc)
+    }
+}
+
+/// Enum of edit kinds `Space` and `Indent` each hold respective structs.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum Edit {
     Space(SpaceEdit),
@@ -32,26 +62,28 @@ impl Edit {
         match space {
             SpaceLoc::After => {
                 // len of offending token
-                let len = ws_abs.text_len();
+                let len = ws_abs.next_tkn_len() as isize;
+                let range = (0, len);
 
-                let edit = (ws_abs.text_end(), SmolStr::from(text));
+                let edit = (ws_abs.text_end() as isize, SmolStr::from(text));
                 
-                println!("len {} {:?}", len, ws_abs.text_range());
-                if len > 1 && ws_abs.prev_is_whitespace() {
-                    Edit::Space(SpaceEdit::Replace(edit, len))
+                // println!("len {:?} {:?}", range, ws_abs.text_range());
+                if len > 1 && ws_abs.next_is_whitespace() {
+                    Edit::Space(SpaceEdit::Replace(edit, range))
                 } else {
                     Edit::Space(SpaceEdit::Insert(edit))
                 }
             },
             SpaceLoc::Before => {
                 // len of offending token
-                let len = ws_abs.prev_tkn_len();
+                let len = ws_abs.prev_tkn_len() as isize;
+                let range = (len, 0);
 
-                let edit = (ws_abs.text_start(), SmolStr::from(text));
+                let edit = (ws_abs.text_start() as isize, SmolStr::from(text));
                 
-                println!("len {} {:?}", len, ws_abs.text_range());
+                // println!("len {:?} {:?}", range, ws_abs.text_range());
                 if len > 1 && ws_abs.prev_is_whitespace() {
-                    Edit::Space(SpaceEdit::Replace(edit, len))
+                    Edit::Space(SpaceEdit::Replace(edit, range))
                 } else {
                     Edit::Space(SpaceEdit::Insert(edit))
                 }
@@ -64,9 +96,8 @@ impl Edit {
 #[derive(Debug, Clone)]
 pub(crate) struct DiffView {
     // TODO more diffing info not just a string, better way than BTreeSet
-    /// BTreeSet of location to insert or change and text to insert.
-    /// A BTreeSet so we dont duplicate any inserts doubling the text inserted.
-    edits: BTreeSet<Edit>,
+    /// BTreeSet of `Edit`'s.
+    ws_edits: BTreeSet<Edit>,
     original: SmolStr,
     // formatted: Formatted,
 }
@@ -74,7 +105,7 @@ pub(crate) struct DiffView {
 impl DiffView {
 
     pub(crate) fn new(original: SmolStr) -> Self {
-        Self { edits: BTreeSet::default(), original, }
+        Self { ws_edits: BTreeSet::default(), original, }
     }
 
     pub(crate) fn collect_space_edits(&mut self, ws_abs: &dyn WhitespaceAbstract, rule: &SpacingRule) {
@@ -89,21 +120,19 @@ impl DiffView {
         match space.value {
             SpaceValue::Single => {
                 let edit = Edit::from_block(ws_abs, " ", space.loc);
-                self.edits.insert(edit);
+                self.ws_edits.insert(edit);
             },
             SpaceValue::Newline => {
                 let edit = Edit::from_block(ws_abs, "\n", space.loc);
-                self.edits.insert(edit);
+                self.ws_edits.insert(edit);
 ;            },
             SpaceValue::SingleOptionalNewline => {
                 if !ws_abs.siblings_contain("\n") {
-                    println!("SIBLINGS CONTAIN FALSE");
                     let edit = Edit::from_block(ws_abs, " ", space.loc);
-                    self.edits.insert(edit);
+                    self.ws_edits.insert(edit);
                 } else {
-                    println!("SIBLINGS CONTAIN TRUE");
                     let edit = Edit::from_block(ws_abs, "\n", space.loc);
-                    self.edits.insert(edit);
+                    self.ws_edits.insert(edit);
                 }
             },
             _ => {},
@@ -114,21 +143,19 @@ impl DiffView {
         match space.value {
             SpaceValue::Single => {
                 let edit = Edit::from_block(ws_abs, " ", space.loc);
-                self.edits.insert(edit);
+                self.ws_edits.insert(edit);
 ;            },
             SpaceValue::Newline => {
                 let edit = Edit::from_block(ws_abs, "\n", space.loc);
-                self.edits.insert(edit);
+                self.ws_edits.insert(edit);
             },
             SpaceValue::SingleOptionalNewline => {
                 if !ws_abs.siblings_contain("\n") {
-                    println!("SIBLINGS CONTAIN FALSE");
                     let edit = Edit::from_block(ws_abs, " ", space.loc);
-                    self.edits.insert(edit);
+                    self.ws_edits.insert(edit);
                 } else {
-                    println!("SIBLINGS CONTAIN TRUE");
                     let edit = Edit::from_block(ws_abs, "\n", space.loc);
-                    self.edits.insert(edit);
+                    self.ws_edits.insert(edit);
                 }
             },
             _ => {},
@@ -142,40 +169,45 @@ impl DiffView {
                     Edit::from_block(ws_abs, " ", SpaceLoc::Before),
                     Edit::from_block(ws_abs, " ", SpaceLoc::After),
                 ];
-                self.edits.extend(pair)
+                self.ws_edits.extend(pair)
             },
             SpaceValue::Newline => {
                 let pair = vec![
                     Edit::from_block(ws_abs, "\n", SpaceLoc::Before),
                     Edit::from_block(ws_abs, "\n", SpaceLoc::After),
                 ];
-                self.edits.extend(pair)
+                self.ws_edits.extend(pair)
             },
             _ => {},
         }
     }
 
-    /// Apply the collected changes to text and return `Formatted`
+    /// Apply the collected changes to text and return `Formatted`.
     /// 
     /// ?? Does it need to be result or are all errors handled in ra-syntax??
     pub(crate) fn apply(&mut self) -> Result<String, ()> {
         let mut fmt = self.original.as_bytes().to_vec();
-        let mut space_added = 0;
-        for edit in self.edits.iter() {
+        let mut space_added = 0_isize;
+        for edit in self.ws_edits.iter() {
             match edit {
                 Edit::Space(space) => {
                     match space {
                         SpaceEdit::Insert((mut pos, text)) => {
-                            println!("INSERT pos: {} text: {:?}", pos, text);
                             pos += space_added;
-                            fmt.splice(pos..pos, text.as_bytes().iter().cloned());
-                            space_added += text.len();
+
+                            // pos should never be negative it is the index of token in the SmolStr
+                            let idx = pos as usize;
+                            fmt.splice(idx..idx, text.as_bytes().iter().cloned());
+
+                            space_added += text.len() as isize;
                         },
-                        SpaceEdit::Replace((mut pos, text), orig_tkn_len) => {
-                            println!("REPLACE pos: {} text: {:?}", pos, text);
+                        SpaceEdit::Replace((mut pos, text), (remove, add)) => {
                             pos += space_added;
-                            fmt.splice(pos..pos+orig_tkn_len, text.as_bytes().iter().cloned());
-                            space_added -= orig_tkn_len - text.len();
+                            let start = (pos - remove) as usize;
+                            let end = (pos + add) as usize;
+                            fmt.splice(start..end, text.as_bytes().iter().cloned());
+                            //println!("POST SPLICE {} -= {} + {} - {}", space_added, remove, add, text.len());
+                            space_added -= remove + add - text.len() as isize;
                         },
                     }
                     
