@@ -60,20 +60,6 @@ enum Edit {
 impl Edit {
     fn from_block(ws_abs: &dyn WhitespaceAbstract, text: &str, space: SpaceLoc) -> Self {
         match space {
-            SpaceLoc::After => {
-                // len of offending token
-                let len = ws_abs.next_tkn_len() as isize;
-                let range = (0, len);
-
-                let edit = (ws_abs.text_end() as isize, SmolStr::from(text));
-                
-                // println!("len {:?} {:?}", range, ws_abs.text_range());
-                if len > 1 && ws_abs.next_is_whitespace() {
-                    Edit::Space(SpaceEdit::Replace(edit, range))
-                } else {
-                    Edit::Space(SpaceEdit::Insert(edit))
-                }
-            },
             SpaceLoc::Before => {
                 // len of offending token
                 let len = ws_abs.prev_tkn_len() as isize;
@@ -81,8 +67,22 @@ impl Edit {
 
                 let edit = (ws_abs.text_start() as isize, SmolStr::from(text));
                 
-                // println!("len {:?} {:?}", range, ws_abs.text_range());
-                if len > 1 && ws_abs.prev_is_whitespace() {
+                println!("len {:?} {:?}", range, ws_abs.text_range());
+                if (len > 1 && ws_abs.prev_is_whitespace()) || (!ws_abs.match_prev(text) && ws_abs.prev_is_whitespace()) {
+                    Edit::Space(SpaceEdit::Replace(edit, range))
+                } else {
+                    Edit::Space(SpaceEdit::Insert(edit))
+                }
+            },
+            SpaceLoc::After => {
+                // len of offending token
+                let len = ws_abs.next_tkn_len() as isize;
+                let range = (0, len);
+
+                let edit = (ws_abs.text_end() as isize, SmolStr::from(text));
+                
+                println!("len {:?} {:?}", range, ws_abs.text_range());
+                if (len > 1 && ws_abs.next_is_whitespace()) || (!ws_abs.match_next(text) && ws_abs.next_is_whitespace()) {
                     Edit::Space(SpaceEdit::Replace(edit, range))
                 } else {
                     Edit::Space(SpaceEdit::Insert(edit))

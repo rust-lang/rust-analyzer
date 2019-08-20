@@ -37,6 +37,24 @@ impl WhitespaceAbstract for Block {
     fn siblings_contain(&self, pat: &str) -> bool {
         self.siblings_contain(pat)
     }
+    fn match_prev(&self, pat: &str) -> bool {
+        match &self.element {
+            NodeOrToken::Node(node) => match node.prev_sibling_or_token() {
+                Some(NodeOrToken::Token(tkn)) => tkn.text() == pat,
+                _ => false,
+            },
+            NodeOrToken::Token(tkn) => tkn.text() == pat,
+        }
+    }
+    fn match_next(&self, pat: &str) -> bool {
+        match &self.element {
+            NodeOrToken::Node(node) => match node.next_sibling_or_token() {
+                Some(NodeOrToken::Token(tkn)) => tkn.text() == pat,
+                _ => false,
+            },
+            NodeOrToken::Token(tkn) => tkn.text() == pat,
+        }
+    }
     fn prev_is_whitespace(&self) -> bool {
         match &self.element {
             NodeOrToken::Node(node) => match node.prev_sibling_or_token() {

@@ -16,9 +16,13 @@ use std::collections::{HashMap, HashSet};
 /// When no whitespace is found the insert index of the final `SmolStr`
 /// must be computed from a block. This also makes it posible to treat the 
 /// root node as any other node or token (EOF case).
-pub trait WhitespaceAbstract {
+pub trait WhitespaceAbstract: std::fmt::Debug {
     /// Walks siblings to search for pat.
     fn siblings_contain(&self, pat: &str) -> bool;
+    /// Match pattern with previous token.
+    fn match_prev(&self, pat: &str) -> bool;
+    /// Match pattern with next token.
+    fn match_next(&self, pat: &str) -> bool;
     /// Checks if previous token is whitespace kind.
     fn prev_is_whitespace(&self) -> bool;
     /// Checks if next token is whitespace kind.
@@ -62,6 +66,20 @@ pub(crate) struct Whitespace {
 impl WhitespaceAbstract for Whitespace {
     fn siblings_contain(&self, pat: &str) -> bool {
         self.siblings_contain(pat)
+    }
+    fn match_prev(&self, pat: &str) -> bool {
+        if let Some(tkn) = &self.surounding_pair.0 {
+            tkn.text() == pat
+        } else {
+            false
+        }
+    }
+    fn match_next(&self, pat: &str) -> bool {
+        if let Some(tkn) = &self.surounding_pair.1 {
+            tkn.text() == pat
+        } else {
+            false
+        }
     }
     fn prev_is_whitespace(&self) -> bool {
         if let Some(prev) = &self.surounding_pair.0 {
@@ -160,6 +178,7 @@ impl Whitespace {
     } 
 
     pub(crate) fn from_eof(eof: SyntaxToken) -> Option<Whitespace> {
+        
         if eof.kind() == WHITESPACE && eof.text().to_string() == "\n" {
             Some(Whitespace {
                 surounding_pair: (None, Some(eof.clone())),
@@ -169,6 +188,19 @@ impl Whitespace {
                 new_line: (false, true),
                 // additional_spaces,
                 locations: (0, 1),
+            })
+        } else if eof.kind() == WHITESPACE {
+            println!("EOF     {:?}     EOF", eof);
+            // TODO can we panic here???
+            let original = eof.prev_token().expect("cannot format an empty file");
+            Some(Whitespace {
+                surounding_pair: (None, Some(eof.clone())),
+                original,
+                text_range: eof.text_range(),
+                indent_spaces: 0,
+                new_line: (false, false),
+                // additional_spaces,
+                locations: (0, calc_num_space(&eof)),
             })
         } else {
             None
