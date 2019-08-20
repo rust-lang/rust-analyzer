@@ -17,7 +17,6 @@ pub(crate) fn spacing() -> SpacingDsl {
         .test("struct Test{x:usize    }", "struct Test { x: usize }")
         .inside(NAMED_FIELD_DEF_LIST).before(T!['{']).single_space()
         .inside(NAMED_FIELD_DEF_LIST).after(T!['{']).single_space_or_optional_newline()
-        .inside(NAMED_FIELD_DEF).after(T![:]).single_space()
         .inside(NAMED_FIELD_DEF_LIST).before(T!['}']).single_space_or_optional_newline()
         .inside(NAMED_FIELD_DEF_LIST).after(T!['}']).single_space_or_optional_newline()
         .inside(NAMED_FIELD_DEF).after(T![:]).single_space()

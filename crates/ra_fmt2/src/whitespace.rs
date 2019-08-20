@@ -12,21 +12,38 @@ use ra_syntax::{
 
 use std::collections::{HashMap, HashSet};
 
+/// A trait to abstract `Block`s and `Whitespace`.
+/// 
+/// When no whitespace is found the insert index of the final `SmolStr`
+/// must be computed from a block. This also makes it posible to treat the 
+/// root node as any other node or token (EOF case).
 pub trait WhitespaceAbstract {
     /// Walks siblings to search for pat.
     fn siblings_contain(&self, pat: &str) -> bool;
     /// Checks if previous token is whitespace kind.
     fn prev_is_whitespace(&self) -> bool;
+    /// Checks if next token is whitespace kind.
+    fn next_is_whitespace(&self) -> bool;
     /// Text range of current token.
     fn text_range(&self) -> TextRange;
     /// Previous token's length.
     fn prev_tkn_len(&self) -> usize;
+    /// Next token's length.
+    fn next_tkn_len(&self) -> usize;
+
     /// Current token's length.
-    fn text_len(&self) -> usize;
-    /// Current token's start position.
-    fn text_start(&self) -> usize;
+    fn text_len(&self) -> usize {
+        self.text_range().end().to_usize()
+    }
     /// Current token's end position.
-    fn text_end(&self) -> usize;
+    fn text_end(&self) -> usize {
+        self.text_range().end().to_usize()
+    }
+    /// Current token's start position.
+    fn text_start(&self) -> usize {
+        self.text_range().start().to_usize()
+    }
+    
 }
 
 #[derive(Clone, Debug)]
@@ -53,11 +70,15 @@ impl WhitespaceAbstract for Whitespace {
             false
         }
     }
+    fn next_is_whitespace(&self) -> bool {
+        if let Some(prev) = &self.surounding_pair.1 {
+            prev.kind() == WHITESPACE
+        } else {
+            false
+        }
+    }
     fn text_range(&self) -> TextRange {
         self.original.text_range()
-    }
-    fn text_len(&self) -> usize {
-        self.text_range().len().to_usize()
     }
     fn prev_tkn_len(&self) -> usize {
         if let Some(prev) = &self.surounding_pair.0 {
@@ -66,11 +87,12 @@ impl WhitespaceAbstract for Whitespace {
             0
         }
     }
-    fn text_start(&self) -> usize {
-        self.text_range().start().to_usize()
-    }
-    fn text_end(&self) -> usize {
-        self.text_range().end().to_usize()
+    fn next_tkn_len(&self) -> usize {
+        if let Some(prev) = &self.surounding_pair.1 {
+            prev.text_range().len().to_usize()
+        } else {
+            0
+        }
     }
 }
 
@@ -247,14 +269,6 @@ impl Whitespace {
         } else {
             false
         }
-        // Whitespace {
-        //     surounding_pair: (None, Some(eof)),
-        //     original: eof.clone(),
-        //     indent_spaces: 0,
-        //     new_line: (false, false),
-        //     // additional_spaces,
-        //     locations: (0, 0),
-        // }
     }
 
     pub(crate) fn siblings_contain(&self, pat: &str) -> bool {
