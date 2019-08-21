@@ -89,16 +89,6 @@ impl FmtDiff {
                 self.check_indent(rule, block)
             }
         }
-<<<<<<< HEAD
-
-=======
-        // take care of EOF new line this is HACKY
-        let rule = SpacingRule {
-            pattern: SOURCE_FILE.into(),
-            space: dsl::Space { loc: dsl::SpaceLoc::After, value: dsl::SpaceValue::Newline }
-        };
-        self.edit_tree.root().get_spacing().borrow_mut().apply_fix(&rule);
->>>>>>> all but ending new line works
         self.edit_tree
     }
 }
@@ -112,10 +102,6 @@ pub(crate) fn format_str(file: &str) -> Result<String, ()> {
     let p = SourceFile::parse(file);
     let root = p.syntax_node();
     let space = spacing();
-
-<<<<<<< HEAD
+    
     Ok(format_pass(&space, &root).apply_edits())
-=======
-    Ok(format_pass(&space, &root).to_string())
->>>>>>> all but ending new line works
 }

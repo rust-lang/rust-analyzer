@@ -3,11 +3,7 @@ use crate::indent::Indentation;
 use crate::pattern::{Pattern, PatternSet};
 use crate::rules::spacing;
 use crate::trav_util::{walk, walk_nodes, walk_tokens};
-<<<<<<< HEAD
 use crate::whitespace::Whitespace;
-=======
-use crate::whitespace::{Whitespace};
->>>>>>> all but ending new line works
 
 use ra_syntax::{
     NodeOrToken, SmolStr, SyntaxElement,
@@ -38,10 +34,7 @@ pub(crate) struct Block {
     text: SmolStr,
     range: TextRange,
     whitespace: Rc<RefCell<Whitespace>>,
-<<<<<<< HEAD
     indentation: Rc<RefCell<Indentation>>,
-=======
->>>>>>> all but ending new line works
 }
 
 impl Eq for Block {}
@@ -130,7 +123,6 @@ impl Block {
         &self.element
     }
 
-<<<<<<< HEAD
     /// Traverse all blocks in order including current.
     pub(crate) fn traverse_inc(&self) -> impl Iterator<Item = &Block> {
         Traversal { blocks: self.order_flatten_blocks_inc(), idx: 0 }
@@ -143,19 +135,6 @@ impl Block {
 
     /// Vec of all Blocks in order including current, parent then children.
     fn order_flatten_blocks_inc(&self) -> Vec<&Block> {
-=======
-    /// Traverse all blocks in order including current, convenience for order_flatten_blocks.
-    pub(crate) fn traverse_inc(&self) -> impl Iterator<Item = &Block> {
-        Traversal { blocks: self.order_flatten_blocks_inc(), idx: 0 }
-    }
-
-    /// Traverse all blocks in order excluding current, convenience for order_flatten_blocks.
-    pub(crate) fn traverse_exc(&self) -> impl Iterator<Item = &Block> {
-        Traversal { blocks: self.order_flatten_blocks_exc(), idx: 0 }
-    }
-
-    /// Vec of all Blocks in order including current, parent then children.
-    fn order_flatten_blocks_inc(&self) -> Vec<&Block> {
         let mut blocks = vec![self];
         for blk in self.children() {
             blocks.push(blk);
@@ -167,21 +146,6 @@ impl Block {
         blocks
     }
 
-    /// Vec of all Blocks in order excluding current, parent then children.
-    fn order_flatten_blocks_exc(&self) -> Vec<&Block> {
->>>>>>> all but ending new line works
-        let mut blocks = vec![self];
-        for blk in self.children() {
-            blocks.push(blk);
-            if !blk.children.is_empty() {
-                let mut kids = Block::order_flatten_blocks_inc(blk);
-                blocks.append(&mut kids);
-            }
-        }
-        blocks
-    }
-
-<<<<<<< HEAD
     /// Vec of all Blocks in order excluding current, parent then children.
     fn order_flatten_blocks_exc_root(&self) -> Vec<&Block> {
         let mut blocks = vec![];
@@ -196,8 +160,6 @@ impl Block {
         blocks
     }
 
-=======
->>>>>>> all but ending new line works
     /// Vec of `Blocks` containing tokens, in order.
     fn order_flatten_blocks_tokens(&self) -> Vec<&Block> {
         let mut blocks = vec![];
@@ -207,7 +169,6 @@ impl Block {
             }
             if !blk.children.is_empty() {
                 let mut kids = Block::order_flatten_blocks_tokens(blk);
-<<<<<<< HEAD
                 blocks.append(&mut kids);
             }
         }
@@ -223,8 +184,6 @@ impl Block {
             }
             if !blk.children.is_empty() {
                 let mut kids = Block::order_flatten_blocks_nodes(blk);
-=======
->>>>>>> all but ending new line works
                 blocks.append(&mut kids);
             }
         }
@@ -234,7 +193,6 @@ impl Block {
     /// Returns `Whitespace` which has knowledge of whitespace around current token.
     pub(crate) fn get_spacing(&self) -> Rc<RefCell<Whitespace>> {
         Rc::clone(&self.whitespace)
-<<<<<<< HEAD
     }
 
     /// Returns `Indentation` which has knowledge of indenting whitespace.
@@ -253,35 +211,11 @@ impl Block {
     }
 
     /// Remove after dev ??
-=======
-    }
-
-    /// Returns previous and next space amounts as tuple.
-    pub(crate) fn space_value(&self) -> (u32, u32) {
-        self.whitespace.borrow().locations
-    }
-
-    /// Returns previous and next new line flags as tuple.
-    pub(crate) fn eol_value(&self) -> (bool, bool) {
-        self.whitespace.borrow().new_line
-    }
-
-    /// Returns &mut `Whitespace` which has knowledge of whitespace around current token.
-    // pub(crate) fn get_spacing_mut(&self) -> &mut Whitespace {
-    //     &mut self.whitespace.borrow_mut()
-    // }
-
-    /// Remove after dev
->>>>>>> all but ending new line works
     fn to_string(&self) -> String {
         self.text.to_string()
     }
 
-<<<<<<< HEAD
     /// Returns `Block`s text as str.
-=======
-    /// Remove after dev
->>>>>>> all but ending new line works
     fn as_str(&self) -> &str {
         self.text.as_str()
     }
@@ -320,7 +254,6 @@ impl EditTree {
         let root = Block::build_block(ele);
         EditTree { root }
     }
-<<<<<<< HEAD
     /// Returns the root node `SOURCE_FILE`.
     pub(crate) fn root(&self) -> &Block {
         &self.root
@@ -329,11 +262,6 @@ impl EditTree {
     pub(crate) fn last_token(&self) -> Option<&Block> {
         self.walk_tokens().last()
     }
-=======
-    pub(crate) fn root(&self) -> &Block {
-        &self.root
-    }
->>>>>>> all but ending new line works
     /// Walk all blocks including root.
     pub(crate) fn walk(&self) -> Traversal {
         Traversal { blocks: self.root.order_flatten_blocks_inc(), idx: 0 }
@@ -342,7 +270,6 @@ impl EditTree {
     pub(crate) fn walk_tokens(&self) -> Traversal {
         Traversal { blocks: self.root.order_flatten_blocks_tokens(), idx: 0 }
     }
-<<<<<<< HEAD
     /// Walk blocks that represent nodes.
     pub(crate) fn walk_nodes(&self) -> Traversal {
         Traversal { blocks: self.root.order_flatten_blocks_nodes(), idx: 0 }
@@ -350,11 +277,6 @@ impl EditTree {
     /// Walk all blocks excluding root.
     pub(crate) fn walk_exc_root(&self) -> Traversal {
         Traversal { blocks: self.root.order_flatten_blocks_exc_root(), idx: 0 }
-=======
-    /// Walk all blocks excluding root.
-    pub(crate) fn walk_exc_root(&self) -> Traversal {
-        Traversal { blocks: self.root.order_flatten_blocks_exc(), idx: 0 }
->>>>>>> all but ending new line works
     }
 
     /// Returns the SmolStr of the root node, the whole text
@@ -362,7 +284,6 @@ impl EditTree {
         self.root.text.clone()
     }
 
-<<<<<<< HEAD
     /// TODO This needs work, less copying of the large vec of blocks
     /// Walks tokens and compares `Whitespace` to build the final String from `Blocks`.
     pub(crate) fn apply_edits(&self) -> String {
@@ -375,19 +296,13 @@ impl EditTree {
         iter_clone.next();
         // second token is scan's first state
         let first = iter_clone.next();
-=======
-    /// only for dev, we dont need to convert or diff in editTree
-    pub(crate) fn to_string(&self) -> String {
-        let mut traverse = self.walk_exc_root().peekable();
         let de_dup = self.walk_tokens().cloned().collect::<std::collections::BTreeSet<_>>();
+
         let mut iter_clone = de_dup.iter();
+        // skip root
         iter_clone.next();
-        iter_clone.next();
-
-        traverse.peek();
-        let first = traverse.peek().cloned();
->>>>>>> all but ending new line works
-
+        // second token is scan's first state
+        let first = iter_clone.next();
         traverse.scan(first, |next, blk| {
             let res = match blk.as_element() {
                 NodeOrToken::Token(tkn) => {
@@ -410,8 +325,19 @@ impl EditTree {
     }
 }
 
-<<<<<<< HEAD
-fn string_from_block(current: &Block, next: &mut Option<&Block>) -> String {
+fn string_from_block(blk: &Block, next: &mut Option<&Block>) -> String {
+    //println!{"BLK {:#?}\nNEXT {:#?}", blk, next}
+    let mut ret = String::default();
+    let (prev_s, next_s) = blk.space_value();
+    let (prev_n, next_n) = blk.eol_value();
+
+    // if new line
+    if prev_n {
+        ret.push('\n');
+    // else push space
+    } else {
+        ret.push_str(&" ".repeat(prev_s as usize));
+    }
     //println!{"BLK {:#?}\nNEXT {:#?}", current, next}
     let mut ret = String::default();
     let (curr_prev_space, curr_next_space) = current.space_value();
@@ -455,34 +381,6 @@ fn string_from_block(current: &Block, next: &mut Option<&Block>) -> String {
         // else push space
         } else {
             ret.push_str(&" ".repeat(curr_next_space as usize));
-=======
-fn string_from_block(blk: &Block, next: &mut Option<&Block>) -> String {
-    //println!{"BLK {:#?}\nNEXT {:#?}", blk, next}
-    let mut ret = String::default();
-    let (prev_s, next_s) = blk.space_value();
-    let (prev_n, next_n) = blk.eol_value();
-
-    // if new line
-    if prev_n {
-        ret.push('\n');
-    // else push space
-    } else {
-        ret.push_str(&" ".repeat(prev_s as usize));
-    }
-    // add text token
-    ret.push_str(blk.as_str());
-
-    if let Some(block) = next {
-        let (ps, _) = block.space_value();
-        let (pn, _) = block.eol_value();
-
-        // if the next token has no previous space but the current token has next space marked
-        if ps == 0 && next_s > 0 {
-            ret.push_str(&" ".repeat(next_s as usize));
-        // same for new line add only if current says to and next does not
-        } else if pn && !next_n {
-            ret.push('\n');
->>>>>>> all but ending new line works
         }
     }
     println!("{:?}", ret);
