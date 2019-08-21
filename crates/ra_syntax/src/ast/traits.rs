@@ -46,9 +46,15 @@ pub trait FnDefOwner: AstNode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MacroKind {
+    Call(ast::MacroCall),
+    DeriveAttr(ast::Attr),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ItemOrMacro {
     Item(ast::ModuleItem),
-    Macro(ast::MacroCall),
+    Macro(MacroKind),
 }
 
 pub trait ModuleItemOwner: AstNode {
@@ -71,8 +77,15 @@ impl Iterator for ItemOrMacroIter {
             if let Some(item) = ast::ModuleItem::cast(n.clone()) {
                 return Some(ItemOrMacro::Item(item));
             }
-            if let Some(call) = ast::MacroCall::cast(n) {
-                return Some(ItemOrMacro::Macro(call));
+            if let Some(call) = ast::MacroCall::cast(n.clone()) {
+                return Some(ItemOrMacro::Macro(MacroKind::Call(call)));
+            }
+            if let Some(attr) = ast::Attr::cast(n) {
+                if let Some((name, _)) = attr.as_call() {
+                    if name.as_str() == "derive" {
+                        return Some(ItemOrMacro::Macro(MacroKind::DeriveAttr(attr)));
+                    }
+                }
             }
         }
     }
