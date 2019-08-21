@@ -12,43 +12,43 @@ use ra_syntax::{
 
 use std::collections::{HashMap, HashSet};
 
-/// A trait to abstract `Block`s and `Whitespace`.
-/// 
-/// When no whitespace is found the insert index of the final `SmolStr`
-/// must be computed from a block. This also makes it posible to treat the 
-/// root node as any other node or token (EOF case).
-pub trait WhitespaceAbstract: std::fmt::Debug {
-    /// Walks siblings to search for pat.
-    fn siblings_contain(&self, pat: &str) -> bool;
-    /// Match pattern with previous token.
-    fn match_prev(&self, pat: &str) -> bool;
-    /// Match pattern with next token.
-    fn match_next(&self, pat: &str) -> bool;
-    /// Checks if previous token is whitespace kind.
-    fn prev_is_whitespace(&self) -> bool;
-    /// Checks if next token is whitespace kind.
-    fn next_is_whitespace(&self) -> bool;
-    /// Text range of current token.
-    fn text_range(&self) -> TextRange;
-    /// Previous token's length.
-    fn prev_tkn_len(&self) -> usize;
-    /// Next token's length.
-    fn next_tkn_len(&self) -> usize;
+// /// A trait to abstract `Block`s and `Whitespace`.
+// /// 
+// /// When no whitespace is found the insert index of the final `SmolStr`
+// /// must be computed from a block. This also makes it posible to treat the 
+// /// root node as any other node or token (EOF case).
+// pub trait WhitespaceAbstract: std::fmt::Debug {
+//     /// Walks siblings to search for pat.
+//     fn siblings_contain(&self, pat: &str) -> bool;
+//     /// Match pattern with previous token.
+//     fn match_prev(&self, pat: &str) -> bool;
+//     /// Match pattern with next token.
+//     fn match_next(&self, pat: &str) -> bool;
+//     /// Checks if previous token is whitespace kind.
+//     fn prev_is_whitespace(&self) -> bool;
+//     /// Checks if next token is whitespace kind.
+//     fn next_is_whitespace(&self) -> bool;
+//     /// Text range of current token.
+//     fn text_range(&self) -> TextRange;
+//     /// Previous token's length.
+//     fn prev_tkn_len(&self) -> usize;
+//     /// Next token's length.
+//     fn next_tkn_len(&self) -> usize;
 
-    /// Current token's length.
-    fn text_len(&self) -> usize {
-        self.text_range().end().to_usize()
-    }
-    /// Current token's end position.
-    fn text_end(&self) -> usize {
-        self.text_range().end().to_usize()
-    }
-    /// Current token's start position.
-    fn text_start(&self) -> usize {
-        self.text_range().start().to_usize()
-    }
+//     /// Current token's length.
+//     fn text_len(&self) -> usize {
+//         self.text_range().end().to_usize()
+//     }
+//     /// Current token's end position.
+//     fn text_end(&self) -> usize {
+//         self.text_range().end().to_usize()
+//     }
+//     /// Current token's start position.
+//     fn text_start(&self) -> usize {
+//         self.text_range().start().to_usize()
+//     }
     
-}
+// }
 
 #[derive(Clone, Debug)]
 /// Whitespace holds all whitespace information for each Block.
@@ -63,56 +63,108 @@ pub(crate) struct Whitespace {
     pub(crate) locations: (u32, u32),
 }
 
-impl WhitespaceAbstract for Whitespace {
-    fn siblings_contain(&self, pat: &str) -> bool {
-        self.siblings_contain(pat)
-    }
-    fn match_prev(&self, pat: &str) -> bool {
-        if let Some(tkn) = &self.surounding_pair.0 {
-            tkn.text() == pat
-        } else {
-            false
+impl Whitespace {
+    pub(crate) fn new(element: &SyntaxElement) -> Whitespace {
+        match &element {
+            NodeOrToken::Node(node) => {
+                Whitespace::from_node(&node)
+            },
+            NodeOrToken::Token(token) => {
+                Whitespace::from_token(&token)
+            },
         }
     }
-    fn match_next(&self, pat: &str) -> bool {
-        if let Some(tkn) = &self.surounding_pair.1 {
-            tkn.text() == pat
-        } else {
-            false
+
+    fn from_node(node: &SyntaxNode) -> Whitespace {
+        match (node.siblings_with_tokens(Direction::Prev).next(), node.siblings_with_tokens(Direction::Next).next()) {
+            (Some(prev), Some(next)) => {
+                let (prev_space, prev_ws) = if prev.kind() == WHITESPACE {
+                    (calc_num_space_ele(&prev), true)
+                } else {
+                    (0, false)
+                };
+                let (next_space, next_ws) = if next.kind() == WHITESPACE {
+                    (calc_num_space_ele(&next), true)
+                } else {
+                    (0, false)
+                };
+                let prev_line = match prev {
+                    NodeOrToken::Node(_) => {
+                        false
+                    },
+                    NodeOrToken::Token(tkn) => {
+                        tkn.text().as_str().contains('\n')
+                    },
+                };
+                let next_line = match next {
+                    NodeOrToken::Node(_) => {
+                        false
+                    },
+                    NodeOrToken::Token(tkn) => {
+                        tkn.text().as_str().contains('\n')
+                    },
+                };
+                Self {
+                    original: NodeOrToken::Node(node.clone()),
+                    is_whitespace: (prev_ws, next_ws),
+                    text_range: node.text_range(),
+                    indent_spaces: 0,
+                    new_line: (prev_line, next_line),
+                    // additional_spaces,
+                    locations: (prev_space, next_space),
+                }
+            },
+            (Some(prev), None) => {
+                let (prev_space, prev_ws) = if prev.kind() == WHITESPACE {
+                    (calc_num_space_ele(&prev), true)
+                } else {
+                    (0, false)
+                };
+                let prev_line = match prev {
+                    NodeOrToken::Node(_) => {
+                        false
+                    },
+                    NodeOrToken::Token(tkn) => {
+                        tkn.text().as_str().contains('\n')
+                    },
+                };
+                Self {
+                    original: NodeOrToken::Node(node.clone()),
+                    is_whitespace: (prev_ws, false),
+                    text_range: node.text_range(),
+                    indent_spaces: 0,
+                    new_line: (prev_line, false),
+                    // additional_spaces,
+                    locations: (prev_space, 0),
+                }
+            },
+            (None, Some(next)) => {
+                let (next_space, next_ws) = if next.kind() == WHITESPACE {
+                    (calc_num_space_ele(&next), true)
+                } else {
+                    (0, false)
+                };
+                let next_line = match next {
+                    NodeOrToken::Node(_) => {
+                        false
+                    },
+                    NodeOrToken::Token(tkn) => {
+                        tkn.text().as_str().contains('\n')
+                    },
+                };
+                Self {
+                    original: NodeOrToken::Node(node.clone()),
+                    is_whitespace: (false, next_ws),
+                    text_range: node.text_range(),
+                    indent_spaces: 0,
+                    new_line: (false, next_line),
+                    // additional_spaces,
+                    locations: (0, next_space),
+                }
+            },
+            _ => unreachable!("Whitespace::new"),
         }
     }
-    fn prev_is_whitespace(&self) -> bool {
-        if let Some(prev) = &self.surounding_pair.0 {
-            prev.kind() == WHITESPACE
-        } else {
-            false
-        }
-    }
-    fn next_is_whitespace(&self) -> bool {
-        if let Some(prev) = &self.surounding_pair.1 {
-            prev.kind() == WHITESPACE
-        } else {
-            false
-        }
-    }
-    fn text_range(&self) -> TextRange {
-        self.original.text_range()
-    }
-    fn prev_tkn_len(&self) -> usize {
-        if let Some(prev) = &self.surounding_pair.0 {
-            prev.text_range().len().to_usize()
-        } else {
-            0
-        }
-    }
-    fn next_tkn_len(&self) -> usize {
-        if let Some(prev) = &self.surounding_pair.1 {
-            prev.text_range().len().to_usize()
-        } else {
-            0
-        }
-    }
-}
 
 impl Whitespace {
     pub(crate) fn new(element: &SyntaxElement) -> Whitespace {
@@ -245,7 +297,6 @@ impl Whitespace {
                     0
                 };
                 let new_line = (prev.text().as_str().contains('\n'), false);
-
                 Self {
                     original: NodeOrToken::Token(token.clone()),
                     text_range: token.text_range(),
@@ -289,12 +340,18 @@ impl Whitespace {
         }
     }
 
+    /// Walks siblings to search for pat.
     pub(crate) fn siblings_contain(&self, pat: &str) -> bool {
-        walk_tokens(&self.original.parent())
-            // TODO there is probably a better/more accurate way to do this
-            .any(|tkn| {
-                tkn.text().as_str() == pat
-            })
+        if let Some(tkn) = self.original.clone().into_token() {
+            println!("SIB CON {:?}", tkn.parent());
+            walk_tokens(&tkn.parent())
+                // TODO there is probably a better/more accurate way to do this
+                .any(|tkn| {
+                    tkn.text().as_str() == pat
+                })
+        } else {
+            false
+        }
     }
 
     // TODO check if NewLine needs to check for space

@@ -22,7 +22,7 @@ pub(crate) fn spacing() -> SpacingDsl {
         .inside(NAMED_FIELD_DEF).after(T![:]).single_space()
 
         .test("pub(crate)struct Test { x: u8 }", "pub(crate) struct Test { x: u8 }")
-        .inside(VISIBILITY).after(T![')']).single_space()
+        .inside(VISIBILITY).after(T![')']).single_space();
 
 
         // must be done in engine so as not to disturb precidence or keeping track of Syntax Blocks "\n"

@@ -60,6 +60,10 @@ fn show_me_the_progress() {
     let diff = FmtDiff::new(fmt);
     let et = diff.spacing_diff(&space);
 
+<<<<<<< HEAD
     println!("original: {:?}\nformatted: {:#?}", orig, et.apply_edits());
     assert_eq!(et.apply_edits(), "pub(crate) struct Test { x: String }\n")
+=======
+    println!("original: {:?}\nformatted: {:#?}", orig, et.to_string())
+>>>>>>> all but ending new line works
 }
