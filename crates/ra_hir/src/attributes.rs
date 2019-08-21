@@ -1,6 +1,6 @@
-use ra_syntax::ast::{TokenTree, Attr};
+use crate::db::{AstDatabase, DefDatabase};
+use ra_syntax::ast::{Attr, TokenTree};
 use ra_syntax::SmolStr;
-use crate::db::{DefDatabase, AstDatabase};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,14 +47,14 @@ impl AttrKind {
         if let Some((kind, tt)) = attr.as_call() {
             match kind.as_str() {
                 "derive" => return AttrKind::Derive(tt),
-                _ => {},
+                _ => {}
             }
         }
 
         if let Some(kind) = attr.as_atom() {
             match kind.as_str() {
                 "must_use" => return AttrKind::MustUse(None),
-                _ => {},
+                _ => {}
             }
         }
 
