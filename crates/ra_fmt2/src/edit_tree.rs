@@ -182,11 +182,6 @@ impl Block {
         self.whitespace.borrow().new_line
     }
 
-    /// Returns &mut `Whitespace` which has knowledge of whitespace around current token.
-    // pub(crate) fn get_spacing_mut(&self) -> &mut Whitespace {
-    //     &mut self.whitespace.borrow_mut()
-    // }
-
     /// Remove after dev
     fn to_string(&self) -> String {
         self.text.to_string()
@@ -231,8 +226,13 @@ impl EditTree {
         let root = Block::build_block(ele);
         EditTree { root }
     }
+    /// Returns the root node `SOURCE_FILE`.
     pub(crate) fn root(&self) -> &Block {
         &self.root
+    }
+    /// Returns the last token when ordered and flattened.
+    pub(crate) fn last_token(&self) -> Option<&Block> {
+        self.walk_tokens().last()
     }
     /// Walk all blocks including root.
     pub(crate) fn walk(&self) -> Traversal {
@@ -252,16 +252,18 @@ impl EditTree {
         self.root.text.clone()
     }
 
-    /// only for dev, we dont need to convert or diff in editTree
-    pub(crate) fn to_string(&self) -> String {
-        let mut traverse = self.walk_exc_root().peekable();
+    /// TODO This needs work, less copying of the large vec of blocks
+    /// Walks tokens and compares `Whitespace` to build the final String from `Blocks`.
+    pub(crate) fn apply_edits(&self) -> String {
+        let traverse = self.walk_exc_root();
+        // scan's state var only needs to iter unique tokens.
         let de_dup = self.walk_tokens().cloned().collect::<std::collections::BTreeSet<_>>();
-        let mut iter_clone = de_dup.iter();
-        iter_clone.next();
-        iter_clone.next();
 
-        traverse.peek();
-        let first = traverse.peek().cloned();
+        let mut iter_clone = de_dup.iter();
+        // skip root
+        iter_clone.next();
+        // second token is scan's first state
+        let first = iter_clone.next();
 
         traverse.scan(first, |next, blk| {
             let res = match blk.as_element() {
@@ -285,32 +287,53 @@ impl EditTree {
     }
 }
 
-fn string_from_block(blk: &Block, next: &mut Option<&Block>) -> String {
-    //println!{"BLK {:#?}\nNEXT {:#?}", blk, next}
-    let mut ret = String::default();
-    let (prev_s, next_s) = blk.space_value();
-    let (prev_n, next_n) = blk.eol_value();
-
-    // if new line
-    if prev_n {
-        ret.push('\n');
-    // else push space
-    } else {
-        ret.push_str(&" ".repeat(prev_s as usize));
+fn string_from_block(current: &Block, next: &mut Option<&Block>) -> String {
+    if current.as_str() == "struct" {
+        println!{"BLK {:#?}\nNEXT {:#?}", current, next}
     }
-    // add text token
-    ret.push_str(blk.as_str());
+    //println!{"BLK {:#?}\nNEXT {:#?}", current, next}
+    let mut ret = String::default();
+    let (curr_prev_space, curr_next_space) = current.space_value();
+    let (curr_prev_lf, curr_next_lf) = current.eol_value();
 
     if let Some(block) = next {
-        let (ps, _) = block.space_value();
-        let (pn, _) = block.eol_value();
+        let (next_prev_space, _) = block.space_value();
+        let (next_prev_lf, _) = block.eol_value();
+
+        // if new line
+        if curr_prev_lf {
+            ret.push('\n');
+        // else push space
+        } else {
+            ret.push_str(&" ".repeat(curr_prev_space as usize));
+        }
+        // add text token
+        ret.push_str(current.as_str());
 
         // if the next token has no previous space but the current token has next space marked
-        if ps == 0 && next_s > 0 {
-            ret.push_str(&" ".repeat(next_s as usize));
+        if next_prev_space == 0 && curr_next_space > 0 {
+            ret.push_str(&" ".repeat(curr_next_space as usize));
         // same for new line add only if current says to and next does not
-        } else if pn && !next_n {
+        } else if next_prev_lf && !curr_next_lf {
             ret.push('\n');
+        }
+    } else {
+        //println!{"BLK {:#?}\nNEXT {:#?}", current, next}
+        // if new line
+        if curr_prev_lf {
+            ret.push('\n');
+        // else push space
+        } else {
+            ret.push_str(&" ".repeat(curr_prev_space as usize));
+        }
+        // add text token
+        ret.push_str(current.as_str());
+
+        if curr_next_lf {
+            ret.push('\n');
+        // else push space
+        } else {
+            ret.push_str(&" ".repeat(curr_next_space as usize));
         }
     }
     println!("{:?}", ret);
