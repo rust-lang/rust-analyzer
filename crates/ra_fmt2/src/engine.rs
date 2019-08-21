@@ -1,5 +1,5 @@
 use crate::diff_view::DiffView;
-use crate::dsl::{self, SpaceLoc, SpaceValue, SpacingRule, SpacingDsl};
+use crate::dsl::{self, SpacingRule, SpacingDsl};
 use crate::edit_tree::{EditTree, Block};
 use crate::pattern::PatternSet;
 use crate::rules::spacing;
@@ -58,7 +58,10 @@ impl FmtDiff {
             pattern: SOURCE_FILE.into(),
             space: dsl::Space { loc: dsl::SpaceLoc::After, value: dsl::SpaceValue::Newline }
         };
-        self.edit_tree.root().get_spacing().borrow_mut().apply_fix(&rule);
+        self.edit_tree.last_token()
+            .expect("cannot format empty file")
+            .get_spacing()
+            .borrow_mut().explicit_fix(&rule);
         self.edit_tree
     }
 }
@@ -73,5 +76,5 @@ pub(crate) fn format_str(code: &str) -> Result<String, ()> {
     let root = p.syntax_node();
     let space = spacing();
 
-    Ok(format_pass(&space, &root).to_string())
+    Ok(format_pass(&space, &root).apply_edits())
 }

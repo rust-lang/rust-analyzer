@@ -35,5 +35,6 @@ fn show_me_the_progress() {
     let diff = FmtDiff::new(fmt);
     let et = diff.spacing_diff(&space);
 
-    println!("original: {:?}\nformatted: {:#?}", orig, et.to_string())
+    println!("original: {:?}\nformatted: {:#?}", orig, et.apply_edits());
+    assert_eq!(et.apply_edits(), "pub(crate) struct Test { x: String }\n")
 }

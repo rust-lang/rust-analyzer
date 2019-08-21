@@ -337,11 +337,23 @@ impl Whitespace {
     }
 
     pub(crate) fn apply_fix(&mut self, rule: &SpacingRule) {
+        // println!("PRE {:#?}", self);
         match rule.space.loc {
             SpaceLoc::After => self.fix_spacing_after(rule.space),
             SpaceLoc::Before => self.fix_spacing_before(rule.space),
             SpaceLoc::Around => self.fix_spacing_around(rule.space),
         };
+        // println!("POST {:#?}", self)
+    }
+
+    pub(crate) fn explicit_fix(&mut self, rule: &SpacingRule) {
+        //println!("PRE {:#?}", self);
+        match rule.space.loc {
+            SpaceLoc::After => self.fix_spacing_after(rule.space),
+            SpaceLoc::Before => self.fix_spacing_before(rule.space),
+            SpaceLoc::Around => self.fix_spacing_around(rule.space),
+        };
+        //println!("POST {:#?}", self)
     }
 
     fn fix_spacing_after(&mut self, space: Space) {
