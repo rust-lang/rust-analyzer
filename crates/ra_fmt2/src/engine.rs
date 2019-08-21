@@ -33,33 +33,37 @@ impl FmtDiff {
     /// 
     /// # Arguments
     ///
-    /// * `block` - A `Block` that is always a token.
+    /// * `block` - A `Block` that is always a token because rules match tokens.
     /// * `rule` - A `SpaceRule`.
     fn check_spacing(&self, rule: &SpacingRule, block: &Block) {
-        if let Some(whitespace) = block.get_spacing() {
-            // is this a terible idea impl-ing eq??
-            if whitespace != rule {
-                self.diff.borrow_mut().collect_space_edits(whitespace, rule);
-            }
-        } else {
-            self.diff.borrow_mut().collect_space_edits(block, rule);
+        let whitespace = block.get_spacing();
+        // is this a terible idea impl-ing eq??
+        if *whitespace.borrow() != *rule {
+            block.get_spacing().borrow_mut().apply_fix(rule)
         }
     }
 
-    pub(crate) fn spacing_diff(self, space_rules: &SpacingDsl) -> DiffView {
+    pub(crate) fn spacing_diff(self, space_rules: &SpacingDsl) -> EditTree {
         let spacing = PatternSet::new(space_rules.rules.iter());
-        
-        for block in self.edit_tree.walk() {
+        let blcks = self.edit_tree.walk_exc_root().collect::<Vec<_>>();
+        // TODO better way to keep track of if next space is needed
+        for block in blcks.iter() {
             for rule in spacing.matching(block.to_element()) {
                 // creates DiffView
                 self.check_spacing(rule, block)
             }
         }
-        self.diff.into_inner()
+        // take care of EOF new line this is HACKY
+        let rule = SpacingRule {
+            pattern: SOURCE_FILE.into(),
+            space: dsl::Space { loc: dsl::SpaceLoc::After, value: dsl::SpaceValue::Newline }
+        };
+        self.edit_tree.root().get_spacing().borrow_mut().apply_fix(&rule);
+        self.edit_tree
     }
 }
 
-pub(crate) fn format_pass(space_dsl: &SpacingDsl, root: &SyntaxNode) -> DiffView {
+pub(crate) fn format_pass(space_dsl: &SpacingDsl, root: &SyntaxNode) -> EditTree {
     let fmt = EditTree::new(root.clone());
     FmtDiff::new(fmt).spacing_diff(space_dsl)
 }
@@ -69,5 +73,5 @@ pub(crate) fn format_str(code: &str) -> Result<String, ()> {
     let root = p.syntax_node();
     let space = spacing();
 
-    format_pass(&space, &root).apply()
+    Ok(format_pass(&space, &root).to_string())
 }

@@ -18,7 +18,7 @@ use ra_syntax::{
 /// will be removed
 #[test]
 fn show_me_the_progress() {
-    let rs_file = "pub(crate) struct Test   {x:  String}    ";
+    let rs_file = "pub(crate) struct Test{x: String}  ";
     let rs_arr = "fn main() { let examp = [0,1,2]; }";
 
     let p = SourceFile::parse(&rs_file);
@@ -33,7 +33,7 @@ fn show_me_the_progress() {
     let orig = fmt.text().to_string();
     println!("{:#?}", fmt);
     let diff = FmtDiff::new(fmt);
-    let mut d = diff.spacing_diff(&space);
+    let et = diff.spacing_diff(&space);
 
-    println!("original: {:?}\nformatted: {:?}", orig, d.apply().unwrap())
+    println!("original: {:?}\nformatted: {:#?}", orig, et.to_string())
 }

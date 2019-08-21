@@ -18,15 +18,18 @@ pub(crate) fn spacing() -> SpacingDsl {
         .inside(NAMED_FIELD_DEF_LIST).before(T!['{']).single_space()
         .inside(NAMED_FIELD_DEF_LIST).after(T!['{']).single_space_or_optional_newline()
         .inside(NAMED_FIELD_DEF_LIST).before(T!['}']).single_space_or_optional_newline()
+        .inside(NAMED_FIELD_DEF_LIST).after(T!['}']).single_space_or_optional_newline()
         .inside(NAMED_FIELD_DEF).after(T![:]).single_space()
 
         .test("pub(crate)struct Test { x: u8 }", "pub(crate) struct Test { x: u8 }")
-        .inside(VISIBILITY).after(T![')']).single_space()
+        .inside(VISIBILITY).after(T![')']).single_space();
 
-        .rule(dsl::SpacingRule {
-            pattern: SOURCE_FILE.into(),
-            space: dsl::Space { loc: dsl::SpaceLoc::After, value: dsl::SpaceValue::Newline }
-        });
+
+        // must be done in engine so as not to disturb precidence or keeping track of Syntax Blocks "\n"
+        // .rule(dsl::SpacingRule {
+        //     pattern: SOURCE_FILE.into(),
+        //     space: dsl::Space { loc: dsl::SpaceLoc::After, value: dsl::SpaceValue::Newline }
+        // });
     // more rules to come
 
     space_dsl
@@ -57,7 +60,7 @@ pub(crate) fn indentation() -> IndentDsl {
 mod tests {
  
     use crate::{
-        edit_tree::EditTree, diff_view::DiffView,
+        edit_tree::EditTree, //diff_view::DiffView,
         engine::format_str, rules::{spacing},
     };
     use ra_syntax::SourceFile;
