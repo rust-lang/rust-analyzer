@@ -5,7 +5,10 @@ use std::{
 };
 
 use ra_arena::{impl_arena_id, Arena, RawId};
-use ra_syntax::{ast, AstNode, SyntaxNode, SyntaxNodePtr};
+use ra_syntax::{
+    ast::{self, AttrsOwner},
+    AstNode, SyntaxNode, SyntaxNodePtr,
+};
 
 use crate::{db::AstDatabase, HirFileId};
 
@@ -132,6 +135,18 @@ impl AstIdMap {
         // trait does not change ids of top-level items, which helps caching.
         bfs(node, |it| {
             if let Some(module_item) = ast::ModuleItem::cast(it.clone()) {
+                // Collect attributes from `StructDef`s and `EnumDef`s
+                if let Some(s) = ast::StructDef::cast(it.clone()) {
+                    for attr in s.attrs() {
+                        res.alloc(attr.syntax());
+                    }
+                }
+                if let Some(e) = ast::EnumDef::cast(it.clone()) {
+                    for attr in e.attrs() {
+                        res.alloc(attr.syntax());
+                    }
+                }
+
                 res.alloc(module_item.syntax());
             } else if let Some(macro_call) = ast::MacroCall::cast(it) {
                 res.alloc(macro_call.syntax());

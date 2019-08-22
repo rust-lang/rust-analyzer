@@ -559,7 +559,7 @@ where
                     raw_items: self.raw_items,
                     parent_module: Some(parent_module),
                 }
-                .collect(&*items);
+                    .collect(&*items);
                 if *is_macro_use {
                     self.import_all_legacy_macros(module_id);
                 }
@@ -588,7 +588,7 @@ where
                             raw_items: &raw_items,
                             parent_module: None,
                         }
-                        .collect(raw_items.items());
+                            .collect(raw_items.items());
                         if *is_macro_use {
                             self.import_all_legacy_macros(module_id);
                         }
@@ -659,43 +659,55 @@ where
     }
 
     fn collect_macro(&mut self, mac: &raw::MacroData) {
-        // Case 1: macro rules, define a macro in crate-global mutable scope
-        if is_macro_rules(&mac.path) {
-            if let Some(name) = &mac.name {
-                let macro_id = MacroDefId(mac.ast_id.with_file_id(self.file_id));
-                let macro_ = MacroDef { id: macro_id };
-                self.def_collector.define_macro(self.module_id, name.clone(), macro_, mac.export);
+        match mac {
+            raw::MacroData::MacroCall(mac) => {
+                // Case 1: macro rules, define a macro in crate-global mutable scope
+                if is_macro_rules(&mac.path) {
+                    if let Some(name) = &mac.name {
+                        let macro_id = MacroDefId(mac.ast_id.with_file_id(self.file_id));
+                        let macro_ = MacroDef { id: macro_id };
+                        self.def_collector.define_macro(
+                            self.module_id,
+                            name.clone(),
+                            macro_,
+                            mac.export,
+                        );
+                    }
+                    return;
+                }
+
+                let ast_id = mac.ast_id.with_file_id(self.file_id);
+
+                // Case 2: try to resolve in legacy scope and expand macro_rules, triggering
+                // recursive item collection.
+                if let Some(macro_def) = mac
+                    .path
+                    .as_ident()
+                    .and_then(|name| {
+                        self.def_collector.def_map[self.module_id].scope.get_legacy_macro(&name)
+                    }) {
+                    let def = macro_def.id;
+                    let macro_call_id = MacroCallLoc { def, ast_id }.id(self.def_collector.db);
+
+                    self.def_collector.collect_macro_expansion(self.module_id, macro_call_id, def);
+                    return;
+                }
+
+                // Case 3: resolve in module scope, expand during name resolution.
+                // We rewrite simple path `macro_name` to `self::macro_name` to force resolve in module scope only.
+                let mut path = mac.path.clone();
+                if path.is_ident() {
+                    path.kind = PathKind::Self_;
+                }
+                self.def_collector.unexpanded_macros.push((self.module_id, ast_id, path));
             }
-            return;
-        }
 
-        let ast_id = mac.ast_id.with_file_id(self.file_id);
+            raw::MacroData::DeriveAttr(mac) => {
+                let ast_id = mac.ast_id.with_file_id(self.file_id);
+                log::warn!("Derive macro {:?}", ast_id);
 
-        // Case 2: try to resolve in legacy scope and expand macro_rules, triggering
-        // recursive item collection.
-        if let Some(macro_def) = mac.path.as_ident().and_then(|name| {
-            self.def_collector.def_map[self.module_id].scope.get_legacy_macro(&name)
-        }) {
-            let def = macro_def.id;
-            let macro_call_id = MacroCallLoc { def, ast_id }.id(self.def_collector.db);
-
-            self.def_collector.collect_macro_expansion(self.module_id, macro_call_id, def);
-            return;
-        }
-
-        // Case 3: resolve in module scope, expand during name resolution.
-        // We rewrite simple path `macro_name` to `self::macro_name` to force resolve in module scope only.
-        let mut path = mac.path.clone();
-        if path.is_ident() {
-            path.kind = PathKind::Self_;
-        }
-        self.def_collector.unexpanded_macros.push((self.module_id, ast_id, path));
-    }
-
-    fn import_all_legacy_macros(&mut self, module_id: CrateModuleId) {
-        let macros = self.def_collector.def_map[module_id].scope.legacy_macros.clone();
-        for (name, macro_) in macros {
-            self.def_collector.define_legacy_macro(self.module_id, name.clone(), macro_);
+                // TODO: add trait implementations into the module's scope
+            }
         }
     }
 }

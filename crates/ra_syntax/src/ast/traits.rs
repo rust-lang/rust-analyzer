@@ -69,23 +69,47 @@ pub trait ModuleItemOwner: AstNode {
 #[derive(Debug)]
 pub struct ItemOrMacroIter(SyntaxNodeChildren);
 
+fn collect_derive_attr(n: impl AttrsOwner) -> Option<ItemOrMacro> {
+    let attrs = n.attrs();
+
+    for attr in attrs {
+        if let Some((name, _)) = attr.as_call() {
+            if name.as_str() == "derive" {
+                return Some(ItemOrMacro::Macro(MacroKind::DeriveAttr(attr)));
+            }
+        }
+    }
+
+    None
+}
+
 impl Iterator for ItemOrMacroIter {
     type Item = ItemOrMacro;
     fn next(&mut self) -> Option<ItemOrMacro> {
         loop {
             let n = self.0.next()?;
+
             if let Some(item) = ast::ModuleItem::cast(n.clone()) {
+                if let Some(s) = ast::StructDef::cast(n.clone()) {
+                    let m = collect_derive_attr(s);
+
+                    if m.is_some() {
+                        return m;
+                    }
+                }
+
+                if let Some(e) = ast::EnumDef::cast(n.clone()) {
+                    let m = collect_derive_attr(e);
+
+                    if m.is_some() {
+                        return m;
+                    }
+                }
+
                 return Some(ItemOrMacro::Item(item));
             }
             if let Some(call) = ast::MacroCall::cast(n.clone()) {
                 return Some(ItemOrMacro::Macro(MacroKind::Call(call)));
-            }
-            if let Some(attr) = ast::Attr::cast(n) {
-                if let Some((name, _)) = attr.as_call() {
-                    if name.as_str() == "derive" {
-                        return Some(ItemOrMacro::Macro(MacroKind::DeriveAttr(attr)));
-                    }
-                }
             }
         }
     }

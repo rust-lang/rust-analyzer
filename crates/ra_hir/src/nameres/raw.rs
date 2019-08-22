@@ -189,7 +189,18 @@ pub(super) struct Macro(RawId);
 impl_arena_id!(Macro);
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) struct MacroData {
+pub(super) enum MacroData {
+    MacroCall(MacroCallData),
+    DeriveAttr(DeriveData),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct DeriveData {
+    pub(super) ast_id: FileAstId<ast::Attr>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct MacroCallData {
     pub(super) ast_id: FileAstId<ast::MacroCall>,
     pub(super) path: Path,
     pub(super) name: Option<Name>,
@@ -349,13 +360,21 @@ impl RawItemsCollector {
                 let name = m.name().map(|it| it.as_name());
                 let ast_id = self.source_ast_id_map.ast_id(&m);
                 let export = m.has_atom_attr("macro_export");
-                let m = self.raw_items.macros.alloc(MacroData { ast_id, path, name, export });
+                let m = self.raw_items.macros.alloc(MacroData::MacroCall(MacroCallData {
+                    ast_id,
+                    path,
+                    name,
+                    export,
+                }));
                 self.push_item(current_module, RawItem::Macro(m));
             }
 
             MacroKind::DeriveAttr(attr) => {
-                // TODO
-                unimplemented!()
+                log::warn!("Derive attr: {}", attr.syntax().text().to_string());
+                let ast_id = self.source_ast_id_map.ast_id(&attr);
+                let m = self.raw_items.macros.alloc(MacroData::DeriveAttr(DeriveData { ast_id }));
+
+                self.push_item(current_module, RawItem::Macro(m));
             }
         }
     }
