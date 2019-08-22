@@ -102,6 +102,6 @@ pub(crate) fn format_str(file: &str) -> Result<String, ()> {
     let p = SourceFile::parse(file);
     let root = p.syntax_node();
     let space = spacing();
-    
+
     Ok(format_pass(&space, &root).apply_edits())
 }

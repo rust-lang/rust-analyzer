@@ -85,6 +85,7 @@ impl Block {
         };
 
         let whitespace = Rc::new(RefCell::new(Whitespace::new(&element)));
+        let indentation = Rc::new(RefCell::new(Indentation::new(&element)));
 
         let whitespace = Rc::new(RefCell::new(Whitespace::new(&element)));
         let indentation = Rc::new(RefCell::new(Indentation::new(&element)));
