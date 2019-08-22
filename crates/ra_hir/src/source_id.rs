@@ -16,7 +16,7 @@ use crate::{db::AstDatabase, HirFileId};
 ///
 /// It is stable across reparses, and can be used as salsa key/value.
 #[derive(Debug)]
-pub(crate) struct AstId<N: AstNode> {
+pub struct AstId<N: AstNode> {
     file_id: HirFileId,
     file_ast_id: FileAstId<N>,
 }
