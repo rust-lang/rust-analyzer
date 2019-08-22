@@ -6,10 +6,11 @@
 mod diff_view;
 mod dsl;
 mod edit_tree;
+mod engine;
+mod indent;
 mod pattern;
 mod rules;
 mod scratch;
-mod engine;
 // mod fmt_model;
 mod trav_util;
 mod whitespace;

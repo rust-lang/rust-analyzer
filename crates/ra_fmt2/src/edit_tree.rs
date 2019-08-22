@@ -1,8 +1,9 @@
 use crate::dsl::{Space, SpaceLoc, SpaceValue, SpacingDsl, SpacingRule};
+use crate::indent::Indentation;
 use crate::pattern::{Pattern, PatternSet};
 use crate::rules::spacing;
 use crate::trav_util::{walk, walk_nodes, walk_tokens};
-use crate::whitespace::{Whitespace};
+use crate::whitespace::Whitespace;
 
 use ra_syntax::{
     NodeOrToken, SmolStr, SyntaxElement,
@@ -33,6 +34,7 @@ pub(crate) struct Block {
     text: SmolStr,
     range: TextRange,
     whitespace: Rc<RefCell<Whitespace>>,
+    indentation: Rc<RefCell<Indentation>>,
 }
 
 impl Eq for Block {}
@@ -55,8 +57,10 @@ impl PartialOrd for Block {
     }
 }
 
-// each block will have knowledge of spacing and indent,
+/// Block abstracts every node and token in a `SourceFile` of SyntaxElement`s, keeping indent
+/// and `Whitespace` information for later formatting.
 impl Block {
+    /// Returns `Block` from either `SyntaxNode` or `SyntaxToken`.
     pub(crate) fn build_block(element: SyntaxElement) -> Block {
         // recursivly add to children
         let children = match &element {
@@ -81,8 +85,9 @@ impl Block {
         };
 
         let whitespace = Rc::new(RefCell::new(Whitespace::new(&element)));
+        let indentation = Rc::new(RefCell::new(Indentation::new(&element)));
 
-        Self { element, text, children, range, whitespace }
+        Self { element, text, children, range, whitespace, indentation, }
     }
 
     /// Compare pointers to check if two Blocks are equal.
@@ -116,14 +121,14 @@ impl Block {
         &self.element
     }
 
-    /// Traverse all blocks in order including current, convenience for order_flatten_blocks.
+    /// Traverse all blocks in order including current.
     pub(crate) fn traverse_inc(&self) -> impl Iterator<Item = &Block> {
         Traversal { blocks: self.order_flatten_blocks_inc(), idx: 0 }
     }
 
-    /// Traverse all blocks in order excluding current, convenience for order_flatten_blocks.
+    /// Traverse all blocks in order excluding current.
     pub(crate) fn traverse_exc(&self) -> impl Iterator<Item = &Block> {
-        Traversal { blocks: self.order_flatten_blocks_exc(), idx: 0 }
+        Traversal { blocks: self.order_flatten_blocks_exc_root(), idx: 0 }
     }
 
     /// Vec of all Blocks in order including current, parent then children.
@@ -140,11 +145,12 @@ impl Block {
     }
 
     /// Vec of all Blocks in order excluding current, parent then children.
-    fn order_flatten_blocks_exc(&self) -> Vec<&Block> {
-        let mut blocks = vec![self];
+    fn order_flatten_blocks_exc_root(&self) -> Vec<&Block> {
+        let mut blocks = vec![];
         for blk in self.children() {
             blocks.push(blk);
             if !blk.children.is_empty() {
+                // we only want to exlcude the root
                 let mut kids = Block::order_flatten_blocks_inc(blk);
                 blocks.append(&mut kids);
             }
@@ -167,9 +173,29 @@ impl Block {
         blocks
     }
 
+    /// Vec of `Blocks` containing nodes, in order.
+    fn order_flatten_blocks_nodes(&self) -> Vec<&Block> {
+        let mut blocks = vec![self];
+        for blk in self.children() {
+            if blk.as_element().as_node().is_some() {
+                blocks.push(blk);
+            }
+            if !blk.children.is_empty() {
+                let mut kids = Block::order_flatten_blocks_nodes(blk);
+                blocks.append(&mut kids);
+            }
+        }
+        blocks
+    }
+
     /// Returns `Whitespace` which has knowledge of whitespace around current token.
     pub(crate) fn get_spacing(&self) -> Rc<RefCell<Whitespace>> {
         Rc::clone(&self.whitespace)
+    }
+
+    /// Returns `Indentation` which has knowledge of indenting whitespace.
+    pub(crate) fn get_indent(&self) -> Rc<RefCell<Indentation>> {
+        Rc::clone(&self.indentation)
     }
 
     /// Returns previous and next space amounts as tuple.
@@ -182,12 +208,12 @@ impl Block {
         self.whitespace.borrow().new_line
     }
 
-    /// Remove after dev
+    /// Remove after dev ??
     fn to_string(&self) -> String {
         self.text.to_string()
     }
 
-    /// Remove after dev
+    /// Returns `Block`s text as str.
     fn as_str(&self) -> &str {
         self.text.as_str()
     }
@@ -242,9 +268,13 @@ impl EditTree {
     pub(crate) fn walk_tokens(&self) -> Traversal {
         Traversal { blocks: self.root.order_flatten_blocks_tokens(), idx: 0 }
     }
+    /// Walk blocks that represent nodes.
+    pub(crate) fn walk_nodes(&self) -> Traversal {
+        Traversal { blocks: self.root.order_flatten_blocks_nodes(), idx: 0 }
+    }
     /// Walk all blocks excluding root.
     pub(crate) fn walk_exc_root(&self) -> Traversal {
-        Traversal { blocks: self.root.order_flatten_blocks_exc(), idx: 0 }
+        Traversal { blocks: self.root.order_flatten_blocks_exc_root(), idx: 0 }
     }
 
     /// Returns the SmolStr of the root node, the whole text
@@ -288,9 +318,6 @@ impl EditTree {
 }
 
 fn string_from_block(current: &Block, next: &mut Option<&Block>) -> String {
-    if current.as_str() == "struct" {
-        println!{"BLK {:#?}\nNEXT {:#?}", current, next}
-    }
     //println!{"BLK {:#?}\nNEXT {:#?}", current, next}
     let mut ret = String::default();
     let (curr_prev_space, curr_next_space) = current.space_value();
