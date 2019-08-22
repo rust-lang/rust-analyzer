@@ -39,9 +39,9 @@ pub(crate) fn indentation() -> IndentDsl {
     let mut indent_dsl = IndentDsl::default();
 
     indent_dsl
-        .anchor(NAMED_FIELD_DEF_LIST)
         .rule("Indent struct fields")
-            .not_matching([T!['{'], T!['}']])
+            .inside(NAMED_FIELD_DEF_LIST)
+            .matching(NAMED_FIELD_DEF)
             .set(IndentValue::Indent)
             .test(r#"
                 struct Test {

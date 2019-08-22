@@ -18,6 +18,12 @@ impl fmt::Debug for Pattern {
     }
 }
 
+impl AsRef<Pattern> for Pattern {
+    fn as_ref(&self) -> &Pattern {
+        self
+    }
+}
+
 impl Pattern {
     fn new(
         kinds: Option<HashSet<SyntaxKind>>,
