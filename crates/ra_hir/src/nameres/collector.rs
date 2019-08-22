@@ -687,7 +687,8 @@ where
                         self.def_collector.def_map[self.module_id].scope.get_legacy_macro(&name)
                     }) {
                     let def = macro_def.id;
-                    let macro_call_id = MacroCallLoc::Macro { def, ast_id }.id(self.def_collector.db);
+                    let macro_call_id =
+                        MacroCallLoc::Macro { def, ast_id }.id(self.def_collector.db);
 
                     self.def_collector.collect_macro_expansion(self.module_id, macro_call_id, def);
                     return;
@@ -716,7 +717,7 @@ where
                     raw_items: &raw_items,
                     parent_module: None,
                 }
-                    .collect(raw_items.items());
+                .collect(raw_items.items());
             }
         }
     }

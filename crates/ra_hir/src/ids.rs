@@ -44,7 +44,7 @@ impl HirFileId {
             HirFileIdRepr::Macro(macro_file) => {
                 let loc = macro_file.macro_call_id.loc(db);
                 match loc {
-                    MacroCallLoc::Macro { ast_id, .. } =>  ast_id.file_id().original_file(db),
+                    MacroCallLoc::Macro { ast_id, .. } => ast_id.file_id().original_file(db),
                     MacroCallLoc::Derive { ast_id, .. } => ast_id.file_id().original_file(db),
                 }
             }
@@ -151,7 +151,7 @@ pub(crate) fn macro_arg_query(db: &impl AstDatabase, id: MacroCallId) -> Option<
             Some(Arc::new(tt))
         }
 
-        MacroCallLoc::Derive { .. } => None
+        MacroCallLoc::Derive { .. } => None,
     }
 }
 
@@ -173,16 +173,13 @@ pub(crate) fn macro_expand_query(
                 return Err(format!("Total tokens count exceed limit : count = {}", count));
             }
             Ok(Arc::new(tt))
-        },
+        }
 
-        MacroCallLoc::Derive { ast_id} => {
+        MacroCallLoc::Derive { ast_id } => {
             // TODO: produce token trees of derive macro expansion
 
-            Ok(Arc::new(tt::Subtree {
-                delimiter: tt::Delimiter::None,
-                token_trees: vec![]
-            }))
-        },
+            Ok(Arc::new(tt::Subtree { delimiter: tt::Delimiter::None, token_trees: vec![] }))
+        }
     }
 }
 
@@ -207,14 +204,9 @@ impl_intern_key!(MacroCallId);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MacroCallLoc {
-    Macro {
-        def: MacroDefId,
-        ast_id: AstId<ast::MacroCall>,
-    },
+    Macro { def: MacroDefId, ast_id: AstId<ast::MacroCall> },
 
-    Derive {
-        ast_id: AstId<ast::Attr>,
-    }
+    Derive { ast_id: AstId<ast::Attr> },
 }
 
 impl MacroCallId {
