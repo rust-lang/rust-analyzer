@@ -219,7 +219,7 @@ pub(crate) struct RuleName(&'static str);
 
 impl RuleName {
     fn new(name: &'static str) -> RuleName {
-        assert!(name.chars().next().unwrap().is_uppercase(), "rule names should be capitalized");
+        assert!(name.chars().next().unwrap().is_uppercase(), "rule names start with capital letter");
         assert!(!name.ends_with('.'), "rule names should not end with '.'");
         RuleName(name)
     }
@@ -244,27 +244,53 @@ pub(crate) struct IndentRule {
     pub(crate) child_modality: Modality,
 
     /// Pattern that should match the anchoring element, relative to which we
-    /// calculate the indent
-    ///
-    /// in
-    ///
-    /// ```nix
-    /// {
-    ///   f = x:
-    ///      x * 2
-    ///   ;
-    /// }
-    /// ```
-    ///
-    /// when we indent lambda body, `x * 2` is the thing to which the `pattern`
-    /// applies and `f = x ...` is the thing to which the `anchor_pattern`
-    /// applies.
+    /// calculate the indent. Starts the indent level count from this node/token?? TODO
     pub(crate) anchor_pattern: Option<Pattern>,
     pub(crate) indent_value: IndentValue,
 }
 
+impl IndentRule {
+    pub(super) fn matches(&self, element: &SyntaxElement) -> bool {
+        let parent = match element.parent() {
+            None => return false,
+            Some(it) => it,
+        };
+        if !self.parent.matches(&parent.into()) {
+            return false;
+        }
+        if let Some(child) = &self.child {
+            child.matches(element) == (self.child_modality == Modality::Positive)
+        } else {
+            true
+        }
+    }
+
+    // pub(super) fn apply(
+    //     &self,
+    //     element: &SyntaxElement,
+    //     model: &mut FmtModel,
+    //     anchor_set: &PatternSet<&Pattern>,
+    // ) {
+    //     debug_assert!(self.matches(element));
+    //     let anchor_indent = match indent_anchor(element, model, anchor_set) {
+    //         Some((anchor, indent)) => {
+    //             if let Some(p) = &self.anchor_pattern {
+    //                 if !p.matches(&anchor.into()) {
+    //                     default_indent(element, model, anchor_set);
+    //                     return;
+    //                 }
+    //             }
+    //             indent
+    //         }
+    //         _ => IndentLevel::default(),
+    //     };
+    //     let block = model.block_for(element, BlockPosition::Before);
+    //     block.set_indent(anchor_indent.indent());
+    // }
+}
+
 /// A builder to conveniently specify a set of `IndentRule`s.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub(crate) struct IndentDsl {
     pub(crate) rules: Vec<IndentRule>,
     pub(crate) anchors: Vec<Pattern>,

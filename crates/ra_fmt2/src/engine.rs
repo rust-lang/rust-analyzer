@@ -1,5 +1,5 @@
 use crate::diff_view::DiffView;
-use crate::dsl::{self, SpacingRule, SpacingDsl};
+use crate::dsl::{self, SpacingRule, SpacingDsl, IndentDsl, IndentRule};
 use crate::edit_tree::{EditTree, Block};
 use crate::pattern::PatternSet;
 use crate::rules::spacing;
@@ -64,6 +64,35 @@ impl FmtDiff {
             .borrow_mut().explicit_fix(&rule);
         self.edit_tree
     }
+
+    /// Checks if `Indent` and `IndentRule` match then mutates `DiffView`.
+    /// 
+    /// # Arguments
+    ///
+    /// * `block` - A `Block` that is always a token because rules match tokens.
+    /// * `rule` - A `IndentRule`.
+    fn check_indent(&self, rule: &IndentRule, block: &Block) {
+        let mut indent = block.get_indent();
+        // is this a terible idea impl-ing eq??
+        if indent != *rule {
+            block.get_indent().apply_fix(rule)
+        }
+    }
+
+    pub(crate) fn indent_diff(self, indent_rules: &IndentDsl) -> EditTree {
+        let indent = PatternSet::new(indent_rules.anchors.iter());
+        // TODO only walk nodes???
+        let blcks = self.edit_tree.walk_nodes().collect::<Vec<_>>();
+        // TODO better way to keep track of if next space is needed
+        for block in blcks.iter() {
+            for rule in indent.matching(block.to_element()) {
+                // creates DiffView
+                //self.check_indent(rule, block)
+            }
+        }
+
+        self.edit_tree
+    }
 }
 
 pub(crate) fn format_pass(space_dsl: &SpacingDsl, root: &SyntaxNode) -> EditTree {
@@ -71,8 +100,8 @@ pub(crate) fn format_pass(space_dsl: &SpacingDsl, root: &SyntaxNode) -> EditTree
     FmtDiff::new(fmt).spacing_diff(space_dsl)
 }
 
-pub(crate) fn format_str(code: &str) -> Result<String, ()> {
-    let p = SourceFile::parse(code);
+pub(crate) fn format_str(file: &str) -> Result<String, ()> {
+    let p = SourceFile::parse(file);
     let root = p.syntax_node();
     let space = spacing();
 
