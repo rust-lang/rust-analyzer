@@ -439,7 +439,7 @@ where
             );
 
             if let Some(def) = resolved_res.resolved_def.get_macros() {
-                let call_id = MacroCallLoc { def: def.id, ast_id: *ast_id }.id(self.db);
+                let call_id = MacroCallLoc::Macro { def: def.id, ast_id: *ast_id }.id(self.db);
                 resolved.push((*module_id, call_id, def.id));
                 res = ReachedFixedPoint::No;
                 return false;
@@ -687,7 +687,7 @@ where
                         self.def_collector.def_map[self.module_id].scope.get_legacy_macro(&name)
                     }) {
                     let def = macro_def.id;
-                    let macro_call_id = MacroCallLoc { def, ast_id }.id(self.def_collector.db);
+                    let macro_call_id = MacroCallLoc::Macro { def, ast_id }.id(self.def_collector.db);
 
                     self.def_collector.collect_macro_expansion(self.module_id, macro_call_id, def);
                     return;
@@ -704,9 +704,19 @@ where
 
             raw::MacroData::DeriveAttr(mac) => {
                 let ast_id = mac.ast_id.with_file_id(self.file_id);
-                log::warn!("Derive macro {:?}", ast_id);
+                let macro_call_id = MacroCallLoc::Derive { ast_id }.id(self.def_collector.db);
 
-                // TODO: add trait implementations into the module's scope
+                // Collect from derive macro expansion
+                let file_id: HirFileId = macro_call_id.as_file(MacroFileKind::Items);
+                let raw_items = self.def_collector.db.raw_items(file_id);
+                ModCollector {
+                    def_collector: &mut *self.def_collector,
+                    file_id,
+                    module_id: self.module_id,
+                    raw_items: &raw_items,
+                    parent_module: None,
+                }
+                    .collect(raw_items.items());
             }
         }
     }

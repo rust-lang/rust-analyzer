@@ -43,7 +43,10 @@ impl HirFileId {
             HirFileIdRepr::File(file_id) => file_id,
             HirFileIdRepr::Macro(macro_file) => {
                 let loc = macro_file.macro_call_id.loc(db);
-                loc.ast_id.file_id().original_file(db)
+                match loc {
+                    MacroCallLoc::Macro { ast_id, .. } =>  ast_id.file_id().original_file(db),
+                    MacroCallLoc::Derive { ast_id, .. } => ast_id.file_id().original_file(db),
+                }
             }
         }
     }
@@ -139,10 +142,17 @@ pub(crate) fn macro_def_query(db: &impl AstDatabase, id: MacroDefId) -> Option<A
 
 pub(crate) fn macro_arg_query(db: &impl AstDatabase, id: MacroCallId) -> Option<Arc<tt::Subtree>> {
     let loc = id.loc(db);
-    let macro_call = loc.ast_id.to_node(db);
-    let arg = macro_call.token_tree()?;
-    let (tt, _) = mbe::ast_to_token_tree(&arg)?;
-    Some(Arc::new(tt))
+
+    match loc {
+        MacroCallLoc::Macro { ast_id, .. } => {
+            let macro_call = ast_id.to_node(db);
+            let arg = macro_call.token_tree()?;
+            let (tt, _) = mbe::ast_to_token_tree(&arg)?;
+            Some(Arc::new(tt))
+        }
+
+        MacroCallLoc::Derive { .. } => None
+    }
 }
 
 pub(crate) fn macro_expand_query(
@@ -150,16 +160,30 @@ pub(crate) fn macro_expand_query(
     id: MacroCallId,
 ) -> Result<Arc<tt::Subtree>, String> {
     let loc = id.loc(db);
-    let macro_arg = db.macro_arg(id).ok_or("Fail to args in to tt::TokenTree")?;
 
-    let macro_rules = db.macro_def(loc.def).ok_or("Fail to find macro definition")?;
-    let tt = macro_rules.expand(&macro_arg).map_err(|err| format!("{:?}", err))?;
-    // Set a hard limit for the expanded tt
-    let count = tt.count();
-    if count > 65536 {
-        return Err(format!("Total tokens count exceed limit : count = {}", count));
+    match loc {
+        MacroCallLoc::Macro { ast_id, def } => {
+            let macro_arg = db.macro_arg(id).ok_or("Fail to args in to tt::TokenTree")?;
+
+            let macro_rules = db.macro_def(def).ok_or("Fail to find macro definition")?;
+            let tt = macro_rules.expand(&macro_arg).map_err(|err| format!("{:?}", err))?;
+            // Set a hard limit for the expanded tt
+            let count = tt.count();
+            if count > 65536 {
+                return Err(format!("Total tokens count exceed limit : count = {}", count));
+            }
+            Ok(Arc::new(tt))
+        },
+
+        MacroCallLoc::Derive { ast_id} => {
+            // TODO: produce token trees of derive macro expansion
+
+            Ok(Arc::new(tt::Subtree {
+                delimiter: tt::Delimiter::None,
+                token_trees: vec![]
+            }))
+        },
     }
-    Ok(Arc::new(tt))
 }
 
 macro_rules! impl_intern_key {
@@ -182,9 +206,15 @@ pub struct MacroCallId(salsa::InternId);
 impl_intern_key!(MacroCallId);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MacroCallLoc {
-    pub(crate) def: MacroDefId,
-    pub(crate) ast_id: AstId<ast::MacroCall>,
+pub enum MacroCallLoc {
+    Macro {
+        def: MacroDefId,
+        ast_id: AstId<ast::MacroCall>,
+    },
+
+    Derive {
+        ast_id: AstId<ast::Attr>,
+    }
 }
 
 impl MacroCallId {
@@ -364,29 +394,57 @@ impl AstItemDef<ast::TypeAliasDef> for TypeAliasId {
 impl MacroCallId {
     pub fn debug_dump(self, db: &impl AstDatabase) -> String {
         let loc = self.loc(db);
-        let node = loc.ast_id.to_node(db);
-        let syntax_str = {
-            let mut res = String::new();
-            node.syntax().text().for_each_chunk(|chunk| {
-                if !res.is_empty() {
-                    res.push(' ')
-                }
-                res.push_str(chunk)
-            });
-            res
-        };
+        match loc {
+            MacroCallLoc::Macro { ast_id, def } => {
+                let node = ast_id.to_node(db);
+                let syntax_str = {
+                    let mut res = String::new();
+                    node.syntax().text().for_each_chunk(|chunk| {
+                        if !res.is_empty() {
+                            res.push(' ')
+                        }
+                        res.push_str(chunk)
+                    });
+                    res
+                };
 
-        // dump the file name
-        let file_id: HirFileId = self.loc(db).ast_id.file_id();
-        let original = file_id.original_file(db);
-        let macro_rules = db.macro_def(loc.def);
+                // dump the file name
+                let file_id: HirFileId = ast_id.file_id();
+                let original = file_id.original_file(db);
+                let macro_rules = db.macro_def(def);
 
-        format!(
-            "macro call [file: {:?}] : {}\nhas rules: {}",
-            db.file_relative_path(original),
-            syntax_str,
-            macro_rules.is_some()
-        )
+                format!(
+                    "macro call [file: {:?}] : {}\nhas rules: {}",
+                    db.file_relative_path(original),
+                    syntax_str,
+                    macro_rules.is_some()
+                )
+            }
+
+            MacroCallLoc::Derive { ast_id } => {
+                let node = ast_id.to_node(db);
+                let syntax_str = {
+                    let mut res = String::new();
+                    node.syntax().text().for_each_chunk(|chunk| {
+                        if !res.is_empty() {
+                            res.push(' ')
+                        }
+                        res.push_str(chunk)
+                    });
+                    res
+                };
+
+                // dump the file name
+                let file_id: HirFileId = ast_id.file_id();
+                let original = file_id.original_file(db);
+
+                format!(
+                    "derive macro [file: {:?}] : {}",
+                    db.file_relative_path(original),
+                    syntax_str,
+                )
+            }
+        }
     }
 }
 
