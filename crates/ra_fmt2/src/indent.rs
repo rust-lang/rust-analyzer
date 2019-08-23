@@ -1,4 +1,5 @@
 use crate::dsl::{IndentDsl, IndentRule, IndentValue, SpaceLoc, SpaceValue};
+use crate::edit_tree::Block;
 use crate::pattern::{Pattern, PatternSet};
 use crate::rules::spacing;
 use crate::trav_util::{walk, walk_nodes, walk_tokens};
@@ -10,6 +11,8 @@ use ra_syntax::{
 };
 
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
+use std::cell::RefCell;
 
 const INDENT: usize = 4;
 const ID_STR: &str = "    ";
@@ -17,19 +20,19 @@ const ID_STR: &str = "    ";
 #[derive(Clone, Debug)]
 /// Whitespace holds all whitespace information for each Block.
 /// Accessed from any Block's get_whitespace fn.
-pub(crate) struct Indentation<'i> {
+pub(crate) struct Indentation {
     original: Option<SyntaxElement>,
-    parent: Option<&'i Indentation<'i>>,
+    indent_level: usize,
     indent_spaces: usize,
     // additional_spaces: u32,
     location: usize,
 }
 
-impl<'i> Default for Indentation<'i> {
+impl Default for Indentation {
     fn default() -> Self {
         Self {
             original: None,
-            parent: None,
+            indent_level: 0,
             indent_spaces: 0,
             // make sure this is ok or none needs to take element to get text_range
             location: 0,
@@ -37,7 +40,7 @@ impl<'i> Default for Indentation<'i> {
     }
 }
 
-impl<'i> Indentation<'i> {
+impl Indentation {
 
     pub(crate) fn new(element: &SyntaxElement) -> Self {
         match element {
@@ -78,7 +81,7 @@ impl<'i> Indentation<'i> {
 
             Self {
                 original,
-                parent: None,
+                indent_level: 0,
                 indent_spaces,
                 location: curr.text_range().start().to_usize(),
             }
@@ -94,12 +97,51 @@ impl<'i> Indentation<'i> {
 
             Self {
                 original,
-                parent: None,
+                indent_level: 0,
                 indent_spaces,
                 location: curr.text_range().start().to_usize(),
             }
         } else {
             Indentation::empty_token(curr)
         }
+    }
+}
+
+pub(crate) struct IndentBuilder<'b> {
+    collected: Vec<&'b Block>,
+}
+
+impl<'b> Default for IndentBuilder<'b> {
+    fn default() -> Self {
+        Self { collected: vec![], }
+    }
+}
+
+impl<'b> IndentBuilder<'b> {
+
+    pub(crate) fn new(&mut self, blk: &'b Block, ) {
+        blk.children().m
+    }
+
+    pub(crate) fn push(&mut self, blk: &'b Block) {
+        self.collected.push(blk)
+    }
+
+    pub(crate) fn indent_level(&self, block: &'b Block) -> Option<Rc<RefCell<Indentation>>> {
+        self.collected.iter()
+            .scan(0, |depth, &blk| {
+                if blk.get_indent().borrow().indent_spaces > 0 {
+                    *depth += 1;
+                    blk.get_indent().borrow_mut().indent_level = *depth;
+                }
+                Some((*depth, blk.clone()))
+            })
+            .find_map(|(depth, blk)| {
+                if blk == *block {
+                    Some(blk.get_indent())
+                } else {
+                    None
+                }
+            })
     }
 }
