@@ -1,5 +1,5 @@
 use crate::dsl::{Space, SpaceLoc, SpaceValue, SpacingDsl, SpacingRule};
-use crate::indent::Indentation;
+// use crate::indent::Indentation;
 use crate::pattern::{Pattern, PatternSet};
 use crate::rules::spacing;
 use crate::trav_util::{walk, walk_nodes, walk_tokens};
@@ -33,8 +33,7 @@ pub(crate) struct Block {
     children: Vec<Block>,
     text: SmolStr,
     range: TextRange,
-    whitespace: Rc<RefCell<Whitespace>>,
-    indentation: Rc<RefCell<Indentation>>,
+    whitespace: RefCell<Whitespace>,
 }
 
 impl Eq for Block {}
@@ -84,8 +83,7 @@ impl Block {
             NodeOrToken::Token(token) => token.text().clone(),
         };
 
-        let whitespace = Rc::new(RefCell::new(Whitespace::new(&element)));
-        let indentation = Rc::new(RefCell::new(Indentation::new(&element)));
+        let whitespace = RefCell::new(Whitespace::new(&element));
 
         let whitespace = Rc::new(RefCell::new(Whitespace::new(&element)));
         let indentation = Rc::new(RefCell::new(Indentation::new(&element)));
@@ -107,6 +105,28 @@ impl Block {
     /// Returns an iterator of children from current element.
     pub(crate) fn children(&self) -> impl Iterator<Item = &Block> {
         self.children.iter()
+    }
+
+    /// Returns an iterator of ancestor from current element.
+    /// TODO cant return impl Iterator any ideas
+    pub(crate) fn ancestors(&self) -> Vec<Block> {
+        match &self.element {
+            NodeOrToken::Node(node) => {
+
+                std::iter::successors(node.parent(), |this| {
+                    this.parent()
+                })
+                .map(Block::build_single)
+                .collect::<Vec<_>>()
+            },
+            NodeOrToken::Token(token) => {
+                std::iter::successors(Some(token.parent()), |this| {
+                    this.parent()
+                })
+                .map(Block::build_single)
+                .collect::<Vec<_>>()
+            },
+        }
     }
 
     /// Returns SyntaxKind.
@@ -131,7 +151,7 @@ impl Block {
 
     /// Traverse all blocks in order excluding current.
     pub(crate) fn traverse_exc(&self) -> impl Iterator<Item = &Block> {
-        Traversal { blocks: self.order_flatten_blocks_exc_root(), idx: 0 }
+        Traversal { blocks: self.order_flatten_blocks_exc_curr(), idx: 0 }
     }
 
     /// Vec of all Blocks in order including current, parent then children.
@@ -148,7 +168,7 @@ impl Block {
     }
 
     /// Vec of all Blocks in order excluding current, parent then children.
-    fn order_flatten_blocks_exc_root(&self) -> Vec<&Block> {
+    fn order_flatten_blocks_exc_curr(&self) -> Vec<&Block> {
         let mut blocks = vec![];
         for blk in self.children() {
             blocks.push(blk);
@@ -192,18 +212,22 @@ impl Block {
     }
 
     /// Returns `Whitespace` which has knowledge of whitespace around current token.
-    pub(crate) fn get_spacing(&self) -> Rc<RefCell<Whitespace>> {
-        Rc::clone(&self.whitespace)
+    pub(crate) fn get_spacing(&self) -> RefCell<Whitespace> {
+        self.whitespace.clone()
     }
 
     /// Returns `Indentation` which has knowledge of indenting whitespace.
-    pub(crate) fn get_indent(&self) -> Rc<RefCell<Indentation>> {
-        Rc::clone(&self.indentation)
+    pub(crate) fn get_indent(&self) -> u32 {
+        if self.text.starts_with('\n') {
+            self.text.trim_start_matches('\n').len() as u32
+        } else {
+            0
+        }
     }
 
     /// Returns previous and next space amounts as tuple.
     pub(crate) fn space_value(&self) -> (u32, u32) {
-        self.whitespace.borrow().locations
+        self.whitespace.borrow().text_len
     }
 
     /// Returns previous and next new line flags as tuple.
@@ -217,7 +241,7 @@ impl Block {
     }
 
     /// Returns `Block`s text as str.
-    fn as_str(&self) -> &str {
+    pub(crate) fn as_str(&self) -> &str {
         self.text.as_str()
     }
 }
@@ -277,7 +301,7 @@ impl EditTree {
     }
     /// Walk all blocks excluding root.
     pub(crate) fn walk_exc_root(&self) -> Traversal {
-        Traversal { blocks: self.root.order_flatten_blocks_exc_root(), idx: 0 }
+        Traversal { blocks: self.root.order_flatten_blocks_exc_curr(), idx: 0 }
     }
 
     /// Returns the SmolStr of the root node, the whole text

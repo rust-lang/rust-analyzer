@@ -1,7 +1,7 @@
 use crate::diff_view::DiffView;
 use crate::dsl::{self, SpacingRule, SpacingDsl, IndentDsl, IndentRule};
 use crate::edit_tree::{EditTree, Block};
-use crate::pattern::PatternSet;
+use crate::pattern::{Pattern, PatternSet};
 use crate::rules::spacing;
 use crate::trav_util::{has_newline};
 
@@ -39,7 +39,7 @@ impl FmtDiff {
         let whitespace = block.get_spacing();
         // is this a terible idea impl-ing eq??
         if *whitespace.borrow() != *rule {
-            block.get_spacing().borrow_mut().apply_fix(rule)
+            block.get_spacing().borrow_mut().apply_space_fix(rule)
         }
     }
 
@@ -63,7 +63,7 @@ impl FmtDiff {
         self.edit_tree.last_token()
             .expect("cannot format empty file")
             .get_spacing()
-            .borrow_mut().explicit_fix(&rule);
+            .borrow_mut().apply_space_fix(&rule);
         self.edit_tree
     }
 
@@ -73,21 +73,46 @@ impl FmtDiff {
     ///
     /// * `block` - A `Block` that is always a token because rules match tokens.
     /// * `rule` - A `IndentRule`.
-    fn check_indent(&self, rule: &IndentRule, block: &Block) {
-        let mut indent = block.get_indent();
-        
+    fn check_indent(&self, anchors: &PatternSet<&Pattern>, block: &Block) {
+        for node in block.ancestors() {
+            if anchors.matching(node.to_element()).next().is_some() {
+                let anchor = node.get_indent();
+                // calc number to indent
+            }
+        }
+        // // TODO dont include current block we know anchor doesnt need indenting??
+        // block.traverse_exc().filter(|blk| {
+        //     // this gives us an inner block that matches the indentRule pattern ??
+        //     rule.matches(blk.as_element())
+        // })
+        // .for_each(|blk| {
+        //     // may want to use has_newline()
+        //     if (!blk.as_str().starts_with('\n')) && (blk.get_indent() != anchor_indent + 4) {
+        //         blk.get_spacing().borrow_mut().apply_indent_fix(anchor_indent)
+        //     }
+        // });
     }
 
     pub(crate) fn indent_diff(self, indent_rules: &IndentDsl) -> EditTree {
-        let indent = PatternSet::new(indent_rules.anchors.iter());
+        println!("{:#?}", indent_rules);
+        let anchors = PatternSet::new(indent_rules.anchors.iter());
         // TODO only walk nodes???
         let blcks = self.edit_tree.walk_nodes().collect::<Vec<_>>();
         // TODO better way to keep track of if next space is needed
         for block in blcks.iter() {
-            for rule in indent.matching(block.to_element()) {
-                // creates DiffView
-                self.check_indent(rule, block)
-            }
+            let mut matching = indent_rules.rules.iter().filter(|it| it.matches(block.as_element()));
+
+                println!("in matching indent rule {:?}", matching);
+                if let Some(rule) = matching.next() {
+                    println!("in matching indent rule");
+                    // This block is the anchor in check_indent we walk children to find 
+                    // node to indent ??
+                    // TODO better name check_indent??
+                    self.check_indent(&anchors, block);
+                    assert!(matching.next().is_none(), "more than one indent rule matched");
+                } else {
+                    unimplemented!("What to do when matched anchor but no children")
+                }
         }
         self.edit_tree
     }
