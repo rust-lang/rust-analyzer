@@ -73,10 +73,7 @@ impl FmtDiff {
     /// * `rule` - A `IndentRule`.
     fn check_indent(&self, rule: &IndentRule, block: &Block) {
         let mut indent = block.get_indent();
-        // is this a terible idea impl-ing eq??
-        if indent != *rule {
-            block.get_indent().apply_fix(rule)
-        }
+        
     }
 
     pub(crate) fn indent_diff(self, indent_rules: &IndentDsl) -> EditTree {
@@ -87,7 +84,7 @@ impl FmtDiff {
         for block in blcks.iter() {
             for rule in indent.matching(block.to_element()) {
                 // creates DiffView
-                //self.check_indent(rule, block)
+                self.check_indent(rule, block)
             }
         }
 

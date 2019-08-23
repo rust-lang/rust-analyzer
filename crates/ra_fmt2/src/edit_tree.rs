@@ -102,7 +102,7 @@ impl Block {
     }
 
     /// Returns an iterator of children from current element.
-    fn children(&self) -> impl Iterator<Item = &Block> {
+    pub(crate) fn children(&self) -> impl Iterator<Item = &Block> {
         self.children.iter()
     }
 
