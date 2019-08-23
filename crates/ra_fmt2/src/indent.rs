@@ -119,25 +119,33 @@ impl<'b> Default for IndentBuilder<'b> {
 
 impl<'b> IndentBuilder<'b> {
 
-    pub(crate) fn new(&mut self, blk: &'b Block, ) {
-        blk.children().m
+    pub(crate) fn new(blk: &'b Block, ) -> IndentBuilder {
+        Self { collected: blk.traverse_exc().collect() }.calc_indent_level()
     }
 
-    pub(crate) fn push(&mut self, blk: &'b Block) {
+    fn push(&mut self, blk: &'b Block) {
         self.collected.push(blk)
     }
 
-    pub(crate) fn indent_level(&self, block: &'b Block) -> Option<Rc<RefCell<Indentation>>> {
+    fn calc_indent_level(self) -> IndentBuilder<'b> {
         self.collected.iter()
             .scan(0, |depth, &blk| {
-                if blk.get_indent().borrow().indent_spaces > 0 {
-                    *depth += 1;
+                let indent_lev = blk.get_indent().borrow().indent_spaces;
+                if indent_lev > 0 {
+                    if indent_lev > *depth {
+                        *depth = blk.get_indent().borrow().indent_spaces;
+                    }
                     blk.get_indent().borrow_mut().indent_level = *depth;
                 }
-                Some((*depth, blk.clone()))
-            })
-            .find_map(|(depth, blk)| {
-                if blk == *block {
+                Some(())
+            });
+        self
+    }
+
+    pub(crate) fn indent(&self, block: &'b Block) -> Option<Rc<RefCell<Indentation>>> {
+        self.collected.iter()
+            .find_map(|blk| {
+                if *blk == block {
                     Some(blk.get_indent())
                 } else {
                     None

@@ -242,7 +242,6 @@ pub(crate) struct IndentRule {
     /// Depending on `child_modality`, this pattern selects/discards elements
     pub(crate) child: Option<Pattern>,
     pub(crate) child_modality: Modality,
-
     /// Pattern that should match the anchoring element, relative to which we
     /// calculate the indent. Starts the indent level count from this node/token?? TODO
     pub(crate) anchor_pattern: Option<Pattern>,
@@ -378,7 +377,7 @@ impl<'a> IndentRuleBuilder<'a> {
         self
     }
 
-    /// Which indent does the rule applies?
+    /// Sets which indent the rule apply to.
     pub(crate) fn set(self, indent_value: IndentValue) -> &'a mut IndentDsl {
         let dsl = self.dsl;
         let name = self.rule_name;
