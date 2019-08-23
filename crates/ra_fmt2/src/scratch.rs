@@ -32,7 +32,7 @@ r#"pub(crate) struct Test{
 
     let fmt = EditTree::new(syn_tree);
     let orig = fmt.text().to_string();
-    println!("{:#?}", fmt);
+    // println!("{:#?}", fmt);
     let diff = FmtDiff::new(fmt);
     let et = diff.indent_diff(&indent);
 

@@ -7,7 +7,7 @@ mod diff_view;
 mod dsl;
 mod edit_tree;
 mod engine;
-mod indent;
+// mod indent;
 mod pattern;
 mod rules;
 mod scratch;

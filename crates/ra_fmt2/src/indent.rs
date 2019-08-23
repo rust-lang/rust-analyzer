@@ -14,9 +14,6 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::cell::RefCell;
 
-const INDENT: usize = 4;
-const ID_STR: &str = "    ";
-
 #[derive(Clone, Debug)]
 /// Whitespace holds all whitespace information for each Block.
 /// Accessed from any Block's get_whitespace fn.
