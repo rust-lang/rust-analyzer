@@ -217,6 +217,11 @@ impl Block {
     pub(crate) fn get_whitespace(&self) -> RefCell<Whitespace> {
         self.whitespace.clone()
     }
+    
+    /// Sets spacing based on rule.
+    pub(crate) fn set_spacing(&self, rule: &SpacingRule) {
+        self.whitespace.borrow_mut().apply_space_fix(rule)
+    }
 
     /// Returns amount indenting whitespace.
     pub(crate) fn get_indent(&self) -> u32 {
@@ -323,7 +328,7 @@ impl EditTree {
     /// TODO This needs work, less copying of the large vec of blocks
     /// Walks tokens and compares `Whitespace` to build the final String from `Blocks`.
     pub(crate) fn apply_edits(&self) -> String {
-        let traverse = self.walk_tokens();
+        let traverse = self.walk();
         // scan's state var only needs to iter unique tokens.
         let de_dup = self.walk_tokens()
             .cloned()
@@ -391,7 +396,7 @@ fn string_from_block(blk: &Block, next: &mut Option<&Block>) -> String {
         // if new line
         if curr_prev_lf {
             ret.push('\n');
-            if curr_prev_space > 0 {
+            if current.whitespace.borrow().starts_with_lf {
                 ret.push_str(&" ".repeat(curr_prev_space as usize));
             }
         // else push space
@@ -413,7 +418,7 @@ fn string_from_block(blk: &Block, next: &mut Option<&Block>) -> String {
         // if new line
         if curr_prev_lf {
             ret.push('\n');
-            if curr_prev_space > 0 {
+            if current.whitespace.borrow().starts_with_lf {
                 ret.push_str(&" ".repeat(curr_prev_space as usize));
             }
         // else push space
@@ -430,6 +435,6 @@ fn string_from_block(blk: &Block, next: &mut Option<&Block>) -> String {
             ret.push_str(&" ".repeat(curr_next_space as usize));
         }
     }
-    println!("{:?}", ret);
+    // println!("{:?}", ret);
     ret
 }

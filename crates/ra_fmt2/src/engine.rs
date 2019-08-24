@@ -24,7 +24,7 @@ pub(crate) struct FmtDiff {
 
 impl FmtDiff {
     pub(crate) fn new(edit_tree: EditTree) -> Self {
-        let original = edit_tree.text();
+        // let original = edit_tree.text();
         // let diff = RefCell::new(DiffView::new(original));
 
         Self { edit_tree }
@@ -39,7 +39,7 @@ impl FmtDiff {
     fn check_spacing(&self, rule: &SpacingRule, block: &Block) {
         let whitespace = block.get_whitespace();
         if *whitespace.borrow() != *rule {
-            block.get_whitespace().borrow_mut().apply_space_fix(rule)
+            block.set_spacing(rule)
         }
     }
 
@@ -79,7 +79,7 @@ impl FmtDiff {
         // TODO ancestors is not blocks from the edit tree they are built on demand
         for node in block.ancestors() {
             if anchor_set.matching(node.to_element()).next().is_some() {
-                println!("FOUND ANCHOR {:?}\n {}\n", node, node.get_indent());
+                // println!("FOUND ANCHOR {:?}\n {}\n", node, node.get_indent());
                 // walk all the way up the tree adding indent as we go
                 anchors += node.get_indent()
             }
@@ -94,17 +94,12 @@ impl FmtDiff {
                 kid.children().next()
             }
         }).find(|blk| {
-            if blk.as_element().as_token().is_some() {
-                println!("NEXT CLOSEST {:?}", blk);
-                true
-            } else {
-                false
-            }
+            blk.as_element().as_token().is_some()
         });
 
 
         next_closest_tkn.unwrap().set_indent(anchors);
-        println!("INDENT {} CURR {:?}", anchors, next_closest_tkn);
+        // println!("INDENT {} CURR {:?}", anchors, next_closest_tkn);
         //block.get_whitespace().borrow_mut().apply_indent_fix(anchors);
     }
 
