@@ -1,5 +1,5 @@
 use crate::dsl::{Space, SpaceLoc, SpaceValue, SpacingDsl, SpacingRule};
-use crate::indent::{Indentation};
+// use crate::indent::{Indentation};
 use crate::pattern::{Pattern, PatternSet};
 use crate::rules::spacing;
 use crate::trav_util::{walk, walk_nodes, walk_tokens};
@@ -12,17 +12,21 @@ use ra_syntax::{
 
 use std::collections::{HashMap, HashSet};
 
+pub(crate) const INDENT: u32 = 4;
+pub(crate) const ID_STR: &str = "    ";
+
 #[derive(Clone, Debug)]
 /// Whitespace holds all whitespace information for each Block.
 /// Accessed from any Block's get_whitespace fn.
 pub(crate) struct Whitespace {
     original: SyntaxElement,
     text_range: TextRange,
-    //indent: Indentation,
     // additional_spaces: u32,
+    /// Previous and next contain "\n".
     pub(crate) new_line: (bool, bool),
-    // Start and end location of token.
-    pub(crate) locations: (u32, u32),
+    /// Start and end location of token.
+    pub(crate) text_len: (u32, u32),
+    pub(crate) starts_with_lf: bool,
 }
 
 impl Whitespace {
@@ -38,12 +42,24 @@ impl Whitespace {
     }
 
     fn from_node(node: &SyntaxNode) -> Whitespace {
-        match (node.siblings_with_tokens(Direction::Prev).next(), node.siblings_with_tokens(Direction::Next).next()) {
+        let mut previous = node.siblings_with_tokens(Direction::Prev).peekable();
+        let mut next = node.siblings_with_tokens(Direction::Next).peekable();
+        // TODO remove peekable
+        // must call next twice siblings_with_tokens returns 'me' token as first
+        previous.next();
+        next.next();
+
+        if node.kind() == NAMED_FIELD {
+            println!("{:?} {:?}", previous.peek(), next.peek());
+        }
+
+        match (previous.next(), next.next()) {
             (Some(prev), Some(next)) => {
-                let prev_space = if prev.kind() == WHITESPACE {
-                    calc_num_space_tkn(prev.as_token().unwrap())
+                let (starts_with_lf, prev_space) = if prev.kind() == WHITESPACE {
+                    let prev = prev.as_token().unwrap();
+                    (prev.text().starts_with('\n'), calc_num_space_tkn(prev))
                 } else {
-                    0
+                    (false, 0)
                 };
                 let next_space = if next.kind() == WHITESPACE {
                     calc_num_space_tkn(next.as_token().unwrap())
@@ -72,14 +88,16 @@ impl Whitespace {
                     text_range: node.text_range(),
                     new_line: (prev_line, next_line),
                     // additional_spaces,
-                    locations: (prev_space, next_space),
+                    text_len: (prev_space, next_space),
+                    starts_with_lf,
                 }
             },
             (Some(prev), None) => {
-                let prev_space = if prev.kind() == WHITESPACE {
-                    calc_num_space_tkn(prev.as_token().unwrap())
+                let (starts_with_lf, prev_space) = if prev.kind() == WHITESPACE {
+                    let prev = prev.as_token().unwrap();
+                    (prev.text().starts_with('\n'), calc_num_space_tkn(prev))
                 } else {
-                    0
+                    (false, 0)
                 };
                 let prev_line = match prev {
                     NodeOrToken::Node(_) => {
@@ -95,7 +113,8 @@ impl Whitespace {
                     text_range: node.text_range(),
                     new_line: (prev_line, false),
                     // additional_spaces,
-                    locations: (prev_space, 0),
+                    text_len: (prev_space, 0),
+                    starts_with_lf,
                 }
             },
             (None, Some(next)) => {
@@ -117,20 +136,31 @@ impl Whitespace {
                     text_range: node.text_range(),
                     new_line: (false, next_line),
                     // additional_spaces,
-                    locations: (0, next_space),
+                    text_len: (0, next_space),
+                    starts_with_lf: false,
                 }
             },
-            _ => unreachable!("Whitespace::new"),
+            // handles root node
+            (None, None) => {
+                Self {
+                    original: NodeOrToken::Node(node.clone()),
+                    text_range: node.text_range(),
+                    new_line: (false, false),
+                    // additional_spaces,
+                    text_len: (0, 0),
+                    starts_with_lf: false,
+                }
+            },
         }
     }
 
     fn from_token(token: &SyntaxToken) -> Whitespace {
         match (token.prev_token(), token.next_token()) {
             (Some(prev), Some(next)) => {
-                let prev_space = if prev.kind() == WHITESPACE {
-                    calc_num_space_tkn(&prev)
+                let (starts_with_lf, prev_space) = if prev.kind() == WHITESPACE {
+                    (prev.text().starts_with('\n'), calc_num_space_tkn(&prev))
                 } else {
-                    0
+                    (false, 0)
                 };
                 let next_space = if next.kind() == WHITESPACE {
                     calc_num_space_tkn(&next)
@@ -146,14 +176,15 @@ impl Whitespace {
                     text_range: token.text_range(),
                     new_line,
                     // additional_spaces,
-                    locations: (prev_space, next_space),
+                    text_len: (prev_space, next_space),
+                    starts_with_lf,
                 }
             }
             (Some(prev), None) => {
-                let prev_space = if prev.kind() == WHITESPACE {
-                    calc_num_space_tkn(&prev)
+                let (starts_with_lf, prev_space) = if prev.kind() == WHITESPACE {
+                    (prev.text().starts_with('\n'), calc_num_space_tkn(&prev))
                 } else {
-                    0
+                    (false, 0)
                 };
                 let new_line = (prev.text().as_str().contains('\n'), false);
 
@@ -162,7 +193,8 @@ impl Whitespace {
                     text_range: token.text_range(),
                     new_line,
                     // additional_spaces,
-                    locations: (prev_space, 0),
+                    text_len: (prev_space, 0),
+                    starts_with_lf,
                 }
             }
             (None, Some(next)) => {
@@ -179,7 +211,8 @@ impl Whitespace {
                     text_range: token.text_range(),
                     new_line,
                     // additional_spaces,
-                    locations: (0, next_space),
+                    text_len: (0, next_space),
+                    starts_with_lf: false,
                 }
             }
             _ => unreachable!("Whitespace::new"),
@@ -203,80 +236,60 @@ impl Whitespace {
     // TODO check if NewLine needs to check for space
     pub(crate) fn match_space_after(&self, value: SpaceValue) -> bool {
         match value {
-            SpaceValue::Single => self.locations.1 == 1,
-            SpaceValue::SingleOrNewline => self.locations.1 == 1 || self.new_line.1,
-            SpaceValue::SingleOptionalNewline => self.locations.1 == 1 || self.new_line.1,
+            SpaceValue::Single => self.text_len.1 == 1,
+            SpaceValue::SingleOrNewline => self.text_len.1 == 1 || self.new_line.1,
+            SpaceValue::SingleOptionalNewline => self.text_len.1 == 1 || self.new_line.1,
             SpaceValue::Newline => self.new_line.1,
-            SpaceValue::NoneOrNewline => self.locations.1 == 0 || self.new_line.1,
-            SpaceValue::NoneOptionalNewline => self.locations.1 == 0 && self.new_line.1,
-            SpaceValue::None => self.locations.1 == 0 || !self.new_line.1,
+            SpaceValue::NoneOrNewline => self.text_len.1 == 0 || self.new_line.1,
+            SpaceValue::NoneOptionalNewline => self.text_len.1 == 0 && self.new_line.1,
+            SpaceValue::None => self.text_len.1 == 0 || !self.new_line.1,
         }
     }
 
     pub(crate) fn match_space_before(&self, value: SpaceValue) -> bool {
         match value {
-            SpaceValue::Single => self.locations.0 == 1,
-            SpaceValue::SingleOrNewline => self.locations.0 == 1 || self.new_line.0,
-            SpaceValue::SingleOptionalNewline => self.locations.0 == 1 || self.new_line.0,
+            SpaceValue::Single => self.text_len.0 == 1,
+            SpaceValue::SingleOrNewline => self.text_len.0 == 1 || self.new_line.0,
+            SpaceValue::SingleOptionalNewline => self.text_len.0 == 1 || self.new_line.0,
             SpaceValue::Newline => self.new_line.0,
-            SpaceValue::NoneOrNewline => self.locations.0 == 0 || self.new_line.0,
-            SpaceValue::NoneOptionalNewline => self.locations.0 == 0 && self.new_line.0,
-            SpaceValue::None => self.locations.0 == 0 || !self.new_line.0,
+            SpaceValue::NoneOrNewline => self.text_len.0 == 0 || self.new_line.0,
+            SpaceValue::NoneOptionalNewline => self.text_len.0 == 0 && self.new_line.0,
+            SpaceValue::None => self.text_len.0 == 0 || !self.new_line.0,
         }
     }
 
     pub(crate) fn match_space_around(&self, value: SpaceValue) -> bool {
         match value {
-            SpaceValue::Single => self.locations.0 == 1 && self.locations.1 == 1,
+            SpaceValue::Single => self.text_len.0 == 1 && self.text_len.1 == 1,
             SpaceValue::SingleOrNewline => {
-                (self.locations.0 == 1 && self.locations.1 == 1)
+                (self.text_len.0 == 1 && self.text_len.1 == 1)
                 || (self.new_line.0 && self.new_line.1)
             },
             SpaceValue::SingleOptionalNewline => {
-                (self.locations.0 == 1 && self.locations.1 == 1)
+                (self.text_len.0 == 1 && self.text_len.1 == 1)
                 || (self.new_line.0 && self.new_line.1)
             },
             SpaceValue::Newline => self.new_line.0 && self.new_line.1,
             SpaceValue::NoneOrNewline => {
-                (self.locations.0 == 0 && self.locations.1 == 0)
+                (self.text_len.0 == 0 && self.text_len.1 == 0)
                 || (self.new_line.0 && self.new_line.1)
             },
             SpaceValue::NoneOptionalNewline => {
-                (self.locations.0 == 0 && self.locations.1 == 0)
+                (self.text_len.0 == 0 && self.text_len.1 == 0)
                 && (self.new_line.0 && self.new_line.1)
             },
             SpaceValue::None => {
-                (self.locations.0 == 0 && self.locations.1 == 0)
+                (self.text_len.0 == 0 && self.text_len.1 == 0)
                 && (!self.new_line.0 && !self.new_line.1)
             },
         }
-    }
-
-    pub(crate) fn apply_fix(&mut self, rule: &SpacingRule) {
-        // println!("PRE {:#?}", self);
-        match rule.space.loc {
-            SpaceLoc::After => self.fix_spacing_after(rule.space),
-            SpaceLoc::Before => self.fix_spacing_before(rule.space),
-            SpaceLoc::Around => self.fix_spacing_around(rule.space),
-        };
-        // println!("POST {:#?}", self)
-    }
-
-    pub(crate) fn explicit_fix(&mut self, rule: &SpacingRule) {
-        //println!("PRE {:#?}", self);
-        match rule.space.loc {
-            SpaceLoc::After => self.fix_spacing_after(rule.space),
-            SpaceLoc::Before => self.fix_spacing_before(rule.space),
-            SpaceLoc::Around => self.fix_spacing_around(rule.space),
-        };
-        //println!("POST {:#?}", self)
     }
 
     fn fix_spacing_after(&mut self, space: Space) {
         match space.value {
             SpaceValue::Single => {
                 // add space or set to single
-                self.locations.1 = 1;
+                self.text_len.1 = 1;
                 // remove new line if any
                 self.new_line.1 = false;
             },
@@ -284,16 +297,16 @@ impl Whitespace {
                 // add new line
                 self.new_line.1 = true;
                 // remove space if any
-                self.locations.1 = 0;
+                self.text_len.1 = 0;
 ;            },
             SpaceValue::SingleOptionalNewline => {
                 if self.siblings_contain("\n") {
                     println!("TRUE");
                     self.new_line.1 = true;
-                    self.locations.1 = 0;
+                    self.text_len.1 = 0;
                 } else {
                     println!("FALSE");
-                    self.locations.1 = 1;
+                    self.text_len.1 = 1;
                     self.new_line.1 = false;
                 }
             },
@@ -304,21 +317,21 @@ impl Whitespace {
     fn fix_spacing_before(&mut self, space: Space) {
         match space.value {
             SpaceValue::Single => {
-                self.locations.0 = 1;
+                self.text_len.0 = 1;
                 self.new_line.0 = false;
             },
             SpaceValue::Newline => {
                 self.new_line.0 = true;
-                self.locations.0 = 0;
+                self.text_len.0 = 0;
 ;            },
             SpaceValue::SingleOptionalNewline => {
                 if self.siblings_contain("\n") {
                     println!("TRUE");
                     self.new_line.0 = true;
-                    self.locations.0 = 0;
+                    self.text_len.0 = 0;
                 } else {
                     println!("FALSE");
-                    self.locations.0 = 1;
+                    self.text_len.0 = 1;
                     self.new_line.0 = false;
                 }
             },
@@ -329,15 +342,30 @@ impl Whitespace {
     fn fix_spacing_around(&mut self, space: Space) {
         match space.value {
             SpaceValue::Single => {
-                self.locations = (1, 1);
+                self.text_len = (1, 1);
                 self.new_line = (false, false);
             },
             SpaceValue::Newline => {
                 self.new_line = (true, true);
-                self.locations = (0, 0);
+                self.text_len = (0, 0);
             },
             _ => {},
         }
+    }
+
+    pub(crate) fn apply_space_fix(&mut self, rule: &SpacingRule) {
+        // println!("PRE {:#?}", self);
+        match rule.space.loc {
+            SpaceLoc::After => self.fix_spacing_after(rule.space),
+            SpaceLoc::Before => self.fix_spacing_before(rule.space),
+            SpaceLoc::Around => self.fix_spacing_around(rule.space),
+        };
+        // println!("POST {:#?}", self)
+    }
+
+    pub(crate) fn apply_indent_fix(&mut self, indent: u32) {
+        self.text_len = (indent, self.text_len.1);
+        println!("INDENT {} CURR {:?}", indent, self);
     }
 }
 

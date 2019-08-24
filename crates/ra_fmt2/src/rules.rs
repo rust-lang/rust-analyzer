@@ -7,6 +7,14 @@ use ra_syntax::{
     SyntaxNode, SyntaxToken, T,
 };
 
+/// Wraps expressions in a main function that must be declared in
+/// a block, adds semi colon. 
+macro_rules! wrap_fn {
+    ($inner:expr) => {
+        concat!("fn main() {", $inner, "; }")
+    };
+}
+
 pub(crate) fn spacing() -> SpacingDsl {
     let mut space_dsl = SpacingDsl::default();
 
@@ -37,7 +45,6 @@ pub(crate) fn spacing() -> SpacingDsl {
 
 pub(crate) fn indentation() -> IndentDsl {
     let mut indent_dsl = IndentDsl::default();
-
     indent_dsl
         .rule("Indent struct fields")
             .inside(NAMED_FIELD_DEF_LIST)
@@ -49,8 +56,20 @@ pub(crate) fn indentation() -> IndentDsl {
                 }"#, r#"
                 struct Test {
                     x: String,
-                }"#);
+                }"#)
 
+        .anchor(NAMED_FIELD )
+        .rule("Indent struct fields lit")
+            .inside(NAMED_FIELD_LIST)
+            .matching(NAMED_FIELD)
+            .set(IndentValue::Indent)
+            .test(wrap_fn!(r#"
+                let t = Test {
+                x: String,
+                }"#), wrap_fn!(r#"
+                let t = Test {
+                    x: String,
+                }"#));
     // more rules to come
 
     indent_dsl
