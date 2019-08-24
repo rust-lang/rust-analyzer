@@ -21,11 +21,12 @@ pub(crate) const ID_STR: &str = "    ";
 pub(crate) struct Whitespace {
     original: SyntaxElement,
     text_range: TextRange,
-    //indent: Indentation,
     // additional_spaces: u32,
+    /// Previous and next contain "\n".
     pub(crate) new_line: (bool, bool),
-    // Start and end location of token.
+    /// Start and end location of token.
     pub(crate) text_len: (u32, u32),
+    pub(crate) starts_with_lf: bool,
 }
 
 impl Whitespace {
@@ -41,12 +42,24 @@ impl Whitespace {
     }
 
     fn from_node(node: &SyntaxNode) -> Whitespace {
-        match (node.siblings_with_tokens(Direction::Prev).next(), node.siblings_with_tokens(Direction::Next).next()) {
+        let mut previous = node.siblings_with_tokens(Direction::Prev).peekable();
+        let mut next = node.siblings_with_tokens(Direction::Next).peekable();
+        // TODO remove peekable
+        // must call next twice siblings_with_tokens returns 'me' token as first
+        previous.next();
+        next.next();
+
+        if node.kind() == NAMED_FIELD {
+            println!("{:?} {:?}", previous.peek(), next.peek());
+        }
+
+        match (previous.next(), next.next()) {
             (Some(prev), Some(next)) => {
-                let prev_space = if prev.kind() == WHITESPACE {
-                    calc_num_space_tkn(prev.as_token().unwrap())
+                let (starts_with_lf, prev_space) = if prev.kind() == WHITESPACE {
+                    let prev = prev.as_token().unwrap();
+                    (prev.text().starts_with('\n'), calc_num_space_tkn(prev))
                 } else {
-                    0
+                    (false, 0)
                 };
                 let next_space = if next.kind() == WHITESPACE {
                     calc_num_space_tkn(next.as_token().unwrap())
@@ -76,13 +89,15 @@ impl Whitespace {
                     new_line: (prev_line, next_line),
                     // additional_spaces,
                     text_len: (prev_space, next_space),
+                    starts_with_lf,
                 }
             },
             (Some(prev), None) => {
-                let prev_space = if prev.kind() == WHITESPACE {
-                    calc_num_space_tkn(prev.as_token().unwrap())
+                let (starts_with_lf, prev_space) = if prev.kind() == WHITESPACE {
+                    let prev = prev.as_token().unwrap();
+                    (prev.text().starts_with('\n'), calc_num_space_tkn(prev))
                 } else {
-                    0
+                    (false, 0)
                 };
                 let prev_line = match prev {
                     NodeOrToken::Node(_) => {
@@ -99,6 +114,7 @@ impl Whitespace {
                     new_line: (prev_line, false),
                     // additional_spaces,
                     text_len: (prev_space, 0),
+                    starts_with_lf,
                 }
             },
             (None, Some(next)) => {
@@ -121,9 +137,20 @@ impl Whitespace {
                     new_line: (false, next_line),
                     // additional_spaces,
                     text_len: (0, next_space),
+                    starts_with_lf: false,
                 }
             },
-            _ => unreachable!("Whitespace::new"),
+            // handles root node
+            (None, None) => {
+                Self {
+                    original: NodeOrToken::Node(node.clone()),
+                    text_range: node.text_range(),
+                    new_line: (false, false),
+                    // additional_spaces,
+                    text_len: (0, 0),
+                    starts_with_lf: false,
+                }
+            },
         }
     }
 
@@ -229,10 +256,10 @@ impl Whitespace {
     fn from_token(token: &SyntaxToken) -> Whitespace {
         match (token.prev_token(), token.next_token()) {
             (Some(prev), Some(next)) => {
-                let prev_space = if prev.kind() == WHITESPACE {
-                    calc_num_space_tkn(&prev)
+                let (starts_with_lf, prev_space) = if prev.kind() == WHITESPACE {
+                    (prev.text().starts_with('\n'), calc_num_space_tkn(&prev))
                 } else {
-                    0
+                    (false, 0)
                 };
                 let next_space = if next.kind() == WHITESPACE {
                     calc_num_space_tkn(&next)
@@ -249,13 +276,14 @@ impl Whitespace {
                     new_line,
                     // additional_spaces,
                     text_len: (prev_space, next_space),
+                    starts_with_lf,
                 }
             }
             (Some(prev), None) => {
-                let prev_space = if prev.kind() == WHITESPACE {
-                    calc_num_space_tkn(&prev)
+                let (starts_with_lf, prev_space) = if prev.kind() == WHITESPACE {
+                    (prev.text().starts_with('\n'), calc_num_space_tkn(&prev))
                 } else {
-                    0
+                    (false, 0)
                 };
                 let new_line = (prev.text().as_str().contains('\n'), false);
 
@@ -265,6 +293,7 @@ impl Whitespace {
                     new_line,
                     // additional_spaces,
                     text_len: (prev_space, 0),
+                    starts_with_lf,
                 }
             }
             (None, Some(next)) => {
@@ -282,6 +311,7 @@ impl Whitespace {
                     new_line,
                     // additional_spaces,
                     text_len: (0, next_space),
+                    starts_with_lf: false,
                 }
             }
             _ => unreachable!("Whitespace::new"),
@@ -447,7 +477,8 @@ impl Whitespace {
     }
 
     pub(crate) fn apply_indent_fix(&mut self, indent: u32) {
-        
+        self.text_len = (indent, self.text_len.1);
+        println!("INDENT {} CURR {:?}", indent, self);
     }
 }
 

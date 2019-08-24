@@ -16,18 +16,26 @@ use ra_syntax::{
     SyntaxKind::*,
     SyntaxNode, SyntaxToken, T,
 };
+struct Foo { y: usize }
+struct Test {
+    foo: Foo,
+}
+
+
 
 /// will be removed
 #[test]
 fn show_me_the_indent_progress() {
     let rs_file = 
-r#"pub(crate) struct Test{
-    x: String
-}  "#;
+r#"fn main() { let t = Test {
+    x: Foo {
+    y: 0,
+    },
+}; } "#;
 
     let p = SourceFile::parse(&rs_file);
     let syn_tree = p.syntax_node();
-    //println!("{:?}", syn_tree);
+    println!("{:#?}", syn_tree);
     let indent = indentation();
 
     println!();
@@ -37,6 +45,7 @@ r#"pub(crate) struct Test{
     // println!("{:#?}", fmt);
     let diff = FmtDiff::new(fmt);
     let et = diff.indent_diff(&indent);
+
 
     println!("original: {:?}\nformatted: {:#?}", orig, et.apply_edits());
     //assert_eq!(et.apply_edits(), "pub(crate) struct Test { x: String }\n")
