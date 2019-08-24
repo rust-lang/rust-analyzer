@@ -49,10 +49,6 @@ impl Whitespace {
         previous.next();
         next.next();
 
-        if node.kind() == NAMED_FIELD {
-            println!("{:?} {:?}", previous.peek(), next.peek());
-        }
-
         match (previous.next(), next.next()) {
             (Some(prev), Some(next)) => {
                 let (starts_with_lf, prev_space) = if prev.kind() == WHITESPACE {
@@ -365,7 +361,7 @@ impl Whitespace {
 
     pub(crate) fn apply_indent_fix(&mut self, indent: u32) {
         self.text_len = (indent, self.text_len.1);
-        println!("INDENT {} CURR {:?}", indent, self);
+        // println!("INDENT {} CURR {:?}", indent, self);
     }
 }
 

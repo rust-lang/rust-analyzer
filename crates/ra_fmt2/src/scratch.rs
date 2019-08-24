@@ -33,7 +33,7 @@ r#"fn main() { let t = Test {
 
     let p = SourceFile::parse(&rs_file);
     let syn_tree = p.syntax_node();
-    println!("{:#?}", syn_tree);
+    //println!("{:#?}", syn_tree);
     let indent = indentation();
 
     println!();
@@ -63,7 +63,7 @@ fn show_me_the_progress() {
 
     let fmt = EditTree::new(syn_tree);
     let orig = fmt.text().to_string();
-    println!("{:#?}", fmt);
+    //println!("{:#?}", fmt);
     let diff = FmtDiff::new(fmt);
     let et = diff.spacing_diff(&space);
 
