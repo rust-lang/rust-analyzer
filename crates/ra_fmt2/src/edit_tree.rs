@@ -11,7 +11,7 @@ use ra_syntax::{
     SyntaxNode, SyntaxToken, TextRange, TextUnit, WalkEvent, T,
 };
 
-use std::collections::{HashMap, HashSet};
+use std::collections::BTreeSet;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -30,7 +30,7 @@ use std::rc::Rc;
 pub(crate) struct Block {
     //indent: some enum?
     element: SyntaxElement,
-    parent: Cell<Option<&Block>>,
+    // parent: Cell<Option<&Block>>,
     children: Vec<Block>,
     text: SmolStr,
     range: TextRange,
@@ -243,13 +243,18 @@ impl Block {
         self.whitespace.clone()
     }
 
-    /// Returns `Indentation` which has knowledge of indenting whitespace.
+    /// Returns amount indenting whitespace.
     pub(crate) fn get_indent(&self) -> u32 {
-        if self.text.starts_with('\n') {
-            self.text.trim_start_matches('\n').len() as u32
+        if self.whitespace.borrow().starts_with_lf {
+            self.get_whitespace().borrow().text_len.0 
         } else {
             0
         }
+    }
+
+    /// Sets amount indenting whitespace.
+    pub(crate) fn set_indent(&self, indent: u32) {
+        self.whitespace.borrow_mut().text_len.0 = indent
     }
 
     /// Returns previous and next space amounts as tuple.
@@ -260,6 +265,10 @@ impl Block {
     /// Returns previous and next new line flags as tuple.
     pub(crate) fn eol_value(&self) -> (bool, bool) {
         self.whitespace.borrow().new_line
+    }
+    /// Returns indent new line bool.
+    pub(crate) fn starts_with_lf(&self) -> bool {
+        self.whitespace.borrow().starts_with_lf
     }
 
     /// Remove after dev ??
@@ -302,7 +311,7 @@ impl EditTree {
         EditTree::build_tree(root)
     }
     fn build_tree(root: SyntaxNode) -> EditTree {
-        let ele = NodeOrToken::Node(root.clone());
+        let ele = NodeOrToken::Node(root);
         let root = Block::build_block(ele);
         EditTree { root }
     }
@@ -339,9 +348,11 @@ impl EditTree {
     /// TODO This needs work, less copying of the large vec of blocks
     /// Walks tokens and compares `Whitespace` to build the final String from `Blocks`.
     pub(crate) fn apply_edits(&self) -> String {
-        let traverse = self.walk_exc_root();
+        let traverse = self.walk_tokens();
         // scan's state var only needs to iter unique tokens.
-        let de_dup = self.walk_tokens().cloned().collect::<std::collections::BTreeSet<_>>();
+        let de_dup = self.walk_tokens()
+            .cloned()
+            .collect::<BTreeSet<_>>();
 
         let mut iter_clone = de_dup.iter();
         // skip root
@@ -360,30 +371,43 @@ impl EditTree {
                         "".into()
                     }
                 },
-                _ => {
+                NodeOrToken::Node(_) => {
                     "".into()
                 },
             };
             Some(res)
         })
-        .map(|b| b)
+        //.map(|b| b)
         .collect::<String>()
     }
 }
 
+enum SpaceBlock {
+    Indent(),
+    Whitespace()
+}
+
 fn string_from_block(current: &Block, next: &mut Option<&Block>) -> String {
-    //println!{"BLK {:#?}\nNEXT {:#?}", current, next}
+    if current.kind() == IDENT {
+        println!("{:#?}", current);
+    }
     let mut ret = String::default();
     let (curr_prev_space, curr_next_space) = current.space_value();
     let (curr_prev_lf, curr_next_lf) = current.eol_value();
-
+    
     if let Some(block) = next {
         let (next_prev_space, _) = block.space_value();
         let (next_prev_lf, _) = block.eol_value();
 
+        // TODO make sure "\n" will always come before " " do we need
+        // to protect our indent info from spacing edits??
+
         // if new line
         if curr_prev_lf {
             ret.push('\n');
+            if curr_prev_space > 0 {
+                ret.push_str(&" ".repeat(curr_prev_space as usize));
+            }
         // else push space
         } else {
             ret.push_str(&" ".repeat(curr_prev_space as usize));
@@ -403,6 +427,9 @@ fn string_from_block(current: &Block, next: &mut Option<&Block>) -> String {
         // if new line
         if curr_prev_lf {
             ret.push('\n');
+            if curr_prev_space > 0 {
+                ret.push_str(&" ".repeat(curr_prev_space as usize));
+            }
         // else push space
         } else {
             ret.push_str(&" ".repeat(curr_prev_space as usize));
