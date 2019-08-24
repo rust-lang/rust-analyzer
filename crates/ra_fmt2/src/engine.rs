@@ -36,10 +36,10 @@ impl FmtDiff {
     /// * `block` - A `Block` that is always a token because rules match tokens.
     /// * `rule` - A `SpaceRule`.
     fn check_spacing(&self, rule: &SpacingRule, block: &Block) {
-        let whitespace = block.get_spacing();
+        let whitespace = block.get_whitespace();
         // is this a terible idea impl-ing eq??
         if *whitespace.borrow() != *rule {
-            block.get_spacing().borrow_mut().apply_space_fix(rule)
+            block.get_whitespace().borrow_mut().apply_space_fix(rule)
         }
     }
 
@@ -62,7 +62,7 @@ impl FmtDiff {
         };
         self.edit_tree.last_token()
             .expect("cannot format empty file")
-            .get_spacing()
+            .get_whitespace()
             .borrow_mut().apply_space_fix(&rule);
         self.edit_tree
     }
@@ -77,6 +77,7 @@ impl FmtDiff {
         for node in block.ancestors() {
             if anchors.matching(node.to_element()).next().is_some() {
                 let anchor = node.get_indent();
+                block.get_whitespace().borrow_mut().apply_indent_fix(anchor)
                 // calc number to indent
             }
         }

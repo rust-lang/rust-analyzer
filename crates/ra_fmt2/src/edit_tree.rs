@@ -12,7 +12,7 @@ use ra_syntax::{
 };
 
 use std::collections::{HashMap, HashSet};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 // TODO make more like intellij's fmt model
@@ -30,6 +30,7 @@ use std::rc::Rc;
 pub(crate) struct Block {
     //indent: some enum?
     element: SyntaxElement,
+    parent: Cell<Option<&Block>>,
     children: Vec<Block>,
     text: SmolStr,
     range: TextRange,
@@ -109,6 +110,7 @@ impl Block {
 
     /// Returns an iterator of ancestor from current element.
     /// TODO cant return impl Iterator any ideas
+    /// FIX probably not the best way to do this, building all new Blocks.
     pub(crate) fn ancestors(&self) -> Vec<Block> {
         match &self.element {
             NodeOrToken::Node(node) => {
@@ -212,7 +214,7 @@ impl Block {
     }
 
     /// Returns `Whitespace` which has knowledge of whitespace around current token.
-    pub(crate) fn get_spacing(&self) -> RefCell<Whitespace> {
+    pub(crate) fn get_whitespace(&self) -> RefCell<Whitespace> {
         self.whitespace.clone()
     }
 
