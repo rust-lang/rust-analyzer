@@ -9,9 +9,13 @@ use ra_syntax::{
 
 /// Wraps expressions in a main function that must be declared in
 /// a block, adds semi colon. 
+#[macro_export]
 macro_rules! wrap_fn {
-    ($inner:expr) => {
-        concat!("fn main() {", $inner, "; }")
+    ( $inner:expr ) => {
+        concat!("fn main() { ", $inner, "; }")
+    };
+    ( $( $inner:expr ),* ; ( $end:expr ) ) => {
+        concat!("fn main() { ", $( $inner )*, "; }", end)
     };
 }
 
@@ -19,7 +23,7 @@ pub(crate) fn spacing() -> SpacingDsl {
     let mut space_dsl = SpacingDsl::default();
 
     space_dsl
-        .test("fn main() { let x = [1,2,3]; }", "fn main() { let x = [1, 2, 3]; }")
+        .test(wrap_fn!("let x = [1,2,3]"), wrap_fn!("let x = [1, 2, 3]"))
         .inside(ARRAY_EXPR).after(T![,]).single_space()
 
         .test("struct Test{x:usize    }", "struct Test { x: usize }")

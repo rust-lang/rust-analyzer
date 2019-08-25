@@ -2,7 +2,7 @@
 use crate::dsl::{self, SpacingRule, SpacingDsl, IndentDsl, IndentRule};
 use crate::edit_tree::{EditTree, Block};
 use crate::pattern::{Pattern, PatternSet};
-use crate::rules::spacing;
+use crate::rules::{indentation, spacing};
 use crate::trav_util::{has_newline};
 use crate::whitespace::INDENT;
 
@@ -22,11 +22,14 @@ pub(crate) struct FmtDiff {
     // diff: RefCell<DiffView>,
 }
 
+impl Into<EditTree> for FmtDiff {
+    fn into(self) -> EditTree {
+        self.edit_tree
+    }
+}
+
 impl FmtDiff {
     pub(crate) fn new(edit_tree: EditTree) -> Self {
-        // let original = edit_tree.text();
-        // let diff = RefCell::new(DiffView::new(original));
-
         Self { edit_tree }
     }
 
@@ -43,7 +46,7 @@ impl FmtDiff {
         }
     }
 
-    pub(crate) fn spacing_diff(self, space_rules: &SpacingDsl) -> EditTree {
+    pub(crate) fn spacing_diff(self, space_rules: &SpacingDsl) -> FmtDiff {
         let spacing = PatternSet::new(space_rules.rules.iter());
         let blcks = self.edit_tree.walk_exc_root().collect::<Vec<_>>();
         for block in blcks.iter() {
@@ -63,7 +66,7 @@ impl FmtDiff {
             .expect("cannot format empty file")
             .set_spacing(&rule);
 
-        self.edit_tree
+        self
     }
 
     /// Checks if `Indent` and `IndentRule` match then mutates `DiffView`.
@@ -75,7 +78,7 @@ impl FmtDiff {
     fn check_indent(&self, anchor_set: &PatternSet<&Pattern>, block: &Block) {
         // println!("\n{:?}\n{:?}\n", block);
         let mut anchors = INDENT;
-        // TODO ancestors is not blocks from the edit tree they are built on demand
+        // TODO ancestors is NOT refs to blocks from the edit tree they are built on demand
         for node in block.ancestors() {
             if anchor_set.matching(node.to_element()).next().is_some() {
                 // println!("FOUND ANCHOR {:?}\n {}\n", node, node.get_indent());
@@ -83,26 +86,27 @@ impl FmtDiff {
                 anchors += node.get_indent()
             }
         }
-        // after calculating anchoring blocks indent apply fix
-        // to first token found after node so to make string we walk token
-        // TODO probably not a great solution
-        let next_closest_tkn = std::iter::successors(block.children().next(), |kid| {
-            if kid.as_element().as_token().is_some() {
-                Some(kid)
-            } else {
-                kid.children().next()
-            }
-        }).find(|blk| {
-            blk.as_element().as_token().is_some()
-        });
+        // don't format if we don't have to
+        if block.get_indent() != anchors && block.get_whitespace().borrow().starts_with_lf {
+            // after calculating anchoring blocks indent apply fix
+            // to first token found after node, to make string we walk tokens
+            // TODO probably not a great solution a bit hacky 
+            let next_closest_tkn = std::iter::successors(block.children().next(), |kid| {
+                if kid.as_element().as_token().is_some() {
+                    Some(kid)
+                } else {
+                    kid.children().next()
+                }
+            }).find(|blk| {
+                blk.as_element().as_token().is_some()
+            });
 
-
-        next_closest_tkn.unwrap().set_indent(anchors);
-        // println!("INDENT {} CURR {:?}", anchors, next_closest_tkn);
-        //block.get_whitespace().borrow_mut().apply_indent_fix(anchors);
+            next_closest_tkn.unwrap().set_indent(anchors);
+            // println!("INDENT {} CURR {:?}", anchors, next_closest_tkn);
+        }
     }
 
-    pub(crate) fn indent_diff(self, indent_rules: &IndentDsl) -> EditTree {
+    pub(crate) fn indent_diff(self, indent_rules: &IndentDsl) -> FmtDiff {
         // println!("{:#?}", indent_rules);
         let anchors = PatternSet::new(indent_rules.anchors.iter());
         // TODO only walk nodes???
@@ -120,19 +124,23 @@ impl FmtDiff {
                     unimplemented!("What to do when matched anchor but no children")
                 }
         }
-        self.edit_tree
+        self
     }
 }
 
-pub(crate) fn format_pass(space_dsl: &SpacingDsl, root: &SyntaxNode) -> EditTree {
+pub(crate) fn format_pass(space_dsl: &SpacingDsl, indent_dsl: &IndentDsl, root: &SyntaxNode) -> EditTree {
     let fmt = EditTree::new(root.clone());
-    FmtDiff::new(fmt).spacing_diff(space_dsl)
+    FmtDiff::new(fmt)
+        .spacing_diff(space_dsl)
+        .indent_diff(indent_dsl)
+        .into()
 }
 
 pub(crate) fn format_str(file: &str) -> Result<String, ()> {
     let p = SourceFile::parse(file);
     let root = p.syntax_node();
     let space = spacing();
+    let indent = indentation();
 
-    Ok(format_pass(&space, &root).apply_edits())
+    Ok(format_pass(&space, &indent, &root).apply_edits())
 }

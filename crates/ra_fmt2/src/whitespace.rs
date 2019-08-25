@@ -42,9 +42,8 @@ impl Whitespace {
     }
 
     fn from_node(node: &SyntaxNode) -> Whitespace {
-        let mut previous = node.siblings_with_tokens(Direction::Prev).peekable();
-        let mut next = node.siblings_with_tokens(Direction::Next).peekable();
-        // TODO remove peekable
+        let mut previous = node.siblings_with_tokens(Direction::Prev);
+        let mut next = node.siblings_with_tokens(Direction::Next);
         // must call next twice siblings_with_tokens returns 'me' token as first
         previous.next();
         next.next();
@@ -317,7 +316,6 @@ impl Whitespace {
     /// Walks siblings to search for pat.
     pub(crate) fn siblings_contain(&self, pat: &str) -> bool {
         if let Some(tkn) = self.original.clone().into_token() {
-            println!("SIB CON {:?}", tkn.parent());
             walk_tokens(&tkn.parent())
                 // TODO there is probably a better/more accurate way to do this
                 .any(|tkn| {
@@ -410,11 +408,9 @@ impl Whitespace {
 ;            },
             SpaceValue::SingleOptionalNewline => {
                 if self.siblings_contain("\n") {
-                    println!("TRUE");
                     self.new_line.1 = true;
                     self.text_len.1 = 0;
                 } else {
-                    println!("FALSE");
                     self.text_len.1 = 1;
                     self.new_line.1 = false;
                 }
@@ -435,11 +431,9 @@ impl Whitespace {
 ;            },
             SpaceValue::SingleOptionalNewline => {
                 if self.siblings_contain("\n") {
-                    println!("TRUE");
                     self.new_line.0 = true;
                     self.text_len.0 = 0;
                 } else {
-                    println!("FALSE");
                     self.text_len.0 = 1;
                     self.new_line.0 = false;
                 }
@@ -470,11 +464,6 @@ impl Whitespace {
             SpaceLoc::Around => self.fix_spacing_around(rule.space),
         };
         // println!("POST {:#?}", self)
-    }
-
-    pub(crate) fn apply_indent_fix(&mut self, indent: u32) {
-        self.text_len = (indent, self.text_len.1);
-        // println!("INDENT {} CURR {:?}", indent, self);
     }
 }
 

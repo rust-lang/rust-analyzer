@@ -1,3 +1,4 @@
+/// FOR EXPERIMENT WILL REMOVE
 use crate::edit_tree::EditTree;
 use crate::engine::FmtDiff;
 use crate::pattern::PatternSet;
@@ -26,12 +27,11 @@ struct Test {
 /// will be removed
 #[test]
 fn show_me_the_indent_progress() {
-    let rs_file = 
-r#"fn main() { let t = Test {
+    let rs_file = wrap_fn!(r#"let t = Test {
     x: Foo {
     y: 0,
     },
-}; }"#;
+}"#);
 
     let p = SourceFile::parse(&rs_file);
     let syn_tree = p.syntax_node();
@@ -44,38 +44,65 @@ r#"fn main() { let t = Test {
     let orig = fmt.text().to_string();
     // println!("{:#?}", fmt);
     let diff = FmtDiff::new(fmt);
-    let et = diff.indent_diff(&indent);
+    let et: EditTree = diff.indent_diff(&indent).into();
 
 
     println!("original: {:?}\nformatted: {:#?}", orig, et.apply_edits());
-    assert_eq!(et.apply_edits(),
-r#"fn main() { let t = Test {
+    assert_eq!(et.apply_edits(), wrap_fn!(
+r#"let t = Test {
     x: Foo {
         y: 0,
     },
-}; }"#);
+}"#));
 
 }
 
-fn show_me_the_progress() {
-    let rs_file = "pub(crate) struct Test{x: String}  ";
-    let rs_arr = "fn main() { let examp = [0,1,2]; }";
+#[test]
+fn show_me_the_progress_space() {
+    let rs_file = "pub(crate) struct Test    {x: String    }  ";
+    let rs_arr = wrap_fn!("let examp = [0,1,2]");
 
     let p = SourceFile::parse(&rs_file);
     let syn_tree = p.syntax_node();
     //println!("{:?}", syn_tree);
     let space = spacing();
-    let ws_rules = PatternSet::new(space.rules.iter());
-
     println!();
 
     let fmt = EditTree::new(syn_tree);
     let orig = fmt.text().to_string();
     //println!("{:#?}", fmt);
     let diff = FmtDiff::new(fmt);
-    let et = diff.spacing_diff(&space);
+    let et: EditTree = diff.spacing_diff(&space).into();
 
     println!("original: {:?}\nformatted: {:#?}", orig, et.apply_edits());
     assert_eq!(et.apply_edits(), "pub(crate) struct Test { x: String }\n")
     println!("original: {:?}\nformatted: {:#?}", orig, et.to_string())
+}
+
+#[test]
+fn spacing_indent_combo_test() {
+    let rs_file = wrap_fn!(
+r#"let t = Test {
+    x: Foo {
+    y: 0,
+    },
+}"#);
+
+    let p = SourceFile::parse(&rs_file);
+    let syn_tree = p.syntax_node();
+
+    let indent = indentation();
+    let space = spacing();
+
+    println!();
+
+    let fmt = EditTree::new(syn_tree);
+    let orig = fmt.text().to_string();
+    // println!("{:#?}", fmt);
+    let diffed: EditTree = FmtDiff::new(fmt)
+        .spacing_diff(&space)
+        .indent_diff(&indent)
+        .into();
+    
+    println!("original: {:?}\nformatted: {:#?}", orig, diffed.apply_edits());
 }
