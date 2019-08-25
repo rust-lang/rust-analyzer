@@ -31,7 +31,7 @@ r#"fn main() { let t = Test {
     x: Foo {
     y: 0,
     },
-}; } "#;
+}; }"#;
 
     let p = SourceFile::parse(&rs_file);
     let syn_tree = p.syntax_node();
@@ -48,7 +48,13 @@ r#"fn main() { let t = Test {
 
 
     println!("original: {:?}\nformatted: {:#?}", orig, et.apply_edits());
-    //assert_eq!(et.apply_edits(), "pub(crate) struct Test { x: String }\n")
+    assert_eq!(et.apply_edits(),
+r#"fn main() { let t = Test {
+    x: Foo {
+        y: 0,
+    },
+}; }"#);
+
 }
 
 fn show_me_the_progress() {

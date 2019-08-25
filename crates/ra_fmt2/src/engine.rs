@@ -61,8 +61,7 @@ impl FmtDiff {
         };
         self.edit_tree.last_token()
             .expect("cannot format empty file")
-            .get_whitespace()
-            .borrow_mut().apply_space_fix(&rule);
+            .set_spacing(&rule);
 
         self.edit_tree
     }

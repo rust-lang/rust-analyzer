@@ -226,7 +226,7 @@ impl Block {
     /// Returns amount indenting whitespace.
     pub(crate) fn get_indent(&self) -> u32 {
         if self.whitespace.borrow().starts_with_lf {
-            self.get_whitespace().borrow().text_len.0 
+            self.whitespace.borrow().text_len.0 
         } else {
             0
         }
@@ -328,7 +328,7 @@ impl EditTree {
     /// TODO This needs work, less copying of the large vec of blocks
     /// Walks tokens and compares `Whitespace` to build the final String from `Blocks`.
     pub(crate) fn apply_edits(&self) -> String {
-        let traverse = self.walk();
+        let traverse = self.walk_tokens();
         // scan's state var only needs to iter unique tokens.
         let de_dup = self.walk_tokens()
             .cloned()
@@ -383,6 +383,7 @@ fn string_from_block(blk: &Block, next: &mut Option<&Block>) -> String {
     }
     //println!{"BLK {:#?}\nNEXT {:#?}", current, next}
     let mut ret = String::default();
+
     let (curr_prev_space, curr_next_space) = current.space_value();
     let (curr_prev_lf, curr_next_lf) = current.eol_value();
     
