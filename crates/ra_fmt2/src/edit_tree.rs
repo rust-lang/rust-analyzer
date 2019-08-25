@@ -242,11 +242,6 @@ impl Block {
     pub(crate) fn get_whitespace(&self) -> RefCell<Whitespace> {
         self.whitespace.clone()
     }
-    
-    /// Sets spacing based on rule.
-    pub(crate) fn set_spacing(&self, rule: &SpacingRule) {
-        self.whitespace.borrow_mut().apply_space_fix(rule)
-    }
 
     /// Returns amount indenting whitespace.
     pub(crate) fn get_indent(&self) -> u32 {
@@ -267,11 +262,16 @@ impl Block {
         self.whitespace.borrow().text_len
     }
 
+    /// Sets spacing based on rule.
+    pub(crate) fn set_spacing(&self, rule: &SpacingRule) {
+        self.whitespace.borrow_mut().apply_space_fix(rule)
+    }
+
     /// Returns previous and next new line flags as tuple.
     pub(crate) fn eol_value(&self) -> (bool, bool) {
         self.whitespace.borrow().new_line
     }
-    /// Returns indent new line bool.
+    /// Returns true if `Block` starts with new line char.
     pub(crate) fn starts_with_lf(&self) -> bool {
         self.whitespace.borrow().starts_with_lf
     }

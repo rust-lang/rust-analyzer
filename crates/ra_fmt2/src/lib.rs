@@ -9,6 +9,7 @@ mod edit_tree;
 mod engine;
 // mod indent;
 mod pattern;
+#[macro_use]
 mod rules;
 mod scratch;
 // mod fmt_model;

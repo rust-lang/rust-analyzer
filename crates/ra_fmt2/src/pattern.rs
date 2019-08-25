@@ -150,7 +150,7 @@ impl<'a, P: AsRef<Pattern>> PatternSet<&'a P> {
             .into_iter()
             .flat_map(|vec| vec.iter())
             .chain(self.unconstrained.iter())
-            .map(|&p| p)
+            .copied()
             .filter(move |p| p.as_ref().matches(&element))
     }
 }
