@@ -263,29 +263,6 @@ impl IndentRule {
             true
         }
     }
-
-    // pub(super) fn apply(
-    //     &self,
-    //     element: &SyntaxElement,
-    //     model: &mut FmtModel,
-    //     anchor_set: &PatternSet<&Pattern>,
-    // ) {
-    //     debug_assert!(self.matches(element));
-    //     let anchor_indent = match indent_anchor(element, model, anchor_set) {
-    //         Some((anchor, indent)) => {
-    //             if let Some(p) = &self.anchor_pattern {
-    //                 if !p.matches(&anchor.into()) {
-    //                     default_indent(element, model, anchor_set);
-    //                     return;
-    //                 }
-    //             }
-    //             indent
-    //         }
-    //         _ => IndentLevel::default(),
-    //     };
-    //     let block = model.block_for(element, BlockPosition::Before);
-    //     block.set_indent(anchor_indent.indent());
-    // }
 }
 
 /// A builder to conveniently specify a set of `IndentRule`s.

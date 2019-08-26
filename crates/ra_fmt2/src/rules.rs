@@ -12,10 +12,10 @@ use ra_syntax::{
 #[macro_export]
 macro_rules! wrap_fn {
     ( $inner:expr ) => {
-        concat!("fn main() { ", $inner, "; }")
+        concat!("fn main() { ", $inner, " }")
     };
     ( $( $inner:expr ),* ; ( $end:expr ) ) => {
-        concat!("fn main() { ", $( $inner )*, "; }", end)
+        concat!("fn main() { ", $( $inner )*, " }", end)
     };
 }
 
@@ -23,7 +23,11 @@ pub(crate) fn spacing() -> SpacingDsl {
     let mut space_dsl = SpacingDsl::default();
 
     space_dsl
-        .test(wrap_fn!("let x = [1,2,3]"), wrap_fn!("let x = [1, 2, 3]"))
+        .test(wrap_fn!("let x=0"), wrap_fn!("let x = 0"))
+        .inside(LET_STMT).before(T![=]).single_space()
+        .inside(LET_STMT).after(T![=]).single_space_or_optional_newline()
+
+        .test(wrap_fn!("let x = [1,2,3];"), wrap_fn!("let x = [1, 2, 3];"))
         .inside(ARRAY_EXPR).after(T![,]).single_space()
 
         .test("struct Test{x:usize    }", "struct Test { x: usize }")
@@ -50,7 +54,7 @@ pub(crate) fn spacing() -> SpacingDsl {
 pub(crate) fn indentation() -> IndentDsl {
     let mut indent_dsl = IndentDsl::default();
     indent_dsl
-        .rule("Indent struct fields")
+        .rule("Indent struct fields def")
             .inside(NAMED_FIELD_DEF_LIST)
             .matching(NAMED_FIELD_DEF)
             .set(IndentValue::Indent)
@@ -62,7 +66,7 @@ pub(crate) fn indentation() -> IndentDsl {
                     x: String,
                 }"#)
 
-        .anchor(NAMED_FIELD )
+        .anchor(NAMED_FIELD)
         .rule("Indent struct fields lit")
             .inside(NAMED_FIELD_LIST)
             .matching(NAMED_FIELD)
@@ -70,10 +74,23 @@ pub(crate) fn indentation() -> IndentDsl {
             .test(wrap_fn!(r#"
                 let t = Test {
                 x: String,
-                }"#), wrap_fn!(r#"
+                };"#), wrap_fn!(r#"
                 let t = Test {
                     x: String,
-                }"#));
+                };"#))
+
+        .anchor([METHOD_CALL_EXPR, CALL_EXPR])
+        .rule("Indent chained method calls")
+            .inside(METHOD_CALL_EXPR)
+            .matching(DOT)
+            .set(IndentValue::Indent)
+            .test(wrap_fn!(r#"
+            let a = foo()
+            .bar()
+            .baz();"#), wrap_fn!(r#"
+            let a = foo()
+                .bar()
+                .baz();"#));
     // more rules to come
 
     indent_dsl

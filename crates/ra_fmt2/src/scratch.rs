@@ -27,15 +27,14 @@ struct Test {
 /// will be removed
 #[test]
 fn show_me_the_indent_progress() {
-    let rs_file = wrap_fn!(r#"let t = Test {
-    x: Foo {
-    y: 0,
-    },
-}"#);
+    let rs_file = wrap_fn!(r#"let t = foo()
+    .bar()
+        .baz()
+            .foo2();"#);
 
     let p = SourceFile::parse(&rs_file);
     let syn_tree = p.syntax_node();
-    //println!("{:#?}", syn_tree);
+    println!("{:#?}", syn_tree);
     let indent = indentation();
 
     println!();
@@ -48,12 +47,12 @@ fn show_me_the_indent_progress() {
 
 
     println!("original: {:?}\nformatted: {:#?}", orig, et.apply_edits());
-    assert_eq!(et.apply_edits(), wrap_fn!(
-r#"let t = Test {
-    x: Foo {
-        y: 0,
-    },
-}"#));
+//     assert_eq!(et.apply_edits(), wrap_fn!(
+// r#"let t = Test {
+//     x: Foo {
+//         y: 0,
+//     },
+// }"#));
 
 }
 
@@ -80,7 +79,7 @@ fn show_me_the_progress_space() {
 }
 
 #[test]
-fn spacing_indent_combo_test() {
+fn combo_test() {
     let rs_file = wrap_fn!(
 r#"let t = Test {
     x: Foo {
