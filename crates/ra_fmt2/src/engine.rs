@@ -86,6 +86,7 @@ impl FmtDiff {
         }
         // don't format if we don't have to
         if block.get_indent() != anchors && block.get_whitespace().borrow().starts_with_lf {
+            println!("{:?}", block);
             // after calculating anchoring blocks indent apply fix
             // to first token found after node, to make string we walk tokens
             // TODO probably not a great solution a bit hacky 
@@ -98,8 +99,13 @@ impl FmtDiff {
             }).find(|blk| {
                 blk.as_element().as_token().is_some()
             });
-
-            next_closest_tkn.unwrap().set_indent(anchors);
+            // for chain indenting there is no closest child to DOT 
+            if let Some(tkn) = next_closest_tkn {
+                tkn.set_indent(anchors);
+            } else {
+                // so we indent the token
+                block.set_indent(anchors)
+            };
             // println!("INDENT {} CURR {:?}", anchors, next_closest_tkn);
         }
     }
