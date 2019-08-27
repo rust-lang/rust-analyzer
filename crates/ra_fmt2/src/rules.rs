@@ -8,7 +8,7 @@ use ra_syntax::{
 };
 
 /// Wraps expressions in a main function that must be declared in
-/// a block, adds semi colon. 
+/// a block. 
 #[macro_export]
 macro_rules! wrap_fn {
     ( $inner:expr ) => {
@@ -26,6 +26,12 @@ pub(crate) fn spacing() -> SpacingDsl {
         .test(wrap_fn!("let x=0"), wrap_fn!("let x = 0"))
         .inside(LET_STMT).before(T![=]).single_space()
         .inside(LET_STMT).after(T![=]).single_space_or_optional_newline()
+
+        .test(wrap_fn!("if x {0} else {1};"), wrap_fn!("if x { 0 } else { 1 };"))
+        .inside([IF_EXPR, BLOCK]).before(T!['{']).single_space()
+        .inside([IF_EXPR, BLOCK]).after(T!['{']).single_space_or_optional_newline()
+        .inside([IF_EXPR, BLOCK]).before(T!['}']).single_space_or_optional_newline()
+        .inside([IF_EXPR, BLOCK]).after(T!['}']).no_space_or_optional_newline()
 
         .test(wrap_fn!("let x = [1,2,3];"), wrap_fn!("let x = [1, 2, 3];"))
         .inside(ARRAY_EXPR).after(T![,]).single_space()
@@ -58,39 +64,39 @@ pub(crate) fn indentation() -> IndentDsl {
             .inside(NAMED_FIELD_DEF_LIST)
             .matching(NAMED_FIELD_DEF)
             .set(IndentValue::Indent)
-            .test(r#"
-                struct Test {
-                x: String,
-                }"#, r#"
-                struct Test {
-                    x: String,
-                }"#)
+            .test(
+r#"struct Test {
+x: String,
+}"#, 
+r#"struct Test {
+    x: String,
+}"#)
 
         .anchor(NAMED_FIELD)
         .rule("Indent struct fields lit")
             .inside(NAMED_FIELD_LIST)
             .matching(NAMED_FIELD)
             .set(IndentValue::Indent)
-            .test(wrap_fn!(r#"
-                let t = Test {
-                x: String,
-                };"#), wrap_fn!(r#"
-                let t = Test {
-                    x: String,
-                };"#))
+            .test(wrap_fn!(
+r#"let t = Test {
+x: String,
+};"#), 
+wrap_fn!(r#"let t = Test {
+    x: String,
+};"#))
 
-        .anchor([METHOD_CALL_EXPR, CALL_EXPR])
+        .anchor(DOT)    // TODO how do we impl this
         .rule("Indent chained method calls")
             .inside(METHOD_CALL_EXPR)
             .matching(DOT)
             .set(IndentValue::Indent)
-            .test(wrap_fn!(r#"
-            let a = foo()
-            .bar()
-            .baz();"#), wrap_fn!(r#"
-            let a = foo()
-                .bar()
-                .baz();"#));
+            .test(
+wrap_fn!(r#"let a = foo()
+.bar()
+.baz();"#),
+wrap_fn!(r#"let a = foo()
+    .bar()
+    .baz();"#));
     // more rules to come
 
     indent_dsl
@@ -98,10 +104,10 @@ pub(crate) fn indentation() -> IndentDsl {
 
 #[cfg(test)]
 mod tests {
- 
+
     use crate::{
         edit_tree::EditTree, //diff_view::DiffView,
-        engine::format_str, rules::{spacing},
+        engine::format_str, rules::{spacing, indentation},
     };
     use ra_syntax::SourceFile;
     use std::{ fs, path::{Path, PathBuf},};
@@ -122,6 +128,21 @@ mod tests {
     #[test]
     fn test_inline_spacing() {
         let rules = spacing();
+        let tests: Vec<TestCase> = rules
+            .tests
+            .iter()
+            .map(|&(before, after)| {
+                let before = before.to_string();
+                let after = format!("{}\n", after);
+                TestCase::from_before_after(before, after)
+            })
+            .collect();
+        run(&tests)
+    }
+
+    #[test]
+    fn test_inline_indent() {
+        let rules = indentation();
         let tests: Vec<TestCase> = rules
             .tests
             .iter()

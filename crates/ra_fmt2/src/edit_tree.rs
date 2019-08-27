@@ -7,7 +7,7 @@ use crate::whitespace::Whitespace;
 
 use ra_syntax::{
     NodeOrToken, SmolStr, SyntaxElement,
-    SyntaxKind::{self, *},
+    SyntaxKind::{self, *}, Direction,
     SyntaxNode, SyntaxToken, TextRange, TextUnit, WalkEvent, T,
 };
 
@@ -90,7 +90,7 @@ impl Block {
     }
 
     /// Creates a non connected node for checking anchoring node's indentation.
-    fn build_single(node: SyntaxNode) -> Block {
+    fn build_single(node: SyntaxElement) -> Block {
         // recursivly add to children
         // let children = match &element {
         //     NodeOrToken::Node(node) => {
@@ -105,11 +105,14 @@ impl Block {
         //     NodeOrToken::Token(_) => vec![],
         // };
         let range =  node.text_range();
-        let text = SmolStr::from(node.text().to_string());
-        let whitespace = RefCell::new(Whitespace::new(&NodeOrToken::Node(node.clone())));
+        let text = match &node {
+            NodeOrToken::Node(node) => SmolStr::from(node.text().to_string()),
+            NodeOrToken::Token(token) => token.text().clone(),
+        };
+        let whitespace = RefCell::new(Whitespace::new(&node));
 
         Self {
-            element: NodeOrToken::Node(node),
+            element: node,
             text,
             children: vec![],
             range,
@@ -136,21 +139,34 @@ impl Block {
     /// Returns an iterator of ancestor from current element.
     /// TODO cant return impl Iterator any ideas
     /// FIX probably not the best way to do this, building all new Blocks.
-    pub(crate) fn ancestors(&self) -> Vec<Block> {
+    pub(crate) fn ancestors_tokens(&self) -> Vec<Block> {
         match &self.element {
             NodeOrToken::Node(node) => {
-
+                node.siblings_with_tokens(Direction::Prev)
+                    .map(Block::build_single)
+                    .collect::<Vec<_>>()
+            },
+            NodeOrToken::Token(token) => {
+                token.siblings_with_tokens(Direction::Prev)
+                    .map(Block::build_single)
+                    .collect::<Vec<_>>()
+            },
+        }
+    }
+    pub(crate) fn ancestors_nodes(&self) -> Vec<Block> {
+        match &self.element {
+            NodeOrToken::Node(node) => {
                 std::iter::successors(node.parent(), |this| {
                     this.parent()
                 })
-                .map(Block::build_single)
+                .map(|n| Block::build_single(NodeOrToken::Node(n)))
                 .collect::<Vec<_>>()
             },
             NodeOrToken::Token(token) => {
                 std::iter::successors(Some(token.parent()), |this| {
                     this.parent()
                 })
-                .map(Block::build_single)
+                .map(|n| Block::build_single(NodeOrToken::Node(n)))
                 .collect::<Vec<_>>()
             },
         }
