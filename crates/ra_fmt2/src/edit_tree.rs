@@ -7,7 +7,7 @@ use crate::whitespace::Whitespace;
 
 use ra_syntax::{
     NodeOrToken, SmolStr, SyntaxElement,
-    SyntaxKind::{self, *},
+    SyntaxKind::{self, *}, Direction,
     SyntaxNode, SyntaxToken, TextRange, TextUnit, WalkEvent, T,
 };
 
@@ -111,21 +111,34 @@ impl Block {
     /// Returns an iterator of ancestor from current element.
     /// TODO cant return impl Iterator any ideas
     /// FIX probably not the best way to do this, building all new Blocks.
-    pub(crate) fn ancestors(&self) -> Vec<Block> {
+    pub(crate) fn ancestors_tokens(&self) -> Vec<Block> {
         match &self.element {
             NodeOrToken::Node(node) => {
-
+                node.siblings_with_tokens(Direction::Prev)
+                    .map(Block::build_single)
+                    .collect::<Vec<_>>()
+            },
+            NodeOrToken::Token(token) => {
+                token.siblings_with_tokens(Direction::Prev)
+                    .map(Block::build_single)
+                    .collect::<Vec<_>>()
+            },
+        }
+    }
+    pub(crate) fn ancestors_nodes(&self) -> Vec<Block> {
+        match &self.element {
+            NodeOrToken::Node(node) => {
                 std::iter::successors(node.parent(), |this| {
                     this.parent()
                 })
-                .map(Block::build_single)
+                .map(|n| Block::build_single(NodeOrToken::Node(n)))
                 .collect::<Vec<_>>()
             },
             NodeOrToken::Token(token) => {
                 std::iter::successors(Some(token.parent()), |this| {
                     this.parent()
                 })
-                .map(Block::build_single)
+                .map(|n| Block::build_single(NodeOrToken::Node(n)))
                 .collect::<Vec<_>>()
             },
         }

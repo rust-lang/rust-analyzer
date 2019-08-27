@@ -34,7 +34,7 @@ fn show_me_the_indent_progress() {
 
     let p = SourceFile::parse(&rs_file);
     let syn_tree = p.syntax_node();
-    println!("{:#?}", syn_tree);
+    // println!("{:#?}", syn_tree);
     let indent = indentation();
 
     println!();
@@ -59,11 +59,11 @@ fn show_me_the_indent_progress() {
 #[test]
 fn show_me_the_progress_space() {
     let rs_file = "pub(crate) struct Test    {x: String    }  ";
-    let rs_arr = wrap_fn!("let examp = [0,1,2]");
+    let rs_if = wrap_fn!("let x = if y {0} else {1};");
 
-    let p = SourceFile::parse(&rs_file);
+    let p = SourceFile::parse(&rs_if);
     let syn_tree = p.syntax_node();
-    //println!("{:?}", syn_tree);
+    //println!("{:#?}", syn_tree);
     let space = spacing();
     println!();
 
