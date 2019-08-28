@@ -29,6 +29,21 @@ pub(crate) struct Whitespace {
     pub(crate) starts_with_lf: bool,
 }
 
+impl std::fmt::Display for Whitespace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.new_line.0 {
+            if self.starts_with_lf {
+                writeln!(f)?;
+                write!(f, "{}", " ".repeat(self.text_len.0 as usize))
+            } else {
+                writeln!(f)
+            }
+        } else {
+            write!(f, "{}", " ".repeat(self.text_len.0 as usize))
+        }
+    }
+}
+
 impl Whitespace {
     pub(crate) fn new(element: &SyntaxElement) -> Whitespace {
         match &element {
@@ -465,6 +480,49 @@ impl Whitespace {
         };
         // println!("POST {:#?}", self)
     }
+
+//     pub(crate) struct Whitespace {
+//     original: SyntaxElement,
+//     text_range: TextRange,
+//     // additional_spaces: u32,
+//     /// Previous and next contain "\n".
+//     pub(crate) new_line: (bool, bool),
+//     /// Start and end location of token.
+//     pub(crate) text_len: (u32, u32),
+//     pub(crate) starts_with_lf: bool,
+// }
+
+    pub(super) fn to_space_text(&self) -> Vec<String> {
+        let mut ret = vec![];
+        let mut before = String::new();
+        let mut after = String::new();
+        // TODO larger than ??
+        if self.new_line.0 {
+            // for indentation 
+            if self.starts_with_lf && self.text_len.0 > 0 {
+                before.push('\n');
+                before.push_str(&" ".repeat(self.text_len.0 as usize));
+            } else {
+                before.push('\n');
+            }
+        } else if self.text_len.0 >= 1 {
+            before.push_str(" ")
+        }
+
+        ret.push(before);
+
+        if self.new_line.1 {
+            after.push('\n');
+        } else if self.text_len.1 >= 1 {
+            after.push_str(" ")
+        }
+        ret.push(after);
+
+        // let mut arr = [""; 2];
+        // arr.copy_from_slice(&ret[0..2]);
+        // arr;
+        ret
+    }
 }
 
 impl PartialEq<SpacingRule> for Whitespace {
@@ -485,4 +543,9 @@ fn calc_num_space_tkn(tkn: &SyntaxToken) -> u32 {
     } else {
         len as u32
     }
+}
+
+fn calc_node_len(tkn: &SyntaxNode) -> u32 {
+    let orig = tkn.text().to_string();
+    orig.chars().count() as u32
 }

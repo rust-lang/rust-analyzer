@@ -79,32 +79,20 @@ impl FmtDiff {
         &self,
         anchor_set: &PatternSet<&Pattern>,
         block: &Block,
-        rule: &IndentRule
     ) {
         //println!("\n{:?}\n", rule);
         let mut anchors = INDENT;
         // TODO ancestors is NOT refs to blocks from the edit tree they are built on demand
-        // TODO walk all ancestors or get siblings how do we compare direct siblings and parents
-        // let x = foo()  
-        //     .bar()   // is DOT our anchor its the only block with whitespace attached
-        //         .baz()    // baz() indent is based on parent METHOD_CALL_EXPR's sibling DOT
-        // .fix_me()   // should we flatten this so all are 4 or do we alighn with baz()
         for node in block.ancestors_nodes() {
             if anchor_set.matching(node.to_element()).next().is_some() {
                 //println!("FOUND ANCHOR {:?}\n {}\n", node, node.get_indent());
                 // walk all the way up the tree adding indent as we go
-                match rule.indent_value {
-                    IndentValue::Indent => anchors += node.get_indent(),
-                    IndentValue::IndentFromParent => {
-                        // if first child indent normal else first child + INDENT
-                        // how do we do this
-                    }
-                }
+                anchors += node.get_indent();
 
             }
         }
-        // don't format if we don't have to
-        if block.get_indent() != anchors && block.get_whitespace().borrow().starts_with_lf {
+        // don't format if block already is indented properly
+        if block.get_indent() != anchors {
             //println!("{:?}", block);
             // after calculating anchoring blocks indent apply fix
             // to first token found after node, to make string we walk tokens
@@ -135,17 +123,17 @@ impl FmtDiff {
         // TODO only walk nodes???
         let blocks = self.edit_tree.walk_exc_root().collect::<Vec<_>>();
 
-                println!("in matching indent rule {:?}", matching);
-                if let Some(rule) = matching.next() {
-                    println!("in matching indent rule");
-                    // This block is the anchor in check_indent we walk children to find 
-                    // node to indent ??
-                    // TODO better name check_indent??
+        for block in blocks.iter() {
+            let mut matching = indent_rules.rules.iter().filter(|it| it.matches(block.as_element()));
+            // println!("in matching indent rule {:?}", matching);
+            if let Some(_rule) = matching.next() {
+                // only check_indent if prev token starts with "\n" 
+                // TODO do I need to check children like nix has_newline()
+                if block.get_whitespace().borrow().starts_with_lf {
                     self.check_indent(&anchors, block);
                     assert!(matching.next().is_none(), "more than one indent rule matched");
-                } else {
-                    unimplemented!("What to do when matched anchor but no children")
                 }
+            }
         }
         self
     }
@@ -159,11 +147,11 @@ pub(crate) fn format_pass(space_dsl: &SpacingDsl, indent_dsl: &IndentDsl, root: 
         .into()
 }
 
-pub(crate) fn format_str(file: &str) -> Result<String, ()> {
+pub(crate) fn format_str(file: &str) -> Result<String, std::fmt::Error> {
     let p = SourceFile::parse(file);
     let root = p.syntax_node();
     let space = spacing();
     let indent = indentation();
 
-    Ok(format_pass(&space, &indent, &root).apply_edits())
+    format_pass(&space, &indent, &root).apply_edits()
 }

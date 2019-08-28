@@ -13,7 +13,7 @@ use ra_syntax::{
 
 use std::collections::BTreeSet;
 use std::cell::{Cell, RefCell};
-use std::rc::Rc;
+use std::fmt::Write;
 
 // TODO make more like intellij's fmt model
 // Model holds immutable tree and mutable intermediate model to produce diff
@@ -98,16 +98,6 @@ impl Block {
         self as *const _ == other as *const _
     }
 
-    /// Text range of current token.
-    pub(crate) fn text_range(&self) -> TextRange {
-        self.range
-    }
-
-    /// Returns an iterator of children from current element.
-    pub(crate) fn children(&self) -> impl Iterator<Item = &Block> {
-        self.children.iter()
-    }
-
     /// Returns an iterator of ancestor from current element.
     /// TODO cant return impl Iterator any ideas
     /// FIX probably not the best way to do this, building all new Blocks.
@@ -142,21 +132,6 @@ impl Block {
                 .collect::<Vec<_>>()
             },
         }
-    }
-
-    /// Returns SyntaxKind.
-    pub(crate) fn kind(&self) -> SyntaxKind {
-        self.element.kind()
-    }
-
-    /// Returns an owned `SyntaxElement`.
-    pub(crate) fn to_element(&self) -> SyntaxElement {
-        self.element.clone()
-    }
-
-    /// Returns a reference to a `SyntaxElement`.
-    pub(crate) fn as_element(&self) -> &SyntaxElement {
-        &self.element
     }
 
     /// Traverse all blocks in order including current.
@@ -238,6 +213,35 @@ impl Block {
         } else {
             0
         }
+    }
+
+    /// Text range of current token.
+    pub(crate) fn text_range(&self) -> TextRange {
+        self.range
+    }
+
+    /// Returns an iterator of children from current element.
+    pub(crate) fn children(&self) -> impl Iterator<Item = &Block> {
+        self.children.iter()
+    }
+
+    /// Returns SyntaxKind.
+    pub(crate) fn kind(&self) -> SyntaxKind {
+        self.element.kind()
+    }
+
+    /// Returns an owned `SyntaxElement`.
+    pub(crate) fn to_element(&self) -> SyntaxElement {
+        self.element.clone()
+    }
+
+    /// Returns a reference to a `SyntaxElement`.
+    pub(crate) fn as_element(&self) -> &SyntaxElement {
+        &self.element
+    }
+
+    pub(crate) fn is_leaf(&self) -> bool {
+        self.element.as_token().is_some()
     }
 
     /// Sets amount indenting whitespace.
@@ -340,7 +344,7 @@ impl EditTree {
 
     /// TODO This needs work, less copying of the large vec of blocks
     /// Walks tokens and compares `Whitespace` to build the final String from `Blocks`.
-    pub(crate) fn apply_edits(&self) -> String {
+    pub(crate) fn apply_edits(&self) -> Result<String, std::fmt::Error> {
         let traverse = self.walk_tokens();
         // scan's state var only needs to iter unique tokens.
         let de_dup = self.walk_tokens()
@@ -363,9 +367,9 @@ impl EditTree {
             let res = match blk.as_element() {
                 NodeOrToken::Token(tkn) => {
                     if tkn.kind() != WHITESPACE {
-                        let ret = string_from_block(&blk, next);
+                        let text = str_from_blk(&blk, *next).expect("failed to write to string");
                         *next = iter_clone.next();
-                        ret
+                        text
                     } else {
                         "".into()
                     }
@@ -376,8 +380,58 @@ impl EditTree {
             };
             Some(res)
         })
-        //.map(|b| b)
-        .collect::<String>()
+        .collect::<String>();
+        Ok(ret)
+    }
+}
+
+fn str_from_root(block: &Block) -> String {
+    let mut buff = String::new();
+    eat_tkns(block, &mut buff);
+    return buff;
+
+    fn eat_tkns(block: &Block, mut buff: &mut String) {
+        write!(buff, "{}", block.whitespace.borrow()).expect("write to string failed");
+        if block.is_leaf() {
+            write!(buff, "{}", block.element).expect("write to string failed");
+        } else {
+            block.children().for_each(|kid| eat_tkns(kid, &mut buff));
+        }
+    }
+} 
+// this currently works still uses next token to not duplicate whitespace
+fn str_from_blk(block: &Block, next: Option<&Block>) -> Result<String, std::fmt::Error> {
+    let mut buff = String::new();
+    eat_tkns(block, next, &mut buff)?;
+    return Ok(buff);
+
+    fn eat_tkns(
+        block: &Block,
+        next: Option<&Block>,
+        buff: &mut String
+    ) -> std::fmt::Result {
+        let ws = block.whitespace.borrow();
+        let mut spaces = ws.to_space_text();
+
+        //println!("CURR {:?}", spaces);
+
+        if let Some(next_tkn) = next {
+            let ws = next_tkn.whitespace.borrow();
+            let next_spaces = ws.to_space_text();
+
+            //println!("NEXT {:?}", next_spaces);
+
+            // check if "after" whitespace and next token previous whitespace will double whitespace
+            // or if next_spaces is indent
+            if spaces[1] == next_spaces[0] || next_spaces[0].contains('\n') {
+                spaces[1] = "".into();
+            }
+        };
+        
+        // TODO handle Err
+        write!(buff, "{}", spaces[0])?;
+        write!(buff, "{}", block.element)?;
+        write!(buff, "{}", spaces[1])
     }
 }
 

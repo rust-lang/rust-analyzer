@@ -212,7 +212,6 @@ pub(crate) enum Modality {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum IndentValue {
     Indent,
-    IndentFromParent,
 }
 
 #[derive(Debug, Clone, Copy)]
