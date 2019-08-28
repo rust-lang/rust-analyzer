@@ -421,7 +421,8 @@ fn str_from_root(block: &Block) -> String {
         }
     }
 } 
-// this currently works still uses next token to not duplicate whitespace
+// this currently works still uses next token to not duplicate whitespace 
+// TODO is Result ok here ??
 fn str_from_blk(block: &Block, next: Option<&Block>) -> Result<String, std::fmt::Error> {
     let mut buff = String::new();
     eat_tkns(block, next, &mut buff)?;
