@@ -40,7 +40,7 @@ fn show_me_the_indent_progress() {
     let et: EditTree = diff.indent_diff(&indent).into();
 
 
-    println!("original: {:?}\nformatted: {:#?}", orig, et.apply_edits());
+    println!("original: {:?}\nformatted: {:#?}", orig, et.apply_edits().expect("Edits failed"));
 //     assert_eq!(et.apply_edits(), wrap_fn!(
 // r#"let t = Test {
 //     x: Foo {
@@ -55,7 +55,7 @@ fn show_me_the_progress_space() {
     let rs_file = "pub(crate) struct Test    {x: String    }  ";
     let rs_if = wrap_fn!("let x = if y {0} else {1};");
 
-    let p = SourceFile::parse(&rs_if);
+    let p = SourceFile::parse(&rs_file);
     let syn_tree = p.syntax_node();
     //println!("{:#?}", syn_tree);
     let space = spacing();
@@ -67,7 +67,7 @@ fn show_me_the_progress_space() {
     let diff = FmtDiff::new(fmt);
     let et: EditTree = diff.spacing_diff(&space).into();
 
-    println!("original: {:?}\nformatted: {:#?}", orig, et.apply_edits());
+    println!("original: {:?}\nformatted: {:#?}", orig, et.apply_edits().expect("Edits failed"));
     // assert_eq!(et.apply_edits(), "pub(crate) struct Test { x: String }\n")
 }
 
@@ -96,5 +96,5 @@ r#"let t = Test {
         .indent_diff(&indent)
         .into();
     
-    println!("original: {:?}\nformatted: {:#?}", orig, diffed.apply_edits());
+    println!("original: {:?}\nformatted: {:#?}", orig, diffed.apply_edits().expect("Edits failed"));
 }
