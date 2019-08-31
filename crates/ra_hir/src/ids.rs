@@ -45,7 +45,9 @@ impl HirFileId {
                 let loc = macro_file.macro_call_id.loc(db);
                 match loc {
                     MacroCallLoc::Macro { ast_id, .. } => ast_id.file_id().original_file(db),
-                    MacroCallLoc::Derive { ast_id, .. } => ast_id.file_id().original_file(db),
+                    MacroCallLoc::Attribute { attr_ast_id, .. } => {
+                        attr_ast_id.file_id().original_file(db)
+                    }
                 }
             }
         }
@@ -151,7 +153,7 @@ pub(crate) fn macro_arg_query(db: &impl AstDatabase, id: MacroCallId) -> Option<
             Some(Arc::new(tt))
         }
 
-        MacroCallLoc::Derive { .. } => None,
+        MacroCallLoc::Attribute { .. } => None,
     }
 }
 
@@ -162,7 +164,7 @@ pub(crate) fn macro_expand_query(
     let loc = id.loc(db);
 
     match loc {
-        MacroCallLoc::Macro { ast_id, def } => {
+        MacroCallLoc::Macro { ast_id: _, def } => {
             let macro_arg = db.macro_arg(id).ok_or("Fail to args in to tt::TokenTree")?;
 
             let macro_rules = db.macro_def(def).ok_or("Fail to find macro definition")?;
@@ -175,7 +177,8 @@ pub(crate) fn macro_expand_query(
             Ok(Arc::new(tt))
         }
 
-        MacroCallLoc::Derive { ast_id } => {
+        MacroCallLoc::Attribute { attr_ast_id: _, .. } => {
+            log::warn!("Expanding: {}", id.debug_dump(db));
             // TODO: produce token trees of derive macro expansion
 
             Ok(Arc::new(tt::Subtree { delimiter: tt::Delimiter::None, token_trees: vec![] }))
@@ -206,7 +209,7 @@ impl_intern_key!(MacroCallId);
 pub enum MacroCallLoc {
     Macro { def: MacroDefId, ast_id: AstId<ast::MacroCall> },
 
-    Derive { ast_id: AstId<ast::Attr> },
+    Attribute { attr_ast_id: AstId<ast::Attr>, target_ast_id: AstId<ast::ModuleItem> },
 }
 
 impl MacroCallId {
@@ -413,27 +416,19 @@ impl MacroCallId {
                 )
             }
 
-            MacroCallLoc::Derive { ast_id } => {
-                let node = ast_id.to_node(db);
-                let syntax_str = {
-                    let mut res = String::new();
-                    node.syntax().text().for_each_chunk(|chunk| {
-                        if !res.is_empty() {
-                            res.push(' ')
-                        }
-                        res.push_str(chunk)
-                    });
-                    res
-                };
+            MacroCallLoc::Attribute { attr_ast_id, target_ast_id } => {
+                let attr_node = attr_ast_id.to_node(db);
+                let target_node = target_ast_id.to_node(db);
 
                 // dump the file name
-                let file_id: HirFileId = ast_id.file_id();
+                let file_id: HirFileId = attr_ast_id.file_id();
                 let original = file_id.original_file(db);
 
                 format!(
-                    "derive macro [file: {:?}] : {}",
+                    "attribute macro [file: {:?}] : {} applied to {}",
                     db.file_relative_path(original),
-                    syntax_str,
+                    attr_node.syntax().to_string(),
+                    target_node.syntax().to_string(),
                 )
             }
         }

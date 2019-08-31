@@ -48,7 +48,7 @@ pub trait FnDefOwner: AstNode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MacroKind {
     Call(ast::MacroCall),
-    DeriveAttr(ast::Attr),
+    Attr { attr: ast::Attr, target: ast::ModuleItem },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,14 +69,21 @@ pub trait ModuleItemOwner: AstNode {
 #[derive(Debug)]
 pub struct ItemOrMacroIter(SyntaxNodeChildren);
 
-fn collect_derive_attr(n: impl AttrsOwner) -> Option<ItemOrMacro> {
-    let attrs = n.attrs();
+fn collect_derive_attr(item: ast::ModuleItem) -> Option<ItemOrMacro> {
+    let item_node = item.syntax();
+    let mut attrs = None;
 
-    for attr in attrs {
-        if let Some((name, _)) = attr.as_call() {
-            if name.as_str() == "derive" {
-                return Some(ItemOrMacro::Macro(MacroKind::DeriveAttr(attr)));
-            }
+    if let Some(s) = ast::StructDef::cast(item_node.clone()) {
+        attrs = Some(s.attrs());
+    }
+
+    if let Some(e) = ast::EnumDef::cast(item_node.clone()) {
+        attrs = Some(e.attrs());
+    }
+
+    for attr in attrs.into_iter().flatten() {
+        if attr.as_call().is_some() {
+            return Some(ItemOrMacro::Macro(MacroKind::Attr { attr, target: item.clone() }));
         }
     }
 
@@ -90,20 +97,8 @@ impl Iterator for ItemOrMacroIter {
             let n = self.0.next()?;
 
             if let Some(item) = ast::ModuleItem::cast(n.clone()) {
-                if let Some(s) = ast::StructDef::cast(n.clone()) {
-                    let m = collect_derive_attr(s);
-
-                    if m.is_some() {
-                        return m;
-                    }
-                }
-
-                if let Some(e) = ast::EnumDef::cast(n.clone()) {
-                    let m = collect_derive_attr(e);
-
-                    if m.is_some() {
-                        return m;
-                    }
+                if let Some(item) = collect_derive_attr(item.clone()) {
+                    return Some(item);
                 }
 
                 return Some(ItemOrMacro::Item(item));

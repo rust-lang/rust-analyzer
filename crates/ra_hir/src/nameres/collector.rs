@@ -703,11 +703,14 @@ where
                 self.def_collector.unexpanded_macros.push((self.module_id, ast_id, path));
             }
 
-            raw::MacroData::DeriveAttr(mac) => {
-                let ast_id = mac.ast_id.with_file_id(self.file_id);
-                let macro_call_id = MacroCallLoc::Derive { ast_id }.id(self.def_collector.db);
+            raw::MacroData::Attr(mac) => {
+                let attr_ast_id = mac.attr_ast_id.with_file_id(self.file_id);
+                let target_ast_id = mac.target_ast_id.with_file_id(self.file_id);
 
-                // Collect from derive macro expansion
+                let macro_call_id = MacroCallLoc::Attribute { attr_ast_id, target_ast_id }
+                    .id(self.def_collector.db);
+
+                // Collect items from attribute macro expansion
                 let file_id: HirFileId = macro_call_id.as_file(MacroFileKind::Items);
                 let raw_items = self.def_collector.db.raw_items(file_id);
                 ModCollector {
