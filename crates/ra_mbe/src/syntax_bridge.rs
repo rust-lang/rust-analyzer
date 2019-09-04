@@ -18,6 +18,18 @@ pub struct TokenMap {
     tokens: Vec<TextRange>,
 }
 
+/// Parses arbitrary language string into AST and returns corresponding `tt::Subtree`.
+pub fn text_to_tokentree(text: &str) -> tt::Subtree {
+    // wrap the given text to a macro call
+    let wrapped = format!("wrap_macro!( {} )", text);
+    let wrapped = ast::SourceFile::parse(&wrapped);
+    let wrapped = wrapped.tree().syntax().descendants().find_map(ast::TokenTree::cast).unwrap();
+    let mut wrapped = ast_to_token_tree(&wrapped).unwrap().0;
+    wrapped.delimiter = tt::Delimiter::None;
+
+    wrapped
+}
+
 /// Convert the syntax tree (what user has written) to a `TokenTree` (what macro
 /// will consume).
 pub fn ast_to_token_tree(ast: &ast::TokenTree) -> Option<(tt::Subtree, TokenMap)> {
