@@ -177,11 +177,17 @@ pub(crate) fn macro_expand_query(
             Ok(Arc::new(tt))
         }
 
-        MacroCallLoc::Attribute { attr_ast_id: _, .. } => {
-            log::warn!("Expanding: {}", id.debug_dump(db));
-            // TODO: produce token trees of derive macro expansion
+        MacroCallLoc::Attribute { attr_ast_id, target_ast_id } => {
+            let attr_node = attr_ast_id.to_node(db);
+            let target_node = target_ast_id.to_node(db);
 
-            Ok(Arc::new(tt::Subtree { delimiter: tt::Delimiter::None, token_trees: vec![] }))
+            let tt = attr_macros::expand_attr_macro(attr_node, target_node);
+            if let Some(tt) = tt {
+                Ok(Arc::new(tt))
+            } else {
+                // Return empty token tree
+                Ok(Arc::new(tt::Subtree { delimiter: tt::Delimiter::None, token_trees: vec![] }))
+            }
         }
     }
 }

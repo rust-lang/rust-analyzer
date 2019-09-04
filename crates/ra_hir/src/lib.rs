@@ -49,6 +49,7 @@ mod expr;
 mod lang_item;
 mod generics;
 mod resolve;
+mod attr_macros;
 pub mod diagnostics;
 
 mod code_model;
