@@ -11,7 +11,7 @@ use crate::{
     ast::{
         self,
         make::{self, tokens},
-        AstNode, TypeBoundsOwner,
+        AstNode,
     },
     AstToken, Direction, InsertPosition, SmolStr, SyntaxElement, SyntaxKind,
     SyntaxKind::{ATTR, COMMENT, WHITESPACE},

@@ -1,11 +1,7 @@
 //! FIXME: write short doc here
 
 use ra_db::SourceDatabase;
-use ra_syntax::{
-    algo::ancestors_at_offset,
-    ast::{self, ArgListOwner},
-    match_ast, AstNode, SyntaxNode, TextUnit,
-};
+use ra_syntax::{algo::ancestors_at_offset, ast, match_ast, AstNode, SyntaxNode, TextUnit};
 use test_utils::tested_by;
 
 use crate::{db::RootDatabase, CallInfo, FilePosition, FunctionSignature};

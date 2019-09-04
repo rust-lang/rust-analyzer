@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use hir_expand::name::{self, AsName, Name};
-use ra_syntax::ast::{self, NameOwner, TypeBoundsOwner, TypeParamsOwner};
+use ra_syntax::ast::{self, TypeParamsOwner};
 
 use crate::{
     db::DefDatabase,

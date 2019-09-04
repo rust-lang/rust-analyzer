@@ -1,11 +1,6 @@
 //! FIXME: write short doc here
 
-use ra_syntax::{
-    ast::{self, LoopBodyOwner},
-    match_ast, AstNode,
-    SyntaxKind::*,
-    SyntaxToken,
-};
+use ra_syntax::{ast, match_ast, AstNode, SyntaxKind::*, SyntaxToken};
 
 use crate::completion::{
     CompletionContext, CompletionItem, CompletionItemKind, CompletionKind, Completions,

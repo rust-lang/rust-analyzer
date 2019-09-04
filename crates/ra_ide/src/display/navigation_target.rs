@@ -3,7 +3,7 @@
 use hir::{AssocItem, Either, FieldSource, HasSource, InFile, ModuleSource};
 use ra_db::{FileId, SourceDatabase};
 use ra_syntax::{
-    ast::{self, DocCommentsOwner, NameOwner},
+    ast::{self, DocCommentsOwner},
     match_ast, AstNode, SmolStr,
     SyntaxKind::{self, BIND_PAT},
     TextRange,

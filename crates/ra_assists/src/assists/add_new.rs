@@ -2,9 +2,7 @@ use format_buf::format;
 use hir::{db::HirDatabase, FromSource, InFile};
 use join_to_string::join;
 use ra_syntax::{
-    ast::{
-        self, AstNode, NameOwner, StructKind, TypeAscriptionOwner, TypeParamsOwner, VisibilityOwner,
-    },
+    ast::{self, AstNode, StructKind},
     TextUnit, T,
 };
 use std::fmt::Write;

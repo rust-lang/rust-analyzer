@@ -4,7 +4,7 @@ use std::fmt::{self, Display};
 
 use hir::{Docs, Documentation, HasSource, HirDisplay};
 use join_to_string::join;
-use ra_syntax::ast::{self, AstNode, NameOwner, VisibilityOwner};
+use ra_syntax::ast::{self, AstNode};
 use std::convert::From;
 
 use crate::{

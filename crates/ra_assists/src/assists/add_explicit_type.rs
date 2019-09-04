@@ -1,6 +1,6 @@
 use hir::{db::HirDatabase, HirDisplay};
 use ra_syntax::{
-    ast::{self, AstNode, LetStmt, NameOwner},
+    ast::{self, AstNode, LetStmt},
     T,
 };
 

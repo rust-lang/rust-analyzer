@@ -1,7 +1,7 @@
 //! FIXME: write short doc here
 
 use crate::{
-    ast::{self, AstNode, AttrsOwner},
+    ast::{self, AstNode},
     SyntaxError,
     SyntaxErrorKind::*,
     SyntaxKind::*,

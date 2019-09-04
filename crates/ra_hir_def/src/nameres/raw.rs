@@ -16,7 +16,7 @@ use hir_expand::{
 };
 use ra_arena::{impl_arena_id, map::ArenaMap, Arena, RawId};
 use ra_syntax::{
-    ast::{self, AttrsOwner, NameOwner},
+    ast::{self, AttrsOwner},
     AstNode, AstPtr,
 };
 use test_utils::tested_by;

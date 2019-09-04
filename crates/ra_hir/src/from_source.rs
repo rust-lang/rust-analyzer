@@ -3,7 +3,7 @@
 use hir_def::{AstItemDef, LocationCtx, ModuleId};
 use hir_expand::{name::AsName, AstId, MacroDefId, MacroDefKind};
 use ra_syntax::{
-    ast::{self, AstNode, NameOwner},
+    ast::{self, AstNode},
     match_ast, AstPtr, SyntaxNode,
 };
 

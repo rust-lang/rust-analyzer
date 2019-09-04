@@ -7,7 +7,7 @@ use hir::{
     Adt, AssocItem, GenericParam, HasSource, ImplBlock, Local, MacroDef, Module, ModuleDef,
     StructField, VariantDef,
 };
-use ra_syntax::{ast, ast::VisibilityOwner};
+use ra_syntax::ast;
 
 use crate::db::RootDatabase;
 

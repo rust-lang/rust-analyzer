@@ -1,6 +1,6 @@
 use hir::db::HirDatabase;
 use ra_syntax::{
-    ast::{self, edit, make, AstNode, NameOwner, TypeBoundsOwner},
+    ast::{self, edit, make, AstNode},
     SyntaxElement,
     SyntaxKind::*,
 };

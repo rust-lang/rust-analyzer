@@ -4,7 +4,7 @@ use hir::InFile;
 use itertools::Itertools;
 use ra_db::SourceDatabase;
 use ra_syntax::{
-    ast::{self, AstNode, AttrsOwner, ModuleItemOwner, NameOwner},
+    ast::{self, AstNode, AttrsOwner},
     match_ast, SyntaxNode, TextRange,
 };
 

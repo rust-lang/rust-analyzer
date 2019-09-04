@@ -1,7 +1,6 @@
 use hir::db::HirDatabase;
 use ra_syntax::{
-    ast::{self, NameOwner, VisibilityOwner},
-    AstNode,
+    ast, AstNode,
     SyntaxKind::{
         ATTR, COMMENT, ENUM_DEF, FN_DEF, IDENT, MODULE, STRUCT_DEF, TRAIT_DEF, VISIBILITY,
         WHITESPACE,

@@ -1,7 +1,6 @@
 use hir::{self, db::HirDatabase};
 use ra_syntax::{
-    ast::{self, NameOwner},
-    AstNode, Direction, SmolStr,
+    ast, AstNode, Direction, SmolStr,
     SyntaxKind::{PATH, PATH_SEGMENT},
     SyntaxNode, TextRange, T,
 };

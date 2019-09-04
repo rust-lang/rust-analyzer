@@ -8,10 +8,7 @@ use hir_expand::{
     name::{self, AsName, Name},
 };
 use ra_db::CrateId;
-use ra_syntax::{
-    ast::{self, NameOwner, TypeAscriptionOwner},
-    AstNode,
-};
+use ra_syntax::{ast, AstNode};
 
 use crate::{type_ref::TypeRef, InFile};
 

@@ -3,7 +3,7 @@
 use crate::{db::RootDatabase, FileId};
 use hir::{HirDisplay, SourceAnalyzer};
 use ra_syntax::{
-    ast::{self, AstNode, TypeAscriptionOwner},
+    ast::{self, AstNode},
     match_ast, SmolStr, SourceFile, SyntaxKind, SyntaxNode, TextRange,
 };
 

@@ -2,7 +2,6 @@
 
 use hir::{db::HirDatabase, Docs, HasAttrs, HasSource, HirDisplay, ScopeDef, Type};
 use join_to_string::join;
-use ra_syntax::ast::NameOwner;
 use test_utils::tested_by;
 
 use crate::completion::{

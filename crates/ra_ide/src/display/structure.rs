@@ -3,7 +3,7 @@
 use crate::TextRange;
 
 use ra_syntax::{
-    ast::{self, AttrsOwner, NameOwner, TypeAscriptionOwner, TypeParamsOwner},
+    ast::{self, AttrsOwner, NameOwner, TypeAscriptionOwner},
     match_ast, AstNode, SourceFile, SyntaxKind, SyntaxNode, WalkEvent,
 };
 

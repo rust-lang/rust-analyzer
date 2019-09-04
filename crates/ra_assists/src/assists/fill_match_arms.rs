@@ -3,7 +3,7 @@
 use std::iter;
 
 use hir::{db::HirDatabase, Adt, HasSource};
-use ra_syntax::ast::{self, edit::IndentLevel, make, AstNode, NameOwner};
+use ra_syntax::ast::{self, edit::IndentLevel, make, AstNode};
 
 use crate::{Assist, AssistCtx, AssistId};
 

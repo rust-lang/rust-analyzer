@@ -3,7 +3,7 @@
 use rustc_hash::FxHashSet;
 
 use ra_syntax::{
-    ast::{self, AstNode, AstToken, VisibilityOwner},
+    ast::{self, AstNode, AstToken},
     Direction, NodeOrToken, SourceFile,
     SyntaxKind::{self, *},
     SyntaxNode, TextRange,

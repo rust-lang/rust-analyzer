@@ -7,7 +7,7 @@ mod structure;
 mod short_label;
 
 use ra_syntax::{
-    ast::{self, AstNode, AttrsOwner, NameOwner, TypeParamsOwner},
+    ast::{self, AstNode, AttrsOwner, TypeParamsOwner},
     SyntaxKind::{ATTR, COMMENT},
 };
 

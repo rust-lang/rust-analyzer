@@ -7,10 +7,7 @@ use hir_expand::{
 };
 use ra_arena::Arena;
 use ra_syntax::{
-    ast::{
-        self, ArgListOwner, ArrayExprKind, LiteralKind, LoopBodyOwner, NameOwner,
-        TypeAscriptionOwner,
-    },
+    ast::{self, ArrayExprKind, LiteralKind},
     AstNode, AstPtr,
 };
 use test_utils::tested_by;

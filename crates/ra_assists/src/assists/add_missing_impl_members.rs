@@ -1,6 +1,6 @@
 use hir::{db::HirDatabase, HasSource};
 use ra_syntax::{
-    ast::{self, edit, make, AstNode, NameOwner},
+    ast::{self, edit, make, AstNode},
     SmolStr,
 };
 

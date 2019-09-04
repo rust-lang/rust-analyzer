@@ -8,7 +8,7 @@ use hir_expand::{
     InFile,
 };
 use ra_arena::{map::ArenaMap, Arena};
-use ra_syntax::ast::{self, NameOwner, TypeAscriptionOwner};
+use ra_syntax::ast;
 
 use crate::{
     db::DefDatabase, src::HasChildSource, trace::Trace, type_ref::TypeRef, AstItemDef, EnumId,

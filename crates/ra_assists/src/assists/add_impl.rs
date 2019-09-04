@@ -2,7 +2,7 @@ use format_buf::format;
 use hir::db::HirDatabase;
 use join_to_string::join;
 use ra_syntax::{
-    ast::{self, AstNode, NameOwner, TypeParamsOwner},
+    ast::{self, AstNode},
     TextUnit,
 };
 
