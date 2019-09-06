@@ -16,21 +16,13 @@ use std::cell::{Cell, RefCell};
 use std::fmt::Write;
 
 // TODO make more like intellij's fmt model
-// Model holds immutable tree and mutable intermediate model to produce diff
-// the model will probably have to create its own tree to add the extra
-// info to each token/node:
-//
-// [1,2,3];
-// can be Brace token, ident, comma all of which knows their own rules and apply
-// them accordingly to produce [1, 2, 3]; ???
-
+// Model holds immutable tree and mutable intermediate model to produce diff.
 #[derive(Clone, Debug)]
-/// Holds nodes and tokens as a tree with whitespace information
+/// Holds node or token with whitespace information.
 ///
 pub(crate) struct Block {
     //indent: some enum?
     element: SyntaxElement,
-    // parent: Cell<Option<&Block>>,
     children: Vec<Block>,
     text: SmolStr,
     range: TextRange,
@@ -91,19 +83,6 @@ impl Block {
 
     /// Creates a non connected node for checking anchoring node's indentation.
     fn build_single(node: SyntaxElement) -> Block {
-        // recursivly add to children
-        // let children = match &element {
-        //     NodeOrToken::Node(node) => {
-        //         node.children_with_tokens()
-        //         .filter(|ele| match ele{
-        //             NodeOrToken::Node(_) => true,
-        //             NodeOrToken::Token(t) => t.kind() != WHITESPACE,
-        //         })
-        //         .map(Block::build_block)
-        //         .collect::<Vec<_>>()
-        //     }
-        //     NodeOrToken::Token(_) => vec![],
-        // };
         let range =  node.text_range();
         let text = match &node {
             NodeOrToken::Node(node) => SmolStr::from(node.text().to_string()),
@@ -229,20 +208,6 @@ impl Block {
         blocks
     }
 
-    /// Returns `Whitespace` which has knowledge of whitespace around current token.
-    pub(crate) fn get_whitespace(&self) -> RefCell<Whitespace> {
-        self.whitespace.clone()
-    }
-
-    /// Returns amount indenting whitespace.
-    pub(crate) fn get_indent(&self) -> u32 {
-        if self.whitespace.borrow().starts_with_lf {
-            self.whitespace.borrow().text_len.0 
-        } else {
-            0
-        }
-    }
-
     /// Text range of current token.
     pub(crate) fn text_range(&self) -> TextRange {
         self.range
@@ -272,6 +237,20 @@ impl Block {
         self.element.as_token().is_some()
     }
 
+    /// Returns `Whitespace` which has knowledge of whitespace around current token.
+    pub(crate) fn get_whitespace(&self) -> RefCell<Whitespace> {
+        self.whitespace.clone()
+    }
+
+    /// Returns amount indenting whitespace.
+    pub(crate) fn get_indent(&self) -> u32 {
+        if self.whitespace.borrow().starts_with_lf {
+            self.whitespace.borrow().text_len.0 
+        } else {
+            0
+        }
+    }
+
     /// Sets amount indenting whitespace.
     pub(crate) fn set_indent(&self, indent: u32) {
         self.whitespace.borrow_mut().text_len.0 = indent
@@ -282,9 +261,36 @@ impl Block {
         self.whitespace.borrow().text_len
     }
 
-    /// Sets spacing based on rule.
-    pub(crate) fn set_spacing(&self, rule: &SpacingRule) {
-        self.whitespace.borrow_mut().apply_space_fix(rule)
+    /// Sets preceding spacing based on rule.
+    pub(crate) fn set_spacing_before(&self, rule: &SpacingRule) {
+        let mut whitespace = self.whitespace.borrow_mut();
+        match rule.space.value {
+            SpaceValue::Single => {
+                whitespace.text_len.0 = 1;
+                whitespace.new_line.0 = false;
+            },
+            SpaceValue::Newline => {
+                whitespace.new_line.0 = true;
+                whitespace.text_len.0 = 0;
+;            },
+            SpaceValue::SingleOptionalNewline => {
+                if whitespace.siblings_contain("\n") {
+                    whitespace.new_line.0 = true;
+                    whitespace.text_len.0 = 0;
+                } else {
+                    whitespace.text_len.0 = 1;
+                    whitespace.new_line.0 = false;
+                }
+            },
+            _ => {},
+        };
+        //self.whitespace.borrow_mut().fix_spacing_before(rule.space)
+    }
+
+    /// Sets spacing after token based on rule.
+    /// Fixes the "{" in "struct Test{x:usize}"
+    pub(crate) fn set_spacing_after(&self, rule: &SpacingRule) {
+        self.whitespace.borrow_mut().fix_spacing_after(rule.space)
     }
 
     /// Returns previous and next new line flags as tuple.
@@ -308,8 +314,8 @@ impl Block {
 }
 
 #[derive(Debug, Clone)]
-/// Traversal struct is the Iterator for flattened
-/// ordered Block's, needed to fixes lifetime issue when
+/// Traversal is the Iterator for flattened
+/// ordered Block's, needed to fix lifetime issue when
 /// returning impl Iterator<_> for Block and EditTree.
 pub(super) struct Traversal<'t> {
     blocks: Vec<&'t Block>,
@@ -332,17 +338,13 @@ pub(crate) struct EditTree {
 
 impl EditTree {
     /// Walks all `SyntaxNode`s building an `EditTree`. 
-    pub(crate) fn new(root: SyntaxNode) -> Self {
+    pub(crate) fn new(root: SyntaxNode) -> EditTree {
         EditTree::build_tree(root)
     }
     fn build_tree(root: SyntaxNode) -> EditTree {
         let ele = NodeOrToken::Node(root);
         let root = Block::build_block(ele);
         EditTree { root }
-    }
-    /// Returns the root node `SOURCE_FILE`.
-    pub(crate) fn root(&self) -> &Block {
-        &self.root
     }
     /// Returns the last token when ordered and flattened.
     pub(crate) fn last_token(&self) -> Option<&Block> {
@@ -372,37 +374,11 @@ impl EditTree {
 
     /// TODO This needs work, less copying of the large vec of blocks
     /// Walks tokens and compares `Whitespace` to build the final String from `Blocks`.
-    pub(crate) fn apply_edits(&self) -> Result<String, std::fmt::Error> {
-        let traverse = self.walk_tokens();
-        // scan's state var only needs to iter unique tokens.
-        let de_dup = self.walk_tokens()
-            .cloned()
-            .collect::<BTreeSet<_>>();
-
-        let mut iter_clone = de_dup.iter();
-        // skip root
-        iter_clone.next();
-        // second token is scan's first state
-        let first = iter_clone.next();
-
-        let ret = traverse.scan(first, |next, blk| {
-            let res = match blk.as_element() {
-                NodeOrToken::Token(tkn) => {
-                    if tkn.kind() != WHITESPACE {
-                        let text = str_from_blk(&blk, *next).expect("failed to write to string");
-                        *next = iter_clone.next();
-                        text
-                    } else {
-                        "".into()
-                    }
-                },
-                NodeOrToken::Node(_) => {
-                    "".into()
-                },
-            };
-            Some(res)
-        })
-        .collect::<String>();
+    pub(crate) fn tokens_to_string(&self) -> Result<String, std::fmt::Error> {
+        let mut ret = str_from_root(&self.root);
+        if self.root.kind() == SOURCE_FILE && !ret.ends_with('\n') {
+            ret.push('\n');
+        }
         Ok(ret)
     }
 }
@@ -410,109 +386,16 @@ impl EditTree {
 fn str_from_root(block: &Block) -> String {
     let mut buff = String::new();
     eat_tkns(block, &mut buff);
+    // check file ends with "\n"
+    
     return buff;
 
     fn eat_tkns(block: &Block, mut buff: &mut String) {
-        write!(buff, "{}", block.whitespace.borrow()).expect("write to string failed");
         if block.is_leaf() {
-            write!(buff, "{}", block.element).expect("write to string failed");
+            write!(buff, "{}", block.whitespace.borrow());
+            write!(buff, "{}", block.element);
         } else {
             block.children().for_each(|kid| eat_tkns(kid, &mut buff));
         }
     }
 } 
-// this currently works still uses next token to not duplicate whitespace 
-// TODO is Result ok here ??
-fn str_from_blk(block: &Block, next: Option<&Block>) -> Result<String, std::fmt::Error> {
-    let mut buff = String::new();
-    eat_tkns(block, next, &mut buff)?;
-    return Ok(buff);
-
-    fn eat_tkns(
-        block: &Block,
-        next: Option<&Block>,
-        buff: &mut String
-    ) -> std::fmt::Result {
-        let ws = block.whitespace.borrow();
-        let mut spaces = ws.to_space_text();
-
-        //println!("CURR {:?}", spaces);
-
-        if let Some(next_tkn) = next {
-            let ws = next_tkn.whitespace.borrow();
-            let next_spaces = ws.to_space_text();
-
-            //println!("NEXT {:?}", next_spaces);
-
-            // check if "after" whitespace and next token previous whitespace will double whitespace
-            // or if next_spaces is indent
-            if spaces[1] == next_spaces[0] || next_spaces[0].contains('\n') {
-                spaces[1] = "".into();
-            }
-        };
-        
-        // TODO handle Err
-        write!(buff, "{}", spaces[0])?;
-        write!(buff, "{}", block.element)?;
-        write!(buff, "{}", spaces[1])
-    }
-}
-
-fn string_from_block(current: &Block, next: &mut Option<&Block>) -> String {
-    let mut ret = String::default();
-
-    let (curr_prev_space, curr_next_space) = current.space_value();
-    let (curr_prev_lf, curr_next_lf) = current.eol_value();
-    
-    if let Some(block) = next {
-        let (next_prev_space, _) = block.space_value();
-        let (next_prev_lf, _) = block.eol_value();
-
-        // TODO make sure "\n" will always come before " " do we need
-        // to protect our indent info from spacing edits??
-
-        // if new line
-        if curr_prev_lf {
-            ret.push('\n');
-            if current.whitespace.borrow().starts_with_lf {
-                ret.push_str(&" ".repeat(curr_prev_space as usize));
-            }
-        // else push space
-        } else {
-            ret.push_str(&" ".repeat(curr_prev_space as usize));
-        }
-        // add text token
-        ret.push_str(current.as_str());
-
-        // if the next token has no previous space but the current token has next space marked
-        if next_prev_space == 0 && curr_next_space > 0 {
-            ret.push_str(&" ".repeat(curr_next_space as usize));
-        // same for new line add only if current says to and next does not
-        } else if next_prev_lf && !curr_next_lf {
-            ret.push('\n');
-        }
-    } else {
-        //println!{"BLK {:#?}\nNEXT {:#?}", current, next}
-        // if new line
-        if curr_prev_lf {
-            ret.push('\n');
-            if current.whitespace.borrow().starts_with_lf {
-                ret.push_str(&" ".repeat(curr_prev_space as usize));
-            }
-        // else push space
-        } else {
-            ret.push_str(&" ".repeat(curr_prev_space as usize));
-        }
-        // add text token
-        ret.push_str(current.as_str());
-
-        if curr_next_lf {
-            ret.push('\n');
-        // else push space
-        } else {
-            ret.push_str(&" ".repeat(curr_next_space as usize));
-        }
-    }
-    // println!("{:?}", ret);
-    ret
-}

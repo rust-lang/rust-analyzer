@@ -36,7 +36,7 @@ pub(crate) fn spacing() -> SpacingDsl {
         .test(wrap_fn!("let x = [1,2,3];"), wrap_fn!("let x = [1, 2, 3];"))
         .inside(ARRAY_EXPR).after(T![,]).single_space()
 
-        .test("struct Test{x:usize    }", "struct Test { x: usize }")
+        .test("struct Test{ x:usize    }", "struct Test { x: usize }")
         .inside(NAMED_FIELD_DEF_LIST).before(T!['{']).single_space()
         .inside(NAMED_FIELD_DEF_LIST).after(T!['{']).single_space_or_optional_newline()
         .inside(NAMED_FIELD_DEF_LIST).before(T!['}']).single_space_or_optional_newline()
