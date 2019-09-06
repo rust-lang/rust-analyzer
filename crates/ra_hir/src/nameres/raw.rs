@@ -11,7 +11,6 @@ use crate::{
     db::{AstDatabase, DefDatabase},
     AsName, AstIdMap, Either, FileAstId, HirFileId, ModuleSource, Name, Path,
 };
-use ra_syntax::ast::MacroKind;
 
 /// `RawItems` is a set of top-level items in a file (except for impls).
 ///
@@ -350,9 +349,9 @@ impl RawItemsCollector {
         }
     }
 
-    fn add_macro(&mut self, current_module: Option<Module>, m: MacroKind) {
+    fn add_macro(&mut self, current_module: Option<Module>, m: ast::MacroKind) {
         match m {
-            MacroKind::Call(m) => {
+            ast::MacroKind::Call(m) => {
                 let path = match m.path().and_then(Path::from_ast) {
                     Some(it) => it,
                     _ => return,
@@ -370,7 +369,7 @@ impl RawItemsCollector {
                 self.push_item(current_module, RawItem::Macro(m));
             }
 
-            MacroKind::Attr { attr, target } => {
+            ast::MacroKind::Attr { attr, target } => {
                 let attr_ast_id = self.source_ast_id_map.ast_id(&attr);
                 let target_ast_id = self.source_ast_id_map.ast_id(&target);
 
