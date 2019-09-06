@@ -140,7 +140,7 @@ impl<'a, P: AsRef<Pattern>> PatternSet<&'a P> {
         PatternSet { by_kind, unconstrained }
     }
 
-    /// Returns an iterator of patterns that match
+    /// Returns an iterator of patterns that match.
     pub(crate) fn matching<'b>(
         &'b self,
         element: SyntaxElement,

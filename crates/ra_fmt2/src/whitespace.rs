@@ -33,8 +33,7 @@ impl std::fmt::Display for Whitespace {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.new_line.0 {
             if self.starts_with_lf {
-                writeln!(f)?;
-                write!(f, "{}", " ".repeat(self.text_len.0 as usize))
+                write!(f, "\n{}", " ".repeat(self.text_len.0 as usize))
             } else {
                 writeln!(f)
             }
@@ -332,7 +331,6 @@ impl Whitespace {
     pub(crate) fn siblings_contain(&self, pat: &str) -> bool {
         if let Some(tkn) = self.original.clone().into_token() {
             walk_tokens(&tkn.parent())
-                // TODO there is probably a better/more accurate way to do this
                 .any(|tkn| {
                     tkn.text().as_str() == pat
                 })
@@ -341,21 +339,6 @@ impl Whitespace {
         }
     }
 
-    /// Walks siblings to search for pat.
-    pub(crate) fn siblings_contain(&self, pat: &str) -> bool {
-        if let Some(tkn) = self.original.clone().into_token() {
-            println!("SIB CON {:?}", tkn.parent());
-            walk_tokens(&tkn.parent())
-                // TODO there is probably a better/more accurate way to do this
-                .any(|tkn| {
-                    tkn.text().as_str() == pat
-                })
-        } else {
-            false
-        }
-    }
-
-    // TODO check if NewLine needs to check for space
     pub(crate) fn match_space_after(&self, value: SpaceValue) -> bool {
         match value {
             SpaceValue::Single => self.text_len.1 == 1,
@@ -407,7 +390,7 @@ impl Whitespace {
         }
     }
 
-    fn fix_spacing_after(&mut self, space: Space) {
+    pub(crate) fn fix_spacing_after(&mut self, space: Space) {
         match space.value {
             SpaceValue::Single => {
                 // add space or set to single
@@ -434,7 +417,7 @@ impl Whitespace {
         };
     }
 
-    fn fix_spacing_before(&mut self, space: Space) {
+    pub(crate) fn fix_spacing_before(&mut self, space: Space) {
         match space.value {
             SpaceValue::Single => {
                 self.text_len.0 = 1;
@@ -455,73 +438,6 @@ impl Whitespace {
             },
             _ => {},
         }
-    }
-
-    fn fix_spacing_around(&mut self, space: Space) {
-        match space.value {
-            SpaceValue::Single => {
-                self.text_len = (1, 1);
-                self.new_line = (false, false);
-            },
-            SpaceValue::Newline => {
-                self.new_line = (true, true);
-                self.text_len = (0, 0);
-            },
-            _ => {},
-        }
-    }
-
-    pub(crate) fn apply_space_fix(&mut self, rule: &SpacingRule) {
-        // println!("PRE {:#?}", self);
-        match rule.space.loc {
-            SpaceLoc::After => self.fix_spacing_after(rule.space),
-            SpaceLoc::Before => self.fix_spacing_before(rule.space),
-            SpaceLoc::Around => self.fix_spacing_around(rule.space),
-        };
-        // println!("POST {:#?}", self)
-    }
-
-//     pub(crate) struct Whitespace {
-//     original: SyntaxElement,
-//     text_range: TextRange,
-//     // additional_spaces: u32,
-//     /// Previous and next contain "\n".
-//     pub(crate) new_line: (bool, bool),
-//     /// Start and end location of token.
-//     pub(crate) text_len: (u32, u32),
-//     pub(crate) starts_with_lf: bool,
-// }
-
-    pub(super) fn to_space_text(&self) -> Vec<String> {
-        let mut ret = vec![];
-        let mut before = String::new();
-        let mut after = String::new();
-        // TODO larger than ??
-        if self.new_line.0 {
-            // for indentation 
-            if self.starts_with_lf && self.text_len.0 > 0 {
-                before.push('\n');
-                before.push_str(&" ".repeat(self.text_len.0 as usize));
-            } else {
-                before.push('\n');
-            }
-        } else if self.text_len.0 >= 1 {
-            before.push_str(" ")
-        }
-
-        ret.push(before);
-
-        if self.new_line.1 {
-            after.push('\n');
-        } else if self.text_len.1 >= 1 {
-            after.push_str(" ")
-        }
-        ret.push(after);
-
-        // let mut arr = [""; 2];
-        // arr.copy_from_slice(&ret[0..2]);
-        // arr;
-        ret
     }
 }
 

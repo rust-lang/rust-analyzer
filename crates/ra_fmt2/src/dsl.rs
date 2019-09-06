@@ -50,7 +50,7 @@ pub(crate) enum SpaceValue {
     NoneOrNewline,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SpaceLoc {
     /// Before the element.
     Before,

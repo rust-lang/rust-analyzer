@@ -1,10 +1,10 @@
 // use crate::diff_view::DiffView;
-use crate::dsl::{self, SpacingRule, SpacingDsl, IndentDsl, IndentRule, IndentValue};
+use crate::dsl::{self, SpacingRule, SpacingDsl, IndentDsl, SpaceLoc, IndentRule, IndentValue};
 use crate::edit_tree::{EditTree, Block};
 use crate::pattern::{Pattern, PatternSet};
 use crate::rules::{indentation, spacing};
 use crate::trav_util::{has_newline};
-use crate::whitespace::INDENT;
+use crate::whitespace::{Whitespace, INDENT};
 
 use ra_syntax::{
     ast::{self, AstNode, AstToken},
@@ -28,6 +28,18 @@ impl Into<EditTree> for FmtDiff {
     }
 }
 
+// impl std::ops::Deref for FmtDiff {
+//     type Target = EditTree;
+//     fn deref(&self) -> &Self::Target {
+//         &self.edit_tree
+//     }
+// }
+pub(crate) struct SpaceBlock {
+    spaces: u32,
+    newline: bool,
+    indent: bool,
+}
+
 impl FmtDiff {
     pub(crate) fn new(edit_tree: EditTree) -> Self {
         Self { edit_tree }
@@ -37,35 +49,50 @@ impl FmtDiff {
     /// 
     /// # Arguments
     ///
-    /// * `block` - A `Block` that is always a token because rules match tokens.
+    /// * `left_blk` - A `Block` that is always a token, previous token used to determine
+    ///     space after token.
+    /// * `right_blk` - A `Block` that is always a token, check right preceding whitespace.
     /// * `rule` - A `SpaceRule`.
-    fn check_spacing(&self, rule: &SpacingRule, block: &Block) {
-        let whitespace = block.get_whitespace();
-        if *whitespace.borrow() != *rule {
-            block.set_spacing(rule)
+    fn compute_spacing(
+        &self,
+        rule: &SpacingRule,
+        left_blk: &Block,
+        right_blk: &Block
+    ) -> Option<SpaceBlock> {
+        let left_ws = left_blk.get_whitespace();
+        let right_ws = right_blk.get_whitespace();
+        // only edit right preceding whitespace doesn't match and rule is before.
+        if !right_ws.borrow().match_space_before(rule.space.value) && rule.space.loc == SpaceLoc::Before {
+            right_blk.set_spacing_before(rule);
+            // return Some(SpaceBlock::from(rule.clone()));
+        };
+        // if previous token has space after but only if token is one we want to edit whitespace of.
+        if !left_ws.borrow().match_space_after(rule.space.value) && rule.pattern.matches(left_blk.as_element()) {
+            // this fixes after spacing "{" in
+            // struct Test{x:usize}
+            right_blk.set_spacing_before(rule);
+            return None;
         }
+        None
     }
 
     pub(crate) fn spacing_diff(self, space_rules: &SpacingDsl) -> FmtDiff {
         let spacing = PatternSet::new(space_rules.rules.iter());
-        let blcks = self.edit_tree.walk_exc_root().collect::<Vec<_>>();
-        for block in blcks.iter() {
-            for rule in spacing.matching(block.to_element()) {
-                // creates DiffView
-                self.check_spacing(rule, block)
+
+        let blocks = self.edit_tree.walk_tokens().zip(self.edit_tree.walk_tokens().skip(1));
+
+        for (left, right) in blocks {
+            // chain left and right matching rules
+            let rules = spacing.matching(left.to_element()).chain(spacing.matching(right.to_element()));
+            for rule in rules {
+                // mutates EditTree
+                let required_space = self.compute_spacing(rule, left, right);
+                // take req_space not rule
+                //right.set_spacing(rule)
             }
         } else {
             self.diff.borrow_mut().collect_edits(block, rule);
         }
-        // take care of EOF new line
-        let rule = SpacingRule {
-            pattern: SOURCE_FILE.into(),
-            space: dsl::Space { loc: dsl::SpaceLoc::After, value: dsl::SpaceValue::Newline }
-        };
-        self.edit_tree.last_token()
-            .expect("cannot format empty file")
-            .set_spacing(&rule);
-
         self
     }
 
@@ -153,5 +180,5 @@ pub(crate) fn format_str(file: &str) -> Result<String, std::fmt::Error> {
     let space = spacing();
     let indent = indentation();
 
-    format_pass(&space, &indent, &root).apply_edits()
+    format_pass(&space, &indent, &root).tokens_to_string()
 }
