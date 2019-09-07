@@ -14,6 +14,7 @@ fn try_main() -> Result<()> {
     check_cwd()?;
     build_scaffold()?;
     build_docs()?;
+    build_wasm_demo()?;
     println!("Finished\n./target/website/index.html");
     Ok(())
 }
@@ -39,8 +40,38 @@ fn build_docs() -> Result<()> {
     Ok(())
 }
 
+fn build_wasm_demo() -> Result<()> {
+    // install wasm-pack if not available
+    let res = Command::new("wasm-pack").arg("--version").status();
+    if res.is_err() {
+        let status = cargo().args(&["install", "wasm-pack"]).status()?;
+        if !status.success() {
+            Err("installing wasm-pack failed")?;
+        }
+    }
+
+    let status = Command::new("wasm-pack").args(&["build", "./website/src/wasm-demo"]).status()?;
+    if !status.success() {
+        Err("wasm-pack build failed")?;
+    }
+    let status =
+        Command::new("npm").arg("install").current_dir("./website/src/wasm-demo/www").status()?;
+    if !status.success() {
+        Err("npm install failed")?;
+    }
+    let status = Command::new("npm")
+        .args(&["run", "build"])
+        .current_dir("./website/src/wasm-demo/www")
+        .status()?;
+    if !status.success() {
+        Err("webpack build failed")?;
+    }
+    sync_dir("./website/src/wasm-demo/www/dist", "./target/website/wasm-demo")?;
+    Ok(())
+}
+
 fn build_scaffold() -> Result<()> {
-    sync_dir("./website/src", "./target/website")
+    sync_dir("./website/src/root", "./target/website")
 }
 
 fn sync_dir(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {

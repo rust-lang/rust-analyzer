@@ -1,0 +1,5 @@
+body {
+    width: calc(100vw - 1px);
+    height: calc(100vh - 1px);
+    margin: 0;
+}

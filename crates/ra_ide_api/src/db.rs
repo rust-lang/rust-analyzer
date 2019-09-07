@@ -1,4 +1,4 @@
-use std::{sync::Arc, time};
+use std::sync::Arc;
 
 use ra_db::{
     salsa::{self, Database, Durability},
@@ -23,8 +23,8 @@ use crate::{
 pub(crate) struct RootDatabase {
     runtime: salsa::Runtime<RootDatabase>,
     pub(crate) feature_flags: Arc<FeatureFlags>,
-    pub(crate) last_gc: time::Instant,
-    pub(crate) last_gc_check: time::Instant,
+    pub(crate) last_gc: crate::wasm_shims::Instant,
+    pub(crate) last_gc_check: crate::wasm_shims::Instant,
 }
 
 impl salsa::Database for RootDatabase {
@@ -55,8 +55,8 @@ impl RootDatabase {
     pub fn new(lru_capacity: Option<usize>, feature_flags: FeatureFlags) -> RootDatabase {
         let mut db = RootDatabase {
             runtime: salsa::Runtime::default(),
-            last_gc: time::Instant::now(),
-            last_gc_check: time::Instant::now(),
+            last_gc: crate::wasm_shims::Instant::now(),
+            last_gc_check: crate::wasm_shims::Instant::now(),
             feature_flags: Arc::new(feature_flags),
         };
         db.set_crate_graph_with_durability(Default::default(), Durability::HIGH);

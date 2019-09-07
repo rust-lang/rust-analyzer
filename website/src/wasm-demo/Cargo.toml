@@ -1,0 +1,19 @@
+[package]
+name = "wasm_demo"
+version = "0.1.0"
+authors = ["rust-analyzer developers"]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+console_error_panic_hook = "0.1.6"
+console_log = "0.1"
+log = "0.4"
+wasm-bindgen = "0.2.50"
+serde = { version = "1.0", features = ["derive"] }
+serde-wasm-bindgen = "0.1"
+
+ra_ide_api = { path = "../../../crates/ra_ide_api", features = ["wasm"] }
+ra_syntax = { path = "../../../crates/ra_syntax" }

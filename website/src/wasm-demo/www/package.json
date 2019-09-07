@@ -1,0 +1,23 @@
+{
+  "name": "ra-wasm-demo",
+  "version": "0.1.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "webpack --config webpack.config.js --mode production",
+    "start": "webpack-dev-server --host 0.0.0.0"
+  },
+  "author": "rust-analyzer developers",
+  "license": "(MIT OR Apache-2.0)",
+  "dependencies": {
+    "monaco-editor": "^0.16.2",
+    "wasm_demo": "file:../pkg"
+  },
+  "devDependencies": {
+    "css-loader": "^3.2.0",
+    "html-webpack-plugin": "^3.2.0",
+    "style-loader": "^1.0.0",
+    "webpack": "^4.39",
+    "webpack-cli": "^3.3",
+    "webpack-dev-server": "^3.8"
+  }
+}

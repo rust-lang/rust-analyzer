@@ -1,5 +1,5 @@
 [workspace]
-members = [ "crates/*", "website/website-gen" ]
+members = [ "crates/*", "website/website-gen", "website/src/wasm-demo" ]
 
 [profile.release]
 incremental = true
