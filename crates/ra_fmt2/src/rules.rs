@@ -31,7 +31,7 @@ pub(crate) fn spacing() -> SpacingDsl {
         .inside([IF_EXPR, BLOCK]).before(T!['{']).single_space()
         .inside([IF_EXPR, BLOCK]).after(T!['{']).single_space_or_optional_newline()
         .inside([IF_EXPR, BLOCK]).before(T!['}']).single_space_or_optional_newline()
-        .inside([IF_EXPR, BLOCK]).after(T!['}']).no_space_or_optional_newline()
+        .inside([IF_EXPR, BLOCK]).after(T!['}']).no_space_or_newline()
 
         .test(wrap_fn!("let x = [1,2,3];"), wrap_fn!("let x = [1, 2, 3];"))
         .inside(ARRAY_EXPR).after(T![,]).single_space()
@@ -85,7 +85,7 @@ wrap_fn!(r#"let t = Test {
     x: String,
 };"#))
 
-        .anchor(DOT)    // TODO how do we impl this
+        .anchor(DOT)
         .rule("Indent chained method calls")
             .inside(METHOD_CALL_EXPR)
             .matching(DOT)

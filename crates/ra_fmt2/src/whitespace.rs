@@ -258,8 +258,8 @@ impl Whitespace {
             SpaceValue::SingleOrNewline => self.text_len.0 == 1 || self.new_line.0,
             SpaceValue::SingleOptionalNewline => self.text_len.0 == 1 || self.new_line.0,
             SpaceValue::Newline => self.new_line.0,
-            SpaceValue::NoneOrNewline => self.text_len.0 == 0 || self.new_line.0,
-            SpaceValue::NoneOptionalNewline => self.text_len.0 == 0 && self.new_line.0,
+            SpaceValue::NoneOrNewline => self.text_len.0 == 0,
+            SpaceValue::NoneOptionalNewline => self.text_len.0 == 0,
             SpaceValue::None => self.text_len.0 == 0 || !self.new_line.0,
         }
     }
