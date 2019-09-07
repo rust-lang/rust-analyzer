@@ -28,7 +28,7 @@ pub(crate) fn expand_derive_attr(
         .collect::<Vec<_>>();
 
     if !tts.is_empty() {
-        let tt = tt::Subtree{ delimiter: tt::Delimiter::None, token_trees: tts };
+        let tt = tt::Subtree { delimiter: tt::Delimiter::None, token_trees: tts };
         Some(tt)
     } else {
         None
@@ -66,7 +66,7 @@ fn implement_trait_simple(trait_name: &str, target: &ast::ModuleItem) -> Option<
         let impl_code = format!("impl {} for {} {{}}", trait_name, name);
         let tt = mbe::text_to_tokentree(&impl_code);
 
-        return Some(tt)
+        return Some(tt);
     }
 
     None
