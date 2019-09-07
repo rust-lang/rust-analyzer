@@ -14,8 +14,11 @@ macro_rules! wrap_fn {
     ( $inner:expr ) => {
         concat!("fn main() { ", $inner, " }")
     };
-    ( $( $inner:expr ),* ; ( $end:expr ) ) => {
-        concat!("fn main() { ", $( $inner )*, " }", end)
+    ( $inner:expr, $end:expr ) => {
+        concat!("fn main() { ", $inner, " }", $end)
+    };
+    ( $( $inner:expr )* ; $end:expr ) => {
+        concat!("fn main() { ", $( $inner )*, " }", $end)
     };
 }
 
