@@ -158,8 +158,7 @@ impl<'a> SpacingRuleBuilder<'a> {
     pub(crate) fn single_space_or_newline(self) -> &'a mut SpacingDsl {
         self.finish(SpaceValue::SingleOrNewline)
     }
-    /// Enforce an
-    /// absence of whitespace or a newline character.
+    /// Enforce an absence of whitespace or a newline character.
     pub(crate) fn no_space_or_newline(self) -> &'a mut SpacingDsl {
         self.finish(SpaceValue::NoneOrNewline)
     }

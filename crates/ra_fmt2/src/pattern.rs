@@ -44,10 +44,7 @@ impl Pattern {
             (pred)(element)
                 && element
                     .parent()
-                    .map(|it| {
-                        // println!("{:?}", it);
-                        it
-                    })
+                    .map(|it| it)
                     .map(|it| parent.matches(&it.into()))
                     == Some(true)
         })

@@ -59,7 +59,7 @@ fn show_me_the_indent_progress() {
 #[test]
 fn show_me_the_progress_space() {
     let rs_file = "pub(crate)struct Test    {x:String    }  ";
-    //let rs_if = wrap_fn!("let x = if y {0} else {1};");
+    let rs_if = wrap_fn!("let x = if y {0} else {1};");
 
     let p = SourceFile::parse(&rs_file);
     let syn_tree = p.syntax_node();

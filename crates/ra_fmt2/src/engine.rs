@@ -45,7 +45,7 @@ impl FmtDiff {
         Self { edit_tree }
     }
 
-    /// Checks if `Whitespace` and `SpacingRule` match then mutates `DiffView`.
+    /// Checks if `Whitespace` and `SpacingRule` match then applies edit to `DiffView`.
     /// 
     /// # Arguments
     ///
@@ -53,27 +53,35 @@ impl FmtDiff {
     ///     space after token.
     /// * `right_blk` - A `Block` that is always a token, check right preceding whitespace.
     /// * `rule` - A `SpaceRule`.
-    fn compute_spacing(
+    fn apply_edit(
         &self,
         rule: &SpacingRule,
         left_blk: &Block,
         right_blk: &Block
-    ) -> Option<SpaceBlock> {
+    ) {
         let left_ws = left_blk.get_whitespace();
         let right_ws = right_blk.get_whitespace();
         // only edit right preceding whitespace doesn't match and rule is before.
-        if !right_ws.borrow().match_space_before(rule.space.value) && rule.space.loc == SpaceLoc::Before {
+        if !right_ws.borrow().match_space_before(rule.space.value)
+            && rule.pattern.matches(right_blk.as_element())
+            && rule.space.loc == SpaceLoc::Before
+        {
+            // println!("RIGHT {:#?}", right_blk);
+            // println!("RULES {:#?}", rule);
             right_blk.set_spacing_before(rule);
             // return Some(SpaceBlock::from(rule.clone()));
         };
         // if previous token has space after but only if token is one we want to edit whitespace of.
-        if !left_ws.borrow().match_space_after(rule.space.value) && rule.pattern.matches(left_blk.as_element()) {
+        if !left_ws.borrow().match_space_after(rule.space.value)
+            && rule.pattern.matches(left_blk.as_element())
+            && rule.space.loc == SpaceLoc::After
+        {
+            // println!("LEFT {:#?}", right_blk);
+            // println!("RULES {:#?}", rule);
             // this fixes after spacing "{" in
             // struct Test{x:usize}
             right_blk.set_spacing_before(rule);
-            return None;
         }
-        None
     }
 
     pub(crate) fn spacing_diff(self, space_rules: &SpacingDsl) -> FmtDiff {
@@ -83,12 +91,10 @@ impl FmtDiff {
 
         for (left, right) in blocks {
             // chain left and right matching rules
-            let rules = spacing.matching(left.to_element()).chain(spacing.matching(right.to_element()));
+            let rules = spacing.matching(left.to_element()).chain(spacing.matching(right.to_element())).collect::<Vec<_>>();
             for rule in rules {
                 // mutates EditTree
-                let required_space = self.compute_spacing(rule, left, right);
-                // take req_space not rule
-                //right.set_spacing(rule)
+                self.apply_edit(rule, left, right);
             }
         } else {
             self.diff.borrow_mut().collect_edits(block, rule);
