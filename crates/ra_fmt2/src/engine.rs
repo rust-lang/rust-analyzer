@@ -113,8 +113,8 @@ impl FmtDiff {
     ) {
         //println!("\n{:?}\n", rule);
         let mut anchors = INDENT;
-        // TODO ancestors is NOT refs to blocks from the edit tree they are built on demand
-        for node in block.ancestors_nodes() {
+        // TODO ancestor_nodes is NOT refs to blocks from the edit tree they are built on demand
+        for node in block.ancestor_nodes() {
             if anchor_set.matching(node.to_element()).next().is_some() {
                 //println!("FOUND ANCHOR {:?}\n {}\n", node, node.get_indent());
                 // walk all the way up the tree adding indent as we go
@@ -125,8 +125,8 @@ impl FmtDiff {
         // don't format if block already is indented properly
         if block.get_indent() != anchors {
             //println!("{:?}", block);
-            // after calculating anchoring blocks indent apply fix
-            // to first token found after node, to make string we walk tokens
+            // after calculating anchoring blocks indent apply fix to first token
+            // found after node because in order to make our string we walk tokens
             // TODO probably not a great solution a bit hacky 
             let next_closest_tkn = std::iter::successors(block.children().next(), |kid| {
                 if kid.as_element().as_token().is_some() {
@@ -137,7 +137,8 @@ impl FmtDiff {
             }).find(|blk| {
                 blk.as_element().as_token().is_some()
             });
-            // for chain indenting there is no closest child to DOT 
+
+            // TODO do we ever have a rule that applies to a token??
             if let Some(tkn) = next_closest_tkn {
                 tkn.set_indent(anchors);
             } else {
@@ -158,9 +159,13 @@ impl FmtDiff {
             let mut matching = indent_rules.rules.iter().filter(|it| it.matches(block.as_element()));
             // println!("in matching indent rule {:?}", matching);
             if let Some(_rule) = matching.next() {
+                // TODO this works now but at some point we must walk sibling nodes/tokens
+                // to check for "\n" because of 
+                // let x = foo()
+                //     .bar()
+                // .baz();
                 // only check_indent if prev token starts with "\n" 
-                // TODO do I need to check children like nix has_newline()
-                if block.get_whitespace().borrow().starts_with_lf {
+                if block.starts_with_lf() {
                     self.check_indent(&anchors, block);
                     assert!(matching.next().is_none(), "more than one indent rule matched");
                 }

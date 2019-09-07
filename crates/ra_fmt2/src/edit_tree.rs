@@ -105,10 +105,8 @@ impl Block {
         self as *const _ == other as *const _
     }
 
-    /// Returns an iterator of ancestor from current element.
-    /// TODO cant return impl Iterator any ideas
     /// FIX probably not the best way to do this, building all new Blocks.
-    pub(crate) fn ancestors_tokens(&self) -> Vec<Block> {
+    pub(crate) fn siblings(&self) -> Vec<Block> {
         match &self.element {
             NodeOrToken::Node(node) => {
                 node.siblings_with_tokens(Direction::Prev)
@@ -122,21 +120,26 @@ impl Block {
             },
         }
     }
-    pub(crate) fn ancestors_nodes(&self) -> Vec<Block> {
+    /// Returns an vec of ancestors from current element.
+    /// TODO is the box better than a vec????????
+    /// FIX probably not the best way to do this, building all new Blocks.
+    pub(crate) fn ancestor_nodes(&self) -> Box<dyn Iterator<Item=Block>> {
         match &self.element {
             NodeOrToken::Node(node) => {
-                std::iter::successors(node.parent(), |this| {
+                let ret = std::iter::successors(node.parent(), |this| {
                     this.parent()
                 })
-                .map(|n| Block::build_single(NodeOrToken::Node(n)))
-                .collect::<Vec<_>>()
+                .map(|n| Block::build_single(NodeOrToken::Node(n)));
+                Box::new(ret)
+                //.collect::<Vec<_>>()
             },
             NodeOrToken::Token(token) => {
-                std::iter::successors(Some(token.parent()), |this| {
+                let ret = std::iter::successors(Some(token.parent()), |this| {
                     this.parent()
                 })
-                .map(|n| Block::build_single(NodeOrToken::Node(n)))
-                .collect::<Vec<_>>()
+                .map(|n| Block::build_single(NodeOrToken::Node(n)));
+                Box::new(ret)
+                //.collect::<Vec<_>>()
             },
         }
     }
@@ -302,6 +305,18 @@ impl Block {
         self.whitespace.borrow().starts_with_lf
     }
 
+    /// Walks siblings to search for pat.
+    pub(crate) fn siblings_contain(&self, pat: &str) -> bool {
+        if let Some(tkn) = self.element.as_token() {
+            walk_tokens(&tkn.parent())
+                .any(|tkn| {
+                    tkn.text().as_str() == pat
+                })
+        } else {
+            false
+        }
+    }
+
     /// Remove after dev ??
     fn to_string(&self) -> String {
         self.text.to_string()
@@ -372,7 +387,6 @@ impl EditTree {
         self.root.text.clone()
     }
 
-    /// TODO This needs work, less copying of the large vec of blocks
     /// Walks tokens and compares `Whitespace` to build the final String from `Blocks`.
     pub(crate) fn tokens_to_string(&self) -> Result<String, std::fmt::Error> {
         let mut ret = str_from_root(&self.root);
@@ -392,8 +406,8 @@ fn str_from_root(block: &Block) -> String {
 
     fn eat_tkns(block: &Block, mut buff: &mut String) {
         if block.is_leaf() {
-            write!(buff, "{}", block.whitespace.borrow());
-            write!(buff, "{}", block.element);
+            write!(buff, "{}", block.whitespace.borrow()).expect("write to buffer failed");
+            write!(buff, "{}", block.element).expect("write to buffer failed");
         } else {
             block.children().for_each(|kid| eat_tkns(kid, &mut buff));
         }
