@@ -1,4 +1,7 @@
-use ra_syntax::{ast::{self, NameOwner}, AstNode, SyntaxKind};
+use ra_syntax::{
+    ast::{self, NameOwner},
+    AstNode, SyntaxKind,
+};
 
 /// Checks whether `#[attr]` is in the `#[derive(<Traits>)]` form.
 pub(crate) fn is_derive_attr(attr_node: &ast::Attr) -> bool {
@@ -10,22 +13,23 @@ pub(crate) fn is_derive_attr(attr_node: &ast::Attr) -> bool {
     }
 }
 
-pub(crate) fn expand_derive_attr(attr_node: ast::Attr, target_node: ast::ModuleItem) -> Option<tt::Subtree> {
+pub(crate) fn expand_derive_attr(
+    attr_node: ast::Attr,
+    target_node: ast::ModuleItem,
+) -> Option<tt::Subtree> {
     let traits_to_derive = collect_trait_names(&attr_node);
 
     let tts = traits_to_derive
         .into_iter()
         .flatten()
-        .map(|tr| {
-            match tr.as_str() {
-                "Debug" => expand_debug(&target_node),
-                "Copy" => expand_copy(&target_node),
-                "Clone" => expand_clone(&target_node),
+        .map(|tr| match tr.as_str() {
+            "Debug" => expand_debug(&target_node),
+            "Copy" => expand_copy(&target_node),
+            "Clone" => expand_clone(&target_node),
 
-                _ => {
-                    log::warn!("Unimplemented {} trait derive macro attribute", tr);
-                    None
-                }
+            _ => {
+                log::warn!("Unimplemented {} trait derive macro attribute", tr);
+                None
             }
         })
         .flatten()
@@ -39,7 +43,9 @@ pub(crate) fn expand_derive_attr(attr_node: ast::Attr, target_node: ast::ModuleI
 // TODO: try iterate without allocation
 fn collect_trait_names(attr_node: &ast::Attr) -> Option<Vec<String>> {
     if let Some((_, tt)) = attr_node.as_call() {
-        let items = tt.syntax().children_with_tokens()
+        let items = tt
+            .syntax()
+            .children_with_tokens()
             .into_iter()
             .filter(|token| token.kind() == SyntaxKind::IDENT)
             .map(|c| c.to_string())
