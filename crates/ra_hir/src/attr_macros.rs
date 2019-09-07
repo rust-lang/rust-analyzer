@@ -1,5 +1,8 @@
 use ra_syntax::ast::{self, AstNode};
 
+#[cfg(test)]
+mod tests;
+
 mod derive;
 
 pub fn expand_attr_macro(
@@ -10,6 +13,6 @@ pub fn expand_attr_macro(
         return derive::expand_derive_attr(attr_node, target_node);
     }
 
-    log::warn!("Unimplemented macro attr: {}", attr_node.syntax().to_string());
+    log::debug!("Unimplemented macro attr: {}", attr_node.syntax().to_string());
     None
 }

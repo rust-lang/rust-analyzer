@@ -22,25 +22,19 @@ pub(crate) fn expand_derive_attr(
     let tts = traits_to_derive
         .into_iter()
         .flatten()
-        .map(|tr| match tr.as_str() {
-            "Debug" => expand_debug(&target_node),
-            "Copy" => expand_copy(&target_node),
-            "Clone" => expand_clone(&target_node),
-
-            _ => {
-                log::warn!("Unimplemented {} trait derive macro attribute", tr);
-                None
-            }
-        })
+        .map(|tr| implement_trait_simple(&tr, &target_node))
         .flatten()
+        .map(|subtree| tt::TokenTree::Subtree(subtree))
         .collect::<Vec<_>>();
 
-    log::warn!("Token trees after expansion: {:#?}", tts);
-
-    None
+    if !tts.is_empty() {
+        let tt = tt::Subtree{ delimiter: tt::Delimiter::None, token_trees: tts };
+        Some(tt)
+    } else {
+        None
+    }
 }
 
-// TODO: try iterate without allocation
 fn collect_trait_names(attr_node: &ast::Attr) -> Option<Vec<String>> {
     if let Some((_, tt)) = attr_node.as_call() {
         let items = tt
@@ -67,25 +61,12 @@ fn item_name(item: &ast::ModuleItem) -> Option<String> {
     }
 }
 
-fn expand_debug(target: &ast::ModuleItem) -> Option<tt::Subtree> {
+fn implement_trait_simple(trait_name: &str, target: &ast::ModuleItem) -> Option<tt::Subtree> {
     if let Some(name) = item_name(target) {
-        log::warn!("Implementing Debug for {}", name);
-    }
+        let impl_code = format!("impl {} for {} {{}}", trait_name, name);
+        let tt = mbe::text_to_tokentree(&impl_code);
 
-    None
-}
-
-fn expand_copy(target: &ast::ModuleItem) -> Option<tt::Subtree> {
-    if let Some(name) = item_name(target) {
-        log::warn!("Implementing Copy for {}", name);
-    }
-
-    None
-}
-
-fn expand_clone(target: &ast::ModuleItem) -> Option<tt::Subtree> {
-    if let Some(name) = item_name(target) {
-        log::warn!("Implementing Clone for {}", name);
+        return Some(tt)
     }
 
     None
