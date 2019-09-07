@@ -17,12 +17,6 @@ use ra_syntax::{
     SyntaxKind::*,
     SyntaxNode, SyntaxToken, T,
 };
-struct Foo { y: usize }
-struct Test {
-    foo: Foo,
-}
-
-
 
 /// will be removed
 #[test]
@@ -47,12 +41,11 @@ fn show_me_the_indent_progress() {
 
 
     println!("original: {:?}\nformatted: {:#?}", orig, et.tokens_to_string().expect("Edits failed"));
-//     assert_eq!(et.apply_edits(), wrap_fn!(
-// r#"let t = Test {
-//     x: Foo {
-//         y: 0,
-//     },
-// }"#));
+    assert_eq!(et.tokens_to_string().expect("to string failed"), wrap_fn!(
+r#"let t = foo()
+    .bar()
+    .baz()
+    .foo2();"#, "\n"));
 
 }
 
