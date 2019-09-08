@@ -2968,6 +2968,28 @@ fn main() {
 }
 
 #[test]
+fn derive_macro_expanded() {
+    let (db, pos) = MockDatabase::with_position(
+        r#"
+//- /main.rs
+trait Clone {
+    fn clone(&self) -> Self;
+}
+
+#[derive(Clone)]
+struct S {}
+
+fn test() {
+    let s = S {};
+    s.clone()<|>;
+}
+"#,
+    );
+
+    assert_eq!("S", type_at_pos(&db, pos));
+}
+
+#[test]
 fn infer_type_value_macro_having_same_name() {
     assert_snapshot!(
         infer(r#"
