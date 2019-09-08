@@ -69,7 +69,7 @@ pub trait ModuleItemOwner: AstNode {
 #[derive(Debug)]
 pub struct ItemOrMacroIter(SyntaxNodeChildren);
 
-fn collect_derive_attr(item: ast::ModuleItem) -> Option<ItemOrMacro> {
+fn collect_attrs(item: ast::ModuleItem) -> Option<ItemOrMacro> {
     let item_node = item.syntax();
     let mut attrs = None;
 
@@ -97,7 +97,7 @@ impl Iterator for ItemOrMacroIter {
             let n = self.0.next()?;
 
             if let Some(item) = ast::ModuleItem::cast(n.clone()) {
-                if let Some(item) = collect_derive_attr(item.clone()) {
+                if let Some(item) = collect_attrs(item.clone()) {
                     return Some(item);
                 }
 
