@@ -59,7 +59,7 @@ export class Server {
             clientOptions
         );
         // HACK: This is an awful way of filtering out the decorations notifications
-        // However, pending proper support, this is the most effecitve approach
+        // However, pending proper support, this is the most effective approach
         // Proper support for this would entail a change to vscode-languageclient to allow not notifying on certain messages
         // Or the ability to disable the serverside component of highlighting (but this means that to do tracing we need to disable hihlighting)
         // This also requires considering our settings strategy, which is work which needs doing
