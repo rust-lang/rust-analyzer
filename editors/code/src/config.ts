@@ -4,16 +4,24 @@ import { Server } from './server';
 
 const RA_LSP_DEBUG = process.env.__RA_LSP_SERVER_DEBUG;
 
-export type CargoWatchStartupOptions = 'ask' | 'enabled' | 'disabled';
+export type StartupBehaviour = 'ask' | 'enabled' | 'disabled';
 export type CargoWatchTraceOptions = 'off' | 'error' | 'verbose';
 
 export interface CargoWatchOptions {
-    enableOnStartup: CargoWatchStartupOptions;
+    enableOnStartup: StartupBehaviour;
     arguments: string;
     command: string;
     trace: CargoWatchTraceOptions;
 }
 
+export interface ServerUpdateOptions {
+    enableOnStartup: StartupBehaviour;
+    repo: string;
+    arguments: string;
+}
+
+const defaultServerUpdateRepo =
+    'https://github.com/rust-analyzer/rust-analyzer/';
 export class Config {
     public highlightingOn = true;
     public rainbowHighlightingOn = false;
@@ -30,6 +38,11 @@ export class Config {
         trace: 'off',
         arguments: '',
         command: ''
+    };
+    public serverUpdateOptions: ServerUpdateOptions = {
+        arguments: '',
+        enableOnStartup: 'ask',
+        repo: defaultServerUpdateRepo
     };
 
     private prevEnhancedTyping: null | boolean = null;
@@ -99,7 +112,7 @@ export class Config {
 
         if (config.has('enableCargoWatchOnStartup')) {
             this.cargoWatchOptions.enableOnStartup = config.get<
-                CargoWatchStartupOptions
+                StartupBehaviour
             >('enableCargoWatchOnStartup', 'ask');
         }
 
@@ -109,17 +122,35 @@ export class Config {
                 'off'
             );
         }
-
         if (config.has('cargo-watch.arguments')) {
             this.cargoWatchOptions.arguments = config.get<string>(
                 'cargo-watch.arguments',
-                ''
+                defaultServerUpdateRepo
             );
         }
 
         if (config.has('cargo-watch.command')) {
             this.cargoWatchOptions.command = config.get<string>(
                 'cargo-watch.command',
+                ''
+            );
+        }
+
+        if (config.has('server-update.startupBehaviour')) {
+            this.serverUpdateOptions.enableOnStartup = config.get<
+                StartupBehaviour
+            >('server-update.startupBehaviour', 'ask');
+        }
+
+        if (config.has('server-update.repo')) {
+            this.serverUpdateOptions.repo = config.get<string>(
+                'server-update.repo',
+                ''
+            );
+        }
+        if (config.has('server-update.arguments')) {
+            this.serverUpdateOptions.arguments = config.get<string>(
+                'server-update.arguments',
                 ''
             );
         }

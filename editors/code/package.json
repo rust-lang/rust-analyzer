@@ -130,6 +130,11 @@
                 "command": "rust-analyzer.stopCargoWatch",
                 "title": "Stop Cargo Watch",
                 "category": "Rust Analyzer"
+            },
+            {
+                "command": "rust-analyzer.updateServer",
+                "title": "Update ra_lsp_server",
+                "category": "Rust Analyzer"
             }
         ],
         "keybindings": [
@@ -219,6 +224,31 @@
                     "type": "string",
                     "description": "`cargo-watch` command. (e.g: `clippy` will run as `cargo watch -x clippy` )",
                     "default": "check"
+                },
+                "rust-analyzer.server-update.repo": {
+                    "type": "string",
+                    "description": "URL of the git repository to update the server using. Use a `file://` specifier for paths to local repositories",
+                    "default": "https://github.com/rust-analyzer/rust-analyzer/"
+                },
+                "rust-analyzer.server-update.arguments": {
+                    "type": "string",
+                    "description": "`cargo install` arguments. (e.g: `--features=jemalloc` will run as `cargo install --git ${repo} --features=jemalloc` )",
+                    "default": ""
+                },
+                "rust-analyzer.server-update.startupBehaviour": {
+                    "type": "string",
+                    "default": "ask",
+                    "enum": [
+                        "ask",
+                        "enabled",
+                        "disabled"
+                    ],
+                    "enumDescriptions": [
+                        "Asks each time whether to update the server",
+                        "The server will always be updated on startup",
+                        "Don't update the server on startup"
+                    ],
+                    "description": "Whether to update the server on startup"
                 },
                 "rust-analyzer.trace.server": {
                     "type": "string",
