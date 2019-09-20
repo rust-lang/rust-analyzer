@@ -1,5 +1,5 @@
-SOURCE_FILE@[0; 47)
-  FN_DEF@[0; 46)
+SOURCE_FILE@[0; 65)
+  FN_DEF@[0; 64)
     FN_KW@[0; 2) "fn"
     WHITESPACE@[2; 3) " "
     NAME@[3; 6)
@@ -8,8 +8,8 @@ SOURCE_FILE@[0; 47)
       L_PAREN@[6; 7) "("
       R_PAREN@[7; 8) ")"
     WHITESPACE@[8; 9) " "
-    BLOCK_EXPR@[9; 46)
-      BLOCK@[9; 46)
+    BLOCK_EXPR@[9; 64)
+      BLOCK@[9; 64)
         L_CURLY@[9; 10) "{"
         WHITESPACE@[10; 15) "\n    "
         EXPR_STMT@[15; 28)
@@ -40,6 +40,25 @@ SOURCE_FILE@[0; 47)
               L_CURLY@[41; 42) "{"
               R_CURLY@[42; 43) "}"
           SEMI@[43; 44) ";"
-        WHITESPACE@[44; 45) "\n"
-        R_CURLY@[45; 46) "}"
-  WHITESPACE@[46; 47) "\n"
+        WHITESPACE@[44; 49) "\n    "
+        EXPR_STMT@[49; 62)
+          MATCH_EXPR@[49; 61)
+            MATCH_KW@[49; 54) "match"
+            WHITESPACE@[54; 55) " "
+            BLOCK_EXPR@[55; 58)
+              BLOCK@[55; 58)
+                L_CURLY@[55; 56) "{"
+                PATH_EXPR@[56; 57)
+                  PATH@[56; 57)
+                    PATH_SEGMENT@[56; 57)
+                      NAME_REF@[56; 57)
+                        IDENT@[56; 57) "S"
+                R_CURLY@[57; 58) "}"
+            WHITESPACE@[58; 59) " "
+            MATCH_ARM_LIST@[59; 61)
+              L_CURLY@[59; 60) "{"
+              R_CURLY@[60; 61) "}"
+          SEMI@[61; 62) ";"
+        WHITESPACE@[62; 63) "\n"
+        R_CURLY@[63; 64) "}"
+  WHITESPACE@[64; 65) "\n"

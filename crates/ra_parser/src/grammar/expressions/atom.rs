@@ -118,7 +118,8 @@ pub(super) fn atom_expr(p: &mut Parser, r: Restrictions) -> Option<(CompletedMar
             //        break;
             //    }
             // }
-            if r.forbid_structs {
+
+            if r.forbid_structs && la != IDENT {
                 return None;
             } else {
                 block_expr(p, None)
@@ -353,6 +354,7 @@ fn cond(p: &mut Parser) {
 // fn foo() {
 //     match () { };
 //     match S {};
+//     match {S} {};
 // }
 fn match_expr(p: &mut Parser) -> CompletedMarker {
     assert!(p.at(T![match]));
