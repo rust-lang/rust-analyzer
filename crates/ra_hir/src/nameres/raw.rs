@@ -379,6 +379,16 @@ impl RawItemsCollector {
                     .alloc(MacroData::Attr(AttrData { attr_ast_id, target_ast_id }));
 
                 self.push_item(current_module, RawItem::Macro(m));
+
+                // Since attribute macro also captures the item it's applied to,
+                // for example:
+                // -----------------\                        /--------------------
+                // #[derive(Clone)]  | ----> expansion ---> | impl Clone for S {}
+                // struct S {}       |                      |
+                // -----------------/                        \--------------------
+                // we must collect captured item separately, in order to preserve it
+                // after attribute macro expansion:
+                self.add_item(current_module, target);
             }
         }
     }
