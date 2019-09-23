@@ -719,9 +719,17 @@ where
                     module_id: self.module_id,
                     raw_items: &raw_items,
                     parent_module: None,
+                    attr_path: None,
                 }
                 .collect(raw_items.items());
             }
+        }
+    }
+
+    fn import_all_legacy_macros(&mut self, module_id: CrateModuleId) {
+        let macros = self.def_collector.def_map[module_id].scope.legacy_macros.clone();
+        for (name, macro_) in macros {
+            self.def_collector.define_legacy_macro(self.module_id, name.clone(), macro_);
         }
     }
 }

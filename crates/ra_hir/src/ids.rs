@@ -10,7 +10,7 @@ use ra_syntax::{ast, AstNode, Parse, SyntaxNode};
 
 use crate::{
     db::{AstDatabase, DefDatabase, InternDatabase},
-    AstId, FileAstId, Module, Source,
+    AstId, FileAstId, Module, Source, attr_macros,
 };
 
 /// hir makes heavy use of ids: integer (u32) handlers to various things. You
