@@ -66,6 +66,8 @@ pub(super) fn item_or_macro(p: &mut Parser, stop_on_r_curly: bool, flavor: ItemF
             p.error("unmatched `}`");
             p.bump(T!['}']);
             e.complete(p, ERROR);
+        } else if p.at(R_DOLLAR) {
+            p.bump(R_DOLLAR);
         } else if !p.at(EOF) && !p.at(T!['}']) {
             p.err_and_bump("expected an item");
         } else {

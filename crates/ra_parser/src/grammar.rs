@@ -117,8 +117,17 @@ pub(crate) mod fragments {
 
     pub(crate) fn macro_items(p: &mut Parser) {
         let m = p.start();
+        if p.at(L_DOLLAR) {
+            p.bump(L_DOLLAR);
+        }
+
         items::mod_contents(p, false);
+
         m.complete(p, MACRO_ITEMS);
+
+        if p.at(R_DOLLAR) {
+            p.bump(R_DOLLAR);
+        }
     }
 
     pub(crate) fn macro_stmts(p: &mut Parser) {
