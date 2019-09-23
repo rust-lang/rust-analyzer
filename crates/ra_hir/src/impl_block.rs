@@ -219,30 +219,39 @@ impl ModuleImplBlocks {
                     //FIXME: we should really cut down on the boilerplate required to process a macro
                     match macro_call {
                         ast::MacroKind::Call(macro_call) => {
-                            let ast_id = db.ast_id_map(file_id).ast_id(&macro_call).with_file_id(file_id);
+                            let ast_id =
+                                db.ast_id_map(file_id).ast_id(&macro_call).with_file_id(file_id);
                             if let Some(path) = macro_call.path().and_then(Path::from_ast) {
-                                if let Some(def) = self.module.resolver(db).resolve_path_as_macro(db, &path)
+                                if let Some(def) =
+                                    self.module.resolver(db).resolve_path_as_macro(db, &path)
                                 {
-                                    let call_id = MacroCallLoc::Macro { def: def.id, ast_id }.id(db);
+                                    let call_id =
+                                        MacroCallLoc::Macro { def: def.id, ast_id }.id(db);
                                     let file_id = call_id.as_file(MacroFileKind::Items);
                                     if let Some(item_list) =
-                                    db.parse_or_expand(file_id).and_then(ast::MacroItems::cast)
+                                        db.parse_or_expand(file_id).and_then(ast::MacroItems::cast)
                                     {
-                                        self.collect_from_item_owner(db, source_map, &item_list, file_id)
+                                        self.collect_from_item_owner(
+                                            db, source_map, &item_list, file_id,
+                                        )
                                     }
                                 }
                             }
                         }
 
                         ast::MacroKind::Attr { attr, target } => {
-                            let attr_ast_id = db.ast_id_map(file_id).ast_id(&attr).with_file_id(file_id);
-                            let target_ast_id = db.ast_id_map(file_id).ast_id(&target).with_file_id(file_id);
+                            let attr_ast_id =
+                                db.ast_id_map(file_id).ast_id(&attr).with_file_id(file_id);
+                            let target_ast_id =
+                                db.ast_id_map(file_id).ast_id(&target).with_file_id(file_id);
 
-                            let call_loc = MacroCallLoc::Attribute { attr_ast_id, target_ast_id }.id(db);
+                            let call_loc =
+                                MacroCallLoc::Attribute { attr_ast_id, target_ast_id }.id(db);
                             let file_id = call_loc.as_file(MacroFileKind::Items);
 
                             if let Some(item_list) =
-                            db.parse_or_expand(file_id).and_then(ast::MacroItems::cast) {
+                                db.parse_or_expand(file_id).and_then(ast::MacroItems::cast)
+                            {
                                 self.collect_from_item_owner(db, source_map, &item_list, file_id);
                             }
                         }

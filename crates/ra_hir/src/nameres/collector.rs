@@ -559,7 +559,7 @@ where
                     raw_items: self.raw_items,
                     parent_module: Some(parent_module),
                 }
-                    .collect(&*items);
+                .collect(&*items);
                 if *is_macro_use {
                     self.import_all_legacy_macros(module_id);
                 }
@@ -588,7 +588,7 @@ where
                             raw_items: &raw_items,
                             parent_module: None,
                         }
-                            .collect(raw_items.items());
+                        .collect(raw_items.items());
                         if *is_macro_use {
                             self.import_all_legacy_macros(module_id);
                         }
@@ -680,12 +680,9 @@ where
 
                 // Case 2: try to resolve in legacy scope and expand macro_rules, triggering
                 // recursive item collection.
-                if let Some(macro_def) = mac
-                    .path
-                    .as_ident()
-                    .and_then(|name| {
-                        self.def_collector.def_map[self.module_id].scope.get_legacy_macro(&name)
-                    }) {
+                if let Some(macro_def) = mac.path.as_ident().and_then(|name| {
+                    self.def_collector.def_map[self.module_id].scope.get_legacy_macro(&name)
+                }) {
                     let def = macro_def.id;
                     let macro_call_id =
                         MacroCallLoc::Macro { def, ast_id }.id(self.def_collector.db);

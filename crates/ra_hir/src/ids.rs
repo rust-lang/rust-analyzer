@@ -9,8 +9,9 @@ use ra_prof::profile;
 use ra_syntax::{ast, AstNode, Parse, SyntaxNode};
 
 use crate::{
+    attr_macros,
     db::{AstDatabase, DefDatabase, InternDatabase},
-    AstId, FileAstId, Module, Source, attr_macros,
+    AstId, FileAstId, Module, Source,
 };
 
 /// hir makes heavy use of ids: integer (u32) handlers to various things. You
