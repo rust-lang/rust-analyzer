@@ -359,7 +359,8 @@ impl RawItemsCollector {
 
                 let name = m.name().map(|it| it.as_name());
                 let ast_id = self.source_ast_id_map.ast_id(&m);
-                let export = m.has_atom_attr("macro_export");
+                let export = m.has_atom_attr("macro_export")
+                    || m.attrs().filter_map(|x| x.as_call()).any(|(name, _)| name == "macro_export");
                 let m = self.raw_items.macros.alloc(MacroData::MacroCall(MacroCallData {
                     ast_id,
                     path,
