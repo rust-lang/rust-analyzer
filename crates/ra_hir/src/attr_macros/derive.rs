@@ -6,7 +6,7 @@ use ra_syntax::{
 /// Checks whether `#[attr]` is in the `#[derive(<Traits>)]` form.
 pub(crate) fn is_derive_attr(attr_node: &ast::Attr) -> bool {
     if let Some((name, _args)) = attr_node.as_call() {
-        // TODO: check for empty _args tree
+        // FIXME: check for empty _args tree
         name == "derive"
     } else {
         false
