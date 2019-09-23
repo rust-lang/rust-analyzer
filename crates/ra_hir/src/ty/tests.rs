@@ -4196,9 +4196,6 @@ fn type_at_pos(db: &MockDatabase, pos: FilePosition) -> String {
     let expr = algo::find_node_at_offset::<ast::Expr>(file.syntax(), pos.offset).unwrap();
     let analyzer = SourceAnalyzer::new(db, pos.file_id, expr.syntax(), Some(pos.offset));
     let ty = analyzer.type_of(db, &expr).unwrap();
-
-    dbg!(&file, &expr, &analyzer, &ty);
-
     ty.display(db).to_string()
 }
 
