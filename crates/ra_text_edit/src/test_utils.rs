@@ -1,3 +1,4 @@
+#![cfg(test)]
 use crate::{AtomTextEdit, TextEdit};
 use proptest::prelude::*;
 use text_unit::{TextRange, TextUnit};
