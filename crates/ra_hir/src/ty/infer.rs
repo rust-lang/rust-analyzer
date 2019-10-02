@@ -1850,3 +1850,13 @@ mod diagnostics {
         }
     }
 }
+
+impl std::iter::FromIterator<Ty> for std::sync::Arc<[Ty]>{
+    fn from_iter<I:IntoIterator<Item=Ty>>(iter:I)->std::sync::Arc<[Ty]>{
+        let mut temp:Vec<Ty> = Vec::new();
+        for i in iter{
+            temp.push(i);    
+        }
+        temp.into()
+    }
+} 
