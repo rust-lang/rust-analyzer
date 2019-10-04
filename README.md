@@ -28,9 +28,9 @@ To build rust-analyzer, you need:
 To quickly install rust-analyzer with VS Code extension with standard setup
 (`code` and `cargo` in `$PATH`, etc), use this:
 
-```
+```bash
 # clone the repo
-$ git clone https://github.com/rust-analyzer/rust-analyzer && cd rust-analyzer
+$ git clone --single-branch -b master https://github.com/rust-analyzer/rust-analyzer && cd rust-analyzer
 
 # install both the language server and VS Code extension
 $ cargo install-ra
