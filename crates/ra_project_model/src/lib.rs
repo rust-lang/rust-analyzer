@@ -167,6 +167,12 @@ impl ProjectWorkspace {
                 }
             }
             ProjectWorkspace::Cargo { cargo, sysroot } => {
+                // Find workspace's OUT_DIR inside target/ directory.
+                // FIXME: should be replaced by path to OUT_DIR coming from metadata, but that would require upstream change to cargo
+                if let Some(dir) = find_out_dir(&cargo.target_directory) {
+                    crate_graph.set_env("OUT_DIR", dir);
+                }
+
                 let mut sysroot_crates = FxHashMap::default();
                 for krate in sysroot.crates() {
                     if let Some(file_id) = load(krate.root(&sysroot)) {
@@ -272,6 +278,13 @@ impl ProjectWorkspace {
                 .find(|root| path.starts_with(&root.path))
                 .map(|root| root.path.as_ref()),
         }
+    }
+
+    /// A heuristic that finds the `OUT_DIR` in the specific `target/` directory of `cargo` workspace.
+    fn find_out_dir(target_path: &PathBuf) -> Option<String> {
+        // FIXME: put heuristic here
+        // Should probably traverse the `target/<release-or-debug>/...` path and find a match
+        None
     }
 }
 
