@@ -173,7 +173,12 @@ impl CargoWorkspace {
             packages[source].features.extend(node.features);
         }
 
-        Ok(CargoWorkspace { packages, targets, workspace_root: meta.workspace_root, target_directory: meta.target_directory })
+        Ok(CargoWorkspace {
+            packages,
+            targets,
+            workspace_root: meta.workspace_root,
+            target_directory: meta.target_directory,
+        })
     }
 
     pub fn packages<'a>(&'a self) -> impl Iterator<Item = Package> + ExactSizeIterator + 'a {
