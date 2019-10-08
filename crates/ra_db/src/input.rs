@@ -76,6 +76,7 @@ impl SourceRoot {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CrateGraph {
     arena: FxHashMap<CrateId, CrateData>,
+    env: FxHashMap<String, String>,
 }
 
 #[derive(Debug)]
@@ -146,6 +147,11 @@ impl CrateGraph {
         let prev = self.arena.insert(crate_id, CrateData::new(file_id, edition, cfg_options));
         assert!(prev.is_none());
         crate_id
+    }
+
+    /// Sets environment variable available trough `env!(VARIABLE_NAME)` macro for crates in crate graph.
+    pub fn set_env(&mut self, env: &str, value: &str) {
+        self.env.insert(env.to_owned(), value.to_owned());
     }
 
     pub fn cfg_options(&self, crate_id: CrateId) -> &CfgOptions {
