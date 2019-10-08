@@ -77,7 +77,8 @@ impl MockDatabase {
         let mut crate_graph = CrateGraph::default();
         for (crate_name, (crate_root, edition, cfg_options, _)) in graph.0.iter() {
             let crate_root = self.file_id_of(&crate_root);
-            let crate_id = crate_graph.add_crate_root(crate_root, *edition, cfg_options.clone());
+            let crate_id =
+                crate_graph.add_crate_root(crate_root, *edition, cfg_options.clone(), None);
             Arc::make_mut(&mut self.crate_names).insert(crate_id, crate_name.clone());
             ids.insert(crate_name, crate_id);
         }
@@ -185,7 +186,7 @@ impl MockDatabase {
 
         if is_crate_root {
             let mut crate_graph = CrateGraph::default();
-            crate_graph.add_crate_root(file_id, Edition::Edition2018, CfgOptions::default());
+            crate_graph.add_crate_root(file_id, Edition::Edition2018, CfgOptions::default(), None);
             self.set_crate_graph(Arc::new(crate_graph));
         }
         file_id

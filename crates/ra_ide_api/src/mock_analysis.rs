@@ -96,9 +96,11 @@ impl MockAnalysis {
             let file_id = FileId(i as u32 + 1);
             let cfg_options = CfgOptions::default();
             if path == "/lib.rs" || path == "/main.rs" {
-                root_crate = Some(crate_graph.add_crate_root(file_id, Edition2018, cfg_options));
+                root_crate =
+                    Some(crate_graph.add_crate_root(file_id, Edition2018, cfg_options, None));
             } else if path.ends_with("/lib.rs") {
-                let other_crate = crate_graph.add_crate_root(file_id, Edition2018, cfg_options);
+                let other_crate =
+                    crate_graph.add_crate_root(file_id, Edition2018, cfg_options, None);
                 let crate_name = path.parent().unwrap().file_name().unwrap();
                 if let Some(root_crate) = root_crate {
                     crate_graph.add_dep(root_crate, crate_name.into(), other_crate).unwrap();

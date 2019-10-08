@@ -89,7 +89,8 @@ mod tests {
         assert!(host.analysis().crate_for(mod_file).unwrap().is_empty());
 
         let mut crate_graph = CrateGraph::default();
-        let crate_id = crate_graph.add_crate_root(root_file, Edition2018, CfgOptions::default());
+        let crate_id =
+            crate_graph.add_crate_root(root_file, Edition2018, CfgOptions::default(), None);
         let mut change = AnalysisChange::new();
         change.set_crate_graph(crate_graph);
         host.apply_change(change);

@@ -143,7 +143,7 @@ impl ProjectWorkspace {
                         }
                         crates.insert(
                             crate_id,
-                            crate_graph.add_crate_root(file_id, edition, cfg_options),
+                            crate_graph.add_crate_root(file_id, edition, cfg_options, None),
                         );
                     }
                 }
@@ -167,19 +167,18 @@ impl ProjectWorkspace {
                 }
             }
             ProjectWorkspace::Cargo { cargo, sysroot } => {
-                // Find workspace's OUT_DIR inside target/ directory.
-                // FIXME: should be replaced by path to OUT_DIR coming from metadata, but that would require upstream change to cargo
-                if let Some(dir) = Self::find_out_dir(&cargo.target_directory) {
-                    crate_graph.set_env("OUT_DIR", &dir);
-                }
-
                 let mut sysroot_crates = FxHashMap::default();
                 for krate in sysroot.crates() {
                     if let Some(file_id) = load(krate.root(&sysroot)) {
                         // Crates from sysroot have `cfg(test)` disabled
                         let cfg_options = default_cfg_options.clone().remove_atom(&"test".into());
-                        let crate_id =
-                            crate_graph.add_crate_root(file_id, Edition::Edition2018, cfg_options);
+                        let crate_id = crate_graph.add_crate_root(
+                            file_id,
+                            Edition::Edition2018,
+                            cfg_options,
+                            Self::find_out_dir(&cargo.target_directory),
+                        );
+
                         sysroot_crates.insert(krate, crate_id);
                         names.insert(crate_id, krate.name(&sysroot).to_string());
                     }
@@ -211,8 +210,12 @@ impl ProjectWorkspace {
                             let cfg_options = default_cfg_options
                                 .clone()
                                 .features(pkg.features(&cargo).iter().map(Into::into));
-                            let crate_id =
-                                crate_graph.add_crate_root(file_id, edition, cfg_options);
+                            let crate_id = crate_graph.add_crate_root(
+                                file_id,
+                                edition,
+                                cfg_options,
+                                Self::find_out_dir(&cargo.target_directory),
+                            );
                             names.insert(crate_id, pkg.name(&cargo).to_string());
                             if tgt.kind(&cargo) == TargetKind::Lib {
                                 lib_tgt = Some(crate_id);
