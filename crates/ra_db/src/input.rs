@@ -129,7 +129,7 @@ impl CrateData {
         self.dependencies.push(Dependency { name, crate_id })
     }
 
-    /// Sets environment variable available trough `env!(VARIABLE_NAME)` macro for crates in crate graph.
+    /// Sets environment variable available through `env!(VARIABLE_NAME)` macro for crates in crate graph.
     pub fn set_env(&mut self, env: &str, value: String) {
         self.env.insert(env.to_owned(), value);
     }
