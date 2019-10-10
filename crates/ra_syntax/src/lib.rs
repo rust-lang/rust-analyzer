@@ -48,7 +48,7 @@ pub use crate::{
         Direction, NodeOrToken, SyntaxElement, SyntaxNode, SyntaxToken, SyntaxTreeBuilder,
     },
 };
-pub use ra_parser::{SyntaxKind, T};
+pub use ra_parser::{SyntaxKind, T, T_STR};
 pub use rowan::{SmolStr, SyntaxText, TextRange, TextUnit, TokenAtOffset, WalkEvent};
 
 /// `Parse` is the result of the parsing: a syntax tree and a collection of

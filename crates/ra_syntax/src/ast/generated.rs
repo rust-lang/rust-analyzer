@@ -1,9 +1,10 @@
 //! Generated file, do not edit by hand, see `crate/ra_tools/src/codegen`
 
 use crate::{
-    ast::{self, traits::CommentIter, AstChildren, AstNode},
+    ast::{self, builders::*, traits::CommentIter, AstChildren, AstNode},
+    SmolStr,
     SyntaxKind::{self, *},
-    SyntaxNode,
+    SyntaxNode, SyntaxTreeBuilder, T_STR,
 };
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
@@ -279,6 +280,232 @@ impl AstNode for Expr {
         }
     }
 }
+pub enum ExprBuilder {
+    TupleExprBuilder(Box<TupleExprBuilder>),
+    ArrayExprBuilder(Box<ArrayExprBuilder>),
+    ParenExprBuilder(Box<ParenExprBuilder>),
+    PathExprBuilder(Box<PathExprBuilder>),
+    LambdaExprBuilder(Box<LambdaExprBuilder>),
+    IfExprBuilder(Box<IfExprBuilder>),
+    LoopExprBuilder(Box<LoopExprBuilder>),
+    ForExprBuilder(Box<ForExprBuilder>),
+    WhileExprBuilder(Box<WhileExprBuilder>),
+    ContinueExprBuilder(Box<ContinueExprBuilder>),
+    BreakExprBuilder(Box<BreakExprBuilder>),
+    LabelBuilder(Box<LabelBuilder>),
+    BlockExprBuilder(Box<BlockExprBuilder>),
+    ReturnExprBuilder(Box<ReturnExprBuilder>),
+    MatchExprBuilder(Box<MatchExprBuilder>),
+    RecordLitBuilder(Box<RecordLitBuilder>),
+    CallExprBuilder(Box<CallExprBuilder>),
+    IndexExprBuilder(Box<IndexExprBuilder>),
+    MethodCallExprBuilder(Box<MethodCallExprBuilder>),
+    FieldExprBuilder(Box<FieldExprBuilder>),
+    AwaitExprBuilder(Box<AwaitExprBuilder>),
+    TryExprBuilder(Box<TryExprBuilder>),
+    TryBlockExprBuilder(Box<TryBlockExprBuilder>),
+    CastExprBuilder(Box<CastExprBuilder>),
+    RefExprBuilder(Box<RefExprBuilder>),
+    PrefixExprBuilder(Box<PrefixExprBuilder>),
+    BoxExprBuilder(Box<BoxExprBuilder>),
+    RangeExprBuilder(Box<RangeExprBuilder>),
+    BinExprBuilder(Box<BinExprBuilder>),
+    LiteralBuilder(Box<LiteralBuilder>),
+    MacroCallBuilder(Box<MacroCallBuilder>),
+}
+impl From<TupleExprBuilder> for ExprBuilder {
+    fn from(builder: TupleExprBuilder) -> ExprBuilder {
+        ExprBuilder::TupleExprBuilder(Box::new(builder))
+    }
+}
+impl From<ArrayExprBuilder> for ExprBuilder {
+    fn from(builder: ArrayExprBuilder) -> ExprBuilder {
+        ExprBuilder::ArrayExprBuilder(Box::new(builder))
+    }
+}
+impl From<ParenExprBuilder> for ExprBuilder {
+    fn from(builder: ParenExprBuilder) -> ExprBuilder {
+        ExprBuilder::ParenExprBuilder(Box::new(builder))
+    }
+}
+impl From<PathExprBuilder> for ExprBuilder {
+    fn from(builder: PathExprBuilder) -> ExprBuilder {
+        ExprBuilder::PathExprBuilder(Box::new(builder))
+    }
+}
+impl From<LambdaExprBuilder> for ExprBuilder {
+    fn from(builder: LambdaExprBuilder) -> ExprBuilder {
+        ExprBuilder::LambdaExprBuilder(Box::new(builder))
+    }
+}
+impl From<IfExprBuilder> for ExprBuilder {
+    fn from(builder: IfExprBuilder) -> ExprBuilder {
+        ExprBuilder::IfExprBuilder(Box::new(builder))
+    }
+}
+impl From<LoopExprBuilder> for ExprBuilder {
+    fn from(builder: LoopExprBuilder) -> ExprBuilder {
+        ExprBuilder::LoopExprBuilder(Box::new(builder))
+    }
+}
+impl From<ForExprBuilder> for ExprBuilder {
+    fn from(builder: ForExprBuilder) -> ExprBuilder {
+        ExprBuilder::ForExprBuilder(Box::new(builder))
+    }
+}
+impl From<WhileExprBuilder> for ExprBuilder {
+    fn from(builder: WhileExprBuilder) -> ExprBuilder {
+        ExprBuilder::WhileExprBuilder(Box::new(builder))
+    }
+}
+impl From<ContinueExprBuilder> for ExprBuilder {
+    fn from(builder: ContinueExprBuilder) -> ExprBuilder {
+        ExprBuilder::ContinueExprBuilder(Box::new(builder))
+    }
+}
+impl From<BreakExprBuilder> for ExprBuilder {
+    fn from(builder: BreakExprBuilder) -> ExprBuilder {
+        ExprBuilder::BreakExprBuilder(Box::new(builder))
+    }
+}
+impl From<LabelBuilder> for ExprBuilder {
+    fn from(builder: LabelBuilder) -> ExprBuilder {
+        ExprBuilder::LabelBuilder(Box::new(builder))
+    }
+}
+impl From<BlockExprBuilder> for ExprBuilder {
+    fn from(builder: BlockExprBuilder) -> ExprBuilder {
+        ExprBuilder::BlockExprBuilder(Box::new(builder))
+    }
+}
+impl From<ReturnExprBuilder> for ExprBuilder {
+    fn from(builder: ReturnExprBuilder) -> ExprBuilder {
+        ExprBuilder::ReturnExprBuilder(Box::new(builder))
+    }
+}
+impl From<MatchExprBuilder> for ExprBuilder {
+    fn from(builder: MatchExprBuilder) -> ExprBuilder {
+        ExprBuilder::MatchExprBuilder(Box::new(builder))
+    }
+}
+impl From<RecordLitBuilder> for ExprBuilder {
+    fn from(builder: RecordLitBuilder) -> ExprBuilder {
+        ExprBuilder::RecordLitBuilder(Box::new(builder))
+    }
+}
+impl From<CallExprBuilder> for ExprBuilder {
+    fn from(builder: CallExprBuilder) -> ExprBuilder {
+        ExprBuilder::CallExprBuilder(Box::new(builder))
+    }
+}
+impl From<IndexExprBuilder> for ExprBuilder {
+    fn from(builder: IndexExprBuilder) -> ExprBuilder {
+        ExprBuilder::IndexExprBuilder(Box::new(builder))
+    }
+}
+impl From<MethodCallExprBuilder> for ExprBuilder {
+    fn from(builder: MethodCallExprBuilder) -> ExprBuilder {
+        ExprBuilder::MethodCallExprBuilder(Box::new(builder))
+    }
+}
+impl From<FieldExprBuilder> for ExprBuilder {
+    fn from(builder: FieldExprBuilder) -> ExprBuilder {
+        ExprBuilder::FieldExprBuilder(Box::new(builder))
+    }
+}
+impl From<AwaitExprBuilder> for ExprBuilder {
+    fn from(builder: AwaitExprBuilder) -> ExprBuilder {
+        ExprBuilder::AwaitExprBuilder(Box::new(builder))
+    }
+}
+impl From<TryExprBuilder> for ExprBuilder {
+    fn from(builder: TryExprBuilder) -> ExprBuilder {
+        ExprBuilder::TryExprBuilder(Box::new(builder))
+    }
+}
+impl From<TryBlockExprBuilder> for ExprBuilder {
+    fn from(builder: TryBlockExprBuilder) -> ExprBuilder {
+        ExprBuilder::TryBlockExprBuilder(Box::new(builder))
+    }
+}
+impl From<CastExprBuilder> for ExprBuilder {
+    fn from(builder: CastExprBuilder) -> ExprBuilder {
+        ExprBuilder::CastExprBuilder(Box::new(builder))
+    }
+}
+impl From<RefExprBuilder> for ExprBuilder {
+    fn from(builder: RefExprBuilder) -> ExprBuilder {
+        ExprBuilder::RefExprBuilder(Box::new(builder))
+    }
+}
+impl From<PrefixExprBuilder> for ExprBuilder {
+    fn from(builder: PrefixExprBuilder) -> ExprBuilder {
+        ExprBuilder::PrefixExprBuilder(Box::new(builder))
+    }
+}
+impl From<BoxExprBuilder> for ExprBuilder {
+    fn from(builder: BoxExprBuilder) -> ExprBuilder {
+        ExprBuilder::BoxExprBuilder(Box::new(builder))
+    }
+}
+impl From<RangeExprBuilder> for ExprBuilder {
+    fn from(builder: RangeExprBuilder) -> ExprBuilder {
+        ExprBuilder::RangeExprBuilder(Box::new(builder))
+    }
+}
+impl From<BinExprBuilder> for ExprBuilder {
+    fn from(builder: BinExprBuilder) -> ExprBuilder {
+        ExprBuilder::BinExprBuilder(Box::new(builder))
+    }
+}
+impl From<LiteralBuilder> for ExprBuilder {
+    fn from(builder: LiteralBuilder) -> ExprBuilder {
+        ExprBuilder::LiteralBuilder(Box::new(builder))
+    }
+}
+impl From<MacroCallBuilder> for ExprBuilder {
+    fn from(builder: MacroCallBuilder) -> ExprBuilder {
+        ExprBuilder::MacroCallBuilder(Box::new(builder))
+    }
+}
+impl AstNodeBuilder for ExprBuilder {
+    type Node = Expr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        match self {
+            ExprBuilder::TupleExprBuilder(b) => b.make(builder),
+            ExprBuilder::ArrayExprBuilder(b) => b.make(builder),
+            ExprBuilder::ParenExprBuilder(b) => b.make(builder),
+            ExprBuilder::PathExprBuilder(b) => b.make(builder),
+            ExprBuilder::LambdaExprBuilder(b) => b.make(builder),
+            ExprBuilder::IfExprBuilder(b) => b.make(builder),
+            ExprBuilder::LoopExprBuilder(b) => b.make(builder),
+            ExprBuilder::ForExprBuilder(b) => b.make(builder),
+            ExprBuilder::WhileExprBuilder(b) => b.make(builder),
+            ExprBuilder::ContinueExprBuilder(b) => b.make(builder),
+            ExprBuilder::BreakExprBuilder(b) => b.make(builder),
+            ExprBuilder::LabelBuilder(b) => b.make(builder),
+            ExprBuilder::BlockExprBuilder(b) => b.make(builder),
+            ExprBuilder::ReturnExprBuilder(b) => b.make(builder),
+            ExprBuilder::MatchExprBuilder(b) => b.make(builder),
+            ExprBuilder::RecordLitBuilder(b) => b.make(builder),
+            ExprBuilder::CallExprBuilder(b) => b.make(builder),
+            ExprBuilder::IndexExprBuilder(b) => b.make(builder),
+            ExprBuilder::MethodCallExprBuilder(b) => b.make(builder),
+            ExprBuilder::FieldExprBuilder(b) => b.make(builder),
+            ExprBuilder::AwaitExprBuilder(b) => b.make(builder),
+            ExprBuilder::TryExprBuilder(b) => b.make(builder),
+            ExprBuilder::TryBlockExprBuilder(b) => b.make(builder),
+            ExprBuilder::CastExprBuilder(b) => b.make(builder),
+            ExprBuilder::RefExprBuilder(b) => b.make(builder),
+            ExprBuilder::PrefixExprBuilder(b) => b.make(builder),
+            ExprBuilder::BoxExprBuilder(b) => b.make(builder),
+            ExprBuilder::RangeExprBuilder(b) => b.make(builder),
+            ExprBuilder::BinExprBuilder(b) => b.make(builder),
+            ExprBuilder::LiteralBuilder(b) => b.make(builder),
+            ExprBuilder::MacroCallBuilder(b) => b.make(builder),
+        }
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleExpr {
     pub(crate) syntax: SyntaxNode,
@@ -304,6 +531,29 @@ impl AstNode for TupleExpr {
 impl TupleExpr {
     pub fn exprs(&self) -> AstChildren<Expr> {
         super::children(self)
+    }
+}
+impl TupleExpr {
+    pub fn new() -> TupleExprBuilder {
+        TupleExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct TupleExprBuilder {
+    exprs: Vec<Box<ExprBuilder>>,
+}
+impl TupleExprBuilder {
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.exprs.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for TupleExprBuilder {
+    type Node = TupleExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::TUPLE_EXPR);
+        self.exprs.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -333,6 +583,29 @@ impl ArrayExpr {
         super::children(self)
     }
 }
+impl ArrayExpr {
+    pub fn new() -> ArrayExprBuilder {
+        ArrayExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ArrayExprBuilder {
+    exprs: Vec<Box<ExprBuilder>>,
+}
+impl ArrayExprBuilder {
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.exprs.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ArrayExprBuilder {
+    type Node = ArrayExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::ARRAY_EXPR);
+        self.exprs.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParenExpr {
     pub(crate) syntax: SyntaxNode,
@@ -360,6 +633,31 @@ impl ParenExpr {
         super::child_opt(self)
     }
 }
+impl ParenExpr {
+    pub fn new() -> ParenExprBuilder {
+        ParenExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ParenExprBuilder {
+    expr: Option<Box<ExprBuilder>>,
+}
+impl ParenExprBuilder {
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ParenExprBuilder {
+    type Node = ParenExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::PAREN_EXPR);
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathExpr {
     pub(crate) syntax: SyntaxNode,
@@ -385,6 +683,31 @@ impl AstNode for PathExpr {
 impl PathExpr {
     pub fn path(&self) -> Option<Path> {
         super::child_opt(self)
+    }
+}
+impl PathExpr {
+    pub fn new() -> PathExprBuilder {
+        PathExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct PathExprBuilder {
+    path: Option<Box<PathBuilder>>,
+}
+impl PathExprBuilder {
+    pub fn path(mut self, f: PathBuilder) -> Self {
+        self.path = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for PathExprBuilder {
+    type Node = PathExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::PATH_EXPR);
+        if let Some(b) = self.path {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -417,6 +740,39 @@ impl LambdaExpr {
         super::child_opt(self)
     }
 }
+impl LambdaExpr {
+    pub fn new() -> LambdaExprBuilder {
+        LambdaExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct LambdaExprBuilder {
+    param_list: Option<Box<ParamListBuilder>>,
+    body: Option<Box<ExprBuilder>>,
+}
+impl LambdaExprBuilder {
+    pub fn param_list(mut self, f: ParamListBuilder) -> Self {
+        self.param_list = Some(Box::new(f));
+        self
+    }
+    pub fn body(mut self, f: ExprBuilder) -> Self {
+        self.body = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for LambdaExprBuilder {
+    type Node = LambdaExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::LAMBDA_EXPR);
+        if let Some(b) = self.param_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.body {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IfExpr {
     pub(crate) syntax: SyntaxNode,
@@ -442,6 +798,31 @@ impl AstNode for IfExpr {
 impl IfExpr {
     pub fn condition(&self) -> Option<Condition> {
         super::child_opt(self)
+    }
+}
+impl IfExpr {
+    pub fn new() -> IfExprBuilder {
+        IfExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct IfExprBuilder {
+    condition: Option<Box<ConditionBuilder>>,
+}
+impl IfExprBuilder {
+    pub fn condition(mut self, f: ConditionBuilder) -> Self {
+        self.condition = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for IfExprBuilder {
+    type Node = IfExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::IF_EXPR);
+        if let Some(b) = self.condition {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -474,6 +855,31 @@ impl LoopExpr {
 impl ast::LoopBodyOwner for LoopExpr {
     fn loop_body(&self) -> Option<BlockExpr> {
         self.loop_body()
+    }
+}
+impl LoopExpr {
+    pub fn new() -> LoopExprBuilder {
+        LoopExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct LoopExprBuilder {
+    loop_body: Option<Box<BlockExprBuilder>>,
+}
+impl LoopExprBuilder {
+    pub fn loop_body(mut self, f: BlockExprBuilder) -> Self {
+        self.loop_body = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for LoopExprBuilder {
+    type Node = LoopExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::LOOP_EXPR);
+        if let Some(b) = self.loop_body {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -514,6 +920,47 @@ impl ast::LoopBodyOwner for ForExpr {
         self.loop_body()
     }
 }
+impl ForExpr {
+    pub fn new() -> ForExprBuilder {
+        ForExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ForExprBuilder {
+    pat: Option<Box<PatBuilder>>,
+    iterable: Option<Box<ExprBuilder>>,
+    loop_body: Option<Box<BlockExprBuilder>>,
+}
+impl ForExprBuilder {
+    pub fn pat(mut self, f: PatBuilder) -> Self {
+        self.pat = Some(Box::new(f));
+        self
+    }
+    pub fn iterable(mut self, f: ExprBuilder) -> Self {
+        self.iterable = Some(Box::new(f));
+        self
+    }
+    pub fn loop_body(mut self, f: BlockExprBuilder) -> Self {
+        self.loop_body = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ForExprBuilder {
+    type Node = ForExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::FOR_EXPR);
+        if let Some(b) = self.pat {
+            b.make(builder);
+        }
+        if let Some(b) = self.iterable {
+            b.make(builder);
+        }
+        if let Some(b) = self.loop_body {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WhileExpr {
     pub(crate) syntax: SyntaxNode,
@@ -549,6 +996,39 @@ impl ast::LoopBodyOwner for WhileExpr {
         self.loop_body()
     }
 }
+impl WhileExpr {
+    pub fn new() -> WhileExprBuilder {
+        WhileExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct WhileExprBuilder {
+    condition: Option<Box<ConditionBuilder>>,
+    loop_body: Option<Box<BlockExprBuilder>>,
+}
+impl WhileExprBuilder {
+    pub fn condition(mut self, f: ConditionBuilder) -> Self {
+        self.condition = Some(Box::new(f));
+        self
+    }
+    pub fn loop_body(mut self, f: BlockExprBuilder) -> Self {
+        self.loop_body = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for WhileExprBuilder {
+    type Node = WhileExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::WHILE_EXPR);
+        if let Some(b) = self.condition {
+            b.make(builder);
+        }
+        if let Some(b) = self.loop_body {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ContinueExpr {
     pub(crate) syntax: SyntaxNode,
@@ -569,6 +1049,23 @@ impl AstNode for ContinueExpr {
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+}
+impl ContinueExpr {}
+impl ContinueExpr {
+    pub fn new() -> ContinueExprBuilder {
+        ContinueExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ContinueExprBuilder {}
+impl ContinueExprBuilder {}
+impl AstNodeBuilder for ContinueExprBuilder {
+    type Node = ContinueExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::CONTINUE_EXPR);
+        builder.token(SyntaxKind::CONTINUE_KW, SmolStr::new(T_STR!(CONTINUE_KW)));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -596,6 +1093,31 @@ impl AstNode for BreakExpr {
 impl BreakExpr {
     pub fn expr(&self) -> Option<Expr> {
         super::child_opt(self)
+    }
+}
+impl BreakExpr {
+    pub fn new() -> BreakExprBuilder {
+        BreakExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct BreakExprBuilder {
+    expr: Option<Box<ExprBuilder>>,
+}
+impl BreakExprBuilder {
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for BreakExprBuilder {
+    type Node = BreakExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::BREAK_EXPR);
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -647,6 +1169,31 @@ impl ReturnExpr {
         super::child_opt(self)
     }
 }
+impl ReturnExpr {
+    pub fn new() -> ReturnExprBuilder {
+        ReturnExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ReturnExprBuilder {
+    expr: Option<Box<ExprBuilder>>,
+}
+impl ReturnExprBuilder {
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ReturnExprBuilder {
+    type Node = ReturnExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::RETURN_EXPR);
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchExpr {
     pub(crate) syntax: SyntaxNode,
@@ -677,6 +1224,39 @@ impl MatchExpr {
         super::child_opt(self)
     }
 }
+impl MatchExpr {
+    pub fn new() -> MatchExprBuilder {
+        MatchExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct MatchExprBuilder {
+    expr: Option<Box<ExprBuilder>>,
+    match_arm_list: Option<Box<MatchArmListBuilder>>,
+}
+impl MatchExprBuilder {
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+    pub fn match_arm_list(mut self, f: MatchArmListBuilder) -> Self {
+        self.match_arm_list = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for MatchExprBuilder {
+    type Node = MatchExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::MATCH_EXPR);
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        if let Some(b) = self.match_arm_list {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordLit {
     pub(crate) syntax: SyntaxNode,
@@ -705,6 +1285,39 @@ impl RecordLit {
     }
     pub fn record_field_list(&self) -> Option<RecordFieldList> {
         super::child_opt(self)
+    }
+}
+impl RecordLit {
+    pub fn new() -> RecordLitBuilder {
+        RecordLitBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct RecordLitBuilder {
+    path: Option<Box<PathBuilder>>,
+    record_field_list: Option<Box<RecordFieldListBuilder>>,
+}
+impl RecordLitBuilder {
+    pub fn path(mut self, f: PathBuilder) -> Self {
+        self.path = Some(Box::new(f));
+        self
+    }
+    pub fn record_field_list(mut self, f: RecordFieldListBuilder) -> Self {
+        self.record_field_list = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for RecordLitBuilder {
+    type Node = RecordLit;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::RECORD_LIT);
+        if let Some(b) = self.path {
+            b.make(builder);
+        }
+        if let Some(b) = self.record_field_list {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -740,6 +1353,39 @@ impl CallExpr {
 impl ast::ArgListOwner for CallExpr {
     fn arg_list(&self) -> Option<ArgList> {
         self.arg_list()
+    }
+}
+impl CallExpr {
+    pub fn new() -> CallExprBuilder {
+        CallExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct CallExprBuilder {
+    expr: Option<Box<ExprBuilder>>,
+    arg_list: Option<Box<ArgListBuilder>>,
+}
+impl CallExprBuilder {
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+    pub fn arg_list(mut self, f: ArgListBuilder) -> Self {
+        self.arg_list = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for CallExprBuilder {
+    type Node = CallExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::CALL_EXPR);
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        if let Some(b) = self.arg_list {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -805,6 +1451,55 @@ impl ast::ArgListOwner for MethodCallExpr {
         self.arg_list()
     }
 }
+impl MethodCallExpr {
+    pub fn new() -> MethodCallExprBuilder {
+        MethodCallExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct MethodCallExprBuilder {
+    expr: Option<Box<ExprBuilder>>,
+    name_ref: Option<Box<NameRefBuilder>>,
+    type_arg_list: Option<Box<TypeArgListBuilder>>,
+    arg_list: Option<Box<ArgListBuilder>>,
+}
+impl MethodCallExprBuilder {
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+    pub fn name_ref(mut self, f: NameRefBuilder) -> Self {
+        self.name_ref = Some(Box::new(f));
+        self
+    }
+    pub fn type_arg_list(mut self, f: TypeArgListBuilder) -> Self {
+        self.type_arg_list = Some(Box::new(f));
+        self
+    }
+    pub fn arg_list(mut self, f: ArgListBuilder) -> Self {
+        self.arg_list = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for MethodCallExprBuilder {
+    type Node = MethodCallExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::METHOD_CALL_EXPR);
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        if let Some(b) = self.name_ref {
+            b.make(builder);
+        }
+        if let Some(b) = self.type_arg_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.arg_list {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FieldExpr {
     pub(crate) syntax: SyntaxNode,
@@ -835,6 +1530,39 @@ impl FieldExpr {
         super::child_opt(self)
     }
 }
+impl FieldExpr {
+    pub fn new() -> FieldExprBuilder {
+        FieldExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct FieldExprBuilder {
+    expr: Option<Box<ExprBuilder>>,
+    name_ref: Option<Box<NameRefBuilder>>,
+}
+impl FieldExprBuilder {
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+    pub fn name_ref(mut self, f: NameRefBuilder) -> Self {
+        self.name_ref = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for FieldExprBuilder {
+    type Node = FieldExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::FIELD_EXPR);
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        if let Some(b) = self.name_ref {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AwaitExpr {
     pub(crate) syntax: SyntaxNode,
@@ -860,6 +1588,31 @@ impl AstNode for AwaitExpr {
 impl AwaitExpr {
     pub fn expr(&self) -> Option<Expr> {
         super::child_opt(self)
+    }
+}
+impl AwaitExpr {
+    pub fn new() -> AwaitExprBuilder {
+        AwaitExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct AwaitExprBuilder {
+    expr: Option<Box<ExprBuilder>>,
+}
+impl AwaitExprBuilder {
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for AwaitExprBuilder {
+    type Node = AwaitExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::AWAIT_EXPR);
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -889,6 +1642,31 @@ impl TryExpr {
         super::child_opt(self)
     }
 }
+impl TryExpr {
+    pub fn new() -> TryExprBuilder {
+        TryExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct TryExprBuilder {
+    expr: Option<Box<ExprBuilder>>,
+}
+impl TryExprBuilder {
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for TryExprBuilder {
+    type Node = TryExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::TRY_EXPR);
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TryBlockExpr {
     pub(crate) syntax: SyntaxNode,
@@ -914,6 +1692,31 @@ impl AstNode for TryBlockExpr {
 impl TryBlockExpr {
     pub fn body(&self) -> Option<BlockExpr> {
         super::child_opt(self)
+    }
+}
+impl TryBlockExpr {
+    pub fn new() -> TryBlockExprBuilder {
+        TryBlockExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct TryBlockExprBuilder {
+    body: Option<Box<BlockExprBuilder>>,
+}
+impl TryBlockExprBuilder {
+    pub fn body(mut self, f: BlockExprBuilder) -> Self {
+        self.body = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for TryBlockExprBuilder {
+    type Node = TryBlockExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::TRY_BLOCK_EXPR);
+        if let Some(b) = self.body {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -946,6 +1749,39 @@ impl CastExpr {
         super::child_opt(self)
     }
 }
+impl CastExpr {
+    pub fn new() -> CastExprBuilder {
+        CastExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct CastExprBuilder {
+    expr: Option<Box<ExprBuilder>>,
+    type_ref: Option<Box<TypeRefBuilder>>,
+}
+impl CastExprBuilder {
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+    pub fn type_ref(mut self, f: TypeRefBuilder) -> Self {
+        self.type_ref = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for CastExprBuilder {
+    type Node = CastExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::CAST_EXPR);
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        if let Some(b) = self.type_ref {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefExpr {
     pub(crate) syntax: SyntaxNode,
@@ -971,6 +1807,31 @@ impl AstNode for RefExpr {
 impl RefExpr {
     pub fn expr(&self) -> Option<Expr> {
         super::child_opt(self)
+    }
+}
+impl RefExpr {
+    pub fn new() -> RefExprBuilder {
+        RefExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct RefExprBuilder {
+    expr: Option<Box<ExprBuilder>>,
+}
+impl RefExprBuilder {
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for RefExprBuilder {
+    type Node = RefExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::REF_EXPR);
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1000,6 +1861,31 @@ impl PrefixExpr {
         super::child_opt(self)
     }
 }
+impl PrefixExpr {
+    pub fn new() -> PrefixExprBuilder {
+        PrefixExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct PrefixExprBuilder {
+    expr: Option<Box<ExprBuilder>>,
+}
+impl PrefixExprBuilder {
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for PrefixExprBuilder {
+    type Node = PrefixExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::PREFIX_EXPR);
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BoxExpr {
     pub(crate) syntax: SyntaxNode,
@@ -1025,6 +1911,31 @@ impl AstNode for BoxExpr {
 impl BoxExpr {
     pub fn expr(&self) -> Option<Expr> {
         super::child_opt(self)
+    }
+}
+impl BoxExpr {
+    pub fn new() -> BoxExprBuilder {
+        BoxExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct BoxExprBuilder {
+    expr: Option<Box<ExprBuilder>>,
+}
+impl BoxExprBuilder {
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for BoxExprBuilder {
+    type Node = BoxExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::BOX_EXPR);
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1125,6 +2036,53 @@ impl ast::AttrsOwner for MacroCall {
         self.attrs()
     }
 }
+impl MacroCall {
+    pub fn new() -> MacroCallBuilder {
+        MacroCallBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct MacroCallBuilder {
+    token_tree: Option<Box<TokenTreeBuilder>>,
+    path: Option<Box<PathBuilder>>,
+    name: Option<Box<NameBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+}
+impl MacroCallBuilder {
+    pub fn token_tree(mut self, f: TokenTreeBuilder) -> Self {
+        self.token_tree = Some(Box::new(f));
+        self
+    }
+    pub fn path(mut self, f: PathBuilder) -> Self {
+        self.path = Some(Box::new(f));
+        self
+    }
+    pub fn name(mut self, f: NameBuilder) -> Self {
+        self.name = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for MacroCallBuilder {
+    type Node = MacroCall;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::MACRO_CALL);
+        if let Some(b) = self.token_tree {
+            b.make(builder);
+        }
+        if let Some(b) = self.path {
+            b.make(builder);
+        }
+        if let Some(b) = self.name {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ImplItem {
     FnDef(FnDef),
@@ -1178,6 +2136,36 @@ impl ImplItem {
 impl ast::AttrsOwner for ImplItem {
     fn attrs(&self) -> AstChildren<Attr> {
         self.attrs()
+    }
+}
+pub enum ImplItemBuilder {
+    FnDefBuilder(Box<FnDefBuilder>),
+    TypeAliasDefBuilder(Box<TypeAliasDefBuilder>),
+    ConstDefBuilder(Box<ConstDefBuilder>),
+}
+impl From<FnDefBuilder> for ImplItemBuilder {
+    fn from(builder: FnDefBuilder) -> ImplItemBuilder {
+        ImplItemBuilder::FnDefBuilder(Box::new(builder))
+    }
+}
+impl From<TypeAliasDefBuilder> for ImplItemBuilder {
+    fn from(builder: TypeAliasDefBuilder) -> ImplItemBuilder {
+        ImplItemBuilder::TypeAliasDefBuilder(Box::new(builder))
+    }
+}
+impl From<ConstDefBuilder> for ImplItemBuilder {
+    fn from(builder: ConstDefBuilder) -> ImplItemBuilder {
+        ImplItemBuilder::ConstDefBuilder(Box::new(builder))
+    }
+}
+impl AstNodeBuilder for ImplItemBuilder {
+    type Node = ImplItem;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        match self {
+            ImplItemBuilder::FnDefBuilder(b) => b.make(builder),
+            ImplItemBuilder::TypeAliasDefBuilder(b) => b.make(builder),
+            ImplItemBuilder::ConstDefBuilder(b) => b.make(builder),
+        }
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1308,6 +2296,92 @@ impl ast::AttrsOwner for ModuleItem {
         self.attrs()
     }
 }
+pub enum ModuleItemBuilder {
+    StructDefBuilder(Box<StructDefBuilder>),
+    EnumDefBuilder(Box<EnumDefBuilder>),
+    FnDefBuilder(Box<FnDefBuilder>),
+    TraitDefBuilder(Box<TraitDefBuilder>),
+    TypeAliasDefBuilder(Box<TypeAliasDefBuilder>),
+    ImplBlockBuilder(Box<ImplBlockBuilder>),
+    UseItemBuilder(Box<UseItemBuilder>),
+    ExternCrateItemBuilder(Box<ExternCrateItemBuilder>),
+    ConstDefBuilder(Box<ConstDefBuilder>),
+    StaticDefBuilder(Box<StaticDefBuilder>),
+    ModuleBuilder(Box<ModuleBuilder>),
+}
+impl From<StructDefBuilder> for ModuleItemBuilder {
+    fn from(builder: StructDefBuilder) -> ModuleItemBuilder {
+        ModuleItemBuilder::StructDefBuilder(Box::new(builder))
+    }
+}
+impl From<EnumDefBuilder> for ModuleItemBuilder {
+    fn from(builder: EnumDefBuilder) -> ModuleItemBuilder {
+        ModuleItemBuilder::EnumDefBuilder(Box::new(builder))
+    }
+}
+impl From<FnDefBuilder> for ModuleItemBuilder {
+    fn from(builder: FnDefBuilder) -> ModuleItemBuilder {
+        ModuleItemBuilder::FnDefBuilder(Box::new(builder))
+    }
+}
+impl From<TraitDefBuilder> for ModuleItemBuilder {
+    fn from(builder: TraitDefBuilder) -> ModuleItemBuilder {
+        ModuleItemBuilder::TraitDefBuilder(Box::new(builder))
+    }
+}
+impl From<TypeAliasDefBuilder> for ModuleItemBuilder {
+    fn from(builder: TypeAliasDefBuilder) -> ModuleItemBuilder {
+        ModuleItemBuilder::TypeAliasDefBuilder(Box::new(builder))
+    }
+}
+impl From<ImplBlockBuilder> for ModuleItemBuilder {
+    fn from(builder: ImplBlockBuilder) -> ModuleItemBuilder {
+        ModuleItemBuilder::ImplBlockBuilder(Box::new(builder))
+    }
+}
+impl From<UseItemBuilder> for ModuleItemBuilder {
+    fn from(builder: UseItemBuilder) -> ModuleItemBuilder {
+        ModuleItemBuilder::UseItemBuilder(Box::new(builder))
+    }
+}
+impl From<ExternCrateItemBuilder> for ModuleItemBuilder {
+    fn from(builder: ExternCrateItemBuilder) -> ModuleItemBuilder {
+        ModuleItemBuilder::ExternCrateItemBuilder(Box::new(builder))
+    }
+}
+impl From<ConstDefBuilder> for ModuleItemBuilder {
+    fn from(builder: ConstDefBuilder) -> ModuleItemBuilder {
+        ModuleItemBuilder::ConstDefBuilder(Box::new(builder))
+    }
+}
+impl From<StaticDefBuilder> for ModuleItemBuilder {
+    fn from(builder: StaticDefBuilder) -> ModuleItemBuilder {
+        ModuleItemBuilder::StaticDefBuilder(Box::new(builder))
+    }
+}
+impl From<ModuleBuilder> for ModuleItemBuilder {
+    fn from(builder: ModuleBuilder) -> ModuleItemBuilder {
+        ModuleItemBuilder::ModuleBuilder(Box::new(builder))
+    }
+}
+impl AstNodeBuilder for ModuleItemBuilder {
+    type Node = ModuleItem;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        match self {
+            ModuleItemBuilder::StructDefBuilder(b) => b.make(builder),
+            ModuleItemBuilder::EnumDefBuilder(b) => b.make(builder),
+            ModuleItemBuilder::FnDefBuilder(b) => b.make(builder),
+            ModuleItemBuilder::TraitDefBuilder(b) => b.make(builder),
+            ModuleItemBuilder::TypeAliasDefBuilder(b) => b.make(builder),
+            ModuleItemBuilder::ImplBlockBuilder(b) => b.make(builder),
+            ModuleItemBuilder::UseItemBuilder(b) => b.make(builder),
+            ModuleItemBuilder::ExternCrateItemBuilder(b) => b.make(builder),
+            ModuleItemBuilder::ConstDefBuilder(b) => b.make(builder),
+            ModuleItemBuilder::StaticDefBuilder(b) => b.make(builder),
+            ModuleItemBuilder::ModuleBuilder(b) => b.make(builder),
+        }
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TraitDef {
     pub(crate) syntax: SyntaxNode,
@@ -1389,6 +2463,77 @@ impl ast::AttrsOwner for TraitDef {
         self.attrs()
     }
 }
+impl TraitDef {
+    pub fn new() -> TraitDefBuilder {
+        TraitDefBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct TraitDefBuilder {
+    item_list: Option<Box<ItemListBuilder>>,
+    visibility: Option<Box<VisibilityBuilder>>,
+    name: Option<Box<NameBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+    type_param_list: Option<Box<TypeParamListBuilder>>,
+    where_clause: Option<Box<WhereClauseBuilder>>,
+    type_bound_list: Option<Box<TypeBoundListBuilder>>,
+}
+impl TraitDefBuilder {
+    pub fn item_list(mut self, f: ItemListBuilder) -> Self {
+        self.item_list = Some(Box::new(f));
+        self
+    }
+    pub fn visibility(mut self, f: VisibilityBuilder) -> Self {
+        self.visibility = Some(Box::new(f));
+        self
+    }
+    pub fn name(mut self, f: NameBuilder) -> Self {
+        self.name = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+    pub fn type_param_list(mut self, f: TypeParamListBuilder) -> Self {
+        self.type_param_list = Some(Box::new(f));
+        self
+    }
+    pub fn where_clause(mut self, f: WhereClauseBuilder) -> Self {
+        self.where_clause = Some(Box::new(f));
+        self
+    }
+    pub fn type_bound_list(mut self, f: TypeBoundListBuilder) -> Self {
+        self.type_bound_list = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for TraitDefBuilder {
+    type Node = TraitDef;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::TRAIT_DEF);
+        if let Some(b) = self.item_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.visibility {
+            b.make(builder);
+        }
+        if let Some(b) = self.name {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        if let Some(b) = self.type_param_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.where_clause {
+            b.make(builder);
+        }
+        if let Some(b) = self.type_bound_list {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ImplBlock {
     pub(crate) syntax: SyntaxNode,
@@ -1438,6 +2583,53 @@ impl ast::AttrsOwner for ImplBlock {
         self.attrs()
     }
 }
+impl ImplBlock {
+    pub fn new() -> ImplBlockBuilder {
+        ImplBlockBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ImplBlockBuilder {
+    item_list: Option<Box<ItemListBuilder>>,
+    type_param_list: Option<Box<TypeParamListBuilder>>,
+    where_clause: Option<Box<WhereClauseBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+}
+impl ImplBlockBuilder {
+    pub fn item_list(mut self, f: ItemListBuilder) -> Self {
+        self.item_list = Some(Box::new(f));
+        self
+    }
+    pub fn type_param_list(mut self, f: TypeParamListBuilder) -> Self {
+        self.type_param_list = Some(Box::new(f));
+        self
+    }
+    pub fn where_clause(mut self, f: WhereClauseBuilder) -> Self {
+        self.where_clause = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ImplBlockBuilder {
+    type Node = ImplBlock;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::IMPL_BLOCK);
+        if let Some(b) = self.item_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.type_param_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.where_clause {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UseItem {
     pub(crate) syntax: SyntaxNode,
@@ -1471,6 +2663,37 @@ impl UseItem {
 impl ast::AttrsOwner for UseItem {
     fn attrs(&self) -> AstChildren<Attr> {
         self.attrs()
+    }
+}
+impl UseItem {
+    pub fn new() -> UseItemBuilder {
+        UseItemBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct UseItemBuilder {
+    use_tree: Option<Box<UseTreeBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+}
+impl UseItemBuilder {
+    pub fn use_tree(mut self, f: UseTreeBuilder) -> Self {
+        self.use_tree = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for UseItemBuilder {
+    type Node = UseItem;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::USE_ITEM);
+        if let Some(b) = self.use_tree {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1509,6 +2732,45 @@ impl ExternCrateItem {
 impl ast::AttrsOwner for ExternCrateItem {
     fn attrs(&self) -> AstChildren<Attr> {
         self.attrs()
+    }
+}
+impl ExternCrateItem {
+    pub fn new() -> ExternCrateItemBuilder {
+        ExternCrateItemBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ExternCrateItemBuilder {
+    name_ref: Option<Box<NameRefBuilder>>,
+    alias: Option<Box<AliasBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+}
+impl ExternCrateItemBuilder {
+    pub fn name_ref(mut self, f: NameRefBuilder) -> Self {
+        self.name_ref = Some(Box::new(f));
+        self
+    }
+    pub fn alia(mut self, f: AliasBuilder) -> Self {
+        self.alias = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ExternCrateItemBuilder {
+    type Node = ExternCrateItem;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::EXTERN_CRATE_ITEM);
+        if let Some(b) = self.name_ref {
+            b.make(builder);
+        }
+        if let Some(b) = self.alias {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1592,6 +2854,77 @@ impl ast::AttrsOwner for StaticDef {
         self.attrs()
     }
 }
+impl StaticDef {
+    pub fn new() -> StaticDefBuilder {
+        StaticDefBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct StaticDefBuilder {
+    body: Option<Box<ExprBuilder>>,
+    visibility: Option<Box<VisibilityBuilder>>,
+    name: Option<Box<NameBuilder>>,
+    type_param_list: Option<Box<TypeParamListBuilder>>,
+    where_clause: Option<Box<WhereClauseBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+    ascribed_type: Option<Box<TypeRefBuilder>>,
+}
+impl StaticDefBuilder {
+    pub fn body(mut self, f: ExprBuilder) -> Self {
+        self.body = Some(Box::new(f));
+        self
+    }
+    pub fn visibility(mut self, f: VisibilityBuilder) -> Self {
+        self.visibility = Some(Box::new(f));
+        self
+    }
+    pub fn name(mut self, f: NameBuilder) -> Self {
+        self.name = Some(Box::new(f));
+        self
+    }
+    pub fn type_param_list(mut self, f: TypeParamListBuilder) -> Self {
+        self.type_param_list = Some(Box::new(f));
+        self
+    }
+    pub fn where_clause(mut self, f: WhereClauseBuilder) -> Self {
+        self.where_clause = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+    pub fn ascribed_type(mut self, f: TypeRefBuilder) -> Self {
+        self.ascribed_type = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for StaticDefBuilder {
+    type Node = StaticDef;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::STATIC_DEF);
+        if let Some(b) = self.body {
+            b.make(builder);
+        }
+        if let Some(b) = self.visibility {
+            b.make(builder);
+        }
+        if let Some(b) = self.name {
+            b.make(builder);
+        }
+        if let Some(b) = self.type_param_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.where_clause {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        if let Some(b) = self.ascribed_type {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Module {
     pub(crate) syntax: SyntaxNode,
@@ -1649,6 +2982,53 @@ impl ast::DocCommentsOwner for Module {
 impl ast::AttrsOwner for Module {
     fn attrs(&self) -> AstChildren<Attr> {
         self.attrs()
+    }
+}
+impl Module {
+    pub fn new() -> ModuleBuilder {
+        ModuleBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ModuleBuilder {
+    item_list: Option<Box<ItemListBuilder>>,
+    visibility: Option<Box<VisibilityBuilder>>,
+    name: Option<Box<NameBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+}
+impl ModuleBuilder {
+    pub fn item_list(mut self, f: ItemListBuilder) -> Self {
+        self.item_list = Some(Box::new(f));
+        self
+    }
+    pub fn visibility(mut self, f: VisibilityBuilder) -> Self {
+        self.visibility = Some(Box::new(f));
+        self
+    }
+    pub fn name(mut self, f: NameBuilder) -> Self {
+        self.name = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ModuleBuilder {
+    type Node = Module;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::MODULE);
+        if let Some(b) = self.item_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.visibility {
+            b.make(builder);
+        }
+        if let Some(b) = self.name {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1726,6 +3106,29 @@ impl ast::NameOwner for NominalDef {
 impl ast::AttrsOwner for NominalDef {
     fn attrs(&self) -> AstChildren<Attr> {
         self.attrs()
+    }
+}
+pub enum NominalDefBuilder {
+    StructDefBuilder(Box<StructDefBuilder>),
+    EnumDefBuilder(Box<EnumDefBuilder>),
+}
+impl From<StructDefBuilder> for NominalDefBuilder {
+    fn from(builder: StructDefBuilder) -> NominalDefBuilder {
+        NominalDefBuilder::StructDefBuilder(Box::new(builder))
+    }
+}
+impl From<EnumDefBuilder> for NominalDefBuilder {
+    fn from(builder: EnumDefBuilder) -> NominalDefBuilder {
+        NominalDefBuilder::EnumDefBuilder(Box::new(builder))
+    }
+}
+impl AstNodeBuilder for NominalDefBuilder {
+    type Node = NominalDef;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        match self {
+            NominalDefBuilder::StructDefBuilder(b) => b.make(builder),
+            NominalDefBuilder::EnumDefBuilder(b) => b.make(builder),
+        }
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1848,6 +3251,99 @@ impl AstNode for Pat {
         }
     }
 }
+pub enum PatBuilder {
+    RefPatBuilder(Box<RefPatBuilder>),
+    BoxPatBuilder(Box<BoxPatBuilder>),
+    BindPatBuilder(Box<BindPatBuilder>),
+    PlaceholderPatBuilder(Box<PlaceholderPatBuilder>),
+    DotDotPatBuilder(Box<DotDotPatBuilder>),
+    PathPatBuilder(Box<PathPatBuilder>),
+    RecordPatBuilder(Box<RecordPatBuilder>),
+    TupleStructPatBuilder(Box<TupleStructPatBuilder>),
+    TuplePatBuilder(Box<TuplePatBuilder>),
+    SlicePatBuilder(Box<SlicePatBuilder>),
+    RangePatBuilder(Box<RangePatBuilder>),
+    LiteralPatBuilder(Box<LiteralPatBuilder>),
+}
+impl From<RefPatBuilder> for PatBuilder {
+    fn from(builder: RefPatBuilder) -> PatBuilder {
+        PatBuilder::RefPatBuilder(Box::new(builder))
+    }
+}
+impl From<BoxPatBuilder> for PatBuilder {
+    fn from(builder: BoxPatBuilder) -> PatBuilder {
+        PatBuilder::BoxPatBuilder(Box::new(builder))
+    }
+}
+impl From<BindPatBuilder> for PatBuilder {
+    fn from(builder: BindPatBuilder) -> PatBuilder {
+        PatBuilder::BindPatBuilder(Box::new(builder))
+    }
+}
+impl From<PlaceholderPatBuilder> for PatBuilder {
+    fn from(builder: PlaceholderPatBuilder) -> PatBuilder {
+        PatBuilder::PlaceholderPatBuilder(Box::new(builder))
+    }
+}
+impl From<DotDotPatBuilder> for PatBuilder {
+    fn from(builder: DotDotPatBuilder) -> PatBuilder {
+        PatBuilder::DotDotPatBuilder(Box::new(builder))
+    }
+}
+impl From<PathPatBuilder> for PatBuilder {
+    fn from(builder: PathPatBuilder) -> PatBuilder {
+        PatBuilder::PathPatBuilder(Box::new(builder))
+    }
+}
+impl From<RecordPatBuilder> for PatBuilder {
+    fn from(builder: RecordPatBuilder) -> PatBuilder {
+        PatBuilder::RecordPatBuilder(Box::new(builder))
+    }
+}
+impl From<TupleStructPatBuilder> for PatBuilder {
+    fn from(builder: TupleStructPatBuilder) -> PatBuilder {
+        PatBuilder::TupleStructPatBuilder(Box::new(builder))
+    }
+}
+impl From<TuplePatBuilder> for PatBuilder {
+    fn from(builder: TuplePatBuilder) -> PatBuilder {
+        PatBuilder::TuplePatBuilder(Box::new(builder))
+    }
+}
+impl From<SlicePatBuilder> for PatBuilder {
+    fn from(builder: SlicePatBuilder) -> PatBuilder {
+        PatBuilder::SlicePatBuilder(Box::new(builder))
+    }
+}
+impl From<RangePatBuilder> for PatBuilder {
+    fn from(builder: RangePatBuilder) -> PatBuilder {
+        PatBuilder::RangePatBuilder(Box::new(builder))
+    }
+}
+impl From<LiteralPatBuilder> for PatBuilder {
+    fn from(builder: LiteralPatBuilder) -> PatBuilder {
+        PatBuilder::LiteralPatBuilder(Box::new(builder))
+    }
+}
+impl AstNodeBuilder for PatBuilder {
+    type Node = Pat;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        match self {
+            PatBuilder::RefPatBuilder(b) => b.make(builder),
+            PatBuilder::BoxPatBuilder(b) => b.make(builder),
+            PatBuilder::BindPatBuilder(b) => b.make(builder),
+            PatBuilder::PlaceholderPatBuilder(b) => b.make(builder),
+            PatBuilder::DotDotPatBuilder(b) => b.make(builder),
+            PatBuilder::PathPatBuilder(b) => b.make(builder),
+            PatBuilder::RecordPatBuilder(b) => b.make(builder),
+            PatBuilder::TupleStructPatBuilder(b) => b.make(builder),
+            PatBuilder::TuplePatBuilder(b) => b.make(builder),
+            PatBuilder::SlicePatBuilder(b) => b.make(builder),
+            PatBuilder::RangePatBuilder(b) => b.make(builder),
+            PatBuilder::LiteralPatBuilder(b) => b.make(builder),
+        }
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefPat {
     pub(crate) syntax: SyntaxNode,
@@ -1875,6 +3371,31 @@ impl RefPat {
         super::child_opt(self)
     }
 }
+impl RefPat {
+    pub fn new() -> RefPatBuilder {
+        RefPatBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct RefPatBuilder {
+    pat: Option<Box<PatBuilder>>,
+}
+impl RefPatBuilder {
+    pub fn pat(mut self, f: PatBuilder) -> Self {
+        self.pat = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for RefPatBuilder {
+    type Node = RefPat;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::REF_PAT);
+        if let Some(b) = self.pat {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BoxPat {
     pub(crate) syntax: SyntaxNode,
@@ -1900,6 +3421,31 @@ impl AstNode for BoxPat {
 impl BoxPat {
     pub fn pat(&self) -> Option<Pat> {
         super::child_opt(self)
+    }
+}
+impl BoxPat {
+    pub fn new() -> BoxPatBuilder {
+        BoxPatBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct BoxPatBuilder {
+    pat: Option<Box<PatBuilder>>,
+}
+impl BoxPatBuilder {
+    pub fn pat(mut self, f: PatBuilder) -> Self {
+        self.pat = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for BoxPatBuilder {
+    type Node = BoxPat;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::BOX_PAT);
+        if let Some(b) = self.pat {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1935,6 +3481,39 @@ impl BindPat {
 impl ast::NameOwner for BindPat {
     fn name(&self) -> Option<Name> {
         self.name()
+    }
+}
+impl BindPat {
+    pub fn new() -> BindPatBuilder {
+        BindPatBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct BindPatBuilder {
+    pat: Option<Box<PatBuilder>>,
+    name: Option<Box<NameBuilder>>,
+}
+impl BindPatBuilder {
+    pub fn pat(mut self, f: PatBuilder) -> Self {
+        self.pat = Some(Box::new(f));
+        self
+    }
+    pub fn name(mut self, f: NameBuilder) -> Self {
+        self.name = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for BindPatBuilder {
+    type Node = BindPat;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::BIND_PAT);
+        if let Some(b) = self.pat {
+            b.make(builder);
+        }
+        if let Some(b) = self.name {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2008,6 +3587,31 @@ impl PathPat {
         super::child_opt(self)
     }
 }
+impl PathPat {
+    pub fn new() -> PathPatBuilder {
+        PathPatBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct PathPatBuilder {
+    path: Option<Box<PathBuilder>>,
+}
+impl PathPatBuilder {
+    pub fn path(mut self, f: PathBuilder) -> Self {
+        self.path = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for PathPatBuilder {
+    type Node = PathPat;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::PATH_PAT);
+        if let Some(b) = self.path {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordPat {
     pub(crate) syntax: SyntaxNode,
@@ -2036,6 +3640,39 @@ impl RecordPat {
     }
     pub fn path(&self) -> Option<Path> {
         super::child_opt(self)
+    }
+}
+impl RecordPat {
+    pub fn new() -> RecordPatBuilder {
+        RecordPatBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct RecordPatBuilder {
+    record_field_pat_list: Option<Box<RecordFieldPatListBuilder>>,
+    path: Option<Box<PathBuilder>>,
+}
+impl RecordPatBuilder {
+    pub fn record_field_pat_list(mut self, f: RecordFieldPatListBuilder) -> Self {
+        self.record_field_pat_list = Some(Box::new(f));
+        self
+    }
+    pub fn path(mut self, f: PathBuilder) -> Self {
+        self.path = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for RecordPatBuilder {
+    type Node = RecordPat;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::RECORD_PAT);
+        if let Some(b) = self.record_field_pat_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.path {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2068,6 +3705,37 @@ impl TupleStructPat {
         super::child_opt(self)
     }
 }
+impl TupleStructPat {
+    pub fn new() -> TupleStructPatBuilder {
+        TupleStructPatBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct TupleStructPatBuilder {
+    args: Vec<Box<PatBuilder>>,
+    path: Option<Box<PathBuilder>>,
+}
+impl TupleStructPatBuilder {
+    pub fn arg(mut self, f: PatBuilder) -> Self {
+        self.args.push(Box::new(f));
+        self
+    }
+    pub fn path(mut self, f: PathBuilder) -> Self {
+        self.path = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for TupleStructPatBuilder {
+    type Node = TupleStructPat;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::TUPLE_STRUCT_PAT);
+        self.args.into_iter().for_each(|b| b.make(builder));
+        if let Some(b) = self.path {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TuplePat {
     pub(crate) syntax: SyntaxNode,
@@ -2093,6 +3761,29 @@ impl AstNode for TuplePat {
 impl TuplePat {
     pub fn args(&self) -> AstChildren<Pat> {
         super::children(self)
+    }
+}
+impl TuplePat {
+    pub fn new() -> TuplePatBuilder {
+        TuplePatBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct TuplePatBuilder {
+    args: Vec<Box<PatBuilder>>,
+}
+impl TuplePatBuilder {
+    pub fn arg(mut self, f: PatBuilder) -> Self {
+        self.args.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for TuplePatBuilder {
+    type Node = TuplePat;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::TUPLE_PAT);
+        self.args.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2166,6 +3857,31 @@ impl LiteralPat {
         super::child_opt(self)
     }
 }
+impl LiteralPat {
+    pub fn new() -> LiteralPatBuilder {
+        LiteralPatBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct LiteralPatBuilder {
+    literal: Option<Box<LiteralBuilder>>,
+}
+impl LiteralPatBuilder {
+    pub fn literal(mut self, f: LiteralBuilder) -> Self {
+        self.literal = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for LiteralPatBuilder {
+    type Node = LiteralPat;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::LITERAL_PAT);
+        if let Some(b) = self.literal {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Stmt {
     ExprStmt(ExprStmt),
@@ -2203,6 +3919,29 @@ impl AstNode for Stmt {
         }
     }
 }
+pub enum StmtBuilder {
+    ExprStmtBuilder(Box<ExprStmtBuilder>),
+    LetStmtBuilder(Box<LetStmtBuilder>),
+}
+impl From<ExprStmtBuilder> for StmtBuilder {
+    fn from(builder: ExprStmtBuilder) -> StmtBuilder {
+        StmtBuilder::ExprStmtBuilder(Box::new(builder))
+    }
+}
+impl From<LetStmtBuilder> for StmtBuilder {
+    fn from(builder: LetStmtBuilder) -> StmtBuilder {
+        StmtBuilder::LetStmtBuilder(Box::new(builder))
+    }
+}
+impl AstNodeBuilder for StmtBuilder {
+    type Node = Stmt;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        match self {
+            StmtBuilder::ExprStmtBuilder(b) => b.make(builder),
+            StmtBuilder::LetStmtBuilder(b) => b.make(builder),
+        }
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExprStmt {
     pub(crate) syntax: SyntaxNode,
@@ -2228,6 +3967,31 @@ impl AstNode for ExprStmt {
 impl ExprStmt {
     pub fn expr(&self) -> Option<Expr> {
         super::child_opt(self)
+    }
+}
+impl ExprStmt {
+    pub fn new() -> ExprStmtBuilder {
+        ExprStmtBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ExprStmtBuilder {
+    expr: Option<Box<ExprBuilder>>,
+}
+impl ExprStmtBuilder {
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ExprStmtBuilder {
+    type Node = ExprStmt;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::EXPR_STMT);
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2266,6 +4030,47 @@ impl LetStmt {
 impl ast::TypeAscriptionOwner for LetStmt {
     fn ascribed_type(&self) -> Option<TypeRef> {
         self.ascribed_type()
+    }
+}
+impl LetStmt {
+    pub fn new() -> LetStmtBuilder {
+        LetStmtBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct LetStmtBuilder {
+    pat: Option<Box<PatBuilder>>,
+    initializer: Option<Box<ExprBuilder>>,
+    ascribed_type: Option<Box<TypeRefBuilder>>,
+}
+impl LetStmtBuilder {
+    pub fn pat(mut self, f: PatBuilder) -> Self {
+        self.pat = Some(Box::new(f));
+        self
+    }
+    pub fn initializer(mut self, f: ExprBuilder) -> Self {
+        self.initializer = Some(Box::new(f));
+        self
+    }
+    pub fn ascribed_type(mut self, f: TypeRefBuilder) -> Self {
+        self.ascribed_type = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for LetStmtBuilder {
+    type Node = LetStmt;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::LET_STMT);
+        if let Some(b) = self.pat {
+            b.make(builder);
+        }
+        if let Some(b) = self.initializer {
+            b.make(builder);
+        }
+        if let Some(b) = self.ascribed_type {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2395,6 +4200,106 @@ impl AstNode for TypeRef {
         }
     }
 }
+pub enum TypeRefBuilder {
+    ParenTypeBuilder(Box<ParenTypeBuilder>),
+    TupleTypeBuilder(Box<TupleTypeBuilder>),
+    NeverTypeBuilder(Box<NeverTypeBuilder>),
+    PathTypeBuilder(Box<PathTypeBuilder>),
+    PointerTypeBuilder(Box<PointerTypeBuilder>),
+    ArrayTypeBuilder(Box<ArrayTypeBuilder>),
+    SliceTypeBuilder(Box<SliceTypeBuilder>),
+    ReferenceTypeBuilder(Box<ReferenceTypeBuilder>),
+    PlaceholderTypeBuilder(Box<PlaceholderTypeBuilder>),
+    FnPointerTypeBuilder(Box<FnPointerTypeBuilder>),
+    ForTypeBuilder(Box<ForTypeBuilder>),
+    ImplTraitTypeBuilder(Box<ImplTraitTypeBuilder>),
+    DynTraitTypeBuilder(Box<DynTraitTypeBuilder>),
+}
+impl From<ParenTypeBuilder> for TypeRefBuilder {
+    fn from(builder: ParenTypeBuilder) -> TypeRefBuilder {
+        TypeRefBuilder::ParenTypeBuilder(Box::new(builder))
+    }
+}
+impl From<TupleTypeBuilder> for TypeRefBuilder {
+    fn from(builder: TupleTypeBuilder) -> TypeRefBuilder {
+        TypeRefBuilder::TupleTypeBuilder(Box::new(builder))
+    }
+}
+impl From<NeverTypeBuilder> for TypeRefBuilder {
+    fn from(builder: NeverTypeBuilder) -> TypeRefBuilder {
+        TypeRefBuilder::NeverTypeBuilder(Box::new(builder))
+    }
+}
+impl From<PathTypeBuilder> for TypeRefBuilder {
+    fn from(builder: PathTypeBuilder) -> TypeRefBuilder {
+        TypeRefBuilder::PathTypeBuilder(Box::new(builder))
+    }
+}
+impl From<PointerTypeBuilder> for TypeRefBuilder {
+    fn from(builder: PointerTypeBuilder) -> TypeRefBuilder {
+        TypeRefBuilder::PointerTypeBuilder(Box::new(builder))
+    }
+}
+impl From<ArrayTypeBuilder> for TypeRefBuilder {
+    fn from(builder: ArrayTypeBuilder) -> TypeRefBuilder {
+        TypeRefBuilder::ArrayTypeBuilder(Box::new(builder))
+    }
+}
+impl From<SliceTypeBuilder> for TypeRefBuilder {
+    fn from(builder: SliceTypeBuilder) -> TypeRefBuilder {
+        TypeRefBuilder::SliceTypeBuilder(Box::new(builder))
+    }
+}
+impl From<ReferenceTypeBuilder> for TypeRefBuilder {
+    fn from(builder: ReferenceTypeBuilder) -> TypeRefBuilder {
+        TypeRefBuilder::ReferenceTypeBuilder(Box::new(builder))
+    }
+}
+impl From<PlaceholderTypeBuilder> for TypeRefBuilder {
+    fn from(builder: PlaceholderTypeBuilder) -> TypeRefBuilder {
+        TypeRefBuilder::PlaceholderTypeBuilder(Box::new(builder))
+    }
+}
+impl From<FnPointerTypeBuilder> for TypeRefBuilder {
+    fn from(builder: FnPointerTypeBuilder) -> TypeRefBuilder {
+        TypeRefBuilder::FnPointerTypeBuilder(Box::new(builder))
+    }
+}
+impl From<ForTypeBuilder> for TypeRefBuilder {
+    fn from(builder: ForTypeBuilder) -> TypeRefBuilder {
+        TypeRefBuilder::ForTypeBuilder(Box::new(builder))
+    }
+}
+impl From<ImplTraitTypeBuilder> for TypeRefBuilder {
+    fn from(builder: ImplTraitTypeBuilder) -> TypeRefBuilder {
+        TypeRefBuilder::ImplTraitTypeBuilder(Box::new(builder))
+    }
+}
+impl From<DynTraitTypeBuilder> for TypeRefBuilder {
+    fn from(builder: DynTraitTypeBuilder) -> TypeRefBuilder {
+        TypeRefBuilder::DynTraitTypeBuilder(Box::new(builder))
+    }
+}
+impl AstNodeBuilder for TypeRefBuilder {
+    type Node = TypeRef;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        match self {
+            TypeRefBuilder::ParenTypeBuilder(b) => b.make(builder),
+            TypeRefBuilder::TupleTypeBuilder(b) => b.make(builder),
+            TypeRefBuilder::NeverTypeBuilder(b) => b.make(builder),
+            TypeRefBuilder::PathTypeBuilder(b) => b.make(builder),
+            TypeRefBuilder::PointerTypeBuilder(b) => b.make(builder),
+            TypeRefBuilder::ArrayTypeBuilder(b) => b.make(builder),
+            TypeRefBuilder::SliceTypeBuilder(b) => b.make(builder),
+            TypeRefBuilder::ReferenceTypeBuilder(b) => b.make(builder),
+            TypeRefBuilder::PlaceholderTypeBuilder(b) => b.make(builder),
+            TypeRefBuilder::FnPointerTypeBuilder(b) => b.make(builder),
+            TypeRefBuilder::ForTypeBuilder(b) => b.make(builder),
+            TypeRefBuilder::ImplTraitTypeBuilder(b) => b.make(builder),
+            TypeRefBuilder::DynTraitTypeBuilder(b) => b.make(builder),
+        }
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParenType {
     pub(crate) syntax: SyntaxNode,
@@ -2422,6 +4327,31 @@ impl ParenType {
         super::child_opt(self)
     }
 }
+impl ParenType {
+    pub fn new() -> ParenTypeBuilder {
+        ParenTypeBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ParenTypeBuilder {
+    type_ref: Option<Box<TypeRefBuilder>>,
+}
+impl ParenTypeBuilder {
+    pub fn type_ref(mut self, f: TypeRefBuilder) -> Self {
+        self.type_ref = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ParenTypeBuilder {
+    type Node = ParenType;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::PAREN_TYPE);
+        if let Some(b) = self.type_ref {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleType {
     pub(crate) syntax: SyntaxNode,
@@ -2447,6 +4377,31 @@ impl AstNode for TupleType {
 impl TupleType {
     pub fn fields(&self) -> AstChildren<TypeRef> {
         super::children(self)
+    }
+}
+impl TupleType {
+    pub fn new() -> TupleTypeBuilder {
+        TupleTypeBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct TupleTypeBuilder {
+    fields: Vec<Box<TypeRefBuilder>>,
+}
+impl TupleTypeBuilder {
+    pub fn field(mut self, f: TypeRefBuilder) -> Self {
+        self.fields.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for TupleTypeBuilder {
+    type Node = TupleType;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::TUPLE_TYPE);
+        builder.token(SyntaxKind::L_PAREN, SmolStr::new(T_STR!(L_PAREN)));
+        self.fields.into_iter().for_each(|b| b.make(builder));
+        builder.token(SyntaxKind::R_PAREN, SmolStr::new(T_STR!(R_PAREN)));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2498,6 +4453,31 @@ impl PointerType {
         super::child_opt(self)
     }
 }
+impl PointerType {
+    pub fn new() -> PointerTypeBuilder {
+        PointerTypeBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct PointerTypeBuilder {
+    type_ref: Option<Box<TypeRefBuilder>>,
+}
+impl PointerTypeBuilder {
+    pub fn type_ref(mut self, f: TypeRefBuilder) -> Self {
+        self.type_ref = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for PointerTypeBuilder {
+    type Node = PointerType;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::POINTER_TYPE);
+        if let Some(b) = self.type_ref {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayType {
     pub(crate) syntax: SyntaxNode,
@@ -2528,6 +4508,39 @@ impl ArrayType {
         super::child_opt(self)
     }
 }
+impl ArrayType {
+    pub fn new() -> ArrayTypeBuilder {
+        ArrayTypeBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ArrayTypeBuilder {
+    type_ref: Option<Box<TypeRefBuilder>>,
+    expr: Option<Box<ExprBuilder>>,
+}
+impl ArrayTypeBuilder {
+    pub fn type_ref(mut self, f: TypeRefBuilder) -> Self {
+        self.type_ref = Some(Box::new(f));
+        self
+    }
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ArrayTypeBuilder {
+    type Node = ArrayType;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::ARRAY_TYPE);
+        if let Some(b) = self.type_ref {
+            b.make(builder);
+        }
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SliceType {
     pub(crate) syntax: SyntaxNode,
@@ -2555,6 +4568,31 @@ impl SliceType {
         super::child_opt(self)
     }
 }
+impl SliceType {
+    pub fn new() -> SliceTypeBuilder {
+        SliceTypeBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct SliceTypeBuilder {
+    type_ref: Option<Box<TypeRefBuilder>>,
+}
+impl SliceTypeBuilder {
+    pub fn type_ref(mut self, f: TypeRefBuilder) -> Self {
+        self.type_ref = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for SliceTypeBuilder {
+    type Node = SliceType;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::SLICE_TYPE);
+        if let Some(b) = self.type_ref {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReferenceType {
     pub(crate) syntax: SyntaxNode,
@@ -2580,6 +4618,31 @@ impl AstNode for ReferenceType {
 impl ReferenceType {
     pub fn type_ref(&self) -> Option<TypeRef> {
         super::child_opt(self)
+    }
+}
+impl ReferenceType {
+    pub fn new() -> ReferenceTypeBuilder {
+        ReferenceTypeBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ReferenceTypeBuilder {
+    type_ref: Option<Box<TypeRefBuilder>>,
+}
+impl ReferenceTypeBuilder {
+    pub fn type_ref(mut self, f: TypeRefBuilder) -> Self {
+        self.type_ref = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ReferenceTypeBuilder {
+    type Node = ReferenceType;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::REFERENCE_TYPE);
+        if let Some(b) = self.type_ref {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2634,6 +4697,39 @@ impl FnPointerType {
         super::child_opt(self)
     }
 }
+impl FnPointerType {
+    pub fn new() -> FnPointerTypeBuilder {
+        FnPointerTypeBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct FnPointerTypeBuilder {
+    param_list: Option<Box<ParamListBuilder>>,
+    ret_type: Option<Box<RetTypeBuilder>>,
+}
+impl FnPointerTypeBuilder {
+    pub fn param_list(mut self, f: ParamListBuilder) -> Self {
+        self.param_list = Some(Box::new(f));
+        self
+    }
+    pub fn ret_type(mut self, f: RetTypeBuilder) -> Self {
+        self.ret_type = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for FnPointerTypeBuilder {
+    type Node = FnPointerType;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::FN_POINTER_TYPE);
+        if let Some(b) = self.param_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.ret_type {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ForType {
     pub(crate) syntax: SyntaxNode,
@@ -2659,6 +4755,31 @@ impl AstNode for ForType {
 impl ForType {
     pub fn type_ref(&self) -> Option<TypeRef> {
         super::child_opt(self)
+    }
+}
+impl ForType {
+    pub fn new() -> ForTypeBuilder {
+        ForTypeBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ForTypeBuilder {
+    type_ref: Option<Box<TypeRefBuilder>>,
+}
+impl ForTypeBuilder {
+    pub fn type_ref(mut self, f: TypeRefBuilder) -> Self {
+        self.type_ref = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ForTypeBuilder {
+    type Node = ForType;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::FOR_TYPE);
+        if let Some(b) = self.type_ref {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2693,6 +4814,31 @@ impl ast::TypeBoundsOwner for ImplTraitType {
         self.type_bound_list()
     }
 }
+impl ImplTraitType {
+    pub fn new() -> ImplTraitTypeBuilder {
+        ImplTraitTypeBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ImplTraitTypeBuilder {
+    type_bound_list: Option<Box<TypeBoundListBuilder>>,
+}
+impl ImplTraitTypeBuilder {
+    pub fn type_bound_list(mut self, f: TypeBoundListBuilder) -> Self {
+        self.type_bound_list = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ImplTraitTypeBuilder {
+    type Node = ImplTraitType;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::IMPL_TRAIT_TYPE);
+        if let Some(b) = self.type_bound_list {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DynTraitType {
     pub(crate) syntax: SyntaxNode,
@@ -2723,6 +4869,31 @@ impl DynTraitType {
 impl ast::TypeBoundsOwner for DynTraitType {
     fn type_bound_list(&self) -> Option<TypeBoundList> {
         self.type_bound_list()
+    }
+}
+impl DynTraitType {
+    pub fn new() -> DynTraitTypeBuilder {
+        DynTraitTypeBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct DynTraitTypeBuilder {
+    type_bound_list: Option<Box<TypeBoundListBuilder>>,
+}
+impl DynTraitTypeBuilder {
+    pub fn type_bound_list(mut self, f: TypeBoundListBuilder) -> Self {
+        self.type_bound_list = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for DynTraitTypeBuilder {
+    type Node = DynTraitType;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::DYN_TRAIT_TYPE);
+        if let Some(b) = self.type_bound_list {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2762,6 +4933,29 @@ impl AstNode for AttrInput {
         }
     }
 }
+pub enum AttrInputBuilder {
+    LiteralBuilder(Box<LiteralBuilder>),
+    TokenTreeBuilder(Box<TokenTreeBuilder>),
+}
+impl From<LiteralBuilder> for AttrInputBuilder {
+    fn from(builder: LiteralBuilder) -> AttrInputBuilder {
+        AttrInputBuilder::LiteralBuilder(Box::new(builder))
+    }
+}
+impl From<TokenTreeBuilder> for AttrInputBuilder {
+    fn from(builder: TokenTreeBuilder) -> AttrInputBuilder {
+        AttrInputBuilder::TokenTreeBuilder(Box::new(builder))
+    }
+}
+impl AstNodeBuilder for AttrInputBuilder {
+    type Node = AttrInput;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        match self {
+            AttrInputBuilder::LiteralBuilder(b) => b.make(builder),
+            AttrInputBuilder::TokenTreeBuilder(b) => b.make(builder),
+        }
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BlockExpr {
     pub(crate) syntax: SyntaxNode,
@@ -2787,6 +4981,31 @@ impl AstNode for BlockExpr {
 impl BlockExpr {
     pub fn block(&self) -> Option<Block> {
         super::child_opt(self)
+    }
+}
+impl BlockExpr {
+    pub fn new() -> BlockExprBuilder {
+        BlockExprBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct BlockExprBuilder {
+    block: Option<Box<BlockBuilder>>,
+}
+impl BlockExprBuilder {
+    pub fn block(mut self, f: BlockBuilder) -> Self {
+        self.block = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for BlockExprBuilder {
+    type Node = BlockExpr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::BLOCK_EXPR);
+        if let Some(b) = self.block {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2932,6 +5151,61 @@ impl ast::AttrsOwner for UnionDef {
         self.attrs()
     }
 }
+impl StructDef {
+    pub fn new() -> StructDefBuilder {
+        StructDefBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct StructDefBuilder {
+    visibility: Option<Box<VisibilityBuilder>>,
+    name: Option<Box<NameBuilder>>,
+    type_param_list: Option<Box<TypeParamListBuilder>>,
+    where_clause: Option<Box<WhereClauseBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+}
+impl StructDefBuilder {
+    pub fn visibility(mut self, f: VisibilityBuilder) -> Self {
+        self.visibility = Some(Box::new(f));
+        self
+    }
+    pub fn name(mut self, f: NameBuilder) -> Self {
+        self.name = Some(Box::new(f));
+        self
+    }
+    pub fn type_param_list(mut self, f: TypeParamListBuilder) -> Self {
+        self.type_param_list = Some(Box::new(f));
+        self
+    }
+    pub fn where_clause(mut self, f: WhereClauseBuilder) -> Self {
+        self.where_clause = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for StructDefBuilder {
+    type Node = StructDef;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::STRUCT_DEF);
+        if let Some(b) = self.visibility {
+            b.make(builder);
+        }
+        if let Some(b) = self.name {
+            b.make(builder);
+        }
+        if let Some(b) = self.type_param_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.where_clause {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EnumDef {
     pub(crate) syntax: SyntaxNode,
@@ -3003,6 +5277,69 @@ impl ast::DocCommentsOwner for EnumDef {
 impl ast::AttrsOwner for EnumDef {
     fn attrs(&self) -> AstChildren<Attr> {
         self.attrs()
+    }
+}
+impl EnumDef {
+    pub fn new() -> EnumDefBuilder {
+        EnumDefBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct EnumDefBuilder {
+    variant_list: Option<Box<EnumVariantListBuilder>>,
+    visibility: Option<Box<VisibilityBuilder>>,
+    name: Option<Box<NameBuilder>>,
+    type_param_list: Option<Box<TypeParamListBuilder>>,
+    where_clause: Option<Box<WhereClauseBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+}
+impl EnumDefBuilder {
+    pub fn variant_list(mut self, f: EnumVariantListBuilder) -> Self {
+        self.variant_list = Some(Box::new(f));
+        self
+    }
+    pub fn visibility(mut self, f: VisibilityBuilder) -> Self {
+        self.visibility = Some(Box::new(f));
+        self
+    }
+    pub fn name(mut self, f: NameBuilder) -> Self {
+        self.name = Some(Box::new(f));
+        self
+    }
+    pub fn type_param_list(mut self, f: TypeParamListBuilder) -> Self {
+        self.type_param_list = Some(Box::new(f));
+        self
+    }
+    pub fn where_clause(mut self, f: WhereClauseBuilder) -> Self {
+        self.where_clause = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for EnumDefBuilder {
+    type Node = EnumDef;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::ENUM_DEF);
+        if let Some(b) = self.variant_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.visibility {
+            b.make(builder);
+        }
+        if let Some(b) = self.name {
+            b.make(builder);
+        }
+        if let Some(b) = self.type_param_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.where_clause {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -3082,6 +5419,85 @@ impl ast::DocCommentsOwner for FnDef {
 impl ast::AttrsOwner for FnDef {
     fn attrs(&self) -> AstChildren<Attr> {
         self.attrs()
+    }
+}
+impl FnDef {
+    pub fn new() -> FnDefBuilder {
+        FnDefBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct FnDefBuilder {
+    param_list: Option<Box<ParamListBuilder>>,
+    body: Option<Box<BlockExprBuilder>>,
+    ret_type: Option<Box<RetTypeBuilder>>,
+    visibility: Option<Box<VisibilityBuilder>>,
+    name: Option<Box<NameBuilder>>,
+    type_param_list: Option<Box<TypeParamListBuilder>>,
+    where_clause: Option<Box<WhereClauseBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+}
+impl FnDefBuilder {
+    pub fn param_list(mut self, f: ParamListBuilder) -> Self {
+        self.param_list = Some(Box::new(f));
+        self
+    }
+    pub fn body(mut self, f: BlockExprBuilder) -> Self {
+        self.body = Some(Box::new(f));
+        self
+    }
+    pub fn ret_type(mut self, f: RetTypeBuilder) -> Self {
+        self.ret_type = Some(Box::new(f));
+        self
+    }
+    pub fn visibility(mut self, f: VisibilityBuilder) -> Self {
+        self.visibility = Some(Box::new(f));
+        self
+    }
+    pub fn name(mut self, f: NameBuilder) -> Self {
+        self.name = Some(Box::new(f));
+        self
+    }
+    pub fn type_param_list(mut self, f: TypeParamListBuilder) -> Self {
+        self.type_param_list = Some(Box::new(f));
+        self
+    }
+    pub fn where_clause(mut self, f: WhereClauseBuilder) -> Self {
+        self.where_clause = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for FnDefBuilder {
+    type Node = FnDef;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::FN_DEF);
+        if let Some(b) = self.param_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.body {
+            b.make(builder);
+        }
+        if let Some(b) = self.ret_type {
+            b.make(builder);
+        }
+        if let Some(b) = self.visibility {
+            b.make(builder);
+        }
+        if let Some(b) = self.name {
+            b.make(builder);
+        }
+        if let Some(b) = self.type_param_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.where_clause {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -3165,6 +5581,77 @@ impl ast::AttrsOwner for TypeAliasDef {
         self.attrs()
     }
 }
+impl TypeAliasDef {
+    pub fn new() -> TypeAliasDefBuilder {
+        TypeAliasDefBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct TypeAliasDefBuilder {
+    type_ref: Option<Box<TypeRefBuilder>>,
+    visibility: Option<Box<VisibilityBuilder>>,
+    name: Option<Box<NameBuilder>>,
+    type_param_list: Option<Box<TypeParamListBuilder>>,
+    where_clause: Option<Box<WhereClauseBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+    type_bound_list: Option<Box<TypeBoundListBuilder>>,
+}
+impl TypeAliasDefBuilder {
+    pub fn type_ref(mut self, f: TypeRefBuilder) -> Self {
+        self.type_ref = Some(Box::new(f));
+        self
+    }
+    pub fn visibility(mut self, f: VisibilityBuilder) -> Self {
+        self.visibility = Some(Box::new(f));
+        self
+    }
+    pub fn name(mut self, f: NameBuilder) -> Self {
+        self.name = Some(Box::new(f));
+        self
+    }
+    pub fn type_param_list(mut self, f: TypeParamListBuilder) -> Self {
+        self.type_param_list = Some(Box::new(f));
+        self
+    }
+    pub fn where_clause(mut self, f: WhereClauseBuilder) -> Self {
+        self.where_clause = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+    pub fn type_bound_list(mut self, f: TypeBoundListBuilder) -> Self {
+        self.type_bound_list = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for TypeAliasDefBuilder {
+    type Node = TypeAliasDef;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::TYPE_ALIAS_DEF);
+        if let Some(b) = self.type_ref {
+            b.make(builder);
+        }
+        if let Some(b) = self.visibility {
+            b.make(builder);
+        }
+        if let Some(b) = self.name {
+            b.make(builder);
+        }
+        if let Some(b) = self.type_param_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.where_clause {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        if let Some(b) = self.type_bound_list {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConstDef {
     pub(crate) syntax: SyntaxNode,
@@ -3246,6 +5733,77 @@ impl ast::AttrsOwner for ConstDef {
         self.attrs()
     }
 }
+impl ConstDef {
+    pub fn new() -> ConstDefBuilder {
+        ConstDefBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ConstDefBuilder {
+    body: Option<Box<ExprBuilder>>,
+    visibility: Option<Box<VisibilityBuilder>>,
+    name: Option<Box<NameBuilder>>,
+    type_param_list: Option<Box<TypeParamListBuilder>>,
+    where_clause: Option<Box<WhereClauseBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+    ascribed_type: Option<Box<TypeRefBuilder>>,
+}
+impl ConstDefBuilder {
+    pub fn body(mut self, f: ExprBuilder) -> Self {
+        self.body = Some(Box::new(f));
+        self
+    }
+    pub fn visibility(mut self, f: VisibilityBuilder) -> Self {
+        self.visibility = Some(Box::new(f));
+        self
+    }
+    pub fn name(mut self, f: NameBuilder) -> Self {
+        self.name = Some(Box::new(f));
+        self
+    }
+    pub fn type_param_list(mut self, f: TypeParamListBuilder) -> Self {
+        self.type_param_list = Some(Box::new(f));
+        self
+    }
+    pub fn where_clause(mut self, f: WhereClauseBuilder) -> Self {
+        self.where_clause = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+    pub fn ascribed_type(mut self, f: TypeRefBuilder) -> Self {
+        self.ascribed_type = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ConstDefBuilder {
+    type Node = ConstDef;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::CONST_DEF);
+        if let Some(b) = self.body {
+            b.make(builder);
+        }
+        if let Some(b) = self.visibility {
+            b.make(builder);
+        }
+        if let Some(b) = self.name {
+            b.make(builder);
+        }
+        if let Some(b) = self.type_param_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.where_clause {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        if let Some(b) = self.ascribed_type {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Literal {
     pub(crate) syntax: SyntaxNode,
@@ -3300,6 +5858,31 @@ impl ast::NameOwner for Alias {
         self.name()
     }
 }
+impl Alias {
+    pub fn new() -> AliasBuilder {
+        AliasBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct AliasBuilder {
+    name: Option<Box<NameBuilder>>,
+}
+impl AliasBuilder {
+    pub fn name(mut self, f: NameBuilder) -> Self {
+        self.name = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for AliasBuilder {
+    type Node = Alias;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::ALIAS);
+        if let Some(b) = self.name {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArgList {
     pub(crate) syntax: SyntaxNode,
@@ -3325,6 +5908,29 @@ impl AstNode for ArgList {
 impl ArgList {
     pub fn args(&self) -> AstChildren<Expr> {
         super::children(self)
+    }
+}
+impl ArgList {
+    pub fn new() -> ArgListBuilder {
+        ArgListBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ArgListBuilder {
+    args: Vec<Box<ExprBuilder>>,
+}
+impl ArgListBuilder {
+    pub fn arg(mut self, f: ExprBuilder) -> Self {
+        self.args.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ArgListBuilder {
+    type Node = ArgList;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::ARG_LIST);
+        self.args.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -3357,6 +5963,39 @@ impl AssocTypeArg {
         super::child_opt(self)
     }
 }
+impl AssocTypeArg {
+    pub fn new() -> AssocTypeArgBuilder {
+        AssocTypeArgBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct AssocTypeArgBuilder {
+    name_ref: Option<Box<NameRefBuilder>>,
+    type_ref: Option<Box<TypeRefBuilder>>,
+}
+impl AssocTypeArgBuilder {
+    pub fn name_ref(mut self, f: NameRefBuilder) -> Self {
+        self.name_ref = Some(Box::new(f));
+        self
+    }
+    pub fn type_ref(mut self, f: TypeRefBuilder) -> Self {
+        self.type_ref = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for AssocTypeArgBuilder {
+    type Node = AssocTypeArg;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::ASSOC_TYPE_ARG);
+        if let Some(b) = self.name_ref {
+            b.make(builder);
+        }
+        if let Some(b) = self.type_ref {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Attr {
     pub(crate) syntax: SyntaxNode,
@@ -3385,6 +6024,39 @@ impl Attr {
     }
     pub fn input(&self) -> Option<AttrInput> {
         super::child_opt(self)
+    }
+}
+impl Attr {
+    pub fn new() -> AttrBuilder {
+        AttrBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct AttrBuilder {
+    path: Option<Box<PathBuilder>>,
+    input: Option<Box<AttrInputBuilder>>,
+}
+impl AttrBuilder {
+    pub fn path(mut self, f: PathBuilder) -> Self {
+        self.path = Some(Box::new(f));
+        self
+    }
+    pub fn input(mut self, f: AttrInputBuilder) -> Self {
+        self.input = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for AttrBuilder {
+    type Node = Attr;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::ATTR);
+        if let Some(b) = self.path {
+            b.make(builder);
+        }
+        if let Some(b) = self.input {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -3425,6 +6097,43 @@ impl ast::AttrsOwner for Block {
         self.attrs()
     }
 }
+impl Block {
+    pub fn new() -> BlockBuilder {
+        BlockBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct BlockBuilder {
+    statements: Vec<Box<StmtBuilder>>,
+    expr: Option<Box<ExprBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+}
+impl BlockBuilder {
+    pub fn statement(mut self, f: StmtBuilder) -> Self {
+        self.statements.push(Box::new(f));
+        self
+    }
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for BlockBuilder {
+    type Node = Block;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::BLOCK);
+        self.statements.into_iter().for_each(|b| b.make(builder));
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Condition {
     pub(crate) syntax: SyntaxNode,
@@ -3453,6 +6162,39 @@ impl Condition {
     }
     pub fn expr(&self) -> Option<Expr> {
         super::child_opt(self)
+    }
+}
+impl Condition {
+    pub fn new() -> ConditionBuilder {
+        ConditionBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ConditionBuilder {
+    pat: Option<Box<PatBuilder>>,
+    expr: Option<Box<ExprBuilder>>,
+}
+impl ConditionBuilder {
+    pub fn pat(mut self, f: PatBuilder) -> Self {
+        self.pat = Some(Box::new(f));
+        self
+    }
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ConditionBuilder {
+    type Node = Condition;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::CONDITION);
+        if let Some(b) = self.pat {
+            b.make(builder);
+        }
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -3506,6 +6248,45 @@ impl ast::AttrsOwner for EnumVariant {
         self.attrs()
     }
 }
+impl EnumVariant {
+    pub fn new() -> EnumVariantBuilder {
+        EnumVariantBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct EnumVariantBuilder {
+    expr: Option<Box<ExprBuilder>>,
+    name: Option<Box<NameBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+}
+impl EnumVariantBuilder {
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+    pub fn name(mut self, f: NameBuilder) -> Self {
+        self.name = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for EnumVariantBuilder {
+    type Node = EnumVariant;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::ENUM_VARIANT);
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        if let Some(b) = self.name {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EnumVariantList {
     pub(crate) syntax: SyntaxNode,
@@ -3531,6 +6312,29 @@ impl AstNode for EnumVariantList {
 impl EnumVariantList {
     pub fn variants(&self) -> AstChildren<EnumVariant> {
         super::children(self)
+    }
+}
+impl EnumVariantList {
+    pub fn new() -> EnumVariantListBuilder {
+        EnumVariantListBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct EnumVariantListBuilder {
+    variants: Vec<Box<EnumVariantBuilder>>,
+}
+impl EnumVariantListBuilder {
+    pub fn variant(mut self, f: EnumVariantBuilder) -> Self {
+        self.variants.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for EnumVariantListBuilder {
+    type Node = EnumVariantList;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::ENUM_VARIANT_LIST);
+        self.variants.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -3568,6 +6372,39 @@ impl ast::NameOwner for RecordFieldPat {
         self.name()
     }
 }
+impl RecordFieldPat {
+    pub fn new() -> RecordFieldPatBuilder {
+        RecordFieldPatBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct RecordFieldPatBuilder {
+    pat: Option<Box<PatBuilder>>,
+    name: Option<Box<NameBuilder>>,
+}
+impl RecordFieldPatBuilder {
+    pub fn pat(mut self, f: PatBuilder) -> Self {
+        self.pat = Some(Box::new(f));
+        self
+    }
+    pub fn name(mut self, f: NameBuilder) -> Self {
+        self.name = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for RecordFieldPatBuilder {
+    type Node = RecordFieldPat;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::RECORD_FIELD_PAT);
+        if let Some(b) = self.pat {
+            b.make(builder);
+        }
+        if let Some(b) = self.name {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordFieldPatList {
     pub(crate) syntax: SyntaxNode,
@@ -3596,6 +6433,35 @@ impl RecordFieldPatList {
     }
     pub fn bind_pats(&self) -> AstChildren<BindPat> {
         super::children(self)
+    }
+}
+impl RecordFieldPatList {
+    pub fn new() -> RecordFieldPatListBuilder {
+        RecordFieldPatListBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct RecordFieldPatListBuilder {
+    record_field_pats: Vec<Box<RecordFieldPatBuilder>>,
+    bind_pats: Vec<Box<BindPatBuilder>>,
+}
+impl RecordFieldPatListBuilder {
+    pub fn record_field_pat(mut self, f: RecordFieldPatBuilder) -> Self {
+        self.record_field_pats.push(Box::new(f));
+        self
+    }
+    pub fn bind_pat(mut self, f: BindPatBuilder) -> Self {
+        self.bind_pats.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for RecordFieldPatListBuilder {
+    type Node = RecordFieldPatList;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::RECORD_FIELD_PAT_LIST);
+        self.record_field_pats.into_iter().for_each(|b| b.make(builder));
+        self.bind_pats.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -3639,6 +6505,41 @@ impl ast::FnDefOwner for ItemList {
 impl ast::ModuleItemOwner for ItemList {
     fn items(&self) -> AstChildren<ModuleItem> {
         self.items()
+    }
+}
+impl ItemList {
+    pub fn new() -> ItemListBuilder {
+        ItemListBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ItemListBuilder {
+    impl_items: Vec<Box<ImplItemBuilder>>,
+    functions: Vec<Box<FnDefBuilder>>,
+    items: Vec<Box<ModuleItemBuilder>>,
+}
+impl ItemListBuilder {
+    pub fn impl_item(mut self, f: ImplItemBuilder) -> Self {
+        self.impl_items.push(Box::new(f));
+        self
+    }
+    pub fn function(mut self, f: FnDefBuilder) -> Self {
+        self.functions.push(Box::new(f));
+        self
+    }
+    pub fn item(mut self, f: ModuleItemBuilder) -> Self {
+        self.items.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ItemListBuilder {
+    type Node = ItemList;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::ITEM_LIST);
+        self.impl_items.into_iter().for_each(|b| b.make(builder));
+        self.functions.into_iter().for_each(|b| b.make(builder));
+        self.items.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -3695,6 +6596,29 @@ impl ast::AttrsOwner for LifetimeParam {
         self.attrs()
     }
 }
+impl LifetimeParam {
+    pub fn new() -> LifetimeParamBuilder {
+        LifetimeParamBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct LifetimeParamBuilder {
+    attrs: Vec<Box<AttrBuilder>>,
+}
+impl LifetimeParamBuilder {
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for LifetimeParamBuilder {
+    type Node = LifetimeParam;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::LIFETIME_PARAM);
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroItems {
     pub(crate) syntax: SyntaxNode,
@@ -3735,6 +6659,35 @@ impl ast::ModuleItemOwner for MacroItems {
         self.items()
     }
 }
+impl MacroItems {
+    pub fn new() -> MacroItemsBuilder {
+        MacroItemsBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct MacroItemsBuilder {
+    items: Vec<Box<ModuleItemBuilder>>,
+    functions: Vec<Box<FnDefBuilder>>,
+}
+impl MacroItemsBuilder {
+    pub fn item(mut self, f: ModuleItemBuilder) -> Self {
+        self.items.push(Box::new(f));
+        self
+    }
+    pub fn function(mut self, f: FnDefBuilder) -> Self {
+        self.functions.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for MacroItemsBuilder {
+    type Node = MacroItems;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::MACRO_ITEMS);
+        self.items.into_iter().for_each(|b| b.make(builder));
+        self.functions.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroStmts {
     pub(crate) syntax: SyntaxNode,
@@ -3763,6 +6716,37 @@ impl MacroStmts {
     }
     pub fn expr(&self) -> Option<Expr> {
         super::child_opt(self)
+    }
+}
+impl MacroStmts {
+    pub fn new() -> MacroStmtsBuilder {
+        MacroStmtsBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct MacroStmtsBuilder {
+    statements: Vec<Box<StmtBuilder>>,
+    expr: Option<Box<ExprBuilder>>,
+}
+impl MacroStmtsBuilder {
+    pub fn statement(mut self, f: StmtBuilder) -> Self {
+        self.statements.push(Box::new(f));
+        self
+    }
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for MacroStmtsBuilder {
+    type Node = MacroStmts;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::MACRO_STMTS);
+        self.statements.into_iter().for_each(|b| b.make(builder));
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -3806,6 +6790,51 @@ impl ast::AttrsOwner for MatchArm {
         self.attrs()
     }
 }
+impl MatchArm {
+    pub fn new() -> MatchArmBuilder {
+        MatchArmBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct MatchArmBuilder {
+    pats: Vec<Box<PatBuilder>>,
+    guard: Option<Box<MatchGuardBuilder>>,
+    expr: Option<Box<ExprBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+}
+impl MatchArmBuilder {
+    pub fn pat(mut self, f: PatBuilder) -> Self {
+        self.pats.push(Box::new(f));
+        self
+    }
+    pub fn guard(mut self, f: MatchGuardBuilder) -> Self {
+        self.guard = Some(Box::new(f));
+        self
+    }
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for MatchArmBuilder {
+    type Node = MatchArm;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::MATCH_ARM);
+        self.pats.into_iter().for_each(|b| b.make(builder));
+        if let Some(b) = self.guard {
+            b.make(builder);
+        }
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchArmList {
     pub(crate) syntax: SyntaxNode,
@@ -3841,6 +6870,35 @@ impl ast::AttrsOwner for MatchArmList {
         self.attrs()
     }
 }
+impl MatchArmList {
+    pub fn new() -> MatchArmListBuilder {
+        MatchArmListBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct MatchArmListBuilder {
+    arms: Vec<Box<MatchArmBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+}
+impl MatchArmListBuilder {
+    pub fn arm(mut self, f: MatchArmBuilder) -> Self {
+        self.arms.push(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for MatchArmListBuilder {
+    type Node = MatchArmList;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::MATCH_ARM_LIST);
+        self.arms.into_iter().for_each(|b| b.make(builder));
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchGuard {
     pub(crate) syntax: SyntaxNode,
@@ -3866,6 +6924,31 @@ impl AstNode for MatchGuard {
 impl MatchGuard {
     pub fn expr(&self) -> Option<Expr> {
         super::child_opt(self)
+    }
+}
+impl MatchGuard {
+    pub fn new() -> MatchGuardBuilder {
+        MatchGuardBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct MatchGuardBuilder {
+    expr: Option<Box<ExprBuilder>>,
+}
+impl MatchGuardBuilder {
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for MatchGuardBuilder {
+    type Node = MatchGuard;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::MATCH_GUARD);
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -3942,6 +7025,39 @@ impl RecordField {
         super::child_opt(self)
     }
 }
+impl RecordField {
+    pub fn new() -> RecordFieldBuilder {
+        RecordFieldBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct RecordFieldBuilder {
+    name_ref: Option<Box<NameRefBuilder>>,
+    expr: Option<Box<ExprBuilder>>,
+}
+impl RecordFieldBuilder {
+    pub fn name_ref(mut self, f: NameRefBuilder) -> Self {
+        self.name_ref = Some(Box::new(f));
+        self
+    }
+    pub fn expr(mut self, f: ExprBuilder) -> Self {
+        self.expr = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for RecordFieldBuilder {
+    type Node = RecordField;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::RECORD_FIELD);
+        if let Some(b) = self.name_ref {
+            b.make(builder);
+        }
+        if let Some(b) = self.expr {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordFieldDef {
     pub(crate) syntax: SyntaxNode,
@@ -4006,6 +7122,54 @@ impl ast::AttrsOwner for RecordFieldDef {
         self.attrs()
     }
 }
+impl RecordFieldDef {
+    pub fn new() -> RecordFieldDefBuilder {
+        RecordFieldDefBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct RecordFieldDefBuilder {
+    visibility: Option<Box<VisibilityBuilder>>,
+    name: Option<Box<NameBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+    ascribed_type: Option<Box<TypeRefBuilder>>,
+}
+impl RecordFieldDefBuilder {
+    pub fn visibility(mut self, f: VisibilityBuilder) -> Self {
+        self.visibility = Some(Box::new(f));
+        self
+    }
+    pub fn name(mut self, f: NameBuilder) -> Self {
+        self.name = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+    pub fn ascribed_type(mut self, f: TypeRefBuilder) -> Self {
+        self.ascribed_type = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for RecordFieldDefBuilder {
+    type Node = RecordFieldDef;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::RECORD_FIELD_DEF);
+        if let Some(b) = self.visibility {
+            b.make(builder);
+        }
+        if let Some(b) = self.name {
+            b.make(builder);
+        }
+        builder.token(SyntaxKind::COLON, SmolStr::new(T_STR!(COLON)));
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        if let Some(b) = self.ascribed_type {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordFieldDefList {
     pub(crate) syntax: SyntaxNode,
@@ -4031,6 +7195,34 @@ impl AstNode for RecordFieldDefList {
 impl RecordFieldDefList {
     pub fn fields(&self) -> AstChildren<RecordFieldDef> {
         super::children(self)
+    }
+}
+impl RecordFieldDefList {
+    pub fn new() -> RecordFieldDefListBuilder {
+        RecordFieldDefListBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct RecordFieldDefListBuilder {
+    fields: Vec<Box<RecordFieldDefBuilder>>,
+}
+impl RecordFieldDefListBuilder {
+    pub fn field(mut self, f: RecordFieldDefBuilder) -> Self {
+        self.fields.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for RecordFieldDefListBuilder {
+    type Node = RecordFieldDefList;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::RECORD_FIELD_DEF_LIST);
+        builder.token(SyntaxKind::L_CURLY, SmolStr::new(T_STR!(L_CURLY)));
+        for b in self.fields {
+            b.make(builder);
+            builder.token(SyntaxKind::COMMA, SmolStr::new(T_STR!(COMMA)));
+        }
+        builder.token(SyntaxKind::R_CURLY, SmolStr::new(T_STR!(R_CURLY)));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -4061,6 +7253,39 @@ impl RecordFieldList {
     }
     pub fn spread(&self) -> Option<Expr> {
         super::child_opt(self)
+    }
+}
+impl RecordFieldList {
+    pub fn new() -> RecordFieldListBuilder {
+        RecordFieldListBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct RecordFieldListBuilder {
+    fields: Vec<Box<RecordFieldBuilder>>,
+    spread: Option<Box<ExprBuilder>>,
+}
+impl RecordFieldListBuilder {
+    pub fn field(mut self, f: RecordFieldBuilder) -> Self {
+        self.fields.push(Box::new(f));
+        self
+    }
+    pub fn spread(mut self, f: ExprBuilder) -> Self {
+        self.spread = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for RecordFieldListBuilder {
+    type Node = RecordFieldList;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::RECORD_FIELD_LIST);
+        builder.token(SyntaxKind::L_CURLY, SmolStr::new(T_STR!(L_CURLY)));
+        self.fields.into_iter().for_each(|b| b.make(builder));
+        if let Some(b) = self.spread {
+            b.make(builder);
+        }
+        builder.token(SyntaxKind::R_CURLY, SmolStr::new(T_STR!(R_CURLY)));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -4106,6 +7331,45 @@ impl ast::AttrsOwner for Param {
         self.attrs()
     }
 }
+impl Param {
+    pub fn new() -> ParamBuilder {
+        ParamBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ParamBuilder {
+    pat: Option<Box<PatBuilder>>,
+    ascribed_type: Option<Box<TypeRefBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+}
+impl ParamBuilder {
+    pub fn pat(mut self, f: PatBuilder) -> Self {
+        self.pat = Some(Box::new(f));
+        self
+    }
+    pub fn ascribed_type(mut self, f: TypeRefBuilder) -> Self {
+        self.ascribed_type = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ParamBuilder {
+    type Node = Param;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::PARAM);
+        if let Some(b) = self.pat {
+            b.make(builder);
+        }
+        if let Some(b) = self.ascribed_type {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParamList {
     pub(crate) syntax: SyntaxNode,
@@ -4136,6 +7400,37 @@ impl ParamList {
         super::child_opt(self)
     }
 }
+impl ParamList {
+    pub fn new() -> ParamListBuilder {
+        ParamListBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct ParamListBuilder {
+    params: Vec<Box<ParamBuilder>>,
+    self_param: Option<Box<SelfParamBuilder>>,
+}
+impl ParamListBuilder {
+    pub fn param(mut self, f: ParamBuilder) -> Self {
+        self.params.push(Box::new(f));
+        self
+    }
+    pub fn self_param(mut self, f: SelfParamBuilder) -> Self {
+        self.self_param = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for ParamListBuilder {
+    type Node = ParamList;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::PARAM_LIST);
+        self.params.into_iter().for_each(|b| b.make(builder));
+        if let Some(b) = self.self_param {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathType {
     pub(crate) syntax: SyntaxNode,
@@ -4161,6 +7456,31 @@ impl AstNode for PathType {
 impl PathType {
     pub fn path(&self) -> Option<Path> {
         super::child_opt(self)
+    }
+}
+impl PathType {
+    pub fn new() -> PathTypeBuilder {
+        PathTypeBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct PathTypeBuilder {
+    path: Option<Box<PathBuilder>>,
+}
+impl PathTypeBuilder {
+    pub fn path(mut self, f: PathBuilder) -> Self {
+        self.path = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for PathTypeBuilder {
+    type Node = PathType;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::PATH_TYPE);
+        if let Some(b) = self.path {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -4191,6 +7511,39 @@ impl Path {
     }
     pub fn qualifier(&self) -> Option<Path> {
         super::child_opt(self)
+    }
+}
+impl Path {
+    pub fn new() -> PathBuilder {
+        PathBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct PathBuilder {
+    segment: Option<Box<PathSegmentBuilder>>,
+    qualifier: Option<Box<PathBuilder>>,
+}
+impl PathBuilder {
+    pub fn segment(mut self, f: PathSegmentBuilder) -> Self {
+        self.segment = Some(Box::new(f));
+        self
+    }
+    pub fn qualifier(mut self, f: PathBuilder) -> Self {
+        self.qualifier = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for PathBuilder {
+    type Node = Path;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::PATH);
+        if let Some(b) = self.segment {
+            b.make(builder);
+        }
+        if let Some(b) = self.qualifier {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -4230,6 +7583,63 @@ impl PathSegment {
     }
     pub fn path_type(&self) -> Option<PathType> {
         super::child_opt(self)
+    }
+}
+impl PathSegment {
+    pub fn new() -> PathSegmentBuilder {
+        PathSegmentBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct PathSegmentBuilder {
+    name_ref: Option<Box<NameRefBuilder>>,
+    type_arg_list: Option<Box<TypeArgListBuilder>>,
+    param_list: Option<Box<ParamListBuilder>>,
+    ret_type: Option<Box<RetTypeBuilder>>,
+    path_type: Option<Box<PathTypeBuilder>>,
+}
+impl PathSegmentBuilder {
+    pub fn name_ref(mut self, f: NameRefBuilder) -> Self {
+        self.name_ref = Some(Box::new(f));
+        self
+    }
+    pub fn type_arg_list(mut self, f: TypeArgListBuilder) -> Self {
+        self.type_arg_list = Some(Box::new(f));
+        self
+    }
+    pub fn param_list(mut self, f: ParamListBuilder) -> Self {
+        self.param_list = Some(Box::new(f));
+        self
+    }
+    pub fn ret_type(mut self, f: RetTypeBuilder) -> Self {
+        self.ret_type = Some(Box::new(f));
+        self
+    }
+    pub fn path_type(mut self, f: PathTypeBuilder) -> Self {
+        self.path_type = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for PathSegmentBuilder {
+    type Node = PathSegment;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::PATH_SEGMENT);
+        if let Some(b) = self.name_ref {
+            b.make(builder);
+        }
+        if let Some(b) = self.type_arg_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.param_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.ret_type {
+            b.make(builder);
+        }
+        if let Some(b) = self.path_type {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -4275,6 +7685,45 @@ impl ast::AttrsOwner for TupleFieldDef {
         self.attrs()
     }
 }
+impl TupleFieldDef {
+    pub fn new() -> TupleFieldDefBuilder {
+        TupleFieldDefBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct TupleFieldDefBuilder {
+    type_ref: Option<Box<TypeRefBuilder>>,
+    visibility: Option<Box<VisibilityBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+}
+impl TupleFieldDefBuilder {
+    pub fn type_ref(mut self, f: TypeRefBuilder) -> Self {
+        self.type_ref = Some(Box::new(f));
+        self
+    }
+    pub fn visibility(mut self, f: VisibilityBuilder) -> Self {
+        self.visibility = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for TupleFieldDefBuilder {
+    type Node = TupleFieldDef;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::TUPLE_FIELD_DEF);
+        if let Some(b) = self.type_ref {
+            b.make(builder);
+        }
+        if let Some(b) = self.visibility {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleFieldDefList {
     pub(crate) syntax: SyntaxNode,
@@ -4302,6 +7751,29 @@ impl TupleFieldDefList {
         super::children(self)
     }
 }
+impl TupleFieldDefList {
+    pub fn new() -> TupleFieldDefListBuilder {
+        TupleFieldDefListBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct TupleFieldDefListBuilder {
+    fields: Vec<Box<TupleFieldDefBuilder>>,
+}
+impl TupleFieldDefListBuilder {
+    pub fn field(mut self, f: TupleFieldDefBuilder) -> Self {
+        self.fields.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for TupleFieldDefListBuilder {
+    type Node = TupleFieldDefList;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::TUPLE_FIELD_DEF_LIST);
+        self.fields.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RetType {
     pub(crate) syntax: SyntaxNode,
@@ -4327,6 +7799,31 @@ impl AstNode for RetType {
 impl RetType {
     pub fn type_ref(&self) -> Option<TypeRef> {
         super::child_opt(self)
+    }
+}
+impl RetType {
+    pub fn new() -> RetTypeBuilder {
+        RetTypeBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct RetTypeBuilder {
+    type_ref: Option<Box<TypeRefBuilder>>,
+}
+impl RetTypeBuilder {
+    pub fn type_ref(mut self, f: TypeRefBuilder) -> Self {
+        self.type_ref = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for RetTypeBuilder {
+    type Node = RetType;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::RET_TYPE);
+        if let Some(b) = self.type_ref {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -4367,6 +7864,37 @@ impl ast::TypeAscriptionOwner for SelfParam {
 impl ast::AttrsOwner for SelfParam {
     fn attrs(&self) -> AstChildren<Attr> {
         self.attrs()
+    }
+}
+impl SelfParam {
+    pub fn new() -> SelfParamBuilder {
+        SelfParamBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct SelfParamBuilder {
+    ascribed_type: Option<Box<TypeRefBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+}
+impl SelfParamBuilder {
+    pub fn ascribed_type(mut self, f: TypeRefBuilder) -> Self {
+        self.ascribed_type = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for SelfParamBuilder {
+    type Node = SelfParam;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::SELF_PARAM);
+        if let Some(b) = self.ascribed_type {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -4410,6 +7938,41 @@ impl ast::FnDefOwner for SourceFile {
 impl ast::ModuleItemOwner for SourceFile {
     fn items(&self) -> AstChildren<ModuleItem> {
         self.items()
+    }
+}
+impl SourceFile {
+    pub fn new() -> SourceFileBuilder {
+        SourceFileBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct SourceFileBuilder {
+    modules: Vec<Box<ModuleBuilder>>,
+    items: Vec<Box<ModuleItemBuilder>>,
+    functions: Vec<Box<FnDefBuilder>>,
+}
+impl SourceFileBuilder {
+    pub fn module(mut self, f: ModuleBuilder) -> Self {
+        self.modules.push(Box::new(f));
+        self
+    }
+    pub fn item(mut self, f: ModuleItemBuilder) -> Self {
+        self.items.push(Box::new(f));
+        self
+    }
+    pub fn function(mut self, f: FnDefBuilder) -> Self {
+        self.functions.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for SourceFileBuilder {
+    type Node = SourceFile;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::SOURCE_FILE);
+        self.modules.into_iter().for_each(|b| b.make(builder));
+        self.items.into_iter().for_each(|b| b.make(builder));
+        self.functions.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -4461,6 +8024,31 @@ impl TypeArg {
         super::child_opt(self)
     }
 }
+impl TypeArg {
+    pub fn new() -> TypeArgBuilder {
+        TypeArgBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct TypeArgBuilder {
+    type_ref: Option<Box<TypeRefBuilder>>,
+}
+impl TypeArgBuilder {
+    pub fn type_ref(mut self, f: TypeRefBuilder) -> Self {
+        self.type_ref = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for TypeArgBuilder {
+    type Node = TypeArg;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::TYPE_ARG);
+        if let Some(b) = self.type_ref {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeArgList {
     pub(crate) syntax: SyntaxNode,
@@ -4494,6 +8082,41 @@ impl TypeArgList {
         super::children(self)
     }
 }
+impl TypeArgList {
+    pub fn new() -> TypeArgListBuilder {
+        TypeArgListBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct TypeArgListBuilder {
+    type_args: Vec<Box<TypeArgBuilder>>,
+    lifetime_args: Vec<Box<LifetimeArgBuilder>>,
+    assoc_type_args: Vec<Box<AssocTypeArgBuilder>>,
+}
+impl TypeArgListBuilder {
+    pub fn type_arg(mut self, f: TypeArgBuilder) -> Self {
+        self.type_args.push(Box::new(f));
+        self
+    }
+    pub fn lifetime_arg(mut self, f: LifetimeArgBuilder) -> Self {
+        self.lifetime_args.push(Box::new(f));
+        self
+    }
+    pub fn assoc_type_arg(mut self, f: AssocTypeArgBuilder) -> Self {
+        self.assoc_type_args.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for TypeArgListBuilder {
+    type Node = TypeArgList;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::TYPE_ARG_LIST);
+        self.type_args.into_iter().for_each(|b| b.make(builder));
+        self.lifetime_args.into_iter().for_each(|b| b.make(builder));
+        self.assoc_type_args.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeBound {
     pub(crate) syntax: SyntaxNode,
@@ -4521,6 +8144,31 @@ impl TypeBound {
         super::child_opt(self)
     }
 }
+impl TypeBound {
+    pub fn new() -> TypeBoundBuilder {
+        TypeBoundBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct TypeBoundBuilder {
+    type_ref: Option<Box<TypeRefBuilder>>,
+}
+impl TypeBoundBuilder {
+    pub fn type_ref(mut self, f: TypeRefBuilder) -> Self {
+        self.type_ref = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for TypeBoundBuilder {
+    type Node = TypeBound;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::TYPE_BOUND);
+        if let Some(b) = self.type_ref {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeBoundList {
     pub(crate) syntax: SyntaxNode,
@@ -4546,6 +8194,29 @@ impl AstNode for TypeBoundList {
 impl TypeBoundList {
     pub fn bounds(&self) -> AstChildren<TypeBound> {
         super::children(self)
+    }
+}
+impl TypeBoundList {
+    pub fn new() -> TypeBoundListBuilder {
+        TypeBoundListBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct TypeBoundListBuilder {
+    bounds: Vec<Box<TypeBoundBuilder>>,
+}
+impl TypeBoundListBuilder {
+    pub fn bound(mut self, f: TypeBoundBuilder) -> Self {
+        self.bounds.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for TypeBoundListBuilder {
+    type Node = TypeBoundList;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::TYPE_BOUND_LIST);
+        self.bounds.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -4599,6 +8270,53 @@ impl ast::AttrsOwner for TypeParam {
         self.attrs()
     }
 }
+impl TypeParam {
+    pub fn new() -> TypeParamBuilder {
+        TypeParamBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct TypeParamBuilder {
+    name: Option<Box<NameBuilder>>,
+    attrs: Vec<Box<AttrBuilder>>,
+    type_bound_list: Option<Box<TypeBoundListBuilder>>,
+    default_type: Option<Box<TypeRefBuilder>>,
+}
+impl TypeParamBuilder {
+    pub fn name(mut self, f: NameBuilder) -> Self {
+        self.name = Some(Box::new(f));
+        self
+    }
+    pub fn attr(mut self, f: AttrBuilder) -> Self {
+        self.attrs.push(Box::new(f));
+        self
+    }
+    pub fn type_bound_list(mut self, f: TypeBoundListBuilder) -> Self {
+        self.type_bound_list = Some(Box::new(f));
+        self
+    }
+    pub fn default_type(mut self, f: TypeRefBuilder) -> Self {
+        self.default_type = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for TypeParamBuilder {
+    type Node = TypeParam;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::TYPE_PARAM);
+        if let Some(b) = self.name {
+            b.make(builder);
+        }
+        self.attrs.into_iter().for_each(|b| b.make(builder));
+        if let Some(b) = self.type_bound_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.default_type {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeParamList {
     pub(crate) syntax: SyntaxNode,
@@ -4627,6 +8345,35 @@ impl TypeParamList {
     }
     pub fn lifetime_params(&self) -> AstChildren<LifetimeParam> {
         super::children(self)
+    }
+}
+impl TypeParamList {
+    pub fn new() -> TypeParamListBuilder {
+        TypeParamListBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct TypeParamListBuilder {
+    type_params: Vec<Box<TypeParamBuilder>>,
+    lifetime_params: Vec<Box<LifetimeParamBuilder>>,
+}
+impl TypeParamListBuilder {
+    pub fn type_param(mut self, f: TypeParamBuilder) -> Self {
+        self.type_params.push(Box::new(f));
+        self
+    }
+    pub fn lifetime_param(mut self, f: LifetimeParamBuilder) -> Self {
+        self.lifetime_params.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for TypeParamListBuilder {
+    type Node = TypeParamList;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::TYPE_PARAM_LIST);
+        self.type_params.into_iter().for_each(|b| b.make(builder));
+        self.lifetime_params.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -4662,6 +8409,47 @@ impl UseTree {
         super::child_opt(self)
     }
 }
+impl UseTree {
+    pub fn new() -> UseTreeBuilder {
+        UseTreeBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct UseTreeBuilder {
+    path: Option<Box<PathBuilder>>,
+    use_tree_list: Option<Box<UseTreeListBuilder>>,
+    alias: Option<Box<AliasBuilder>>,
+}
+impl UseTreeBuilder {
+    pub fn path(mut self, f: PathBuilder) -> Self {
+        self.path = Some(Box::new(f));
+        self
+    }
+    pub fn use_tree_list(mut self, f: UseTreeListBuilder) -> Self {
+        self.use_tree_list = Some(Box::new(f));
+        self
+    }
+    pub fn alia(mut self, f: AliasBuilder) -> Self {
+        self.alias = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for UseTreeBuilder {
+    type Node = UseTree;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::USE_TREE);
+        if let Some(b) = self.path {
+            b.make(builder);
+        }
+        if let Some(b) = self.use_tree_list {
+            b.make(builder);
+        }
+        if let Some(b) = self.alias {
+            b.make(builder);
+        }
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UseTreeList {
     pub(crate) syntax: SyntaxNode,
@@ -4687,6 +8475,29 @@ impl AstNode for UseTreeList {
 impl UseTreeList {
     pub fn use_trees(&self) -> AstChildren<UseTree> {
         super::children(self)
+    }
+}
+impl UseTreeList {
+    pub fn new() -> UseTreeListBuilder {
+        UseTreeListBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct UseTreeListBuilder {
+    use_trees: Vec<Box<UseTreeBuilder>>,
+}
+impl UseTreeListBuilder {
+    pub fn use_tree(mut self, f: UseTreeBuilder) -> Self {
+        self.use_trees.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for UseTreeListBuilder {
+    type Node = UseTreeList;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::USE_TREE_LIST);
+        self.use_trees.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -4738,6 +8549,29 @@ impl WhereClause {
         super::children(self)
     }
 }
+impl WhereClause {
+    pub fn new() -> WhereClauseBuilder {
+        WhereClauseBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct WhereClauseBuilder {
+    predicates: Vec<Box<WherePredBuilder>>,
+}
+impl WhereClauseBuilder {
+    pub fn predicate(mut self, f: WherePredBuilder) -> Self {
+        self.predicates.push(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for WhereClauseBuilder {
+    type Node = WhereClause;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::WHERE_CLAUSE);
+        self.predicates.into_iter().for_each(|b| b.make(builder));
+        builder.finish_node();
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WherePred {
     pub(crate) syntax: SyntaxNode,
@@ -4771,5 +8605,38 @@ impl WherePred {
 impl ast::TypeBoundsOwner for WherePred {
     fn type_bound_list(&self) -> Option<TypeBoundList> {
         self.type_bound_list()
+    }
+}
+impl WherePred {
+    pub fn new() -> WherePredBuilder {
+        WherePredBuilder::default()
+    }
+}
+#[derive(Default)]
+pub struct WherePredBuilder {
+    type_ref: Option<Box<TypeRefBuilder>>,
+    type_bound_list: Option<Box<TypeBoundListBuilder>>,
+}
+impl WherePredBuilder {
+    pub fn type_ref(mut self, f: TypeRefBuilder) -> Self {
+        self.type_ref = Some(Box::new(f));
+        self
+    }
+    pub fn type_bound_list(mut self, f: TypeBoundListBuilder) -> Self {
+        self.type_bound_list = Some(Box::new(f));
+        self
+    }
+}
+impl AstNodeBuilder for WherePredBuilder {
+    type Node = WherePred;
+    fn make(self, builder: &mut SyntaxTreeBuilder) {
+        builder.start_node(SyntaxKind::WHERE_PRED);
+        if let Some(b) = self.type_ref {
+            b.make(builder);
+        }
+        if let Some(b) = self.type_bound_list {
+            b.make(builder);
+        }
+        builder.finish_node();
     }
 }

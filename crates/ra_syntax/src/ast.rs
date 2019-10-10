@@ -6,6 +6,7 @@ mod tokens;
 mod extensions;
 mod expr_extensions;
 pub mod edit;
+mod builders;
 pub mod make;
 
 use std::marker::PhantomData;
@@ -16,6 +17,7 @@ use crate::{
 };
 
 pub use self::{
+    builders::*,
     expr_extensions::{ArrayExprKind, BinOp, ElseBranch, LiteralKind, PrefixOp, RangeOp},
     extensions::{FieldKind, PathSegmentKind, SelfParamKind, StructKind, TypeBoundKind},
     generated::*,

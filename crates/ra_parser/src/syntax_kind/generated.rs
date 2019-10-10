@@ -641,3 +641,291 @@ macro_rules! T {
         $crate::SyntaxKind::UNION_KW
     };
 }
+#[macro_export]
+macro_rules! T_STR {
+    ( SEMI ) => {
+        ";"
+    };
+    ( COMMA ) => {
+        ","
+    };
+    ( L_PAREN ) => {
+        "("
+    };
+    ( R_PAREN ) => {
+        ")"
+    };
+    ( L_CURLY ) => {
+        "{"
+    };
+    ( R_CURLY ) => {
+        "}"
+    };
+    ( L_BRACK ) => {
+        "["
+    };
+    ( R_BRACK ) => {
+        "]"
+    };
+    ( L_ANGLE ) => {
+        "<"
+    };
+    ( R_ANGLE ) => {
+        ">"
+    };
+    ( AT ) => {
+        "@"
+    };
+    ( POUND ) => {
+        "#"
+    };
+    ( TILDE ) => {
+        "~"
+    };
+    ( QUESTION ) => {
+        "?"
+    };
+    ( DOLLAR ) => {
+        "$"
+    };
+    ( AMP ) => {
+        "&"
+    };
+    ( PIPE ) => {
+        "|"
+    };
+    ( PLUS ) => {
+        "+"
+    };
+    ( STAR ) => {
+        "*"
+    };
+    ( SLASH ) => {
+        "/"
+    };
+    ( CARET ) => {
+        "^"
+    };
+    ( PERCENT ) => {
+        "%"
+    };
+    ( UNDERSCORE ) => {
+        "_"
+    };
+    ( DOT ) => {
+        "."
+    };
+    ( DOTDOT ) => {
+        ".."
+    };
+    ( DOTDOTDOT ) => {
+        "..."
+    };
+    ( DOTDOTEQ ) => {
+        "..="
+    };
+    ( COLON ) => {
+        ":"
+    };
+    ( COLONCOLON ) => {
+        "::"
+    };
+    ( EQ ) => {
+        "="
+    };
+    ( EQEQ ) => {
+        "=="
+    };
+    ( FAT_ARROW ) => {
+        "=>"
+    };
+    ( EXCL ) => {
+        "!"
+    };
+    ( NEQ ) => {
+        "!="
+    };
+    ( MINUS ) => {
+        "-"
+    };
+    ( THIN_ARROW ) => {
+        "->"
+    };
+    ( LTEQ ) => {
+        "<="
+    };
+    ( GTEQ ) => {
+        ">="
+    };
+    ( PLUSEQ ) => {
+        "+="
+    };
+    ( MINUSEQ ) => {
+        "-="
+    };
+    ( PIPEEQ ) => {
+        "|="
+    };
+    ( AMPEQ ) => {
+        "&="
+    };
+    ( CARETEQ ) => {
+        "^="
+    };
+    ( SLASHEQ ) => {
+        "/="
+    };
+    ( STAREQ ) => {
+        "*="
+    };
+    ( PERCENTEQ ) => {
+        "%="
+    };
+    ( AMPAMP ) => {
+        "&&"
+    };
+    ( PIPEPIPE ) => {
+        "||"
+    };
+    ( SHL ) => {
+        "<<"
+    };
+    ( SHR ) => {
+        ">>"
+    };
+    ( SHLEQ ) => {
+        "<<="
+    };
+    ( SHREQ ) => {
+        ">>="
+    };
+    ( ASYNC_KW ) => {
+        "async"
+    };
+    ( USE_KW ) => {
+        "use"
+    };
+    ( FN_KW ) => {
+        "fn"
+    };
+    ( STRUCT_KW ) => {
+        "struct"
+    };
+    ( ENUM_KW ) => {
+        "enum"
+    };
+    ( TRAIT_KW ) => {
+        "trait"
+    };
+    ( IMPL_KW ) => {
+        "impl"
+    };
+    ( DYN_KW ) => {
+        "dyn"
+    };
+    ( TRUE_KW ) => {
+        "true"
+    };
+    ( FALSE_KW ) => {
+        "false"
+    };
+    ( AS_KW ) => {
+        "as"
+    };
+    ( EXTERN_KW ) => {
+        "extern"
+    };
+    ( CRATE_KW ) => {
+        "crate"
+    };
+    ( MOD_KW ) => {
+        "mod"
+    };
+    ( PUB_KW ) => {
+        "pub"
+    };
+    ( SELF_KW ) => {
+        "self"
+    };
+    ( SUPER_KW ) => {
+        "super"
+    };
+    ( IN_KW ) => {
+        "in"
+    };
+    ( WHERE_KW ) => {
+        "where"
+    };
+    ( FOR_KW ) => {
+        "for"
+    };
+    ( LOOP_KW ) => {
+        "loop"
+    };
+    ( WHILE_KW ) => {
+        "while"
+    };
+    ( CONTINUE_KW ) => {
+        "continue"
+    };
+    ( BREAK_KW ) => {
+        "break"
+    };
+    ( IF_KW ) => {
+        "if"
+    };
+    ( ELSE_KW ) => {
+        "else"
+    };
+    ( MATCH_KW ) => {
+        "match"
+    };
+    ( CONST_KW ) => {
+        "const"
+    };
+    ( STATIC_KW ) => {
+        "static"
+    };
+    ( MUT_KW ) => {
+        "mut"
+    };
+    ( UNSAFE_KW ) => {
+        "unsafe"
+    };
+    ( TYPE_KW ) => {
+        "type"
+    };
+    ( REF_KW ) => {
+        "ref"
+    };
+    ( LET_KW ) => {
+        "let"
+    };
+    ( MOVE_KW ) => {
+        "move"
+    };
+    ( RETURN_KW ) => {
+        "return"
+    };
+    ( TRY_KW ) => {
+        "try"
+    };
+    ( BOX_KW ) => {
+        "box"
+    };
+    ( AWAIT_KW ) => {
+        "await"
+    };
+    ( AUTO_KW ) => {
+        "auto"
+    };
+    ( DEFAULT_KW ) => {
+        "default"
+    };
+    ( EXISTENTIAL_KW ) => {
+        "existential"
+    };
+    ( UNION_KW ) => {
+        "union"
+    };
+}
