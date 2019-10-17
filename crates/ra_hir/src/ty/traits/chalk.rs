@@ -71,8 +71,18 @@ impl ToChalk for Ty {
             // maybe an alternative would be `for<T> T`? (meaningless in rust, but expressible in chalk's Ty)
             //
             // FIXME also dyn and impl Trait are currently handled like Unknown because Chalk doesn't have them yet
-            Ty::Unknown | Ty::Dyn(_) | Ty::Opaque(_) => {
+            Ty::Unknown => {
                 PlaceholderIndex { ui: UniverseIndex::ROOT, idx: usize::max_value() }.to_ty()
+            }
+            Ty::Dyn(preds) => {
+                let clauses =
+                    preds.iter().cloned().map(|p| GenericPredicate::to_chalk(p, db)).collect::<_>();
+                chalk_ir::Ty::Dyn(make_binders(clauses, 0))
+            }
+            Ty::Opaque(preds) => {
+                let clauses =
+                    preds.iter().cloned().map(|p| GenericPredicate::to_chalk(p, db)).collect::<_>();
+                chalk_ir::Ty::Opaque(make_binders(clauses, 0))
             }
         }
     }
@@ -99,6 +109,12 @@ impl ToChalk for Ty {
                         Ty::Param { idx: idx.idx as u32, name: crate::Name::missing() }
                     }
                 }
+            }
+            chalk_ir::Ty::Dyn(binders) => {
+                Ty::Dyn(binders.value.iter().cloned().map(|b| from_chalk(db, b)).collect())
+            }
+            chalk_ir::Ty::Opaque(binders) => {
+                Ty::Opaque(binders.value.iter().cloned().map(|b| from_chalk(db, b)).collect())
             }
             chalk_ir::Ty::Projection(proj) => {
                 let associated_ty = from_chalk(db, proj.associated_ty_id);
@@ -221,11 +237,20 @@ impl ToChalk for GenericPredicate {
     }
 
     fn from_chalk(
-        _db: &impl HirDatabase,
-        _where_clause: chalk_ir::QuantifiedWhereClause,
+        db: &impl HirDatabase,
+        where_clause: chalk_ir::QuantifiedWhereClause,
     ) -> GenericPredicate {
-        // This should never need to be called
-        unimplemented!()
+        match where_clause.value {
+            chalk_ir::WhereClause::Implemented(trait_ref) => {
+                GenericPredicate::Implemented(from_chalk(db, trait_ref))
+            }
+            chalk_ir::WhereClause::ProjectionEq(projection_eq) => {
+                GenericPredicate::Projection(crate::ty::traits::ProjectionPredicate {
+                    projection_ty: from_chalk(db, projection_eq.projection),
+                    ty: from_chalk(db, projection_eq.ty),
+                })
+            }
+        }
     }
 }
 
