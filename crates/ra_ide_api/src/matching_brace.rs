@@ -3,8 +3,11 @@
 use ra_syntax::{ast::AstNode, SourceFile, SyntaxKind, TextUnit, T};
 
 pub fn matching_brace(file: &SourceFile, offset: TextUnit) -> Option<TextUnit> {
+    const L_BRACE: usize = 0;
+    const R_BRACE: usize = 1;
     const BRACES: &[SyntaxKind] =
         &[T!['{'], T!['}'], T!['['], T![']'], T!['('], T![')'], T![<], T![>]];
+
     let (brace_node, brace_idx) = file
         .syntax()
         .token_at_offset(offset)
@@ -14,9 +17,15 @@ pub fn matching_brace(file: &SourceFile, offset: TextUnit) -> Option<TextUnit> {
         })
         .next()?;
     let parent = brace_node.parent();
-    let matching_kind = BRACES[brace_idx ^ 1];
+    let brace_pos = brace_idx ^ 1;
+    let matching_kind = BRACES[brace_pos];
     let matching_node = parent.children_with_tokens().find(|node| node.kind() == matching_kind)?;
-    Some(matching_node.text_range().start())
+
+    match brace_pos % 2 {
+        L_BRACE => Some(matching_node.text_range().start()),
+        R_BRACE => Some(matching_node.text_range().end()),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -39,5 +48,8 @@ mod tests {
         }
 
         do_check("struct Foo { a: i32, }<|>", "struct Foo <|>{ a: i32, }");
+        do_check("struct Foo <|>{ a: i32, }", "struct Foo { a: i32, }<|>");
+        do_check("let foo = vec!<|>[i32; 0]", "let foo = vec![i32; 0]<|>");
+        do_check("let foo = vec![i32; 0]<|>", "let foo = vec!<|>[i32; 0]");
     }
 }
