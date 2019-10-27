@@ -82,6 +82,7 @@ impl Path {
 
     /// Converts an `ast::Path` to `Path`. Works with use trees.
     /// DEPRECATED: It does not handle `$crate` from macro call.
+    #[deprecated(note = "Use from_src")]
     pub fn from_ast(path: ast::Path) -> Option<Path> {
         Path::parse(path, &|| None)
     }
