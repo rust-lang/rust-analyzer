@@ -235,7 +235,9 @@ fn position_of_child(parent: &SyntaxNode, child: SyntaxElement) -> usize {
         .expect("element is not a child of current element")
 }
 
-fn to_green_element(element: SyntaxElement) -> NodeOrToken<Arc<rowan::GreenNode>, rowan::GreenToken> {
+fn to_green_element(
+    element: SyntaxElement,
+) -> NodeOrToken<Arc<rowan::GreenNode>, rowan::GreenToken> {
     match element {
         NodeOrToken::Node(it) => it.green().to_owned().into(),
         NodeOrToken::Token(it) => it.green().clone().into(),
