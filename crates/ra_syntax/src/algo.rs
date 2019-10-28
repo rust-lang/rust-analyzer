@@ -1,6 +1,7 @@
 //! FIXME: write short doc here
 
 use std::ops::RangeInclusive;
+use std::sync::Arc;
 
 use itertools::Itertools;
 use ra_text_edit::TextEditBuilder;
@@ -194,17 +195,17 @@ pub fn replace_descendants(
     fn go(
         map: &FxHashMap<SyntaxElement, SyntaxElement>,
         element: SyntaxElement,
-    ) -> NodeOrToken<rowan::GreenNode, rowan::GreenToken> {
+    ) -> NodeOrToken<Arc<rowan::GreenNode>, rowan::GreenToken> {
         if let Some(replacement) = map.get(&element) {
             return match replacement {
-                NodeOrToken::Node(it) => NodeOrToken::Node(it.green().clone()),
+                NodeOrToken::Node(it) => NodeOrToken::Node(it.green().to_owned()),
                 NodeOrToken::Token(it) => NodeOrToken::Token(it.green().clone()),
             };
         }
         match element {
             NodeOrToken::Token(it) => NodeOrToken::Token(it.green().clone()),
             NodeOrToken::Node(it) => {
-                NodeOrToken::Node(replace_descendants(&it, map).green().clone())
+                NodeOrToken::Node(replace_descendants(&it, map).green().to_owned())
             }
         }
     }
@@ -212,7 +213,7 @@ pub fn replace_descendants(
 
 fn with_children(
     parent: &SyntaxNode,
-    new_children: Box<[NodeOrToken<rowan::GreenNode, rowan::GreenToken>]>,
+    new_children: Box<[NodeOrToken<Arc<rowan::GreenNode>, rowan::GreenToken>]>,
 ) -> SyntaxNode {
     let len = new_children.iter().map(|it| it.text_len()).sum::<TextUnit>();
     let new_node =
@@ -234,9 +235,9 @@ fn position_of_child(parent: &SyntaxNode, child: SyntaxElement) -> usize {
         .expect("element is not a child of current element")
 }
 
-fn to_green_element(element: SyntaxElement) -> NodeOrToken<rowan::GreenNode, rowan::GreenToken> {
+fn to_green_element(element: SyntaxElement) -> NodeOrToken<Arc<rowan::GreenNode>, rowan::GreenToken> {
     match element {
-        NodeOrToken::Node(it) => it.green().clone().into(),
+        NodeOrToken::Node(it) => it.green().to_owned().into(),
         NodeOrToken::Token(it) => it.green().clone().into(),
     }
 }

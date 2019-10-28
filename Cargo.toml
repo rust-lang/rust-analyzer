@@ -9,3 +9,4 @@ incremental = true
 debug = 1 # only line info
 
 [patch.'crates-io']
+rowan = { git = "https://github.com/CAD97/rowan.git", branch = "trailing-objects-for-real" }

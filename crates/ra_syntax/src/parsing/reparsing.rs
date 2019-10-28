@@ -8,6 +8,7 @@
 
 use ra_parser::Reparser;
 use ra_text_edit::AtomTextEdit;
+use std::sync::Arc;
 
 use crate::{
     algo,
@@ -26,7 +27,7 @@ pub(crate) fn incremental_reparse(
     node: &SyntaxNode,
     edit: &AtomTextEdit,
     errors: Vec<SyntaxError>,
-) -> Option<(GreenNode, Vec<SyntaxError>, TextRange)> {
+) -> Option<(Arc<GreenNode>, Vec<SyntaxError>, TextRange)> {
     if let Some((green, old_range)) = reparse_token(node, &edit) {
         return Some((green, merge_errors(errors, Vec::new(), old_range, edit), old_range));
     }
@@ -40,7 +41,7 @@ pub(crate) fn incremental_reparse(
 fn reparse_token<'node>(
     root: &'node SyntaxNode,
     edit: &AtomTextEdit,
-) -> Option<(GreenNode, TextRange)> {
+) -> Option<(Arc<GreenNode>, TextRange)> {
     let token = algo::find_covering_element(root, edit.delete).as_token()?.clone();
     match token.kind() {
         WHITESPACE | COMMENT | IDENT | STRING | RAW_STRING => {
@@ -81,7 +82,7 @@ fn reparse_token<'node>(
 fn reparse_block<'node>(
     root: &'node SyntaxNode,
     edit: &AtomTextEdit,
-) -> Option<(GreenNode, Vec<SyntaxError>, TextRange)> {
+) -> Option<(Arc<GreenNode>, Vec<SyntaxError>, TextRange)> {
     let (node, reparser) = find_reparsable_node(root, edit.delete)?;
     let text = get_text_after_edit(node.clone().into(), &edit);
     let tokens = tokenize(&text);

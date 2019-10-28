@@ -58,7 +58,7 @@ pub use rowan::{SmolStr, SyntaxText, TextRange, TextUnit, TokenAtOffset, WalkEve
 /// files.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Parse<T> {
-    green: GreenNode,
+    green: Arc<GreenNode>,
     errors: Arc<Vec<SyntaxError>>,
     _ty: PhantomData<fn() -> T>,
 }
@@ -70,7 +70,7 @@ impl<T> Clone for Parse<T> {
 }
 
 impl<T> Parse<T> {
-    fn new(green: GreenNode, errors: Vec<SyntaxError>) -> Parse<T> {
+    fn new(green: Arc<GreenNode>, errors: Vec<SyntaxError>) -> Parse<T> {
         Parse { green, errors: Arc::new(errors), _ty: PhantomData }
     }
 

@@ -6,13 +6,15 @@ mod text_token_source;
 mod text_tree_sink;
 mod reparsing;
 
+use std::sync::Arc;
+
 use crate::{syntax_node::GreenNode, SyntaxError};
 
 pub use self::lexer::{classify_literal, tokenize, Token};
 
 pub(crate) use self::reparsing::incremental_reparse;
 
-pub(crate) fn parse_text(text: &str) -> (GreenNode, Vec<SyntaxError>) {
+pub(crate) fn parse_text(text: &str) -> (Arc<GreenNode>, Vec<SyntaxError>) {
     let tokens = tokenize(&text);
     let mut token_source = text_token_source::TextTokenSource::new(text, &tokens);
     let mut tree_sink = text_tree_sink::TextTreeSink::new(text, &tokens);
