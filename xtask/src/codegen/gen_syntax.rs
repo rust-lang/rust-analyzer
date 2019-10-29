@@ -27,8 +27,101 @@ struct AstStruct {
 }
 
 impl AstStruct {
+    fn type_by_name(&self, type_name: &str) -> AstType {
+        if is_provided_type(type_name) {
+            AstType::Provided
+        } else if self.is_token(type_name) {
+            AstType::Token
+        } else {
+            if let Some(ty) = self.asdl.get_type_by_name(type_name) {
+                self.type_of(ty)
+            } else {
+                AstType::Undefined
+            }
+        }
+    }
+
+    fn type_of(&self, ty: &asdl::Type) -> AstType {
+        match ty {
+            Type::SumType(sty) => {
+                if self.is_token_set(sty) {
+                    AstType::TokenSet
+                } else {
+                    AstType::Node
+                }
+            }
+            Type::ProdType(pty) => {
+                if Self::is_trait(pty) {
+                    AstType::Trait
+                } else {
+                    AstType::Node
+                }
+            }
+        }
+    }
+
+    // fn types(&self) -> impl Iterator<Item = (&asdl::Type, AstType)> {
+    //     self.asdl
+    //         .types
+    //         .iter()
+    //         .map(|ty| (ty, self.type_of(ty)))
+    //         .collect::<Vec<(&asdl::Type, AstType)>>()
+    //         .into_iter()
+    // }
+
     pub fn is_token(&self, type_id: &str) -> bool {
         self.punct.contains(type_id) || self.keywords.contains(type_id)
+    }
+
+    fn is_token_set(&self, ty: &SumType) -> bool {
+        ty.constructors.iter().all(|c| {
+            if c.fields.len() == 1 {
+                let f = c.fields.get(0).unwrap();
+                f.arity == asdl::Arity::Required && self.is_token(&f.type_id)
+            } else {
+                false
+            }
+        })
+    }
+
+    fn infer_traits(&self, fields: &[FieldAndType]) -> Vec<&ProdType> {
+        let fields = fields.iter().map(|ft| ft.field).collect::<Vec<&Field>>();
+        self.asdl
+            .types
+            .iter()
+            .filter_map(to_prod_type)
+            .filter(|t| Self::is_trait(*t))
+            .filter(|tr| fields.iter().any(|f| tr.fields.iter().any(|ff| ff == *f)))
+            .collect()
+    }
+
+    fn is_trait(ty: &ProdType) -> bool {
+        ty.id.ends_with("Owner")
+    }
+}
+
+#[derive(Eq, PartialEq)]
+enum AstType {
+    Node,
+    Token,
+    TokenSet,
+    Provided,
+    Trait,
+    Undefined,
+}
+
+struct FieldAndType<'a> {
+    field: &'a Field,
+    ty: AstType,
+}
+
+impl<'a> FieldAndType<'a> {
+    fn cast(&self, ty: AstType) -> Option<&Field> {
+        if self.ty == ty {
+            Some(self.field)
+        } else {
+            None
+        }
     }
 }
 
@@ -55,11 +148,46 @@ pub fn generate_syntax(mode: Mode) -> Result<()> {
     Ok(())
 }
 
+fn generate_token_set(sty: &SumType, _ast_struct: &AstStruct) -> impl ToTokens {
+    let name = format_ident!("{}", capitalize(&sty.id));
+    let variants = sty.constructors.iter().map(|c| format_ident!("{}", c.id)).collect::<Vec<_>>();
+    let kinds = sty
+        .constructors
+        .iter()
+        .map(|c| format_ident!("{}", to_upper_snake_case(&c.fields.get(0).unwrap().type_id)))
+        .collect::<Vec<_>>();
+    quote! {
+        #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+        pub enum #name {
+             #(#variants,)*
+        }
+
+        impl #name {
+            fn from_token(t: &SyntaxToken) -> Option<#name> {
+                match t.kind() {
+                   #(#kinds => Some(#name::#variants),)*
+                    _ => return None,
+                }
+            }
+        }
+
+        impl AstMake for #name {
+            type I = Self;
+            fn make(self, builder: &mut SyntaxTreeBuilder) {
+                let (kind, token) = match self {
+                     #(#name::#variants => (#kinds, T_STR!(#kinds)),)*
+                };
+                builder.token(kind, SmolStr::new(token));
+            }
+        }
+    }
+}
+
 fn generate_sum_type(sty: &SumType, ast_struct: &AstStruct) -> impl ToTokens {
     let name = format_ident!("{}", capitalize(&sty.id));
     let variants = sty.constructors.iter().map(|c| format_ident!("{}", c.id)).collect::<Vec<_>>();
     let variants_builders =
-        sty.constructors.iter().map(|c| format_ident!("{}Builder", c.id)).collect::<Vec<_>>();
+        sty.constructors.iter().map(|c| format_ident!("{}Make", c.id)).collect::<Vec<_>>();
     let kinds = variants
         .iter()
         .map(|name| format_ident!("{}", to_upper_snake_case(&name.to_string())))
@@ -76,10 +204,14 @@ fn generate_sum_type(sty: &SumType, ast_struct: &AstStruct) -> impl ToTokens {
                 || ast_struct.is_token(&c.fields[0].type_id)
         })
         .map(|c| generate_type(&c.id, &c.fields, ast_struct));
+    let attrs: Vec<FieldAndType> = sty
+        .attributes
+        .iter()
+        .map(|field| FieldAndType { field, ty: ast_struct.type_by_name(&field.type_id) })
+        .collect();
+    let attributes = generate_fields(&sty.id, &attrs, ast_struct);
 
-    let attributes = generate_fields(&sty.id, &sty.attributes, ast_struct);
-
-    let builder_name = format_ident!("{}Builder", capitalize(&sty.id));
+    let builder_name = format_ident!("{}Make", capitalize(&sty.id));
 
     quote! {
         #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -136,8 +268,8 @@ fn generate_sum_type(sty: &SumType, ast_struct: &AstStruct) -> impl ToTokens {
         }
         )*
 
-        impl AstNodeBuilder for #builder_name {
-            type Node = #name;
+        impl AstMake for #builder_name {
+            type I = #name;
             fn make(self, builder: &mut SyntaxTreeBuilder) {
                 match self {
                     #(
@@ -151,11 +283,15 @@ fn generate_sum_type(sty: &SumType, ast_struct: &AstStruct) -> impl ToTokens {
     }
 }
 
-fn generate_type(name: &str, fields: &Vec<Field>, ast_struct: &AstStruct) -> impl ToTokens {
+fn generate_type(name: &str, fields: &[Field], ast_struct: &AstStruct) -> impl ToTokens {
     let type_name = format_ident!("{}", capitalize(name));
     let kind = format_ident!("{}", to_upper_snake_case(name));
-    let gen_fields = generate_fields(name, fields, ast_struct);
-    let builder = generate_builder(name, fields, ast_struct);
+    let fts: Vec<FieldAndType> = fields
+        .iter()
+        .map(|field| FieldAndType { field, ty: ast_struct.type_by_name(&field.type_id) })
+        .collect();
+    let gen_fields = generate_fields(name, &fts, ast_struct);
+    let builder = generate_builder(name, &fts, ast_struct);
     quote! {
         #[derive(Debug, Clone, PartialEq, Eq, Hash)]
         pub struct #type_name {
@@ -181,121 +317,157 @@ fn generate_type(name: &str, fields: &Vec<Field>, ast_struct: &AstStruct) -> imp
     }
 }
 
-fn generate_builder(name: &str, fields: &Vec<Field>, ast_struct: &AstStruct) -> impl ToTokens {
+fn generate_builder(name: &str, fields: &[FieldAndType], _ast_struct: &AstStruct) -> impl ToTokens {
     if fields.is_empty() {
         return quote! {};
     }
     let type_name = format_ident!("{}", capitalize(name));
     let kind = format_ident!("{}", to_upper_snake_case(name));
-    let builder_name = format_ident!("{}Builder", capitalize(name));
-    let builder_fields = fields
-        .iter()
-        .filter(|f| !ast_struct.is_token(&f.type_id) && !is_provided_type(&f.type_id))
-        .map(|f| {
-            let field_name = format_ident!("{}", to_lower_snake_case(&f.id));
-            let ty = format_ident!("{}Builder", capitalize(&f.type_id));
-            match f.arity {
-                Arity::Optional | Arity::Required => {
-                    quote! {
-                        #field_name: Option<Box<#ty>>,
-                    }
-                }
-                Arity::Repeated => {
-                    quote! {
-                        #field_name: Vec<Box<#ty>>,
-                    }
-                }
-            }
-        });
-    let builder_methods = fields
-        .iter()
-        .filter(|f| !ast_struct.is_token(&f.type_id) && !is_provided_type(&f.type_id))
-        .map(|f| {
-            let method_name = format_ident!("{}", depluralize(to_lower_snake_case(&f.id).as_str()));
-            let field_name = format_ident!("{}", to_lower_snake_case(&f.id));
-            let ty = format_ident!("{}Builder", capitalize(&f.type_id));
-            match f.arity {
-                Arity::Optional | Arity::Required => {
-                    quote! {
-                        pub fn #method_name(mut self,  f: #ty) -> Self {
-                            self.#field_name = Some(Box::new(f));
-                            self
+    let builder_name = format_ident!("{}Make", capitalize(name));
+    let builder_fields = fields.iter().map(|ft| {
+        let field_name = format_ident!("{}", to_lower_snake_case(&ft.field.id));
+        match ft.ty {
+            AstType::Node => {
+                let ty = format_ident!("{}Make", capitalize(&ft.field.type_id));
+                match ft.field.arity {
+                    Arity::Optional | Arity::Required => {
+                        quote! {
+                            #field_name: Option<Box<#ty>>,
                         }
                     }
-                }
-                Arity::Repeated => {
-                    quote! {
-                        pub fn #method_name(mut self,  f: #ty) -> Self {
-                            self.#field_name.push(Box::new(f));
-                            self
+                    Arity::Repeated => {
+                        quote! {
+                            #field_name: Vec<Box<#ty>>,
                         }
                     }
                 }
             }
-        });
+            AstType::TokenSet => {
+                let ty = format_ident!("{}", capitalize(&ft.field.type_id));
+                quote! {
+                    #field_name: Option<#ty>,
+                }
+            }
+            _ => {
+                quote! {}
+            }
+        }
+    });
+    let builder_methods = fields.iter().map(|ft| {
+        let method_name =
+            format_ident!("{}", depluralize(to_lower_snake_case(&ft.field.id).as_str()));
+        let field_name = format_ident!("{}", to_lower_snake_case(&ft.field.id));
+        match ft.ty {
+            AstType::Node => {
+                let ty = format_ident!("{}Make", capitalize(&ft.field.type_id));
+                match ft.field.arity {
+                    Arity::Optional | Arity::Required => {
+                        quote! {
+                            pub fn #method_name(mut self,  f: #ty) -> Self {
+                                self.#field_name = Some(Box::new(f));
+                                self
+                            }
+                        }
+                    }
+                    Arity::Repeated => {
+                        quote! {
+                            pub fn #method_name(mut self,  f: #ty) -> Self {
+                                self.#field_name.push(Box::new(f));
+                                self
+                            }
+                        }
+                    }
+                }
+            }
+            AstType::TokenSet => {
+                let ty = format_ident!("{}", capitalize(&ft.field.type_id));
+                quote! {
+                    pub fn #method_name(mut self,  f: #ty) -> Self {
+                        self.#field_name = Some(f);
+                        self
+                    }
+                }
+            }
+            _ => {
+                quote! {}
+            }
+        }
+    });
 
     // If token filed follows the child node field they have the same arity we will process them as one tuple.
     // This allows to specify delimiter tokens for repeated children in ASDL.
-    let mut tuples: Vec<(&Field, Option<&Field>)> = Vec::new();
-    let mut i = 0;
-    while i < fields.len() {
-        let curr = fields.get(i).unwrap();
-        if is_provided_type(&curr.type_id) {
-            i += 1;
-            continue;
-        }
-        if let Some(next) = fields.get(i + 1) {
-            if ast_struct.is_token(&next.type_id)
-                && !ast_struct.is_token(&curr.type_id)
-                && curr.arity == next.arity
-            {
-                tuples.push((curr, Some(next)));
-                i += 2;
-            } else {
-                tuples.push((curr, None));
-                i += 1;
+    let mut tuples: Vec<(&FieldAndType, Option<&FieldAndType>)> = Vec::new();
+    let mut peek = fields.iter().peekable();
+    while let Some(ft) = peek.next() {
+        match ft.ty {
+            AstType::Node => {
+                if let Some(peeked) = peek.peek() {
+                    if let AstType::Token = peeked.ty {
+                        if ft.field.arity == peeked.field.arity {
+                            tuples.push((ft, Some(*peeked)));
+                            peek.next();
+                            continue;
+                        }
+                    }
+                }
             }
-        } else {
-            tuples.push((curr, None));
-            i += 1;
-        }
+            _ => (),
+        };
+        tuples.push((ft, None));
     }
-    let make_contents = tuples.iter().map(|(f, t)| {
-        let field_name = format_ident!("{}", to_lower_snake_case(&f.id));
-        match f.arity {
-            Arity::Optional => {
+
+    let make_contents = tuples.iter().map(|(ft, tok)| {
+        let field_name = format_ident!("{}", to_lower_snake_case(&ft.field.id));
+        match ft.ty {
+            AstType::Node => {
+                let build_token = if let Some(token) = tok {
+                    let token_kind = format_ident!("{}", to_upper_snake_case(&token.field.id));
+                    quote! {
+                        builder.token(SyntaxKind::#token_kind, SmolStr::new(T_STR!(#token_kind)));
+                    }
+                } else {
+                    quote! {}
+                };
+                match ft.field.arity {
+                    Arity::Optional => {
+                        quote! {
+                            if let Some(b) = self.#field_name {
+                                b.make(builder);
+                                #build_token
+                            }
+                        }
+                    }
+                    Arity::Repeated => {
+                        quote! {
+                            for b in self.#field_name {
+                                b.make(builder);
+                                #build_token
+                            }
+                        }
+                    }
+                    Arity::Required => {
+                        quote! {
+                            self.#field_name.unwrap().make(builder);
+                            #build_token
+                        }
+                    }
+                }
+            }
+            AstType::Token => {
+                let token_kind = format_ident!("{}", to_upper_snake_case(&ft.field.id));
+                quote! {
+                    builder.token(SyntaxKind::#token_kind, SmolStr::new(T_STR!(#token_kind)));
+                }
+            }
+            AstType::TokenSet => {
                 quote! {
                     if let Some(b) = self.#field_name {
                         b.make(builder);
                     }
                 }
             }
-            Arity::Repeated => {
-                if let Some(token) = t {
-                    let token_kind = format_ident!("{}", to_upper_snake_case(&token.id));
-                    quote! {
-                        for b in self.#field_name {
-                            b.make(builder);
-                            builder.token(SyntaxKind::#token_kind, SmolStr::new(T_STR!(#token_kind)));
-                        }
-                    }
-                } else {
-                    quote! {
-                        self.#field_name.into_iter().for_each(|b| b.make(builder));
-                    }
-                }
-            }
-            Arity::Required => {
-                if ast_struct.is_token(&f.id) {
-                    let token_kind = format_ident!("{}", to_upper_snake_case(&f.id));
-                    quote! {
-                        builder.token(SyntaxKind::#token_kind, SmolStr::new(T_STR!(#token_kind)));
-                    }
-                } else {
-                    quote! {
-                        self.#field_name.unwrap().make(builder);
-                    }
-                }
+            _ => {
+                quote! {}
             }
         }
     });
@@ -316,8 +488,8 @@ fn generate_builder(name: &str, fields: &Vec<Field>, ast_struct: &AstStruct) -> 
             #(#builder_methods)*
         }
 
-        impl AstNodeBuilder for #builder_name {
-            type Node = #type_name;
+        impl AstMake for #builder_name {
+            type I = #type_name;
 
             fn make(self, builder: &mut SyntaxTreeBuilder) {
                 builder.start_node(SyntaxKind::#kind);
@@ -328,51 +500,166 @@ fn generate_builder(name: &str, fields: &Vec<Field>, ast_struct: &AstStruct) -> 
     }
 }
 
-fn generate_fields(name: &str, fields: &Vec<Field>, ast_struct: &AstStruct) -> impl ToTokens {
-    if fields.is_empty() {
+fn is_same_types_fields(fts: &[&FieldAndType]) -> bool {
+    if fts.len() <= 1 {
+        false
+    } else {
+        let first_type = &fts.get(0).unwrap().field.type_id;
+        fts.iter().all(|ft| &ft.field.type_id == first_type)
+    }
+}
+
+fn generate_fields(name: &str, fields: &[FieldAndType], ast_struct: &AstStruct) -> impl ToTokens {
+    let nodes_only =
+        fields.iter().filter(|ft| ft.ty == AstType::Node).collect::<Vec<&FieldAndType>>();
+    if nodes_only.is_empty() {
         quote! {}
     } else {
         let type_name = format_ident!("{}", capitalize(name));
-        let methods = fields.iter().filter(|f| !ast_struct.is_token(&f.type_id)).map(|f| {
+        let traits = generate_traits(name, fields, ast_struct);
+        if is_same_types_fields(&nodes_only) {
+            let methods = generate_same_type_methods(fields);
+            quote! {
+                impl #type_name {
+                    #methods
+                }
+
+                #traits
+            }
+        } else {
+            let methods = generate_methods(fields);
+            quote! {
+                impl #type_name {
+                    #methods
+                }
+
+                #traits
+            }
+        }
+    }
+}
+
+fn generate_same_type_methods(fields: &[FieldAndType]) -> impl ToTokens {
+    let methods =
+        fields.iter().filter_map(|ft| ft.cast(AstType::Node)).enumerate().map(|(i, f)| {
             let method_name = format_ident!("{}", to_lower_snake_case(&f.id));
             let ty = format_ident!("{}", capitalize(&f.type_id));
             match f.arity {
                 Arity::Optional => {
                     quote! {
                         pub fn #method_name(&self) -> Option<#ty> {
-                           super::child_opt(self)
+                            super::children(self).nth(#i)
                         }
                     }
                 }
                 Arity::Repeated => {
                     quote! {
-                        pub fn #method_name(&self) -> AstChildren<#ty> {
-                            super::children(self)
-                        }
+                        // not implemented generation for Repeated fields with the same type #method_name and type #ty
                     }
                 }
                 Arity::Required => {
-                    if is_provided_type(&f.type_id.as_str()) {
+                    quote! {
+                        // not implemented generation for Required fields with the same type #method_name and type #ty
+                    }
+                }
+            }
+        });
+    let token_set_methods = fields.iter().filter_map(|ft| ft.cast(AstType::TokenSet)).map(|f| {
+        let method = generate_token_set_field(f);
+        quote! {
+            #method
+        }
+    });
+    quote! {
+        #(#methods)*
+        #(#token_set_methods)*
+    }
+}
+
+fn generate_methods(fields: &[FieldAndType]) -> impl ToTokens {
+    let methods = fields.iter().map(|ft| {
+        let f = ft.field;
+        let ty = format_ident!("{}", capitalize(&f.type_id));
+        let method_name = format_ident!("{}", to_lower_snake_case(&f.id));
+        match ft.ty {
+            AstType::Node => {
+                match f.arity {
+                    Arity::Optional => {
                         quote! {
-                            pub fn #method_name(&self) -> #ty {
-                                #ty::new(self.syntax().children_with_tokens())
+                            pub fn #method_name(&self) -> Option<#ty> {
+                               super::child_opt(self)
                             }
                         }
-                    } else {
+                    }
+                    Arity::Repeated => {
+                        quote! {
+                            pub fn #method_name(&self) -> AstChildren<#ty> {
+                                super::children(self)
+                            }
+                        }
+                    }
+                    Arity::Required => {
                         quote! {
                             // not implemented generation for required field #method_name and type #ty
                         }
                     }
                 }
             }
-        });
-        let traits = generate_traits(name, fields, ast_struct);
-        quote! {
-            impl #type_name {
-                #(#methods)*
+            AstType::TokenSet => {
+                let method = generate_token_set_field(ft.field);
+                quote! {
+                    #method
+                }
             }
+            AstType::Provided => {
+                quote! {
+                    pub fn #method_name(&self) -> #ty {
+                        #ty::new(self.syntax().children_with_tokens())
+                    }
+                }
+            }
+            _ => {
+                quote! {}
+            }
+        }
+    });
+    quote! {
+        #(#methods)*
+    }
+}
 
-            #traits
+fn generate_token_set_field(f: &Field) -> impl ToTokens {
+    let ty = format_ident!("{}", capitalize(&f.type_id));
+    let details_method_name = format_ident!("{}_details", to_lower_snake_case(&f.id));
+    let kind_method_name = format_ident!("{}_kind", to_lower_snake_case(&f.id));
+    let token_method_name = format_ident!("{}_token", to_lower_snake_case(&f.id));
+    match f.arity {
+        Arity::Optional => {
+            quote! {
+                pub fn #details_method_name(&self) -> Option<(SyntaxToken, #ty)> {
+                   self.syntax().children_with_tokens().filter_map(|it| it.into_token()).find_map(|tok| {
+                       #ty::from_token(&tok).map(|ty| (tok, ty))
+                   })
+                }
+
+                pub fn #kind_method_name(&self) -> Option<#ty> {
+                    self.#details_method_name().map(|t| t.1)
+                }
+
+                pub fn #token_method_name(&self) -> Option<SyntaxToken> {
+                    self.#details_method_name().map(|t| t.0)
+                }
+            }
+        }
+        Arity::Repeated => {
+            quote! {
+                // not implemented generation for Repeated token set methods
+            }
+        }
+        Arity::Required => {
+            quote! {
+                // not implemented generation for Required token set methods
+            }
         }
     }
 }
@@ -381,47 +668,41 @@ fn is_provided_type(type_id: &str) -> bool {
     PROVIDED_TYPES.contains(&type_id)
 }
 
-fn generate_traits(name: &str, fields: &Vec<Field>, ast_struct: &AstStruct) -> impl ToTokens {
+fn generate_traits(name: &str, fields: &[FieldAndType], ast_struct: &AstStruct) -> impl ToTokens {
     let type_name = format_ident!("{}", capitalize(name));
-    let inf_traits = infer_traits(fields, &ast_struct.asdl);
-    let traits = inf_traits.iter().map(|trait_name| {
-        if let Some(tr) = ast_struct.asdl.get_type_by_name(trait_name).and_then(to_prod_type) {
-            let trait_methods = tr.fields.iter().map(|f| {
-                let method_name = format_ident!("{}", to_lower_snake_case(&f.id));
-                let ty = format_ident!("{}", capitalize(&f.type_id));
-                match f.arity {
-                    Arity::Optional => {
-                        quote! {
-                            fn #method_name(&self) -> Option<#ty> {
-                                 self.#method_name()
-                            }
-                        }
-                    }
-                    Arity::Repeated => {
-                        quote! {
-                            fn #method_name(&self) -> AstChildren<#ty> {
-                                 self.#method_name()
-                            }
-                        }
-                    }
-                    Arity::Required => {
-                        quote! {
-                            fn #method_name(&self) -> #ty {
-                                 self.#method_name()
-                            }
+    let inf_traits = ast_struct.infer_traits(fields);
+    let traits = inf_traits.iter().map(|tr| {
+        let trait_methods = tr.fields.iter().map(|f| {
+            let method_name = format_ident!("{}", to_lower_snake_case(&f.id));
+            let ty = format_ident!("{}", capitalize(&f.type_id));
+            match f.arity {
+                Arity::Optional => {
+                    quote! {
+                        fn #method_name(&self) -> Option<#ty> {
+                             self.#method_name()
                         }
                     }
                 }
-            });
-            let trait_name = format_ident!("{}", capitalize(trait_name));
-            quote! {
-                impl ast::#trait_name for #type_name {
-                    #(#trait_methods)*
+                Arity::Repeated => {
+                    quote! {
+                        fn #method_name(&self) -> AstChildren<#ty> {
+                             self.#method_name()
+                        }
+                    }
+                }
+                Arity::Required => {
+                    quote! {
+                        fn #method_name(&self) -> #ty {
+                             self.#method_name()
+                        }
+                    }
                 }
             }
-        } else {
-            quote! {
-                // can't get methods for trait #trait_name
+        });
+        let trait_name = format_ident!("{}", capitalize(&tr.id));
+        quote! {
+            impl ast::#trait_name for #type_name {
+                #(#trait_methods)*
             }
         }
     });
@@ -431,36 +712,41 @@ fn generate_traits(name: &str, fields: &Vec<Field>, ast_struct: &AstStruct) -> i
 }
 
 fn generate_ast(ast_struct: &AstStruct) -> Result<String> {
-    let sum_types = ast_struct
-        .asdl
-        .types
-        .iter()
-        .filter_map(to_sum_type)
-        .map(|sty| generate_sum_type(&sty, ast_struct));
-    let prod_types = ast_struct
-        .asdl
-        .types
-        .iter()
-        .filter_map(to_prod_type)
-        .filter(|ty| !is_trait(ty))
-        .map(|pty| generate_type(&pty.id, &pty.fields, ast_struct));
+    let types = ast_struct.asdl.types.iter().map(|ty| {
+        let ast_type = ast_struct.type_of(ty);
+        match ty {
+            Type::SumType(sty) => {
+                if ast_type == AstType::TokenSet {
+                    let gts = generate_token_set(sty, ast_struct);
+                    quote! {#gts}
+                } else {
+                    let ty = generate_sum_type(sty, ast_struct);
+                    quote! {#ty}
+                }
+            }
+            Type::ProdType(pty) => {
+                if ast_type == AstType::Node {
+                    let ty = generate_type(&pty.id, &pty.fields, ast_struct);
+                    quote! {#ty}
+                } else {
+                    quote! {}
+                }
+            }
+        }
+    });
 
     let ast = quote! {
         use crate::{
             SyntaxTreeBuilder, SyntaxNode, SyntaxKind::{self, *}, T_STR, SmolStr,
             ast::{self, AstNode, AstChildren, traits::CommentIter, builders::*},
+            SyntaxToken
         };
 
-        #(#sum_types)*
-        #(#prod_types)*
+        #(#types)*
     };
 
     let pretty = codegen::reformat(ast)?;
     Ok(pretty)
-}
-
-fn is_trait(ty: &ProdType) -> bool {
-    ty.id.ends_with("Owner")
 }
 
 fn to_prod_type(ty: &Type) -> Option<&ProdType> {
@@ -468,27 +754,6 @@ fn to_prod_type(ty: &Type) -> Option<&ProdType> {
         Type::ProdType(pty) => Some(pty),
         _ => None,
     }
-}
-
-fn to_sum_type(ty: &Type) -> Option<&SumType> {
-    match ty {
-        Type::SumType(sty) => Some(sty),
-        _ => None,
-    }
-}
-
-fn infer_traits(fields: &Vec<Field>, asdl: &Asdl) -> Vec<String> {
-    asdl.types
-        .iter()
-        .filter_map(to_prod_type)
-        .filter(|t| is_trait(*t))
-        .filter(|tr| contains_fields(fields, &tr.fields))
-        .map(|tr| tr.id.clone())
-        .collect()
-}
-
-fn contains_fields(outer: &Vec<Field>, inner: &Vec<Field>) -> bool {
-    inner.iter().filter(|f| outer.contains(f)).count() == inner.len()
 }
 
 fn generate_syntax_kinds(grammar: &Grammar) -> Result<String> {
