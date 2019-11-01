@@ -185,6 +185,7 @@ impl Completions {
             CompletionItem::new(CompletionKind::Reference, ctx.source_range(), &macro_declaration)
                 .kind(CompletionItemKind::Macro)
                 .set_documentation(docs.clone())
+                .set_deprecated(is_deprecated(ast_node))
                 .detail(detail);
 
         builder = if ctx.use_item_syntax.is_some() {
