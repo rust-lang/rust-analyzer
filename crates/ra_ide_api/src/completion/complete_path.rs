@@ -285,6 +285,7 @@ mod tests {
         documentation: Documentation(
             "Bar Variant with i32",
         ),
+        deprecated: false,
     },
     CompletionItem {
         label: "Foo",
@@ -296,6 +297,7 @@ mod tests {
         documentation: Documentation(
             "Foo Variant",
         ),
+        deprecated: false,
     },
 ]"###
         );
@@ -331,6 +333,7 @@ mod tests {
         documentation: Documentation(
             "Bar Variant with i32 and u32",
         ),
+        deprecated: false,
     },
     CompletionItem {
         label: "Foo",
@@ -342,6 +345,7 @@ mod tests {
         documentation: Documentation(
             "Foo Variant (empty)",
         ),
+        deprecated: false,
     },
     CompletionItem {
         label: "S",
@@ -353,6 +357,7 @@ mod tests {
         documentation: Documentation(
             "",
         ),
+        deprecated: false,
     },
 ]"###
         );
@@ -388,6 +393,7 @@ mod tests {
                 documentation: Documentation(
                     "An associated method",
                 ),
+                deprecated: false,
             },
         ]
         "###
@@ -422,6 +428,7 @@ mod tests {
         documentation: Documentation(
             "An associated const",
         ),
+        deprecated: false,
     },
 ]"###
         );
@@ -455,6 +462,7 @@ mod tests {
         documentation: Documentation(
             "An associated type",
         ),
+        deprecated: false,
     },
 ]"###
         );
@@ -490,6 +498,7 @@ mod tests {
                 documentation: Documentation(
                     "An associated method",
                 ),
+                deprecated: false,
             },
         ]
         "###
@@ -526,6 +535,7 @@ mod tests {
                 documentation: Documentation(
                     "An associated method",
                 ),
+                deprecated: false,
             },
         ]
         "###
@@ -583,6 +593,7 @@ mod tests {
                 kind: Function,
                 lookup: "bar",
                 detail: "fn bar()",
+                deprecated: false,
             },
             CompletionItem {
                 label: "foo()",
@@ -592,6 +603,7 @@ mod tests {
                 kind: Function,
                 lookup: "foo",
                 detail: "fn foo()",
+                deprecated: false,
             },
         ]
         "###
@@ -622,6 +634,7 @@ mod tests {
                 insert: "foo!($0)",
                 kind: Macro,
                 detail: "#[macro_export]\nmacro_rules! foo",
+                deprecated: false,
             },
             CompletionItem {
                 label: "main()",
@@ -631,6 +644,7 @@ mod tests {
                 kind: Function,
                 lookup: "main",
                 detail: "fn main()",
+                deprecated: false,
             },
         ]
         "###
