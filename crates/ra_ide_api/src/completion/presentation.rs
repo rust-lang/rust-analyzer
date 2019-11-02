@@ -672,6 +672,7 @@ mod tests {
                 insert: "frobnicate",
                 kind: Macro,
                 detail: "#[macro_export]\nmacro_rules! frobnicate",
+                deprecated: false,
             },
         ]
         "###
