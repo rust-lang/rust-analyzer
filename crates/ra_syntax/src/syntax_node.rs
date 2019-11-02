@@ -6,6 +6,8 @@
 //! The *real* implementation is in the (language-agnostic) `rowan` crate, this
 //! modules just wraps its API.
 
+use std::sync::Arc;
+
 use ra_parser::ParseError;
 use rowan::{GreenNodeBuilder, Language};
 
@@ -50,7 +52,7 @@ impl Default for SyntaxTreeBuilder {
 }
 
 impl SyntaxTreeBuilder {
-    pub(crate) fn finish_raw(self) -> (GreenNode, Vec<SyntaxError>) {
+    pub(crate) fn finish_raw(self) -> (Arc<GreenNode>, Vec<SyntaxError>) {
         let green = self.inner.finish();
         (green, self.errors)
     }
@@ -61,7 +63,7 @@ impl SyntaxTreeBuilder {
         if cfg!(debug_assertions) {
             crate::validation::validate_block_structure(&node);
         }
-        Parse::new(node.green().clone(), errors)
+        Parse::new(node.green().to_owned(), errors)
     }
 
     pub fn token(&mut self, kind: SyntaxKind, text: SmolStr) {

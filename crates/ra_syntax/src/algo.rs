@@ -1,6 +1,6 @@
 //! FIXME: write short doc here
 
-use std::ops::RangeInclusive;
+use std::{ops::RangeInclusive, sync::Arc};
 
 use itertools::Itertools;
 use ra_text_edit::TextEditBuilder;
@@ -136,21 +136,14 @@ pub fn insert_children(
 
     let old_children = parent.green().children();
 
-    let new_children = match &position {
-        InsertPosition::First => {
-            to_insert.chain(old_children.iter().cloned()).collect::<Box<[_]>>()
-        }
-        InsertPosition::Last => old_children.iter().cloned().chain(to_insert).collect::<Box<[_]>>(),
+    let new_children: Vec<_> = match &position {
+        InsertPosition::First => to_insert.chain(old_children.iter().cloned()).collect(),
+        InsertPosition::Last => old_children.iter().cloned().chain(to_insert).collect(),
         InsertPosition::Before(anchor) | InsertPosition::After(anchor) => {
             let take_anchor = if let InsertPosition::After(_) = position { 1 } else { 0 };
             let split_at = position_of_child(parent, anchor.clone()) + take_anchor;
             let (before, after) = old_children.split_at(split_at);
-            before
-                .iter()
-                .cloned()
-                .chain(to_insert)
-                .chain(after.iter().cloned())
-                .collect::<Box<[_]>>()
+            before.iter().cloned().chain(to_insert).chain(after.iter().cloned()).collect()
         }
     };
 
@@ -175,7 +168,7 @@ pub fn replace_children(
         .cloned()
         .chain(to_insert.map(to_green_element))
         .chain(old_children[end + 1..].iter().cloned())
-        .collect::<Box<[_]>>();
+        .collect::<Vec<_>>();
     with_children(parent, new_children)
 }
 
@@ -188,23 +181,23 @@ pub fn replace_descendants(
     map: &FxHashMap<SyntaxElement, SyntaxElement>,
 ) -> SyntaxNode {
     //  FIXME: this could be made much faster.
-    let new_children = parent.children_with_tokens().map(|it| go(map, it)).collect::<Box<[_]>>();
+    let new_children = parent.children_with_tokens().map(|it| go(map, it)).collect::<Vec<_>>();
     return with_children(parent, new_children);
 
     fn go(
         map: &FxHashMap<SyntaxElement, SyntaxElement>,
         element: SyntaxElement,
-    ) -> NodeOrToken<rowan::GreenNode, rowan::GreenToken> {
+    ) -> NodeOrToken<Arc<rowan::GreenNode>, Arc<rowan::GreenToken>> {
         if let Some(replacement) = map.get(&element) {
             return match replacement {
-                NodeOrToken::Node(it) => NodeOrToken::Node(it.green().clone()),
-                NodeOrToken::Token(it) => NodeOrToken::Token(it.green().clone()),
+                NodeOrToken::Node(it) => NodeOrToken::Node(it.green().to_owned()),
+                NodeOrToken::Token(it) => NodeOrToken::Token(Arc::new(it.green().clone())),
             };
         }
         match element {
-            NodeOrToken::Token(it) => NodeOrToken::Token(it.green().clone()),
+            NodeOrToken::Token(it) => NodeOrToken::Token(Arc::new(it.green().clone())),
             NodeOrToken::Node(it) => {
-                NodeOrToken::Node(replace_descendants(&it, map).green().clone())
+                NodeOrToken::Node(replace_descendants(&it, map).green().to_owned())
             }
         }
     }
@@ -212,7 +205,7 @@ pub fn replace_descendants(
 
 fn with_children(
     parent: &SyntaxNode,
-    new_children: Box<[NodeOrToken<rowan::GreenNode, rowan::GreenToken>]>,
+    new_children: Vec<NodeOrToken<Arc<rowan::GreenNode>, Arc<rowan::GreenToken>>>,
 ) -> SyntaxNode {
     let len = new_children.iter().map(|it| it.text_len()).sum::<TextUnit>();
     let new_node =
@@ -234,9 +227,11 @@ fn position_of_child(parent: &SyntaxNode, child: SyntaxElement) -> usize {
         .expect("element is not a child of current element")
 }
 
-fn to_green_element(element: SyntaxElement) -> NodeOrToken<rowan::GreenNode, rowan::GreenToken> {
+fn to_green_element(
+    element: SyntaxElement,
+) -> NodeOrToken<Arc<rowan::GreenNode>, Arc<rowan::GreenToken>> {
     match element {
-        NodeOrToken::Node(it) => it.green().clone().into(),
-        NodeOrToken::Token(it) => it.green().clone().into(),
+        NodeOrToken::Node(it) => it.green().to_owned().into(),
+        NodeOrToken::Token(it) => Arc::new(it.green().clone()).into(),
     }
 }

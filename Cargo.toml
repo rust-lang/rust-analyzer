@@ -9,3 +9,4 @@ incremental = true
 debug = 1 # only line info
 
 [patch.'crates-io']
+rowan = { git = "https://github.com/cad97/rowan", branch = "boxed-tokens" }
