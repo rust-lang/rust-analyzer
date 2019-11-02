@@ -618,6 +618,7 @@ mod tests {
                 documentation: Documentation(
                     "A trait method",
                 ),
+                deprecated: false,
             },
         ]
         "###
@@ -654,6 +655,7 @@ mod tests {
                 documentation: Documentation(
                     "A trait method",
                 ),
+                deprecated: false,
             },
         ]
         "###
@@ -690,6 +692,7 @@ mod tests {
                 documentation: Documentation(
                     "A trait method",
                 ),
+                deprecated: false,
             },
         ]
         "###
