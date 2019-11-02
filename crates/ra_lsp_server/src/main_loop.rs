@@ -4,7 +4,7 @@ mod handlers;
 mod subscriptions;
 pub(crate) mod pending_requests;
 
-use std::{error::Error, fmt, path::PathBuf, sync::Arc, time::Instant};
+use std::{error::Error, fmt, panic, path::PathBuf, sync::Arc, time::Instant};
 
 use crossbeam_channel::{select, unbounded, RecvError, Sender};
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
@@ -111,6 +111,21 @@ pub fn main_loop(
             connection.sender.send(request.into()).unwrap();
         }
 
+        let options = {
+            let text_document_caps = client_caps.text_document.as_ref();
+            Options {
+                publish_decorations: config.publish_decorations,
+                supports_location_link: text_document_caps
+                    .and_then(|it| it.definition)
+                    .and_then(|it| it.link_support)
+                    .unwrap_or(false),
+                line_folding_only: text_document_caps
+                    .and_then(|it| it.folding_range.as_ref())
+                    .and_then(|it| it.line_folding_only)
+                    .unwrap_or(false),
+            }
+        };
+
         let feature_flags = {
             let mut ff = FeatureFlags::default();
             for (flag, value) in config.feature_flags {
@@ -133,14 +148,7 @@ pub fn main_loop(
             config.lru_capacity,
             &globs,
             Watch(!config.use_client_watching),
-            Options {
-                publish_decorations: config.publish_decorations,
-                supports_location_link: client_caps
-                    .text_document
-                    .and_then(|it| it.definition)
-                    .and_then(|it| it.link_support)
-                    .unwrap_or(false),
-            },
+            options,
             feature_flags,
         )
     };
@@ -188,7 +196,7 @@ pub fn main_loop(
     task_receiver.into_iter().for_each(|task| {
         on_task(task, &connection.sender, &mut loop_state.pending_requests, &mut world_state)
     });
-    libdata_receiver.into_iter().for_each(|lib| drop(lib));
+    libdata_receiver.into_iter().for_each(drop);
     log::info!("...tasks have finished");
     log::info!("joining threadpool...");
     drop(pool);
@@ -557,7 +565,7 @@ impl<'a> PoolDispatcher<'a> {
     ) -> Result<&mut Self>
     where
         R: req::Request + 'static,
-        R::Params: DeserializeOwned + Send + 'static,
+        R::Params: DeserializeOwned + panic::UnwindSafe + 'static,
         R::Result: Serialize + 'static,
     {
         let (id, params) = match self.parse::<R>() {
@@ -566,8 +574,12 @@ impl<'a> PoolDispatcher<'a> {
                 return Ok(self);
             }
         };
-        let result = f(self.world, params);
-        let task = result_to_task::<R>(id, result);
+        let world = panic::AssertUnwindSafe(&mut *self.world);
+        let task = panic::catch_unwind(move || {
+            let result = f(world.0, params);
+            result_to_task::<R>(id, result)
+        })
+        .map_err(|_| format!("sync task {:?} panicked", R::METHOD))?;
         on_task(task, self.msg_sender, self.pending_requests, self.world);
         Ok(self)
     }
@@ -602,7 +614,7 @@ impl<'a> PoolDispatcher<'a> {
     fn parse<R>(&mut self) -> Option<(RequestId, R::Params)>
     where
         R: req::Request + 'static,
-        R::Params: DeserializeOwned + Send + 'static,
+        R::Params: DeserializeOwned + 'static,
     {
         let req = self.req.take()?;
         let (id, params) = match req.extract::<R::Params>(R::METHOD) {
@@ -639,7 +651,7 @@ impl<'a> PoolDispatcher<'a> {
 fn result_to_task<R>(id: RequestId, result: Result<R::Result>) -> Task
 where
     R: req::Request + 'static,
-    R::Params: DeserializeOwned + Send + 'static,
+    R::Params: DeserializeOwned + 'static,
     R::Result: Serialize + 'static,
 {
     let response = match result {

@@ -9,7 +9,9 @@ use lsp_types::{
     Hover, HoverContents, Location, MarkupContent, MarkupKind, Position, PrepareRenameResponse,
     Range, RenameParams, SymbolInformation, TextDocumentIdentifier, TextEdit, WorkspaceEdit,
 };
-use ra_ide_api::{AssistId, FileId, FilePosition, FileRange, Query, Runnable, RunnableKind};
+use ra_ide_api::{
+    AssistId, FileId, FilePosition, FileRange, Query, Runnable, RunnableKind, SearchScope,
+};
 use ra_prof::profile;
 use ra_syntax::{AstNode, SyntaxKind, TextRange, TextUnit};
 use rustc_hash::FxHashMap;
@@ -18,13 +20,14 @@ use serde_json::to_value;
 
 use crate::{
     cargo_target_spec::{runnable_args, CargoTargetSpec},
-    conv::{to_location, Conv, ConvWith, MapConvWith, TryConvWith, TryConvWithToVec},
+    conv::{to_location, Conv, ConvWith, FoldConvCtx, MapConvWith, TryConvWith, TryConvWithToVec},
     req::{self, Decoration, InlayHint, InlayHintsParams, InlayKind},
     world::WorldSnapshot,
     LspError, Result,
 };
 
 pub fn handle_analyzer_status(world: WorldSnapshot, _: ()) -> Result<String> {
+    let _p = profile("handle_analyzer_status");
     let mut buf = world.status();
     writeln!(buf, "\n\nrequests:").unwrap();
     let requests = world.latest_requests.read();
@@ -36,6 +39,7 @@ pub fn handle_analyzer_status(world: WorldSnapshot, _: ()) -> Result<String> {
 }
 
 pub fn handle_syntax_tree(world: WorldSnapshot, params: req::SyntaxTreeParams) -> Result<String> {
+    let _p = profile("handle_syntax_tree");
     let id = params.text_document.try_conv_with(&world)?;
     let line_index = world.analysis().file_line_index(id)?;
     let text_range = params.range.map(|p| p.conv_with(&line_index));
@@ -130,6 +134,7 @@ pub fn handle_on_enter(
     }
 }
 
+// Don't forget to add new trigger characters to `ServerCapabilities` in `caps.rs`.
 pub fn handle_on_type_formatting(
     world: WorldSnapshot,
     params: req::DocumentOnTypeFormattingParams,
@@ -142,12 +147,17 @@ pub fn handle_on_type_formatting(
     // in `ra_ide_api`, the `on_type` invariant is that
     // `text.char_at(position) == typed_char`.
     position.offset = position.offset - TextUnit::of_char('.');
+    let char_typed = params.ch.chars().next().unwrap_or('\0');
 
-    let edit = match params.ch.as_str() {
-        "=" => world.analysis().on_eq_typed(position),
-        "." => world.analysis().on_dot_typed(position),
-        _ => return Ok(None),
-    }?;
+    // We have an assist that inserts ` ` after typing `->` in `fn foo() ->{`,
+    // but it requires precise cursor positioning to work, and one can't
+    // position the cursor with on_type formatting. So, let's just toggle this
+    // feature off here, hoping that we'll enable it one day, 😿.
+    if char_typed == '>' {
+        return Ok(None);
+    }
+
+    let edit = world.analysis().on_char_typed(position, char_typed)?;
     let mut edit = match edit {
         Some(it) => it,
         None => return Ok(None),
@@ -164,6 +174,7 @@ pub fn handle_document_symbol(
     world: WorldSnapshot,
     params: req::DocumentSymbolParams,
 ) -> Result<Option<req::DocumentSymbolResponse>> {
+    let _p = profile("handle_document_symbol");
     let file_id = params.text_document.try_conv_with(&world)?;
     let line_index = world.analysis().file_line_index(file_id)?;
 
@@ -202,6 +213,7 @@ pub fn handle_workspace_symbol(
     world: WorldSnapshot,
     params: req::WorkspaceSymbolParams,
 ) -> Result<Option<Vec<SymbolInformation>>> {
+    let _p = profile("handle_workspace_symbol");
     let all_symbols = params.query.contains('#');
     let libs = params.query.contains('*');
     let query = {
@@ -245,6 +257,7 @@ pub fn handle_goto_definition(
     world: WorldSnapshot,
     params: req::TextDocumentPositionParams,
 ) -> Result<Option<req::GotoDefinitionResponse>> {
+    let _p = profile("handle_goto_definition");
     let position = params.try_conv_with(&world)?;
     let nav_info = match world.analysis().goto_definition(position)? {
         None => return Ok(None),
@@ -258,6 +271,7 @@ pub fn handle_goto_implementation(
     world: WorldSnapshot,
     params: req::TextDocumentPositionParams,
 ) -> Result<Option<req::GotoImplementationResponse>> {
+    let _p = profile("handle_goto_implementation");
     let position = params.try_conv_with(&world)?;
     let nav_info = match world.analysis().goto_implementation(position)? {
         None => return Ok(None),
@@ -271,6 +285,7 @@ pub fn handle_goto_type_definition(
     world: WorldSnapshot,
     params: req::TextDocumentPositionParams,
 ) -> Result<Option<req::GotoTypeDefinitionResponse>> {
+    let _p = profile("handle_goto_type_definition");
     let position = params.try_conv_with(&world)?;
     let nav_info = match world.analysis().goto_type_definition(position)? {
         None => return Ok(None),
@@ -284,6 +299,7 @@ pub fn handle_parent_module(
     world: WorldSnapshot,
     params: req::TextDocumentPositionParams,
 ) -> Result<Vec<Location>> {
+    let _p = profile("handle_parent_module");
     let position = params.try_conv_with(&world)?;
     world.analysis().parent_module(position)?.iter().try_conv_with_to_vec(&world)
 }
@@ -292,6 +308,7 @@ pub fn handle_runnables(
     world: WorldSnapshot,
     params: req::RunnablesParams,
 ) -> Result<Vec<req::Runnable>> {
+    let _p = profile("handle_runnables");
     let file_id = params.text_document.try_conv_with(&world)?;
     let line_index = world.analysis().file_line_index(file_id)?;
     let offset = params.position.map(|it| it.conv_with(&line_index));
@@ -333,6 +350,7 @@ pub fn handle_decorations(
     world: WorldSnapshot,
     params: TextDocumentIdentifier,
 ) -> Result<Vec<Decoration>> {
+    let _p = profile("handle_decorations");
     let file_id = params.try_conv_with(&world)?;
     highlight(&world, file_id)
 }
@@ -381,10 +399,17 @@ pub fn handle_folding_range(
     world: WorldSnapshot,
     params: FoldingRangeParams,
 ) -> Result<Option<Vec<FoldingRange>>> {
+    let _p = profile("handle_folding_range");
     let file_id = params.text_document.try_conv_with(&world)?;
     let folds = world.analysis().folding_ranges(file_id)?;
+    let text = world.analysis().file_text(file_id)?;
     let line_index = world.analysis().file_line_index(file_id)?;
-    let res = Some(folds.into_iter().map_conv_with(&*line_index).collect());
+    let ctx = FoldConvCtx {
+        text: &text,
+        line_index: &line_index,
+        line_folding_only: world.options.line_folding_only,
+    };
+    let res = Some(folds.into_iter().map_conv_with(&ctx).collect());
     Ok(res)
 }
 
@@ -392,6 +417,7 @@ pub fn handle_signature_help(
     world: WorldSnapshot,
     params: req::TextDocumentPositionParams,
 ) -> Result<Option<req::SignatureHelp>> {
+    let _p = profile("handle_signature_help");
     let position = params.try_conv_with(&world)?;
     if let Some(call_info) = world.analysis().call_info(position)? {
         let active_parameter = call_info.active_parameter.map(|it| it as i64);
@@ -411,6 +437,7 @@ pub fn handle_hover(
     world: WorldSnapshot,
     params: req::TextDocumentPositionParams,
 ) -> Result<Option<Hover>> {
+    let _p = profile("handle_hover");
     let position = params.try_conv_with(&world)?;
     let info = match world.analysis().hover(position)? {
         None => return Ok(None),
@@ -432,6 +459,7 @@ pub fn handle_prepare_rename(
     world: WorldSnapshot,
     params: req::TextDocumentPositionParams,
 ) -> Result<Option<PrepareRenameResponse>> {
+    let _p = profile("handle_prepare_rename");
     let position = params.try_conv_with(&world)?;
 
     // We support renaming references like handle_rename does.
@@ -449,6 +477,7 @@ pub fn handle_prepare_rename(
 }
 
 pub fn handle_rename(world: WorldSnapshot, params: RenameParams) -> Result<Option<WorkspaceEdit>> {
+    let _p = profile("handle_rename");
     let position = params.text_document_position.try_conv_with(&world)?;
 
     if params.new_name.is_empty() {
@@ -474,23 +503,29 @@ pub fn handle_references(
     world: WorldSnapshot,
     params: req::ReferenceParams,
 ) -> Result<Option<Vec<Location>>> {
+    let _p = profile("handle_references");
     let position = params.text_document_position.try_conv_with(&world)?;
-    let line_index = world.analysis().file_line_index(position.file_id)?;
 
-    let refs = match world.analysis().find_all_refs(position)? {
+    let refs = match world.analysis().find_all_refs(position, None)? {
         None => return Ok(None),
         Some(refs) => refs,
     };
 
     let locations = if params.context.include_declaration {
         refs.into_iter()
-            .filter_map(|r| to_location(r.file_id, r.range, &world, &line_index).ok())
+            .filter_map(|r| {
+                let line_index = world.analysis().file_line_index(r.file_id).ok()?;
+                to_location(r.file_id, r.range, &world, &line_index).ok()
+            })
             .collect()
     } else {
         // Only iterate over the references if include_declaration was false
         refs.references()
             .iter()
-            .filter_map(|r| to_location(r.file_id, r.range, &world, &line_index).ok())
+            .filter_map(|r| {
+                let line_index = world.analysis().file_line_index(r.file_id).ok()?;
+                to_location(r.file_id, r.range, &world, &line_index).ok()
+            })
             .collect()
     };
 
@@ -501,6 +536,7 @@ pub fn handle_formatting(
     world: WorldSnapshot,
     params: DocumentFormattingParams,
 ) -> Result<Option<Vec<TextEdit>>> {
+    let _p = profile("handle_formatting");
     let file_id = params.text_document.try_conv_with(&world)?;
     let file = world.analysis().file_text(file_id)?;
 
@@ -623,6 +659,7 @@ pub fn handle_code_lens(
     world: WorldSnapshot,
     params: req::CodeLensParams,
 ) -> Result<Option<Vec<CodeLens>>> {
+    let _p = profile("handle_code_lens");
     let file_id = params.text_document.try_conv_with(&world)?;
     let line_index = world.analysis().file_line_index(file_id)?;
 
@@ -683,6 +720,7 @@ enum CodeLensResolveData {
 }
 
 pub fn handle_code_lens_resolve(world: WorldSnapshot, code_lens: CodeLens) -> Result<CodeLens> {
+    let _p = profile("handle_code_lens_resolve");
     let data = code_lens.data.unwrap();
     let resolve = serde_json::from_value(data)?;
     match resolve {
@@ -730,16 +768,21 @@ pub fn handle_document_highlight(
     world: WorldSnapshot,
     params: req::TextDocumentPositionParams,
 ) -> Result<Option<Vec<DocumentHighlight>>> {
+    let _p = profile("handle_document_highlight");
     let file_id = params.text_document.try_conv_with(&world)?;
     let line_index = world.analysis().file_line_index(file_id)?;
 
-    let refs = match world.analysis().find_all_refs(params.try_conv_with(&world)?)? {
+    let refs = match world
+        .analysis()
+        .find_all_refs(params.try_conv_with(&world)?, Some(SearchScope::single_file(file_id)))?
+    {
         None => return Ok(None),
         Some(refs) => refs,
     };
 
     Ok(Some(
         refs.into_iter()
+            .filter(|r| r.file_id == file_id)
             .map(|r| DocumentHighlight { range: r.range.conv_with(&line_index), kind: None })
             .collect(),
     ))
@@ -749,6 +792,7 @@ pub fn publish_diagnostics(
     world: &WorldSnapshot,
     file_id: FileId,
 ) -> Result<req::PublishDiagnosticsParams> {
+    let _p = profile("publish_diagnostics");
     let uri = world.file_id_to_uri(file_id)?;
     let line_index = world.analysis().file_line_index(file_id)?;
     let diagnostics = world
@@ -771,6 +815,7 @@ pub fn publish_decorations(
     world: &WorldSnapshot,
     file_id: FileId,
 ) -> Result<req::PublishDecorationsParams> {
+    let _p = profile("publish_decorations");
     let uri = world.file_id_to_uri(file_id)?;
     Ok(req::PublishDecorationsParams { uri, decorations: highlight(&world, file_id)? })
 }
@@ -820,6 +865,7 @@ pub fn handle_inlay_hints(
     world: WorldSnapshot,
     params: InlayHintsParams,
 ) -> Result<Vec<InlayHint>> {
+    let _p = profile("handle_inlay_hints");
     let file_id = params.text_document.try_conv_with(&world)?;
     let analysis = world.analysis();
     let line_index = analysis.file_line_index(file_id)?;
