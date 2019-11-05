@@ -187,17 +187,17 @@ pub fn replace_descendants(
     fn go(
         map: &FxHashMap<SyntaxElement, SyntaxElement>,
         element: SyntaxElement,
-    ) -> NodeOrToken<Arc<rowan::GreenNode>, Arc<rowan::GreenToken>> {
+    ) -> rowan::GreenElement {
         if let Some(replacement) = map.get(&element) {
             return match replacement {
-                NodeOrToken::Node(it) => NodeOrToken::Node(it.green().to_owned()),
-                NodeOrToken::Token(it) => NodeOrToken::Token(Arc::new(it.green().clone())),
+                NodeOrToken::Node(it) => it.green().to_owned().into(),
+                NodeOrToken::Token(it) => it.green().clone().into(),
             };
         }
         match element {
-            NodeOrToken::Token(it) => NodeOrToken::Token(Arc::new(it.green().clone())),
+            NodeOrToken::Token(it) => it.green().clone().into(),
             NodeOrToken::Node(it) => {
-                NodeOrToken::Node(replace_descendants(&it, map).green().to_owned())
+                replace_descendants(&it, map).green().to_owned().into()
             }
         }
     }
@@ -205,7 +205,7 @@ pub fn replace_descendants(
 
 fn with_children(
     parent: &SyntaxNode,
-    new_children: Vec<NodeOrToken<Arc<rowan::GreenNode>, Arc<rowan::GreenToken>>>,
+    new_children: Vec<rowan::GreenElement>,
 ) -> SyntaxNode {
     let len = new_children.iter().map(|it| it.text_len()).sum::<TextUnit>();
     let new_node =
@@ -229,7 +229,7 @@ fn position_of_child(parent: &SyntaxNode, child: SyntaxElement) -> usize {
 
 fn to_green_element(
     element: SyntaxElement,
-) -> NodeOrToken<Arc<rowan::GreenNode>, Arc<rowan::GreenToken>> {
+) -> rowan::GreenElement {
     match element {
         NodeOrToken::Node(it) => it.green().to_owned().into(),
         NodeOrToken::Token(it) => Arc::new(it.green().clone()).into(),

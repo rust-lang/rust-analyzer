@@ -36,7 +36,7 @@ use std::{fmt::Write, marker::PhantomData, sync::Arc};
 
 use ra_text_edit::AtomTextEdit;
 
-use crate::syntax_node::GreenNode;
+use crate::syntax_node::ArcGreenNode;
 
 pub use crate::{
     algo::InsertPosition,
@@ -58,7 +58,7 @@ pub use rowan::{SmolStr, SyntaxText, TextRange, TextUnit, TokenAtOffset, WalkEve
 /// files.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Parse<T> {
-    green: Arc<GreenNode>,
+    green: ArcGreenNode,
     errors: Arc<Vec<SyntaxError>>,
     _ty: PhantomData<fn() -> T>,
 }
@@ -70,7 +70,7 @@ impl<T> Clone for Parse<T> {
 }
 
 impl<T> Parse<T> {
-    fn new(green: Arc<GreenNode>, errors: Vec<SyntaxError>) -> Parse<T> {
+    fn new(green: ArcGreenNode, errors: Vec<SyntaxError>) -> Parse<T> {
         Parse { green, errors: Arc::new(errors), _ty: PhantomData }
     }
 

@@ -1,12 +1,12 @@
 //! FIXME: write short doc here
 
-use std::{mem, sync::Arc};
+use std::mem;
 
 use ra_parser::{ParseError, TreeSink};
 
 use crate::{
     parsing::Token,
-    syntax_node::GreenNode,
+    syntax_node::ArcGreenNode,
     SmolStr, SyntaxError,
     SyntaxKind::{self, *},
     SyntaxTreeBuilder, TextRange, TextUnit,
@@ -103,7 +103,7 @@ impl<'a> TextTreeSink<'a> {
         }
     }
 
-    pub(super) fn finish(mut self) -> (Arc<GreenNode>, Vec<SyntaxError>) {
+    pub(super) fn finish(mut self) -> (ArcGreenNode, Vec<SyntaxError>) {
         match mem::replace(&mut self.state, State::Normal) {
             State::PendingFinish => {
                 self.eat_trivias();

@@ -6,8 +6,6 @@
 //! The *real* implementation is in the (language-agnostic) `rowan` crate, this
 //! modules just wraps its API.
 
-use std::sync::Arc;
-
 use ra_parser::ParseError;
 use rowan::{GreenNodeBuilder, Language};
 
@@ -16,7 +14,7 @@ use crate::{
     Parse, SmolStr, SyntaxKind, TextUnit,
 };
 
-pub(crate) use rowan::{GreenNode, GreenToken};
+pub(crate) use rowan::{ArcGreenNode, GreenToken};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum RustLanguage {}
@@ -52,9 +50,9 @@ impl Default for SyntaxTreeBuilder {
 }
 
 impl SyntaxTreeBuilder {
-    pub(crate) fn finish_raw(self) -> (Arc<GreenNode>, Vec<SyntaxError>) {
+    pub(crate) fn finish_raw(self) -> (ArcGreenNode, Vec<SyntaxError>) {
         let green = self.inner.finish();
-        (green, self.errors)
+        (green.unwrap_node(), self.errors)
     }
 
     pub fn finish(self) -> Parse<SyntaxNode> {
