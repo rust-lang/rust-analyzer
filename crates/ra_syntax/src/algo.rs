@@ -4,7 +4,7 @@ use std::ops::RangeInclusive;
 
 use itertools::Itertools;
 use ra_text_edit::TextEditBuilder;
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 use crate::{
     AstNode, Direction, NodeOrToken, SyntaxElement, SyntaxNode, SyntaxNodePtr, TextRange, TextUnit,
@@ -65,7 +65,7 @@ pub enum InsertPosition<T> {
 }
 
 pub struct TreeDiff {
-    replacements: FxHashMap<SyntaxElement, SyntaxElement>,
+    replacements: HashMap<SyntaxElement, SyntaxElement>,
 }
 
 impl TreeDiff {
@@ -84,14 +84,14 @@ impl TreeDiff {
 /// A trivial solution is a singletom map `{ from: to }`, but this function
 /// tries to find a more fine-grained diff.
 pub fn diff(from: &SyntaxNode, to: &SyntaxNode) -> TreeDiff {
-    let mut buf = FxHashMap::default();
+    let mut buf = HashMap::default();
     // FIXME: this is both horrible inefficient and gives larger than
     // necessary diff. I bet there's a cool algorithm to diff trees properly.
     go(&mut buf, from.clone().into(), to.clone().into());
     return TreeDiff { replacements: buf };
 
     fn go(
-        buf: &mut FxHashMap<SyntaxElement, SyntaxElement>,
+        buf: &mut HashMap<SyntaxElement, SyntaxElement>,
         lhs: SyntaxElement,
         rhs: SyntaxElement,
     ) {
@@ -185,14 +185,14 @@ pub fn replace_children(
 /// to create a type-safe abstraction on top of it instead.
 pub fn replace_descendants(
     parent: &SyntaxNode,
-    map: &FxHashMap<SyntaxElement, SyntaxElement>,
+    map: &HashMap<SyntaxElement, SyntaxElement>,
 ) -> SyntaxNode {
     //  FIXME: this could be made much faster.
     let new_children = parent.children_with_tokens().map(|it| go(map, it)).collect::<Box<[_]>>();
     return with_children(parent, new_children);
 
     fn go(
-        map: &FxHashMap<SyntaxElement, SyntaxElement>,
+        map: &HashMap<SyntaxElement, SyntaxElement>,
         element: SyntaxElement,
     ) -> NodeOrToken<rowan::GreenNode, rowan::GreenToken> {
         if let Some(replacement) = map.get(&element) {

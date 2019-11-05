@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use hir_def::path::known;
-use hir_expand::name::AsName;
+use hir_expand::name::{AsName, Name as HirExpandName};
 use ra_db::FileId;
 use ra_syntax::{
     ast::{self, AstNode},
@@ -16,7 +16,7 @@ use ra_syntax::{
     SyntaxKind::*,
     SyntaxNode, SyntaxNodePtr, TextRange, TextUnit,
 };
-use rustc_hash::FxHashSet;
+use std::collections::HashSet;
 
 use crate::{
     db::HirDatabase,
@@ -282,11 +282,12 @@ impl SourceAnalyzer {
     }
 
     pub fn resolve_local_name(&self, name_ref: &ast::NameRef) -> Option<ScopeEntryWithSyntax> {
-        let mut shadowed = FxHashSet::default();
+        let mut shadowed: HashSet<&HirExpandName> = HashSet::default();
         let name = name_ref.as_name();
         let source_map = self.body_source_map.as_ref()?;
         let scopes = self.scopes.as_ref()?;
         let scope = scope_for(scopes, source_map, name_ref.syntax());
+        // HashMap<ExprId, ScopeId>
         let ret = scopes
             .scope_chain(scope)
             .flat_map(|scope| scopes.entries(scope).iter())

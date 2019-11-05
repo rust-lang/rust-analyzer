@@ -4,7 +4,7 @@
 //!
 //! See: https://doc.rust-lang.org/nomicon/coercions.html
 
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 use test_utils::tested_by;
 
@@ -47,11 +47,11 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
     pub(super) fn init_coerce_unsized_map(
         db: &'a D,
         resolver: &Resolver,
-    ) -> FxHashMap<(TypeCtor, TypeCtor), usize> {
+    ) -> HashMap<(TypeCtor, TypeCtor), usize> {
         let krate = resolver.krate().unwrap();
         let impls = match db.lang_item(krate, "coerce_unsized".into()) {
             Some(LangItemTarget::Trait(trait_)) => db.impls_for_trait(krate, trait_),
-            _ => return FxHashMap::default(),
+            _ => return HashMap::default(),
         };
 
         impls

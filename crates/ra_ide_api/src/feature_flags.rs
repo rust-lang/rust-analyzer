@@ -1,6 +1,6 @@
 //! FIXME: write short doc here
 
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 /// Feature flags hold fine-grained toggles for all *user-visible* features of
 /// rust-analyzer.
@@ -16,7 +16,7 @@ use rustc_hash::FxHashMap;
 /// `ra_lsp_server`. This should be benign layering violation.
 #[derive(Debug)]
 pub struct FeatureFlags {
-    flags: FxHashMap<String, bool>,
+    flags: HashMap<String, bool>,
 }
 
 impl FeatureFlags {

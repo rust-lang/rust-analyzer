@@ -1,6 +1,6 @@
 //! FIXME: write short doc here
 
-use rustc_hash::{FxHashMap, FxHashSet};
+use std::collections::{HashMap, HashSet};
 
 use hir::{Mutability, Ty};
 use ra_db::SourceDatabase;
@@ -79,8 +79,8 @@ pub(crate) fn highlight(db: &RootDatabase, file_id: FileId) -> Vec<HighlightedRa
 
     // Visited nodes to handle highlighting priorities
     // FIXME: retain only ranges here
-    let mut highlighted: FxHashSet<SyntaxElement> = FxHashSet::default();
-    let mut bindings_shadow_count: FxHashMap<SmolStr, u32> = FxHashMap::default();
+    let mut highlighted: HashSet<SyntaxElement> = HashSet::default();
+    let mut bindings_shadow_count: HashMap<SmolStr, u32> = HashMap::default();
 
     let mut res = Vec::new();
     for node in root.descendants_with_tokens() {

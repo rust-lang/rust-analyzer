@@ -7,7 +7,7 @@
 //! configure the server itself, feature flags are passed into analysis, and
 //! tweak things like automatic insertion of `()` in completions.
 
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 use serde::{Deserialize, Deserializer};
 
@@ -34,7 +34,7 @@ pub struct ServerConfig {
     pub with_sysroot: bool,
 
     /// Fine grained feature flags to disable specific features.
-    pub feature_flags: FxHashMap<String, bool>,
+    pub feature_flags: HashMap<String, bool>,
 }
 
 impl Default for ServerConfig {
@@ -45,7 +45,7 @@ impl Default for ServerConfig {
             use_client_watching: false,
             lru_capacity: None,
             with_sysroot: true,
-            feature_flags: FxHashMap::default(),
+            feature_flags: HashMap::default(),
         }
     }
 }

@@ -1,6 +1,6 @@
 //! FIXME: write short doc here
 
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use ra_syntax::{ast::AttrsOwner, SmolStr};
@@ -35,7 +35,7 @@ impl LangItemTarget {
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct LangItems {
-    items: FxHashMap<SmolStr, LangItemTarget>,
+    items: HashMap<SmolStr, LangItemTarget>,
 }
 
 impl LangItems {

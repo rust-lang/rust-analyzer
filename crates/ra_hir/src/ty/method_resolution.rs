@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use arrayvec::ArrayVec;
 use hir_def::CrateModuleId;
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 use super::{autoderef, lower, Canonical, InEnvironment, TraitEnvironment, TraitRef};
 use crate::{
@@ -40,8 +40,8 @@ impl TyFingerprint {
 pub struct CrateImplBlocks {
     /// To make sense of the CrateModuleIds, we need the source root.
     krate: Crate,
-    impls: FxHashMap<TyFingerprint, Vec<(CrateModuleId, ImplId)>>,
-    impls_by_trait: FxHashMap<Trait, Vec<(CrateModuleId, ImplId)>>,
+    impls: HashMap<TyFingerprint, Vec<(CrateModuleId, ImplId)>>,
+    impls_by_trait: HashMap<Trait, Vec<(CrateModuleId, ImplId)>>,
 }
 
 impl CrateImplBlocks {
@@ -112,8 +112,8 @@ impl CrateImplBlocks {
     ) -> Arc<CrateImplBlocks> {
         let mut crate_impl_blocks = CrateImplBlocks {
             krate,
-            impls: FxHashMap::default(),
-            impls_by_trait: FxHashMap::default(),
+            impls: HashMap::default(),
+            impls_by_trait: HashMap::default(),
         };
         if let Some(module) = krate.root_module(db) {
             crate_impl_blocks.collect_recursive(db, module);

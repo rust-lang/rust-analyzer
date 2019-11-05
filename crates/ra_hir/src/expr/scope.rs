@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use ra_arena::{impl_arena_id, Arena, RawId};
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 use crate::{
     db::HirDatabase,
@@ -19,7 +19,7 @@ impl_arena_id!(ScopeId);
 pub struct ExprScopes {
     body: Arc<Body>,
     scopes: Arena<ScopeId, ScopeData>,
-    scope_by_expr: FxHashMap<ExprId, ScopeId>,
+    scope_by_expr: HashMap<ExprId, ScopeId>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -55,7 +55,7 @@ impl ExprScopes {
         let mut scopes = ExprScopes {
             body: body.clone(),
             scopes: Arena::default(),
-            scope_by_expr: FxHashMap::default(),
+            scope_by_expr: HashMap::default(),
         };
         let root = scopes.root_scope();
         scopes.add_params_bindings(root, body.params());
@@ -78,7 +78,7 @@ impl ExprScopes {
         self.scope_by_expr.get(&expr).copied()
     }
 
-    pub(crate) fn scope_by_expr(&self) -> &FxHashMap<ExprId, ScopeId> {
+    pub(crate) fn scope_by_expr(&self) -> &HashMap<ExprId, ScopeId> {
         &self.scope_by_expr
     }
 

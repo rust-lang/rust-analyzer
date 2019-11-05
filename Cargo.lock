@@ -1072,6 +1072,7 @@ dependencies = [
  "ra_db 0.1.0",
  "ra_fmt 0.1.0",
  "ra_hir 0.1.0",
+ "ra_hir_expand 0.1.0",
  "ra_prof 0.1.0",
  "ra_syntax 0.1.0",
  "ra_text_edit 0.1.0",

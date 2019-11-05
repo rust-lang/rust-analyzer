@@ -13,7 +13,7 @@ use ra_ide_api::{Canceled, FeatureFlags, FileId, LibraryData, SourceRootId};
 use ra_prof::profile;
 use ra_vfs::{VfsTask, Watch};
 use relative_path::RelativePathBuf;
-use rustc_hash::FxHashSet;
+use std::collections::HashSet;
 use serde::{de::DeserializeOwned, Serialize};
 use threadpool::ThreadPool;
 
@@ -263,7 +263,7 @@ impl fmt::Debug for Event {
 #[derive(Debug, Default)]
 struct LoopState {
     next_request_id: u64,
-    pending_responses: FxHashSet<RequestId>,
+    pending_responses: HashSet<RequestId>,
     pending_requests: PendingRequests,
     subscriptions: Subscriptions,
     // We try not to index more than MAX_IN_FLIGHT_LIBS libraries at the same

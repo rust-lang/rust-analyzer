@@ -4,7 +4,7 @@
 use std::{iter, ops::RangeInclusive};
 
 use arrayvec::ArrayVec;
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 use crate::{
     algo,
@@ -226,7 +226,7 @@ pub fn replace_descendants<N: AstNode, D: AstNode>(
 ) -> N {
     let map = replacement_map
         .map(|(from, to)| (from.syntax().clone().into(), to.syntax().clone().into()))
-        .collect::<FxHashMap<_, _>>();
+        .collect::<HashMap<_, _>>();
     let new_syntax = algo::replace_descendants(parent.syntax(), &map);
     N::cast(new_syntax).unwrap()
 }
@@ -261,7 +261,7 @@ impl IndentLevel {
     }
 
     fn _increase_indent(self, node: SyntaxNode) -> SyntaxNode {
-        let replacements: FxHashMap<SyntaxElement, SyntaxElement> = node
+        let replacements: HashMap<SyntaxElement, SyntaxElement> = node
             .descendants_with_tokens()
             .filter_map(|el| el.into_token())
             .filter_map(ast::Whitespace::cast)
@@ -290,7 +290,7 @@ impl IndentLevel {
     }
 
     fn _decrease_indent(self, node: SyntaxNode) -> SyntaxNode {
-        let replacements: FxHashMap<SyntaxElement, SyntaxElement> = node
+        let replacements: HashMap<SyntaxElement, SyntaxElement> = node
             .descendants_with_tokens()
             .filter_map(|el| el.into_token())
             .filter_map(ast::Whitespace::cast)

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use hir_def::path::known;
 use hir_expand::diagnostics::DiagnosticSink;
 use ra_syntax::ast;
-use rustc_hash::FxHashSet;
+use std::collections::HashSet;
 
 use crate::{
     db::HirDatabase,
@@ -64,7 +64,7 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
             _ => return,
         };
 
-        let lit_fields: FxHashSet<_> = fields.iter().map(|f| &f.name).collect();
+        let lit_fields: HashSet<_> = fields.iter().map(|f| &f.name).collect();
         let missed_fields: Vec<Name> = struct_def
             .fields(db)
             .iter()

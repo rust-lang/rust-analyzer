@@ -14,7 +14,7 @@ use ra_ide_api::{
 };
 use ra_prof::profile;
 use ra_syntax::{AstNode, SyntaxKind, TextRange, TextUnit};
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::to_value;
 
@@ -340,7 +340,7 @@ pub fn handle_runnables(
         label,
         bin: "cargo".to_string(),
         args: check_args,
-        env: FxHashMap::default(),
+        env: HashMap::default(),
         cwd: workspace_root.map(|root| root.to_string_lossy().to_string()),
     });
     Ok(res)
@@ -839,7 +839,7 @@ fn to_lsp_runnable(
         bin: "cargo".to_string(),
         args,
         env: {
-            let mut m = FxHashMap::default();
+            let mut m = HashMap::default();
             m.insert("RUST_BACKTRACE".to_string(), "short".to_string());
             m
         },

@@ -3,7 +3,7 @@
 use std::time::{Duration, Instant};
 
 use lsp_server::RequestId;
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct CompletedRequest {
@@ -31,7 +31,7 @@ impl From<PendingRequest> for CompletedRequest {
 
 #[derive(Debug, Default)]
 pub(crate) struct PendingRequests {
-    map: FxHashMap<RequestId, PendingRequest>,
+    map: HashMap<RequestId, PendingRequest>,
 }
 
 impl PendingRequests {

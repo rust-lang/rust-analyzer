@@ -1,7 +1,7 @@
 //! FIXME: write short doc here
 
 use ra_syntax::{ast, match_ast, AstNode};
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 use crate::completion::{CompletionContext, CompletionItem, CompletionKind, Completions};
 
@@ -14,7 +14,7 @@ pub(super) fn complete_fn_param(acc: &mut Completions, ctx: &CompletionContext) 
         return;
     }
 
-    let mut params = FxHashMap::default();
+    let mut params = HashMap::default();
     for node in ctx.token.parent().ancestors() {
         match_ast! {
             match node {
@@ -40,7 +40,7 @@ pub(super) fn complete_fn_param(acc: &mut Completions, ctx: &CompletionContext) 
                 .add_to(acc)
         });
 
-    fn process<N: ast::FnDefOwner>(node: N, params: &mut FxHashMap<String, (u32, ast::Param)>) {
+    fn process<N: ast::FnDefOwner>(node: N, params: &mut HashMap<String, (u32, ast::Param)>) {
         node.functions().filter_map(|it| it.param_list()).flat_map(|it| it.params()).for_each(
             |param| {
                 let text = param.syntax().text().to_string();

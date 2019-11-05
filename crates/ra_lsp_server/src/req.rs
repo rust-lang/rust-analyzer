@@ -1,7 +1,7 @@
 //! FIXME: write short doc here
 
 use lsp_types::{Location, Position, Range, TextDocumentIdentifier, Url};
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 pub use lsp_types::{
@@ -165,7 +165,7 @@ pub struct Runnable {
     pub label: String,
     pub bin: String,
     pub args: Vec<String>,
-    pub env: FxHashMap<String, String>,
+    pub env: HashMap<String, String>,
     pub cwd: Option<String>,
 }
 

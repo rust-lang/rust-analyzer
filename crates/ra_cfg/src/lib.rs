@@ -2,7 +2,7 @@
 use std::iter::IntoIterator;
 
 use ra_syntax::SmolStr;
-use rustc_hash::FxHashSet;
+use std::collections::HashSet;
 
 mod cfg_expr;
 
@@ -20,8 +20,8 @@ pub use cfg_expr::{parse_cfg, CfgExpr};
 /// See: https://doc.rust-lang.org/reference/conditional-compilation.html#set-configuration-options
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CfgOptions {
-    atoms: FxHashSet<SmolStr>,
-    key_values: FxHashSet<(SmolStr, SmolStr)>,
+    atoms: HashSet<SmolStr>,
+    key_values: HashSet<(SmolStr, SmolStr)>,
 }
 
 impl CfgOptions {

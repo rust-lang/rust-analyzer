@@ -12,7 +12,7 @@ use hir_def::{
 };
 use ra_arena::{impl_arena_id, map::ArenaMap, Arena, RawId};
 use ra_syntax::{ast, AstPtr};
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 use crate::{
     db::HirDatabase,
@@ -67,11 +67,11 @@ type PatSource = Source<PatPtr>;
 /// this properly for macros.
 #[derive(Default, Debug, Eq, PartialEq)]
 pub struct BodySourceMap {
-    expr_map: FxHashMap<ExprPtr, ExprId>,
+    expr_map: HashMap<ExprPtr, ExprId>,
     expr_map_back: ArenaMap<ExprId, ExprSource>,
-    pat_map: FxHashMap<PatPtr, PatId>,
+    pat_map: HashMap<PatPtr, PatId>,
     pat_map_back: ArenaMap<PatId, PatSource>,
-    field_map: FxHashMap<(ExprId, usize), AstPtr<ast::RecordField>>,
+    field_map: HashMap<(ExprId, usize), AstPtr<ast::RecordField>>,
 }
 
 impl Body {

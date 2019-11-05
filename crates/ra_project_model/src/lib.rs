@@ -14,13 +14,13 @@ use std::{
 
 use ra_cfg::CfgOptions;
 use ra_db::{CrateGraph, CrateId, Edition, FileId};
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 use serde_json::from_reader;
 
 pub use crate::{
     cargo_workspace::{CargoWorkspace, Package, Target, TargetKind},
     json_project::JsonProject,
-    sysroot::Sysroot,
+    sysroot::Sysroot
 };
 
 // FIXME use proper error enum
@@ -121,14 +121,14 @@ impl ProjectWorkspace {
         &self,
         default_cfg_options: &CfgOptions,
         load: &mut dyn FnMut(&Path) -> Option<FileId>,
-    ) -> (CrateGraph, FxHashMap<CrateId, String>) {
+    ) -> (CrateGraph, HashMap<CrateId, String>) {
         let mut crate_graph = CrateGraph::default();
-        let mut names = FxHashMap::default();
+        let mut names = HashMap::default();
         match self {
             ProjectWorkspace::Json { project } => {
-                let mut crates = FxHashMap::default();
+                let mut crates: HashMap<CrateId, CrateId> = HashMap::default();
                 for (id, krate) in project.crates.iter().enumerate() {
-                    let crate_id = json_project::CrateId(id);
+                    let crate_id = CrateId(id as u32);
                     if let Some(file_id) = load(&krate.root_module) {
                         let edition = match krate.edition {
                             json_project::Edition::Edition2015 => Edition::Edition2015,
@@ -153,8 +153,8 @@ impl ProjectWorkspace {
 
                 for (id, krate) in project.crates.iter().enumerate() {
                     for dep in &krate.deps {
-                        let from_crate_id = json_project::CrateId(id);
-                        let to_crate_id = dep.krate;
+                        let from_crate_id = CrateId(id as u32);
+                        let to_crate_id = dep.krate.into();
                         if let (Some(&from), Some(&to)) =
                             (crates.get(&from_crate_id), crates.get(&to_crate_id))
                         {
@@ -170,7 +170,7 @@ impl ProjectWorkspace {
                 }
             }
             ProjectWorkspace::Cargo { cargo, sysroot } => {
-                let mut sysroot_crates = FxHashMap::default();
+                let mut sysroot_crates: HashMap<sysroot::SysrootCrate, CrateId> = HashMap::default();
                 for krate in sysroot.crates() {
                     if let Some(file_id) = load(krate.root(&sysroot)) {
                         // Crates from sysroot have `cfg(test)` disabled
@@ -201,8 +201,8 @@ impl ProjectWorkspace {
 
                 let libstd = sysroot.std().and_then(|it| sysroot_crates.get(&it).copied());
 
-                let mut pkg_to_lib_crate = FxHashMap::default();
-                let mut pkg_crates = FxHashMap::default();
+                let mut pkg_to_lib_crate: HashMap<cargo_workspace::Package, CrateId> = HashMap::default();
+                let mut pkg_crates: HashMap<cargo_workspace::Package, Vec<CrateId>> = HashMap::default();
                 // Next, create crates for each package, target pair
                 for pkg in cargo.packages() {
                     let mut lib_tgt = None;

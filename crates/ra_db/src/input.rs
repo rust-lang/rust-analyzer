@@ -6,11 +6,11 @@
 //! actual IO. See `vfs` and `project_model` in the `ra_lsp_server` crate for how
 //! actual IO is done and lowered to input.
 
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 use ra_cfg::CfgOptions;
 use ra_syntax::SmolStr;
-use rustc_hash::FxHashSet;
+use std::collections::HashSet;
 
 use crate::{RelativePath, RelativePathBuf};
 
@@ -39,7 +39,7 @@ pub struct SourceRoot {
     /// Libraries are considered mostly immutable, this assumption is used to
     /// optimize salsa's query structure
     pub is_library: bool,
-    files: FxHashMap<RelativePathBuf, FileId>,
+    files: HashMap<RelativePathBuf, FileId>,
 }
 
 impl SourceRoot {
@@ -76,7 +76,7 @@ impl SourceRoot {
 /// `CrateGraph` by lowering `cargo metadata` output.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CrateGraph {
-    arena: FxHashMap<CrateId, CrateData>,
+    arena: HashMap<CrateId, CrateData>,
 }
 
 #[derive(Debug)]
@@ -160,7 +160,7 @@ impl CrateGraph {
         name: SmolStr,
         to: CrateId,
     ) -> Result<(), CyclicDependencies> {
-        if self.dfs_find(from, to, &mut FxHashSet::default()) {
+        if self.dfs_find(from, to, &mut HashSet::default()) {
             return Err(CyclicDependencies);
         }
         self.arena.get_mut(&from).unwrap().add_dep(name, to);
@@ -213,7 +213,7 @@ impl CrateGraph {
         start
     }
 
-    fn dfs_find(&self, target: CrateId, from: CrateId, visited: &mut FxHashSet<CrateId>) -> bool {
+    fn dfs_find(&self, target: CrateId, from: CrateId, visited: &mut HashSet<CrateId>) -> bool {
         if !visited.insert(from) {
             return false;
         }

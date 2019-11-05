@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use cargo_metadata::{CargoOpt, MetadataCommand};
 use ra_arena::{impl_arena_id, Arena, RawId};
 use ra_db::Edition;
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 use crate::Result;
 
@@ -133,7 +133,7 @@ impl CargoWorkspace {
             meta.current_dir(parent);
         }
         let meta = meta.exec().map_err(|e| format!("cargo metadata failed: {}", e))?;
-        let mut pkg_by_id = FxHashMap::default();
+        let mut pkg_by_id: HashMap<cargo_metadata::PackageId, Package> = HashMap::default();
         let mut packages = Arena::default();
         let mut targets = Arena::default();
 

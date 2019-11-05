@@ -7,7 +7,8 @@ use crate::{
     completion::{completion_context::CompletionContext, completion_item::Completions},
     CompletionItem,
 };
-use rustc_hash::FxHashSet;
+use std::collections::HashSet;
+use hir_expand::name::Name as HirExpandName;
 
 /// Complete dot accesses, i.e. fields or methods (and .await syntax).
 pub(super) fn complete_dot(acc: &mut Completions, ctx: &CompletionContext) {
@@ -57,7 +58,7 @@ fn complete_fields(acc: &mut Completions, ctx: &CompletionContext, receiver: Ty)
 }
 
 fn complete_methods(acc: &mut Completions, ctx: &CompletionContext, receiver: Ty) {
-    let mut seen_methods = FxHashSet::default();
+    let mut seen_methods: HashSet<HirExpandName> = HashSet::default();
     ctx.analyzer.iterate_method_candidates(ctx.db, receiver, None, |_ty, func| {
         let data = func.data(ctx.db);
         if data.has_self_param() && seen_methods.insert(data.name().clone()) {

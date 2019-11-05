@@ -6,7 +6,7 @@ mod matcher;
 mod transcriber;
 
 use ra_syntax::SmolStr;
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 use crate::ExpandError;
 
@@ -70,7 +70,7 @@ fn expand_rule(rule: &crate::Rule, input: &tt::Subtree) -> Result<tt::Subtree, E
 /// many is not a plain `usize`, but an `&[usize]`.
 #[derive(Debug, Default)]
 struct Bindings {
-    inner: FxHashMap<SmolStr, Binding>,
+    inner: HashMap<SmolStr, Binding>,
 }
 
 #[derive(Debug)]

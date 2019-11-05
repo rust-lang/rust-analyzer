@@ -8,7 +8,7 @@ use hir_def::{
     AdtId, CrateModuleId, ModuleDefId,
 };
 use hir_expand::name::{self, Name};
-use rustc_hash::FxHashSet;
+use std::collections::HashSet;
 
 use crate::{
     code_model::Crate,
@@ -331,8 +331,8 @@ impl Resolver {
         }
     }
 
-    pub(crate) fn traits_in_scope(&self, db: &impl HirDatabase) -> FxHashSet<Trait> {
-        let mut traits = FxHashSet::default();
+    pub(crate) fn traits_in_scope(&self, db: &impl HirDatabase) -> HashSet<Trait> {
+        let mut traits = HashSet::default();
         for scope in &self.scopes {
             if let Scope::ModuleScope(m) = scope {
                 if let Some(prelude) = m.crate_def_map.prelude() {

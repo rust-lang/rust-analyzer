@@ -1,6 +1,6 @@
 //! FIXME: write short doc here
 
-use rustc_hash::FxHashSet;
+use std::collections::HashSet;
 
 use ra_syntax::{
     ast::{self, AstNode, AstToken, VisibilityOwner},
@@ -25,9 +25,9 @@ pub struct Fold {
 
 pub(crate) fn folding_ranges(file: &SourceFile) -> Vec<Fold> {
     let mut res = vec![];
-    let mut visited_comments = FxHashSet::default();
-    let mut visited_imports = FxHashSet::default();
-    let mut visited_mods = FxHashSet::default();
+    let mut visited_comments = HashSet::default();
+    let mut visited_imports = HashSet::default();
+    let mut visited_mods = HashSet::default();
 
     for element in file.syntax().descendants_with_tokens() {
         // Fold items that span multiple lines
@@ -102,7 +102,7 @@ fn has_visibility(node: &SyntaxNode) -> bool {
 
 fn contiguous_range_for_group(
     first: &SyntaxNode,
-    visited: &mut FxHashSet<SyntaxNode>,
+    visited: &mut HashSet<SyntaxNode>,
 ) -> Option<TextRange> {
     contiguous_range_for_group_unless(first, |_| false, visited)
 }
@@ -110,7 +110,7 @@ fn contiguous_range_for_group(
 fn contiguous_range_for_group_unless(
     first: &SyntaxNode,
     unless: impl Fn(&SyntaxNode) -> bool,
-    visited: &mut FxHashSet<SyntaxNode>,
+    visited: &mut HashSet<SyntaxNode>,
 ) -> Option<TextRange> {
     visited.insert(first.clone());
 
@@ -150,7 +150,7 @@ fn contiguous_range_for_group_unless(
 
 fn contiguous_range_for_comment(
     first: ast::Comment,
-    visited: &mut FxHashSet<ast::Comment>,
+    visited: &mut HashSet<ast::Comment>,
 ) -> Option<TextRange> {
     visited.insert(first.clone());
 

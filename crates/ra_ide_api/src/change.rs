@@ -11,7 +11,7 @@ use ra_prof::{memory_usage, profile, Bytes};
 use ra_syntax::SourceFile;
 #[cfg(not(feature = "wasm"))]
 use rayon::prelude::*;
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 use crate::{
     db::{DebugData, RootDatabase},
@@ -21,7 +21,7 @@ use crate::{
 #[derive(Default)]
 pub struct AnalysisChange {
     new_roots: Vec<(SourceRootId, bool)>,
-    roots_changed: FxHashMap<SourceRootId, RootChange>,
+    roots_changed: HashMap<SourceRootId, RootChange>,
     files_changed: Vec<(FileId, Arc<String>)>,
     libraries_added: Vec<LibraryData>,
     crate_graph: Option<CrateGraph>,

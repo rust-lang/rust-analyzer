@@ -64,7 +64,7 @@ use ra_arena::Arena;
 use ra_db::{CrateId, Edition, FileId};
 use ra_prof::profile;
 use ra_syntax::ast;
-use rustc_hash::{FxHashMap, FxHashSet};
+use std::collections::{HashMap, HashSet};
 use test_utils::tested_by;
 
 use crate::{
@@ -84,7 +84,7 @@ pub struct CrateDefMap {
     /// marked with the `prelude_import` attribute, or (in the normal case) from
     /// a dependency (`std` or `core`).
     prelude: Option<ModuleId>,
-    extern_prelude: FxHashMap<Name, ModuleDefId>,
+    extern_prelude: HashMap<Name, ModuleDefId>,
     root: CrateModuleId,
     pub modules: Arena<CrateModuleId, ModuleData>,
 
@@ -98,7 +98,7 @@ pub struct CrateDefMap {
     /// the whole process will do again until it became poisoned in that crate.
     /// We should handle this macro set globally
     /// However, do we want to put it as a global variable?
-    poison_macros: FxHashSet<MacroDefId>,
+    poison_macros: HashSet<MacroDefId>,
 
     diagnostics: Vec<DefDiagnostic>,
 }
@@ -113,7 +113,7 @@ impl std::ops::Index<CrateModuleId> for CrateDefMap {
 #[derive(Default, Debug, PartialEq, Eq)]
 pub struct ModuleData {
     pub parent: Option<CrateModuleId>,
-    pub children: FxHashMap<Name, CrateModuleId>,
+    pub children: HashMap<Name, CrateModuleId>,
     pub scope: ModuleScope,
     /// None for root
     pub declaration: Option<AstId<ast::Module>>,
@@ -125,7 +125,7 @@ pub struct ModuleData {
 
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct ModuleScope {
-    pub items: FxHashMap<Name, Resolution>,
+    pub items: HashMap<Name, Resolution>,
     /// Macros visable in current module in legacy textual scope
     ///
     /// For macros invoked by an unquatified identifier like `bar!()`, `legacy_macros` will be searched in first.
@@ -138,10 +138,10 @@ pub struct ModuleScope {
     /// Module scoped macros will be inserted into `items` instead of here.
     // FIXME: Macro shadowing in one module is not properly handled. Non-item place macros will
     // be all resolved to the last one defined if shadowing happens.
-    legacy_macros: FxHashMap<Name, MacroDefId>,
+    legacy_macros: HashMap<Name, MacroDefId>,
 }
 
-static BUILTIN_SCOPE: Lazy<FxHashMap<Name, Resolution>> = Lazy::new(|| {
+static BUILTIN_SCOPE: Lazy<HashMap<Name, Resolution>> = Lazy::new(|| {
     BuiltinType::ALL
         .iter()
         .map(|(name, ty)| {
@@ -250,11 +250,11 @@ impl CrateDefMap {
             CrateDefMap {
                 krate,
                 edition,
-                extern_prelude: FxHashMap::default(),
+                extern_prelude: HashMap::default(),
                 prelude: None,
                 root,
                 modules,
-                poison_macros: FxHashSet::default(),
+                poison_macros: HashSet::default(),
                 diagnostics: Vec::new(),
             }
         };
@@ -274,7 +274,7 @@ impl CrateDefMap {
         self.prelude
     }
 
-    pub fn extern_prelude(&self) -> &FxHashMap<Name, ModuleDefId> {
+    pub fn extern_prelude(&self) -> &HashMap<Name, ModuleDefId> {
         &self.extern_prelude
     }
 

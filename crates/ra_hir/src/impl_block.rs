@@ -1,6 +1,6 @@
 //! FIXME: write short doc here
 
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use hir_def::{attr::Attr, type_ref::TypeRef};
@@ -172,7 +172,7 @@ impl_arena_id!(ImplId);
 pub struct ModuleImplBlocks {
     pub(crate) module: Module,
     pub(crate) impls: Arena<ImplId, ImplData>,
-    impls_by_def: FxHashMap<AssocItem, ImplId>,
+    impls_by_def: HashMap<AssocItem, ImplId>,
 }
 
 impl ModuleImplBlocks {
@@ -204,7 +204,7 @@ impl ModuleImplBlocks {
         let mut m = ModuleImplBlocks {
             module,
             impls: Arena::default(),
-            impls_by_def: FxHashMap::default(),
+            impls_by_def: HashMap::default(),
         };
 
         let src = m.module.definition_source(db);

@@ -3,12 +3,12 @@
 use std::sync::Arc;
 
 use ra_cfg::CfgOptions;
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 use test_utils::{extract_offset, parse_fixture, CURSOR_MARKER};
 
 use crate::{
     CrateGraph, Edition, FileId, FilePosition, RelativePathBuf, SourceDatabaseExt, SourceRoot,
-    SourceRootId,
+    SourceRootId, CrateId
 };
 
 pub const WORKSPACE: SourceRootId = SourceRootId(0);
@@ -59,7 +59,7 @@ fn with_files(db: &mut dyn SourceDatabaseExt, fixture: &str) -> Option<FilePosit
     let fixture = parse_fixture(fixture);
 
     let mut crate_graph = CrateGraph::default();
-    let mut crates = FxHashMap::default();
+    let mut crates: HashMap<String, CrateId> = HashMap::default();
     let mut crate_deps = Vec::new();
     let mut default_crate_root: Option<FileId> = None;
 

@@ -2,10 +2,10 @@
 
 use std::{collections::HashSet, error::Error, path::Path};
 
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 use crossbeam_channel::{unbounded, Receiver};
-use ra_db::{CrateGraph, FileId, SourceRootId};
+use ra_db::{CrateGraph, FileId, SourceRootId, RelativePathBuf};
 use ra_ide_api::{AnalysisChange, AnalysisHost, FeatureFlags};
 use ra_project_model::{get_rustc_cfg_options, PackageRoot, ProjectWorkspace};
 use ra_vfs::{RootEntry, Vfs, VfsChange, VfsTask, Watch};
@@ -20,7 +20,7 @@ fn vfs_root_to_id(r: ra_vfs::VfsRoot) -> SourceRootId {
     SourceRootId(r.0)
 }
 
-pub fn load_cargo(root: &Path) -> Result<(AnalysisHost, FxHashMap<SourceRootId, PackageRoot>)> {
+pub fn load_cargo(root: &Path) -> Result<(AnalysisHost, HashMap<SourceRootId, PackageRoot>)> {
     let root = std::env::current_dir()?.join(root);
     let ws = ProjectWorkspace::discover(root.as_ref())?;
     let project_roots = ws.to_roots();
@@ -69,13 +69,13 @@ pub fn load_cargo(root: &Path) -> Result<(AnalysisHost, FxHashMap<SourceRootId, 
                 .clone();
             (source_root_id, project_root)
         })
-        .collect::<FxHashMap<_, _>>();
+        .collect::<HashMap<_, _>>();
     let host = load(&source_roots, crate_graph, &mut vfs, receiver);
     Ok((host, source_roots))
 }
 
 pub fn load(
-    source_roots: &FxHashMap<SourceRootId, PackageRoot>,
+    source_roots: &HashMap<SourceRootId, PackageRoot>,
     crate_graph: CrateGraph,
     vfs: &mut Vfs,
     receiver: Receiver<VfsTask>,
@@ -106,7 +106,7 @@ pub fn load(
                         source_roots[&source_root_id].path().display().to_string(),
                     );
 
-                    let mut file_map = FxHashMap::default();
+                    let mut file_map: HashMap<RelativePathBuf, FileId> = HashMap::default();
                     for (vfs_file, path, text) in files {
                         let file_id = vfs_file_to_id(vfs_file);
                         analysis_change.add_file(source_root_id, file_id, path.clone(), text);

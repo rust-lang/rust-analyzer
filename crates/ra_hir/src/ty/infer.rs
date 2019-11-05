@@ -19,7 +19,7 @@ use std::ops::Index;
 use std::sync::Arc;
 
 use ena::unify::{InPlaceUnificationTable, NoError, UnifyKey, UnifyValue};
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 use hir_def::{
     path::known,
@@ -122,13 +122,13 @@ pub struct TypeMismatch {
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
 pub struct InferenceResult {
     /// For each method call expr, records the function it resolves to.
-    method_resolutions: FxHashMap<ExprId, Function>,
+    method_resolutions: HashMap<ExprId, Function>,
     /// For each field access expr, records the field it resolves to.
-    field_resolutions: FxHashMap<ExprId, StructField>,
+    field_resolutions: HashMap<ExprId, StructField>,
     /// For each struct literal, records the variant it resolves to.
-    variant_resolutions: FxHashMap<ExprOrPatId, VariantDef>,
+    variant_resolutions: HashMap<ExprOrPatId, VariantDef>,
     /// For each associated item record what it resolves to
-    assoc_resolutions: FxHashMap<ExprOrPatId, AssocItem>,
+    assoc_resolutions: HashMap<ExprOrPatId, AssocItem>,
     diagnostics: Vec<InferenceDiagnostic>,
     pub(super) type_of_expr: ArenaMap<ExprId, Ty>,
     pub(super) type_of_pat: ArenaMap<PatId, Ty>,
@@ -200,7 +200,7 @@ struct InferenceContext<'a, D: HirDatabase> {
     /// (from_ty_ctor, to_ty_ctor) => coerce_generic_index
     // FIXME: Use trait solver for this.
     // Chalk seems unable to work well with builtin impl of `Unsize` now.
-    coerce_unsized_map: FxHashMap<(TypeCtor, TypeCtor), usize>,
+    coerce_unsized_map: HashMap<(TypeCtor, TypeCtor), usize>,
 }
 
 impl<'a, D: HirDatabase> InferenceContext<'a, D> {

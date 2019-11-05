@@ -3,7 +3,7 @@
 use ra_assists::auto_import_text_edit;
 use ra_syntax::{ast, AstNode, SmolStr};
 use ra_text_edit::TextEditBuilder;
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 use crate::completion::{CompletionContext, CompletionItem, CompletionKind, Completions};
 
@@ -115,11 +115,11 @@ impl ImportResolver {
     // Returns a map of importable items filtered by name.
     // The map associates item name with its full path.
     // todo: should return Resolutions
-    pub(crate) fn all_names(&self, name: &str) -> FxHashMap<SmolStr, Vec<SmolStr>> {
+    pub(crate) fn all_names(&self, name: &str) -> HashMap<SmolStr, Vec<SmolStr>> {
         if name.len() > 1 {
             self.dummy_names.iter().filter(|(n, _)| n.contains(name)).cloned().collect()
         } else {
-            FxHashMap::default()
+            HashMap::default()
         }
     }
 }

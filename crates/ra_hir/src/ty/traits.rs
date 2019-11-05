@@ -5,7 +5,7 @@ use chalk_ir::{cast::Cast, family::ChalkIr};
 use log::debug;
 use ra_db::salsa;
 use ra_prof::profile;
-use rustc_hash::FxHashSet;
+use std::collections::HashSet;
 
 use super::{Canonical, GenericPredicate, HirDisplay, ProjectionTy, TraitRef, Ty, TypeWalk};
 use crate::{db::HirDatabase, expr::ExprId, Crate, DefWithBody, ImplBlock, Trait};
@@ -78,7 +78,7 @@ pub(crate) fn impls_for_trait_query(
     krate: Crate,
     trait_: Trait,
 ) -> Arc<[ImplBlock]> {
-    let mut impls = FxHashSet::default();
+    let mut impls: HashSet<ImplBlock> = HashSet::default();
     // We call the query recursively here. On the one hand, this means we can
     // reuse results from queries for different crates; on the other hand, this
     // will only ever get called for a few crates near the root of the tree (the

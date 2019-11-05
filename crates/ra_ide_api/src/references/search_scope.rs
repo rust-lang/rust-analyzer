@@ -8,18 +8,18 @@ use hir::{DefWithBody, HasSource, ModuleSource};
 use ra_db::{FileId, SourceDatabase, SourceDatabaseExt};
 use ra_prof::profile;
 use ra_syntax::{AstNode, TextRange};
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 use crate::db::RootDatabase;
 
 use super::{NameDefinition, NameKind};
 
 pub struct SearchScope {
-    entries: FxHashMap<FileId, Option<TextRange>>,
+    entries: HashMap<FileId, Option<TextRange>>,
 }
 
 impl SearchScope {
-    fn new(entries: FxHashMap<FileId, Option<TextRange>>) -> SearchScope {
+    fn new(entries: HashMap<FileId, Option<TextRange>>) -> SearchScope {
         SearchScope { entries }
     }
     pub fn single_file(file: FileId) -> SearchScope {
@@ -72,7 +72,7 @@ impl NameDefinition {
         let file_id = module_src.file_id.original_file(db);
 
         if let NameKind::Pat((def, _)) = self.kind {
-            let mut res = FxHashMap::default();
+            let mut res = HashMap::default();
             let range = match def {
                 DefWithBody::Function(f) => f.source(db).ast.syntax().text_range(),
                 DefWithBody::Const(c) => c.source(db).ast.syntax().text_range(),
@@ -87,7 +87,7 @@ impl NameDefinition {
 
         if vis.as_str() == "pub(super)" {
             if let Some(parent_module) = self.container.parent(db) {
-                let mut res = FxHashMap::default();
+                let mut res = HashMap::default();
                 let parent_src = parent_module.definition_source(db);
                 let file_id = parent_src.file_id.original_file(db);
 
@@ -111,7 +111,7 @@ impl NameDefinition {
         if vis.as_str() != "" {
             let source_root_id = db.file_source_root(file_id);
             let source_root = db.source_root(source_root_id);
-            let mut res = source_root.walk().map(|id| (id, None)).collect::<FxHashMap<_, _>>();
+            let mut res = source_root.walk().map(|id| (id, None)).collect::<HashMap<_, _>>();
 
             // FIXME: add "pub(in path)"
 
@@ -134,7 +134,7 @@ impl NameDefinition {
             }
         }
 
-        let mut res = FxHashMap::default();
+        let mut res = HashMap::default();
         let range = match module_src.ast {
             ModuleSource::Module(m) => Some(m.syntax().text_range()),
             ModuleSource::SourceFile(_) => None,

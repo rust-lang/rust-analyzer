@@ -7,7 +7,7 @@ use hir_expand::{
 use ra_cfg::CfgOptions;
 use ra_db::{CrateId, FileId};
 use ra_syntax::{ast, SmolStr};
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 use test_utils::tested_by;
 
 use crate::{
@@ -48,10 +48,10 @@ pub(super) fn collect_defs(db: &impl DefDatabase2, mut def_map: CrateDefMap) -> 
     let mut collector = DefCollector {
         db,
         def_map,
-        glob_imports: FxHashMap::default(),
+        glob_imports: HashMap::default(),
         unresolved_imports: Vec::new(),
         unexpanded_macros: Vec::new(),
-        mod_dirs: FxHashMap::default(),
+        mod_dirs: HashMap::default(),
         macro_stack_monitor: MacroStackMonitor::default(),
         cfg_options,
     };
@@ -61,7 +61,7 @@ pub(super) fn collect_defs(db: &impl DefDatabase2, mut def_map: CrateDefMap) -> 
 
 #[derive(Default)]
 struct MacroStackMonitor {
-    counts: FxHashMap<MacroDefId, u32>,
+    counts: HashMap<MacroDefId, u32>,
 
     /// Mainly use for test
     validator: Option<Box<dyn Fn(u32) -> bool>>,
@@ -91,10 +91,10 @@ impl MacroStackMonitor {
 struct DefCollector<'a, DB> {
     db: &'a DB,
     def_map: CrateDefMap,
-    glob_imports: FxHashMap<CrateModuleId, Vec<(CrateModuleId, raw::ImportId)>>,
+    glob_imports: HashMap<CrateModuleId, Vec<(CrateModuleId, raw::ImportId)>>,
     unresolved_imports: Vec<(CrateModuleId, raw::ImportId, raw::ImportData)>,
     unexpanded_macros: Vec<(CrateModuleId, AstId<ast::MacroCall>, Path)>,
-    mod_dirs: FxHashMap<CrateModuleId, ModDir>,
+    mod_dirs: HashMap<CrateModuleId, ModDir>,
 
     /// Some macro use `$tt:tt which mean we have to handle the macro perfectly
     /// To prevent stack overflow, we add a deep counter here for prevent that.
@@ -742,7 +742,7 @@ fn is_macro_rules(path: &Path) -> bool {
 mod tests {
     use ra_arena::Arena;
     use ra_db::{fixture::WithFixture, SourceDatabase};
-    use rustc_hash::FxHashSet;
+    use std::collections::HashSet;
 
     use crate::{db::DefDatabase2, test_db::TestDB};
 
@@ -756,10 +756,10 @@ mod tests {
         let mut collector = DefCollector {
             db,
             def_map,
-            glob_imports: FxHashMap::default(),
+            glob_imports: HashMap::default(),
             unresolved_imports: Vec::new(),
             unexpanded_macros: Vec::new(),
-            mod_dirs: FxHashMap::default(),
+            mod_dirs: HashMap::default(),
             macro_stack_monitor: monitor,
             cfg_options: &CfgOptions::default(),
         };
@@ -778,11 +778,11 @@ mod tests {
             CrateDefMap {
                 krate,
                 edition,
-                extern_prelude: FxHashMap::default(),
+                extern_prelude: HashMap::default(),
                 prelude: None,
                 root,
                 modules,
-                poison_macros: FxHashSet::default(),
+                poison_macros: HashSet::default(),
                 diagnostics: Vec::new(),
             }
         };

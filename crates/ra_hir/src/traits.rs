@@ -5,7 +5,7 @@ use std::sync::Arc;
 use hir_expand::name::AsName;
 
 use ra_syntax::ast::{self, NameOwner};
-use rustc_hash::FxHashMap;
+use std::collections::HashMap;
 
 use crate::{
     db::{AstDatabase, DefDatabase},
@@ -60,12 +60,12 @@ impl TraitData {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TraitItemsIndex {
-    traits_by_def: FxHashMap<AssocItem, Trait>,
+    traits_by_def: HashMap<AssocItem, Trait>,
 }
 
 impl TraitItemsIndex {
     pub(crate) fn trait_items_index(db: &impl DefDatabase, module: Module) -> TraitItemsIndex {
-        let mut index = TraitItemsIndex { traits_by_def: FxHashMap::default() };
+        let mut index = TraitItemsIndex { traits_by_def: HashMap::default() };
         for decl in module.declarations(db) {
             if let crate::ModuleDef::Trait(tr) = decl {
                 for item in tr.trait_data(db).items() {
