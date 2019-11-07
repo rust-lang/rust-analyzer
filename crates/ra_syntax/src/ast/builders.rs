@@ -4,24 +4,78 @@ use crate::{AstNode, SmolStr, SyntaxKind, SyntaxTreeBuilder};
 use std::marker::PhantomData;
 
 pub trait AstMake {
-    type I;
-    fn make(self, builder: &mut SyntaxTreeBuilder);
+    type Node;
+    fn make(&mut self, builder: &mut SyntaxTreeBuilder);
+    fn finish_make(&mut self, _builder: &mut SyntaxTreeBuilder);
 }
 
 pub trait AstBuild<N> {
     fn build(self) -> N;
 }
 
-impl<M: AstMake> AstBuild<M::I> for M
+impl<M: AstMake> AstBuild<M::Node> for M
 where
-    M::I: AstNode,
+    M::Node: AstNode,
 {
-    fn build(self) -> M::I {
+    fn build(mut self) -> M::Node {
         let mut builder = SyntaxTreeBuilder::default();
         self.make(&mut builder);
-        M::I::cast(builder.finish().syntax_node()).unwrap()
+        self.finish_make(&mut builder);
+        M::Node::cast(builder.finish().syntax_node()).unwrap()
     }
 }
+
+pub(crate) struct TokenMake {
+    kind: SyntaxKind,
+    token: &'static str,
+}
+
+impl TokenMake {
+    pub(crate) fn new(kind: SyntaxKind, token: &'static str) -> Self {
+        TokenMake { kind, token }
+    }
+}
+
+pub struct Make<A, B> {
+    a: A,
+    b: B,
+    end_token: Option<TokenMake>,
+}
+
+impl<A, B> Make<A, B> {
+    pub(crate) fn new(a: A, b: B, end_token: Option<TokenMake>) -> Self {
+        Make { a, b, end_token }
+    }
+}
+
+impl<AN, BN, A: AstMake<Node = AN>, B: AstMake<Node = BN>> AstMake for Make<A, B> {
+    type Node = AN;
+    fn make(&mut self, b: &mut SyntaxTreeBuilder) {
+        self.a.make(b);
+        self.b.make(b);
+        self.b.finish_make(b);
+        if let Some(tm) = &self.end_token {
+            b.token(tm.kind, SmolStr::new(tm.token));
+        }
+    }
+
+    fn finish_make(&mut self, b: &mut SyntaxTreeBuilder) {
+        self.a.finish_make(b);
+    }
+}
+
+// FIXME: this nodes haven't specified children in ASDL file
+// This builders should be implemented by hands or specified in ASDL
+pub trait RangeExprMake {}
+pub trait SlicePatMake {}
+pub trait RangePatMake {}
+pub trait DotDotPatMake {}
+pub trait PlaceholderPatMake {}
+pub trait NeverTypeMake {}
+pub trait PlaceholderTypeMake {}
+pub trait LifetimeArgMake {}
+pub trait TokenTreeMake {}
+pub trait VisibilityMake {}
 
 pub struct OneTokenNodeAstMake<T> {
     node_kind: SyntaxKind,
@@ -31,17 +85,21 @@ pub struct OneTokenNodeAstMake<T> {
 }
 
 impl<T> AstMake for OneTokenNodeAstMake<T> {
-    type I = T;
-    fn make(self, builder: &mut SyntaxTreeBuilder) {
+    type Node = T;
+    fn make(&mut self, builder: &mut SyntaxTreeBuilder) {
         builder.start_node(self.node_kind);
         builder.token(self.token_kind, SmolStr::new(&self.token));
         builder.finish_node();
     }
+
+    fn finish_make(&mut self, _builder: &mut SyntaxTreeBuilder) {}
 }
 
-pub type NameRefMake = OneTokenNodeAstMake<crate::ast::NameRef>;
+pub trait NameRefMake: AstMake {}
+pub type NameRefBase = OneTokenNodeAstMake<crate::ast::NameRef>;
+impl NameRefMake for NameRefBase {}
 
-impl NameRefMake {
+impl NameRefBase {
     pub fn new(ident: &str) -> Self {
         Self {
             node_kind: SyntaxKind::NAME_REF,
@@ -53,14 +111,16 @@ impl NameRefMake {
 }
 
 impl NameRef {
-    pub fn new(ident: &str) -> NameRefMake {
-        NameRefMake::new(ident)
+    pub fn new(ident: &str) -> NameRefBase {
+        NameRefBase::new(ident)
     }
 }
 
-pub type NameMake = OneTokenNodeAstMake<crate::ast::Name>;
+pub trait NameMake: AstMake {}
+pub type NameBase = OneTokenNodeAstMake<crate::ast::Name>;
+impl NameMake for NameBase {}
 
-impl NameMake {
+impl NameBase {
     pub fn new(ident: &str) -> Self {
         Self {
             node_kind: SyntaxKind::NAME,
@@ -72,14 +132,16 @@ impl NameMake {
 }
 
 impl Name {
-    pub fn new(ident: &str) -> NameMake {
-        NameMake::new(ident)
+    pub fn new(ident: &str) -> NameBase {
+        NameBase::new(ident)
     }
 }
 
-pub type LabelMake = OneTokenNodeAstMake<crate::ast::Label>;
+pub trait LabelMake: AstMake {}
+pub type LabelBase = OneTokenNodeAstMake<crate::ast::Label>;
+impl LabelMake for LabelBase {}
 
-impl LabelMake {
+impl LabelBase {
     pub fn new(label: &str) -> Self {
         Self {
             node_kind: SyntaxKind::LABEL,
@@ -90,9 +152,12 @@ impl LabelMake {
     }
 }
 
-pub type LiteralMake = OneTokenNodeAstMake<crate::ast::Literal>;
+pub trait LiteralMake: ExprMake + AstMake {}
+pub type LiteralBase = OneTokenNodeAstMake<crate::ast::Literal>;
+impl LiteralMake for LiteralBase {}
+impl ExprMake for LiteralBase {}
 
-impl LiteralMake {
+impl LiteralBase {
     pub fn new(token_kind: SyntaxKind, value: &str) -> Self {
         Self {
             node_kind: SyntaxKind::LITERAL,
@@ -104,12 +169,12 @@ impl LiteralMake {
 }
 
 impl Literal {
-    pub fn new_int(value: &str) -> LiteralMake {
-        LiteralMake::new(SyntaxKind::INT_NUMBER, value)
+    pub fn new_int(value: &str) -> impl LiteralMake {
+        LiteralBase::new(SyntaxKind::INT_NUMBER, value)
     }
 
-    pub fn new_float(value: &str) -> LiteralMake {
-        LiteralMake::new(SyntaxKind::FLOAT_NUMBER, value)
+    pub fn new_float(value: &str) -> impl LiteralMake {
+        LiteralBase::new(SyntaxKind::FLOAT_NUMBER, value)
     }
 }
 
@@ -118,32 +183,18 @@ pub struct NoOpAstMake<N: AstNode> {
 }
 
 impl<N: AstNode> AstMake for NoOpAstMake<N> {
-    type I = N;
-    fn make(self, _builder: &mut SyntaxTreeBuilder) {}
+    type Node = N;
+    fn make(&mut self, _builder: &mut SyntaxTreeBuilder) {}
+    fn finish_make(&mut self, _builder: &mut SyntaxTreeBuilder) {}
 }
 
-// FIXME: this nodes haven't specified children in ASDL file
-// This builders should be implemented by hands or specified in ASDL
-pub type RangeExprMake = NoOpAstMake<crate::ast::RangeExpr>;
-pub type SlicePatMake = NoOpAstMake<crate::ast::SlicePat>;
-pub type RangePatMake = NoOpAstMake<crate::ast::RangePat>;
-pub type DotDotPatMake = NoOpAstMake<crate::ast::DotDotPat>;
-pub type PlaceholderPatMake = NoOpAstMake<crate::ast::PlaceholderPat>;
-pub type NeverTypeMake = NoOpAstMake<crate::ast::NeverType>;
-pub type PlaceholderTypeMake = NoOpAstMake<crate::ast::PlaceholderType>;
-pub type LifetimeArgMake = NoOpAstMake<crate::ast::LifetimeArg>;
-pub type TokenTreeMake = NoOpAstMake<crate::ast::TokenTree>;
-pub type VisibilityMake = NoOpAstMake<crate::ast::Visibility>;
-
 impl TypeRef {
-    pub fn new_unit() -> TypeRefMake {
-        TupleType::new().into()
+    pub fn new_unit() -> impl TypeRefMake {
+        TupleType::new()
     }
 
-    pub fn new_i32() -> TypeRefMake {
-        PathType::new()
-            .path(Path::new().segment(PathSegment::new().name_ref(NameRef::new("i32"))))
-            .into()
+    pub fn new_i32() -> impl TypeRefMake {
+        PathType::new().path(Path::new().segment(PathSegment::new().name_ref(NameRef::new("i32"))))
     }
 }
 
@@ -192,9 +243,9 @@ RECORD_FIELD_DEF_LIST@[0; 17)
     #[test]
     fn test_bin_expr_builder() {
         let expr = BinExpr::new()
-            .lh(Literal::new_int("1").into())
+            .lh(Literal::new_int("1"))
             .op(BinOp::LesserTest)
-            .rh(Literal::new_int("2").into())
+            .rh(Literal::new_int("2"))
             .build();
         let dump = format!("{:#?}", expr.syntax());
         assert_eq_text!(
