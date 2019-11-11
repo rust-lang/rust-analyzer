@@ -35,7 +35,7 @@ mod ids;
 mod adt;
 mod traits;
 mod type_alias;
-mod ty;
+pub mod ty;
 mod impl_block;
 mod expr;
 mod lang_item;

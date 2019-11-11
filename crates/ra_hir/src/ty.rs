@@ -2,7 +2,7 @@
 //! information and various assists.
 
 mod autoderef;
-pub(crate) mod primitive;
+pub mod primitive;
 #[cfg(test)]
 mod tests;
 pub(crate) mod traits;
