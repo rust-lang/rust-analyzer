@@ -13,6 +13,7 @@ pub mod diagnostics;
 pub mod builtin_macro;
 pub mod quote;
 
+mod util;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
