@@ -5,10 +5,11 @@ pub mod scope;
 use std::{ops::Index, sync::Arc};
 
 use hir_expand::{
-    either::Either, hygiene::Hygiene, AstId, HirFileId, MacroCallLoc, MacroDefId, MacroFileKind,
-    Source,
+    eager, either::Either, hygiene::Hygiene, AstId, HirFileId, MacroCallLoc, MacroDefId,
+    MacroDefIdWithAst, MacroFileKind, Source,
 };
 use ra_arena::{map::ArenaMap, Arena};
+use ra_db::RelativePath;
 use ra_syntax::{ast, AstNode, AstPtr};
 use rustc_hash::FxHashMap;
 
@@ -22,7 +23,7 @@ use crate::{
 
 pub struct Expander {
     crate_def_map: Arc<CrateDefMap>,
-    current_file_id: HirFileId,
+    current_file_id: Option<HirFileId>,
     hygiene: Hygiene,
     module: ModuleId,
 }
@@ -31,7 +32,7 @@ impl Expander {
     pub fn new(db: &impl DefDatabase2, current_file_id: HirFileId, module: ModuleId) -> Expander {
         let crate_def_map = db.crate_def_map(module.krate);
         let hygiene = Hygiene::new(db, current_file_id);
-        Expander { crate_def_map, current_file_id, hygiene, module }
+        Expander { crate_def_map, current_file_id: Some(current_file_id), hygiene, module }
     }
 
     fn enter_expand(
@@ -40,20 +41,64 @@ impl Expander {
         macro_call: ast::MacroCall,
     ) -> Option<(Mark, ast::Expr)> {
         let ast_id = AstId::new(
-            self.current_file_id,
-            db.ast_id_map(self.current_file_id).ast_id(&macro_call),
+            self.current_file_id?,
+            db.ast_id_map(self.current_file_id?).ast_id(&macro_call),
         );
 
         if let Some(path) = macro_call.path().and_then(|path| self.parse_path(path)) {
+            let resolve_file_id = |relative_path: &str| {
+                let relative_path = RelativePath::new(relative_path);
+                db.resolve_relative_path(self.current_file_id?.original_file(db), relative_path)
+            };
+            let resolve_file_content = |relative_path: &str| {
+                let content = db.file_text(resolve_file_id(relative_path)?);
+                Some((*content).clone())
+            };
+            let resolve_macro = |path: ast::Path| {
+                let path = Path::from_src(path.clone(), &self.hygiene)?;
+                self.resolve_path_as_macro(db, &path).map(|it| MacroDefIdWithAst::from_def(db, it))
+            };
+
             if let Some(def) = self.resolve_path_as_macro(db, &path) {
-                let call_id = db.intern_macro(MacroCallLoc { def, ast_id });
-                let file_id = call_id.as_file(MacroFileKind::Expr);
-                if let Some(node) = db.parse_or_expand(file_id) {
+                let syntax = if def.is_eager_expansion() {
+                    let eager_res = eager::expand_eager_macro(
+                        ast_id.to_node(db),
+                        def,
+                        &resolve_macro,
+                        &resolve_file_content,
+                    )?;
+
+                    match eager_res {
+                        eager::EagerResult::Syntax(syn) => (Some(syn), None),
+                        eager::EagerResult::IncludeFile(file) => {
+                            let file_id = resolve_file_id(&file)?;
+                            (db.parse_or_expand(file_id.into()), Some(file_id.into()))
+                        }
+                        eager::EagerResult::IncludeString(file) => {
+                            let file_content = resolve_file_content(&file)?;
+                            let quoted = quote_str(&file_content);
+                            let syn = ra_syntax::Parse::<ast::Expr>::parse(&quoted).syntax_node();
+                            (Some(syn), None)
+                        }
+                        eager::EagerResult::IncludeBytes(_file) => {
+                            // FIXME: Handle Include bytes
+                            (None, None)
+                        }
+                    }
+                } else {
+                    let call_id = db.intern_macro(MacroCallLoc { def, ast_id });
+                    let file_id = call_id.as_file(MacroFileKind::Expr);
+                    (db.parse_or_expand(file_id), Some(file_id))
+                };
+
+                if let (Some(node), file_id) = syntax {
                     if let Some(expr) = ast::Expr::cast(node) {
                         log::debug!("macro expansion {:#?}", expr.syntax());
 
-                        let mark = Mark { file_id: self.current_file_id };
-                        self.hygiene = Hygiene::new(db, file_id);
+                        let mark = Mark { file_id: self.current_file_id? };
+                        self.hygiene = file_id
+                            .map(|it| Hygiene::new(db, it))
+                            .unwrap_or_else(|| Hygiene::new_unhygienic());
                         self.current_file_id = file_id;
 
                         return Some((mark, expr));
@@ -64,17 +109,21 @@ impl Expander {
 
         // FIXME: Instead of just dropping the error from expansion
         // report it
-        None
+        return None;
+
+        fn quote_str(s: &str) -> String {
+            format!("{:?}", s.escape_default().to_string())
+        }
     }
 
     fn exit(&mut self, db: &impl DefDatabase2, mark: Mark) {
         self.hygiene = Hygiene::new(db, mark.file_id);
-        self.current_file_id = mark.file_id;
+        self.current_file_id = Some(mark.file_id);
         std::mem::forget(mark);
     }
 
-    fn to_source<T>(&self, ast: T) -> Source<T> {
-        Source { file_id: self.current_file_id, ast }
+    fn to_source<T>(&self, ast: T) -> Option<Source<T>> {
+        Some(Source { file_id: self.current_file_id?, ast })
     }
 
     fn parse_path(&mut self, path: ast::Path) -> Option<Path> {

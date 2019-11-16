@@ -2,11 +2,14 @@
 
 use hir_expand::{
     builtin_macro::find_builtin_macro,
+    eager,
+    hygiene::Hygiene,
     name::{self, AsName, Name},
-    HirFileId, MacroCallId, MacroCallLoc, MacroDefId, MacroDefKind, MacroFileKind,
+    HirFileId, MacroCallId, MacroCallLoc, MacroDefId, MacroDefIdWithAst, MacroDefKind,
+    MacroFileKind,
 };
 use ra_cfg::CfgOptions;
-use ra_db::{CrateId, FileId};
+use ra_db::{CrateId, FileId, RelativePath};
 use ra_syntax::{ast, SmolStr};
 use rustc_hash::FxHashMap;
 use test_utils::tested_by;
@@ -54,6 +57,7 @@ pub(super) fn collect_defs(db: &impl DefDatabase2, mut def_map: CrateDefMap) -> 
         glob_imports: FxHashMap::default(),
         unresolved_imports: Vec::new(),
         unexpanded_macros: Vec::new(),
+        eager_macros: Vec::new(),
         mod_dirs: FxHashMap::default(),
         macro_stack_monitor: MacroStackMonitor::default(),
         cfg_options,
@@ -96,7 +100,8 @@ struct DefCollector<'a, DB> {
     def_map: CrateDefMap,
     glob_imports: FxHashMap<CrateModuleId, Vec<(CrateModuleId, raw::ImportId)>>,
     unresolved_imports: Vec<(CrateModuleId, raw::ImportId, raw::ImportData)>,
-    unexpanded_macros: Vec<(CrateModuleId, AstId<ast::MacroCall>, Path)>,
+    unexpanded_macros: Vec<(CrateModuleId, AstId<ast::MacroCall>, Path, HirFileId)>,
+    eager_macros: Vec<(CrateModuleId, AstId<ast::MacroCall>, MacroDefId, HirFileId)>,
     mod_dirs: FxHashMap<CrateModuleId, ModDir>,
 
     /// Some macro use `$tt:tt which mean we have to handle the macro perfectly
@@ -455,7 +460,9 @@ where
         let mut macros = std::mem::replace(&mut self.unexpanded_macros, Vec::new());
         let mut resolved = Vec::new();
         let mut res = ReachedFixedPoint::Yes;
-        macros.retain(|(module_id, ast_id, path)| {
+        let mut eagers = std::mem::replace(&mut self.eager_macros, Vec::new());
+
+        macros.retain(|(module_id, ast_id, path, file_id)| {
             let resolved_res = self.def_map.resolve_path_fp_with_macro(
                 self.db,
                 ResolveMode::Other,
@@ -464,6 +471,12 @@ where
             );
 
             if let Some(def) = resolved_res.resolved_def.get_macros() {
+                if def.is_eager_expansion() {
+                    eagers.push((*module_id, *ast_id, def, *file_id));
+                    res = ReachedFixedPoint::No;
+                    return false;
+                }
+
                 let call_id = self.db.intern_macro(MacroCallLoc { def, ast_id: *ast_id });
                 resolved.push((*module_id, call_id, def));
                 res = ReachedFixedPoint::No;
@@ -474,12 +487,84 @@ where
         });
 
         self.unexpanded_macros = macros;
+        self.expand_eager_macros(eagers);
 
         for (module_id, macro_call_id, macro_def_id) in resolved {
             self.collect_macro_expansion(module_id, macro_call_id, macro_def_id);
         }
 
         res
+    }
+
+    fn expand_eager_macros(
+        &mut self,
+        eagers: Vec<(CrateModuleId, AstId<ast::MacroCall>, MacroDefId, HirFileId)>,
+    ) -> Option<()> {
+        for (module_id, ast_id, def, file_id) in eagers.into_iter() {
+            let resolve_file_id = &|relative_path: &str| {
+                let relative_path = RelativePath::new(relative_path);
+                self.db.resolve_relative_path(file_id.original_file(self.db), relative_path)
+            };
+            let resolve_file_content = &|relative_path: &str| {
+                let content = self.db.file_text(resolve_file_id(relative_path)?);
+                Some((*content).clone())
+            };
+
+            let resolve_macro = &|path: ast::Path| {
+                let path = Path::from_src(path.clone(), &Hygiene::new(self.db, file_id))?;
+
+                // legacy scope
+                if let Some(macro_def) = path
+                    .as_ident()
+                    .and_then(|name| self.def_map[module_id].scope.get_legacy_macro(&name))
+                {
+                    return Some(MacroDefIdWithAst::from_def(self.db, macro_def));
+                }
+
+                let mut path = path.clone();
+                if path.is_ident() {
+                    path.kind = PathKind::Self_;
+                }
+
+                // Resolve in module scope, expand during name resolution.
+                let resolved_res = self.def_map.resolve_path_fp_with_macro(
+                    self.db,
+                    ResolveMode::Other,
+                    module_id,
+                    &path,
+                );
+
+                resolved_res
+                    .resolved_def
+                    .get_macros()
+                    .map(|it| MacroDefIdWithAst::from_def(self.db, it))
+            };
+
+            let eager_res = eager::expand_eager_macro(
+                ast_id.to_node(self.db),
+                def,
+                resolve_macro,
+                resolve_file_content,
+            )?;
+
+            // FIXME: Handle syntax case ? Although there is no eager macro
+            // expansion will expanded to ItemOwner except `include!`
+            if let eager::EagerResult::IncludeFile(file_name) = eager_res {
+                let file_id = resolve_file_id(&file_name)?.into();
+                let raw_items = self.db.raw_items(file_id);
+                let mod_dir = self.mod_dirs[&module_id].clone();
+                ModCollector {
+                    def_collector: &mut *self,
+                    file_id,
+                    module_id,
+                    raw_items: &raw_items,
+                    mod_dir,
+                }
+                .collect(raw_items.items());
+            }
+        }
+
+        Some(())
     }
 
     fn collect_macro_expansion(
@@ -734,13 +819,16 @@ where
 
         // Case 2: try to resolve in legacy scope and expand macro_rules, triggering
         // recursive item collection.
-        if let Some(macro_def) = mac.path.as_ident().and_then(|name| {
+        if let Some(def) = mac.path.as_ident().and_then(|name| {
             self.def_collector.def_map[self.module_id].scope.get_legacy_macro(&name)
         }) {
-            let macro_call_id =
-                self.def_collector.db.intern_macro(MacroCallLoc { def: macro_def, ast_id });
-
-            self.def_collector.collect_macro_expansion(self.module_id, macro_call_id, macro_def);
+            if def.is_eager_expansion() {
+                self.def_collector.eager_macros.push((self.module_id, ast_id, def, self.file_id));
+            } else {
+                let macro_call_id =
+                    self.def_collector.db.intern_macro(MacroCallLoc { def, ast_id });
+                self.def_collector.collect_macro_expansion(self.module_id, macro_call_id, def);
+            }
             return;
         }
 
@@ -750,7 +838,7 @@ where
         if path.is_ident() {
             path.kind = PathKind::Self_;
         }
-        self.def_collector.unexpanded_macros.push((self.module_id, ast_id, path));
+        self.def_collector.unexpanded_macros.push((self.module_id, ast_id, path, self.file_id));
     }
 
     fn import_all_legacy_macros(&mut self, module_id: CrateModuleId) {
@@ -798,6 +886,7 @@ mod tests {
             glob_imports: FxHashMap::default(),
             unresolved_imports: Vec::new(),
             unexpanded_macros: Vec::new(),
+            eager_macros: Vec::new(),
             mod_dirs: FxHashMap::default(),
             macro_stack_monitor: monitor,
             cfg_options: &CfgOptions::default(),

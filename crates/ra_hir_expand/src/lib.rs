@@ -12,8 +12,10 @@ pub mod hygiene;
 pub mod diagnostics;
 pub mod builtin_macro;
 pub mod quote;
+pub mod eager;
 
 mod util;
+
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -151,6 +153,16 @@ impl MacroCallId {
     }
 }
 
+impl MacroDefId {
+    pub fn is_eager_expansion(&self) -> bool {
+        if let MacroDefKind::BuiltIn(expander) = self.kind {
+            expander.eager().is_some()
+        } else {
+            false
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// ExpansionInfo mainly describes how to map text range between src and expanded macro
 pub struct ExpansionInfo {
@@ -263,5 +275,16 @@ impl<T> Source<T> {
     }
     pub fn file_syntax(&self, db: &impl db::AstDatabase) -> SyntaxNode {
         db.parse_or_expand(self.file_id).expect("source created from invalid file")
+    }
+}
+
+pub struct MacroDefIdWithAst {
+    id: MacroDefId,
+    ast: ast::MacroCall,
+}
+
+impl MacroDefIdWithAst {
+    pub fn from_def(db: &dyn db::AstDatabase, def: MacroDefId) -> MacroDefIdWithAst {
+        MacroDefIdWithAst { ast: def.ast_id.to_node(db), id: def }
     }
 }

@@ -95,8 +95,10 @@ where
         let ptr = Either::A(ptr);
         let id = self.body.exprs.alloc(expr);
         let src = self.expander.to_source(ptr);
-        self.source_map.expr_map.insert(src, id);
-        self.source_map.expr_map_back.insert(id, src);
+        if let Some(src) = src {
+            self.source_map.expr_map.insert(src, id);
+            self.source_map.expr_map_back.insert(id, src);
+        }
         id
     }
     // desugared exprs don't have ptr, that's wrong and should be fixed
@@ -108,15 +110,19 @@ where
         let ptr = Either::B(ptr);
         let id = self.body.exprs.alloc(expr);
         let src = self.expander.to_source(ptr);
-        self.source_map.expr_map.insert(src, id);
-        self.source_map.expr_map_back.insert(id, src);
+        if let Some(src) = src {
+            self.source_map.expr_map.insert(src, id);
+            self.source_map.expr_map_back.insert(id, src);
+        }
         id
     }
     fn alloc_pat(&mut self, pat: Pat, ptr: PatPtr) -> PatId {
         let id = self.body.pats.alloc(pat);
         let src = self.expander.to_source(ptr);
-        self.source_map.pat_map.insert(src, id);
-        self.source_map.pat_map_back.insert(id, src);
+        if let Some(src) = src {
+            self.source_map.pat_map.insert(src, id);
+            self.source_map.pat_map_back.insert(id, src);
+        }
         id
     }
 
@@ -275,7 +281,9 @@ where
                 let inner = self.collect_expr_opt(e.expr());
                 // make the paren expr point to the inner expression as well
                 let src = self.expander.to_source(Either::A(syntax_ptr));
-                self.source_map.expr_map.insert(src, inner);
+                if let Some(src) = src {
+                    self.source_map.expr_map.insert(src, inner);
+                }
                 inner
             }
             ast::Expr::ReturnExpr(e) => {
