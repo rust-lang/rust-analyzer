@@ -4828,3 +4828,63 @@ fn main() {
     "###
     );
 }
+
+#[test]
+fn infer_builtin_macros_concat_simple() {
+    assert_snapshot!(
+        infer(r#"
+#[rustc_builtin_macro]
+macro_rules! concat {() => {}}
+
+fn main() {
+    let x = concat!("abc", "def");
+}
+"#),
+        @r###"
+        [66; 104) '{     ...f"); }': ()
+        [76; 77) 'x': &str
+    "###
+    );
+}
+
+#[test]
+fn infer_builtin_macros_concat_eager() {
+    assert_snapshot!(
+        infer(r#"
+#[rustc_builtin_macro]
+macro_rules! concat {() => {}}
+
+macro_rules! foo {() => {"foo"}}
+macro_rules! bar {() => {"bar"}}
+
+fn main() {
+    let x = concat!(foo!(), bar!());
+}
+"#),
+        @r###"
+        [133; 173) '{     ...()); }': ()
+        [143; 144) 'x': &str
+    "###
+    );
+}
+
+#[test]
+fn infer_builtin_macros_concat_eager_recursive() {
+    assert_snapshot!(
+        infer(r#"
+#[rustc_builtin_macro]
+macro_rules! concat {() => {}}
+
+macro_rules! foo {() => {"foo"}}
+macro_rules! bar {() => {"bar"}}
+
+fn main() {
+    let x = concat!(foo!(), concat!(foo!(), bar!()));
+}
+"#),
+        @r###"
+        [133; 190) '{     ...))); }': ()
+        [143; 144) 'x': &str
+    "###
+    );
+}

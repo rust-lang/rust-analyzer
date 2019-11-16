@@ -132,3 +132,105 @@ fn line_expand(
 
     Ok(expanded)
 }
+
+/// For all eager expansion, we handled all from outside of query database
+/// So we panic here to indiciate it is a hard error.
+fn eager_expand_error(
+    _db: &dyn AstDatabase,
+    _id: MacroCallId,
+    _tt: &tt::Subtree,
+) -> Result<tt::Subtree, mbe::ExpandError> {
+    panic!("Eager expansion should handle outside db query");
+}
+
+fn concat_expand(tt: &tt::Subtree) -> Result<EagerResult, mbe::ExpandError> {
+    let mut text = String::new();
+    // FIXME: we should parse it using ra_parser::parse_expr
+    for (i, t) in tt.token_trees.iter().enumerate() {
+        match t {
+            tt::TokenTree::Leaf(tt::Leaf::Literal(it)) if i % 2 == 0 => {
+                text += &unquote(&it.to_string()).map_err(|_| mbe::ExpandError::ConversionError)?;
+            }
+            tt::TokenTree::Leaf(tt::Leaf::Punct(punct)) if i % 2 == 1 && punct.char == ',' => (),
+            _ => return Err(mbe::ExpandError::UnexpectedToken),
+        }
+    }
+
+    let res = quote!(#text);
+    Ok(EagerResult::Syntax(
+        mbe::token_tree_to_syntax_node(&res, FragmentKind::Expr)?.0.syntax_node(),
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{eager, test_db::TestDB, MacroCallLoc};
+    use ra_db::{fixture::WithFixture, SourceDatabase};
+
+    fn expand_builtin_macro(s: &str, expander: BuiltinExpander) -> String {
+        let (db, file_id) = TestDB::with_single_file(&s);
+        let parsed = db.parse(file_id);
+        let macro_calls: Vec<_> =
+            parsed.syntax_node().descendants().filter_map(|it| ast::MacroCall::cast(it)).collect();
+
+        let ast_id_map = db.ast_id_map(file_id.into());
+
+        // the first one should be a macro_rules
+        let def = MacroDefId {
+            krate: CrateId(0),
+            ast_id: AstId::new(file_id.into(), ast_id_map.ast_id(&macro_calls[0])),
+            kind: MacroDefKind::BuiltIn(expander),
+        };
+
+        if def.is_eager_expansion() {
+            let res = eager::expand_eager_macro(macro_calls[1].clone(), def, &|_| None, &|_| None)
+                .unwrap();
+
+            match res {
+                EagerResult::Syntax(syn) => syn.text().to_string(),
+                EagerResult::IncludeFile(file_name) => file_name,
+                EagerResult::IncludeString(file_name) => file_name,
+                EagerResult::IncludeBytes(file_name) => file_name,
+            }
+        } else {
+            let loc = MacroCallLoc {
+                def,
+                ast_id: AstId::new(file_id.into(), ast_id_map.ast_id(&macro_calls[1])),
+            };
+
+            let id = db.intern_macro(loc);
+            let parsed = db.parse_or_expand(id.as_file(MacroFileKind::Expr)).unwrap();
+
+            parsed.text().to_string()
+        }
+    }
+
+    #[test]
+    fn test_line_expand() {
+        let expanded = expand_builtin_macro(
+            r#"
+        #[rustc_builtin_macro]
+        macro_rules! line {() => {}}
+        line!()
+"#,
+            BuiltinExpander::Line,
+        );
+
+        assert_eq!(expanded, "4");
+    }
+
+    #[test]
+    fn test_concat_expand() {
+        let expanded = expand_builtin_macro(
+            r#"
+        #[rustc_builtin_macro]
+        macro_rules! concat {() => {}}
+        concat!("abc", "def")
+"#,
+            BuiltinExpander::Concat,
+        );
+
+        assert_eq!(expanded, "\"abcdef\"");
+    }
+}
