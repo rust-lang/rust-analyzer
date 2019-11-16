@@ -1,0 +1,53 @@
+name: Continuous integration
+on: [pull_request, push]
+
+jobs:
+  rust-tests:
+    name: Rust tests
+    env:
+      RUSTFLAGS: -D warnings
+      CARGO_INCREMENTAL: 0
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v1
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+          components: rustfmt, rust-src
+      - name: Compile
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --tests
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+  vscode-tests:
+    env:
+      CXX: g++-4.9
+      CC: gcc-4.9
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v1
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+      - name: Install Nodejs
+        uses: actions/setup-node
+        with:
+          node-version: 12.x
+      - name: Install xvfb
+        run: sudo apt-get install xvfb
+      - run: cd editors/code
+      - run: npm ci
+      - run: npm run vscode:prepublish
+      - run: npm run travis
+      - name: Cleanup xvfb
+        uses: bcomnes/cleanup-xvfb@v1
