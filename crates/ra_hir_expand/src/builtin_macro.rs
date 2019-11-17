@@ -191,8 +191,8 @@ mod tests {
             match res {
                 EagerResult::Syntax(syn) => syn.text().to_string(),
                 EagerResult::IncludeFile(file_name) => file_name,
-                EagerResult::IncludeString(file_name) => file_name,
-                EagerResult::IncludeBytes(file_name) => file_name,
+                EagerResult::IncludeString(_, file_name) => file_name,
+                EagerResult::IncludeBytes(_, file_name) => file_name,
             }
         } else {
             let loc = MacroCallLoc {

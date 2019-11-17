@@ -160,15 +160,6 @@ impl SourceFile {
     }
 }
 
-impl Parse<ast::Expr> {
-    pub fn parse(s: &str) -> Parse<ast::Expr> {
-        let (green, errors) = parsing::parse_text_to_fragment(s, ra_parser::FragmentKind::Expr);
-
-        // FIXME: validation
-        Parse { green, errors: Arc::new(errors), _ty: PhantomData }
-    }
-}
-
 /// Matches a `SyntaxNode` against an `ast` type.
 ///
 /// # Example:

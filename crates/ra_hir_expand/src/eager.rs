@@ -47,10 +47,6 @@ fn usual_expand(def: &MacroDefIdWithAst, macro_call: ast::MacroCall) -> Option<S
     Some(mbe::token_tree_to_syntax_node(&tt, FragmentKind::Expr).ok()?.0.syntax_node())
 }
 
-fn quote_str(s: &str) -> String {
-    format!("{:?}", s.escape_default().to_string())
-}
-
 fn eager_macro_recur(
     curr: SyntaxNode,
     macro_resolver: &dyn Fn(ast::Path) -> Option<MacroDefIdWithAst>,
@@ -69,12 +65,8 @@ fn eager_macro_recur(
             match expand_eager_macro(child.clone(), def.id, macro_resolver, file_resolver)? {
                 EagerResult::Syntax(syn) => syn.text().to_string(),
                 EagerResult::IncludeFile(file) => file_resolver(&file)?,
-                EagerResult::IncludeString(file) => quote_str(&file_resolver(&file)?),
-                EagerResult::IncludeBytes(_) => {
-                    // FIXME:
-                    // Quote the file as bytes string?
-                    String::new()
-                }
+                EagerResult::IncludeString(syn, _) => syn.text().to_string(),
+                EagerResult::IncludeBytes(syn, _) => syn.text().to_string(),
             }
         } else {
             let expanded = usual_expand(&def, child.clone())?;
@@ -93,8 +85,8 @@ fn eager_macro_recur(
 pub enum EagerResult {
     Syntax(SyntaxNode),
     IncludeFile(String),
-    IncludeString(String),
-    IncludeBytes(String),
+    IncludeString(SyntaxNode, String),
+    IncludeBytes(SyntaxNode, String),
 }
 
 pub fn expand_eager_macro(

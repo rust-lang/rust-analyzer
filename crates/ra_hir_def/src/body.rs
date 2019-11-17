@@ -74,15 +74,17 @@ impl Expander {
                             let file_id = resolve_file_id(&file)?;
                             (db.parse_or_expand(file_id.into()), Some(file_id.into()))
                         }
-                        eager::EagerResult::IncludeString(file) => {
-                            let file_content = resolve_file_content(&file)?;
-                            let quoted = quote_str(&file_content);
-                            let syn = ra_syntax::Parse::<ast::Expr>::parse(&quoted).syntax_node();
+                        eager::EagerResult::IncludeString(syn, _file) => {
+                            // FIXME: Handle file name propertly
+                            // The output string syn is quoted such that the text-range of input file
+                            // will not match
                             (Some(syn), None)
                         }
-                        eager::EagerResult::IncludeBytes(_file) => {
-                            // FIXME: Handle Include bytes
-                            (None, None)
+                        eager::EagerResult::IncludeBytes(syn, _file) => {
+                            // FIXME: Handle file name propertly
+                            // The output string syn is quoted such that the text-range of input file
+                            // will not match
+                            (Some(syn), None)
                         }
                     }
                 } else {
@@ -110,10 +112,6 @@ impl Expander {
         // FIXME: Instead of just dropping the error from expansion
         // report it
         return None;
-
-        fn quote_str(s: &str) -> String {
-            format!("{:?}", s.escape_default().to_string())
-        }
     }
 
     fn exit(&mut self, db: &impl DefDatabase2, mark: Mark) {
