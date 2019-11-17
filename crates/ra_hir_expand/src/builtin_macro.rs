@@ -5,7 +5,7 @@ use crate::{
     ast::{self, AstNode},
     eager::EagerResult,
     name,
-    util::unquote,
+    util::unquote_str,
     AstId, CrateId, HirFileId, MacroCallId, MacroDefId, MacroDefKind, MacroFileKind, TextUnit,
 };
 use once_cell::sync::Lazy;
@@ -149,7 +149,8 @@ fn concat_expand(tt: &tt::Subtree) -> Result<EagerResult, mbe::ExpandError> {
     for (i, t) in tt.token_trees.iter().enumerate() {
         match t {
             tt::TokenTree::Leaf(tt::Leaf::Literal(it)) if i % 2 == 0 => {
-                text += &unquote(&it.to_string()).map_err(|_| mbe::ExpandError::ConversionError)?;
+                text += &unquote_str(&it.to_string())
+                    .ok_or_else(|| mbe::ExpandError::ConversionError)?;
             }
             tt::TokenTree::Leaf(tt::Leaf::Punct(punct)) if i % 2 == 1 && punct.char == ',' => (),
             _ => return Err(mbe::ExpandError::UnexpectedToken),
