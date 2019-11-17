@@ -53,7 +53,7 @@ impl TraitSolver {
 /// This controls the maximum size of types Chalk considers. If we set this too
 /// high, we can run into slow edge cases; if we set it too low, Chalk won't
 /// find some solutions.
-const CHALK_SOLVER_MAX_SIZE: usize = 4;
+const CHALK_SOLVER_MAX_SIZE: usize = 5;
 
 #[derive(Debug, Copy, Clone)]
 struct ChalkContext<'a, DB> {
