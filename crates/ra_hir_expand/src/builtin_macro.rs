@@ -8,7 +8,6 @@ use crate::{
     util::unquote_str,
     AstId, CrateId, HirFileId, MacroCallId, MacroDefId, MacroDefKind, MacroFileKind, TextUnit,
 };
-use once_cell::sync::Lazy;
 use ra_parser::FragmentKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -28,32 +27,20 @@ struct BuiltInMacroInfo {
     eager: Option<fn(&tt::Subtree) -> Result<EagerResult, mbe::ExpandError>>,
 }
 
-impl BuiltInMacroInfo {
-    fn new(
-        name: name::Name,
-        kind: BuiltinExpander,
-        expand: fn(
-            db: &dyn AstDatabase,
-            id: MacroCallId,
-            _tt: &tt::Subtree,
-        ) -> Result<tt::Subtree, mbe::ExpandError>,
-        eager: Option<fn(&tt::Subtree) -> Result<EagerResult, mbe::ExpandError>>,
-    ) -> Self {
-        BuiltInMacroInfo { name, kind, expand, eager }
-    }
-}
-
-const BUILTIN_MACROS: Lazy<Vec<BuiltInMacroInfo>> = Lazy::new(|| {
-    vec![
-        BuiltInMacroInfo::new(name::LINE_MACRO, BuiltinExpander::Line, line_expand, None),
-        BuiltInMacroInfo::new(
-            name::CONCAT_MACRO,
-            BuiltinExpander::Concat,
-            eager_expand_error,
-            Some(concat_expand),
-        ),
-    ]
-});
+const BUILTIN_MACROS: &[BuiltInMacroInfo] = &[
+    BuiltInMacroInfo {
+        name: name::LINE_MACRO,
+        kind: BuiltinExpander::Line,
+        expand: line_expand,
+        eager: None,
+    },
+    BuiltInMacroInfo {
+        name: name::CONCAT_MACRO,
+        kind: BuiltinExpander::Concat,
+        expand: eager_expand_error,
+        eager: Some(concat_expand),
+    },
+];
 
 impl BuiltinExpander {
     pub fn expand(
