@@ -111,7 +111,7 @@ impl Expander {
 
         // FIXME: Instead of just dropping the error from expansion
         // report it
-        return None;
+        None
     }
 
     fn exit(&mut self, db: &impl DefDatabase2, mark: Mark) {
