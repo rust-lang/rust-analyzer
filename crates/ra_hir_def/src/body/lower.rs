@@ -157,9 +157,9 @@ where
         self.body.alloc_pat(pat, src)
     }
 
-    fn empty_block(&mut self) -> ExprId {
+    fn empty_block(&mut self, ptr: AstPtr<ast::Expr>) -> ExprId {
         let block = Expr::Block { statements: Vec::new(), tail: None };
-        self.body.body.exprs.alloc(block)
+        self.alloc_expr(block, ptr)
     }
 
     fn missing_expr(&mut self) -> ExprId {
@@ -197,7 +197,7 @@ where
                                 MatchArm { pats: vec![pat], expr: then_branch, guard: None },
                                 MatchArm {
                                     pats: vec![placeholder_pat],
-                                    expr: else_branch.unwrap_or_else(|| self.empty_block()),
+                                    expr: else_branch.unwrap_or_else(|| self.empty_block(syntax_ptr)),
                                     guard: None,
                                 },
                             ];
