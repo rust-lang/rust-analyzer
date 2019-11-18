@@ -16,7 +16,7 @@ use ra_syntax::{
 use test_utils::tested_by;
 
 use crate::{
-    body::{Body, BodySourceMap, Expander, PatPtr},
+    body::{Body, BodySourceMap, Expander, PatPtr, ExprSource, PatSource},
     builtin_type::{BuiltinFloat, BuiltinInt},
     db::DefDatabase,
     expr::{
@@ -28,6 +28,56 @@ use crate::{
     type_ref::{Mutability, TypeRef},
 };
 
+struct BodyWithSourceMap {
+    body: Body,
+    source_map: BodySourceMap,
+}
+
+impl BodyWithSourceMap {
+    fn new() -> BodyWithSourceMap {
+        BodyWithSourceMap {
+            body: Body {
+                exprs: Arena::default(),
+                pats: Arena::default(),
+                params: Vec::new(),
+                body_expr: ExprId::dummy(),
+            },
+            source_map: BodySourceMap::default(),
+        }
+    }
+
+    fn alloc_expr(&mut self, expr: Expr, src: ExprSource) -> ExprId {
+        let id = self.body.exprs.alloc(expr);
+        self.source_map.expr_map.insert(src, id);
+        self.source_map.expr_map_back.insert(id, src);
+        id
+    }
+
+    fn alloc_expr_desugared(&mut self, expr: Expr) -> ExprId {
+        let id = self.body.exprs.alloc(expr);
+        id
+    }
+
+    fn alloc_pat(&mut self, pat: Pat, src: PatSource) -> PatId {
+        let id = self.body.pats.alloc(pat);
+        self.source_map.pat_map.insert(src, id);
+        self.source_map.pat_map_back.insert(id, src);
+        id
+    }
+
+    fn missing_expr(&mut self) -> ExprId {
+        self.body.exprs.alloc(Expr::Missing)
+    }
+
+    fn missing_pat(&mut self) -> PatId {
+        self.body.pats.alloc(Pat::Missing)
+    }
+
+    fn push_param(&mut self, pat: PatId) {
+        self.body.params.push(pat)
+    }
+}
+
 pub(super) fn lower(
     db: &impl DefDatabase,
     expander: Expander,
@@ -37,13 +87,7 @@ pub(super) fn lower(
     ExprCollector {
         expander,
         db,
-        source_map: BodySourceMap::default(),
-        body: Body {
-            exprs: Arena::default(),
-            pats: Arena::default(),
-            params: Vec::new(),
-            body_expr: ExprId::dummy(),
-        },
+        body: BodyWithSourceMap::new(),
     }
     .collect(params, body)
 }
@@ -52,8 +96,7 @@ struct ExprCollector<DB> {
     db: DB,
     expander: Expander,
 
-    body: Body,
-    source_map: BodySourceMap,
+    body: BodyWithSourceMap,
 }
 
 impl<'a, DB> ExprCollector<&'a DB>
@@ -76,7 +119,7 @@ where
                     },
                     Either::B(ptr),
                 );
-                self.body.params.push(param_pat);
+                self.body.push_param(param_pat);
             }
 
             for param in param_list.params() {
@@ -85,54 +128,46 @@ where
                     Some(pat) => pat,
                 };
                 let param_pat = self.collect_pat(pat);
-                self.body.params.push(param_pat);
+                self.body.push_param(param_pat);
             }
         };
 
-        self.body.body_expr = self.collect_expr_opt(body);
-        (self.body, self.source_map)
+        self.body.body.body_expr = self.collect_expr_opt(body);
+        (self.body.body, self.body.source_map)
     }
 
     fn alloc_expr(&mut self, expr: Expr, ptr: AstPtr<ast::Expr>) -> ExprId {
         let ptr = Either::A(ptr);
-        let id = self.body.exprs.alloc(expr);
         let src = self.expander.to_source(ptr);
-        self.source_map.expr_map.insert(src, id);
-        self.source_map.expr_map_back.insert(id, src);
-        id
+        self.body.alloc_expr(expr, src)
     }
-    // desugared exprs don't have ptr, that's wrong and should be fixed
-    // somehow.
+
     fn alloc_expr_desugared(&mut self, expr: Expr) -> ExprId {
-        self.body.exprs.alloc(expr)
+        self.body.alloc_expr_desugared(expr)
     }
+
     fn alloc_expr_field_shorthand(&mut self, expr: Expr, ptr: AstPtr<ast::RecordField>) -> ExprId {
         let ptr = Either::B(ptr);
-        let id = self.body.exprs.alloc(expr);
         let src = self.expander.to_source(ptr);
-        self.source_map.expr_map.insert(src, id);
-        self.source_map.expr_map_back.insert(id, src);
-        id
+        self.body.alloc_expr(expr, src)
     }
+
     fn alloc_pat(&mut self, pat: Pat, ptr: PatPtr) -> PatId {
-        let id = self.body.pats.alloc(pat);
         let src = self.expander.to_source(ptr);
-        self.source_map.pat_map.insert(src, id);
-        self.source_map.pat_map_back.insert(id, src);
-        id
+        self.body.alloc_pat(pat, src)
     }
 
     fn empty_block(&mut self) -> ExprId {
         let block = Expr::Block { statements: Vec::new(), tail: None };
-        self.body.exprs.alloc(block)
+        self.body.body.exprs.alloc(block)
     }
 
     fn missing_expr(&mut self) -> ExprId {
-        self.body.exprs.alloc(Expr::Missing)
+        self.body.missing_expr()
     }
 
     fn missing_pat(&mut self) -> PatId {
-        self.body.pats.alloc(Pat::Missing)
+        self.body.missing_pat()
     }
 
     fn collect_expr(&mut self, expr: ast::Expr) -> ExprId {
@@ -278,7 +313,7 @@ where
                 let inner = self.collect_expr_opt(e.expr());
                 // make the paren expr point to the inner expression as well
                 let src = self.expander.to_source(Either::A(syntax_ptr));
-                self.source_map.expr_map.insert(src, inner);
+                self.body.source_map.expr_map.insert(src, inner);
                 inner
             }
             ast::Expr::ReturnExpr(e) => {
@@ -318,7 +353,7 @@ where
 
                 let res = self.alloc_expr(record_lit, syntax_ptr);
                 for (i, ptr) in field_ptrs.into_iter().enumerate() {
-                    self.source_map.field_map.insert((res, i), ptr);
+                    self.body.source_map.field_map.insert((res, i), ptr);
                 }
                 res
             }
