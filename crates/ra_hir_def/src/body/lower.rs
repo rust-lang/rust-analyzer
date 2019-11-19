@@ -5,7 +5,6 @@ use hir_expand::{
     either::Either,
     name::{self, AsName, Name},
 };
-use ra_arena::Arena;
 use ra_syntax::{
     ast::{
         self, ArgListOwner, ArrayExprKind, LiteralKind, LoopBodyOwner, NameOwner,
@@ -16,7 +15,7 @@ use ra_syntax::{
 use test_utils::tested_by;
 
 use crate::{
-    body::{Body, BodySourceMap, Expander, PatPtr, ExprSource, PatSource},
+    body::{Body, BodySourceMap, BodyWithSourceMap, Expander, PatPtr},
     builtin_type::{BuiltinFloat, BuiltinInt},
     db::DefDatabase,
     expr::{
@@ -27,56 +26,6 @@ use crate::{
     path::Path,
     type_ref::{Mutability, TypeRef},
 };
-
-struct BodyWithSourceMap {
-    body: Body,
-    source_map: BodySourceMap,
-}
-
-impl BodyWithSourceMap {
-    fn new() -> BodyWithSourceMap {
-        BodyWithSourceMap {
-            body: Body {
-                exprs: Arena::default(),
-                pats: Arena::default(),
-                params: Vec::new(),
-                body_expr: ExprId::dummy(),
-            },
-            source_map: BodySourceMap::default(),
-        }
-    }
-
-    fn alloc_expr(&mut self, expr: Expr, src: ExprSource) -> ExprId {
-        let id = self.body.exprs.alloc(expr);
-        self.source_map.expr_map.insert(src, id);
-        self.source_map.expr_map_back.insert(id, src);
-        id
-    }
-
-    fn alloc_expr_desugared(&mut self, expr: Expr) -> ExprId {
-        let id = self.body.exprs.alloc(expr);
-        id
-    }
-
-    fn alloc_pat(&mut self, pat: Pat, src: PatSource) -> PatId {
-        let id = self.body.pats.alloc(pat);
-        self.source_map.pat_map.insert(src, id);
-        self.source_map.pat_map_back.insert(id, src);
-        id
-    }
-
-    fn missing_expr(&mut self) -> ExprId {
-        self.body.exprs.alloc(Expr::Missing)
-    }
-
-    fn missing_pat(&mut self) -> PatId {
-        self.body.pats.alloc(Pat::Missing)
-    }
-
-    fn push_param(&mut self, pat: PatId) {
-        self.body.params.push(pat)
-    }
-}
 
 pub(super) fn lower(
     db: &impl DefDatabase,
@@ -132,8 +81,11 @@ where
             }
         };
 
-        self.body.body.body_expr = self.collect_expr_opt(body);
-        (self.body.body, self.body.source_map)
+        let body_expr = self.collect_expr_opt(body);
+        let (mut body, source_map) = self.body.split();
+        body.body_expr = body_expr;
+
+        (body, source_map)
     }
 
     fn alloc_expr(&mut self, expr: Expr, ptr: AstPtr<ast::Expr>) -> ExprId {
@@ -313,7 +265,7 @@ where
                 let inner = self.collect_expr_opt(e.expr());
                 // make the paren expr point to the inner expression as well
                 let src = self.expander.to_source(Either::A(syntax_ptr));
-                self.body.source_map.expr_map.insert(src, inner);
+                self.body.map_expr(src, inner);
                 inner
             }
             ast::Expr::ReturnExpr(e) => {
@@ -353,7 +305,7 @@ where
 
                 let res = self.alloc_expr(record_lit, syntax_ptr);
                 for (i, ptr) in field_ptrs.into_iter().enumerate() {
-                    self.body.source_map.field_map.insert((res, i), ptr);
+                    self.body.map_field(ptr, res, i);
                 }
                 res
             }
