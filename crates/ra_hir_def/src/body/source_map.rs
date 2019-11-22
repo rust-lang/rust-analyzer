@@ -3,7 +3,7 @@ use hir_expand::{
     InFile,
 };
 use ra_arena::{map::ArenaMap, Arena};
-use ra_syntax::{ast, AstPtr};
+use ra_syntax::{ast, AstPtr, SyntaxNodePtr};
 use rustc_hash::FxHashMap;
 
 use crate::{
@@ -16,6 +16,8 @@ pub type ExprSource = InFile<ExprPtr>;
 
 pub type PatPtr = Either<AstPtr<ast::Pat>, AstPtr<ast::SelfParam>>;
 pub type PatSource = InFile<PatPtr>;
+
+pub type AstSource = InFile<SyntaxNodePtr>;
 
 /// An item body together with the mapping from syntax nodes to HIR expression
 /// IDs. This is needed to go from e.g. a position in a file to the HIR
@@ -31,9 +33,9 @@ pub type PatSource = InFile<PatPtr>;
 #[derive(Debug, Eq, PartialEq)]
 pub struct BodySourceMap {
     expr_map: FxHashMap<ExprSource, ExprId>,
-    expr_map_back: ArenaMap<ExprId, ExprSource>,
+    expr_map_back: ArenaMap<ExprId, AstSource>,
     pat_map: FxHashMap<PatSource, PatId>,
-    pat_map_back: ArenaMap<PatId, PatSource>,
+    pat_map_back: ArenaMap<PatId, AstSource>,
     field_map: FxHashMap<(ExprId, usize), AstPtr<ast::RecordField>>,
 }
 
@@ -48,7 +50,7 @@ impl BodySourceMap {
         }
     }
 
-    pub fn expr_syntax(&self, expr: ExprId) -> Option<ExprSource> {
+    pub fn expr_syntax(&self, expr: ExprId) -> Option<AstSource> {
         self.expr_map_back.get(expr).copied()
     }
 
@@ -57,7 +59,7 @@ impl BodySourceMap {
         self.expr_map.get(&src).cloned()
     }
 
-    pub fn pat_syntax(&self, pat: PatId) -> Option<PatSource> {
+    pub fn pat_syntax(&self, pat: PatId) -> Option<AstSource> {
         self.pat_map_back.get(pat).copied()
     }
 
@@ -110,6 +112,7 @@ impl BodyWithSourceMap {
     pub fn alloc_expr(&mut self, expr: Expr, src: ExprSource) -> ExprId {
         let id = self.body.exprs.alloc(expr);
         self.source_map.expr_map.insert(src, id);
+        let src = src.map(|a| a.either(Into::into, Into::into));
         self.source_map.expr_map_back.insert(id, src);
         id
     }
@@ -122,6 +125,7 @@ impl BodyWithSourceMap {
     pub fn alloc_pat(&mut self, pat: Pat, src: PatSource) -> PatId {
         let id = self.body.pats.alloc(pat);
         self.source_map.pat_map.insert(src, id);
+        let src = src.map(|a| a.either(Into::into, Into::into));
         self.source_map.pat_map_back.insert(id, src);
         id
     }

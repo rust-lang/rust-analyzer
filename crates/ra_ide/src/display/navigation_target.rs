@@ -1,6 +1,6 @@
 //! FIXME: write short doc here
 
-use hir::{AssocItem, Either, FieldSource, HasSource, InFile, ModuleSource};
+use hir::{AssocItem, FieldSource, HasSource, InFile, ModuleSource};
 use ra_db::{FileId, SourceDatabase};
 use ra_syntax::{
     ast::{self, DocCommentsOwner, NameOwner},
@@ -341,11 +341,13 @@ impl ToNav for hir::AssocItem {
 impl ToNav for hir::Local {
     fn to_nav(&self, db: &RootDatabase) -> NavigationTarget {
         let src = self.source(db);
-        let (full_range, focus_range) = match src.value {
-            Either::A(it) => {
-                (it.syntax().text_range(), it.name().map(|it| it.syntax().text_range()))
-            }
-            Either::B(it) => (it.syntax().text_range(), Some(it.self_kw_token().text_range())),
+        let full_range = src.value.text_range();
+        let focus_range = if let Some(pat) = ast::BindPat::cast(src.value.clone()) {
+            pat.name().map(|it| it.syntax().text_range())
+        } else if let Some(self_param) = ast::SelfParam::cast(src.value.clone()) {
+            Some(self_param.self_kw_token().text_range())
+        } else {
+            None
         };
         let name = match self.name(db) {
             Some(it) => it.to_string().into(),

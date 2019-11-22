@@ -30,7 +30,7 @@ use crate::{
     db::{DefDatabase, HirDatabase},
     ty::display::HirFormatter,
     ty::{self, InEnvironment, InferenceResult, TraitEnvironment, Ty, TyDefId, TypeCtor, TypeWalk},
-    CallableDef, Either, HirDisplay, InFile, Name,
+    CallableDef, HirDisplay, InFile, Name,
 };
 
 /// hir::Crate describes a single crate. It's the main interface with which
@@ -901,11 +901,11 @@ impl Local {
         Type { krate, ty: InEnvironment { value: ty, environment } }
     }
 
-    pub fn source(self, db: &impl HirDatabase) -> InFile<Either<ast::BindPat, ast::SelfParam>> {
+    pub fn source(self, db: &impl HirDatabase) -> InFile<SyntaxNode> {
         let (_body, source_map) = db.body_with_source_map(self.parent.into());
         let src = source_map.pat_syntax(self.pat_id).unwrap(); // Hmm...
         let root = src.file_syntax(db);
-        src.map(|ast| ast.map(|it| it.cast().unwrap().to_node(&root), |it| it.to_node(&root)))
+        src.map(|ast| ast.to_node(&root))
     }
 }
 

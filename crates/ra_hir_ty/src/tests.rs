@@ -4756,9 +4756,7 @@ fn infer(content: &str) -> String {
 
         for (pat, ty) in inference_result.type_of_pat.iter() {
             let syntax_ptr = match body_source_map.pat_syntax(pat) {
-                Some(sp) => {
-                    sp.map(|ast| ast.either(|it| it.syntax_node_ptr(), |it| it.syntax_node_ptr()))
-                }
+                Some(sp) => sp,
                 None => continue,
             };
             types.push((syntax_ptr, ty));
@@ -4766,9 +4764,7 @@ fn infer(content: &str) -> String {
 
         for (expr, ty) in inference_result.type_of_expr.iter() {
             let syntax_ptr = match body_source_map.expr_syntax(expr) {
-                Some(sp) => {
-                    sp.map(|ast| ast.either(|it| it.syntax_node_ptr(), |it| it.syntax_node_ptr()))
-                }
+                Some(sp) => sp,
                 None => continue,
             };
             types.push((syntax_ptr, ty));
