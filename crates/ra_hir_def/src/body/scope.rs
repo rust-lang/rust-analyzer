@@ -8,7 +8,7 @@ use rustc_hash::FxHashMap;
 use crate::{
     body::Body,
     db::DefDatabase,
-    expr::{Expr, ExprId, Pat, PatId, Statement},
+    expr::{Expr, ExprId, ExprIdOpt, Pat, PatId, PatIdOpt, Statement},
     DefWithBodyId,
 };
 
@@ -88,7 +88,8 @@ impl ExprScopes {
         self.scopes.alloc(ScopeData { parent: Some(parent), entries: vec![] })
     }
 
-    fn add_bindings(&mut self, body: &Body, scope: ScopeId, pat: PatId) {
+    fn add_bindings(&mut self, body: &Body, scope: ScopeId, pat: PatIdOpt) {
+        let pat = if let Ok(pat) = pat { pat } else { return };
         match &body[pat] {
             Pat::Bind { name, .. } => {
                 // bind can have a sub pattern, but it's actually not allowed
@@ -100,7 +101,7 @@ impl ExprScopes {
         }
     }
 
-    fn add_params_bindings(&mut self, body: &Body, scope: ScopeId, params: &[PatId]) {
+    fn add_params_bindings(&mut self, body: &Body, scope: ScopeId, params: &[PatIdOpt]) {
         params.iter().for_each(|pat| self.add_bindings(body, scope, *pat));
     }
 
@@ -111,7 +112,7 @@ impl ExprScopes {
 
 fn compute_block_scopes(
     statements: &[Statement],
-    tail: Option<ExprId>,
+    tail: Option<ExprIdOpt>,
     body: &Body,
     scopes: &mut ExprScopes,
     mut scope: ScopeId,
@@ -120,14 +121,12 @@ fn compute_block_scopes(
         match stmt {
             Statement::Let { pat, initializer, .. } => {
                 if let Some(expr) = initializer {
-                    scopes.set_scope(*expr, scope);
                     compute_expr_scopes(*expr, body, scopes, scope);
                 }
                 scope = scopes.new_scope(scope);
                 scopes.add_bindings(body, scope, *pat);
             }
             Statement::Expr(expr) => {
-                scopes.set_scope(*expr, scope);
                 compute_expr_scopes(*expr, body, scopes, scope);
             }
         }
@@ -137,7 +136,8 @@ fn compute_block_scopes(
     }
 }
 
-fn compute_expr_scopes(expr: ExprId, body: &Body, scopes: &mut ExprScopes, scope: ScopeId) {
+fn compute_expr_scopes(expr: ExprIdOpt, body: &Body, scopes: &mut ExprScopes, scope: ScopeId) {
+    let expr = if let Ok(expr) = expr { expr } else { return };
     scopes.set_scope(expr, scope);
     match &body[expr] {
         Expr::Block { statements, tail } => {
@@ -161,7 +161,6 @@ fn compute_expr_scopes(expr: ExprId, body: &Body, scopes: &mut ExprScopes, scope
                 for pat in &arm.pats {
                     scopes.add_bindings(body, scope, *pat);
                 }
-                scopes.set_scope(arm.expr, scope);
                 compute_expr_scopes(arm.expr, body, scopes, scope);
             }
         }

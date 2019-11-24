@@ -23,18 +23,19 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MissingNode;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ExprId(RawId);
 impl_arena_id!(ExprId);
 
-impl ExprId {
-    pub fn dummy() -> ExprId {
-        ExprId((!0).into())
-    }
-}
+pub type ExprIdOpt = Result<ExprId, MissingNode>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PatId(RawId);
 impl_arena_id!(PatId);
+
+pub type PatIdOpt = Result<PatId, MissingNode>;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Literal {
@@ -52,101 +53,101 @@ pub enum Expr {
     Missing,
     Path(Path),
     If {
-        condition: ExprId,
-        then_branch: ExprId,
-        else_branch: Option<ExprId>,
+        condition: ExprIdOpt,
+        then_branch: ExprIdOpt,
+        else_branch: Option<ExprIdOpt>,
     },
     Block {
         statements: Vec<Statement>,
-        tail: Option<ExprId>,
+        tail: Option<ExprIdOpt>,
     },
     Loop {
-        body: ExprId,
+        body: ExprIdOpt,
     },
     While {
-        condition: ExprId,
-        body: ExprId,
+        condition: ExprIdOpt,
+        body: ExprIdOpt,
     },
     For {
-        iterable: ExprId,
-        pat: PatId,
-        body: ExprId,
+        iterable: ExprIdOpt,
+        pat: PatIdOpt,
+        body: ExprIdOpt,
     },
     Call {
-        callee: ExprId,
-        args: Vec<ExprId>,
+        callee: ExprIdOpt,
+        args: Vec<ExprIdOpt>,
     },
     MethodCall {
-        receiver: ExprId,
+        receiver: ExprIdOpt,
         method_name: Name,
-        args: Vec<ExprId>,
+        args: Vec<ExprIdOpt>,
         generic_args: Option<GenericArgs>,
     },
     Match {
-        expr: ExprId,
+        expr: ExprIdOpt,
         arms: Vec<MatchArm>,
     },
     Continue,
     Break {
-        expr: Option<ExprId>,
+        expr: Option<ExprIdOpt>,
     },
     Return {
-        expr: Option<ExprId>,
+        expr: Option<ExprIdOpt>,
     },
     RecordLit {
         path: Option<Path>,
         fields: Vec<RecordLitField>,
-        spread: Option<ExprId>,
+        spread: Option<ExprIdOpt>,
     },
     Field {
-        expr: ExprId,
+        expr: ExprIdOpt,
         name: Name,
     },
     Await {
-        expr: ExprId,
+        expr: ExprIdOpt,
     },
     Try {
-        expr: ExprId,
+        expr: ExprIdOpt,
     },
     TryBlock {
-        body: ExprId,
+        body: ExprIdOpt,
     },
     Cast {
-        expr: ExprId,
+        expr: ExprIdOpt,
         type_ref: TypeRef,
     },
     Ref {
-        expr: ExprId,
+        expr: ExprIdOpt,
         mutability: Mutability,
     },
     Box {
-        expr: ExprId,
+        expr: ExprIdOpt,
     },
     UnaryOp {
-        expr: ExprId,
+        expr: ExprIdOpt,
         op: UnaryOp,
     },
     BinaryOp {
-        lhs: ExprId,
-        rhs: ExprId,
+        lhs: ExprIdOpt,
+        rhs: ExprIdOpt,
         op: Option<BinaryOp>,
     },
     Range {
-        lhs: Option<ExprId>,
-        rhs: Option<ExprId>,
+        lhs: Option<ExprIdOpt>,
+        rhs: Option<ExprIdOpt>,
         range_type: RangeOp,
     },
     Index {
-        base: ExprId,
-        index: ExprId,
+        base: ExprIdOpt,
+        index: ExprIdOpt,
     },
     Lambda {
-        args: Vec<PatId>,
+        args: Vec<PatIdOpt>,
         arg_types: Vec<Option<TypeRef>>,
-        body: ExprId,
+        body: ExprIdOpt,
     },
     Tuple {
-        exprs: Vec<ExprId>,
+        exprs: Vec<ExprIdOpt>,
     },
     Array(Array),
     Literal(Literal),
@@ -195,31 +196,31 @@ pub enum ArithOp {
 pub use ra_syntax::ast::PrefixOp as UnaryOp;
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Array {
-    ElementList(Vec<ExprId>),
-    Repeat { initializer: ExprId, repeat: ExprId },
+    ElementList(Vec<ExprIdOpt>),
+    Repeat { initializer: ExprIdOpt, repeat: ExprIdOpt },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct MatchArm {
-    pub pats: Vec<PatId>,
-    pub guard: Option<ExprId>,
-    pub expr: ExprId,
+    pub pats: Vec<PatIdOpt>,
+    pub guard: Option<ExprIdOpt>,
+    pub expr: ExprIdOpt,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RecordLitField {
     pub name: Name,
-    pub expr: ExprId,
+    pub expr: ExprIdOpt,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Statement {
-    Let { pat: PatId, type_ref: Option<TypeRef>, initializer: Option<ExprId> },
-    Expr(ExprId),
+    Let { pat: PatIdOpt, type_ref: Option<TypeRef>, initializer: Option<ExprIdOpt> },
+    Expr(ExprIdOpt),
 }
 
 impl Expr {
-    pub fn walk_child_exprs(&self, mut f: impl FnMut(ExprId)) {
+    pub fn walk_child_exprs(&self, mut f: impl FnMut(ExprIdOpt)) {
         match self {
             Expr::Missing => {}
             Expr::Path(_) => {}
@@ -372,7 +373,7 @@ impl BindingAnnotation {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RecordFieldPat {
     pub name: Name,
-    pub pat: PatId,
+    pub pat: PatIdOpt,
 }
 
 /// Close relative to rustc's hir::PatKind
@@ -380,40 +381,40 @@ pub struct RecordFieldPat {
 pub enum Pat {
     Missing,
     Wild,
-    Tuple(Vec<PatId>),
+    Tuple(Vec<PatIdOpt>),
     Record {
         path: Option<Path>,
         args: Vec<RecordFieldPat>,
         // FIXME: 'ellipsis' option
     },
     Range {
-        start: ExprId,
-        end: ExprId,
+        start: ExprIdOpt,
+        end: ExprIdOpt,
     },
     Slice {
-        prefix: Vec<PatId>,
-        rest: Option<PatId>,
-        suffix: Vec<PatId>,
+        prefix: Vec<PatIdOpt>,
+        rest: Option<PatIdOpt>,
+        suffix: Vec<PatIdOpt>,
     },
     Path(Path),
-    Lit(ExprId),
+    Lit(ExprIdOpt),
     Bind {
         mode: BindingAnnotation,
         name: Name,
-        subpat: Option<PatId>,
+        subpat: Option<PatIdOpt>,
     },
     TupleStruct {
         path: Option<Path>,
-        args: Vec<PatId>,
+        args: Vec<PatIdOpt>,
     },
     Ref {
-        pat: PatId,
+        pat: PatIdOpt,
         mutability: Mutability,
     },
 }
 
 impl Pat {
-    pub fn walk_child_pats(&self, mut f: impl FnMut(PatId)) {
+    pub fn walk_child_pats(&self, mut f: impl FnMut(PatIdOpt)) {
         match self {
             Pat::Range { .. } | Pat::Lit(..) | Pat::Path(..) | Pat::Wild | Pat::Missing => {}
             Pat::Bind { subpat, .. } => {

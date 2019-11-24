@@ -13,7 +13,7 @@ use rustc_hash::FxHashMap;
 
 use crate::{
     db::DefDatabase,
-    expr::{Expr, ExprId, Pat, PatId},
+    expr::{Expr, ExprId, ExprIdOpt, Pat, PatId, PatIdOpt},
     nameres::{BuiltinShadowMode, CrateDefMap},
     path::Path,
     src::HasSource,
@@ -112,9 +112,9 @@ pub struct Body {
     ///
     /// If this `Body` is for the body of a constant, this will just be
     /// empty.
-    pub params: Vec<PatId>,
+    pub params: Vec<PatIdOpt>,
     /// The `ExprId` of the actual body expression.
-    pub body_expr: ExprId,
+    pub body_expr: ExprIdOpt,
 }
 
 pub type ExprPtr = Either<AstPtr<ast::Expr>, AstPtr<ast::RecordField>>;

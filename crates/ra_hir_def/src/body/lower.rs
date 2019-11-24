@@ -18,8 +18,8 @@ use crate::{
     builtin_type::{BuiltinFloat, BuiltinInt},
     db::DefDatabase,
     expr::{
-        ArithOp, Array, BinaryOp, BindingAnnotation, CmpOp, Expr, ExprId, Literal, LogicOp,
-        MatchArm, Ordering, Pat, PatId, RecordFieldPat, RecordLitField, Statement,
+        ArithOp, Array, BinaryOp, BindingAnnotation, CmpOp, Expr, ExprIdOpt, Literal, LogicOp,
+        MatchArm, MissingNode, Ordering, Pat, PatIdOpt, RecordFieldPat, RecordLitField, Statement,
     },
     path::GenericArgs,
     path::Path,
@@ -40,7 +40,7 @@ pub(super) fn lower(
             exprs: Arena::default(),
             pats: Arena::default(),
             params: Vec::new(),
-            body_expr: ExprId::dummy(),
+            body_expr: Err(MissingNode),
         },
     }
     .collect(params, body)
@@ -91,49 +91,51 @@ where
         (self.body, self.source_map)
     }
 
-    fn alloc_expr(&mut self, expr: Expr, ptr: AstPtr<ast::Expr>) -> ExprId {
+    fn alloc_expr(&mut self, expr: Expr, ptr: AstPtr<ast::Expr>) -> ExprIdOpt {
         let ptr = Either::Left(ptr);
         let id = self.body.exprs.alloc(expr);
         let src = self.expander.to_source(ptr);
         self.source_map.expr_map.insert(src, id);
         self.source_map.expr_map_back.insert(id, src);
-        id
+        Ok(id)
     }
     // desugared exprs don't have ptr, that's wrong and should be fixed
     // somehow.
-    fn alloc_expr_desugared(&mut self, expr: Expr) -> ExprId {
-        self.body.exprs.alloc(expr)
+    fn alloc_expr_desugared(&mut self, expr: Expr) -> ExprIdOpt {
+        let id = self.body.exprs.alloc(expr);
+        Ok(id)
     }
-    fn alloc_expr_field_shorthand(&mut self, expr: Expr, ptr: AstPtr<ast::RecordField>) -> ExprId {
+    fn alloc_expr_field_shorthand(&mut self, expr: Expr, ptr: AstPtr<ast::RecordField>) -> ExprIdOpt {
         let ptr = Either::Right(ptr);
         let id = self.body.exprs.alloc(expr);
         let src = self.expander.to_source(ptr);
         self.source_map.expr_map.insert(src, id);
         self.source_map.expr_map_back.insert(id, src);
-        id
+        Ok(id)
     }
-    fn alloc_pat(&mut self, pat: Pat, ptr: PatPtr) -> PatId {
+    fn alloc_pat(&mut self, pat: Pat, ptr: PatPtr) -> PatIdOpt {
         let id = self.body.pats.alloc(pat);
         let src = self.expander.to_source(ptr);
         self.source_map.pat_map.insert(src, id);
         self.source_map.pat_map_back.insert(id, src);
-        id
+        Ok(id)
     }
 
-    fn empty_block(&mut self) -> ExprId {
+    fn empty_block(&mut self) -> ExprIdOpt {
         let block = Expr::Block { statements: Vec::new(), tail: None };
-        self.body.exprs.alloc(block)
+        let id = self.body.exprs.alloc(block);
+        Ok(id)
     }
 
-    fn missing_expr(&mut self) -> ExprId {
-        self.body.exprs.alloc(Expr::Missing)
+    fn missing_expr(&mut self) -> ExprIdOpt {
+        Err(MissingNode)
     }
 
-    fn missing_pat(&mut self) -> PatId {
-        self.body.pats.alloc(Pat::Missing)
+    fn missing_pat(&mut self) -> PatIdOpt {
+        Err(MissingNode)
     }
 
-    fn collect_expr(&mut self, expr: ast::Expr) -> ExprId {
+    fn collect_expr(&mut self, expr: ast::Expr) -> ExprIdOpt {
         let syntax_ptr = AstPtr::new(&expr);
         match expr {
             ast::Expr::IfExpr(e) => {
@@ -273,11 +275,11 @@ where
                 self.alloc_expr(Expr::Break { expr }, syntax_ptr)
             }
             ast::Expr::ParenExpr(e) => {
-                let inner = self.collect_expr_opt(e.expr());
+                let inner = self.collect_expr_opt(e.expr())?;
                 // make the paren expr point to the inner expression as well
                 let src = self.expander.to_source(Either::Left(syntax_ptr));
                 self.source_map.expr_map.insert(src, inner);
-                inner
+                Ok(inner)
             }
             ast::Expr::ReturnExpr(e) => {
                 let expr = e.expr().map(|e| self.collect_expr(e));
@@ -314,11 +316,11 @@ where
                     Expr::RecordLit { path, fields: Vec::new(), spread: None }
                 };
 
-                let res = self.alloc_expr(record_lit, syntax_ptr);
+                let res = self.alloc_expr(record_lit, syntax_ptr)?;
                 for (i, ptr) in field_ptrs.into_iter().enumerate() {
                     self.source_map.field_map.insert((res, i), ptr);
                 }
-                res
+                Ok(res)
             }
             ast::Expr::FieldExpr(e) => {
                 let expr = self.collect_expr_opt(e.expr());
@@ -451,7 +453,7 @@ where
         }
     }
 
-    fn collect_expr_opt(&mut self, expr: Option<ast::Expr>) -> ExprId {
+    fn collect_expr_opt(&mut self, expr: Option<ast::Expr>) -> ExprIdOpt {
         if let Some(expr) = expr {
             self.collect_expr(expr)
         } else {
@@ -459,7 +461,7 @@ where
         }
     }
 
-    fn collect_block(&mut self, expr: ast::BlockExpr) -> ExprId {
+    fn collect_block(&mut self, expr: ast::BlockExpr) -> ExprIdOpt {
         let syntax_node_ptr = AstPtr::new(&expr.clone().into());
         let block = match expr.block() {
             Some(block) => block,
@@ -481,7 +483,7 @@ where
         self.alloc_expr(Expr::Block { statements, tail }, syntax_node_ptr)
     }
 
-    fn collect_block_opt(&mut self, expr: Option<ast::BlockExpr>) -> ExprId {
+    fn collect_block_opt(&mut self, expr: Option<ast::BlockExpr>) -> ExprIdOpt {
         if let Some(block) = expr {
             self.collect_block(block)
         } else {
@@ -489,7 +491,7 @@ where
         }
     }
 
-    fn collect_pat(&mut self, pat: ast::Pat) -> PatId {
+    fn collect_pat(&mut self, pat: ast::Pat) -> PatIdOpt {
         let pattern = match &pat {
             ast::Pat::BindPat(bp) => {
                 let name = bp.name().map(|nr| nr.as_name()).unwrap_or_else(Name::missing);
@@ -551,7 +553,7 @@ where
         self.alloc_pat(pattern, Either::Left(ptr))
     }
 
-    fn collect_pat_opt(&mut self, pat: Option<ast::Pat>) -> PatId {
+    fn collect_pat_opt(&mut self, pat: Option<ast::Pat>) -> PatIdOpt {
         if let Some(pat) = pat {
             self.collect_pat(pat)
         } else {
