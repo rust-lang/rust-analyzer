@@ -4,7 +4,7 @@ use std::iter::repeat;
 use std::sync::Arc;
 
 use hir_def::{
-    expr::{BindingAnnotation, Pat, PatId, RecordFieldPat},
+    expr::{BindingAnnotation, Pat, PatId, PatIdOpt, RecordFieldPat},
     path::Path,
     type_ref::Mutability,
 };
@@ -18,7 +18,7 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
     fn infer_tuple_struct_pat(
         &mut self,
         path: Option<&Path>,
-        subpats: &[PatId],
+        subpats: &[PatIdOpt],
         expected: &Ty,
         default_bm: BindingMode,
     ) -> Ty {
@@ -75,10 +75,19 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
 
     pub(super) fn infer_pat(
         &mut self,
-        pat: PatId,
+        pat: PatIdOpt,
         mut expected: &Ty,
         mut default_bm: BindingMode,
     ) -> Ty {
+        let pat = if let Ok(pat) = pat {
+            pat
+        } else {
+            let ty = self.table.new_type_var();
+            self.unify(&ty, expected);
+            let ty = self.resolve_ty_as_possible(ty);
+            return ty
+        };
+
         let body = Arc::clone(&self.body); // avoid borrow checker problem
 
         let is_non_ref_pat = match &body[pat] {

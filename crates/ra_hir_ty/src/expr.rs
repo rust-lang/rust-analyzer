@@ -24,8 +24,8 @@ pub use hir_def::{
         Body, BodySourceMap, ExprPtr, ExprSource, PatPtr, PatSource,
     },
     expr::{
-        ArithOp, Array, BinaryOp, BindingAnnotation, CmpOp, Expr, ExprId, Literal, LogicOp,
-        MatchArm, Ordering, Pat, PatId, RecordFieldPat, RecordLitField, Statement, UnaryOp,
+        ArithOp, Array, BinaryOp, BindingAnnotation, CmpOp, Expr, ExprId, ExprIdOpt, Literal, LogicOp,
+        MatchArm, Ordering, Pat, PatId, PatIdOpt, RecordFieldPat, RecordLitField, Statement, UnaryOp,
     },
 };
 
@@ -53,9 +53,10 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
             }
         }
 
-        let body_expr = &body[body.body_expr];
-        if let Expr::Block { statements: _, tail: Some(t) } = body_expr {
-            self.validate_results_in_tail_expr(body.body_expr, *t, db);
+        if let Ok(body_expr) = body.body_expr {
+            if let Expr::Block { statements: _, tail: Some(t) } = &body[body_expr] {
+                self.validate_results_in_tail_expr(body_expr, *t, db);
+            }
         }
     }
 
@@ -64,7 +65,7 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
         id: ExprId,
         _path: &Option<Path>,
         fields: &[RecordLitField],
-        spread: Option<ExprId>,
+        spread: Option<ExprIdOpt>,
         db: &impl HirDatabase,
     ) {
         if spread.is_some() {
@@ -115,7 +116,7 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
     fn validate_results_in_tail_expr(
         &mut self,
         body_id: ExprId,
-        id: ExprId,
+        id: ExprIdOpt,
         db: &impl HirDatabase,
     ) {
         // the mismatch will be on the whole block currently
@@ -141,9 +142,11 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
         if params.len() == 2 && &params[0] == &mismatch.actual {
             let (_, source_map) = db.body_with_source_map(self.func.into());
 
-            if let Some(source_ptr) = source_map.expr_syntax(id) {
-                if let Some(expr) = source_ptr.value.left() {
-                    self.sink.push(MissingOkInTailExpr { file: source_ptr.file_id, expr });
+            if let Ok(id) = id {
+                if let Some(source_ptr) = source_map.expr_syntax(id) {
+                    if let Some(expr) = source_ptr.value.left() {
+                        self.sink.push(MissingOkInTailExpr { file: source_ptr.file_id, expr });
+                    }
                 }
             }
         }

@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use hir_def::{
     builtin_type::Signedness,
-    expr::{Array, BinaryOp, Expr, ExprId, Literal, Statement, UnaryOp},
+    expr::{Array, BinaryOp, Expr, ExprId, ExprIdOpt, Literal, Statement, UnaryOp},
     generics::GenericParams,
     path::{GenericArg, GenericArgs},
     resolver::resolver_for_expr,
@@ -23,12 +23,12 @@ use crate::{
 use super::{BindingMode, Expectation, InferenceContext, InferenceDiagnostic, TypeMismatch};
 
 impl<'a, D: HirDatabase> InferenceContext<'a, D> {
-    pub(super) fn infer_expr(&mut self, tgt_expr: ExprId, expected: &Expectation) -> Ty {
-        let ty = self.infer_expr_inner(tgt_expr, expected);
+    pub(super) fn infer_expr(&mut self, tgt_expr: ExprIdOpt, expected: &Expectation) -> Ty {
+        let ty = self.infer_expr_inner_opt(tgt_expr, expected);
         let could_unify = self.unify(&ty, &expected.ty);
         if !could_unify {
             self.result.type_mismatches.insert(
-                tgt_expr,
+                tgt_expr.unwrap(),
                 TypeMismatch { expected: expected.ty.clone(), actual: ty.clone() },
             );
         }
@@ -38,9 +38,12 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
 
     /// Infer type of expression with possibly implicit coerce to the expected type.
     /// Return the type after possible coercion.
-    fn infer_expr_coerce(&mut self, expr: ExprId, expected: &Expectation) -> Ty {
-        let ty = self.infer_expr_inner(expr, &expected);
+    fn infer_expr_coerce(&mut self, expr: ExprIdOpt, expected: &Expectation) -> Ty {
+        let ty = self.infer_expr_inner_opt(expr, &expected);
         let ty = if !self.coerce(&ty, &expected.ty) {
+            // For missing expression, `infer_expr_inner_opt` returns a new type var.
+            // It coerces to everything.
+            let expr = expr.unwrap();
             self.result
                 .type_mismatches
                 .insert(expr, TypeMismatch { expected: expected.ty.clone(), actual: ty.clone() });
@@ -56,6 +59,14 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
         self.resolve_ty_as_possible(ty)
     }
 
+    fn infer_expr_inner_opt(&mut self, tgt_expr: ExprIdOpt, expected: &Expectation) -> Ty {
+        if let Ok(tgt_expr) = tgt_expr {
+            self.infer_expr_inner(tgt_expr, expected)
+        } else {
+            self.table.new_type_var()
+        }
+    }
+
     fn infer_expr_inner(&mut self, tgt_expr: ExprId, expected: &Expectation) -> Ty {
         let body = Arc::clone(&self.body); // avoid borrow checker problem
         let ty = match &body[tgt_expr] {
@@ -64,9 +75,9 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
                 // if let is desugared to match, so this is always simple if
                 self.infer_expr(*condition, &Expectation::has_type(Ty::simple(TypeCtor::Bool)));
 
-                let then_ty = self.infer_expr_inner(*then_branch, &expected);
+                let then_ty = self.infer_expr_inner_opt(*then_branch, &expected);
                 let else_ty = match else_branch {
-                    Some(else_branch) => self.infer_expr_inner(*else_branch, &expected),
+                    Some(else_branch) => self.infer_expr_inner_opt(*else_branch, &expected),
                     None => Ty::unit(),
                 };
 
@@ -180,7 +191,7 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
                         );
                     }
 
-                    let arm_ty = self.infer_expr_inner(arm.expr, &expected);
+                    let arm_ty = self.infer_expr_inner_opt(arm.expr, &expected);
                     result_ty = self.coerce_merge_branch(&result_ty, &arm_ty);
                 }
 
@@ -232,7 +243,9 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
                             }
                         });
                     if let Some(field_def) = field_def {
-                        self.result.record_field_resolutions.insert(field.expr, field_def);
+                        if let Ok(field_expr) = field.expr {
+                            self.result.record_field_resolutions.insert(field_expr, field_def);
+                        }
                     }
                     let field_ty = field_def
                         .map_or(Ty::Unknown, |it| field_types[it.local_id].clone())
@@ -532,7 +545,7 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
     fn infer_block(
         &mut self,
         statements: &[Statement],
-        tail: Option<ExprId>,
+        tail: Option<ExprIdOpt>,
         expected: &Expectation,
     ) -> Ty {
         let mut diverges = false;
@@ -580,8 +593,8 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
     fn infer_method_call(
         &mut self,
         tgt_expr: ExprId,
-        receiver: ExprId,
-        args: &[ExprId],
+        receiver: ExprIdOpt,
+        args: &[ExprIdOpt],
         method_name: &Name,
         generic_args: Option<&GenericArgs>,
     ) -> Ty {
@@ -628,7 +641,7 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
         ret_ty
     }
 
-    fn check_call_arguments(&mut self, args: &[ExprId], param_tys: &[Ty]) {
+    fn check_call_arguments(&mut self, args: &[ExprIdOpt], param_tys: &[Ty]) {
         // Quoting https://github.com/rust-lang/rust/blob/6ef275e6c3cb1384ec78128eceeb4963ff788dca/src/librustc_typeck/check/mod.rs#L3325 --
         // We do this in a pretty awful way: first we type-check any arguments
         // that are not closures, then we type-check the closures. This is so
@@ -637,6 +650,7 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
         for &check_closures in &[false, true] {
             let param_iter = param_tys.iter().cloned().chain(repeat(Ty::Unknown));
             for (&arg, param_ty) in args.iter().zip(param_iter) {
+                let arg = if let Ok(arg) = arg { arg } else { continue };
                 let is_closure = match &self.body[arg] {
                     Expr::Lambda { .. } => true,
                     _ => false,
@@ -647,7 +661,7 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
                 }
 
                 let param_ty = self.normalize_associated_types_in(param_ty);
-                self.infer_expr_coerce(arg, &Expectation::has_type(param_ty.clone()));
+                self.infer_expr_coerce(Ok(arg), &Expectation::has_type(param_ty.clone()));
             }
         }
     }
