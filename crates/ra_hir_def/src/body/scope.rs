@@ -323,7 +323,7 @@ mod tests {
         };
 
         let resolved = scopes.resolve_name_in_scope(expr_scope, &name_ref.as_name()).unwrap();
-        let pat_src = source_map.pat_syntax(resolved.pat()).unwrap();
+        let pat_src = source_map.pat_syntax(resolved.pat());
 
         let local_name = pat_src.value;
         assert_eq!(local_name.range(), expected_name.syntax().text_range());

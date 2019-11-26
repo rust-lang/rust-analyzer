@@ -4755,18 +4755,12 @@ fn infer(content: &str) -> String {
         let mut types = Vec::new();
 
         for (pat, ty) in inference_result.type_of_pat.iter() {
-            let syntax_ptr = match body_source_map.pat_syntax(pat) {
-                Some(sp) => sp,
-                None => continue,
-            };
+            let syntax_ptr = body_source_map.pat_syntax(pat);
             types.push((syntax_ptr, ty));
         }
 
         for (expr, ty) in inference_result.type_of_expr.iter() {
-            let syntax_ptr = match body_source_map.expr_syntax(expr) {
-                Some(sp) => sp,
-                None => continue,
-            };
+            let syntax_ptr = body_source_map.expr_syntax(expr);
             types.push((syntax_ptr, ty));
         }
 
