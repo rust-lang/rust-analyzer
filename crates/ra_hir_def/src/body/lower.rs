@@ -10,7 +10,7 @@ use ra_syntax::{
         self, ArgListOwner, ArrayExprKind, LiteralKind, LoopBodyOwner, NameOwner,
         TypeAscriptionOwner,
     },
-    AstNode, AstPtr,
+    AstNode, AstPtr, SyntaxNodePtr
 };
 use test_utils::tested_by;
 
@@ -97,8 +97,8 @@ where
         expr
     }
 
-    fn alloc_expr_desugared(&mut self, expr: Expr, ptr: AstPtr<ast::Expr>) -> ExprId {
-        let src = self.expander.to_source(ptr.syntax_node_ptr());
+    fn alloc_expr_desugared(&mut self, expr: Expr, ptr: SyntaxNodePtr) -> ExprId {
+        let src = self.expander.to_source(ptr);
         self.body.alloc_expr(expr, src)
     }
 
@@ -113,6 +113,11 @@ where
         let pat = self.body.alloc_pat(pat, ast_src);
         self.body.map_pat(src, pat);
         pat
+    }
+
+    fn alloc_pat_desugared(&mut self, pat: Pat, ptr: SyntaxNodePtr) -> PatId {
+        let src = self.expander.to_source(ptr);
+        self.body.alloc_pat(pat, src)
     }
 
     fn empty_block(&mut self, ptr: AstPtr<ast::Expr>) -> ExprId {
@@ -150,7 +155,10 @@ where
                         Some(pat) => {
                             let pat = self.collect_pat(pat);
                             let match_expr = self.collect_expr_opt(condition.expr());
-                            let placeholder_pat = self.missing_pat();
+                            let placeholder_pat = self.alloc_pat_desugared(
+                                Pat::Wild,
+                                syntax_ptr.syntax_node_ptr()
+                            );
                             let arms = vec![
                                 MatchArm { pats: vec![pat], expr: then_branch, guard: None },
                                 MatchArm {
@@ -188,9 +196,13 @@ where
                             tested_by!(infer_resolve_while_let);
                             let pat = self.collect_pat(pat);
                             let match_expr = self.collect_expr_opt(condition.expr());
-                            let placeholder_pat = self.missing_pat();
+                            let placeholder_pat = self.alloc_pat_desugared(
+                                Pat::Wild,
+                                syntax_ptr.syntax_node_ptr()
+                            );
                             let break_ = self.alloc_expr_desugared(
-                                Expr::Break { expr: None }, syntax_ptr
+                                Expr::Break { expr: None },
+                                syntax_ptr.syntax_node_ptr()
                             );
                             let arms = vec![
                                 MatchArm { pats: vec![pat], expr: body, guard: None },
@@ -198,7 +210,7 @@ where
                             ];
                             let match_expr = self.alloc_expr_desugared(
                                 Expr::Match { expr: match_expr, arms },
-                                syntax_ptr
+                                syntax_ptr.syntax_node_ptr()
                             );
                             return self.alloc_expr(Expr::Loop { body: match_expr }, syntax_ptr);
                         }
