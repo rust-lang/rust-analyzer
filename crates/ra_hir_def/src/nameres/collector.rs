@@ -395,6 +395,13 @@ where
 
                     let resolution = Resolution { def, import: Some(import_id) };
                     self.update(module_id, Some(import_id), &[(name, resolution)]);
+
+                    // insert alias information to module
+                    if let Some(alias) = &import.alias {
+                        self.def_map.modules[module_id]
+                            .aliases
+                            .insert(last_segment.name.clone(), alias.clone());
+                    }
                 }
                 None => tested_by!(bogus_paths),
             }
@@ -407,7 +414,18 @@ where
         import: Option<LocalImportId>,
         resolutions: &[(Name, Resolution)],
     ) {
-        self.update_recursive(module_id, import, resolutions, 0)
+        self.update_recursive(module_id, import, resolutions, 0);
+
+        // update alias
+        let alias_resolutions: Vec<_> = resolutions
+            .iter()
+            .filter_map(|(name, res)| {
+                let alias = self.def_map.modules[module_id].aliases.get(name)?;
+                Some((alias.clone(), res.clone()))
+            })
+            .collect();
+
+        self.update_recursive(module_id, None, &alias_resolutions, 0);
     }
 
     fn update_recursive(

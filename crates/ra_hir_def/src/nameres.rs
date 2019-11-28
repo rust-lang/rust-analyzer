@@ -115,6 +115,9 @@ pub struct ModuleData {
     pub definition: Option<FileId>,
 
     pub impls: Vec<ImplId>,
+
+    /// alias information (Name => Alias)
+    pub aliases: FxHashMap<Name, Name>,
 }
 
 #[derive(Default, Debug, PartialEq, Eq)]

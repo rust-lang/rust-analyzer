@@ -4956,3 +4956,34 @@ fn main() {
     "###
     );
 }
+
+#[test]
+fn infer_type_value_non_legacy_macro_use_as() {
+    assert_snapshot!(
+        infer(r#"
+mod m {
+    macro_rules! _foo {
+        ($x:ident) => { type $x = u64; }
+    }
+    pub(crate) use _foo as foo;
+}
+
+m::foo!(foo);
+use foo as bar;
+fn f() -> bar { 0 }
+
+fn main() {  
+    let _a  = f();
+}
+
+"#),
+        @r###"
+        [159; 164) '{ 0 }': u64
+        [161; 162) '0': u64
+        [176; 200) '{     ...f(); }': ()
+        [188; 190) '_a': u64
+        [194; 195) 'f': fn f() -> u64
+        [194; 197) 'f()': u64        
+    "###
+    );
+}
