@@ -17,8 +17,7 @@ use crate::{
     expr::{Expr, ExprId, Pat, PatId},
     nameres::CrateDefMap,
     path::Path,
-    src::HasSource,
-    DefWithBodyId, HasModule, Lookup, ModuleId,
+    DefWithBodyId, ModuleId,
 };
 pub use source_map::{
     ExprPtr, ExprSource, PatPtr, PatSource,
@@ -125,42 +124,12 @@ impl Body {
         db: &impl DefDatabase,
         def: DefWithBodyId,
     ) -> (Arc<Body>, Arc<BodySourceMap>) {
-        let mut params = None;
-
-        let (file_id, module, body) = match def {
-            DefWithBodyId::FunctionId(f) => {
-                let f = f.lookup(db);
-                let src = f.source(db);
-                params = src.value.param_list();
-                (src.file_id, f.module(db), src.value.body().map(ast::Expr::from))
-            }
-            DefWithBodyId::ConstId(c) => {
-                let c = c.lookup(db);
-                let src = c.source(db);
-                (src.file_id, c.module(db), src.value.body())
-            }
-            DefWithBodyId::StaticId(s) => {
-                let s = s.lookup(db);
-                let src = s.source(db);
-                (src.file_id, s.module(db), src.value.body())
-            }
-        };
-        let expander = Expander::new(db, file_id, module);
-        let (body, source_map) = Body::new(db, expander, params, body);
+        let (body, source_map) = lower::lower(db, def);
         (Arc::new(body), Arc::new(source_map))
     }
 
     pub(crate) fn body_query(db: &impl DefDatabase, def: DefWithBodyId) -> Arc<Body> {
         db.body_with_source_map(def).0
-    }
-
-    fn new(
-        db: &impl DefDatabase,
-        expander: Expander,
-        params: Option<ast::ParamList>,
-        body: Option<ast::Expr>,
-    ) -> (Body, BodySourceMap) {
-        lower::lower(db, expander, params, body)
     }
 }
 

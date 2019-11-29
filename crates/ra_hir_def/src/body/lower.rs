@@ -24,15 +24,37 @@ use crate::{
     },
     path::GenericArgs,
     path::Path,
+    src::HasSource,
     type_ref::{Mutability, TypeRef},
+    DefWithBodyId, HasModule, Lookup,
 };
 
 pub(super) fn lower(
     db: &impl DefDatabase,
-    expander: Expander,
-    params: Option<ast::ParamList>,
-    body: Option<ast::Expr>,
+    def: DefWithBodyId,
 ) -> (Body, BodySourceMap) {
+    let mut params = None;
+
+    let (file_id, module, body) = match def {
+        DefWithBodyId::FunctionId(f) => {
+            let f = f.lookup(db);
+            let src = f.source(db);
+            params = src.value.param_list();
+            (src.file_id, f.module(db), src.value.body().map(ast::Expr::from))
+        }
+        DefWithBodyId::ConstId(c) => {
+            let c = c.lookup(db);
+            let src = c.source(db);
+            (src.file_id, c.module(db), src.value.body())
+        }
+        DefWithBodyId::StaticId(s) => {
+            let s = s.lookup(db);
+            let src = s.source(db);
+            (src.file_id, s.module(db), src.value.body())
+        }
+    };
+    let expander = Expander::new(db, file_id, module);
+
     ExprCollector {
         expander,
         db,
