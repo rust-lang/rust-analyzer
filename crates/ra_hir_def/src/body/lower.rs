@@ -35,30 +35,34 @@ pub(super) fn lower(
 ) -> (Body, BodySourceMap) {
     let mut params = None;
 
-    let (file_id, module, body) = match def {
+    let (src, module, body) = match def {
         DefWithBodyId::FunctionId(f) => {
             let f = f.lookup(db);
             let src = f.source(db);
+            let ptr = src.as_ref().map(|e| AstPtr::new(e).syntax_node_ptr());
             params = src.value.param_list();
-            (src.file_id, f.module(db), src.value.body().map(ast::Expr::from))
+            (ptr, f.module(db), src.value.body().map(ast::Expr::from))
         }
         DefWithBodyId::ConstId(c) => {
             let c = c.lookup(db);
             let src = c.source(db);
-            (src.file_id, c.module(db), src.value.body())
+            let ptr = src.as_ref().map(|e| AstPtr::new(e).syntax_node_ptr());
+            (ptr, c.module(db), src.value.body())
         }
         DefWithBodyId::StaticId(s) => {
             let s = s.lookup(db);
             let src = s.source(db);
-            (src.file_id, s.module(db), src.value.body())
+            let ptr = src.as_ref().map(|e| AstPtr::new(e).syntax_node_ptr());
+            (ptr, s.module(db), src.value.body())
         }
     };
-    let expander = Expander::new(db, file_id, module);
+    let expander = Expander::new(db, src.file_id, module);
 
     ExprCollector {
         expander,
         db,
         body: BodyWithSourceMap::new(),
+        parent: src.value,
     }
     .collect(params, body)
 }
@@ -68,6 +72,7 @@ struct ExprCollector<DB> {
     expander: Expander,
 
     body: BodyWithSourceMap,
+    parent: SyntaxNodePtr,
 }
 
 impl<'a, DB> ExprCollector<&'a DB>
@@ -119,7 +124,8 @@ where
         expr
     }
 
-    fn alloc_expr_desugared(&mut self, expr: Expr, ptr: SyntaxNodePtr) -> ExprId {
+    fn alloc_expr_desugared(&mut self, expr: Expr) -> ExprId {
+        let ptr = self.parent;
         let src = self.expander.to_source(ptr);
         self.body.alloc_expr(expr, src)
     }
@@ -137,7 +143,8 @@ where
         pat
     }
 
-    fn alloc_pat_desugared(&mut self, pat: Pat, ptr: SyntaxNodePtr) -> PatId {
+    fn alloc_pat_desugared(&mut self, pat: Pat) -> PatId {
+        let ptr = self.parent;
         let src = self.expander.to_source(ptr);
         self.body.alloc_pat(pat, src)
     }
@@ -153,6 +160,15 @@ where
 
     fn missing_pat(&mut self) -> PatId {
         self.body.missing_pat()
+    }
+
+    fn with_parent<F, T>(&mut self, parent: SyntaxNodePtr, f: F) -> T
+        where F: FnOnce(&mut Self) -> T
+    {
+        let parent = std::mem::replace(&mut self.parent, parent);
+        let ret = f(self);
+        self.parent = parent;
+        ret
     }
 
     fn collect_expr(&mut self, expr: ast::Expr) -> ExprId {
@@ -179,7 +195,6 @@ where
                             let match_expr = self.collect_expr_opt(condition.expr());
                             let placeholder_pat = self.alloc_pat_desugared(
                                 Pat::Wild,
-                                syntax_ptr.syntax_node_ptr()
                             );
                             let arms = vec![
                                 MatchArm { pats: vec![pat], expr: then_branch, guard: None },
@@ -220,11 +235,9 @@ where
                             let match_expr = self.collect_expr_opt(condition.expr());
                             let placeholder_pat = self.alloc_pat_desugared(
                                 Pat::Wild,
-                                syntax_ptr.syntax_node_ptr()
                             );
                             let break_ = self.alloc_expr_desugared(
                                 Expr::Break { expr: None },
-                                syntax_ptr.syntax_node_ptr()
                             );
                             let arms = vec![
                                 MatchArm { pats: vec![pat], expr: body, guard: None },
@@ -232,7 +245,6 @@ where
                             ];
                             let match_expr = self.alloc_expr_desugared(
                                 Expr::Match { expr: match_expr, arms },
-                                syntax_ptr.syntax_node_ptr()
                             );
                             return self.alloc_expr(Expr::Loop { body: match_expr }, syntax_ptr);
                         }
@@ -486,7 +498,8 @@ where
 
     fn collect_expr_opt(&mut self, expr: Option<ast::Expr>) -> ExprId {
         if let Some(expr) = expr {
-            self.collect_expr(expr)
+            let ptr = AstPtr::new(&expr).syntax_node_ptr();
+            self.with_parent(ptr, |this| this.collect_expr(expr))
         } else {
             self.missing_expr()
         }
@@ -516,7 +529,8 @@ where
 
     fn collect_block_opt(&mut self, expr: Option<ast::BlockExpr>) -> ExprId {
         if let Some(block) = expr {
-            self.collect_block(block)
+            let ptr = AstPtr::new(&block).syntax_node_ptr();
+            self.with_parent(ptr, |this| this.collect_block(block))
         } else {
             self.missing_expr()
         }
@@ -586,7 +600,8 @@ where
 
     fn collect_pat_opt(&mut self, pat: Option<ast::Pat>) -> PatId {
         if let Some(pat) = pat {
-            self.collect_pat(pat)
+            let ptr = AstPtr::new(&pat).syntax_node_ptr();
+            self.with_parent(ptr, |this| this.collect_pat(pat))
         } else {
             self.missing_pat()
         }
