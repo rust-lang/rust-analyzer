@@ -123,7 +123,7 @@ pub fn run(
                 num_type_mismatches += 1;
                 if verbosity.is_verbose() {
                     let src = f.body_source_map(db).expr_syntax(expr_id);
-                    if let Some(src) = src {
+                    if let Some(src) = src.a() {
                         // FIXME: it might be nice to have a function (on Analysis?) that goes from Source<T> -> (LineCol, LineCol) directly
                         let original_file = src.file_id.original_file(db);
                         let path = db.file_relative_path(original_file);

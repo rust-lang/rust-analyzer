@@ -903,7 +903,7 @@ impl Local {
 
     pub fn source(self, db: &impl HirDatabase) -> InFile<SyntaxNode> {
         let (_body, source_map) = db.body_with_source_map(self.parent.into());
-        let src = source_map.pat_syntax(self.pat_id).unwrap(); // Hmm...
+        let src = source_map.pat_syntax(self.pat_id).a().unwrap(); // Hmm...
         let root = src.file_syntax(db);
         src.map(|ast| ast.to_node(&root))
     }

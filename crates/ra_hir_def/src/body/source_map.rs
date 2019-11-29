@@ -18,6 +18,7 @@ pub type PatPtr = Either<AstPtr<ast::Pat>, AstPtr<ast::SelfParam>>;
 pub type PatSource = InFile<PatPtr>;
 
 pub type AstSource = InFile<SyntaxNodePtr>;
+pub type AstBackSource = Either<AstSource, AstSource>;
 
 /// An item body together with the mapping from syntax nodes to HIR expression
 /// IDs. This is needed to go from e.g. a position in a file to the HIR
@@ -33,9 +34,9 @@ pub type AstSource = InFile<SyntaxNodePtr>;
 #[derive(Debug, Eq, PartialEq)]
 pub struct BodySourceMap {
     expr_map: FxHashMap<ExprSource, ExprId>,
-    expr_map_back: ArenaMap<ExprId, AstSource>,
+    expr_map_back: ArenaMap<ExprId, AstBackSource>,
     pat_map: FxHashMap<PatSource, PatId>,
-    pat_map_back: ArenaMap<PatId, AstSource>,
+    pat_map_back: ArenaMap<PatId, AstBackSource>,
     field_map: FxHashMap<(ExprId, usize), AstPtr<ast::RecordField>>,
 }
 
@@ -50,8 +51,8 @@ impl BodySourceMap {
         }
     }
 
-    pub fn expr_syntax(&self, expr: ExprId) -> Option<AstSource> {
-        self.expr_map_back.get(expr).copied()
+    pub fn expr_syntax(&self, expr: ExprId) -> AstBackSource {
+        self.expr_map_back[expr]
     }
 
     pub fn node_expr(&self, node: InFile<&ast::Expr>) -> Option<ExprId> {
@@ -59,8 +60,8 @@ impl BodySourceMap {
         self.expr_map.get(&src).cloned()
     }
 
-    pub fn pat_syntax(&self, pat: PatId) -> Option<AstSource> {
-        self.pat_map_back.get(pat).copied()
+    pub fn pat_syntax(&self, pat: PatId) -> AstBackSource {
+        self.pat_map_back[pat]
     }
 
     pub fn node_pat(&self, node: InFile<&ast::Pat>) -> Option<PatId> {
@@ -115,21 +116,25 @@ impl BodyWithSourceMap {
 
     pub fn alloc_expr(&mut self, expr: Expr, src: AstSource) -> ExprId {
         let id = self.body.exprs.alloc(expr);
-        self.source_map.expr_map_back.insert(id, src);
+        self.source_map.expr_map_back.insert(id, Either::A(src));
         id
     }
 
     pub fn alloc_pat(&mut self, pat: Pat, src: AstSource) -> PatId {
         let id = self.body.pats.alloc(pat);
-        self.source_map.pat_map_back.insert(id, src);
+        self.source_map.pat_map_back.insert(id, Either::A(src));
         id
     }
 
-    pub fn missing_expr(&mut self) -> ExprId {
-        self.body.exprs.alloc(Expr::Missing)
+    pub fn missing_expr(&mut self, src: AstSource) -> ExprId {
+        let id = self.body.exprs.alloc(Expr::Missing);
+        self.source_map.expr_map_back.insert(id, Either::B(src));
+        id
     }
 
-    pub fn missing_pat(&mut self) -> PatId {
-        self.body.pats.alloc(Pat::Missing)
+    pub fn missing_pat(&mut self, src: AstSource) -> PatId {
+        let id = self.body.pats.alloc(Pat::Missing);
+        self.source_map.pat_map_back.insert(id, Either::B(src));
+        id
     }
 }

@@ -155,11 +155,15 @@ where
     }
 
     fn missing_expr(&mut self) -> ExprId {
-        self.body.missing_expr()
+        let ptr = self.parent;
+        let src = self.expander.to_source(ptr);
+        self.body.missing_expr(src)
     }
 
     fn missing_pat(&mut self) -> PatId {
-        self.body.missing_pat()
+        let ptr = self.parent;
+        let src = self.expander.to_source(ptr);
+        self.body.missing_pat(src)
     }
 
     fn with_parent<F, T>(&mut self, parent: SyntaxNodePtr, f: F) -> T

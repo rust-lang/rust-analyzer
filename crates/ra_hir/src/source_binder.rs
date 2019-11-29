@@ -322,7 +322,7 @@ impl SourceAnalyzer {
         let entry = scopes.resolve_name_in_scope(scope, &name)?;
         Some(ScopeEntryWithSyntax {
             name: entry.name().clone(),
-            ptr: source_map.pat_syntax(entry.pat())?.value,
+            ptr: source_map.pat_syntax(entry.pat()).a()?.value,
         })
     }
 
@@ -481,7 +481,7 @@ fn scope_for_offset(
         .scope_by_expr()
         .iter()
         .filter_map(|(id, scope)| {
-            let source = source_map.expr_syntax(*id)?;
+            let source = source_map.expr_syntax(*id).a()?;
             // FIXME: correctly handle macro expansion
             if source.file_id != offset.file_id {
                 return None;
@@ -515,7 +515,7 @@ fn adjust(
         .scope_by_expr()
         .iter()
         .filter_map(|(id, scope)| {
-            let source = source_map.expr_syntax(*id)?;
+            let source = source_map.expr_syntax(*id).a()?;
             // FIXME: correctly handle macro expansion
             if source.file_id != file_id {
                 return None;
