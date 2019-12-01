@@ -17,8 +17,8 @@
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",
-        "package": "vsce package",
-        "compile": "rollup -c && shx cp src/utils/terminateProcess.sh bundle/terminateProcess.sh",
+        "package": "npx vsce package",
+        "compile": "npx rollup -c && npx shx cp src/utils/terminateProcess.sh bundle/terminateProcess.sh",
         "watch": "tsc -watch -p ./",
         "fix": "prettier **/*.{json,ts} --write && tslint --project . --fix",
         "lint": "tslint --project .",
