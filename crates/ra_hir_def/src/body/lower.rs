@@ -15,7 +15,7 @@ use ra_syntax::{
 use test_utils::tested_by;
 
 use crate::{
-    body::{Body, BodySourceMap, BodyWithSourceMap, Expander, PatPtr},
+    body::{source_map::BodyWithSourceMap, Body, BodySourceMap, Expander, PatPtr},
     builtin_type::{BuiltinFloat, BuiltinInt},
     db::DefDatabase,
     expr::{

@@ -17,7 +17,6 @@ use crate::{
     path::Path,
     DefWithBodyId, ModuleId,
 };
-pub(crate) use source_map::BodyWithSourceMap;
 pub use source_map::{BodySourceMap, ExprPtr, ExprSource, PatPtr, PatSource};
 
 struct Expander {

@@ -1,3 +1,4 @@
+//! Definition of the HIR <-> AST mapping.
 use hir_expand::{either::Either, InFile};
 use ra_arena::{map::ArenaMap, Arena};
 use ra_syntax::{ast, AstPtr, SyntaxNodePtr};
@@ -48,24 +49,33 @@ impl BodySourceMap {
         }
     }
 
+    /// Get AST from HIR Expr.
+    /// The `A` case corresponds to the real AST node.
+    /// The `B` case corresponds to the parent node if missing.
     pub fn expr_syntax(&self, expr: ExprId) -> AstBackSource {
         self.expr_map_back[expr]
     }
 
+    /// Get HIR from AST Expr.
     pub fn node_expr(&self, node: InFile<&ast::Expr>) -> Option<ExprId> {
         let src = node.map(|it| Either::A(AstPtr::new(it)));
         self.expr_map.get(&src).cloned()
     }
 
+    /// Get AST from HIR Pat.
+    /// The `A` case corresponds to the real AST node.
+    /// The `B` case corresponds to the parent node if missing.
     pub fn pat_syntax(&self, pat: PatId) -> AstBackSource {
         self.pat_map_back[pat]
     }
 
+    /// Get HIR from AST Pat.
     pub fn node_pat(&self, node: InFile<&ast::Pat>) -> Option<PatId> {
         let src = node.map(|it| Either::A(AstPtr::new(it)));
         self.pat_map.get(&src).cloned()
     }
 
+    /// Get AST node associated to Field expression.
     pub fn field_syntax(&self, expr: ExprId, field: usize) -> AstPtr<ast::RecordField> {
         self.field_map[&(expr, field)]
     }
@@ -73,7 +83,7 @@ impl BodySourceMap {
 
 /// This structure is used to enforce HIR nodes allocation discipline.
 /// All allocated Ids must be associated to a source pointer.
-pub(crate) struct BodyWithSourceMap {
+pub(super) struct BodyWithSourceMap {
     body: Body,
     source_map: BodySourceMap,
 }
