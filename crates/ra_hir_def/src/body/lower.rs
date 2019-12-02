@@ -10,7 +10,7 @@ use ra_syntax::{
         self, ArgListOwner, ArrayExprKind, LiteralKind, LoopBodyOwner, NameOwner,
         TypeAscriptionOwner,
     },
-    AstNode, AstPtr, SyntaxNodePtr
+    AstNode, AstPtr, SyntaxNodePtr,
 };
 use test_utils::tested_by;
 
@@ -29,10 +29,7 @@ use crate::{
     DefWithBodyId, HasModule, Lookup,
 };
 
-pub(super) fn lower(
-    db: &impl DefDatabase,
-    def: DefWithBodyId,
-) -> (Body, BodySourceMap) {
+pub(super) fn lower(db: &impl DefDatabase, def: DefWithBodyId) -> (Body, BodySourceMap) {
     let mut params = None;
 
     let (src, module, body) = match def {
@@ -58,13 +55,8 @@ pub(super) fn lower(
     };
     let expander = Expander::new(db, src.file_id, module);
 
-    ExprCollector {
-        expander,
-        db,
-        body: BodyWithSourceMap::new(),
-        parent: src.value,
-    }
-    .collect(params, body)
+    ExprCollector { expander, db, body: BodyWithSourceMap::new(), parent: src.value }
+        .collect(params, body)
 }
 
 struct ExprCollector<DB> {
@@ -167,7 +159,8 @@ where
     }
 
     fn with_parent<F, T>(&mut self, parent: SyntaxNodePtr, f: F) -> T
-        where F: FnOnce(&mut Self) -> T
+    where
+        F: FnOnce(&mut Self) -> T,
     {
         let parent = std::mem::replace(&mut self.parent, parent);
         let ret = f(self);
@@ -197,14 +190,13 @@ where
                         Some(pat) => {
                             let pat = self.collect_pat(pat);
                             let match_expr = self.collect_expr_opt(condition.expr());
-                            let placeholder_pat = self.alloc_pat_desugared(
-                                Pat::Wild,
-                            );
+                            let placeholder_pat = self.alloc_pat_desugared(Pat::Wild);
                             let arms = vec![
                                 MatchArm { pats: vec![pat], expr: then_branch, guard: None },
                                 MatchArm {
                                     pats: vec![placeholder_pat],
-                                    expr: else_branch.unwrap_or_else(|| self.empty_block(syntax_ptr)),
+                                    expr: else_branch
+                                        .unwrap_or_else(|| self.empty_block(syntax_ptr)),
                                     guard: None,
                                 },
                             ];
@@ -237,19 +229,14 @@ where
                             tested_by!(infer_resolve_while_let);
                             let pat = self.collect_pat(pat);
                             let match_expr = self.collect_expr_opt(condition.expr());
-                            let placeholder_pat = self.alloc_pat_desugared(
-                                Pat::Wild,
-                            );
-                            let break_ = self.alloc_expr_desugared(
-                                Expr::Break { expr: None },
-                            );
+                            let placeholder_pat = self.alloc_pat_desugared(Pat::Wild);
+                            let break_ = self.alloc_expr_desugared(Expr::Break { expr: None });
                             let arms = vec![
                                 MatchArm { pats: vec![pat], expr: body, guard: None },
                                 MatchArm { pats: vec![placeholder_pat], expr: break_, guard: None },
                             ];
-                            let match_expr = self.alloc_expr_desugared(
-                                Expr::Match { expr: match_expr, arms },
-                            );
+                            let match_expr =
+                                self.alloc_expr_desugared(Expr::Match { expr: match_expr, arms });
                             return self.alloc_expr(Expr::Loop { body: match_expr }, syntax_ptr);
                         }
                     },

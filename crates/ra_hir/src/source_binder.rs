@@ -33,8 +33,8 @@ use crate::{
         method_resolution::{self, implements_trait},
         InEnvironment, TraitEnvironment, Ty,
     },
-    Adt, AssocItem, Const, DefWithBody, Enum, EnumVariant, FromSource, Function,
-    GenericParam, Local, MacroDef, Name, Path, ScopeDef, Static, Struct, Trait, Type, TypeAlias,
+    Adt, AssocItem, Const, DefWithBody, Enum, EnumVariant, FromSource, Function, GenericParam,
+    Local, MacroDef, Name, Path, ScopeDef, Static, Struct, Trait, Type, TypeAlias,
 };
 
 fn try_get_resolver_for_node(db: &impl HirDatabase, node: InFile<&SyntaxNode>) -> Option<Resolver> {

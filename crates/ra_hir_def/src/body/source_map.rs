@@ -1,14 +1,11 @@
-use hir_expand::{
-    either::Either,
-    InFile,
-};
+use hir_expand::{either::Either, InFile};
 use ra_arena::{map::ArenaMap, Arena};
 use ra_syntax::{ast, AstPtr, SyntaxNodePtr};
 use rustc_hash::FxHashMap;
 
 use crate::{
-    expr::{Expr, ExprId, Pat, PatId},
     body::Body,
+    expr::{Expr, ExprId, Pat, PatId},
 };
 
 pub type ExprPtr = Either<AstPtr<ast::Expr>, AstPtr<ast::RecordField>>;

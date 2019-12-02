@@ -7,7 +7,7 @@ use hir_def::{
     resolver::HasResolver,
     AdtId, FunctionId,
 };
-use hir_expand::{diagnostics::DiagnosticSink, name::Name, either::Either};
+use hir_expand::{diagnostics::DiagnosticSink, either::Either, name::Name};
 use ra_syntax::ast;
 use ra_syntax::AstPtr;
 use rustc_hash::FxHashSet;

@@ -6,9 +6,7 @@ pub mod scope;
 
 use std::{ops::Index, sync::Arc};
 
-use hir_expand::{
-    hygiene::Hygiene, AstId, HirFileId, InFile, MacroDefId, MacroFileKind,
-};
+use hir_expand::{hygiene::Hygiene, AstId, HirFileId, InFile, MacroDefId, MacroFileKind};
 use ra_arena::Arena;
 use ra_syntax::{ast, AstNode};
 
@@ -19,11 +17,8 @@ use crate::{
     path::Path,
     DefWithBodyId, ModuleId,
 };
-pub use source_map::{
-    ExprPtr, ExprSource, PatPtr, PatSource,
-    BodySourceMap,
-};
 pub(crate) use source_map::BodyWithSourceMap;
+pub use source_map::{BodySourceMap, ExprPtr, ExprSource, PatPtr, PatSource};
 
 struct Expander {
     crate_def_map: Arc<CrateDefMap>,

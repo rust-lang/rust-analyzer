@@ -8,7 +8,7 @@ use hir_def::{
     body::BodySourceMap, db::DefDatabase, nameres::CrateDefMap, AssocItemId, DefWithBodyId,
     LocalModuleId, Lookup, ModuleDefId,
 };
-use hir_expand::{InFile, either::Either};
+use hir_expand::{either::Either, InFile};
 use insta::assert_snapshot;
 use ra_db::{fixture::WithFixture, salsa::Database, FilePosition, SourceDatabase};
 use ra_syntax::{
