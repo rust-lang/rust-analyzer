@@ -8,7 +8,7 @@ use hir_def::{
     body::BodySourceMap, db::DefDatabase, nameres::CrateDefMap, AssocItemId, DefWithBodyId,
     LocalModuleId, Lookup, ModuleDefId,
 };
-use hir_expand::InFile;
+use hir_expand::{InFile, either::Either};
 use insta::assert_snapshot;
 use ra_db::{fixture::WithFixture, salsa::Database, FilePosition, SourceDatabase};
 use ra_syntax::{
@@ -1363,6 +1363,8 @@ fn test(x: &i32) {
     [126; 152) '{     ...     }': ()
     [140; 141) 'g': {unknown}
     [144; 145) 'e': {unknown}
+    [158; 205) 'if let...     }': {unknown}
+    [158; 205) 'if let...     }': ()
     [158; 205) 'if let...     }': ()
     [165; 170) '[val]': {unknown}
     [173; 176) 'opt': {unknown}
@@ -4756,12 +4758,16 @@ fn infer(content: &str) -> String {
 
         for (pat, ty) in inference_result.type_of_pat.iter() {
             let syntax_ptr = body_source_map.pat_syntax(pat);
-            types.push((syntax_ptr, ty));
+            if let Either::A(syntax_ptr) = syntax_ptr {
+                types.push((syntax_ptr, ty));
+            }
         }
 
         for (expr, ty) in inference_result.type_of_expr.iter() {
             let syntax_ptr = body_source_map.expr_syntax(expr);
-            types.push((syntax_ptr, ty));
+            if let Either::A(syntax_ptr) = syntax_ptr {
+                types.push((syntax_ptr, ty));
+            }
         }
 
         // sort ranges for consistency
