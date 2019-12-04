@@ -24,8 +24,9 @@ pub use hir_def::{
         Body, BodySourceMap, ExprPtr, ExprSource, PatPtr, PatSource,
     },
     expr::{
-        ArithOp, Array, BinaryOp, BindingAnnotation, CmpOp, Expr, ExprId, ExprIdOpt, Literal, LogicOp,
-        MatchArm, Ordering, Pat, PatId, PatIdOpt, RecordFieldPat, RecordLitField, Statement, UnaryOp,
+        ArithOp, Array, BinaryOp, BindingAnnotation, CmpOp, Expr, ExprId, ExprIdOpt, Literal,
+        LogicOp, MatchArm, Ordering, Pat, PatId, PatIdOpt, RecordFieldPat, RecordLitField,
+        Statement, UnaryOp,
     },
 };
 

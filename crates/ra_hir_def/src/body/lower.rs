@@ -105,7 +105,11 @@ where
         let id = self.body.exprs.alloc(expr);
         Ok(id)
     }
-    fn alloc_expr_field_shorthand(&mut self, expr: Expr, ptr: AstPtr<ast::RecordField>) -> ExprIdOpt {
+    fn alloc_expr_field_shorthand(
+        &mut self,
+        expr: Expr,
+        ptr: AstPtr<ast::RecordField>,
+    ) -> ExprIdOpt {
         let ptr = Either::Right(ptr);
         let id = self.body.exprs.alloc(expr);
         let src = self.expander.to_source(ptr);
