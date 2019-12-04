@@ -82,10 +82,7 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
         let pat = if let Ok(pat) = pat {
             pat
         } else {
-            let ty = self.table.new_type_var();
-            self.unify(&ty, expected);
-            let ty = self.resolve_ty_as_possible(ty);
-            return ty;
+            return expected.clone();
         };
 
         let body = Arc::clone(&self.body); // avoid borrow checker problem

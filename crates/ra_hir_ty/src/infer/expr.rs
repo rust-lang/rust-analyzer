@@ -24,11 +24,17 @@ use super::{BindingMode, Expectation, InferenceContext, InferenceDiagnostic, Typ
 
 impl<'a, D: HirDatabase> InferenceContext<'a, D> {
     pub(super) fn infer_expr(&mut self, tgt_expr: ExprIdOpt, expected: &Expectation) -> Ty {
-        let ty = self.infer_expr_inner_opt(tgt_expr, expected);
+        let tgt_expr = if let Ok(tgt_expr) = tgt_expr {
+            tgt_expr
+        } else {
+            return expected.ty.clone();
+        };
+
+        let ty = self.infer_expr_inner(tgt_expr, expected);
         let could_unify = self.unify(&ty, &expected.ty);
         if !could_unify {
             self.result.type_mismatches.insert(
-                tgt_expr.unwrap(),
+                tgt_expr,
                 TypeMismatch { expected: expected.ty.clone(), actual: ty.clone() },
             );
         }
@@ -39,11 +45,14 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
     /// Infer type of expression with possibly implicit coerce to the expected type.
     /// Return the type after possible coercion.
     fn infer_expr_coerce(&mut self, expr: ExprIdOpt, expected: &Expectation) -> Ty {
-        let ty = self.infer_expr_inner_opt(expr, &expected);
+        let expr = if let Ok(expr) = expr {
+            expr
+        } else {
+            return expected.ty.clone();
+        };
+
+        let ty = self.infer_expr_inner(expr, &expected);
         let ty = if !self.coerce(&ty, &expected.ty) {
-            // For missing expression, `infer_expr_inner_opt` returns a new type var.
-            // It coerces to everything.
-            let expr = expr.unwrap();
             self.result
                 .type_mismatches
                 .insert(expr, TypeMismatch { expected: expected.ty.clone(), actual: ty.clone() });
