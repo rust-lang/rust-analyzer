@@ -1,3 +1,4 @@
+//! This module resolves a macro with path to a file.
 use hir_expand::{HirFileId, MacroCallKind, MacroDefId};
 use ra_syntax::ast;
 
