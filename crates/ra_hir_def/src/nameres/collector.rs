@@ -521,21 +521,19 @@ where
         macros.retain(|directive| {
             if let Some(call_id) = directive.legacy {
                 res = ReachedFixedPoint::No;
-                resolved.push((directive.module_id, call_id));
+                resolved.push((directive.module_id, call_id.as_file()));
                 return false;
             }
 
-            let resolved_res = self.def_map.resolve_path_fp_with_macro(
+            let resolved_res = self.def_map.resolve_macro_as_file(
                 self.db,
-                ResolveMode::Other,
-                directive.module_id,
+                directive.ast_id,
                 &directive.path,
-                BuiltinShadowMode::Module,
+                directive.module_id,
             );
 
-            if let Some(def) = resolved_res.resolved_def.take_macros() {
-                let call_id = def.as_call_id(self.db, MacroCallKind::FnLike(directive.ast_id));
-                resolved.push((directive.module_id, call_id));
+            if let Some(file_id) = resolved_res {
+                resolved.push((directive.module_id, file_id));
                 res = ReachedFixedPoint::No;
                 return false;
             }
@@ -547,7 +545,7 @@ where
 
             if let Some(def) = resolved_res {
                 let call_id = def.as_call_id(self.db, MacroCallKind::Attr(*ast_id));
-                resolved.push((*module_id, call_id));
+                resolved.push((*module_id, call_id.as_file()));
                 res = ReachedFixedPoint::No;
                 return false;
             }
@@ -558,8 +556,8 @@ where
         self.unexpanded_macros = macros;
         self.unexpanded_attribute_macros = attribute_macros;
 
-        for (module_id, macro_call_id) in resolved {
-            self.collect_macro_expansion(module_id, macro_call_id);
+        for (module_id, file_id) in resolved {
+            self.collect_macro_expansion(module_id, file_id);
         }
 
         res
@@ -579,8 +577,7 @@ where
         None
     }
 
-    fn collect_macro_expansion(&mut self, module_id: LocalModuleId, macro_call_id: MacroCallId) {
-        let file_id: HirFileId = macro_call_id.as_file();
+    fn collect_macro_expansion(&mut self, module_id: LocalModuleId, file_id: HirFileId) {
         let raw_items = self.db.raw_items(file_id);
         let mod_dir = self.mod_dirs[&module_id].clone();
         ModCollector {

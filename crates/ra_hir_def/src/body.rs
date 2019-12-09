@@ -6,7 +6,7 @@ pub mod scope;
 use std::{ops::Index, sync::Arc};
 
 use either::Either;
-use hir_expand::{hygiene::Hygiene, AstId, HirFileId, InFile, MacroCallKind, MacroDefId};
+use hir_expand::{hygiene::Hygiene, AstId, HirFileId, InFile};
 use ra_arena::{map::ArenaMap, Arena};
 use ra_syntax::{ast, AstNode, AstPtr};
 use rustc_hash::FxHashMap;
@@ -14,7 +14,7 @@ use rustc_hash::FxHashMap;
 use crate::{
     db::DefDatabase,
     expr::{Expr, ExprId, Pat, PatId},
-    nameres::{BuiltinShadowMode, CrateDefMap},
+    nameres::CrateDefMap,
     path::Path,
     src::HasSource,
     DefWithBodyId, HasModule, Lookup, ModuleId,
@@ -45,9 +45,7 @@ impl Expander {
         );
 
         if let Some(path) = macro_call.path().and_then(|path| self.parse_path(path)) {
-            if let Some(def) = self.resolve_path_as_macro(db, &path) {
-                let call_id = def.as_call_id(db, MacroCallKind::FnLike(ast_id));
-                let file_id = call_id.as_file();
+            if let Some(file_id) = self.resolve_path_as_macro(db, ast_id, &path) {
                 if let Some(node) = db.parse_or_expand(file_id) {
                     if let Some(expr) = ast::Expr::cast(node) {
                         log::debug!("macro expansion {:#?}", expr.syntax());
@@ -81,11 +79,13 @@ impl Expander {
         Path::from_src(path, &self.hygiene)
     }
 
-    fn resolve_path_as_macro(&self, db: &impl DefDatabase, path: &Path) -> Option<MacroDefId> {
-        self.crate_def_map
-            .resolve_path(db, self.module.local_id, path, BuiltinShadowMode::Other)
-            .0
-            .take_macros()
+    fn resolve_path_as_macro(
+        &self,
+        db: &impl DefDatabase,
+        ast_id: AstId<ast::MacroCall>,
+        path: &Path,
+    ) -> Option<HirFileId> {
+        self.crate_def_map.resolve_macro_as_file(db, ast_id, path, self.module.local_id)
     }
 }
 

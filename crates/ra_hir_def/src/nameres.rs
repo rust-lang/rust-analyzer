@@ -51,6 +51,7 @@ pub(crate) mod raw;
 mod collector;
 mod mod_resolution;
 mod path_resolution;
+mod macro_resolution;
 
 #[cfg(test)]
 mod tests;
