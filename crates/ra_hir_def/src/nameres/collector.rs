@@ -6,6 +6,7 @@
 use hir_expand::{
     builtin_derive::find_builtin_derive,
     builtin_macro::find_builtin_macro,
+    hygiene::Hygiene,
     name::{self, AsName, Name},
     HirFileId, MacroCallId, MacroCallKind, MacroDefId, MacroDefKind,
 };
@@ -22,7 +23,7 @@ use crate::{
         diagnostics::DefDiagnostic, mod_resolution::ModDir, path_resolution::ReachedFixedPoint,
         raw, BuiltinShadowMode, CrateDefMap, ModuleData, ModuleOrigin, Resolution, ResolveMode,
     },
-    path::{Path, PathKind},
+    path::Path,
     per_ns::PerNs,
     AdtId, AstId, AstItemDef, ConstLoc, ContainerId, EnumId, EnumVariantId, FunctionLoc, ImplId,
     Intern, LocalImportId, LocalModuleId, LocationCtx, ModuleDefId, ModuleId, StaticLoc, StructId,
@@ -101,7 +102,7 @@ struct ImportDirective {
 struct MacroDirective {
     module_id: LocalModuleId,
     ast_id: AstId<ast::MacroCall>,
-    path: Path,
+    hygiene: Hygiene,
     legacy: Option<MacroCallId>,
 }
 
@@ -525,11 +526,14 @@ where
                 return false;
             }
 
+            let m = directive.ast_id.to_node(self.db);
+            let m = directive.ast_id.with_value(m);
             let resolved_res = self.def_map.resolve_macro_as_file(
                 self.db,
-                directive.ast_id,
-                &directive.path,
+                m,
+                &directive.hygiene,
                 directive.module_id,
+                true,
             );
 
             if let Some(file_id) = resolved_res {
@@ -855,6 +859,8 @@ where
             return;
         }
 
+        let hygiene = Hygiene::new(self.def_collector.db, self.file_id);
+
         // Case 2: try to resolve in legacy scope and expand macro_rules
         if let Some(macro_def) = mac.path.as_ident().and_then(|name| {
             self.def_collector.def_map[self.module_id].scope.get_legacy_macro(&name)
@@ -864,26 +870,20 @@ where
 
             self.def_collector.unexpanded_macros.push(MacroDirective {
                 module_id: self.module_id,
-                path: mac.path.clone(),
                 ast_id,
                 legacy: Some(macro_call_id),
+                hygiene,
             });
 
             return;
         }
 
         // Case 3: resolve in module scope, expand during name resolution.
-        // We rewrite simple path `macro_name` to `self::macro_name` to force resolve in module scope only.
-        let mut path = mac.path.clone();
-        if path.is_ident() {
-            path.kind = PathKind::Self_;
-        }
-
         self.def_collector.unexpanded_macros.push(MacroDirective {
             module_id: self.module_id,
-            path,
             ast_id,
             legacy: None,
+            hygiene,
         });
     }
 

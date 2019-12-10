@@ -1,12 +1,12 @@
 //! This module resolves a macro with path to a file.
-use hir_expand::{HirFileId, MacroCallKind, MacroDefId};
+use hir_expand::{hygiene::Hygiene, HirFileId, MacroCallKind, MacroDefId};
 use ra_syntax::ast;
 
 use crate::{
     db::DefDatabase,
     nameres::{BuiltinShadowMode, CrateDefMap},
-    path::Path,
-    AstId, LocalModuleId,
+    path::{Path, PathKind},
+    AstId, InFile, LocalModuleId,
 };
 
 pub struct MacroResolver<'a> {
@@ -39,12 +39,19 @@ impl CrateDefMap {
     pub(crate) fn resolve_macro_as_file(
         &self,
         db: &impl DefDatabase,
-        ast_id: AstId<ast::MacroCall>,
-        path: &Path,
+        macro_call: InFile<ast::MacroCall>,
+        hygiene: &Hygiene,
         module: LocalModuleId,
+        force_self: bool,
     ) -> Option<HirFileId> {
-        let resolver = MacroResolver { crate_def_map: &self, module };
+        let ast_id = macro_call.clone().map(|it| db.ast_id_map(macro_call.file_id).ast_id(&it));
+        let mut path = macro_call.value.path().and_then(|path| Path::from_src(path, &hygiene))?;
+        // We rewrite simple path `macro_name` to `self::macro_name` to force resolve in module scope only.
+        if force_self && path.is_ident() {
+            path.kind = PathKind::Self_;
+        }
 
-        resolver.resolve(db, ast_id, path)
+        let resolver = MacroResolver { crate_def_map: &self, module };
+        resolver.resolve(db, ast_id, &path)
     }
 }

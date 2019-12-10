@@ -6,7 +6,7 @@ pub mod scope;
 use std::{ops::Index, sync::Arc};
 
 use either::Either;
-use hir_expand::{hygiene::Hygiene, AstId, HirFileId, InFile};
+use hir_expand::{hygiene::Hygiene, HirFileId, InFile};
 use ra_arena::{map::ArenaMap, Arena};
 use ra_syntax::{ast, AstNode, AstPtr};
 use rustc_hash::FxHashMap;
@@ -39,23 +39,15 @@ impl Expander {
         db: &impl DefDatabase,
         macro_call: ast::MacroCall,
     ) -> Option<(Mark, ast::Expr)> {
-        let ast_id = AstId::new(
-            self.current_file_id,
-            db.ast_id_map(self.current_file_id).ast_id(&macro_call),
-        );
+        if let Some(file_id) = self.resolve_macro_as_file(db, macro_call) {
+            if let Some(node) = db.parse_or_expand(file_id) {
+                if let Some(expr) = ast::Expr::cast(node) {
+                    log::debug!("macro expansion {:#?}", expr.syntax());
+                    let mark = Mark { file_id: self.current_file_id };
+                    self.hygiene = Hygiene::new(db, file_id);
+                    self.current_file_id = file_id;
 
-        if let Some(path) = macro_call.path().and_then(|path| self.parse_path(path)) {
-            if let Some(file_id) = self.resolve_path_as_macro(db, ast_id, &path) {
-                if let Some(node) = db.parse_or_expand(file_id) {
-                    if let Some(expr) = ast::Expr::cast(node) {
-                        log::debug!("macro expansion {:#?}", expr.syntax());
-
-                        let mark = Mark { file_id: self.current_file_id };
-                        self.hygiene = Hygiene::new(db, file_id);
-                        self.current_file_id = file_id;
-
-                        return Some((mark, expr));
-                    }
+                    return Some((mark, expr));
                 }
             }
         }
@@ -79,13 +71,18 @@ impl Expander {
         Path::from_src(path, &self.hygiene)
     }
 
-    fn resolve_path_as_macro(
+    fn resolve_macro_as_file(
         &self,
         db: &impl DefDatabase,
-        ast_id: AstId<ast::MacroCall>,
-        path: &Path,
+        macro_call: ast::MacroCall,
     ) -> Option<HirFileId> {
-        self.crate_def_map.resolve_macro_as_file(db, ast_id, path, self.module.local_id)
+        self.crate_def_map.resolve_macro_as_file(
+            db,
+            InFile::new(self.current_file_id, macro_call),
+            &self.hygiene,
+            self.module.local_id,
+            false,
+        )
     }
 }
 
