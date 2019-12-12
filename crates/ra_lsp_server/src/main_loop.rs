@@ -441,6 +441,7 @@ fn on_request(
         .on::<req::OnTypeFormatting>(handlers::handle_on_type_formatting)?
         .on::<req::DocumentSymbolRequest>(handlers::handle_document_symbol)?
         .on::<req::WorkspaceSymbol>(handlers::handle_workspace_symbol)?
+        .on::<req::GotoDeclaration>(handlers::handle_goto_declaration)?
         .on::<req::GotoDefinition>(handlers::handle_goto_definition)?
         .on::<req::GotoImplementation>(handlers::handle_goto_implementation)?
         .on::<req::GotoTypeDefinition>(handlers::handle_goto_type_definition)?

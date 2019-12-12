@@ -28,7 +28,7 @@ pub fn server_capabilities() -> ServerCapabilities {
             retrigger_characters: None,
             work_done_progress_options: WorkDoneProgressOptions { work_done_progress: None },
         }),
-        declaration_provider: None,
+        declaration_provider: Some(true),
         definition_provider: Some(true),
         type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
         implementation_provider: Some(ImplementationProviderCapability::Simple(true)),

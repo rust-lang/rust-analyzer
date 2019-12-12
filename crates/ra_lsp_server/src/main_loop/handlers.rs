@@ -271,6 +271,22 @@ pub fn handle_workspace_symbol(
     }
 }
 
+pub fn handle_goto_declaration(
+    world: WorldSnapshot,
+    params: req::TextDocumentPositionParams,
+) -> Result<Option<req::GotoDefinitionResponse>> {
+    let _p = profile("handle_goto_declaration");
+    let position = params.try_conv_with(&world)?;
+
+    // FIXME: We should really only look for the declaration here.
+    let refs = match world.analysis().find_all_refs(position, None)? {
+        None => return Ok(None),
+        Some(refs) => refs,
+    };
+
+    Ok(Some(req::GotoDefinitionResponse::Scalar(refs.declaration().try_conv_with(&world)?)))
+}
+
 pub fn handle_goto_definition(
     world: WorldSnapshot,
     params: req::TextDocumentPositionParams,
