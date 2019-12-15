@@ -3,7 +3,7 @@ use ra_syntax::{ast::{self, AstNode, LetStmt, NameOwner}, Direction, SyntaxEleme
 
 use crate::{Assist, AssistCtx, AssistId};
 
-enum AssistType {
+enum AddExplicitTypeAssist {
     PlaceHolder(TextRange),
     Name(TextUnit)
 }
@@ -72,17 +72,17 @@ pub(crate) fn add_explicit_type(ctx: AssistCtx<impl HirDatabase>) -> Option<Assi
                 return None
             }
 
+            // Colon is a token.
             let colon_as_token = col.as_token()?;
 
             let ty_range_start = colon_as_token.text_range().start();
-
             let ty_range_end = colon_as_token
                 .siblings_with_tokens(Direction::Next)
                 .find(|s| s.kind() == SyntaxKind::EQ).expect("This is a bind expression").text_range().start();
 
-            AssistType::PlaceHolder(TextRange::from_to(ty_range_start, ty_range_end))
+            AddExplicitTypeAssist::PlaceHolder(TextRange::from_to(ty_range_start, ty_range_end))
         },
-        None => AssistType::Name(name_range.end())
+        None => AddExplicitTypeAssist::Name(name_range.end())
     };
 
     // Infer type
@@ -99,8 +99,8 @@ pub(crate) fn add_explicit_type(ctx: AssistCtx<impl HirDatabase>) -> Option<Assi
         edit.target(pat_range);
 
         match assist_type {
-            AssistType::PlaceHolder(range) => edit.replace(range, format!(": {} ", ty.display(db))),
-            AssistType::Name(pos) => edit.insert(name_range.end(), format!(": {}", ty.display(db)))
+            AddExplicitTypeAssist::PlaceHolder(range) => edit.replace(range, format!(": {} ", ty.display(db))),
+            AddExplicitTypeAssist::Name(pos) => edit.insert(pos, format!(": {}", ty.display(db)))
         }
     })
 }
@@ -126,11 +126,20 @@ mod tests {
     }
 
     #[test]
-    fn add_explicit_type_works_for_placeholder_type() {
+    fn add_explicit_type_works_for_standalone_placeholder_type() {
         check_assist(
             add_explicit_type,
             "fn f() { let a<|>: _ = 1; }",
             "fn f() { let a<|>: i32 = 1; }",
+        );
+    }
+
+    #[test]
+    fn add_explicit_type_works_for_nested_placeholder_type() {
+        check_assist(
+            add_explicit_type,
+            "fn f() { let a<|>: Vec<_> = vec![1,2,3]; }",
+            "fn f() { let a<|>: Vec<i32> = vec![1,2,3]; }",
         );
     }
 
