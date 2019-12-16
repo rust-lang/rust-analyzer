@@ -1,11 +1,14 @@
 use hir::{db::HirDatabase, HirDisplay};
-use ra_syntax::{ast::{self, AstNode, LetStmt, NameOwner}, Direction, SyntaxElement, SyntaxKind, T, TextRange, TextUnit};
+use ra_syntax::{
+    ast::{self, AstNode, LetStmt, NameOwner},
+    Direction, SyntaxElement, SyntaxKind, TextRange, TextUnit, T,
+};
 
 use crate::{Assist, AssistCtx, AssistId};
 
 enum AddExplicitTypeAssist {
     PlaceHolder(TextRange),
-    Name(TextUnit)
+    Name(TextUnit),
 }
 
 // Assist: add_explicit_type
@@ -65,11 +68,10 @@ pub(crate) fn add_explicit_type(ctx: AssistCtx<impl HirDatabase>) -> Option<Assi
         false
     }
 
-
     let assist_type = match colon {
         Some(col) => {
             if !followed_by_placeholder_ty(&col) {
-                return None
+                return None;
             }
 
             // Colon is a token.
@@ -78,11 +80,14 @@ pub(crate) fn add_explicit_type(ctx: AssistCtx<impl HirDatabase>) -> Option<Assi
             let ty_range_start = colon_as_token.text_range().start();
             let ty_range_end = colon_as_token
                 .siblings_with_tokens(Direction::Next)
-                .find(|s| s.kind() == SyntaxKind::EQ).expect("This is a bind expression").text_range().start();
+                .find(|s| s.kind() == SyntaxKind::EQ)
+                .expect("This is a bind expression")
+                .text_range()
+                .start();
 
             AddExplicitTypeAssist::PlaceHolder(TextRange::from_to(ty_range_start, ty_range_end))
-        },
-        None => AddExplicitTypeAssist::Name(name_range.end())
+        }
+        None => AddExplicitTypeAssist::Name(name_range.end()),
     };
 
     // Infer type
@@ -99,8 +104,10 @@ pub(crate) fn add_explicit_type(ctx: AssistCtx<impl HirDatabase>) -> Option<Assi
         edit.target(pat_range);
 
         match assist_type {
-            AddExplicitTypeAssist::PlaceHolder(range) => edit.replace(range, format!(": {} ", ty.display(db))),
-            AddExplicitTypeAssist::Name(pos) => edit.insert(pos, format!(": {}", ty.display(db)))
+            AddExplicitTypeAssist::PlaceHolder(range) => {
+                edit.replace(range, format!(": {} ", ty.display(db)))
+            }
+            AddExplicitTypeAssist::Name(pos) => edit.insert(pos, format!(": {}", ty.display(db))),
         }
     })
 }
