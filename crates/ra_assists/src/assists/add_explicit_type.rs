@@ -138,8 +138,8 @@ mod tests {
     fn add_explicit_type_works_for_nested_placeholder_type() {
         check_assist(
             add_explicit_type,
-            "fn f() { let a<|>: Vec<_> = vec![1,2,3]; }",
-            "fn f() { let a<|>: Vec<i32> = vec![1,2,3]; }",
+            "struct T<I: Debug> {i: I} fn f() { let a<|>: T<_> = T{i: 1}; }",
+            "struct T<I: Debug> {i: I} fn f() { let a<|>: T<i32> = T{i: 1}; }",
         );
     }
 
