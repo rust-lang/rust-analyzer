@@ -151,6 +151,16 @@ mod tests {
     }
 
     #[test]
+    fn add_explicit_type_works_for_macro_placeholder_type() {
+        check_assist(
+            add_explicit_type,
+            "macro_rules! m {() => {1}} fn f() { let a<|>: _ = m!(); }",
+            "macro_rules! m {() => {1}} fn f() { let a<|>: i32 = m!(); }",
+        );
+    }
+
+
+    #[test]
     fn add_explicit_type_not_applicable_if_ty_not_inferred() {
         check_assist_not_applicable(add_explicit_type, "fn f() { let a<|> = None; }");
     }
