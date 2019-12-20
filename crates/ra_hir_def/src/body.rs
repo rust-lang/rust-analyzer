@@ -59,7 +59,7 @@ impl Expander {
 
                         let mark = Mark {
                             file_id: self.current_file_id,
-                            ast_id_map: mem::take(&mut self.ast_id_map),
+                            ast_id_map: mem::replace(&mut self.ast_id_map, Default::default()),
                             bomb: DropBomb::new("expansion mark dropped"),
                         };
                         self.hygiene = Hygiene::new(db, file_id);
@@ -80,7 +80,7 @@ impl Expander {
     fn exit(&mut self, db: &impl DefDatabase, mut mark: Mark) {
         self.hygiene = Hygiene::new(db, mark.file_id);
         self.current_file_id = mark.file_id;
-        self.ast_id_map = mem::take(&mut mark.ast_id_map);
+        self.ast_id_map = mem::replace(&mut mark.ast_id_map, Default::default());
         mark.bomb.defuse();
     }
 
