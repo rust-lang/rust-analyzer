@@ -304,7 +304,6 @@ fn loop_turn(
         log::info!("queued count = {}", queue_count);
     }
 
-    let mut state_changed = false;
     match event {
         Event::Task(task) => {
             on_task(task, &connection.sender, &mut loop_state.pending_requests, world_state);
@@ -312,7 +311,6 @@ fn loop_turn(
         }
         Event::Vfs(task) => {
             world_state.vfs.write().handle_task(task);
-            state_changed = true;
         }
         Event::Lib(lib) => {
             world_state.add_lib(lib);
@@ -337,7 +335,6 @@ fn loop_turn(
                     &mut loop_state.subscriptions,
                     not,
                 )?;
-                state_changed = true;
             }
             Message::Response(resp) => {
                 let removed = loop_state.pending_responses.remove(&resp.id);
@@ -348,35 +345,35 @@ fn loop_turn(
         },
     };
 
-    loop_state.pending_libraries.extend(world_state.process_changes());
-    while loop_state.in_flight_libraries < MAX_IN_FLIGHT_LIBS
-        && !loop_state.pending_libraries.is_empty()
-    {
-        let (root, files) = loop_state.pending_libraries.pop().unwrap();
-        loop_state.in_flight_libraries += 1;
-        let sender = libdata_sender.clone();
-        pool.execute(move || {
-            log::info!("indexing {:?} ... ", root);
-            let _p = profile(&format!("indexed {:?}", root));
-            let data = LibraryData::prepare(root, files);
-            sender.send(data).unwrap();
-        });
-    }
-
-    if !loop_state.workspace_loaded
-        && world_state.roots_to_scan == 0
-        && loop_state.pending_libraries.is_empty()
-        && loop_state.in_flight_libraries == 0
-    {
-        loop_state.workspace_loaded = true;
-        let n_packages: usize = world_state.workspaces.iter().map(|it| it.n_packages()).sum();
-        if world_state.feature_flags().get("notifications.workspace-loaded") {
-            let msg = format!("workspace loaded, {} rust packages", n_packages);
-            show_message(req::MessageType::Info, msg, &connection.sender);
+    if let Some(changes) = world_state.process_changes() {
+        loop_state.pending_libraries.extend(changes);
+        while loop_state.in_flight_libraries < MAX_IN_FLIGHT_LIBS
+            && !loop_state.pending_libraries.is_empty()
+        {
+            let (root, files) = loop_state.pending_libraries.pop().unwrap();
+            loop_state.in_flight_libraries += 1;
+            let sender = libdata_sender.clone();
+            pool.execute(move || {
+                log::info!("indexing {:?} ... ", root);
+                let _p = profile(&format!("indexed {:?}", root));
+                let data = LibraryData::prepare(root, files);
+                sender.send(data).unwrap();
+            });
         }
-    }
 
-    if state_changed {
+        if !loop_state.workspace_loaded
+            && world_state.roots_to_scan == 0
+            && loop_state.pending_libraries.is_empty()
+            && loop_state.in_flight_libraries == 0
+        {
+            loop_state.workspace_loaded = true;
+            let n_packages: usize = world_state.workspaces.iter().map(|it| it.n_packages()).sum();
+            if world_state.feature_flags().get("notifications.workspace-loaded") {
+                let msg = format!("workspace loaded, {} rust packages", n_packages);
+                show_message(req::MessageType::Info, msg, &connection.sender);
+            }
+        }
+
         update_file_notifications_on_threadpool(
             pool,
             world_state.snapshot(),
@@ -385,6 +382,7 @@ fn loop_turn(
             loop_state.subscriptions.subscriptions(),
         )
     }
+
     Ok(())
 }
 

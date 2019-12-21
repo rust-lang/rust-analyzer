@@ -765,7 +765,6 @@ where
                     ast_id: AstId::new(self.file_id, ast_id),
                 }
                 .intern(self.def_collector.db);
-
                 PerNs::values(def.into())
             }
             raw::DefKind::Static(ast_id) => {
