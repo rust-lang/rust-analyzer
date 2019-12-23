@@ -225,7 +225,7 @@ impl WorldSnapshot {
     }
 
     pub fn uri_to_file_id(&self, uri: &Url) -> Result<FileId> {
-        let path = uri.to_file_path().map_err(|()| format!("invalid uri: {}", uri))?;
+        let path = uri.to_file_path().map_err(|()| format!("invalid uri: {}", uri))?.canonicalize()?;
         let file = self.vfs.read().path2file(&path).ok_or_else(|| {
             // Show warning as this file is outside current workspace
             LspError {
