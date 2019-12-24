@@ -39,9 +39,9 @@ mod from_source;
 
 pub use crate::{
     code_model::{
-        Adt, AssocItem, AttrDef, Const, Container, Crate, CrateDependency, DefWithBody, Docs, Enum,
-        EnumVariant, FieldSource, Function, GenericDef, HasAttrs, ImplBlock, Import, Local,
-        MacroDef, Module, ModuleDef, ScopeDef, Static, Struct, StructField, Trait, Type, TypeAlias,
+        Adt, AssocItem, AttrDef, Const, Crate, CrateDependency, DefWithBody, Docs, Enum,
+        EnumVariant, FieldSource, Function, GenericDef, HasAttrs, ImplBlock, Local, MacroDef,
+        Module, ModuleDef, ScopeDef, Static, Struct, StructField, Trait, Type, TypeAlias,
         TypeParam, Union, VariantDef,
     },
     from_source::FromSource,
@@ -58,6 +58,6 @@ pub use hir_def::{
     type_ref::Mutability,
 };
 pub use hir_expand::{
-    name::Name, HirFileId, InFile, MacroCallId, MacroCallLoc, MacroDefId, MacroFile,
+    name::Name, HirFileId, InFile, MacroCallId, MacroCallLoc, MacroDefId, MacroFile, Origin,
 };
 pub use hir_ty::{display::HirDisplay, CallableDef};

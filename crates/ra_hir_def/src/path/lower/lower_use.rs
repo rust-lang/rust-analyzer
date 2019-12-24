@@ -9,6 +9,7 @@ use hir_expand::{
     name::{AsName, Name},
 };
 use ra_syntax::ast::{self, NameOwner};
+use test_utils::tested_by;
 
 use crate::path::{ModPath, PathKind};
 
@@ -34,6 +35,7 @@ pub(crate) fn lower_use_tree(
         }
     } else {
         let alias = tree.alias().and_then(|a| a.name()).map(|a| a.as_name());
+        let is_glob = tree.has_star();
         if let Some(ast_path) = tree.path() {
             // Handle self in a path.
             // E.g. `use something::{self, <...>}`
@@ -48,11 +50,15 @@ pub(crate) fn lower_use_tree(
                 }
             }
             if let Some(path) = convert_path(prefix, ast_path, hygiene) {
-                let is_glob = tree.has_star();
                 cb(path, &tree, is_glob, alias)
             }
-            // FIXME: report errors somewhere
-            // We get here if we do
+        // FIXME: report errors somewhere
+        // We get here if we do
+        } else if is_glob {
+            tested_by!(glob_enum_group);
+            if let Some(prefix) = prefix {
+                cb(prefix, &tree, is_glob, None)
+            }
         }
     }
 }
@@ -95,13 +101,13 @@ fn convert_path(prefix: Option<ModPath>, path: ast::Path, hygiene: &Hygiene) -> 
             if prefix.is_some() {
                 return None;
             }
-            ModPath::from_simple_segments(PathKind::Self_, iter::empty())
+            ModPath::from_simple_segments(PathKind::Super(0), iter::empty())
         }
         ast::PathSegmentKind::SuperKw => {
             if prefix.is_some() {
                 return None;
             }
-            ModPath::from_simple_segments(PathKind::Super, iter::empty())
+            ModPath::from_simple_segments(PathKind::Super(1), iter::empty())
         }
         ast::PathSegmentKind::Type { .. } => {
             // not allowed in imports

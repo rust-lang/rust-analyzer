@@ -13,6 +13,7 @@ export interface CargoWatchOptions {
     command: string;
     trace: CargoWatchTraceOptions;
     ignore: string[];
+    allTargets: boolean;
 }
 
 export interface CargoFeatures {
@@ -30,7 +31,7 @@ export class Config {
     public displayInlayHints = true;
     public maxInlayHintLength: null | number = null;
     public excludeGlobs = [];
-    public useClientWatching = false;
+    public useClientWatching = true;
     public featureFlags = {};
     // for internal use
     public withSysroot: null | boolean = null;
@@ -40,6 +41,7 @@ export class Config {
         arguments: '',
         command: '',
         ignore: [],
+        allTargets: true,
     };
     public cargoFeatures: CargoFeatures = {
         noDefaultFeatures: false,
@@ -132,6 +134,13 @@ export class Config {
             );
         }
 
+        if (config.has('cargo-watch.allTargets')) {
+            this.cargoWatchOptions.allTargets = config.get<boolean>(
+                'cargo-watch.allTargets',
+                true,
+            );
+        }
+
         if (config.has('lruCapacity')) {
             this.lruCapacity = config.get('lruCapacity') as number;
         }
@@ -148,7 +157,7 @@ export class Config {
             this.excludeGlobs = config.get('excludeGlobs') || [];
         }
         if (config.has('useClientWatching')) {
-            this.useClientWatching = config.get('useClientWatching') || false;
+            this.useClientWatching = config.get('useClientWatching') || true;
         }
         if (config.has('featureFlags')) {
             this.featureFlags = config.get('featureFlags') || {};

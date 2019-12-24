@@ -3,9 +3,9 @@
 use std::iter;
 
 use hir_def::{
-    path::{Path, PathKind, PathSegment},
+    path::{Path, PathSegment},
     resolver::{ResolveValueResult, Resolver, TypeNs, ValueNs},
-    AssocItemId, ContainerId, Lookup,
+    AssocContainerId, AssocItemId, Lookup,
 };
 use hir_expand::name::Name;
 
@@ -32,7 +32,7 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
         path: &Path,
         id: ExprOrPatId,
     ) -> Option<Ty> {
-        let (value, self_subst) = if let PathKind::Type(type_ref) = path.kind() {
+        let (value, self_subst) = if let Some(type_ref) = path.type_anchor() {
             if path.segments().is_empty() {
                 // This can't actually happen syntax-wise
                 return None;
@@ -209,7 +209,7 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
                     AssocItemId::TypeAliasId(_) => unreachable!(),
                 };
                 let substs = match container {
-                    ContainerId::ImplId(impl_id) => {
+                    AssocContainerId::ImplId(impl_id) => {
                         let impl_substs = Substs::build_for_def(self.db, impl_id)
                             .fill(iter::repeat_with(|| self.table.new_type_var()))
                             .build();
@@ -221,7 +221,7 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
                         self.unify(&impl_self_ty, &ty);
                         Some(substs)
                     }
-                    ContainerId::TraitId(trait_) => {
+                    AssocContainerId::TraitId(trait_) => {
                         // we're picking this method
                         let trait_substs = Substs::build_for_def(self.db, trait_)
                             .push(ty.clone())
@@ -237,7 +237,7 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
                         }));
                         Some(substs)
                     }
-                    ContainerId::ModuleId(_) => None,
+                    AssocContainerId::ContainerId(_) => None,
                 };
 
                 self.write_assoc_resolution(id, item.into());

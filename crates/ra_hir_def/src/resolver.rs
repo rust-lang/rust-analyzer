@@ -10,16 +10,18 @@ use rustc_hash::FxHashSet;
 
 use crate::{
     body::scope::{ExprScopes, ScopeId},
+    body::Body,
     builtin_type::BuiltinType,
     db::DefDatabase,
     expr::{ExprId, PatId},
     generics::GenericParams,
-    nameres::{BuiltinShadowMode, CrateDefMap},
+    item_scope::BuiltinShadowMode,
+    nameres::CrateDefMap,
     path::{ModPath, PathKind},
     per_ns::PerNs,
-    AdtId, ConstId, ContainerId, DefWithBodyId, EnumId, EnumVariantId, FunctionId, GenericDefId,
-    HasModule, ImplId, LocalModuleId, Lookup, ModuleDefId, ModuleId, StaticId, StructId, TraitId,
-    TypeAliasId, TypeParamId, VariantId,
+    AdtId, AssocContainerId, ConstId, ContainerId, DefWithBodyId, EnumId, EnumVariantId,
+    FunctionId, GenericDefId, HasModule, ImplId, LocalModuleId, Lookup, ModuleDefId, ModuleId,
+    StaticId, StructId, TraitId, TypeAliasId, TypeParamId, VariantId,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -54,6 +56,8 @@ enum Scope {
     AdtScope(AdtId),
     /// Local bindings
     ExprScope(ExprScope),
+    /// Temporary hack to support local items.
+    LocalItemsScope(Arc<Body>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -148,7 +152,13 @@ impl Resolver {
         for scope in self.scopes.iter().rev() {
             match scope {
                 Scope::ExprScope(_) => continue,
-                Scope::GenericParams { .. } | Scope::ImplBlockScope(_) if skip_to_mod => continue,
+                Scope::GenericParams { .. }
+                | Scope::ImplBlockScope(_)
+                | Scope::LocalItemsScope(_)
+                    if skip_to_mod =>
+                {
+                    continue
+                }
 
                 Scope::GenericParams { params, def } => {
                     if let Some(local_id) = params.find_by_name(first_name) {
@@ -178,25 +188,35 @@ impl Resolver {
                         &path,
                         BuiltinShadowMode::Other,
                     );
-                    let res = match module_def.take_types()? {
-                        ModuleDefId::AdtId(it) => TypeNs::AdtId(it),
-                        ModuleDefId::EnumVariantId(it) => TypeNs::EnumVariantId(it),
-
-                        ModuleDefId::TypeAliasId(it) => TypeNs::TypeAliasId(it),
-                        ModuleDefId::BuiltinType(it) => TypeNs::BuiltinType(it),
-
-                        ModuleDefId::TraitId(it) => TypeNs::TraitId(it),
-
-                        ModuleDefId::FunctionId(_)
-                        | ModuleDefId::ConstId(_)
-                        | ModuleDefId::StaticId(_)
-                        | ModuleDefId::ModuleId(_) => return None,
-                    };
+                    let res = to_type_ns(module_def)?;
                     return Some((res, idx));
+                }
+                Scope::LocalItemsScope(body) => {
+                    let def = body.item_scope.get(first_name, BuiltinShadowMode::Other);
+                    if let Some(res) = to_type_ns(def) {
+                        return Some((res, None));
+                    }
                 }
             }
         }
-        None
+        return None;
+        fn to_type_ns(per_ns: PerNs) -> Option<TypeNs> {
+            let res = match per_ns.take_types()? {
+                ModuleDefId::AdtId(it) => TypeNs::AdtId(it),
+                ModuleDefId::EnumVariantId(it) => TypeNs::EnumVariantId(it),
+
+                ModuleDefId::TypeAliasId(it) => TypeNs::TypeAliasId(it),
+                ModuleDefId::BuiltinType(it) => TypeNs::BuiltinType(it),
+
+                ModuleDefId::TraitId(it) => TypeNs::TraitId(it),
+
+                ModuleDefId::FunctionId(_)
+                | ModuleDefId::ConstId(_)
+                | ModuleDefId::StaticId(_)
+                | ModuleDefId::ModuleId(_) => return None,
+            };
+            Some(res)
+        }
     }
 
     pub fn resolve_path_in_type_ns_fully(
@@ -226,6 +246,7 @@ impl Resolver {
                 | Scope::ExprScope(_)
                 | Scope::GenericParams { .. }
                 | Scope::ImplBlockScope(_)
+                | Scope::LocalItemsScope(_)
                     if skip_to_mod =>
                 {
                     continue
@@ -275,20 +296,7 @@ impl Resolver {
                     );
                     return match idx {
                         None => {
-                            let value = match module_def.take_values()? {
-                                ModuleDefId::FunctionId(it) => ValueNs::FunctionId(it),
-                                ModuleDefId::AdtId(AdtId::StructId(it)) => ValueNs::StructId(it),
-                                ModuleDefId::EnumVariantId(it) => ValueNs::EnumVariantId(it),
-                                ModuleDefId::ConstId(it) => ValueNs::ConstId(it),
-                                ModuleDefId::StaticId(it) => ValueNs::StaticId(it),
-
-                                ModuleDefId::AdtId(AdtId::EnumId(_))
-                                | ModuleDefId::AdtId(AdtId::UnionId(_))
-                                | ModuleDefId::TraitId(_)
-                                | ModuleDefId::TypeAliasId(_)
-                                | ModuleDefId::BuiltinType(_)
-                                | ModuleDefId::ModuleId(_) => return None,
-                            };
+                            let value = to_value_ns(module_def)?;
                             Some(ResolveValueResult::ValueNs(value))
                         }
                         Some(idx) => {
@@ -308,9 +316,33 @@ impl Resolver {
                         }
                     };
                 }
+                Scope::LocalItemsScope(body) => {
+                    let def = body.item_scope.get(first_name, BuiltinShadowMode::Other);
+                    if let Some(res) = to_value_ns(def) {
+                        return Some(ResolveValueResult::ValueNs(res));
+                    }
+                }
             }
         }
-        None
+        return None;
+
+        fn to_value_ns(per_ns: PerNs) -> Option<ValueNs> {
+            let res = match per_ns.take_values()? {
+                ModuleDefId::FunctionId(it) => ValueNs::FunctionId(it),
+                ModuleDefId::AdtId(AdtId::StructId(it)) => ValueNs::StructId(it),
+                ModuleDefId::EnumVariantId(it) => ValueNs::EnumVariantId(it),
+                ModuleDefId::ConstId(it) => ValueNs::ConstId(it),
+                ModuleDefId::StaticId(it) => ValueNs::StaticId(it),
+
+                ModuleDefId::AdtId(AdtId::EnumId(_))
+                | ModuleDefId::AdtId(AdtId::UnionId(_))
+                | ModuleDefId::TraitId(_)
+                | ModuleDefId::TypeAliasId(_)
+                | ModuleDefId::BuiltinType(_)
+                | ModuleDefId::ModuleId(_) => return None,
+            };
+            Some(res)
+        }
     }
 
     pub fn resolve_path_in_value_ns_fully(
@@ -412,8 +444,8 @@ impl Scope {
                 //         def: m.module.into(),
                 //     }),
                 // );
-                m.crate_def_map[m.module_id].scope.entries().for_each(|(name, res)| {
-                    f(name.clone(), ScopeDef::PerNs(res.def));
+                m.crate_def_map[m.module_id].scope.entries().for_each(|(name, def)| {
+                    f(name.clone(), ScopeDef::PerNs(def));
                 });
                 m.crate_def_map[m.module_id].scope.legacy_macros().for_each(|(name, macro_)| {
                     f(name.clone(), ScopeDef::PerNs(PerNs::macros(macro_)));
@@ -423,10 +455,15 @@ impl Scope {
                 });
                 if let Some(prelude) = m.crate_def_map.prelude {
                     let prelude_def_map = db.crate_def_map(prelude.krate);
-                    prelude_def_map[prelude.local_id].scope.entries().for_each(|(name, res)| {
-                        f(name.clone(), ScopeDef::PerNs(res.def));
+                    prelude_def_map[prelude.local_id].scope.entries().for_each(|(name, def)| {
+                        f(name.clone(), ScopeDef::PerNs(def));
                     });
                 }
+            }
+            Scope::LocalItemsScope(body) => {
+                body.item_scope.entries_without_primitives().for_each(|(name, def)| {
+                    f(name.clone(), ScopeDef::PerNs(def));
+                })
             }
             Scope::GenericParams { params, def } => {
                 for (local_id, param) in params.types.iter() {
@@ -463,6 +500,7 @@ pub fn resolver_for_scope(
     scope_id: Option<ScopeId>,
 ) -> Resolver {
     let mut r = owner.resolver(db);
+    r = r.push_local_items_scope(db.body(owner));
     let scopes = db.expr_scopes(owner);
     let scope_chain = scopes.scope_chain(scope_id).collect::<Vec<_>>();
     for scope in scope_chain.into_iter().rev() {
@@ -496,6 +534,10 @@ impl Resolver {
         module_id: LocalModuleId,
     ) -> Resolver {
         self.push_scope(Scope::ModuleScope(ModuleItemMap { crate_def_map, module_id }))
+    }
+
+    fn push_local_items_scope(self, body: Arc<Body>) -> Resolver {
+        self.push_scope(Scope::LocalItemsScope(body))
     }
 
     fn push_expr_scope(
@@ -583,9 +625,18 @@ impl HasResolver for DefWithBodyId {
 impl HasResolver for ContainerId {
     fn resolver(self, db: &impl DefDatabase) -> Resolver {
         match self {
-            ContainerId::TraitId(it) => it.resolver(db),
-            ContainerId::ImplId(it) => it.resolver(db),
             ContainerId::ModuleId(it) => it.resolver(db),
+            ContainerId::DefWithBodyId(it) => it.resolver(db),
+        }
+    }
+}
+
+impl HasResolver for AssocContainerId {
+    fn resolver(self, db: &impl DefDatabase) -> Resolver {
+        match self {
+            AssocContainerId::ContainerId(it) => it.resolver(db),
+            AssocContainerId::TraitId(it) => it.resolver(db),
+            AssocContainerId::ImplId(it) => it.resolver(db),
         }
     }
 }

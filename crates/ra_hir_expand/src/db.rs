@@ -93,12 +93,11 @@ pub(crate) fn macro_def(
             Some(Arc::new((TokenExpander::MacroRules(rules), tmap)))
         }
         MacroDefKind::BuiltIn(expander) => {
-            Some(Arc::new((TokenExpander::Builtin(expander.clone()), mbe::TokenMap::default())))
+            Some(Arc::new((TokenExpander::Builtin(expander), mbe::TokenMap::default())))
         }
-        MacroDefKind::BuiltInDerive(expander) => Some(Arc::new((
-            TokenExpander::BuiltinDerive(expander.clone()),
-            mbe::TokenMap::default(),
-        ))),
+        MacroDefKind::BuiltInDerive(expander) => {
+            Some(Arc::new((TokenExpander::BuiltinDerive(expander), mbe::TokenMap::default())))
+        }
     }
 }
 
@@ -188,6 +187,7 @@ fn to_fragment_kind(db: &dyn AstDatabase, macro_call_id: MacroCallId) -> Fragmen
         ARG_LIST => FragmentKind::Expr,
         TRY_EXPR => FragmentKind::Expr,
         TUPLE_EXPR => FragmentKind::Expr,
+        ITEM_LIST => FragmentKind::Items,
         _ => {
             // Unknown , Just guess it is `Items`
             FragmentKind::Items

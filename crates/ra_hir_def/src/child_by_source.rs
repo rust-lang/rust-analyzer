@@ -9,10 +9,11 @@ use either::Either;
 use crate::{
     db::DefDatabase,
     dyn_map::DynMap,
+    item_scope::ItemScope,
     keys,
     src::{HasChildSource, HasSource},
-    AdtId, AssocItemId, EnumId, EnumVariantId, ImplId, Lookup, ModuleDefId, ModuleId,
-    StructFieldId, TraitId, VariantId,
+    AdtId, AssocItemId, DefWithBodyId, EnumId, EnumVariantId, ImplId, Lookup, ModuleDefId,
+    ModuleId, StructFieldId, TraitId, VariantId,
 };
 
 pub trait ChildBySource {
@@ -73,55 +74,62 @@ impl ChildBySource for ImplId {
 
 impl ChildBySource for ModuleId {
     fn child_by_source(&self, db: &impl DefDatabase) -> DynMap {
-        let mut res = DynMap::default();
-
         let crate_def_map = db.crate_def_map(self.krate);
-        for item in crate_def_map[self.local_id].scope.declarations() {
+        let module_data = &crate_def_map[self.local_id];
+        module_data.scope.child_by_source(db)
+    }
+}
+
+impl ChildBySource for ItemScope {
+    fn child_by_source(&self, db: &impl DefDatabase) -> DynMap {
+        let mut res = DynMap::default();
+        self.declarations().for_each(|item| add_module_def(db, &mut res, item));
+        self.impls().for_each(|imp| add_impl(db, &mut res, imp));
+        return res;
+
+        fn add_module_def(db: &impl DefDatabase, map: &mut DynMap, item: ModuleDefId) {
             match item {
                 ModuleDefId::FunctionId(func) => {
                     let src = func.lookup(db).source(db);
-                    res[keys::FUNCTION].insert(src, func)
+                    map[keys::FUNCTION].insert(src, func)
                 }
                 ModuleDefId::ConstId(konst) => {
                     let src = konst.lookup(db).source(db);
-                    res[keys::CONST].insert(src, konst)
+                    map[keys::CONST].insert(src, konst)
                 }
                 ModuleDefId::StaticId(statik) => {
                     let src = statik.lookup(db).source(db);
-                    res[keys::STATIC].insert(src, statik)
+                    map[keys::STATIC].insert(src, statik)
                 }
                 ModuleDefId::TypeAliasId(ty) => {
                     let src = ty.lookup(db).source(db);
-                    res[keys::TYPE_ALIAS].insert(src, ty)
+                    map[keys::TYPE_ALIAS].insert(src, ty)
                 }
                 ModuleDefId::TraitId(trait_) => {
                     let src = trait_.lookup(db).source(db);
-                    res[keys::TRAIT].insert(src, trait_)
+                    map[keys::TRAIT].insert(src, trait_)
                 }
                 ModuleDefId::AdtId(adt) => match adt {
                     AdtId::StructId(strukt) => {
                         let src = strukt.lookup(db).source(db);
-                        res[keys::STRUCT].insert(src, strukt)
+                        map[keys::STRUCT].insert(src, strukt)
                     }
                     AdtId::UnionId(union_) => {
                         let src = union_.lookup(db).source(db);
-                        res[keys::UNION].insert(src, union_)
+                        map[keys::UNION].insert(src, union_)
                     }
                     AdtId::EnumId(enum_) => {
                         let src = enum_.lookup(db).source(db);
-                        res[keys::ENUM].insert(src, enum_)
+                        map[keys::ENUM].insert(src, enum_)
                     }
                 },
                 _ => (),
             }
         }
-
-        for &impl_ in crate_def_map[self.local_id].impls.iter() {
-            let src = impl_.lookup(db).source(db);
-            res[keys::IMPL].insert(src, impl_)
+        fn add_impl(db: &impl DefDatabase, map: &mut DynMap, imp: ImplId) {
+            let src = imp.lookup(db).source(db);
+            map[keys::IMPL].insert(src, imp)
         }
-
-        res
     }
 }
 
@@ -158,5 +166,12 @@ impl ChildBySource for EnumId {
         }
 
         res
+    }
+}
+
+impl ChildBySource for DefWithBodyId {
+    fn child_by_source(&self, db: &impl DefDatabase) -> DynMap {
+        let body = db.body(*self);
+        body.item_scope.child_by_source(db)
     }
 }

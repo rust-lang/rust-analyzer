@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use arrayvec::ArrayVec;
 use hir_def::{
-    lang_item::LangItemTarget, resolver::Resolver, type_ref::Mutability, AssocItemId, FunctionId,
-    HasModule, ImplId, Lookup, TraitId,
+    lang_item::LangItemTarget, resolver::Resolver, type_ref::Mutability, AssocContainerId,
+    AssocItemId, FunctionId, HasModule, ImplId, Lookup, TraitId,
 };
 use hir_expand::name::Name;
 use ra_db::CrateId;
@@ -58,7 +58,7 @@ impl CrateImplBlocks {
 
         let crate_def_map = db.crate_def_map(krate);
         for (_module_id, module_data) in crate_def_map.modules.iter() {
-            for &impl_id in module_data.impls.iter() {
+            for impl_id in module_data.scope.impls() {
                 match db.impl_trait(impl_id) {
                     Some(tr) => {
                         res.impls_by_trait.entry(tr.trait_).or_default().push(impl_id);
@@ -134,7 +134,7 @@ impl Ty {
                 LangItemTarget::ImplBlockId(it) => Some(it),
                 _ => None,
             })
-            .map(|it| it.lookup(db).container.krate)
+            .map(|it| it.lookup(db).container.module(db).krate)
             .collect();
         Some(res)
     }
@@ -451,12 +451,12 @@ fn transform_receiver_ty(
     self_ty: &Canonical<Ty>,
 ) -> Option<Ty> {
     let substs = match function_id.lookup(db).container {
-        hir_def::ContainerId::TraitId(_) => Substs::build_for_def(db, function_id)
+        AssocContainerId::TraitId(_) => Substs::build_for_def(db, function_id)
             .push(self_ty.value.clone())
             .fill_with_unknown()
             .build(),
-        hir_def::ContainerId::ImplId(impl_id) => inherent_impl_substs(db, impl_id, &self_ty)?,
-        hir_def::ContainerId::ModuleId(_) => unreachable!(),
+        AssocContainerId::ImplId(impl_id) => inherent_impl_substs(db, impl_id, &self_ty)?,
+        AssocContainerId::ContainerId(_) => unreachable!(),
     };
     let sig = db.callable_item_signature(function_id.into());
     Some(sig.params()[0].clone().subst(&substs))

@@ -82,8 +82,10 @@ export class CargoWatchProvider implements vscode.Disposable {
         }
 
         let args =
-            Server.config.cargoWatchOptions.command +
-            ' --all-targets --message-format json';
+            Server.config.cargoWatchOptions.command + ' --message-format json';
+        if (Server.config.cargoWatchOptions.allTargets) {
+            args += ' --all-targets';
+        }
         if (Server.config.cargoWatchOptions.command.length > 0) {
             // Excape the double quote string:
             args += ' ' + Server.config.cargoWatchOptions.arguments;
@@ -109,8 +111,13 @@ export class CargoWatchProvider implements vscode.Disposable {
             },
         );
 
+        if (!this.cargoProcess) {
+            vscode.window.showErrorMessage('Cargo Watch failed to start');
+            return;
+        }
+
         const stdoutData = new LineBuffer();
-        this.cargoProcess.stdout.on('data', (s: string) => {
+        this.cargoProcess.stdout?.on('data', (s: string) => {
             stdoutData.processOutput(s, line => {
                 this.logInfo(line);
                 try {
@@ -122,7 +129,7 @@ export class CargoWatchProvider implements vscode.Disposable {
         });
 
         const stderrData = new LineBuffer();
-        this.cargoProcess.stderr.on('data', (s: string) => {
+        this.cargoProcess.stderr?.on('data', (s: string) => {
             stderrData.processOutput(s, line => {
                 this.logError('Error on cargo-watch : {\n' + line + '}\n');
             });

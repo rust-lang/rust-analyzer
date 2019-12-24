@@ -17,31 +17,31 @@ use crate::{
 };
 
 pub mod tags {
-    pub(crate) const FIELD: &'static str = "field";
-    pub(crate) const FUNCTION: &'static str = "function";
-    pub(crate) const MODULE: &'static str = "module";
-    pub(crate) const TYPE: &'static str = "type";
-    pub(crate) const CONSTANT: &'static str = "constant";
-    pub(crate) const MACRO: &'static str = "macro";
-    pub(crate) const VARIABLE: &'static str = "variable";
-    pub(crate) const VARIABLE_MUT: &'static str = "variable.mut";
-    pub(crate) const TEXT: &'static str = "text";
+    pub(crate) const FIELD: &str = "field";
+    pub(crate) const FUNCTION: &str = "function";
+    pub(crate) const MODULE: &str = "module";
+    pub(crate) const TYPE: &str = "type";
+    pub(crate) const CONSTANT: &str = "constant";
+    pub(crate) const MACRO: &str = "macro";
+    pub(crate) const VARIABLE: &str = "variable";
+    pub(crate) const VARIABLE_MUT: &str = "variable.mut";
+    pub(crate) const TEXT: &str = "text";
 
-    pub(crate) const TYPE_BUILTIN: &'static str = "type.builtin";
-    pub(crate) const TYPE_SELF: &'static str = "type.self";
-    pub(crate) const TYPE_PARAM: &'static str = "type.param";
-    pub(crate) const TYPE_LIFETIME: &'static str = "type.lifetime";
+    pub(crate) const TYPE_BUILTIN: &str = "type.builtin";
+    pub(crate) const TYPE_SELF: &str = "type.self";
+    pub(crate) const TYPE_PARAM: &str = "type.param";
+    pub(crate) const TYPE_LIFETIME: &str = "type.lifetime";
 
-    pub(crate) const LITERAL_BYTE: &'static str = "literal.byte";
-    pub(crate) const LITERAL_NUMERIC: &'static str = "literal.numeric";
-    pub(crate) const LITERAL_CHAR: &'static str = "literal.char";
-    pub(crate) const LITERAL_COMMENT: &'static str = "comment";
-    pub(crate) const LITERAL_STRING: &'static str = "string";
-    pub(crate) const LITERAL_ATTRIBUTE: &'static str = "attribute";
+    pub(crate) const LITERAL_BYTE: &str = "literal.byte";
+    pub(crate) const LITERAL_NUMERIC: &str = "literal.numeric";
+    pub(crate) const LITERAL_CHAR: &str = "literal.char";
+    pub(crate) const LITERAL_COMMENT: &str = "comment";
+    pub(crate) const LITERAL_STRING: &str = "string";
+    pub(crate) const LITERAL_ATTRIBUTE: &str = "attribute";
 
-    pub(crate) const KEYWORD_UNSAFE: &'static str = "keyword.unsafe";
-    pub(crate) const KEYWORD_CONTROL: &'static str = "keyword.control";
-    pub(crate) const KEYWORD: &'static str = "keyword";
+    pub(crate) const KEYWORD_UNSAFE: &str = "keyword.unsafe";
+    pub(crate) const KEYWORD_CONTROL: &str = "keyword.control";
+    pub(crate) const KEYWORD: &str = "keyword";
 }
 
 #[derive(Debug)]
@@ -102,11 +102,10 @@ pub(crate) fn highlight(db: &RootDatabase, file_id: FileId) -> Vec<HighlightedRa
             COMMENT => tags::LITERAL_COMMENT,
             STRING | RAW_STRING | RAW_BYTE_STRING | BYTE_STRING => tags::LITERAL_STRING,
             ATTR => tags::LITERAL_ATTRIBUTE,
+            // Special-case field init shorthand
+            NAME_REF if node.parent().and_then(ast::RecordField::cast).is_some() => tags::FIELD,
+            NAME_REF if node.ancestors().any(|it| it.kind() == ATTR) => continue,
             NAME_REF => {
-                if node.ancestors().any(|it| it.kind() == ATTR) {
-                    continue;
-                }
-
                 let name_ref = node.as_node().cloned().and_then(ast::NameRef::cast).unwrap();
                 let name_kind =
                     classify_name_ref(db, InFile::new(file_id.into(), &name_ref)).map(|d| d.kind);
@@ -259,9 +258,7 @@ fn highlight_name(db: &RootDatabase, name_kind: NameKind) -> &'static str {
         SelfType(_) => tags::TYPE_SELF,
         TypeParam(_) => tags::TYPE_PARAM,
         Local(local) => {
-            if local.is_mut(db) {
-                tags::VARIABLE_MUT
-            } else if local.ty(db).is_mutable_reference() {
+            if local.is_mut(db) || local.ty(db).is_mutable_reference() {
                 tags::VARIABLE_MUT
             } else {
                 tags::VARIABLE
@@ -282,11 +279,12 @@ pre                 { color: #DCDCCC; background: #3F3F3F; font-size: 22px; padd
 
 .comment            { color: #7F9F7F; }
 .string             { color: #CC9393; }
+.field              { color: #94BFF3; }
 .function           { color: #93E0E3; }
 .parameter          { color: #94BFF3; }
-.builtin            { color: #DD6718; }
 .text               { color: #DCDCCC; }
 .type               { color: #7CB8BB; }
+.type\\.builtin     { color: #8CD0D3; }
 .type\\.param       { color: #20999D; }
 .attribute          { color: #94BFF3; }
 .literal            { color: #BFEBBF; }
@@ -327,7 +325,8 @@ fn main() {
 
     let mut vec = Vec::new();
     if true {
-        vec.push(Foo { x: 0, y: 1 });
+        let x = 92;
+        vec.push(Foo { x, y: 1 });
     }
     unsafe { vec.set_len(0); }
 

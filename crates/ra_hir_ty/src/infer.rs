@@ -37,8 +37,8 @@ use test_utils::tested_by;
 use super::{
     primitive::{FloatTy, IntTy},
     traits::{Guidance, Obligation, ProjectionPredicate, Solution},
-    ApplicationTy, InEnvironment, ProjectionTy, Substs, TraitEnvironment, TraitRef, Ty, TypeCtor,
-    TypeWalk, Uncertain,
+    ApplicationTy, GenericPredicate, InEnvironment, ProjectionTy, Substs, TraitEnvironment,
+    TraitRef, Ty, TypeCtor, TypeWalk, Uncertain,
 };
 use crate::{db::HirDatabase, infer::diagnostics::InferenceDiagnostic};
 
@@ -196,7 +196,12 @@ struct InferenceContext<'a, D: HirDatabase> {
     trait_env: Arc<TraitEnvironment>,
     obligations: Vec<Obligation>,
     result: InferenceResult,
-    /// The return type of the function being inferred.
+    /// The return type of the function being inferred, or the closure if we're
+    /// currently within one.
+    ///
+    /// We might consider using a nested inference context for checking
+    /// closures, but currently this is the only field that will change there,
+    /// so it doesn't make sense.
     return_ty: Ty,
 
     /// Impls of `CoerceUnsized` used in coercion.
@@ -363,14 +368,45 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
     }
 
     fn resolve_associated_type(&mut self, inner_ty: Ty, assoc_ty: Option<TypeAliasId>) -> Ty {
+        self.resolve_associated_type_with_params(inner_ty, assoc_ty, &[])
+    }
+
+    fn resolve_associated_type_with_params(
+        &mut self,
+        inner_ty: Ty,
+        assoc_ty: Option<TypeAliasId>,
+        params: &[Ty],
+    ) -> Ty {
         match assoc_ty {
             Some(res_assoc_ty) => {
+                // FIXME:
+                // Check if inner_ty is is `impl Trait` and contained input TypeAlias id
+                // this is a workaround while Chalk assoc type projection doesn't always work yet,
+                // but once that is fixed I don't think we should keep this
+                // (we'll probably change how associated types are resolved anyway)
+                if let Ty::Opaque(ref predicates) = inner_ty {
+                    for p in predicates.iter() {
+                        if let GenericPredicate::Projection(projection) = p {
+                            if projection.projection_ty.associated_ty == res_assoc_ty {
+                                if let ty_app!(_, params) = &projection.ty {
+                                    if params.len() == 0 {
+                                        return projection.ty.clone();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 let ty = self.table.new_type_var();
+                let builder = Substs::build_for_def(self.db, res_assoc_ty)
+                    .push(inner_ty)
+                    .fill(params.iter().cloned());
                 let projection = ProjectionPredicate {
                     ty: ty.clone(),
                     projection_ty: ProjectionTy {
                         associated_ty: res_assoc_ty,
-                        parameters: Substs::single(inner_ty),
+                        parameters: builder.build(),
                     },
                 };
                 self.obligations.push(Obligation::Projection(projection));
@@ -443,7 +479,7 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
     }
 
     fn infer_body(&mut self) {
-        self.infer_expr(self.body.body_expr, &Expectation::has_type(self.return_ty.clone()));
+        self.infer_expr_coerce(self.body.body_expr, &Expectation::has_type(self.return_ty.clone()));
     }
 
     fn resolve_into_iter_item(&self) -> Option<TypeAliasId> {
@@ -516,6 +552,12 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
         let path = path![std::ops::RangeToInclusive];
         let struct_ = self.resolver.resolve_known_struct(self.db, &path)?;
         Some(struct_.into())
+    }
+
+    fn resolve_ops_index_output(&self) -> Option<TypeAliasId> {
+        let path = path![std::ops::Index];
+        let trait_ = self.resolver.resolve_known_trait(self.db, &path)?;
+        self.db.trait_data(trait_).associated_type_by_name(&name![Output])
     }
 }
 

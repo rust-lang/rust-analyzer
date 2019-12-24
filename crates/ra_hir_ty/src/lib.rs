@@ -44,8 +44,8 @@ use std::sync::Arc;
 use std::{fmt, iter, mem};
 
 use hir_def::{
-    expr::ExprId, type_ref::Mutability, AdtId, ContainerId, DefWithBodyId, GenericDefId, HasModule,
-    Lookup, TraitId, TypeAliasId,
+    expr::ExprId, type_ref::Mutability, AdtId, AssocContainerId, DefWithBodyId, GenericDefId,
+    HasModule, Lookup, TraitId, TypeAliasId,
 };
 use hir_expand::name::Name;
 use ra_db::{impl_intern_key, salsa, CrateId};
@@ -251,7 +251,7 @@ impl ProjectionTy {
 
     fn trait_(&self, db: &impl HirDatabase) -> TraitId {
         match self.associated_ty.lookup(db).container {
-            ContainerId::TraitId(it) => it,
+            AssocContainerId::TraitId(it) => it,
             _ => panic!("projection ty without parent trait"),
         }
     }
@@ -906,13 +906,44 @@ impl HirDisplay for ApplicationTy {
                 write!(f, "{}", name)?;
                 if self.parameters.len() > 0 {
                     write!(f, "<")?;
-                    f.write_joined(&*self.parameters.0, ", ")?;
+
+                    let mut non_default_parameters = Vec::with_capacity(self.parameters.len());
+                    let parameters_to_write = if f.should_display_default_types() {
+                        self.parameters.0.as_ref()
+                    } else {
+                        match self
+                            .ctor
+                            .as_generic_def()
+                            .map(|generic_def_id| f.db.generic_defaults(generic_def_id))
+                            .filter(|defaults| !defaults.is_empty())
+                        {
+                            Option::None => self.parameters.0.as_ref(),
+                            Option::Some(default_parameters) => {
+                                for (i, parameter) in self.parameters.iter().enumerate() {
+                                    match (parameter, default_parameters.get(i)) {
+                                        (&Ty::Unknown, _) | (_, None) => {
+                                            non_default_parameters.push(parameter.clone())
+                                        }
+                                        (_, Some(default_parameter))
+                                            if parameter != default_parameter =>
+                                        {
+                                            non_default_parameters.push(parameter.clone())
+                                        }
+                                        _ => (),
+                                    }
+                                }
+                                &non_default_parameters
+                            }
+                        }
+                    };
+
+                    f.write_joined(parameters_to_write, ", ")?;
                     write!(f, ">")?;
                 }
             }
             TypeCtor::AssociatedType(type_alias) => {
                 let trait_ = match type_alias.lookup(f.db).container {
-                    ContainerId::TraitId(it) => it,
+                    AssocContainerId::TraitId(it) => it,
                     _ => panic!("not an associated type"),
                 };
                 let trait_name = f.db.trait_data(trait_).name.clone();

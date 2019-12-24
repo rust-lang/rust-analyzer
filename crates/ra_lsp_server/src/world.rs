@@ -1,4 +1,7 @@
-//! FIXME: write short doc here
+//! The context or environment in which the language server functions.
+//! In our server implementation this is know as the `WorldState`.
+//!
+//! Each tick provides an immutable snapshot of the state as `WorldSnapshot`.
 
 use std::{
     path::{Path, PathBuf},
@@ -142,10 +145,10 @@ impl WorldState {
     /// FIXME: better API here
     pub fn process_changes(
         &mut self,
-    ) -> Vec<(SourceRootId, Vec<(FileId, RelativePathBuf, Arc<String>)>)> {
+    ) -> Option<Vec<(SourceRootId, Vec<(FileId, RelativePathBuf, Arc<String>)>)>> {
         let changes = self.vfs.write().commit_changes();
         if changes.is_empty() {
-            return Vec::new();
+            return None;
         }
         let mut libs = Vec::new();
         let mut change = AnalysisChange::new();
@@ -179,7 +182,7 @@ impl WorldState {
             }
         }
         self.analysis_host.apply_change(change);
-        libs
+        Some(libs)
     }
 
     pub fn add_lib(&mut self, data: LibraryData) {
@@ -287,19 +290,15 @@ impl WorldSnapshot {
 ///
 /// When processing non-windows path, this is essentially the same as `Url::from_file_path`.
 fn url_from_path_with_drive_lowercasing(path: impl AsRef<Path>) -> Result<Url> {
-    let component_has_windows_drive = path
-        .as_ref()
-        .components()
-        .find(|comp| {
-            if let Component::Prefix(c) = comp {
-                match c.kind() {
-                    Prefix::Disk(_) | Prefix::VerbatimDisk(_) => return true,
-                    _ => return false,
-                }
+    let component_has_windows_drive = path.as_ref().components().any(|comp| {
+        if let Component::Prefix(c) = comp {
+            match c.kind() {
+                Prefix::Disk(_) | Prefix::VerbatimDisk(_) => return true,
+                _ => return false,
             }
-            false
-        })
-        .is_some();
+        }
+        false
+    });
 
     // VSCode expects drive letters to be lowercased, where rust will uppercase the drive letters.
     if component_has_windows_drive {

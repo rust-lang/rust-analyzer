@@ -183,6 +183,48 @@ fn test() { S.foo()<|>; }
 }
 
 #[test]
+fn infer_impl_items_generated_by_macros() {
+    let t = type_at(
+        r#"
+//- /main.rs
+macro_rules! m {
+    () => (fn foo(&self) -> u128 {0})
+}
+struct S;
+impl S {
+    m!();
+}
+
+fn test() { S.foo()<|>; }
+"#,
+    );
+    assert_eq!(t, "u128");
+}
+
+#[test]
+fn infer_impl_items_generated_by_macros_chain() {
+    let t = type_at(
+        r#"
+//- /main.rs
+macro_rules! m_inner {
+    () => {fn foo(&self) -> u128 {0}}
+}
+macro_rules! m {
+    () => {m_inner!();}
+}
+
+struct S;
+impl S {
+    m!();
+}
+
+fn test() { S.foo()<|>; }
+"#,
+    );
+    assert_eq!(t, "u128");
+}
+
+#[test]
 fn infer_macro_with_dollar_crate_is_correct_in_expr() {
     let (db, pos) = TestDB::with_position(
         r#"

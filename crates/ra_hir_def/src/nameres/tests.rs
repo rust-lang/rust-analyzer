@@ -32,27 +32,22 @@ fn render_crate_def_map(map: &CrateDefMap) -> String {
         *buf += path;
         *buf += "\n";
 
-        let mut entries = map.modules[module]
-            .scope
-            .items
-            .iter()
-            .map(|(name, res)| (name, res.def))
-            .collect::<Vec<_>>();
-        entries.sort_by_key(|(name, _)| *name);
+        let mut entries = map.modules[module].scope.collect_resolutions();
+        entries.sort_by_key(|(name, _)| name.clone());
 
-        for (name, res) in entries {
+        for (name, def) in entries {
             *buf += &format!("{}:", name);
 
-            if res.types.is_some() {
+            if def.types.is_some() {
                 *buf += " t";
             }
-            if res.values.is_some() {
+            if def.values.is_some() {
                 *buf += " v";
             }
-            if res.macros.is_some() {
+            if def.macros.is_some() {
                 *buf += " m";
             }
-            if res.is_none() {
+            if def.is_none() {
                 *buf += " _";
             }
 
@@ -587,6 +582,6 @@ mod b {
     ⋮T: v
     ⋮
     ⋮crate::a
-    ⋮T: t v    
+    ⋮T: t v
 "###);
 }

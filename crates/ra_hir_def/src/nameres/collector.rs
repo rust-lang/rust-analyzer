@@ -20,13 +20,12 @@ use crate::{
     db::DefDatabase,
     nameres::{
         diagnostics::DefDiagnostic, mod_resolution::ModDir, path_resolution::ReachedFixedPoint,
-        raw, BuiltinShadowMode, CrateDefMap, ModuleData, ModuleOrigin, Resolution, ResolveMode,
+        raw, BuiltinShadowMode, CrateDefMap, ModuleData, ModuleOrigin, ResolveMode,
     },
     path::{ModPath, PathKind},
     per_ns::PerNs,
     AdtId, AstId, ConstLoc, ContainerId, EnumLoc, EnumVariantId, FunctionLoc, ImplLoc, Intern,
-    LocalImportId, LocalModuleId, ModuleDefId, ModuleId, StaticLoc, StructLoc, TraitLoc,
-    TypeAliasLoc, UnionLoc,
+    LocalModuleId, ModuleDefId, ModuleId, StaticLoc, StructLoc, TraitLoc, TypeAliasLoc, UnionLoc,
 };
 
 pub(super) fn collect_defs(db: &impl DefDatabase, mut def_map: CrateDefMap) -> CrateDefMap {
@@ -92,7 +91,7 @@ impl PartialResolvedImport {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct ImportDirective {
     module_id: LocalModuleId,
-    import_id: LocalImportId,
+    import_id: raw::Import,
     import: raw::ImportData,
     status: PartialResolvedImport,
 }
@@ -109,7 +108,7 @@ struct MacroDirective {
 struct DefCollector<'a, DB> {
     db: &'a DB,
     def_map: CrateDefMap,
-    glob_imports: FxHashMap<LocalModuleId, Vec<(LocalModuleId, LocalImportId)>>,
+    glob_imports: FxHashMap<LocalModuleId, Vec<(LocalModuleId, raw::Import)>>,
     unresolved_imports: Vec<ImportDirective>,
     resolved_imports: Vec<ImportDirective>,
     unexpanded_macros: Vec<MacroDirective>,
@@ -215,24 +214,20 @@ where
         // In Rust, `#[macro_export]` macros are unconditionally visible at the
         // crate root, even if the parent modules is **not** visible.
         if export {
-            self.update(
-                self.def_map.root,
-                None,
-                &[(name, Resolution { def: PerNs::macros(macro_), import: None })],
-            );
+            self.update(self.def_map.root, &[(name, PerNs::macros(macro_))]);
         }
     }
 
     /// Define a legacy textual scoped macro in module
     ///
-    /// We use a map `legacy_macros` to store all legacy textual scoped macros visable per module.
+    /// We use a map `legacy_macros` to store all legacy textual scoped macros visible per module.
     /// It will clone all macros from parent legacy scope, whose definition is prior to
     /// the definition of current module.
-    /// And also, `macro_use` on a module will import all legacy macros visable inside to
+    /// And also, `macro_use` on a module will import all legacy macros visible inside to
     /// current legacy scope, with possible shadowing.
-    fn define_legacy_macro(&mut self, module_id: LocalModuleId, name: Name, macro_: MacroDefId) {
+    fn define_legacy_macro(&mut self, module_id: LocalModuleId, name: Name, mac: MacroDefId) {
         // Always shadowing
-        self.def_map.modules[module_id].scope.legacy_macros.insert(name, macro_);
+        self.def_map.modules[module_id].scope.define_legacy_macro(name, mac);
     }
 
     /// Import macros from `#[macro_use] extern crate`.
@@ -371,13 +366,9 @@ where
                         let scope = &item_map[m.local_id].scope;
 
                         // Module scoped macros is included
-                        let items = scope
-                            .items
-                            .iter()
-                            .map(|(name, res)| (name.clone(), res.clone()))
-                            .collect::<Vec<_>>();
+                        let items = scope.collect_resolutions();
 
-                        self.update(module_id, Some(import_id), &items);
+                        self.update(module_id, &items);
                     } else {
                         // glob import from same crate => we do an initial
                         // import, and then need to propagate any further
@@ -385,13 +376,9 @@ where
                         let scope = &self.def_map[m.local_id].scope;
 
                         // Module scoped macros is included
-                        let items = scope
-                            .items
-                            .iter()
-                            .map(|(name, res)| (name.clone(), res.clone()))
-                            .collect::<Vec<_>>();
+                        let items = scope.collect_resolutions();
 
-                        self.update(module_id, Some(import_id), &items);
+                        self.update(module_id, &items);
                         // record the glob import in case we add further items
                         let glob = self.glob_imports.entry(m.local_id).or_default();
                         if !glob.iter().any(|it| *it == (module_id, import_id)) {
@@ -406,17 +393,14 @@ where
                     let resolutions = enum_data
                         .variants
                         .iter()
-                        .filter_map(|(local_id, variant_data)| {
+                        .map(|(local_id, variant_data)| {
                             let name = variant_data.name.clone();
                             let variant = EnumVariantId { parent: e, local_id };
-                            let res = Resolution {
-                                def: PerNs::both(variant.into(), variant.into()),
-                                import: Some(import_id),
-                            };
-                            Some((name, res))
+                            let res = PerNs::both(variant.into(), variant.into());
+                            (name, res)
                         })
                         .collect::<Vec<_>>();
-                    self.update(module_id, Some(import_id), &resolutions);
+                    self.update(module_id, &resolutions);
                 }
                 Some(d) => {
                     log::debug!("glob import {:?} from non-module/enum {:?}", import, d);
@@ -438,62 +422,31 @@ where
                         }
                     }
 
-                    let resolution = Resolution { def, import: Some(import_id) };
-                    self.update(module_id, Some(import_id), &[(name, resolution)]);
+                    self.update(module_id, &[(name, def)]);
                 }
                 None => tested_by!(bogus_paths),
             }
         }
     }
 
-    fn update(
-        &mut self,
-        module_id: LocalModuleId,
-        import: Option<LocalImportId>,
-        resolutions: &[(Name, Resolution)],
-    ) {
-        self.update_recursive(module_id, import, resolutions, 0)
+    fn update(&mut self, module_id: LocalModuleId, resolutions: &[(Name, PerNs)]) {
+        self.update_recursive(module_id, resolutions, 0)
     }
 
     fn update_recursive(
         &mut self,
         module_id: LocalModuleId,
-        import: Option<LocalImportId>,
-        resolutions: &[(Name, Resolution)],
+        resolutions: &[(Name, PerNs)],
         depth: usize,
     ) {
         if depth > 100 {
             // prevent stack overflows (but this shouldn't be possible)
             panic!("infinite recursion in glob imports!");
         }
-        let module_items = &mut self.def_map.modules[module_id].scope;
+        let scope = &mut self.def_map.modules[module_id].scope;
         let mut changed = false;
         for (name, res) in resolutions {
-            let existing = module_items.items.entry(name.clone()).or_default();
-
-            if existing.def.types.is_none() && res.def.types.is_some() {
-                existing.def.types = res.def.types;
-                existing.import = import.or(res.import);
-                changed = true;
-            }
-            if existing.def.values.is_none() && res.def.values.is_some() {
-                existing.def.values = res.def.values;
-                existing.import = import.or(res.import);
-                changed = true;
-            }
-            if existing.def.macros.is_none() && res.def.macros.is_some() {
-                existing.def.macros = res.def.macros;
-                existing.import = import.or(res.import);
-                changed = true;
-            }
-
-            if existing.def.is_none()
-                && res.def.is_none()
-                && existing.import.is_none()
-                && res.import.is_some()
-            {
-                existing.import = res.import;
-            }
+            changed |= scope.push_res(name.clone(), *res);
         }
 
         if !changed {
@@ -506,9 +459,9 @@ where
             .flat_map(|v| v.iter())
             .cloned()
             .collect::<Vec<_>>();
-        for (glob_importing_module, glob_import) in glob_imports {
+        for (glob_importing_module, _glob_import) in glob_imports {
             // We pass the glob import so that the tracked import in those modules is that glob import
-            self.update_recursive(glob_importing_module, Some(glob_import), resolutions, depth + 1);
+            self.update_recursive(glob_importing_module, resolutions, depth + 1);
         }
     }
 
@@ -661,11 +614,14 @@ where
                             krate: self.def_collector.def_map.krate,
                             local_id: self.module_id,
                         };
+                        let container = ContainerId::ModuleId(module);
                         let ast_id = self.raw_items[imp].ast_id;
                         let impl_id =
-                            ImplLoc { container: module, ast_id: AstId::new(self.file_id, ast_id) }
+                            ImplLoc { container, ast_id: AstId::new(self.file_id, ast_id) }
                                 .intern(self.def_collector.db);
-                        self.def_collector.def_map.modules[self.module_id].impls.push(impl_id)
+                        self.def_collector.def_map.modules[self.module_id]
+                            .scope
+                            .define_impl(impl_id)
                     }
                 }
             }
@@ -739,15 +695,14 @@ where
         let res = modules.alloc(ModuleData::default());
         modules[res].parent = Some(self.module_id);
         modules[res].origin = ModuleOrigin::not_sure_file(definition, declaration);
-        modules[res].scope.legacy_macros = modules[self.module_id].scope.legacy_macros.clone();
+        for (name, mac) in modules[self.module_id].scope.collect_legacy_macros() {
+            modules[res].scope.define_legacy_macro(name, mac)
+        }
         modules[self.module_id].children.insert(name.clone(), res);
-        let resolution = Resolution {
-            def: PerNs::types(
-                ModuleId { krate: self.def_collector.def_map.krate, local_id: res }.into(),
-            ),
-            import: None,
-        };
-        self.def_collector.update(self.module_id, None, &[(name, resolution)]);
+        let module = ModuleId { krate: self.def_collector.def_map.krate, local_id: res };
+        let def: ModuleDefId = module.into();
+        self.def_collector.def_map.modules[self.module_id].scope.define_def(def);
+        self.def_collector.update(self.module_id, &[(name, def.into())]);
         res
     }
 
@@ -760,64 +715,53 @@ where
         self.collect_derives(attrs, def);
 
         let name = def.name.clone();
-        let def: PerNs = match def.kind {
-            raw::DefKind::Function(ast_id) => {
-                let def = FunctionLoc {
-                    container: ContainerId::ModuleId(module),
-                    ast_id: AstId::new(self.file_id, ast_id),
-                }
-                .intern(self.def_collector.db);
-
-                PerNs::values(def.into())
+        let container = ContainerId::ModuleId(module);
+        let def: ModuleDefId = match def.kind {
+            raw::DefKind::Function(ast_id) => FunctionLoc {
+                container: container.into(),
+                ast_id: AstId::new(self.file_id, ast_id),
             }
+            .intern(self.def_collector.db)
+            .into(),
             raw::DefKind::Struct(ast_id) => {
-                let def = StructLoc { container: module, ast_id: AstId::new(self.file_id, ast_id) }
-                    .intern(self.def_collector.db);
-                PerNs::both(def.into(), def.into())
+                StructLoc { container, ast_id: AstId::new(self.file_id, ast_id) }
+                    .intern(self.def_collector.db)
+                    .into()
             }
             raw::DefKind::Union(ast_id) => {
-                let def = UnionLoc { container: module, ast_id: AstId::new(self.file_id, ast_id) }
-                    .intern(self.def_collector.db);
-                PerNs::both(def.into(), def.into())
+                UnionLoc { container, ast_id: AstId::new(self.file_id, ast_id) }
+                    .intern(self.def_collector.db)
+                    .into()
             }
             raw::DefKind::Enum(ast_id) => {
-                let def = EnumLoc { container: module, ast_id: AstId::new(self.file_id, ast_id) }
-                    .intern(self.def_collector.db);
-                PerNs::types(def.into())
+                EnumLoc { container, ast_id: AstId::new(self.file_id, ast_id) }
+                    .intern(self.def_collector.db)
+                    .into()
             }
             raw::DefKind::Const(ast_id) => {
-                let def = ConstLoc {
-                    container: ContainerId::ModuleId(module),
-                    ast_id: AstId::new(self.file_id, ast_id),
-                }
-                .intern(self.def_collector.db);
-
-                PerNs::values(def.into())
+                ConstLoc { container: container.into(), ast_id: AstId::new(self.file_id, ast_id) }
+                    .intern(self.def_collector.db)
+                    .into()
             }
             raw::DefKind::Static(ast_id) => {
-                let def = StaticLoc { container: module, ast_id: AstId::new(self.file_id, ast_id) }
-                    .intern(self.def_collector.db);
-
-                PerNs::values(def.into())
+                StaticLoc { container, ast_id: AstId::new(self.file_id, ast_id) }
+                    .intern(self.def_collector.db)
+                    .into()
             }
             raw::DefKind::Trait(ast_id) => {
-                let def = TraitLoc { container: module, ast_id: AstId::new(self.file_id, ast_id) }
-                    .intern(self.def_collector.db);
-
-                PerNs::types(def.into())
+                TraitLoc { container, ast_id: AstId::new(self.file_id, ast_id) }
+                    .intern(self.def_collector.db)
+                    .into()
             }
-            raw::DefKind::TypeAlias(ast_id) => {
-                let def = TypeAliasLoc {
-                    container: ContainerId::ModuleId(module),
-                    ast_id: AstId::new(self.file_id, ast_id),
-                }
-                .intern(self.def_collector.db);
-
-                PerNs::types(def.into())
+            raw::DefKind::TypeAlias(ast_id) => TypeAliasLoc {
+                container: container.into(),
+                ast_id: AstId::new(self.file_id, ast_id),
             }
+            .intern(self.def_collector.db)
+            .into(),
         };
-        let resolution = Resolution { def, import: None };
-        self.def_collector.update(self.module_id, None, &[(name, resolution)])
+        self.def_collector.def_map.modules[self.module_id].scope.define_def(def);
+        self.def_collector.update(self.module_id, &[(name, def.into())])
     }
 
     fn collect_derives(&mut self, attrs: &Attrs, def: &raw::DefData) {
@@ -890,7 +834,7 @@ where
         // We rewrite simple path `macro_name` to `self::macro_name` to force resolve in module scope only.
         let mut path = mac.path.clone();
         if path.is_ident() {
-            path.kind = PathKind::Self_;
+            path.kind = PathKind::Super(0);
         }
 
         self.def_collector.unexpanded_macros.push(MacroDirective {
@@ -902,7 +846,7 @@ where
     }
 
     fn import_all_legacy_macros(&mut self, module_id: LocalModuleId) {
-        let macros = self.def_collector.def_map[module_id].scope.legacy_macros.clone();
+        let macros = self.def_collector.def_map[module_id].scope.collect_legacy_macros();
         for (name, macro_) in macros {
             self.def_collector.define_legacy_macro(self.module_id, name.clone(), macro_);
         }

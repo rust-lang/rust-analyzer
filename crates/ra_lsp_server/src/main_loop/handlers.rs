@@ -1,4 +1,5 @@
-//! FIXME: write short doc here
+//! This module is responsible for implementing handlers for Lanuage Server Protocol.
+//! The majority of requests are fulfilled by calling into the `ra_ide` crate.
 
 use std::{fmt::Write as _, io::Write as _};
 
@@ -164,7 +165,7 @@ pub fn handle_on_type_formatting(
 
     // in `ra_ide`, the `on_type` invariant is that
     // `text.char_at(position) == typed_char`.
-    position.offset = position.offset - TextUnit::of_char('.');
+    position.offset -= TextUnit::of_char('.');
     let char_typed = params.ch.chars().next().unwrap_or('\0');
 
     // We have an assist that inserts ` ` after typing `->` in `fn foo() ->{`,

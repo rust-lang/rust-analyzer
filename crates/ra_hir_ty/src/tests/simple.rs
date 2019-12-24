@@ -1512,8 +1512,8 @@ fn test() {
     [49; 50) '0': u32
     [80; 83) '101': u32
     [95; 213) '{     ...NST; }': ()
-    [138; 139) 'x': {unknown}
-    [142; 153) 'LOCAL_CONST': {unknown}
+    [138; 139) 'x': u32
+    [142; 153) 'LOCAL_CONST': u32
     [163; 164) 'z': u32
     [167; 179) 'GLOBAL_CONST': u32
     [189; 191) 'id': u32
@@ -1541,10 +1541,10 @@ fn test() {
     [29; 32) '101': u32
     [70; 73) '101': u32
     [85; 280) '{     ...MUT; }': ()
-    [173; 174) 'x': {unknown}
-    [177; 189) 'LOCAL_STATIC': {unknown}
-    [199; 200) 'y': {unknown}
-    [203; 219) 'LOCAL_...IC_MUT': {unknown}
+    [173; 174) 'x': u32
+    [177; 189) 'LOCAL_STATIC': u32
+    [199; 200) 'y': u32
+    [203; 219) 'LOCAL_...IC_MUT': u32
     [229; 230) 'z': u32
     [233; 246) 'GLOBAL_STATIC': u32
     [256; 257) 'w': u32
@@ -1605,4 +1605,59 @@ fn main() {
 }"#,
     );
     assert_eq!(t, "u32");
+}
+
+#[test]
+fn closure_return() {
+    assert_snapshot!(
+        infer(r#"
+fn foo() -> u32 {
+    let x = || -> usize { return 1; };
+}
+"#),
+        @r###"
+    [17; 59) '{     ...; }; }': ()
+    [27; 28) 'x': || -> usize
+    [31; 56) '|| -> ...n 1; }': || -> usize
+    [43; 56) '{ return 1; }': !
+    [45; 53) 'return 1': !
+    [52; 53) '1': usize
+    "###
+    );
+}
+
+#[test]
+fn closure_return_unit() {
+    assert_snapshot!(
+        infer(r#"
+fn foo() -> u32 {
+    let x = || { return; };
+}
+"#),
+        @r###"
+    [17; 48) '{     ...; }; }': ()
+    [27; 28) 'x': || -> ()
+    [31; 45) '|| { return; }': || -> ()
+    [34; 45) '{ return; }': !
+    [36; 42) 'return': !
+    "###
+    );
+}
+
+#[test]
+fn closure_return_inferred() {
+    assert_snapshot!(
+        infer(r#"
+fn foo() -> u32 {
+    let x = || { "test" };
+}
+"#),
+        @r###"
+    [17; 47) '{     ..." }; }': ()
+    [27; 28) 'x': || -> &str
+    [31; 44) '|| { "test" }': || -> &str
+    [34; 44) '{ "test" }': &str
+    [36; 42) '"test"': &str
+    "###
+    );
 }

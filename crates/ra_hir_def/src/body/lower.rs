@@ -2,11 +2,12 @@
 //! representation.
 
 use either::Either;
+
 use hir_expand::name::{name, AsName, Name};
 use ra_arena::Arena;
 use ra_syntax::{
     ast::{
-        self, ArgListOwner, ArrayExprKind, LiteralKind, LoopBodyOwner, NameOwner,
+        self, ArgListOwner, ArrayExprKind, LiteralKind, LoopBodyOwner, ModuleItemOwner, NameOwner,
         TypeAscriptionOwner,
     },
     AstNode, AstPtr,
@@ -24,23 +25,28 @@ use crate::{
     path::GenericArgs,
     path::Path,
     type_ref::{Mutability, TypeRef},
+    ConstLoc, ContainerId, DefWithBodyId, EnumLoc, FunctionLoc, Intern, ModuleDefId, StaticLoc,
+    StructLoc, TraitLoc, TypeAliasLoc, UnionLoc,
 };
 
 pub(super) fn lower(
     db: &impl DefDatabase,
+    def: DefWithBodyId,
     expander: Expander,
     params: Option<ast::ParamList>,
     body: Option<ast::Expr>,
 ) -> (Body, BodySourceMap) {
     ExprCollector {
-        expander,
         db,
+        def,
+        expander,
         source_map: BodySourceMap::default(),
         body: Body {
             exprs: Arena::default(),
             pats: Arena::default(),
             params: Vec::new(),
             body_expr: ExprId::dummy(),
+            item_scope: Default::default(),
         },
     }
     .collect(params, body)
@@ -48,6 +54,7 @@ pub(super) fn lower(
 
 struct ExprCollector<DB> {
     db: DB,
+    def: DefWithBodyId,
     expander: Expander,
 
     body: Body,
@@ -365,8 +372,9 @@ where
                         arg_types.push(type_ref);
                     }
                 }
+                let ret_type = e.ret_type().and_then(|r| r.type_ref()).map(TypeRef::from_ast);
                 let body = self.collect_expr_opt(e.body());
-                self.alloc_expr(Expr::Lambda { args, arg_types, body }, syntax_ptr)
+                self.alloc_expr(Expr::Lambda { args, arg_types, ret_type, body }, syntax_ptr)
             }
             ast::Expr::BinExpr(e) => {
                 let lhs = self.collect_expr_opt(e.lhs());
@@ -466,6 +474,7 @@ where
             Some(block) => block,
             None => return self.alloc_expr(Expr::Missing, syntax_node_ptr),
         };
+        self.collect_block_items(&block);
         let statements = block
             .statements()
             .map(|s| match s {
@@ -480,6 +489,63 @@ where
             .collect();
         let tail = block.expr().map(|e| self.collect_expr(e));
         self.alloc_expr(Expr::Block { statements, tail }, syntax_node_ptr)
+    }
+
+    fn collect_block_items(&mut self, block: &ast::Block) {
+        let container = ContainerId::DefWithBodyId(self.def);
+        for item in block.items() {
+            let (def, name): (ModuleDefId, Option<ast::Name>) = match item {
+                ast::ModuleItem::FnDef(def) => {
+                    let ast_id = self.expander.ast_id(&def);
+                    (
+                        FunctionLoc { container: container.into(), ast_id }.intern(self.db).into(),
+                        def.name(),
+                    )
+                }
+                ast::ModuleItem::TypeAliasDef(def) => {
+                    let ast_id = self.expander.ast_id(&def);
+                    (
+                        TypeAliasLoc { container: container.into(), ast_id }.intern(self.db).into(),
+                        def.name(),
+                    )
+                }
+                ast::ModuleItem::ConstDef(def) => {
+                    let ast_id = self.expander.ast_id(&def);
+                    (
+                        ConstLoc { container: container.into(), ast_id }.intern(self.db).into(),
+                        def.name(),
+                    )
+                }
+                ast::ModuleItem::StaticDef(def) => {
+                    let ast_id = self.expander.ast_id(&def);
+                    (StaticLoc { container, ast_id }.intern(self.db).into(), def.name())
+                }
+                ast::ModuleItem::StructDef(def) => {
+                    let ast_id = self.expander.ast_id(&def);
+                    (StructLoc { container, ast_id }.intern(self.db).into(), def.name())
+                }
+                ast::ModuleItem::EnumDef(def) => {
+                    let ast_id = self.expander.ast_id(&def);
+                    (EnumLoc { container, ast_id }.intern(self.db).into(), def.name())
+                }
+                ast::ModuleItem::UnionDef(def) => {
+                    let ast_id = self.expander.ast_id(&def);
+                    (UnionLoc { container, ast_id }.intern(self.db).into(), def.name())
+                }
+                ast::ModuleItem::TraitDef(def) => {
+                    let ast_id = self.expander.ast_id(&def);
+                    (TraitLoc { container, ast_id }.intern(self.db).into(), def.name())
+                }
+                ast::ModuleItem::ImplBlock(_)
+                | ast::ModuleItem::UseItem(_)
+                | ast::ModuleItem::ExternCrateItem(_)
+                | ast::ModuleItem::Module(_) => continue,
+            };
+            self.body.item_scope.define_def(def);
+            if let Some(name) = name {
+                self.body.item_scope.push_res(name.as_name(), def.into());
+            }
+        }
     }
 
     fn collect_block_opt(&mut self, expr: Option<ast::BlockExpr>) -> ExprId {

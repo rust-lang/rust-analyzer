@@ -26,6 +26,7 @@ use hir_ty::{
     method_resolution::{self, implements_trait},
     Canonical, InEnvironment, InferenceResult, TraitEnvironment, Ty,
 };
+use ra_prof::profile;
 use ra_syntax::{
     ast::{self, AstNode},
     match_ast, AstPtr,
@@ -83,6 +84,7 @@ fn def_with_body_from_child_node(
     db: &impl HirDatabase,
     child: InFile<&SyntaxNode>,
 ) -> Option<DefWithBody> {
+    let _p = profile("def_with_body_from_child_node");
     child.cloned().ancestors_with_macros(db).find_map(|node| {
         let n = &node.value;
         match_ast! {
@@ -169,6 +171,7 @@ impl SourceAnalyzer {
         node: InFile<&SyntaxNode>,
         offset: Option<TextUnit>,
     ) -> SourceAnalyzer {
+        let _p = profile("SourceAnalyzer::new");
         let def_with_body = def_with_body_from_child_node(db, node);
         if let Some(def) = def_with_body {
             let (_body, source_map) = db.body_with_source_map(def.into());
@@ -237,7 +240,13 @@ impl SourceAnalyzer {
     }
 
     pub fn resolve_record_field(&self, field: &ast::RecordField) -> Option<crate::StructField> {
-        let expr_id = self.expr_id(&field.expr()?)?;
+        let expr_id = match field.expr() {
+            Some(it) => self.expr_id(&it)?,
+            None => {
+                let src = InFile { file_id: self.file_id, value: field };
+                self.body_source_map.as_ref()?.field_init_shorthand_expr(src)?
+            }
+        };
         self.infer.as_ref()?.record_field_resolution(expr_id).map(|it| it.into())
     }
 

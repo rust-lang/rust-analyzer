@@ -38,6 +38,63 @@ mod future {
 }
 
 #[test]
+fn infer_async() {
+    let (db, pos) = TestDB::with_position(
+        r#"
+//- /main.rs crate:main deps:std
+
+async fn foo() -> u64 {
+    128
+}
+
+fn test() {
+    let r = foo();
+    let v = r.await;
+    v<|>;
+}
+
+//- /std.rs crate:std
+#[prelude_import] use future::*;
+mod future {
+    trait Future {
+        type Output;
+    }
+}
+
+"#,
+    );
+    assert_eq!("u64", type_at_pos(&db, pos));
+}
+
+#[test]
+fn infer_desugar_async() {
+    let (db, pos) = TestDB::with_position(
+        r#"
+//- /main.rs crate:main deps:std
+
+async fn foo() -> u64 {
+    128
+}
+
+fn test() {
+    let r = foo();
+    r<|>;
+}
+
+//- /std.rs crate:std
+#[prelude_import] use future::*;
+mod future {
+    trait Future {
+        type Output;
+    }
+}
+
+"#,
+    );
+    assert_eq!("impl Future<Output = u64>", type_at_pos(&db, pos));
+}
+
+#[test]
 fn infer_try() {
     let (db, pos) = TestDB::with_position(
         r#"
@@ -393,11 +450,11 @@ fn test() -> u64 {
     [54; 55) 'a': S
     [58; 59) 'S': S(fn(u32) -> u64) -> S
     [58; 68) 'S(|i| 2*i)': S
-    [60; 67) '|i| 2*i': |i32| -> i32
-    [61; 62) 'i': i32
-    [64; 65) '2': i32
-    [64; 67) '2*i': i32
-    [66; 67) 'i': i32
+    [60; 67) '|i| 2*i': |u32| -> u64
+    [61; 62) 'i': u32
+    [64; 65) '2': u32
+    [64; 67) '2*i': u32
+    [66; 67) 'i': u32
     [78; 79) 'b': u64
     [82; 83) 'a': S
     [82; 85) 'a.0': fn(u32) -> u64
@@ -424,6 +481,38 @@ fn indexing_arrays() {
     [21; 22) '2': i32
     "###
     )
+}
+
+#[test]
+fn infer_ops_index() {
+    let (db, pos) = TestDB::with_position(
+        r#"
+//- /main.rs crate:main deps:std
+
+struct Bar;
+struct Foo;
+
+impl std::ops::Index<u32> for Bar {
+    type Output = Foo;
+}
+
+fn test() {
+    let a = Bar;
+    let b = a[1];
+    b<|>;
+}
+
+//- /std.rs crate:std
+
+#[prelude_import] use ops::*;
+mod ops {
+    pub trait Index<Idx> {
+        type Output;
+    }
+}
+"#,
+    );
+    assert_eq!("Foo", type_at_pos(&db, pos));
 }
 
 #[test]
@@ -924,6 +1013,23 @@ fn test() {
     [231; 234) 'foo': impl Trait + {error}
     "###
     );
+}
+
+#[test]
+fn error_bound_chalk() {
+    let t = type_at(
+        r#"
+//- /main.rs
+trait Trait {
+    fn foo(&self) -> u32 {}
+}
+
+fn test(x: (impl Trait + UnknownTrait)) {
+    x.foo()<|>;
+}
+"#,
+    );
+    assert_eq!(t, "u32");
 }
 
 #[test]

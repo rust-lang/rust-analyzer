@@ -18,6 +18,18 @@ pub struct ModPath {
     pub segments: Vec<Name>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum PathKind {
+    Plain,
+    /// `self::` is `Super(0)`
+    Super(u8),
+    Crate,
+    /// Absolute path (::foo)
+    Abs,
+    /// `$crate` from macro expansion
+    DollarCrate(CrateId),
+}
+
 impl ModPath {
     pub fn from_src(path: ast::Path, hygiene: &Hygiene) -> Option<ModPath> {
         lower::lower_path(path, hygiene).map(|it| it.mod_path)
@@ -56,7 +68,7 @@ impl ModPath {
     }
 
     pub fn is_self(&self) -> bool {
-        self.kind == PathKind::Self_ && self.segments.is_empty()
+        self.kind == PathKind::Super(0) && self.segments.is_empty()
     }
 
     /// If this path is a single identifier, like `foo`, return its name.
@@ -70,6 +82,9 @@ impl ModPath {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Path {
+    /// Type based path like `<T>::foo`.
+    /// Note that paths like `<Type as Trait>::foo` are desugard to `Trait::<Self=Type>::foo`.
+    type_anchor: Option<Box<TypeRef>>,
     mod_path: ModPath,
     /// Invariant: the same len as self.path.segments
     generic_args: Vec<Option<Arc<GenericArgs>>>,
@@ -97,20 +112,6 @@ pub enum GenericArg {
     // or lifetime...
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum PathKind {
-    Plain,
-    Self_,
-    Super,
-    Crate,
-    // Absolute path
-    Abs,
-    // Type based path like `<T>::foo`
-    Type(Box<TypeRef>),
-    // `$crate` from macro expansion
-    DollarCrate(CrateId),
-}
-
 impl Path {
     /// Converts an `ast::Path` to `Path`. Works with use trees.
     /// DEPRECATED: It does not handle `$crate` from macro call.
@@ -126,16 +127,23 @@ impl Path {
 
     /// Converts an `ast::NameRef` into a single-identifier `Path`.
     pub(crate) fn from_name_ref(name_ref: &ast::NameRef) -> Path {
-        Path { mod_path: name_ref.as_name().into(), generic_args: vec![None] }
+        Path { type_anchor: None, mod_path: name_ref.as_name().into(), generic_args: vec![None] }
     }
 
-    /// `true` if this path is just a standalone `self`
-    pub fn is_self(&self) -> bool {
-        self.mod_path.is_self()
+    /// Converts a known mod path to `Path`.
+    pub(crate) fn from_known_path(
+        path: ModPath,
+        generic_args: Vec<Option<Arc<GenericArgs>>>,
+    ) -> Path {
+        Path { type_anchor: None, mod_path: path, generic_args }
     }
 
     pub fn kind(&self) -> &PathKind {
         &self.mod_path.kind
+    }
+
+    pub fn type_anchor(&self) -> Option<&TypeRef> {
+        self.type_anchor.as_deref()
     }
 
     pub fn segments(&self) -> PathSegments<'_> {
@@ -154,6 +162,7 @@ impl Path {
             return None;
         }
         let res = Path {
+            type_anchor: self.type_anchor.clone(),
             mod_path: ModPath {
                 kind: self.mod_path.kind.clone(),
                 segments: self.mod_path.segments[..self.mod_path.segments.len() - 1].to_vec(),
@@ -226,6 +235,7 @@ impl GenericArgs {
 impl From<Name> for Path {
     fn from(name: Name) -> Path {
         Path {
+            type_anchor: None,
             mod_path: ModPath::from_simple_segments(PathKind::Plain, iter::once(name)),
             generic_args: vec![None],
         }
@@ -255,6 +265,7 @@ macro_rules! __known_path {
     (std::ops::Try) => {};
     (std::ops::Neg) => {};
     (std::ops::Not) => {};
+    (std::ops::Index) => {};
     ($path:path) => {
         compile_error!("Please register your known path in the path module")
     };

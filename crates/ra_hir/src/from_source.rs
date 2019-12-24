@@ -1,24 +1,28 @@
-//! FIXME: write short doc here
+//! Finds a corresponding hir data structure for a syntax node in a specific
+//! file.
+
 use hir_def::{
     child_by_source::ChildBySource, dyn_map::DynMap, keys, keys::Key, nameres::ModuleSource,
-    ConstId, EnumId, EnumVariantId, FunctionId, GenericDefId, ImplId, ModuleId, StaticId, StructId,
-    TraitId, TypeAliasId, UnionId, VariantId,
+    ConstId, DefWithBodyId, EnumId, EnumVariantId, FunctionId, GenericDefId, ImplId, ModuleId,
+    StaticId, StructId, TraitId, TypeAliasId, UnionId, VariantId,
 };
 use hir_expand::{name::AsName, AstId, MacroDefId, MacroDefKind};
+use ra_db::FileId;
+use ra_prof::profile;
 use ra_syntax::{
     ast::{self, AstNode, NameOwner},
     match_ast, SyntaxNode,
 };
 
 use crate::{
-    db::{AstDatabase, DefDatabase, HirDatabase},
+    db::{DefDatabase, HirDatabase},
     Const, DefWithBody, Enum, EnumVariant, FieldSource, Function, ImplBlock, InFile, Local,
     MacroDef, Module, Static, Struct, StructField, Trait, TypeAlias, TypeParam, Union,
 };
 
 pub trait FromSource: Sized {
     type Ast;
-    fn from_source(db: &(impl DefDatabase + AstDatabase), src: InFile<Self::Ast>) -> Option<Self>;
+    fn from_source(db: &impl DefDatabase, src: InFile<Self::Ast>) -> Option<Self>;
 }
 
 pub trait FromSourceByContainer: Sized {
@@ -32,7 +36,7 @@ where
     T: From<<T as FromSourceByContainer>::Id>,
 {
     type Ast = <T as FromSourceByContainer>::Ast;
-    fn from_source(db: &(impl DefDatabase + AstDatabase), src: InFile<Self::Ast>) -> Option<Self> {
+    fn from_source(db: &impl DefDatabase, src: InFile<Self::Ast>) -> Option<Self> {
         analyze_container(db, src.as_ref().map(|it| it.syntax()))[T::KEY]
             .get(&src)
             .copied()
@@ -64,7 +68,7 @@ from_source_by_container_impls![
 
 impl FromSource for MacroDef {
     type Ast = ast::MacroCall;
-    fn from_source(db: &(impl DefDatabase + AstDatabase), src: InFile<Self::Ast>) -> Option<Self> {
+    fn from_source(db: &impl DefDatabase, src: InFile<Self::Ast>) -> Option<Self> {
         let kind = MacroDefKind::Declarative;
 
         let module_src = ModuleSource::from_child_node(db, src.as_ref().map(|it| it.syntax()));
@@ -80,7 +84,7 @@ impl FromSource for MacroDef {
 
 impl FromSource for EnumVariant {
     type Ast = ast::EnumVariant;
-    fn from_source(db: &(impl DefDatabase + AstDatabase), src: InFile<Self::Ast>) -> Option<Self> {
+    fn from_source(db: &impl DefDatabase, src: InFile<Self::Ast>) -> Option<Self> {
         let parent_enum = src.value.parent_enum();
         let src_enum = InFile { file_id: src.file_id, value: parent_enum };
         let parent_enum = Enum::from_source(db, src_enum)?;
@@ -93,7 +97,7 @@ impl FromSource for EnumVariant {
 
 impl FromSource for StructField {
     type Ast = FieldSource;
-    fn from_source(db: &(impl DefDatabase + AstDatabase), src: InFile<Self::Ast>) -> Option<Self> {
+    fn from_source(db: &impl DefDatabase, src: InFile<Self::Ast>) -> Option<Self> {
         let src = src.as_ref();
 
         // FIXME this is buggy
@@ -167,6 +171,7 @@ impl TypeParam {
 
 impl Module {
     pub fn from_declaration(db: &impl DefDatabase, src: InFile<ast::Module>) -> Option<Self> {
+        let _p = profile("Module::from_declaration");
         let parent_declaration = src.value.syntax().ancestors().skip(1).find_map(ast::Module::cast);
 
         let parent_module = match parent_declaration {
@@ -189,6 +194,7 @@ impl Module {
     }
 
     pub fn from_definition(db: &impl DefDatabase, src: InFile<ModuleSource>) -> Option<Self> {
+        let _p = profile("Module::from_definition");
         match src.value {
             ModuleSource::Module(ref module) => {
                 assert!(!module.has_semi());
@@ -201,10 +207,14 @@ impl Module {
         };
 
         let original_file = src.file_id.original_file(db);
+        Module::from_file(db, original_file)
+    }
 
-        let (krate, local_id) = db.relevant_crates(original_file).iter().find_map(|&crate_id| {
+    fn from_file(db: &impl DefDatabase, file: FileId) -> Option<Self> {
+        let _p = profile("Module::from_file");
+        let (krate, local_id) = db.relevant_crates(file).iter().find_map(|&crate_id| {
             let crate_def_map = db.crate_def_map(crate_id);
-            let local_id = crate_def_map.modules_for_file(original_file).next()?;
+            let local_id = crate_def_map.modules_for_file(file).next()?;
             Some((crate_id, local_id))
         })?;
         Some(Module { id: ModuleId { krate, local_id } })
@@ -212,29 +222,44 @@ impl Module {
 }
 
 fn analyze_container(db: &impl DefDatabase, src: InFile<&SyntaxNode>) -> DynMap {
-    _analyze_container(db, src).unwrap_or_default()
-}
+    let _p = profile("analyze_container");
+    return child_by_source(db, src).unwrap_or_default();
 
-fn _analyze_container(db: &impl DefDatabase, src: InFile<&SyntaxNode>) -> Option<DynMap> {
-    // FIXME: this doesn't try to handle nested declarations
-    for container in src.value.ancestors().skip(1) {
-        let res = match_ast! {
-            match container {
-                ast::TraitDef(it) => {
-                    let c = Trait::from_source(db, src.with_value(it))?;
-                    c.id.child_by_source(db)
-                },
-                ast::ImplBlock(it) => {
-                    let c = ImplBlock::from_source(db, src.with_value(it))?;
-                    c.id.child_by_source(db)
-                 },
-                _ => { continue },
-            }
-        };
-        return Some(res);
+    fn child_by_source(db: &impl DefDatabase, src: InFile<&SyntaxNode>) -> Option<DynMap> {
+        for container in src.value.ancestors().skip(1) {
+            let res = match_ast! {
+                match container {
+                    ast::TraitDef(it) => {
+                        let def = Trait::from_source(db, src.with_value(it))?;
+                        def.id.child_by_source(db)
+                    },
+                    ast::ImplBlock(it) => {
+                        let def = ImplBlock::from_source(db, src.with_value(it))?;
+                        def.id.child_by_source(db)
+                    },
+                    ast::FnDef(it) => {
+                        let def = Function::from_source(db, src.with_value(it))?;
+                        DefWithBodyId::from(def.id)
+                            .child_by_source(db)
+                    },
+                    ast::StaticDef(it) => {
+                        let def = Static::from_source(db, src.with_value(it))?;
+                        DefWithBodyId::from(def.id)
+                            .child_by_source(db)
+                    },
+                    ast::ConstDef(it) => {
+                        let def = Const::from_source(db, src.with_value(it))?;
+                        DefWithBodyId::from(def.id)
+                            .child_by_source(db)
+                    },
+                    _ => { continue },
+                }
+            };
+            return Some(res);
+        }
+
+        let module_source = ModuleSource::from_child_node(db, src);
+        let c = Module::from_definition(db, src.with_value(module_source))?;
+        Some(c.id.child_by_source(db))
     }
-
-    let module_source = ModuleSource::from_child_node(db, src);
-    let c = Module::from_definition(db, src.with_value(module_source))?;
-    Some(c.id.child_by_source(db))
 }

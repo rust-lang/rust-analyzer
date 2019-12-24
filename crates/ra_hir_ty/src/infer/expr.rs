@@ -8,7 +8,7 @@ use hir_def::{
     expr::{Array, BinaryOp, Expr, ExprId, Literal, Statement, UnaryOp},
     path::{GenericArg, GenericArgs},
     resolver::resolver_for_expr,
-    AdtId, ContainerId, Lookup, StructFieldId,
+    AdtId, AssocContainerId, Lookup, StructFieldId,
 };
 use hir_expand::name::{name, Name};
 use ra_syntax::ast::RangeOp;
@@ -41,7 +41,7 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
 
     /// Infer type of expression with possibly implicit coerce to the expected type.
     /// Return the type after possible coercion.
-    fn infer_expr_coerce(&mut self, expr: ExprId, expected: &Expectation) -> Ty {
+    pub(super) fn infer_expr_coerce(&mut self, expr: ExprId, expected: &Expectation) -> Ty {
         let ty = self.infer_expr_inner(expr, &expected);
         let ty = if !self.coerce(&ty, &expected.ty) {
             self.result
@@ -102,7 +102,7 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
                 self.infer_expr(*body, &Expectation::has_type(Ty::unit()));
                 Ty::unit()
             }
-            Expr::Lambda { body, args, arg_types } => {
+            Expr::Lambda { body, args, ret_type, arg_types } => {
                 assert_eq!(args.len(), arg_types.len());
 
                 let mut sig_tys = Vec::new();
@@ -118,7 +118,10 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
                 }
 
                 // add return type
-                let ret_ty = self.table.new_type_var();
+                let ret_ty = match ret_type {
+                    Some(type_ref) => self.make_ty(type_ref),
+                    None => self.table.new_type_var(),
+                };
                 sig_tys.push(ret_ty.clone());
                 let sig_ty = Ty::apply(
                     TypeCtor::FnPtr { num_args: sig_tys.len() as u16 - 1 },
@@ -134,7 +137,12 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
                 // infer the body.
                 self.coerce(&closure_ty, &expected.ty);
 
-                self.infer_expr(*body, &Expectation::has_type(ret_ty));
+                let prev_ret_ty = std::mem::replace(&mut self.return_ty, ret_ty.clone());
+
+                self.infer_expr_coerce(*body, &Expectation::has_type(ret_ty));
+
+                self.return_ty = prev_ret_ty;
+
                 closure_ty
             }
             Expr::Call { callee, args } => {
@@ -192,6 +200,9 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
             Expr::Return { expr } => {
                 if let Some(expr) = expr {
                     self.infer_expr_coerce(*expr, &Expectation::has_type(self.return_ty.clone()));
+                } else {
+                    let unit = Ty::unit();
+                    self.coerce(&unit, &self.return_ty.clone());
                 }
                 Ty::simple(TypeCtor::Never)
             }
@@ -422,10 +433,14 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
                 }
             }
             Expr::Index { base, index } => {
-                let _base_ty = self.infer_expr_inner(*base, &Expectation::none());
-                let _index_ty = self.infer_expr(*index, &Expectation::none());
-                // FIXME: use `std::ops::Index::Output` to figure out the real return type
-                Ty::Unknown
+                let base_ty = self.infer_expr_inner(*base, &Expectation::none());
+                let index_ty = self.infer_expr(*index, &Expectation::none());
+
+                self.resolve_associated_type_with_params(
+                    base_ty,
+                    self.resolve_ops_index_output(),
+                    &[index_ty],
+                )
             }
             Expr::Tuple { exprs } => {
                 let mut tys = match &expected.ty {
@@ -672,7 +687,7 @@ impl<'a, D: HirDatabase> InferenceContext<'a, D> {
                 // add obligation for trait implementation, if this is a trait method
                 match def {
                     CallableDef::FunctionId(f) => {
-                        if let ContainerId::TraitId(trait_) = f.lookup(self.db).container {
+                        if let AssocContainerId::TraitId(trait_) = f.lookup(self.db).container {
                             // construct a TraitDef
                             let substs =
                                 a_ty.parameters.prefix(generics(self.db, trait_.into()).len());

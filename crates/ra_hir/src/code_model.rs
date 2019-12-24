@@ -11,9 +11,9 @@ use hir_def::{
     per_ns::PerNs,
     resolver::HasResolver,
     type_ref::{Mutability, TypeRef},
-    AdtId, ConstId, ContainerId, DefWithBodyId, EnumId, FunctionId, HasModule, ImplId,
-    LocalEnumVariantId, LocalImportId, LocalModuleId, LocalStructFieldId, Lookup, ModuleId,
-    StaticId, StructId, TraitId, TypeAliasId, TypeParamId, UnionId,
+    AdtId, ConstId, DefWithBodyId, EnumId, FunctionId, HasModule, ImplId, LocalEnumVariantId,
+    LocalModuleId, LocalStructFieldId, Lookup, ModuleId, StaticId, StructId, TraitId, TypeAliasId,
+    TypeParamId, UnionId,
 };
 use hir_expand::{
     diagnostics::DiagnosticSink,
@@ -180,13 +180,11 @@ impl Module {
     }
 
     /// Returns a `ModuleScope`: a set of items, visible in this module.
-    pub fn scope(self, db: &impl HirDatabase) -> Vec<(Name, ScopeDef, Option<Import>)> {
+    pub fn scope(self, db: &impl HirDatabase) -> Vec<(Name, ScopeDef)> {
         db.crate_def_map(self.id.krate)[self.id.local_id]
             .scope
             .entries()
-            .map(|(name, res)| {
-                (name.clone(), res.def.into(), res.import.map(|id| Import { parent: self, id }))
-            })
+            .map(|(name, def)| (name.clone(), def.into()))
             .collect()
     }
 
@@ -221,17 +219,12 @@ impl Module {
 
     pub fn impl_blocks(self, db: &impl DefDatabase) -> Vec<ImplBlock> {
         let def_map = db.crate_def_map(self.id.krate);
-        def_map[self.id.local_id].impls.iter().copied().map(ImplBlock::from).collect()
+        def_map[self.id.local_id].scope.impls().map(ImplBlock::from).collect()
     }
 
     pub(crate) fn with_module_id(self, module_id: LocalModuleId) -> Module {
         Module::new(self.krate(), module_id)
     }
-}
-
-pub struct Import {
-    pub(crate) parent: Module,
-    pub(crate) id: LocalImportId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -269,7 +262,7 @@ pub struct Struct {
 
 impl Struct {
     pub fn module(self, db: &impl DefDatabase) -> Module {
-        Module { id: self.id.lookup(db).container }
+        Module { id: self.id.lookup(db).container.module(db) }
     }
 
     pub fn krate(self, db: &impl DefDatabase) -> Option<Crate> {
@@ -290,7 +283,7 @@ impl Struct {
     }
 
     pub fn ty(self, db: &impl HirDatabase) -> Type {
-        Type::from_def(db, self.id.lookup(db).container.krate, self.id)
+        Type::from_def(db, self.id.lookup(db).container.module(db).krate, self.id)
     }
 
     fn variant_data(self, db: &impl DefDatabase) -> Arc<VariantData> {
@@ -309,11 +302,11 @@ impl Union {
     }
 
     pub fn module(self, db: &impl DefDatabase) -> Module {
-        Module { id: self.id.lookup(db).container }
+        Module { id: self.id.lookup(db).container.module(db) }
     }
 
     pub fn ty(self, db: &impl HirDatabase) -> Type {
-        Type::from_def(db, self.id.lookup(db).container.krate, self.id)
+        Type::from_def(db, self.id.lookup(db).container.module(db).krate, self.id)
     }
 
     pub fn fields(self, db: &impl HirDatabase) -> Vec<StructField> {
@@ -337,7 +330,7 @@ pub struct Enum {
 
 impl Enum {
     pub fn module(self, db: &impl DefDatabase) -> Module {
-        Module { id: self.id.lookup(db).container }
+        Module { id: self.id.lookup(db).container.module(db) }
     }
 
     pub fn krate(self, db: &impl DefDatabase) -> Option<Crate> {
@@ -357,7 +350,7 @@ impl Enum {
     }
 
     pub fn ty(self, db: &impl HirDatabase) -> Type {
-        Type::from_def(db, self.id.lookup(db).container.krate, self.id)
+        Type::from_def(db, self.id.lookup(db).container.module(db).krate, self.id)
     }
 }
 
@@ -529,30 +522,6 @@ impl Const {
     pub fn name(self, db: &impl HirDatabase) -> Option<Name> {
         db.const_data(self.id).name.clone()
     }
-
-    /// The containing impl block, if this is a type alias.
-    pub fn impl_block(self, db: &impl DefDatabase) -> Option<ImplBlock> {
-        match self.container(db) {
-            Some(Container::ImplBlock(it)) => Some(it),
-            _ => None,
-        }
-    }
-
-    /// The containing trait, if this is a trait type alias definition.
-    pub fn parent_trait(self, db: &impl DefDatabase) -> Option<Trait> {
-        match self.container(db) {
-            Some(Container::Trait(it)) => Some(it),
-            _ => None,
-        }
-    }
-
-    pub fn container(self, db: &impl DefDatabase) -> Option<Container> {
-        match self.id.lookup(db).container {
-            ContainerId::TraitId(it) => Some(Container::Trait(it.into())),
-            ContainerId::ImplId(it) => Some(Container::ImplBlock(it.into())),
-            ContainerId::ModuleId(_) => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -577,7 +546,7 @@ pub struct Trait {
 
 impl Trait {
     pub fn module(self, db: &impl DefDatabase) -> Module {
-        Module { id: self.id.lookup(db).container }
+        Module { id: self.id.lookup(db).container.module(db) }
     }
 
     pub fn name(self, db: &impl DefDatabase) -> Name {
@@ -612,30 +581,6 @@ impl TypeAlias {
         Some(self.module(db).krate())
     }
 
-    /// The containing impl block, if this is a type alias.
-    pub fn impl_block(self, db: &impl DefDatabase) -> Option<ImplBlock> {
-        match self.container(db) {
-            Some(Container::ImplBlock(it)) => Some(it),
-            _ => None,
-        }
-    }
-
-    /// The containing trait, if this is a trait type alias definition.
-    pub fn parent_trait(self, db: &impl DefDatabase) -> Option<Trait> {
-        match self.container(db) {
-            Some(Container::Trait(it)) => Some(it),
-            _ => None,
-        }
-    }
-
-    pub fn container(self, db: &impl DefDatabase) -> Option<Container> {
-        match self.id.lookup(db).container {
-            ContainerId::TraitId(it) => Some(Container::Trait(it.into())),
-            ContainerId::ImplId(it) => Some(Container::ImplBlock(it.into())),
-            ContainerId::ModuleId(_) => None,
-        }
-    }
-
     pub fn type_ref(self, db: &impl DefDatabase) -> Option<TypeRef> {
         db.type_alias_data(self.id).type_ref.clone()
     }
@@ -653,14 +598,6 @@ impl TypeAlias {
 pub struct MacroDef {
     pub(crate) id: MacroDefId,
 }
-
-impl MacroDef {}
-
-pub enum Container {
-    Trait(Trait),
-    ImplBlock(ImplBlock),
-}
-impl_froms!(Container: Trait, ImplBlock);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum AssocItem {
@@ -810,7 +747,7 @@ impl ImplBlock {
         let environment = TraitEnvironment::lower(db, &resolver);
         let ty = Ty::from_hir(db, &resolver, &impl_data.target_type);
         Type {
-            krate: self.id.lookup(db).container.krate,
+            krate: self.id.lookup(db).container.module(db).krate,
             ty: InEnvironment { value: ty, environment },
         }
     }
@@ -824,7 +761,7 @@ impl ImplBlock {
     }
 
     pub fn module(&self, db: &impl DefDatabase) -> Module {
-        self.id.lookup(db).container.into()
+        self.id.lookup(db).container.module(db).into()
     }
 
     pub fn krate(&self, db: &impl DefDatabase) -> Crate {

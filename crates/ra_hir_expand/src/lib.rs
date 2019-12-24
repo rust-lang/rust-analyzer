@@ -214,21 +214,30 @@ pub struct ExpansionInfo {
     exp_map: Arc<mbe::TokenMap>,
 }
 
+pub use mbe::Origin;
+
 impl ExpansionInfo {
+    pub fn call_node(&self) -> Option<InFile<SyntaxNode>> {
+        Some(self.arg.with_value(self.arg.value.parent()?))
+    }
+
     pub fn map_token_down(&self, token: InFile<&SyntaxToken>) -> Option<InFile<SyntaxToken>> {
         assert_eq!(token.file_id, self.arg.file_id);
         let range = token.value.text_range().checked_sub(self.arg.value.text_range().start())?;
         let token_id = self.macro_arg.1.token_by_range(range)?;
         let token_id = self.macro_def.0.map_id_down(token_id);
 
-        let range = self.exp_map.range_by_token(token_id)?;
+        let range = self.exp_map.range_by_token(token_id)?.by_kind(token.value.kind())?;
 
         let token = algo::find_covering_element(&self.expanded.value, range).into_token()?;
 
         Some(self.expanded.with_value(token))
     }
 
-    pub fn map_token_up(&self, token: InFile<&SyntaxToken>) -> Option<InFile<SyntaxToken>> {
+    pub fn map_token_up(
+        &self,
+        token: InFile<&SyntaxToken>,
+    ) -> Option<(InFile<SyntaxToken>, Origin)> {
         let token_id = self.exp_map.token_by_range(token.value.text_range())?;
 
         let (token_id, origin) = self.macro_def.0.map_id_up(token_id);
@@ -239,10 +248,10 @@ impl ExpansionInfo {
             }
         };
 
-        let range = token_map.range_by_token(token_id)?;
+        let range = token_map.range_by_token(token_id)?.by_kind(token.value.kind())?;
         let token = algo::find_covering_element(&tt.value, range + tt.value.text_range().start())
             .into_token()?;
-        Some(tt.with_value(token))
+        Some((tt.with_value(token), origin))
     }
 }
 
