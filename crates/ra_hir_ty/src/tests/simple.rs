@@ -20,6 +20,7 @@ fn test() {
 mod prelude {}
 
 mod boxed {
+    #[lang = "owned_box"]
     pub struct Box<T: ?Sized> {
         inner: *mut T,
     }
@@ -1518,6 +1519,7 @@ fn test() {
     [167; 179) 'GLOBAL_CONST': u32
     [189; 191) 'id': u32
     [194; 210) 'Foo::A..._CONST': u32
+    [126; 128) '99': u32
     "###
     );
 }
@@ -1549,6 +1551,8 @@ fn test() {
     [233; 246) 'GLOBAL_STATIC': u32
     [256; 257) 'w': u32
     [260; 277) 'GLOBAL...IC_MUT': u32
+    [118; 120) '99': u32
+    [161; 163) '99': u32
     "###
     );
 }

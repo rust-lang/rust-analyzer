@@ -18,7 +18,7 @@
     "scripts": {
         "vscode:prepublish": "npm run compile",
         "package": "vsce package",
-        "compile": "rollup -c && shx cp src/utils/terminateProcess.sh bundle/terminateProcess.sh",
+        "compile": "rollup -c",
         "watch": "tsc -watch -p ./",
         "fix": "prettier **/*.{json,ts} --write && tslint --project . --fix",
         "lint": "tslint --project .",
@@ -34,7 +34,8 @@
     "dependencies": {
         "lookpath": "^1.0.4",
         "seedrandom": "^3.0.5",
-        "vscode-languageclient": "^6.0.0-next.9"
+        "vscode-languageclient": "^6.0.0-next.9",
+        "jsonc-parser": "^2.1.0"
     },
     "devDependencies": {
         "@types/glob": "^7.1.1",
@@ -133,16 +134,6 @@
                 "command": "rust-analyzer.reload",
                 "title": "Restart server",
                 "category": "Rust Analyzer"
-            },
-            {
-                "command": "rust-analyzer.startCargoWatch",
-                "title": "Start Cargo Watch",
-                "category": "Rust Analyzer"
-            },
-            {
-                "command": "rust-analyzer.stopCargoWatch",
-                "title": "Stop Cargo Watch",
-                "category": "Rust Analyzer"
             }
         ],
         "keybindings": [
@@ -176,6 +167,68 @@
                     "default": false,
                     "description": "Highlight Rust code (overrides built-in syntax highlighting)"
                 },
+                "rust-analyzer.scopeMappings": {
+                    "type": "object",
+                    "definitions": {},
+                    "properties": {
+                        "comment": {
+                            "$ref": "vscode://schemas/textmate-colors#/items/properties/scope"
+                        },
+                        "string": {
+                            "$ref": "vscode://schemas/textmate-colors#/items/properties/scope"
+                        },
+                        "keyword": {
+                            "$ref": "vscode://schemas/textmate-colors#/items/properties/scope"
+                        },
+                        "keyword.control": {
+                            "$ref": "vscode://schemas/textmate-colors#/items/properties/scope"
+                        },
+                        "keyword.unsafe": {
+                            "$ref": "vscode://schemas/textmate-colors#/items/properties/scope"
+                        },
+                        "function": {
+                            "$ref": "vscode://schemas/textmate-colors#/items/properties/scope"
+                        },
+                        "parameter": {
+                            "$ref": "vscode://schemas/textmate-colors#/items/properties/scope"
+                        },
+                        "constant": {
+                            "$ref": "vscode://schemas/textmate-colors#/items/properties/scope"
+                        },
+                        "type": {
+                            "$ref": "vscode://schemas/textmate-colors#/items/properties/scope"
+                        },
+                        "builtin": {
+                            "$ref": "vscode://schemas/textmate-colors#/items/properties/scope"
+                        },
+                        "text": {
+                            "$ref": "vscode://schemas/textmate-colors#/items/properties/scope"
+                        },
+                        "attribute": {
+                            "$ref": "vscode://schemas/textmate-colors#/items/properties/scope"
+                        },
+                        "literal": {
+                            "$ref": "vscode://schemas/textmate-colors#/items/properties/scope"
+                        },
+                        "macro": {
+                            "$ref": "vscode://schemas/textmate-colors#/items/properties/scope"
+                        },
+                        "variable": {
+                            "$ref": "vscode://schemas/textmate-colors#/items/properties/scope"
+                        },
+                        "variable.mut": {
+                            "$ref": "vscode://schemas/textmate-colors#/items/properties/scope"
+                        },
+                        "field": {
+                            "$ref": "vscode://schemas/textmate-colors#/items/properties/scope"
+                        },
+                        "module": {
+                            "$ref": "vscode://schemas/textmate-colors#/items/properties/scope"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "description": "Mapping Rust Analyzer scopes to TextMateRule scopes list."
+                },
                 "rust-analyzer.rainbowHighlightingOn": {
                     "type": "boolean",
                     "default": false,
@@ -198,21 +251,6 @@
                     "default": "ra_lsp_server",
                     "description": "Path to ra_lsp_server executable"
                 },
-                "rust-analyzer.enableCargoWatchOnStartup": {
-                    "type": "string",
-                    "default": "ask",
-                    "enum": [
-                        "ask",
-                        "enabled",
-                        "disabled"
-                    ],
-                    "enumDescriptions": [
-                        "Asks each time whether to run `cargo watch`",
-                        "`cargo watch` is always started",
-                        "Don't start `cargo watch`"
-                    ],
-                    "description": "Whether to run `cargo watch` on startup"
-                },
                 "rust-analyzer.excludeGlobs": {
                     "type": "array",
                     "default": [],
@@ -223,20 +261,20 @@
                     "default": true,
                     "description": "client provided file watching instead of notify watching."
                 },
+                "rust-analyzer.cargo-watch.enable": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Run `cargo check` for diagnostics on save"
+                },
                 "rust-analyzer.cargo-watch.arguments": {
-                    "type": "string",
+                    "type": "array",
                     "description": "`cargo-watch` arguments. (e.g: `--features=\"shumway,pdf\"` will run as `cargo watch -x \"check --features=\"shumway,pdf\"\"` )",
-                    "default": ""
+                    "default": []
                 },
                 "rust-analyzer.cargo-watch.command": {
                     "type": "string",
                     "description": "`cargo-watch` command. (e.g: `clippy` will run as `cargo watch -x clippy` )",
                     "default": "check"
-                },
-                "rust-analyzer.cargo-watch.ignore": {
-                    "type": "array",
-                    "description": "A list of patterns for cargo-watch to ignore (will be passed as `--ignore`)",
-                    "default": []
                 },
                 "rust-analyzer.cargo-watch.allTargets": {
                     "type": "boolean",
@@ -258,17 +296,6 @@
                     ],
                     "default": "off",
                     "description": "Trace requests to the ra_lsp_server"
-                },
-                "rust-analyzer.trace.cargo-watch": {
-                    "type": "string",
-                    "scope": "window",
-                    "enum": [
-                        "off",
-                        "error",
-                        "verbose"
-                    ],
-                    "default": "off",
-                    "description": "Trace output of cargo-watch"
                 },
                 "rust-analyzer.lruCapacity": {
                     "type": "number",

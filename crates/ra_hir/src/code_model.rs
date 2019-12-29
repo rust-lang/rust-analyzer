@@ -118,7 +118,7 @@ impl_froms!(
     BuiltinType
 );
 
-pub use hir_def::attr::Attrs;
+pub use hir_def::{attr::Attrs, visibility::Visibility};
 
 impl Module {
     pub(crate) fn new(krate: Crate, crate_module_id: LocalModuleId) -> Module {
@@ -252,6 +252,15 @@ impl StructField {
 
     pub fn parent_def(&self, _db: &impl HirDatabase) -> VariantDef {
         self.parent
+    }
+}
+
+impl HasVisibility for StructField {
+    fn visibility(&self, db: &impl HirDatabase) -> Visibility {
+        let variant_data = self.parent.variant_data(db);
+        let visibility = &variant_data.fields()[self.id].visibility;
+        let parent_id: hir_def::VariantId = self.parent.into();
+        visibility.resolve(db, &parent_id.resolver(db))
     }
 }
 
@@ -644,6 +653,17 @@ impl_froms!(
     Const
 );
 
+impl GenericDef {
+    pub fn params(self, db: &impl HirDatabase) -> Vec<TypeParam> {
+        let generics: Arc<hir_def::generics::GenericParams> = db.generic_params(self.into());
+        generics
+            .types
+            .iter()
+            .map(|(local_id, _)| TypeParam { id: TypeParamId { parent: self.into(), local_id } })
+            .collect()
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Local {
     pub(crate) parent: DefWithBody,
@@ -1028,5 +1048,13 @@ impl<T: Into<AttrDef> + Copy> Docs for T {
     fn docs(&self, db: &impl HirDatabase) -> Option<Documentation> {
         let def: AttrDef = (*self).into();
         db.documentation(def.into())
+    }
+}
+
+pub trait HasVisibility {
+    fn visibility(&self, db: &impl HirDatabase) -> Visibility;
+    fn is_visible_from(&self, db: &impl HirDatabase, module: Module) -> bool {
+        let vis = self.visibility(db);
+        vis.is_visible_from(db, module.id)
     }
 }
