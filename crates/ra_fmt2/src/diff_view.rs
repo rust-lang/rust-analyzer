@@ -16,7 +16,7 @@ use std::collections::BTreeSet;
 /// SpaceEdit enum keeps track of edit kind and holds edit location and text.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum SpaceEdit {
-    /// Replace holds position of token, text to insert and lenghth of replaced text.
+    /// Replace holds position of token, text to insert and length of replaced text.
     Replace((isize, SmolStr), (isize, isize)),
     /// Insert holds position of token, text to insert.
     Insert((isize, SmolStr)),

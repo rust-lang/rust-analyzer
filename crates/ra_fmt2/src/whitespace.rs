@@ -403,7 +403,7 @@ impl Whitespace {
                 self.new_line.1 = true;
                 // remove space if any
                 self.text_len.1 = 0;
-;            },
+            },
             SpaceValue::SingleOptionalNewline => {
                 if self.siblings_contain("\n") {
                     self.new_line.1 = true;
@@ -426,7 +426,7 @@ impl Whitespace {
             SpaceValue::Newline => {
                 self.new_line.0 = true;
                 self.text_len.0 = 0;
-;            },
+            },
             SpaceValue::SingleOptionalNewline => {
                 if self.siblings_contain("\n") {
                     self.new_line.0 = true;
