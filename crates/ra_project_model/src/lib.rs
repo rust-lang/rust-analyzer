@@ -411,3 +411,40 @@ pub fn get_rustc_cfg_options() -> CfgOptions {
 
     cfg_options
 }
+
+pub fn get_rustc_cfg_options() -> CfgOptions {
+    let mut cfg_options = CfgOptions::default();
+
+    // Some nightly-only cfgs, which are required for stdlib
+    {
+        cfg_options.insert_atom("target_thread_local".into());
+        for &target_has_atomic in ["16", "32", "64", "8", "cas", "ptr"].iter() {
+            cfg_options.insert_key_value("target_has_atomic".into(), target_has_atomic.into())
+        }
+    }
+
+    match (|| -> Result<_> {
+        // `cfg(test)` and `cfg(debug_assertion)` are handled outside, so we suppress them here.
+        let output = Command::new("rustc").args(&["--print", "cfg", "-O"]).output()?;
+        if !output.status.success() {
+            Err("failed to get rustc cfgs")?;
+        }
+        Ok(String::from_utf8(output.stdout)?)
+    })() {
+        Ok(rustc_cfgs) => {
+            for line in rustc_cfgs.lines() {
+                match line.find('=') {
+                    None => cfg_options.insert_atom(line.into()),
+                    Some(pos) => {
+                        let key = &line[..pos];
+                        let value = line[pos + 1..].trim_matches('"');
+                        cfg_options.insert_key_value(key.into(), value.into());
+                    }
+                }
+            }
+        }
+        Err(e) => log::error!("failed to get rustc cfgs: {}", e),
+    }
+
+    cfg_options
+}

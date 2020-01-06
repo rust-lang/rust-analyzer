@@ -3114,9 +3114,6 @@ impl TypeArgList {
     pub fn assoc_type_args(&self) -> AstChildren<AssocTypeArg> {
         AstChildren::new(&self.syntax)
     }
-    pub fn const_arg(&self) -> AstChildren<ConstArg> {
-        AstChildren::new(&self.syntax)
-    }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeArg {
@@ -3199,36 +3196,6 @@ impl AstNode for LifetimeArg {
 }
 impl LifetimeArg {}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ConstArg {
-    pub(crate) syntax: SyntaxNode,
-}
-impl AstNode for ConstArg {
-    fn can_cast(kind: SyntaxKind) -> bool {
-        match kind {
-            CONST_ARG => true,
-            _ => false,
-        }
-    }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
-        if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
-        } else {
-            None
-        }
-    }
-    fn syntax(&self) -> &SyntaxNode {
-        &self.syntax
-    }
-}
-impl ConstArg {
-    pub fn literal(&self) -> Option<Literal> {
-        AstChildren::new(&self.syntax).next()
-    }
-    pub fn block_expr(&self) -> Option<BlockExpr> {
-        AstChildren::new(&self.syntax).next()
-    }
-}
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroItems {
     pub(crate) syntax: SyntaxNode,
 }
@@ -3283,6 +3250,54 @@ impl MacroStmts {
         AstChildren::new(&self.syntax).next()
     }
 }
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum NominalDef {
+    StructDef(StructDef),
+    EnumDef(EnumDef),
+    UnionDef(UnionDef),
+}
+impl From<StructDef> for NominalDef {
+    fn from(node: StructDef) -> NominalDef {
+        NominalDef::StructDef(node)
+    }
+}
+impl From<EnumDef> for NominalDef {
+    fn from(node: EnumDef) -> NominalDef {
+        NominalDef::EnumDef(node)
+    }
+}
+impl From<UnionDef> for NominalDef {
+    fn from(node: UnionDef) -> NominalDef {
+        NominalDef::UnionDef(node)
+    }
+}
+impl AstNode for NominalDef {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            STRUCT_DEF | ENUM_DEF | UNION_DEF => true,
+            _ => false,
+        }
+    }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        let res = match syntax.kind() {
+            STRUCT_DEF => NominalDef::StructDef(StructDef { syntax }),
+            ENUM_DEF => NominalDef::EnumDef(EnumDef { syntax }),
+            UNION_DEF => NominalDef::UnionDef(UnionDef { syntax }),
+            _ => return None,
+        };
+        Some(res)
+    }
+    fn syntax(&self) -> &SyntaxNode {
+        match self {
+            NominalDef::StructDef(it) => &it.syntax,
+            NominalDef::EnumDef(it) => &it.syntax,
+            NominalDef::UnionDef(it) => &it.syntax,
+        }
+    }
+}
+impl ast::NameOwner for NominalDef {}
+impl ast::TypeParamsOwner for NominalDef {}
+impl ast::AttrsOwner for NominalDef {}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum NominalDef {
     StructDef(StructDef),

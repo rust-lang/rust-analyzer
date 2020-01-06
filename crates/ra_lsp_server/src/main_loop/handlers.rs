@@ -13,8 +13,7 @@ use lsp_types::{
     Range, RenameParams, SymbolInformation, TextDocumentIdentifier, TextEdit, WorkspaceEdit,
 };
 use ra_ide::{
-    AssistId, FileId, FilePosition, FileRange, Query, RangeInfo, Runnable, RunnableKind,
-    SearchScope,
+    AssistId, FileId, FilePosition, FileRange, Query, Runnable, RunnableKind, SearchScope,
 };
 use ra_prof::profile;
 use ra_syntax::{AstNode, SyntaxKind, TextRange, TextUnit};
@@ -24,10 +23,7 @@ use serde_json::to_value;
 
 use crate::{
     cargo_target_spec::{runnable_args, CargoTargetSpec},
-    conv::{
-        to_call_hierarchy_item, to_location, Conv, ConvWith, FoldConvCtx, MapConvWith, TryConvWith,
-        TryConvWithToVec,
-    },
+    conv::{to_location, Conv, ConvWith, FoldConvCtx, MapConvWith, TryConvWith, TryConvWithToVec},
     req::{self, Decoration, InlayHint, InlayHintsParams, InlayKind},
     world::WorldSnapshot,
     LspError, Result,
@@ -536,32 +532,18 @@ pub fn handle_references(
 
     let locations = if params.context.include_declaration {
         refs.into_iter()
-            .filter_map(|reference| {
-                let line_index =
-                    world.analysis().file_line_index(reference.file_range.file_id).ok()?;
-                to_location(
-                    reference.file_range.file_id,
-                    reference.file_range.range,
-                    &world,
-                    &line_index,
-                )
-                .ok()
+            .filter_map(|r| {
+                let line_index = world.analysis().file_line_index(r.file_id).ok()?;
+                to_location(r.file_id, r.range, &world, &line_index).ok()
             })
             .collect()
     } else {
         // Only iterate over the references if include_declaration was false
         refs.references()
             .iter()
-            .filter_map(|reference| {
-                let line_index =
-                    world.analysis().file_line_index(reference.file_range.file_id).ok()?;
-                to_location(
-                    reference.file_range.file_id,
-                    reference.file_range.range,
-                    &world,
-                    &line_index,
-                )
-                .ok()
+            .filter_map(|r| {
+                let line_index = world.analysis().file_line_index(r.file_id).ok()?;
+                to_location(r.file_id, r.range, &world, &line_index).ok()
             })
             .collect()
     };
@@ -850,11 +832,8 @@ pub fn handle_document_highlight(
 
     Ok(Some(
         refs.into_iter()
-            .filter(|reference| reference.file_range.file_id == file_id)
-            .map(|reference| DocumentHighlight {
-                range: reference.file_range.range.conv_with(&line_index),
-                kind: reference.access.map(|it| it.conv()),
-            })
+            .filter(|r| r.file_id == file_id)
+            .map(|r| DocumentHighlight { range: r.range.conv_with(&line_index), kind: None })
             .collect(),
     ))
 }
