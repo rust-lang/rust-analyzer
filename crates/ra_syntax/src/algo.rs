@@ -1,8 +1,10 @@
-pub mod visit;
+//! FIXME: write short doc here
 
 use std::ops::RangeInclusive;
 
 use itertools::Itertools;
+use ra_text_edit::TextEditBuilder;
+use rustc_hash::FxHashMap;
 
 use crate::{
     AstNode, Direction, NodeOrToken, SyntaxElement, SyntaxNode, SyntaxNodePtr, TextRange, TextUnit,
@@ -62,6 +64,60 @@ pub enum InsertPosition<T> {
     After(T),
 }
 
+pub struct TreeDiff {
+    replacements: FxHashMap<SyntaxElement, SyntaxElement>,
+}
+
+impl TreeDiff {
+    pub fn into_text_edit(&self, builder: &mut TextEditBuilder) {
+        for (from, to) in self.replacements.iter() {
+            builder.replace(from.text_range(), to.to_string())
+        }
+    }
+}
+
+/// Finds minimal the diff, which, applied to `from`, will result in `to`.
+///
+/// Specifically, returns a map whose keys are descendants of `from` and values
+/// are descendants of `to`, such that  `replace_descendants(from, map) == to`.
+///
+/// A trivial solution is a singletom map `{ from: to }`, but this function
+/// tries to find a more fine-grained diff.
+pub fn diff(from: &SyntaxNode, to: &SyntaxNode) -> TreeDiff {
+    let mut buf = FxHashMap::default();
+    // FIXME: this is both horrible inefficient and gives larger than
+    // necessary diff. I bet there's a cool algorithm to diff trees properly.
+    go(&mut buf, from.clone().into(), to.clone().into());
+    return TreeDiff { replacements: buf };
+
+    fn go(
+        buf: &mut FxHashMap<SyntaxElement, SyntaxElement>,
+        lhs: SyntaxElement,
+        rhs: SyntaxElement,
+    ) {
+        if lhs.kind() == rhs.kind() && lhs.text_range().len() == rhs.text_range().len() {
+            if match (&lhs, &rhs) {
+                (NodeOrToken::Node(lhs), NodeOrToken::Node(rhs)) => {
+                    lhs.green() == rhs.green() || lhs.text() == rhs.text()
+                }
+                (NodeOrToken::Token(lhs), NodeOrToken::Token(rhs)) => lhs.text() == rhs.text(),
+                _ => false,
+            } {
+                return;
+            }
+        }
+        if let (Some(lhs), Some(rhs)) = (lhs.as_node(), rhs.as_node()) {
+            if lhs.children_with_tokens().count() == rhs.children_with_tokens().count() {
+                for (lhs, rhs) in lhs.children_with_tokens().zip(rhs.children_with_tokens()) {
+                    go(buf, lhs, rhs)
+                }
+                return;
+            }
+        }
+        buf.insert(lhs, rhs);
+    }
+}
+
 /// Adds specified children (tokens or nodes) to the current node at the
 /// specific position.
 ///
@@ -70,7 +126,7 @@ pub enum InsertPosition<T> {
 pub fn insert_children(
     parent: &SyntaxNode,
     position: InsertPosition<SyntaxElement>,
-    to_insert: impl Iterator<Item = SyntaxElement>,
+    to_insert: &mut dyn Iterator<Item = SyntaxElement>,
 ) -> SyntaxNode {
     let mut delta = TextUnit::default();
     let to_insert = to_insert.map(|element| {
@@ -78,23 +134,19 @@ pub fn insert_children(
         to_green_element(element)
     });
 
-    let old_children = parent.green().children();
+    let mut old_children = parent.green().children().map(|it| match it {
+        NodeOrToken::Token(it) => NodeOrToken::Token(it.clone()),
+        NodeOrToken::Node(it) => NodeOrToken::Node(it.clone()),
+    });
 
     let new_children = match &position {
-        InsertPosition::First => {
-            to_insert.chain(old_children.iter().cloned()).collect::<Box<[_]>>()
-        }
-        InsertPosition::Last => old_children.iter().cloned().chain(to_insert).collect::<Box<[_]>>(),
+        InsertPosition::First => to_insert.chain(old_children).collect::<Vec<_>>(),
+        InsertPosition::Last => old_children.chain(to_insert).collect::<Vec<_>>(),
         InsertPosition::Before(anchor) | InsertPosition::After(anchor) => {
             let take_anchor = if let InsertPosition::After(_) = position { 1 } else { 0 };
             let split_at = position_of_child(parent, anchor.clone()) + take_anchor;
-            let (before, after) = old_children.split_at(split_at);
-            before
-                .iter()
-                .cloned()
-                .chain(to_insert)
-                .chain(after.iter().cloned())
-                .collect::<Box<[_]>>()
+            let before = old_children.by_ref().take(split_at).collect::<Vec<_>>();
+            before.into_iter().chain(to_insert).chain(old_children).collect::<Vec<_>>()
         }
     };
 
@@ -108,24 +160,58 @@ pub fn insert_children(
 pub fn replace_children(
     parent: &SyntaxNode,
     to_delete: RangeInclusive<SyntaxElement>,
-    to_insert: impl Iterator<Item = SyntaxElement>,
+    to_insert: &mut dyn Iterator<Item = SyntaxElement>,
 ) -> SyntaxNode {
     let start = position_of_child(parent, to_delete.start().clone());
     let end = position_of_child(parent, to_delete.end().clone());
-    let old_children = parent.green().children();
+    let mut old_children = parent.green().children().map(|it| match it {
+        NodeOrToken::Token(it) => NodeOrToken::Token(it.clone()),
+        NodeOrToken::Node(it) => NodeOrToken::Node(it.clone()),
+    });
 
-    let new_children = old_children[..start]
-        .iter()
-        .cloned()
+    let before = old_children.by_ref().take(start).collect::<Vec<_>>();
+    let new_children = before
+        .into_iter()
         .chain(to_insert.map(to_green_element))
-        .chain(old_children[end + 1..].iter().cloned())
-        .collect::<Box<[_]>>();
+        .chain(old_children.skip(end + 1 - start))
+        .collect::<Vec<_>>();
     with_children(parent, new_children)
+}
+
+/// Replaces descendants in the node, according to the mapping.
+///
+/// This is a type-unsafe low-level editing API, if you need to use it, prefer
+/// to create a type-safe abstraction on top of it instead.
+pub fn replace_descendants(
+    parent: &SyntaxNode,
+    map: &FxHashMap<SyntaxElement, SyntaxElement>,
+) -> SyntaxNode {
+    //  FIXME: this could be made much faster.
+    let new_children = parent.children_with_tokens().map(|it| go(map, it)).collect::<Vec<_>>();
+    return with_children(parent, new_children);
+
+    fn go(
+        map: &FxHashMap<SyntaxElement, SyntaxElement>,
+        element: SyntaxElement,
+    ) -> NodeOrToken<rowan::GreenNode, rowan::GreenToken> {
+        if let Some(replacement) = map.get(&element) {
+            return match replacement {
+                NodeOrToken::Node(it) => NodeOrToken::Node(it.green().clone()),
+                NodeOrToken::Token(it) => NodeOrToken::Token(it.green().clone()),
+            };
+        }
+        match element {
+            NodeOrToken::Token(it) => NodeOrToken::Token(it.green().clone()),
+            NodeOrToken::Node(it) => {
+                NodeOrToken::Node(replace_descendants(&it, map).green().clone())
+            }
+        }
+    }
 }
 
 fn with_children(
     parent: &SyntaxNode,
-    new_children: Box<[NodeOrToken<rowan::GreenNode, rowan::GreenToken>]>,
+    new_children: Vec<NodeOrToken<rowan::GreenNode, rowan::GreenToken>>,
 ) -> SyntaxNode {
     let len = new_children.iter().map(|it| it.text_len()).sum::<TextUnit>();
     let new_node =

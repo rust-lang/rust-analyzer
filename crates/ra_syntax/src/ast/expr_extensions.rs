@@ -9,12 +9,12 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ElseBranch {
-    Block(ast::Block),
+    Block(ast::BlockExpr),
     IfExpr(ast::IfExpr),
 }
 
 impl ast::IfExpr {
-    pub fn then_branch(&self) -> Option<ast::Block> {
+    pub fn then_branch(&self) -> Option<ast::BlockExpr> {
         self.blocks().nth(0)
     }
     pub fn else_branch(&self) -> Option<ElseBranch> {
@@ -28,7 +28,7 @@ impl ast::IfExpr {
         Some(res)
     }
 
-    fn blocks(&self) -> AstChildren<ast::Block> {
+    fn blocks(&self) -> AstChildren<ast::BlockExpr> {
         children(self)
     }
 }
@@ -126,8 +126,26 @@ pub enum BinOp {
     BitXorAssign,
 }
 
+impl BinOp {
+    pub fn is_assignment(&self) -> bool {
+        match *self {
+            BinOp::Assignment
+            | BinOp::AddAssign
+            | BinOp::DivAssign
+            | BinOp::MulAssign
+            | BinOp::RemAssign
+            | BinOp::ShrAssign
+            | BinOp::ShlAssign
+            | BinOp::SubAssign
+            | BinOp::BitOrAssign
+            | BinOp::BitAndAssign
+            | BinOp::BitXorAssign => true,
+            _ => false,
+        }
+    }
+}
 impl ast::BinExpr {
-    fn op_details(&self) -> Option<(SyntaxToken, BinOp)> {
+    pub fn op_details(&self) -> Option<(SyntaxToken, BinOp)> {
         self.syntax().children_with_tokens().filter_map(|it| it.into_token()).find_map(|c| {
             let bin_op = match c.kind() {
                 T![||] => BinOp::BooleanOr,
@@ -186,6 +204,52 @@ impl ast::BinExpr {
         let first = children.next();
         let second = children.next();
         (first, second)
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum RangeOp {
+    /// `..`
+    Exclusive,
+    /// `..=`
+    Inclusive,
+}
+
+impl ast::RangeExpr {
+    fn op_details(&self) -> Option<(usize, SyntaxToken, RangeOp)> {
+        self.syntax().children_with_tokens().enumerate().find_map(|(ix, child)| {
+            let token = child.into_token()?;
+            let bin_op = match token.kind() {
+                T![..] => RangeOp::Exclusive,
+                T![..=] => RangeOp::Inclusive,
+                _ => return None,
+            };
+            Some((ix, token, bin_op))
+        })
+    }
+
+    pub fn op_kind(&self) -> Option<RangeOp> {
+        self.op_details().map(|t| t.2)
+    }
+
+    pub fn op_token(&self) -> Option<SyntaxToken> {
+        self.op_details().map(|t| t.1)
+    }
+
+    pub fn start(&self) -> Option<ast::Expr> {
+        let op_ix = self.op_details()?.0;
+        self.syntax()
+            .children_with_tokens()
+            .take(op_ix)
+            .find_map(|it| ast::Expr::cast(it.into_node()?))
+    }
+
+    pub fn end(&self) -> Option<ast::Expr> {
+        let op_ix = self.op_details()?.0;
+        self.syntax()
+            .children_with_tokens()
+            .skip(op_ix + 1)
+            .find_map(|it| ast::Expr::cast(it.into_node()?))
     }
 }
 
@@ -289,6 +353,26 @@ impl ast::Literal {
     }
 }
 
+impl ast::BlockExpr {
+    /// false if the block is an intrinsic part of the syntax and can't be
+    /// replaced with arbitrary expression.
+    ///
+    /// ```not_rust
+    /// fn foo() { not_stand_alone }
+    /// const FOO: () = { stand_alone };
+    /// ```
+    pub fn is_standalone(&self) -> bool {
+        let kind = match self.syntax().parent() {
+            None => return true,
+            Some(it) => it.kind(),
+        };
+        match kind {
+            FN_DEF | MATCH_ARM | IF_EXPR | WHILE_EXPR | LOOP_EXPR | TRY_BLOCK_EXPR => false,
+            _ => true,
+        }
+    }
+}
+
 #[test]
 fn test_literal_with_attr() {
     let parse = ast::SourceFile::parse(r#"const _: &str = { #[attr] "Hello" };"#);
@@ -296,8 +380,8 @@ fn test_literal_with_attr() {
     assert_eq!(lit.token().text(), r#""Hello""#);
 }
 
-impl ast::NamedField {
-    pub fn parent_struct_lit(&self) -> ast::StructLit {
-        self.syntax().ancestors().find_map(ast::StructLit::cast).unwrap()
+impl ast::RecordField {
+    pub fn parent_record_lit(&self) -> ast::RecordLit {
+        self.syntax().ancestors().find_map(ast::RecordLit::cast).unwrap()
     }
 }

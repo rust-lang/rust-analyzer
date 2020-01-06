@@ -1,3 +1,5 @@
+//! FIXME: write short doc here
+
 mod atom;
 
 pub(crate) use self::atom::match_arm_list;
@@ -14,20 +16,17 @@ const EXPR_FIRST: TokenSet = LHS_FIRST;
 
 pub(super) fn expr(p: &mut Parser) -> BlockLike {
     let r = Restrictions { forbid_structs: false, prefer_stmt: false };
-    let mut dollar_lvl = 0;
-    expr_bp(p, r, 1, &mut dollar_lvl).1
+    expr_bp(p, r, 1).1
 }
 
 pub(super) fn expr_stmt(p: &mut Parser) -> (Option<CompletedMarker>, BlockLike) {
     let r = Restrictions { forbid_structs: false, prefer_stmt: true };
-    let mut dollar_lvl = 0;
-    expr_bp(p, r, 1, &mut dollar_lvl)
+    expr_bp(p, r, 1)
 }
 
 fn expr_no_struct(p: &mut Parser) {
     let r = Restrictions { forbid_structs: true, prefer_stmt: false };
-    let mut dollar_lvl = 0;
-    expr_bp(p, r, 1, &mut dollar_lvl);
+    expr_bp(p, r, 1);
 }
 
 // test block
@@ -40,8 +39,13 @@ pub(crate) fn block(p: &mut Parser) {
         p.error("expected a block");
         return;
     }
+    atom::block_expr(p, None);
+}
+
+pub(crate) fn naked_block(p: &mut Parser) {
+    assert!(p.at(T!['{']));
     let m = p.start();
-    p.bump();
+    p.bump(T!['{']);
     expr_block_contents(p);
     p.expect(T!['}']);
     m.complete(p, BLOCK);
@@ -148,7 +152,7 @@ pub(super) fn stmt(p: &mut Parser, with_semi: StmtWithSemi) {
     // }
     fn let_stmt(p: &mut Parser, m: Marker, with_semi: StmtWithSemi) {
         assert!(p.at(T![let]));
-        p.bump();
+        p.bump(T![let]);
         patterns::pattern(p);
         if p.at(T![:]) {
             types::ascription(p);
@@ -192,8 +196,8 @@ pub(crate) fn expr_block_contents(p: &mut Parser) {
         //     struct S {};
         // }
 
-        if p.current() == T![;] {
-            p.bump();
+        if p.at(T![;]) {
+            p.bump(T![;]);
             continue;
         }
 
@@ -207,72 +211,54 @@ struct Restrictions {
     prefer_stmt: bool,
 }
 
-enum Op {
-    Simple,
-    Composite(SyntaxKind, u8),
-}
+/// Binding powers of operators for a Pratt parser.
+///
+/// See https://www.oilshell.org/blog/2016/11/03.html
+#[rustfmt::skip]
+fn current_op(p: &Parser) -> (u8, SyntaxKind) {
+    const NOT_AN_OP: (u8, SyntaxKind) = (0, T![@]);
+    match p.current() {
+        T![|] if p.at(T![||])  => (3,  T![||]),
+        T![|] if p.at(T![|=])  => (1,  T![|=]),
+        T![|]                  => (6,  T![|]),
+        T![>] if p.at(T![>>=]) => (1,  T![>>=]),
+        T![>] if p.at(T![>>])  => (9,  T![>>]),
+        T![>] if p.at(T![>=])  => (5,  T![>=]),
+        T![>]                  => (5,  T![>]),
+        T![=] if p.at(T![=>])  => NOT_AN_OP,
+        T![=] if p.at(T![==])  => (5,  T![==]),
+        T![=]                  => (1,  T![=]),
+        T![<] if p.at(T![<=])  => (5,  T![<=]),
+        T![<] if p.at(T![<<=]) => (1,  T![<<=]),
+        T![<] if p.at(T![<<])  => (9,  T![<<]),
+        T![<]                  => (5,  T![<]),
+        T![+] if p.at(T![+=])  => (1,  T![+=]),
+        T![+]                  => (10, T![+]),
+        T![^] if p.at(T![^=])  => (1,  T![^=]),
+        T![^]                  => (7,  T![^]),
+        T![%] if p.at(T![%=])  => (1,  T![%=]),
+        T![%]                  => (11, T![%]),
+        T![&] if p.at(T![&=])  => (1,  T![&=]),
+        T![&] if p.at(T![&&])  => (4,  T![&&]),
+        T![&]                  => (8,  T![&]),
+        T![/] if p.at(T![/=])  => (1,  T![/=]),
+        T![/]                  => (11, T![/]),
+        T![*] if p.at(T![*=])  => (1,  T![*=]),
+        T![*]                  => (11, T![*]),
+        T![.] if p.at(T![..=]) => (2,  T![..=]),
+        T![.] if p.at(T![..])  => (2,  T![..]),
+        T![!] if p.at(T![!=])  => (5,  T![!=]),
+        T![-] if p.at(T![-=])  => (1,  T![-=]),
+        T![-]                  => (10, T![-]),
+        T![as]                 => (12, T![as]),
 
-fn current_op(p: &Parser) -> (u8, Op) {
-    if let Some(t) = p.current3() {
-        match t {
-            (T![<], T![<], T![=]) => return (1, Op::Composite(T![<<=], 3)),
-            (T![>], T![>], T![=]) => return (1, Op::Composite(T![>>=], 3)),
-            _ => (),
-        }
+        _                      => NOT_AN_OP
     }
-
-    if let Some(t) = p.current2() {
-        match t {
-            (T![+], T![=]) => return (1, Op::Composite(T![+=], 2)),
-            (T![-], T![=]) => return (1, Op::Composite(T![-=], 2)),
-            (T![*], T![=]) => return (1, Op::Composite(T![*=], 2)),
-            (T![%], T![=]) => return (1, Op::Composite(T![%=], 2)),
-            (T![/], T![=]) => return (1, Op::Composite(T![/=], 2)),
-            (T![|], T![=]) => return (1, Op::Composite(T![|=], 2)),
-            (T![&], T![=]) => return (1, Op::Composite(T![&=], 2)),
-            (T![^], T![=]) => return (1, Op::Composite(T![^=], 2)),
-            (T![|], T![|]) => return (3, Op::Composite(T![||], 2)),
-            (T![&], T![&]) => return (4, Op::Composite(T![&&], 2)),
-            (T![<], T![=]) => return (5, Op::Composite(T![<=], 2)),
-            (T![>], T![=]) => return (5, Op::Composite(T![>=], 2)),
-            (T![<], T![<]) => return (9, Op::Composite(T![<<], 2)),
-            (T![>], T![>]) => return (9, Op::Composite(T![>>], 2)),
-            _ => (),
-        }
-    }
-
-    let bp = match p.current() {
-        T![=] => 1,
-        T![..] | T![..=] => 2,
-        T![==] | T![!=] | T![<] | T![>] => 5,
-        T![|] => 6,
-        T![^] => 7,
-        T![&] => 8,
-        T![-] | T![+] => 10,
-        T![*] | T![/] | T![%] => 11,
-        _ => 0,
-    };
-    (bp, Op::Simple)
 }
 
 // Parses expression with binding power of at least bp.
-fn expr_bp(
-    p: &mut Parser,
-    r: Restrictions,
-    mut bp: u8,
-    dollar_lvl: &mut usize,
-) -> (Option<CompletedMarker>, BlockLike) {
-    // `newly_dollar_open` is a flag indicated that dollar is just closed after lhs, e.g.
-    // `$1$ + a`
-    // We use this flag to skip handling it.
-    let mut newly_dollar_open = if p.at_l_dollar() {
-        *dollar_lvl += p.eat_l_dollars();
-        true
-    } else {
-        false
-    };
-
-    let mut lhs = match lhs(p, r, dollar_lvl) {
+fn expr_bp(p: &mut Parser, r: Restrictions, bp: u8) -> (Option<CompletedMarker>, BlockLike) {
+    let mut lhs = match lhs(p, r) {
         Some((lhs, blocklike)) => {
             // test stmt_bin_expr_ambiguity
             // fn foo() {
@@ -288,42 +274,47 @@ fn expr_bp(
     };
 
     loop {
-        if *dollar_lvl > 0 && p.at_r_dollar() {
-            *dollar_lvl -= p.eat_r_dollars(*dollar_lvl);
-            if !newly_dollar_open {
-                // We "pump" bp for make it highest priority
-                bp = 255;
-            }
-            newly_dollar_open = false;
-        }
-
-        let is_range = p.current() == T![..] || p.current() == T![..=];
+        let is_range = p.at(T![..]) || p.at(T![..=]);
         let (op_bp, op) = current_op(p);
         if op_bp < bp {
             break;
         }
+        // test as_precedence
+        // fn foo() {
+        //     let _ = &1 as *const i32;
+        // }
+        if p.at(T![as]) {
+            lhs = cast_expr(p, lhs);
+            continue;
+        }
         let m = lhs.precede(p);
-        match op {
-            Op::Simple => p.bump(),
-            Op::Composite(kind, n) => {
-                p.bump_compound(kind, n);
+        p.bump(op);
+
+        if is_range {
+            // test postfix_range
+            // fn foo() {
+            //     let x = 1..;
+            //     match 1.. { _ => () };
+            //     match a.b()..S { _ => () };
+            // }
+            let has_trailing_expression =
+                p.at_ts(EXPR_FIRST) && !(r.forbid_structs && p.at(T!['{']));
+            if !has_trailing_expression {
+                // no RHS
+                lhs = m.complete(p, RANGE_EXPR);
+                break;
             }
         }
 
-        expr_bp(p, r, op_bp + 1, dollar_lvl);
+        expr_bp(p, r, op_bp + 1);
         lhs = m.complete(p, if is_range { RANGE_EXPR } else { BIN_EXPR });
     }
     (Some(lhs), BlockLike::NotBlock)
 }
 
-const LHS_FIRST: TokenSet =
-    atom::ATOM_EXPR_FIRST.union(token_set![AMP, STAR, EXCL, DOTDOT, DOTDOTEQ, MINUS]);
+const LHS_FIRST: TokenSet = atom::ATOM_EXPR_FIRST.union(token_set![AMP, STAR, EXCL, DOT, MINUS]);
 
-fn lhs(
-    p: &mut Parser,
-    r: Restrictions,
-    dollar_lvl: &mut usize,
-) -> Option<(CompletedMarker, BlockLike)> {
+fn lhs(p: &mut Parser, r: Restrictions) -> Option<(CompletedMarker, BlockLike)> {
     let m;
     let kind = match p.current() {
         // test ref_expr
@@ -333,7 +324,7 @@ fn lhs(
         // }
         T![&] => {
             m = p.start();
-            p.bump();
+            p.bump(T![&]);
             p.eat(T![mut]);
             REF_EXPR
         }
@@ -345,20 +336,23 @@ fn lhs(
         // }
         T![*] | T![!] | T![-] => {
             m = p.start();
-            p.bump();
+            p.bump_any();
             PREFIX_EXPR
         }
-        // test full_range_expr
-        // fn foo() { xs[..]; }
-        T![..] | T![..=] => {
-            m = p.start();
-            p.bump();
-            if p.at_ts(EXPR_FIRST) {
-                expr_bp(p, r, 2, dollar_lvl);
-            }
-            return Some((m.complete(p, RANGE_EXPR), BlockLike::NotBlock));
-        }
         _ => {
+            // test full_range_expr
+            // fn foo() { xs[..]; }
+            for &op in [T![..=], T![..]].iter() {
+                if p.at(op) {
+                    m = p.start();
+                    p.bump(op);
+                    if p.at_ts(EXPR_FIRST) && !(r.forbid_structs && p.at(T!['{'])) {
+                        expr_bp(p, r, 2);
+                    }
+                    return Some((m.complete(p, RANGE_EXPR), BlockLike::NotBlock));
+                }
+            }
+
             // test expression_after_block
             // fn foo() {
             //    let mut p = F{x: 5};
@@ -369,7 +363,8 @@ fn lhs(
             return Some(postfix_expr(p, lhs, blocklike, !(r.prefer_stmt && blocklike.is_block())));
         }
     };
-    expr_bp(p, r, 255, dollar_lvl);
+    // parse the interior of the unary expression
+    expr_bp(p, r, 255);
     Some((m.complete(p, kind), BlockLike::NotBlock))
 }
 
@@ -394,37 +389,49 @@ fn postfix_expr(
             // }
             T!['('] if allow_calls => call_expr(p, lhs),
             T!['['] if allow_calls => index_expr(p, lhs),
-            T![.] if p.nth(1) == IDENT && (p.nth(2) == T!['('] || p.nth(2) == T![::]) => {
-                method_call_expr(p, lhs)
-            }
-            T![.] if p.nth(1) == AWAIT_KW => {
-                // test await_expr
-                // fn foo() {
-                //     x.await;
-                //     x.0.await;
-                //     x.0().await?.hello();
-                // }
-                let m = lhs.precede(p);
-                p.bump();
-                p.bump();
-                m.complete(p, AWAIT_EXPR)
-            }
-            T![.] => field_expr(p, lhs),
-            // test postfix_range
-            // fn foo() { let x = 1..; }
-            T![..] | T![..=] if !EXPR_FIRST.contains(p.nth(1)) => {
-                let m = lhs.precede(p);
-                p.bump();
-                m.complete(p, RANGE_EXPR)
-            }
+            T![.] => match postfix_dot_expr(p, lhs) {
+                Ok(it) => it,
+                Err(it) => {
+                    lhs = it;
+                    break;
+                }
+            },
             T![?] => try_expr(p, lhs),
-            T![as] => cast_expr(p, lhs),
             _ => break,
         };
         allow_calls = true;
         block_like = BlockLike::NotBlock;
     }
-    (lhs, block_like)
+    return (lhs, block_like);
+
+    fn postfix_dot_expr(
+        p: &mut Parser,
+        lhs: CompletedMarker,
+    ) -> Result<CompletedMarker, CompletedMarker> {
+        assert!(p.at(T![.]));
+        if p.nth(1) == IDENT && (p.nth(2) == T!['('] || p.nth_at(2, T![::])) {
+            return Ok(method_call_expr(p, lhs));
+        }
+
+        // test await_expr
+        // fn foo() {
+        //     x.await;
+        //     x.0.await;
+        //     x.0().await?.hello();
+        // }
+        if p.nth(1) == T![await] {
+            let m = lhs.precede(p);
+            p.bump(T![.]);
+            p.bump(T![await]);
+            return Ok(m.complete(p, AWAIT_EXPR));
+        }
+
+        if p.at(T![..=]) || p.at(T![..]) {
+            return Err(lhs);
+        }
+
+        Ok(field_expr(p, lhs))
+    }
 }
 
 // test call_expr
@@ -448,7 +455,7 @@ fn call_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
 fn index_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
     assert!(p.at(T!['[']));
     let m = lhs.precede(p);
-    p.bump();
+    p.bump(T!['[']);
     expr(p);
     p.expect(T![']']);
     m.complete(p, INDEX_EXPR)
@@ -460,9 +467,9 @@ fn index_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
 //     y.bar::<T>(1, 2,);
 // }
 fn method_call_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
-    assert!(p.at(T![.]) && p.nth(1) == IDENT && (p.nth(2) == T!['('] || p.nth(2) == T![::]));
+    assert!(p.at(T![.]) && p.nth(1) == IDENT && (p.nth(2) == T!['('] || p.nth_at(2, T![::])));
     let m = lhs.precede(p);
-    p.bump();
+    p.bump_any();
     name_ref(p);
     type_args::opt_type_arg_list(p, true);
     if p.at(T!['(']) {
@@ -488,12 +495,12 @@ fn method_call_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
 fn field_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
     assert!(p.at(T![.]));
     let m = lhs.precede(p);
-    p.bump();
+    p.bump(T![.]);
     if p.at(IDENT) || p.at(INT_NUMBER) {
         name_ref_or_index(p)
     } else if p.at(FLOAT_NUMBER) {
         // FIXME: How to recover and instead parse INT + T![.]?
-        p.bump();
+        p.bump_any();
     } else {
         p.error("expected field name or number")
     }
@@ -507,7 +514,7 @@ fn field_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
 fn try_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
     assert!(p.at(T![?]));
     let m = lhs.precede(p);
-    p.bump();
+    p.bump(T![?]);
     m.complete(p, TRY_EXPR)
 }
 
@@ -521,7 +528,7 @@ fn try_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
 fn cast_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
     assert!(p.at(T![as]));
     let m = lhs.precede(p);
-    p.bump();
+    p.bump(T![as]);
     // Use type_no_bounds(), because cast expressions are not
     // allowed to have bounds.
     types::type_no_bounds(p);
@@ -531,7 +538,7 @@ fn cast_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
 fn arg_list(p: &mut Parser) {
     assert!(p.at(T!['(']));
     let m = p.start();
-    p.bump();
+    p.bump(T!['(']);
     while !p.at(T![')']) && !p.at(EOF) {
         if !p.at_ts(EXPR_FIRST) {
             p.error("expected expression");
@@ -559,10 +566,10 @@ fn path_expr(p: &mut Parser, r: Restrictions) -> (CompletedMarker, BlockLike) {
     paths::expr_path(p);
     match p.current() {
         T!['{'] if !r.forbid_structs => {
-            named_field_list(p);
-            (m.complete(p, STRUCT_LIT), BlockLike::NotBlock)
+            record_field_list(p);
+            (m.complete(p, RECORD_LIT), BlockLike::NotBlock)
         }
-        T![!] => {
+        T![!] if !p.at(T![!=]) => {
             let block_like = items::macro_call_after_excl(p);
             (m.complete(p, MACRO_CALL), block_like)
         }
@@ -570,20 +577,20 @@ fn path_expr(p: &mut Parser, r: Restrictions) -> (CompletedMarker, BlockLike) {
     }
 }
 
-// test struct_lit
+// test record_lit
 // fn foo() {
 //     S {};
 //     S { x, y: 32, };
 //     S { x, y: 32, ..Default::default() };
 //     TupleStruct { 0: 1 };
 // }
-pub(crate) fn named_field_list(p: &mut Parser) {
+pub(crate) fn record_field_list(p: &mut Parser) {
     assert!(p.at(T!['{']));
     let m = p.start();
-    p.bump();
+    p.bump(T!['{']);
     while !p.at(EOF) && !p.at(T!['}']) {
         match p.current() {
-            // test struct_literal_field_with_attr
+            // test record_literal_field_with_attr
             // fn main() {
             //     S { #[cfg(test)] field: 1 }
             // }
@@ -594,10 +601,10 @@ pub(crate) fn named_field_list(p: &mut Parser) {
                 if p.eat(T![:]) {
                     expr(p);
                 }
-                m.complete(p, NAMED_FIELD);
+                m.complete(p, RECORD_FIELD);
             }
-            T![..] => {
-                p.bump();
+            T![.] if p.at(T![..]) => {
+                p.bump(T![..]);
                 expr(p);
             }
             T!['{'] => error_block(p, "expected a field"),
@@ -608,5 +615,5 @@ pub(crate) fn named_field_list(p: &mut Parser) {
         }
     }
     p.expect(T!['}']);
-    m.complete(p, NAMED_FIELD_LIST);
+    m.complete(p, RECORD_FIELD_LIST);
 }

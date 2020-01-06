@@ -1,3 +1,5 @@
+//! FIXME: write short doc here
+
 use super::*;
 
 pub(super) const TYPE_FIRST: TokenSet = paths::PATH_FIRST.union(token_set![
@@ -7,7 +9,7 @@ pub(super) const TYPE_FIRST: TokenSet = paths::PATH_FIRST.union(token_set![
 
 const TYPE_RECOVERY_SET: TokenSet = token_set![R_PAREN, COMMA];
 
-pub(super) fn type_(p: &mut Parser) {
+pub(crate) fn type_(p: &mut Parser) {
     type_with_bounds_cond(p, true);
 }
 
@@ -26,7 +28,7 @@ fn type_with_bounds_cond(p: &mut Parser, allow_bounds: bool) {
         T![fn] | T![unsafe] | T![extern] => fn_pointer_type(p),
         T![for] => for_type(p),
         T![impl] => impl_trait_type(p),
-        T![dyn ] => dyn_trait_type(p),
+        T![dyn] => dyn_trait_type(p),
         // Some path types are not allowed to have bounds (no plus)
         T![<] => path_type_(p, allow_bounds),
         _ if paths::is_use_path_start(p) => path_or_macro_type_(p, allow_bounds),
@@ -44,7 +46,7 @@ pub(super) fn ascription(p: &mut Parser) {
 fn paren_or_tuple_type(p: &mut Parser) {
     assert!(p.at(T!['(']));
     let m = p.start();
-    p.bump();
+    p.bump(T!['(']);
     let mut n_types: u32 = 0;
     let mut trailing_comma: bool = false;
     while !p.at(EOF) && !p.at(T![')']) {
@@ -79,20 +81,20 @@ fn paren_or_tuple_type(p: &mut Parser) {
 fn never_type(p: &mut Parser) {
     assert!(p.at(T![!]));
     let m = p.start();
-    p.bump();
+    p.bump(T![!]);
     m.complete(p, NEVER_TYPE);
 }
 
 fn pointer_type(p: &mut Parser) {
     assert!(p.at(T![*]));
     let m = p.start();
-    p.bump();
+    p.bump(T![*]);
 
     match p.current() {
         // test pointer_type_mut
         // type M = *mut ();
         // type C = *mut ();
-        T![mut] | T![const] => p.bump(),
+        T![mut] | T![const] => p.bump_any(),
         _ => {
             // test_err pointer_type_no_mutability
             // type T = *();
@@ -110,21 +112,21 @@ fn pointer_type(p: &mut Parser) {
 fn array_or_slice_type(p: &mut Parser) {
     assert!(p.at(T!['[']));
     let m = p.start();
-    p.bump();
+    p.bump(T!['[']);
 
     type_(p);
     let kind = match p.current() {
         // test slice_type
         // type T = [()];
         T![']'] => {
-            p.bump();
+            p.bump(T![']']);
             SLICE_TYPE
         }
 
         // test array_type
         // type T = [(); 92];
         T![;] => {
-            p.bump();
+            p.bump(T![;]);
             expressions::expr(p);
             p.expect(T![']']);
             ARRAY_TYPE
@@ -146,7 +148,7 @@ fn array_or_slice_type(p: &mut Parser) {
 fn reference_type(p: &mut Parser) {
     assert!(p.at(T![&]));
     let m = p.start();
-    p.bump();
+    p.bump(T![&]);
     p.eat(LIFETIME);
     p.eat(T![mut]);
     type_no_bounds(p);
@@ -158,7 +160,7 @@ fn reference_type(p: &mut Parser) {
 fn placeholder_type(p: &mut Parser) {
     assert!(p.at(T![_]));
     let m = p.start();
-    p.bump();
+    p.bump(T![_]);
     m.complete(p, PLACEHOLDER_TYPE);
 }
 
@@ -193,7 +195,7 @@ fn fn_pointer_type(p: &mut Parser) {
 
 pub(super) fn for_binder(p: &mut Parser) {
     assert!(p.at(T![for]));
-    p.bump();
+    p.bump(T![for]);
     if p.at(T![<]) {
         type_params::opt_type_param_list(p);
     } else {
@@ -224,7 +226,7 @@ pub(super) fn for_type(p: &mut Parser) {
 fn impl_trait_type(p: &mut Parser) {
     assert!(p.at(T![impl]));
     let m = p.start();
-    p.bump();
+    p.bump(T![impl]);
     type_params::bounds_without_colon(p);
     m.complete(p, IMPL_TRAIT_TYPE);
 }
@@ -232,9 +234,9 @@ fn impl_trait_type(p: &mut Parser) {
 // test dyn_trait_type
 // type A = dyn Iterator<Item=Foo<'a>> + 'a;
 fn dyn_trait_type(p: &mut Parser) {
-    assert!(p.at(T![dyn ]));
+    assert!(p.at(T![dyn]));
     let m = p.start();
-    p.bump();
+    p.bump(T![dyn]);
     type_params::bounds_without_colon(p);
     m.complete(p, DYN_TRAIT_TYPE);
 }
@@ -256,7 +258,7 @@ fn path_or_macro_type_(p: &mut Parser, allow_bounds: bool) {
     let m = p.start();
     paths::type_path(p);
 
-    let kind = if p.at(T![!]) {
+    let kind = if p.at(T![!]) && !p.at(T![!=]) {
         items::macro_call_after_excl(p);
         MACRO_CALL
     } else {

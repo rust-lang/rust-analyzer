@@ -1,3 +1,5 @@
+//! Defines `rust-analyzer` specific custom messages.
+
 use lsp_types::{Location, Position, Range, TextDocumentIdentifier, Url};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -5,10 +7,12 @@ use serde::{Deserialize, Serialize};
 pub use lsp_types::{
     notification::*, request::*, ApplyWorkspaceEditParams, CodeActionParams, CodeLens,
     CodeLensParams, CompletionParams, CompletionResponse, DidChangeConfigurationParams,
-    DocumentOnTypeFormattingParams, DocumentSymbolParams, DocumentSymbolResponse, Hover,
-    InitializeResult, MessageType, PublishDiagnosticsParams, ReferenceParams, ShowMessageParams,
-    SignatureHelp, TextDocumentEdit, TextDocumentPositionParams, TextEdit, WorkspaceEdit,
-    WorkspaceSymbolParams,
+    DidChangeWatchedFilesParams, DidChangeWatchedFilesRegistrationOptions,
+    DocumentOnTypeFormattingParams, DocumentSymbolParams, DocumentSymbolResponse,
+    FileSystemWatcher, Hover, InitializeResult, MessageType, ProgressParams, ProgressParamsValue,
+    ProgressToken, PublishDiagnosticsParams, ReferenceParams, Registration, RegistrationParams,
+    SelectionRange, SelectionRangeParams, ShowMessageParams, SignatureHelp, TextDocumentEdit,
+    TextDocumentPositionParams, TextEdit, WorkspaceEdit, WorkspaceSymbolParams,
 };
 
 pub enum AnalyzerStatus {}
@@ -42,26 +46,26 @@ pub struct SyntaxTreeParams {
     pub range: Option<Range>,
 }
 
-pub enum SelectionRangeRequest {}
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpandedMacro {
+    pub name: String,
+    pub expansion: String,
+}
 
-impl Request for SelectionRangeRequest {
-    type Params = SelectionRangeParams;
-    type Result = Vec<SelectionRange>;
-    const METHOD: &'static str = "textDocument/selectionRange";
+pub enum ExpandMacro {}
+
+impl Request for ExpandMacro {
+    type Params = ExpandMacroParams;
+    type Result = Option<ExpandedMacro>;
+    const METHOD: &'static str = "rust-analyzer/expandMacro";
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct SelectionRangeParams {
+pub struct ExpandMacroParams {
     pub text_document: TextDocumentIdentifier,
-    pub positions: Vec<Position>,
-}
-
-#[derive(Serialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct SelectionRange {
-    pub range: Range,
-    pub parent: Option<Box<SelectionRange>>,
+    pub position: Option<Position>,
 }
 
 pub enum FindMatchingBrace {}

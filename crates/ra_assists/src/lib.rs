@@ -1,4 +1,4 @@
-//! `ra_assits` crate provides a bunch of code assists, also known as code
+//! `ra_assists` crate provides a bunch of code assists, also known as code
 //! actions (in LSP) or intentions (in IntelliJ).
 //!
 //! An assist is a micro-refactoring, which is automatically activated in
@@ -7,9 +7,10 @@
 
 mod assist_ctx;
 mod marks;
-pub mod ast_editor;
-
-use itertools::Itertools;
+#[cfg(test)]
+mod doc_tests;
+#[cfg(test)]
+mod test_db;
 
 use hir::db::HirDatabase;
 use ra_db::FileRange;
@@ -17,6 +18,7 @@ use ra_syntax::{TextRange, TextUnit};
 use ra_text_edit::TextEdit;
 
 pub(crate) use crate::assist_ctx::{Assist, AssistCtx};
+pub use crate::assists::add_import::auto_import_text_edit;
 
 /// Unique identifier of the assist, should not be shown to the user
 /// directly.
@@ -37,7 +39,7 @@ pub struct AssistAction {
     pub target: Option<TextRange>,
 }
 
-/// Return all the assists eapplicable at the given position.
+/// Return all the assists applicable at the given position.
 ///
 /// Assists are returned in the "unresolved" state, that is only labels are
 /// returned, without actual edits.
@@ -46,14 +48,14 @@ where
     H: HirDatabase + 'static,
 {
     AssistCtx::with_ctx(db, range, false, |ctx| {
-        all_assists()
+        assists::all()
             .iter()
             .filter_map(|f| f(ctx.clone()))
             .map(|a| match a {
-                Assist::Unresolved(labels) => labels,
-                Assist::Resolved(..) => unreachable!(),
+                Assist::Unresolved { label } => label,
+                Assist::Resolved { .. } => unreachable!(),
             })
-            .concat()
+            .collect()
     })
 }
 
@@ -68,14 +70,14 @@ where
     use std::cmp::Ordering;
 
     AssistCtx::with_ctx(db, range, true, |ctx| {
-        let mut a = all_assists()
+        let mut a = assists::all()
             .iter()
             .filter_map(|f| f(ctx.clone()))
             .map(|a| match a {
-                Assist::Resolved(labels_actions) => labels_actions,
-                Assist::Unresolved(..) => unreachable!(),
+                Assist::Resolved { label, action } => (label, action),
+                Assist::Unresolved { .. } => unreachable!(),
             })
-            .concat();
+            .collect::<Vec<_>>();
         a.sort_by(|a, b| match (a.1.target, b.1.target) {
             (Some(a), Some(b)) => a.len().cmp(&b.len()),
             (Some(_), None) => Ordering::Less,
@@ -86,105 +88,94 @@ where
     })
 }
 
-mod add_derive;
-mod add_explicit_type;
-mod add_impl;
-mod flip_comma;
-mod flip_binexpr;
-mod change_visibility;
-mod fill_match_arms;
-mod merge_match_arms;
-mod introduce_variable;
-mod inline_local_variable;
-mod replace_if_let_with_match;
-mod split_import;
-mod remove_dbg;
-pub mod auto_import;
-mod add_missing_impl_members;
-mod move_guard;
+mod assists {
+    use crate::{Assist, AssistCtx};
+    use hir::db::HirDatabase;
 
-fn all_assists<DB: HirDatabase>() -> &'static [fn(AssistCtx<DB>) -> Option<Assist>] {
-    &[
-        add_derive::add_derive,
-        add_explicit_type::add_explicit_type,
-        add_impl::add_impl,
-        change_visibility::change_visibility,
-        fill_match_arms::fill_match_arms,
-        merge_match_arms::merge_match_arms,
-        flip_comma::flip_comma,
-        flip_binexpr::flip_binexpr,
-        introduce_variable::introduce_variable,
-        replace_if_let_with_match::replace_if_let_with_match,
-        split_import::split_import,
-        remove_dbg::remove_dbg,
-        auto_import::auto_import,
-        add_missing_impl_members::add_missing_impl_members,
-        add_missing_impl_members::add_missing_default_members,
-        inline_local_variable::inline_local_varialbe,
-        move_guard::move_guard_to_arm_body,
-        move_guard::move_arm_cond_to_match_guard,
-    ]
+    mod add_derive;
+    mod add_explicit_type;
+    mod add_impl;
+    mod add_custom_impl;
+    mod add_new;
+    mod apply_demorgan;
+    mod invert_if;
+    mod flip_comma;
+    mod flip_binexpr;
+    mod flip_trait_bound;
+    mod change_visibility;
+    mod fill_match_arms;
+    mod merge_match_arms;
+    mod introduce_variable;
+    mod inline_local_variable;
+    mod raw_string;
+    mod replace_if_let_with_match;
+    mod split_import;
+    mod remove_dbg;
+    pub(crate) mod add_import;
+    mod add_missing_impl_members;
+    mod move_guard;
+    mod move_bounds;
+    mod early_return;
+
+    pub(crate) fn all<DB: HirDatabase>() -> &'static [fn(AssistCtx<DB>) -> Option<Assist>] {
+        &[
+            add_derive::add_derive,
+            add_explicit_type::add_explicit_type,
+            add_impl::add_impl,
+            add_custom_impl::add_custom_impl,
+            add_new::add_new,
+            apply_demorgan::apply_demorgan,
+            invert_if::invert_if,
+            change_visibility::change_visibility,
+            fill_match_arms::fill_match_arms,
+            merge_match_arms::merge_match_arms,
+            flip_comma::flip_comma,
+            flip_binexpr::flip_binexpr,
+            flip_trait_bound::flip_trait_bound,
+            introduce_variable::introduce_variable,
+            replace_if_let_with_match::replace_if_let_with_match,
+            split_import::split_import,
+            remove_dbg::remove_dbg,
+            add_import::add_import,
+            add_missing_impl_members::add_missing_impl_members,
+            add_missing_impl_members::add_missing_default_members,
+            inline_local_variable::inline_local_varialbe,
+            move_guard::move_guard_to_arm_body,
+            move_guard::move_arm_cond_to_match_guard,
+            move_bounds::move_bounds_to_where_clause,
+            raw_string::add_hash,
+            raw_string::make_raw_string,
+            raw_string::make_usual_string,
+            raw_string::remove_hash,
+            early_return::convert_to_guarded_return,
+        ]
+    }
 }
 
 #[cfg(test)]
 mod helpers {
-    use hir::mock::MockDatabase;
-    use ra_db::FileRange;
+    use ra_db::{fixture::WithFixture, FileRange};
     use ra_syntax::TextRange;
     use test_utils::{add_cursor, assert_eq_text, extract_offset, extract_range};
 
-    use crate::{Assist, AssistCtx};
+    use crate::{test_db::TestDB, Assist, AssistCtx};
 
     pub(crate) fn check_assist(
-        assist: fn(AssistCtx<MockDatabase>) -> Option<Assist>,
+        assist: fn(AssistCtx<TestDB>) -> Option<Assist>,
         before: &str,
         after: &str,
-    ) {
-        check_assist_nth_action(assist, before, after, 0)
-    }
-
-    pub(crate) fn check_assist_range(
-        assist: fn(AssistCtx<MockDatabase>) -> Option<Assist>,
-        before: &str,
-        after: &str,
-    ) {
-        check_assist_range_nth_action(assist, before, after, 0)
-    }
-
-    pub(crate) fn check_assist_target(
-        assist: fn(AssistCtx<MockDatabase>) -> Option<Assist>,
-        before: &str,
-        target: &str,
-    ) {
-        check_assist_target_nth_action(assist, before, target, 0)
-    }
-
-    pub(crate) fn check_assist_range_target(
-        assist: fn(AssistCtx<MockDatabase>) -> Option<Assist>,
-        before: &str,
-        target: &str,
-    ) {
-        check_assist_range_target_nth_action(assist, before, target, 0)
-    }
-
-    pub(crate) fn check_assist_nth_action(
-        assist: fn(AssistCtx<MockDatabase>) -> Option<Assist>,
-        before: &str,
-        after: &str,
-        index: usize,
     ) {
         let (before_cursor_pos, before) = extract_offset(before);
-        let (db, _source_root, file_id) = MockDatabase::with_single_file(&before);
+        let (db, file_id) = TestDB::with_single_file(&before);
         let frange =
             FileRange { file_id, range: TextRange::offset_len(before_cursor_pos, 0.into()) };
         let assist =
             AssistCtx::with_ctx(&db, frange, true, assist).expect("code action is not applicable");
-        let labels_actions = match assist {
-            Assist::Unresolved(_) => unreachable!(),
-            Assist::Resolved(labels_actions) => labels_actions,
+        let action = match assist {
+            Assist::Unresolved { .. } => unreachable!(),
+            Assist::Resolved { action, .. } => action,
         };
 
-        let (_, action) = labels_actions.get(index).expect("expect assist action at index");
         let actual = action.edit.apply(&before);
         let actual_cursor_pos = match action.cursor_position {
             None => action
@@ -197,23 +188,21 @@ mod helpers {
         assert_eq_text!(after, &actual);
     }
 
-    pub(crate) fn check_assist_range_nth_action(
-        assist: fn(AssistCtx<MockDatabase>) -> Option<Assist>,
+    pub(crate) fn check_assist_range(
+        assist: fn(AssistCtx<TestDB>) -> Option<Assist>,
         before: &str,
         after: &str,
-        index: usize,
     ) {
         let (range, before) = extract_range(before);
-        let (db, _source_root, file_id) = MockDatabase::with_single_file(&before);
+        let (db, file_id) = TestDB::with_single_file(&before);
         let frange = FileRange { file_id, range };
         let assist =
             AssistCtx::with_ctx(&db, frange, true, assist).expect("code action is not applicable");
-        let labels_actions = match assist {
-            Assist::Unresolved(_) => unreachable!(),
-            Assist::Resolved(labels_actions) => labels_actions,
+        let action = match assist {
+            Assist::Unresolved { .. } => unreachable!(),
+            Assist::Resolved { action, .. } => action,
         };
 
-        let (_, action) = labels_actions.get(index).expect("expect assist action at index");
         let mut actual = action.edit.apply(&before);
         if let Some(pos) = action.cursor_position {
             actual = add_cursor(&actual, pos);
@@ -221,55 +210,51 @@ mod helpers {
         assert_eq_text!(after, &actual);
     }
 
-    pub(crate) fn check_assist_target_nth_action(
-        assist: fn(AssistCtx<MockDatabase>) -> Option<Assist>,
+    pub(crate) fn check_assist_target(
+        assist: fn(AssistCtx<TestDB>) -> Option<Assist>,
         before: &str,
         target: &str,
-        index: usize,
     ) {
         let (before_cursor_pos, before) = extract_offset(before);
-        let (db, _source_root, file_id) = MockDatabase::with_single_file(&before);
+        let (db, file_id) = TestDB::with_single_file(&before);
         let frange =
             FileRange { file_id, range: TextRange::offset_len(before_cursor_pos, 0.into()) };
         let assist =
             AssistCtx::with_ctx(&db, frange, true, assist).expect("code action is not applicable");
-        let labels_actions = match assist {
-            Assist::Unresolved(_) => unreachable!(),
-            Assist::Resolved(labels_actions) => labels_actions,
+        let action = match assist {
+            Assist::Unresolved { .. } => unreachable!(),
+            Assist::Resolved { action, .. } => action,
         };
 
-        let (_, action) = labels_actions.get(index).expect("expect assist action at index");
         let range = action.target.expect("expected target on action");
         assert_eq_text!(&before[range.start().to_usize()..range.end().to_usize()], target);
     }
 
-    pub(crate) fn check_assist_range_target_nth_action(
-        assist: fn(AssistCtx<MockDatabase>) -> Option<Assist>,
+    pub(crate) fn check_assist_range_target(
+        assist: fn(AssistCtx<TestDB>) -> Option<Assist>,
         before: &str,
         target: &str,
-        index: usize,
     ) {
         let (range, before) = extract_range(before);
-        let (db, _source_root, file_id) = MockDatabase::with_single_file(&before);
+        let (db, file_id) = TestDB::with_single_file(&before);
         let frange = FileRange { file_id, range };
         let assist =
             AssistCtx::with_ctx(&db, frange, true, assist).expect("code action is not applicable");
-        let labels_actions = match assist {
-            Assist::Unresolved(_) => unreachable!(),
-            Assist::Resolved(labels_actions) => labels_actions,
+        let action = match assist {
+            Assist::Unresolved { .. } => unreachable!(),
+            Assist::Resolved { action, .. } => action,
         };
 
-        let (_, action) = labels_actions.get(index).expect("expect assist action at index");
         let range = action.target.expect("expected target on action");
         assert_eq_text!(&before[range.start().to_usize()..range.end().to_usize()], target);
     }
 
     pub(crate) fn check_assist_not_applicable(
-        assist: fn(AssistCtx<MockDatabase>) -> Option<Assist>,
+        assist: fn(AssistCtx<TestDB>) -> Option<Assist>,
         before: &str,
     ) {
         let (before_cursor_pos, before) = extract_offset(before);
-        let (db, _source_root, file_id) = MockDatabase::with_single_file(&before);
+        let (db, file_id) = TestDB::with_single_file(&before);
         let frange =
             FileRange { file_id, range: TextRange::offset_len(before_cursor_pos, 0.into()) };
         let assist = AssistCtx::with_ctx(&db, frange, true, assist);
@@ -277,11 +262,11 @@ mod helpers {
     }
 
     pub(crate) fn check_assist_range_not_applicable(
-        assist: fn(AssistCtx<MockDatabase>) -> Option<Assist>,
+        assist: fn(AssistCtx<TestDB>) -> Option<Assist>,
         before: &str,
     ) {
         let (range, before) = extract_range(before);
-        let (db, _source_root, file_id) = MockDatabase::with_single_file(&before);
+        let (db, file_id) = TestDB::with_single_file(&before);
         let frange = FileRange { file_id, range };
         let assist = AssistCtx::with_ctx(&db, frange, true, assist);
         assert!(assist.is_none());
@@ -290,16 +275,17 @@ mod helpers {
 
 #[cfg(test)]
 mod tests {
-    use hir::mock::MockDatabase;
-    use ra_db::FileRange;
+    use ra_db::{fixture::WithFixture, FileRange};
     use ra_syntax::TextRange;
     use test_utils::{extract_offset, extract_range};
+
+    use crate::test_db::TestDB;
 
     #[test]
     fn assist_order_field_struct() {
         let before = "struct Foo { <|>bar: u32 }";
         let (before_cursor_pos, before) = extract_offset(before);
-        let (db, _source_root, file_id) = MockDatabase::with_single_file(&before);
+        let (db, file_id) = TestDB::with_single_file(&before);
         let frange =
             FileRange { file_id, range: TextRange::offset_len(before_cursor_pos, 0.into()) };
         let assists = super::assists(&db, frange);
@@ -320,7 +306,7 @@ mod tests {
             }
         }";
         let (range, before) = extract_range(before);
-        let (db, _source_root, file_id) = MockDatabase::with_single_file(&before);
+        let (db, file_id) = TestDB::with_single_file(&before);
         let frange = FileRange { file_id, range };
         let assists = super::assists(&db, frange);
         let mut assists = assists.iter();
@@ -328,5 +314,4 @@ mod tests {
         assert_eq!(assists.next().expect("expected assist").0.label, "introduce variable");
         assert_eq!(assists.next().expect("expected assist").0.label, "replace with match");
     }
-
 }

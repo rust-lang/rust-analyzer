@@ -1,3 +1,11 @@
+//! Assorted testing utilities.
+//!
+//! Most notable things are:
+//!
+//! * Rich text comparison, which outputs a diff.
+//! * Extracting markup (mainly, `<|>` markers) out of fixture strings.
+//! * marks (see the eponymous module).
+
 #[macro_use]
 pub mod marks;
 
@@ -41,7 +49,7 @@ pub fn extract_offset(text: &str) -> (TextUnit, String) {
     }
 }
 
-pub fn try_extract_offset(text: &str) -> Option<(TextUnit, String)> {
+fn try_extract_offset(text: &str) -> Option<(TextUnit, String)> {
     let cursor_pos = text.find(CURSOR_MARKER)?;
     let mut new_text = String::with_capacity(text.len() - CURSOR_MARKER.len());
     new_text.push_str(&text[..cursor_pos]);
@@ -57,10 +65,32 @@ pub fn extract_range(text: &str) -> (TextRange, String) {
     }
 }
 
-pub fn try_extract_range(text: &str) -> Option<(TextRange, String)> {
+fn try_extract_range(text: &str) -> Option<(TextRange, String)> {
     let (start, text) = try_extract_offset(text)?;
     let (end, text) = try_extract_offset(&text)?;
     Some((TextRange::from_to(start, end), text))
+}
+
+pub enum RangeOrOffset {
+    Range(TextRange),
+    Offset(TextUnit),
+}
+
+impl From<RangeOrOffset> for TextRange {
+    fn from(selection: RangeOrOffset) -> Self {
+        match selection {
+            RangeOrOffset::Range(it) => it,
+            RangeOrOffset::Offset(it) => TextRange::from_to(it, it),
+        }
+    }
+}
+
+pub fn extract_range_or_offset(text: &str) -> (RangeOrOffset, String) {
+    if let Some((range, text)) = try_extract_range(text) {
+        return (RangeOrOffset::Range(range), text);
+    }
+    let (offset, text) = extract_offset(text);
+    (RangeOrOffset::Offset(offset), text)
 }
 
 /// Extracts ranges, marked with `<tag> </tag>` paris from the `text`
@@ -177,8 +207,8 @@ pub fn lines_match(expected: &str, actual: &str) -> bool {
     // Let's not deal with / vs \ (windows...)
     // First replace backslash-escaped backslashes with forward slashes
     // which can occur in, for example, JSON output
-    let expected = expected.replace("\\\\", "/").replace("\\", "/");
-    let mut actual: &str = &actual.replace("\\\\", "/").replace("\\", "/");
+    let expected = expected.replace(r"\\", "/").replace(r"\", "/");
+    let mut actual: &str = &actual.replace(r"\\", "/").replace(r"\", "/");
     for (i, part) in expected.split("[..]").enumerate() {
         match actual.find(part) {
             Some(j) => {
@@ -324,6 +354,17 @@ pub fn read_text(path: &Path) -> String {
     fs::read_to_string(path)
         .unwrap_or_else(|_| panic!("File at {:?} should be valid", path))
         .replace("\r\n", "\n")
+}
+
+pub fn skip_slow_tests() -> bool {
+    let should_skip = std::env::var("CI").is_err() && std::env::var("RUN_SLOW_TESTS").is_err();
+    if should_skip {
+        eprintln!("ignoring slow test")
+    } else {
+        let path = project_dir().join("./target/.slow_tests_cookie");
+        fs::write(&path, ".").unwrap();
+    }
+    should_skip
 }
 
 const REWRITE: bool = false;

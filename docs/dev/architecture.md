@@ -45,21 +45,15 @@ can be quickly updated for small modifications.
 Some of the components of this repository are generated through automatic
 processes. These are outlined below:
 
-- `gen-syntax`: The kinds of tokens that are reused in several places, so a generator
-  is used. We use tera templates to generate the files listed below, based on
+- `cargo xtask codegen`: The kinds of tokens that are reused in several places, so a generator
+  is used. We use `quote!` macro to generate the files listed below, based on
   the grammar described in [grammar.ron]:
-  - [ast/generated.rs][ast generated] in `ra_syntax` based on
-    [ast/generated.tera.rs][ast source]
-  - [syntax_kind/generated.rs][syntax_kind generated] in `ra_syntax` based on
-    [syntax_kind/generated.tera.rs][syntax_kind source]
+  - [ast/generated.rs][ast generated]
+  - [syntax_kind/generated.rs][syntax_kind generated]
 
-[tera]: https://tera.netlify.com/
 [grammar.ron]: ../../crates/ra_syntax/src/grammar.ron
 [ast generated]: ../../crates/ra_syntax/src/ast/generated.rs
-[ast source]: ../../crates/ra_syntax/src/ast/generated.rs.tera
 [syntax_kind generated]: ../../crates/ra_parser/src/syntax_kind/generated.rs
-[syntax_kind source]: ../../crates/ra_parser/src/syntax_kind/generated.rs.tera
-
 
 ## Code Walk-Through
 
@@ -77,16 +71,14 @@ Rust syntax tree structure and parser. See
   This is the thing that turns a flat list of events into a tree (see `EventProcessor`)
 - `ast` provides a type safe API on top of the raw `rowan` tree.
 - `grammar.ron` RON description of the grammar, which is used to
-  generate `syntax_kinds` and `ast` modules, using `cargo gen-syntax` command.
+  generate `syntax_kinds` and `ast` modules, using `cargo xtask codegen` command.
 - `algo`: generic tree algorithms, including `walk` for O(1) stack
-  space tree traversal (this is cool) and `visit` for type-driven
-  visiting the nodes (this is double plus cool, if you understand how
-  `Visitor` works, you understand the design of syntax trees).
+  space tree traversal (this is cool).
 
 Tests for ra_syntax are mostly data-driven: `test_data/parser` contains subdirectories with a bunch of `.rs`
 (test vectors) and `.txt` files with corresponding syntax trees. During testing, we check
 `.rs` against `.txt`. If the `.txt` file is missing, it is created (this is how you update
-tests). Additionally, running `cargo gen-tests` will walk the grammar module and collect
+tests). Additionally, running `cargo xtask codegen` will walk the grammar module and collect
 all `// test test_name` comments into files inside `test_data/parser/inline` directory.
 
 See [#93](https://github.com/rust-analyzer/rust-analyzer/pull/93) for an example PR which
@@ -114,7 +106,7 @@ guessing a HIR for a particular source position.
 
 Underneath, HIR works on top of salsa, using a `HirDatabase` trait.
 
-### `crates/ra_ide_api`
+### `crates/ra_ide`
 
 A stateful library for analyzing many Rust files as they change. `AnalysisHost`
 is a mutable entity (clojure's atom) which holds the current state, incorporates
@@ -132,11 +124,11 @@ offsets and strings as output. This works on top of rich code model powered by
 
 ### `crates/ra_lsp_server`
 
-An LSP implementation which wraps `ra_ide_api` into a language server protocol.
+An LSP implementation which wraps `ra_ide` into a language server protocol.
 
 ### `ra_vfs`
 
-Although `hir` and `ra_ide_api` don't do any IO, we need to be able to read
+Although `hir` and `ra_ide` don't do any IO, we need to be able to read
 files from disk at the end of the day. This is what `ra_vfs` does. It also
 manages overlays: "dirty" files in the editor, whose "true" contents is
 different from data on disk. This is more or less the single really
@@ -170,13 +162,13 @@ disk. For this reason, we try to avoid writing too many tests on this boundary:
 in a statically typed language, it's hard to make an error in the protocol
 itself if messages are themselves typed.
 
-The middle, and most important, boundary is `ra_ide_api`. Unlike
-`ra_lsp_server`, which exposes API, `ide_api` uses Rust API and is intended to
+The middle, and most important, boundary is `ra_ide`. Unlike
+`ra_lsp_server`, which exposes API, `ide` uses Rust API and is intended to
 use by various tools. Typical test creates an `AnalysisHost`, calls some
 `Analysis` functions and compares the results against expectation.
 
 The innermost and most elaborate boundary is `hir`. It has a much richer
-vocabulary of types than `ide_api`, but the basic testing setup is the same: we
+vocabulary of types than `ide`, but the basic testing setup is the same: we
 create a database, run some queries, assert result.
 
 For comparisons, we use [insta](https://github.com/mitsuhiko/insta/) library for

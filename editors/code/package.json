@@ -13,39 +13,32 @@
         "Other"
     ],
     "engines": {
-        "vscode": "^1.33.0"
+        "vscode": "^1.41.0"
     },
     "scripts": {
-        "vscode:prepublish": "npm run compile",
+        "vscode:prepublish": "rollup -c",
         "package": "vsce package",
-        "compile": "tsc -p ./ && shx cp src/utils/terminateProcess.sh out/utils/terminateProcess.sh",
         "watch": "tsc -watch -p ./",
-        "postinstall": "node ./node_modules/vscode/bin/install",
-        "fix": "prettier **/*.{json,ts} --write && tslint --project . --fix",
-        "lint": "tslint --project .",
-        "test": "node node_modules/vscode/bin/test",
-        "prettier": "prettier **/*.{json,ts}",
-        "travis": "npm run compile && npm run test && npm run lint && npm run prettier -- --write && git diff --exit-code"
-    },
-    "prettier": {
-        "tabWidth": 4,
-        "singleQuote": true
+        "fmt": "tsfmt -r && tslint -c tslint.json 'src/**/*.ts' --fix"
     },
     "dependencies": {
-        "seedrandom": "^3.0.1",
-        "vscode-languageclient": "^5.3.0-next.4"
+        "jsonc-parser": "^2.1.0",
+        "seedrandom": "^3.0.5",
+        "vscode-languageclient": "^6.0.0-next.9"
     },
     "devDependencies": {
-        "@types/mocha": "^5.2.7",
-        "@types/node": "^10.14.13",
+        "@rollup/plugin-commonjs": "^11.0.0",
+        "@rollup/plugin-node-resolve": "^6.0.0",
+        "@rollup/plugin-typescript": "^2.0.1",
+        "@types/node": "^12.12.21",
         "@types/seedrandom": "^2.4.28",
-        "prettier": "^1.18.2",
-        "shx": "^0.3.1",
-        "tslint": "^5.18.0",
-        "tslint-config-prettier": "^1.18.0",
-        "typescript": "^3.5.3",
-        "vsce": "^1.66.0",
-        "vscode": "^1.1.35"
+        "@types/vscode": "^1.41.0",
+        "rollup": "^1.27.14",
+        "tslib": "^1.10.0",
+        "tslint": "^5.20.1",
+        "typescript": "^3.7.3",
+        "typescript-formatter": "^7.2.2",
+        "vsce": "^1.71.0"
     },
     "activationEvents": [
         "onLanguage:rust",
@@ -53,7 +46,7 @@
         "onCommand:rust-analyzer.collectGarbage",
         "workspaceContains:**/Cargo.toml"
     ],
-    "main": "./out/extension",
+    "main": "./out/main",
     "contributes": {
         "taskDefinitions": [
             {
@@ -81,6 +74,11 @@
             {
                 "command": "rust-analyzer.syntaxTree",
                 "title": "Show Syntax Tree",
+                "category": "Rust Analyzer"
+            },
+            {
+                "command": "rust-analyzer.expandMacro",
+                "title": "Expand macro recursively",
                 "category": "Rust Analyzer"
             },
             {
@@ -116,16 +114,6 @@
             {
                 "command": "rust-analyzer.reload",
                 "title": "Restart server",
-                "category": "Rust Analyzer"
-            },
-            {
-                "command": "rust-analyzer.startCargoWatch",
-                "title": "Start Cargo Watch",
-                "category": "Rust Analyzer"
-            },
-            {
-                "command": "rust-analyzer.stopCargoWatch",
-                "title": "Stop Cargo Watch",
                 "category": "Rust Analyzer"
             }
         ],
@@ -182,35 +170,35 @@
                     "default": "ra_lsp_server",
                     "description": "Path to ra_lsp_server executable"
                 },
-                "rust-analyzer.enableCargoWatchOnStartup": {
-                    "type": "string",
-                    "default": "ask",
-                    "enum": [
-                        "ask",
-                        "enabled",
-                        "disabled"
-                    ],
-                    "enumDescriptions": [
-                        "Asks each time whether to run `cargo watch`",
-                        "`cargo watch` is always started",
-                        "Don't start `cargo watch`"
-                    ],
-                    "description": "Whether to run `cargo watch` on startup"
-                },
                 "rust-analyzer.excludeGlobs": {
                     "type": "array",
                     "default": [],
                     "description": "Paths to exclude from analysis"
                 },
+                "rust-analyzer.useClientWatching": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "client provided file watching instead of notify watching."
+                },
+                "rust-analyzer.cargo-watch.enable": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Run `cargo check` for diagnostics on save"
+                },
                 "rust-analyzer.cargo-watch.arguments": {
-                    "type": "string",
+                    "type": "array",
                     "description": "`cargo-watch` arguments. (e.g: `--features=\"shumway,pdf\"` will run as `cargo watch -x \"check --features=\"shumway,pdf\"\"` )",
-                    "default": ""
+                    "default": []
                 },
                 "rust-analyzer.cargo-watch.command": {
                     "type": "string",
                     "description": "`cargo-watch` command. (e.g: `clippy` will run as `cargo watch -x clippy` )",
                     "default": "check"
+                },
+                "rust-analyzer.cargo-watch.allTargets": {
+                    "type": "boolean",
+                    "description": "Check all targets and tests (will be passed as `--all-targets`)",
+                    "default": true
                 },
                 "rust-analyzer.trace.server": {
                     "type": "string",
@@ -228,17 +216,6 @@
                     "default": "off",
                     "description": "Trace requests to the ra_lsp_server"
                 },
-                "rust-analyzer.trace.cargo-watch": {
-                    "type": "string",
-                    "scope": "window",
-                    "enum": [
-                        "off",
-                        "error",
-                        "verbose"
-                    ],
-                    "default": "off",
-                    "description": "Trace output of cargo-watch"
-                },
                 "rust-analyzer.lruCapacity": {
                     "type": "number",
                     "default": null,
@@ -248,6 +225,26 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Display additional type information in the editor"
+                },
+                "rust-analyzer.maxInlayHintLength": {
+                    "type": "number",
+                    "default": 20,
+                    "description": "Maximum length for inlay hints"
+                },
+                "rust-analyzer.cargoFeatures.noDefaultFeatures": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Do not activate the `default` feature"
+                },
+                "rust-analyzer.cargoFeatures.allFeatures": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Activate all available features"
+                },
+                "rust-analyzer.cargoFeatures.features": {
+                    "type": "array",
+                    "default": [],
+                    "description": "List of features to activate"
                 }
             }
         },
@@ -268,6 +265,20 @@
                         "column": 3
                     }
                 ]
+            },
+            {
+                "name": "rustc-json",
+                "patterns": [
+                    {
+                        "regexp": "^.*\"message\":{\"message\":\"([^\"]*).*?\"file_name\":\"([^\"]+).*?\"line_start\":(\\d+).*?\"line_end\":(\\d+).*?\"column_start\":(\\d+).*?\"column_end\":(\\d+).*}$",
+                        "message": 1,
+                        "file": 2,
+                        "line": 3,
+                        "endLine": 4,
+                        "column": 5,
+                        "endColumn": 6
+                    }
+                ]
             }
         ],
         "problemMatchers": [
@@ -278,6 +289,14 @@
                     "${workspaceRoot}"
                 ],
                 "pattern": "$rustc"
+            },
+            {
+                "name": "rustc-json",
+                "fileLocation": [
+                    "relative",
+                    "${workspaceRoot}"
+                ],
+                "pattern": "$rustc-json"
             },
             {
                 "name": "rustc-watch",
@@ -294,169 +313,7 @@
         ],
         "colors": [
             {
-                "id": "ralsp.comment",
-                "description": "Color for comments",
-                "defaults": {
-                    "dark": "#6A9955",
-                    "light": "#008000",
-                    "highContrast": "#7CA668"
-                }
-            },
-            {
-                "id": "ralsp.string",
-                "description": "Color for strings",
-                "defaults": {
-                    "dark": "#CE9178",
-                    "light": "#A31515",
-                    "highContrast": "#CE9178"
-                }
-            },
-            {
-                "id": "ralsp.keyword",
-                "description": "Color for keywords",
-                "defaults": {
-                    "dark": "#569cd6",
-                    "light": "#0000FF",
-                    "highContrast": "#569CD6"
-                }
-            },
-            {
-                "id": "ralsp.keyword.control",
-                "description": "Color for control keywords",
-                "defaults": {
-                    "dark": "#C586C0",
-                    "light": "#AF00DB",
-                    "highContrast": "#C586C0"
-                }
-            },
-            {
-                "id": "ralsp.keyword.unsafe",
-                "description": "Color for unsafe",
-                "defaults": {
-                    "dark": "#FF3030",
-                    "light": "#FF1010",
-                    "highContrast": "#FF1010"
-                }
-            },
-            {
-                "id": "ralsp.function",
-                "description": "Color for functions",
-                "defaults": {
-                    "dark": "#DCDCAA",
-                    "light": "#795E26",
-                    "highContrast": "#DCDCAA"
-                }
-            },
-            {
-                "id": "ralsp.parameter",
-                "description": "Color for parameters",
-                "defaults": {
-                    "dark": "#9CDCFE",
-                    "light": "#001080",
-                    "highContrast": "#9CDCFE"
-                }
-            },
-            {
-                "id": "ralsp.builtin",
-                "description": "Color for builtins",
-                "defaults": {
-                    "dark": "#DD6718",
-                    "light": "#DD6718",
-                    "highContrast": "#DD6718"
-                }
-            },
-            {
-                "id": "ralsp.text",
-                "description": "Color for text",
-                "defaults": {
-                    "dark": "#D4D4D4",
-                    "light": "#000000",
-                    "highContrast": "#FFFFFF"
-                }
-            },
-            {
-                "id": "ralsp.attribute",
-                "description": "Color for attributes",
-                "defaults": {
-                    "dark": "#9FE9BF",
-                    "light": "#1F4B1F",
-                    "highContrast": "#108010"
-                }
-            },
-            {
-                "id": "ralsp.literal",
-                "description": "Color for literals",
-                "defaults": {
-                    "dark": "#BECEA8",
-                    "light": "#09885A",
-                    "highContrast": "#B5CEA8"
-                }
-            },
-            {
-                "id": "ralsp.macro",
-                "description": "Color for macros",
-                "defaults": {
-                    "dark": "#BFEBBF",
-                    "light": "#DD6718",
-                    "highContrast": "#ED7718"
-                }
-            },
-            {
-                "id": "ralsp.constant",
-                "description": "Color for constants",
-                "defaults": {
-                    "dark": "#569cd6",
-                    "light": "#267cb6",
-                    "highContrast": "#569cd6"
-                }
-            },
-            {
-                "id": "ralsp.type",
-                "description": "Color for types",
-                "defaults": {
-                    "dark": "#4EC9B0",
-                    "light": "#267F99",
-                    "highContrast": "#4EC9B0"
-                }
-            },
-            {
-                "id": "ralsp.field",
-                "description": "Color for fields",
-                "defaults": {
-                    "dark": "#4EC9B0",
-                    "light": "#267F99",
-                    "highContrast": "#4EC9B0"
-                }
-            },
-            {
-                "id": "ralsp.variable",
-                "description": "Color for variables",
-                "defaults": {
-                    "dark": "#4EC9B0",
-                    "light": "#267F99",
-                    "highContrast": "#4EC9B0"
-                }
-            },
-            {
-                "id": "ralsp.variable.mut",
-                "description": "Color for mutable variables",
-                "defaults": {
-                    "dark": "#4EC9B0",
-                    "light": "#267F99",
-                    "highContrast": "#4EC9B0"
-                }
-            },
-            {
-                "id": "ralsp.module",
-                "description": "Color for modules",
-                "defaults": {
-                    "dark": "#D4D4D4",
-                    "light": "#000000",
-                    "highContrast": "#FFFFFF"
-                }
-            },
-            {
-                "id": "ralsp.inlayHint",
+                "id": "rust_analyzer.inlayHint",
                 "description": "Color for inlay hints",
                 "defaults": {
                     "dark": "#A0A0A0F0",

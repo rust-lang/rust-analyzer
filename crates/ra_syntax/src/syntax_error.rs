@@ -1,3 +1,5 @@
+//! FIXME: write short doc here
+
 use std::fmt;
 
 use ra_parser::ParseError;
@@ -80,6 +82,8 @@ pub enum SyntaxErrorKind {
     InvalidBlockAttr,
     InvalidMatchInnerAttr,
     InvalidTupleIndexFormat,
+    VisibilityNotAllowed,
+    InclusiveRangeMissingEnd,
 }
 
 impl fmt::Display for SyntaxErrorKind {
@@ -97,6 +101,12 @@ impl fmt::Display for SyntaxErrorKind {
             }
             ParseError(msg) => write!(f, "{}", msg.0),
             EscapeError(err) => write!(f, "{}", err),
+            VisibilityNotAllowed => {
+                write!(f, "unnecessary visibility qualifier")
+            }
+            InclusiveRangeMissingEnd => {
+                write!(f, "An inclusive range must have an end expression")
+            }
         }
     }
 }

@@ -1,3 +1,5 @@
+//! Transforms markdown
+
 pub(crate) fn format_docs(src: &str) -> String {
     let mut processed_lines = Vec::new();
     let mut in_code_block = false;
@@ -70,5 +72,4 @@ let a = 1;
             "```rust\nfn main(){}\n```\nSome comment.\n```rust\nlet a = 1;\n```"
         );
     }
-
 }

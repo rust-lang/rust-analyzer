@@ -6,14 +6,15 @@ authors = ["rust-analyzer developers"]
 publish = false
 
 [dependencies]
-clap = { version = "2.32.0", default-features = false }
-flexi_logger = "0.14.0"
-indicatif = "0.11.0"
+pico-args = "0.3.0"
+env_logger = { version = "0.7.1", default-features = false, features = ["humantime"] }
 
 ra_syntax = { path = "../ra_syntax" }
-ra_ide_api = { path = "../ra_ide_api" }
+ra_ide = { path = "../ra_ide" }
 ra_batch = { path = "../ra_batch" }
-ra_hir = { path = "../ra_hir" }
+hir = { path = "../ra_hir", package = "ra_hir" }
+hir_ty = { path = "../ra_hir_ty", package = "ra_hir_ty" }
+hir_def = { path = "../ra_hir_def", package = "ra_hir_def" }
 ra_db = { path = "../ra_db" }
 
 [dependencies.ra_prof]

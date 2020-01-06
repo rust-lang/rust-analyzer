@@ -1,11 +1,12 @@
+//! FIXME: write short doc here
+
 mod block;
 
 use rustc_lexer::unescape;
 
 use crate::{
-    algo::visit::{visitor_ctx, VisitorCtx},
-    ast, AstNode, SyntaxError, SyntaxErrorKind,
-    SyntaxKind::{BYTE, BYTE_STRING, CHAR, INT_NUMBER, STRING},
+    ast, match_ast, AstNode, SyntaxError, SyntaxErrorKind,
+    SyntaxKind::{BYTE, BYTE_STRING, CHAR, CONST_DEF, FN_DEF, INT_NUMBER, STRING, TYPE_ALIAS_DEF},
     SyntaxNode, SyntaxToken, TextUnit, T,
 };
 
@@ -95,12 +96,17 @@ impl From<rustc_lexer::unescape::EscapeError> for SyntaxErrorKind {
 pub(crate) fn validate(root: &SyntaxNode) -> Vec<SyntaxError> {
     let mut errors = Vec::new();
     for node in root.descendants() {
-        let _ = visitor_ctx(&mut errors)
-            .visit::<ast::Literal, _>(validate_literal)
-            .visit::<ast::Block, _>(block::validate_block_node)
-            .visit::<ast::FieldExpr, _>(|it, errors| validate_numeric_name(it.name_ref(), errors))
-            .visit::<ast::NamedField, _>(|it, errors| validate_numeric_name(it.name_ref(), errors))
-            .accept(&node);
+        match_ast! {
+            match node {
+                ast::Literal(it) => { validate_literal(it, &mut errors) },
+                ast::BlockExpr(it) => { block::validate_block_expr(it, &mut errors) },
+                ast::FieldExpr(it) => { validate_numeric_name(it.name_ref(), &mut errors) },
+                ast::RecordField(it) => { validate_numeric_name(it.name_ref(), &mut errors) },
+                ast::Visibility(it) => { validate_visibility(it, &mut errors) },
+                ast::RangeExpr(it) => { validate_range_expr(it, &mut errors) },
+                _ => (),
+            }
+        }
     }
     errors
 }
@@ -200,5 +206,34 @@ fn validate_numeric_name(name_ref: Option<ast::NameRef>, errors: &mut Vec<Syntax
 
     fn int_token(name_ref: Option<ast::NameRef>) -> Option<SyntaxToken> {
         name_ref?.syntax().first_child_or_token()?.into_token().filter(|it| it.kind() == INT_NUMBER)
+    }
+}
+
+fn validate_visibility(vis: ast::Visibility, errors: &mut Vec<SyntaxError>) {
+    let parent = match vis.syntax().parent() {
+        Some(it) => it,
+        None => return,
+    };
+    match parent.kind() {
+        FN_DEF | CONST_DEF | TYPE_ALIAS_DEF => (),
+        _ => return,
+    }
+    let impl_block = match parent.parent().and_then(|it| it.parent()).and_then(ast::ImplBlock::cast)
+    {
+        Some(it) => it,
+        None => return,
+    };
+    if impl_block.target_trait().is_some() {
+        errors
+            .push(SyntaxError::new(SyntaxErrorKind::VisibilityNotAllowed, vis.syntax.text_range()))
+    }
+}
+
+fn validate_range_expr(expr: ast::RangeExpr, errors: &mut Vec<SyntaxError>) {
+    if expr.op_kind() == Some(ast::RangeOp::Inclusive) && expr.end().is_none() {
+        errors.push(SyntaxError::new(
+            SyntaxErrorKind::InclusiveRangeMissingEnd,
+            expr.syntax().text_range(),
+        ));
     }
 }

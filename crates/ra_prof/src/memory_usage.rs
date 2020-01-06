@@ -1,3 +1,5 @@
+//! FIXME: write short doc here
+
 use std::fmt;
 
 pub struct MemoryUsage {
@@ -6,7 +8,7 @@ pub struct MemoryUsage {
 }
 
 impl MemoryUsage {
-    #[cfg(feature = "jemalloc")]
+    #[cfg(all(feature = "jemalloc", not(target_env = "msvc")))]
     pub fn current() -> MemoryUsage {
         jemalloc_ctl::epoch::advance().unwrap();
         MemoryUsage {
@@ -15,7 +17,7 @@ impl MemoryUsage {
         }
     }
 
-    #[cfg(not(feature = "jemalloc"))]
+    #[cfg(any(not(feature = "jemalloc"), target_env = "msvc"))]
     pub fn current() -> MemoryUsage {
         MemoryUsage { allocated: Bytes(0), resident: Bytes(0) }
     }

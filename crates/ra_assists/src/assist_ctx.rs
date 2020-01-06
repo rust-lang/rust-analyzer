@@ -1,9 +1,10 @@
-use hir::db::HirDatabase;
+//! This module defines `AssistCtx` -- the API surface that is exposed to assists.
+use hir::{db::HirDatabase, InFile, SourceAnalyzer};
 use ra_db::FileRange;
 use ra_fmt::{leading_indent, reindent};
 use ra_syntax::{
-    algo::{find_covering_element, find_node_at_offset},
-    AstNode, SourceFile, SyntaxElement, SyntaxNode, SyntaxToken, TextRange, TextUnit,
+    algo::{self, find_covering_element, find_node_at_offset},
+    AstNode, SourceFile, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TextUnit,
     TokenAtOffset,
 };
 use ra_text_edit::TextEditBuilder;
@@ -12,8 +13,8 @@ use crate::{AssistAction, AssistId, AssistLabel};
 
 #[derive(Clone, Debug)]
 pub(crate) enum Assist {
-    Unresolved(Vec<AssistLabel>),
-    Resolved(Vec<(AssistLabel, AssistAction)>),
+    Unresolved { label: AssistLabel },
+    Resolved { label: AssistLabel, action: AssistAction },
 }
 
 /// `AssistCtx` allows to apply an assist or check if it could be applied.
@@ -45,14 +46,13 @@ pub(crate) enum Assist {
 ///
 /// Note, however, that we don't actually use such two-phase logic at the
 /// moment, because the LSP API is pretty awkward in this place, and it's much
-/// easier to just compute the edit eagerly :-)#[derive(Debug, Clone)]
+/// easier to just compute the edit eagerly :-)
 #[derive(Debug)]
 pub(crate) struct AssistCtx<'a, DB> {
     pub(crate) db: &'a DB,
     pub(crate) frange: FileRange,
     source_file: SourceFile,
     should_compute_edit: bool,
-    assist: Assist,
 }
 
 impl<'a, DB> Clone for AssistCtx<'a, DB> {
@@ -62,7 +62,6 @@ impl<'a, DB> Clone for AssistCtx<'a, DB> {
             frange: self.frange,
             source_file: self.source_file.clone(),
             should_compute_edit: self.should_compute_edit,
-            assist: self.assist.clone(),
         }
     }
 }
@@ -73,47 +72,52 @@ impl<'a, DB: HirDatabase> AssistCtx<'a, DB> {
         F: FnOnce(AssistCtx<DB>) -> T,
     {
         let parse = db.parse(frange.file_id);
-        let assist =
-            if should_compute_edit { Assist::Resolved(vec![]) } else { Assist::Unresolved(vec![]) };
 
-        let ctx = AssistCtx { db, frange, source_file: parse.tree(), should_compute_edit, assist };
+        let ctx = AssistCtx { db, frange, source_file: parse.tree(), should_compute_edit };
         f(ctx)
     }
 
-    pub(crate) fn add_action(
-        &mut self,
+    pub(crate) fn add_assist(
+        self,
         id: AssistId,
         label: impl Into<String>,
         f: impl FnOnce(&mut AssistBuilder),
-    ) -> &mut Self {
+    ) -> Option<Assist> {
         let label = AssistLabel { label: label.into(), id };
-        match &mut self.assist {
-            Assist::Unresolved(labels) => labels.push(label),
-            Assist::Resolved(labels_actions) => {
-                let action = {
-                    let mut edit = AssistBuilder::default();
-                    f(&mut edit);
-                    edit.build()
-                };
-                labels_actions.push((label, action));
-            }
-        }
-        self
-    }
+        let assist = if self.should_compute_edit {
+            let action = {
+                let mut edit = AssistBuilder::default();
+                f(&mut edit);
+                edit.build()
+            };
+            Assist::Resolved { label, action }
+        } else {
+            Assist::Unresolved { label }
+        };
 
-    pub(crate) fn build(self) -> Option<Assist> {
-        Some(self.assist)
+        Some(assist)
     }
 
     pub(crate) fn token_at_offset(&self) -> TokenAtOffset<SyntaxToken> {
         self.source_file.syntax().token_at_offset(self.frange.range.start())
     }
 
-    pub(crate) fn node_at_offset<N: AstNode>(&self) -> Option<N> {
+    pub(crate) fn find_token_at_offset(&self, kind: SyntaxKind) -> Option<SyntaxToken> {
+        self.token_at_offset().find(|it| it.kind() == kind)
+    }
+
+    pub(crate) fn find_node_at_offset<N: AstNode>(&self) -> Option<N> {
         find_node_at_offset(self.source_file.syntax(), self.frange.range.start())
     }
     pub(crate) fn covering_element(&self) -> SyntaxElement {
         find_covering_element(self.source_file.syntax(), self.frange.range)
+    }
+    pub(crate) fn source_analyzer(
+        &self,
+        node: &SyntaxNode,
+        offset: Option<TextUnit>,
+    ) -> SourceAnalyzer {
+        SourceAnalyzer::new(self.db, InFile::new(self.frange.file_id.into(), node), offset)
     }
 
     pub(crate) fn covering_node_for_range(&self, range: TextRange) -> SyntaxElement {
@@ -136,6 +140,7 @@ impl AssistBuilder {
 
     /// Replaces specified `node` of text with a given string, reindenting the
     /// string to maintain `node`'s existing indent.
+    // FIXME: remove in favor of ra_syntax::edit::IndentLevel::increase_indent
     pub(crate) fn replace_node_and_indent(
         &mut self,
         node: &SyntaxNode,
@@ -175,6 +180,10 @@ impl AssistBuilder {
     /// Get access to the raw `TextEditBuilder`.
     pub(crate) fn text_edit_builder(&mut self) -> &mut TextEditBuilder {
         &mut self.edit
+    }
+
+    pub(crate) fn replace_ast<N: AstNode>(&mut self, old: N, new: N) {
+        algo::diff(old.syntax(), new.syntax()).into_text_edit(&mut self.edit)
     }
 
     fn build(self) -> AssistAction {

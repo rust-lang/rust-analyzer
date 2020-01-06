@@ -1,3 +1,5 @@
+//! FIXME: write short doc here
+
 use super::*;
 
 // test param_list
@@ -39,7 +41,7 @@ fn list_(p: &mut Parser, flavor: Flavor) {
     let (bra, ket) = if flavor.type_required() { (T!['('], T![')']) } else { (T![|], T![|]) };
     assert!(p.at(bra));
     let m = p.start();
-    p.bump();
+    p.bump(bra);
     if flavor.type_required() {
         // test self_param_outer_attr
         // fn f(#[must_use] self) {}
@@ -80,7 +82,7 @@ fn value_parameter(p: &mut Parser, flavor: Flavor) {
     match flavor {
         Flavor::OptionalType | Flavor::Normal => {
             patterns::pattern(p);
-            if p.at(T![:]) || flavor.type_required() {
+            if p.at(T![:]) && !p.at(T![::]) || flavor.type_required() {
                 types::ascription(p)
             }
         }
@@ -96,10 +98,11 @@ fn value_parameter(p: &mut Parser, flavor: Flavor) {
             // trait Foo {
             //     fn bar(_: u64, mut x: i32);
             // }
-            if (la0 == IDENT || la0 == T![_]) && la1 == T![:]
+            if (la0 == IDENT || la0 == T![_]) && la1 == T![:] && !p.nth_at(1, T![::])
                 || la0 == T![mut] && la1 == IDENT && la2 == T![:]
-                || la0 == T![&] && la1 == IDENT && la2 == T![:]
-                || la0 == T![&] && la1 == T![mut] && la2 == IDENT && la3 == T![:]
+                || la0 == T![&]
+                    && (la1 == IDENT && la2 == T![:] && !p.nth_at(2, T![::])
+                        || la1 == T![mut] && la2 == IDENT && la3 == T![:] && !p.nth_at(3, T![::]))
             {
                 patterns::pattern(p);
                 types::ascription(p);
@@ -146,7 +149,7 @@ fn opt_self_param(p: &mut Parser) {
         };
         m = p.start();
         for _ in 0..n_toks {
-            p.bump();
+            p.bump_any();
         }
     }
     m.complete(p, SELF_PARAM);

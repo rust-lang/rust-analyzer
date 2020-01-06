@@ -7,12 +7,10 @@ use std::{
 };
 
 use crossbeam_channel::{after, select, Receiver};
-use flexi_logger::Logger;
-use gen_lsp_server::{RawMessage, RawNotification, RawRequest};
+use lsp_server::{Connection, Message, Notification, Request};
 use lsp_types::{
-    notification::DidOpenTextDocument,
-    notification::{Notification, ShowMessage},
-    request::{Request, Shutdown},
+    notification::{DidOpenTextDocument, Exit},
+    request::Shutdown,
     ClientCapabilities, DidOpenTextDocumentParams, GotoCapability, TextDocumentClientCapabilities,
     TextDocumentIdentifier, TextDocumentItem, Url,
 };
@@ -20,7 +18,6 @@ use serde::Serialize;
 use serde_json::{to_string_pretty, Value};
 use tempfile::TempDir;
 use test_utils::{find_mismatch, parse_fixture};
-use thread_worker::Worker;
 
 use ra_lsp_server::{main_loop, req, ServerConfig};
 
@@ -55,7 +52,7 @@ impl<'a> Project<'a> {
         let tmp_dir = self.tmp_dir.unwrap_or_else(|| TempDir::new().unwrap());
         static INIT: Once = Once::new();
         INIT.call_once(|| {
-            let _ = Logger::with_env_or_str(crate::LOG).start().unwrap();
+            let _ = env_logger::builder().is_test(true).try_init().unwrap();
             ra_prof::set_filter(if crate::PROFILE.is_empty() {
                 ra_prof::Filter::disabled()
             } else {
@@ -84,9 +81,10 @@ pub fn project(fixture: &str) -> Server {
 
 pub struct Server {
     req_id: Cell<u64>,
-    messages: RefCell<Vec<RawMessage>>,
+    messages: RefCell<Vec<Message>>,
     dir: TempDir,
-    worker: Worker<RawMessage, RawMessage>,
+    _thread: jod_thread::JoinHandle<()>,
+    client: Connection,
 }
 
 impl Server {
@@ -99,11 +97,11 @@ impl Server {
         let path = dir.path().to_path_buf();
 
         let roots = if roots.is_empty() { vec![path] } else { roots };
+        let (connection, client) = Connection::memory();
 
-        let worker = Worker::<RawMessage, RawMessage>::spawn(
-            "test server",
-            128,
-            move |msg_receiver, msg_sender| {
+        let _thread = jod_thread::Builder::new()
+            .name("test server".to_string())
+            .spawn(move || {
                 main_loop(
                     roots,
                     ClientCapabilities {
@@ -119,25 +117,24 @@ impl Server {
                         experimental: None,
                     },
                     ServerConfig { with_sysroot, ..ServerConfig::default() },
-                    &msg_receiver,
-                    &msg_sender,
+                    connection,
                 )
                 .unwrap()
-            },
-        );
-        let res = Server { req_id: Cell::new(1), dir, messages: Default::default(), worker };
+            })
+            .expect("failed to spawn a thread");
+
+        let res =
+            Server { req_id: Cell::new(1), dir, messages: Default::default(), client, _thread };
 
         for (path, text) in files {
-            res.send_notification(RawNotification::new::<DidOpenTextDocument>(
-                &DidOpenTextDocumentParams {
-                    text_document: TextDocumentItem {
-                        uri: Url::from_file_path(path).unwrap(),
-                        language_id: "rust".to_string(),
-                        version: 0,
-                        text,
-                    },
+            res.notification::<DidOpenTextDocument>(DidOpenTextDocumentParams {
+                text_document: TextDocumentItem {
+                    uri: Url::from_file_path(path).unwrap(),
+                    language_id: "rust".to_string(),
+                    version: 0,
+                    text,
                 },
-            ))
+            })
         }
         res
     }
@@ -149,16 +146,16 @@ impl Server {
 
     pub fn notification<N>(&self, params: N::Params)
     where
-        N: Notification,
+        N: lsp_types::notification::Notification,
         N::Params: Serialize,
     {
-        let r = RawNotification::new::<N>(&params);
+        let r = Notification::new(N::METHOD.to_string(), params);
         self.send_notification(r)
     }
 
     pub fn request<R>(&self, params: R::Params, expected_resp: Value)
     where
-        R: Request,
+        R: lsp_types::request::Request,
         R::Params: Serialize,
     {
         let actual = self.send_request::<R>(params);
@@ -175,23 +172,23 @@ impl Server {
 
     pub fn send_request<R>(&self, params: R::Params) -> Value
     where
-        R: Request,
+        R: lsp_types::request::Request,
         R::Params: Serialize,
     {
         let id = self.req_id.get();
         self.req_id.set(id + 1);
 
-        let r = RawRequest::new::<R>(id, &params);
+        let r = Request::new(id.into(), R::METHOD.to_string(), params);
         self.send_request_(r)
     }
-    fn send_request_(&self, r: RawRequest) -> Value {
-        let id = r.id;
-        self.worker.sender().send(RawMessage::Request(r)).unwrap();
+    fn send_request_(&self, r: Request) -> Value {
+        let id = r.id.clone();
+        self.client.sender.send(r.into()).unwrap();
         while let Some(msg) = self.recv() {
             match msg {
-                RawMessage::Request(req) => panic!("unexpected request: {:?}", req),
-                RawMessage::Notification(_) => (),
-                RawMessage::Response(res) => {
+                Message::Request(req) => panic!("unexpected request: {:?}", req),
+                Message::Notification(_) => (),
+                Message::Response(res) => {
                     assert_eq!(res.id, id);
                     if let Some(err) = res.error {
                         panic!("error response: {:#?}", err);
@@ -203,15 +200,16 @@ impl Server {
         panic!("no response");
     }
     pub fn wait_until_workspace_is_loaded(&self) {
-        self.wait_for_message_cond(1, &|msg: &RawMessage| match msg {
-            RawMessage::Notification(n) if n.method == ShowMessage::METHOD => {
-                let msg = n.clone().cast::<req::ShowMessage>().unwrap();
+        self.wait_for_message_cond(1, &|msg: &Message| match msg {
+            Message::Notification(n) if n.method == "window/showMessage" => {
+                let msg =
+                    n.clone().extract::<req::ShowMessageParams>("window/showMessage").unwrap();
                 msg.message.starts_with("workspace loaded")
             }
             _ => false,
         })
     }
-    fn wait_for_message_cond(&self, n: usize, cond: &dyn Fn(&RawMessage) -> bool) {
+    fn wait_for_message_cond(&self, n: usize, cond: &dyn Fn(&Message) -> bool) {
         let mut total = 0;
         for msg in self.messages.borrow().iter() {
             if cond(msg) {
@@ -225,14 +223,14 @@ impl Server {
             }
         }
     }
-    fn recv(&self) -> Option<RawMessage> {
-        recv_timeout(&self.worker.receiver()).map(|msg| {
+    fn recv(&self) -> Option<Message> {
+        recv_timeout(&self.client.receiver).map(|msg| {
             self.messages.borrow_mut().push(msg.clone());
             msg
         })
     }
-    fn send_notification(&self, not: RawNotification) {
-        self.worker.sender().send(RawMessage::Notification(not)).unwrap();
+    fn send_notification(&self, not: Notification) {
+        self.client.sender.send(Message::Notification(not)).unwrap();
     }
 
     pub fn path(&self) -> &Path {
@@ -242,11 +240,12 @@ impl Server {
 
 impl Drop for Server {
     fn drop(&mut self) {
-        self.send_request::<Shutdown>(());
+        self.request::<Shutdown>((), Value::Null);
+        self.notification::<Exit>(());
     }
 }
 
-fn recv_timeout(receiver: &Receiver<RawMessage>) -> Option<RawMessage> {
+fn recv_timeout(receiver: &Receiver<Message>) -> Option<Message> {
     let timeout = Duration::from_secs(120);
     select! {
         recv(receiver) -> msg => msg.ok(),

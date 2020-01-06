@@ -1,10 +1,9 @@
-use crate::{
-    project_model::{self, TargetKind},
-    world::WorldSnapshot,
-    Result,
-};
+//! FIXME: write short doc here
 
-use ra_ide_api::{FileId, RunnableKind};
+use ra_ide::{FileId, RunnableKind};
+use ra_project_model::{self, ProjectWorkspace, TargetKind};
+
+use crate::{world::WorldSnapshot, Result};
 
 pub(crate) fn runnable_args(
     world: &WorldSnapshot,
@@ -66,7 +65,7 @@ impl CargoTargetSpec {
         let file_id = world.analysis().crate_root(crate_id)?;
         let path = world.vfs.read().file2path(ra_vfs::VfsFile(file_id.0));
         let res = world.workspaces.iter().find_map(|ws| match ws {
-            project_model::ProjectWorkspace::Cargo { cargo, .. } => {
+            ProjectWorkspace::Cargo { cargo, .. } => {
                 let tgt = cargo.target_by_root(&path)?;
                 Some(CargoTargetSpec {
                     package: tgt.package(&cargo).name(&cargo).to_string(),
@@ -74,7 +73,7 @@ impl CargoTargetSpec {
                     target_kind: tgt.kind(&cargo),
                 })
             }
-            project_model::ProjectWorkspace::Json { .. } => None,
+            ProjectWorkspace::Json { .. } => None,
         });
         Ok(res)
     }

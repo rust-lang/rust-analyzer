@@ -1,22 +1,31 @@
+//! The context or environment in which the language server functions.
+//! In our server implementation this is know as the `WorldState`.
+//!
+//! Each tick provides an immutable snapshot of the state as `WorldSnapshot`.
+
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
 
-use gen_lsp_server::ErrorCode;
+use crossbeam_channel::{unbounded, Receiver};
+use lsp_server::ErrorCode;
 use lsp_types::Url;
 use parking_lot::RwLock;
-use ra_ide_api::{
+use ra_cargo_watch::{
+    url_from_path_with_drive_lowercasing, CheckOptions, CheckWatcher, CheckWatcherSharedState,
+};
+use ra_ide::{
     Analysis, AnalysisChange, AnalysisHost, CrateGraph, FeatureFlags, FileId, LibraryData,
     SourceRootId,
 };
-use ra_vfs::{LineEndings, RootEntry, Vfs, VfsChange, VfsFile, VfsRoot};
+use ra_project_model::{get_rustc_cfg_options, ProjectWorkspace};
+use ra_vfs::{LineEndings, RootEntry, Vfs, VfsChange, VfsFile, VfsRoot, VfsTask, Watch};
 use ra_vfs_glob::{Glob, RustPackageFilterBuilder};
 use relative_path::RelativePathBuf;
 
 use crate::{
     main_loop::pending_requests::{CompletedRequest, LatestRequests},
-    project_model::ProjectWorkspace,
     LspError, Result,
 };
 
@@ -24,6 +33,9 @@ use crate::{
 pub struct Options {
     pub publish_decorations: bool,
     pub supports_location_link: bool,
+    pub line_folding_only: bool,
+    pub max_inlay_hint_length: Option<usize>,
+    pub cargo_watch: CheckOptions,
 }
 
 /// `WorldState` is the primary mutable state of the language server
@@ -34,12 +46,15 @@ pub struct Options {
 #[derive(Debug)]
 pub struct WorldState {
     pub options: Options,
+    //FIXME: this belongs to `LoopState` rather than to `WorldState`
     pub roots_to_scan: usize,
     pub roots: Vec<PathBuf>,
     pub workspaces: Arc<Vec<ProjectWorkspace>>,
     pub analysis_host: AnalysisHost,
     pub vfs: Arc<RwLock<Vfs>>,
+    pub task_receiver: Receiver<VfsTask>,
     pub latest_requests: Arc<RwLock<LatestRequests>>,
+    pub check_watcher: CheckWatcher,
 }
 
 /// An immutable snapshot of the world's state at a point in time.
@@ -49,6 +64,7 @@ pub struct WorldSnapshot {
     pub analysis: Analysis,
     pub vfs: Arc<RwLock<Vfs>>,
     pub latest_requests: Arc<RwLock<LatestRequests>>,
+    pub check_watcher: Arc<RwLock<CheckWatcherSharedState>>,
 }
 
 impl WorldState {
@@ -57,6 +73,7 @@ impl WorldState {
         workspaces: Vec<ProjectWorkspace>,
         lru_capacity: Option<usize>,
         exclude_globs: &[Glob],
+        watch: Watch,
         options: Options,
         feature_flags: FeatureFlags,
     ) -> WorldState {
@@ -80,14 +97,24 @@ impl WorldState {
                 RootEntry::new(pkg_root.path().clone(), filter.into_vfs_filter())
             }));
         }
-
-        let (mut vfs, vfs_roots) = Vfs::new(roots);
+        let (task_sender, task_receiver) = unbounded();
+        let task_sender = Box::new(move |t| task_sender.send(t).unwrap());
+        let (mut vfs, vfs_roots) = Vfs::new(roots, task_sender, watch);
         let roots_to_scan = vfs_roots.len();
         for r in vfs_roots {
             let vfs_root_path = vfs.root2path(r);
             let is_local = folder_roots.iter().any(|it| vfs_root_path.starts_with(it));
             change.add_root(SourceRootId(r.0), is_local);
+            change.set_debug_root_path(SourceRootId(r.0), vfs_root_path.display().to_string());
         }
+
+        // FIXME: Read default cfgs from config
+        let default_cfg_options = {
+            let mut opts = get_rustc_cfg_options();
+            opts.insert_atom("test".into());
+            opts.insert_atom("debug_assertion".into());
+            opts
+        };
 
         // Create crate graph from all the workspaces
         let mut crate_graph = CrateGraph::default();
@@ -96,9 +123,17 @@ impl WorldState {
             vfs_file.map(|f| FileId(f.0))
         };
         for ws in workspaces.iter() {
-            crate_graph.extend(ws.to_crate_graph(&mut load));
+            let (graph, crate_names) = ws.to_crate_graph(&default_cfg_options, &mut load);
+            let shift = crate_graph.extend(graph);
+            for (crate_id, name) in crate_names {
+                change.set_debug_crate_name(crate_id.shift(shift), name)
+            }
         }
         change.set_crate_graph(crate_graph);
+
+        // FIXME: Figure out the multi-workspace situation
+        let check_watcher =
+            CheckWatcher::new(&options.cargo_watch, folder_roots.first().cloned().unwrap());
 
         let mut analysis_host = AnalysisHost::new(lru_capacity, feature_flags);
         analysis_host.apply_change(change);
@@ -109,7 +144,9 @@ impl WorldState {
             workspaces: Arc::new(workspaces),
             analysis_host,
             vfs: Arc::new(RwLock::new(vfs)),
+            task_receiver,
             latest_requests: Default::default(),
+            check_watcher,
         }
     }
 
@@ -117,10 +154,10 @@ impl WorldState {
     /// FIXME: better API here
     pub fn process_changes(
         &mut self,
-    ) -> Vec<(SourceRootId, Vec<(FileId, RelativePathBuf, Arc<String>)>)> {
+    ) -> Option<Vec<(SourceRootId, Vec<(FileId, RelativePathBuf, Arc<String>)>)>> {
         let changes = self.vfs.write().commit_changes();
         if changes.is_empty() {
-            return Vec::new();
+            return None;
         }
         let mut libs = Vec::new();
         let mut change = AnalysisChange::new();
@@ -154,7 +191,7 @@ impl WorldState {
             }
         }
         self.analysis_host.apply_change(change);
-        libs
+        Some(libs)
     }
 
     pub fn add_lib(&mut self, data: LibraryData) {
@@ -171,6 +208,7 @@ impl WorldState {
             analysis: self.analysis_host.analysis(),
             vfs: Arc::clone(&self.vfs),
             latest_requests: Arc::clone(&self.latest_requests),
+            check_watcher: self.check_watcher.shared.clone(),
         }
     }
 
@@ -210,8 +248,8 @@ impl WorldSnapshot {
 
     pub fn file_id_to_uri(&self, id: FileId) -> Result<Url> {
         let path = self.vfs.read().file2path(VfsFile(id.0));
-        let url = Url::from_file_path(&path)
-            .map_err(|_| format!("can't convert path to url: {}", path.display()))?;
+        let url = url_from_path_with_drive_lowercasing(path)?;
+
         Ok(url)
     }
 

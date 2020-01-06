@@ -1,11 +1,13 @@
-use ra_syntax::SmolStr;
-/// This module takes a (parsed) definition of `macro_rules` invocation, a
-/// `tt::TokenTree` representing an argument of macro invocation, and produces a
-/// `tt::TokenTree` for the result of the expansion.
-use rustc_hash::FxHashMap;
-use tt::TokenId;
+//! This module takes a (parsed) definition of `macro_rules` invocation, a
+//! `tt::TokenTree` representing an argument of macro invocation, and produces a
+//! `tt::TokenTree` for the result of the expansion.
 
-use crate::tt_cursor::TtCursor;
+mod matcher;
+mod transcriber;
+
+use ra_syntax::SmolStr;
+use rustc_hash::FxHashMap;
+
 use crate::ExpandError;
 
 pub(crate) fn expand(
@@ -16,15 +18,9 @@ pub(crate) fn expand(
 }
 
 fn expand_rule(rule: &crate::Rule, input: &tt::Subtree) -> Result<tt::Subtree, ExpandError> {
-    let mut input = TtCursor::new(input);
-    let bindings = match_lhs(&rule.lhs, &mut input)?;
-    if !input.is_eof() {
-        return Err(ExpandError::UnexpectedToken);
-    }
-
-    let mut ctx = ExpandCtx { bindings: &bindings, nesting: Vec::new(), var_expanded: false };
-
-    expand_subtree(&rule.rhs, &mut ctx)
+    let bindings = matcher::match_(&rule.lhs, input)?;
+    let res = transcriber::transcribe(&rule.rhs, &bindings)?;
+    Ok(res)
 }
 
 /// The actual algorithm for expansion is not too hard, but is pretty tricky.
@@ -79,473 +75,18 @@ struct Bindings {
 
 #[derive(Debug)]
 enum Binding {
-    Simple(tt::TokenTree),
+    Fragment(Fragment),
     Nested(Vec<Binding>),
     Empty,
 }
 
-impl Bindings {
-    fn push_optional(&mut self, name: &SmolStr) {
-        // FIXME: Do we have a better way to represent an empty token ?
-        // Insert an empty subtree for empty token
-        self.inner.insert(
-            name.clone(),
-            Binding::Simple(
-                tt::Subtree { delimiter: tt::Delimiter::None, token_trees: vec![] }.into(),
-            ),
-        );
-    }
-
-    fn push_empty(&mut self, name: &SmolStr) {
-        self.inner.insert(name.clone(), Binding::Empty);
-    }
-
-    fn contains(&self, name: &SmolStr) -> bool {
-        self.inner.contains_key(name)
-    }
-
-    fn get(&self, name: &SmolStr, nesting: &[usize]) -> Result<&tt::TokenTree, ExpandError> {
-        let mut b = self.inner.get(name).ok_or_else(|| {
-            ExpandError::BindingError(format!("could not find binding `{}`", name))
-        })?;
-        for &idx in nesting.iter() {
-            b = match b {
-                Binding::Simple(_) => break,
-                Binding::Nested(bs) => bs.get(idx).ok_or_else(|| {
-                    ExpandError::BindingError(format!("could not find nested binding `{}`", name))
-                })?,
-                Binding::Empty => {
-                    return Err(ExpandError::BindingError(format!(
-                        "could not find empty binding `{}`",
-                        name
-                    )))
-                }
-            };
-        }
-        match b {
-            Binding::Simple(it) => Ok(it),
-            Binding::Nested(_) => Err(ExpandError::BindingError(format!(
-                "expected simple binding, found nested binding `{}`",
-                name
-            ))),
-            Binding::Empty => Err(ExpandError::BindingError(format!(
-                "expected simple binding, found empty binding `{}`",
-                name
-            ))),
-        }
-    }
-
-    fn push_nested(&mut self, idx: usize, nested: Bindings) -> Result<(), ExpandError> {
-        for (key, value) in nested.inner {
-            if !self.inner.contains_key(&key) {
-                self.inner.insert(key.clone(), Binding::Nested(Vec::new()));
-            }
-            match self.inner.get_mut(&key) {
-                Some(Binding::Nested(it)) => {
-                    // insert empty nested bindings before this one
-                    while it.len() < idx {
-                        it.push(Binding::Nested(vec![]));
-                    }
-                    it.push(value);
-                }
-                _ => {
-                    return Err(ExpandError::BindingError(format!(
-                        "could not find binding `{}`",
-                        key
-                    )));
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn merge(&mut self, nested: Bindings) {
-        self.inner.extend(nested.inner);
-    }
-}
-
-fn collect_vars(subtree: &crate::Subtree) -> Vec<SmolStr> {
-    let mut res = vec![];
-
-    for tkn in subtree.token_trees.iter() {
-        match tkn {
-            crate::TokenTree::Leaf(crate::Leaf::Var(crate::Var { text, .. })) => {
-                res.push(text.clone());
-            }
-            crate::TokenTree::Subtree(subtree) => {
-                res.extend(collect_vars(subtree));
-            }
-            crate::TokenTree::Repeat(crate::Repeat { subtree, .. }) => {
-                res.extend(collect_vars(subtree));
-            }
-            _ => {}
-        }
-    }
-
-    res
-}
-
-fn match_lhs(pattern: &crate::Subtree, input: &mut TtCursor) -> Result<Bindings, ExpandError> {
-    let mut res = Bindings::default();
-    for pat in pattern.token_trees.iter() {
-        match pat {
-            crate::TokenTree::Leaf(leaf) => match leaf {
-                crate::Leaf::Var(crate::Var { text, kind }) => {
-                    let kind = kind.clone().ok_or(ExpandError::UnexpectedToken)?;
-                    match kind.as_str() {
-                        "ident" => {
-                            let ident =
-                                input.eat_ident().ok_or(ExpandError::UnexpectedToken)?.clone();
-                            res.inner.insert(
-                                text.clone(),
-                                Binding::Simple(tt::Leaf::from(ident).into()),
-                            );
-                        }
-                        "path" => {
-                            let path =
-                                input.eat_path().ok_or(ExpandError::UnexpectedToken)?.clone();
-                            res.inner.insert(text.clone(), Binding::Simple(path));
-                        }
-                        "expr" => {
-                            let expr =
-                                input.eat_expr().ok_or(ExpandError::UnexpectedToken)?.clone();
-                            res.inner.insert(text.clone(), Binding::Simple(expr));
-                        }
-                        "ty" => {
-                            let ty = input.eat_ty().ok_or(ExpandError::UnexpectedToken)?.clone();
-                            res.inner.insert(text.clone(), Binding::Simple(ty));
-                        }
-                        "pat" => {
-                            let pat = input.eat_pat().ok_or(ExpandError::UnexpectedToken)?.clone();
-                            res.inner.insert(text.clone(), Binding::Simple(pat));
-                        }
-                        "stmt" => {
-                            let pat = input.eat_stmt().ok_or(ExpandError::UnexpectedToken)?.clone();
-                            res.inner.insert(text.clone(), Binding::Simple(pat));
-                        }
-                        "block" => {
-                            let block =
-                                input.eat_block().ok_or(ExpandError::UnexpectedToken)?.clone();
-                            res.inner.insert(text.clone(), Binding::Simple(block));
-                        }
-                        "meta" => {
-                            let meta =
-                                input.eat_meta().ok_or(ExpandError::UnexpectedToken)?.clone();
-                            res.inner.insert(text.clone(), Binding::Simple(meta));
-                        }
-                        "tt" => {
-                            let token = input.eat().ok_or(ExpandError::UnexpectedToken)?.clone();
-                            res.inner.insert(text.clone(), Binding::Simple(token));
-                        }
-                        "item" => {
-                            let item =
-                                input.eat_item().ok_or(ExpandError::UnexpectedToken)?.clone();
-                            res.inner.insert(text.clone(), Binding::Simple(item));
-                        }
-                        "lifetime" => {
-                            let lifetime =
-                                input.eat_lifetime().ok_or(ExpandError::UnexpectedToken)?.clone();
-                            res.inner.insert(text.clone(), Binding::Simple(lifetime));
-                        }
-                        "literal" => {
-                            let literal =
-                                input.eat_literal().ok_or(ExpandError::UnexpectedToken)?.clone();
-
-                            res.inner.insert(
-                                text.clone(),
-                                Binding::Simple(tt::Leaf::from(literal).into()),
-                            );
-                        }
-                        "vis" => {
-                            // `vis` is optional
-                            if let Some(vis) = input.try_eat_vis() {
-                                let vis = vis.clone();
-                                res.inner.insert(text.clone(), Binding::Simple(vis));
-                            } else {
-                                res.push_optional(&text);
-                            }
-                        }
-
-                        _ => return Err(ExpandError::UnexpectedToken),
-                    }
-                }
-                crate::Leaf::Punct(punct) => {
-                    if !input.eat_punct().map(|p| p.char == punct.char).unwrap_or(false) {
-                        return Err(ExpandError::UnexpectedToken);
-                    }
-                }
-                crate::Leaf::Ident(ident) => {
-                    if input.eat_ident().map(|i| &i.text) != Some(&ident.text) {
-                        return Err(ExpandError::UnexpectedToken);
-                    }
-                }
-                crate::Leaf::Literal(literal) => {
-                    if input.eat_literal().map(|i| &i.text) != Some(&literal.text) {
-                        return Err(ExpandError::UnexpectedToken);
-                    }
-                }
-            },
-            crate::TokenTree::Repeat(crate::Repeat { subtree, kind, separator }) => {
-                // Dirty hack to make macro-expansion terminate.
-                // This should be replaced by a propper macro-by-example implementation
-                let mut limit = 65536;
-                let mut counter = 0;
-
-                let mut memento = input.save();
-
-                loop {
-                    match match_lhs(subtree, input) {
-                        Ok(nested) => {
-                            limit -= 1;
-                            if limit == 0 {
-                                log::warn!("match_lhs excced in repeat pattern exceed limit => {:#?}\n{:#?}\n{:#?}\n{:#?}", subtree, input, kind, separator);
-                                break;
-                            }
-
-                            memento = input.save();
-                            res.push_nested(counter, nested)?;
-                            counter += 1;
-                            if counter == 1 {
-                                if let crate::RepeatKind::ZeroOrOne = kind {
-                                    break;
-                                }
-                            }
-
-                            if let Some(separator) = separator {
-                                if !input
-                                    .eat_seperator()
-                                    .map(|sep| sep == *separator)
-                                    .unwrap_or(false)
-                                {
-                                    input.rollback(memento);
-                                    break;
-                                }
-                            }
-                        }
-                        Err(_) => {
-                            input.rollback(memento);
-                            break;
-                        }
-                    }
-                }
-
-                match kind {
-                    crate::RepeatKind::OneOrMore if counter == 0 => {
-                        return Err(ExpandError::UnexpectedToken);
-                    }
-                    _ if counter == 0 => {
-                        // Collect all empty variables in subtrees
-                        collect_vars(subtree).iter().for_each(|s| res.push_empty(s));
-                    }
-                    _ => {}
-                }
-            }
-            crate::TokenTree::Subtree(subtree) => {
-                let input_subtree =
-                    input.eat_subtree().map_err(|_| ExpandError::UnexpectedToken)?;
-                if subtree.delimiter != input_subtree.delimiter {
-                    return Err(ExpandError::UnexpectedToken);
-                }
-
-                let mut input = TtCursor::new(input_subtree);
-                let bindings = match_lhs(&subtree, &mut input)?;
-                if !input.is_eof() {
-                    return Err(ExpandError::UnexpectedToken);
-                }
-
-                res.merge(bindings);
-            }
-        }
-    }
-    Ok(res)
-}
-
-#[derive(Debug)]
-struct ExpandCtx<'a> {
-    bindings: &'a Bindings,
-    nesting: Vec<usize>,
-    var_expanded: bool,
-}
-
-fn expand_subtree(
-    template: &crate::Subtree,
-    ctx: &mut ExpandCtx,
-) -> Result<tt::Subtree, ExpandError> {
-    let token_trees = template
-        .token_trees
-        .iter()
-        .map(|it| expand_tt(it, ctx))
-        .filter(|it| {
-            // Filter empty subtree
-            if let Ok(tt::TokenTree::Subtree(subtree)) = it {
-                subtree.delimiter != tt::Delimiter::None || !subtree.token_trees.is_empty()
-            } else {
-                true
-            }
-        })
-        .collect::<Result<Vec<_>, ExpandError>>()?;
-
-    Ok(tt::Subtree { token_trees, delimiter: template.delimiter })
-}
-
-/// Reduce single token subtree to single token
-/// In `tt` matcher case, all tt tokens will be braced by a Delimiter::None
-/// which makes all sort of problems.
-fn reduce_single_token(mut subtree: tt::Subtree) -> tt::TokenTree {
-    if subtree.delimiter != tt::Delimiter::None || subtree.token_trees.len() != 1 {
-        return subtree.into();
-    }
-
-    match subtree.token_trees.pop().unwrap() {
-        tt::TokenTree::Subtree(subtree) => reduce_single_token(subtree),
-        tt::TokenTree::Leaf(token) => token.into(),
-    }
-}
-
-fn expand_tt(
-    template: &crate::TokenTree,
-    ctx: &mut ExpandCtx,
-) -> Result<tt::TokenTree, ExpandError> {
-    let res: tt::TokenTree = match template {
-        crate::TokenTree::Subtree(subtree) => expand_subtree(subtree, ctx)?.into(),
-        crate::TokenTree::Repeat(repeat) => {
-            let mut token_trees: Vec<tt::TokenTree> = Vec::new();
-            ctx.nesting.push(0);
-            // Dirty hack to make macro-expansion terminate.
-            // This should be replaced by a propper macro-by-example implementation
-            let mut limit = 65536;
-            let mut has_seps = 0;
-            let mut counter = 0;
-
-            // We store the old var expanded value, and restore it later
-            // It is because before this `$repeat`,
-            // it is possible some variables already expanad in the same subtree
-            //
-            // `some_var_expanded` keep check if the deeper subtree has expanded variables
-            let mut some_var_expanded = false;
-            let old_var_expanded = ctx.var_expanded;
-            ctx.var_expanded = false;
-
-            while let Ok(t) = expand_subtree(&repeat.subtree, ctx) {
-                // if no var expanded in the child, we count it as a fail
-                if !ctx.var_expanded {
-                    break;
-                }
-
-                // Reset `ctx.var_expandeded` to see if there is other expanded variable
-                // in the next matching
-                some_var_expanded = true;
-                ctx.var_expanded = false;
-
-                counter += 1;
-                limit -= 1;
-                if limit == 0 {
-                    log::warn!(
-                        "expand_tt excced in repeat pattern exceed limit => {:#?}\n{:#?}",
-                        template,
-                        ctx
-                    );
-                    break;
-                }
-
-                let idx = ctx.nesting.pop().unwrap();
-                ctx.nesting.push(idx + 1);
-                token_trees.push(reduce_single_token(t));
-
-                if let Some(ref sep) = repeat.separator {
-                    match sep {
-                        crate::Separator::Ident(ident) => {
-                            has_seps = 1;
-                            token_trees.push(tt::Leaf::from(ident.clone()).into());
-                        }
-                        crate::Separator::Literal(lit) => {
-                            has_seps = 1;
-                            token_trees.push(tt::Leaf::from(lit.clone()).into());
-                        }
-
-                        crate::Separator::Puncts(puncts) => {
-                            has_seps = puncts.len();
-                            for punct in puncts {
-                                token_trees.push(tt::Leaf::from(*punct).into());
-                            }
-                        }
-                    }
-                }
-
-                if let crate::RepeatKind::ZeroOrOne = repeat.kind {
-                    break;
-                }
-            }
-
-            // Restore the `var_expanded` by combining old one and the new one
-            ctx.var_expanded = some_var_expanded || old_var_expanded;
-
-            ctx.nesting.pop().unwrap();
-            for _ in 0..has_seps {
-                token_trees.pop();
-            }
-
-            if crate::RepeatKind::OneOrMore == repeat.kind && counter == 0 {
-                return Err(ExpandError::UnexpectedToken);
-            }
-
-            // Check if it is a singel token subtree without any delimiter
-            // e.g {Delimiter:None> ['>'] /Delimiter:None>}
-            reduce_single_token(tt::Subtree { token_trees, delimiter: tt::Delimiter::None })
-        }
-        crate::TokenTree::Leaf(leaf) => match leaf {
-            crate::Leaf::Ident(ident) => {
-                tt::Leaf::from(tt::Ident { text: ident.text.clone(), id: TokenId::unspecified() })
-                    .into()
-            }
-            crate::Leaf::Punct(punct) => tt::Leaf::from(*punct).into(),
-            crate::Leaf::Var(v) => {
-                if v.text == "crate" {
-                    // FIXME: Properly handle $crate token
-                    tt::Leaf::from(tt::Ident { text: "$crate".into(), id: TokenId::unspecified() })
-                        .into()
-                } else if !ctx.bindings.contains(&v.text) {
-                    // Note that it is possible to have a `$var` inside a macro which is not bound.
-                    // For example:
-                    // ```
-                    // macro_rules! foo {
-                    //     ($a:ident, $b:ident, $c:tt) => {
-                    //         macro_rules! bar {
-                    //             ($bi:ident) => {
-                    //                 fn $bi() -> u8 {$c}
-                    //             }
-                    //         }
-                    //     }
-                    // ```
-                    // We just treat it a normal tokens
-                    tt::Subtree {
-                        delimiter: tt::Delimiter::None,
-                        token_trees: vec![
-                            tt::Leaf::from(tt::Punct { char: '$', spacing: tt::Spacing::Alone })
-                                .into(),
-                            tt::Leaf::from(tt::Ident {
-                                text: v.text.clone(),
-                                id: TokenId::unspecified(),
-                            })
-                            .into(),
-                        ],
-                    }
-                    .into()
-                } else {
-                    let tkn = ctx.bindings.get(&v.text, &ctx.nesting)?.clone();
-                    ctx.var_expanded = true;
-
-                    if let tt::TokenTree::Subtree(subtree) = tkn {
-                        reduce_single_token(subtree)
-                    } else {
-                        tkn
-                    }
-                }
-            }
-            crate::Leaf::Literal(l) => tt::Leaf::from(tt::Literal { text: l.text.clone() }).into(),
-        },
-    };
-    Ok(res)
+#[derive(Debug, Clone)]
+enum Fragment {
+    /// token fragments are just copy-pasted into the output
+    Tokens(tt::TokenTree),
+    /// Ast fragments are inserted with fake delimiters, so as to make things
+    /// like `$i * 2` where `$i = 1 + 1` work as expectd.
+    Ast(tt::TokenTree),
 }
 
 #[cfg(test)]
@@ -557,13 +98,6 @@ mod tests {
 
     #[test]
     fn test_expand_rule() {
-        // FIXME: The missing $var check should be in parsing phase
-        // assert_err(
-        //     "($i:ident) => ($j)",
-        //     "foo!{a}",
-        //     ExpandError::BindingError(String::from("could not find binding `j`")),
-        // );
-
         assert_err(
             "($($i:ident);*) => ($i)",
             "foo!{a}",
@@ -571,9 +105,6 @@ mod tests {
                 "expected simple binding, found nested binding `i`",
             )),
         );
-
-        assert_err("($i) => ($i)", "foo!{a}", ExpandError::UnexpectedToken);
-        assert_err("($i:) => ($i)", "foo!{a}", ExpandError::UnexpectedToken);
 
         // FIXME:
         // Add an err test case for ($($i:ident)) => ($())

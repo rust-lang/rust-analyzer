@@ -1,9 +1,12 @@
+//! FIXME: write short doc here
+
 use std::path::{Path, PathBuf};
 
 use cargo_metadata::{CargoOpt, MetadataCommand};
 use ra_arena::{impl_arena_id, Arena, RawId};
 use ra_db::Edition;
 use rustc_hash::FxHashMap;
+use serde::Deserialize;
 
 use crate::Result;
 
@@ -19,6 +22,26 @@ pub struct CargoWorkspace {
     packages: Arena<Package, PackageData>,
     targets: Arena<Target, TargetData>,
     pub(crate) workspace_root: PathBuf,
+}
+
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CargoFeatures {
+    /// Do not activate the `default` feature.
+    pub no_default_features: bool,
+
+    /// Activate all available features
+    pub all_features: bool,
+
+    /// List of features to activate.
+    /// This will be ignored if `cargo_all_features` is true.
+    pub features: Vec<String>,
+}
+
+impl Default for CargoFeatures {
+    fn default() -> Self {
+        CargoFeatures { no_default_features: false, all_features: true, features: Vec::new() }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -37,6 +60,7 @@ struct PackageData {
     is_member: bool,
     dependencies: Vec<PackageDependency>,
     edition: Edition,
+    features: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -51,11 +75,13 @@ struct TargetData {
     name: String,
     root: PathBuf,
     kind: TargetKind,
+    is_proc_macro: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetKind {
     Bin,
+    /// Any kind of Cargo lib crate-type (dylib, rlib, proc-macro, ...).
     Lib,
     Example,
     Test,
@@ -71,6 +97,7 @@ impl TargetKind {
                 "test" => TargetKind::Test,
                 "bench" => TargetKind::Bench,
                 "example" => TargetKind::Example,
+                "proc-macro" => TargetKind::Lib,
                 _ if kind.contains("lib") => TargetKind::Lib,
                 _ => continue,
             };
@@ -88,6 +115,9 @@ impl Package {
     }
     pub fn edition(self, ws: &CargoWorkspace) -> Edition {
         ws.packages[self].edition
+    }
+    pub fn features(self, ws: &CargoWorkspace) -> &[String] {
+        &ws.packages[self].features
     }
     pub fn targets<'a>(self, ws: &'a CargoWorkspace) -> impl Iterator<Item = Target> + 'a {
         ws.packages[self].targets.iter().cloned()
@@ -117,12 +147,27 @@ impl Target {
     pub fn kind(self, ws: &CargoWorkspace) -> TargetKind {
         ws.targets[self].kind
     }
+    pub fn is_proc_macro(self, ws: &CargoWorkspace) -> bool {
+        ws.targets[self].is_proc_macro
+    }
 }
 
 impl CargoWorkspace {
-    pub fn from_cargo_metadata(cargo_toml: &Path) -> Result<CargoWorkspace> {
+    pub fn from_cargo_metadata(
+        cargo_toml: &Path,
+        cargo_features: &CargoFeatures,
+    ) -> Result<CargoWorkspace> {
         let mut meta = MetadataCommand::new();
-        meta.manifest_path(cargo_toml).features(CargoOpt::AllFeatures);
+        meta.manifest_path(cargo_toml);
+        if cargo_features.all_features {
+            meta.features(CargoOpt::AllFeatures);
+        } else if cargo_features.no_default_features {
+            // FIXME: `NoDefaultFeatures` is mutual exclusive with `SomeFeatures`
+            // https://github.com/oli-obk/cargo_metadata/issues/79
+            meta.features(CargoOpt::NoDefaultFeatures);
+        } else if cargo_features.features.len() > 0 {
+            meta.features(CargoOpt::SomeFeatures(cargo_features.features.clone()));
+        }
         if let Some(parent) = cargo_toml.parent() {
             meta.current_dir(parent);
         }
@@ -134,23 +179,28 @@ impl CargoWorkspace {
         let ws_members = &meta.workspace_members;
 
         for meta_pkg in meta.packages {
-            let is_member = ws_members.contains(&meta_pkg.id);
+            let cargo_metadata::Package { id, edition, name, manifest_path, .. } = meta_pkg;
+            let is_member = ws_members.contains(&id);
+            let edition = edition.parse::<Edition>()?;
             let pkg = packages.alloc(PackageData {
-                name: meta_pkg.name,
-                manifest: meta_pkg.manifest_path.clone(),
+                name,
+                manifest: manifest_path,
                 targets: Vec::new(),
                 is_member,
-                edition: Edition::from_string(&meta_pkg.edition),
+                edition,
                 dependencies: Vec::new(),
+                features: Vec::new(),
             });
             let pkg_data = &mut packages[pkg];
-            pkg_by_id.insert(meta_pkg.id.clone(), pkg);
+            pkg_by_id.insert(id, pkg);
             for meta_tgt in meta_pkg.targets {
+                let is_proc_macro = meta_tgt.kind.as_slice() == &["proc-macro"];
                 let tgt = targets.alloc(TargetData {
                     pkg,
                     name: meta_tgt.name,
                     root: meta_tgt.src_path.clone(),
                     kind: TargetKind::new(meta_tgt.kind.as_slice()),
+                    is_proc_macro,
                 });
                 pkg_data.targets.push(tgt);
             }
@@ -162,6 +212,7 @@ impl CargoWorkspace {
                 let dep = PackageDependency { name: dep_node.name, pkg: pkg_by_id[&dep_node.pkg] };
                 packages[source].dependencies.push(dep);
             }
+            packages[source].features.extend(node.features);
         }
 
         Ok(CargoWorkspace { packages, targets, workspace_root: meta.workspace_root })

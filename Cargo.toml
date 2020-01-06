@@ -1,8 +1,14 @@
 [workspace]
-members = [ "crates/*" ]
+members = [ "crates/*", "xtask/" ]
+
+[profile.dev]
+# disabling debug info speeds up builds a bunch,
+# and we don't rely on it for debugging that much.
+debug = 0
 
 [profile.release]
 incremental = true
-debug = 1 # only line info
+debug = 0 # set this to 1 or 2 to get more useful backtraces in debugger
 
 [patch.'crates-io']
+# rowan = { path = "../rowan" }

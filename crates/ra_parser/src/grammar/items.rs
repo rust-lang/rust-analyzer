@@ -1,11 +1,13 @@
+//! FIXME: write short doc here
+
 mod consts;
-mod nominal;
+mod adt;
 mod traits;
 mod use_item;
 
 pub(crate) use self::{
-    expressions::{match_arm_list, named_field_list},
-    nominal::{enum_variant_list, named_field_def_list},
+    adt::{enum_variant_list, record_field_def_list},
+    expressions::{match_arm_list, record_field_list},
     traits::{impl_item_list, trait_item_list},
     use_item::use_tree_list,
 };
@@ -31,7 +33,7 @@ pub(super) enum ItemFlavor {
 
 pub(super) const ITEM_RECOVERY_SET: TokenSet = token_set![
     FN_KW, STRUCT_KW, ENUM_KW, IMPL_KW, TRAIT_KW, CONST_KW, STATIC_KW, LET_KW, MOD_KW, PUB_KW,
-    CRATE_KW
+    CRATE_KW, USE_KW, MACRO_KW
 ];
 
 pub(super) fn item_or_macro(p: &mut Parser, stop_on_r_curly: bool, flavor: ItemFlavor) {
@@ -64,7 +66,7 @@ pub(super) fn item_or_macro(p: &mut Parser, stop_on_r_curly: bool, flavor: ItemF
         } else if p.at(T!['}']) && !stop_on_r_curly {
             let e = p.start();
             p.error("unmatched `}`");
-            p.bump();
+            p.bump(T!['}']);
             e.complete(p, ERROR);
         } else if !p.at(EOF) && !p.at(T!['}']) {
             p.err_and_bump("expected an item");
@@ -245,7 +247,12 @@ fn items_without_modifiers(p: &mut Parser, m: Marker) -> Result<(), Marker> {
             //     a: i32,
             //     b: f32,
             // }
-            nominal::struct_def(p, m, T![struct]);
+            adt::struct_def(p, m);
+        }
+        // test pub_macro_def
+        // pub macro m($:ident) {}
+        T![macro] => {
+            macro_def(p, m);
         }
         IDENT if p.at_contextual_kw("union") && p.nth(1) == IDENT => {
             // test union_items
@@ -254,11 +261,11 @@ fn items_without_modifiers(p: &mut Parser, m: Marker) -> Result<(), Marker> {
             //     a: i32,
             //     b: f32,
             // }
-            nominal::struct_def(p, m, T![union]);
+            adt::union_def(p, m);
         }
-        T![enum] => nominal::enum_def(p, m),
+        T![enum] => adt::enum_def(p, m),
         T![use] => use_item::use_item(p, m),
-        T![const] if (la == IDENT || la == T![mut]) => consts::const_def(p, m),
+        T![const] if (la == IDENT || la == T![_] || la == T![mut]) => consts::const_def(p, m),
         T![static] => consts::static_def(p, m),
         // test extern_block
         // extern {}
@@ -276,9 +283,9 @@ fn items_without_modifiers(p: &mut Parser, m: Marker) -> Result<(), Marker> {
 
 fn extern_crate_item(p: &mut Parser, m: Marker) {
     assert!(p.at(T![extern]));
-    p.bump();
+    p.bump(T![extern]);
     assert!(p.at(T![crate]));
-    p.bump();
+    p.bump(T![crate]);
     name_ref(p);
     opt_alias(p);
     p.expect(T![;]);
@@ -288,7 +295,7 @@ fn extern_crate_item(p: &mut Parser, m: Marker) {
 pub(crate) fn extern_item_list(p: &mut Parser) {
     assert!(p.at(T!['{']));
     let m = p.start();
-    p.bump();
+    p.bump(T!['{']);
     mod_contents(p, true);
     p.expect(T!['}']);
     m.complete(p, EXTERN_ITEM_LIST);
@@ -296,7 +303,7 @@ pub(crate) fn extern_item_list(p: &mut Parser) {
 
 fn fn_def(p: &mut Parser, flavor: ItemFlavor) {
     assert!(p.at(T![fn]));
-    p.bump();
+    p.bump(T![fn]);
 
     name_r(p, ITEM_RECOVERY_SET);
     // test function_type_params
@@ -323,7 +330,7 @@ fn fn_def(p: &mut Parser, flavor: ItemFlavor) {
     // test fn_decl
     // trait T { fn foo(); }
     if p.at(T![;]) {
-        p.bump();
+        p.bump(T![;]);
     } else {
         expressions::block(p)
     }
@@ -333,7 +340,7 @@ fn fn_def(p: &mut Parser, flavor: ItemFlavor) {
 // type Foo = Bar;
 fn type_def(p: &mut Parser, m: Marker) {
     assert!(p.at(T![type]));
-    p.bump();
+    p.bump(T![type]);
 
     name(p);
 
@@ -357,7 +364,7 @@ fn type_def(p: &mut Parser, m: Marker) {
 
 pub(crate) fn mod_item(p: &mut Parser, m: Marker) {
     assert!(p.at(T![mod]));
-    p.bump();
+    p.bump(T![mod]);
 
     name(p);
     if p.at(T!['{']) {
@@ -371,10 +378,33 @@ pub(crate) fn mod_item(p: &mut Parser, m: Marker) {
 pub(crate) fn mod_item_list(p: &mut Parser) {
     assert!(p.at(T!['{']));
     let m = p.start();
-    p.bump();
+    p.bump(T!['{']);
     mod_contents(p, true);
     p.expect(T!['}']);
     m.complete(p, ITEM_LIST);
+}
+
+// test macro_def
+// macro m { ($i:ident) => {} }
+// macro m($i:ident) {}
+fn macro_def(p: &mut Parser, m: Marker) {
+    p.expect(T![macro]);
+    name_r(p, ITEM_RECOVERY_SET);
+    if p.at(T!['{']) {
+        token_tree(p);
+    } else if !p.at(T!['(']) {
+        p.error("unmatched `(`");
+    } else {
+        let m = p.start();
+        token_tree(p);
+        match p.current() {
+            T!['{'] | T!['['] | T!['('] => token_tree(p),
+            _ => p.error("expected `{`, `[`, `(`"),
+        }
+        m.complete(p, TOKEN_TREE);
+    }
+
+    m.complete(p, MACRO_DEF);
 }
 
 fn macro_call(p: &mut Parser) -> BlockLike {
@@ -412,7 +442,7 @@ pub(crate) fn token_tree(p: &mut Parser) {
         _ => unreachable!(),
     };
     let m = p.start();
-    p.bump();
+    p.bump_any();
     while !p.at(EOF) && !p.at(closing_paren_kind) {
         match p.current() {
             T!['{'] | T!['('] | T!['['] => token_tree(p),
@@ -422,7 +452,7 @@ pub(crate) fn token_tree(p: &mut Parser) {
                 return;
             }
             T![')'] | T![']'] => p.err_and_bump("unmatched brace"),
-            _ => p.bump_raw(),
+            _ => p.bump_any(),
         }
     }
     p.expect(closing_paren_kind);

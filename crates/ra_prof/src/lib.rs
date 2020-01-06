@@ -1,3 +1,5 @@
+//! FIXME: write short doc here
+
 mod memory_usage;
 #[cfg(feature = "cpu_profiler")]
 mod google_cpu_profiler;
@@ -22,7 +24,7 @@ pub use crate::memory_usage::{Bytes, MemoryUsage};
 
 // We use jemalloc mainly to get heap usage statistics, actual performance
 // difference is not measures.
-#[cfg(feature = "jemalloc")]
+#[cfg(all(feature = "jemalloc", not(target_env = "msvc")))]
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
@@ -195,8 +197,11 @@ impl Drop for Profiler {
                     if level == 0 {
                         let stdout = stderr();
                         let longer_than = stack.filter_data.longer_than;
-                        if duration >= longer_than {
-                            print(0, &stack.messages, &mut stdout.lock(), longer_than);
+                        // Convert to millis for comparison to avoid problems with rounding
+                        // (otherwise we could print `0ms` despite user's `>0` filter when
+                        // `duration` is just a few nanos).
+                        if duration.as_millis() > longer_than.as_millis() {
+                            print(0, &stack.messages, &mut stdout.lock(), longer_than, None);
                         }
                         stack.messages.clear();
                     }
@@ -207,20 +212,28 @@ impl Drop for Profiler {
     }
 }
 
-fn print(lvl: usize, msgs: &[Message], out: &mut impl Write, longer_than: Duration) {
+fn print(
+    lvl: usize,
+    msgs: &[Message],
+    out: &mut impl Write,
+    longer_than: Duration,
+    total: Option<Duration>,
+) {
     let mut last = 0;
-    let indent = repeat("    ").take(lvl + 1).collect::<String>();
+    let indent = repeat("    ").take(lvl).collect::<String>();
     // We output hierarchy for long calls, but sum up all short calls
     let mut short = Vec::new();
+    let mut accounted_for = Duration::default();
     for (i, &Message { level, duration, message: ref msg }) in msgs.iter().enumerate() {
         if level != lvl {
             continue;
         }
-        if duration >= longer_than {
-            writeln!(out, "{} {:6}ms - {}", indent, duration.as_millis(), msg)
+        accounted_for += duration;
+        if duration.as_millis() > longer_than.as_millis() {
+            writeln!(out, "{}{:5}ms - {}", indent, duration.as_millis(), msg)
                 .expect("printing profiling info to stdout");
 
-            print(lvl + 1, &msgs[last..i], out, longer_than);
+            print(lvl + 1, &msgs[last..i], out, longer_than, Some(duration));
         } else {
             short.push((msg, duration))
         }
@@ -235,8 +248,18 @@ fn print(lvl: usize, msgs: &[Message], out: &mut impl Write, longer_than: Durati
             count += 1;
             total_duration += *time;
         });
-        writeln!(out, "{} {:6}ms - {} ({} calls)", indent, total_duration.as_millis(), msg, count)
+        writeln!(out, "{}{:5}ms - {} ({} calls)", indent, total_duration.as_millis(), msg, count)
             .expect("printing profiling info to stdout");
+    }
+
+    if let Some(total) = total {
+        if let Some(unaccounted) = total.checked_sub(accounted_for) {
+            let unaccounted_millis = unaccounted.as_millis();
+            if unaccounted_millis > longer_than.as_millis() && unaccounted_millis > 0 && last > 0 {
+                writeln!(out, "{}{:5}ms - ???", indent, unaccounted_millis)
+                    .expect("printing profiling info to stdout");
+            }
+        }
     }
 }
 
@@ -336,5 +359,22 @@ mod tests {
 
     fn profiling_function2() {
         let _p = profile("profile2");
+    }
+
+    #[test]
+    fn test_longer_than() {
+        let mut result = vec![];
+        let msgs = vec![
+            Message { level: 1, duration: Duration::from_nanos(3), message: "bar".to_owned() },
+            Message { level: 1, duration: Duration::from_nanos(2), message: "bar".to_owned() },
+            Message { level: 0, duration: Duration::from_millis(1), message: "foo".to_owned() },
+        ];
+        print(0, &msgs, &mut result, Duration::from_millis(0), Some(Duration::from_millis(1)));
+        // The calls to `bar` are so short that they'll be rounded to 0ms and should get collapsed
+        // when printing.
+        assert_eq!(
+            std::str::from_utf8(&result).unwrap(),
+            "    1ms - foo\n        0ms - bar (2 calls)\n"
+        );
     }
 }

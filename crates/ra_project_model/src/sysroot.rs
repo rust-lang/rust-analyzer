@@ -1,3 +1,5 @@
+//! FIXME: write short doc here
+
 use std::{
     env,
     path::{Path, PathBuf},
@@ -25,8 +27,20 @@ struct SysrootCrateData {
 }
 
 impl Sysroot {
+    pub fn core(&self) -> Option<SysrootCrate> {
+        self.by_name("core")
+    }
+
+    pub fn alloc(&self) -> Option<SysrootCrate> {
+        self.by_name("alloc")
+    }
+
     pub fn std(&self) -> Option<SysrootCrate> {
         self.by_name("std")
+    }
+
+    pub fn proc_macro(&self) -> Option<SysrootCrate> {
+        self.by_name("proc_macro")
     }
 
     pub fn crates<'a>(&'a self) -> impl Iterator<Item = SysrootCrate> + ExactSizeIterator + 'a {
@@ -64,7 +78,7 @@ impl Sysroot {
             }
         }
         if let Some(alloc) = sysroot.by_name("alloc") {
-            if let Some(core) = sysroot.by_name("core") {
+            if let Some(core) = sysroot.core() {
                 sysroot.crates[alloc].deps.push(core);
             }
         }

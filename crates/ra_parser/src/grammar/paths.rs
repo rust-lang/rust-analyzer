@@ -1,7 +1,9 @@
+//! FIXME: write short doc here
+
 use super::*;
 
 pub(super) const PATH_FIRST: TokenSet =
-    token_set![IDENT, SELF_KW, SUPER_KW, CRATE_KW, COLONCOLON, L_ANGLE];
+    token_set![IDENT, SELF_KW, SUPER_KW, CRATE_KW, COLON, L_ANGLE];
 
 pub(super) fn is_path_start(p: &Parser) -> bool {
     is_use_path_start(p) || p.at(T![<])
@@ -9,7 +11,8 @@ pub(super) fn is_path_start(p: &Parser) -> bool {
 
 pub(super) fn is_use_path_start(p: &Parser) -> bool {
     match p.current() {
-        IDENT | T![self] | T![super] | T![crate] | T![::] => true,
+        IDENT | T![self] | T![super] | T![crate] => true,
+        T![:] if p.at(T![::]) => true,
         _ => false,
     }
 }
@@ -18,7 +21,7 @@ pub(super) fn use_path(p: &mut Parser) {
     path(p, Mode::Use)
 }
 
-pub(super) fn type_path(p: &mut Parser) {
+pub(crate) fn type_path(p: &mut Parser) {
     path(p, Mode::Type)
 }
 
@@ -38,13 +41,13 @@ fn path(p: &mut Parser, mode: Mode) {
     path_segment(p, mode, true);
     let mut qual = path.complete(p, PATH);
     loop {
-        let use_tree = match p.nth(1) {
+        let use_tree = match p.nth(2) {
             T![*] | T!['{'] => true,
             _ => false,
         };
         if p.at(T![::]) && !use_tree {
             let path = qual.precede(p);
-            p.bump();
+            p.bump(T![::]);
             path_segment(p, mode, false);
             let path = path.complete(p, PATH);
             qual = path;
@@ -80,7 +83,7 @@ fn path_segment(p: &mut Parser, mode: Mode, first: bool) {
             }
             // test crate_path
             // use crate::foo;
-            T![self] | T![super] | T![crate] => p.bump(),
+            T![self] | T![super] | T![crate] => p.bump_any(),
             _ => {
                 p.err_recover("expected identifier", items::ITEM_RECOVERY_SET);
             }

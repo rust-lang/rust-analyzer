@@ -6,6 +6,7 @@ use itertools::Itertools;
 
 use crate::{
     ast::{self, child_opt, children, AstChildren, AstNode, AstToken},
+    match_ast,
     syntax_node::{SyntaxElementChildren, SyntaxNodeChildren},
 };
 
@@ -28,13 +29,7 @@ pub trait VisibilityOwner: AstNode {
 }
 
 pub trait LoopBodyOwner: AstNode {
-    fn loop_body(&self) -> Option<ast::Block> {
-        child_opt(self)
-    }
-}
-
-pub trait TryBlockBodyOwner: AstNode {
-    fn try_body(&self) -> Option<ast::Block> {
+    fn loop_body(&self) -> Option<ast::BlockExpr> {
         child_opt(self)
     }
 }
@@ -74,11 +69,12 @@ impl Iterator for ItemOrMacroIter {
     fn next(&mut self) -> Option<ItemOrMacro> {
         loop {
             let n = self.0.next()?;
-            if let Some(item) = ast::ModuleItem::cast(n.clone()) {
-                return Some(ItemOrMacro::Item(item));
-            }
-            if let Some(call) = ast::MacroCall::cast(n) {
-                return Some(ItemOrMacro::Macro(call));
+            match_ast! {
+                match n {
+                    ast::ModuleItem(it) => { return Some(ItemOrMacro::Item(it)) },
+                    ast::MacroCall(it) => { return Some(ItemOrMacro::Macro(it)) },
+                    _ => {},
+                }
             }
         }
     }
@@ -105,7 +101,7 @@ pub trait AttrsOwner: AstNode {
         children(self)
     }
     fn has_atom_attr(&self, atom: &str) -> bool {
-        self.attrs().filter_map(|x| x.as_atom()).any(|x| x == atom)
+        self.attrs().filter_map(|x| x.as_simple_atom()).any(|x| x == atom)
     }
 }
 
@@ -126,7 +122,7 @@ pub trait DocCommentsOwner: AstNode {
                 has_comments = true;
                 let prefix_len = comment.prefix().len();
 
-                let line = comment.text().as_str();
+                let line: &str = comment.text().as_str();
 
                 // Determine if the prefix or prefix + 1 char is stripped
                 let pos =
@@ -142,7 +138,10 @@ pub trait DocCommentsOwner: AstNode {
                     line.len()
                 };
 
-                line[pos..end].trim_end().to_owned()
+                // Note that we do not trim the end of the line here
+                // since whitespace can have special meaning at the end
+                // of a line in markdown.
+                line[pos..end].to_owned()
             })
             .join("\n");
 
@@ -162,11 +161,5 @@ impl Iterator for CommentIter {
     type Item = ast::Comment;
     fn next(&mut self) -> Option<ast::Comment> {
         self.iter.by_ref().find_map(|el| el.into_token().and_then(ast::Comment::cast))
-    }
-}
-
-pub trait DefaultTypeParamOwner: AstNode {
-    fn default_type(&self) -> Option<ast::PathType> {
-        child_opt(self)
     }
 }

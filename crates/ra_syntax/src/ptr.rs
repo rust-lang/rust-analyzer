@@ -1,4 +1,10 @@
-use std::{iter::successors, marker::PhantomData};
+//! FIXME: write short doc here
+
+use std::{
+    hash::{Hash, Hasher},
+    iter::successors,
+    marker::PhantomData,
+};
 
 use crate::{AstNode, SyntaxKind, SyntaxNode, TextRange};
 
@@ -31,10 +37,17 @@ impl SyntaxNodePtr {
     pub fn kind(self) -> SyntaxKind {
         self.kind
     }
+
+    pub fn cast<N: AstNode>(self) -> Option<AstPtr<N>> {
+        if !N::can_cast(self.kind()) {
+            return None;
+        }
+        Some(AstPtr { raw: self, _ty: PhantomData })
+    }
 }
 
 /// Like `SyntaxNodePtr`, but remembers the type of node
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug)]
 pub struct AstPtr<N: AstNode> {
     raw: SyntaxNodePtr,
     _ty: PhantomData<fn() -> N>,
@@ -44,6 +57,20 @@ impl<N: AstNode> Copy for AstPtr<N> {}
 impl<N: AstNode> Clone for AstPtr<N> {
     fn clone(&self) -> AstPtr<N> {
         *self
+    }
+}
+
+impl<N: AstNode> Eq for AstPtr<N> {}
+
+impl<N: AstNode> PartialEq for AstPtr<N> {
+    fn eq(&self, other: &AstPtr<N>) -> bool {
+        self.raw == other.raw
+    }
+}
+
+impl<N: AstNode> Hash for AstPtr<N> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.raw.hash(state)
     }
 }
 
@@ -80,7 +107,7 @@ fn test_local_syntax_ptr() {
     use crate::{ast, AstNode, SourceFile};
 
     let file = SourceFile::parse("struct Foo { f: u32, }").ok().unwrap();
-    let field = file.syntax().descendants().find_map(ast::NamedFieldDef::cast).unwrap();
+    let field = file.syntax().descendants().find_map(ast::RecordFieldDef::cast).unwrap();
     let ptr = SyntaxNodePtr::new(field.syntax());
     let field_syntax = ptr.to_node(file.syntax());
     assert_eq!(field.syntax(), &field_syntax);

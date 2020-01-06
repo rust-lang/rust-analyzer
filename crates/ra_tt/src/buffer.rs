@@ -1,3 +1,5 @@
+//! FIXME: write short doc here
+
 use crate::{Subtree, TokenTree};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -109,7 +111,7 @@ impl<'a> Cursor<'a> {
 
     /// If the cursor is pointing at the end of a subtree, returns
     /// the parent subtree
-    pub fn end(self) -> Option<(&'a Subtree)> {
+    pub fn end(self) -> Option<&'a Subtree> {
         match self.entry() {
             Some(Entry::End(Some(ptr))) => {
                 let idx = ptr.1;
@@ -125,7 +127,7 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    fn entry(self) -> Option<(&'a Entry<'a>)> {
+    fn entry(self) -> Option<&'a Entry<'a>> {
         self.buffer.entry(&self.ptr)
     }
 

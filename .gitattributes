@@ -1,1 +1,2 @@
-crates/ra_syntax/tests/data/** -text
+* text=auto eol=lf
+crates/ra_syntax/test_data/** -text eof=LF

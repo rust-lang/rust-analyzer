@@ -1,7 +1,9 @@
-use ra_ide_api::FileId;
+//! Keeps track of file subscriptions.
+
+use ra_ide::FileId;
 use rustc_hash::FxHashSet;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub(crate) struct Subscriptions {
     subs: FxHashSet<FileId>,
 }

@@ -1,3 +1,5 @@
+//! FIXME: write short doc here
+
 use std::mem;
 
 use ra_parser::{ParseError, TreeSink};
@@ -144,8 +146,8 @@ fn n_attached_trivias<'a>(
     trivias: impl Iterator<Item = (SyntaxKind, &'a str)>,
 ) -> usize {
     match kind {
-        CONST_DEF | TYPE_ALIAS_DEF | STRUCT_DEF | ENUM_DEF | ENUM_VARIANT | FN_DEF | TRAIT_DEF
-        | MODULE | NAMED_FIELD_DEF => {
+        MACRO_CALL | CONST_DEF | TYPE_ALIAS_DEF | STRUCT_DEF | ENUM_DEF | ENUM_VARIANT | FN_DEF
+        | TRAIT_DEF | MODULE | RECORD_FIELD_DEF | STATIC_DEF => {
             let mut res = 0;
             for (i, (kind, text)) in trivias.enumerate() {
                 match kind {

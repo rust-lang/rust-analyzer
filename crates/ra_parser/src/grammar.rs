@@ -49,98 +49,92 @@ pub(crate) fn root(p: &mut Parser) {
     m.complete(p, SOURCE_FILE);
 }
 
-pub(crate) fn macro_items(p: &mut Parser) {
-    let m = p.start();
-    items::mod_contents(p, false);
-    m.complete(p, MACRO_ITEMS);
-}
+/// Various pieces of syntax that can be parsed by macros by example
+pub(crate) mod fragments {
+    use super::*;
 
-pub(crate) fn macro_stmts(p: &mut Parser) {
-    let m = p.start();
+    pub(crate) use super::{
+        expressions::block, paths::type_path as path, patterns::pattern, types::type_,
+    };
 
-    while !p.at(EOF) {
-        if p.current() == T![;] {
-            p.bump();
-            continue;
-        }
-
-        expressions::stmt(p, expressions::StmtWithSemi::Optional);
+    pub(crate) fn expr(p: &mut Parser) {
+        let _ = expressions::expr(p);
     }
 
-    m.complete(p, MACRO_STMTS);
-}
-
-pub(crate) fn path(p: &mut Parser) {
-    paths::type_path(p);
-}
-
-pub(crate) fn expr(p: &mut Parser) {
-    expressions::expr(p);
-}
-
-pub(crate) fn type_(p: &mut Parser) {
-    types::type_(p)
-}
-
-pub(crate) fn pattern(p: &mut Parser) {
-    patterns::pattern(p)
-}
-
-pub(crate) fn stmt(p: &mut Parser, with_semi: bool) {
-    let with_semi =
-        if with_semi { expressions::StmtWithSemi::Yes } else { expressions::StmtWithSemi::No };
-
-    expressions::stmt(p, with_semi)
-}
-
-pub(crate) fn block(p: &mut Parser) {
-    expressions::block(p);
-}
-
-// Parse a meta item , which excluded [], e.g : #[ MetaItem ]
-pub(crate) fn meta_item(p: &mut Parser) {
-    fn is_delimiter(p: &mut Parser) -> bool {
-        match p.current() {
-            T!['{'] | T!['('] | T!['['] => true,
-            _ => false,
-        }
+    pub(crate) fn stmt(p: &mut Parser) {
+        expressions::stmt(p, expressions::StmtWithSemi::No)
     }
 
-    if is_delimiter(p) {
-        items::token_tree(p);
-        return;
+    pub(crate) fn opt_visibility(p: &mut Parser) {
+        let _ = super::opt_visibility(p);
     }
 
-    let m = p.start();
-    while !p.at(EOF) {
-        if is_delimiter(p) {
-            items::token_tree(p);
-            break;
-        } else {
-            // https://doc.rust-lang.org/reference/attributes.html
-            // https://doc.rust-lang.org/reference/paths.html#simple-paths
-            // The start of an meta must be a simple path
+    // Parse a meta item , which excluded [], e.g : #[ MetaItem ]
+    pub(crate) fn meta_item(p: &mut Parser) {
+        fn is_delimiter(p: &mut Parser) -> bool {
             match p.current() {
-                IDENT | T![::] | T![super] | T![self] | T![crate] => p.bump(),
-                T![=] => {
-                    p.bump();
-                    match p.current() {
-                        c if c.is_literal() => p.bump(),
-                        T![true] | T![false] => p.bump(),
-                        _ => {}
-                    }
-                    break;
-                }
-                _ => break,
+                T!['{'] | T!['('] | T!['['] => true,
+                _ => false,
             }
         }
+
+        if is_delimiter(p) {
+            items::token_tree(p);
+            return;
+        }
+
+        let m = p.start();
+        while !p.at(EOF) {
+            if is_delimiter(p) {
+                items::token_tree(p);
+                break;
+            } else {
+                // https://doc.rust-lang.org/reference/attributes.html
+                // https://doc.rust-lang.org/reference/paths.html#simple-paths
+                // The start of an meta must be a simple path
+                match p.current() {
+                    IDENT | T![::] | T![super] | T![self] | T![crate] => p.bump_any(),
+                    T![=] => {
+                        p.bump_any();
+                        match p.current() {
+                            c if c.is_literal() => p.bump_any(),
+                            T![true] | T![false] => p.bump_any(),
+                            _ => {}
+                        }
+                        break;
+                    }
+                    _ => break,
+                }
+            }
+        }
+
+        m.complete(p, TOKEN_TREE);
     }
 
-    m.complete(p, TOKEN_TREE);
-}
+    pub(crate) fn item(p: &mut Parser) {
+        items::item_or_macro(p, true, items::ItemFlavor::Mod)
+    }
 
-pub(crate) fn item(p: &mut Parser) {
-    items::item_or_macro(p, true, items::ItemFlavor::Mod)
+    pub(crate) fn macro_items(p: &mut Parser) {
+        let m = p.start();
+        items::mod_contents(p, false);
+        m.complete(p, MACRO_ITEMS);
+    }
+
+    pub(crate) fn macro_stmts(p: &mut Parser) {
+        let m = p.start();
+
+        while !p.at(EOF) {
+            if p.at(T![;]) {
+                p.bump(T![;]);
+                continue;
+            }
+
+            expressions::stmt(p, expressions::StmtWithSemi::Optional);
+        }
+
+        m.complete(p, MACRO_STMTS);
+    }
 }
 
 pub(crate) fn reparser(
@@ -149,9 +143,9 @@ pub(crate) fn reparser(
     parent: Option<SyntaxKind>,
 ) -> Option<fn(&mut Parser)> {
     let res = match node {
-        BLOCK => expressions::block,
-        NAMED_FIELD_DEF_LIST => items::named_field_def_list,
-        NAMED_FIELD_LIST => items::named_field_list,
+        BLOCK => expressions::naked_block,
+        RECORD_FIELD_DEF_LIST => items::record_field_def_list,
+        RECORD_FIELD_LIST => items::record_field_list,
         ENUM_VARIANT_LIST => items::enum_variant_list,
         MATCH_ARM_LIST => items::match_arm_list,
         USE_TREE_LIST => items::use_tree_list,
@@ -180,11 +174,11 @@ impl BlockLike {
     }
 }
 
-pub(crate) fn opt_visibility(p: &mut Parser) -> bool {
+fn opt_visibility(p: &mut Parser) -> bool {
     match p.current() {
         T![pub] => {
             let m = p.start();
-            p.bump();
+            p.bump(T![pub]);
             if p.at(T!['(']) {
                 match p.nth(1) {
                     // test crate_visibility
@@ -193,13 +187,13 @@ pub(crate) fn opt_visibility(p: &mut Parser) -> bool {
                     // pub(self) struct S;
                     // pub(self) struct S;
                     T![crate] | T![self] | T![super] => {
-                        p.bump();
-                        p.bump();
+                        p.bump_any();
+                        p.bump_any();
                         p.expect(T![')']);
                     }
                     T![in] => {
-                        p.bump();
-                        p.bump();
+                        p.bump_any();
+                        p.bump_any();
                         paths::use_path(p);
                         p.expect(T![')']);
                     }
@@ -215,9 +209,9 @@ pub(crate) fn opt_visibility(p: &mut Parser) -> bool {
         //
         // test crate_keyword_path
         // fn foo() { crate::foo(); }
-        T![crate] if p.nth(1) != T![::] => {
+        T![crate] if !p.nth_at(1, T![::]) => {
             let m = p.start();
-            p.bump();
+            p.bump(T![crate]);
             m.complete(p, VISIBILITY);
         }
         _ => return false,
@@ -228,7 +222,7 @@ pub(crate) fn opt_visibility(p: &mut Parser) -> bool {
 fn opt_alias(p: &mut Parser) {
     if p.at(T![as]) {
         let m = p.start();
-        p.bump();
+        p.bump(T![as]);
         if !p.eat(T![_]) {
             name(p);
         }
@@ -239,9 +233,9 @@ fn opt_alias(p: &mut Parser) {
 fn abi(p: &mut Parser) {
     assert!(p.at(T![extern]));
     let abi = p.start();
-    p.bump();
+    p.bump(T![extern]);
     match p.current() {
-        STRING | RAW_STRING => p.bump(),
+        STRING | RAW_STRING => p.bump_any(),
         _ => (),
     }
     abi.complete(p, ABI);
@@ -250,7 +244,7 @@ fn abi(p: &mut Parser) {
 fn opt_fn_ret_type(p: &mut Parser) -> bool {
     if p.at(T![->]) {
         let m = p.start();
-        p.bump();
+        p.bump(T![->]);
         types::type_(p);
         m.complete(p, RET_TYPE);
         true
@@ -262,7 +256,7 @@ fn opt_fn_ret_type(p: &mut Parser) -> bool {
 fn name_r(p: &mut Parser, recovery: TokenSet) {
     if p.at(IDENT) {
         let m = p.start();
-        p.bump();
+        p.bump(IDENT);
         m.complete(p, NAME);
     } else {
         p.err_recover("expected a name", recovery);
@@ -270,17 +264,17 @@ fn name_r(p: &mut Parser, recovery: TokenSet) {
 }
 
 fn name(p: &mut Parser) {
-    name_r(p, TokenSet::empty())
+    name_r(p, TokenSet::EMPTY)
 }
 
 fn name_ref(p: &mut Parser) {
     if p.at(IDENT) {
         let m = p.start();
-        p.bump();
+        p.bump(IDENT);
         m.complete(p, NAME_REF);
     } else if p.at(T![self]) {
         let m = p.start();
-        p.bump();
+        p.bump(T![self]);
         m.complete(p, T![self]);
     } else {
         p.err_and_bump("expected identifier");
@@ -290,7 +284,7 @@ fn name_ref(p: &mut Parser) {
 fn name_ref_or_index(p: &mut Parser) {
     if p.at(IDENT) || p.at(INT_NUMBER) {
         let m = p.start();
-        p.bump();
+        p.bump_any();
         m.complete(p, NAME_REF);
     } else {
         p.err_and_bump("expected identifier");
@@ -301,7 +295,7 @@ fn error_block(p: &mut Parser, message: &str) {
     assert!(p.at(T!['{']));
     let m = p.start();
     p.error(message);
-    p.bump();
+    p.bump(T!['{']);
     expressions::expr_block_contents(p);
     p.eat(T!['}']);
     m.complete(p, ERROR);

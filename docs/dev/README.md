@@ -14,7 +14,7 @@ To learn more about how rust-analyzer works, see
 
 We also publish rustdoc docs to pages:
 
-https://rust-analyzer.github.io/rust-analyzer/ra_ide_api/index.html
+https://rust-analyzer.github.io/rust-analyzer/ra_ide/
 
 Various organizational and process issues are discussed in this document.
 
@@ -55,7 +55,7 @@ We use Travis for CI. Most of the things, including formatting, are checked by
 be green as well. We use bors-ng to enforce the [not rocket
 science](https://graydon2.dreamwidth.org/1597.html) rule.
 
-You can run `cargo format-hook` to install git-hook to run rustfmt on commit.
+You can run `cargo xtask install-pre-commit-hook` to install git-hook to run rustfmt on commit.
 
 # Code organization
 
@@ -65,8 +65,8 @@ integrating with editors. Currently, it contains plugins for VS Code (in
 typescript) and Emacs (in elisp). The `docs` top-level directory contains both
 developer and user documentation.
 
-We have some automation infra in Rust in the `crates/tool` package. It contains
-stuff like formatting checking, code generation and powers `cargo install-ra`.
+We have some automation infra in Rust in the `xtask` package. It contains
+stuff like formatting checking, code generation and powers `cargo xtask install`.
 The latter syntax is achieved with the help of cargo aliases (see `.cargo`
 directory).
 
@@ -84,7 +84,7 @@ However, launching a VS Code instance with locally build language server is
 possible. There's even a VS Code task for this, so just <kbd>F5</kbd> should
 work (thanks, [@andrew-w-ross](https://github.com/andrew-w-ross)!).
 
-I often just install development version with `cargo install-ra --server --jemalloc` and
+I often just install development version with `cargo xtask install --server --jemalloc` and
 restart the host VS Code.
 
 See [./debugging.md](./debugging.md) for how to attach to rust-analyzer with
@@ -116,7 +116,7 @@ Due to the requirements of running the tests inside VS Code they are **not run
 on CI**. When making changes to the extension please ensure the tests are not
 broken locally before opening a Pull Request.
 
-To install **only** the VS Code extension, use `cargo install-ra --client-code`.
+To install **only** the VS Code extension, use `cargo xtask install --client-code`.
 
 # Logging
 
@@ -124,9 +124,8 @@ Logging is done by both rust-analyzer and VS Code, so it might be tricky to
 figure out where logs go.
 
 Inside rust-analyzer, we use the standard `log` crate for logging, and
-`flexi_logger` for logging frotend. By default, log goes to stderr (the same as
-with `env_logger`), but the stderr itself is processed by VS Code. To mirror
-logs to a `./log` directory, set `RA_LOG_DIR=1` environmental variable.
+`env_logger` for logging frontend. By default, log goes to stderr, but the
+stderr itself is processed by VS Code.
 
 To see stderr in the running VS Code instance, go to the "Output" tab of the
 panel and select `rust-analyzer`. This shows `eprintln!` as well. Note that
@@ -153,7 +152,7 @@ There's also two VS Code commands which might be of interest:
   $ cargo install --path crates/ra_lsp_server --force --features jemalloc
   ```
 
-  There's an alias for this: `cargo install-ra --server --jemalloc`.
+  There's an alias for this: `cargo xtask install --server --jemalloc`.
 
 * `Rust Analyzer: Syntax Tree` shows syntax tree of the current file/selection.
 
