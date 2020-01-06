@@ -45,7 +45,7 @@ impl FmtDiff {
         Self { edit_tree }
     }
 
-    /// Checks if `Whitespace` and `SpacingRule` match then applies edit to `DiffView`.
+    /// Checks if `Whitespace` and `SpacingRule` match then applies edit to `Block`.
     /// 
     /// # Arguments
     ///
@@ -100,7 +100,7 @@ impl FmtDiff {
         self
     }
 
-    /// Checks if `Indent` and `IndentRule` match then mutates `DiffView`.
+    /// Checks if `Indent` and `IndentRule` match then mutates `Block`.
     /// 
     /// # Arguments
     ///

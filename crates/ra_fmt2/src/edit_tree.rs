@@ -275,7 +275,7 @@ impl Block {
             SpaceValue::Newline => {
                 whitespace.new_line.0 = true;
                 whitespace.text_len.0 = 0;
-;            },
+            },
             SpaceValue::SingleOptionalNewline => {
                 if whitespace.siblings_contain("\n") {
                     whitespace.new_line.0 = true;
