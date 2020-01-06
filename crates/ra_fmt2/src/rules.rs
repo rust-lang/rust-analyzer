@@ -40,11 +40,11 @@ pub(crate) fn spacing() -> SpacingDsl {
         .inside(ARRAY_EXPR).after(T![,]).single_space()
 
         .test("struct Test{ x:usize    }", "struct Test { x: usize }")
-        .inside(NAMED_FIELD_DEF_LIST).before(T!['{']).single_space()
-        .inside(NAMED_FIELD_DEF_LIST).after(T!['{']).single_space_or_optional_newline()
-        .inside(NAMED_FIELD_DEF_LIST).before(T!['}']).single_space_or_optional_newline()
-        .inside(NAMED_FIELD_DEF_LIST).after(T!['}']).single_space_or_optional_newline()
-        .inside(NAMED_FIELD_DEF).after(T![:]).single_space()
+        .inside(RECORD_FIELD_DEF_LIST).before(T!['{']).single_space()
+        .inside(RECORD_FIELD_DEF_LIST).after(T!['{']).single_space_or_optional_newline()
+        .inside(RECORD_FIELD_DEF_LIST).before(T!['}']).single_space_or_optional_newline()
+        .inside(RECORD_FIELD_DEF_LIST).after(T!['}']).single_space_or_optional_newline()
+        .inside(RECORD_FIELD_DEF).after(T![:]).single_space()
 
         .test("pub(crate)struct Test { x: u8 }", "pub(crate) struct Test { x: u8 }")
         .inside(VISIBILITY).after(T![')']).single_space();
@@ -64,8 +64,8 @@ pub(crate) fn indentation() -> IndentDsl {
     let mut indent_dsl = IndentDsl::default();
     indent_dsl
         .rule("Indent struct fields def")
-            .inside(NAMED_FIELD_DEF_LIST)
-            .matching(NAMED_FIELD_DEF)
+            .inside(RECORD_FIELD_DEF_LIST)
+            .matching(RECORD_FIELD_DEF)
             .set(IndentValue::Indent)
             .test(
 r#"struct Test {
@@ -75,10 +75,10 @@ r#"struct Test {
     x: String,
 }"#)
 
-        .anchor(NAMED_FIELD)
+        .anchor(RECORD_FIELD)
         .rule("Indent struct fields lit")
-            .inside(NAMED_FIELD_LIST)
-            .matching(NAMED_FIELD)
+            .inside(RECORD_FIELD_LIST)
+            .matching(RECORD_FIELD)
             .set(IndentValue::Indent)
             .test(wrap_fn!(
 r#"let t = Test {
