@@ -64,11 +64,15 @@ struct ChalkContext<'a, DB> {
     krate: CrateId,
 }
 
-pub(crate) fn trait_solver_query(
-    db: &(impl HirDatabase + salsa::Database),
-    krate: CrateId,
-) -> TraitSolver {
-    db.salsa_runtime().report_untracked_read();
+pub(crate) fn trait_solver_query(db: &impl HirDatabase, krate: CrateId) -> TraitSolver {
+    // Chalk solver uses some internal caching, make sure to invalidate it when,
+    // roughly, a set of top-level items changes. We probably want some more
+    // precise and more correct invalidation strategy here!
+    let _ = db.crate_def_map(krate);
+    for dep in db.crate_graph().dependencies(krate) {
+        let _ = db.trait_solver(dep.crate_id);
+    }
+
     // krate parameter is just so we cache a unique solver per crate
     let solver_choice = chalk_solve::SolverChoice::SLG { max_size: CHALK_SOLVER_MAX_SIZE };
     debug!("Creating new solver for crate {:?}", krate);
