@@ -61,7 +61,7 @@ impl FmtDiff {
     ) {
         let left_ws = left_blk.get_whitespace();
         let right_ws = right_blk.get_whitespace();
-        // only edit right preceding whitespace doesn't match and rule is before.
+        // only edit right preceding whitespace if it doesn't match and the rule applies before.
         if !right_ws.borrow().match_space_before(rule.space.value)
             && rule.pattern.matches(right_blk.as_element())
             && rule.space.loc == SpaceLoc::Before
@@ -72,6 +72,9 @@ impl FmtDiff {
             // return Some(SpaceBlock::from(rule.clone()));
         };
         // if previous token has space after but only if token is one we want to edit whitespace of.
+        // This cleans up cases like `struct Foo { x: u8 }`
+        //                                       ^^^
+        // it is much easier to declare the rule as "1 space after '{' inside of a struct definition"
         if !left_ws.borrow().match_space_after(rule.space.value)
             && rule.pattern.matches(left_blk.as_element())
             && rule.space.loc == SpaceLoc::After
@@ -91,7 +94,10 @@ impl FmtDiff {
 
         for (left, right) in blocks {
             // chain left and right matching rules
-            let rules = spacing.matching(left.to_element()).chain(spacing.matching(right.to_element())).collect::<Vec<_>>();
+            let rules = spacing.matching(left.to_element())
+                .chain(spacing.matching(right.to_element()))
+                .collect::<Vec<_>>();
+                
             for rule in rules {
                 // mutates EditTree
                 self.apply_edit(rule, left, right);

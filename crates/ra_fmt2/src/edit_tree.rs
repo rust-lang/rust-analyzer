@@ -82,7 +82,7 @@ impl Block {
         let indentation = Rc::new(RefCell::new(Indentation::new(&element)));
 
     /// Creates a non connected node for checking anchoring node's indentation.
-    fn build_single(node: SyntaxElement) -> Block {
+    pub(crate) fn build_single(node: SyntaxElement) -> Block {
         let range =  node.text_range();
         let text = match &node {
             NodeOrToken::Node(node) => SmolStr::from(node.text().to_string()),
@@ -400,8 +400,6 @@ impl EditTree {
 fn str_from_root(block: &Block) -> String {
     let mut buff = String::new();
     eat_tkns(block, &mut buff);
-    // check file ends with "\n"
-    
     return buff;
 
     fn eat_tkns(block: &Block, mut buff: &mut String) {

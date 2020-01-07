@@ -43,6 +43,7 @@ pub(crate) fn spacing() -> SpacingDsl {
         .inside(RECORD_FIELD_DEF_LIST).before(T!['{']).single_space()
         .inside(RECORD_FIELD_DEF_LIST).after(T!['{']).single_space_or_optional_newline()
         .inside(RECORD_FIELD_DEF_LIST).before(T!['}']).single_space_or_optional_newline()
+        // TODO this rule is wrong
         .inside(RECORD_FIELD_DEF_LIST).after(T!['}']).single_space_or_optional_newline()
         .inside(RECORD_FIELD_DEF).after(T![:]).single_space()
 

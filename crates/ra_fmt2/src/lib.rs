@@ -3,7 +3,7 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-// mod diff_view;
+mod block;
 mod dsl;
 mod edit_tree;
 mod engine;

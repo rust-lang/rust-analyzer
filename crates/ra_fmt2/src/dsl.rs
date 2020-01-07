@@ -20,7 +20,7 @@ impl AsRef<Pattern> for SpacingRule {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Space {
     /// How much space to add.
     pub(crate) value: SpaceValue,
@@ -28,11 +28,11 @@ pub(crate) struct Space {
     pub(crate) loc: SpaceLoc,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum SpaceValue {
-    /// Single whitespace char, like ` `
+    /// Single whitespace char, like `' '`
     Single,
-    /// Single whitespace char, like ` `, but preserve existing line break.
+    /// Single whitespace char, like `' '`, but preserve existing line break.
     SingleOptionalNewline,
     /// A single newline (`\n`) char
     Newline,
@@ -48,9 +48,13 @@ pub(crate) enum SpaceValue {
     /// Otherwise, at least one newline.
     /// Existing newlines are preserved.
     NoneOrNewline,
+    /// Number of spaces this is only for `Whitespace` held by `Block`.
+    MultiSpace(u32),
+    /// Number of new lines this is only for `Whitespace` held by `Block`.
+    MultiLF(u32),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum SpaceLoc {
     /// Before the element.
     Before,

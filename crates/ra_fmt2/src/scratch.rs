@@ -18,7 +18,12 @@ use ra_syntax::{
     SyntaxNode, SyntaxToken, T,
 };
 
-/// will be removed
+///
+/// 
+/// WILL BE REMOVED, or moved into actual tests
+/// 
+/// 
+
 #[test]
 fn show_me_the_indent_progress() {
     let rs_file = wrap_fn!(r#"let t = foo()
