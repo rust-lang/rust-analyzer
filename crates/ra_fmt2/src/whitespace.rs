@@ -3,6 +3,7 @@ use crate::dsl::{Space, SpaceLoc, SpaceValue, SpacingDsl, SpacingRule};
 use crate::pattern::{Pattern, PatternSet};
 use crate::rules::spacing;
 use crate::trav_util::{walk, walk_nodes, walk_tokens};
+use crate::edit_tree::Block;
 
 use ra_syntax::{
     NodeOrToken, SmolStr, SyntaxElement,
@@ -249,6 +250,7 @@ impl Whitespace {
             SpaceValue::NoneOrNewline => self.text_len.1 == 0 || self.new_line.1,
             SpaceValue::NoneOptionalNewline => self.text_len.1 == 0 && self.new_line.1,
             SpaceValue::None => self.text_len.1 == 0 || !self.new_line.1,
+            _ => { panic!("found multi") },
         }
     }
 
@@ -261,6 +263,7 @@ impl Whitespace {
             SpaceValue::NoneOrNewline => self.text_len.0 == 0,
             SpaceValue::NoneOptionalNewline => self.text_len.0 == 0,
             SpaceValue::None => self.text_len.0 == 0 || !self.new_line.0,
+            _ => { panic!("found multi") },
         }
     }
 
@@ -288,6 +291,7 @@ impl Whitespace {
                 (self.text_len.0 == 0 && self.text_len.1 == 0)
                 && (!self.new_line.0 && !self.new_line.1)
             },
+            _ => { panic!("found multi") },
         }
     }
 
