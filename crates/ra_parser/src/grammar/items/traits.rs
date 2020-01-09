@@ -10,16 +10,6 @@ pub(super) fn trait_def(p: &mut Parser) {
     p.bump(T![trait]);
     name_r(p, ITEM_RECOVERY_SET);
     type_params::opt_type_param_list(p);
-    // test trait_alias
-    // trait Z<U> = T<U>;
-    // trait Z<U> = T<U> where U: Copy;
-    // trait Z<U> = where Self: T<U>;
-    if p.eat(T![=]) {
-        type_params::bounds_without_colon(p);
-        type_params::opt_where_clause(p);
-        p.expect(T![;]);
-        return;
-    }
     if p.at(T![:]) {
         type_params::bounds(p);
     }
@@ -110,8 +100,6 @@ pub(crate) fn impl_item_list(p: &mut Parser) {
     m.complete(p, ITEM_LIST);
 }
 
-// test impl_type_params
-// impl<const N: u32> Bar<N> {}
 fn choose_type_params_over_qpath(p: &Parser) -> bool {
     // There's an ambiguity between generic parameters and qualified paths in impls.
     // If we see `<` it may start both, so we have to inspect some following tokens.
@@ -119,7 +107,6 @@ fn choose_type_params_over_qpath(p: &Parser) -> bool {
     // but not qualified paths (with one exception):
     //     `<` `>` - empty generic parameters
     //     `<` `#` - generic parameters with attributes
-    //     `<` `const` - const generic parameters
     //     `<` (LIFETIME|IDENT) `>` - single generic parameter
     //     `<` (LIFETIME|IDENT) `,` - first generic parameter in a list
     //     `<` (LIFETIME|IDENT) `:` - generic parameter with bounds
@@ -132,7 +119,7 @@ fn choose_type_params_over_qpath(p: &Parser) -> bool {
     if !p.at(T![<]) {
         return false;
     }
-    if p.nth(1) == T![#] || p.nth(1) == T![>] || p.nth(1) == CONST_KW {
+    if p.nth(1) == T![#] || p.nth(1) == T![>] {
         return true;
     }
     (p.nth(1) == LIFETIME || p.nth(1) == IDENT)

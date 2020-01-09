@@ -108,7 +108,7 @@ impl FnCallNode {
         })
     }
 
-    pub(crate) fn name_ref(&self) -> Option<ast::NameRef> {
+    fn name_ref(&self) -> Option<ast::NameRef> {
         match self {
             FnCallNode::CallExpr(call_expr) => Some(match call_expr.expr()? {
                 ast::Expr::PathExpr(path_expr) => path_expr.path()?.segment()?.name_ref()?,

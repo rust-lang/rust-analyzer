@@ -234,7 +234,6 @@ pub enum SyntaxKind {
     LIFETIME_ARG,
     TYPE_ARG,
     ASSOC_TYPE_ARG,
-    CONST_ARG,
     PARAM_LIST,
     PARAM,
     SELF_PARAM,
