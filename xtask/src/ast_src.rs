@@ -206,7 +206,6 @@ pub(crate) const KINDS_SRC: KindsSrc = KindsSrc {
         "LIFETIME_ARG",
         "TYPE_ARG",
         "ASSOC_TYPE_ARG",
-        "CONST_ARG",
         "PARAM_LIST",
         "PARAM",
         "SELF_PARAM",
@@ -512,12 +511,10 @@ pub(crate) const AST_SRC: AstSrc = AstSrc {
             type_args: [TypeArg],
             lifetime_args: [LifetimeArg],
             assoc_type_args: [AssocTypeArg],
-            const_arg: [ConstArg],
         }
         struct TypeArg { TypeRef }
         struct AssocTypeArg { NameRef, TypeRef }
         struct LifetimeArg {}
-        struct ConstArg { Literal, BlockExpr }
 
         struct MacroItems: ModuleItemOwner, FnDefOwner { }
 
