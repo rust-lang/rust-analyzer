@@ -52,6 +52,8 @@ pub(crate) enum SpaceValue {
     MultiSpace(u32),
     /// Number of new lines this is only for `Whitespace` held by `Block`.
     MultiLF(u32),
+    /// Number of spaces that indent is made of `'\n\s\s\s\s'`.
+    Indent(u32),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

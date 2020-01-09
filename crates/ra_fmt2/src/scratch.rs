@@ -1,6 +1,9 @@
 /// FOR EXPERIMENT WILL REMOVE
-use crate::edit_tree::EditTree;
-use crate::engine::FmtDiff;
+
+// use crate::edit_tree::EditTree;
+use crate::et2::EditTree;
+// use crate::engine::FmtDiff;
+use crate::eng2::FmtDiff;
 use crate::pattern::PatternSet;
 use crate::fmt_diff::FmtDiff;
 use crate::pattern::PatternSet;
@@ -70,7 +73,7 @@ fn show_me_the_progress_space() {
     //println!("{:#?}", fmt);
     let diff = FmtDiff::new(fmt);
     let et: EditTree = diff.spacing_diff(&space).into();
-
+    println!("{:#?}", et);
     println!("original: {:?}\nformatted: {:#?}", orig, et.tokens_to_string().expect("Edits failed"));
     assert_eq!(et.tokens_to_string().expect("tokens_to_string"), "pub(crate) struct Test { x: String }\n")
 }
