@@ -78,8 +78,8 @@ impl Block {
 
         let whitespace = RefCell::new(Whitespace::new(&element));
 
-        let whitespace = Rc::new(RefCell::new(Whitespace::new(&element)));
-        let indentation = Rc::new(RefCell::new(Indentation::new(&element)));
+        Self { element, text, children, range, whitespace, }
+    }
 
     /// Creates a non connected node for checking anchoring node's indentation.
     pub(crate) fn build_single(node: SyntaxElement) -> Block {

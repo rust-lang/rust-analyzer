@@ -5,12 +5,6 @@ use crate::et2::EditTree;
 // use crate::engine::FmtDiff;
 use crate::eng2::FmtDiff;
 use crate::pattern::PatternSet;
-use crate::fmt_diff::FmtDiff;
-use crate::pattern::PatternSet;
-/// experiment purposes
-///
-// use crate::engine;
-// use crate::dsl::SpacingDsl;
 use crate::rules::{spacing, indentation};
 use crate::trav_util::{walk, walk_nodes, walk_tokens};
 

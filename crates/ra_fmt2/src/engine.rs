@@ -102,8 +102,6 @@ impl FmtDiff {
                 // mutates EditTree
                 self.apply_edit(rule, left, right);
             }
-        } else {
-            self.diff.borrow_mut().collect_edits(block, rule);
         }
         self
     }
