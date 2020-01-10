@@ -188,10 +188,11 @@ impl Whitespace {
 
     pub(crate) fn set_from_whitespace(&mut self, space: Whitespace) {
         println!("ORIG {:#?}", self);
-        let Whitespace {
-            space_before, space_after,
-        } = space;
-        *self = Whitespace { space_before, space_after };
+        // let Whitespace {
+        //     space_before, space_after,
+        // } = space;
+        // *self = Whitespace { space_before, space_after };
+        self.space_before = space.space_before;
         println!("MUT {:#?}", self);
     }
 
