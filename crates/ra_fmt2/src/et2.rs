@@ -264,9 +264,16 @@ impl Block {
     }
 
     /// Sets preceding spacing based on rule.
-    pub(crate) fn set_spacing(&self, rule: &SpacingRule) {
+    pub(crate) fn set_spacing(&self, space: Space) {
         let mut ws = self.whitespace.borrow_mut();
-        ws.set_space(rule.space);
+        ws.space_before = space;
+    }
+
+    /// Sets spacing around based on rule.
+    pub(crate) fn set_spacing_around(&self, space: Whitespace) {
+        let mut ws = self.whitespace.borrow_mut();
+        ws.space_before = space.space_before;
+        ws.space_after = space.space_after;
     }
 
     /// Returns previous and next new line flags as tuple.
@@ -379,6 +386,7 @@ fn str_from_root(block: &Block) -> String {
 
     fn eat_tkns(block: &Block, mut buff: &mut String) {
         if block.is_leaf() {
+            println!("{:?}\n{:#?}", block.as_element(), block.whitespace.borrow());
             write!(buff, "{}", block.whitespace.borrow()).expect("write to buffer failed");
             write!(buff, "{}", block.element).expect("write to buffer failed");
         } else {

@@ -19,7 +19,6 @@ use std::cell::RefCell;
 ///
 pub(crate) struct FmtDiff {
     edit_tree: EditTree,
-    // diff: RefCell<DiffView>,
 }
 
 impl Into<EditTree> for FmtDiff {
@@ -28,12 +27,6 @@ impl Into<EditTree> for FmtDiff {
     }
 }
 
-// impl std::ops::Deref for FmtDiff {
-//     type Target = EditTree;
-//     fn deref(&self) -> &Self::Target {
-//         &self.edit_tree
-//     }
-// }
 pub(crate) struct SpaceBlock {
     spaces: u32,
     newline: bool,

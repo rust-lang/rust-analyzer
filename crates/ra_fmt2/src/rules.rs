@@ -43,7 +43,6 @@ pub(crate) fn spacing() -> SpacingDsl {
         .inside(RECORD_FIELD_DEF_LIST).before(T!['{']).single_space()
         .inside(RECORD_FIELD_DEF_LIST).after(T!['{']).single_space_or_optional_newline()
         .inside(RECORD_FIELD_DEF_LIST).before(T!['}']).single_space_or_optional_newline()
-        // TODO this rule is wrong
         .inside(RECORD_FIELD_DEF_LIST).after(T!['}']).single_space_or_optional_newline()
         .inside(RECORD_FIELD_DEF).after(T![:]).single_space()
 
@@ -51,7 +50,7 @@ pub(crate) fn spacing() -> SpacingDsl {
         .inside(VISIBILITY).after(T![')']).single_space();
 
 
-        // must be done in engine so as not to disturb precidence or keeping track of Syntax Blocks "\n"
+        // must be done in engine so as not to disturb precedence or keeping track of Syntax Blocks "\n"
         // .rule(dsl::SpacingRule {
         //     pattern: SOURCE_FILE.into(),
         //     space: dsl::Space { loc: dsl::SpaceLoc::After, value: dsl::SpaceValue::Newline }

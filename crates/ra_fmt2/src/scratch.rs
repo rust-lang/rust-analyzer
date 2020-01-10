@@ -58,7 +58,7 @@ fn show_me_the_progress_space() {
 
     let p = SourceFile::parse(&rs_file);
     let syn_tree = p.syntax_node();
-    //println!("{:#?}", syn_tree);
+    println!("{:#?}", syn_tree);
     let space = spacing();
     println!();
 
@@ -67,7 +67,7 @@ fn show_me_the_progress_space() {
     //println!("{:#?}", fmt);
     let diff = FmtDiff::new(fmt);
     let et: EditTree = diff.spacing_diff(&space).into();
-    println!("{:#?}", et);
+
     println!("original: {:?}\nformatted: {:#?}", orig, et.tokens_to_string().expect("Edits failed"));
     assert_eq!(et.tokens_to_string().expect("tokens_to_string"), "pub(crate) struct Test { x: String }\n")
 }

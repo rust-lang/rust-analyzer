@@ -19,7 +19,6 @@ use std::cell::RefCell;
 ///
 pub(crate) struct FmtDiff {
     edit_tree: EditTree,
-    // diff: RefCell<DiffView>,
 }
 
 impl Into<EditTree> for FmtDiff {
@@ -27,13 +26,6 @@ impl Into<EditTree> for FmtDiff {
         self.edit_tree
     }
 }
-
-// impl std::ops::Deref for FmtDiff {
-//     type Target = EditTree;
-//     fn deref(&self) -> &Self::Target {
-//         &self.edit_tree
-//     }
-// }
 
 impl FmtDiff {
     pub(crate) fn new(edit_tree: EditTree) -> Self {
@@ -44,13 +36,16 @@ impl FmtDiff {
     /// 
     /// # Arguments
     ///
-    /// * `left_blk` - A `Block` that is always a token, previous token used to determine
-    ///     space after token.
     /// * `right_blk` - A `Block` that is always a token, check right preceding whitespace.
     /// * `rule` - A `SpaceRule`.
-    fn apply_edit(&self, right_blk: &Block, ws: Whitespace) {
-        right_blk.get_whitespace().borrow_mut().set_from_whitespace(ws)
+    fn apply_edit(&self, right_blk: &Block, ws: Whitespace, loc: SpaceLoc) {
+        match loc {
+            SpaceLoc::Before => right_blk.set_spacing(ws.space_before),
+            SpaceLoc::After => right_blk.set_spacing(ws.space_before),
+            SpaceLoc::Around => right_blk.set_spacing_around(ws),
+        }
     }
+
     fn correct_space(
         &self,
         rule: &SpacingRule,
@@ -63,59 +58,44 @@ impl FmtDiff {
         let mut ws: Option<Whitespace>;
         match rule.space.loc {
             SpaceLoc::Before => {
-                if !right_ws.borrow().match_space_before(rule.space.value) {
-                    ws = Some(Whitespace::from_rule(right_blk, rule));
+                if !right_ws.borrow().match_space_before(rule.space)
+                  && rule.pattern.matches(right_blk.as_element())
+                {
+                    ws = Some(Whitespace::from_rule(rule, left_blk, right_blk));
                 } else {
                     ws = None;
                 }
             },
             SpaceLoc::After => {
-                if !left_ws.borrow().match_space_after(rule.space.value) {
-                    ws = Some(Whitespace::from_rule(right_blk, rule));
+                if !left_ws.borrow().match_space_after(rule.space)
+                  && rule.pattern.matches(left_blk.as_element())
+                  && !right_ws.borrow().match_space_before(rule.space)
+                {
+                    ws = Some(Whitespace::from_rule(rule, left_blk, right_blk));
                 } else {
                     ws = None;
                 }
             },
             SpaceLoc::Around => {
-                if !left_ws.borrow().match_space_after(rule.space.value) 
-                  || !right_ws.borrow().match_space_before(rule.space.value)
+                if !left_ws.borrow().match_space_after(rule.space) 
+                  || !right_ws.borrow().match_space_before(rule.space)
                 {
-                    ws = Some(Whitespace::from_rule(right_blk, rule));
+                    ws = Some(Whitespace::from_rule(rule, left_blk, right_blk));
                 } else {
                     ws = None;
                 }
             },
         }
         ws
-        // // only edit right preceding whitespace if it doesn't match and the rule applies before.
-        // if !right_ws.borrow().match_space_before(rule.space.value)
-        //     && rule.pattern.matches(right_blk.as_element())
-        //     && rule.space.loc == SpaceLoc::Before
-        // {
-        //     // println!("RIGHT {:#?}", right_blk);
-        //     // println!("RULES {:#?}", rule);
-        //     right_blk.set_spacing(rule);
-        // };
-        // // if previous token has space after but only if token is one we want to edit whitespace of.
-        // // This cleans up cases like `struct Foo { x: u8 }`
-        // //                                       ^^^
-        // // it is much easier to declare the rule as "1 space after '{' inside of a struct definition"
-        // if !left_ws.borrow().match_space_after(rule.space.value)
-        //     && rule.pattern.matches(left_blk.as_element())
-        //     && rule.space.loc == SpaceLoc::After
-        // {
-        //     // println!("LEFT {:#?}", right_blk);
-        //     // println!("RULES {:#?}", rule);
-        //     // this fixes after spacing "{" in
-        //     // struct Test{x:usize}
-        //     right_blk.set_spacing(rule);
-        // }
     }
 
     pub(crate) fn spacing_diff(self, space_rules: &SpacingDsl) -> FmtDiff {
         let spacing = PatternSet::new(space_rules.rules.iter());
 
         let blocks = self.edit_tree.walk_tokens().zip(self.edit_tree.walk_tokens().skip(1));
+
+        let blocks2 = self.edit_tree.walk_tokens().zip(self.edit_tree.walk_tokens().skip(1));
+        println!("{:#?}", blocks2.collect::<Vec<_>>());
 
         for (left, right) in blocks {
             // chain left and right matching rules
@@ -126,10 +106,13 @@ impl FmtDiff {
             for rule in rules {
                 // mutates EditTree if actual space differs from required space
                 if let Some(space) = self.correct_space(rule, left, right) {
-                    self.apply_edit(right, space);
+                    self.apply_edit(right, space, rule.space.loc);
                 }
+                // println!("TKN {:#?} -- {:#?}", left, right);
             }
         }
+        
+        println!("{:#?}", self.edit_tree.walk_tokens().collect::<Vec<_>>());
         self
     }
 
