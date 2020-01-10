@@ -31,7 +31,7 @@ impl Space {
         }
     }
     fn before(token: SyntaxToken) -> Space {
-        if is_ws(&token) { return Self::empty_before() }
+        if !is_ws(&token) { return Self::empty_before() }
         let value = calc_space_value(&token);
         Self {
             loc: SpaceLoc::Before,
@@ -39,7 +39,7 @@ impl Space {
         }
     }
     fn after(token: SyntaxToken) -> Space {
-        if is_ws(&token) { return Self::empty_after() }
+        if !is_ws(&token) { return Self::empty_after() }
         let value = calc_space_value(&token);
         Self {
             loc: SpaceLoc::After,
@@ -53,8 +53,6 @@ impl fmt::Display for Space {
         match self.value {
             SpaceValue::Single => write!(f, " "),
             SpaceValue::Newline => writeln!(f),
-            SpaceValue::MultiLF(count) => write!(f, "{}", "\n".repeat(count as usize)),
-            SpaceValue::MultiSpace(count) => write!(f, "{}", " ".repeat(count as usize)),
             SpaceValue::Indent(count) => write!(f, "\n{}", " ".repeat(count as usize)),
             SpaceValue::None => write!(f, ""),
             _ => {
@@ -67,8 +65,8 @@ impl fmt::Display for Space {
 
 #[derive(Clone, Debug)]
 pub struct Whitespace {
-    space_before: Space,
-    space_after: Space,
+    pub(crate) space_before: Space,
+    pub(crate) space_after: Space,
 }
 
 impl fmt::Display for Whitespace {
@@ -101,25 +99,33 @@ impl Whitespace {
         }
     }
 
-    pub(crate) fn from_rule(block: &Block, rule: &SpacingRule) -> Whitespace {
+    pub(crate) fn from_rule(rule: &SpacingRule, l_blk: &Block, r_blk: &Block) -> Whitespace {
         match rule.space.loc {
             SpaceLoc::Before => {
-                let space_before = rule.space;
+                let space_before = Space { 
+                    loc: rule.space.loc,
+                    value: process_space_value(r_blk, rule.space.value),
+                };
+                
                 Self {
                     space_before,
                     space_after: Space::empty_after(),
                 }
             },
             SpaceLoc::After => {
-                let space_after = rule.space;
+                let space_after = Space { 
+                    loc: SpaceLoc::Before,
+                    value: process_space_value(l_blk, rule.space.value),
+                };
                 Self {
-                    space_before: Space::empty_before(),
-                    space_after,
+                    space_before: space_after,
+                    space_after: Space::empty_after(),
                 }
             },
             SpaceLoc::Around => {
-                let space_before = Space { loc: SpaceLoc::Before, value: rule.space.value, };
-                let space_after = Space { loc: SpaceLoc::After, value: rule.space.value, };
+                println!("SPACE AROUND");
+                let space_before = Space { loc: SpaceLoc::Before, value: process_space_value(r_blk, rule.space.value), };
+                let space_after = Space { loc: SpaceLoc::After, value: process_space_value(r_blk, rule.space.value), };
                 Self {
                     space_before,
                     space_after,
@@ -130,15 +136,21 @@ impl Whitespace {
 
     pub(crate) fn from_node(node: &SyntaxNode) -> Whitespace {
         // must skip first siblings_with_tokens returns 'me' token as first
-        let mut previous = node.siblings_with_tokens(Direction::Prev).skip(1);
-        let mut next = node.siblings_with_tokens(Direction::Next).skip(1);
+        let mut previous = node.siblings_with_tokens(Direction::Prev);
+        let mut next = node.siblings_with_tokens(Direction::Next);
+
+        previous.next();
+        next.next();
 
         let (space_before, space_after) = filter_non_ws_node(previous.next(), next.next());
-
+        
+        // println!("{:#?} -- {:#?}", node, space_before);
+        
         Self { space_before, space_after, }
     }
 
     pub(crate) fn from_token(token: &SyntaxToken) -> Whitespace {
+        println!("TOKENS {:?} {:?}", token.prev_token(), token.next_token());
         let (space_before, space_after) = match (token.prev_token(), token.next_token()) {
             (Some(pre), Some(post)) => {
                 (Space::before(pre), Space::after(post))
@@ -151,7 +163,9 @@ impl Whitespace {
             },
             (_, _) => unimplemented!("this should be unreachable test out")
         };
-
+        
+        // println!("{:#?} -- {:#?}", token, space_before);
+        
         Self { space_before, space_after, }
     }
 
@@ -173,18 +187,19 @@ impl Whitespace {
     }
 
     pub(crate) fn set_from_whitespace(&mut self, space: Whitespace) {
+        println!("ORIG {:#?}", self);
         let Whitespace {
             space_before, space_after,
         } = space;
         *self = Whitespace { space_before, space_after };
+        println!("MUT {:#?}", self);
     }
 
-    pub(crate) fn match_space_before(&self, value: SpaceValue) -> bool {
-        self.space_before.value == value
+    pub(crate) fn match_space_before(&self, space: Space) -> bool {
+        self.space_before.value == space.value
     }
-
-    pub(crate) fn match_space_after(&self, value: SpaceValue) -> bool {
-        self.space_after.value == value
+    pub(crate) fn match_space_after(&self, space: Space) -> bool {
+        self.space_after.value == space.value
     }
 }
 
@@ -194,11 +209,28 @@ fn is_ws(token: &SyntaxToken) -> bool {
 
 fn calc_space_value(tkn: &SyntaxToken) -> SpaceValue {
     let orig = tkn.text().as_str();
-    let len = orig.chars().count();
-    if orig.contains('\n') {
-        SpaceValue::MultiLF((len - orig.matches('\n').count()) as u32)
+    let tkn_len = orig.chars().count();
+
+    // indent is `\n\s\s\s\s` or some variation
+    if orig.contains('\n') && orig.contains(' ') {
+        //                 subtract everything that is not a space
+        SpaceValue::Indent((tkn_len - orig.matches('\n').count()) as u32)
+    // just new line
+    } else if orig.contains('\n') {
+        if tkn_len == 1 {
+            SpaceValue::Newline
+        } else {
+            SpaceValue::MultiLF((tkn_len - orig.matches('\n').count()) as u32)
+        }
+    // just spaces
+    } else if orig.contains(' ') {
+        if tkn_len == 1 {
+            SpaceValue::Single
+        } else {
+            SpaceValue::MultiSpace((tkn_len - orig.matches('\n').count()) as u32)
+        }
     } else {
-        SpaceValue::MultiSpace(len as u32)
+        SpaceValue::None
     }
 }
 
@@ -214,6 +246,34 @@ fn filter_non_ws_node(pre: Option<SyntaxElement>, post: Option<SyntaxElement>) -
             (Space::empty_before(), Space::after(post))
         },
         (None, None) => (Space::empty_before(), Space::empty_after()),
-        (_, _) => unreachable!("this should be unreachable test out"),
+        a => {
+            println!("this should be unreachable test out {:?}", a);
+            (Space::empty_before(), Space::empty_after())
+        },
+    }
+}
+
+/// TODO some left block parents may have diff contains, check when SpaceLoc::After
+fn process_space_value(blk: &Block, space: SpaceValue) -> SpaceValue {
+    use SpaceValue::*;
+    match space {
+        Newline | MultiLF(_) => Newline,
+        Single | MultiSpace(_) => Single,
+        NoneOptionalNewline | NoneOrNewline => {
+            if blk.siblings_contain("\n") {
+                Newline
+            } else {
+                None
+            }
+        },
+        SingleOptionalNewline | SingleOrNewline => {
+            if blk.siblings_contain("\n") {
+                Newline
+            } else {
+                Single
+            }
+        },
+        Indent(count) => Indent(count),
+        None => space,
     }
 }
