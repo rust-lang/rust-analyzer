@@ -62,6 +62,22 @@ pub fn main_loop(
 
     let mut loop_state = LoopState::default();
     let mut world_state = {
+        let feature_flags = {
+            let mut ff = FeatureFlags::default();
+            for (flag, value) in config.feature_flags {
+                if ff.set(flag.as_str(), value).is_err() {
+                    log::error!("unknown feature flag: {:?}", flag);
+                    show_message(
+                        req::MessageType::Error,
+                        format!("unknown feature flag: {:?}", flag),
+                        &connection.sender,
+                    );
+                }
+            }
+            ff
+        };
+        log::info!("feature_flags: {:#?}", feature_flags);
+
         // FIXME: support dynamic workspace loading.
         let workspaces = {
             let mut loaded_workspaces = Vec::new();
@@ -75,7 +91,12 @@ pub fn main_loop(
                     Ok(workspace) => loaded_workspaces.push(workspace),
                     Err(e) => {
                         log::error!("loading workspace failed: {}", e);
-
+                        if let Some(ra_project_model::CargoTomlNotFoundError(_)) = e.downcast_ref()
+                        {
+                            if !feature_flags.get("notifications.cargo-toml-not-found") {
+                                continue;
+                            }
+                        }
                         show_message(
                             req::MessageType::Error,
                             format!("rust-analyzer failed to load workspace: {}", e),
@@ -135,22 +156,6 @@ pub fn main_loop(
                 },
             }
         };
-
-        let feature_flags = {
-            let mut ff = FeatureFlags::default();
-            for (flag, value) in config.feature_flags {
-                if ff.set(flag.as_str(), value).is_err() {
-                    log::error!("unknown feature flag: {:?}", flag);
-                    show_message(
-                        req::MessageType::Error,
-                        format!("unknown feature flag: {:?}", flag),
-                        &connection.sender,
-                    );
-                }
-            }
-            ff
-        };
-        log::info!("feature_flags: {:#?}", feature_flags);
 
         WorldState::new(
             ws_roots,
@@ -499,6 +504,9 @@ fn on_request(
         .on::<req::Formatting>(handlers::handle_formatting)?
         .on::<req::DocumentHighlightRequest>(handlers::handle_document_highlight)?
         .on::<req::InlayHints>(handlers::handle_inlay_hints)?
+        .on::<req::CallHierarchyPrepare>(handlers::handle_call_hierarchy_prepare)?
+        .on::<req::CallHierarchyIncomingCalls>(handlers::handle_call_hierarchy_incoming)?
+        .on::<req::CallHierarchyOutgoingCalls>(handlers::handle_call_hierarchy_outgoing)?
         .finish();
     Ok(())
 }

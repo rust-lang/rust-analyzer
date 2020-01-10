@@ -10,15 +10,28 @@ on:
 jobs:
   rust:
     name: Rust
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     env:
       RUSTFLAGS: -D warnings
       CARGO_INCREMENTAL: 0
       RUN_SLOW_TESTS: 1
+      RUSTUP_MAX_RETRIES: 10
+      CARGO_NET_RETRY: 10
     steps:
 
       - name: Checkout repository
         uses: actions/checkout@v1
+
+      # We need to disable the existing toolchain to avoid updating rust-docs
+      # which takes a long time. The fastest way to do this is to rename the
+      # existing folder, as deleting it takes about as much time as not doing
+      # anything and just updating rust-docs.
+      - name: Rename existing rust toolchain (Windows)
+        if: matrix.os == 'windows-latest'
+        run: Rename-Item C:\Users\runneradmin\.rustup\toolchains\stable-x86_64-pc-windows-msvc C:\Users\runneradmin\.rustup\toolchains\stable-x86_64-pc-windows-msvc.old
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -28,7 +41,19 @@ jobs:
           override: true
           components: rustfmt, rust-src
 
-      - name: Cargo target cache
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo target dir
         uses: actions/cache@v1
         with:
           path: target
@@ -45,12 +70,13 @@ jobs:
         with:
           command: test
 
-      - name: Prepare build directory for cache
-        run: |
-          find ./target/debug -maxdepth 1 -type f -delete \
-          && rm -fr ./target/debug/{deps,.fingerprint}/{*ra_*,*heavy_test*,*gen_lsp*,*thread_worker*} \
-          && rm -f  ./target/.rustc_info.json \
-          && rm ./target/.slow_tests_cookie
+      - name: Prepare cache
+        run: cargo xtask pre-cache
+
+      - name: Prepare cache 2
+        if: matrix.os == 'windows-latest'
+        run: Remove-Item ./target/debug/xtask.exe
+
 
   type-script:
     name: TypeScript
