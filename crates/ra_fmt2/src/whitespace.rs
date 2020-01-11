@@ -1,45 +1,80 @@
 use crate::dsl::{Space, SpaceLoc, SpaceValue, SpacingDsl, SpacingRule};
 // use crate::indent::{Indentation};
+use crate::edit_tree::Block;
 use crate::pattern::{Pattern, PatternSet};
 use crate::rules::spacing;
 use crate::trav_util::{walk, walk_nodes, walk_tokens};
-use crate::edit_tree::Block;
 
 use ra_syntax::{
-    NodeOrToken, SmolStr, SyntaxElement,
-    SyntaxKind::{self, *}, Direction,
+    Direction, NodeOrToken, SmolStr, SyntaxElement,
+    SyntaxKind::{self, *},
     SyntaxNode, SyntaxToken, TextRange, TextUnit, WalkEvent, T,
 };
 
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 
 pub(crate) const INDENT: u32 = 4;
 pub(crate) const ID_STR: &str = "    ";
 
-#[derive(Clone, Debug)]
-/// Whitespace holds all whitespace information for each Block.
-/// Accessed from any Block's get_whitespace fn.
-pub(crate) struct Whitespace {
-    original: SyntaxElement,
-    text_range: TextRange,
-    // additional_spaces: u32,
-    /// Previous and next contain "\n".
-    pub(crate) new_line: (bool, bool),
-    /// Start and end location of token.
-    pub(crate) text_len: (u32, u32),
-    pub(crate) starts_with_lf: bool,
+impl Space {
+    fn empty_before() -> Space {
+        Self { loc: SpaceLoc::Before, value: SpaceValue::None }
+    }
+    fn empty_after() -> Space {
+        Self { loc: SpaceLoc::After, value: SpaceValue::None }
+    }
+    fn before(token: SyntaxToken) -> Space {
+        if !is_ws(&token) {
+            return Self::empty_before();
+        }
+        let value = calc_space_value(&token);
+        Self { loc: SpaceLoc::Before, value }
+    }
+    fn after(token: SyntaxToken) -> Space {
+        if !is_ws(&token) {
+            return Self::empty_after();
+        }
+        let value = calc_space_value(&token);
+        Self { loc: SpaceLoc::After, value }
+    }
 }
 
-impl std::fmt::Display for Whitespace {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.new_line.0 {
-            if self.starts_with_lf {
-                write!(f, "\n{}", " ".repeat(self.text_len.0 as usize))
-            } else {
-                writeln!(f)
+impl fmt::Display for Space {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.value {
+            SpaceValue::Single => write!(f, " "),
+            SpaceValue::Newline => writeln!(f),
+            SpaceValue::Indent(count) => write!(f, "\n{}", " ".repeat(count as usize)),
+            SpaceValue::None => write!(f, ""),
+            _ => {
+                // unreachable!("no other writable variants")
+                write!(f, " {:?} ", self.value)
             }
-        } else {
-            write!(f, "{}", " ".repeat(self.text_len.0 as usize))
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Whitespace {
+    pub(crate) space_before: Space,
+    pub(crate) space_after: Space,
+}
+
+impl fmt::Display for Whitespace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.space_before)
+    }
+}
+
+impl PartialEq<SpacingRule> for Whitespace {
+    /// TODO not sure exactly how to compare these
+    fn eq(&self, rule: &SpacingRule) -> bool {
+        match rule.space.loc {
+            SpaceLoc::Before => self.space_before == rule.space,
+            SpaceLoc::After => self.space_after == rule.space,
+            // TODO is this correct
+            SpaceLoc::Around => self.space_before == rule.space && self.space_after == rule.space,
         }
     }
 }
@@ -47,326 +82,164 @@ impl std::fmt::Display for Whitespace {
 impl Whitespace {
     pub(crate) fn new(element: &SyntaxElement) -> Whitespace {
         match &element {
-            NodeOrToken::Node(node) => {
-                Whitespace::from_node(&node)
-            },
-            NodeOrToken::Token(token) => {
-                Whitespace::from_token(&token)
-            },
+            NodeOrToken::Node(node) => Whitespace::from_node(&node),
+            NodeOrToken::Token(token) => Whitespace::from_token(&token),
         }
     }
 
-    fn from_node(node: &SyntaxNode) -> Whitespace {
+    pub(crate) fn from_rule(rule: &SpacingRule, l_blk: &Block, r_blk: &Block) -> Whitespace {
+        match rule.space.loc {
+            SpaceLoc::Before => {
+                let space_before =
+                    Space { loc: rule.space.loc, value: process_space_value(r_blk, rule) };
+
+                Self { space_before, space_after: Space::empty_after() }
+            }
+            SpaceLoc::After => {
+                let space_after =
+                    Space { loc: SpaceLoc::Before, value: process_space_value(l_blk, rule) };
+                Self { space_before: space_after, space_after: Space::empty_after() }
+            }
+            SpaceLoc::Around => {
+                println!("SPACE AROUND");
+                let space_before =
+                    Space { loc: SpaceLoc::Before, value: process_space_value(r_blk, rule) };
+                Self { space_before, space_after: r_blk.get_whitespace().space_after }
+            }
+        }
+    }
+
+    pub(crate) fn from_node(node: &SyntaxNode) -> Whitespace {
+        // must skip first siblings_with_tokens returns 'me' token as first
         let mut previous = node.siblings_with_tokens(Direction::Prev);
         let mut next = node.siblings_with_tokens(Direction::Next);
-        // must call next twice siblings_with_tokens returns 'me' token as first
+
         previous.next();
         next.next();
 
-        match (previous.next(), next.next()) {
-            (Some(prev), Some(next)) => {
-                let (starts_with_lf, prev_space) = if prev.kind() == WHITESPACE {
-                    let prev = prev.as_token().unwrap();
-                    (prev.text().starts_with('\n'), calc_num_space_tkn(prev))
-                } else {
-                    (false, 0)
-                };
-                let next_space = if next.kind() == WHITESPACE {
-                    calc_num_space_tkn(next.as_token().unwrap())
-                } else {
-                    0
-                };
-                let prev_line = match prev {
-                    NodeOrToken::Node(_) => {
-                        false
-                    },
-                    NodeOrToken::Token(tkn) => {
-                        tkn.text().as_str().contains('\n')
-                    },
-                };
-                let next_line = match next {
-                    NodeOrToken::Node(_) => {
-                        false
-                    },
-                    NodeOrToken::Token(tkn) => {
-                        tkn.text().as_str().contains('\n')
-                    },
-                };
+        let (space_before, space_after) = filter_non_ws_node(previous.next(), next.next());
 
-                Self {
-                    original: NodeOrToken::Node(node.clone()),
-                    text_range: node.text_range(),
-                    new_line: (prev_line, next_line),
-                    // additional_spaces,
-                    text_len: (prev_space, next_space),
-                    starts_with_lf,
-                }
-            },
-            (Some(prev), None) => {
-                let (starts_with_lf, prev_space) = if prev.kind() == WHITESPACE {
-                    let prev = prev.as_token().unwrap();
-                    (prev.text().starts_with('\n'), calc_num_space_tkn(prev))
-                } else {
-                    (false, 0)
-                };
-                let prev_line = match prev {
-                    NodeOrToken::Node(_) => {
-                        false
-                    },
-                    NodeOrToken::Token(tkn) => {
-                        tkn.text().as_str().contains('\n')
-                    },
-                };
+        // println!("{:#?} -- {:#?}", node, space_before);
 
-                Self {
-                    original: NodeOrToken::Node(node.clone()),
-                    text_range: node.text_range(),
-                    new_line: (prev_line, false),
-                    // additional_spaces,
-                    text_len: (prev_space, 0),
-                    starts_with_lf,
-                }
-            },
-            (None, Some(next)) => {
-                let next_space = if next.kind() == WHITESPACE {
-                    calc_num_space_tkn(next.as_token().unwrap())
-                } else {
-                    0
-                };
-                let next_line = match next {
-                    NodeOrToken::Node(_) => {
-                        false
-                    },
-                    NodeOrToken::Token(tkn) => {
-                        tkn.text().as_str().contains('\n')
-                    },
-                };
-                Self {
-                    original: NodeOrToken::Node(node.clone()),
-                    text_range: node.text_range(),
-                    new_line: (false, next_line),
-                    // additional_spaces,
-                    text_len: (0, next_space),
-                    starts_with_lf: false,
-                }
-            },
-            // handles root node
-            (None, None) => {
-                Self {
-                    original: NodeOrToken::Node(node.clone()),
-                    text_range: node.text_range(),
-                    new_line: (false, false),
-                    // additional_spaces,
-                    text_len: (0, 0),
-                    starts_with_lf: false,
-                }
-            },
-        }
+        Self { space_before, space_after }
     }
 
-    fn from_token(token: &SyntaxToken) -> Whitespace {
-        match (token.prev_token(), token.next_token()) {
-            (Some(prev), Some(next)) => {
-                let (starts_with_lf, prev_space) = if prev.kind() == WHITESPACE {
-                    (prev.text().starts_with('\n'), calc_num_space_tkn(&prev))
-                } else {
-                    (false, 0)
-                };
-                let next_space = if next.kind() == WHITESPACE {
-                    calc_num_space_tkn(&next)
-                } else {
-                    0
-                };
-
-                let new_line =
-                    (prev.text().as_str().contains('\n'), next.text().as_str().contains('\n'));
-
-                Self {
-                    original: NodeOrToken::Token(token.clone()),
-                    text_range: token.text_range(),
-                    new_line,
-                    // additional_spaces,
-                    text_len: (prev_space, next_space),
-                    starts_with_lf,
-                }
-            }
-            (Some(prev), None) => {
-                let (starts_with_lf, prev_space) = if prev.kind() == WHITESPACE {
-                    (prev.text().starts_with('\n'), calc_num_space_tkn(&prev))
-                } else {
-                    (false, 0)
-                };
-                let new_line = (prev.text().as_str().contains('\n'), false);
-
-                Self {
-                    original: NodeOrToken::Token(token.clone()),
-                    text_range: token.text_range(),
-                    new_line,
-                    // additional_spaces,
-                    text_len: (prev_space, 0),
-                    starts_with_lf,
-                }
-            }
-            (None, Some(next)) => {
-                let next_space = if next.kind() == WHITESPACE {
-                    calc_num_space_tkn(&next)
-                } else {
-                    0
-                };
-
-                let new_line = (false, next.text().as_str().contains('\n'));
-
-                Self {
-                    original: NodeOrToken::Token(token.clone()),
-                    text_range: token.text_range(),
-                    new_line,
-                    // additional_spaces,
-                    text_len: (0, next_space),
-                    starts_with_lf: false,
-                }
-            }
-            _ => unreachable!("Whitespace::new"),
-        }
-    }
-
-    /// Walks siblings to search for pat.
-    pub(crate) fn siblings_contain(&self, pat: &str) -> bool {
-        if let Some(tkn) = self.original.clone().into_token() {
-            walk_tokens(&tkn.parent())
-                .any(|tkn| {
-                    tkn.text().as_str() == pat
-                })
-        } else {
-            false
-        }
-    }
-
-    pub(crate) fn match_space_after(&self, value: SpaceValue) -> bool {
-        match value {
-            SpaceValue::Single => self.text_len.1 == 1,
-            SpaceValue::SingleOrNewline => self.text_len.1 == 1 || self.new_line.1,
-            SpaceValue::SingleOptionalNewline => self.text_len.1 == 1 || self.new_line.1,
-            SpaceValue::Newline => self.new_line.1,
-            SpaceValue::NoneOrNewline => self.text_len.1 == 0 || self.new_line.1,
-            SpaceValue::NoneOptionalNewline => self.text_len.1 == 0 && self.new_line.1,
-            SpaceValue::None => self.text_len.1 == 0 || !self.new_line.1,
-            _ => { panic!("found multi") },
-        }
-    }
-
-    pub(crate) fn match_space_before(&self, value: SpaceValue) -> bool {
-        match value {
-            SpaceValue::Single => self.text_len.0 == 1,
-            SpaceValue::SingleOrNewline => self.text_len.0 == 1 || self.new_line.0,
-            SpaceValue::SingleOptionalNewline => self.text_len.0 == 1 || self.new_line.0,
-            SpaceValue::Newline => self.new_line.0,
-            SpaceValue::NoneOrNewline => self.text_len.0 == 0,
-            SpaceValue::NoneOptionalNewline => self.text_len.0 == 0,
-            SpaceValue::None => self.text_len.0 == 0 || !self.new_line.0,
-            _ => { panic!("found multi") },
-        }
-    }
-
-    pub(crate) fn match_space_around(&self, value: SpaceValue) -> bool {
-        match value {
-            SpaceValue::Single => self.text_len.0 == 1 && self.text_len.1 == 1,
-            SpaceValue::SingleOrNewline => {
-                (self.text_len.0 == 1 && self.text_len.1 == 1)
-                || (self.new_line.0 && self.new_line.1)
-            },
-            SpaceValue::SingleOptionalNewline => {
-                (self.text_len.0 == 1 && self.text_len.1 == 1)
-                || (self.new_line.0 && self.new_line.1)
-            },
-            SpaceValue::Newline => self.new_line.0 && self.new_line.1,
-            SpaceValue::NoneOrNewline => {
-                (self.text_len.0 == 0 && self.text_len.1 == 0)
-                || (self.new_line.0 && self.new_line.1)
-            },
-            SpaceValue::NoneOptionalNewline => {
-                (self.text_len.0 == 0 && self.text_len.1 == 0)
-                && (self.new_line.0 && self.new_line.1)
-            },
-            SpaceValue::None => {
-                (self.text_len.0 == 0 && self.text_len.1 == 0)
-                && (!self.new_line.0 && !self.new_line.1)
-            },
-            _ => { panic!("found multi") },
-        }
-    }
-
-    pub(crate) fn fix_spacing_after(&mut self, space: Space) {
-        match space.value {
-            SpaceValue::Single => {
-                // add space or set to single
-                self.text_len.1 = 1;
-                // remove new line if any
-                self.new_line.1 = false;
-            },
-            SpaceValue::Newline => {
-                // add new line
-                self.new_line.1 = true;
-                // remove space if any
-                self.text_len.1 = 0;
-            },
-            SpaceValue::SingleOptionalNewline => {
-                if self.siblings_contain("\n") {
-                    self.new_line.1 = true;
-                    self.text_len.1 = 0;
-                } else {
-                    self.text_len.1 = 1;
-                    self.new_line.1 = false;
-                }
-            },
-            _ => {},
+    pub(crate) fn from_token(token: &SyntaxToken) -> Whitespace {
+        // println!("TOKENS {:?} {:?}", token.prev_token(), token.next_token());
+        let (space_before, space_after) = match (token.prev_token(), token.next_token()) {
+            (Some(pre), Some(post)) => (Space::before(pre), Space::after(post)),
+            (Some(pre), _) => (Space::before(pre), Space::empty_after()),
+            (_, Some(post)) => (Space::empty_before(), Space::after(post)),
+            (_, _) => unimplemented!("this should be unreachable test out"),
         };
+
+        // println!("{:#?} -- {:#?}", token, space_before);
+
+        Self { space_before, space_after }
     }
 
-    pub(crate) fn fix_spacing_before(&mut self, space: Space) {
-        match space.value {
-            SpaceValue::Single => {
-                self.text_len.0 = 1;
-                self.new_line.0 = false;
-            },
-            SpaceValue::Newline => {
-                self.new_line.0 = true;
-                self.text_len.0 = 0;
-            },
-            SpaceValue::SingleOptionalNewline => {
-                if self.siblings_contain("\n") {
-                    self.new_line.0 = true;
-                    self.text_len.0 = 0;
-                } else {
-                    self.text_len.0 = 1;
-                    self.new_line.0 = false;
-                }
-            },
-            _ => {},
-        }
+    pub(crate) fn space_kind(&self) -> SpaceValue {
+        self.space_before.value
+    }
+
+    pub(crate) fn space_loc(&self) -> SpaceLoc {
+        self.space_before.loc
+    }
+
+    pub(crate) fn set_indent(&mut self, indent: u32) {
+        self.space_before.value = SpaceValue::Indent(indent)
+    }
+    /// TODO is this how to do it??
+    pub(crate) fn set_space(&mut self, space: Space) {
+        assert!(space.loc == SpaceLoc::Before);
+        self.space_before.value = space.value
+    }
+
+    pub(crate) fn set_from_whitespace(&mut self, space: Whitespace) {
+        // println!("ORIG {:#?}", self);
+        // let Whitespace {
+        //     space_before, space_after,
+        // } = space;
+        // *self = Whitespace { space_before, space_after };
+        self.space_before = space.space_before;
+        // println!("MUT {:#?}", self);
+    }
+
+    pub(crate) fn match_space_before(&self, space: Space) -> bool {
+        self.space_before.value == space.value
+    }
+    pub(crate) fn match_space_after(&self, space: Space) -> bool {
+        self.space_after.value == space.value
     }
 }
 
-impl PartialEq<SpacingRule> for Whitespace {
-    fn eq(&self, rhs: &SpacingRule) -> bool {
-        match rhs.space.loc {
-            SpaceLoc::After => self.match_space_after(rhs.space.value),
-            SpaceLoc::Before => self.match_space_before(rhs.space.value),
-            SpaceLoc::Around => self.match_space_around(rhs.space.value),
-        }
-    }
+fn is_ws(token: &SyntaxToken) -> bool {
+    token.kind() == WHITESPACE
 }
 
-fn calc_num_space_tkn(tkn: &SyntaxToken) -> u32 {
+fn calc_space_value(tkn: &SyntaxToken) -> SpaceValue {
     let orig = tkn.text().as_str();
-    let len = orig.chars().count();
-    if orig.contains('\n') {
-        (len - orig.matches('\n').count()) as u32
+    let tkn_len = orig.chars().count();
+
+    // indent is `\n\s\s\s\s` or some variation
+    if orig.contains('\n') && orig.contains(' ') {
+        //                 subtract everything that is not a space
+        SpaceValue::Indent((tkn_len - orig.matches('\n').count()) as u32)
+    // just new line
+    } else if orig.contains('\n') {
+        if tkn_len == 1 {
+            SpaceValue::Newline
+        } else {
+            SpaceValue::MultiLF((orig.matches('\n').count()) as u32)
+        }
+    // just spaces
+    } else if orig.contains(' ') {
+        if tkn_len == 1 {
+            SpaceValue::Single
+        } else {
+            SpaceValue::MultiSpace((orig.matches(' ').count()) as u32)
+        }
     } else {
-        len as u32
+        SpaceValue::None
     }
 }
 
-fn calc_node_len(tkn: &SyntaxNode) -> u32 {
-    let orig = tkn.text().to_string();
-    orig.chars().count() as u32
+fn filter_non_ws_node(pre: Option<SyntaxElement>, post: Option<SyntaxElement>) -> (Space, Space) {
+    match (pre, post) {
+        (Some(SyntaxElement::Token(pre)), Some(SyntaxElement::Token(post))) => {
+            (Space::before(pre), Space::after(post))
+        }
+        (Some(SyntaxElement::Token(pre)), _) => (Space::before(pre), Space::empty_after()),
+        (_, Some(SyntaxElement::Token(post))) => (Space::empty_before(), Space::after(post)),
+        (None, None) => (Space::empty_before(), Space::empty_after()),
+        a => {
+            println!("this is anything that is not a token {:?}", a);
+            (Space::empty_before(), Space::empty_after())
+        }
+    }
+}
+
+/// TODO some left block parents may have diff contains, check when SpaceLoc::After
+fn process_space_value(blk: &Block, space: &SpacingRule) -> SpaceValue {
+    use SpaceValue::*;
+    match space.space.value {
+        Newline | MultiLF(_) => Newline,
+        Single | MultiSpace(_) => Single,
+        NoneOptionalNewline | NoneOrNewline => {
+            if blk.siblings_contain("\n", &space.pattern) {
+                Newline
+            } else {
+                SpaceValue::None
+            }
+        }
+        SingleOptionalNewline | SingleOrNewline => {
+            if blk.siblings_contain("\n", &space.pattern) {
+                Newline
+            } else {
+                Single
+            }
+        }
+        Indent(count) => Indent(count),
+        None => space.space.value,
+    }
 }

@@ -42,11 +42,7 @@ impl Pattern {
         let Pattern { kinds, pred } = self;
         Pattern::new(kinds, move |element| {
             (pred)(element)
-                && element
-                    .parent()
-                    .map(|it| it)
-                    .map(|it| parent.matches(&it.into()))
-                    == Some(true)
+                && element.parent().map(|it| it).map(|it| parent.matches(&it.into())) == Some(true)
         })
     }
 

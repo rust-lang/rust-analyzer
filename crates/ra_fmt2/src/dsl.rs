@@ -150,6 +150,10 @@ impl<'a> SpacingRuleBuilder<'a> {
     pub(crate) fn single_space(self) -> &'a mut SpacingDsl {
         self.finish(SpaceValue::Single)
     }
+    /// Enforce single whitespace character.
+    pub(crate) fn newline(self) -> &'a mut SpacingDsl {
+        self.finish(SpaceValue::Newline)
+    }
     pub(crate) fn single_space_or_optional_newline(self) -> &'a mut SpacingDsl {
         self.finish(SpaceValue::SingleOptionalNewline)
     }
@@ -205,8 +209,8 @@ impl<'a> SpacingRuleBuilder<'a> {
 }
 
 ///
-/// 
-/// 
+///
+///
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Modality {
@@ -224,7 +228,10 @@ pub(crate) struct RuleName(&'static str);
 
 impl RuleName {
     fn new(name: &'static str) -> RuleName {
-        assert!(name.chars().next().unwrap().is_uppercase(), "rule names start with capital letter");
+        assert!(
+            name.chars().next().unwrap().is_uppercase(),
+            "rule names start with capital letter"
+        );
         assert!(!name.ends_with('.'), "rule names should not end with '.'");
         RuleName(name)
     }

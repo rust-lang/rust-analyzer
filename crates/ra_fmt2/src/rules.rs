@@ -1,4 +1,4 @@
-use crate::dsl::{self, SpacingDsl, IndentDsl, IndentValue};
+use crate::dsl::{self, IndentDsl, IndentValue, SpacingDsl};
 use itertools::Itertools;
 use ra_syntax::{
     ast::{self, AstNode, AstToken},
@@ -8,61 +8,102 @@ use ra_syntax::{
 };
 
 /// Wraps expressions in a main function that must be declared in
-/// a block. 
+/// a block.
 #[macro_export]
 macro_rules! wrap_fn {
     ( $inner:expr ) => {
-        concat!("fn main() { ", $inner, " }")
+        concat!("fn main() { ", $inner, "}")
     };
     ( $inner:expr, $end:expr ) => {
-        concat!("fn main() { ", $inner, " }", $end)
+        concat!("fn main() { ", $inner, "}", $end)
     };
     ( $( $inner:expr )* ; $end:expr ) => {
-        concat!("fn main() { ", $( $inner )*, " }", $end)
+        concat!("fn main() { ", $( $inner )*, "}", $end)
     };
 }
 
+#[rustfmt::skip]
 pub(crate) fn spacing() -> SpacingDsl {
     let mut space_dsl = SpacingDsl::default();
 
     space_dsl
+        .test(wrap_fn!("let x = 0;"), wrap_fn!("let x = 0;\n"))
+        .inside(SOURCE_FILE).after(T![;]).newline()
+
         .test(wrap_fn!("let x=0"), wrap_fn!("let x = 0"))
         .inside(LET_STMT).before(T![=]).single_space()
         .inside(LET_STMT).after(T![=]).single_space_or_optional_newline()
 
-        .test(wrap_fn!("if x {0} else {1};"), wrap_fn!("if x { 0 } else { 1 };"))
+        .test(wrap_fn!("a==  b"), wrap_fn!("a == b"))
+        .test(wrap_fn!("a!=  b"), wrap_fn!("a != b"))
+        .test(wrap_fn!("a+  b"), wrap_fn!("a + b"))
+        .test(wrap_fn!("a+=b"), wrap_fn!("a += b"))
+        .test(wrap_fn!("a  -   b"), wrap_fn!("a - b"))
+        .test(wrap_fn!("a*  b"), wrap_fn!("a * b"))
+        .test(wrap_fn!("a/  b"), wrap_fn!("a / b"))
+        .inside(BIN_EXPR).after(T![==]).single_space()
+        .inside(BIN_EXPR).before(T![==]).single_space_or_optional_newline()
+        .inside(BIN_EXPR).after(T![!=]).single_space()
+        .inside(BIN_EXPR).before(T![!=]).single_space_or_optional_newline()
+        .inside(BIN_EXPR).after(T![+]).single_space()
+        .inside(BIN_EXPR).before(T![+]).single_space_or_optional_newline()
+        .inside(BIN_EXPR).after(T![+=]).single_space()
+        .inside(BIN_EXPR).before(T![+=]).single_space_or_optional_newline()
+        .inside(BIN_EXPR).after(T![-]).single_space()
+        .inside(BIN_EXPR).before(T![-]).single_space_or_optional_newline()
+        .inside(BIN_EXPR).after(T![*]).single_space()
+        .inside(BIN_EXPR).before(T![*]).single_space_or_optional_newline()
+        .inside(BIN_EXPR).after(T![/]).single_space()
+        .inside(BIN_EXPR).before(T![/]).single_space_or_optional_newline()
+
+        .test(wrap_fn!("foo . bar . baz"), wrap_fn!("foo.bar.baz"))
+        .inside(FIELD_EXPR).around(T![.]).no_space()
+
+        .test(wrap_fn!("if x {0}else{1};"), wrap_fn!("if x { 0 } else { 1 };"))
         .inside([IF_EXPR, BLOCK]).before(T!['{']).single_space()
         .inside([IF_EXPR, BLOCK]).after(T!['{']).single_space_or_optional_newline()
         .inside([IF_EXPR, BLOCK]).before(T!['}']).single_space_or_optional_newline()
-        .inside([IF_EXPR, BLOCK]).after(T!['}']).no_space_or_newline()
+        .inside([IF_EXPR, BLOCK]).after(T!['}']).single_space()
+        .inside(EXPR_STMT).before(T![;]).no_space()
 
         .test(wrap_fn!("let x = [1,2,3];"), wrap_fn!("let x = [1, 2, 3];"))
         .inside(ARRAY_EXPR).after(T![,]).single_space()
 
-        .test("struct Test{ x:usize    }", "struct Test { x: usize }")
+        .test("struct Test{ x:usize }", "struct Test { x: usize }")
         .inside(RECORD_FIELD_DEF_LIST).before(T!['{']).single_space()
-        .inside(RECORD_FIELD_DEF_LIST).after(T!['{']).single_space_or_optional_newline()
-        .inside(RECORD_FIELD_DEF_LIST).before(T!['}']).single_space_or_optional_newline()
-        .inside(RECORD_FIELD_DEF_LIST).after(T!['}']).single_space_or_optional_newline()
+        // .inside(RECORD_FIELD_DEF_LIST).after(T!['{']).single_space_or_optional_newline()
         .inside(RECORD_FIELD_DEF).after(T![:]).single_space()
+        // .inside(RECORD_FIELD_DEF_LIST).before(T!['}']).single_space_or_optional_newline()
+        // .inside(RECORD_FIELD_DEF_LIST).after(T!['}']).single_space_or_optional_newline()
 
         .test("pub(crate)struct Test { x: u8 }", "pub(crate) struct Test { x: u8 }")
-        .inside(VISIBILITY).after(T![')']).single_space();
+        .inside(VISIBILITY).after(T![')']).single_space()
 
+        .test("fn main(){ let x = 0; }", "fn main() { let x = 0; }")
+        .inside(FN_DEF).before(T!['(']).no_space()
+        .inside(FN_DEF).after(T![')']).single_space()
 
-        // must be done in engine so as not to disturb precedence or keeping track of Syntax Blocks "\n"
-        // .rule(dsl::SpacingRule {
-        //     pattern: SOURCE_FILE.into(),
-        //     space: dsl::Space { loc: dsl::SpaceLoc::After, value: dsl::SpaceValue::Newline }
-        // });
+        ;
+    // ^^^ leave for testing makes messing with the rules easier
     // more rules to come
 
     space_dsl
 }
 
+#[rustfmt::skip]
 pub(crate) fn indentation() -> IndentDsl {
     let mut indent_dsl = IndentDsl::default();
     indent_dsl
+        .anchor(FN_DEF)
+        .rule("Indent fn def")
+            .inside(BLOCK_EXPR)
+            .not_matching([T!['{'], T!['}']])
+            .set(IndentValue::Indent)
+            .test(
+r#"fn main() {let x = 0;}"#, 
+r#"fn main() {
+    let x = 0;
+}"#)
         .rule("Indent struct fields def")
             .inside(RECORD_FIELD_DEF_LIST)
             .matching(RECORD_FIELD_DEF)
@@ -88,10 +129,10 @@ wrap_fn!(r#"let t = Test {
     x: String,
 };"#))
 
-        .anchor(DOT)
+        .anchor(LET_STMT)
         .rule("Indent chained method calls")
             .inside(METHOD_CALL_EXPR)
-            .matching(DOT)
+            .matching(T![.])
             .set(IndentValue::Indent)
             .test(
 wrap_fn!(r#"let a = foo()
@@ -99,7 +140,10 @@ wrap_fn!(r#"let a = foo()
 .baz();"#),
 wrap_fn!(r#"let a = foo()
     .bar()
-    .baz();"#));
+    .baz();"#))
+    
+    ;
+    
     // more rules to come
 
     indent_dsl
@@ -110,10 +154,14 @@ mod tests {
 
     use crate::{
         edit_tree::EditTree, //diff_view::DiffView,
-        engine::format_str, rules::{spacing, indentation},
+        engine::format_str,
+        rules::{indentation, spacing},
     };
     use ra_syntax::SourceFile;
-    use std::{ fs, path::{Path, PathBuf},};
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+    };
 
     #[test]
     fn test_sys() {
@@ -173,7 +221,7 @@ mod tests {
         fn run(&self) -> Result<(), String> {
             let name = self.name.as_ref().map(|it| it.as_str()).unwrap_or("");
             let expected = &self.after;
-            let actual = &format_str(&self.before).unwrap().to_string();
+            let actual = &format_str(&self.before).unwrap();
             if expected != actual {
                 return Err(format!(
                     "\n\nAssertion failed: wrong formatting\
@@ -184,7 +232,7 @@ mod tests {
                     name, self.before, actual, self.after,
                 ));
             }
-            let second_round = &format_str(actual).unwrap().to_string();
+            let second_round = &format_str(actual).unwrap();
             if actual != second_round {
                 return Err(format!(
                     "\n\nAssertion failed: formatting is not idempotent\

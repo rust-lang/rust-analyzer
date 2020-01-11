@@ -3,10 +3,6 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-mod ws2;
-mod et2;
-mod eng2;
-
 mod dsl;
 mod edit_tree;
 mod engine;

@@ -2,17 +2,17 @@ use crate::dsl::{Space, SpaceLoc, SpaceValue, SpacingDsl, SpacingRule};
 // use crate::indent::Indentation;
 use crate::pattern::{Pattern, PatternSet};
 use crate::rules::spacing;
-use crate::trav_util::{walk, walk_nodes, walk_tokens};
+use crate::trav_util::{self, walk, walk_nodes, walk_tokens};
 use crate::whitespace::Whitespace;
 
 use ra_syntax::{
-    NodeOrToken, SmolStr, SyntaxElement,
-    SyntaxKind::{self, *}, Direction,
+    Direction, NodeOrToken, SmolStr, SyntaxElement,
+    SyntaxKind::{self, *},
     SyntaxNode, SyntaxToken, TextRange, TextUnit, WalkEvent, T,
 };
 
+use std::cell::{Ref, RefCell};
 use std::collections::BTreeSet;
-use std::cell::{Cell, RefCell};
 use std::fmt::Write;
 
 // TODO make more like intellij's fmt model
@@ -32,8 +32,7 @@ pub(crate) struct Block {
 impl Eq for Block {}
 impl PartialEq for Block {
     fn eq(&self, rhs: &Block) -> bool {
-        self.range == rhs.range && self.text == rhs.text
-        && self.element == rhs.element
+        self.range == rhs.range && self.text == rhs.text && self.element == rhs.element
     }
 }
 
@@ -56,15 +55,14 @@ impl Block {
     pub(crate) fn build_block(element: SyntaxElement) -> Block {
         // recursivly add to children
         let children = match &element {
-            NodeOrToken::Node(node) => {
-                node.children_with_tokens()
-                .filter(|ele| match ele{
+            NodeOrToken::Node(node) => node
+                .children_with_tokens()
+                .filter(|ele| match ele {
                     NodeOrToken::Node(_) => true,
                     NodeOrToken::Token(t) => t.kind() != WHITESPACE,
                 })
                 .map(Block::build_block)
-                .collect::<Vec<_>>()
-            }
+                .collect::<Vec<_>>(),
             NodeOrToken::Token(_) => vec![],
         };
         let range = match &element {
@@ -78,25 +76,19 @@ impl Block {
 
         let whitespace = RefCell::new(Whitespace::new(&element));
 
-        Self { element, text, children, range, whitespace, }
+        Self { element, text, children, range, whitespace }
     }
 
     /// Creates a non connected node for checking anchoring node's indentation.
     pub(crate) fn build_single(node: SyntaxElement) -> Block {
-        let range =  node.text_range();
+        let range = node.text_range();
         let text = match &node {
             NodeOrToken::Node(node) => SmolStr::from(node.text().to_string()),
             NodeOrToken::Token(token) => token.text().clone(),
         };
         let whitespace = RefCell::new(Whitespace::new(&node));
 
-        Self {
-            element: node,
-            text,
-            children: vec![],
-            range,
-            whitespace,
-        }
+        Self { element: node, text, children: vec![], range, whitespace }
     }
 
     /// Compare pointers to check if two Blocks are equal.
@@ -108,39 +100,33 @@ impl Block {
     /// FIX probably not the best way to do this, building all new Blocks.
     pub(crate) fn siblings(&self) -> Vec<Block> {
         match &self.element {
-            NodeOrToken::Node(node) => {
-                node.siblings_with_tokens(Direction::Prev)
-                    .map(Block::build_single)
-                    .collect::<Vec<_>>()
-            },
-            NodeOrToken::Token(token) => {
-                token.siblings_with_tokens(Direction::Prev)
-                    .map(Block::build_single)
-                    .collect::<Vec<_>>()
-            },
+            NodeOrToken::Node(node) => node
+                .siblings_with_tokens(Direction::Prev)
+                .map(Block::build_single)
+                .collect::<Vec<_>>(),
+            NodeOrToken::Token(token) => token
+                .siblings_with_tokens(Direction::Prev)
+                .map(Block::build_single)
+                .collect::<Vec<_>>(),
         }
     }
     /// Returns an vec of ancestors from current element.
-    /// TODO is the box better than a vec????????
+    /// TODO is the box better than a vec??
     /// FIX probably not the best way to do this, building all new Blocks.
-    pub(crate) fn ancestor_nodes(&self) -> Box<dyn Iterator<Item=Block>> {
+    pub(crate) fn ancestor_nodes(&self) -> Box<dyn Iterator<Item = Block>> {
         match &self.element {
             NodeOrToken::Node(node) => {
-                let ret = std::iter::successors(node.parent(), |this| {
-                    this.parent()
-                })
-                .map(|n| Block::build_single(NodeOrToken::Node(n)));
+                let ret = std::iter::successors(node.parent(), |this| this.parent())
+                    .map(|n| Block::build_single(NodeOrToken::Node(n)));
                 Box::new(ret)
                 //.collect::<Vec<_>>()
-            },
+            }
             NodeOrToken::Token(token) => {
-                let ret = std::iter::successors(Some(token.parent()), |this| {
-                    this.parent()
-                })
-                .map(|n| Block::build_single(NodeOrToken::Node(n)));
+                let ret = std::iter::successors(Some(token.parent()), |this| this.parent())
+                    .map(|n| Block::build_single(NodeOrToken::Node(n)));
                 Box::new(ret)
                 //.collect::<Vec<_>>()
-            },
+            }
         }
     }
 
@@ -240,78 +226,61 @@ impl Block {
         self.element.as_token().is_some()
     }
 
-    /// Returns `Whitespace` which has knowledge of whitespace around current token.
-    pub(crate) fn get_whitespace(&self) -> RefCell<Whitespace> {
-        self.whitespace.clone()
+    /// Returns `Ref<Whitespace>` which has knowledge of whitespace
+    /// around current token. This is a borrow of a `RefCell.
+    pub(crate) fn get_whitespace(&self) -> Ref<'_, Whitespace> {
+        self.whitespace.borrow()
     }
 
     /// Returns amount indenting whitespace.
     pub(crate) fn get_indent(&self) -> u32 {
-        if self.whitespace.borrow().starts_with_lf {
-            self.whitespace.borrow().text_len.0 
-        } else {
-            0
+        match self.whitespace.borrow().space_kind() {
+            SpaceValue::Indent(count) => count,
+            _ => 0,
         }
     }
 
     /// Sets amount indenting whitespace.
     pub(crate) fn set_indent(&self, indent: u32) {
-        self.whitespace.borrow_mut().text_len.0 = indent
+        self.whitespace.borrow_mut().set_indent(indent)
     }
 
     /// Returns previous and next space amounts as tuple.
-    pub(crate) fn space_value(&self) -> (u32, u32) {
-        self.whitespace.borrow().text_len
+    pub(crate) fn space_value(&self) -> SpaceValue {
+        self.whitespace.borrow().space_kind()
     }
 
     /// Sets preceding spacing based on rule.
-    pub(crate) fn set_spacing_before(&self, rule: &SpacingRule) {
-        let mut whitespace = self.whitespace.borrow_mut();
-        match rule.space.value {
-            SpaceValue::Single => {
-                whitespace.text_len.0 = 1;
-                whitespace.new_line.0 = false;
-            },
-            SpaceValue::Newline => {
-                whitespace.new_line.0 = true;
-                whitespace.text_len.0 = 0;
-            },
-            SpaceValue::SingleOptionalNewline => {
-                if whitespace.siblings_contain("\n") {
-                    whitespace.new_line.0 = true;
-                    whitespace.text_len.0 = 0;
-                } else {
-                    whitespace.text_len.0 = 1;
-                    whitespace.new_line.0 = false;
-                }
-            },
-            _ => {},
-        };
-        //self.whitespace.borrow_mut().fix_spacing_before(rule.space)
+    pub(crate) fn set_spacing(&self, space: Space) {
+        let mut ws = self.whitespace.borrow_mut();
+        ws.space_before = space;
     }
 
-    /// Sets spacing after token based on rule.
-    /// Fixes the "{" in "struct Test{x:usize}"
-    pub(crate) fn set_spacing_after(&self, rule: &SpacingRule) {
-        self.whitespace.borrow_mut().fix_spacing_after(rule.space)
+    /// Sets spacing around based on rule.
+    pub(crate) fn set_spacing_around(&self, space: Whitespace) {
+        let mut ws = self.whitespace.borrow_mut();
+        ws.space_before = space.space_before;
+        ws.space_after = space.space_after;
     }
 
-    /// Returns previous and next new line flags as tuple.
-    pub(crate) fn eol_value(&self) -> (bool, bool) {
-        self.whitespace.borrow().new_line
-    }
     /// Returns true if `Block` starts with new line char.
     pub(crate) fn starts_with_lf(&self) -> bool {
-        self.whitespace.borrow().starts_with_lf
+        let ws = self.whitespace.borrow();
+        match ws.space_kind() {
+            SpaceValue::Newline => ws.space_loc() == SpaceLoc::Before,
+            SpaceValue::Indent(_) => ws.space_loc() == SpaceLoc::Before,
+            _ => false,
+        }
     }
 
     /// Walks siblings to search for pat.
-    pub(crate) fn siblings_contain(&self, pat: &str) -> bool {
-        if let Some(tkn) = self.element.as_token() {
-            walk_tokens(&tkn.parent())
-                .any(|tkn| {
-                    tkn.text().as_str() == pat
-                })
+    pub(crate) fn siblings_contain(&self, pat: &str, space_pat: &Pattern) -> bool {
+        if let Some(p) = trav_util::prev_non_whitespace_sibling(self.as_element()) {
+            if let Some(par) = p.into_node() {
+                trav_util::has_newline(&par)
+            } else {
+                false
+            }
         } else {
             false
         }
@@ -352,7 +321,7 @@ pub(crate) struct EditTree {
 }
 
 impl EditTree {
-    /// Walks all `SyntaxNode`s building an `EditTree`. 
+    /// Walks all `SyntaxNode`s building an `EditTree`.
     pub(crate) fn new(root: SyntaxNode) -> EditTree {
         EditTree::build_tree(root)
     }
@@ -398,16 +367,18 @@ impl EditTree {
 }
 
 fn str_from_root(block: &Block) -> String {
+    // println!("{:#?}", block.order_flatten_blocks_inc().iter().map(|b| b.as_element()).collect::<Vec<_>>());
     let mut buff = String::new();
     eat_tkns(block, &mut buff);
     return buff;
-
+    
     fn eat_tkns(block: &Block, mut buff: &mut String) {
         if block.is_leaf() {
+            // println!("{:?}\n{:#?}", block.as_element(), block.whitespace.borrow());
             write!(buff, "{}", block.whitespace.borrow()).expect("write to buffer failed");
             write!(buff, "{}", block.element).expect("write to buffer failed");
         } else {
             block.children().for_each(|kid| eat_tkns(kid, &mut buff));
         }
     }
-} 
+}
