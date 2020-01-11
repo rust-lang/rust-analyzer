@@ -62,18 +62,6 @@ impl SourceRoot {
     pub fn file_by_relative_path(&self, path: &RelativePath) -> Option<FileId> {
         self.files.get(path).copied()
     }
-    pub fn insert_file(&mut self, path: RelativePathBuf, file_id: FileId) {
-        self.files.insert(path, file_id);
-    }
-    pub fn remove_file(&mut self, path: &RelativePath) {
-        self.files.remove(path);
-    }
-    pub fn walk(&self) -> impl Iterator<Item = FileId> + '_ {
-        self.files.values().copied()
-    }
-    pub fn file_by_relative_path(&self, path: &RelativePath) -> Option<FileId> {
-        self.files.get(path).copied()
-    }
 }
 
 /// `CrateGraph` is a bit of information which turns a set of text files into a
