@@ -727,9 +727,6 @@ fn func(foo: i32) { if true { <|>foo; }; }
                     fo<|>o();
                 }
             }
-            fn foo(bar:u32) {
-                let a = id!(ba<|>r);
-            }            
             ",
             &["fn foo()"],
         );
