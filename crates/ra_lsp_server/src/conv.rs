@@ -9,7 +9,7 @@ use lsp_types::{
 use ra_ide::{
     translate_offset_with_edit, CompletionItem, CompletionItemKind, FileId, FilePosition,
     FileRange, FileSystemEdit, Fold, FoldKind, InsertTextFormat, LineCol, LineIndex,
-    NavigationTarget, RangeInfo, Severity, SourceChange, SourceFileEdit,
+    NavigationTarget, RangeInfo, ReferenceAccess, Severity, SourceChange, SourceFileEdit,
 };
 use ra_syntax::{SyntaxKind, TextRange, TextUnit};
 use ra_text_edit::{AtomTextEdit, TextEdit};
