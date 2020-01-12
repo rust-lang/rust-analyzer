@@ -1,6 +1,6 @@
 //! FIXME: write short doc here
 
-use hir::{FromSource, ImplBlock};
+use hir::{FromSource, HasSource, ImplBlock};
 use ra_db::SourceDatabase;
 use ra_syntax::{algo::find_node_at_offset, ast, AstNode};
 
@@ -62,6 +62,7 @@ fn impls_for_def(
         impls
             .into_iter()
             .filter(|impl_block| ty.is_equal_for_find_impls(&impl_block.target_ty(db)))
+            .filter(|impl_block| !impl_block.source(db).file_id.is_builtin_derive(db))
             .map(|imp| imp.to_nav(db))
             .collect(),
     )
