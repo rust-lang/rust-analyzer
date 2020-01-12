@@ -1,0 +1,44 @@
+name: GitHub Release
+on:
+  # TODO on pull_request just for testing
+  pull_request:
+  push:
+    branches:
+      - master
+      - staging
+      - trying
+    # tags:
+    #   - 'v*'
+
+jobs:
+  rust:
+    name: Rust_Github_Release
+    needs: Rust_ReleaseBuild
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create Release
+        id: create_release
+        - uses: actions/checkout@v1
+
+        - uses: actions/download-artifact@v1
+          with:
+            - name: editor-plugins
+            - name: server-macos-latest
+            - name: server-ubuntu-latest
+            - name: serveri-windows-latest
+        
+        - uses: actions/create-release@v1
+        
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            Another most excellent Rust Analyzer Release...
+            - We got better
+            - We got faster
+            - We fixed stuff
+          draft: true
+          prerelease: true
