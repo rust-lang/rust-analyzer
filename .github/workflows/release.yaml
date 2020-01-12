@@ -6,7 +6,7 @@ on:
 
 jobs:
   rust:
-    name: Rust
+    name: Rust_ReleaseBuild
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
