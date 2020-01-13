@@ -1,12 +1,14 @@
 name: CI-Release
 on:
+  # FIXME: remove before merge
+  pull_request:
   push:
     branches:
       - release
 
 jobs:
-  rust:
-    name: Rust
+  build-server:
+    name: build-server
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -35,13 +37,22 @@ jobs:
           toolchain: stable
           profile: minimal
           override: true
-          components: rustfmt, rust-src
+          components: rust-src
 
-      - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --package ra_lsp_server --bin ra_lsp_server
+      # - name: Build
+      #   uses: actions-rs/cargo@v1
+      #   with:
+      #     command: build
+      #     args: --package ra_lsp_server --bin ra_lsp_server --release
+
+      - name: Fake Build
+        if: matrix.os != 'windows-latest'
+        run: 'cp $(which cargo) ./target/release/ra_lsp_server'
+
+      - name: Fake Build
+        if: matrix.os == 'windows-latest'
+        run: New-Item -ItemType file ./target/release/ra_lsp_server.exe
+
 
       - name: Strip symbols
         if: matrix.os == 'ubuntu-latest'
@@ -50,13 +61,17 @@ jobs:
       - name: Create distribution dir
         run: mkdir ./dist
 
-      - name: Copy binaries (unix)
-        if: matrix.os != 'windows-latest'
-        run: cp ./target/release/ra_lsp_server ./dist
+      - name: Copy binary
+        if: matrix.os == 'ubuntu-latest'
+        run: cp ./target/release/ra_lsp_server ./dist/ra_lsp_server-linux
 
-      - name: Copy binaries (win)
+      - name: Copy binary
+        if: matrix.os == 'macos-latest'
+        run: cp ./target/release/ra_lsp_server ./dist/ra_lsp_server-mac
+
+      - name: Copy binary
         if: matrix.os == 'windows-latest'
-        run: copy ./target/release/ra_lsp_server.exe ./dist
+        run: copy ./target/release/ra_lsp_server.exe ./dist/ra_lsp_server-windows.exe
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v1
@@ -64,8 +79,8 @@ jobs:
           name: server-${{ matrix.os }}
           path: ./dist
 
-  type-script:
-    name: TypeScript
+  build-clients:
+    name: build-clients
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -83,13 +98,48 @@ jobs:
         working-directory: ./editors/code
 
       - name: Copy vscode extension
-        run: mkdir -p ./dist/code && cp ./editors/code/*.vsix ./dist/code/
+        run: mkdir -p ./dist/code && cp ./editors/code/*.vsix ./dist/
 
       - name: Copy emacs mode
-        run: cp -R ./editors/emacs ./dist/
+        run: cp ./editors/emacs/rust-analyzer.el ./dist/rust-analyzer.el
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v1
         with:
           name: editor-plugins
           path: ./dist
+
+  make-release:
+    name: make-release
+    runs-on: ubuntu-latest
+    needs: ['build-server', 'build-clients']
+    steps:
+      - uses: actions/download-artifact@v1
+        with:
+          name: editor-plugins
+          path: dist
+      - uses: actions/download-artifact@v1
+        with:
+          name: server-macos-latest
+          path: dist
+      - uses: actions/download-artifact@v1
+        with:
+          name: server-ubuntu-latest
+          path: dist
+      - uses: actions/download-artifact@v1
+        with:
+          name: server-windows-latest
+          path: dist
+      - run: ls -all ./dist
+
+      - run: echo "::set-env name=TAG::$(date --iso)"
+      - run: echo "TAG: $TAG"
+
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.TAG }}
+          draft: false
+          prerelease: false
