@@ -1,0 +1,153 @@
+name: CI
+on:
+  push:
+    branches: [master]
+    tags-ignore: [dev]
+  pull_request:
+    branches: [master]
+
+jobs:
+  # Running the same tasks that are in release.yaml.
+  # TODO: We should just depend on that job and download built artifacts
+  # rather than this duplication!
+  server-release-build:
+    name: Rust
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    env:
+      RUSTFLAGS: -D warnings
+      CARGO_INCREMENTAL: 0
+      RUSTUP_MAX_RETRIES: 10
+      CARGO_NET_RETRY: 10
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v1
+
+      # We need to disable the existing toolchain to avoid updating rust-docs
+      # which takes a long time. The fastest way to do this is to rename the
+      # existing folder, as deleting it takes about as much time as not doing
+      # anything and just updating rust-docs.
+      - name: Rename existing rust toolchain (Windows)
+        if: matrix.os == 'windows-latest'
+        run: Rename-Item C:\Users\runneradmin\.rustup\toolchains\stable-x86_64-pc-windows-msvc C:\Users\runneradmin\.rustup\toolchains\stable-x86_64-pc-windows-msvc.old
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+          components: rustfmt, rust-src
+
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --package ra_lsp_server --bin ra_lsp_server
+
+      - name: Strip symbols
+        if: matrix.os == 'ubuntu-latest'
+        run: strip ./target/release/ra_lsp_server
+
+      - name: Create distribution dir
+        run: mkdir ./dist
+
+      - name: Copy binaries (unix)
+        if: matrix.os != 'windows-latest'
+        run: cp ./target/release/ra_lsp_server ./dist
+
+      - name: Copy binaries (win)
+        if: matrix.os == 'windows-latest'
+        run: copy ./target/release/ra_lsp_server.exe ./dist
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v1
+        with:
+          name: server-${{ matrix.os }}
+          path: ./dist
+
+  type-script:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v1
+
+      - name: Install Nodejs
+        uses: actions/setup-node@v1
+        with:
+          node-version: 12.x
+
+      - run: npm ci
+        working-directory: ./editors/code
+
+      - run: npm run package --scripts-prepend-node-path
+        working-directory: ./editors/code
+
+      - name: Copy vscode extension
+        run: mkdir -p ./dist/code && cp ./editors/code/*.vsix ./dist/code/
+
+      - name: Copy emacs mode
+        run: cp -R ./editors/emacs ./dist/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v1
+        with:
+          name: editor-plugins
+          path: ./dist
+
+  # Consumes all published artifacts from all the previous build steps, creates
+  # a bunch of tarballs for all of them, and then publishes the tarballs
+  # themselves as an artifact (for inspection) and then optionally creates
+  # github releases and/or tags for pushes.
+  publish:
+    name: Publish
+    needs: [server-release-build, type-script]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        submodules: true
+    - run: rustup update stable && rustup default stable
+
+    # Download all the artifacts that we'll be publishing. Should keep an eye on
+    # the `download-artifact` repository to see if we can ever get something
+    # like "download all artifacts" or "download this list of artifacts"
+    - run: mkdir ./dist
+      
+    - name: Download Editor Plugins
+      uses: actions/download-artifact@v1
+      with:
+        name: editor-plugins
+        path: dist/editor-plugins
+
+    - name: Download Server
+      uses: actions/download-artifact@v1
+      with:
+        name: server-ubuntu-latest
+        path: dist/server-ubuntu-latest
+        # TODO list others
+
+    - name: Calculate tag name
+      run: |
+        name=dev
+        if [[ $GITHUB_REF == refs/tags* ]]; then
+          name=${GITHUB_REF:10}
+        fi
+        echo ::set-output name=val::$name
+        echo ::set-env name=TAG::$name
+      id: tagname
+
+    # ... and if this was an actual push (tag or `master`) then we publish a
+    # new release. This'll automatically publish a tag release or update `dev`
+    # with this `sha`
+    - name: Publish Release
+      uses: ./.github/actions/github-release
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags'))
+      with:
+        files: "dist/*"
+        name: ${{ steps.tagname.outputs.val }}
+        token: ${{ secrets.GITHUB_TOKEN }}
