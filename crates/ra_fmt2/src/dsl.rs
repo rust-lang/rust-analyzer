@@ -53,7 +53,7 @@ pub(crate) enum SpaceValue {
     /// Number of new lines this is only for `Whitespace` held by `Block`.
     MultiLF(u32),
     /// Number of spaces that indent is made of `'\n\s\s\s\s'`.
-    Indent(u32),
+    Indent { level: u32, alignment: u32},
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -255,7 +255,7 @@ pub(crate) struct IndentRule {
     pub(crate) child: Option<Pattern>,
     pub(crate) child_modality: Modality,
     /// Pattern that should match the anchoring element, relative to which we
-    /// calculate the indent. Starts the indent level count from this node/token?? TODO
+    /// calculate the indent. Starts the indent level count from this node/token.
     pub(crate) anchor_pattern: Option<Pattern>,
     pub(crate) indent_value: IndentValue,
 }
@@ -288,20 +288,8 @@ pub(crate) struct IndentDsl {
 
 impl IndentDsl {
     /// Specifies that an element should be treated as indent anchor even if it
-    /// isn't the first on the line.
-    ///
-    /// For example, in
-    ///
-    /// ```nix
-    /// { foo ? bar
-    /// , baz ? quux {
-    ///     y = z;
-    ///   }
-    /// }
-    /// ```
-    ///
-    /// we want to indent `y = z;` relative to `baz ? ...`, although it doesn't
-    /// start on the first line.
+    /// isn't the first on the line. Any occasion of this `Pattern` will add to the 
+    /// indent count.
     pub(crate) fn anchor(&mut self, pattern: impl Into<Pattern>) -> &mut IndentDsl {
         self.anchors.push(pattern.into());
         self

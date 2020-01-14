@@ -6,11 +6,11 @@
 mod dsl;
 mod edit_tree;
 mod engine;
-// mod indent;
 mod pattern;
 #[macro_use]
 mod rules;
 mod scratch;
-// mod fmt_model;
 mod trav_util;
 mod whitespace;
+
+pub use engine::{format_str};

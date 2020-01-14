@@ -1,9 +1,8 @@
 use crate::dsl::{Space, SpaceLoc, SpaceValue, SpacingDsl, SpacingRule};
-// use crate::indent::Indentation;
 use crate::pattern::{Pattern, PatternSet};
 use crate::rules::spacing;
-use crate::trav_util::{self, walk, walk_nodes, walk_tokens};
-use crate::whitespace::Whitespace;
+use crate::trav_util;
+use crate::whitespace::{Whitespace, USER_INDENT_SIZE};
 
 use ra_syntax::{
     Direction, NodeOrToken, SmolStr, SyntaxElement,
@@ -13,13 +12,12 @@ use ra_syntax::{
 
 use std::cell::{Ref, RefCell};
 use std::collections::BTreeSet;
-use std::fmt::Write;
+use std::fmt::{self, Write};
 
 // TODO make more like intellij's fmt model
 // Model holds immutable tree and mutable intermediate model to produce diff.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 /// Holds node or token with whitespace information.
-///
 pub(crate) struct Block {
     //indent: some enum?
     element: SyntaxElement,
@@ -27,6 +25,17 @@ pub(crate) struct Block {
     text: SmolStr,
     range: TextRange,
     whitespace: RefCell<Whitespace>,
+}
+
+impl fmt::Debug for Block {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Block")
+            .field("element", &self.element)
+            .field("text", &self.text)
+            .field("range", &self.range)
+            .field("whitespace", &self.whitespace)
+            .finish()
+    }
 }
 
 impl Eq for Block {}
@@ -91,12 +100,6 @@ impl Block {
         Self { element: node, text, children: vec![], range, whitespace }
     }
 
-    /// Compare pointers to check if two Blocks are equal.
-    /// Remove??
-    fn compare(&self, other: &Block) -> bool {
-        self as *const _ == other as *const _
-    }
-
     /// FIX probably not the best way to do this, building all new Blocks.
     pub(crate) fn siblings(&self) -> Vec<Block> {
         match &self.element {
@@ -110,7 +113,7 @@ impl Block {
                 .collect::<Vec<_>>(),
         }
     }
-    /// Returns an vec of ancestors from current element.
+    /// Returns an Iterator of ancestors from current element.
     /// TODO is the box better than a vec??
     /// FIX probably not the best way to do this, building all new Blocks.
     pub(crate) fn ancestor_nodes(&self) -> Box<dyn Iterator<Item = Block>> {
@@ -233,9 +236,9 @@ impl Block {
     }
 
     /// Returns amount indenting whitespace.
-    pub(crate) fn get_indent(&self) -> u32 {
-        match self.whitespace.borrow().space_kind() {
-            SpaceValue::Indent(count) => count,
+    pub(crate) fn get_indent_len(&self) -> u32 {
+        match self.whitespace.borrow().space_kind_prev() {
+            SpaceValue::Indent{ level, alignment, } => level * USER_INDENT_SIZE + alignment,
             _ => 0,
         }
     }
@@ -243,11 +246,6 @@ impl Block {
     /// Sets amount indenting whitespace.
     pub(crate) fn set_indent(&self, indent: u32) {
         self.whitespace.borrow_mut().set_indent(indent)
-    }
-
-    /// Returns previous and next space amounts as tuple.
-    pub(crate) fn space_value(&self) -> SpaceValue {
-        self.whitespace.borrow().space_kind()
     }
 
     /// Sets preceding spacing based on rule.
@@ -266,34 +264,38 @@ impl Block {
     /// Returns true if `Block` starts with new line char.
     pub(crate) fn starts_with_lf(&self) -> bool {
         let ws = self.whitespace.borrow();
-        match ws.space_kind() {
-            SpaceValue::Newline => ws.space_loc() == SpaceLoc::Before,
-            SpaceValue::Indent(_) => ws.space_loc() == SpaceLoc::Before,
+        match ws.space_kind_prev() {
+            SpaceValue::Newline => ws.space_loc_prev() == SpaceLoc::Before,
+            SpaceValue::Indent{ .. } => ws.space_loc_prev() == SpaceLoc::Before,
             _ => false,
         }
     }
 
+    /// Returns true if `Block`s sibling starts with new line char.
+    pub(crate) fn sibling_starts_with_lf(&self) -> bool {
+        self.siblings_contain("\n")
+    }
+
     /// Walks siblings to search for pat.
-    pub(crate) fn siblings_contain(&self, pat: &str, space_pat: &Pattern) -> bool {
-        if let Some(p) = trav_util::prev_non_whitespace_sibling(self.as_element()) {
-            if let Some(par) = p.into_node() {
-                trav_util::has_newline(&par)
-            } else {
-                false
+    pub(crate) fn siblings_contain(&self, pat: &str) -> bool {
+        let newline = |node: SyntaxElement| -> bool {
+            match node {
+                NodeOrToken::Token(t) => t.text().contains(pat),
+                _ => false,
             }
-        } else {
-            false
+        };
+        if self
+            .to_element()
+            .into_node()
+            .map(|n| n.siblings_with_tokens(Direction::Prev).any(newline))
+            .unwrap_or_default()
+        {
+            return true;
         }
-    }
-
-    /// Remove after dev ??
-    fn to_string(&self) -> String {
-        self.text.to_string()
-    }
-
-    /// Returns `Block`s text as str.
-    pub(crate) fn as_str(&self) -> &str {
-        self.text.as_str()
+        self.to_element()
+            .into_node()
+            .map(|n| n.siblings_with_tokens(Direction::Next).any(newline))
+            .unwrap_or_default()
     }
 }
 
@@ -367,14 +369,14 @@ impl EditTree {
 }
 
 fn str_from_root(block: &Block) -> String {
+    // println!("{:#?}", block.as_element());
     // println!("{:#?}", block.order_flatten_blocks_inc().iter().map(|b| b.as_element()).collect::<Vec<_>>());
     let mut buff = String::new();
     eat_tkns(block, &mut buff);
     return buff;
-    
+
     fn eat_tkns(block: &Block, mut buff: &mut String) {
         if block.is_leaf() {
-            // println!("{:?}\n{:#?}", block.as_element(), block.whitespace.borrow());
             write!(buff, "{}", block.whitespace.borrow()).expect("write to buffer failed");
             write!(buff, "{}", block.element).expect("write to buffer failed");
         } else {
