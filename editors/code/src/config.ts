@@ -18,7 +18,7 @@ export interface CargoFeatures {
 export class Config {
     highlightingOn = true;
     rainbowHighlightingOn = false;
-    enableEnhancedTyping = true;
+    enableEnhancedTyping = false;
     raLspServerPath = RA_LSP_DEBUG || 'ra_lsp_server';
     lruCapacity: null | number = null;
     displayInlayHints = true;
