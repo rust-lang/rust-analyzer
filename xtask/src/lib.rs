@@ -134,7 +134,7 @@ pub fn insert_test(test_path_relative_to_crates: &str) -> Result<()> {
 
     prompt_confirm(&format!("Going to increase tests in {:?}", &test_dir));
 
-    update_test_ids(&test_dir, new_test_id, -1)?;
+    update_test_ids(&test_dir, new_test_id, 1)?;
 
     // Its safe to create new file without confirmation here
     fs::File::create(&new_test_path)?;
