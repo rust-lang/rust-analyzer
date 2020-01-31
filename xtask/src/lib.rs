@@ -110,11 +110,9 @@ pub fn remove_test(test_path_relative_to_crates: &str) -> Result<()> {
     let (rm_test_path, test_dir, test_id) = parse_test_path(test_path_relative_to_crates)?;
 
     prompt_confirm(&format!("Going to remove file {:?}", &rm_test_path));
-
     fs::remove_file(rm_test_path)?;
 
     prompt_confirm(&format!("Going to decrease test ids in {:?}", &test_dir));
-
     update_test_ids(&test_dir, test_id, -1)?;
 
     Ok(())
@@ -133,10 +131,9 @@ pub fn insert_test(test_path_relative_to_crates: &str) -> Result<()> {
     }
 
     prompt_confirm(&format!("Going to increase tests ids in {:?}", &test_dir));
-
     update_test_ids(&test_dir, new_test_id, 1)?;
 
-    // Its safe to create new file without confirmation here
+    prompt_confirm(&format!("Going to create empty file at {:?}", &new_test_path));
     fs::File::create(&new_test_path)?;
 
     // Some IDEs can let you open the file by a link from the terminal
