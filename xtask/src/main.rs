@@ -13,8 +13,9 @@ use std::env;
 use pico_args::Arguments;
 use xtask::{
     codegen::{self, Mode},
+    insert_test,
     install::{ClientOpt, InstallCmd, ServerOpt},
-    pre_commit, run_clippy, run_fuzzer, run_pre_cache, run_rustfmt, Result,
+    pre_commit, remove_test, run_clippy, run_fuzzer, run_pre_cache, run_rustfmt, Result,
 };
 
 fn main() -> Result<()> {
@@ -92,6 +93,20 @@ FLAGS:
             args.finish()?;
             run_pre_cache()
         }
+        "insert-test-data" => {
+            // File path is relative to `/crates` dir
+            // e.g. `ra_syntax/test_data/lexer/ok/0012_test_name.rs`
+            let new_test_file_path: String = args.value_from_str("--path")?;
+            args.finish()?;
+            insert_test(&new_test_file_path)
+        }
+        "remove-test-data" => {
+            // File path is relative to `/crates` dir
+            // e.g. `ra_syntax/test_data/lexer/ok/0012_test_name.rs`
+            let rm_test_file_path: String = args.value_from_str("--path")?;
+            args.finish()?;
+            remove_test(&rm_test_file_path)
+        }
         _ => {
             eprintln!(
                 "\
@@ -107,7 +122,9 @@ SUBCOMMANDS:
     fuzz-tests
     codegen
     install
-    lint"
+    lint
+    insert-test-data
+    remove-test-data"
             );
             Ok(())
         }

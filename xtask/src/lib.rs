@@ -10,7 +10,7 @@ mod ast_src;
 use anyhow::Context;
 use std::{
     env, fs,
-    io::Write,
+    io::{Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
@@ -104,6 +104,84 @@ pub fn run_clippy() -> Result<()> {
 fn install_clippy() -> Result<()> {
     run(&format!("rustup toolchain install {}", TOOLCHAIN), ".")?;
     run(&format!("rustup component add clippy --toolchain {}", TOOLCHAIN), ".")
+}
+
+pub fn remove_test(test_path_relative_to_crates: &str) -> Result<()> {
+    let (rm_test_path, test_dir, test_id) = parse_test_path(test_path_relative_to_crates)?;
+
+    prompt_confirm(&format!("Going to remove file {:?}", &rm_test_path));
+
+    fs::remove_file(rm_test_path)?;
+
+    prompt_confirm(&format!("Going to decrease test ids in {:?}", &test_dir));
+
+    update_test_ids(&test_dir, test_id, -1)?;
+
+    Ok(())
+}
+
+fn prompt_confirm(text: &str) {
+    println!("{}\nPress any key to continue...", &text);
+    std::io::stdin().bytes().next().unwrap().unwrap();
+}
+
+pub fn insert_test(test_path_relative_to_crates: &str) -> Result<()> {
+    let (new_test_path, test_dir, new_test_id) = parse_test_path(test_path_relative_to_crates)?;
+
+    if new_test_path.exists() {
+        anyhow::bail!("Test file {:?} already exists", new_test_path);
+    }
+
+    prompt_confirm(&format!("Going to increase tests in {:?}", &test_dir));
+
+    update_test_ids(&test_dir, new_test_id, -1)?;
+
+    // Its safe to create new file without confirmation here
+    fs::File::create(&new_test_path)?;
+
+    // Some IDEs can let you open the file by a link from the terminal
+    println!("Created new test file at {:?}", &new_test_path);
+
+    Ok(())
+}
+
+fn parse_test_path(test_path_relative_to_crates: &str) -> Result<(PathBuf, PathBuf, u32)> {
+    let test_file_path = project_root().join("crates").join(test_path_relative_to_crates);
+
+    let mut test_dir = test_file_path.clone();
+    let test_id = parse_test_id(test_file_path.file_name().unwrap().to_str().unwrap())?;
+
+    test_dir.pop();
+    Ok((test_file_path, test_dir, test_id))
+}
+
+/// Update all test files ids by `diff` starting from first_id and higher.
+fn update_test_ids(test_dir: &Path, first_id: u32, diff: i32) -> Result<()> {
+    let test_files = test_dir
+        .read_dir()?
+        .map(Result::unwrap)
+        .filter(|dir_entry| dir_entry.file_type().unwrap().is_file());
+
+    for test_file in test_files {
+        let mut test_name = test_file.file_name().into_string().unwrap();
+        let test_id = parse_test_id(&test_name)?;
+
+        if test_id >= first_id {
+            test_name.replace_range(..4, &format!("{:04}", (test_id as i32) + diff));
+
+            let test_path = test_file.path();
+            fs::rename(&test_path, test_path.with_file_name(&test_name))?;
+        }
+    }
+    Ok(())
+}
+
+fn parse_test_id(test_name: &str) -> Result<u32> {
+    test_name
+        .get(..4)
+        .context("Test name should start with the 4 digit number")?
+        .parse()
+        .context("Failed to parse the test number")
 }
 
 pub fn run_fuzzer() -> Result<()> {
