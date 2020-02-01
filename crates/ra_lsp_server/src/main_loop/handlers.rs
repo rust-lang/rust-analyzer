@@ -598,7 +598,8 @@ pub fn handle_formatting(
             rustfmt.current_dir(parent);
         }
     }
-    let mut rustfmt = rustfmt.stdin(Stdio::piped()).stdout(Stdio::piped()).spawn()?;
+    let mut rustfmt =
+        rustfmt.stdin(Stdio::piped()).stdout(Stdio::piped()).stdin(Stdio::null()).spawn()?;
 
     rustfmt.stdin.as_mut().unwrap().write_all(file.as_bytes())?;
 
