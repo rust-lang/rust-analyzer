@@ -28,8 +28,8 @@ use ra_syntax::{
 use rustc_hash::FxHashSet;
 
 use crate::{
-    db::HirDatabase, Adt, Const, DefWithBody, EnumVariant, Function, Local, MacroDef, Name, Path,
-    ScopeDef, Static, Struct, Trait, Type, TypeAlias, TypeParam,
+    db::HirDatabase, Adt, AssocItem, Const, DefWithBody, EnumVariant, Function, Local, MacroDef,
+    ModuleDef, Name, Path, ScopeDef, Static, Struct, Trait, Type, TypeAlias, TypeParam,
 };
 
 /// `SourceAnalyzer` is a convenience wrapper which exposes HIR API in terms of
@@ -285,9 +285,11 @@ impl SourceAnalyzer {
 
     pub fn resolve_path(&self, db: &impl HirDatabase, path: &ast::Path) -> Option<PathResolution> {
         if let Some(path_expr) = path.syntax().parent().and_then(ast::PathExpr::cast) {
-            let expr_id = self.expr_id(&path_expr.into())?;
-            if let Some(assoc) = self.infer.as_ref()?.assoc_resolutions_for_expr(expr_id) {
-                return Some(PathResolution::AssocItem(assoc.into()));
+            if let Some(resolution) = self
+                .resolve_as_full_path(path_expr.clone())
+                .or_else(|| self.resolve_as_path_to_method(db, &path_expr))
+            {
+                return Some(resolution);
             }
         }
         if let Some(path_pat) = path.syntax().parent().and_then(ast::PathPat::cast) {
@@ -299,6 +301,39 @@ impl SourceAnalyzer {
         // This must be a normal source file rather than macro file.
         let hir_path = crate::Path::from_ast(path.clone())?;
         self.resolve_hir_path(db, &hir_path)
+    }
+
+    fn resolve_as_full_path(&self, path_expr: ast::PathExpr) -> Option<PathResolution> {
+        let expr_id = self.expr_id(&path_expr.into())?;
+        self.infer
+            .as_ref()?
+            .assoc_resolutions_for_expr(expr_id)
+            .map(|assoc| PathResolution::AssocItem(assoc.into()))
+    }
+
+    fn resolve_as_path_to_method(
+        &self,
+        db: &impl HirDatabase,
+        path_expr: &ast::PathExpr,
+    ) -> Option<PathResolution> {
+        let krate = self.resolver.krate()?.into();
+        let full_path = path_expr.path()?;
+        let path_to_method = full_path.qualifier()?;
+        let method_name = full_path.segment()?.syntax().to_string();
+        match self.resolve_path(db, &path_to_method)? {
+            PathResolution::Def(ModuleDef::Adt(adt)) => {
+                adt.ty(db).iterate_impl_items(db, krate, |assoc| {
+                    if let AssocItem::Function(function) = assoc {
+                        if function.name(db).to_string() == method_name {
+                            return Some(assoc);
+                        }
+                    }
+                    None
+                })
+            }
+            _ => None,
+        }
+        .map(PathResolution::AssocItem)
     }
 
     fn resolve_local_name(&self, name_ref: &ast::NameRef) -> Option<ScopeEntryWithSyntax> {

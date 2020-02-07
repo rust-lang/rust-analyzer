@@ -255,4 +255,23 @@ mod tests {
             ",
         );
     }
+
+    #[test]
+    fn do_not_import_fully_qualified_struct_method() {
+        check_assist_not_applicable(
+            auto_import,
+            r"
+            mod whatever {
+                pub struct TestConsumer {}
+                impl TestConsumer {
+                    pub fn consume(input: i32) {}
+                }
+            }
+
+            fn main() {
+                whatever::TestConsumer::consume<|>(5);
+            }
+        ",
+        );
+    }
 }
