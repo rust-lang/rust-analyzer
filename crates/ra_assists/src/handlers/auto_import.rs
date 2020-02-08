@@ -31,31 +31,34 @@ use std::collections::BTreeSet;
 // # pub mod std { pub mod collections { pub struct HashMap { } } }
 // ```
 pub(crate) fn auto_import(ctx: AssistCtx) -> Option<Assist> {
-    let path_to_import: ast::Path = ctx.find_node_at_offset()?;
-    let path_to_import_syntax = path_to_import.syntax();
-    if path_to_import_syntax.ancestors().find_map(ast::UseItem::cast).is_some() {
+    let path_under_caret: ast::Path = ctx.find_node_at_offset()?;
+    if path_under_caret.syntax().ancestors().find_map(ast::UseItem::cast).is_some() {
         return None;
     }
-    let name_to_import =
-        path_to_import_syntax.descendants().find_map(ast::NameRef::cast)?.syntax().to_string();
 
-    let module = path_to_import_syntax.ancestors().find_map(ast::Module::cast);
+    let module = path_under_caret.syntax().ancestors().find_map(ast::Module::cast);
     let position = match module.and_then(|it| it.item_list()) {
         Some(item_list) => item_list.syntax().clone(),
         None => {
-            let current_file = path_to_import_syntax.ancestors().find_map(ast::SourceFile::cast)?;
+            let current_file =
+                path_under_caret.syntax().ancestors().find_map(ast::SourceFile::cast)?;
             current_file.syntax().clone()
         }
     };
     let source_analyzer = ctx.source_analyzer(&position, None);
     let module_with_name_to_import = source_analyzer.module()?;
-    if source_analyzer.resolve_path(ctx.db, &path_to_import).is_some() {
+
+    let name_ref_to_import =
+        path_under_caret.syntax().descendants().find_map(ast::NameRef::cast)?;
+    if source_analyzer
+        .resolve_path(ctx.db, &name_ref_to_import.syntax().ancestors().find_map(ast::Path::cast)?)
+        .is_some()
+    {
         return None;
     }
 
-    let mut imports_locator = ImportsLocator::new(ctx.db);
-
-    let proposed_imports = imports_locator
+    let name_to_import = name_ref_to_import.syntax().to_string();
+    let proposed_imports = ImportsLocator::new(ctx.db)
         .find_imports(&name_to_import)
         .into_iter()
         .filter_map(|module_def| module_with_name_to_import.find_use_path(ctx.db, module_def))
@@ -70,7 +73,7 @@ pub(crate) fn auto_import(ctx: AssistCtx) -> Option<Assist> {
     ctx.add_assist_group(AssistId("auto_import"), format!("Import {}", name_to_import), || {
         proposed_imports
             .into_iter()
-            .map(|import| import_to_action(import, &position, &path_to_import_syntax))
+            .map(|import| import_to_action(import, &position, &path_under_caret.syntax()))
             .collect()
     })
 }
@@ -292,6 +295,22 @@ mod tests {
             use whatever::ConsumerTrait;
             fn main() {
                 whatever::TestConsumer::consume<|>(5);
+            }
+        ",
+        );
+    }
+
+    #[test]
+    fn do_not_import_fully_qualified_nonexisting_method() {
+        check_assist_not_applicable(
+            auto_import,
+            r"
+            mod whatever {
+                pub struct TestConsumer {}
+            }
+
+            fn main() {
+                whatever::TestConsumer::nonexisting_method<|>(5);
             }
         ",
         );
