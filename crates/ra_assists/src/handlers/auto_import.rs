@@ -84,9 +84,8 @@ fn import_to_action(import: ModPath, position: &SyntaxNode, anchor: &SyntaxNode)
 
 #[cfg(test)]
 mod tests {
-    use crate::helpers::{check_assist, check_assist_not_applicable};
-
     use super::*;
+    use crate::helpers::{check_assist, check_assist_not_applicable};
 
     #[test]
     fn applicable_when_found_an_import() {
@@ -268,6 +267,29 @@ mod tests {
                 }
             }
 
+            fn main() {
+                whatever::TestConsumer::consume<|>(5);
+            }
+        ",
+        );
+    }
+
+    #[test]
+    fn do_not_import_fully_qualified_trait_method() {
+        check_assist_not_applicable(
+            auto_import,
+            r"
+            mod whatever {
+                pub trait ConsumerTrait {
+                    fn consume(input: i32);
+                }
+                pub struct TestConsumer {}
+                impl ConsumerTrait for TestConsumer {
+                    fn consume(input: i32) {}
+                }
+            }
+
+            use whatever::ConsumerTrait;
             fn main() {
                 whatever::TestConsumer::consume<|>(5);
             }

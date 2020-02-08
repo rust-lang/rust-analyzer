@@ -20,7 +20,10 @@ use hir_def::{
 use hir_expand::{
     hygiene::Hygiene, name::AsName, AstId, HirFileId, InFile, MacroCallId, MacroCallKind,
 };
-use hir_ty::{InEnvironment, InferenceResult, TraitEnvironment};
+use hir_ty::{
+    method_resolution::{iterate_method_candidates, LookupMode},
+    Canonical, InEnvironment, InferenceResult, TraitEnvironment,
+};
 use ra_syntax::{
     ast::{self, AstNode},
     AstPtr, SyntaxNode, SyntaxNodePtr, SyntaxToken, TextRange, TextUnit,
@@ -285,11 +288,11 @@ impl SourceAnalyzer {
 
     pub fn resolve_path(&self, db: &impl HirDatabase, path: &ast::Path) -> Option<PathResolution> {
         if let Some(path_expr) = path.syntax().parent().and_then(ast::PathExpr::cast) {
-            if let Some(resolution) = self
+            let path_resolution = self
                 .resolve_as_full_path(path_expr.clone())
-                .or_else(|| self.resolve_as_path_to_method(db, &path_expr))
-            {
-                return Some(resolution);
+                .or_else(|| self.resolve_as_path_to_method(db, &path_expr));
+            if path_resolution.is_some() {
+                return path_resolution;
             }
         }
         if let Some(path_pat) = path.syntax().parent().and_then(ast::PathPat::cast) {
@@ -316,20 +319,30 @@ impl SourceAnalyzer {
         db: &impl HirDatabase,
         path_expr: &ast::PathExpr,
     ) -> Option<PathResolution> {
-        let krate = self.resolver.krate()?.into();
         let full_path = path_expr.path()?;
         let path_to_method = full_path.qualifier()?;
         let method_name = full_path.segment()?.syntax().to_string();
         match self.resolve_path(db, &path_to_method)? {
             PathResolution::Def(ModuleDef::Adt(adt)) => {
-                adt.ty(db).iterate_impl_items(db, krate, |assoc| {
-                    if let AssocItem::Function(function) = assoc {
-                        if function.name(db).to_string() == method_name {
-                            return Some(assoc);
+                let ty = adt.ty(db);
+                iterate_method_candidates(
+                    &Canonical { value: ty.ty.value, num_vars: 0 },
+                    db,
+                    ty.ty.environment,
+                    self.resolver.krate()?,
+                    &self.resolver.traits_in_scope(db),
+                    None,
+                    LookupMode::Path,
+                    |_, assoc_item_id| {
+                        let assoc = assoc_item_id.into();
+                        if let AssocItem::Function(function) = assoc {
+                            if function.name(db).to_string() == method_name {
+                                return Some(assoc);
+                            }
                         }
-                    }
-                    None
-                })
+                        None
+                    },
+                )
             }
             _ => None,
         }
