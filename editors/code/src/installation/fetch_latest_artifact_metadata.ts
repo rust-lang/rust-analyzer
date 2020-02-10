@@ -21,19 +21,35 @@ export async function fetchLatestArtifactMetadata(
 
     console.log("Issuing request for released artifacts metadata to", requestUrl);
 
-    const response: GithubRelease = await fetch(requestUrl, {
-            headers: { Accept: "application/vnd.github.v3+json" }
-        })
-        .then(res => res.json());
+    try {
+        const ghReleaseResponse = await fetch(requestUrl, {
+                headers: { Accept: "application/vnd.github.v3+json" }
+            });
 
-    const artifact = response.assets.find(artifact => artifact.name === artifactFileName);
+        if (!ghReleaseResponse.ok) {
+            const responseText = await ghReleaseResponse.text();
+            console.log(`Could not fetch release metadata, cannot proceed`, {
+                response: responseText,
+                code: ghReleaseResponse.status,
+                status: ghReleaseResponse.statusText
+            });
+            return null;
+        }
 
-    if (!artifact) return null;
+        const response: GithubRelease = await ghReleaseResponse.json();
+        const artifact = response.assets.find(artifact => artifact.name === artifactFileName);
 
-    return {
-        releaseName: response.name,
-        downloadUrl: artifact.browser_download_url
-    };
+        if (!artifact) return null;
+
+        return {
+            releaseName: response.name,
+            downloadUrl: artifact.browser_download_url
+        };
+    } catch(error) {
+        console.log(`Unexpected failure while fetching release metadata`, error);
+    }
+
+    return null;
 
     // We omit declaration of tremendous amount of fields that we are not using here
     interface GithubRelease {
