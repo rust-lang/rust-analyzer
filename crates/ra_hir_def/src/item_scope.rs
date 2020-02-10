@@ -15,6 +15,10 @@ pub struct ItemScope {
     visible: FxHashMap<Name, PerNs>,
     defs: Vec<ModuleDefId>,
     impls: Vec<ImplId>,
+    /// Traits imported in tthe form `use SomeTrait as _;`
+    ///
+    /// Unnamed traits get imported upwards as long as their visibility allows it
+    unnamed_traits: FxHashMap<TraitId, Visibility>,
     /// Macros visible in current module in legacy textual scope
     ///
     /// For macros invoked by an unqualified identifier like `bar!()`, `legacy_macros` will be searched in first.
@@ -134,6 +138,10 @@ impl ItemScope {
 
     pub(crate) fn define_legacy_macro(&mut self, name: Name, mac: MacroDefId) {
         self.legacy_macros.insert(name, mac);
+    }
+
+    pub(crate) fn define_unnamed_trait(&mut self, def: TraitId, vis: Visibility) {
+        self.unnamed_traits.insert(def, vis);
     }
 
     pub(crate) fn push_res(&mut self, name: Name, def: PerNs) -> bool {

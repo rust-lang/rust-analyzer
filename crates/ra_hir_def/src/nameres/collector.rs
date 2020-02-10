@@ -216,7 +216,7 @@ where
         if export {
             self.update(
                 self.def_map.root,
-                &[(name, PerNs::macros(macro_, Visibility::Public))],
+                &[(name, PerNs::macros(macro_, Visibility::Public), true)],
                 Visibility::Public,
             );
         }
@@ -377,9 +377,13 @@ where
                             .resolutions()
                             // only keep visible names...
                             .map(|(n, res)| {
-                                (n, res.filter_visibility(|v| v.is_visible_from_other_crate()))
+                                (
+                                    n,
+                                    res.filter_visibility(|v| v.is_visible_from_other_crate()),
+                                    true,
+                                )
                             })
-                            .filter(|(_, res)| !res.is_none())
+                            .filter(|(_, res, _)| !res.is_none())
                             .collect::<Vec<_>>();
 
                         self.update(module_id, &items, vis);
@@ -399,9 +403,10 @@ where
                                     res.filter_visibility(|v| {
                                         v.is_visible_from_def_map(&self.def_map, module_id)
                                     }),
+                                    true,
                                 )
                             })
-                            .filter(|(_, res)| !res.is_none())
+                            .filter(|(_, res, _)| !res.is_none())
                             .collect::<Vec<_>>();
 
                         self.update(module_id, &items, vis);
@@ -423,7 +428,7 @@ where
                             let name = variant_data.name.clone();
                             let variant = EnumVariantId { parent: e, local_id };
                             let res = PerNs::both(variant.into(), variant.into(), vis);
-                            (name, res)
+                            (name, res, true)
                         })
                         .collect::<Vec<_>>();
                     self.update(module_id, &resolutions, vis);
@@ -438,35 +443,51 @@ where
         } else {
             match import.path.segments.last() {
                 Some(last_segment) => {
-                    let name = match &import.alias {
-                        Some(ImportAlias::Alias(name)) => name.clone(),
-                        Some(ImportAlias::Underscore) => last_segment.clone(), // FIXME rust-analyzer#2736
-                        None => last_segment.clone(),
+                    let (name, is_named) = match &import.alias {
+                        Some(ImportAlias::Alias(name)) => (name.clone(), true),
+                        Some(ImportAlias::Underscore) => (last_segment.clone(), false), // FIXME rust-analyzer#2736
+                        None => (last_segment.clone(), true),
                     };
-                    log::debug!("resolved import {:?} ({:?}) to {:?}", name, import, def);
+                    log::info!(
+                        "resolved import !!name~{:?} ~import~({:?}) to ~def~{:?}",
+                        name,
+                        import,
+                        def
+                    );
 
                     // extern crates in the crate root are special-cased to insert entries into the extern prelude: rust-lang/rust#54658
                     if import.is_extern_crate && module_id == self.def_map.root {
+                        log::info!(
+                            "resolved EXTERN CRATE import ~name~{:?} ~import~({:?}) to ~def~{:?}",
+                            name,
+                            import,
+                            def
+                        );
                         if let Some(def) = def.take_types() {
                             self.def_map.extern_prelude.insert(name.clone(), def);
                         }
                     }
 
-                    self.update(module_id, &[(name, def)], vis);
+                    self.update(module_id, &[(name, def, is_named)], vis);
                 }
                 None => tested_by!(bogus_paths),
             }
         }
     }
 
-    fn update(&mut self, module_id: LocalModuleId, resolutions: &[(Name, PerNs)], vis: Visibility) {
+    fn update(
+        &mut self,
+        module_id: LocalModuleId,
+        resolutions: &[(Name, PerNs, bool)],
+        vis: Visibility,
+    ) {
         self.update_recursive(module_id, resolutions, vis, 0)
     }
 
     fn update_recursive(
         &mut self,
         module_id: LocalModuleId,
-        resolutions: &[(Name, PerNs)],
+        resolutions: &[(Name, PerNs, bool /* is_named */)],
         // All resolutions are imported with this visibility; the visibilies in
         // the `PerNs` values are ignored and overwritten
         vis: Visibility,
@@ -478,8 +499,17 @@ where
         }
         let scope = &mut self.def_map.modules[module_id].scope;
         let mut changed = false;
-        for (name, res) in resolutions {
-            changed |= scope.push_res(name.clone(), res.with_visibility(vis));
+        for (name, res, is_named) in resolutions {
+            if *is_named {
+                changed |= scope.push_res(name.clone(), res.with_visibility(vis));
+            } else {
+                if let Some(def) = res.take_types() {
+                    match def {
+                        ModuleDefId::TraitId(t) => scope.define_unnamed_trait(t, vis),
+                        _ => (),
+                    }
+                }
+            }
         }
 
         if !changed {
@@ -754,7 +784,7 @@ where
         let module = ModuleId { krate: self.def_collector.def_map.krate, local_id: res };
         let def: ModuleDefId = module.into();
         self.def_collector.def_map.modules[self.module_id].scope.define_def(def);
-        self.def_collector.update(self.module_id, &[(name, PerNs::from_def(def, vis))], vis);
+        self.def_collector.update(self.module_id, &[(name, PerNs::from_def(def, vis), true)], vis);
         res
     }
 
@@ -819,7 +849,7 @@ where
             .def_map
             .resolve_visibility(self.def_collector.db, self.module_id, vis)
             .unwrap_or(Visibility::Public);
-        self.def_collector.update(self.module_id, &[(name, PerNs::from_def(def, vis))], vis)
+        self.def_collector.update(self.module_id, &[(name, PerNs::from_def(def, vis), true)], vis)
     }
 
     fn collect_derives(&mut self, attrs: &Attrs, def: &raw::DefData) {
