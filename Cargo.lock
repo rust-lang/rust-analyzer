@@ -1246,6 +1246,7 @@ dependencies = [
 name = "ra_project_model"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "cargo_metadata",
  "log",
  "ra_arena",
