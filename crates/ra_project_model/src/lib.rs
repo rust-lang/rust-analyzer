@@ -12,7 +12,7 @@ use std::{
     process::Command,
 };
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use ra_cfg::CfgOptions;
 use ra_db::{CrateGraph, CrateId, CrateName, Edition, Env, FileId};
 use rustc_hash::FxHashMap;
@@ -423,11 +423,20 @@ pub fn get_rustc_cfg_options() -> CfgOptions {
         }
     }
 
-    match (|| -> ::std::result::Result<String, Box<dyn Error + Send + Sync + 'static>> {
+    match (|| -> Result<String> {
         // `cfg(test)` and `cfg(debug_assertion)` are handled outside, so we suppress them here.
-        let output = Command::new("rustc").args(&["--print", "cfg", "-O"]).output()?;
+        let output = Command::new("rustc")
+            .args(&["--print", "cfg", "-O"])
+            .output()
+            .context("Failed to get output from rustc --print cfg -O")?;
         if !output.status.success() {
-            Err("failed to get rustc cfgs")?;
+            bail!(
+                "rustc --print cfg -O exited with exit code ({})",
+                output
+                    .status
+                    .code()
+                    .map_or(String::from("no exit code"), |code| format!("{}", code))
+            );
         }
         Ok(String::from_utf8(output.stdout)?)
     })() {
