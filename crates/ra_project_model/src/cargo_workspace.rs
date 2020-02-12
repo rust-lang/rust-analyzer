@@ -170,7 +170,9 @@ impl CargoWorkspace {
         if let Some(parent) = cargo_toml.parent() {
             meta.current_dir(parent);
         }
-        let meta = meta.exec().map_err(|e| anyhow!("cargo metadata failed: {}", e))?;
+        let meta = meta.exec().with_context(|| {
+            format!("Failed to run `cargo metadata --manifest-path {}`", cargo_toml.display())
+        })?;
         let mut pkg_by_id = FxHashMap::default();
         let mut packages = Arena::default();
         let mut targets = Arena::default();
@@ -249,4 +251,11 @@ impl CargoWorkspace {
     pub fn workspace_root(&self) -> &Path {
         &self.workspace_root
     }
+}
+
+#[test]
+fn test_cargo_metadata() {
+    let cargo_toml = PathBuf::from("/");
+    let result = CargoWorkspace::from_cargo_metadata(&cargo_toml, &CargoFeatures::default());
+    println!("error: {:?}", result)
 }
