@@ -1,6 +1,6 @@
 //! FIXME: write short doc here
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use std::{
     env,
     path::{Path, PathBuf},
@@ -99,7 +99,7 @@ fn try_find_src_path(cargo_toml: &Path) -> Result<PathBuf> {
         .current_dir(cargo_toml.parent().unwrap())
         .args(&["--print", "sysroot"])
         .output()
-        .map_err(|e| anyhow!("rustc --print sysroot failed: {}", e))?;
+        .context("rustc --print sysroot failed")?;
     if !rustc_output.status.success() {
         let exit_message = match rustc_output.status.code() {
             Some(code) => {
