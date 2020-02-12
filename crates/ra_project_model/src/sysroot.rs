@@ -1,6 +1,6 @@
 //! FIXME: write short doc here
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use std::{
     env,
     path::{Path, PathBuf},
@@ -101,13 +101,12 @@ fn try_find_src_path(cargo_toml: &Path) -> Result<PathBuf> {
         .output()
         .context("rustc --print sysroot failed")?;
     if !rustc_output.status.success() {
-        let exit_message = match rustc_output.status.code() {
+        match rustc_output.status.code() {
             Some(code) => {
-                anyhow!("failed to locate sysroot: rustc --print sysroot exited with code {}", code)
+                bail!("failed to locate sysroot: rustc --print sysroot exited with code {}", code)
             }
-            None => anyhow!("failed to locate sysroot: rustc --print sysroot terminated by signal"),
+            None => bail!("failed to locate sysroot: rustc --print sysroot terminated by signal"),
         };
-        Err(exit_message)?;
     }
     let stdout = String::from_utf8(rustc_output.stdout)?;
     let sysroot_path = Path::new(stdout.trim());
