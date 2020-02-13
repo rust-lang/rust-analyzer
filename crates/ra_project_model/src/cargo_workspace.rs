@@ -252,10 +252,3 @@ impl CargoWorkspace {
         &self.workspace_root
     }
 }
-
-#[test]
-fn test_cargo_metadata() {
-    let cargo_toml = PathBuf::from("/");
-    let result = CargoWorkspace::from_cargo_metadata(&cargo_toml, &CargoFeatures::default());
-    println!("error: {:?}", result)
-}
