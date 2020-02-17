@@ -29,13 +29,13 @@ export function activateInlayHints(ctx: Ctx) {
 
     ctx.pushCleanup({
         dispose() {
-            hintsUpdater.clear()
+            hintsUpdater.clear();
         }
-    })
+    });
 
     // XXX: we don't await this, thus Promise rejections won't be handled, but
     // this should never throw in fact...
-    hintsUpdater.setEnabled(ctx.config.displayInlayHints)
+    void hintsUpdater.setEnabled(ctx.config.displayInlayHints);
 }
 
 interface InlayHintsParams {
@@ -57,7 +57,7 @@ const typeHintDecorationType = vscode.window.createTextEditorDecorationType({
 const parameterHintDecorationType = vscode.window.createTextEditorDecorationType({
     before: {
         color: new vscode.ThemeColor('rust_analyzer.inlayHint'),
-    }
+    },
 });
 
 class HintsUpdater {
@@ -150,6 +150,8 @@ class HintsUpdater {
         );
     }
 
+    i = 0;
+
     private async queryHints(documentUri: string): Promise<InlayHint[] | null> {
         const client = this.ctx.client;
         if (!client) return null;
@@ -162,14 +164,23 @@ class HintsUpdater {
         prevHintsRequest?.cancel();
 
         this.pending.set(documentUri, tokenSource);
+        const i = ++this.i;
         try {
-            return await sendRequestWithRetry<InlayHint[] | null>(
+            console.time("Request hints #" + i);
+            const res = await sendRequestWithRetry<InlayHint[] | null>(
                 client,
                 'rust-analyzer/inlayHints',
                 request,
                 tokenSource.token,
             );
-        } finally {
+            return res;
+        }
+        catch (e) {
+            console.log("Error requesting hints #" + i);
+            throw e;
+        }
+        finally {
+            console.timeEnd("Request hints #" + i);
             if (!tokenSource.token.isCancellationRequested) {
                 this.pending.delete(documentUri);
             }
