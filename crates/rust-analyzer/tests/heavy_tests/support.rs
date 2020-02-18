@@ -1,11 +1,12 @@
 use std::{
     cell::{Cell, RefCell},
-    fs,
+    env, fs,
     path::{Path, PathBuf},
     sync::Once,
     time::Duration,
 };
 
+use anyhow::{bail, Context, Result};
 use crossbeam_channel::{after, select, Receiver};
 use lsp_server::{Connection, Message, Notification, Request};
 use lsp_types::{
@@ -16,7 +17,6 @@ use lsp_types::{
 };
 use serde::Serialize;
 use serde_json::{to_string_pretty, Value};
-use tempfile::TempDir;
 use test_utils::{find_mismatch, parse_fixture};
 
 use rust_analyzer::{main_loop, req, ServerConfig};
@@ -250,5 +250,50 @@ fn recv_timeout(receiver: &Receiver<Message>) -> Option<Message> {
     select! {
         recv(receiver) -> msg => msg.ok(),
         recv(after(timeout)) -> _ => panic!("timed out"),
+    }
+}
+
+/// Copy-pasted from https://github.com/BurntSushi/ripgrep/commit/31807f805a793c254587105ca8ee0d41dfe3004b
+///
+/// A simple wrapper for creating a temporary directory that is
+/// automatically deleted when it's dropped.
+///
+/// We use this in lieu of tempfile because tempfile brings in too many
+/// dependencies.
+#[derive(Debug)]
+pub struct TempDir(PathBuf);
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        fs::remove_dir_all(&self.0).unwrap();
+    }
+}
+
+impl TempDir {
+    /// Create a new empty temporary directory under the system's configured
+    /// temporary directory.
+    pub fn new() -> Result<TempDir> {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        static TRIES: usize = 100;
+        static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+        let tmpdir = env::temp_dir();
+        for _ in 0..TRIES {
+            let count = COUNTER.fetch_add(1, Ordering::SeqCst);
+            let path = tmpdir.join("rust-ignore").join(count.to_string());
+            if path.is_dir() {
+                continue;
+            }
+            fs::create_dir_all(&path)
+                .with_context(|| format!("Failed to create {}", path.display()))?;
+            return Ok(TempDir(path));
+        }
+        bail!("failed to create temp dir after {} tries", TRIES)
+    }
+
+    /// Return the underlying path to this temporary directory.
+    pub fn path(&self) -> &Path {
+        &self.0
     }
 }

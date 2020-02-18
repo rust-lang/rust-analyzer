@@ -12,10 +12,9 @@ use rust_analyzer::req::{
     Formatting, OnEnter, Runnables, RunnablesParams,
 };
 use serde_json::json;
-use tempfile::TempDir;
 use test_utils::skip_slow_tests;
 
-use crate::support::{project, Project};
+use crate::support::{project, Project, TempDir};
 
 const PROFILE: &'static str = "";
 // const PROFILE: &'static str = "*@3>100";

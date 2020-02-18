@@ -51,7 +51,6 @@ hir_ty = { path = "../ra_hir_ty", package = "ra_hir_ty" }
 winapi = "0.3"
 
 [dev-dependencies]
-tempfile = "3"
 test_utils = { path = "../test_utils" }
 
 [features]
