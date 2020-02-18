@@ -30,7 +30,7 @@ standard setup (`code` and `cargo` in `$PATH`, etc), use this:
 
 ```
 # clone the repo
-$ git clone https://github.com/rust-analyzer/rust-analyzer && cd rust-analyzer
+$ git clone --depth 1 https://github.com/rust-analyzer/rust-analyzer && cd rust-analyzer
 
 # install both the language server and VS Code extension
 $ cargo xtask install
