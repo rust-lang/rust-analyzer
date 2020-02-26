@@ -3,9 +3,7 @@
 use crate::source_change::SourceFileEdit;
 use ra_ide_db::RootDatabase;
 use ra_syntax::ast::make::expr_from_text;
-use ra_syntax::AstNode;
-use ra_syntax::SyntaxElement;
-use ra_syntax::SyntaxNode;
+use ra_syntax::{AstNode, SyntaxElement, SyntaxKind, SyntaxNode, WalkEvent};
 use ra_text_edit::{TextEdit, TextEditBuilder};
 use rustc_hash::FxHashMap;
 use std::collections::HashMap;
@@ -34,7 +32,6 @@ pub fn parse_search_replace(
     for &root in db.local_roots().iter() {
         let sr = db.source_root(root);
         for file_id in sr.walk() {
-            dbg!(db.file_relative_path(file_id));
             let matches = find(&query.pattern, db.parse(file_id).tree().syntax());
             if !matches.matches.is_empty() {
                 edits.push(SourceFileEdit { file_id, edit: replace(&matches, &query.template) });
@@ -175,51 +172,46 @@ fn create_name<'a>(name: &str, vars: &'a mut Vec<Var>) -> Result<&'a str, SsrErr
 }
 
 fn find(pattern: &SsrPattern, code: &SyntaxNode) -> SsrMatches {
-    fn check(
-        pattern: &SyntaxElement,
-        code: &SyntaxElement,
-        placeholders: &[Var],
-        match_: &mut Match,
-    ) -> bool {
-        match (pattern, code) {
-            (SyntaxElement::Token(ref pattern), SyntaxElement::Token(ref code)) => {
-                pattern.text() == code.text()
-            }
-            (SyntaxElement::Node(ref pattern), SyntaxElement::Node(ref code)) => {
-                if placeholders.iter().any(|n| n.0.as_str() == pattern.text()) {
-                    match_.binding.insert(Var(pattern.text().to_string()), code.clone());
-                    true
-                } else {
-                    pattern.green().children().count() == code.green().children().count()
-                        && pattern
-                            .children_with_tokens()
-                            .zip(code.children_with_tokens())
-                            .all(|(a, b)| check(&a, &b, placeholders, match_))
-                }
-            }
-            _ => false,
-        }
-    }
     let kind = pattern.pattern.kind();
     let matches = code
-        .descendants_with_tokens()
+        .descendants()
         .filter(|n| n.kind() == kind)
-        .filter_map(|code| {
-            let mut match_ =
-                Match { place: code.as_node().unwrap().clone(), binding: HashMap::new() };
-            if check(
-                &SyntaxElement::from(pattern.pattern.clone()),
-                &code,
-                &pattern.vars,
-                &mut match_,
-            ) {
-                Some(match_)
-            } else {
-                None
-            }
-        })
+        .filter_map(|code| check_match(pattern, &code))
         .collect();
     SsrMatches { matches }
+}
+
+fn check_match(pattern: &SsrPattern, code: &SyntaxNode) -> Option<Match> {
+    let mut match_ = Match { place: code.clone(), binding: HashMap::new() };
+    let pattern_it = &mut pattern.pattern.preorder_with_tokens();
+    let code_it = &mut code.preorder_with_tokens();
+
+    loop {
+        let pattern_element = get_next_non_whitespace(pattern_it);
+        if pattern_element.is_none() {
+            return Some(match_);
+        }
+        let pattern_element = pattern_element.unwrap();
+        let code_element = get_next_non_whitespace(code_it)?;
+
+        match (&pattern_element, &code_element) {
+            (SyntaxElement::Token(pattern_token), SyntaxElement::Token(code_token)) => {
+                if pattern_token.text() != code_token.text() {
+                    return None;
+                }
+            }
+            (SyntaxElement::Node(pattern_node), SyntaxElement::Node(code_node)) => {
+                if pattern.vars.iter().any(|n| n.0.as_str() == pattern_node.text()) {
+                    match_.binding.insert(Var(pattern_node.text().to_string()), code_node.clone());
+                    skip_all_children(pattern_it);
+                    skip_all_children(code_it);
+                } else if pattern_node.kind() != code_node.kind() {
+                    return None
+                }
+            }
+            _ => return None,
+        }
+    }
 }
 
 fn replace(matches: &SsrMatches, template: &SsrTemplate) -> TextEdit {
@@ -240,6 +232,38 @@ fn render_replace(binding: &Binding, template: &SsrTemplate) -> String {
     builder.finish().apply(&template.template.text().to_string())
 }
 
+fn skip_all_children<I>(it: &mut I)
+where
+    I: Iterator<Item = WalkEvent<SyntaxElement>>,
+{
+    let mut count = 0;
+    while let Some(e) = it.next() {
+        match e {
+            WalkEvent::Enter(_) => count += 1,
+            WalkEvent::Leave(_) => {
+                if count == 0 {
+                    return;
+                }
+                count -= 1;
+            }
+        }
+    }
+}
+
+fn get_next_non_whitespace<I>(it: &mut I) -> Option<SyntaxElement>
+where
+    I: Iterator<Item = WalkEvent<SyntaxElement>>,
+{
+    while let Some(event) = it.next() {
+        if let WalkEvent::Enter(element) = event {
+            if element.kind() != SyntaxKind::WHITESPACE {
+                return Some(element);
+            }
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -257,7 +281,6 @@ mod tests {
         assert_eq!(result.pattern.vars[0].0, "__search_pattern_a");
         assert_eq!(result.pattern.vars[1].0, "__search_pattern_b");
         assert_eq!(&result.template.template.text(), "bar(__search_pattern_b, __search_pattern_a)");
-        dbg!(result.template.placeholders);
     }
 
     #[test]
@@ -309,20 +332,21 @@ mod tests {
 
     #[test]
     fn parse_match_replace() {
-        let query: SsrQuery = "foo($x:expr) ==>> bar($x)".parse().unwrap();
-        let input = "fn main() { foo(1+2); }";
+        let query: SsrQuery = "foo ($x:expr) ==>> bar($x)".parse().unwrap();
+        let input = "fn main() { foo( 1 + 2 ); foo (1,2); }";
 
         let code = SourceFile::parse(input).tree();
+        dbg!(&code);
         let matches = find(&query.pattern, code.syntax());
         assert_eq!(matches.matches.len(), 1);
-        assert_eq!(matches.matches[0].place.text(), "foo(1+2)");
+        assert_eq!(matches.matches[0].place.text(), "foo( 1 + 2 )");
         assert_eq!(matches.matches[0].binding.len(), 1);
         assert_eq!(
             matches.matches[0].binding[&Var("__search_pattern_x".to_string())].text(),
-            "1+2"
+            "1 + 2"
         );
 
         let edit = replace(&matches, &query.template);
-        assert_eq!(edit.apply(input), "fn main() { bar(1+2); }");
+        assert_eq!(edit.apply(input), "fn main() { bar(1 + 2); foo (1,2); }");
     }
 }
