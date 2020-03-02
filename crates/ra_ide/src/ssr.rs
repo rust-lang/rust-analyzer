@@ -252,7 +252,7 @@ fn replace(matches: &SsrMatches, template: &SsrTemplate) -> TextEdit {
 
 fn render_replace(
     binding: &Binding,
-    ignored_comments: &Vec<Comment>,
+    ignored_comments: &[Comment],
     template: &SsrTemplate,
 ) -> String {
     let mut builder = TextEditBuilder::default();

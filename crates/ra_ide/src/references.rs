@@ -181,8 +181,8 @@ fn process_definition(
 
     for (file_id, search_range) in scope {
         let text = db.file_text(file_id);
-        let search_range =
-            search_range.unwrap_or(TextRange::offset_len(0.into(), TextUnit::of_str(&text)));
+        let search_range = search_range
+            .unwrap_or_else(|| TextRange::offset_len(0.into(), TextUnit::of_str(&text)));
 
         let sema = Semantics::new(db);
         let tree = Lazy::new(|| sema.parse(file_id).syntax().clone());
