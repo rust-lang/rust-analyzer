@@ -52,6 +52,13 @@ impl chalk_ir::interner::Interner for Interner {
         None
     }
 
+    fn debug_impl_trait_id(
+        _id: chalk_ir::ImplTraitId<Self>,
+        _fmt: &mut fmt::Formatter<'_>,
+    ) -> Option<fmt::Result> {
+        None
+    }
+
     fn debug_alias(
         _projection: &chalk_ir::AliasTy<Self>,
         _fmt: &mut fmt::Formatter<'_>,
@@ -124,6 +131,8 @@ pub type ImplId = chalk_ir::ImplId<Interner>;
 pub type ImplDatum = chalk_rust_ir::ImplDatum<Interner>;
 pub type AssociatedTyValueId = chalk_rust_ir::AssociatedTyValueId<Interner>;
 pub type AssociatedTyValue = chalk_rust_ir::AssociatedTyValue<Interner>;
+pub type ImplTraitId = chalk_ir::ImplTraitId<Interner>;
+pub type ImplTraitDatum = chalk_rust_ir::ImplTraitDatum<Interner>;
 
 pub(super) trait ToChalk {
     type Chalk;
@@ -150,7 +159,12 @@ impl ToChalk for Ty {
             Ty::Projection(proj_ty) => {
                 let associated_ty_id = proj_ty.associated_ty.to_chalk(db);
                 let substitution = proj_ty.parameters.to_chalk(db);
-                chalk_ir::AliasTy { associated_ty_id, substitution }.cast().intern(&Interner)
+                chalk_ir::AliasTy::Projection(chalk_ir::ProjectionTy {
+                    associated_ty_id,
+                    substitution,
+                })
+                .cast()
+                .intern(&Interner)
             }
             Ty::Placeholder(id) => {
                 let interned_id = db.intern_type_param_id(id);
@@ -196,11 +210,14 @@ impl ToChalk for Ty {
                 );
                 Ty::Placeholder(db.lookup_intern_type_param_id(interned_id))
             }
-            chalk_ir::TyData::Alias(proj) => {
-                let associated_ty = from_chalk(db, proj.associated_ty_id);
-                let parameters = from_chalk(db, proj.substitution);
-                Ty::Projection(ProjectionTy { associated_ty, parameters })
-            }
+            chalk_ir::TyData::Alias(alias_ty) => match alias_ty {
+                chalk_ir::AliasTy::Projection(proj) => {
+                    let associated_ty = from_chalk(db, proj.associated_ty_id);
+                    let parameters = from_chalk(db, proj.substitution);
+                    Ty::Projection(ProjectionTy { associated_ty, parameters })
+                }
+                chalk_ir::AliasTy::ImplTrait(_impl_trait) => todo!(),
+            },
             chalk_ir::TyData::Function(_) => unimplemented!(),
             chalk_ir::TyData::BoundVar(idx) => Ty::Bound(idx as u32),
             chalk_ir::TyData::InferenceVar(_iv) => Ty::Unknown,
@@ -282,6 +299,7 @@ impl ToChalk for TypeCtor {
         match type_name {
             TypeName::Struct(struct_id) => db.lookup_intern_type_ctor(struct_id.into()),
             TypeName::AssociatedType(type_id) => TypeCtor::AssociatedType(from_chalk(db, type_id)),
+            TypeName::ImplTrait(_impl_trait_id) => todo!(),
             TypeName::Error => {
                 // this should not be reached, since we don't represent TypeName::Error with TypeCtor
                 unreachable!()
@@ -366,19 +384,19 @@ impl ToChalk for ProjectionTy {
     type Chalk = chalk_ir::AliasTy<Interner>;
 
     fn to_chalk(self, db: &impl HirDatabase) -> chalk_ir::AliasTy<Interner> {
-        chalk_ir::AliasTy {
+        chalk_ir::AliasTy::Projection(chalk_ir::ProjectionTy {
             associated_ty_id: self.associated_ty.to_chalk(db),
             substitution: self.parameters.to_chalk(db),
-        }
+        })
     }
 
-    fn from_chalk(
-        db: &impl HirDatabase,
-        projection_ty: chalk_ir::AliasTy<Interner>,
-    ) -> ProjectionTy {
-        ProjectionTy {
-            associated_ty: from_chalk(db, projection_ty.associated_ty_id),
-            parameters: from_chalk(db, projection_ty.substitution),
+    fn from_chalk(db: &impl HirDatabase, alias_ty: chalk_ir::AliasTy<Interner>) -> ProjectionTy {
+        match alias_ty {
+            chalk_ir::AliasTy::Projection(projection_ty) => ProjectionTy {
+                associated_ty: from_chalk(db, projection_ty.associated_ty_id),
+                parameters: from_chalk(db, projection_ty.substitution),
+            },
+            chalk_ir::AliasTy::ImplTrait(_impl_trait) => todo!(),
         }
     }
 }
@@ -599,6 +617,9 @@ where
     fn associated_ty_value(&self, id: AssociatedTyValueId) -> Arc<AssociatedTyValue> {
         self.db.associated_ty_value(self.krate, id)
     }
+    fn impl_trait_data(&self, _id: ImplTraitId) -> Arc<ImplTraitDatum> {
+        todo!()
+    }
     fn custom_clauses(&self) -> Vec<chalk_ir::ProgramClause<Interner>> {
         vec![]
     }
@@ -614,6 +635,9 @@ where
     }
     fn interner(&self) -> &Interner {
         &Interner
+    }
+    fn auto_traits(&self) -> Vec<TraitId> {
+        todo!()
     }
 }
 
