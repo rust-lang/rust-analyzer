@@ -617,8 +617,26 @@ where
     fn associated_ty_value(&self, id: AssociatedTyValueId) -> Arc<AssociatedTyValue> {
         self.db.associated_ty_value(self.krate, id)
     }
-    fn impl_trait_data(&self, _id: ImplTraitId) -> Arc<ImplTraitDatum> {
-        todo!()
+    fn impl_trait_data(&self, id: ImplTraitId) -> Arc<ImplTraitDatum> {
+        let interned_id = crate::db::ChalkImplTraitId::from(id);
+        let full_id = self.db.lookup_intern_impl_trait_id(interned_id);
+        let datas =
+            self.db.return_type_impl_traits(full_id.0).expect("impl trait id without impl traits");
+        let data = &datas.impl_traits[full_id.1 as usize];
+        Arc::new(ImplTraitDatum {
+            impl_trait_id: id,
+            bounds: data
+                .bounds
+                .iter()
+                .cloned()
+                .map(|b| b.to_chalk(self.db))
+                .filter_map(|b| {
+                    // TODO convert to TraitBound (or do the conversion differently)
+                    todo!()
+                })
+                .collect(),
+            ty: data.ty.clone().to_chalk(self.db),
+        })
     }
     fn custom_clauses(&self) -> Vec<chalk_ir::ProgramClause<Interner>> {
         vec![]
@@ -871,6 +889,18 @@ impl From<ImplId> for crate::traits::GlobalImplId {
 impl From<crate::traits::GlobalImplId> for ImplId {
     fn from(impl_id: crate::traits::GlobalImplId) -> Self {
         chalk_ir::ImplId(impl_id.as_intern_id())
+    }
+}
+
+impl From<ImplTraitId> for crate::db::ChalkImplTraitId {
+    fn from(id: ImplTraitId) -> Self {
+        InternKey::from_intern_id(id.0)
+    }
+}
+
+impl From<crate::db::ChalkImplTraitId> for ImplTraitId {
+    fn from(id: crate::db::ChalkImplTraitId) -> Self {
+        chalk_ir::ImplTraitId(id.as_intern_id())
     }
 }
 

@@ -236,6 +236,12 @@ pub struct ApplicationTy {
     pub parameters: Substs,
 }
 
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+pub struct ImplTraitTy {
+    pub impl_trait_id: ImplTraitId,
+    pub parameters: Substs,
+}
+
 /// A "projection" type corresponds to an (unnormalized)
 /// projection like `<P0 as Trait<P1..Pn>>::Foo`. Note that the
 /// trait and all its parameters are fully known.
@@ -286,6 +292,12 @@ pub enum Ty {
     /// trait and all its parameters are fully known.
     Projection(ProjectionTy),
 
+    /// An opaque type (`impl Trait`).
+    ///
+    /// This is currently only used for return type impl trait; each instance of
+    /// `impl Trait` in a return type gets its own ID.
+    Opaque(ImplTraitTy),
+
     /// A placeholder for a type parameter; for example, `T` in `fn f<T>(x: T)
     /// {}` when we're type-checking the body of that function. In this
     /// situation, we know this stands for *some* type, but don't know the exact
@@ -309,12 +321,6 @@ pub enum Ty {
     /// implicit; Chalk has the `Binders` struct to make it explicit, but it
     /// didn't seem worth the overhead yet.
     Dyn(Arc<[GenericPredicate]>),
-
-    /// An opaque type (`impl Trait`).
-    ///
-    /// The predicates are quantified over the `Self` type; see `Ty::Dyn` for
-    /// more.
-    Opaque(Arc<[GenericPredicate]>),
 
     /// A placeholder for a type which could not be computed; this is propagated
     /// to avoid useless error messages. Doubles as a placeholder where type
@@ -734,15 +740,13 @@ impl Ty {
         }
     }
 
-    /// If this is an `impl Trait` or `dyn Trait`, returns that trait.
+    /// If this is a `dyn Trait`, returns that trait.
     pub fn inherent_trait(&self) -> Option<TraitId> {
         match self {
-            Ty::Dyn(predicates) | Ty::Opaque(predicates) => {
-                predicates.iter().find_map(|pred| match pred {
-                    GenericPredicate::Implemented(tr) => Some(tr.trait_),
-                    _ => None,
-                })
-            }
+            Ty::Dyn(predicates) => predicates.iter().find_map(|pred| match pred {
+                GenericPredicate::Implemented(tr) => Some(tr.trait_),
+                _ => None,
+            }),
             _ => None,
         }
     }
@@ -844,12 +848,12 @@ impl TypeWalk for Ty {
                     t.walk(f);
                 }
             }
-            Ty::Dyn(predicates) | Ty::Opaque(predicates) => {
+            Ty::Dyn(predicates) => {
                 for p in predicates.iter() {
                     p.walk(f);
                 }
             }
-            Ty::Placeholder { .. } | Ty::Bound(_) | Ty::Infer(_) | Ty::Unknown => {}
+            Ty::Opaque(_) | Ty::Placeholder { .. } | Ty::Bound(_) | Ty::Infer(_) | Ty::Unknown => {}
         }
         f(self);
     }
@@ -862,13 +866,34 @@ impl TypeWalk for Ty {
             Ty::Projection(p_ty) => {
                 p_ty.parameters.walk_mut_binders(f, binders);
             }
-            Ty::Dyn(predicates) | Ty::Opaque(predicates) => {
+            Ty::Dyn(predicates) => {
                 for p in make_mut_slice(predicates) {
                     p.walk_mut_binders(f, binders + 1);
                 }
             }
-            Ty::Placeholder { .. } | Ty::Bound(_) | Ty::Infer(_) | Ty::Unknown => {}
+            Ty::Opaque(_) | Ty::Placeholder { .. } | Ty::Bound(_) | Ty::Infer(_) | Ty::Unknown => {}
         }
         f(self, binders);
     }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+pub struct ImplTraitId(hir_def::FunctionId, u16);
+
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+pub struct ReturnTypeImplTraits {
+    pub(crate) impl_traits: Vec<ReturnTypeImplTrait>,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+pub(crate) struct ReturnTypeImplTrait {
+    pub(crate) bounds: Vec<GenericPredicate>,
+    pub(crate) ty: Ty,
+}
+
+pub(crate) fn return_type_impl_traits(
+    db: &impl HirDatabase,
+    def: hir_def::FunctionId,
+) -> Option<Arc<ReturnTypeImplTraits>> {
+    todo!()
 }

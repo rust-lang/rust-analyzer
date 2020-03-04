@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use hir_def::{
-    db::DefDatabase, DefWithBodyId, GenericDefId, ImplId, LocalStructFieldId, TraitId, TypeParamId,
-    VariantId,
+    db::DefDatabase, DefWithBodyId, FunctionId, GenericDefId, ImplId, LocalStructFieldId, TraitId,
+    TypeParamId, VariantId,
 };
 use ra_arena::map::ArenaMap;
 use ra_db::{impl_intern_key, salsa, CrateId};
@@ -13,8 +13,8 @@ use ra_prof::profile;
 use crate::{
     method_resolution::CrateImplDefs,
     traits::{chalk, AssocTyValue, Impl},
-    Binders, CallableDef, GenericPredicate, InferenceResult, PolyFnSig, Substs, TraitRef, Ty,
-    TyDefId, TypeCtor, ValueTyDefId,
+    Binders, CallableDef, GenericPredicate, ImplTraitId, InferenceResult, PolyFnSig,
+    ReturnTypeImplTraits, Substs, TraitRef, Ty, TyDefId, TypeCtor, ValueTyDefId,
 };
 
 #[salsa::query_group(HirDatabaseStorage)]
@@ -45,6 +45,9 @@ pub trait HirDatabase: DefDatabase {
 
     #[salsa::invoke(crate::callable_item_sig)]
     fn callable_item_signature(&self, def: CallableDef) -> PolyFnSig;
+
+    #[salsa::invoke(crate::return_type_impl_traits)]
+    fn return_type_impl_traits(&self, def: FunctionId) -> Option<Arc<ReturnTypeImplTraits>>;
 
     #[salsa::invoke(crate::lower::generic_predicates_for_param_query)]
     #[salsa::cycle(crate::lower::generic_predicates_for_param_recover)]
@@ -78,6 +81,8 @@ pub trait HirDatabase: DefDatabase {
     fn intern_type_ctor(&self, type_ctor: TypeCtor) -> crate::TypeCtorId;
     #[salsa::interned]
     fn intern_type_param_id(&self, param_id: TypeParamId) -> GlobalTypeParamId;
+    #[salsa::interned]
+    fn intern_impl_trait_id(&self, id: ImplTraitId) -> ChalkImplTraitId;
     #[salsa::interned]
     fn intern_chalk_impl(&self, impl_: Impl) -> crate::traits::GlobalImplId;
     #[salsa::interned]
@@ -123,3 +128,7 @@ fn hir_database_is_object_safe() {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct GlobalTypeParamId(salsa::InternId);
 impl_intern_key!(GlobalTypeParamId);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ChalkImplTraitId(salsa::InternId);
+impl_intern_key!(ChalkImplTraitId);

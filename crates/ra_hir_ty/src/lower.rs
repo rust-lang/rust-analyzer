@@ -29,8 +29,8 @@ use crate::{
         all_super_traits, associated_type_by_name_including_super_traits, generics, make_mut_slice,
         variant_data,
     },
-    Binders, FnSig, GenericPredicate, PolyFnSig, ProjectionPredicate, ProjectionTy, Substs,
-    TraitEnvironment, TraitRef, Ty, TypeCtor,
+    Binders, FnSig, GenericPredicate, ImplTraitTy, PolyFnSig, ProjectionPredicate, ProjectionTy,
+    Substs, TraitEnvironment, TraitRef, Ty, TypeCtor,
 };
 
 #[derive(Debug)]
@@ -133,14 +133,11 @@ impl Ty {
             TypeRef::ImplTrait(bounds) => {
                 match ctx.impl_trait_mode {
                     ImplTraitLoweringMode::Opaque => {
-                        let self_ty = Ty::Bound(0);
-                        let predicates = bounds
-                            .iter()
-                            .flat_map(|b| {
-                                GenericPredicate::from_type_bound(ctx, b, self_ty.clone())
-                            })
-                            .collect();
-                        Ty::Opaque(predicates)
+                        // TODO here we have to find out the correct ImplTraitId and parameters
+                        // probably we'll have to keep track of the function whose return type we're lowering in the context
+                        let impl_trait_id = todo!();
+                        let parameters = todo!();
+                        Ty::Opaque(ImplTraitTy { impl_trait_id, parameters })
                     }
                     ImplTraitLoweringMode::Param => {
                         let idx = ctx.impl_trait_counter.get();

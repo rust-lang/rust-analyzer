@@ -317,13 +317,20 @@ impl HirDisplay for Ty {
                 }
             }
             Ty::Bound(idx) => write!(f, "?{}", idx)?,
-            Ty::Dyn(predicates) | Ty::Opaque(predicates) => {
+            Ty::Dyn(predicates) => {
                 match self {
                     Ty::Dyn(_) => write!(f, "dyn ")?,
                     Ty::Opaque(_) => write!(f, "impl ")?,
                     _ => unreachable!(),
                 };
                 write_bounds_like_dyn_trait(&predicates, f)?;
+            }
+            Ty::Opaque(impl_trait_ty) => {
+                let datas =
+                    f.db.return_type_impl_traits(impl_trait_ty.impl_trait_id.0)
+                        .expect("impl trait id without data");
+                let data = &datas.impl_traits[impl_trait_ty.impl_trait_id.1 as usize];
+                write_bounds_like_dyn_trait(&data.bounds, f)?;
             }
             Ty::Unknown => write!(f, "{{unknown}}")?,
             Ty::Infer(..) => write!(f, "_")?,
