@@ -73,6 +73,13 @@ impl GenericParams {
         def: GenericDefId,
     ) -> Arc<GenericParams> {
         let _p = profile("generic_params_query");
+        if let GenericDefId::ImplId(impl_id) = def {
+            let loc = impl_id.lookup(db);
+            let ast_id = loc.ast_id;
+            let stubs = db.stubs(ast_id.file_id);
+            return stubs.impl_headers[&ast_id.value].1.clone();
+        }
+
         let (params, _source_map) = GenericParams::new(db, def);
         Arc::new(params)
     }
@@ -143,6 +150,13 @@ impl GenericParams {
         };
 
         (generics, InFile::new(file_id, sm))
+    }
+
+    pub(crate) fn new_for_impl(imp: &ast::ImplDef) -> GenericParams {
+        let mut generics = GenericParams { types: Arena::default(), where_predicates: Vec::new() };
+        let mut sm = ArenaMap::default();
+        generics.fill(&mut sm, imp);
+        generics
     }
 
     fn fill(&mut self, sm: &mut SourceMap, node: &dyn TypeParamsOwner) {

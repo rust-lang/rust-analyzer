@@ -10,11 +10,14 @@ use crate::{
     adt::{EnumData, StructData},
     attr::Attrs,
     body::{scope::ExprScopes, Body, BodySourceMap},
-    data::{ConstData, FunctionData, ImplData, TraitData, TypeAliasData},
+    data::{ConstData, FunctionData, ImplData, ImplHeader, TraitData, TypeAliasData},
     docs::Documentation,
     generics::GenericParams,
     lang_item::{LangItemTarget, LangItems},
-    nameres::{raw::RawItems, CrateDefMap},
+    nameres::{
+        raw::{RawItems, Stubs},
+        CrateDefMap,
+    },
     AttrDefId, ConstId, ConstLoc, DefWithBodyId, EnumId, EnumLoc, FunctionId, FunctionLoc,
     GenericDefId, ImplId, ImplLoc, ModuleId, StaticId, StaticLoc, StructId, StructLoc, TraitId,
     TraitLoc, TypeAliasId, TypeAliasLoc, UnionId, UnionLoc,
@@ -47,6 +50,9 @@ pub trait DefDatabase: InternDatabase + AstDatabase {
     #[salsa::invoke(RawItems::raw_items_query)]
     fn raw_items(&self, file_id: HirFileId) -> Arc<RawItems>;
 
+    #[salsa::invoke(Stubs::stubs_query)]
+    fn stubs(&self, file_id: HirFileId) -> Arc<Stubs>;
+
     #[salsa::transparent]
     fn crate_def_map(&self, krate: CrateId) -> Arc<CrateDefMap>;
 
@@ -63,6 +69,9 @@ pub trait DefDatabase: InternDatabase + AstDatabase {
 
     #[salsa::invoke(ImplData::impl_data_query)]
     fn impl_data(&self, e: ImplId) -> Arc<ImplData>;
+
+    #[salsa::invoke(ImplHeader::impl_header_query)]
+    fn impl_header(&self, e: ImplId) -> Arc<ImplHeader>;
 
     #[salsa::invoke(TraitData::trait_data_query)]
     fn trait_data(&self, e: TraitId) -> Arc<TraitData>;

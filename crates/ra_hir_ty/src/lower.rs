@@ -936,12 +936,12 @@ pub(crate) fn value_ty_query(db: &impl HirDatabase, def: ValueTyDefId) -> Binder
 }
 
 pub(crate) fn impl_self_ty_query(db: &impl HirDatabase, impl_id: ImplId) -> Binders<Ty> {
-    let impl_data = db.impl_data(impl_id);
+    let impl_header = db.impl_header(impl_id);
     let resolver = impl_id.resolver(db);
     let generics = generics(db, impl_id.into());
     let ctx =
         TyLoweringContext::new(db, &resolver).with_type_param_mode(TypeParamLoweringMode::Variable);
-    Binders::new(generics.len(), Ty::from_hir(&ctx, &impl_data.target_type))
+    Binders::new(generics.len(), Ty::from_hir(&ctx, &impl_header.target_type))
 }
 
 pub(crate) fn impl_self_ty_recover(
@@ -957,12 +957,12 @@ pub(crate) fn impl_trait_query(
     db: &impl HirDatabase,
     impl_id: ImplId,
 ) -> Option<Binders<TraitRef>> {
-    let impl_data = db.impl_data(impl_id);
+    let impl_header = db.impl_header(impl_id);
     let resolver = impl_id.resolver(db);
     let ctx =
         TyLoweringContext::new(db, &resolver).with_type_param_mode(TypeParamLoweringMode::Variable);
     let self_ty = db.impl_self_ty(impl_id);
-    let target_trait = impl_data.target_trait.as_ref()?;
+    let target_trait = impl_header.target_trait.as_ref()?;
     Some(Binders::new(
         self_ty.num_binders,
         TraitRef::from_hir(&ctx, target_trait, Some(self_ty.value))?,

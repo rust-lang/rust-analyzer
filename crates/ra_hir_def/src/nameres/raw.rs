@@ -9,7 +9,6 @@ use std::{ops::Index, sync::Arc};
 
 use hir_expand::{
     ast_id_map::AstIdMap,
-    db::AstDatabase,
     hygiene::Hygiene,
     name::{AsName, Name},
 };
@@ -23,11 +22,44 @@ use test_utils::tested_by;
 
 use crate::{
     attr::Attrs,
+    data::ImplHeader,
     db::DefDatabase,
+    generics::GenericParams,
     path::{ImportAlias, ModPath},
     visibility::RawVisibility,
     FileAstId, HirFileId, InFile,
 };
+use rustc_hash::FxHashMap;
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Stubs {
+    raw_items: Arc<RawItems>,
+    pub(crate) impl_headers:
+        FxHashMap<FileAstId<ast::ImplDef>, (Arc<ImplHeader>, Arc<GenericParams>)>,
+}
+
+impl Stubs {
+    pub(crate) fn stubs_query(db: &impl DefDatabase, file_id: HirFileId) -> Arc<Stubs> {
+        let _p = profile("raw_items_query");
+        let mut collector = RawItemsCollector {
+            raw_items: RawItems::default(),
+            impl_headers: FxHashMap::default(),
+            source_ast_id_map: db.ast_id_map(file_id),
+            file_id,
+            hygiene: Hygiene::new(db, file_id),
+        };
+        if let Some(node) = db.parse_or_expand(file_id) {
+            if let Some(source_file) = ast::SourceFile::cast(node.clone()) {
+                collector.process_module(None, source_file);
+            } else if let Some(item_list) = ast::MacroItems::cast(node) {
+                collector.process_module(None, item_list);
+            }
+        }
+        let raw_items = collector.raw_items;
+        let impl_headers = collector.impl_headers;
+        Arc::new(Stubs { raw_items: Arc::new(raw_items), impl_headers })
+    }
+}
 
 /// `RawItems` is a set of top-level items in a file (except for impls).
 ///
@@ -45,26 +77,8 @@ pub struct RawItems {
 }
 
 impl RawItems {
-    pub(crate) fn raw_items_query(
-        db: &(impl DefDatabase + AstDatabase),
-        file_id: HirFileId,
-    ) -> Arc<RawItems> {
-        let _p = profile("raw_items_query");
-        let mut collector = RawItemsCollector {
-            raw_items: RawItems::default(),
-            source_ast_id_map: db.ast_id_map(file_id),
-            file_id,
-            hygiene: Hygiene::new(db, file_id),
-        };
-        if let Some(node) = db.parse_or_expand(file_id) {
-            if let Some(source_file) = ast::SourceFile::cast(node.clone()) {
-                collector.process_module(None, source_file);
-            } else if let Some(item_list) = ast::MacroItems::cast(node) {
-                collector.process_module(None, item_list);
-            }
-        }
-        let raw_items = collector.raw_items;
-        Arc::new(raw_items)
+    pub(crate) fn raw_items_query(db: &impl DefDatabase, file_id: HirFileId) -> Arc<RawItems> {
+        Arc::clone(&db.stubs(file_id).raw_items)
     }
 
     pub(super) fn items(&self) -> &[RawItem] {
@@ -218,6 +232,7 @@ pub(super) struct ImplData {
 
 struct RawItemsCollector {
     raw_items: RawItems,
+    impl_headers: FxHashMap<FileAstId<ast::ImplDef>, (Arc<ImplHeader>, Arc<GenericParams>)>,
     source_ast_id_map: Arc<AstIdMap>,
     file_id: HirFileId,
     hygiene: Hygiene,
@@ -396,10 +411,14 @@ impl RawItemsCollector {
     }
 
     fn add_impl(&mut self, current_module: Option<Module>, imp: ast::ImplDef) {
+        let header = ImplHeader::new(&imp);
+        let generics = GenericParams::new_for_impl(&imp);
         let attrs = self.parse_attrs(&imp);
         let ast_id = self.source_ast_id_map.ast_id(&imp);
+
         let imp = self.raw_items.impls.alloc(ImplData { ast_id });
-        self.push_item(current_module, attrs, RawItemKind::Impl(imp))
+        self.push_item(current_module, attrs, RawItemKind::Impl(imp));
+        self.impl_headers.insert(ast_id, (Arc::new(header), Arc::new(generics)));
     }
 
     fn push_import(&mut self, current_module: Option<Module>, attrs: Attrs, data: ImportData) {

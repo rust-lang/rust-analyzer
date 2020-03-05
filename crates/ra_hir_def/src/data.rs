@@ -178,6 +178,28 @@ impl TraitData {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImplHeader {
+    pub target_trait: Option<TypeRef>,
+    pub target_type: TypeRef,
+    pub is_negative: bool,
+}
+
+impl ImplHeader {
+    pub(crate) fn impl_header_query(db: &impl DefDatabase, id: ImplId) -> Arc<ImplHeader> {
+        let loc = id.lookup(db);
+        let ast_id = loc.ast_id;
+        let stubs = db.stubs(ast_id.file_id);
+        stubs.impl_headers[&ast_id.value].0.clone()
+    }
+    pub(crate) fn new(src: &ast::ImplDef) -> ImplHeader {
+        let target_trait = src.target_trait().map(TypeRef::from_ast);
+        let target_type = TypeRef::from_ast_opt(src.target_type());
+        let is_negative = src.is_negative();
+        ImplHeader { target_trait, target_type, is_negative }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImplData {
     pub target_trait: Option<TypeRef>,
     pub target_type: TypeRef,
@@ -191,9 +213,9 @@ impl ImplData {
         let impl_loc = id.lookup(db);
         let src = impl_loc.source(db);
 
-        let target_trait = src.value.target_trait().map(TypeRef::from_ast);
-        let target_type = TypeRef::from_ast_opt(src.value.target_type());
-        let is_negative = src.value.is_negative();
+        let ImplHeader { target_trait, target_type, is_negative } =
+            ImplHeader::new(src.as_ref().value);
+
         let module_id = impl_loc.container.module(db);
 
         let mut items = Vec::new();
