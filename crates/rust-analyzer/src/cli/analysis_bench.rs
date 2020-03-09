@@ -94,17 +94,19 @@ pub fn analysis_bench(verbosity: Verbosity, path: &Path, what: BenchWhat) -> Res
                 .analysis()
                 .file_line_index(file_id)?
                 .offset(LineCol { line: pos.line - 1, col_utf16: pos.column });
-            let file_postion = FilePosition { file_id, offset };
+            let file_position = FilePosition { file_id, offset };
 
             if is_completion {
                 let res =
-                    do_work(&mut host, file_id, |analysis| analysis.completions(file_postion));
+                    do_work(&mut host, file_id, |analysis| analysis.completions(file_position));
                 if verbosity.is_verbose() {
                     println!("\n{:#?}", res);
                 }
             } else {
-                let res =
-                    do_work(&mut host, file_id, |analysis| analysis.goto_definition(file_postion));
+                let res = do_work(&mut host, file_id, |analysis| {
+                    analysis.prime_caches(vec![file_position.file_id]).unwrap();
+                    analysis.goto_definition(file_position)
+                });
                 if verbosity.is_verbose() {
                     println!("\n{:#?}", res);
                 }

@@ -1050,6 +1050,7 @@ dependencies = [
  "ra_syntax",
  "ra_text_edit",
  "rand",
+ "rayon",
  "rustc-hash",
  "test_utils",
 ]
