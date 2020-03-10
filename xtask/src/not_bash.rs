@@ -95,7 +95,7 @@ pub fn run_process(cmd: String, echo: bool) -> Result<String> {
 }
 
 fn run_process_inner(cmd: &str, echo: bool) -> Result<String> {
-    let mut args = shelx(cmd);
+    let mut args = shelx(cmd)?;
     let binary = args.remove(0);
     let current_dir = Env::with(|it| it.cwd().to_path_buf());
 
@@ -120,11 +120,6 @@ fn run_process_inner(cmd: &str, echo: bool) -> Result<String> {
     }
 
     Ok(stdout.trim().to_string())
-}
-
-// FIXME: some real shell lexing here
-fn shelx(cmd: &str) -> Vec<String> {
-    cmd.split_whitespace().map(|it| it.to_string()).collect()
 }
 
 struct Env {
@@ -152,5 +147,121 @@ impl Env {
     }
     fn cwd(&self) -> &Path {
         self.pushd_stack.last().unwrap()
+    }
+}
+
+use shelx_parser::parse_cmd as shelx;
+mod shelx_parser {
+
+    use anyhow::{bail, Result};
+
+    enum Cmd {
+        Begin,
+        Whitespace,
+        /// Stands for `non-quoted parameter`
+        NQParam(NQParam),
+        /// Stands for `quoted parameter`
+        QParam(QParam, char),
+    }
+    enum NQParam {
+        Char(char),
+        EscapeChar,
+        End,
+    }
+    enum QParam {
+        Begin,
+        Char(char),
+        EscapeChar,
+        End,
+    }
+
+    const ESCAPE_CHAR: char = '\\';
+    const QUOTE_CHARS: &'static [char] = &['"', '\''];
+    // const QUOTE_CHARS: [char; 2] = ['"', '\''];
+
+    pub(crate) fn parse_cmd(input: &str) -> Result<Vec<String>> {
+        let mut acc = Vec::new();
+        let mut param = String::new();
+        let mut state = Cmd::Begin;
+        for char in input.chars() {
+            state = next_state(state, char)?;
+            match state {
+                Cmd::QParam(QParam::Char(char), ..) | Cmd::NQParam(NQParam::Char(char)) => {
+                    param.push(char);
+                }
+                Cmd::QParam(QParam::End, ..) | Cmd::NQParam(NQParam::End) => {
+                    acc.push(param);
+                    param = String::new();
+                }
+                _ => {}
+            }
+        }
+
+        match state {
+            Cmd::NQParam(..) => {
+                acc.push(param);
+            }
+            Cmd::QParam(QParam::Begin, quote) | Cmd::QParam(QParam::Char(..), quote) => {
+                bail!("Expected closing quote `{}`", quote);
+            }
+            Cmd::QParam(QParam::EscapeChar, _) => {
+                bail!("Expected closing escape char `{}`", ESCAPE_CHAR);
+            }
+            _ => {}
+        }
+
+        Ok(acc)
+    }
+
+    fn next_state(state: Cmd, char: char) -> Result<Cmd> {
+        Ok(match state {
+            Cmd::Begin
+            | Cmd::Whitespace
+            | Cmd::NQParam(NQParam::End)
+            | Cmd::QParam(QParam::End, _) => {
+                if char == ESCAPE_CHAR {
+                    Cmd::NQParam(NQParam::EscapeChar)
+                } else if QUOTE_CHARS.contains(&char) {
+                    Cmd::QParam(QParam::Begin, char)
+                } else if char.is_whitespace() {
+                    Cmd::Whitespace
+                } else {
+                    Cmd::NQParam(NQParam::Char(char))
+                }
+            }
+            Cmd::NQParam(NQParam::EscapeChar) => Cmd::NQParam(NQParam::Char(unescape(char)?)),
+            Cmd::NQParam(NQParam::Char(_)) => Cmd::NQParam(if char.is_whitespace() {
+                NQParam::End
+            } else if char == ESCAPE_CHAR {
+                NQParam::EscapeChar
+            } else {
+                NQParam::Char(char)
+            }),
+            Cmd::QParam(QParam::Begin, quote) | Cmd::QParam(QParam::Char(_), quote) => Cmd::QParam(
+                if char == ESCAPE_CHAR {
+                    QParam::EscapeChar
+                } else if char == quote {
+                    QParam::End
+                } else {
+                    QParam::Char(char)
+                },
+                quote,
+            ),
+            Cmd::QParam(QParam::EscapeChar, quote) => Cmd::QParam(
+                QParam::Char(if char == quote { quote } else { unescape(char)? }),
+                quote,
+            ),
+        })
+    }
+
+    fn unescape(char: char) -> Result<char> {
+        Ok(match char {
+            ESCAPE_CHAR => ESCAPE_CHAR,
+            'n' => '\n',
+            'r' => '\r',
+            't' => '\t',
+            '0' => '\0',
+            _ => bail!("invalid escape {}{}", ESCAPE_CHAR, char),
+        })
     }
 }
