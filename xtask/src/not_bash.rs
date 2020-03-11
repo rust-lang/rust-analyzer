@@ -152,106 +152,105 @@ impl Env {
 
 use shelx_parser::parse_cmd as shelx;
 mod shelx_parser {
-
     use anyhow::{bail, Result};
 
-    enum Cmd {
-        Begin,
-        Whitespace,
-        /// Stands for `non-quoted parameter`
-        NQParam(NQParam),
-        /// Stands for `quoted parameter`
-        QParam(QParam, char),
-    }
-    enum NQParam {
-        Char(char),
-        EscapeChar,
-        End,
-    }
-    enum QParam {
-        Begin,
-        Char(char),
-        EscapeChar,
-        End,
-    }
-
     const ESCAPE_CHAR: char = '\\';
-    const QUOTE_CHARS: &'static [char] = &['"', '\''];
-    // const QUOTE_CHARS: [char; 2] = ['"', '\''];
+    const QUOTE_CHARS: [char; 2] = ['"', '\''];
 
-    pub(crate) fn parse_cmd(input: &str) -> Result<Vec<String>> {
+    pub(crate) fn parse_cmd(mut input: &str) -> Result<Vec<String>> {
         let mut acc = Vec::new();
-        let mut param = String::new();
-        let mut state = Cmd::Begin;
-        for char in input.chars() {
-            state = next_state(state, char)?;
-            match state {
-                Cmd::QParam(QParam::Char(char), ..) | Cmd::NQParam(NQParam::Char(char)) => {
-                    param.push(char);
-                }
-                Cmd::QParam(QParam::End, ..) | Cmd::NQParam(NQParam::End) => {
-                    acc.push(param);
-                    param = String::new();
-                }
-                _ => {}
-            }
-        }
 
-        match state {
-            Cmd::NQParam(..) => {
-                acc.push(param);
-            }
-            Cmd::QParam(QParam::Begin, quote) | Cmd::QParam(QParam::Char(..), quote) => {
-                bail!("Expected closing quote `{}`", quote);
-            }
-            Cmd::QParam(QParam::EscapeChar, _) => {
-                bail!("Expected closing escape char `{}`", ESCAPE_CHAR);
-            }
-            _ => {}
+        input = input.trim_start();
+        while !input.is_empty() {
+            let param = quoted_param(input).unwrap_or_else(|| non_quoted_param(input))?;
+
+            input = input[param.len()..].trim_start();
+            acc.push(param);
         }
 
         Ok(acc)
     }
 
-    fn next_state(state: Cmd, char: char) -> Result<Cmd> {
-        Ok(match state {
-            Cmd::Begin
-            | Cmd::Whitespace
-            | Cmd::NQParam(NQParam::End)
-            | Cmd::QParam(QParam::End, _) => {
-                if char == ESCAPE_CHAR {
-                    Cmd::NQParam(NQParam::EscapeChar)
-                } else if QUOTE_CHARS.contains(&char) {
-                    Cmd::QParam(QParam::Begin, char)
-                } else if char.is_whitespace() {
-                    Cmd::Whitespace
-                } else {
-                    Cmd::NQParam(NQParam::Char(char))
+    fn non_quoted_param(input: &str) -> Result<String> {
+        assert_ne!(input.len(), 0);
+        enum State {
+            Begin,
+            Char(char),
+            EscapeChar,
+        }
+        let mut state = State::Begin;
+        let mut acc = String::new();
+
+        for char in input.chars() {
+            match state {
+                State::Char(char) => acc.push(char),
+                _ => {}
+            }
+            state = match state {
+                State::EscapeChar => State::Char(unescape(char)?),
+                State::Begin | State::Char(_) => {
+                    if char == ESCAPE_CHAR {
+                        State::EscapeChar
+                    } else if char.is_whitespace() {
+                        return Ok(acc);
+                    } else {
+                        State::Char(char)
+                    }
                 }
             }
-            Cmd::NQParam(NQParam::EscapeChar) => Cmd::NQParam(NQParam::Char(unescape(char)?)),
-            Cmd::NQParam(NQParam::Char(_)) => Cmd::NQParam(if char.is_whitespace() {
-                NQParam::End
-            } else if char == ESCAPE_CHAR {
-                NQParam::EscapeChar
-            } else {
-                NQParam::Char(char)
-            }),
-            Cmd::QParam(QParam::Begin, quote) | Cmd::QParam(QParam::Char(_), quote) => Cmd::QParam(
-                if char == ESCAPE_CHAR {
-                    QParam::EscapeChar
-                } else if char == quote {
-                    QParam::End
-                } else {
-                    QParam::Char(char)
-                },
-                quote,
+        }
+        match state {
+            State::EscapeChar => bail!(
+                "Expected a character after `{}` escape but reached the end of input",
+                ESCAPE_CHAR
             ),
-            Cmd::QParam(QParam::EscapeChar, quote) => Cmd::QParam(
-                QParam::Char(if char == quote { quote } else { unescape(char)? }),
-                quote,
-            ),
-        })
+            _ => Ok(acc),
+        }
+    }
+
+    fn quoted_param(input: &str) -> Option<Result<String>> {
+        // FIXME: change to str::strip_prefix once it is stable
+        let quote = *QUOTE_CHARS.iter().find(|quote| input.starts_with(**quote))?;
+
+        return Some(inner(input, quote));
+
+        fn inner(input: &str, quote: char) -> Result<String> {
+            enum State {
+                Begin,
+                Char(char),
+                EscapeChar,
+            }
+            let mut state = State::Begin;
+            let mut acc = String::new();
+
+            for char in input[1..].chars() {
+                match state {
+                    State::Char(char) => acc.push(char),
+                    _ => {}
+                }
+                state = match state {
+                    State::Char(_) | State::Begin => {
+                        if char == ESCAPE_CHAR {
+                            State::EscapeChar
+                        } else if char == quote {
+                            return Ok(acc);
+                        } else {
+                            State::Char(char)
+                        }
+                    }
+                    State::EscapeChar => {
+                        State::Char(if char == quote { quote } else { unescape(char)? })
+                    }
+                }
+            }
+            match state {
+                State::EscapeChar => bail!(
+                    "Expected a character after `{}` escape but reached the end of input",
+                    ESCAPE_CHAR
+                ),
+                _ => bail!("Expected the closing quote `{}` but reached the end of input", quote),
+            }
+        }
     }
 
     fn unescape(char: char) -> Result<char> {
@@ -261,7 +260,7 @@ mod shelx_parser {
             'r' => '\r',
             't' => '\t',
             '0' => '\0',
-            _ => bail!("invalid escape {}{}", ESCAPE_CHAR, char),
+            _ => bail!("Invalid escape {}{}", ESCAPE_CHAR, char),
         })
     }
 }
