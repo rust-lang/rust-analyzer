@@ -640,11 +640,53 @@ mod tests {
 
             fn test_fn() {
                 let one = 1;
+                let a = TestStruct{ one, two: 2 };
                 let s = TestStruct{ ..a };
             }
         ";
 
         check_no_diagnostic(content);
+    }
+
+    #[test]
+    fn test_unresolved_path_diagnostics() {
+        let (analysis, file_id) = single_file(
+            r"
+        struct TestStruct {
+            one: i32,
+            two: i64,
+        }
+
+        fn test_fn() {
+            let s = TestStruct{ ..a };
+        }
+    ",
+        );
+        let diagnostics = analysis.diagnostics(file_id, &DiagnosticsOptions::new()).unwrap();
+        assert_debug_snapshot!(diagnostics, @r###"
+        [
+            Diagnostic {
+                message: "Unresolved path",
+                range: [141; 142),
+                fix: None,
+                severity: Error,
+            },
+        ]
+        "###);
+
+        let diagnostics = analysis
+            .diagnostics(
+                file_id,
+                &DiagnosticsOptions {
+                    check_methods_resolution: false,
+                    check_paths_resolution: false,
+                },
+            )
+            .unwrap();
+        assert!(
+            diagnostics.is_empty(),
+            "When the unresolved path diagnostics is disabled, no entries should be emitted"
+        )
     }
 
     #[test]
