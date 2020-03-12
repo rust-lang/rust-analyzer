@@ -19,6 +19,7 @@ use ra_text_edit::TextEdit;
 
 pub(crate) use crate::assist_ctx::{Assist, AssistCtx, AssistHandler};
 use hir::Semantics;
+pub use utils::UnresolvedElement;
 
 /// Unique identifier of the assist, should not be shown to the user
 /// directly.

@@ -1,20 +1,9 @@
 use crate::{
     assist_ctx::{Assist, AssistCtx},
     utils::insert_use_statement,
-    AssistId,
+    AssistId, UnresolvedElement,
 };
-use hir::{
-    AsAssocItem, AssocItemContainer, ModPath, Module, ModuleDef, PathResolution, Semantics, Trait,
-    Type,
-};
-use ra_ide_db::{imports_locator::ImportsLocator, RootDatabase};
-use ra_prof::profile;
-use ra_syntax::{
-    ast::{self, AstNode},
-    SyntaxNode,
-};
-use rustc_hash::FxHashSet;
-use std::collections::BTreeSet;
+use ra_syntax::ast;
 
 // Assist: auto_import
 //
@@ -36,232 +25,29 @@ use std::collections::BTreeSet;
 // # pub mod std { pub mod collections { pub struct HashMap { } } }
 // ```
 pub(crate) fn auto_import(ctx: AssistCtx) -> Option<Assist> {
-    let auto_import_assets = AutoImportAssets::new(&ctx)?;
-    let proposed_imports = auto_import_assets.search_for_imports(ctx.db);
+    let unresolved_element = if let Some(path_under_caret) = ctx.find_node_at_offset::<ast::Path>()
+    {
+        UnresolvedElement::for_path(path_under_caret, &ctx.sema)
+    } else {
+        UnresolvedElement::for_method_call(ctx.find_node_at_offset()?, &ctx.sema)
+    }?;
+    let proposed_imports = unresolved_element.search_for_imports(ctx.db);
     if proposed_imports.is_empty() {
         return None;
     }
 
-    let mut group = ctx.add_assist_group(auto_import_assets.get_import_group_message());
+    let mut group = ctx.add_assist_group(unresolved_element.get_import_group_message());
     for import in proposed_imports {
         group.add_assist(AssistId("auto_import"), format!("Import `{}`", &import), |edit| {
-            edit.target(auto_import_assets.syntax_under_caret.text_range());
+            edit.target(unresolved_element.element_syntax.text_range());
             insert_use_statement(
-                &auto_import_assets.syntax_under_caret,
+                &unresolved_element.element_syntax,
                 &import,
                 edit.text_edit_builder(),
             );
         });
     }
     group.finish()
-}
-
-struct AutoImportAssets {
-    import_candidate: ImportCandidate,
-    module_with_name_to_import: Module,
-    syntax_under_caret: SyntaxNode,
-}
-
-impl AutoImportAssets {
-    fn new(ctx: &AssistCtx) -> Option<Self> {
-        if let Some(path_under_caret) = ctx.find_node_at_offset::<ast::Path>() {
-            Self::for_regular_path(path_under_caret, &ctx)
-        } else {
-            Self::for_method_call(ctx.find_node_at_offset()?, &ctx)
-        }
-    }
-
-    fn for_method_call(method_call: ast::MethodCallExpr, ctx: &AssistCtx) -> Option<Self> {
-        let syntax_under_caret = method_call.syntax().to_owned();
-        let module_with_name_to_import = ctx.sema.scope(&syntax_under_caret).module()?;
-        Some(Self {
-            import_candidate: ImportCandidate::for_method_call(&ctx.sema, &method_call)?,
-            module_with_name_to_import,
-            syntax_under_caret,
-        })
-    }
-
-    fn for_regular_path(path_under_caret: ast::Path, ctx: &AssistCtx) -> Option<Self> {
-        let syntax_under_caret = path_under_caret.syntax().to_owned();
-        if syntax_under_caret.ancestors().find_map(ast::UseItem::cast).is_some() {
-            return None;
-        }
-
-        let module_with_name_to_import = ctx.sema.scope(&syntax_under_caret).module()?;
-        Some(Self {
-            import_candidate: ImportCandidate::for_regular_path(&ctx.sema, &path_under_caret)?,
-            module_with_name_to_import,
-            syntax_under_caret,
-        })
-    }
-
-    fn get_search_query(&self) -> &str {
-        match &self.import_candidate {
-            ImportCandidate::UnqualifiedName(name) => name,
-            ImportCandidate::QualifierStart(qualifier_start) => qualifier_start,
-            ImportCandidate::TraitAssocItem(_, trait_assoc_item_name) => trait_assoc_item_name,
-            ImportCandidate::TraitMethod(_, trait_method_name) => trait_method_name,
-        }
-    }
-
-    fn get_import_group_message(&self) -> String {
-        match &self.import_candidate {
-            ImportCandidate::UnqualifiedName(name) => format!("Import {}", name),
-            ImportCandidate::QualifierStart(qualifier_start) => {
-                format!("Import {}", qualifier_start)
-            }
-            ImportCandidate::TraitAssocItem(_, trait_assoc_item_name) => {
-                format!("Import a trait for item {}", trait_assoc_item_name)
-            }
-            ImportCandidate::TraitMethod(_, trait_method_name) => {
-                format!("Import a trait for method {}", trait_method_name)
-            }
-        }
-    }
-
-    fn search_for_imports(&self, db: &RootDatabase) -> BTreeSet<ModPath> {
-        let _p = profile("auto_import::search_for_imports");
-        let current_crate = self.module_with_name_to_import.krate();
-        ImportsLocator::new(db)
-            .find_imports(&self.get_search_query())
-            .into_iter()
-            .filter_map(|module_def| match &self.import_candidate {
-                ImportCandidate::TraitAssocItem(assoc_item_type, _) => {
-                    let located_assoc_item = match module_def {
-                        ModuleDef::Function(located_function) => located_function
-                            .as_assoc_item(db)
-                            .map(|assoc| assoc.container(db))
-                            .and_then(Self::assoc_to_trait),
-                        ModuleDef::Const(located_const) => located_const
-                            .as_assoc_item(db)
-                            .map(|assoc| assoc.container(db))
-                            .and_then(Self::assoc_to_trait),
-                        _ => None,
-                    }?;
-
-                    let mut trait_candidates = FxHashSet::default();
-                    trait_candidates.insert(located_assoc_item.into());
-
-                    assoc_item_type
-                        .iterate_path_candidates(
-                            db,
-                            current_crate,
-                            &trait_candidates,
-                            None,
-                            |_, assoc| Self::assoc_to_trait(assoc.container(db)),
-                        )
-                        .map(ModuleDef::from)
-                }
-                ImportCandidate::TraitMethod(function_callee, _) => {
-                    let located_assoc_item =
-                        if let ModuleDef::Function(located_function) = module_def {
-                            located_function
-                                .as_assoc_item(db)
-                                .map(|assoc| assoc.container(db))
-                                .and_then(Self::assoc_to_trait)
-                        } else {
-                            None
-                        }?;
-
-                    let mut trait_candidates = FxHashSet::default();
-                    trait_candidates.insert(located_assoc_item.into());
-
-                    function_callee
-                        .iterate_method_candidates(
-                            db,
-                            current_crate,
-                            &trait_candidates,
-                            None,
-                            |_, function| {
-                                Self::assoc_to_trait(function.as_assoc_item(db)?.container(db))
-                            },
-                        )
-                        .map(ModuleDef::from)
-                }
-                _ => Some(module_def),
-            })
-            .filter_map(|module_def| self.module_with_name_to_import.find_use_path(db, module_def))
-            .filter(|use_path| !use_path.segments.is_empty())
-            .take(20)
-            .collect::<BTreeSet<_>>()
-    }
-
-    fn assoc_to_trait(assoc: AssocItemContainer) -> Option<Trait> {
-        if let AssocItemContainer::Trait(extracted_trait) = assoc {
-            Some(extracted_trait)
-        } else {
-            None
-        }
-    }
-}
-
-#[derive(Debug)]
-enum ImportCandidate {
-    /// Simple name like 'HashMap'
-    UnqualifiedName(String),
-    /// First part of the qualified name.
-    /// For 'std::collections::HashMap', that will be 'std'.
-    QualifierStart(String),
-    /// A trait associated function (with no self parameter) or associated constant.
-    /// For 'test_mod::TestEnum::test_function', `Type` is the `test_mod::TestEnum` expression type
-    /// and `String` is the `test_function`
-    TraitAssocItem(Type, String),
-    /// A trait method with self parameter.
-    /// For 'test_enum.test_method()', `Type` is the `test_enum` expression type
-    /// and `String` is the `test_method`
-    TraitMethod(Type, String),
-}
-
-impl ImportCandidate {
-    fn for_method_call(
-        sema: &Semantics<RootDatabase>,
-        method_call: &ast::MethodCallExpr,
-    ) -> Option<Self> {
-        if sema.resolve_method_call(method_call).is_some() {
-            return None;
-        }
-        Some(Self::TraitMethod(
-            sema.type_of_expr(&method_call.expr()?)?,
-            method_call.name_ref()?.syntax().to_string(),
-        ))
-    }
-
-    fn for_regular_path(
-        sema: &Semantics<RootDatabase>,
-        path_under_caret: &ast::Path,
-    ) -> Option<Self> {
-        if sema.resolve_path(path_under_caret).is_some() {
-            return None;
-        }
-
-        let segment = path_under_caret.segment()?;
-        if let Some(qualifier) = path_under_caret.qualifier() {
-            let qualifier_start = qualifier.syntax().descendants().find_map(ast::NameRef::cast)?;
-            let qualifier_start_path =
-                qualifier_start.syntax().ancestors().find_map(ast::Path::cast)?;
-            if let Some(qualifier_start_resolution) = sema.resolve_path(&qualifier_start_path) {
-                let qualifier_resolution = if qualifier_start_path == qualifier {
-                    qualifier_start_resolution
-                } else {
-                    sema.resolve_path(&qualifier)?
-                };
-                if let PathResolution::Def(ModuleDef::Adt(assoc_item_path)) = qualifier_resolution {
-                    Some(ImportCandidate::TraitAssocItem(
-                        assoc_item_path.ty(sema.db),
-                        segment.syntax().to_string(),
-                    ))
-                } else {
-                    None
-                }
-            } else {
-                Some(ImportCandidate::QualifierStart(qualifier_start.syntax().to_string()))
-            }
-        } else {
-            Some(ImportCandidate::UnqualifiedName(
-                segment.syntax().descendants().find_map(ast::NameRef::cast)?.syntax().to_string(),
-            ))
-        }
-    }
 }
 
 #[cfg(test)]

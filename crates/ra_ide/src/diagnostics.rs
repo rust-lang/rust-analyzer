@@ -7,13 +7,14 @@ use hir::{
     Semantics,
 };
 use itertools::Itertools;
+use ra_assists::UnresolvedElement;
 use ra_db::{RelativePath, SourceDatabase, SourceDatabaseExt};
 use ra_ide_db::RootDatabase;
 use ra_prof::profile;
 use ra_syntax::{
     algo,
     ast::{self, make, AstNode},
-    SyntaxNode, TextRange, T,
+    match_ast, SyntaxNode, TextRange, T,
 };
 use ra_text_edit::{TextEdit, TextEditBuilder};
 
@@ -28,6 +29,7 @@ pub enum Severity {
 pub(crate) fn diagnostics(db: &RootDatabase, file_id: FileId) -> Vec<Diagnostic> {
     let _p = profile("diagnostics");
     let sema = Semantics::new(db);
+    sema.parse(file_id);
     let parse = db.parse(file_id);
     let mut res = Vec::new();
 
@@ -41,6 +43,7 @@ pub(crate) fn diagnostics(db: &RootDatabase, file_id: FileId) -> Vec<Diagnostic>
     for node in parse.tree().syntax().descendants() {
         check_unnecessary_braces_in_use_statement(&mut res, file_id, &node);
         check_struct_shorthand_initialization(&mut res, file_id, &node);
+        check_unresolved_paths(&mut res, &sema, &node);
     }
     let res = RefCell::new(res);
     let mut sink = DiagnosticSink::new(|d| {
@@ -194,6 +197,40 @@ fn check_struct_shorthand_initialization(
             }
         }
     }
+    Some(())
+}
+
+fn check_unresolved_paths(
+    acc: &mut Vec<Diagnostic>,
+    sema: &Semantics<RootDatabase>,
+    node: &SyntaxNode,
+) -> Option<()> {
+    match_ast! {
+        match node {
+            ast::Path(it) => {
+                if config.check_paths_resolution {
+                    acc.push(Diagnostic {
+                        range: UnresolvedElement::for_path(it, sema)?.element_syntax.text_range(),
+                        message: "Unresolved path".to_owned(),
+                        severity: Severity::Error,
+                        fix: None,
+                    });
+                }
+            },
+            ast::MethodCallExpr(it) => {
+                if config.check_methods_resolution {
+                    acc.push(Diagnostic {
+                        range: UnresolvedElement::for_method_call(it, sema)?.element_syntax.text_range(),
+                        message: "Unresolved method call".to_owned(),
+                        severity: Severity::Error,
+                        fix: None,
+                    });
+                }
+            },
+            _ => (),
+        }
+    };
+
     Some(())
 }
 
