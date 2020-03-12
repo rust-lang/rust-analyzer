@@ -22,8 +22,6 @@ export async function createClient(config: Config, serverPath: string): Promise<
     const traceOutputChannel = vscode.window.createOutputChannel(
         'Rust Analyzer Language Server Trace',
     );
-    const cargoWatchOpts = config.cargoWatchOptions;
-
     const clientOptions: lc.LanguageClientOptions = {
         documentSelector: [{ scheme: 'file', language: 'rust' }],
         initializationOptions: {
@@ -34,10 +32,10 @@ export async function createClient(config: Config, serverPath: string): Promise<
             inlayHintsParameter: config.inlayHints.parameterHints,
             inlayHintsMaxLength: config.inlayHints.maxLength,
 
-            cargoWatchEnable: cargoWatchOpts.enable,
-            cargoWatchArgs: cargoWatchOpts.arguments,
-            cargoWatchCommand: cargoWatchOpts.command,
-            cargoWatchAllTargets: cargoWatchOpts.allTargets,
+            cargoWatchEnable: config.cargoWatchOptions.enable,
+            cargoWatchArgs: config.cargoWatchOptions.arguments,
+            cargoWatchCommand: config.cargoWatchOptions.command,
+            cargoWatchAllTargets: config.cargoWatchOptions.allTargets,
 
             excludeGlobs: config.excludeGlobs,
             useClientWatching: config.useClientWatching,
@@ -46,6 +44,8 @@ export async function createClient(config: Config, serverPath: string): Promise<
             withSysroot: config.withSysroot,
             cargoFeatures: config.cargoFeatures,
             rustfmtArgs: config.rustfmtArgs,
+            checkPathsResolution: config.diagnosticsOptions.checkPathsResolution,
+            checkMethodsResolution: config.diagnosticsOptions.checkMethodsResolution,
         },
         traceOutputChannel,
         middleware: {

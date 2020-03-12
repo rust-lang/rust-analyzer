@@ -23,6 +23,12 @@ export interface CargoFeatures {
     allFeatures: boolean;
     features: string[];
 }
+
+export interface DiagnosticsOptions {
+    checkPathsResolution: boolean;
+    checkMethodsResolution: boolean;
+}
+
 export class Config {
     private static readonly rootSection = "rust-analyzer";
     private static readonly requiresReloadOpts = [
@@ -30,6 +36,7 @@ export class Config {
         "cargo-watch",
         "highlighting.semanticTokens",
         "inlayHints",
+        "diagnosticsOptions",
     ]
         .map(opt => `${Config.rootSection}.${opt}`);
 
@@ -168,6 +175,13 @@ export class Config {
     get featureFlags() { return this.cfg.get("featureFlags") as Record<string, boolean>; }
     get additionalOutDirs() { return this.cfg.get("additionalOutDirs") as Record<string, string>; }
     get rustfmtArgs() { return this.cfg.get("rustfmtArgs") as string[]; }
+
+    get diagnosticsOptions(): DiagnosticsOptions {
+        return {
+            checkPathsResolution: this.cfg.get("diagnosticsOptions.checkPathsResolution") as boolean,
+            checkMethodsResolution: this.cfg.get("diagnosticsOptions.checkMethodsResolution") as boolean,
+        };
+    }
 
     get cargoWatchOptions(): CargoWatchOptions {
         return {

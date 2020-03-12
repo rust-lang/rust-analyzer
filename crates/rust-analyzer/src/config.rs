@@ -55,6 +55,12 @@ pub struct ServerConfig {
 
     /// Cargo feature configurations.
     pub cargo_features: CargoFeatures,
+
+    /// Highlight unresolved paths
+    pub check_paths_resolution: bool,
+
+    /// Highlight unresolved method calls
+    pub check_methods_resolution: bool,
 }
 
 impl Default for ServerConfig {
@@ -76,6 +82,8 @@ impl Default for ServerConfig {
             additional_out_dirs: FxHashMap::default(),
             cargo_features: Default::default(),
             rustfmt_args: Vec::new(),
+            check_paths_resolution: true,
+            check_methods_resolution: false,
         }
     }
 }

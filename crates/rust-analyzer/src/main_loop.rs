@@ -18,7 +18,7 @@ use crossbeam_channel::{select, unbounded, RecvError, Sender};
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
 use lsp_types::{ClientCapabilities, NumberOrString};
 use ra_cargo_watch::{url_from_path_with_drive_lowercasing, CheckOptions, CheckTask};
-use ra_ide::{Canceled, FileId, InlayHintsOptions, LibraryData, SourceRootId};
+use ra_ide::{Canceled, DiagnosticsOptions, FileId, InlayHintsOptions, LibraryData, SourceRootId};
 use ra_prof::profile;
 use ra_vfs::{VfsFile, VfsTask, Watch};
 use relative_path::RelativePathBuf;
@@ -189,6 +189,10 @@ pub fn main_loop(
                     all_targets: config.cargo_watch_all_targets,
                 },
                 rustfmt_args: config.rustfmt_args,
+                diagnostics_config: DiagnosticsOptions {
+                    check_methods_resolution: config.check_methods_resolution,
+                    check_paths_resolution: config.check_paths_resolution,
+                },
             }
         };
 

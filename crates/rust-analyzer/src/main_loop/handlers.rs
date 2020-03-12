@@ -696,7 +696,7 @@ pub fn handle_code_action(
     let line_index = world.analysis().file_line_index(file_id)?;
     let range = params.range.conv_with(&line_index);
 
-    let diagnostics = world.analysis().diagnostics(file_id)?;
+    let diagnostics = world.analysis().diagnostics(file_id, &world.options.diagnostics_config)?;
     let mut res = CodeActionResponse::default();
 
     let fixes_from_diagnostics = diagnostics
@@ -922,7 +922,7 @@ pub fn publish_diagnostics(world: &WorldSnapshot, file_id: FileId) -> Result<Dia
     let line_index = world.analysis().file_line_index(file_id)?;
     let diagnostics: Vec<Diagnostic> = world
         .analysis()
-        .diagnostics(file_id)?
+        .diagnostics(file_id, &world.options.diagnostics_config)?
         .into_iter()
         .map(|d| Diagnostic {
             range: d.range.conv_with(&line_index),

@@ -349,6 +349,16 @@
                     },
                     "default": [],
                     "description": "List of features to activate"
+                },
+                "rust-analyzer.diagnosticsOptions.checkPathsResolution": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Highlight unresolved paths"
+                },
+                "rust-analyzer.diagnosticsOptions.checkMethodsResolution": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Highlight unresolved method calls"
                 }
             }
         },

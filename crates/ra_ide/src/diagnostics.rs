@@ -26,7 +26,23 @@ pub enum Severity {
     WeakWarning,
 }
 
-pub(crate) fn diagnostics(db: &RootDatabase, file_id: FileId) -> Vec<Diagnostic> {
+#[derive(Debug, Clone)]
+pub struct DiagnosticsOptions {
+    pub check_paths_resolution: bool,
+    pub check_methods_resolution: bool,
+}
+
+impl DiagnosticsOptions {
+    pub fn new() -> Self {
+        Self { check_methods_resolution: true, check_paths_resolution: true }
+    }
+}
+
+pub(crate) fn diagnostics(
+    db: &RootDatabase,
+    file_id: FileId,
+    config: &DiagnosticsOptions,
+) -> Vec<Diagnostic> {
     let _p = profile("diagnostics");
     let sema = Semantics::new(db);
     sema.parse(file_id);
@@ -43,7 +59,7 @@ pub(crate) fn diagnostics(db: &RootDatabase, file_id: FileId) -> Vec<Diagnostic>
     for node in parse.tree().syntax().descendants() {
         check_unnecessary_braces_in_use_statement(&mut res, file_id, &node);
         check_struct_shorthand_initialization(&mut res, file_id, &node);
-        check_unresolved_paths(&mut res, &sema, &node);
+        check_node_resolution(&mut res, &sema, &node, config);
     }
     let res = RefCell::new(res);
     let mut sink = DiagnosticSink::new(|d| {
@@ -200,10 +216,11 @@ fn check_struct_shorthand_initialization(
     Some(())
 }
 
-fn check_unresolved_paths(
+fn check_node_resolution(
     acc: &mut Vec<Diagnostic>,
     sema: &Semantics<RootDatabase>,
     node: &SyntaxNode,
+    config: &DiagnosticsOptions,
 ) -> Option<()> {
     match_ast! {
         match node {
@@ -277,7 +294,11 @@ mod tests {
     ///  * that the contents of the file containing the cursor match `after` after the diagnostic fix is applied
     fn check_apply_diagnostic_fix_from_position(fixture: &str, after: &str) {
         let (analysis, file_position) = analysis_and_position(fixture);
-        let diagnostic = analysis.diagnostics(file_position.file_id).unwrap().pop().unwrap();
+        let diagnostic = analysis
+            .diagnostics(file_position.file_id, &DiagnosticsOptions::new())
+            .unwrap()
+            .pop()
+            .unwrap();
         let mut fix = diagnostic.fix.unwrap();
         let edit = fix.source_file_edits.pop().unwrap().edit;
         let target_file_contents = analysis.file_text(file_position.file_id).unwrap();
@@ -314,7 +335,8 @@ mod tests {
 
     fn check_apply_diagnostic_fix(before: &str, after: &str) {
         let (analysis, file_id) = single_file(before);
-        let diagnostic = analysis.diagnostics(file_id).unwrap().pop().unwrap();
+        let diagnostic =
+            analysis.diagnostics(file_id, &DiagnosticsOptions::new()).unwrap().pop().unwrap();
         let mut fix = diagnostic.fix.unwrap();
         let edit = fix.source_file_edits.pop().unwrap().edit;
         let actual = edit.apply(&before);
@@ -325,13 +347,14 @@ mod tests {
     /// apply to the file containing the cursor.
     fn check_no_diagnostic_for_target_file(fixture: &str) {
         let (analysis, file_position) = analysis_and_position(fixture);
-        let diagnostics = analysis.diagnostics(file_position.file_id).unwrap();
+        let diagnostics =
+            analysis.diagnostics(file_position.file_id, &DiagnosticsOptions::new()).unwrap();
         assert_eq!(diagnostics.len(), 0);
     }
 
     fn check_no_diagnostic(content: &str) {
         let (analysis, file_id) = single_file(content);
-        let diagnostics = analysis.diagnostics(file_id).unwrap();
+        let diagnostics = analysis.diagnostics(file_id, &DiagnosticsOptions::new()).unwrap();
         assert_eq!(diagnostics.len(), 0);
     }
 
@@ -627,7 +650,7 @@ mod tests {
     #[test]
     fn test_unresolved_module_diagnostic() {
         let (analysis, file_id) = single_file("mod foo;");
-        let diagnostics = analysis.diagnostics(file_id).unwrap();
+        let diagnostics = analysis.diagnostics(file_id, &DiagnosticsOptions::new()).unwrap();
         assert_debug_snapshot!(diagnostics, @r###"
         [
             Diagnostic {

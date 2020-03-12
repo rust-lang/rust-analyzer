@@ -12,7 +12,10 @@ use ra_db::{
     salsa::{Database, Durability},
     FileId, SourceDatabaseExt,
 };
-use ra_ide::{Analysis, AnalysisChange, AnalysisHost, CompletionOptions, FilePosition, LineCol};
+use ra_ide::{
+    Analysis, AnalysisChange, AnalysisHost, CompletionOptions, DiagnosticsOptions, FilePosition,
+    LineCol,
+};
 
 use crate::cli::{load_cargo::load_cargo, Verbosity};
 
@@ -77,7 +80,7 @@ pub fn analysis_bench(verbosity: Verbosity, path: &Path, what: BenchWhat) -> Res
     match &what {
         BenchWhat::Highlight { .. } => {
             let res = do_work(&mut host, file_id, |analysis| {
-                analysis.diagnostics(file_id).unwrap();
+                analysis.diagnostics(file_id, &DiagnosticsOptions::new()).unwrap();
                 analysis.highlight_as_html(file_id, false).unwrap()
             });
             if verbosity.is_verbose() {

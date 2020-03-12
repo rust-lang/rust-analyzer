@@ -13,8 +13,8 @@ use lsp_types::Url;
 use parking_lot::RwLock;
 use ra_cargo_watch::{url_from_path_with_drive_lowercasing, CheckOptions, CheckWatcher};
 use ra_ide::{
-    Analysis, AnalysisChange, AnalysisHost, CrateGraph, FileId, InlayHintsOptions, LibraryData,
-    SourceRootId,
+    Analysis, AnalysisChange, AnalysisHost, CrateGraph, DiagnosticsOptions, FileId,
+    InlayHintsOptions, LibraryData, SourceRootId,
 };
 use ra_project_model::{get_rustc_cfg_options, ProjectWorkspace};
 use ra_vfs::{LineEndings, RootEntry, Vfs, VfsChange, VfsFile, VfsRoot, VfsTask, Watch};
@@ -38,6 +38,7 @@ pub struct Options {
     pub inlay_hints: InlayHintsOptions,
     pub rustfmt_args: Vec<String>,
     pub cargo_watch: CheckOptions,
+    pub diagnostics_config: DiagnosticsOptions,
 }
 
 /// `WorldState` is the primary mutable state of the language server

@@ -78,6 +78,7 @@ pub use crate::{
     },
 };
 
+pub use diagnostics::DiagnosticsOptions;
 pub use hir::Documentation;
 pub use ra_db::{
     Canceled, CrateGraph, CrateId, Edition, FileId, FilePosition, FileRange, SourceRootId,
@@ -456,8 +457,12 @@ impl Analysis {
     }
 
     /// Computes the set of diagnostics for the given file.
-    pub fn diagnostics(&self, file_id: FileId) -> Cancelable<Vec<Diagnostic>> {
-        self.with_db(|db| diagnostics::diagnostics(db, file_id))
+    pub fn diagnostics(
+        &self,
+        file_id: FileId,
+        diagnostics_config: &DiagnosticsOptions,
+    ) -> Cancelable<Vec<Diagnostic>> {
+        self.with_db(|db| diagnostics::diagnostics(db, file_id, diagnostics_config))
     }
 
     /// Returns the edit required to rename reference at the position to the new
