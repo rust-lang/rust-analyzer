@@ -95,7 +95,7 @@ pub fn run_process(cmd: String, echo: bool) -> Result<String> {
 }
 
 fn run_process_inner(cmd: &str, echo: bool) -> Result<String> {
-    let mut args = shelx(cmd)?;
+    let mut args = shelx::parse(cmd)?;
     let binary = args.remove(0);
     let current_dir = Env::with(|it| it.cwd().to_path_buf());
 
@@ -150,117 +150,213 @@ impl Env {
     }
 }
 
-use shelx_parser::parse_cmd as shelx;
-mod shelx_parser {
+mod shelx {
     use anyhow::{bail, Result};
 
-    const ESCAPE_CHAR: char = '\\';
-    const QUOTE_CHARS: [char; 2] = ['"', '\''];
-
-    pub(crate) fn parse_cmd(mut input: &str) -> Result<Vec<String>> {
-        let mut acc = Vec::new();
-
-        input = input.trim_start();
-        while !input.is_empty() {
-            let param = quoted_param(input).unwrap_or_else(|| non_quoted_param(input))?;
-
-            input = input[param.len()..].trim_start();
-            acc.push(param);
-        }
-
-        Ok(acc)
+    pub(crate) fn parse(input: &str) -> Result<Vec<String>> {
+        Lexer::new(input).tokenize().map(|tokens| {
+            tokens
+                .into_iter()
+                .map(|token| match token {
+                    Token::NotQuotedString(s) => s,
+                    Token::QuotedString(s) => s,
+                })
+                .collect()
+        })
     }
 
-    fn non_quoted_param(input: &str) -> Result<String> {
-        assert_ne!(input.len(), 0);
-        enum State {
-            Begin,
-            Char(char),
-            EscapeChar,
-        }
-        let mut state = State::Begin;
-        let mut acc = String::new();
-
-        for char in input.chars() {
-            match state {
-                State::Char(char) => acc.push(char),
-                _ => {}
-            }
-            state = match state {
-                State::EscapeChar => State::Char(unescape(char)?),
-                State::Begin | State::Char(_) => {
-                    if char == ESCAPE_CHAR {
-                        State::EscapeChar
-                    } else if char.is_whitespace() {
-                        return Ok(acc);
-                    } else {
-                        State::Char(char)
-                    }
-                }
-            }
-        }
-        match state {
-            State::EscapeChar => bail!(
-                "Expected a character after `{}` escape but reached the end of input",
-                ESCAPE_CHAR
-            ),
-            _ => Ok(acc),
-        }
+    /// Command line arguments parser.
+    /// Note: the implementation is heavily inspired by `rustc_lexer` crate
+    struct Lexer<'a> {
+        chars: std::str::Chars<'a>,
     }
 
-    fn quoted_param(input: &str) -> Option<Result<String>> {
-        // FIXME: change to str::strip_prefix once it is stable
-        let quote = *QUOTE_CHARS.iter().find(|quote| input.starts_with(**quote))?;
+    /// Whitespace is thrown off for simplicity
+    enum Token {
+        NotQuotedString(String), // unescaped string
+        QuotedString(String),    // unescaped string
+    }
 
-        return Some(inner(input, quote));
+    impl Lexer<'_> {
+        fn new(input: &str) -> Lexer<'_> {
+            Lexer { chars: input.chars() }
+        }
 
-        fn inner(input: &str, quote: char) -> Result<String> {
-            enum State {
-                Begin,
-                Char(char),
-                EscapeChar,
+        fn bump(&mut self) -> Option<char> {
+            self.chars.next()
+        }
+        fn nth(&self, n: usize) -> Option<char> {
+            self.chars.clone().nth(n)
+        }
+
+        fn tokenize(&mut self) -> Result<Vec<Token>> {
+            let mut acc = Vec::new();
+
+            while let Some(token) = self.advance_token() {
+                acc.push(token?);
             }
-            let mut state = State::Begin;
+
+            Ok(acc)
+        }
+
+        fn advance_token(&mut self) -> Option<Result<Token>> {
+            while matches!(self.nth(0), Some(char) if char.is_whitespace()) {
+                self.bump();
+            }
+
+            Some(match self.nth(0)? {
+                quote @ '"' | quote @ '\'' => self.quoted_string(quote),
+                _ => self.non_quoted_string(),
+            })
+        }
+
+        fn quoted_string(&mut self, quote: char) -> Result<Token> {
+            assert_eq!(self.bump(), Some(quote));
+
             let mut acc = String::new();
 
-            for char in input[1..].chars() {
-                match state {
-                    State::Char(char) => acc.push(char),
-                    _ => {}
+            while let Some(char) = self.bump() {
+                if char == quote {
+                    return Ok(Token::QuotedString(acc));
                 }
-                state = match state {
-                    State::Char(_) | State::Begin => {
-                        if char == ESCAPE_CHAR {
-                            State::EscapeChar
-                        } else if char == quote {
-                            return Ok(acc);
-                        } else {
-                            State::Char(char)
-                        }
-                    }
-                    State::EscapeChar => {
-                        State::Char(if char == quote { quote } else { unescape(char)? })
-                    }
+                if char != '\\' {
+                    acc.push(char);
+                    continue;
                 }
+                if let Some(escaped_char) = self.bump() {
+                    acc.push(if escaped_char == quote {
+                        quote
+                    } else {
+                        Self::unescape(escaped_char)?
+                    });
+                    continue;
+                }
+                bail!("Expected a character after `\\` escape but reached the end of input");
             }
-            match state {
-                State::EscapeChar => bail!(
-                    "Expected a character after `{}` escape but reached the end of input",
-                    ESCAPE_CHAR
-                ),
-                _ => bail!("Expected the closing quote `{}` but reached the end of input", quote),
+            bail!("Expected the closing quote `{}` but reached the end of input", quote);
+        }
+
+        fn non_quoted_string(&mut self) -> Result<Token> {
+            let mut acc = String::new();
+
+            while let Some(char) = self.bump() {
+                if char.is_whitespace() {
+                    break;
+                }
+                if char != '\\' {
+                    acc.push(char);
+                    continue;
+                }
+                if let Some(escaped_char) = self.bump() {
+                    acc.push(if escaped_char.is_whitespace() {
+                        escaped_char
+                    } else {
+                        Self::unescape(escaped_char)?
+                    });
+                    continue;
+                }
+                bail!("Expected a character after `\\` escape but reached the end of input");
             }
+
+            Ok(Token::NotQuotedString(acc))
+        }
+
+        fn unescape(char: char) -> Result<char> {
+            Ok(match char {
+                '\\' => '\\',
+                'n' => '\n',
+                'r' => '\r',
+                't' => '\t',
+                '0' => '\0',
+                _ => bail!("Invalid escape `\\{}`", char),
+            })
         }
     }
 
-    fn unescape(char: char) -> Result<char> {
-        Ok(match char {
-            ESCAPE_CHAR => ESCAPE_CHAR,
-            'n' => '\n',
-            'r' => '\r',
-            't' => '\t',
-            '0' => '\0',
-            _ => bail!("Invalid escape {}{}", ESCAPE_CHAR, char),
-        })
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        fn assert_parses(input: &str, expected: &[&str]) {
+            assert_eq!(parse(input).unwrap(), expected);
+        }
+        fn assert_parse_error(input: &str, err: &str) {
+            assert_eq!(format!("{}", parse(input).unwrap_err()), err)
+        }
+
+        #[test]
+        fn empty_string_results() {
+            assert_parses("", &[]);
+        }
+
+        #[test]
+        fn whitespace_only_string() {
+            assert_parses("   \n \t \r ", &[]);
+        }
+
+        #[test]
+        fn non_quoted_string_simple() {
+            let str = "rust-analyzer:Турбо_пушка!";
+            assert_parses(str, &[str]);
+        }
+
+        #[test]
+        fn non_quoted_string_with_escapes() {
+            assert_parses(r#"\n\t\r\0\ "#, &["\n\t\r\0 "]);
+        }
+
+        #[test]
+        fn empty_quoted_string() {
+            assert_parses("\"\"", &[""]);
+        }
+
+        #[test]
+        fn quoted_string_simple() {
+            assert_parses(
+                "\"rust-analyzer \n \t \r \0 Турбо_пушка!\"",
+                &["rust-analyzer \n \t \r \0 Турбо_пушка!"],
+            );
+            assert_parses(
+                "'rust-analyzer \n \t \r \0 Турбо_пушка!'",
+                &["rust-analyzer \n \t \r \0 Турбо_пушка!"],
+            );
+        }
+
+        #[test]
+        fn quoted_string_with_escapes() {
+            assert_parses(r#""\n\t\r\0\" ""#, &["\n\t\r\0\" "]);
+            assert_parses(r#"'\''"#, &["'"]);
+        }
+
+        #[test]
+        fn multiple_strings() {
+            assert_parses(r#" a   b  "c d"   "ef" \\ \t "#, &["a", "b", "c d", "ef", "\\", "\t"]);
+        }
+
+        #[test]
+        fn joint_qouted_strigs() {
+            assert_parses(r#" "a""""cd" "#, &["a", "", "cd"]);
+        }
+
+        #[test]
+        fn error_unclosed_double_quoted_string() {
+            let msg = "Expected the closing quote `\"` but reached the end of input";
+            assert_parse_error("\"", &msg);
+            assert_parse_error("\"abcd ef '", &msg);
+        }
+
+        #[test]
+        fn error_unclosed_single_quoted_string() {
+            let msg = "Expected the closing quote `'` but reached the end of input";
+            assert_parse_error("'", &msg);
+            assert_parse_error("'abcd ef \"", &msg);
+        }
+
+        #[test]
+        fn error_invalid_escape() {
+            let msg = "Expected a character after `\\` escape but reached the end of input";
+            assert_parse_error("\\", msg);
+            assert_parse_error("\\x", "Invalid escape `\\x`");
+        }
     }
 }
