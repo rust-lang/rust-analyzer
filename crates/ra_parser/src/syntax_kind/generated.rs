@@ -251,33 +251,122 @@ pub enum SyntaxKind {
 use self::SyntaxKind::*;
 impl SyntaxKind {
     pub fn is_keyword(self) -> bool {
-        match self {
-            AS_KW | ASYNC_KW | AWAIT_KW | BOX_KW | BREAK_KW | CONST_KW | CONTINUE_KW | CRATE_KW
-            | DYN_KW | ELSE_KW | ENUM_KW | EXTERN_KW | FALSE_KW | FN_KW | FOR_KW | IF_KW
-            | IMPL_KW | IN_KW | LET_KW | LOOP_KW | MACRO_KW | MATCH_KW | MOD_KW | MOVE_KW
-            | MUT_KW | PUB_KW | REF_KW | RETURN_KW | SELF_KW | STATIC_KW | STRUCT_KW | SUPER_KW
-            | TRAIT_KW | TRUE_KW | TRY_KW | TYPE_KW | UNSAFE_KW | USE_KW | WHERE_KW | WHILE_KW
-            | AUTO_KW | DEFAULT_KW | EXISTENTIAL_KW | UNION_KW => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            AS_KW
+                | ASYNC_KW
+                | AWAIT_KW
+                | BOX_KW
+                | BREAK_KW
+                | CONST_KW
+                | CONTINUE_KW
+                | CRATE_KW
+                | DYN_KW
+                | ELSE_KW
+                | ENUM_KW
+                | EXTERN_KW
+                | FALSE_KW
+                | FN_KW
+                | FOR_KW
+                | IF_KW
+                | IMPL_KW
+                | IN_KW
+                | LET_KW
+                | LOOP_KW
+                | MACRO_KW
+                | MATCH_KW
+                | MOD_KW
+                | MOVE_KW
+                | MUT_KW
+                | PUB_KW
+                | REF_KW
+                | RETURN_KW
+                | SELF_KW
+                | STATIC_KW
+                | STRUCT_KW
+                | SUPER_KW
+                | TRAIT_KW
+                | TRUE_KW
+                | TRY_KW
+                | TYPE_KW
+                | UNSAFE_KW
+                | USE_KW
+                | WHERE_KW
+                | WHILE_KW
+                | AUTO_KW
+                | DEFAULT_KW
+                | EXISTENTIAL_KW
+                | UNION_KW
+        )
     }
     pub fn is_punct(self) -> bool {
-        match self {
-            SEMI | COMMA | L_PAREN | R_PAREN | L_CURLY | R_CURLY | L_BRACK | R_BRACK | L_ANGLE
-            | R_ANGLE | AT | POUND | TILDE | QUESTION | DOLLAR | AMP | PIPE | PLUS | STAR
-            | SLASH | CARET | PERCENT | UNDERSCORE | DOT | DOTDOT | DOTDOTDOT | DOTDOTEQ
-            | COLON | COLONCOLON | EQ | EQEQ | FAT_ARROW | EXCL | NEQ | MINUS | THIN_ARROW
-            | LTEQ | GTEQ | PLUSEQ | MINUSEQ | PIPEEQ | AMPEQ | CARETEQ | SLASHEQ | STAREQ
-            | PERCENTEQ | AMPAMP | PIPEPIPE | SHL | SHR | SHLEQ | SHREQ => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            SEMI | COMMA
+                | L_PAREN
+                | R_PAREN
+                | L_CURLY
+                | R_CURLY
+                | L_BRACK
+                | R_BRACK
+                | L_ANGLE
+                | R_ANGLE
+                | AT
+                | POUND
+                | TILDE
+                | QUESTION
+                | DOLLAR
+                | AMP
+                | PIPE
+                | PLUS
+                | STAR
+                | SLASH
+                | CARET
+                | PERCENT
+                | UNDERSCORE
+                | DOT
+                | DOTDOT
+                | DOTDOTDOT
+                | DOTDOTEQ
+                | COLON
+                | COLONCOLON
+                | EQ
+                | EQEQ
+                | FAT_ARROW
+                | EXCL
+                | NEQ
+                | MINUS
+                | THIN_ARROW
+                | LTEQ
+                | GTEQ
+                | PLUSEQ
+                | MINUSEQ
+                | PIPEEQ
+                | AMPEQ
+                | CARETEQ
+                | SLASHEQ
+                | STAREQ
+                | PERCENTEQ
+                | AMPAMP
+                | PIPEPIPE
+                | SHL
+                | SHR
+                | SHLEQ
+                | SHREQ
+        )
     }
     pub fn is_literal(self) -> bool {
-        match self {
-            INT_NUMBER | FLOAT_NUMBER | CHAR | BYTE | STRING | RAW_STRING | BYTE_STRING
-            | RAW_BYTE_STRING => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            INT_NUMBER
+                | FLOAT_NUMBER
+                | CHAR
+                | BYTE
+                | STRING
+                | RAW_STRING
+                | BYTE_STRING
+                | RAW_BYTE_STRING
+        )
     }
     pub fn from_keyword(ident: &str) -> Option<SyntaxKind> {
         let kw = match ident {

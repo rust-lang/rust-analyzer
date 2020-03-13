@@ -76,10 +76,7 @@ fn generate_ast(grammar: AstSrc<'_>) -> Result<String> {
 
             impl AstNode for #name {
                 fn can_cast(kind: SyntaxKind) -> bool {
-                    match kind {
-                        #kind => true,
-                        _ => false,
-                    }
+                    matches!(kind, #kind)
                 }
                 fn cast(syntax: SyntaxNode) -> Option<Self> {
                     if Self::can_cast(syntax.kind()) { Some(Self { syntax }) } else { None }
@@ -128,10 +125,7 @@ fn generate_ast(grammar: AstSrc<'_>) -> Result<String> {
 
             impl AstNode for #name {
                 fn can_cast(kind: SyntaxKind) -> bool {
-                    match kind {
-                        #(#kinds)|* => true,
-                        _ => false,
-                    }
+                    matches!(kind, #(#kinds)|*)
                 }
                 fn cast(syntax: SyntaxNode) -> Option<Self> {
                     let res = match syntax.kind() {
@@ -233,24 +227,15 @@ fn generate_syntax_kinds(grammar: KindsSrc<'_>) -> Result<String> {
 
         impl SyntaxKind {
             pub fn is_keyword(self) -> bool {
-                match self {
-                    #(#all_keywords)|* => true,
-                    _ => false,
-                }
+                matches!(self, #(#all_keywords)|*)
             }
 
             pub fn is_punct(self) -> bool {
-                match self {
-                    #(#punctuation)|* => true,
-                    _ => false,
-                }
+                matches!(self, #(#punctuation)|*)
             }
 
             pub fn is_literal(self) -> bool {
-                match self {
-                    #(#literals)|* => true,
-                    _ => false,
-                }
+                matches!(self, #(#literals)|*)
             }
 
             pub fn from_keyword(ident: &str) -> Option<SyntaxKind> {
