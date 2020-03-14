@@ -287,11 +287,6 @@ mod tests {
         content[hover.range].to_string()
     }
 
-    fn check_hover_no_result(fixture: &str) {
-        let (analysis, position) = analysis_and_position(fixture);
-        assert!(analysis.hover(position).unwrap().is_none());
-    }
-
     #[test]
     fn hover_shows_type_of_an_expression() {
         let (analysis, position) = single_file_with_position(
@@ -853,7 +848,7 @@ fn func(foo: i32) { if true { <|>foo; }; }
 
     #[test]
     fn test_hover_through_literal_string_in_builtin_macro() {
-        check_hover_no_result(
+        let hover_on = check_hover_result(
             r#"
             //- /lib.rs
             #[rustc_builtin_macro]
@@ -863,7 +858,10 @@ fn func(foo: i32) { if true { <|>foo; }; }
                 format!("hel<|>lo {}", 0);
             }
             "#,
+            &["&str"],
         );
+
+        assert_eq!(hover_on, "\"hello {}\"");
     }
 
     #[test]

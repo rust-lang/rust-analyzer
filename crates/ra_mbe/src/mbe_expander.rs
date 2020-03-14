@@ -14,7 +14,17 @@ pub(crate) fn expand(
     rules: &crate::MacroRules,
     input: &tt::Subtree,
 ) -> Result<tt::Subtree, ExpandError> {
-    rules.rules.iter().find_map(|it| expand_rule(it, input).ok()).ok_or(ExpandError::NoMatchingRule)
+    // If the macro fails to expand, we simply return the input tokens as-is. This
+    // is probably not the optimal course of action, but it allows completions
+    // to work in cases where it is not clear how the macro should be expanded.
+    let mut backup_plan = input.clone();
+    backup_plan.delimiter = None;
+    Ok(rules.rules.iter().find_map(|it| expand_rule(it, input).ok()).unwrap_or_else(|| {
+        let mut backup_plan = input.clone();
+        backup_plan.delimiter = None;
+
+        backup_plan
+    }))
 }
 
 fn expand_rule(rule: &crate::Rule, input: &tt::Subtree) -> Result<tt::Subtree, ExpandError> {

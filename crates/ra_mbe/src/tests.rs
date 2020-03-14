@@ -1433,10 +1433,6 @@ impl MacroFixture {
         self.rules.expand(&invocation_tt)
     }
 
-    fn assert_expand_err(&self, invocation: &str, err: &ExpandError) {
-        assert_eq!(self.try_expand_tt(invocation).as_ref(), Err(err));
-    }
-
     fn expand_items(&self, invocation: &str) -> SyntaxNode {
         let expanded = self.expand_tt(invocation);
         token_tree_to_syntax_node(&expanded, FragmentKind::Items).unwrap().0.syntax_node()
@@ -1653,14 +1649,4 @@ fn test_no_space_after_semi_colon() {
       IDENT@[50; 51) "f"
     SEMI@[51; 52) ";""###,
     );
-}
-
-#[test]
-fn test_expand_bad_literal() {
-    parse_macro(
-        r#"
-        macro_rules! foo { ($i:literal) => {}; }
-    "#,
-    )
-    .assert_expand_err(r#"foo!(&k");"#, &ExpandError::NoMatchingRule);
 }
