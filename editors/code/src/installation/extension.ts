@@ -38,14 +38,16 @@ export async function ensureProperExtensionVersion(
         // VSCode should handle updates for stable channel
         if (currentUpdChannel === UpdatesChannel.Stable) return;
 
-        if (!await askToDownloadProperExtensionVersion(config, "", ct)) return;
+        if (!await askToDownloadProperExtensionVersion(config, ct)) return;
 
         await vscodeReinstallExtension(config.extensionId);
         await vscodeReloadWindow(); // never returns
     }
 
     if (currentUpdChannel === UpdatesChannel.Stable) {
-        if (!await askToDownloadProperExtensionVersion(config, "", ct)) return;
+        if (!await askToDownloadProperExtensionVersion(config, ct)) {
+            return;
+        }
 
         return await tryDownloadNightlyExtension(config, state, ct, () => true);
     }
@@ -70,7 +72,7 @@ export async function ensureProperExtensionVersion(
     if (hoursSinceLastUpdate < HEURISTIC_NIGHTLY_RELEASE_PERIOD_IN_HOURS) {
         return;
     }
-    if (!await askToDownloadProperExtensionVersion(config, "The installed nightly version is most likely outdated. ", ct)) {
+    if (!await askToDownloadProperExtensionVersion(config, ct, "The installed nightly version is most likely outdated. ")) {
         return;
     }
 
@@ -94,8 +96,8 @@ export async function ensureProperExtensionVersion(
 
 async function askToDownloadProperExtensionVersion(
     config: Config,
-    reason: string,
-    ct: vscode.CancellationToken
+    ct: vscode.CancellationToken,
+    reason = "",
 ) {
     if (!config.askBeforeDownload) return true;
 
