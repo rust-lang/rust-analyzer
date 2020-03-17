@@ -57,8 +57,6 @@ async function downloadFile(
     } catch (err) {
         if (!isAbortError(err)) throw err;
 
-        assert(ct.isCancellationRequested, "cancellation must've caused the AbortError");
-
         log.debug(`Download was canceled, removing probably corrupted "${destFilePath}"...`);
 
         await fs.promises.unlink(destFilePath);
