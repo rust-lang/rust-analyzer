@@ -3,6 +3,10 @@ import * as vscode from "vscode";
 import { promises as dns } from "dns";
 import { strict as nativeAssert } from "assert";
 
+export interface Disposable {
+    dispose(): void;
+}
+
 export function assert(condition: boolean, explanation: string): asserts condition {
     try {
         nativeAssert(condition, explanation);
@@ -84,6 +88,32 @@ export async function sendRequestWithRetry<TParam, TRet>(
 
 function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export function waitForCancellation(token: vscode.CancellationToken): Promise<void> {
+    return new Promise(resolve => token.onCancellationRequested(resolve));
+}
+
+export function once<TParams extends any[]>(fn: (...params: TParams) => void): typeof fn {
+    let wasCalled = false;
+    return (...params) => {
+        if (wasCalled) return;
+        wasCalled = true;
+        fn(...params);
+    }
+}
+
+export function cancelWhenReentered(fn: (cts: vscode.CancellationToken) => Promise<void>) {
+    let activeCts: null | vscode.CancellationTokenSource = null;
+
+    return () => {
+        activeCts?.cancel();
+
+        const cts = new vscode.CancellationTokenSource;
+        activeCts = cts;
+
+        return fn(cts.token).finally(() => { if (activeCts === cts) activeCts = null; });
+    }
 }
 
 export function notReentrant<TThis, TParams extends any[], TRet>(

@@ -3,7 +3,7 @@ import * as lc from 'vscode-languageclient';
 
 import { Config } from './config';
 import { createClient } from './client';
-import { isRustEditor, RustEditor } from './util';
+import { isRustEditor, RustEditor, Disposable } from './util';
 import { PersistentState } from './persistent_state';
 
 export class Ctx {
@@ -55,7 +55,5 @@ export class Ctx {
     }
 }
 
-export interface Disposable {
-    dispose(): void;
-}
+
 export type Cmd = (...args: any[]) => unknown;

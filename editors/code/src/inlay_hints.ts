@@ -2,8 +2,8 @@ import * as lc from "vscode-languageclient";
 import * as vscode from 'vscode';
 import * as ra from './rust-analyzer-api';
 
-import { Ctx, Disposable } from './ctx';
-import { sendRequestWithRetry, isRustDocument, RustDocument, RustEditor } from './util';
+import { Ctx } from './ctx';
+import { sendRequestWithRetry, isRustDocument, RustDocument, RustEditor, Disposable } from './util';
 
 
 export function activateInlayHints(ctx: Ctx) {
