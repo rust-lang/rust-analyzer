@@ -7,7 +7,7 @@ import { Ctx } from './ctx';
 import { activateHighlighting } from './highlighting';
 import { ensureServerBinary } from './installation/server';
 import { Config } from './config';
-import { log } from './util';
+import { log, cancelWhenReentered } from './util';
 import { ensureProperExtensionVersion } from './installation/extension';
 import { PersistentState } from './persistent_state';
 
@@ -37,10 +37,16 @@ export async function activate(context: vscode.ExtensionContext) {
     const config = new Config(context);
     const state = new PersistentState(context);
 
-    vscode.workspace.onDidChangeConfiguration(() => ensureProperExtensionVersion(config, state).catch(log.error));
+    {
+        // Handle switching of update chanels config
 
-    // Don't await the user response here, otherwise we will block the lsp server bootstrap
-    void ensureProperExtensionVersion(config, state).catch(log.error);
+        const onDidChangeConfiguration = cancelWhenReentered(ct =>
+            ensureProperExtensionVersion(config, state, ct).catch(log.error)
+        );
+        vscode.workspace.onDidChangeConfiguration(onDidChangeConfiguration);
+
+        onDidChangeConfiguration();
+    }
 
     const serverPath = await ensureServerBinary(config, state);
 

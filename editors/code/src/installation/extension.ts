@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { promises as fs } from 'fs';
+import * as fs from 'fs';
 
-import { vscodeReinstallExtension, vscodeReloadWindow, log, vscodeInstallExtensionFromVsix, assert, notReentrant } from "../util";
+import { vscodeReinstallExtension, vscodeReloadWindow, log, vscodeInstallExtensionFromVsix, assert, notReentrant, waitForCancellation } from "../util";
 import { Config, UpdatesChannel } from "../config";
 import { ArtifactReleaseInfo, ArtifactSource } from "./interfaces";
 import { downloadArtifactWithProgressUi } from "./downloads";
@@ -15,7 +15,12 @@ const HEURISTIC_NIGHTLY_RELEASE_PERIOD_IN_HOURS = 25;
  * Installs `stable` or latest `nightly` version or does nothing if the current
  * extension version is what's needed according to `desiredUpdateChannel`.
  */
-export async function ensureProperExtensionVersion(config: Config, state: PersistentState): Promise<never | void> {
+export async function ensureProperExtensionVersion(
+    config: Config,
+    state: PersistentState,
+    ct: vscode.CancellationToken
+): Promise<never | void> {
+
     // User has built lsp server from sources, she should manage updates manually
     if (config.serverSource?.type === ArtifactSource.Type.ExplicitPath) return;
 
@@ -27,20 +32,22 @@ export async function ensureProperExtensionVersion(config: Config, state: Persis
         await state.installedNightlyExtensionReleaseDate.set(null);
     }
 
+    if (ct.isCancellationRequested) return;
+
     if (desiredUpdChannel === UpdatesChannel.Stable) {
         // VSCode should handle updates for stable channel
         if (currentUpdChannel === UpdatesChannel.Stable) return;
 
-        if (!await askToDownloadProperExtensionVersion(config)) return;
+        if (!await askToDownloadProperExtensionVersion(config, "", ct)) return;
 
         await vscodeReinstallExtension(config.extensionId);
         await vscodeReloadWindow(); // never returns
     }
 
     if (currentUpdChannel === UpdatesChannel.Stable) {
-        if (!await askToDownloadProperExtensionVersion(config)) return;
+        if (!await askToDownloadProperExtensionVersion(config, "", ct)) return;
 
-        return await tryDownloadNightlyExtension(config, state);
+        return await tryDownloadNightlyExtension(config, state, ct, () => true);
     }
 
     const currentExtReleaseDate = state.installedNightlyExtensionReleaseDate.get();
@@ -63,11 +70,11 @@ export async function ensureProperExtensionVersion(config: Config, state: Persis
     if (hoursSinceLastUpdate < HEURISTIC_NIGHTLY_RELEASE_PERIOD_IN_HOURS) {
         return;
     }
-    if (!await askToDownloadProperExtensionVersion(config, "The installed nightly version is most likely outdated. ")) {
+    if (!await askToDownloadProperExtensionVersion(config, "The installed nightly version is most likely outdated. ", ct)) {
         return;
     }
 
-    await tryDownloadNightlyExtension(config, state, releaseInfo => {
+    await tryDownloadNightlyExtension(config, state, ct, releaseInfo => {
         assert(
             currentExtReleaseDate.getTime() === state.installedNightlyExtensionReleaseDate.get()?.getTime(),
             "Other active VSCode instance has reinstalled the extension"
@@ -85,22 +92,30 @@ export async function ensureProperExtensionVersion(config: Config, state: Persis
     });
 }
 
-async function askToDownloadProperExtensionVersion(config: Config, reason = "") {
+async function askToDownloadProperExtensionVersion(
+    config: Config,
+    reason: string,
+    ct: vscode.CancellationToken
+) {
     if (!config.askBeforeDownload) return true;
 
     const stableOrNightly = config.updatesChannel === UpdatesChannel.Stable ? "stable" : "latest nightly";
 
-    // In case of reentering this function and showing the same info message
-    // (e.g. after we had shown this message, the user changed the config)
-    // vscode will dismiss the already shown one (i.e. return undefined).
-    // This behaviour is what we want, but likely it is not documented
+    // When the cancellation is requested the information message is not dismissed.
+    // Unfortunately there is no API for dismissing it:
+    // https://github.com/Microsoft/vscode/issues/2732
+    // https://github.com/microsoft/vscode/issues/50232
+    // It will just hang in user's notification bar and be ignored even if intercated with
 
-    const userResponse = await vscode.window.showInformationMessage(
-        reason + `Do you want to download the ${stableOrNightly} rust-analyzer extension ` +
-        `version and reload the window now?`,
-        "Download now", "Cancel"
-    );
-    return userResponse === "Download now";
+    return await Promise.race([
+        vscode.window.showInformationMessage(
+            reason + `Do you want to download the ${stableOrNightly} rust-analyzer extension ` +
+            `version and reload the window now?`,
+            "Download now", "Cancel"
+        ).then(userResponse => userResponse === "Download now"),
+
+        waitForCancellation(ct).then(() => false)
+    ]);
 }
 
 /**
@@ -113,21 +128,27 @@ async function askToDownloadProperExtensionVersion(config: Config, reason = "") 
 const tryDownloadNightlyExtension = notReentrant(async (
     config: Config,
     state: PersistentState,
-    shouldDownload: (releaseInfo: ArtifactReleaseInfo) => boolean = () => true
+    ct: vscode.CancellationToken,
+    shouldDownload: (releaseInfo: ArtifactReleaseInfo) => boolean
 ): Promise<never | void> => {
     const vsixSource = config.nightlyVsixSource;
     try {
         const releaseInfo = await fetchArtifactReleaseInfo(vsixSource.repo, vsixSource.file, vsixSource.tag);
 
-        if (!shouldDownload(releaseInfo)) return;
+        if (ct.isCancellationRequested || !shouldDownload(releaseInfo)) return;
 
-        await downloadArtifactWithProgressUi(releaseInfo, vsixSource.file, vsixSource.dir, "nightly extension");
+        if (!await downloadArtifactWithProgressUi(releaseInfo, vsixSource.file, vsixSource.dir, "nightly extension", ct)) {
+            return
+        }
 
         const vsixPath = path.join(vsixSource.dir, vsixSource.file);
 
+        // The following 4 lines of code shoud be atomic and syncronous
+        // But we cannot syncronously await promises...
+
         await vscodeInstallExtensionFromVsix(vsixPath);
         await state.installedNightlyExtensionReleaseDate.set(releaseInfo.releaseDate);
-        await fs.unlink(vsixPath);
+        fs.unlinkSync(vsixPath);
 
         await vscodeReloadWindow(); // never returns
     } catch (err) {

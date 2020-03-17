@@ -93,7 +93,10 @@ const downloadServer = notReentrant(async (
     try {
         const releaseInfo = await fetchArtifactReleaseInfo(source.repo, source.file, source.tag);
 
-        await downloadArtifactWithProgressUi(releaseInfo, source.file, source.dir, "language server");
+        if (!await downloadArtifactWithProgressUi(releaseInfo, source.file, source.dir, "language server")) {
+            return null;
+        }
+
         await Promise.all([
             state.serverReleaseTag.set(releaseInfo.releaseName),
             state.serverReleaseDate.set(releaseInfo.releaseDate)
