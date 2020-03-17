@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from 'fs';
 
-import { vscodeReinstallExtension, vscodeReloadWindow, log, vscodeInstallExtensionFromVsix, assert, notReentrant, waitForCancellation } from "../util";
+import { vscodeReinstallExtension, vscodeReloadWindow, log, vscodeInstallExtensionFromVsix, assert, waitForCancellation } from "../util";
 import { Config, UpdatesChannel } from "../config";
 import { ArtifactReleaseInfo, ArtifactSource } from "./interfaces";
 import { downloadArtifactWithProgressUi } from "./downloads";
@@ -120,17 +120,13 @@ async function askToDownloadProperExtensionVersion(
 
 /**
  * Shutdowns the process in case of success (i.e. reloads the window) or throws an error.
- *
- * ACHTUNG!: this function has a crazy amount of state transitions, handling errors during
- * each of them would result in a ton of code (especially accounting for cross-process
- * shared mutable `globalState` access). Enforcing no reentrancy for this is best-effort.
  */
-const tryDownloadNightlyExtension = notReentrant(async (
+async function tryDownloadNightlyExtension(
     config: Config,
     state: PersistentState,
     ct: vscode.CancellationToken,
     shouldDownload: (releaseInfo: ArtifactReleaseInfo) => boolean
-): Promise<never | void> => {
+): Promise<never | void> {
     const vsixSource = config.nightlyVsixSource;
     try {
         const releaseInfo = await fetchArtifactReleaseInfo(vsixSource.repo, vsixSource.file, vsixSource.tag);
@@ -138,7 +134,7 @@ const tryDownloadNightlyExtension = notReentrant(async (
         if (ct.isCancellationRequested || !shouldDownload(releaseInfo)) return;
 
         if (!await downloadArtifactWithProgressUi(releaseInfo, vsixSource.file, vsixSource.dir, "nightly extension", ct)) {
-            return
+            return;
         }
 
         const vsixPath = path.join(vsixSource.dir, vsixSource.file);
@@ -154,7 +150,7 @@ const tryDownloadNightlyExtension = notReentrant(async (
     } catch (err) {
         log.downloadError(err, "nightly extension", vsixSource.repo.name);
     }
-});
+};
 
 function diffInHours(a: Date, b: Date): number {
     // Discard the time and time-zone information (to abstract from daylight saving time bugs)

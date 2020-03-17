@@ -149,7 +149,7 @@ type Listener = (this: AbortSignal, event: any) => unknown;
 class AbortSignal implements IAbortSignal {
     subscriptions = new WeakMap<Listener, vscode.Disposable>();
 
-    constructor(private readonly ct: vscode.CancellationToken) {}
+    constructor(private readonly ct: vscode.CancellationToken) { }
 
     get aborted() {
         return this.ct.isCancellationRequested;
@@ -164,6 +164,6 @@ class AbortSignal implements IAbortSignal {
     }
 
     // Some excess APIs that are not used by `node_fetch` impl
-    onabort = null
+    onabort = null;
     dispatchEvent() { return false; }
 }

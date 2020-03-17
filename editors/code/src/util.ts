@@ -100,7 +100,7 @@ export function once<TParams extends any[]>(fn: (...params: TParams) => void): t
         if (wasCalled) return;
         wasCalled = true;
         fn(...params);
-    }
+    };
 }
 
 export function cancelWhenReentered(fn: (cts: vscode.CancellationToken) => Promise<void>) {
@@ -113,7 +113,7 @@ export function cancelWhenReentered(fn: (cts: vscode.CancellationToken) => Promi
         activeCts = cts;
 
         return fn(cts.token).finally(() => { if (activeCts === cts) activeCts = null; });
-    }
+    };
 }
 
 export function notReentrant<TThis, TParams extends any[], TRet>(
