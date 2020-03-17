@@ -43,9 +43,9 @@ export async function ensureProperExtensionVersion(config: Config, state: Persis
         return await tryDownloadNightlyExtension(config, state);
     }
 
-    const currentExtReleaseDate = state.installedNightlyExtensionReleaseDate.get();
+    const currentExtPublishDate = state.installedNightlyExtensionReleaseDate.get();
 
-    if (currentExtReleaseDate === null) {
+    if (currentExtPublishDate === null) {
         void vscode.window.showErrorMessage(
             "Nightly release date must've been set during the installation. " +
             "Did you download and install the nightly .vsix package manually?"
@@ -54,11 +54,13 @@ export async function ensureProperExtensionVersion(config: Config, state: Persis
     }
 
     const dateNow = new Date;
-    const hoursSinceLastUpdate = diffInHours(currentExtReleaseDate, dateNow);
+    const hoursSinceLastUpdate = diffInHours(dateNow, currentExtPublishDate);
     log.debug(
-        "Current rust-analyzer nightly was downloaded", hoursSinceLastUpdate,
-        "hours ago, namely:", currentExtReleaseDate, "and now is", dateNow
+        "Current rust-analyzer nightly was published", hoursSinceLastUpdate,
+        "hours ago, namely:", currentExtPublishDate, "and now is", dateNow
     );
+
+    assert(hoursSinceLastUpdate >= 0, "bruh");
 
     if (hoursSinceLastUpdate < HEURISTIC_NIGHTLY_RELEASE_PERIOD_IN_HOURS) {
         return;
@@ -69,11 +71,11 @@ export async function ensureProperExtensionVersion(config: Config, state: Persis
 
     await tryDownloadNightlyExtension(config, state, releaseInfo => {
         assert(
-            currentExtReleaseDate.getTime() === state.installedNightlyExtensionReleaseDate.get()?.getTime(),
+            currentExtPublishDate.getTime() === state.installedNightlyExtensionReleaseDate.get()?.getTime(),
             "Other active VSCode instance has reinstalled the extension"
         );
 
-        if (releaseInfo.releaseDate.getTime() === currentExtReleaseDate.getTime()) {
+        if (releaseInfo.releaseDate.getTime() === currentExtPublishDate.getTime()) {
             vscode.window.showInformationMessage(
                 "Whoops, it appears that your nightly version is up-to-date. " +
                 "There might be some problems with the upcomming nightly release " +
@@ -139,8 +141,17 @@ function diffInHours(a: Date, b: Date): number {
     // Discard the time and time-zone information (to abstract from daylight saving time bugs)
     // https://stackoverflow.com/a/15289883/9259330
 
-    const utcA = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
-    const utcB = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+    return (toUtc(a) - toUtc(b)) / (1000 * 60 * 60);
 
-    return (utcA - utcB) / (1000 * 60 * 60);
+    function toUtc(date: Date) {
+        return Date.UTC(
+            date.getFullYear(),
+            date.getMonth(),
+            date.getDate(),
+            date.getHours(),
+            date.getMinutes(),
+            date.getSeconds(),
+            date.getMilliseconds()
+        );
+    }
 }
