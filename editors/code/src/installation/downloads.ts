@@ -123,16 +123,13 @@ export async function downloadArtifactWithProgressUi(
 }
 
 function anyCt(a: vscode.CancellationToken, b: vscode.CancellationToken): vscode.CancellationToken {
-    const cancellation = new vscode.EventEmitter();
-    const cancel = once(() => cancellation.fire());
+    const cts = new vscode.CancellationTokenSource();
+    const cancel = once(() => cts.cancel());
 
     a.onCancellationRequested(cancel);
     b.onCancellationRequested(cancel);
 
-    return {
-        get isCancellationRequested() { return a.isCancellationRequested || b.isCancellationRequested; },
-        onCancellationRequested: cancellation.event
-    };
+    return cts.token;
 }
 
 
