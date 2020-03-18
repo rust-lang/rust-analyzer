@@ -14,6 +14,12 @@ module.exports = {
     "plugins": [
         "@typescript-eslint"
     ],
+    "extends": [
+        "eslint:recommended",
+        "plugin:@typescript-eslint/eslint-recommended",
+        "plugin:@typescript-eslint/recommended-requiring-type-checking",
+        "plugin:@typescript-eslint/recommended"
+    ],
     "rules": {
         "camelcase": ["error"],
         "eqeqeq": ["error", "always", { "null": "ignore" }],
@@ -32,10 +38,13 @@ module.exports = {
                 }
             }
         ],
-        "@typescript-eslint/semi": [
-            "error",
-            "always"
-        ],
-        "@typescript-eslint/no-unnecessary-type-assertion": "error"
+        "@typescript-eslint/no-inferrable-types": "off",
+        "@typescript-eslint/no-namespace": "off",
+        "@typescript-eslint/no-non-null-assertion": "off",
+        "@typescript-eslint/no-unnecessary-type-assertion": "error",
+        "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+        "@typescript-eslint/no-use-before-define": "off",
+        "@typescript-eslint/unbound-method": "off",
+        "@typescript-eslint/semi": ["error", "always"]
     }
 };
