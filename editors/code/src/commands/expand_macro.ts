@@ -6,7 +6,7 @@ import { Ctx, Cmd } from '../ctx';
 // Opens the virtual file that will show the syntax tree
 //
 // The contents of the file come from the `TextDocumentContentProvider`
-export function expandMacro(ctx: Ctx): Cmd {
+export function expandMacro(ctx: Ctx): Cmd<[]> {
     const tdcp = new TextDocumentContentProvider(ctx);
     ctx.pushCleanup(
         vscode.workspace.registerTextDocumentContentProvider(
@@ -15,7 +15,7 @@ export function expandMacro(ctx: Ctx): Cmd {
         ),
     );
 
-    return async () => {
+    return async (): Promise<vscode.TextEditor> => {
         const document = await vscode.workspace.openTextDocument(tdcp.uri);
         tdcp.eventEmitter.fire(tdcp.uri);
         return vscode.window.showTextDocument(

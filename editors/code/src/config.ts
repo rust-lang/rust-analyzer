@@ -53,11 +53,11 @@ export class Config {
     /**
      * Either `nightly` or `YYYY-MM-DD` (i.e. `stable` release)
      */
-    readonly extensionReleaseTag: string = (() => {
+    readonly extensionReleaseTag: string = ((): string => {
         if (this.packageJsonVersion.endsWith(NIGHTLY_TAG)) return NIGHTLY_TAG;
 
         const realVersionRegexp = /^\d+\.\d+\.(\d{4})(\d{2})(\d{2})/;
-        const [, yyyy, mm, dd] = this.packageJsonVersion.match(realVersionRegexp)!;
+        const [, yyyy, mm, dd] = realVersionRegexp.exec(this.packageJsonVersion)!;
 
         return `${yyyy}-${mm}-${dd}`;
     })();
@@ -69,7 +69,7 @@ export class Config {
         this.refreshConfig();
     }
 
-    private refreshConfig() {
+    private refreshConfig(): void {
         this.cfg = vscode.workspace.getConfiguration(this.rootSection);
         const enableLogging = this.cfg.get("trace.extension") as boolean;
         log.setEnabled(enableLogging);
@@ -79,7 +79,7 @@ export class Config {
         );
     }
 
-    private async onConfigChange(event: vscode.ConfigurationChangeEvent) {
+    private async onConfigChange(event: vscode.ConfigurationChangeEvent): Promise<void> {
         this.refreshConfig();
 
         const requiresReloadOpt = this.requiresReloadOpts.find(
@@ -98,7 +98,7 @@ export class Config {
         }
     }
 
-    private static replaceTildeWithHomeDir(path: string) {
+    private static replaceTildeWithHomeDir(path: string): string {
         if (path.startsWith("~/")) {
             return os.homedir() + path.slice("~".length);
         }
@@ -186,13 +186,13 @@ export class Config {
     // We don't do runtime config validation here for simplicity. More on stackoverflow:
     // https://stackoverflow.com/questions/60135780/what-is-the-best-way-to-type-check-the-configuration-for-vscode-extension
 
-    private get serverPath() { return this.cfg.get("serverPath") as null | string; }
-    get updatesChannel() { return this.cfg.get("updates.channel") as UpdatesChannel; }
-    get askBeforeDownload() { return this.cfg.get("updates.askBeforeDownload") as boolean; }
-    get highlightingSemanticTokens() { return this.cfg.get("highlighting.semanticTokens") as boolean; }
-    get highlightingOn() { return this.cfg.get("highlightingOn") as boolean; }
-    get rainbowHighlightingOn() { return this.cfg.get("rainbowHighlightingOn") as boolean; }
-    get lruCapacity() { return this.cfg.get("lruCapacity") as null | number; }
+    private get serverPath(): null | string { return this.cfg.get("serverPath") as null | string; }
+    get updatesChannel(): UpdatesChannel { return this.cfg.get("updates.channel") as UpdatesChannel; }
+    get askBeforeDownload(): boolean { return this.cfg.get("updates.askBeforeDownload") as boolean; }
+    get highlightingSemanticTokens(): boolean { return this.cfg.get("highlighting.semanticTokens") as boolean; }
+    get highlightingOn(): boolean { return this.cfg.get("highlightingOn") as boolean; }
+    get rainbowHighlightingOn(): boolean { return this.cfg.get("rainbowHighlightingOn") as boolean; }
+    get lruCapacity(): null | number { return this.cfg.get("lruCapacity") as null | number; }
     get inlayHints(): InlayHintOptions {
         return {
             typeHints: this.cfg.get("inlayHints.typeHints") as boolean,
@@ -200,11 +200,11 @@ export class Config {
             maxLength: this.cfg.get("inlayHints.maxLength") as null | number,
         };
     }
-    get excludeGlobs() { return this.cfg.get("excludeGlobs") as string[]; }
-    get useClientWatching() { return this.cfg.get("useClientWatching") as boolean; }
-    get featureFlags() { return this.cfg.get("featureFlags") as Record<string, boolean>; }
-    get rustfmtArgs() { return this.cfg.get("rustfmtArgs") as string[]; }
-    get loadOutDirsFromCheck() { return this.cfg.get("loadOutDirsFromCheck") as boolean; }
+    get excludeGlobs(): string[] { return this.cfg.get("excludeGlobs") as string[]; }
+    get useClientWatching(): boolean { return this.cfg.get("useClientWatching") as boolean; }
+    get featureFlags(): Record<string, boolean> { return this.cfg.get("featureFlags") as Record<string, boolean>; }
+    get rustfmtArgs(): string[] { return this.cfg.get("rustfmtArgs") as string[]; }
+    get loadOutDirsFromCheck(): boolean { return this.cfg.get("loadOutDirsFromCheck") as boolean; }
 
     get cargoWatchOptions(): CargoWatchOptions {
         return {
@@ -225,5 +225,5 @@ export class Config {
     }
 
     // for internal use
-    get withSysroot() { return this.cfg.get("withSysroot", true) as boolean; }
+    get withSysroot(): boolean { return this.cfg.get("withSysroot", true) as boolean; }
 }

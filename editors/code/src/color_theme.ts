@@ -53,7 +53,7 @@ export class ColorTheme {
         return res;
     }
 
-    mergeFrom(other: ColorTheme) {
+    mergeFrom(other: ColorTheme): void {
         other.rules.forEach((value, key) => {
             const merged = mergeRuleSettings(this.rules.get(key), value);
             this.rules.set(key, merged);
@@ -74,8 +74,8 @@ function loadThemeNamed(themeName: string): ColorTheme {
         .filter(isTheme)
         .flatMap(
             ext => ext.packageJSON.contributes.themes
-                .filter((it: any) => (it.id || it.label) === themeName)
-                .map((it: any) => path.join(ext.extensionPath, it.path))
+                .filter((it: { id: string; label: string }) => (it.id || it.label) === themeName)
+                .map((it: { path: string }) => path.join(ext.extensionPath, it.path))
         );
 
     const res = new ColorTheme();
@@ -83,10 +83,10 @@ function loadThemeNamed(themeName: string): ColorTheme {
         res.mergeFrom(loadThemeFile(themePath));
     }
 
-    const globalCustomizations: any = vscode.workspace.getConfiguration('editor').get('tokenColorCustomizations');
+    const globalCustomizations: undefined | { textMateRules: undefined | TextMateRule[] } = vscode.workspace.getConfiguration('editor').get('tokenColorCustomizations');
     res.mergeFrom(ColorTheme.fromRules(globalCustomizations?.textMateRules ?? []));
 
-    const themeCustomizations: any = vscode.workspace.getConfiguration('editor.tokenColorCustomizations').get(`[${themeName}]`);
+    const themeCustomizations: undefined | { textMateRules: undefined | TextMateRule[] } = vscode.workspace.getConfiguration('editor.tokenColorCustomizations').get(`[${themeName}]`);
     res.mergeFrom(ColorTheme.fromRules(themeCustomizations?.textMateRules ?? []));
 
 

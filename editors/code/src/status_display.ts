@@ -6,7 +6,7 @@ import { Ctx } from './ctx';
 
 const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
-export function activateStatusDisplay(ctx: Ctx) {
+export function activateStatusDisplay(ctx: Ctx): void {
     const statusDisplay = new StatusDisplay(ctx.config.cargoWatchOptions.command);
     ctx.pushCleanup(statusDisplay);
     const client = ctx.client;
@@ -36,7 +36,7 @@ class StatusDisplay implements Disposable {
         this.statusBarItem.hide();
     }
 
-    show() {
+    show(): void {
         this.packageName = undefined;
 
         this.timer =
@@ -49,7 +49,7 @@ class StatusDisplay implements Disposable {
         this.statusBarItem.show();
     }
 
-    hide() {
+    hide(): void {
         if (this.timer) {
             clearInterval(this.timer);
             this.timer = undefined;
@@ -58,7 +58,7 @@ class StatusDisplay implements Disposable {
         this.statusBarItem.hide();
     }
 
-    dispose() {
+    dispose(): void {
         if (this.timer) {
             clearInterval(this.timer);
             this.timer = undefined;
@@ -67,7 +67,7 @@ class StatusDisplay implements Disposable {
         this.statusBarItem.dispose();
     }
 
-    refreshLabel() {
+    refreshLabel(): void {
         if (this.packageName) {
             this.statusBarItem.text = `${spinnerFrames[this.i]} cargo ${this.command} [${this.packageName}]`;
         } else {
@@ -75,7 +75,7 @@ class StatusDisplay implements Disposable {
         }
     }
 
-    handleProgressNotification(params: WorkDoneProgressBegin | WorkDoneProgressReport | WorkDoneProgressEnd) {
+    handleProgressNotification(params: WorkDoneProgressBegin | WorkDoneProgressReport | WorkDoneProgressEnd): void {
         switch (params.kind) {
             case 'begin':
                 this.show();
@@ -94,7 +94,7 @@ class StatusDisplay implements Disposable {
         }
     }
 
-    private tick() {
+    private tick(): void {
         this.i = (this.i + 1) % spinnerFrames.length;
     }
 }

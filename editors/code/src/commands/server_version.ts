@@ -3,8 +3,8 @@ import { ensureServerBinary } from '../installation/server';
 import { Ctx, Cmd } from '../ctx';
 import { spawnSync } from 'child_process';
 
-export function serverVersion(ctx: Ctx): Cmd {
-    return async () => {
+export function serverVersion(ctx: Ctx): Cmd<[]> {
+    return async (): Promise<void> => {
         const binaryPath = await ensureServerBinary(ctx.config, ctx.state);
 
         if (binaryPath == null) {

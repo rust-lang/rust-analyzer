@@ -7,7 +7,7 @@ import { isRustDocument } from '../util';
 // Opens the virtual file that will show the syntax tree
 //
 // The contents of the file come from the `TextDocumentContentProvider`
-export function syntaxTree(ctx: Ctx): Cmd {
+export function syntaxTree(ctx: Ctx): Cmd<[]> {
     const tdcp = new TextDocumentContentProvider(ctx);
 
     ctx.pushCleanup(
@@ -36,7 +36,7 @@ export function syntaxTree(ctx: Ctx): Cmd {
         ctx.subscriptions,
     );
 
-    return async () => {
+    return async (): Promise<vscode.TextEditor> => {
         const editor = vscode.window.activeTextEditor;
         const rangeEnabled = !!(editor && !editor.selection.isEmpty);
 
@@ -58,7 +58,7 @@ export function syntaxTree(ctx: Ctx): Cmd {
 
 // We need to order this after LS updates, but there's no API for that.
 // Hence, good old setTimeout.
-function afterLs(f: () => void) {
+function afterLs(f: () => void): void {
     setTimeout(f, 10);
 }
 

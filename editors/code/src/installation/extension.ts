@@ -85,7 +85,7 @@ export async function ensureProperExtensionVersion(config: Config, state: Persis
     });
 }
 
-async function askToDownloadProperExtensionVersion(config: Config, reason = "") {
+async function askToDownloadProperExtensionVersion(config: Config, reason = ""): Promise<boolean> {
     if (!config.askBeforeDownload) return true;
 
     const stableOrNightly = config.updatesChannel === UpdatesChannel.Stable ? "stable" : "latest nightly";
@@ -113,7 +113,7 @@ async function askToDownloadProperExtensionVersion(config: Config, reason = "") 
 const tryDownloadNightlyExtension = notReentrant(async (
     config: Config,
     state: PersistentState,
-    shouldDownload: (releaseInfo: ArtifactReleaseInfo) => boolean = () => true
+    shouldDownload: (releaseInfo: ArtifactReleaseInfo) => boolean = (): boolean => true
 ): Promise<never | void> => {
     const vsixSource = config.nightlyVsixSource;
     try {

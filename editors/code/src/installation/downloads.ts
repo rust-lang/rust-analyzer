@@ -65,7 +65,7 @@ export async function downloadArtifactWithProgressUi(
     artifactFileName: string,
     installationDir: string,
     displayName: string,
-) {
+): Promise<void> {
     await fs.promises.mkdir(installationDir).catch(err => assert(
         err?.code === "EEXIST",
         `Couldn't create directory "${installationDir}" to download ` +

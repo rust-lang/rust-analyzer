@@ -6,16 +6,16 @@ import { Ctx, Disposable } from './ctx';
 import { sendRequestWithRetry, isRustDocument, RustDocument, RustEditor } from './util';
 
 
-export function activateInlayHints(ctx: Ctx) {
+export function activateInlayHints(ctx: Ctx): void {
     const maybeUpdater = {
         updater: null as null | HintsUpdater,
-        onConfigChange() {
+        onConfigChange(): void {
             if (!ctx.config.inlayHints.typeHints && !ctx.config.inlayHints.parameterHints) {
                 return this.dispose();
             }
             if (!this.updater) this.updater = new HintsUpdater(ctx);
         },
-        dispose() {
+        dispose(): void {
             this.updater?.dispose();
             this.updater = null;
         }
@@ -93,19 +93,20 @@ class HintsUpdater implements Disposable {
         this.syncCacheAndRenderHints();
     }
 
-    dispose() {
+    dispose(): void {
         this.sourceFiles.forEach(file => file.inlaysRequest?.cancel());
         this.ctx.visibleRustEditors.forEach(editor => this.renderDecorations(editor, { param: [], type: [] }));
         this.disposables.forEach(d => d.dispose());
     }
 
-    onDidChangeTextDocument({ contentChanges, document }: vscode.TextDocumentChangeEvent) {
+    onDidChangeTextDocument({ contentChanges, document }: vscode.TextDocumentChangeEvent): void {
         if (contentChanges.length === 0 || !isRustDocument(document)) return;
         this.syncCacheAndRenderHints();
     }
 
-    private syncCacheAndRenderHints() {
+    private syncCacheAndRenderHints(): void {
         // FIXME: make inlayHints request pass an array of files?
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         this.sourceFiles.forEach((file, uri) => this.fetchHints(file).then(hints => {
             if (!hints) return;
 
@@ -119,10 +120,11 @@ class HintsUpdater implements Disposable {
         }));
     }
 
-    onDidChangeVisibleTextEditors() {
+    onDidChangeVisibleTextEditors(): void {
         const newSourceFiles = new Map<string, RustSourceFile>();
 
         // Rerendering all, even up-to-date editors for simplicity
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         this.ctx.visibleRustEditors.forEach(async editor => {
             const uri = editor.document.uri.toString();
             const file = this.sourceFiles.get(uri) ?? {
@@ -153,7 +155,7 @@ class HintsUpdater implements Disposable {
         this.sourceFiles = newSourceFiles;
     }
 
-    private renderDecorations(editor: RustEditor, decorations: InlaysDecorations) {
+    private renderDecorations(editor: RustEditor, decorations: InlaysDecorations): void {
         editor.setDecorations(typeHints.decorationType, decorations.type);
         editor.setDecorations(paramHints.decorationType, decorations.param);
     }

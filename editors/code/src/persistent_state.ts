@@ -26,7 +26,7 @@ export class Storage<T> {
         log.debug(this.key, "==", val);
         return val;
     }
-    async set(val: T) {
+    async set(val: T): Promise<void> {
         log.debug(this.key, "=", val);
         await this.storage.update(this.key, val);
     }
@@ -43,7 +43,7 @@ export class DateStorage {
         return dateStr ? new Date(dateStr) : null;
     }
 
-    async set(date: null | Date) {
+    async set(date: null | Date): Promise<void> {
         await this.inner.set(date ? date.toString() : null);
     }
 }

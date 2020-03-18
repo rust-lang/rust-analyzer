@@ -19,20 +19,19 @@ export const log = new class {
         log.enabled = yes;
     }
 
-    debug(message?: any, ...optionalParams: any[]): void {
+    debug(message?: unknown, ...optionalParams: unknown[]): void {
         if (!log.enabled) return;
         // eslint-disable-next-line no-console
         console.log(message, ...optionalParams);
     }
 
-    error(message?: any, ...optionalParams: any[]): void {
+    error(message?: unknown, ...optionalParams: unknown[]): void {
         if (!log.enabled) return;
-        debugger;
-        // eslint-disable-next-line no-console
-        console.error(message, ...optionalParams);
+        debugger; // eslint-disable-line no-debugger
+        console.error(message, ...optionalParams); // eslint-disable-line no-console
     }
 
-    downloadError(err: Error, artifactName: string, repoName: string) {
+    downloadError(err: Error, artifactName: string, repoName: string): void {
         vscode.window.showErrorMessage(
             `Failed to download the rust-analyzer ${artifactName} from ${repoName} ` +
             `GitHub repository: ${err.message}`
@@ -82,15 +81,15 @@ export async function sendRequestWithRetry<TParam, TRet>(
     throw 'unreachable';
 }
 
-function sleep(ms: number) {
+function sleep(ms: number): Promise<unknown> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export function notReentrant<TThis, TParams extends any[], TRet>(
+export function notReentrant<TThis, TParams extends unknown[], TRet>(
     fn: (this: TThis, ...params: TParams) => Promise<TRet>
 ): typeof fn {
     let entered = false;
-    return function(...params) {
+    return function(...params): Promise<TRet> {
         assert(!entered, `Reentrancy invariant for ${fn.name} is violated`);
         entered = true;
         return fn.apply(this, params).finally(() => entered = false);
@@ -114,7 +113,7 @@ export function isRustEditor(editor: vscode.TextEditor): editor is RustEditor {
 /**
  * @param extensionId The canonical extension identifier in the form of: `publisher.name`
  */
-export async function vscodeReinstallExtension(extensionId: string) {
+export async function vscodeReinstallExtension(extensionId: string): Promise<void> {
     // Unfortunately there is no straightforward way as of now, these commands
     // were found in vscode source code.
 
@@ -130,7 +129,7 @@ export async function vscodeReloadWindow(): Promise<never> {
     assert(false, "unreachable");
 }
 
-export async function vscodeInstallExtensionFromVsix(vsixPath: string) {
+export async function vscodeInstallExtensionFromVsix(vsixPath: string): Promise<void> {
     await vscode.commands.executeCommand(
         "workbench.extensions.installExtension",
         vscode.Uri.file(vsixPath)

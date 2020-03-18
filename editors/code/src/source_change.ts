@@ -4,7 +4,7 @@ import * as ra from './rust-analyzer-api';
 
 import { Ctx } from './ctx';
 
-export async function applySourceChange(ctx: Ctx, change: ra.SourceChange) {
+export async function applySourceChange(ctx: Ctx, change: ra.SourceChange): Promise<void> {
     const client = ctx.client;
     if (!client) return;
 

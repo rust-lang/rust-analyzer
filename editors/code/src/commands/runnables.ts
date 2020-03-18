@@ -4,10 +4,10 @@ import * as ra from '../rust-analyzer-api';
 
 import { Ctx, Cmd } from '../ctx';
 
-export function run(ctx: Ctx): Cmd {
+export function run(ctx: Ctx): Cmd<[]> {
     let prevRunnable: RunnableQuickPick | undefined;
 
-    return async () => {
+    return async (): Promise<vscode.TaskExecution | undefined> => {
         const editor = ctx.activeRustEditor;
         const client = ctx.client;
         if (!editor || !client) return;
@@ -45,8 +45,8 @@ export function run(ctx: Ctx): Cmd {
     };
 }
 
-export function runSingle(ctx: Ctx): Cmd {
-    return async (runnable: ra.Runnable) => {
+export function runSingle(ctx: Ctx): Cmd<[ra.Runnable]> {
+    return async (runnable: ra.Runnable): Promise<vscode.TaskExecution | undefined> => {
         const editor = ctx.activeRustEditor;
         if (!editor) return;
 
@@ -62,8 +62,8 @@ export function runSingle(ctx: Ctx): Cmd {
     };
 }
 
-export function debugSingle(ctx: Ctx): Cmd {
-    return async (config: ra.Runnable) => {
+export function debugSingle(ctx: Ctx): Cmd<[ra.Runnable]> {
+    return async (config: ra.Runnable): Promise<boolean | undefined> => {
         const editor = ctx.activeRustEditor;
         if (!editor) return;
 

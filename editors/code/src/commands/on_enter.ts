@@ -4,7 +4,7 @@ import * as ra from '../rust-analyzer-api';
 import { applySourceChange } from '../source_change';
 import { Cmd, Ctx } from '../ctx';
 
-async function handleKeypress(ctx: Ctx) {
+async function handleKeypress(ctx: Ctx): Promise<boolean> {
     const editor = ctx.activeRustEditor;
     const client = ctx.client;
 
@@ -25,8 +25,8 @@ async function handleKeypress(ctx: Ctx) {
     return true;
 }
 
-export function onEnter(ctx: Ctx): Cmd {
-    return async () => {
+export function onEnter(ctx: Ctx): Cmd<[]> {
+    return async (): Promise<void> => {
         if (await handleKeypress(ctx)) return;
 
         await vscode.commands.executeCommand('default:type', { text: '\n' });

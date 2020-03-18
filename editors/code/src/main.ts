@@ -13,7 +13,7 @@ import { PersistentState } from './persistent_state';
 
 let ctx: Ctx | undefined;
 
-export async function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
     // Register a "dumb" onEnter command for the case where server fails to
     // start.
     //
@@ -59,7 +59,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Commands which invokes manually via command palette, shortcut, etc.
     ctx.registerCommand('reload', (ctx) => {
-        return async () => {
+        return async (): Promise<void> => {
             vscode.window.showInformationMessage('Reloading rust-analyzer...');
             // @DanTup maneuver
             // https://github.com/microsoft/vscode/issues/45774#issuecomment-373423895
@@ -105,7 +105,7 @@ export async function activate(context: vscode.ExtensionContext) {
     activateInlayHints(ctx);
 }
 
-export async function deactivate() {
+export async function deactivate(): Promise<void> {
     await ctx?.client?.stop();
     ctx = undefined;
 }

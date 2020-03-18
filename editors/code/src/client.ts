@@ -5,7 +5,7 @@ import { Config } from './config';
 import { CallHierarchyFeature } from 'vscode-languageclient/lib/callHierarchy.proposed';
 import { SemanticTokensFeature, DocumentSemanticsTokensSignature } from 'vscode-languageclient/lib/semanticTokens.proposed';
 
-export async function createClient(config: Config, serverPath: string): Promise<lc.LanguageClient> {
+export function createClient(config: Config, serverPath: string): lc.LanguageClient {
     // '.' Is the fallback if no folder is open
     // TODO?: Workspace folders support Uri's (eg: file://test.txt).
     // It might be a good idea to test if the uri points to a file.
@@ -55,7 +55,7 @@ export async function createClient(config: Config, serverPath: string): Promise<
                 if (res === undefined) throw new Error('busy');
                 return res;
             }
-        } as any
+        } as lc.Middleware
     };
 
     const res = new lc.LanguageClient(
@@ -65,6 +65,7 @@ export async function createClient(config: Config, serverPath: string): Promise<
         clientOptions,
     );
 
+    /* eslint-disable @typescript-eslint/ban-ts-ignore */
     // HACK: This is an awful way of filtering out the decorations notifications
     // However, pending proper support, this is the most effecitve approach
     // Proper support for this would entail a change to vscode-languageclient to allow not notifying on certain messages
@@ -72,7 +73,7 @@ export async function createClient(config: Config, serverPath: string): Promise<
     // This also requires considering our settings strategy, which is work which needs doing
     // @ts-ignore The tracer is private to vscode-languageclient, but we need access to it to not log publishDecorations requests
     res._tracer = {
-        log: (messageOrDataObject: string | unknown, data?: string) => {
+        log: (messageOrDataObject: string | unknown, data?: string): void => {
             if (typeof messageOrDataObject === 'string') {
                 if (
                     messageOrDataObject.includes(
@@ -93,6 +94,7 @@ export async function createClient(config: Config, serverPath: string): Promise<
             }
         },
     };
+    /* eslint-enable @typescript-eslint/ban-ts-ignore */
 
     // To turn on all proposed features use: res.registerProposedFeatures();
     // Here we want to just enable CallHierarchyFeature since it is available on stable.

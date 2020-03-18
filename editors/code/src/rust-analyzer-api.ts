@@ -8,10 +8,10 @@ type Option<T> = null | T;
 type Vec<T> = T[];
 type FxHashMap<K extends PropertyKey, V> = Record<K, V>;
 
-function request<TParams, TResult>(method: string) {
+function request<TParams, TResult>(method: string): lc.RequestType<TParams, TResult, unknown, never> {
     return new lc.RequestType<TParams, TResult, unknown>(`rust-analyzer/${method}`);
 }
-function notification<TParam>(method: string) {
+function notification<TParam>(method: string): lc.NotificationType<TParam, never> {
     return new lc.NotificationType<TParam>(method);
 }
 

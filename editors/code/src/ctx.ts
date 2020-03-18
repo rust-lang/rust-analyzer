@@ -17,7 +17,7 @@ export class Ctx {
     }
 
     static async create(config: Config, state: PersistentState, extCtx: vscode.ExtensionContext, serverPath: string): Promise<Ctx> {
-        const client = await createClient(config, serverPath);
+        const client = createClient(config, serverPath);
         const res = new Ctx(config, state, extCtx, client);
         res.pushCleanup(client.start());
         await client.onReady();
@@ -35,7 +35,7 @@ export class Ctx {
         return vscode.window.visibleTextEditors.filter(isRustEditor);
     }
 
-    registerCommand(name: string, factory: (ctx: Ctx) => Cmd) {
+    registerCommand<T extends unknown[]>(name: string, factory: (ctx: Ctx) => Cmd<T>): void {
         const fullName = `rust-analyzer.${name}`;
         const cmd = factory(this);
         const d = vscode.commands.registerCommand(fullName, cmd);
@@ -50,7 +50,7 @@ export class Ctx {
         return this.extCtx.subscriptions;
     }
 
-    pushCleanup(d: Disposable) {
+    pushCleanup(d: Disposable): void {
         this.extCtx.subscriptions.push(d);
     }
 }
@@ -58,4 +58,5 @@ export class Ctx {
 export interface Disposable {
     dispose(): void;
 }
-export type Cmd = (...args: any[]) => unknown;
+
+export type Cmd<T extends unknown[]> = (...args: T) => unknown;

@@ -6,7 +6,7 @@ import { ColorTheme, TextMateRuleSettings } from './color_theme';
 import { Ctx } from './ctx';
 import { sendRequestWithRetry, isRustDocument } from './util';
 
-export function activateHighlighting(ctx: Ctx) {
+export function activateHighlighting(ctx: Ctx): void {
     const highlighter = new Highlighter(ctx);
 
     ctx.client.onNotification(ra.publishDecorations, params => {
@@ -54,9 +54,9 @@ export function activateHighlighting(ctx: Ctx) {
 }
 
 // Based on this HSL-based color generator: https://gist.github.com/bendc/76c48ce53299e6078a76
-function fancify(seed: string, shade: 'light' | 'dark') {
+function fancify(seed: string, shade: 'light' | 'dark'): string {
     const random = randomU32Numbers(hashString(seed));
-    const randomInt = (min: number, max: number) => {
+    const randomInt = (min: number, max: number): number => {
         return Math.abs(random()) % (max - min + 1) + min;
     };
 
@@ -77,7 +77,7 @@ class Highlighter {
         this.ctx = ctx;
     }
 
-    public removeHighlights() {
+    public removeHighlights(): void {
         if (this.decorations == null) {
             return;
         }
@@ -90,7 +90,7 @@ class Highlighter {
         this.decorations = null;
     }
 
-    public setHighlights(editor: vscode.TextEditor, highlights: ra.Decoration[]) {
+    public setHighlights(editor: vscode.TextEditor, highlights: ra.Decoration[]): void {
         const client = this.ctx.client;
         if (!client) return;
         // Initialize decorations if necessary
@@ -234,9 +234,9 @@ const TAG_TO_SCOPES = new Map<string, string[]>([
     ["keyword.control", ["keyword.control"]],
 ]);
 
-function randomU32Numbers(seed: number) {
+function randomU32Numbers(seed: number): () => number {
     let random = seed | 0;
-    return () => {
+    return (): number => {
         random ^= random << 13;
         random ^= random >> 17;
         random ^= random << 5;

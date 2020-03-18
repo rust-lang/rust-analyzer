@@ -3,8 +3,8 @@ import * as ra from '../rust-analyzer-api';
 
 import { Ctx, Cmd } from '../ctx';
 
-export function matchingBrace(ctx: Ctx): Cmd {
-    return async () => {
+export function matchingBrace(ctx: Ctx): Cmd<[]> {
+    return async (): Promise<void> => {
         const editor = ctx.activeRustEditor;
         const client = ctx.client;
         if (!editor || !client) return;
