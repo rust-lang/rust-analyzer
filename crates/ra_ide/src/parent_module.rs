@@ -137,6 +137,7 @@ mod tests {
             CfgOptions::default(),
             Env::default(),
             Default::default(),
+            None,
         );
         let mut change = AnalysisChange::new();
         change.set_crate_graph(crate_graph);

@@ -213,6 +213,7 @@ impl Analysis {
             cfg_options,
             Env::default(),
             Default::default(),
+            None,
         );
         change.add_file(source_root, file_id, "main.rs".into(), Arc::new(text));
         change.set_crate_graph(crate_graph);

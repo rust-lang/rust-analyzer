@@ -17,16 +17,21 @@ impl ProcMacroExpander {
         &self,
         db: &dyn AstDatabase,
         id: LazyMacroId,
-        _tt: &tt::Subtree,
+        tt: &tt::Subtree,
     ) -> Result<tt::Subtree, mbe::ExpandError> {
+        let name = self.macro_name(db, id).ok_or_else(|| mbe::ExpandError::ConversionError)?;
+        let proc_macro = db.crate_graph()[self.krate]
+            .proc_macro
+            .clone()
+            .ok_or_else(|| mbe::ExpandError::ConversionError)?;
+        proc_macro.custom_derive(tt, &name)
+    }
+
+    fn macro_name(&self, db: &dyn AstDatabase, id: LazyMacroId) -> Option<String> {
         let loc: MacroCallLoc = db.lookup_intern_macro(id);
-        let name = match loc.kind {
-            MacroCallKind::FnLike(_) => return Err(mbe::ExpandError::ConversionError),
-            MacroCallKind::Attr(_, name) => name,
-        };
-
-        dbg!(name);
-
-        unimplemented!()
+        match loc.kind {
+            MacroCallKind::FnLike(_) => None,
+            MacroCallKind::Attr(_, name) => Some(name),
+        }
     }
 }
