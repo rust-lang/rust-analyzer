@@ -1,7 +1,7 @@
-import * as os from "os";
+import * as os from 'os';
 import * as vscode from 'vscode';
-import { ArtifactSource } from "./installation/interfaces";
-import { log, vscodeReloadWindow } from "./util";
+import { ArtifactSource } from './installation/interfaces';
+import { log, vscodeReloadWindow } from './util';
 
 const RA_LSP_DEBUG = process.env.__RA_LSP_SERVER_DEBUG;
 
@@ -26,28 +26,24 @@ export interface CargoFeatures {
 }
 
 export const enum UpdatesChannel {
-    Stable = "stable",
-    Nightly = "nightly"
+    Stable = 'stable',
+    Nightly = 'nightly',
 }
 
-export const NIGHTLY_TAG = "nightly";
+export const NIGHTLY_TAG = 'nightly';
 export class Config {
-    readonly extensionId = "matklad.rust-analyzer";
+    readonly extensionId = 'matklad.rust-analyzer';
 
-    private readonly rootSection = "rust-analyzer";
+    private readonly rootSection = 'rust-analyzer';
     private readonly requiresReloadOpts = [
-        "serverPath",
-        "cargoFeatures",
-        "cargo-watch",
-        "highlighting.semanticTokens",
-        "inlayHints",
-    ]
-        .map(opt => `${this.rootSection}.${opt}`);
+        'serverPath',
+        'cargoFeatures',
+        'cargo-watch',
+        'highlighting.semanticTokens',
+        'inlayHints',
+    ].map(opt => `${this.rootSection}.${opt}`);
 
-    readonly packageJsonVersion = vscode
-        .extensions
-        .getExtension(this.extensionId)!
-        .packageJSON
+    readonly packageJsonVersion = vscode.extensions.getExtension(this.extensionId)!.packageJSON
         .version as string; // n.n.YYYYMMDD[-nightly]
 
     /**
@@ -71,36 +67,33 @@ export class Config {
 
     private refreshConfig(): void {
         this.cfg = vscode.workspace.getConfiguration(this.rootSection);
-        const enableLogging = this.cfg.get("trace.extension") as boolean;
+        const enableLogging = this.cfg.get('trace.extension') as boolean;
         log.setEnabled(enableLogging);
-        log.debug(
-            "Extension version:", this.packageJsonVersion,
-            "using configuration:", this.cfg
-        );
+        log.debug('Extension version:', this.packageJsonVersion, 'using configuration:', this.cfg);
     }
 
     private async onConfigChange(event: vscode.ConfigurationChangeEvent): Promise<void> {
         this.refreshConfig();
 
-        const requiresReloadOpt = this.requiresReloadOpts.find(
-            opt => event.affectsConfiguration(opt)
+        const requiresReloadOpt = this.requiresReloadOpts.find(opt =>
+            event.affectsConfiguration(opt),
         );
 
         if (!requiresReloadOpt) return;
 
         const userResponse = await vscode.window.showInformationMessage(
             `Changing "${requiresReloadOpt}" requires a reload`,
-            "Reload now"
+            'Reload now',
         );
 
-        if (userResponse === "Reload now") {
+        if (userResponse === 'Reload now') {
             await vscodeReloadWindow();
         }
     }
 
     private static replaceTildeWithHomeDir(path: string): string {
-        if (path.startsWith("~/")) {
-            return os.homedir() + path.slice("~".length);
+        if (path.startsWith('~/')) {
+            return os.homedir() + path.slice('~'.length);
         }
         return path;
     }
@@ -115,27 +108,31 @@ export class Config {
         // https://nodejs.org/api/process.html#process_process_arch
 
         switch (process.platform) {
-
-            case "linux": {
+            case 'linux': {
                 switch (process.arch) {
-                    case "arm":
-                    case "arm64": return null;
+                    case 'arm':
+                    case 'arm64':
+                        return null;
 
-                    default: return "rust-analyzer-linux";
+                    default:
+                        return 'rust-analyzer-linux';
                 }
             }
 
-            case "darwin": return "rust-analyzer-mac";
-            case "win32": return "rust-analyzer-windows.exe";
+            case 'darwin':
+                return 'rust-analyzer-mac';
+            case 'win32':
+                return 'rust-analyzer-windows.exe';
 
             // Users on these platforms yet need to manually build from sources
-            case "aix":
-            case "android":
-            case "freebsd":
-            case "openbsd":
-            case "sunos":
-            case "cygwin":
-            case "netbsd": return null;
+            case 'aix':
+            case 'android':
+            case 'freebsd':
+            case 'openbsd':
+            case 'sunos':
+            case 'cygwin':
+            case 'netbsd':
+                return null;
             // The list of platforms is exhaustive (see `NodeJS.Platform` type definition)
         }
     }
@@ -152,7 +149,7 @@ export class Config {
         if (serverPath) {
             return {
                 type: ArtifactSource.Type.ExplicitPath,
-                path: Config.replaceTildeWithHomeDir(serverPath)
+                path: Config.replaceTildeWithHomeDir(serverPath),
             };
         }
 
@@ -160,10 +157,7 @@ export class Config {
 
         if (!prebuiltBinaryName) return null;
 
-        return this.createGithubReleaseSource(
-            prebuiltBinaryName,
-            this.extensionReleaseTag
-        );
+        return this.createGithubReleaseSource(prebuiltBinaryName, this.extensionReleaseTag);
     }
 
     private createGithubReleaseSource(file: string, tag: string): ArtifactSource.GithubRelease {
@@ -173,57 +167,83 @@ export class Config {
             tag,
             dir: this.ctx.globalStoragePath,
             repo: {
-                name: "rust-analyzer",
-                owner: "rust-analyzer",
-            }
+                name: 'rust-analyzer',
+                owner: 'rust-analyzer',
+            },
         };
     }
 
     get nightlyVsixSource(): ArtifactSource.GithubRelease {
-        return this.createGithubReleaseSource("rust-analyzer.vsix", NIGHTLY_TAG);
+        return this.createGithubReleaseSource('rust-analyzer.vsix', NIGHTLY_TAG);
     }
 
     // We don't do runtime config validation here for simplicity. More on stackoverflow:
     // https://stackoverflow.com/questions/60135780/what-is-the-best-way-to-type-check-the-configuration-for-vscode-extension
 
-    private get serverPath(): null | string { return this.cfg.get("serverPath") as null | string; }
-    get updatesChannel(): UpdatesChannel { return this.cfg.get("updates.channel") as UpdatesChannel; }
-    get askBeforeDownload(): boolean { return this.cfg.get("updates.askBeforeDownload") as boolean; }
-    get highlightingSemanticTokens(): boolean { return this.cfg.get("highlighting.semanticTokens") as boolean; }
-    get highlightingOn(): boolean { return this.cfg.get("highlightingOn") as boolean; }
-    get rainbowHighlightingOn(): boolean { return this.cfg.get("rainbowHighlightingOn") as boolean; }
-    get lruCapacity(): null | number { return this.cfg.get("lruCapacity") as null | number; }
+    private get serverPath(): null | string {
+        return this.cfg.get('serverPath') as null | string;
+    }
+    get updatesChannel(): UpdatesChannel {
+        return this.cfg.get('updates.channel') as UpdatesChannel;
+    }
+    get askBeforeDownload(): boolean {
+        return this.cfg.get('updates.askBeforeDownload') as boolean;
+    }
+    get highlightingSemanticTokens(): boolean {
+        return this.cfg.get('highlighting.semanticTokens') as boolean;
+    }
+    get highlightingOn(): boolean {
+        return this.cfg.get('highlightingOn') as boolean;
+    }
+    get rainbowHighlightingOn(): boolean {
+        return this.cfg.get('rainbowHighlightingOn') as boolean;
+    }
+    get lruCapacity(): null | number {
+        return this.cfg.get('lruCapacity') as null | number;
+    }
     get inlayHints(): InlayHintOptions {
         return {
-            typeHints: this.cfg.get("inlayHints.typeHints") as boolean,
-            parameterHints: this.cfg.get("inlayHints.parameterHints") as boolean,
-            maxLength: this.cfg.get("inlayHints.maxLength") as null | number,
+            typeHints: this.cfg.get('inlayHints.typeHints') as boolean,
+            parameterHints: this.cfg.get('inlayHints.parameterHints') as boolean,
+            maxLength: this.cfg.get('inlayHints.maxLength') as null | number,
         };
     }
-    get excludeGlobs(): string[] { return this.cfg.get("excludeGlobs") as string[]; }
-    get useClientWatching(): boolean { return this.cfg.get("useClientWatching") as boolean; }
-    get featureFlags(): Record<string, boolean> { return this.cfg.get("featureFlags") as Record<string, boolean>; }
-    get rustfmtArgs(): string[] { return this.cfg.get("rustfmtArgs") as string[]; }
-    get loadOutDirsFromCheck(): boolean { return this.cfg.get("loadOutDirsFromCheck") as boolean; }
+    get excludeGlobs(): string[] {
+        return this.cfg.get('excludeGlobs') as string[];
+    }
+    get useClientWatching(): boolean {
+        return this.cfg.get('useClientWatching') as boolean;
+    }
+    get featureFlags(): Record<string, boolean> {
+        return this.cfg.get('featureFlags') as Record<string, boolean>;
+    }
+    get rustfmtArgs(): string[] {
+        return this.cfg.get('rustfmtArgs') as string[];
+    }
+    get loadOutDirsFromCheck(): boolean {
+        return this.cfg.get('loadOutDirsFromCheck') as boolean;
+    }
 
     get cargoWatchOptions(): CargoWatchOptions {
         return {
-            enable: this.cfg.get("cargo-watch.enable") as boolean,
-            arguments: this.cfg.get("cargo-watch.arguments") as string[],
-            allTargets: this.cfg.get("cargo-watch.allTargets") as boolean,
-            command: this.cfg.get("cargo-watch.command") as string,
+            enable: this.cfg.get('cargo-watch.enable') as boolean,
+            arguments: this.cfg.get('cargo-watch.arguments') as string[],
+            allTargets: this.cfg.get('cargo-watch.allTargets') as boolean,
+            command: this.cfg.get('cargo-watch.command') as string,
         };
     }
 
     get cargoFeatures(): CargoFeatures {
         return {
-            noDefaultFeatures: this.cfg.get("cargoFeatures.noDefaultFeatures") as boolean,
-            allFeatures: this.cfg.get("cargoFeatures.allFeatures") as boolean,
-            features: this.cfg.get("cargoFeatures.features") as string[],
-            loadOutDirsFromCheck: this.cfg.get("cargoFeatures.loadOutDirsFromCheck") as boolean,
+            noDefaultFeatures: this.cfg.get('cargoFeatures.noDefaultFeatures') as boolean,
+            allFeatures: this.cfg.get('cargoFeatures.allFeatures') as boolean,
+            features: this.cfg.get('cargoFeatures.features') as string[],
+            loadOutDirsFromCheck: this.cfg.get('cargoFeatures.loadOutDirsFromCheck') as boolean,
         };
     }
 
     // for internal use
-    get withSysroot(): boolean { return this.cfg.get("withSysroot", true) as boolean; }
+    get withSysroot(): boolean {
+        return this.cfg.get('withSysroot', true) as boolean;
+    }
 }

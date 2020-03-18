@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import * as ra from "../rust-analyzer-api";
+import * as ra from '../rust-analyzer-api';
 
 import { Ctx, Cmd } from '../ctx';
 import { applySourceChange } from '../source_change';
@@ -10,7 +10,7 @@ export function ssr(ctx: Ctx): Cmd<[]> {
         if (!client) return;
 
         const options: vscode.InputBoxOptions = {
-            value: "() ==>> ()",
+            value: '() ==>> ()',
             prompt: "EnteR request, for example 'Foo($a:expr) ==> Foo::new($a)' ",
             validateInput: async (x: string) => {
                 try {
@@ -19,7 +19,7 @@ export function ssr(ctx: Ctx): Cmd<[]> {
                     return e.toString();
                 }
                 return null;
-            }
+            },
         };
         const request = await vscode.window.showInputBox(options);
 

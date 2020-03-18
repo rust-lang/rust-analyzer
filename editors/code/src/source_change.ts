@@ -8,9 +8,7 @@ export async function applySourceChange(ctx: Ctx, change: ra.SourceChange): Prom
     const client = ctx.client;
     if (!client) return;
 
-    const wsEdit = client.protocol2CodeConverter.asWorkspaceEdit(
-        change.workspaceEdit,
-    );
+    const wsEdit = client.protocol2CodeConverter.asWorkspaceEdit(change.workspaceEdit);
     let created;
     let moved;
     if (change.workspaceEdit.documentChanges) {
@@ -30,12 +28,8 @@ export async function applySourceChange(ctx: Ctx, change: ra.SourceChange): Prom
         const doc = await vscode.workspace.openTextDocument(toOpenUri);
         await vscode.window.showTextDocument(doc);
     } else if (toReveal) {
-        const uri = client.protocol2CodeConverter.asUri(
-            toReveal.textDocument.uri,
-        );
-        const position = client.protocol2CodeConverter.asPosition(
-            toReveal.position,
-        );
+        const uri = client.protocol2CodeConverter.asUri(toReveal.textDocument.uri);
+        const position = client.protocol2CodeConverter.asPosition(toReveal.position);
         const editor = vscode.window.activeTextEditor;
         if (!editor || editor.document.uri.toString() !== uri.toString()) {
             return;

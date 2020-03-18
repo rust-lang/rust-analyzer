@@ -1,25 +1,28 @@
-import * as vscode from "vscode";
-import * as path from "path";
-import { spawnSync } from "child_process";
+import * as vscode from 'vscode';
+import * as path from 'path';
+import { spawnSync } from 'child_process';
 
-import { ArtifactSource } from "./interfaces";
-import { fetchArtifactReleaseInfo } from "./fetch_artifact_release_info";
-import { downloadArtifactWithProgressUi } from "./downloads";
-import { log, assert, notReentrant } from "../util";
-import { Config, NIGHTLY_TAG } from "../config";
-import { PersistentState } from "../persistent_state";
+import { ArtifactSource } from './interfaces';
+import { fetchArtifactReleaseInfo } from './fetch_artifact_release_info';
+import { downloadArtifactWithProgressUi } from './downloads';
+import { log, assert, notReentrant } from '../util';
+import { Config, NIGHTLY_TAG } from '../config';
+import { PersistentState } from '../persistent_state';
 
-export async function ensureServerBinary(config: Config, state: PersistentState): Promise<null | string> {
+export async function ensureServerBinary(
+    config: Config,
+    state: PersistentState,
+): Promise<null | string> {
     const source = config.serverSource;
 
     if (!source) {
         vscode.window.showErrorMessage(
             "Unfortunately we don't ship binaries for your platform yet. " +
-            "You need to manually clone rust-analyzer repository and " +
-            "run `cargo xtask install --server` to build the language server from sources. " +
-            "If you feel that your platform should be supported, please create an issue " +
-            "about that [here](https://github.com/rust-analyzer/rust-analyzer/issues) and we " +
-            "will consider it."
+                'You need to manually clone rust-analyzer repository and ' +
+                'run `cargo xtask install --server` to build the language server from sources. ' +
+                'If you feel that your platform should be supported, please create an issue ' +
+                'about that [here](https://github.com/rust-analyzer/rust-analyzer/issues) and we ' +
+                'will consider it.',
         );
         return null;
     }
@@ -32,8 +35,8 @@ export async function ensureServerBinary(config: Config, state: PersistentState)
 
             vscode.window.showErrorMessage(
                 `Unable to run ${source.path} binary. ` +
-                `To use the pre-built language server, set "rust-analyzer.serverPath" ` +
-                "value to `null` or remove it from the settings to use it by default."
+                    `To use the pre-built language server, set "rust-analyzer.serverPath" ` +
+                    'value to `null` or remove it from the settings to use it by default.',
             );
             return null;
         }
@@ -45,10 +48,11 @@ export async function ensureServerBinary(config: Config, state: PersistentState)
             if (config.askBeforeDownload) {
                 const userResponse = await vscode.window.showInformationMessage(
                     `Language server version ${source.tag} for rust-analyzer is not installed. ` +
-                    "Do you want to download it now?",
-                    "Download now", "Cancel"
+                        'Do you want to download it now?',
+                    'Download now',
+                    'Cancel',
                 );
-                if (userResponse !== "Download now") return null;
+                if (userResponse !== 'Download now') return null;
             }
 
             return await downloadServer(state, source);
@@ -64,21 +68,27 @@ function shouldDownloadServer(
 
     const installed = {
         tag: state.serverReleaseTag.get(),
-        date: state.serverReleaseDate.get()
+        date: state.serverReleaseDate.get(),
     };
     const required = {
         tag: source.tag,
-        date: state.installedNightlyExtensionReleaseDate.get()
+        date: state.installedNightlyExtensionReleaseDate.get(),
     };
 
-    log.debug("Installed server:", installed, "required:", required);
+    log.debug('Installed server:', installed, 'required:', required);
 
     if (required.tag !== NIGHTLY_TAG || installed.tag !== NIGHTLY_TAG) {
         return required.tag !== installed.tag;
     }
 
-    assert(required.date !== null, "Extension release date should have been saved during its installation");
-    assert(installed.date !== null, "Server release date should have been saved during its installation");
+    assert(
+        required.date !== null,
+        'Extension release date should have been saved during its installation',
+    );
+    assert(
+        installed.date !== null,
+        'Server release date should have been saved during its installation',
+    );
 
     return installed.date.getTime() !== required.date.getTime();
 }
@@ -86,46 +96,58 @@ function shouldDownloadServer(
 /**
  * Enforcing no reentrancy for this is best-effort.
  */
-const downloadServer = notReentrant(async (
-    state: PersistentState,
-    source: ArtifactSource.GithubRelease,
-): Promise<null | string> => {
-    try {
-        const releaseInfo = await fetchArtifactReleaseInfo(source.repo, source.file, source.tag);
+const downloadServer = notReentrant(
+    async (
+        state: PersistentState,
+        source: ArtifactSource.GithubRelease,
+    ): Promise<null | string> => {
+        try {
+            const releaseInfo = await fetchArtifactReleaseInfo(
+                source.repo,
+                source.file,
+                source.tag,
+            );
 
-        await downloadArtifactWithProgressUi(releaseInfo, source.file, source.dir, "language server");
-        await Promise.all([
-            state.serverReleaseTag.set(releaseInfo.releaseName),
-            state.serverReleaseDate.set(releaseInfo.releaseDate)
-        ]);
-    } catch (err) {
-        log.downloadError(err, "language server", source.repo.name);
-        return null;
-    }
+            await downloadArtifactWithProgressUi(
+                releaseInfo,
+                source.file,
+                source.dir,
+                'language server',
+            );
+            await Promise.all([
+                state.serverReleaseTag.set(releaseInfo.releaseName),
+                state.serverReleaseDate.set(releaseInfo.releaseDate),
+            ]);
+        } catch (err) {
+            log.downloadError(err, 'language server', source.repo.name);
+            return null;
+        }
 
-    const binaryPath = path.join(source.dir, source.file);
+        const binaryPath = path.join(source.dir, source.file);
 
-    assert(isBinaryAvailable(binaryPath),
-        `Downloaded language server binary is not functional.` +
-        `Downloaded from GitHub repo ${source.repo.owner}/${source.repo.name} ` +
-        `to ${binaryPath}`
-    );
+        assert(
+            isBinaryAvailable(binaryPath),
+            `Downloaded language server binary is not functional.` +
+                `Downloaded from GitHub repo ${source.repo.owner}/${source.repo.name} ` +
+                `to ${binaryPath}`,
+        );
 
-    vscode.window.showInformationMessage(
-        "Rust analyzer language server was successfully installed 🦀"
-    );
+        vscode.window.showInformationMessage(
+            'Rust analyzer language server was successfully installed 🦀',
+        );
 
-    return binaryPath;
-});
+        return binaryPath;
+    },
+);
 
 function isBinaryAvailable(binaryPath: string): boolean {
-    const res = spawnSync(binaryPath, ["--version"]);
+    const res = spawnSync(binaryPath, ['--version']);
 
     // ACHTUNG! `res` type declaration is inherently wrong, see
     // https://github.com/DefinitelyTyped/DefinitelyTyped/issues/42221
 
-    log.debug("Checked binary availablity via --version", res);
-    log.debug(binaryPath, "--version output:", res.output?.map(String));
+    log.debug('Checked binary availablity via --version', res);
+    log.debug(binaryPath, '--version output:', res.output?.map(String));
 
     return res.status === 0;
 }

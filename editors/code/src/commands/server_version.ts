@@ -9,12 +9,12 @@ export function serverVersion(ctx: Ctx): Cmd<[]> {
 
         if (binaryPath == null) {
             throw new Error(
-                "Rust Analyzer Language Server is not available. " +
-                "Please, ensure its [proper installation](https://rust-analyzer.github.io/manual.html#installation)."
+                'Rust Analyzer Language Server is not available. ' +
+                    'Please, ensure its [proper installation](https://rust-analyzer.github.io/manual.html#installation).',
             );
         }
 
-        const version = spawnSync(binaryPath, ["--version"], { encoding: "utf8" }).stdout;
+        const version = spawnSync(binaryPath, ['--version'], { encoding: 'utf8' }).stdout;
         vscode.window.showInformationMessage('rust-analyzer version : ' + version);
     };
 }

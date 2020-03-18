@@ -28,16 +28,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     //        "rust-analyzer is not available"
     //    ),
     // )
-    const defaultOnEnter = vscode.commands.registerCommand(
-        'rust-analyzer.onEnter',
-        () => vscode.commands.executeCommand('default:type', { text: '\n' }),
+    const defaultOnEnter = vscode.commands.registerCommand('rust-analyzer.onEnter', () =>
+        vscode.commands.executeCommand('default:type', { text: '\n' }),
     );
     context.subscriptions.push(defaultOnEnter);
 
     const config = new Config(context);
     const state = new PersistentState(context);
 
-    vscode.workspace.onDidChangeConfiguration(() => ensureProperExtensionVersion(config, state).catch(log.error));
+    vscode.workspace.onDidChangeConfiguration(() =>
+        ensureProperExtensionVersion(config, state).catch(log.error),
+    );
 
     // Don't await the user response here, otherwise we will block the lsp server bootstrap
     void ensureProperExtensionVersion(config, state).catch(log.error);
@@ -46,8 +47,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     if (serverPath == null) {
         throw new Error(
-            "Rust Analyzer Language Server is not available. " +
-            "Please, ensure its [proper installation](https://rust-analyzer.github.io/manual.html#installation)."
+            'Rust Analyzer Language Server is not available. ' +
+                'Please, ensure its [proper installation](https://rust-analyzer.github.io/manual.html#installation).',
         );
     }
 
@@ -58,7 +59,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ctx = await Ctx.create(config, state, context, serverPath);
 
     // Commands which invokes manually via command palette, shortcut, etc.
-    ctx.registerCommand('reload', (ctx) => {
+    ctx.registerCommand('reload', ctx => {
         return async (): Promise<void> => {
             vscode.window.showInformationMessage('Reloading rust-analyzer...');
             // @DanTup maneuver

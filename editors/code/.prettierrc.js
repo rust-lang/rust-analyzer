@@ -8,13 +8,13 @@ module.exports = {
     semi: true,
     singleQuote: true,
     tabWidth: 4,
-    trailingComma: "all",
+    trailingComma: 'all',
     useTabs: false,
     overrides: [
         {
-            files: "*.ts",
+            files: '*.ts',
             options: {
-                parser: "typescript",
+                parser: 'typescript',
             },
         },
     ],

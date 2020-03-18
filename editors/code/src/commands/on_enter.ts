@@ -10,15 +10,15 @@ async function handleKeypress(ctx: Ctx): Promise<boolean> {
 
     if (!editor || !client) return false;
 
-    const change = await client.sendRequest(ra.onEnter, {
-        textDocument: { uri: editor.document.uri.toString() },
-        position: client.code2ProtocolConverter.asPosition(
-            editor.selection.active,
-        ),
-    }).catch(_error => {
-        // client.logFailedRequest(OnEnterRequest.type, error);
-        return null;
-    });
+    const change = await client
+        .sendRequest(ra.onEnter, {
+            textDocument: { uri: editor.document.uri.toString() },
+            position: client.code2ProtocolConverter.asPosition(editor.selection.active),
+        })
+        .catch(_error => {
+            // client.logFailedRequest(OnEnterRequest.type, error);
+            return null;
+        });
     if (!change) return false;
 
     await applySourceChange(ctx, change);

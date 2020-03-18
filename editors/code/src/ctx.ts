@@ -11,12 +11,15 @@ export class Ctx {
         readonly config: Config,
         readonly state: PersistentState,
         private readonly extCtx: vscode.ExtensionContext,
-        readonly client: lc.LanguageClient
-    ) {
+        readonly client: lc.LanguageClient,
+    ) {}
 
-    }
-
-    static async create(config: Config, state: PersistentState, extCtx: vscode.ExtensionContext, serverPath: string): Promise<Ctx> {
+    static async create(
+        config: Config,
+        state: PersistentState,
+        extCtx: vscode.ExtensionContext,
+        serverPath: string,
+    ): Promise<Ctx> {
         const client = createClient(config, serverPath);
         const res = new Ctx(config, state, extCtx, client);
         res.pushCleanup(client.start());
@@ -26,9 +29,7 @@ export class Ctx {
 
     get activeRustEditor(): RustEditor | undefined {
         const editor = vscode.window.activeTextEditor;
-        return editor && isRustEditor(editor)
-            ? editor
-            : undefined;
+        return editor && isRustEditor(editor) ? editor : undefined;
     }
 
     get visibleRustEditors(): RustEditor[] {

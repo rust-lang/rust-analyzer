@@ -14,9 +14,7 @@ export class ColorTheme {
 
     static load(): ColorTheme {
         // Find out current color theme
-        const themeName = vscode.workspace
-            .getConfiguration('workbench')
-            .get('colorTheme');
+        const themeName = vscode.workspace.getConfiguration('workbench').get('colorTheme');
 
         if (typeof themeName !== 'string') {
             // console.warn('workbench.colorTheme is', themeName)
@@ -28,9 +26,10 @@ export class ColorTheme {
     static fromRules(rules: TextMateRule[]): ColorTheme {
         const res = new ColorTheme();
         for (const rule of rules) {
-            const scopes = typeof rule.scope === 'undefined'
-                ? []
-                : typeof rule.scope === 'string'
+            const scopes =
+                typeof rule.scope === 'undefined'
+                    ? []
+                    : typeof rule.scope === 'string'
                     ? [rule.scope]
                     : rule.scope;
 
@@ -72,10 +71,10 @@ function loadThemeNamed(themeName: string): ColorTheme {
 
     const themePaths: string[] = vscode.extensions.all
         .filter(isTheme)
-        .flatMap(
-            ext => ext.packageJSON.contributes.themes
+        .flatMap(ext =>
+            ext.packageJSON.contributes.themes
                 .filter((it: { id: string; label: string }) => (it.id || it.label) === themeName)
-                .map((it: { path: string }) => path.join(ext.extensionPath, it.path))
+                .map((it: { path: string }) => path.join(ext.extensionPath, it.path)),
         );
 
     const res = new ColorTheme();
@@ -83,12 +82,19 @@ function loadThemeNamed(themeName: string): ColorTheme {
         res.mergeFrom(loadThemeFile(themePath));
     }
 
-    const globalCustomizations: undefined | { textMateRules: undefined | TextMateRule[] } = vscode.workspace.getConfiguration('editor').get('tokenColorCustomizations');
+    const globalCustomizations:
+        | undefined
+        | { textMateRules: undefined | TextMateRule[] } = vscode.workspace
+        .getConfiguration('editor')
+        .get('tokenColorCustomizations');
     res.mergeFrom(ColorTheme.fromRules(globalCustomizations?.textMateRules ?? []));
 
-    const themeCustomizations: undefined | { textMateRules: undefined | TextMateRule[] } = vscode.workspace.getConfiguration('editor.tokenColorCustomizations').get(`[${themeName}]`);
+    const themeCustomizations:
+        | undefined
+        | { textMateRules: undefined | TextMateRule[] } = vscode.workspace
+        .getConfiguration('editor.tokenColorCustomizations')
+        .get(`[${themeName}]`);
     res.mergeFrom(ColorTheme.fromRules(themeCustomizations?.textMateRules ?? []));
-
 
     return res;
 }

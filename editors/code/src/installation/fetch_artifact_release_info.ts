@@ -1,8 +1,8 @@
-import fetch from "node-fetch";
-import { GithubRepo, ArtifactReleaseInfo } from "./interfaces";
-import { log } from "../util";
+import fetch from 'node-fetch';
+import { GithubRepo, ArtifactReleaseInfo } from './interfaces';
+import { log } from '../util';
 
-const GITHUB_API_ENDPOINT_URL = "https://api.github.com";
+const GITHUB_API_ENDPOINT_URL = 'https://api.github.com';
 
 /**
  * Fetches the release with `releaseTag` from GitHub `repo` and
@@ -14,9 +14,8 @@ const GITHUB_API_ENDPOINT_URL = "https://api.github.com";
 export async function fetchArtifactReleaseInfo(
     repo: GithubRepo,
     artifactFileName: string,
-    releaseTag: string
+    releaseTag: string,
 ): Promise<ArtifactReleaseInfo> {
-
     const repoOwner = encodeURIComponent(repo.owner);
     const repoName = encodeURIComponent(repo.name);
 
@@ -24,12 +23,14 @@ export async function fetchArtifactReleaseInfo(
 
     const requestUrl = GITHUB_API_ENDPOINT_URL + apiEndpointPath;
 
-    log.debug("Issuing request for released artifacts metadata to", requestUrl);
+    log.debug('Issuing request for released artifacts metadata to', requestUrl);
 
-    const response = await fetch(requestUrl, { headers: { Accept: "application/vnd.github.v3+json" } });
+    const response = await fetch(requestUrl, {
+        headers: { Accept: 'application/vnd.github.v3+json' },
+    });
 
     if (!response.ok) {
-        log.error("Error fetching artifact release info", {
+        log.error('Error fetching artifact release info', {
             requestUrl,
             releaseTag,
             artifactFileName,
@@ -37,12 +38,12 @@ export async function fetchArtifactReleaseInfo(
                 headers: response.headers,
                 status: response.status,
                 body: await response.text(),
-            }
+            },
         });
 
         throw new Error(
             `Got response ${response.status} when trying to fetch ` +
-            `"${artifactFileName}" artifact release info for ${releaseTag} release`
+                `"${artifactFileName}" artifact release info for ${releaseTag} release`,
         );
     }
 
@@ -52,15 +53,13 @@ export async function fetchArtifactReleaseInfo(
     const artifact = release.assets.find(artifact => artifact.name === artifactFileName);
 
     if (!artifact) {
-        throw new Error(
-            `Artifact ${artifactFileName} was not found in ${release.name} release!`
-        );
+        throw new Error(`Artifact ${artifactFileName} was not found in ${release.name} release!`);
     }
 
     return {
         releaseName: release.name,
         releaseDate: new Date(release.published_at),
-        downloadUrl: artifact.browser_download_url
+        downloadUrl: artifact.browser_download_url,
     };
 
     // We omit declaration of tremendous amount of fields that we are not using here

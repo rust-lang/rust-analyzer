@@ -1,6 +1,12 @@
 import * as vscode from 'vscode';
 
-import { WorkDoneProgress, WorkDoneProgressBegin, WorkDoneProgressReport, WorkDoneProgressEnd, Disposable } from 'vscode-languageclient';
+import {
+    WorkDoneProgress,
+    WorkDoneProgressBegin,
+    WorkDoneProgressReport,
+    WorkDoneProgressEnd,
+    Disposable,
+} from 'vscode-languageclient';
 
 import { Ctx } from './ctx';
 
@@ -11,11 +17,11 @@ export function activateStatusDisplay(ctx: Ctx): void {
     ctx.pushCleanup(statusDisplay);
     const client = ctx.client;
     if (client != null) {
-        ctx.pushCleanup(client.onProgress(
-            WorkDoneProgress.type,
-            'rustAnalyzer/cargoWatcher',
-            params => statusDisplay.handleProgressNotification(params)
-        ));
+        ctx.pushCleanup(
+            client.onProgress(WorkDoneProgress.type, 'rustAnalyzer/cargoWatcher', params =>
+                statusDisplay.handleProgressNotification(params),
+            ),
+        );
     }
 }
 
@@ -28,10 +34,7 @@ class StatusDisplay implements Disposable {
     private timer?: NodeJS.Timeout;
 
     constructor(command: string) {
-        this.statusBarItem = vscode.window.createStatusBarItem(
-            vscode.StatusBarAlignment.Left,
-            10,
-        );
+        this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 10);
         this.command = command;
         this.statusBarItem.hide();
     }
@@ -69,13 +72,17 @@ class StatusDisplay implements Disposable {
 
     refreshLabel(): void {
         if (this.packageName) {
-            this.statusBarItem.text = `${spinnerFrames[this.i]} cargo ${this.command} [${this.packageName}]`;
+            this.statusBarItem.text = `${spinnerFrames[this.i]} cargo ${this.command} [${
+                this.packageName
+            }]`;
         } else {
             this.statusBarItem.text = `${spinnerFrames[this.i]} cargo ${this.command}`;
         }
     }
 
-    handleProgressNotification(params: WorkDoneProgressBegin | WorkDoneProgressReport | WorkDoneProgressEnd): void {
+    handleProgressNotification(
+        params: WorkDoneProgressBegin | WorkDoneProgressReport | WorkDoneProgressEnd,
+    ): void {
         switch (params.kind) {
             case 'begin':
                 this.show();

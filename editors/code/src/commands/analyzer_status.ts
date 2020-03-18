@@ -9,10 +9,7 @@ export function analyzerStatus(ctx: Ctx): Cmd<[]> {
     const tdcp = new TextDocumentContentProvider(ctx);
 
     ctx.pushCleanup(
-        vscode.workspace.registerTextDocumentContentProvider(
-            'rust-analyzer-status',
-            tdcp,
-        ),
+        vscode.workspace.registerTextDocumentContentProvider('rust-analyzer-status', tdcp),
     );
 
     ctx.pushCleanup({
@@ -28,25 +25,17 @@ export function analyzerStatus(ctx: Ctx): Cmd<[]> {
             poller = setInterval(() => tdcp.eventEmitter.fire(tdcp.uri), 1000);
         }
         const document = await vscode.workspace.openTextDocument(tdcp.uri);
-        return vscode.window.showTextDocument(
-            document,
-            vscode.ViewColumn.Two,
-            true,
-        );
+        return vscode.window.showTextDocument(document, vscode.ViewColumn.Two, true);
     };
 }
 
-class TextDocumentContentProvider
-    implements vscode.TextDocumentContentProvider {
+class TextDocumentContentProvider implements vscode.TextDocumentContentProvider {
     uri = vscode.Uri.parse('rust-analyzer-status://status');
     eventEmitter = new vscode.EventEmitter<vscode.Uri>();
 
-    constructor(private readonly ctx: Ctx) {
-    }
+    constructor(private readonly ctx: Ctx) {}
 
-    provideTextDocumentContent(
-        _uri: vscode.Uri,
-    ): vscode.ProviderResult<string> {
+    provideTextDocumentContent(_uri: vscode.Uri): vscode.ProviderResult<string> {
         const editor = vscode.window.activeTextEditor;
         const client = this.ctx.client;
         if (!editor || !client) return '';

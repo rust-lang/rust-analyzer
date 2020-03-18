@@ -12,21 +12,16 @@ export function activateHighlighting(ctx: Ctx): void {
     ctx.client.onNotification(ra.publishDecorations, params => {
         if (!ctx.config.highlightingOn) return;
 
-        const targetEditor = vscode.window.visibleTextEditors.find(
-            editor => {
-                const unescapedUri = unescape(
-                    editor.document.uri.toString(),
-                );
-                // Unescaped URI looks like:
-                // file:///c:/Workspace/ra-test/src/main.rs
-                return unescapedUri === params.uri;
-            },
-        );
+        const targetEditor = vscode.window.visibleTextEditors.find(editor => {
+            const unescapedUri = unescape(editor.document.uri.toString());
+            // Unescaped URI looks like:
+            // file:///c:/Workspace/ra-test/src/main.rs
+            return unescapedUri === params.uri;
+        });
         if (!targetEditor) return;
 
         highlighter.setHighlights(targetEditor, params.decorations);
     });
-
 
     vscode.workspace.onDidChangeConfiguration(
         _ => highlighter.removeHighlights(),
@@ -41,11 +36,9 @@ export function activateHighlighting(ctx: Ctx): void {
             const client = ctx.client;
             if (!client) return;
 
-            const decorations = await sendRequestWithRetry(
-                client,
-                ra.decorationsRequest,
-                { uri: editor.document.uri.toString() },
-            );
+            const decorations = await sendRequestWithRetry(client, ra.decorationsRequest, {
+                uri: editor.document.uri.toString(),
+            });
             highlighter.setHighlights(editor, decorations);
         },
         null,
@@ -57,7 +50,7 @@ export function activateHighlighting(ctx: Ctx): void {
 function fancify(seed: string, shade: 'light' | 'dark'): string {
     const random = randomU32Numbers(hashString(seed));
     const randomInt = (min: number, max: number): number => {
-        return Math.abs(random()) % (max - min + 1) + min;
+        return (Math.abs(random()) % (max - min + 1)) + min;
     };
 
     const h = randomInt(0, 360);
@@ -68,10 +61,7 @@ function fancify(seed: string, shade: 'light' | 'dark'): string {
 
 class Highlighter {
     private ctx: Ctx;
-    private decorations: Map<
-        string,
-        vscode.TextEditorDecorationType
-    > | null = null;
+    private decorations: Map<string, vscode.TextEditorDecorationType> | null = null;
 
     constructor(ctx: Ctx) {
         this.ctx = ctx;
@@ -102,10 +92,7 @@ class Highlighter {
         }
 
         const byTag: Map<string, vscode.Range[]> = new Map();
-        const colorfulIdents: Map<
-            string,
-            [vscode.Range[], boolean]
-        > = new Map();
+        const colorfulIdents: Map<string, [vscode.Range[], boolean]> = new Map();
         const rainbowTime = this.ctx.config.rainbowHighlightingOn;
 
         for (const tag of this.decorations.keys()) {
@@ -124,22 +111,14 @@ class Highlighter {
                 }
                 colorfulIdents
                     .get(d.bindingHash)![0]
-                    .push(
-                        client.protocol2CodeConverter.asRange(d.range),
-                    );
+                    .push(client.protocol2CodeConverter.asRange(d.range));
             } else {
-                byTag
-                    .get(d.tag)!
-                    .push(
-                        client.protocol2CodeConverter.asRange(d.range),
-                    );
+                byTag.get(d.tag)!.push(client.protocol2CodeConverter.asRange(d.range));
             }
         }
 
         for (const tag of byTag.keys()) {
-            const dec = this.decorations.get(
-                tag,
-            ) as vscode.TextEditorDecorationType;
+            const dec = this.decorations.get(tag) as vscode.TextEditorDecorationType;
             const ranges = byTag.get(tag)!;
             editor.setDecorations(dec, ranges);
         }
@@ -206,32 +185,32 @@ function createDecorationFromTextmate(
 
 // sync with tags from `syntax_highlighting.rs`.
 const TAG_TO_SCOPES = new Map<string, string[]>([
-    ["field", ["entity.name.field"]],
-    ["function", ["entity.name.function"]],
-    ["module", ["entity.name.module"]],
-    ["constant", ["entity.name.constant"]],
-    ["macro", ["entity.name.macro"]],
+    ['field', ['entity.name.field']],
+    ['function', ['entity.name.function']],
+    ['module', ['entity.name.module']],
+    ['constant', ['entity.name.constant']],
+    ['macro', ['entity.name.macro']],
 
-    ["variable", ["variable"]],
-    ["variable.mutable", ["variable", "meta.mutable"]],
+    ['variable', ['variable']],
+    ['variable.mutable', ['variable', 'meta.mutable']],
 
-    ["type", ["entity.name.type"]],
-    ["type.builtin", ["entity.name.type", "support.type.primitive"]],
-    ["type.self", ["entity.name.type.parameter.self"]],
-    ["type.param", ["entity.name.type.parameter", "entity.name.type.param.rust"]],
-    ["type.lifetime", ["entity.name.type.lifetime", "entity.name.lifetime.rust"]],
+    ['type', ['entity.name.type']],
+    ['type.builtin', ['entity.name.type', 'support.type.primitive']],
+    ['type.self', ['entity.name.type.parameter.self']],
+    ['type.param', ['entity.name.type.parameter', 'entity.name.type.param.rust']],
+    ['type.lifetime', ['entity.name.type.lifetime', 'entity.name.lifetime.rust']],
 
-    ["literal.byte", ["constant.character.byte"]],
-    ["literal.char", ["constant.character.rust"]],
-    ["numeric_literal", ["constant.numeric"]],
+    ['literal.byte', ['constant.character.byte']],
+    ['literal.char', ['constant.character.rust']],
+    ['numeric_literal', ['constant.numeric']],
 
-    ["comment", ["comment"]],
-    ["string_literal", ["string.quoted"]],
-    ["attribute", ["meta.attribute.rust"]],
+    ['comment', ['comment']],
+    ['string_literal', ['string.quoted']],
+    ['attribute', ['meta.attribute.rust']],
 
-    ["keyword", ["keyword"]],
-    ["keyword.unsafe", ["keyword.other.unsafe"]],
-    ["keyword.control", ["keyword.control"]],
+    ['keyword', ['keyword']],
+    ['keyword.unsafe', ['keyword.other.unsafe']],
+    ['keyword.control', ['keyword.control']],
 ]);
 
 function randomU32Numbers(seed: number): () => number {

@@ -1,7 +1,7 @@
-import * as lc from "vscode-languageclient";
-import * as vscode from "vscode";
-import { promises as dns } from "dns";
-import { strict as nativeAssert } from "assert";
+import * as lc from 'vscode-languageclient';
+import * as vscode from 'vscode';
+import { promises as dns } from 'dns';
+import { strict as nativeAssert } from 'assert';
 
 export function assert(condition: boolean, explanation: string): asserts condition {
     try {
@@ -12,7 +12,7 @@ export function assert(condition: boolean, explanation: string): asserts conditi
     }
 }
 
-export const log = new class {
+export const log = new (class {
     private enabled = true;
 
     setEnabled(yes: boolean): void {
@@ -34,19 +34,20 @@ export const log = new class {
     downloadError(err: Error, artifactName: string, repoName: string): void {
         vscode.window.showErrorMessage(
             `Failed to download the rust-analyzer ${artifactName} from ${repoName} ` +
-            `GitHub repository: ${err.message}`
+                `GitHub repository: ${err.message}`,
         );
         log.error(err);
         dns.resolve('example.com').then(
-            addrs => log.debug("DNS resolution for example.com was successful", addrs),
-            err => log.error(
-                "DNS resolution for example.com failed, " +
-                "there might be an issue with Internet availability",
-                err
-            )
+            addrs => log.debug('DNS resolution for example.com was successful', addrs),
+            err =>
+                log.error(
+                    'DNS resolution for example.com failed, ' +
+                        'there might be an issue with Internet availability',
+                    err,
+                ),
         );
     }
-};
+})();
 
 export async function sendRequestWithRetry<TParam, TRet>(
     client: lc.LanguageClient,
@@ -58,11 +59,10 @@ export async function sendRequestWithRetry<TParam, TRet>(
         try {
             return await (token
                 ? client.sendRequest(reqType, param, token)
-                : client.sendRequest(reqType, param)
-            );
+                : client.sendRequest(reqType, param));
         } catch (error) {
             if (delay === null) {
-                log.error("LSP request timed out", { method: reqType.method, param, error });
+                log.error('LSP request timed out', { method: reqType.method, param, error });
                 throw error;
             }
 
@@ -71,7 +71,7 @@ export async function sendRequestWithRetry<TParam, TRet>(
             }
 
             if (error.code !== lc.ErrorCodes.ContentModified) {
-                log.error("LSP request failed", { method: reqType.method, param, error });
+                log.error('LSP request failed', { method: reqType.method, param, error });
                 throw error;
             }
 
@@ -86,24 +86,26 @@ function sleep(ms: number): Promise<unknown> {
 }
 
 export function notReentrant<TThis, TParams extends unknown[], TRet>(
-    fn: (this: TThis, ...params: TParams) => Promise<TRet>
+    fn: (this: TThis, ...params: TParams) => Promise<TRet>,
 ): typeof fn {
     let entered = false;
     return function(...params): Promise<TRet> {
         assert(!entered, `Reentrancy invariant for ${fn.name} is violated`);
         entered = true;
-        return fn.apply(this, params).finally(() => entered = false);
+        return fn.apply(this, params).finally(() => (entered = false));
     };
 }
 
-export type RustDocument = vscode.TextDocument & { languageId: "rust" };
+export type RustDocument = vscode.TextDocument & { languageId: 'rust' };
 export type RustEditor = vscode.TextEditor & { document: RustDocument; id: string };
 
 export function isRustDocument(document: vscode.TextDocument): document is RustDocument {
-    return document.languageId === 'rust'
+    return (
+        document.languageId === 'rust' &&
         // SCM diff views have the same URI as the on-disk document but not the same content
-        && document.uri.scheme !== 'git'
-        && document.uri.scheme !== 'svn';
+        document.uri.scheme !== 'git' &&
+        document.uri.scheme !== 'svn'
+    );
 }
 
 export function isRustEditor(editor: vscode.TextEditor): editor is RustEditor {
@@ -117,21 +119,21 @@ export async function vscodeReinstallExtension(extensionId: string): Promise<voi
     // Unfortunately there is no straightforward way as of now, these commands
     // were found in vscode source code.
 
-    log.debug("Uninstalling extension", extensionId);
-    await vscode.commands.executeCommand("workbench.extensions.uninstallExtension", extensionId);
-    log.debug("Installing extension", extensionId);
-    await vscode.commands.executeCommand("workbench.extensions.installExtension", extensionId);
+    log.debug('Uninstalling extension', extensionId);
+    await vscode.commands.executeCommand('workbench.extensions.uninstallExtension', extensionId);
+    log.debug('Installing extension', extensionId);
+    await vscode.commands.executeCommand('workbench.extensions.installExtension', extensionId);
 }
 
 export async function vscodeReloadWindow(): Promise<never> {
-    await vscode.commands.executeCommand("workbench.action.reloadWindow");
+    await vscode.commands.executeCommand('workbench.action.reloadWindow');
 
-    assert(false, "unreachable");
+    assert(false, 'unreachable');
 }
 
 export async function vscodeInstallExtensionFromVsix(vsixPath: string): Promise<void> {
     await vscode.commands.executeCommand(
-        "workbench.extensions.installExtension",
-        vscode.Uri.file(vsixPath)
+        'workbench.extensions.installExtension',
+        vscode.Uri.file(vsixPath),
     );
 }

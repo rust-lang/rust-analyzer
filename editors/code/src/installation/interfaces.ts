@@ -22,7 +22,10 @@ export namespace ArtifactSource {
     /**
      * Type tag for `ArtifactSource` discriminated union.
      */
-    export const enum Type { ExplicitPath, GithubRelease }
+    export const enum Type {
+        ExplicitPath,
+        GithubRelease,
+    }
 
     export interface ExplicitPath {
         type: Type.ExplicitPath;
@@ -40,7 +43,6 @@ export namespace ArtifactSource {
          * Repository where the binary is stored.
          */
         repo: GithubRepo;
-
 
         // FIXME: add installationPath: string;
 

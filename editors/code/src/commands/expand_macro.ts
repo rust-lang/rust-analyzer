@@ -8,21 +8,12 @@ import { Ctx, Cmd } from '../ctx';
 // The contents of the file come from the `TextDocumentContentProvider`
 export function expandMacro(ctx: Ctx): Cmd<[]> {
     const tdcp = new TextDocumentContentProvider(ctx);
-    ctx.pushCleanup(
-        vscode.workspace.registerTextDocumentContentProvider(
-            'rust-analyzer',
-            tdcp,
-        ),
-    );
+    ctx.pushCleanup(vscode.workspace.registerTextDocumentContentProvider('rust-analyzer', tdcp));
 
     return async (): Promise<vscode.TextEditor> => {
         const document = await vscode.workspace.openTextDocument(tdcp.uri);
         tdcp.eventEmitter.fire(tdcp.uri);
-        return vscode.window.showTextDocument(
-            document,
-            vscode.ViewColumn.Two,
-            true,
-        );
+        return vscode.window.showTextDocument(document, vscode.ViewColumn.Two, true);
     };
 }
 
@@ -35,13 +26,11 @@ function codeFormat(expanded: ra.ExpandedMacro): string {
     return result;
 }
 
-class TextDocumentContentProvider
-    implements vscode.TextDocumentContentProvider {
+class TextDocumentContentProvider implements vscode.TextDocumentContentProvider {
     uri = vscode.Uri.parse('rust-analyzer://expandMacro/[EXPANSION].rs');
     eventEmitter = new vscode.EventEmitter<vscode.Uri>();
 
-    constructor(private readonly ctx: Ctx) {
-    }
+    constructor(private readonly ctx: Ctx) {}
 
     async provideTextDocumentContent(_uri: vscode.Uri): Promise<string> {
         const editor = vscode.window.activeTextEditor;

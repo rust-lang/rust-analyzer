@@ -10,12 +10,7 @@ import { isRustDocument } from '../util';
 export function syntaxTree(ctx: Ctx): Cmd<[]> {
     const tdcp = new TextDocumentContentProvider(ctx);
 
-    ctx.pushCleanup(
-        vscode.workspace.registerTextDocumentContentProvider(
-            'rust-analyzer',
-            tdcp,
-        ),
-    );
+    ctx.pushCleanup(vscode.workspace.registerTextDocumentContentProvider('rust-analyzer', tdcp));
 
     vscode.workspace.onDidChangeTextDocument(
         (event: vscode.TextDocumentChangeEvent) => {
@@ -40,19 +35,13 @@ export function syntaxTree(ctx: Ctx): Cmd<[]> {
         const editor = vscode.window.activeTextEditor;
         const rangeEnabled = !!(editor && !editor.selection.isEmpty);
 
-        const uri = rangeEnabled
-            ? vscode.Uri.parse(`${tdcp.uri.toString()}?range=true`)
-            : tdcp.uri;
+        const uri = rangeEnabled ? vscode.Uri.parse(`${tdcp.uri.toString()}?range=true`) : tdcp.uri;
 
         const document = await vscode.workspace.openTextDocument(uri);
 
         tdcp.eventEmitter.fire(uri);
 
-        return vscode.window.showTextDocument(
-            document,
-            vscode.ViewColumn.Two,
-            true,
-        );
+        return vscode.window.showTextDocument(document, vscode.ViewColumn.Two, true);
     };
 }
 
@@ -62,13 +51,11 @@ function afterLs(f: () => void): void {
     setTimeout(f, 10);
 }
 
-
 class TextDocumentContentProvider implements vscode.TextDocumentContentProvider {
     uri = vscode.Uri.parse('rust-analyzer://syntaxtree');
     eventEmitter = new vscode.EventEmitter<vscode.Uri>();
 
-    constructor(private readonly ctx: Ctx) {
-    }
+    constructor(private readonly ctx: Ctx) {}
 
     provideTextDocumentContent(uri: vscode.Uri): vscode.ProviderResult<string> {
         const editor = vscode.window.activeTextEditor;
@@ -76,9 +63,10 @@ class TextDocumentContentProvider implements vscode.TextDocumentContentProvider 
         if (!editor || !client) return '';
 
         // When the range based query is enabled we take the range of the selection
-        const range = uri.query === 'range=true' && !editor.selection.isEmpty
-            ? client.code2ProtocolConverter.asRange(editor.selection)
-            : null;
+        const range =
+            uri.query === 'range=true' && !editor.selection.isEmpty
+                ? client.code2ProtocolConverter.asRange(editor.selection)
+                : null;
 
         return client.sendRequest(ra.syntaxTree, {
             textDocument: { uri: editor.document.uri.toString() },

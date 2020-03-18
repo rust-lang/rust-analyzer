@@ -3,7 +3,10 @@ import * as vscode from 'vscode';
 
 import { Config } from './config';
 import { CallHierarchyFeature } from 'vscode-languageclient/lib/callHierarchy.proposed';
-import { SemanticTokensFeature, DocumentSemanticsTokensSignature } from 'vscode-languageclient/lib/semanticTokens.proposed';
+import {
+    SemanticTokensFeature,
+    DocumentSemanticsTokensSignature,
+} from 'vscode-languageclient/lib/semanticTokens.proposed';
 
 export function createClient(config: Config, serverPath: string): lc.LanguageClient {
     // '.' Is the fallback if no folder is open
@@ -45,17 +48,21 @@ export function createClient(config: Config, serverPath: string): lc.LanguageCli
             withSysroot: config.withSysroot,
             cargoFeatures: config.cargoFeatures,
             rustfmtArgs: config.rustfmtArgs,
-            vscodeLldb: vscode.extensions.getExtension("vadimcn.vscode-lldb") != null,
+            vscodeLldb: vscode.extensions.getExtension('vadimcn.vscode-lldb') != null,
         },
         traceOutputChannel,
         middleware: {
             // Workaround for https://github.com/microsoft/vscode-languageserver-node/issues/576
-            async provideDocumentSemanticTokens(document: vscode.TextDocument, token: vscode.CancellationToken, next: DocumentSemanticsTokensSignature) {
+            async provideDocumentSemanticTokens(
+                document: vscode.TextDocument,
+                token: vscode.CancellationToken,
+                next: DocumentSemanticsTokensSignature,
+            ) {
                 const res = await next(document, token);
                 if (res === undefined) throw new Error('busy');
                 return res;
-            }
-        } as lc.Middleware
+            },
+        } as lc.Middleware,
     };
 
     const res = new lc.LanguageClient(
@@ -76,12 +83,8 @@ export function createClient(config: Config, serverPath: string): lc.LanguageCli
         log: (messageOrDataObject: string | unknown, data?: string): void => {
             if (typeof messageOrDataObject === 'string') {
                 if (
-                    messageOrDataObject.includes(
-                        'rust-analyzer/publishDecorations',
-                    ) ||
-                    messageOrDataObject.includes(
-                        'rust-analyzer/decorationsRequest',
-                    )
+                    messageOrDataObject.includes('rust-analyzer/publishDecorations') ||
+                    messageOrDataObject.includes('rust-analyzer/decorationsRequest')
                 ) {
                     // Don't log publish decorations requests
                 } else {

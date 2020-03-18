@@ -11,9 +11,7 @@ export function parentModule(ctx: Ctx): Cmd<[]> {
 
         const response = await client.sendRequest(ra.parentModule, {
             textDocument: { uri: editor.document.uri.toString() },
-            position: client.code2ProtocolConverter.asPosition(
-                editor.selection.active,
-            ),
+            position: client.code2ProtocolConverter.asPosition(editor.selection.active),
         });
         const loc = response[0];
         if (loc == null) return;

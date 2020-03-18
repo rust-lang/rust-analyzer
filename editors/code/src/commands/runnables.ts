@@ -18,19 +18,14 @@ export function run(ctx: Ctx): Cmd<[]> {
 
         const runnables = await client.sendRequest(ra.runnables, {
             textDocument,
-            position: client.code2ProtocolConverter.asPosition(
-                editor.selection.active,
-            ),
+            position: client.code2ProtocolConverter.asPosition(editor.selection.active),
         });
         const items: RunnableQuickPick[] = [];
         if (prevRunnable) {
             items.push(prevRunnable);
         }
         for (const r of runnables) {
-            if (
-                prevRunnable &&
-                JSON.stringify(prevRunnable.runnable) === JSON.stringify(r)
-            ) {
+            if (prevRunnable && JSON.stringify(prevRunnable.runnable) === JSON.stringify(r)) {
                 continue;
             }
             items.push(new RunnableQuickPick(r));
@@ -68,14 +63,14 @@ export function debugSingle(ctx: Ctx): Cmd<[ra.Runnable]> {
         if (!editor) return;
 
         const debugConfig = {
-            type: "lldb",
-            request: "launch",
+            type: 'lldb',
+            request: 'launch',
             name: config.label,
             cargo: {
                 args: config.args,
             },
             args: config.extraArgs,
-            cwd: config.cwd
+            cwd: config.cwd,
         };
 
         return vscode.debug.startDebugging(undefined, debugConfig);
@@ -115,21 +110,10 @@ function createTask(spec: ra.Runnable): vscode.Task {
         cwd: spec.cwd || '.',
         env: definition.env,
     };
-    const exec = new vscode.ShellExecution(
-        definition.command,
-        definition.args,
-        execOption,
-    );
+    const exec = new vscode.ShellExecution(definition.command, definition.args, execOption);
 
     const f = vscode.workspace.workspaceFolders![0];
-    const t = new vscode.Task(
-        definition,
-        f,
-        definition.label,
-        TASK_SOURCE,
-        exec,
-        ['$rustc'],
-    );
+    const t = new vscode.Task(definition, f, definition.label, TASK_SOURCE, exec, ['$rustc']);
     t.presentationOptions.clear = true;
     return t;
 }

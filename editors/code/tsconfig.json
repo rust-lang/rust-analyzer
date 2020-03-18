@@ -3,9 +3,7 @@
         "module": "commonjs",
         "target": "es2018",
         "outDir": "out",
-        "lib": [
-            "es2019"
-        ],
+        "lib": ["es2019"],
         "esModuleInterop": true,
         "allowSyntheticDefaultImports": true,
         "sourceMap": true,
@@ -17,7 +15,5 @@
         "noFallthroughCasesInSwitch": true,
         "newLine": "LF"
     },
-    "exclude": [
-        "node_modules"
-    ]
+    "exclude": ["node_modules"]
 }
