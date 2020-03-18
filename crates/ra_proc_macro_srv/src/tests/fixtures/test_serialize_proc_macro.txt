@@ -1,0 +1,188 @@
+SUBTREE NODELIM
+  PUNCH   # [alone]
+  SUBTREE []
+    IDENT   allow
+    SUBTREE ()
+      IDENT   non_upper_case_globals
+      PUNCH   , [alone]
+      IDENT   unused_attributes
+      PUNCH   , [alone]
+      IDENT   unused_qualifications
+  IDENT   const
+  IDENT   _IMPL_SERIALIZE_FOR_Foo
+  PUNCH   : [alone]
+  SUBTREE ()
+  PUNCH   = [alone]
+  SUBTREE {}
+    PUNCH   # [alone]
+    SUBTREE []
+      IDENT   allow
+      SUBTREE ()
+        IDENT   unknown_lints
+    PUNCH   # [alone]
+    SUBTREE []
+      IDENT   cfg_attr
+      SUBTREE ()
+        IDENT   feature
+        PUNCH   = [alone]
+        SUBTREE NODELIM
+          LITERAL "cargo-clippy"
+        PUNCH   , [alone]
+        IDENT   allow
+        SUBTREE ()
+          IDENT   useless_attribute
+    PUNCH   # [alone]
+    SUBTREE []
+      IDENT   allow
+      SUBTREE ()
+        IDENT   rust_2018_idioms
+    IDENT   extern
+    IDENT   crate
+    IDENT   serde
+    IDENT   as
+    IDENT   _serde
+    PUNCH   ; [alone]
+    PUNCH   # [alone]
+    SUBTREE []
+      IDENT   allow
+      SUBTREE ()
+        IDENT   unused_macros
+    IDENT   macro_rules
+    PUNCH   ! [alone]
+    IDENT   try
+    SUBTREE {}
+      SUBTREE ()
+        PUNCH   $ [alone]
+        IDENT   __expr
+        PUNCH   : [alone]
+        IDENT   expr
+      PUNCH   = [joint]
+      PUNCH   > [alone]
+      SUBTREE {}
+        IDENT   match
+        PUNCH   $ [alone]
+        IDENT   __expr
+        SUBTREE {}
+          IDENT   _serde
+          PUNCH   : [joint]
+          PUNCH   : [alone]
+          IDENT   export
+          PUNCH   : [joint]
+          PUNCH   : [alone]
+          IDENT   Ok
+          SUBTREE ()
+            IDENT   __val
+          PUNCH   = [joint]
+          PUNCH   > [alone]
+          IDENT   __val
+          PUNCH   , [alone]
+          IDENT   _serde
+          PUNCH   : [joint]
+          PUNCH   : [alone]
+          IDENT   export
+          PUNCH   : [joint]
+          PUNCH   : [alone]
+          IDENT   Err
+          SUBTREE ()
+            IDENT   __err
+          PUNCH   = [joint]
+          PUNCH   > [alone]
+          SUBTREE {}
+            IDENT   return
+            IDENT   _serde
+            PUNCH   : [joint]
+            PUNCH   : [alone]
+            IDENT   export
+            PUNCH   : [joint]
+            PUNCH   : [alone]
+            IDENT   Err
+            SUBTREE ()
+              IDENT   __err
+            PUNCH   ; [alone]
+    PUNCH   # [alone]
+    SUBTREE []
+      IDENT   automatically_derived
+    IDENT   impl
+    IDENT   _serde
+    PUNCH   : [joint]
+    PUNCH   : [alone]
+    IDENT   Serialize
+    IDENT   for
+    IDENT   Foo
+    SUBTREE {}
+      IDENT   fn
+      IDENT   serialize
+      PUNCH   < [alone]
+      IDENT   __S
+      PUNCH   > [alone]
+      SUBTREE ()
+        PUNCH   & [alone]
+        IDENT   self
+        PUNCH   , [alone]
+        IDENT   __serializer
+        PUNCH   : [alone]
+        IDENT   __S
+      PUNCH   - [joint]
+      PUNCH   > [alone]
+      IDENT   _serde
+      PUNCH   : [joint]
+      PUNCH   : [alone]
+      IDENT   export
+      PUNCH   : [joint]
+      PUNCH   : [alone]
+      IDENT   Result
+      PUNCH   < [alone]
+      IDENT   __S
+      PUNCH   : [joint]
+      PUNCH   : [alone]
+      IDENT   Ok
+      PUNCH   , [alone]
+      IDENT   __S
+      PUNCH   : [joint]
+      PUNCH   : [alone]
+      IDENT   Error
+      PUNCH   > [alone]
+      IDENT   where
+      IDENT   __S
+      PUNCH   : [alone]
+      IDENT   _serde
+      PUNCH   : [joint]
+      PUNCH   : [alone]
+      IDENT   Serializer
+      PUNCH   , [alone]
+      SUBTREE {}
+        IDENT   let
+        IDENT   __serde_state
+        PUNCH   = [alone]
+        IDENT   try
+        PUNCH   ! [alone]
+        SUBTREE ()
+          IDENT   _serde
+          PUNCH   : [joint]
+          PUNCH   : [alone]
+          IDENT   Serializer
+          PUNCH   : [joint]
+          PUNCH   : [alone]
+          IDENT   serialize_struct
+          SUBTREE ()
+            IDENT   __serializer
+            PUNCH   , [alone]
+            LITERAL "Foo"
+            PUNCH   , [alone]
+            IDENT   false
+            IDENT   as
+            IDENT   usize
+        PUNCH   ; [alone]
+        IDENT   _serde
+        PUNCH   : [joint]
+        PUNCH   : [alone]
+        IDENT   ser
+        PUNCH   : [joint]
+        PUNCH   : [alone]
+        IDENT   SerializeStruct
+        PUNCH   : [joint]
+        PUNCH   : [alone]
+        IDENT   end
+        SUBTREE ()
+          IDENT   __serde_state
+  PUNCH   ; [alone]

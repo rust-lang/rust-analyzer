@@ -145,7 +145,7 @@ name = "chalk-macros"
 version = "0.1.1"
 source = "git+https://github.com/rust-lang/chalk.git?rev=177d71340acc7a7204a33115fc63075d86452179#177d71340acc7a7204a33115fc63075d86452179"
 dependencies = [
- "lazy_static",
+ "lazy_static 1.4.0",
 ]
 
 [[package]]
@@ -182,7 +182,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90082ee5dcdd64dc4e9e0d37fbf3ee325419e39c0092191e0393df65518f741e"
 dependencies = [
  "atty",
- "lazy_static",
+ "lazy_static 1.4.0",
  "libc",
  "winapi 0.3.8",
 ]
@@ -204,7 +204,7 @@ checksum = "6728a28023f207181b193262711102bfbaf47cc9d13bc71d0736607ef8efe88c"
 dependencies = [
  "clicolors-control",
  "encode_unicode",
- "lazy_static",
+ "lazy_static 1.4.0",
  "libc",
  "termios",
  "winapi 0.3.8",
@@ -254,7 +254,7 @@ dependencies = [
  "autocfg",
  "cfg-if",
  "crossbeam-utils",
- "lazy_static",
+ "lazy_static 1.4.0",
  "maybe-uninit",
  "memoffset",
  "scopeguard",
@@ -278,7 +278,7 @@ checksum = "c3c7c73a2d1e9fc0886a08b93e98eb643461230d5f1925e4036204d5f2e261a8"
 dependencies = [
  "autocfg",
  "cfg-if",
- "lazy_static",
+ "lazy_static 1.4.0",
 ]
 
 [[package]]
@@ -328,6 +328,12 @@ checksum = "44533bbbb3bb3c1fa17d9f2e4e38bbbaf8396ba82193c4cb1b6445d711445d36"
 dependencies = [
  "log",
 ]
+
+[[package]]
+name = "error-chain"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e92ecf0a508c8e074c0e6fa8fe0fa38414848ad4dfc4db6f74c5e9753330b248"
 
 [[package]]
 name = "filetime"
@@ -431,6 +437,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "goblin"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ddd5e3132801a1ac34ac53b97acde50c4685414dd2f291b9ea52afa6f07468c8"
+dependencies = [
+ "log",
+ "plain",
+ "scroll",
+]
+
+[[package]]
 name = "heck"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -496,7 +513,7 @@ checksum = "8de3f029212a3fe78a6090f1f2b993877ca245a9ded863f3fcbd6eae084fc1ed"
 dependencies = [
  "console",
  "difference",
- "lazy_static",
+ "lazy_static 1.4.0",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -582,6 +599,12 @@ dependencies = [
 
 [[package]]
 name = "lazy_static"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76f033c7ad61445c5b347c7382dd1237847eb1bce590fe50365dcb33d546be73"
+
+[[package]]
+name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
@@ -597,6 +620,16 @@ name = "libc"
 version = "0.2.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dea0c0405123bba743ee3f91f49b1c7cfb684eef0da0a50110f758ccf24cdff0"
+
+[[package]]
+name = "libloading"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2b111a074963af1d37a139918ac6d49ad1d0d5e47f72fd55388619691a7d753"
+dependencies = [
+ "cc",
+ "winapi 0.3.8",
+]
 
 [[package]]
 name = "linked-hash-map"
@@ -838,6 +871,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ad1f1b834a05d42dae330066e9699a173b28185b3bdc3dbf14ca239585de8cc"
 
 [[package]]
+name = "plain"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
+
+[[package]]
 name = "ppv-lite86"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1077,6 +1116,27 @@ version = "0.1.0"
 dependencies = [
  "ra_mbe",
  "ra_tt",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "smol_str",
+]
+
+[[package]]
+name = "ra_proc_macro_srv"
+version = "0.1.0"
+dependencies = [
+ "cargo_metadata",
+ "difference",
+ "goblin",
+ "libloading",
+ "ra_mbe",
+ "ra_proc_macro",
+ "ra_tt",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "sharedlib",
 ]
 
 [[package]]
@@ -1225,7 +1285,7 @@ dependencies = [
  "crossbeam-deque",
  "crossbeam-queue",
  "crossbeam-utils",
- "lazy_static",
+ "lazy_static 1.4.0",
  "num_cpus",
 ]
 
@@ -1388,6 +1448,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
 
 [[package]]
+name = "scroll"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "abb2332cb595d33f7edd5700f4cbf94892e680c7f0ae56adab58a35190b66cb1"
+dependencies = [
+ "scroll_derive",
+]
+
+[[package]]
+name = "scroll_derive"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8584eea9b9ff42825b46faf46a8c24d2cff13ec152fa2a50df788b87c07ee28"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "semver"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1455,6 +1535,18 @@ dependencies = [
  "linked-hash-map",
  "serde",
  "yaml-rust",
+]
+
+[[package]]
+name = "sharedlib"
+version = "7.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e1ab7ad123216d2b04448d3b31edd7e5314b500012b2b01812245725536df2c"
+dependencies = [
+ "error-chain",
+ "kernel32-sys",
+ "lazy_static 0.2.11",
+ "winapi 0.2.8",
 ]
 
 [[package]]
@@ -1545,7 +1637,7 @@ version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d40c6d1b69745a6ec6fb1ca717914848da4b44ae29d9b3080cbee91d72a69b14"
 dependencies = [
- "lazy_static",
+ "lazy_static 1.4.0",
 ]
 
 [[package]]

@@ -21,6 +21,29 @@ pub enum ParseError {
     Expected(String),
 }
 
+#[derive(Debug)]
+pub enum ProcMacroError {
+    Dummy,
+    IOError(std::io::Error),
+    JsonError(String),
+    Unknown(String),
+    ExpansionError(String),
+}
+
+impl Eq for ProcMacroError {}
+impl PartialEq for ProcMacroError {
+    fn eq(&self, other: &ProcMacroError) -> bool {
+        match (self, other) {
+            (ProcMacroError::Dummy, ProcMacroError::Dummy) => true,
+            (ProcMacroError::IOError(a), ProcMacroError::IOError(b)) => a.kind() == b.kind(),
+            (ProcMacroError::Unknown(a), ProcMacroError::Unknown(b)) => a == b,
+            (ProcMacroError::JsonError(a), ProcMacroError::JsonError(b)) => a == b,
+            (ProcMacroError::ExpansionError(a), ProcMacroError::ExpansionError(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum ExpandError {
     NoMatchingRule,
@@ -28,6 +51,13 @@ pub enum ExpandError {
     BindingError(String),
     ConversionError,
     InvalidRepeat,
+    ProcMacroError(ProcMacroError),
+}
+
+impl From<ProcMacroError> for ExpandError {
+    fn from(err: ProcMacroError) -> Self {
+        ExpandError::ProcMacroError(err)
+    }
 }
 
 pub use crate::syntax_bridge::{

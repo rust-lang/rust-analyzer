@@ -13,13 +13,13 @@ use std::{
 };
 
 use ra_cfg::CfgOptions;
+use ra_proc_macro::ProcMacro;
 use ra_syntax::SmolStr;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
 use crate::{RelativePath, RelativePathBuf};
 use fmt::Display;
-use ra_proc_macro::ProcMacro;
 
 /// `FileId` is an integer which uniquely identifies a file. File paths are
 /// messy and system-dependent, so most of the code should work directly with
