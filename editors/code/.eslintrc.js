@@ -22,10 +22,11 @@ module.exports = {
         'prettier/@typescript-eslint',
     ],
     rules: {
-        camelcase: ['error'],
+        camelcase: 'error',
         eqeqeq: ['error', 'always', { null: 'ignore' }],
-        'no-console': ['error'],
+        'no-console': 'error',
         'prefer-const': 'error',
+        '@typescript-eslint/explicit-function-return-type': ['warn', { allowExpressions: true }],
         '@typescript-eslint/member-delimiter-style': [
             'error',
             {
