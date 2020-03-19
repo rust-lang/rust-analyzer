@@ -57,8 +57,10 @@ export async function ensureProperExtensionVersion(
 
     if (currentExtReleaseDate === null) {
         void vscode.window.showErrorMessage(
-            "Nightly release date must've been set during the installation. " +
+            String.prototype.concat(
+                "Nightly release date must've been set during the installation. ",
                 'Did you download and install the nightly .vsix package manually?',
+            ),
         );
         throw new Error('Nightly release date was not set in globalStorage');
     }
@@ -95,9 +97,11 @@ export async function ensureProperExtensionVersion(
 
         if (releaseInfo.releaseDate.getTime() === currentExtReleaseDate.getTime()) {
             vscode.window.showInformationMessage(
-                'Whoops, it appears that your nightly version is up-to-date. ' +
-                    'There might be some problems with the upcomming nightly release ' +
+                String.prototype.concat(
+                    'Whoops, it appears that your nightly version is up-to-date. ',
+                    'There might be some problems with the upcomming nightly release ',
                     'or you traveled too far into the future. Sorry for that 😅! ',
+                ),
             );
             return false;
         }
@@ -117,9 +121,11 @@ async function askToDownloadProperExtensionVersion(config: Config, reason = ''):
     // This behaviour is what we want, but likely it is not documented
 
     const userResponse = await vscode.window.showInformationMessage(
-        reason +
-            `Do you want to download the ${stableOrNightly} rust-analyzer extension ` +
+        String.prototype.concat(
+            reason,
+            `Do you want to download the ${stableOrNightly} rust-analyzer extension `,
             `version and reload the window now?`,
+        ),
         'Download now',
         'Cancel',
     );
@@ -137,7 +143,7 @@ const tryDownloadNightlyExtension = notReentrant(
     async (
         config: Config,
         state: PersistentState,
-        shouldDownload: (releaseInfo: ArtifactReleaseInfo) => boolean = (): boolean => true,
+        shouldDownload: (releaseInfo: ArtifactReleaseInfo) => boolean = () => true,
     ): Promise<never | void> => {
         const vsixSource = config.nightlyVsixSource;
         try {

@@ -49,7 +49,7 @@ export class Config {
     /**
      * Either `nightly` or `YYYY-MM-DD` (i.e. `stable` release)
      */
-    readonly extensionReleaseTag: string = ((): string => {
+    readonly extensionReleaseTag: string = (() => {
         if (this.packageJsonVersion.endsWith(NIGHTLY_TAG)) return NIGHTLY_TAG;
 
         const realVersionRegexp = /^\d+\.\d+\.(\d{4})(\d{2})(\d{2})/;
@@ -180,25 +180,26 @@ export class Config {
     // We don't do runtime config validation here for simplicity. More on stackoverflow:
     // https://stackoverflow.com/questions/60135780/what-is-the-best-way-to-type-check-the-configuration-for-vscode-extension
 
-    private get serverPath(): null | string {
+    /* eslint-disable @typescript-eslint/explicit-function-return-type */
+    private get serverPath() {
         return this.cfg.get('serverPath') as null | string;
     }
-    get updatesChannel(): UpdatesChannel {
+    get updatesChannel() {
         return this.cfg.get('updates.channel') as UpdatesChannel;
     }
-    get askBeforeDownload(): boolean {
+    get askBeforeDownload() {
         return this.cfg.get('updates.askBeforeDownload') as boolean;
     }
-    get highlightingSemanticTokens(): boolean {
+    get highlightingSemanticTokens() {
         return this.cfg.get('highlighting.semanticTokens') as boolean;
     }
-    get highlightingOn(): boolean {
+    get highlightingOn() {
         return this.cfg.get('highlightingOn') as boolean;
     }
-    get rainbowHighlightingOn(): boolean {
+    get rainbowHighlightingOn() {
         return this.cfg.get('rainbowHighlightingOn') as boolean;
     }
-    get lruCapacity(): null | number {
+    get lruCapacity() {
         return this.cfg.get('lruCapacity') as null | number;
     }
     get inlayHints(): InlayHintOptions {
@@ -208,19 +209,19 @@ export class Config {
             maxLength: this.cfg.get('inlayHints.maxLength') as null | number,
         };
     }
-    get excludeGlobs(): string[] {
+    get excludeGlobs() {
         return this.cfg.get('excludeGlobs') as string[];
     }
-    get useClientWatching(): boolean {
+    get useClientWatching() {
         return this.cfg.get('useClientWatching') as boolean;
     }
-    get featureFlags(): Record<string, boolean> {
+    get featureFlags() {
         return this.cfg.get('featureFlags') as Record<string, boolean>;
     }
-    get rustfmtArgs(): string[] {
+    get rustfmtArgs() {
         return this.cfg.get('rustfmtArgs') as string[];
     }
-    get loadOutDirsFromCheck(): boolean {
+    get loadOutDirsFromCheck() {
         return this.cfg.get('loadOutDirsFromCheck') as boolean;
     }
 
@@ -243,7 +244,8 @@ export class Config {
     }
 
     // for internal use
-    get withSysroot(): boolean {
+    get withSysroot() {
         return this.cfg.get('withSysroot', true) as boolean;
     }
+    /* eslint-enable @typescript-eslint/explicit-function-return-type */
 }

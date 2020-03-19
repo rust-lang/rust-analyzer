@@ -33,16 +33,20 @@ export const log = new (class {
 
     downloadError(err: Error, artifactName: string, repoName: string): void {
         vscode.window.showErrorMessage(
-            `Failed to download the rust-analyzer ${artifactName} from ${repoName} ` +
+            String.prototype.concat(
+                `Failed to download the rust-analyzer ${artifactName} from ${repoName} `,
                 `GitHub repository: ${err.message}`,
+            ),
         );
         log.error(err);
         dns.resolve('example.com').then(
             addrs => log.debug('DNS resolution for example.com was successful', addrs),
             err =>
                 log.error(
-                    'DNS resolution for example.com failed, ' +
+                    String.prototype.concat(
+                        'DNS resolution for example.com failed, ',
                         'there might be an issue with Internet availability',
+                    ),
                     err,
                 ),
         );

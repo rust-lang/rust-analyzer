@@ -17,12 +17,14 @@ export async function ensureServerBinary(
 
     if (!source) {
         vscode.window.showErrorMessage(
-            "Unfortunately we don't ship binaries for your platform yet. " +
-                'You need to manually clone rust-analyzer repository and ' +
-                'run `cargo xtask install --server` to build the language server from sources. ' +
-                'If you feel that your platform should be supported, please create an issue ' +
-                'about that [here](https://github.com/rust-analyzer/rust-analyzer/issues) and we ' +
+            String.prototype.concat(
+                "Unfortunately we don't ship binaries for your platform yet.",
+                'You need to manually clone rust-analyzer repository and ',
+                'run `cargo xtask install --server` to build the language server from sources. ',
+                'If you feel that your platform should be supported, please create an issue ',
+                'about that [here](https://github.com/rust-analyzer/rust-analyzer/issues) and we ',
                 'will consider it.',
+            ),
         );
         return null;
     }
@@ -34,9 +36,11 @@ export async function ensureServerBinary(
             }
 
             vscode.window.showErrorMessage(
-                `Unable to run ${source.path} binary. ` +
-                    `To use the pre-built language server, set "rust-analyzer.serverPath" ` +
+                String.prototype.concat(
+                    `Unable to run ${source.path} binary. `,
+                    `To use the pre-built language server, set "rust-analyzer.serverPath" `,
                     'value to `null` or remove it from the settings to use it by default.',
+                ),
             );
             return null;
         }
@@ -47,8 +51,10 @@ export async function ensureServerBinary(
 
             if (config.askBeforeDownload) {
                 const userResponse = await vscode.window.showInformationMessage(
-                    `Language server version ${source.tag} for rust-analyzer is not installed. ` +
+                    String.prototype.concat(
+                        `Language server version ${source.tag} for rust-analyzer is not installed. `,
                         'Do you want to download it now?',
+                    ),
                     'Download now',
                     'Cancel',
                 );
@@ -127,9 +133,11 @@ const downloadServer = notReentrant(
 
         assert(
             isBinaryAvailable(binaryPath),
-            `Downloaded language server binary is not functional.` +
-                `Downloaded from GitHub repo ${source.repo.owner}/${source.repo.name} ` +
+            String.prototype.concat(
+                `Downloaded language server binary is not functional.`,
+                `Downloaded from GitHub repo ${source.repo.owner}/${source.repo.name} `,
                 `to ${binaryPath}`,
+            ),
         );
 
         vscode.window.showInformationMessage(

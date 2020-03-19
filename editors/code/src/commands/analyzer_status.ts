@@ -4,7 +4,7 @@ import * as ra from '../rust-analyzer-api';
 import { Ctx, Cmd } from '../ctx';
 
 // Shows status of rust-analyzer (for debugging)
-export function analyzerStatus(ctx: Ctx): Cmd<[]> {
+export function analyzerStatus(ctx: Ctx): Cmd<[], Promise<vscode.TextEditor>> {
     let poller: NodeJS.Timer | null = null;
     const tdcp = new TextDocumentContentProvider(ctx);
 
@@ -20,7 +20,7 @@ export function analyzerStatus(ctx: Ctx): Cmd<[]> {
         },
     });
 
-    return async function handle(): Promise<vscode.TextEditor> {
+    return async function handle() {
         if (poller == null) {
             poller = setInterval(() => tdcp.eventEmitter.fire(tdcp.uri), 1000);
         }

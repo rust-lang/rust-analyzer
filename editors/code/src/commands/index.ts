@@ -16,12 +16,12 @@ export * from './runnables';
 export * from './ssr';
 export * from './server_version';
 
-export function collectGarbage(ctx: Ctx): Cmd<[]> {
-    return async (): Promise<null> => ctx.client.sendRequest(ra.collectGarbage, null);
+export function collectGarbage(ctx: Ctx): Cmd<[], Promise<null>> {
+    return async () => ctx.client.sendRequest(ra.collectGarbage, null);
 }
 
-export function showReferences(ctx: Ctx): Cmd<[string, lc.Position, lc.Location[]]> {
-    return (uri: string, position: lc.Position, locations: lc.Location[]): void => {
+export function showReferences(ctx: Ctx): Cmd<[string, lc.Position, lc.Location[]], void> {
+    return (uri, position, locations) => {
         const client = ctx.client;
         if (client) {
             vscode.commands.executeCommand(
@@ -34,14 +34,14 @@ export function showReferences(ctx: Ctx): Cmd<[string, lc.Position, lc.Location[
     };
 }
 
-export function applySourceChange(ctx: Ctx): Cmd<[ra.SourceChange]> {
-    return async (change: ra.SourceChange): Promise<void> => {
+export function applySourceChange(ctx: Ctx): Cmd<[ra.SourceChange], Promise<void>> {
+    return async change => {
         await sourceChange.applySourceChange(ctx, change);
     };
 }
 
-export function selectAndApplySourceChange(ctx: Ctx): Cmd<[ra.SourceChange[]]> {
-    return async (changes: ra.SourceChange[]): Promise<void> => {
+export function selectAndApplySourceChange(ctx: Ctx): Cmd<[ra.SourceChange[]], Promise<void>> {
+    return async changes => {
         if (changes.length === 1) {
             await sourceChange.applySourceChange(ctx, changes[0]);
         } else if (changes.length > 0) {

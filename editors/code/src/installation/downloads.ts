@@ -71,8 +71,10 @@ export async function downloadArtifactWithProgressUi(
         .catch(err =>
             assert(
                 err?.code === 'EEXIST',
-                `Couldn't create directory "${installationDir}" to download ` +
+                String.prototype.concat(
+                    `Couldn't create directory "${installationDir}" to download `,
                     `${artifactFileName} artifact: ${err?.message}`,
+                ),
             ),
         );
 

@@ -215,7 +215,7 @@ const TAG_TO_SCOPES = new Map<string, string[]>([
 
 function randomU32Numbers(seed: number): () => number {
     let random = seed | 0;
-    return (): number => {
+    return () => {
         random ^= random << 13;
         random ^= random >> 17;
         random ^= random << 5;

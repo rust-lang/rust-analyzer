@@ -36,7 +36,7 @@ export class Ctx {
         return vscode.window.visibleTextEditors.filter(isRustEditor);
     }
 
-    registerCommand<T extends unknown[]>(name: string, factory: (ctx: Ctx) => Cmd<T>): void {
+    registerCommand<I extends unknown[], O>(name: string, factory: (ctx: Ctx) => Cmd<I, O>): void {
         const fullName = `rust-analyzer.${name}`;
         const cmd = factory(this);
         const d = vscode.commands.registerCommand(fullName, cmd);
@@ -60,4 +60,4 @@ export interface Disposable {
     dispose(): void;
 }
 
-export type Cmd<T extends unknown[]> = (...args: T) => unknown;
+export type Cmd<I extends unknown[], O> = (...args: I) => O;

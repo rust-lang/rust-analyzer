@@ -7,7 +7,7 @@ import { isRustDocument } from '../util';
 // Opens the virtual file that will show the syntax tree
 //
 // The contents of the file come from the `TextDocumentContentProvider`
-export function syntaxTree(ctx: Ctx): Cmd<[]> {
+export function syntaxTree(ctx: Ctx): Cmd<[], Promise<vscode.TextEditor>> {
     const tdcp = new TextDocumentContentProvider(ctx);
 
     ctx.pushCleanup(vscode.workspace.registerTextDocumentContentProvider('rust-analyzer', tdcp));
@@ -31,7 +31,7 @@ export function syntaxTree(ctx: Ctx): Cmd<[]> {
         ctx.subscriptions,
     );
 
-    return async (): Promise<vscode.TextEditor> => {
+    return async () => {
         const editor = vscode.window.activeTextEditor;
         const rangeEnabled = !!(editor && !editor.selection.isEmpty);
 

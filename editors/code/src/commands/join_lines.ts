@@ -3,8 +3,8 @@ import * as ra from '../rust-analyzer-api';
 import { Ctx, Cmd } from '../ctx';
 import { applySourceChange } from '../source_change';
 
-export function joinLines(ctx: Ctx): Cmd<[]> {
-    return async (): Promise<void> => {
+export function joinLines(ctx: Ctx): Cmd<[], Promise<void>> {
+    return async () => {
         const editor = ctx.activeRustEditor;
         const client = ctx.client;
         if (!editor || !client) return;

@@ -4,8 +4,8 @@ import * as ra from '../rust-analyzer-api';
 import { Ctx, Cmd } from '../ctx';
 import { applySourceChange } from '../source_change';
 
-export function ssr(ctx: Ctx): Cmd<[]> {
-    return async (): Promise<void> => {
+export function ssr(ctx: Ctx): Cmd<[], Promise<void>> {
+    return async () => {
         const client = ctx.client;
         if (!client) return;
 

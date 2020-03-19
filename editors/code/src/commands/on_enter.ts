@@ -25,8 +25,8 @@ async function handleKeypress(ctx: Ctx): Promise<boolean> {
     return true;
 }
 
-export function onEnter(ctx: Ctx): Cmd<[]> {
-    return async (): Promise<void> => {
+export function onEnter(ctx: Ctx): Cmd<[], Promise<void>> {
+    return async () => {
         if (await handleKeypress(ctx)) return;
 
         await vscode.commands.executeCommand('default:type', { text: '\n' });

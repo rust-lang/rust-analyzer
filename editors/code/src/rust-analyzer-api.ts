@@ -11,10 +11,10 @@ type FxHashMap<K extends PropertyKey, V> = Record<K, V>;
 function request<TParams, TResult>(
     method: string,
 ): lc.RequestType<TParams, TResult, unknown, never> {
-    return new lc.RequestType<TParams, TResult, unknown>(`rust-analyzer/${method}`);
+    return new lc.RequestType(`rust-analyzer/${method}`);
 }
 function notification<TParam>(method: string): lc.NotificationType<TParam, never> {
-    return new lc.NotificationType<TParam>(method);
+    return new lc.NotificationType(method);
 }
 
 export const analyzerStatus = request<null, string>('analyzerStatus');
