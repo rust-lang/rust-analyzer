@@ -14,7 +14,7 @@ use pico_args::Arguments;
 use xtask::{
     codegen::{self, Mode},
     dist::{run_dist, ClientOpts},
-    install::{ClientOpt, InstallCmd, ServerOpt},
+    install::{ClientOpt, InstallCmd, ProcMacroOpt, ServerOpt},
     not_bash::pushd,
     pre_commit, project_root, run_clippy, run_fuzzer, run_pre_cache, run_release, run_rustfmt,
     Result,
@@ -44,6 +44,7 @@ USAGE:
 FLAGS:
         --client-code    Install only VS Code plugin
         --server         Install only the language server
+        --proc-macro     Install with proc macro server
         --jemalloc       Use jemalloc for server
     -h, --help           Prints help information
         "
@@ -59,14 +60,15 @@ FLAGS:
                 );
                 return Ok(());
             }
-
             let jemalloc = args.contains("--jemalloc");
+            let proc_macro = args.contains("--proc-macro");
 
             args.finish()?;
 
             InstallCmd {
                 client: if server { None } else { Some(ClientOpt::VsCode) },
                 server: if client_code { None } else { Some(ServerOpt { jemalloc }) },
+                proc_macro: if proc_macro { Some(ProcMacroOpt { jemalloc }) } else { None },
             }
             .run()
         }

@@ -12,6 +12,7 @@ const REQUIRED_RUST_VERSION: u32 = 41;
 pub struct InstallCmd {
     pub client: Option<ClientOpt>,
     pub server: Option<ServerOpt>,
+    pub proc_macro: Option<ProcMacroOpt>,
 }
 
 pub enum ClientOpt {
@@ -22,6 +23,10 @@ pub struct ServerOpt {
     pub jemalloc: bool,
 }
 
+pub struct ProcMacroOpt {
+    pub jemalloc: bool,
+}
+
 impl InstallCmd {
     pub fn run(self) -> Result<()> {
         if cfg!(target_os = "macos") {
@@ -29,6 +34,9 @@ impl InstallCmd {
         }
         if let Some(server) = self.server {
             install_server(server).context("install server")?;
+        }
+        if let Some(proc_macro) = self.proc_macro {
+            install_proc_macro_srv(proc_macro).context("install proc-macro server")?;
         }
         if let Some(client) = self.client {
             install_client(client).context("install client")?;
@@ -140,6 +148,12 @@ fn install_server(opts: ServerOpt) -> Result<()> {
         );
     }
 
+    res.map(drop)
+}
+
+fn install_proc_macro_srv(opts: ProcMacroOpt) -> Result<()> {
+    let jemalloc = if opts.jemalloc { "--features jemalloc" } else { "" };
+    let res = run!("cargo install --path crates/ra_proc_macro_srv --locked --force {}", jemalloc);
     res.map(drop)
 }
 
