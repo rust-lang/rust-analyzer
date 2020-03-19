@@ -113,19 +113,19 @@ class HintsUpdater implements Disposable {
 
     private syncCacheAndRenderHints(): void {
         // FIXME: make inlayHints request pass an array of files?
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
-        this.sourceFiles.forEach((file, uri) =>
-            this.fetchHints(file).then(hints => {
-                if (!hints) return;
+        this.sourceFiles.forEach(
+            (file, uri) =>
+                void this.fetchHints(file).then(hints => {
+                    if (!hints) return;
 
-                file.cachedDecorations = this.hintsToDecorations(hints);
+                    file.cachedDecorations = this.hintsToDecorations(hints);
 
-                for (const editor of this.ctx.visibleRustEditors) {
-                    if (editor.document.uri.toString() === uri) {
-                        this.renderDecorations(editor, file.cachedDecorations);
+                    for (const editor of this.ctx.visibleRustEditors) {
+                        if (editor.document.uri.toString() === uri) {
+                            this.renderDecorations(editor, file.cachedDecorations);
+                        }
                     }
-                }
-            }),
+                }),
         );
     }
 
