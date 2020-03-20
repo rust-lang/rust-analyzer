@@ -19,13 +19,13 @@ mod rustc_server;
 use proc_macro::bridge::client::TokenStream;
 use ra_proc_macro::{ExpansionResult, ExpansionTask};
 
-pub fn expand_task(task: &ExpansionTask) -> ExpansionResult {
+pub fn expand_task(task: &ExpansionTask) -> Result<ExpansionResult, String> {
     let expander = dylib::Expander::new(&task.lib)
         .expect(&format!("Cannot expand with provided libraries: ${:?}", &task.lib));
 
     let result = match expander.expand(&task.macro_name, &task.macro_body, task.attributes.as_ref())
     {
-        Ok(expansion) => ExpansionResult::Success { expansion },
+        Ok(expansion) => Ok(ExpansionResult { expansion }),
         Err(msg) => {
             let reason = format!(
                 "Cannot perform expansion for {}: error {:?}!",
@@ -33,7 +33,7 @@ pub fn expand_task(task: &ExpansionTask) -> ExpansionResult {
                 msg.as_str()
             );
 
-            ExpansionResult::Error { reason }
+            Err(reason)
         }
     };
 

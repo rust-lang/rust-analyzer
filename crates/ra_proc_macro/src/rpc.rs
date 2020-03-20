@@ -30,12 +30,9 @@ pub struct ExpansionTask {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum ExpansionResult {
-    #[serde(rename = "success", with = "SubtreeDef")]
-    Success { expansion: Subtree },
-    #[serde(rename = "error")]
-    Error { reason: String },
+pub struct ExpansionResult {
+    #[serde(with = "SubtreeDef")]
+    pub expansion: Subtree,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -219,7 +216,7 @@ mod tests {
 
         assert_eq!(task.macro_body, back.macro_body);
 
-        let result = ExpansionResult::Success { expansion: tt.clone() };
+        let result = ExpansionResult { expansion: tt.clone() };
         let json = serde_json::to_string(&task).unwrap();
         let back: ExpansionResult = serde_json::from_str(&json).unwrap();
 

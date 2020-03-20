@@ -150,8 +150,19 @@ impl WorldState {
             vfs_file.map(|f| FileId(f.0))
         };
 
-        let proc_macro_client =
-            ProcMacroClient::extern_process(std::path::Path::new("ra_proc_macro_srv"));
+        // FIXME: set the path of proc macro srv in config
+        let proc_macro_srv = Path::new("ra_proc_macro_srv");
+        let proc_macro_client = match ProcMacroClient::extern_process(proc_macro_srv) {
+            Ok(it) => it,
+            Err(err) => {
+                log::error!(
+                    "Fail to run ra_proc_macro_srv from path {}, error : {}",
+                    proc_macro_srv.to_string_lossy(),
+                    err
+                );
+                ProcMacroClient::dummy()
+            }
+        };
 
         workspaces
             .iter()
