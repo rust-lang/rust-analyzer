@@ -1,8 +1,8 @@
 //! FIXME: write short doc here
 
 use std::{
-    ops,
     ffi::OsStr,
+    ops,
     path::{Path, PathBuf},
 };
 

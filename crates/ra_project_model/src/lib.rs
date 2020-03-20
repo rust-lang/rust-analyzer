@@ -359,7 +359,10 @@ impl ProjectWorkspace {
                                     extern_source.set_extern_path(&out_dir, extern_source_id);
                                 }
                             }
-                            let proc_macro =  cargo[pkg].proc_macro_dylib_path.as_ref()
+
+                            let proc_macro = &cargo[pkg]
+                                .proc_macro_dylib_path
+                                .as_ref()
                                 .map(|it| proc_macro_client.by_dylib_path(&it));
 
                             let crate_id = crate_graph.add_crate_root(
