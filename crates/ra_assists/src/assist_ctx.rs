@@ -118,6 +118,10 @@ impl<'a> AssistCtx<'a> {
         AssistGroup { ctx: self, group_name: group_name.into(), assists: Vec::new() }
     }
 
+    pub(crate) fn add_assists(self) -> AssistVec<'a> {
+        AssistVec { ctx: self, assists: Vec::new() }
+    }
+
     pub(crate) fn token_at_offset(&self) -> TokenAtOffset<SyntaxToken> {
         self.source_file.syntax().token_at_offset(self.frange.range.start())
     }
@@ -129,6 +133,16 @@ impl<'a> AssistCtx<'a> {
     pub(crate) fn find_node_at_offset<N: AstNode>(&self) -> Option<N> {
         find_node_at_offset(self.source_file.syntax(), self.frange.range.start())
     }
+
+    pub(crate) fn find_covering_node_at_offset<N: AstNode>(&self) -> Option<N> {
+        let node = find_node_at_offset::<N>(self.source_file.syntax(), self.frange.range.start())?;
+        if self.frange.range.is_subrange(&node.syntax().text_range()) {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn covering_element(&self) -> SyntaxElement {
         find_covering_element(self.source_file.syntax(), self.frange.range)
     }
@@ -153,6 +167,42 @@ impl<'a> AssistGroup<'a> {
         let label = AssistLabel::new(label.into(), id);
 
         let mut info = AssistInfo::new(label).with_group(GroupLabel(self.group_name.clone()));
+        if self.ctx.should_compute_edit {
+            let action = {
+                let mut edit = ActionBuilder::default();
+                f(&mut edit);
+                edit.build()
+            };
+            info = info.resolved(action)
+        };
+
+        self.assists.push(info)
+    }
+
+    pub(crate) fn finish(self) -> Option<Assist> {
+        if self.assists.is_empty() {
+            None
+        } else {
+            Some(Assist(self.assists))
+        }
+    }
+}
+
+pub(crate) struct AssistVec<'a> {
+    ctx: AssistCtx<'a>,
+    assists: Vec<AssistInfo>,
+}
+
+impl<'a> AssistVec<'a> {
+    pub(crate) fn add_assist(
+        &mut self,
+        id: AssistId,
+        label: impl Into<String>,
+        f: impl FnOnce(&mut ActionBuilder),
+    ) {
+        let label = AssistLabel::new(label.into(), id);
+
+        let mut info = AssistInfo::new(label);
         if self.ctx.should_compute_edit {
             let action = {
                 let mut edit = ActionBuilder::default();

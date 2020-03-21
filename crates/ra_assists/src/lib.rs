@@ -120,6 +120,7 @@ mod handlers {
     mod replace_if_let_with_match;
     mod replace_qualified_name_with_use;
     mod split_import;
+    mod number_representation;
 
     pub(crate) fn all() -> &'static [AssistHandler] {
         &[
@@ -155,6 +156,8 @@ mod handlers {
             replace_if_let_with_match::replace_if_let_with_match,
             replace_qualified_name_with_use::replace_qualified_name_with_use,
             split_import::split_import,
+            number_representation::remove_digit_separators,
+            number_representation::separate_number_literal,
         ]
     }
 }
@@ -168,7 +171,7 @@ mod helpers {
     use ra_syntax::TextRange;
     use test_utils::{add_cursor, assert_eq_text, extract_range_or_offset, RangeOrOffset};
 
-    use crate::{AssistCtx, AssistHandler};
+    use crate::{assist_ctx::AssistInfo, AssistCtx, AssistHandler, AssistId};
     use hir::Semantics;
 
     pub(crate) fn with_single_file(text: &str) -> (RootDatabase, FileId) {
@@ -185,18 +188,44 @@ mod helpers {
         ra_fixture_before: &str,
         ra_fixture_after: &str,
     ) {
-        check(assist, ra_fixture_before, ExpectedResult::After(ra_fixture_after));
+        check(assist, None, ra_fixture_before, ExpectedResult::After(ra_fixture_after));
+    }
+
+    pub(crate) fn check_assist_with_id(
+        assist: AssistHandler,
+        assist_id: AssistId,
+        ra_fixture_before: &str,
+        ra_fixture_after: &str,
+    ) {
+        check(assist, Some(assist_id), ra_fixture_before, ExpectedResult::After(ra_fixture_after));
     }
 
     // FIXME: instead of having a separate function here, maybe use
     // `extract_ranges` and mark the target as `<target> </target>` in the
     // fixuture?
     pub(crate) fn check_assist_target(assist: AssistHandler, ra_fixture: &str, target: &str) {
-        check(assist, ra_fixture, ExpectedResult::Target(target));
+        check(assist, None, ra_fixture, ExpectedResult::Target(target));
+    }
+
+    pub(crate) fn check_assist_target_with_id(
+        assist: AssistHandler,
+        assist_id: AssistId,
+        ra_fixture: &str,
+        target: &str,
+    ) {
+        check(assist, Some(assist_id), ra_fixture, ExpectedResult::Target(target));
     }
 
     pub(crate) fn check_assist_not_applicable(assist: AssistHandler, ra_fixture: &str) {
-        check(assist, ra_fixture, ExpectedResult::NotApplicable);
+        check(assist, None, ra_fixture, ExpectedResult::NotApplicable);
+    }
+
+    pub(crate) fn check_assist_not_applicable_with_id(
+        assist: AssistHandler,
+        assist_id: AssistId,
+        ra_fixture: &str,
+    ) {
+        check(assist, Some(assist_id), ra_fixture, ExpectedResult::NotApplicable);
     }
 
     enum ExpectedResult<'a> {
@@ -205,7 +234,12 @@ mod helpers {
         Target(&'a str),
     }
 
-    fn check(assist: AssistHandler, before: &str, expected: ExpectedResult) {
+    fn check(
+        assist_handler: AssistHandler,
+        assist_id: Option<AssistId>,
+        before: &str,
+        expected: ExpectedResult,
+    ) {
         let (range_or_offset, before) = extract_range_or_offset(before);
         let range: TextRange = range_or_offset.into();
 
@@ -214,9 +248,17 @@ mod helpers {
         let sema = Semantics::new(&db);
         let assist_ctx = AssistCtx::new(&sema, frange, true);
 
-        match (assist(assist_ctx), expected) {
+        let assist_result = assist_handler(assist_ctx);
+        let assist: Option<AssistInfo> = assist_result.clone().and_then(|assist| match assist_id {
+            None => Some(assist.0[0].clone()),
+            Some(assist_id) => {
+                assist.0.iter().find(|info| info.label.id == assist_id).map(AssistInfo::to_owned)
+            }
+        });
+
+        match (assist, expected) {
             (Some(assist), ExpectedResult::After(after)) => {
-                let action = assist.0[0].action.clone().unwrap();
+                let action = assist.action.clone().unwrap();
 
                 let mut actual = action.edit.apply(&before);
                 match action.cursor_position {
@@ -235,14 +277,25 @@ mod helpers {
                 assert_eq_text!(after, &actual);
             }
             (Some(assist), ExpectedResult::Target(target)) => {
-                let action = assist.0[0].action.clone().unwrap();
+                let action = assist.action.clone().unwrap();
                 let range = action.target.expect("expected target on action");
                 assert_eq_text!(&before[range], target);
             }
             (Some(_), ExpectedResult::NotApplicable) => panic!("assist should not be applicable!"),
-            (None, ExpectedResult::After(_)) | (None, ExpectedResult::Target(_)) => {
-                panic!("code action is not applicable")
-            }
+            (None, ExpectedResult::After(_)) | (None, ExpectedResult::Target(_)) => match assist_id
+            {
+                None => panic!("No code action is applicable"),
+                Some(assist_id) => {
+                    let applicable_actions: Vec<String> = assist_result
+                        .map(|r| r.0.iter().map(|i| i.label.id.0.to_string()).collect())
+                        .unwrap_or_default();
+                    panic!(
+                        "Code action '{}' is not applicable. Applicables actions: [{}]",
+                        assist_id.0,
+                        applicable_actions.join(", ")
+                    );
+                }
+            },
             (None, ExpectedResult::NotApplicable) => (),
         };
     }
