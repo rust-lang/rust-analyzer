@@ -102,13 +102,7 @@ pub(crate) fn remove_digit_separators(ctx: AssistCtx) -> Option<Assist> {
 }
 
 fn len_without_separators(text: &str) -> usize {
-    let mut len = 0;
-    for c in text.chars() {
-        if c != '_' {
-            len += 1;
-        }
-    }
-    return len;
+    text.chars().filter(|&c| c != '_').count()
 }
 
 fn separate_number(text: &str, every: usize, digits_len: usize) -> String {
