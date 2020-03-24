@@ -23,7 +23,7 @@ use hir_expand::{
 };
 use hir_ty::{
     autoderef, display::HirFormatter, expr::ExprValidator, method_resolution, ApplicationTy,
-    Canonical, InEnvironment, Substs, TraitEnvironment, Ty, TyDefId, TypeCtor,
+    Canonical, CallableDef, InEnvironment, Substs, TraitEnvironment, Ty, TyDefId, TypeCtor,
 };
 use ra_db::{CrateId, Edition, FileId};
 use ra_prof::profile;
@@ -33,7 +33,7 @@ use ra_syntax::{
 };
 use rustc_hash::FxHashSet;
 
-use crate::{db::HirDatabase, has_source::HasSource, CallableDef, HirDisplay, InFile, Name};
+use crate::{db::HirDatabase, has_source::HasSource, HirDisplay, InFile, Name};
 
 /// hir::Crate describes a single crate. It's the main interface with which
 /// a crate's dependencies interact. Mostly, it should be just a proxy for the
@@ -1078,10 +1078,31 @@ impl Type {
         )
     }
 
-    // FIXME: this method is broken, as it doesn't take closures into account.
-    pub fn as_callable(&self) -> Option<CallableDef> {
-        Some(self.ty.value.as_callable()?.0)
+    pub fn as_function(&self) -> Option<Function> {
+        match self.ty.value.as_callable()? {
+            CallableDef::FunctionId(id) => Some(id.into()),
+            _ => None
+        }
     }
+
+    pub fn as_tuple_or_unit_struct(&self) -> Option<Struct> {
+        match self.ty.value.as_callable()? {
+            CallableDef::StructId(id) => Some(id.into()),
+            _ => None
+        }
+    }
+
+    pub fn as_tuple_or_unit_enum_variant(&self) -> Option<EnumVariant> {
+        match self.ty.value.as_callable()? {
+            CallableDef::EnumVariantId(id) => Some(id.into()),
+            _ => None
+        }
+    }
+
+    // replace as_callable() with the following methods as per @matklad
+    //
+    // fn fn_params(&self, db: &dyn HirDatabase) -> Option<Vec<(Option<Name>, Type)>> { }
+    // fn fn_ret_type(&self) -> Type { }
 
     pub fn contains_unknown(&self) -> bool {
         return go(&self.ty.value);

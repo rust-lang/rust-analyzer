@@ -200,19 +200,19 @@ fn should_show_param_hint(
 fn get_fn_signature(sema: &Semantics<RootDatabase>, expr: &ast::Expr) -> Option<FunctionSignature> {
     match expr {
         ast::Expr::CallExpr(expr) => {
-            // FIXME: Type::as_callable is broken for closures
-            let callable_def = sema.type_of_expr(&expr.expr()?)?.as_callable()?;
-            match callable_def {
-                hir::CallableDef::FunctionId(it) => {
-                    Some(FunctionSignature::from_hir(sema.db, it.into()))
-                }
-                hir::CallableDef::StructId(it) => {
-                    FunctionSignature::from_struct(sema.db, it.into())
-                }
-                hir::CallableDef::EnumVariantId(it) => {
-                    FunctionSignature::from_enum_variant(sema.db, it.into())
-                }
+            // FIXME add support for closures
+            let expr_type = sema.type_of_expr(&expr.expr()?)?;
+
+            if let Some(fn_def) = expr_type.as_function() {
+                return Some(FunctionSignature::from_hir(sema.db, fn_def));
             }
+
+            if let Some(st) = expr_type.as_tuple_or_unit_struct() {
+                return Some(FunctionSignature::from_struct(sema.db, st).expect("callable"));
+            }
+
+            let enum_variant = expr_type.as_tuple_or_unit_enum_variant()?;
+            Some(FunctionSignature::from_enum_variant(sema.db, enum_variant).expect("callable"))
         }
         ast::Expr::MethodCallExpr(expr) => {
             let fn_def = sema.resolve_method_call(&expr)?;

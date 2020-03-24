@@ -87,36 +87,28 @@ pub(crate) fn outgoing_calls(db: &RootDatabase, position: FilePosition) -> Optio
 
     syntax
         .descendants()
-        .filter_map(|node| FnCallNode::with_node_exact(&node))
-        .filter_map(|call_node| {
+        .filter_map(|node| {
+            let call_node = FnCallNode::with_node_exact(&node)?;
             let name_ref = call_node.name_ref()?;
 
-            if let Some(func_target) = match &call_node {
+            let func_target = match &call_node {
                 FnCallNode::CallExpr(expr) => {
-                    //FIXME: Type::as_callable is broken
-                    let callable_def = sema.type_of_expr(&expr.expr()?)?.as_callable()?;
-                    match callable_def {
-                        hir::CallableDef::FunctionId(it) => {
-                            let fn_def: hir::Function = it.into();
-                            let nav = fn_def.to_nav(db);
-                            Some(nav)
-                        }
-                        _ => None,
-                    }
+                    // TODO: this better be sema.resolve_call_expr()
+                    // to add support for closures, tuple structs and enum variant calls?
+                    let function = sema.type_of_expr(&expr.expr()?)?.as_function()?;
+                    function.to_nav(db)
                 }
                 FnCallNode::MethodCallExpr(expr) => {
                     let function = sema.resolve_method_call(&expr)?;
-                    Some(function.to_nav(db))
+                    function.to_nav(db)
                 }
                 FnCallNode::MacroCallExpr(macro_call) => {
                     let macro_def = sema.resolve_macro_call(&macro_call)?;
-                    Some(macro_def.to_nav(db))
+                    macro_def.to_nav(db)
                 }
-            } {
-                Some((func_target, name_ref.syntax().text_range()))
-            } else {
-                None
-            }
+            };
+
+            Some((func_target, name_ref.syntax().text_range()))
         })
         .for_each(|(nav, range)| calls.add(&nav, range));
 

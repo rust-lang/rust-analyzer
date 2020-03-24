@@ -28,19 +28,19 @@ pub(crate) fn call_info_for_token(
 
     let (mut call_info, has_self) = match &calling_node {
         FnCallNode::CallExpr(call) => {
-            //FIXME: Type::as_callable is broken
-            let callable_def = sema.type_of_expr(&call.expr()?)?.as_callable()?;
-            match callable_def {
-                hir::CallableDef::FunctionId(it) => {
-                    let fn_def = it.into();
-                    (CallInfo::with_fn(sema.db, fn_def), fn_def.has_self_param(sema.db))
-                }
-                hir::CallableDef::StructId(it) => {
-                    (CallInfo::with_struct(sema.db, it.into())?, false)
-                }
-                hir::CallableDef::EnumVariantId(it) => {
-                    (CallInfo::with_enum_variant(sema.db, it.into())?, false)
-                }
+            let expr_type = sema.type_of_expr(&call.expr()?)?;
+
+            // TODO: The code looks like it it should be a match on an enum
+            // i.e. the `ra_hir` representation of `ra_hir_def::CallableDef`
+            // FIXME: add support for closures
+
+            if let Some(fn_def) = expr_type.as_function() {
+                (CallInfo::with_fn(sema.db, fn_def), fn_def.has_self_param(sema.db))
+            } else if let Some(st) = expr_type.as_tuple_or_unit_struct() {
+                (CallInfo::with_struct(sema.db, st).expect("callable"), false)
+            } else {
+                let enum_variant = expr_type.as_tuple_or_unit_enum_variant()?;
+                (CallInfo::with_enum_variant(sema.db, enum_variant).expect("callable"), false)
             }
         }
         FnCallNode::MethodCallExpr(method_call) => {

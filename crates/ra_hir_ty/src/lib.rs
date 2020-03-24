@@ -664,10 +664,10 @@ impl Ty {
         }
     }
 
-    pub fn as_callable(&self) -> Option<(CallableDef, &Substs)> {
+    pub fn as_callable(&self) -> Option<CallableDef> {
         match self {
-            Ty::Apply(ApplicationTy { ctor: TypeCtor::FnDef(callable_def), parameters }) => {
-                Some((*callable_def, parameters))
+            Ty::Apply(ApplicationTy { ctor: TypeCtor::FnDef(callable_def), .. }) => {
+                Some(*callable_def)
             }
             _ => None,
         }
