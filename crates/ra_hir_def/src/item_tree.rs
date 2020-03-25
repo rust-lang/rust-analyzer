@@ -1,4 +1,4 @@
-use hir_expand::name::Name;
+use hir_expand::{ast_id_map::FileAstId, name::Name};
 use ra_arena::{Arena, Idx};
 use ra_syntax::ast;
 
@@ -22,6 +22,8 @@ pub struct ItemTree {
     impls: Arena<Impl>,
     type_aliass: Arena<TypeAlias>,
     mods: Arena<Mod>,
+    macro_calls: Arena<MacroCall>,
+    exprs: Arena<Expr>,
 }
 
 impl ItemTree {
@@ -47,6 +49,7 @@ pub struct Function {
     pub has_self_param: bool,
     pub params: Vec<TypeRef>,
     pub ret_type: TypeRef,
+    pub body: Option<Idx<Expr>>,
 }
 
 pub struct Struct {
@@ -68,6 +71,7 @@ pub struct Const {
     pub name: Option<Name>,
     pub visibility: RawVisibility,
     pub type_ref: TypeRef,
+    pub body: Option<Idx<Expr>>,
 }
 
 pub struct Trait {
@@ -97,6 +101,18 @@ pub struct Mod {
     pub items: Vec<ModItem>,
 }
 
+pub struct MacroCall {
+    pub name: Option<Name>,
+    pub path: ModPath,
+    pub export: bool,
+    pub builtin: bool,
+    pub ast_id: FileAstId<ast::MacroCall>,
+}
+
+pub struct Expr {
+    pub ast_id: FileAstId<ast::Expr>,
+}
+
 pub enum ModItem {
     Import(Idx<Import>),
     Function(Idx<Function>),
@@ -109,6 +125,7 @@ pub enum ModItem {
     Impl(Idx<Impl>),
     TypeAlias(Idx<TypeAlias>),
     Mod(Idx<Mod>),
+    MacroCall(Idx<MacroCall>),
 }
 
 pub enum AssocItem {
