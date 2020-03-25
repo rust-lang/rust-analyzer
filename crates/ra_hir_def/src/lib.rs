@@ -20,6 +20,8 @@ pub mod item_scope;
 pub mod dyn_map;
 pub mod keys;
 
+pub mod item_tree;
+
 pub mod adt;
 pub mod data;
 pub mod generics;
