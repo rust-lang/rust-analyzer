@@ -135,6 +135,7 @@ pub enum AssocItem {
     Function(Idx<Function>),
     TypeAlias(Idx<TypeAlias>),
     Const(Idx<Const>),
+    MacroCall(Idx<MacroCall>),
 }
 
 pub struct Variant {
