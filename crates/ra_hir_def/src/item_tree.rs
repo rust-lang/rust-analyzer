@@ -77,11 +77,13 @@ pub struct Const {
 pub struct Trait {
     pub name: Name,
     pub visibility: RawVisibility,
+    pub generic_params: GenericParams,
     pub auto: bool,
     pub items: Vec<AssocItem>,
 }
 
 pub struct Impl {
+    pub generic_params: GenericParams,
     pub target_trait: Option<TypeRef>,
     pub target_type: TypeRef,
     pub is_negative: bool,
@@ -92,6 +94,7 @@ pub struct Impl {
 pub struct TypeAlias {
     pub name: Name,
     pub visibility: RawVisibility,
+    pub generic_params: GenericParams,
     pub type_ref: Option<TypeRef>,
 }
 
