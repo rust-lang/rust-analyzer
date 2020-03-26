@@ -1,6 +1,6 @@
 use hir_expand::{ast_id_map::FileAstId, name::Name};
-use ra_arena::{Arena, Idx};
-use ra_syntax::ast;
+use ra_arena::{map::ArenaMap, Arena, Idx};
+use ra_syntax::{ast, AstPtr};
 
 use crate::{
     generics::GenericParams,
@@ -24,6 +24,22 @@ pub struct ItemTree {
     mods: Arena<Mod>,
     macro_calls: Arena<MacroCall>,
     exprs: Arena<Expr>,
+}
+
+#[derive(Default)]
+pub struct ItemTreeSrc {
+    functions: ArenaMap<Idx<Function>, AstPtr<ast::FnDef>>,
+    structs: ArenaMap<Idx<Struct>, AstPtr<ast::StructDef>>,
+    unions: ArenaMap<Idx<Union>, AstPtr<ast::UnionDef>>,
+    enums: ArenaMap<Idx<Enum>, AstPtr<ast::EnumDef>>,
+    consts: ArenaMap<Idx<Const>, AstPtr<ast::ConstDef>>,
+    statics: ArenaMap<Idx<Static>, AstPtr<ast::StaticDef>>,
+    traits: ArenaMap<Idx<Trait>, AstPtr<ast::TraitDef>>,
+    impls: ArenaMap<Idx<Impl>, AstPtr<ast::ImplDef>>,
+    type_aliass: ArenaMap<Idx<TypeAlias>, AstPtr<ast::TypeAliasDef>>,
+    mods: ArenaMap<Idx<Mod>, AstPtr<ast::Module>>,
+    macro_calls: ArenaMap<Idx<MacroCall>, AstPtr<ast::MacroCall>>,
+    exprs: ArenaMap<Idx<Expr>, AstPtr<ast::Expr>>,
 }
 
 impl ItemTree {
@@ -126,9 +142,7 @@ pub struct MacroCall {
     pub ast_id: FileAstId<ast::MacroCall>,
 }
 
-pub struct Expr {
-    pub ast_id: FileAstId<ast::Expr>,
-}
+pub struct Expr;
 
 pub enum ModItem {
     Import(Idx<Import>),
