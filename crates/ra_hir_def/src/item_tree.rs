@@ -1,13 +1,21 @@
-use hir_expand::{ast_id_map::FileAstId, name::Name};
+use hir_expand::{
+    ast_id_map::FileAstId,
+    hygiene::Hygiene,
+    name::{AsName, Name},
+};
 use ra_arena::{map::ArenaMap, Arena, Idx};
 use ra_syntax::{ast, AstPtr};
 
 use crate::{
+    attr::Attrs,
     generics::GenericParams,
     path::{ImportAlias, ModPath},
     type_ref::TypeRef,
     visibility::RawVisibility,
 };
+use ast::{NameOwner, StructKind, TypeAscriptionOwner};
+use either::Either;
+use rustc_hash::FxHashMap;
 
 #[derive(Default)]
 pub struct ItemTree {
@@ -26,10 +34,20 @@ pub struct ItemTree {
     exprs: Arena<Expr>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum VariantIdx {
+    Struct(Idx<Struct>),
+    Union(Idx<Union>),
+}
+
 #[derive(Default)]
 pub struct ItemTreeSrc {
     functions: ArenaMap<Idx<Function>, AstPtr<ast::FnDef>>,
     structs: ArenaMap<Idx<Struct>, AstPtr<ast::StructDef>>,
+    struct_fields: FxHashMap<
+        (VariantIdx, Idx<StructField>),
+        Either<AstPtr<ast::RecordFieldDef>, AstPtr<ast::TupleFieldDef>>,
+    >,
     unions: ArenaMap<Idx<Union>, AstPtr<ast::UnionDef>>,
     enums: ArenaMap<Idx<Enum>, AstPtr<ast::EnumDef>>,
     consts: ArenaMap<Idx<Const>, AstPtr<ast::ConstDef>>,
@@ -70,6 +88,7 @@ pub struct Function {
 
 pub struct Struct {
     pub name: Name,
+    pub attrs: Attrs,
     pub visibility: RawVisibility,
     pub generic_params: GenericParams,
     pub fields: Fields,
@@ -77,6 +96,7 @@ pub struct Struct {
 
 pub struct Union {
     pub name: Name,
+    pub attrs: Attrs,
     pub visibility: RawVisibility,
     pub generic_params: GenericParams,
     pub fields: Fields,
@@ -184,4 +204,147 @@ pub struct StructField {
     pub name: Name,
     pub type_ref: TypeRef,
     pub visibility: RawVisibility,
+}
+
+struct Ctx {
+    tree: ItemTree,
+    src: ItemTreeSrc,
+    hygiene: Hygiene,
+}
+
+impl Ctx {
+    fn lower(&mut self, item_owner: &dyn ast::ModuleItemOwner) {
+        for item in item_owner.items() {
+            self.lower_item(&item)
+        }
+    }
+
+    fn lower_item(&mut self, item: &ast::ModuleItem) {
+        match item {
+            ast::ModuleItem::StructDef(strukt) => {
+                if let Some(data) = self.lower_struct(strukt) {
+                    let idx = self.tree.structs.alloc(data);
+                    self.src.structs.insert(idx, AstPtr::new(strukt));
+                    let fields = self.lower_fields(VariantIdx::Struct(idx), &strukt.kind());
+                    self.tree.structs[idx].fields = fields;
+                }
+            }
+            ast::ModuleItem::UnionDef(union) => {
+                if let Some(data) = self.lower_union(union) {
+                    let idx = self.tree.unions.alloc(data);
+                    self.src.unions.insert(idx, AstPtr::new(union));
+                    if let Some(record_field_def_list) = union.record_field_def_list() {
+                        let fields = self.lower_fields(
+                            VariantIdx::Union(idx),
+                            &StructKind::Record(record_field_def_list),
+                        );
+                        self.tree.unions[idx].fields = fields;
+                    }
+                }
+            }
+            ast::ModuleItem::EnumDef(_) => {}
+            ast::ModuleItem::FnDef(_) => {}
+            ast::ModuleItem::TraitDef(_) => {}
+            ast::ModuleItem::TypeAliasDef(_) => {}
+            ast::ModuleItem::ImplDef(_) => {}
+            ast::ModuleItem::UseItem(_) => {}
+            ast::ModuleItem::ExternCrateItem(_) => {}
+            ast::ModuleItem::ConstDef(_) => {}
+            ast::ModuleItem::StaticDef(_) => {}
+            ast::ModuleItem::Module(_) => {}
+            ast::ModuleItem::MacroCall(_) => {}
+        }
+    }
+
+    fn lower_struct(&mut self, strukt: &ast::StructDef) -> Option<Struct> {
+        let attrs = self.lower_attrs(strukt);
+        let visibility = self.lower_visibility(strukt);
+        let name = strukt.name()?.as_name();
+        let generic_params = self.lower_generic_params(strukt);
+        let res = Struct { name, attrs, visibility, generic_params, fields: Fields::Unit };
+        Some(res)
+    }
+
+    fn lower_fields(&mut self, variant_idx: VariantIdx, strukt_kind: &ast::StructKind) -> Fields {
+        match strukt_kind {
+            ast::StructKind::Record(it) => {
+                let arena = self.lower_record_fields(variant_idx, it);
+                Fields::Record(arena)
+            }
+            ast::StructKind::Tuple(it) => {
+                let arena = self.lower_tuple_fields(variant_idx, it);
+                Fields::Tuple(arena)
+            }
+            ast::StructKind::Unit => Fields::Unit,
+        }
+    }
+
+    fn lower_record_fields(
+        &mut self,
+        parent: VariantIdx,
+        fields: &ast::RecordFieldDefList,
+    ) -> Arena<StructField> {
+        let mut arena = Arena::default();
+        for field in fields.fields() {
+            if let Some(data) = self.lower_record_field(&field) {
+                let idx = arena.alloc(data);
+                self.src.struct_fields.insert((parent, idx), Either::Left(AstPtr::new(&field)));
+            }
+        }
+        arena
+    }
+
+    fn lower_record_field(&self, field: &ast::RecordFieldDef) -> Option<StructField> {
+        let name = field.name()?.as_name();
+        let visibility = self.lower_visibility(field);
+        let type_ref = self.lower_type_ref(&field.ascribed_type()?);
+        let res = StructField { name, type_ref, visibility };
+        Some(res)
+    }
+
+    fn lower_tuple_fields(
+        &mut self,
+        parent: VariantIdx,
+        fields: &ast::TupleFieldDefList,
+    ) -> Arena<StructField> {
+        let mut arena = Arena::default();
+        for (i, field) in fields.fields().enumerate() {
+            if let Some(data) = self.lower_tuple_field(i, &field) {
+                let idx = arena.alloc(data);
+                self.src.struct_fields.insert((parent, idx), Either::Right(AstPtr::new(&field)));
+            }
+        }
+        arena
+    }
+
+    fn lower_tuple_field(&self, idx: usize, field: &ast::TupleFieldDef) -> Option<StructField> {
+        let name = Name::new_tuple_field(idx);
+        let visibility = self.lower_visibility(field);
+        let type_ref = self.lower_type_ref(&field.type_ref()?);
+        let res = StructField { name, type_ref, visibility };
+        Some(res)
+    }
+
+    fn lower_union(&mut self, union: &ast::UnionDef) -> Option<Union> {
+        let attrs = self.lower_attrs(union);
+        let visibility = self.lower_visibility(union);
+        let name = union.name()?.as_name();
+        let generic_params = self.lower_generic_params(union);
+        let res = Union { name, attrs, visibility, generic_params, fields: Fields::Unit };
+        Some(res)
+    }
+
+    fn lower_generic_params(&mut self, item: &impl ast::TypeParamsOwner) -> GenericParams {
+        None.unwrap()
+    }
+
+    fn lower_attrs(&self, item: &impl ast::AttrsOwner) -> Attrs {
+        Attrs::new(item, &self.hygiene)
+    }
+    fn lower_visibility(&self, item: &impl ast::VisibilityOwner) -> RawVisibility {
+        RawVisibility::from_ast_with_hygiene(item.visibility(), &self.hygiene)
+    }
+    fn lower_type_ref(&self, type_ref: &ast::TypeRef) -> TypeRef {
+        TypeRef::from_ast(type_ref.clone())
+    }
 }
