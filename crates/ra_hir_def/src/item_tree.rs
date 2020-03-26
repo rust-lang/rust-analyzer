@@ -14,10 +14,10 @@ pub struct ItemTree {
     imports: Arena<Import>,
     functions: Arena<Function>,
     structs: Arena<Struct>,
-    unions: Arena<Struct>,
+    unions: Arena<Union>,
     enums: Arena<Enum>,
     consts: Arena<Const>,
-    statics: Arena<Const>,
+    statics: Arena<Static>,
     traits: Arena<Trait>,
     impls: Arena<Impl>,
     type_aliass: Arena<TypeAlias>,
@@ -59,6 +59,13 @@ pub struct Struct {
     pub fields: Fields,
 }
 
+pub struct Union {
+    pub name: Name,
+    pub visibility: RawVisibility,
+    pub generic_params: GenericParams,
+    pub fields: Fields,
+}
+
 pub struct Enum {
     pub name: Name,
     pub visibility: RawVisibility,
@@ -69,6 +76,13 @@ pub struct Enum {
 pub struct Const {
     /// const _: () = ();
     pub name: Option<Name>,
+    pub visibility: RawVisibility,
+    pub type_ref: TypeRef,
+    pub body: Option<Idx<Expr>>,
+}
+
+pub struct Static {
+    pub name: Name,
     pub visibility: RawVisibility,
     pub type_ref: TypeRef,
     pub body: Option<Idx<Expr>>,
@@ -120,10 +134,10 @@ pub enum ModItem {
     Import(Idx<Import>),
     Function(Idx<Function>),
     Struct(Idx<Struct>),
-    Union(Idx<Struct>),
+    Union(Idx<Union>),
     Enum(Idx<Enum>),
     Const(Idx<Const>),
-    Static(Idx<Const>),
+    Static(Idx<Static>),
     Trait(Idx<Trait>),
     Impl(Idx<Impl>),
     TypeAlias(Idx<TypeAlias>),
