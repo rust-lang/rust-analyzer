@@ -3,7 +3,7 @@ use hir_expand::{
     hygiene::Hygiene,
     name::{AsName, Name},
 };
-use ra_arena::{map::ArenaMap, Arena, Idx};
+use ra_arena::{map::ArenaMap, Arena, Idx, RawId};
 use ra_syntax::{ast, AstPtr};
 
 use crate::{
@@ -16,14 +16,17 @@ use crate::{
 use ast::{NameOwner, StructKind, TypeAscriptionOwner};
 use either::Either;
 use rustc_hash::FxHashMap;
+use std::ops::Range;
 
 #[derive(Default)]
 pub struct ItemTree {
     imports: Arena<Import>,
     functions: Arena<Function>,
     structs: Arena<Struct>,
+    fields: Arena<Field>,
     unions: Arena<Union>,
     enums: Arena<Enum>,
+    variants: Arena<Variant>,
     consts: Arena<Const>,
     statics: Arena<Static>,
     traits: Arena<Trait>,
@@ -34,22 +37,14 @@ pub struct ItemTree {
     exprs: Arena<Expr>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-enum VariantIdx {
-    Struct(Idx<Struct>),
-    Union(Idx<Union>),
-}
-
 #[derive(Default)]
 pub struct ItemTreeSrc {
     functions: ArenaMap<Idx<Function>, AstPtr<ast::FnDef>>,
     structs: ArenaMap<Idx<Struct>, AstPtr<ast::StructDef>>,
-    struct_fields: FxHashMap<
-        (VariantIdx, Idx<StructField>),
-        Either<AstPtr<ast::RecordFieldDef>, AstPtr<ast::TupleFieldDef>>,
-    >,
+    fields: ArenaMap<Idx<Field>, Either<AstPtr<ast::RecordFieldDef>, AstPtr<ast::TupleFieldDef>>>,
     unions: ArenaMap<Idx<Union>, AstPtr<ast::UnionDef>>,
     enums: ArenaMap<Idx<Enum>, AstPtr<ast::EnumDef>>,
+    variants: ArenaMap<Idx<Variant>, AstPtr<ast::EnumVariant>>,
     consts: ArenaMap<Idx<Const>, AstPtr<ast::ConstDef>>,
     statics: ArenaMap<Idx<Static>, AstPtr<ast::StaticDef>>,
     traits: ArenaMap<Idx<Trait>, AstPtr<ast::TraitDef>>,
@@ -106,7 +101,7 @@ pub struct Enum {
     pub name: Name,
     pub visibility: RawVisibility,
     pub generic_params: GenericParams,
-    pub variants: Arena<Variant>,
+    pub variants: Range<Idx<Variant>>,
 }
 
 pub struct Const {
@@ -193,14 +188,14 @@ pub struct Variant {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Fields {
-    Record(Arena<StructField>),
-    Tuple(Arena<StructField>),
+    Record(Range<Idx<Field>>),
+    Tuple(Range<Idx<Field>>),
     Unit,
 }
 
 /// A single field of an enum variant or struct
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StructField {
+pub struct Field {
     pub name: Name,
     pub type_ref: TypeRef,
     pub visibility: RawVisibility,
@@ -225,7 +220,7 @@ impl Ctx {
                 if let Some(data) = self.lower_struct(strukt) {
                     let idx = self.tree.structs.alloc(data);
                     self.src.structs.insert(idx, AstPtr::new(strukt));
-                    let fields = self.lower_fields(VariantIdx::Struct(idx), &strukt.kind());
+                    let fields = self.lower_fields(&strukt.kind());
                     self.tree.structs[idx].fields = fields;
                 }
             }
@@ -234,10 +229,7 @@ impl Ctx {
                     let idx = self.tree.unions.alloc(data);
                     self.src.unions.insert(idx, AstPtr::new(union));
                     if let Some(record_field_def_list) = union.record_field_def_list() {
-                        let fields = self.lower_fields(
-                            VariantIdx::Union(idx),
-                            &StructKind::Record(record_field_def_list),
-                        );
+                        let fields = self.lower_fields(&StructKind::Record(record_field_def_list));
                         self.tree.unions[idx].fields = fields;
                     }
                 }
@@ -265,63 +257,57 @@ impl Ctx {
         Some(res)
     }
 
-    fn lower_fields(&mut self, variant_idx: VariantIdx, strukt_kind: &ast::StructKind) -> Fields {
+    fn lower_fields(&mut self, strukt_kind: &ast::StructKind) -> Fields {
         match strukt_kind {
             ast::StructKind::Record(it) => {
-                let arena = self.lower_record_fields(variant_idx, it);
-                Fields::Record(arena)
+                let range = self.lower_record_fields(it);
+                Fields::Record(range)
             }
             ast::StructKind::Tuple(it) => {
-                let arena = self.lower_tuple_fields(variant_idx, it);
-                Fields::Tuple(arena)
+                let range = self.lower_tuple_fields(it);
+                Fields::Tuple(range)
             }
             ast::StructKind::Unit => Fields::Unit,
         }
     }
 
-    fn lower_record_fields(
-        &mut self,
-        parent: VariantIdx,
-        fields: &ast::RecordFieldDefList,
-    ) -> Arena<StructField> {
-        let mut arena = Arena::default();
+    fn lower_record_fields(&mut self, fields: &ast::RecordFieldDefList) -> Range<Idx<Field>> {
+        let start = self.next_field_idx();
         for field in fields.fields() {
             if let Some(data) = self.lower_record_field(&field) {
-                let idx = arena.alloc(data);
-                self.src.struct_fields.insert((parent, idx), Either::Left(AstPtr::new(&field)));
+                let idx = self.tree.fields.alloc(data);
+                self.src.fields.insert(idx, Either::Left(AstPtr::new(&field)));
             }
         }
-        arena
+        let end = self.next_field_idx();
+        start..end
     }
 
-    fn lower_record_field(&self, field: &ast::RecordFieldDef) -> Option<StructField> {
+    fn lower_record_field(&self, field: &ast::RecordFieldDef) -> Option<Field> {
         let name = field.name()?.as_name();
         let visibility = self.lower_visibility(field);
         let type_ref = self.lower_type_ref(&field.ascribed_type()?);
-        let res = StructField { name, type_ref, visibility };
+        let res = Field { name, type_ref, visibility };
         Some(res)
     }
 
-    fn lower_tuple_fields(
-        &mut self,
-        parent: VariantIdx,
-        fields: &ast::TupleFieldDefList,
-    ) -> Arena<StructField> {
-        let mut arena = Arena::default();
+    fn lower_tuple_fields(&mut self, fields: &ast::TupleFieldDefList) -> Range<Idx<Field>> {
+        let start = self.next_field_idx();
         for (i, field) in fields.fields().enumerate() {
             if let Some(data) = self.lower_tuple_field(i, &field) {
-                let idx = arena.alloc(data);
-                self.src.struct_fields.insert((parent, idx), Either::Right(AstPtr::new(&field)));
+                let idx = self.tree.fields.alloc(data);
+                self.src.fields.insert(idx, Either::Right(AstPtr::new(&field)));
             }
         }
-        arena
+        let end = self.next_field_idx();
+        start..end
     }
 
-    fn lower_tuple_field(&self, idx: usize, field: &ast::TupleFieldDef) -> Option<StructField> {
+    fn lower_tuple_field(&self, idx: usize, field: &ast::TupleFieldDef) -> Option<Field> {
         let name = Name::new_tuple_field(idx);
         let visibility = self.lower_visibility(field);
         let type_ref = self.lower_type_ref(&field.type_ref()?);
-        let res = StructField { name, type_ref, visibility };
+        let res = Field { name, type_ref, visibility };
         Some(res)
     }
 
@@ -346,5 +332,9 @@ impl Ctx {
     }
     fn lower_type_ref(&self, type_ref: &ast::TypeRef) -> TypeRef {
         TypeRef::from_ast(type_ref.clone())
+    }
+
+    fn next_field_idx(&self) -> Idx<Field> {
+        Idx::from_raw(RawId::from(self.tree.fields.len() as u32))
     }
 }
