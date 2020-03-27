@@ -110,14 +110,12 @@ pub struct Const {
     pub name: Option<Name>,
     pub visibility: RawVisibility,
     pub type_ref: TypeRef,
-    pub body: Option<Idx<Expr>>,
 }
 
 pub struct Static {
     pub name: Name,
     pub visibility: RawVisibility,
     pub type_ref: TypeRef,
-    pub body: Option<Idx<Expr>>,
 }
 
 pub struct Trait {
@@ -247,8 +245,17 @@ impl Ctx {
                     self.src.type_aliases.insert(idx, AstPtr::new(ast));
                 }
             }
-            ast::ModuleItem::StaticDef(_) => {}
-            ast::ModuleItem::ConstDef(_) => {}
+            ast::ModuleItem::StaticDef(ast) => {
+                if let Some(data) = self.lower_static(ast) {
+                    let idx = self.tree.statics.alloc(data);
+                    self.src.statics.insert(idx, AstPtr::new(ast));
+                }
+            }
+            ast::ModuleItem::ConstDef(ast) => {
+                let data = self.lower_const(ast);
+                let idx = self.tree.consts.alloc(data);
+                self.src.consts.insert(idx, AstPtr::new(ast));
+            }
             ast::ModuleItem::Module(_) => {}
             ast::ModuleItem::TraitDef(_) => {}
             ast::ModuleItem::ImplDef(_) => {}
@@ -428,6 +435,21 @@ impl Ctx {
         Some(res)
     }
 
+    fn lower_static(&mut self, static_: &ast::StaticDef) -> Option<Static> {
+        let name = static_.name()?.as_name();
+        let type_ref = self.lower_type_ref_opt(static_.ascribed_type());
+        let visibility = self.lower_visibility(static_);
+        let res = Static { name, visibility, type_ref };
+        Some(res)
+    }
+
+    fn lower_const(&mut self, konst: &ast::ConstDef) -> Const {
+        let name = konst.name().map(|it| it.as_name());
+        let type_ref = self.lower_type_ref_opt(konst.ascribed_type());
+        let visibility = self.lower_visibility(konst);
+        Const { name, visibility, type_ref }
+    }
+
     fn lower_generic_params(&mut self, item: &impl ast::TypeParamsOwner) -> GenericParams {
         None.unwrap()
     }
@@ -440,6 +462,9 @@ impl Ctx {
     }
     fn lower_type_ref(&self, type_ref: &ast::TypeRef) -> TypeRef {
         TypeRef::from_ast(type_ref.clone())
+    }
+    fn lower_type_ref_opt(&self, type_ref: Option<ast::TypeRef>) -> TypeRef {
+        TypeRef::from_ast_opt(type_ref)
     }
 
     fn next_field_idx(&self) -> Idx<Field> {
