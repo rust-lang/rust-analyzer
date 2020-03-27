@@ -99,6 +99,7 @@ pub struct Union {
 
 pub struct Enum {
     pub name: Name,
+    pub attrs: Attrs,
     pub visibility: RawVisibility,
     pub generic_params: GenericParams,
     pub variants: Range<Idx<Variant>>,
@@ -228,7 +229,12 @@ impl Ctx {
                     self.src.unions.insert(idx, AstPtr::new(union));
                 }
             }
-            ast::ModuleItem::EnumDef(_) => {}
+            ast::ModuleItem::EnumDef(enum_) => {
+                if let Some(data) = self.lower_enum(enum_) {
+                    let idx = self.tree.enums.alloc(data);
+                    self.src.enums.insert(idx, AstPtr::new(enum_));
+                }
+            }
             ast::ModuleItem::FnDef(_) => {}
             ast::ModuleItem::TraitDef(_) => {}
             ast::ModuleItem::TypeAliasDef(_) => {}
@@ -321,6 +327,38 @@ impl Ctx {
         Some(res)
     }
 
+    fn lower_enum(&mut self, enum_: &ast::EnumDef) -> Option<Enum> {
+        let attrs = self.lower_attrs(enum_);
+        let visibility = self.lower_visibility(enum_);
+        let name = enum_.name()?.as_name();
+        let generic_params = self.lower_generic_params(enum_);
+        let variants = match &enum_.variant_list() {
+            Some(variant_list) => self.lower_variants(variant_list),
+            None => self.next_variant_idx()..self.next_variant_idx(),
+        };
+        let res = Enum { name, attrs, visibility, generic_params, variants };
+        Some(res)
+    }
+
+    fn lower_variants(&mut self, variants: &ast::EnumVariantList) -> Range<Idx<Variant>> {
+        let start = self.next_variant_idx();
+        for variant in variants.variants() {
+            if let Some(data) = self.lower_variant(&variant) {
+                let idx = self.tree.variants.alloc(data);
+                self.src.variants.insert(idx, AstPtr::new(&variant));
+            }
+        }
+        let end = self.next_variant_idx();
+        start..end
+    }
+
+    fn lower_variant(&mut self, variant: &ast::EnumVariant) -> Option<Variant> {
+        let name = variant.name()?.as_name();
+        let fields = self.lower_fields(&variant.kind());
+        let res = Variant { name, fields };
+        Some(res)
+    }
+
     fn lower_generic_params(&mut self, item: &impl ast::TypeParamsOwner) -> GenericParams {
         None.unwrap()
     }
@@ -337,5 +375,8 @@ impl Ctx {
 
     fn next_field_idx(&self) -> Idx<Field> {
         Idx::from_raw(RawId::from(self.tree.fields.len() as u32))
+    }
+    fn next_variant_idx(&self) -> Idx<Variant> {
+        Idx::from_raw(RawId::from(self.tree.variants.len() as u32))
     }
 }
