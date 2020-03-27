@@ -31,7 +31,7 @@ pub struct ItemTree {
     statics: Arena<Static>,
     traits: Arena<Trait>,
     impls: Arena<Impl>,
-    type_aliass: Arena<TypeAlias>,
+    type_aliases: Arena<TypeAlias>,
     mods: Arena<Mod>,
     macro_calls: Arena<MacroCall>,
     exprs: Arena<Expr>,
@@ -49,7 +49,7 @@ pub struct ItemTreeSrc {
     statics: ArenaMap<Idx<Static>, AstPtr<ast::StaticDef>>,
     traits: ArenaMap<Idx<Trait>, AstPtr<ast::TraitDef>>,
     impls: ArenaMap<Idx<Impl>, AstPtr<ast::ImplDef>>,
-    type_aliass: ArenaMap<Idx<TypeAlias>, AstPtr<ast::TypeAliasDef>>,
+    type_aliases: ArenaMap<Idx<TypeAlias>, AstPtr<ast::TypeAliasDef>>,
     mods: ArenaMap<Idx<Mod>, AstPtr<ast::Module>>,
     macro_calls: ArenaMap<Idx<MacroCall>, AstPtr<ast::MacroCall>>,
     exprs: ArenaMap<Idx<Expr>, AstPtr<ast::Expr>>,
@@ -217,38 +217,43 @@ impl Ctx {
 
     fn lower_item(&mut self, item: &ast::ModuleItem) {
         match item {
-            ast::ModuleItem::StructDef(strukt) => {
-                if let Some(data) = self.lower_struct(strukt) {
+            ast::ModuleItem::StructDef(ast) => {
+                if let Some(data) = self.lower_struct(ast) {
                     let idx = self.tree.structs.alloc(data);
-                    self.src.structs.insert(idx, AstPtr::new(strukt));
+                    self.src.structs.insert(idx, AstPtr::new(ast));
                 }
             }
-            ast::ModuleItem::UnionDef(union) => {
-                if let Some(data) = self.lower_union(union) {
+            ast::ModuleItem::UnionDef(ast) => {
+                if let Some(data) = self.lower_union(ast) {
                     let idx = self.tree.unions.alloc(data);
-                    self.src.unions.insert(idx, AstPtr::new(union));
+                    self.src.unions.insert(idx, AstPtr::new(ast));
                 }
             }
-            ast::ModuleItem::EnumDef(enum_) => {
-                if let Some(data) = self.lower_enum(enum_) {
+            ast::ModuleItem::EnumDef(ast) => {
+                if let Some(data) = self.lower_enum(ast) {
                     let idx = self.tree.enums.alloc(data);
-                    self.src.enums.insert(idx, AstPtr::new(enum_));
+                    self.src.enums.insert(idx, AstPtr::new(ast));
                 }
             }
-            ast::ModuleItem::FnDef(func) => {
-                if let Some(data) = self.lower_function(func) {
+            ast::ModuleItem::FnDef(ast) => {
+                if let Some(data) = self.lower_function(ast) {
                     let idx = self.tree.functions.alloc(data);
-                    self.src.functions.insert(idx, AstPtr::new(func));
+                    self.src.functions.insert(idx, AstPtr::new(ast));
                 }
             }
+            ast::ModuleItem::TypeAliasDef(ast) => {
+                if let Some(data) = self.lower_type_alias(ast) {
+                    let idx = self.tree.type_aliases.alloc(data);
+                    self.src.type_aliases.insert(idx, AstPtr::new(ast));
+                }
+            }
+            ast::ModuleItem::StaticDef(_) => {}
+            ast::ModuleItem::ConstDef(_) => {}
+            ast::ModuleItem::Module(_) => {}
             ast::ModuleItem::TraitDef(_) => {}
-            ast::ModuleItem::TypeAliasDef(_) => {}
             ast::ModuleItem::ImplDef(_) => {}
             ast::ModuleItem::UseItem(_) => {}
             ast::ModuleItem::ExternCrateItem(_) => {}
-            ast::ModuleItem::ConstDef(_) => {}
-            ast::ModuleItem::StaticDef(_) => {}
-            ast::ModuleItem::Module(_) => {}
             ast::ModuleItem::MacroCall(_) => {}
         }
     }
@@ -411,6 +416,15 @@ impl Ctx {
 
         let res =
             Function { name, attrs, visibility, generic_params, has_self_param, params, ret_type };
+        Some(res)
+    }
+
+    fn lower_type_alias(&mut self, type_alias: &ast::TypeAliasDef) -> Option<TypeAlias> {
+        let name = type_alias.name()?.as_name();
+        let type_ref = type_alias.type_ref().map(|it| self.lower_type_ref(&it));
+        let visibility = self.lower_visibility(type_alias);
+        let generic_params = self.lower_generic_params(type_alias);
+        let res = TypeAlias { name, visibility, generic_params, type_ref };
         Some(res)
     }
 
