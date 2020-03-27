@@ -220,18 +220,12 @@ impl Ctx {
                 if let Some(data) = self.lower_struct(strukt) {
                     let idx = self.tree.structs.alloc(data);
                     self.src.structs.insert(idx, AstPtr::new(strukt));
-                    let fields = self.lower_fields(&strukt.kind());
-                    self.tree.structs[idx].fields = fields;
                 }
             }
             ast::ModuleItem::UnionDef(union) => {
                 if let Some(data) = self.lower_union(union) {
                     let idx = self.tree.unions.alloc(data);
                     self.src.unions.insert(idx, AstPtr::new(union));
-                    if let Some(record_field_def_list) = union.record_field_def_list() {
-                        let fields = self.lower_fields(&StructKind::Record(record_field_def_list));
-                        self.tree.unions[idx].fields = fields;
-                    }
                 }
             }
             ast::ModuleItem::EnumDef(_) => {}
@@ -253,7 +247,8 @@ impl Ctx {
         let visibility = self.lower_visibility(strukt);
         let name = strukt.name()?.as_name();
         let generic_params = self.lower_generic_params(strukt);
-        let res = Struct { name, attrs, visibility, generic_params, fields: Fields::Unit };
+        let fields = self.lower_fields(&strukt.kind());
+        let res = Struct { name, attrs, visibility, generic_params, fields };
         Some(res)
     }
 
@@ -316,7 +311,13 @@ impl Ctx {
         let visibility = self.lower_visibility(union);
         let name = union.name()?.as_name();
         let generic_params = self.lower_generic_params(union);
-        let res = Union { name, attrs, visibility, generic_params, fields: Fields::Unit };
+        let fields = match union.record_field_def_list() {
+            Some(record_field_def_list) => {
+                self.lower_fields(&StructKind::Record(record_field_def_list))
+            }
+            None => Fields::Record(self.next_field_idx()..self.next_field_idx()),
+        };
+        let res = Union { name, attrs, visibility, generic_params, fields };
         Some(res)
     }
 
