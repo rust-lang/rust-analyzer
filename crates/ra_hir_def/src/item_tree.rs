@@ -1,7 +1,7 @@
 use hir_expand::{
     ast_id_map::FileAstId,
     hygiene::Hygiene,
-    name::{AsName, Name},
+    name::{name, AsName, Name},
 };
 use ra_arena::{map::ArenaMap, Arena, Idx, RawId};
 use ra_syntax::{ast, AstPtr};
@@ -9,14 +9,14 @@ use ra_syntax::{ast, AstPtr};
 use crate::{
     attr::Attrs,
     generics::GenericParams,
-    path::{ImportAlias, ModPath},
-    type_ref::TypeRef,
+    path::{path, GenericArgs, ImportAlias, ModPath, Path},
+    type_ref::{Mutability, TypeBound, TypeRef},
     visibility::RawVisibility,
 };
 use ast::{NameOwner, StructKind, TypeAscriptionOwner};
 use either::Either;
 use rustc_hash::FxHashMap;
-use std::ops::Range;
+use std::{ops::Range, sync::Arc};
 
 #[derive(Default)]
 pub struct ItemTree {
@@ -73,12 +73,12 @@ pub struct Import {
 
 pub struct Function {
     pub name: Name,
+    pub attrs: Attrs,
     pub visibility: RawVisibility,
     pub generic_params: GenericParams,
     pub has_self_param: bool,
     pub params: Vec<TypeRef>,
     pub ret_type: TypeRef,
-    pub body: Option<Idx<Expr>>,
 }
 
 pub struct Struct {
@@ -235,7 +235,12 @@ impl Ctx {
                     self.src.enums.insert(idx, AstPtr::new(enum_));
                 }
             }
-            ast::ModuleItem::FnDef(_) => {}
+            ast::ModuleItem::FnDef(func) => {
+                if let Some(data) = self.lower_function(func) {
+                    let idx = self.tree.functions.alloc(data);
+                    self.src.functions.insert(idx, AstPtr::new(func));
+                }
+            }
             ast::ModuleItem::TraitDef(_) => {}
             ast::ModuleItem::TypeAliasDef(_) => {}
             ast::ModuleItem::ImplDef(_) => {}
@@ -359,6 +364,56 @@ impl Ctx {
         Some(res)
     }
 
+    fn lower_function(&mut self, func: &ast::FnDef) -> Option<Function> {
+        let attrs = self.lower_attrs(func);
+        let visibility = self.lower_visibility(func);
+        let name = func.name()?.as_name();
+        let generic_params = self.lower_generic_params(func);
+
+        let mut params = Vec::new();
+        let mut has_self_param = false;
+        if let Some(param_list) = func.param_list() {
+            if let Some(self_param) = param_list.self_param() {
+                let self_type = if let Some(type_ref) = self_param.ascribed_type() {
+                    TypeRef::from_ast(type_ref)
+                } else {
+                    let self_type = TypeRef::Path(name![Self].into());
+                    match self_param.kind() {
+                        ast::SelfParamKind::Owned => self_type,
+                        ast::SelfParamKind::Ref => {
+                            TypeRef::Reference(Box::new(self_type), Mutability::Shared)
+                        }
+                        ast::SelfParamKind::MutRef => {
+                            TypeRef::Reference(Box::new(self_type), Mutability::Mut)
+                        }
+                    }
+                };
+                params.push(self_type);
+                has_self_param = true;
+            }
+            for param in param_list.params() {
+                let type_ref = TypeRef::from_ast_opt(param.ascribed_type());
+                params.push(type_ref);
+            }
+        }
+        let ret_type = match func.ret_type().and_then(|rt| rt.type_ref()) {
+            Some(type_ref) => TypeRef::from_ast(type_ref),
+            _ => TypeRef::unit(),
+        };
+
+        let ret_type = if func.is_async() {
+            let future_impl = desugar_future_path(ret_type);
+            let ty_bound = TypeBound::Path(future_impl);
+            TypeRef::ImplTrait(vec![ty_bound])
+        } else {
+            ret_type
+        };
+
+        let res =
+            Function { name, attrs, visibility, generic_params, has_self_param, params, ret_type };
+        Some(res)
+    }
+
     fn lower_generic_params(&mut self, item: &impl ast::TypeParamsOwner) -> GenericParams {
         None.unwrap()
     }
@@ -379,4 +434,14 @@ impl Ctx {
     fn next_variant_idx(&self) -> Idx<Variant> {
         Idx::from_raw(RawId::from(self.tree.variants.len() as u32))
     }
+}
+
+fn desugar_future_path(orig: TypeRef) -> Path {
+    let path = path![std::future::Future];
+    let mut generic_args: Vec<_> = std::iter::repeat(None).take(path.segments.len() - 1).collect();
+    let mut last = GenericArgs::empty();
+    last.bindings.push((name![Output], orig));
+    generic_args.push(Some(Arc::new(last)));
+
+    Path::from_known_path(path, generic_args)
 }
