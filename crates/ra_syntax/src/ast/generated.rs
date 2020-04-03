@@ -6303,13 +6303,22 @@ impl ast::DocCommentsOwner for EnumVariant {}
 impl ast::AttrsOwner for EnumVariant {}
 impl EnumVariant {
     pub fn field_def_list(&self) -> Option<FieldDefList> {
-        self.syntax.children().filter_map(FieldDefList::cast).next()
+        self.syntax
+            .children_with_tokens()
+            .take_while(|x| !Eq::can_cast_element(x.kind()))
+            .filter_map(FieldDefList::cast_element)
+            .next()
     }
     pub fn eq(&self) -> Option<Eq> {
         self.syntax.children_with_tokens().filter_map(Eq::cast_element).next()
     }
     pub fn expr(&self) -> Option<Expr> {
-        self.syntax.children().filter_map(Expr::cast).next()
+        self.syntax
+            .children_with_tokens()
+            .skip_while(|x| !Eq::can_cast_element(x.kind()))
+            .skip(1)
+            .filter_map(Expr::cast_element)
+            .next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -6572,19 +6581,37 @@ impl ast::DocCommentsOwner for ConstDef {}
 impl ast::TypeAscriptionOwner for ConstDef {}
 impl ConstDef {
     pub fn default_kw(&self) -> Option<DefaultKw> {
-        self.syntax.children_with_tokens().filter_map(DefaultKw::cast_element).next()
+        self.syntax
+            .children_with_tokens()
+            .take_while(|x| !Eq::can_cast_element(x.kind()))
+            .filter_map(DefaultKw::cast_element)
+            .next()
     }
     pub fn const_kw(&self) -> Option<ConstKw> {
-        self.syntax.children_with_tokens().filter_map(ConstKw::cast_element).next()
+        self.syntax
+            .children_with_tokens()
+            .take_while(|x| !Eq::can_cast_element(x.kind()))
+            .filter_map(ConstKw::cast_element)
+            .next()
     }
     pub fn eq(&self) -> Option<Eq> {
         self.syntax.children_with_tokens().filter_map(Eq::cast_element).next()
     }
     pub fn body(&self) -> Option<Expr> {
-        self.syntax.children().filter_map(Expr::cast).next()
+        self.syntax
+            .children_with_tokens()
+            .skip_while(|x| !Eq::can_cast_element(x.kind()))
+            .skip(1)
+            .filter_map(Expr::cast_element)
+            .next()
     }
     pub fn semi(&self) -> Option<Semi> {
-        self.syntax.children_with_tokens().filter_map(Semi::cast_element).next()
+        self.syntax
+            .children_with_tokens()
+            .skip_while(|x| !Eq::can_cast_element(x.kind()))
+            .skip(1)
+            .filter_map(Semi::cast_element)
+            .next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -6646,19 +6673,37 @@ impl ast::DocCommentsOwner for StaticDef {}
 impl ast::TypeAscriptionOwner for StaticDef {}
 impl StaticDef {
     pub fn static_kw(&self) -> Option<StaticKw> {
-        self.syntax.children_with_tokens().filter_map(StaticKw::cast_element).next()
+        self.syntax
+            .children_with_tokens()
+            .take_while(|x| !Eq::can_cast_element(x.kind()))
+            .filter_map(StaticKw::cast_element)
+            .next()
     }
     pub fn mut_kw(&self) -> Option<MutKw> {
-        self.syntax.children_with_tokens().filter_map(MutKw::cast_element).next()
+        self.syntax
+            .children_with_tokens()
+            .take_while(|x| !Eq::can_cast_element(x.kind()))
+            .filter_map(MutKw::cast_element)
+            .next()
     }
     pub fn eq(&self) -> Option<Eq> {
         self.syntax.children_with_tokens().filter_map(Eq::cast_element).next()
     }
     pub fn body(&self) -> Option<Expr> {
-        self.syntax.children().filter_map(Expr::cast).next()
+        self.syntax
+            .children_with_tokens()
+            .skip_while(|x| !Eq::can_cast_element(x.kind()))
+            .skip(1)
+            .filter_map(Expr::cast_element)
+            .next()
     }
     pub fn semi(&self) -> Option<Semi> {
-        self.syntax.children_with_tokens().filter_map(Semi::cast_element).next()
+        self.syntax
+            .children_with_tokens()
+            .skip_while(|x| !Eq::can_cast_element(x.kind()))
+            .skip(1)
+            .filter_map(Semi::cast_element)
+            .next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -6720,19 +6765,37 @@ impl ast::DocCommentsOwner for TypeAliasDef {}
 impl ast::TypeBoundsOwner for TypeAliasDef {}
 impl TypeAliasDef {
     pub fn default_kw(&self) -> Option<DefaultKw> {
-        self.syntax.children_with_tokens().filter_map(DefaultKw::cast_element).next()
+        self.syntax
+            .children_with_tokens()
+            .take_while(|x| !Eq::can_cast_element(x.kind()))
+            .filter_map(DefaultKw::cast_element)
+            .next()
     }
     pub fn type_kw(&self) -> Option<TypeKw> {
-        self.syntax.children_with_tokens().filter_map(TypeKw::cast_element).next()
+        self.syntax
+            .children_with_tokens()
+            .take_while(|x| !Eq::can_cast_element(x.kind()))
+            .filter_map(TypeKw::cast_element)
+            .next()
     }
     pub fn eq(&self) -> Option<Eq> {
         self.syntax.children_with_tokens().filter_map(Eq::cast_element).next()
     }
     pub fn type_ref(&self) -> Option<TypeRef> {
-        self.syntax.children().filter_map(TypeRef::cast).next()
+        self.syntax
+            .children_with_tokens()
+            .skip_while(|x| !Eq::can_cast_element(x.kind()))
+            .skip(1)
+            .filter_map(TypeRef::cast_element)
+            .next()
     }
     pub fn semi(&self) -> Option<Semi> {
-        self.syntax.children_with_tokens().filter_map(Semi::cast_element).next()
+        self.syntax
+            .children_with_tokens()
+            .skip_while(|x| !Eq::can_cast_element(x.kind()))
+            .skip(1)
+            .filter_map(Semi::cast_element)
+            .next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8157,16 +8220,29 @@ impl ast::AttrsOwner for ForExpr {}
 impl ast::LoopBodyOwner for ForExpr {}
 impl ForExpr {
     pub fn for_kw(&self) -> Option<ForKw> {
-        self.syntax.children_with_tokens().filter_map(ForKw::cast_element).next()
+        self.syntax
+            .children_with_tokens()
+            .take_while(|x| !InKw::can_cast_element(x.kind()))
+            .filter_map(ForKw::cast_element)
+            .next()
     }
     pub fn pat(&self) -> Option<Pat> {
-        self.syntax.children().filter_map(Pat::cast).next()
+        self.syntax
+            .children_with_tokens()
+            .take_while(|x| !InKw::can_cast_element(x.kind()))
+            .filter_map(Pat::cast_element)
+            .next()
     }
     pub fn in_kw(&self) -> Option<InKw> {
         self.syntax.children_with_tokens().filter_map(InKw::cast_element).next()
     }
     pub fn iterable(&self) -> Option<Expr> {
-        self.syntax.children().filter_map(Expr::cast).next()
+        self.syntax
+            .children_with_tokens()
+            .skip_while(|x| !InKw::can_cast_element(x.kind()))
+            .skip(1)
+            .filter_map(Expr::cast_element)
+            .next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -9498,16 +9574,29 @@ impl AstElement for MatchArm {
 impl ast::AttrsOwner for MatchArm {}
 impl MatchArm {
     pub fn pat(&self) -> Option<Pat> {
-        self.syntax.children().filter_map(Pat::cast).next()
+        self.syntax
+            .children_with_tokens()
+            .take_while(|x| !FatArrow::can_cast_element(x.kind()))
+            .filter_map(Pat::cast_element)
+            .next()
     }
     pub fn guard(&self) -> Option<MatchGuard> {
-        self.syntax.children().filter_map(MatchGuard::cast).next()
+        self.syntax
+            .children_with_tokens()
+            .take_while(|x| !FatArrow::can_cast_element(x.kind()))
+            .filter_map(MatchGuard::cast_element)
+            .next()
     }
     pub fn fat_arrow(&self) -> Option<FatArrow> {
         self.syntax.children_with_tokens().filter_map(FatArrow::cast_element).next()
     }
     pub fn expr(&self) -> Option<Expr> {
-        self.syntax.children().filter_map(Expr::cast).next()
+        self.syntax
+            .children_with_tokens()
+            .skip_while(|x| !FatArrow::can_cast_element(x.kind()))
+            .skip(1)
+            .filter_map(Expr::cast_element)
+            .next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11753,16 +11842,29 @@ impl ast::AttrsOwner for LetStmt {}
 impl ast::TypeAscriptionOwner for LetStmt {}
 impl LetStmt {
     pub fn let_kw(&self) -> Option<LetKw> {
-        self.syntax.children_with_tokens().filter_map(LetKw::cast_element).next()
+        self.syntax
+            .children_with_tokens()
+            .take_while(|x| !Eq::can_cast_element(x.kind()))
+            .filter_map(LetKw::cast_element)
+            .next()
     }
     pub fn pat(&self) -> Option<Pat> {
-        self.syntax.children().filter_map(Pat::cast).next()
+        self.syntax
+            .children_with_tokens()
+            .take_while(|x| !Eq::can_cast_element(x.kind()))
+            .filter_map(Pat::cast_element)
+            .next()
     }
     pub fn eq(&self) -> Option<Eq> {
         self.syntax.children_with_tokens().filter_map(Eq::cast_element).next()
     }
     pub fn initializer(&self) -> Option<Expr> {
-        self.syntax.children().filter_map(Expr::cast).next()
+        self.syntax
+            .children_with_tokens()
+            .skip_while(|x| !Eq::can_cast_element(x.kind()))
+            .skip(1)
+            .filter_map(Expr::cast_element)
+            .next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11820,14 +11922,8 @@ impl Condition {
     pub fn let_kw(&self) -> Option<LetKw> {
         self.syntax.children_with_tokens().filter_map(LetKw::cast_element).next()
     }
-    pub fn pat(&self) -> Option<Pat> {
-        self.syntax.children().filter_map(Pat::cast).next()
-    }
     pub fn eq(&self) -> Option<Eq> {
         self.syntax.children_with_tokens().filter_map(Eq::cast_element).next()
-    }
-    pub fn expr(&self) -> Option<Expr> {
-        self.syntax.children().filter_map(Expr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

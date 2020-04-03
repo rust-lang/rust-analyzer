@@ -529,3 +529,27 @@ impl ast::TokenTree {
         self.syntax().last_child_or_token().and_then(ast::RightDelimiter::cast_element)
     }
 }
+
+impl ast::Condition {
+    pub fn pat(&self) -> Option<ast::Pat> {
+        if self.eq().is_some() {
+            self.syntax()
+                .children_with_tokens()
+                .take_while(|x| x.kind() != T![=])
+                .find_map(ast::Pat::cast_element)
+        } else {
+            None
+        }
+    }
+
+    pub fn expr(&self) -> Option<ast::Expr> {
+        if self.eq().is_some() {
+            self.syntax()
+                .children_with_tokens()
+                .skip_while(|x| x.kind() != T![=])
+                .find_map(ast::Expr::cast_element)
+        } else {
+            child_opt(self)
+        }
+    }
+}

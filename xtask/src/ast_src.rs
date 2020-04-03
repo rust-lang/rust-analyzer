@@ -353,7 +353,7 @@ pub(crate) const AST_SRC: AstSrc = AstSrc {
         }
         struct EnumVariant: VisibilityOwner, NameOwner, DocCommentsOwner, AttrsOwner {
             FieldDefList,
-            Eq,
+            #[sep] Eq,
             Expr
         }
 
@@ -379,7 +379,7 @@ pub(crate) const AST_SRC: AstSrc = AstSrc {
         struct ConstDef: VisibilityOwner, NameOwner, TypeParamsOwner, AttrsOwner, DocCommentsOwner, TypeAscriptionOwner {
             DefaultKw,
             ConstKw,
-            Eq,
+            #[sep] Eq,
             body: Expr,
             Semi
         }
@@ -387,7 +387,7 @@ pub(crate) const AST_SRC: AstSrc = AstSrc {
         struct StaticDef: VisibilityOwner, NameOwner, TypeParamsOwner, AttrsOwner, DocCommentsOwner, TypeAscriptionOwner {
             StaticKw,
             MutKw,
-            Eq,
+            #[sep] Eq,
             body: Expr,
             Semi
         }
@@ -395,7 +395,7 @@ pub(crate) const AST_SRC: AstSrc = AstSrc {
         struct TypeAliasDef: VisibilityOwner, NameOwner, TypeParamsOwner, AttrsOwner, DocCommentsOwner, TypeBoundsOwner {
             DefaultKw,
             TypeKw,
-            Eq,
+            #[sep] Eq,
             TypeRef,
             Semi
         }
@@ -442,7 +442,7 @@ pub(crate) const AST_SRC: AstSrc = AstSrc {
         struct ForExpr: AttrsOwner, LoopBodyOwner {
             ForKw,
             Pat,
-            InKw,
+            #[sep] InKw,
             iterable: Expr,
         }
         struct WhileExpr: AttrsOwner, LoopBodyOwner { WhileKw, Condition }
@@ -472,7 +472,7 @@ pub(crate) const AST_SRC: AstSrc = AstSrc {
         struct MatchArm: AttrsOwner {
             pat: Pat,
             guard: MatchGuard,
-            FatArrow,
+            #[sep] FatArrow,
             Expr,
         }
         struct MatchGuard { IfKw, Expr }
@@ -548,10 +548,13 @@ pub(crate) const AST_SRC: AstSrc = AstSrc {
         struct LetStmt: AttrsOwner, TypeAscriptionOwner {
             LetKw,
             Pat,
-            Eq,
+            #[sep] Eq,
             initializer: Expr,
         }
-        struct Condition { LetKw, Pat, Eq, Expr }
+        struct Condition {
+            LetKw,
+            Eq
+        }
         struct Block: AttrsOwner, ModuleItemOwner {
             LCurly,
             statements: [Stmt],
