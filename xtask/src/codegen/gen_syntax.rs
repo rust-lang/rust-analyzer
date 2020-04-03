@@ -147,37 +147,72 @@ fn generate_ast(kinds: KindsSrc<'_>, grammar: AstSrc<'_>) -> Result<String> {
             quote!(impl ast::#trait_name for #name {})
         });
 
-        let methods = node.fields.iter().map(|(name, field)| {
-            let method_name = match field {
-                FieldSrc::Shorthand => format_ident!("{}", to_lower_snake_case(&name)),
-                _ => format_ident!("{}", name),
-            };
+        let mut separators = Vec::new();
+        let mut separator_element_kinds = ElementKinds::default();
+        let fields: Vec<_> = node.fields.iter().map(|(name, field, is_separator)| {
             let ty = match field {
                 FieldSrc::Optional(ty) | FieldSrc::Many(ty) => ty,
                 FieldSrc::Shorthand => name,
             };
+            if *is_separator {
+                match field {
+                    FieldSrc::Many(_) => panic!("Using repeated elements as separators is not supported"),
+                    _ => {}
+                }
+                let element_kinds = &element_kinds_map[*ty];
+                separator_element_kinds.has_nodes |= element_kinds.has_nodes;
+                separator_element_kinds.has_tokens |= element_kinds.has_tokens;
+                separators.push(ty);
+            };
+            (name, ty, field, is_separator)
+        }).collect();
+        let mut next_separator = 0;
+
+        let methods = fields.into_iter().map(|(ref name, ty, field, &is_separator)| {
+            let method_name = match field {
+                FieldSrc::Shorthand => format_ident!("{}", to_lower_snake_case(&name)),
+                _ => format_ident!("{}", name),
+            };
             let element_kinds = &element_kinds_map.get(*ty).unwrap_or_else(|| panic!("type not found: {}", *ty));
-            let iter = if !element_kinds.has_tokens {
-                format_ident!("AstChildren")
-            } else if !element_kinds.has_nodes {
-                format_ident!("AstChildTokens")
+            let mut iter = if !element_kinds.has_tokens && !separator_element_kinds.has_tokens {
+                quote!{self.syntax.children()}
+            } else if !element_kinds.has_nodes && !separator_element_kinds.has_nodes {
+                quote!{self.syntax.children_with_tokens()}
             } else {
-                format_ident!("AstChildElements")
+                quote!{self.syntax.children_with_tokens()}
             };
             let ty = format_ident!("{}", ty);
+
+            for separator in separators.iter().take(next_separator) {
+                let separator = format_ident!("{}", separator);
+                iter = quote! {#iter.skip_while(|x| !#separator::can_cast_element(x.kind())).skip(1)};
+            }
+            if is_separator {
+                next_separator += 1;
+            }
+            for separator in separators.iter().skip(next_separator) {
+                let separator = format_ident!("{}", separator);
+                iter = quote! {#iter.take_while(|x| !#separator::can_cast_element(x.kind()))};
+            }
+
+            if !element_kinds.has_tokens && !separator_element_kinds.has_tokens {
+                iter = quote! {#iter.filter_map(#ty::cast)};
+            } else {
+                iter = quote! {#iter.filter_map(#ty::cast_element)};
+            }
 
             match field {
                 FieldSrc::Many(_) => {
                     quote! {
-                        pub fn #method_name(&self) -> #iter<#ty> {
-                            #iter::new(&self.syntax)
+                        pub fn #method_name(&self) -> impl Iterator<Item = #ty> + Clone {
+                            #iter
                         }
                     }
                 }
                 FieldSrc::Optional(_) | FieldSrc::Shorthand => {
                     quote! {
                         pub fn #method_name(&self) -> Option<#ty> {
-                            #iter::new(&self.syntax).next()
+                            #iter.next()
                         }
                     }
                 }

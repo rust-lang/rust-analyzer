@@ -231,7 +231,7 @@ pub(crate) struct AstSrc<'a> {
 pub(crate) struct AstNodeSrc<'a> {
     pub(crate) name: &'a str,
     pub(crate) traits: &'a [&'a str],
-    pub(crate) fields: &'a [(&'a str, FieldSrc<&'a str>)],
+    pub(crate) fields: &'a [(&'a str, FieldSrc<&'a str>, bool)],
 }
 
 pub(crate) enum FieldSrc<T> {
@@ -246,10 +246,19 @@ pub(crate) struct AstEnumSrc<'a> {
     pub(crate) variants: &'a [&'a str],
 }
 
+macro_rules! is_sep {
+    (sep) => {
+        true
+    };
+    ($meta:ident) => {
+        false
+    };
+}
+
 macro_rules! ast_nodes {
     ($(
         struct $name:ident$(: $($trait:ident),*)? {
-            $($field_name:ident $(: $ty:tt)?),*$(,)?
+            $($(#[$meta:ident])* $field_name:ident $(: $ty:tt)?),*$(,)?
         }
     )*) => {
         [$(
@@ -257,9 +266,8 @@ macro_rules! ast_nodes {
                 name: stringify!($name),
                 traits: &[$($(stringify!($trait)),*)?],
                 fields: &[$(
-                    (stringify!($field_name), field_ty!($field_name $($ty)?))
+                    (stringify!($field_name), field_ty!($field_name $($ty)?), false $(| is_sep!($meta))*)
                 ),*],
-
             }
         ),*]
     };

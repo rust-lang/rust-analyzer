@@ -5599,8 +5599,8 @@ impl ast::ModuleItemOwner for SourceFile {}
 impl ast::FnDefOwner for SourceFile {}
 impl ast::AttrsOwner for SourceFile {}
 impl SourceFile {
-    pub fn modules(&self) -> AstChildren<Module> {
-        AstChildren::new(&self.syntax)
+    pub fn modules(&self) -> impl Iterator<Item = Module> + Clone {
+        self.syntax.children().filter_map(Module::cast)
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -5661,34 +5661,34 @@ impl ast::DocCommentsOwner for FnDef {}
 impl ast::AttrsOwner for FnDef {}
 impl FnDef {
     pub fn abi(&self) -> Option<Abi> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Abi::cast).next()
     }
     pub fn const_kw(&self) -> Option<ConstKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(ConstKw::cast_element).next()
     }
     pub fn default_kw(&self) -> Option<DefaultKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(DefaultKw::cast_element).next()
     }
     pub fn async_kw(&self) -> Option<AsyncKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(AsyncKw::cast_element).next()
     }
     pub fn unsafe_kw(&self) -> Option<UnsafeKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(UnsafeKw::cast_element).next()
     }
     pub fn fn_kw(&self) -> Option<FnKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(FnKw::cast_element).next()
     }
     pub fn param_list(&self) -> Option<ParamList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(ParamList::cast).next()
     }
     pub fn ret_type(&self) -> Option<RetType> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(RetType::cast).next()
     }
     pub fn body(&self) -> Option<BlockExpr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(BlockExpr::cast).next()
     }
     pub fn semi(&self) -> Option<Semi> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Semi::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -5744,10 +5744,10 @@ impl AstElement for RetType {
 }
 impl RetType {
     pub fn thin_arrow(&self) -> Option<ThinArrow> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(ThinArrow::cast_element).next()
     }
     pub fn type_ref(&self) -> Option<TypeRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TypeRef::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -5808,13 +5808,13 @@ impl ast::AttrsOwner for StructDef {}
 impl ast::DocCommentsOwner for StructDef {}
 impl StructDef {
     pub fn struct_kw(&self) -> Option<StructKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(StructKw::cast_element).next()
     }
     pub fn field_def_list(&self) -> Option<FieldDefList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(FieldDefList::cast).next()
     }
     pub fn semi(&self) -> Option<Semi> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Semi::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -5875,10 +5875,10 @@ impl ast::AttrsOwner for UnionDef {}
 impl ast::DocCommentsOwner for UnionDef {}
 impl UnionDef {
     pub fn union_kw(&self) -> Option<UnionKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(UnionKw::cast_element).next()
     }
     pub fn record_field_def_list(&self) -> Option<RecordFieldDefList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(RecordFieldDefList::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -5934,13 +5934,13 @@ impl AstElement for RecordFieldDefList {
 }
 impl RecordFieldDefList {
     pub fn l_curly(&self) -> Option<LCurly> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LCurly::cast_element).next()
     }
-    pub fn fields(&self) -> AstChildren<RecordFieldDef> {
-        AstChildren::new(&self.syntax)
+    pub fn fields(&self) -> impl Iterator<Item = RecordFieldDef> + Clone {
+        self.syntax.children().filter_map(RecordFieldDef::cast)
     }
     pub fn r_curly(&self) -> Option<RCurly> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RCurly::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -6053,13 +6053,13 @@ impl AstElement for TupleFieldDefList {
 }
 impl TupleFieldDefList {
     pub fn l_paren(&self) -> Option<LParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LParen::cast_element).next()
     }
-    pub fn fields(&self) -> AstChildren<TupleFieldDef> {
-        AstChildren::new(&self.syntax)
+    pub fn fields(&self) -> impl Iterator<Item = TupleFieldDef> + Clone {
+        self.syntax.children().filter_map(TupleFieldDef::cast)
     }
     pub fn r_paren(&self) -> Option<RParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RParen::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -6117,7 +6117,7 @@ impl ast::VisibilityOwner for TupleFieldDef {}
 impl ast::AttrsOwner for TupleFieldDef {}
 impl TupleFieldDef {
     pub fn type_ref(&self) -> Option<TypeRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TypeRef::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -6178,10 +6178,10 @@ impl ast::AttrsOwner for EnumDef {}
 impl ast::DocCommentsOwner for EnumDef {}
 impl EnumDef {
     pub fn enum_kw(&self) -> Option<EnumKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(EnumKw::cast_element).next()
     }
     pub fn variant_list(&self) -> Option<EnumVariantList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(EnumVariantList::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -6237,13 +6237,13 @@ impl AstElement for EnumVariantList {
 }
 impl EnumVariantList {
     pub fn l_curly(&self) -> Option<LCurly> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LCurly::cast_element).next()
     }
-    pub fn variants(&self) -> AstChildren<EnumVariant> {
-        AstChildren::new(&self.syntax)
+    pub fn variants(&self) -> impl Iterator<Item = EnumVariant> + Clone {
+        self.syntax.children().filter_map(EnumVariant::cast)
     }
     pub fn r_curly(&self) -> Option<RCurly> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RCurly::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -6303,13 +6303,13 @@ impl ast::DocCommentsOwner for EnumVariant {}
 impl ast::AttrsOwner for EnumVariant {}
 impl EnumVariant {
     pub fn field_def_list(&self) -> Option<FieldDefList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(FieldDefList::cast).next()
     }
     pub fn eq(&self) -> Option<Eq> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Eq::cast_element).next()
     }
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -6371,16 +6371,16 @@ impl ast::TypeParamsOwner for TraitDef {}
 impl ast::TypeBoundsOwner for TraitDef {}
 impl TraitDef {
     pub fn unsafe_kw(&self) -> Option<UnsafeKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(UnsafeKw::cast_element).next()
     }
     pub fn auto_kw(&self) -> Option<AutoKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(AutoKw::cast_element).next()
     }
     pub fn trait_kw(&self) -> Option<TraitKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(TraitKw::cast_element).next()
     }
     pub fn item_list(&self) -> Option<ItemList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(ItemList::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -6440,13 +6440,13 @@ impl ast::AttrsOwner for Module {}
 impl ast::DocCommentsOwner for Module {}
 impl Module {
     pub fn mod_kw(&self) -> Option<ModKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(ModKw::cast_element).next()
     }
     pub fn item_list(&self) -> Option<ItemList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(ItemList::cast).next()
     }
     pub fn semi(&self) -> Option<Semi> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Semi::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -6504,13 +6504,13 @@ impl ast::FnDefOwner for ItemList {}
 impl ast::ModuleItemOwner for ItemList {}
 impl ItemList {
     pub fn l_curly(&self) -> Option<LCurly> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LCurly::cast_element).next()
     }
-    pub fn impl_items(&self) -> AstChildren<ImplItem> {
-        AstChildren::new(&self.syntax)
+    pub fn impl_items(&self) -> impl Iterator<Item = ImplItem> + Clone {
+        self.syntax.children().filter_map(ImplItem::cast)
     }
     pub fn r_curly(&self) -> Option<RCurly> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RCurly::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -6572,19 +6572,19 @@ impl ast::DocCommentsOwner for ConstDef {}
 impl ast::TypeAscriptionOwner for ConstDef {}
 impl ConstDef {
     pub fn default_kw(&self) -> Option<DefaultKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(DefaultKw::cast_element).next()
     }
     pub fn const_kw(&self) -> Option<ConstKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(ConstKw::cast_element).next()
     }
     pub fn eq(&self) -> Option<Eq> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Eq::cast_element).next()
     }
     pub fn body(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
     pub fn semi(&self) -> Option<Semi> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Semi::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -6646,19 +6646,19 @@ impl ast::DocCommentsOwner for StaticDef {}
 impl ast::TypeAscriptionOwner for StaticDef {}
 impl StaticDef {
     pub fn static_kw(&self) -> Option<StaticKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(StaticKw::cast_element).next()
     }
     pub fn mut_kw(&self) -> Option<MutKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(MutKw::cast_element).next()
     }
     pub fn eq(&self) -> Option<Eq> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Eq::cast_element).next()
     }
     pub fn body(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
     pub fn semi(&self) -> Option<Semi> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Semi::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -6720,19 +6720,19 @@ impl ast::DocCommentsOwner for TypeAliasDef {}
 impl ast::TypeBoundsOwner for TypeAliasDef {}
 impl TypeAliasDef {
     pub fn default_kw(&self) -> Option<DefaultKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(DefaultKw::cast_element).next()
     }
     pub fn type_kw(&self) -> Option<TypeKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(TypeKw::cast_element).next()
     }
     pub fn eq(&self) -> Option<Eq> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Eq::cast_element).next()
     }
     pub fn type_ref(&self) -> Option<TypeRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TypeRef::cast).next()
     }
     pub fn semi(&self) -> Option<Semi> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Semi::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -6790,25 +6790,25 @@ impl ast::TypeParamsOwner for ImplDef {}
 impl ast::AttrsOwner for ImplDef {}
 impl ImplDef {
     pub fn default_kw(&self) -> Option<DefaultKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(DefaultKw::cast_element).next()
     }
     pub fn const_kw(&self) -> Option<ConstKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(ConstKw::cast_element).next()
     }
     pub fn unsafe_kw(&self) -> Option<UnsafeKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(UnsafeKw::cast_element).next()
     }
     pub fn impl_kw(&self) -> Option<ImplKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(ImplKw::cast_element).next()
     }
     pub fn excl(&self) -> Option<Excl> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Excl::cast_element).next()
     }
     pub fn for_kw(&self) -> Option<ForKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(ForKw::cast_element).next()
     }
     pub fn item_list(&self) -> Option<ItemList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(ItemList::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -6864,13 +6864,13 @@ impl AstElement for ParenType {
 }
 impl ParenType {
     pub fn l_paren(&self) -> Option<LParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LParen::cast_element).next()
     }
     pub fn type_ref(&self) -> Option<TypeRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TypeRef::cast).next()
     }
     pub fn r_paren(&self) -> Option<RParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RParen::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -6926,13 +6926,13 @@ impl AstElement for TupleType {
 }
 impl TupleType {
     pub fn l_paren(&self) -> Option<LParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LParen::cast_element).next()
     }
-    pub fn fields(&self) -> AstChildren<TypeRef> {
-        AstChildren::new(&self.syntax)
+    pub fn fields(&self) -> impl Iterator<Item = TypeRef> + Clone {
+        self.syntax.children().filter_map(TypeRef::cast)
     }
     pub fn r_paren(&self) -> Option<RParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RParen::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -6988,7 +6988,7 @@ impl AstElement for NeverType {
 }
 impl NeverType {
     pub fn excl(&self) -> Option<Excl> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Excl::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -7044,7 +7044,7 @@ impl AstElement for PathType {
 }
 impl PathType {
     pub fn path(&self) -> Option<Path> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Path::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -7100,13 +7100,13 @@ impl AstElement for PointerType {
 }
 impl PointerType {
     pub fn star(&self) -> Option<Star> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Star::cast_element).next()
     }
     pub fn const_kw(&self) -> Option<ConstKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(ConstKw::cast_element).next()
     }
     pub fn type_ref(&self) -> Option<TypeRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TypeRef::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -7162,19 +7162,19 @@ impl AstElement for ArrayType {
 }
 impl ArrayType {
     pub fn l_brack(&self) -> Option<LBrack> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LBrack::cast_element).next()
     }
     pub fn type_ref(&self) -> Option<TypeRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TypeRef::cast).next()
     }
     pub fn semi(&self) -> Option<Semi> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Semi::cast_element).next()
     }
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
     pub fn r_brack(&self) -> Option<RBrack> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RBrack::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -7230,13 +7230,13 @@ impl AstElement for SliceType {
 }
 impl SliceType {
     pub fn l_brack(&self) -> Option<LBrack> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LBrack::cast_element).next()
     }
     pub fn type_ref(&self) -> Option<TypeRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TypeRef::cast).next()
     }
     pub fn r_brack(&self) -> Option<RBrack> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RBrack::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -7292,16 +7292,16 @@ impl AstElement for ReferenceType {
 }
 impl ReferenceType {
     pub fn amp(&self) -> Option<Amp> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Amp::cast_element).next()
     }
     pub fn lifetime(&self) -> Option<Lifetime> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Lifetime::cast_element).next()
     }
     pub fn mut_kw(&self) -> Option<MutKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(MutKw::cast_element).next()
     }
     pub fn type_ref(&self) -> Option<TypeRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TypeRef::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -7357,7 +7357,7 @@ impl AstElement for PlaceholderType {
 }
 impl PlaceholderType {
     pub fn underscore(&self) -> Option<Underscore> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Underscore::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -7413,19 +7413,19 @@ impl AstElement for FnPointerType {
 }
 impl FnPointerType {
     pub fn abi(&self) -> Option<Abi> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Abi::cast).next()
     }
     pub fn unsafe_kw(&self) -> Option<UnsafeKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(UnsafeKw::cast_element).next()
     }
     pub fn fn_kw(&self) -> Option<FnKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(FnKw::cast_element).next()
     }
     pub fn param_list(&self) -> Option<ParamList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(ParamList::cast).next()
     }
     pub fn ret_type(&self) -> Option<RetType> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(RetType::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -7481,13 +7481,13 @@ impl AstElement for ForType {
 }
 impl ForType {
     pub fn for_kw(&self) -> Option<ForKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(ForKw::cast_element).next()
     }
     pub fn type_param_list(&self) -> Option<TypeParamList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TypeParamList::cast).next()
     }
     pub fn type_ref(&self) -> Option<TypeRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TypeRef::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -7544,7 +7544,7 @@ impl AstElement for ImplTraitType {
 impl ast::TypeBoundsOwner for ImplTraitType {}
 impl ImplTraitType {
     pub fn impl_kw(&self) -> Option<ImplKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(ImplKw::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -7601,7 +7601,7 @@ impl AstElement for DynTraitType {
 impl ast::TypeBoundsOwner for DynTraitType {}
 impl DynTraitType {
     pub fn dyn_kw(&self) -> Option<DynKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(DynKw::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -7658,13 +7658,13 @@ impl AstElement for TupleExpr {
 impl ast::AttrsOwner for TupleExpr {}
 impl TupleExpr {
     pub fn l_paren(&self) -> Option<LParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LParen::cast_element).next()
     }
-    pub fn exprs(&self) -> AstChildren<Expr> {
-        AstChildren::new(&self.syntax)
+    pub fn exprs(&self) -> impl Iterator<Item = Expr> + Clone {
+        self.syntax.children().filter_map(Expr::cast)
     }
     pub fn r_paren(&self) -> Option<RParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RParen::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -7721,16 +7721,16 @@ impl AstElement for ArrayExpr {
 impl ast::AttrsOwner for ArrayExpr {}
 impl ArrayExpr {
     pub fn l_brack(&self) -> Option<LBrack> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LBrack::cast_element).next()
     }
-    pub fn exprs(&self) -> AstChildren<Expr> {
-        AstChildren::new(&self.syntax)
+    pub fn exprs(&self) -> impl Iterator<Item = Expr> + Clone {
+        self.syntax.children().filter_map(Expr::cast)
     }
     pub fn semi(&self) -> Option<Semi> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Semi::cast_element).next()
     }
     pub fn r_brack(&self) -> Option<RBrack> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RBrack::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -7787,13 +7787,13 @@ impl AstElement for ParenExpr {
 impl ast::AttrsOwner for ParenExpr {}
 impl ParenExpr {
     pub fn l_paren(&self) -> Option<LParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LParen::cast_element).next()
     }
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
     pub fn r_paren(&self) -> Option<RParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RParen::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -7849,7 +7849,7 @@ impl AstElement for PathExpr {
 }
 impl PathExpr {
     pub fn path(&self) -> Option<Path> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Path::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -7906,22 +7906,22 @@ impl AstElement for LambdaExpr {
 impl ast::AttrsOwner for LambdaExpr {}
 impl LambdaExpr {
     pub fn static_kw(&self) -> Option<StaticKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(StaticKw::cast_element).next()
     }
     pub fn async_kw(&self) -> Option<AsyncKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(AsyncKw::cast_element).next()
     }
     pub fn move_kw(&self) -> Option<MoveKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(MoveKw::cast_element).next()
     }
     pub fn param_list(&self) -> Option<ParamList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(ParamList::cast).next()
     }
     pub fn ret_type(&self) -> Option<RetType> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(RetType::cast).next()
     }
     pub fn body(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -7978,10 +7978,10 @@ impl AstElement for IfExpr {
 impl ast::AttrsOwner for IfExpr {}
 impl IfExpr {
     pub fn if_kw(&self) -> Option<IfKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(IfKw::cast_element).next()
     }
     pub fn condition(&self) -> Option<Condition> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Condition::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8039,7 +8039,7 @@ impl ast::AttrsOwner for LoopExpr {}
 impl ast::LoopBodyOwner for LoopExpr {}
 impl LoopExpr {
     pub fn loop_kw(&self) -> Option<LoopKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LoopKw::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8096,10 +8096,10 @@ impl AstElement for TryBlockExpr {
 impl ast::AttrsOwner for TryBlockExpr {}
 impl TryBlockExpr {
     pub fn try_kw(&self) -> Option<TryKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(TryKw::cast_element).next()
     }
     pub fn body(&self) -> Option<BlockExpr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(BlockExpr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8157,16 +8157,16 @@ impl ast::AttrsOwner for ForExpr {}
 impl ast::LoopBodyOwner for ForExpr {}
 impl ForExpr {
     pub fn for_kw(&self) -> Option<ForKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(ForKw::cast_element).next()
     }
     pub fn pat(&self) -> Option<Pat> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Pat::cast).next()
     }
     pub fn in_kw(&self) -> Option<InKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(InKw::cast_element).next()
     }
     pub fn iterable(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8224,10 +8224,10 @@ impl ast::AttrsOwner for WhileExpr {}
 impl ast::LoopBodyOwner for WhileExpr {}
 impl WhileExpr {
     pub fn while_kw(&self) -> Option<WhileKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(WhileKw::cast_element).next()
     }
     pub fn condition(&self) -> Option<Condition> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Condition::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8284,10 +8284,10 @@ impl AstElement for ContinueExpr {
 impl ast::AttrsOwner for ContinueExpr {}
 impl ContinueExpr {
     pub fn continue_kw(&self) -> Option<ContinueKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(ContinueKw::cast_element).next()
     }
     pub fn lifetime(&self) -> Option<Lifetime> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Lifetime::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8344,13 +8344,13 @@ impl AstElement for BreakExpr {
 impl ast::AttrsOwner for BreakExpr {}
 impl BreakExpr {
     pub fn break_kw(&self) -> Option<BreakKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(BreakKw::cast_element).next()
     }
     pub fn lifetime(&self) -> Option<Lifetime> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Lifetime::cast_element).next()
     }
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8406,7 +8406,7 @@ impl AstElement for Label {
 }
 impl Label {
     pub fn lifetime(&self) -> Option<Lifetime> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Lifetime::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8463,13 +8463,13 @@ impl AstElement for BlockExpr {
 impl ast::AttrsOwner for BlockExpr {}
 impl BlockExpr {
     pub fn label(&self) -> Option<Label> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Label::cast).next()
     }
     pub fn unsafe_kw(&self) -> Option<UnsafeKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(UnsafeKw::cast_element).next()
     }
     pub fn block(&self) -> Option<Block> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Block::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8526,7 +8526,7 @@ impl AstElement for ReturnExpr {
 impl ast::AttrsOwner for ReturnExpr {}
 impl ReturnExpr {
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8583,7 +8583,7 @@ impl AstElement for CallExpr {
 impl ast::ArgListOwner for CallExpr {}
 impl CallExpr {
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8641,16 +8641,16 @@ impl ast::AttrsOwner for MethodCallExpr {}
 impl ast::ArgListOwner for MethodCallExpr {}
 impl MethodCallExpr {
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
     pub fn dot(&self) -> Option<Dot> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Dot::cast_element).next()
     }
     pub fn name_ref(&self) -> Option<NameRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(NameRef::cast).next()
     }
     pub fn type_arg_list(&self) -> Option<TypeArgList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TypeArgList::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8707,10 +8707,10 @@ impl AstElement for IndexExpr {
 impl ast::AttrsOwner for IndexExpr {}
 impl IndexExpr {
     pub fn l_brack(&self) -> Option<LBrack> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LBrack::cast_element).next()
     }
     pub fn r_brack(&self) -> Option<RBrack> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RBrack::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8767,13 +8767,13 @@ impl AstElement for FieldExpr {
 impl ast::AttrsOwner for FieldExpr {}
 impl FieldExpr {
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
     pub fn dot(&self) -> Option<Dot> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Dot::cast_element).next()
     }
     pub fn name_ref(&self) -> Option<NameRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(NameRef::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8830,13 +8830,13 @@ impl AstElement for AwaitExpr {
 impl ast::AttrsOwner for AwaitExpr {}
 impl AwaitExpr {
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
     pub fn dot(&self) -> Option<Dot> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Dot::cast_element).next()
     }
     pub fn await_kw(&self) -> Option<AwaitKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(AwaitKw::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8893,10 +8893,10 @@ impl AstElement for TryExpr {
 impl ast::AttrsOwner for TryExpr {}
 impl TryExpr {
     pub fn try_kw(&self) -> Option<TryKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(TryKw::cast_element).next()
     }
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -8953,13 +8953,13 @@ impl AstElement for CastExpr {
 impl ast::AttrsOwner for CastExpr {}
 impl CastExpr {
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
     pub fn as_kw(&self) -> Option<AsKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(AsKw::cast_element).next()
     }
     pub fn type_ref(&self) -> Option<TypeRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TypeRef::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -9016,16 +9016,16 @@ impl AstElement for RefExpr {
 impl ast::AttrsOwner for RefExpr {}
 impl RefExpr {
     pub fn amp(&self) -> Option<Amp> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Amp::cast_element).next()
     }
     pub fn raw_kw(&self) -> Option<RawKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RawKw::cast_element).next()
     }
     pub fn mut_kw(&self) -> Option<MutKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(MutKw::cast_element).next()
     }
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -9082,10 +9082,10 @@ impl AstElement for PrefixExpr {
 impl ast::AttrsOwner for PrefixExpr {}
 impl PrefixExpr {
     pub fn prefix_op(&self) -> Option<PrefixOp> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(PrefixOp::cast_element).next()
     }
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -9142,10 +9142,10 @@ impl AstElement for BoxExpr {
 impl ast::AttrsOwner for BoxExpr {}
 impl BoxExpr {
     pub fn box_kw(&self) -> Option<BoxKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(BoxKw::cast_element).next()
     }
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -9202,7 +9202,7 @@ impl AstElement for RangeExpr {
 impl ast::AttrsOwner for RangeExpr {}
 impl RangeExpr {
     pub fn range_op(&self) -> Option<RangeOp> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RangeOp::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -9259,7 +9259,7 @@ impl AstElement for BinExpr {
 impl ast::AttrsOwner for BinExpr {}
 impl BinExpr {
     pub fn bin_op(&self) -> Option<BinOp> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(BinOp::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -9315,7 +9315,7 @@ impl AstElement for Literal {
 }
 impl Literal {
     pub fn literal_token(&self) -> Option<LiteralToken> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LiteralToken::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -9372,13 +9372,13 @@ impl AstElement for MatchExpr {
 impl ast::AttrsOwner for MatchExpr {}
 impl MatchExpr {
     pub fn match_kw(&self) -> Option<MatchKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(MatchKw::cast_element).next()
     }
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
     pub fn match_arm_list(&self) -> Option<MatchArmList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(MatchArmList::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -9435,13 +9435,13 @@ impl AstElement for MatchArmList {
 impl ast::AttrsOwner for MatchArmList {}
 impl MatchArmList {
     pub fn l_curly(&self) -> Option<LCurly> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LCurly::cast_element).next()
     }
-    pub fn arms(&self) -> AstChildren<MatchArm> {
-        AstChildren::new(&self.syntax)
+    pub fn arms(&self) -> impl Iterator<Item = MatchArm> + Clone {
+        self.syntax.children().filter_map(MatchArm::cast)
     }
     pub fn r_curly(&self) -> Option<RCurly> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RCurly::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -9498,16 +9498,16 @@ impl AstElement for MatchArm {
 impl ast::AttrsOwner for MatchArm {}
 impl MatchArm {
     pub fn pat(&self) -> Option<Pat> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Pat::cast).next()
     }
     pub fn guard(&self) -> Option<MatchGuard> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(MatchGuard::cast).next()
     }
     pub fn fat_arrow(&self) -> Option<FatArrow> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(FatArrow::cast_element).next()
     }
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -9563,10 +9563,10 @@ impl AstElement for MatchGuard {
 }
 impl MatchGuard {
     pub fn if_kw(&self) -> Option<IfKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(IfKw::cast_element).next()
     }
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -9622,10 +9622,10 @@ impl AstElement for RecordLit {
 }
 impl RecordLit {
     pub fn path(&self) -> Option<Path> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Path::cast).next()
     }
     pub fn record_field_list(&self) -> Option<RecordFieldList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(RecordFieldList::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -9681,19 +9681,19 @@ impl AstElement for RecordFieldList {
 }
 impl RecordFieldList {
     pub fn l_curly(&self) -> Option<LCurly> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LCurly::cast_element).next()
     }
-    pub fn fields(&self) -> AstChildren<RecordField> {
-        AstChildren::new(&self.syntax)
+    pub fn fields(&self) -> impl Iterator<Item = RecordField> + Clone {
+        self.syntax.children().filter_map(RecordField::cast)
     }
     pub fn dotdot(&self) -> Option<Dotdot> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Dotdot::cast_element).next()
     }
     pub fn spread(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
     pub fn r_curly(&self) -> Option<RCurly> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RCurly::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -9750,13 +9750,13 @@ impl AstElement for RecordField {
 impl ast::AttrsOwner for RecordField {}
 impl RecordField {
     pub fn name_ref(&self) -> Option<NameRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(NameRef::cast).next()
     }
     pub fn colon(&self) -> Option<Colon> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Colon::cast_element).next()
     }
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -9811,8 +9811,8 @@ impl AstElement for OrPat {
     }
 }
 impl OrPat {
-    pub fn pats(&self) -> AstChildren<Pat> {
-        AstChildren::new(&self.syntax)
+    pub fn pats(&self) -> impl Iterator<Item = Pat> + Clone {
+        self.syntax.children().filter_map(Pat::cast)
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -9868,13 +9868,13 @@ impl AstElement for ParenPat {
 }
 impl ParenPat {
     pub fn l_paren(&self) -> Option<LParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LParen::cast_element).next()
     }
     pub fn pat(&self) -> Option<Pat> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Pat::cast).next()
     }
     pub fn r_paren(&self) -> Option<RParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RParen::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -9930,13 +9930,13 @@ impl AstElement for RefPat {
 }
 impl RefPat {
     pub fn amp(&self) -> Option<Amp> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Amp::cast_element).next()
     }
     pub fn mut_kw(&self) -> Option<MutKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(MutKw::cast_element).next()
     }
     pub fn pat(&self) -> Option<Pat> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Pat::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -9992,10 +9992,10 @@ impl AstElement for BoxPat {
 }
 impl BoxPat {
     pub fn box_kw(&self) -> Option<BoxKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(BoxKw::cast_element).next()
     }
     pub fn pat(&self) -> Option<Pat> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Pat::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -10053,13 +10053,13 @@ impl ast::AttrsOwner for BindPat {}
 impl ast::NameOwner for BindPat {}
 impl BindPat {
     pub fn ref_kw(&self) -> Option<RefKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RefKw::cast_element).next()
     }
     pub fn mut_kw(&self) -> Option<MutKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(MutKw::cast_element).next()
     }
     pub fn pat(&self) -> Option<Pat> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Pat::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -10115,7 +10115,7 @@ impl AstElement for PlaceholderPat {
 }
 impl PlaceholderPat {
     pub fn underscore(&self) -> Option<Underscore> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Underscore::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -10171,7 +10171,7 @@ impl AstElement for DotDotPat {
 }
 impl DotDotPat {
     pub fn dotdot(&self) -> Option<Dotdot> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Dotdot::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -10227,7 +10227,7 @@ impl AstElement for PathPat {
 }
 impl PathPat {
     pub fn path(&self) -> Option<Path> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Path::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -10283,13 +10283,13 @@ impl AstElement for SlicePat {
 }
 impl SlicePat {
     pub fn l_brack(&self) -> Option<LBrack> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LBrack::cast_element).next()
     }
-    pub fn args(&self) -> AstChildren<Pat> {
-        AstChildren::new(&self.syntax)
+    pub fn args(&self) -> impl Iterator<Item = Pat> + Clone {
+        self.syntax.children().filter_map(Pat::cast)
     }
     pub fn r_brack(&self) -> Option<RBrack> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RBrack::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -10345,7 +10345,7 @@ impl AstElement for RangePat {
 }
 impl RangePat {
     pub fn range_separator(&self) -> Option<RangeSeparator> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RangeSeparator::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -10401,7 +10401,7 @@ impl AstElement for LiteralPat {
 }
 impl LiteralPat {
     pub fn literal(&self) -> Option<Literal> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Literal::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -10457,10 +10457,10 @@ impl AstElement for RecordPat {
 }
 impl RecordPat {
     pub fn record_field_pat_list(&self) -> Option<RecordFieldPatList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(RecordFieldPatList::cast).next()
     }
     pub fn path(&self) -> Option<Path> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Path::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -10516,22 +10516,22 @@ impl AstElement for RecordFieldPatList {
 }
 impl RecordFieldPatList {
     pub fn l_curly(&self) -> Option<LCurly> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LCurly::cast_element).next()
     }
-    pub fn pats(&self) -> AstChildren<RecordInnerPat> {
-        AstChildren::new(&self.syntax)
+    pub fn pats(&self) -> impl Iterator<Item = RecordInnerPat> + Clone {
+        self.syntax.children().filter_map(RecordInnerPat::cast)
     }
-    pub fn record_field_pats(&self) -> AstChildren<RecordFieldPat> {
-        AstChildren::new(&self.syntax)
+    pub fn record_field_pats(&self) -> impl Iterator<Item = RecordFieldPat> + Clone {
+        self.syntax.children().filter_map(RecordFieldPat::cast)
     }
-    pub fn bind_pats(&self) -> AstChildren<BindPat> {
-        AstChildren::new(&self.syntax)
+    pub fn bind_pats(&self) -> impl Iterator<Item = BindPat> + Clone {
+        self.syntax.children().filter_map(BindPat::cast)
     }
     pub fn dotdot(&self) -> Option<Dotdot> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Dotdot::cast_element).next()
     }
     pub fn r_curly(&self) -> Option<RCurly> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RCurly::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -10589,10 +10589,10 @@ impl ast::AttrsOwner for RecordFieldPat {}
 impl ast::NameOwner for RecordFieldPat {}
 impl RecordFieldPat {
     pub fn colon(&self) -> Option<Colon> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Colon::cast_element).next()
     }
     pub fn pat(&self) -> Option<Pat> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Pat::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -10648,16 +10648,16 @@ impl AstElement for TupleStructPat {
 }
 impl TupleStructPat {
     pub fn path(&self) -> Option<Path> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Path::cast).next()
     }
     pub fn l_paren(&self) -> Option<LParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LParen::cast_element).next()
     }
-    pub fn args(&self) -> AstChildren<Pat> {
-        AstChildren::new(&self.syntax)
+    pub fn args(&self) -> impl Iterator<Item = Pat> + Clone {
+        self.syntax.children().filter_map(Pat::cast)
     }
     pub fn r_paren(&self) -> Option<RParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RParen::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -10713,13 +10713,13 @@ impl AstElement for TuplePat {
 }
 impl TuplePat {
     pub fn l_paren(&self) -> Option<LParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LParen::cast_element).next()
     }
-    pub fn args(&self) -> AstChildren<Pat> {
-        AstChildren::new(&self.syntax)
+    pub fn args(&self) -> impl Iterator<Item = Pat> + Clone {
+        self.syntax.children().filter_map(Pat::cast)
     }
     pub fn r_paren(&self) -> Option<RParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RParen::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -10775,16 +10775,16 @@ impl AstElement for Visibility {
 }
 impl Visibility {
     pub fn pub_kw(&self) -> Option<PubKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(PubKw::cast_element).next()
     }
     pub fn super_kw(&self) -> Option<SuperKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(SuperKw::cast_element).next()
     }
     pub fn self_kw(&self) -> Option<SelfKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(SelfKw::cast_element).next()
     }
     pub fn crate_kw(&self) -> Option<CrateKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(CrateKw::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -10840,7 +10840,7 @@ impl AstElement for Name {
 }
 impl Name {
     pub fn ident(&self) -> Option<Ident> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Ident::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -10896,7 +10896,7 @@ impl AstElement for NameRef {
 }
 impl NameRef {
     pub fn name_ref_token(&self) -> Option<NameRefToken> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(NameRefToken::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -10955,16 +10955,16 @@ impl ast::AttrsOwner for MacroCall {}
 impl ast::DocCommentsOwner for MacroCall {}
 impl MacroCall {
     pub fn path(&self) -> Option<Path> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Path::cast).next()
     }
     pub fn excl(&self) -> Option<Excl> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Excl::cast_element).next()
     }
     pub fn token_tree(&self) -> Option<TokenTree> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TokenTree::cast).next()
     }
     pub fn semi(&self) -> Option<Semi> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Semi::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11020,25 +11020,25 @@ impl AstElement for Attr {
 }
 impl Attr {
     pub fn pound(&self) -> Option<Pound> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Pound::cast_element).next()
     }
     pub fn excl(&self) -> Option<Excl> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Excl::cast_element).next()
     }
     pub fn l_brack(&self) -> Option<LBrack> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LBrack::cast_element).next()
     }
     pub fn path(&self) -> Option<Path> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Path::cast).next()
     }
     pub fn eq(&self) -> Option<Eq> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Eq::cast_element).next()
     }
     pub fn input(&self) -> Option<AttrInput> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(AttrInput::cast).next()
     }
     pub fn r_brack(&self) -> Option<RBrack> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RBrack::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11146,22 +11146,22 @@ impl AstElement for TypeParamList {
 }
 impl TypeParamList {
     pub fn l_angle(&self) -> Option<LAngle> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LAngle::cast_element).next()
     }
-    pub fn generic_params(&self) -> AstChildren<GenericParam> {
-        AstChildren::new(&self.syntax)
+    pub fn generic_params(&self) -> impl Iterator<Item = GenericParam> + Clone {
+        self.syntax.children().filter_map(GenericParam::cast)
     }
-    pub fn type_params(&self) -> AstChildren<TypeParam> {
-        AstChildren::new(&self.syntax)
+    pub fn type_params(&self) -> impl Iterator<Item = TypeParam> + Clone {
+        self.syntax.children().filter_map(TypeParam::cast)
     }
-    pub fn lifetime_params(&self) -> AstChildren<LifetimeParam> {
-        AstChildren::new(&self.syntax)
+    pub fn lifetime_params(&self) -> impl Iterator<Item = LifetimeParam> + Clone {
+        self.syntax.children().filter_map(LifetimeParam::cast)
     }
-    pub fn const_params(&self) -> AstChildren<ConstParam> {
-        AstChildren::new(&self.syntax)
+    pub fn const_params(&self) -> impl Iterator<Item = ConstParam> + Clone {
+        self.syntax.children().filter_map(ConstParam::cast)
     }
     pub fn r_angle(&self) -> Option<RAngle> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RAngle::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11220,10 +11220,10 @@ impl ast::AttrsOwner for TypeParam {}
 impl ast::TypeBoundsOwner for TypeParam {}
 impl TypeParam {
     pub fn eq(&self) -> Option<Eq> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Eq::cast_element).next()
     }
     pub fn default_type(&self) -> Option<TypeRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TypeRef::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11282,10 +11282,10 @@ impl ast::AttrsOwner for ConstParam {}
 impl ast::TypeAscriptionOwner for ConstParam {}
 impl ConstParam {
     pub fn eq(&self) -> Option<Eq> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Eq::cast_element).next()
     }
     pub fn default_val(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11342,7 +11342,7 @@ impl AstElement for LifetimeParam {
 impl ast::AttrsOwner for LifetimeParam {}
 impl LifetimeParam {
     pub fn lifetime(&self) -> Option<Lifetime> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Lifetime::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11398,13 +11398,13 @@ impl AstElement for TypeBound {
 }
 impl TypeBound {
     pub fn lifetime(&self) -> Option<Lifetime> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Lifetime::cast_element).next()
     }
     pub fn const_kw(&self) -> Option<ConstKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(ConstKw::cast_element).next()
     }
     pub fn type_ref(&self) -> Option<TypeRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TypeRef::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11459,8 +11459,8 @@ impl AstElement for TypeBoundList {
     }
 }
 impl TypeBoundList {
-    pub fn bounds(&self) -> AstChildren<TypeBound> {
-        AstChildren::new(&self.syntax)
+    pub fn bounds(&self) -> impl Iterator<Item = TypeBound> + Clone {
+        self.syntax.children().filter_map(TypeBound::cast)
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11517,10 +11517,10 @@ impl AstElement for WherePred {
 impl ast::TypeBoundsOwner for WherePred {}
 impl WherePred {
     pub fn lifetime(&self) -> Option<Lifetime> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Lifetime::cast_element).next()
     }
     pub fn type_ref(&self) -> Option<TypeRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TypeRef::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11576,10 +11576,10 @@ impl AstElement for WhereClause {
 }
 impl WhereClause {
     pub fn where_kw(&self) -> Option<WhereKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(WhereKw::cast_element).next()
     }
-    pub fn predicates(&self) -> AstChildren<WherePred> {
-        AstChildren::new(&self.syntax)
+    pub fn predicates(&self) -> impl Iterator<Item = WherePred> + Clone {
+        self.syntax.children().filter_map(WherePred::cast)
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11635,7 +11635,7 @@ impl AstElement for Abi {
 }
 impl Abi {
     pub fn string(&self) -> Option<String> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(String::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11692,10 +11692,10 @@ impl AstElement for ExprStmt {
 impl ast::AttrsOwner for ExprStmt {}
 impl ExprStmt {
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
     pub fn semi(&self) -> Option<Semi> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Semi::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11753,16 +11753,16 @@ impl ast::AttrsOwner for LetStmt {}
 impl ast::TypeAscriptionOwner for LetStmt {}
 impl LetStmt {
     pub fn let_kw(&self) -> Option<LetKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LetKw::cast_element).next()
     }
     pub fn pat(&self) -> Option<Pat> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Pat::cast).next()
     }
     pub fn eq(&self) -> Option<Eq> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Eq::cast_element).next()
     }
     pub fn initializer(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11818,16 +11818,16 @@ impl AstElement for Condition {
 }
 impl Condition {
     pub fn let_kw(&self) -> Option<LetKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LetKw::cast_element).next()
     }
     pub fn pat(&self) -> Option<Pat> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Pat::cast).next()
     }
     pub fn eq(&self) -> Option<Eq> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Eq::cast_element).next()
     }
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11885,19 +11885,19 @@ impl ast::AttrsOwner for Block {}
 impl ast::ModuleItemOwner for Block {}
 impl Block {
     pub fn l_curly(&self) -> Option<LCurly> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LCurly::cast_element).next()
     }
-    pub fn statements(&self) -> AstChildren<Stmt> {
-        AstChildren::new(&self.syntax)
+    pub fn statements(&self) -> impl Iterator<Item = Stmt> + Clone {
+        self.syntax.children().filter_map(Stmt::cast)
     }
-    pub fn statements_or_semi(&self) -> AstChildElements<StmtOrSemi> {
-        AstChildElements::new(&self.syntax)
+    pub fn statements_or_semi(&self) -> impl Iterator<Item = StmtOrSemi> + Clone {
+        self.syntax.children_with_tokens().filter_map(StmtOrSemi::cast_element)
     }
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
     pub fn r_curly(&self) -> Option<RCurly> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RCurly::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11953,16 +11953,16 @@ impl AstElement for ParamList {
 }
 impl ParamList {
     pub fn l_paren(&self) -> Option<LParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LParen::cast_element).next()
     }
     pub fn self_param(&self) -> Option<SelfParam> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(SelfParam::cast).next()
     }
-    pub fn params(&self) -> AstChildren<Param> {
-        AstChildren::new(&self.syntax)
+    pub fn params(&self) -> impl Iterator<Item = Param> + Clone {
+        self.syntax.children().filter_map(Param::cast)
     }
     pub fn r_paren(&self) -> Option<RParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RParen::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -12020,13 +12020,13 @@ impl ast::TypeAscriptionOwner for SelfParam {}
 impl ast::AttrsOwner for SelfParam {}
 impl SelfParam {
     pub fn amp(&self) -> Option<Amp> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Amp::cast_element).next()
     }
     pub fn lifetime(&self) -> Option<Lifetime> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Lifetime::cast_element).next()
     }
     pub fn self_kw(&self) -> Option<SelfKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(SelfKw::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -12084,10 +12084,10 @@ impl ast::TypeAscriptionOwner for Param {}
 impl ast::AttrsOwner for Param {}
 impl Param {
     pub fn pat(&self) -> Option<Pat> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Pat::cast).next()
     }
     pub fn dotdotdot(&self) -> Option<Dotdotdot> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Dotdotdot::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -12145,10 +12145,10 @@ impl ast::AttrsOwner for UseItem {}
 impl ast::VisibilityOwner for UseItem {}
 impl UseItem {
     pub fn use_kw(&self) -> Option<UseKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(UseKw::cast_element).next()
     }
     pub fn use_tree(&self) -> Option<UseTree> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(UseTree::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -12204,16 +12204,16 @@ impl AstElement for UseTree {
 }
 impl UseTree {
     pub fn path(&self) -> Option<Path> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Path::cast).next()
     }
     pub fn star(&self) -> Option<Star> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Star::cast_element).next()
     }
     pub fn use_tree_list(&self) -> Option<UseTreeList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(UseTreeList::cast).next()
     }
     pub fn alias(&self) -> Option<Alias> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Alias::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -12270,7 +12270,7 @@ impl AstElement for Alias {
 impl ast::NameOwner for Alias {}
 impl Alias {
     pub fn as_kw(&self) -> Option<AsKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(AsKw::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -12326,13 +12326,13 @@ impl AstElement for UseTreeList {
 }
 impl UseTreeList {
     pub fn l_curly(&self) -> Option<LCurly> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LCurly::cast_element).next()
     }
-    pub fn use_trees(&self) -> AstChildren<UseTree> {
-        AstChildren::new(&self.syntax)
+    pub fn use_trees(&self) -> impl Iterator<Item = UseTree> + Clone {
+        self.syntax.children().filter_map(UseTree::cast)
     }
     pub fn r_curly(&self) -> Option<RCurly> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RCurly::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -12390,16 +12390,16 @@ impl ast::AttrsOwner for ExternCrateItem {}
 impl ast::VisibilityOwner for ExternCrateItem {}
 impl ExternCrateItem {
     pub fn extern_kw(&self) -> Option<ExternKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(ExternKw::cast_element).next()
     }
     pub fn crate_kw(&self) -> Option<CrateKw> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(CrateKw::cast_element).next()
     }
     pub fn name_ref(&self) -> Option<NameRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(NameRef::cast).next()
     }
     pub fn alias(&self) -> Option<Alias> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Alias::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -12455,13 +12455,13 @@ impl AstElement for ArgList {
 }
 impl ArgList {
     pub fn l_paren(&self) -> Option<LParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LParen::cast_element).next()
     }
-    pub fn args(&self) -> AstChildren<Expr> {
-        AstChildren::new(&self.syntax)
+    pub fn args(&self) -> impl Iterator<Item = Expr> + Clone {
+        self.syntax.children().filter_map(Expr::cast)
     }
     pub fn r_paren(&self) -> Option<RParen> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RParen::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -12517,10 +12517,10 @@ impl AstElement for Path {
 }
 impl Path {
     pub fn segment(&self) -> Option<PathSegment> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(PathSegment::cast).next()
     }
     pub fn qualifier(&self) -> Option<Path> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Path::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -12576,28 +12576,28 @@ impl AstElement for PathSegment {
 }
 impl PathSegment {
     pub fn coloncolon(&self) -> Option<Coloncolon> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Coloncolon::cast_element).next()
     }
     pub fn l_angle(&self) -> Option<LAngle> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LAngle::cast_element).next()
     }
     pub fn name_ref(&self) -> Option<NameRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(NameRef::cast).next()
     }
     pub fn type_arg_list(&self) -> Option<TypeArgList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TypeArgList::cast).next()
     }
     pub fn param_list(&self) -> Option<ParamList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(ParamList::cast).next()
     }
     pub fn ret_type(&self) -> Option<RetType> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(RetType::cast).next()
     }
     pub fn path_type(&self) -> Option<PathType> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(PathType::cast).next()
     }
     pub fn r_angle(&self) -> Option<RAngle> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RAngle::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -12653,28 +12653,28 @@ impl AstElement for TypeArgList {
 }
 impl TypeArgList {
     pub fn coloncolon(&self) -> Option<Coloncolon> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Coloncolon::cast_element).next()
     }
     pub fn l_angle(&self) -> Option<LAngle> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LAngle::cast_element).next()
     }
-    pub fn generic_args(&self) -> AstChildren<GenericArg> {
-        AstChildren::new(&self.syntax)
+    pub fn generic_args(&self) -> impl Iterator<Item = GenericArg> + Clone {
+        self.syntax.children().filter_map(GenericArg::cast)
     }
-    pub fn type_args(&self) -> AstChildren<TypeArg> {
-        AstChildren::new(&self.syntax)
+    pub fn type_args(&self) -> impl Iterator<Item = TypeArg> + Clone {
+        self.syntax.children().filter_map(TypeArg::cast)
     }
-    pub fn lifetime_args(&self) -> AstChildren<LifetimeArg> {
-        AstChildren::new(&self.syntax)
+    pub fn lifetime_args(&self) -> impl Iterator<Item = LifetimeArg> + Clone {
+        self.syntax.children().filter_map(LifetimeArg::cast)
     }
-    pub fn assoc_type_args(&self) -> AstChildren<AssocTypeArg> {
-        AstChildren::new(&self.syntax)
+    pub fn assoc_type_args(&self) -> impl Iterator<Item = AssocTypeArg> + Clone {
+        self.syntax.children().filter_map(AssocTypeArg::cast)
     }
-    pub fn const_args(&self) -> AstChildren<ConstArg> {
-        AstChildren::new(&self.syntax)
+    pub fn const_args(&self) -> impl Iterator<Item = ConstArg> + Clone {
+        self.syntax.children().filter_map(ConstArg::cast)
     }
     pub fn r_angle(&self) -> Option<RAngle> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RAngle::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -12730,7 +12730,7 @@ impl AstElement for TypeArg {
 }
 impl TypeArg {
     pub fn type_ref(&self) -> Option<TypeRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TypeRef::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -12787,13 +12787,13 @@ impl AstElement for AssocTypeArg {
 impl ast::TypeBoundsOwner for AssocTypeArg {}
 impl AssocTypeArg {
     pub fn name_ref(&self) -> Option<NameRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(NameRef::cast).next()
     }
     pub fn eq(&self) -> Option<Eq> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Eq::cast_element).next()
     }
     pub fn type_ref(&self) -> Option<TypeRef> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TypeRef::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -12849,7 +12849,7 @@ impl AstElement for LifetimeArg {
 }
 impl LifetimeArg {
     pub fn lifetime(&self) -> Option<Lifetime> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Lifetime::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -12905,13 +12905,13 @@ impl AstElement for ConstArg {
 }
 impl ConstArg {
     pub fn literal(&self) -> Option<Literal> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Literal::cast).next()
     }
     pub fn eq(&self) -> Option<Eq> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Eq::cast_element).next()
     }
     pub fn block_expr(&self) -> Option<BlockExpr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(BlockExpr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -13020,11 +13020,11 @@ impl AstElement for MacroStmts {
     }
 }
 impl MacroStmts {
-    pub fn statements(&self) -> AstChildren<Stmt> {
-        AstChildren::new(&self.syntax)
+    pub fn statements(&self) -> impl Iterator<Item = Stmt> + Clone {
+        self.syntax.children().filter_map(Stmt::cast)
     }
     pub fn expr(&self) -> Option<Expr> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Expr::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -13082,13 +13082,13 @@ impl ast::FnDefOwner for ExternItemList {}
 impl ast::ModuleItemOwner for ExternItemList {}
 impl ExternItemList {
     pub fn l_curly(&self) -> Option<LCurly> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(LCurly::cast_element).next()
     }
-    pub fn extern_items(&self) -> AstChildren<ExternItem> {
-        AstChildren::new(&self.syntax)
+    pub fn extern_items(&self) -> impl Iterator<Item = ExternItem> + Clone {
+        self.syntax.children().filter_map(ExternItem::cast)
     }
     pub fn r_curly(&self) -> Option<RCurly> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(RCurly::cast_element).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -13144,10 +13144,10 @@ impl AstElement for ExternBlock {
 }
 impl ExternBlock {
     pub fn abi(&self) -> Option<Abi> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Abi::cast).next()
     }
     pub fn extern_item_list(&self) -> Option<ExternItemList> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(ExternItemList::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -13203,16 +13203,16 @@ impl AstElement for MetaItem {
 }
 impl MetaItem {
     pub fn path(&self) -> Option<Path> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Path::cast).next()
     }
     pub fn eq(&self) -> Option<Eq> {
-        AstChildTokens::new(&self.syntax).next()
+        self.syntax.children_with_tokens().filter_map(Eq::cast_element).next()
     }
     pub fn attr_input(&self) -> Option<AttrInput> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(AttrInput::cast).next()
     }
-    pub fn nested_meta_items(&self) -> AstChildren<MetaItem> {
-        AstChildren::new(&self.syntax)
+    pub fn nested_meta_items(&self) -> impl Iterator<Item = MetaItem> + Clone {
+        self.syntax.children().filter_map(MetaItem::cast)
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -13268,10 +13268,10 @@ impl AstElement for MacroDef {
 }
 impl MacroDef {
     pub fn name(&self) -> Option<Name> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(Name::cast).next()
     }
     pub fn token_tree(&self) -> Option<TokenTree> {
-        AstChildren::new(&self.syntax).next()
+        self.syntax.children().filter_map(TokenTree::cast).next()
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
