@@ -1,10 +1,5500 @@
 //! Generated file, do not edit by hand, see `xtask/src/codegen`
 
+#[allow(unused_imports)]
 use crate::{
-    ast::{self, AstChildren, AstNode},
+    ast::{self, AstChildElements, AstChildTokens, AstChildren, AstElement, AstNode, AstToken},
+    NodeOrToken, SyntaxElement,
     SyntaxKind::{self, *},
-    SyntaxNode,
+    SyntaxNode, SyntaxToken,
 };
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Semi(SyntaxToken);
+impl std::fmt::Display for Semi {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Semi {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            SEMI => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Semi {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            SEMI => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Comma(SyntaxToken);
+impl std::fmt::Display for Comma {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Comma {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            COMMA => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Comma {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            COMMA => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LParen(SyntaxToken);
+impl std::fmt::Display for LParen {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for LParen {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            L_PAREN => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for LParen {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            L_PAREN => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RParen(SyntaxToken);
+impl std::fmt::Display for RParen {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for RParen {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            R_PAREN => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for RParen {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            R_PAREN => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LCurly(SyntaxToken);
+impl std::fmt::Display for LCurly {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for LCurly {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            L_CURLY => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for LCurly {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            L_CURLY => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RCurly(SyntaxToken);
+impl std::fmt::Display for RCurly {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for RCurly {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            R_CURLY => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for RCurly {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            R_CURLY => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LBrack(SyntaxToken);
+impl std::fmt::Display for LBrack {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for LBrack {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            L_BRACK => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for LBrack {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            L_BRACK => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RBrack(SyntaxToken);
+impl std::fmt::Display for RBrack {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for RBrack {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            R_BRACK => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for RBrack {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            R_BRACK => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LAngle(SyntaxToken);
+impl std::fmt::Display for LAngle {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for LAngle {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            L_ANGLE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for LAngle {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            L_ANGLE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RAngle(SyntaxToken);
+impl std::fmt::Display for RAngle {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for RAngle {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            R_ANGLE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for RAngle {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            R_ANGLE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct At(SyntaxToken);
+impl std::fmt::Display for At {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for At {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            AT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for At {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            AT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Pound(SyntaxToken);
+impl std::fmt::Display for Pound {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Pound {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            POUND => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Pound {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            POUND => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Tilde(SyntaxToken);
+impl std::fmt::Display for Tilde {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Tilde {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            TILDE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Tilde {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TILDE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Question(SyntaxToken);
+impl std::fmt::Display for Question {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Question {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            QUESTION => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Question {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            QUESTION => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Dollar(SyntaxToken);
+impl std::fmt::Display for Dollar {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Dollar {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            DOLLAR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Dollar {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            DOLLAR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Amp(SyntaxToken);
+impl std::fmt::Display for Amp {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Amp {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            AMP => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Amp {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            AMP => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Pipe(SyntaxToken);
+impl std::fmt::Display for Pipe {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Pipe {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            PIPE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Pipe {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PIPE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Plus(SyntaxToken);
+impl std::fmt::Display for Plus {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Plus {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            PLUS => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Plus {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PLUS => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Star(SyntaxToken);
+impl std::fmt::Display for Star {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Star {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            STAR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Star {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            STAR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Slash(SyntaxToken);
+impl std::fmt::Display for Slash {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Slash {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            SLASH => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Slash {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            SLASH => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Caret(SyntaxToken);
+impl std::fmt::Display for Caret {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Caret {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            CARET => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Caret {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            CARET => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Percent(SyntaxToken);
+impl std::fmt::Display for Percent {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Percent {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            PERCENT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Percent {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PERCENT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Underscore(SyntaxToken);
+impl std::fmt::Display for Underscore {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Underscore {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            UNDERSCORE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Underscore {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            UNDERSCORE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Dot(SyntaxToken);
+impl std::fmt::Display for Dot {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Dot {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            DOT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Dot {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            DOT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Dotdot(SyntaxToken);
+impl std::fmt::Display for Dotdot {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Dotdot {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            DOTDOT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Dotdot {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            DOTDOT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Dotdotdot(SyntaxToken);
+impl std::fmt::Display for Dotdotdot {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Dotdotdot {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            DOTDOTDOT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Dotdotdot {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            DOTDOTDOT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Dotdoteq(SyntaxToken);
+impl std::fmt::Display for Dotdoteq {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Dotdoteq {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            DOTDOTEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Dotdoteq {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            DOTDOTEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Colon(SyntaxToken);
+impl std::fmt::Display for Colon {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Colon {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            COLON => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Colon {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            COLON => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Coloncolon(SyntaxToken);
+impl std::fmt::Display for Coloncolon {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Coloncolon {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            COLONCOLON => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Coloncolon {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            COLONCOLON => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Eq(SyntaxToken);
+impl std::fmt::Display for Eq {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Eq {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            EQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Eq {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            EQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Eqeq(SyntaxToken);
+impl std::fmt::Display for Eqeq {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Eqeq {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            EQEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Eqeq {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            EQEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FatArrow(SyntaxToken);
+impl std::fmt::Display for FatArrow {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for FatArrow {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            FAT_ARROW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for FatArrow {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            FAT_ARROW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Excl(SyntaxToken);
+impl std::fmt::Display for Excl {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Excl {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            EXCL => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Excl {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            EXCL => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Neq(SyntaxToken);
+impl std::fmt::Display for Neq {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Neq {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            NEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Neq {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            NEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Minus(SyntaxToken);
+impl std::fmt::Display for Minus {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Minus {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            MINUS => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Minus {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            MINUS => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ThinArrow(SyntaxToken);
+impl std::fmt::Display for ThinArrow {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for ThinArrow {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            THIN_ARROW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for ThinArrow {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            THIN_ARROW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Lteq(SyntaxToken);
+impl std::fmt::Display for Lteq {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Lteq {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            LTEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Lteq {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            LTEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Gteq(SyntaxToken);
+impl std::fmt::Display for Gteq {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Gteq {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            GTEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Gteq {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            GTEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Pluseq(SyntaxToken);
+impl std::fmt::Display for Pluseq {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Pluseq {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            PLUSEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Pluseq {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PLUSEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Minuseq(SyntaxToken);
+impl std::fmt::Display for Minuseq {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Minuseq {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            MINUSEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Minuseq {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            MINUSEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Pipeeq(SyntaxToken);
+impl std::fmt::Display for Pipeeq {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Pipeeq {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            PIPEEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Pipeeq {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PIPEEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Ampeq(SyntaxToken);
+impl std::fmt::Display for Ampeq {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Ampeq {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            AMPEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Ampeq {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            AMPEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Careteq(SyntaxToken);
+impl std::fmt::Display for Careteq {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Careteq {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            CARETEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Careteq {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            CARETEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Slasheq(SyntaxToken);
+impl std::fmt::Display for Slasheq {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Slasheq {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            SLASHEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Slasheq {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            SLASHEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Stareq(SyntaxToken);
+impl std::fmt::Display for Stareq {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Stareq {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            STAREQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Stareq {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            STAREQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Percenteq(SyntaxToken);
+impl std::fmt::Display for Percenteq {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Percenteq {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            PERCENTEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Percenteq {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PERCENTEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Ampamp(SyntaxToken);
+impl std::fmt::Display for Ampamp {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Ampamp {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            AMPAMP => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Ampamp {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            AMPAMP => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Pipepipe(SyntaxToken);
+impl std::fmt::Display for Pipepipe {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Pipepipe {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            PIPEPIPE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Pipepipe {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PIPEPIPE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Shl(SyntaxToken);
+impl std::fmt::Display for Shl {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Shl {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            SHL => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Shl {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            SHL => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Shr(SyntaxToken);
+impl std::fmt::Display for Shr {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Shr {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            SHR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Shr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            SHR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Shleq(SyntaxToken);
+impl std::fmt::Display for Shleq {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Shleq {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            SHLEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Shleq {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            SHLEQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Shreq(SyntaxToken);
+impl std::fmt::Display for Shreq {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Shreq {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            SHREQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Shreq {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            SHREQ => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct AsKw(SyntaxToken);
+impl std::fmt::Display for AsKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for AsKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            AS_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for AsKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            AS_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct AsyncKw(SyntaxToken);
+impl std::fmt::Display for AsyncKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for AsyncKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            ASYNC_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for AsyncKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            ASYNC_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct AwaitKw(SyntaxToken);
+impl std::fmt::Display for AwaitKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for AwaitKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            AWAIT_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for AwaitKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            AWAIT_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BoxKw(SyntaxToken);
+impl std::fmt::Display for BoxKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for BoxKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            BOX_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for BoxKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            BOX_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BreakKw(SyntaxToken);
+impl std::fmt::Display for BreakKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for BreakKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            BREAK_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for BreakKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            BREAK_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ConstKw(SyntaxToken);
+impl std::fmt::Display for ConstKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for ConstKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            CONST_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for ConstKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            CONST_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ContinueKw(SyntaxToken);
+impl std::fmt::Display for ContinueKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for ContinueKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            CONTINUE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for ContinueKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            CONTINUE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CrateKw(SyntaxToken);
+impl std::fmt::Display for CrateKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for CrateKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            CRATE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for CrateKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            CRATE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DynKw(SyntaxToken);
+impl std::fmt::Display for DynKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for DynKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            DYN_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for DynKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            DYN_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ElseKw(SyntaxToken);
+impl std::fmt::Display for ElseKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for ElseKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            ELSE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for ElseKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            ELSE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct EnumKw(SyntaxToken);
+impl std::fmt::Display for EnumKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for EnumKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            ENUM_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for EnumKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            ENUM_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ExternKw(SyntaxToken);
+impl std::fmt::Display for ExternKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for ExternKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            EXTERN_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for ExternKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            EXTERN_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FalseKw(SyntaxToken);
+impl std::fmt::Display for FalseKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for FalseKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            FALSE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for FalseKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            FALSE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FnKw(SyntaxToken);
+impl std::fmt::Display for FnKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for FnKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            FN_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for FnKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            FN_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ForKw(SyntaxToken);
+impl std::fmt::Display for ForKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for ForKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            FOR_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for ForKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            FOR_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct IfKw(SyntaxToken);
+impl std::fmt::Display for IfKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for IfKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            IF_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for IfKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            IF_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ImplKw(SyntaxToken);
+impl std::fmt::Display for ImplKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for ImplKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            IMPL_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for ImplKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            IMPL_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct InKw(SyntaxToken);
+impl std::fmt::Display for InKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for InKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            IN_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for InKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            IN_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LetKw(SyntaxToken);
+impl std::fmt::Display for LetKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for LetKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            LET_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for LetKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            LET_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LoopKw(SyntaxToken);
+impl std::fmt::Display for LoopKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for LoopKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            LOOP_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for LoopKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            LOOP_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MacroKw(SyntaxToken);
+impl std::fmt::Display for MacroKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for MacroKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            MACRO_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for MacroKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            MACRO_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MatchKw(SyntaxToken);
+impl std::fmt::Display for MatchKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for MatchKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            MATCH_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for MatchKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            MATCH_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ModKw(SyntaxToken);
+impl std::fmt::Display for ModKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for ModKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            MOD_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for ModKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            MOD_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MoveKw(SyntaxToken);
+impl std::fmt::Display for MoveKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for MoveKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            MOVE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for MoveKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            MOVE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MutKw(SyntaxToken);
+impl std::fmt::Display for MutKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for MutKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            MUT_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for MutKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            MUT_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PubKw(SyntaxToken);
+impl std::fmt::Display for PubKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for PubKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            PUB_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for PubKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PUB_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RefKw(SyntaxToken);
+impl std::fmt::Display for RefKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for RefKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            REF_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for RefKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            REF_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ReturnKw(SyntaxToken);
+impl std::fmt::Display for ReturnKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for ReturnKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            RETURN_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for ReturnKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            RETURN_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SelfKw(SyntaxToken);
+impl std::fmt::Display for SelfKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for SelfKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            SELF_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for SelfKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            SELF_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct StaticKw(SyntaxToken);
+impl std::fmt::Display for StaticKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for StaticKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            STATIC_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for StaticKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            STATIC_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct StructKw(SyntaxToken);
+impl std::fmt::Display for StructKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for StructKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            STRUCT_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for StructKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            STRUCT_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SuperKw(SyntaxToken);
+impl std::fmt::Display for SuperKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for SuperKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            SUPER_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for SuperKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            SUPER_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TraitKw(SyntaxToken);
+impl std::fmt::Display for TraitKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for TraitKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            TRAIT_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for TraitKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TRAIT_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TrueKw(SyntaxToken);
+impl std::fmt::Display for TrueKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for TrueKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            TRUE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for TrueKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TRUE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TryKw(SyntaxToken);
+impl std::fmt::Display for TryKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for TryKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            TRY_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for TryKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TRY_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TypeKw(SyntaxToken);
+impl std::fmt::Display for TypeKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for TypeKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            TYPE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for TypeKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TYPE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct UnsafeKw(SyntaxToken);
+impl std::fmt::Display for UnsafeKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for UnsafeKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            UNSAFE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for UnsafeKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            UNSAFE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct UseKw(SyntaxToken);
+impl std::fmt::Display for UseKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for UseKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            USE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for UseKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            USE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct WhereKw(SyntaxToken);
+impl std::fmt::Display for WhereKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for WhereKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            WHERE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for WhereKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            WHERE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct WhileKw(SyntaxToken);
+impl std::fmt::Display for WhileKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for WhileKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            WHILE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for WhileKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            WHILE_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct AutoKw(SyntaxToken);
+impl std::fmt::Display for AutoKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for AutoKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            AUTO_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for AutoKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            AUTO_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DefaultKw(SyntaxToken);
+impl std::fmt::Display for DefaultKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for DefaultKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            DEFAULT_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for DefaultKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            DEFAULT_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ExistentialKw(SyntaxToken);
+impl std::fmt::Display for ExistentialKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for ExistentialKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            EXISTENTIAL_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for ExistentialKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            EXISTENTIAL_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct UnionKw(SyntaxToken);
+impl std::fmt::Display for UnionKw {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for UnionKw {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            UNION_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for UnionKw {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            UNION_KW => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct IntNumber(SyntaxToken);
+impl std::fmt::Display for IntNumber {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for IntNumber {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            INT_NUMBER => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for IntNumber {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            INT_NUMBER => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FloatNumber(SyntaxToken);
+impl std::fmt::Display for FloatNumber {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for FloatNumber {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            FLOAT_NUMBER => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for FloatNumber {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            FLOAT_NUMBER => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Char(SyntaxToken);
+impl std::fmt::Display for Char {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Char {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            CHAR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Char {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            CHAR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Byte(SyntaxToken);
+impl std::fmt::Display for Byte {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Byte {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            BYTE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Byte {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            BYTE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct String(SyntaxToken);
+impl std::fmt::Display for String {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for String {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            STRING => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for String {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            STRING => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RawString(SyntaxToken);
+impl std::fmt::Display for RawString {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for RawString {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            RAW_STRING => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for RawString {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            RAW_STRING => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ByteString(SyntaxToken);
+impl std::fmt::Display for ByteString {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for ByteString {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            BYTE_STRING => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for ByteString {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            BYTE_STRING => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RawByteString(SyntaxToken);
+impl std::fmt::Display for RawByteString {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for RawByteString {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            RAW_BYTE_STRING => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for RawByteString {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            RAW_BYTE_STRING => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Error(SyntaxToken);
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Error {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            ERROR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Error {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            ERROR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Ident(SyntaxToken);
+impl std::fmt::Display for Ident {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Ident {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            IDENT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Ident {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            IDENT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Whitespace(SyntaxToken);
+impl std::fmt::Display for Whitespace {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Whitespace {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            WHITESPACE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Whitespace {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            WHITESPACE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Lifetime(SyntaxToken);
+impl std::fmt::Display for Lifetime {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Lifetime {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            LIFETIME => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Lifetime {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            LIFETIME => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Comment(SyntaxToken);
+impl std::fmt::Display for Comment {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Comment {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            COMMENT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Comment {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            COMMENT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Shebang(SyntaxToken);
+impl std::fmt::Display for Shebang {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for Shebang {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            SHEBANG => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for Shebang {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            SHEBANG => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LDollar(SyntaxToken);
+impl std::fmt::Display for LDollar {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for LDollar {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            L_DOLLAR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for LDollar {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            L_DOLLAR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RDollar(SyntaxToken);
+impl std::fmt::Display for RDollar {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl AstToken for RDollar {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        match kind {
+            R_DOLLAR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return(syntax: SyntaxToken) -> Result<Self, SyntaxToken> {
+        if Self::can_cast(syntax.kind()) {
+            Ok(Self(syntax))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax(&self) -> &SyntaxToken {
+        &self.0
+    }
+    fn into_syntax(self) -> SyntaxToken {
+        self.0
+    }
+}
+impl AstElement for RDollar {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            R_DOLLAR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self(syntax.into_token().unwrap()))
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Token(&self.0)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Token(self.0)
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SourceFile {
     pub(crate) syntax: SyntaxNode,
@@ -21,15 +5511,39 @@ impl AstNode for SourceFile {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for SourceFile {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            SOURCE_FILE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::ModuleItemOwner for SourceFile {}
@@ -55,15 +5569,39 @@ impl AstNode for FnDef {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for FnDef {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            FN_DEF => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::VisibilityOwner for FnDef {}
@@ -98,15 +5636,39 @@ impl AstNode for RetType {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for RetType {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            RET_TYPE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl RetType {
@@ -130,15 +5692,39 @@ impl AstNode for StructDef {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for StructDef {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            STRUCT_DEF => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::VisibilityOwner for StructDef {}
@@ -163,15 +5749,39 @@ impl AstNode for UnionDef {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for UnionDef {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            UNION_DEF => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::VisibilityOwner for UnionDef {}
@@ -200,15 +5810,39 @@ impl AstNode for RecordFieldDefList {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for RecordFieldDefList {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            RECORD_FIELD_DEF_LIST => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl RecordFieldDefList {
@@ -232,15 +5866,39 @@ impl AstNode for RecordFieldDef {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for RecordFieldDef {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            RECORD_FIELD_DEF => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::VisibilityOwner for RecordFieldDef {}
@@ -265,15 +5923,39 @@ impl AstNode for TupleFieldDefList {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for TupleFieldDefList {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TUPLE_FIELD_DEF_LIST => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl TupleFieldDefList {
@@ -297,15 +5979,39 @@ impl AstNode for TupleFieldDef {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for TupleFieldDef {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TUPLE_FIELD_DEF => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::VisibilityOwner for TupleFieldDef {}
@@ -331,15 +6037,39 @@ impl AstNode for EnumDef {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for EnumDef {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            ENUM_DEF => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::VisibilityOwner for EnumDef {}
@@ -368,15 +6098,39 @@ impl AstNode for EnumVariantList {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for EnumVariantList {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            ENUM_VARIANT_LIST => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl EnumVariantList {
@@ -400,15 +6154,39 @@ impl AstNode for EnumVariant {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for EnumVariant {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            ENUM_VARIANT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::NameOwner for EnumVariant {}
@@ -435,15 +6213,39 @@ impl AstNode for TraitDef {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for TraitDef {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TRAIT_DEF => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::VisibilityOwner for TraitDef {}
@@ -473,15 +6275,39 @@ impl AstNode for Module {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for Module {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            MODULE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::VisibilityOwner for Module {}
@@ -509,15 +6335,39 @@ impl AstNode for ItemList {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ItemList {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            ITEM_LIST => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::FnDefOwner for ItemList {}
@@ -543,15 +6393,39 @@ impl AstNode for ConstDef {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ConstDef {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            CONST_DEF => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::VisibilityOwner for ConstDef {}
@@ -581,15 +6455,39 @@ impl AstNode for StaticDef {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for StaticDef {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            STATIC_DEF => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::VisibilityOwner for StaticDef {}
@@ -619,15 +6517,39 @@ impl AstNode for TypeAliasDef {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for TypeAliasDef {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TYPE_ALIAS_DEF => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::VisibilityOwner for TypeAliasDef {}
@@ -657,15 +6579,39 @@ impl AstNode for ImplDef {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ImplDef {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            IMPL_DEF => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::TypeParamsOwner for ImplDef {}
@@ -691,15 +6637,39 @@ impl AstNode for ParenType {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ParenType {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PAREN_TYPE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ParenType {
@@ -723,15 +6693,39 @@ impl AstNode for TupleType {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for TupleType {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TUPLE_TYPE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl TupleType {
@@ -755,15 +6749,39 @@ impl AstNode for NeverType {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for NeverType {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            NEVER_TYPE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl NeverType {}
@@ -783,15 +6801,39 @@ impl AstNode for PathType {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for PathType {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PATH_TYPE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl PathType {
@@ -815,15 +6857,39 @@ impl AstNode for PointerType {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for PointerType {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            POINTER_TYPE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl PointerType {
@@ -847,15 +6913,39 @@ impl AstNode for ArrayType {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ArrayType {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            ARRAY_TYPE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ArrayType {
@@ -882,15 +6972,39 @@ impl AstNode for SliceType {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for SliceType {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            SLICE_TYPE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl SliceType {
@@ -914,15 +7028,39 @@ impl AstNode for ReferenceType {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ReferenceType {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            REFERENCE_TYPE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ReferenceType {
@@ -946,15 +7084,39 @@ impl AstNode for PlaceholderType {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for PlaceholderType {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PLACEHOLDER_TYPE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl PlaceholderType {}
@@ -974,15 +7136,39 @@ impl AstNode for FnPointerType {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for FnPointerType {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            FN_POINTER_TYPE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl FnPointerType {
@@ -1009,15 +7195,39 @@ impl AstNode for ForType {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ForType {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            FOR_TYPE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ForType {
@@ -1041,15 +7251,39 @@ impl AstNode for ImplTraitType {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ImplTraitType {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            IMPL_TRAIT_TYPE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::TypeBoundsOwner for ImplTraitType {}
@@ -1070,15 +7304,39 @@ impl AstNode for DynTraitType {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for DynTraitType {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            DYN_TRAIT_TYPE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::TypeBoundsOwner for DynTraitType {}
@@ -1099,15 +7357,39 @@ impl AstNode for TupleExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for TupleExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TUPLE_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl TupleExpr {
@@ -1131,15 +7413,39 @@ impl AstNode for ArrayExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ArrayExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            ARRAY_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ArrayExpr {
@@ -1163,15 +7469,39 @@ impl AstNode for ParenExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ParenExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PAREN_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ParenExpr {
@@ -1195,15 +7525,39 @@ impl AstNode for PathExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for PathExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PATH_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl PathExpr {
@@ -1227,15 +7581,39 @@ impl AstNode for LambdaExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for LambdaExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            LAMBDA_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl LambdaExpr {
@@ -1265,15 +7643,39 @@ impl AstNode for IfExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for IfExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            IF_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl IfExpr {
@@ -1297,15 +7699,39 @@ impl AstNode for LoopExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for LoopExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            LOOP_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::LoopBodyOwner for LoopExpr {}
@@ -1326,15 +7752,39 @@ impl AstNode for TryBlockExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for TryBlockExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TRY_BLOCK_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl TryBlockExpr {
@@ -1358,15 +7808,39 @@ impl AstNode for ForExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ForExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            FOR_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::LoopBodyOwner for ForExpr {}
@@ -1394,15 +7868,39 @@ impl AstNode for WhileExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for WhileExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            WHILE_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::LoopBodyOwner for WhileExpr {}
@@ -1427,15 +7925,39 @@ impl AstNode for ContinueExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ContinueExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            CONTINUE_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ContinueExpr {}
@@ -1455,15 +7977,39 @@ impl AstNode for BreakExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for BreakExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            BREAK_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl BreakExpr {
@@ -1487,15 +8033,39 @@ impl AstNode for Label {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for Label {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            LABEL => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl Label {}
@@ -1515,15 +8085,39 @@ impl AstNode for BlockExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for BlockExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            BLOCK_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl BlockExpr {
@@ -1547,15 +8141,39 @@ impl AstNode for ReturnExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ReturnExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            RETURN_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ReturnExpr {
@@ -1579,15 +8197,39 @@ impl AstNode for CallExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for CallExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            CALL_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::ArgListOwner for CallExpr {}
@@ -1612,15 +8254,39 @@ impl AstNode for MethodCallExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for MethodCallExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            METHOD_CALL_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::ArgListOwner for MethodCallExpr {}
@@ -1651,15 +8317,39 @@ impl AstNode for IndexExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for IndexExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            INDEX_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl IndexExpr {}
@@ -1679,15 +8369,39 @@ impl AstNode for FieldExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for FieldExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            FIELD_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl FieldExpr {
@@ -1714,15 +8428,39 @@ impl AstNode for AwaitExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for AwaitExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            AWAIT_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl AwaitExpr {
@@ -1746,15 +8484,39 @@ impl AstNode for TryExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for TryExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TRY_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl TryExpr {
@@ -1778,15 +8540,39 @@ impl AstNode for CastExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for CastExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            CAST_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl CastExpr {
@@ -1813,15 +8599,39 @@ impl AstNode for RefExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for RefExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            REF_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl RefExpr {
@@ -1845,15 +8655,39 @@ impl AstNode for PrefixExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for PrefixExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PREFIX_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl PrefixExpr {
@@ -1877,15 +8711,39 @@ impl AstNode for BoxExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for BoxExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            BOX_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl BoxExpr {
@@ -1909,15 +8767,39 @@ impl AstNode for RangeExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for RangeExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            RANGE_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl RangeExpr {}
@@ -1937,15 +8819,39 @@ impl AstNode for BinExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for BinExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            BIN_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl BinExpr {}
@@ -1965,15 +8871,39 @@ impl AstNode for Literal {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for Literal {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            LITERAL => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl Literal {}
@@ -1993,15 +8923,39 @@ impl AstNode for MatchExpr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for MatchExpr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            MATCH_EXPR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl MatchExpr {
@@ -2028,15 +8982,39 @@ impl AstNode for MatchArmList {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for MatchArmList {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            MATCH_ARM_LIST => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::AttrsOwner for MatchArmList {}
@@ -2061,15 +9039,39 @@ impl AstNode for MatchArm {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for MatchArm {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            MATCH_ARM => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::AttrsOwner for MatchArm {}
@@ -2100,15 +9102,39 @@ impl AstNode for MatchGuard {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for MatchGuard {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            MATCH_GUARD => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl MatchGuard {
@@ -2132,15 +9158,39 @@ impl AstNode for RecordLit {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for RecordLit {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            RECORD_LIT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl RecordLit {
@@ -2167,15 +9217,39 @@ impl AstNode for RecordFieldList {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for RecordFieldList {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            RECORD_FIELD_LIST => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl RecordFieldList {
@@ -2202,15 +9276,39 @@ impl AstNode for RecordField {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for RecordField {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            RECORD_FIELD => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl RecordField {
@@ -2237,15 +9335,39 @@ impl AstNode for OrPat {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for OrPat {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            OR_PAT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl OrPat {
@@ -2269,15 +9391,39 @@ impl AstNode for ParenPat {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ParenPat {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PAREN_PAT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ParenPat {
@@ -2301,15 +9447,39 @@ impl AstNode for RefPat {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for RefPat {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            REF_PAT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl RefPat {
@@ -2333,15 +9503,39 @@ impl AstNode for BoxPat {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for BoxPat {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            BOX_PAT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl BoxPat {
@@ -2365,15 +9559,39 @@ impl AstNode for BindPat {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for BindPat {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            BIND_PAT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::NameOwner for BindPat {}
@@ -2398,15 +9616,39 @@ impl AstNode for PlaceholderPat {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for PlaceholderPat {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PLACEHOLDER_PAT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl PlaceholderPat {}
@@ -2426,15 +9668,39 @@ impl AstNode for DotDotPat {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for DotDotPat {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            DOT_DOT_PAT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl DotDotPat {}
@@ -2454,15 +9720,39 @@ impl AstNode for PathPat {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for PathPat {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PATH_PAT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl PathPat {
@@ -2486,15 +9776,39 @@ impl AstNode for SlicePat {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for SlicePat {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            SLICE_PAT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl SlicePat {
@@ -2518,15 +9832,39 @@ impl AstNode for RangePat {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for RangePat {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            RANGE_PAT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl RangePat {}
@@ -2546,15 +9884,39 @@ impl AstNode for LiteralPat {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for LiteralPat {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            LITERAL_PAT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl LiteralPat {
@@ -2578,15 +9940,39 @@ impl AstNode for RecordPat {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for RecordPat {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            RECORD_PAT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl RecordPat {
@@ -2613,15 +9999,39 @@ impl AstNode for RecordFieldPatList {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for RecordFieldPatList {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            RECORD_FIELD_PAT_LIST => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl RecordFieldPatList {
@@ -2648,15 +10058,39 @@ impl AstNode for RecordFieldPat {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for RecordFieldPat {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            RECORD_FIELD_PAT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::NameOwner for RecordFieldPat {}
@@ -2681,15 +10115,39 @@ impl AstNode for TupleStructPat {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for TupleStructPat {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TUPLE_STRUCT_PAT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl TupleStructPat {
@@ -2716,15 +10174,39 @@ impl AstNode for TuplePat {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for TuplePat {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TUPLE_PAT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl TuplePat {
@@ -2748,15 +10230,39 @@ impl AstNode for Visibility {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for Visibility {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            VISIBILITY => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl Visibility {}
@@ -2776,15 +10282,39 @@ impl AstNode for Name {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for Name {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            NAME => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl Name {}
@@ -2804,15 +10334,39 @@ impl AstNode for NameRef {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for NameRef {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            NAME_REF => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl NameRef {}
@@ -2832,15 +10386,39 @@ impl AstNode for MacroCall {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for MacroCall {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            MACRO_CALL => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::NameOwner for MacroCall {}
@@ -2870,15 +10448,39 @@ impl AstNode for Attr {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for Attr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            ATTR => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl Attr {
@@ -2905,15 +10507,39 @@ impl AstNode for TokenTree {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for TokenTree {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TOKEN_TREE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl TokenTree {}
@@ -2933,15 +10559,39 @@ impl AstNode for TypeParamList {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for TypeParamList {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TYPE_PARAM_LIST => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl TypeParamList {
@@ -2968,15 +10618,39 @@ impl AstNode for TypeParam {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for TypeParam {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TYPE_PARAM => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::NameOwner for TypeParam {}
@@ -3003,15 +10677,39 @@ impl AstNode for ConstParam {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ConstParam {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            CONST_PARAM => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::NameOwner for ConstParam {}
@@ -3038,15 +10736,39 @@ impl AstNode for LifetimeParam {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for LifetimeParam {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            LIFETIME_PARAM => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::AttrsOwner for LifetimeParam {}
@@ -3067,15 +10789,39 @@ impl AstNode for TypeBound {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for TypeBound {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TYPE_BOUND => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl TypeBound {
@@ -3099,15 +10845,39 @@ impl AstNode for TypeBoundList {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for TypeBoundList {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TYPE_BOUND_LIST => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl TypeBoundList {
@@ -3131,15 +10901,39 @@ impl AstNode for WherePred {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for WherePred {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            WHERE_PRED => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::TypeBoundsOwner for WherePred {}
@@ -3164,15 +10958,39 @@ impl AstNode for WhereClause {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for WhereClause {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            WHERE_CLAUSE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl WhereClause {
@@ -3196,15 +11014,39 @@ impl AstNode for ExprStmt {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ExprStmt {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            EXPR_STMT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ExprStmt {
@@ -3228,15 +11070,39 @@ impl AstNode for LetStmt {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for LetStmt {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            LET_STMT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::TypeAscriptionOwner for LetStmt {}
@@ -3264,15 +11130,39 @@ impl AstNode for Condition {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for Condition {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            CONDITION => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl Condition {
@@ -3299,15 +11189,39 @@ impl AstNode for Block {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for Block {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            BLOCK => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::AttrsOwner for Block {}
@@ -3336,15 +11250,39 @@ impl AstNode for ParamList {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ParamList {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PARAM_LIST => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ParamList {
@@ -3371,15 +11309,39 @@ impl AstNode for SelfParam {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for SelfParam {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            SELF_PARAM => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::TypeAscriptionOwner for SelfParam {}
@@ -3401,15 +11363,39 @@ impl AstNode for Param {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for Param {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PARAM => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::TypeAscriptionOwner for Param {}
@@ -3435,15 +11421,39 @@ impl AstNode for UseItem {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for UseItem {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            USE_ITEM => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::AttrsOwner for UseItem {}
@@ -3469,15 +11479,39 @@ impl AstNode for UseTree {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for UseTree {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            USE_TREE => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl UseTree {
@@ -3507,15 +11541,39 @@ impl AstNode for Alias {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for Alias {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            ALIAS => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::NameOwner for Alias {}
@@ -3536,15 +11594,39 @@ impl AstNode for UseTreeList {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for UseTreeList {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            USE_TREE_LIST => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl UseTreeList {
@@ -3568,15 +11650,39 @@ impl AstNode for ExternCrateItem {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ExternCrateItem {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            EXTERN_CRATE_ITEM => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::AttrsOwner for ExternCrateItem {}
@@ -3605,15 +11711,39 @@ impl AstNode for ArgList {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ArgList {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            ARG_LIST => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ArgList {
@@ -3637,15 +11767,39 @@ impl AstNode for Path {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for Path {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PATH => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl Path {
@@ -3672,15 +11826,39 @@ impl AstNode for PathSegment {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for PathSegment {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            PATH_SEGMENT => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl PathSegment {
@@ -3716,15 +11894,39 @@ impl AstNode for TypeArgList {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for TypeArgList {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TYPE_ARG_LIST => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl TypeArgList {
@@ -3757,15 +11959,39 @@ impl AstNode for TypeArg {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for TypeArg {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            TYPE_ARG => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl TypeArg {
@@ -3789,15 +12015,39 @@ impl AstNode for AssocTypeArg {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for AssocTypeArg {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            ASSOC_TYPE_ARG => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl AssocTypeArg {
@@ -3824,15 +12074,39 @@ impl AstNode for LifetimeArg {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for LifetimeArg {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            LIFETIME_ARG => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl LifetimeArg {}
@@ -3852,15 +12126,39 @@ impl AstNode for ConstArg {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for ConstArg {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            CONST_ARG => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ConstArg {
@@ -3887,15 +12185,39 @@ impl AstNode for MacroItems {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for MacroItems {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            MACRO_ITEMS => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl ast::ModuleItemOwner for MacroItems {}
@@ -3917,15 +12239,39 @@ impl AstNode for MacroStmts {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
         if Self::can_cast(syntax.kind()) {
-            Some(Self { syntax })
+            Ok(Self { syntax })
         } else {
-            None
+            Err(syntax)
         }
     }
     fn syntax(&self) -> &SyntaxNode {
         &self.syntax
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        self.syntax
+    }
+}
+impl AstElement for MacroStmts {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            MACRO_STMTS => true,
+            _ => false,
+        }
+    }
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        if Self::can_cast_element(syntax.kind()) {
+            Ok(Self { syntax: syntax.into_node().unwrap() })
+        } else {
+            Err(syntax)
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        NodeOrToken::Node(&self.syntax)
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        NodeOrToken::Node(self.syntax)
     }
 }
 impl MacroStmts {
@@ -3959,30 +12305,74 @@ impl From<UnionDef> for NominalDef {
 }
 impl std::fmt::Display for NominalDef {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        match self {
+            NominalDef::StructDef(it) => std::fmt::Display::fmt(it, f),
+            NominalDef::EnumDef(it) => std::fmt::Display::fmt(it, f),
+            NominalDef::UnionDef(it) => std::fmt::Display::fmt(it, f),
+        }
     }
 }
 impl AstNode for NominalDef {
     fn can_cast(kind: SyntaxKind) -> bool {
         match kind {
-            STRUCT_DEF | ENUM_DEF | UNION_DEF => true,
+            ENUM_DEF | STRUCT_DEF | UNION_DEF => true,
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
-        let res = match syntax.kind() {
-            STRUCT_DEF => NominalDef::StructDef(StructDef { syntax }),
-            ENUM_DEF => NominalDef::EnumDef(EnumDef { syntax }),
-            UNION_DEF => NominalDef::UnionDef(UnionDef { syntax }),
-            _ => return None,
-        };
-        Some(res)
+    #[allow(unreachable_patterns)]
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
+        match syntax.kind() {
+            STRUCT_DEF => StructDef::cast_or_return(syntax).map(|x| NominalDef::StructDef(x)),
+            ENUM_DEF => EnumDef::cast_or_return(syntax).map(|x| NominalDef::EnumDef(x)),
+            UNION_DEF => UnionDef::cast_or_return(syntax).map(|x| NominalDef::UnionDef(x)),
+            _ => Err(syntax),
+        }
     }
     fn syntax(&self) -> &SyntaxNode {
         match self {
-            NominalDef::StructDef(it) => &it.syntax,
-            NominalDef::EnumDef(it) => &it.syntax,
-            NominalDef::UnionDef(it) => &it.syntax,
+            NominalDef::StructDef(it) => it.syntax(),
+            NominalDef::EnumDef(it) => it.syntax(),
+            NominalDef::UnionDef(it) => it.syntax(),
+        }
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        match self {
+            NominalDef::StructDef(it) => it.into_syntax(),
+            NominalDef::EnumDef(it) => it.into_syntax(),
+            NominalDef::UnionDef(it) => it.into_syntax(),
+        }
+    }
+}
+impl AstElement for NominalDef {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            ENUM_DEF | STRUCT_DEF | UNION_DEF => true,
+            _ => false,
+        }
+    }
+    #[allow(unreachable_patterns)]
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        match syntax.kind() {
+            STRUCT_DEF => {
+                StructDef::cast_or_return_element(syntax).map(|x| NominalDef::StructDef(x))
+            }
+            ENUM_DEF => EnumDef::cast_or_return_element(syntax).map(|x| NominalDef::EnumDef(x)),
+            UNION_DEF => UnionDef::cast_or_return_element(syntax).map(|x| NominalDef::UnionDef(x)),
+            _ => Err(syntax),
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        match self {
+            NominalDef::StructDef(it) => it.syntax_element(),
+            NominalDef::EnumDef(it) => it.syntax_element(),
+            NominalDef::UnionDef(it) => it.syntax_element(),
+        }
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        match self {
+            NominalDef::StructDef(it) => it.into_syntax_element(),
+            NominalDef::EnumDef(it) => it.into_syntax_element(),
+            NominalDef::UnionDef(it) => it.into_syntax_element(),
         }
     }
 }
@@ -4072,52 +12462,168 @@ impl From<DynTraitType> for TypeRef {
 }
 impl std::fmt::Display for TypeRef {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        match self {
+            TypeRef::ParenType(it) => std::fmt::Display::fmt(it, f),
+            TypeRef::TupleType(it) => std::fmt::Display::fmt(it, f),
+            TypeRef::NeverType(it) => std::fmt::Display::fmt(it, f),
+            TypeRef::PathType(it) => std::fmt::Display::fmt(it, f),
+            TypeRef::PointerType(it) => std::fmt::Display::fmt(it, f),
+            TypeRef::ArrayType(it) => std::fmt::Display::fmt(it, f),
+            TypeRef::SliceType(it) => std::fmt::Display::fmt(it, f),
+            TypeRef::ReferenceType(it) => std::fmt::Display::fmt(it, f),
+            TypeRef::PlaceholderType(it) => std::fmt::Display::fmt(it, f),
+            TypeRef::FnPointerType(it) => std::fmt::Display::fmt(it, f),
+            TypeRef::ForType(it) => std::fmt::Display::fmt(it, f),
+            TypeRef::ImplTraitType(it) => std::fmt::Display::fmt(it, f),
+            TypeRef::DynTraitType(it) => std::fmt::Display::fmt(it, f),
+        }
     }
 }
 impl AstNode for TypeRef {
     fn can_cast(kind: SyntaxKind) -> bool {
         match kind {
-            PAREN_TYPE | TUPLE_TYPE | NEVER_TYPE | PATH_TYPE | POINTER_TYPE | ARRAY_TYPE
-            | SLICE_TYPE | REFERENCE_TYPE | PLACEHOLDER_TYPE | FN_POINTER_TYPE | FOR_TYPE
-            | IMPL_TRAIT_TYPE | DYN_TRAIT_TYPE => true,
+            ARRAY_TYPE | DYN_TRAIT_TYPE | FN_POINTER_TYPE | FOR_TYPE | IMPL_TRAIT_TYPE
+            | NEVER_TYPE | PAREN_TYPE | PATH_TYPE | PLACEHOLDER_TYPE | POINTER_TYPE
+            | REFERENCE_TYPE | SLICE_TYPE | TUPLE_TYPE => true,
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
-        let res = match syntax.kind() {
-            PAREN_TYPE => TypeRef::ParenType(ParenType { syntax }),
-            TUPLE_TYPE => TypeRef::TupleType(TupleType { syntax }),
-            NEVER_TYPE => TypeRef::NeverType(NeverType { syntax }),
-            PATH_TYPE => TypeRef::PathType(PathType { syntax }),
-            POINTER_TYPE => TypeRef::PointerType(PointerType { syntax }),
-            ARRAY_TYPE => TypeRef::ArrayType(ArrayType { syntax }),
-            SLICE_TYPE => TypeRef::SliceType(SliceType { syntax }),
-            REFERENCE_TYPE => TypeRef::ReferenceType(ReferenceType { syntax }),
-            PLACEHOLDER_TYPE => TypeRef::PlaceholderType(PlaceholderType { syntax }),
-            FN_POINTER_TYPE => TypeRef::FnPointerType(FnPointerType { syntax }),
-            FOR_TYPE => TypeRef::ForType(ForType { syntax }),
-            IMPL_TRAIT_TYPE => TypeRef::ImplTraitType(ImplTraitType { syntax }),
-            DYN_TRAIT_TYPE => TypeRef::DynTraitType(DynTraitType { syntax }),
-            _ => return None,
-        };
-        Some(res)
+    #[allow(unreachable_patterns)]
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
+        match syntax.kind() {
+            PAREN_TYPE => ParenType::cast_or_return(syntax).map(|x| TypeRef::ParenType(x)),
+            TUPLE_TYPE => TupleType::cast_or_return(syntax).map(|x| TypeRef::TupleType(x)),
+            NEVER_TYPE => NeverType::cast_or_return(syntax).map(|x| TypeRef::NeverType(x)),
+            PATH_TYPE => PathType::cast_or_return(syntax).map(|x| TypeRef::PathType(x)),
+            POINTER_TYPE => PointerType::cast_or_return(syntax).map(|x| TypeRef::PointerType(x)),
+            ARRAY_TYPE => ArrayType::cast_or_return(syntax).map(|x| TypeRef::ArrayType(x)),
+            SLICE_TYPE => SliceType::cast_or_return(syntax).map(|x| TypeRef::SliceType(x)),
+            REFERENCE_TYPE => {
+                ReferenceType::cast_or_return(syntax).map(|x| TypeRef::ReferenceType(x))
+            }
+            PLACEHOLDER_TYPE => {
+                PlaceholderType::cast_or_return(syntax).map(|x| TypeRef::PlaceholderType(x))
+            }
+            FN_POINTER_TYPE => {
+                FnPointerType::cast_or_return(syntax).map(|x| TypeRef::FnPointerType(x))
+            }
+            FOR_TYPE => ForType::cast_or_return(syntax).map(|x| TypeRef::ForType(x)),
+            IMPL_TRAIT_TYPE => {
+                ImplTraitType::cast_or_return(syntax).map(|x| TypeRef::ImplTraitType(x))
+            }
+            DYN_TRAIT_TYPE => {
+                DynTraitType::cast_or_return(syntax).map(|x| TypeRef::DynTraitType(x))
+            }
+            _ => Err(syntax),
+        }
     }
     fn syntax(&self) -> &SyntaxNode {
         match self {
-            TypeRef::ParenType(it) => &it.syntax,
-            TypeRef::TupleType(it) => &it.syntax,
-            TypeRef::NeverType(it) => &it.syntax,
-            TypeRef::PathType(it) => &it.syntax,
-            TypeRef::PointerType(it) => &it.syntax,
-            TypeRef::ArrayType(it) => &it.syntax,
-            TypeRef::SliceType(it) => &it.syntax,
-            TypeRef::ReferenceType(it) => &it.syntax,
-            TypeRef::PlaceholderType(it) => &it.syntax,
-            TypeRef::FnPointerType(it) => &it.syntax,
-            TypeRef::ForType(it) => &it.syntax,
-            TypeRef::ImplTraitType(it) => &it.syntax,
-            TypeRef::DynTraitType(it) => &it.syntax,
+            TypeRef::ParenType(it) => it.syntax(),
+            TypeRef::TupleType(it) => it.syntax(),
+            TypeRef::NeverType(it) => it.syntax(),
+            TypeRef::PathType(it) => it.syntax(),
+            TypeRef::PointerType(it) => it.syntax(),
+            TypeRef::ArrayType(it) => it.syntax(),
+            TypeRef::SliceType(it) => it.syntax(),
+            TypeRef::ReferenceType(it) => it.syntax(),
+            TypeRef::PlaceholderType(it) => it.syntax(),
+            TypeRef::FnPointerType(it) => it.syntax(),
+            TypeRef::ForType(it) => it.syntax(),
+            TypeRef::ImplTraitType(it) => it.syntax(),
+            TypeRef::DynTraitType(it) => it.syntax(),
+        }
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        match self {
+            TypeRef::ParenType(it) => it.into_syntax(),
+            TypeRef::TupleType(it) => it.into_syntax(),
+            TypeRef::NeverType(it) => it.into_syntax(),
+            TypeRef::PathType(it) => it.into_syntax(),
+            TypeRef::PointerType(it) => it.into_syntax(),
+            TypeRef::ArrayType(it) => it.into_syntax(),
+            TypeRef::SliceType(it) => it.into_syntax(),
+            TypeRef::ReferenceType(it) => it.into_syntax(),
+            TypeRef::PlaceholderType(it) => it.into_syntax(),
+            TypeRef::FnPointerType(it) => it.into_syntax(),
+            TypeRef::ForType(it) => it.into_syntax(),
+            TypeRef::ImplTraitType(it) => it.into_syntax(),
+            TypeRef::DynTraitType(it) => it.into_syntax(),
+        }
+    }
+}
+impl AstElement for TypeRef {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            ARRAY_TYPE | DYN_TRAIT_TYPE | FN_POINTER_TYPE | FOR_TYPE | IMPL_TRAIT_TYPE
+            | NEVER_TYPE | PAREN_TYPE | PATH_TYPE | PLACEHOLDER_TYPE | POINTER_TYPE
+            | REFERENCE_TYPE | SLICE_TYPE | TUPLE_TYPE => true,
+            _ => false,
+        }
+    }
+    #[allow(unreachable_patterns)]
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        match syntax.kind() {
+            PAREN_TYPE => ParenType::cast_or_return_element(syntax).map(|x| TypeRef::ParenType(x)),
+            TUPLE_TYPE => TupleType::cast_or_return_element(syntax).map(|x| TypeRef::TupleType(x)),
+            NEVER_TYPE => NeverType::cast_or_return_element(syntax).map(|x| TypeRef::NeverType(x)),
+            PATH_TYPE => PathType::cast_or_return_element(syntax).map(|x| TypeRef::PathType(x)),
+            POINTER_TYPE => {
+                PointerType::cast_or_return_element(syntax).map(|x| TypeRef::PointerType(x))
+            }
+            ARRAY_TYPE => ArrayType::cast_or_return_element(syntax).map(|x| TypeRef::ArrayType(x)),
+            SLICE_TYPE => SliceType::cast_or_return_element(syntax).map(|x| TypeRef::SliceType(x)),
+            REFERENCE_TYPE => {
+                ReferenceType::cast_or_return_element(syntax).map(|x| TypeRef::ReferenceType(x))
+            }
+            PLACEHOLDER_TYPE => {
+                PlaceholderType::cast_or_return_element(syntax).map(|x| TypeRef::PlaceholderType(x))
+            }
+            FN_POINTER_TYPE => {
+                FnPointerType::cast_or_return_element(syntax).map(|x| TypeRef::FnPointerType(x))
+            }
+            FOR_TYPE => ForType::cast_or_return_element(syntax).map(|x| TypeRef::ForType(x)),
+            IMPL_TRAIT_TYPE => {
+                ImplTraitType::cast_or_return_element(syntax).map(|x| TypeRef::ImplTraitType(x))
+            }
+            DYN_TRAIT_TYPE => {
+                DynTraitType::cast_or_return_element(syntax).map(|x| TypeRef::DynTraitType(x))
+            }
+            _ => Err(syntax),
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        match self {
+            TypeRef::ParenType(it) => it.syntax_element(),
+            TypeRef::TupleType(it) => it.syntax_element(),
+            TypeRef::NeverType(it) => it.syntax_element(),
+            TypeRef::PathType(it) => it.syntax_element(),
+            TypeRef::PointerType(it) => it.syntax_element(),
+            TypeRef::ArrayType(it) => it.syntax_element(),
+            TypeRef::SliceType(it) => it.syntax_element(),
+            TypeRef::ReferenceType(it) => it.syntax_element(),
+            TypeRef::PlaceholderType(it) => it.syntax_element(),
+            TypeRef::FnPointerType(it) => it.syntax_element(),
+            TypeRef::ForType(it) => it.syntax_element(),
+            TypeRef::ImplTraitType(it) => it.syntax_element(),
+            TypeRef::DynTraitType(it) => it.syntax_element(),
+        }
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        match self {
+            TypeRef::ParenType(it) => it.into_syntax_element(),
+            TypeRef::TupleType(it) => it.into_syntax_element(),
+            TypeRef::NeverType(it) => it.into_syntax_element(),
+            TypeRef::PathType(it) => it.into_syntax_element(),
+            TypeRef::PointerType(it) => it.into_syntax_element(),
+            TypeRef::ArrayType(it) => it.into_syntax_element(),
+            TypeRef::SliceType(it) => it.into_syntax_element(),
+            TypeRef::ReferenceType(it) => it.into_syntax_element(),
+            TypeRef::PlaceholderType(it) => it.into_syntax_element(),
+            TypeRef::FnPointerType(it) => it.into_syntax_element(),
+            TypeRef::ForType(it) => it.into_syntax_element(),
+            TypeRef::ImplTraitType(it) => it.into_syntax_element(),
+            TypeRef::DynTraitType(it) => it.into_syntax_element(),
         }
     }
 }
@@ -4204,51 +12710,157 @@ impl From<MacroCall> for ModuleItem {
 }
 impl std::fmt::Display for ModuleItem {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        match self {
+            ModuleItem::StructDef(it) => std::fmt::Display::fmt(it, f),
+            ModuleItem::UnionDef(it) => std::fmt::Display::fmt(it, f),
+            ModuleItem::EnumDef(it) => std::fmt::Display::fmt(it, f),
+            ModuleItem::FnDef(it) => std::fmt::Display::fmt(it, f),
+            ModuleItem::TraitDef(it) => std::fmt::Display::fmt(it, f),
+            ModuleItem::TypeAliasDef(it) => std::fmt::Display::fmt(it, f),
+            ModuleItem::ImplDef(it) => std::fmt::Display::fmt(it, f),
+            ModuleItem::UseItem(it) => std::fmt::Display::fmt(it, f),
+            ModuleItem::ExternCrateItem(it) => std::fmt::Display::fmt(it, f),
+            ModuleItem::ConstDef(it) => std::fmt::Display::fmt(it, f),
+            ModuleItem::StaticDef(it) => std::fmt::Display::fmt(it, f),
+            ModuleItem::Module(it) => std::fmt::Display::fmt(it, f),
+            ModuleItem::MacroCall(it) => std::fmt::Display::fmt(it, f),
+        }
     }
 }
 impl AstNode for ModuleItem {
     fn can_cast(kind: SyntaxKind) -> bool {
         match kind {
-            STRUCT_DEF | UNION_DEF | ENUM_DEF | FN_DEF | TRAIT_DEF | TYPE_ALIAS_DEF | IMPL_DEF
-            | USE_ITEM | EXTERN_CRATE_ITEM | CONST_DEF | STATIC_DEF | MODULE | MACRO_CALL => true,
+            CONST_DEF | ENUM_DEF | EXTERN_CRATE_ITEM | FN_DEF | IMPL_DEF | MACRO_CALL | MODULE
+            | STATIC_DEF | STRUCT_DEF | TRAIT_DEF | TYPE_ALIAS_DEF | UNION_DEF | USE_ITEM => true,
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
-        let res = match syntax.kind() {
-            STRUCT_DEF => ModuleItem::StructDef(StructDef { syntax }),
-            UNION_DEF => ModuleItem::UnionDef(UnionDef { syntax }),
-            ENUM_DEF => ModuleItem::EnumDef(EnumDef { syntax }),
-            FN_DEF => ModuleItem::FnDef(FnDef { syntax }),
-            TRAIT_DEF => ModuleItem::TraitDef(TraitDef { syntax }),
-            TYPE_ALIAS_DEF => ModuleItem::TypeAliasDef(TypeAliasDef { syntax }),
-            IMPL_DEF => ModuleItem::ImplDef(ImplDef { syntax }),
-            USE_ITEM => ModuleItem::UseItem(UseItem { syntax }),
-            EXTERN_CRATE_ITEM => ModuleItem::ExternCrateItem(ExternCrateItem { syntax }),
-            CONST_DEF => ModuleItem::ConstDef(ConstDef { syntax }),
-            STATIC_DEF => ModuleItem::StaticDef(StaticDef { syntax }),
-            MODULE => ModuleItem::Module(Module { syntax }),
-            MACRO_CALL => ModuleItem::MacroCall(MacroCall { syntax }),
-            _ => return None,
-        };
-        Some(res)
+    #[allow(unreachable_patterns)]
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
+        match syntax.kind() {
+            STRUCT_DEF => StructDef::cast_or_return(syntax).map(|x| ModuleItem::StructDef(x)),
+            UNION_DEF => UnionDef::cast_or_return(syntax).map(|x| ModuleItem::UnionDef(x)),
+            ENUM_DEF => EnumDef::cast_or_return(syntax).map(|x| ModuleItem::EnumDef(x)),
+            FN_DEF => FnDef::cast_or_return(syntax).map(|x| ModuleItem::FnDef(x)),
+            TRAIT_DEF => TraitDef::cast_or_return(syntax).map(|x| ModuleItem::TraitDef(x)),
+            TYPE_ALIAS_DEF => {
+                TypeAliasDef::cast_or_return(syntax).map(|x| ModuleItem::TypeAliasDef(x))
+            }
+            IMPL_DEF => ImplDef::cast_or_return(syntax).map(|x| ModuleItem::ImplDef(x)),
+            USE_ITEM => UseItem::cast_or_return(syntax).map(|x| ModuleItem::UseItem(x)),
+            EXTERN_CRATE_ITEM => {
+                ExternCrateItem::cast_or_return(syntax).map(|x| ModuleItem::ExternCrateItem(x))
+            }
+            CONST_DEF => ConstDef::cast_or_return(syntax).map(|x| ModuleItem::ConstDef(x)),
+            STATIC_DEF => StaticDef::cast_or_return(syntax).map(|x| ModuleItem::StaticDef(x)),
+            MODULE => Module::cast_or_return(syntax).map(|x| ModuleItem::Module(x)),
+            MACRO_CALL => MacroCall::cast_or_return(syntax).map(|x| ModuleItem::MacroCall(x)),
+            _ => Err(syntax),
+        }
     }
     fn syntax(&self) -> &SyntaxNode {
         match self {
-            ModuleItem::StructDef(it) => &it.syntax,
-            ModuleItem::UnionDef(it) => &it.syntax,
-            ModuleItem::EnumDef(it) => &it.syntax,
-            ModuleItem::FnDef(it) => &it.syntax,
-            ModuleItem::TraitDef(it) => &it.syntax,
-            ModuleItem::TypeAliasDef(it) => &it.syntax,
-            ModuleItem::ImplDef(it) => &it.syntax,
-            ModuleItem::UseItem(it) => &it.syntax,
-            ModuleItem::ExternCrateItem(it) => &it.syntax,
-            ModuleItem::ConstDef(it) => &it.syntax,
-            ModuleItem::StaticDef(it) => &it.syntax,
-            ModuleItem::Module(it) => &it.syntax,
-            ModuleItem::MacroCall(it) => &it.syntax,
+            ModuleItem::StructDef(it) => it.syntax(),
+            ModuleItem::UnionDef(it) => it.syntax(),
+            ModuleItem::EnumDef(it) => it.syntax(),
+            ModuleItem::FnDef(it) => it.syntax(),
+            ModuleItem::TraitDef(it) => it.syntax(),
+            ModuleItem::TypeAliasDef(it) => it.syntax(),
+            ModuleItem::ImplDef(it) => it.syntax(),
+            ModuleItem::UseItem(it) => it.syntax(),
+            ModuleItem::ExternCrateItem(it) => it.syntax(),
+            ModuleItem::ConstDef(it) => it.syntax(),
+            ModuleItem::StaticDef(it) => it.syntax(),
+            ModuleItem::Module(it) => it.syntax(),
+            ModuleItem::MacroCall(it) => it.syntax(),
+        }
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        match self {
+            ModuleItem::StructDef(it) => it.into_syntax(),
+            ModuleItem::UnionDef(it) => it.into_syntax(),
+            ModuleItem::EnumDef(it) => it.into_syntax(),
+            ModuleItem::FnDef(it) => it.into_syntax(),
+            ModuleItem::TraitDef(it) => it.into_syntax(),
+            ModuleItem::TypeAliasDef(it) => it.into_syntax(),
+            ModuleItem::ImplDef(it) => it.into_syntax(),
+            ModuleItem::UseItem(it) => it.into_syntax(),
+            ModuleItem::ExternCrateItem(it) => it.into_syntax(),
+            ModuleItem::ConstDef(it) => it.into_syntax(),
+            ModuleItem::StaticDef(it) => it.into_syntax(),
+            ModuleItem::Module(it) => it.into_syntax(),
+            ModuleItem::MacroCall(it) => it.into_syntax(),
+        }
+    }
+}
+impl AstElement for ModuleItem {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            CONST_DEF | ENUM_DEF | EXTERN_CRATE_ITEM | FN_DEF | IMPL_DEF | MACRO_CALL | MODULE
+            | STATIC_DEF | STRUCT_DEF | TRAIT_DEF | TYPE_ALIAS_DEF | UNION_DEF | USE_ITEM => true,
+            _ => false,
+        }
+    }
+    #[allow(unreachable_patterns)]
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        match syntax.kind() {
+            STRUCT_DEF => {
+                StructDef::cast_or_return_element(syntax).map(|x| ModuleItem::StructDef(x))
+            }
+            UNION_DEF => UnionDef::cast_or_return_element(syntax).map(|x| ModuleItem::UnionDef(x)),
+            ENUM_DEF => EnumDef::cast_or_return_element(syntax).map(|x| ModuleItem::EnumDef(x)),
+            FN_DEF => FnDef::cast_or_return_element(syntax).map(|x| ModuleItem::FnDef(x)),
+            TRAIT_DEF => TraitDef::cast_or_return_element(syntax).map(|x| ModuleItem::TraitDef(x)),
+            TYPE_ALIAS_DEF => {
+                TypeAliasDef::cast_or_return_element(syntax).map(|x| ModuleItem::TypeAliasDef(x))
+            }
+            IMPL_DEF => ImplDef::cast_or_return_element(syntax).map(|x| ModuleItem::ImplDef(x)),
+            USE_ITEM => UseItem::cast_or_return_element(syntax).map(|x| ModuleItem::UseItem(x)),
+            EXTERN_CRATE_ITEM => ExternCrateItem::cast_or_return_element(syntax)
+                .map(|x| ModuleItem::ExternCrateItem(x)),
+            CONST_DEF => ConstDef::cast_or_return_element(syntax).map(|x| ModuleItem::ConstDef(x)),
+            STATIC_DEF => {
+                StaticDef::cast_or_return_element(syntax).map(|x| ModuleItem::StaticDef(x))
+            }
+            MODULE => Module::cast_or_return_element(syntax).map(|x| ModuleItem::Module(x)),
+            MACRO_CALL => {
+                MacroCall::cast_or_return_element(syntax).map(|x| ModuleItem::MacroCall(x))
+            }
+            _ => Err(syntax),
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        match self {
+            ModuleItem::StructDef(it) => it.syntax_element(),
+            ModuleItem::UnionDef(it) => it.syntax_element(),
+            ModuleItem::EnumDef(it) => it.syntax_element(),
+            ModuleItem::FnDef(it) => it.syntax_element(),
+            ModuleItem::TraitDef(it) => it.syntax_element(),
+            ModuleItem::TypeAliasDef(it) => it.syntax_element(),
+            ModuleItem::ImplDef(it) => it.syntax_element(),
+            ModuleItem::UseItem(it) => it.syntax_element(),
+            ModuleItem::ExternCrateItem(it) => it.syntax_element(),
+            ModuleItem::ConstDef(it) => it.syntax_element(),
+            ModuleItem::StaticDef(it) => it.syntax_element(),
+            ModuleItem::Module(it) => it.syntax_element(),
+            ModuleItem::MacroCall(it) => it.syntax_element(),
+        }
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        match self {
+            ModuleItem::StructDef(it) => it.into_syntax_element(),
+            ModuleItem::UnionDef(it) => it.into_syntax_element(),
+            ModuleItem::EnumDef(it) => it.into_syntax_element(),
+            ModuleItem::FnDef(it) => it.into_syntax_element(),
+            ModuleItem::TraitDef(it) => it.into_syntax_element(),
+            ModuleItem::TypeAliasDef(it) => it.into_syntax_element(),
+            ModuleItem::ImplDef(it) => it.into_syntax_element(),
+            ModuleItem::UseItem(it) => it.into_syntax_element(),
+            ModuleItem::ExternCrateItem(it) => it.into_syntax_element(),
+            ModuleItem::ConstDef(it) => it.into_syntax_element(),
+            ModuleItem::StaticDef(it) => it.into_syntax_element(),
+            ModuleItem::Module(it) => it.into_syntax_element(),
+            ModuleItem::MacroCall(it) => it.into_syntax_element(),
         }
     }
 }
@@ -4277,30 +12889,76 @@ impl From<ConstDef> for ImplItem {
 }
 impl std::fmt::Display for ImplItem {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        match self {
+            ImplItem::FnDef(it) => std::fmt::Display::fmt(it, f),
+            ImplItem::TypeAliasDef(it) => std::fmt::Display::fmt(it, f),
+            ImplItem::ConstDef(it) => std::fmt::Display::fmt(it, f),
+        }
     }
 }
 impl AstNode for ImplItem {
     fn can_cast(kind: SyntaxKind) -> bool {
         match kind {
-            FN_DEF | TYPE_ALIAS_DEF | CONST_DEF => true,
+            CONST_DEF | FN_DEF | TYPE_ALIAS_DEF => true,
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
-        let res = match syntax.kind() {
-            FN_DEF => ImplItem::FnDef(FnDef { syntax }),
-            TYPE_ALIAS_DEF => ImplItem::TypeAliasDef(TypeAliasDef { syntax }),
-            CONST_DEF => ImplItem::ConstDef(ConstDef { syntax }),
-            _ => return None,
-        };
-        Some(res)
+    #[allow(unreachable_patterns)]
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
+        match syntax.kind() {
+            FN_DEF => FnDef::cast_or_return(syntax).map(|x| ImplItem::FnDef(x)),
+            TYPE_ALIAS_DEF => {
+                TypeAliasDef::cast_or_return(syntax).map(|x| ImplItem::TypeAliasDef(x))
+            }
+            CONST_DEF => ConstDef::cast_or_return(syntax).map(|x| ImplItem::ConstDef(x)),
+            _ => Err(syntax),
+        }
     }
     fn syntax(&self) -> &SyntaxNode {
         match self {
-            ImplItem::FnDef(it) => &it.syntax,
-            ImplItem::TypeAliasDef(it) => &it.syntax,
-            ImplItem::ConstDef(it) => &it.syntax,
+            ImplItem::FnDef(it) => it.syntax(),
+            ImplItem::TypeAliasDef(it) => it.syntax(),
+            ImplItem::ConstDef(it) => it.syntax(),
+        }
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        match self {
+            ImplItem::FnDef(it) => it.into_syntax(),
+            ImplItem::TypeAliasDef(it) => it.into_syntax(),
+            ImplItem::ConstDef(it) => it.into_syntax(),
+        }
+    }
+}
+impl AstElement for ImplItem {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            CONST_DEF | FN_DEF | TYPE_ALIAS_DEF => true,
+            _ => false,
+        }
+    }
+    #[allow(unreachable_patterns)]
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        match syntax.kind() {
+            FN_DEF => FnDef::cast_or_return_element(syntax).map(|x| ImplItem::FnDef(x)),
+            TYPE_ALIAS_DEF => {
+                TypeAliasDef::cast_or_return_element(syntax).map(|x| ImplItem::TypeAliasDef(x))
+            }
+            CONST_DEF => ConstDef::cast_or_return_element(syntax).map(|x| ImplItem::ConstDef(x)),
+            _ => Err(syntax),
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        match self {
+            ImplItem::FnDef(it) => it.syntax_element(),
+            ImplItem::TypeAliasDef(it) => it.syntax_element(),
+            ImplItem::ConstDef(it) => it.syntax_element(),
+        }
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        match self {
+            ImplItem::FnDef(it) => it.into_syntax_element(),
+            ImplItem::TypeAliasDef(it) => it.into_syntax_element(),
+            ImplItem::ConstDef(it) => it.into_syntax_element(),
         }
     }
 }
@@ -4496,91 +13154,284 @@ impl From<BoxExpr> for Expr {
 }
 impl std::fmt::Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        match self {
+            Expr::TupleExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::ArrayExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::ParenExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::PathExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::LambdaExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::IfExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::LoopExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::ForExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::WhileExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::ContinueExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::BreakExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::Label(it) => std::fmt::Display::fmt(it, f),
+            Expr::BlockExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::ReturnExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::MatchExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::RecordLit(it) => std::fmt::Display::fmt(it, f),
+            Expr::CallExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::IndexExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::MethodCallExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::FieldExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::AwaitExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::TryExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::TryBlockExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::CastExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::RefExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::PrefixExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::RangeExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::BinExpr(it) => std::fmt::Display::fmt(it, f),
+            Expr::Literal(it) => std::fmt::Display::fmt(it, f),
+            Expr::MacroCall(it) => std::fmt::Display::fmt(it, f),
+            Expr::BoxExpr(it) => std::fmt::Display::fmt(it, f),
+        }
     }
 }
 impl AstNode for Expr {
     fn can_cast(kind: SyntaxKind) -> bool {
         match kind {
-            TUPLE_EXPR | ARRAY_EXPR | PAREN_EXPR | PATH_EXPR | LAMBDA_EXPR | IF_EXPR
-            | LOOP_EXPR | FOR_EXPR | WHILE_EXPR | CONTINUE_EXPR | BREAK_EXPR | LABEL
-            | BLOCK_EXPR | RETURN_EXPR | MATCH_EXPR | RECORD_LIT | CALL_EXPR | INDEX_EXPR
-            | METHOD_CALL_EXPR | FIELD_EXPR | AWAIT_EXPR | TRY_EXPR | TRY_BLOCK_EXPR
-            | CAST_EXPR | REF_EXPR | PREFIX_EXPR | RANGE_EXPR | BIN_EXPR | LITERAL | MACRO_CALL
-            | BOX_EXPR => true,
+            ARRAY_EXPR | AWAIT_EXPR | BIN_EXPR | BLOCK_EXPR | BOX_EXPR | BREAK_EXPR | CALL_EXPR
+            | CAST_EXPR | CONTINUE_EXPR | FIELD_EXPR | FOR_EXPR | IF_EXPR | INDEX_EXPR | LABEL
+            | LAMBDA_EXPR | LITERAL | LOOP_EXPR | MACRO_CALL | MATCH_EXPR | METHOD_CALL_EXPR
+            | PAREN_EXPR | PATH_EXPR | PREFIX_EXPR | RANGE_EXPR | RECORD_LIT | REF_EXPR
+            | RETURN_EXPR | TRY_BLOCK_EXPR | TRY_EXPR | TUPLE_EXPR | WHILE_EXPR => true,
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
-        let res = match syntax.kind() {
-            TUPLE_EXPR => Expr::TupleExpr(TupleExpr { syntax }),
-            ARRAY_EXPR => Expr::ArrayExpr(ArrayExpr { syntax }),
-            PAREN_EXPR => Expr::ParenExpr(ParenExpr { syntax }),
-            PATH_EXPR => Expr::PathExpr(PathExpr { syntax }),
-            LAMBDA_EXPR => Expr::LambdaExpr(LambdaExpr { syntax }),
-            IF_EXPR => Expr::IfExpr(IfExpr { syntax }),
-            LOOP_EXPR => Expr::LoopExpr(LoopExpr { syntax }),
-            FOR_EXPR => Expr::ForExpr(ForExpr { syntax }),
-            WHILE_EXPR => Expr::WhileExpr(WhileExpr { syntax }),
-            CONTINUE_EXPR => Expr::ContinueExpr(ContinueExpr { syntax }),
-            BREAK_EXPR => Expr::BreakExpr(BreakExpr { syntax }),
-            LABEL => Expr::Label(Label { syntax }),
-            BLOCK_EXPR => Expr::BlockExpr(BlockExpr { syntax }),
-            RETURN_EXPR => Expr::ReturnExpr(ReturnExpr { syntax }),
-            MATCH_EXPR => Expr::MatchExpr(MatchExpr { syntax }),
-            RECORD_LIT => Expr::RecordLit(RecordLit { syntax }),
-            CALL_EXPR => Expr::CallExpr(CallExpr { syntax }),
-            INDEX_EXPR => Expr::IndexExpr(IndexExpr { syntax }),
-            METHOD_CALL_EXPR => Expr::MethodCallExpr(MethodCallExpr { syntax }),
-            FIELD_EXPR => Expr::FieldExpr(FieldExpr { syntax }),
-            AWAIT_EXPR => Expr::AwaitExpr(AwaitExpr { syntax }),
-            TRY_EXPR => Expr::TryExpr(TryExpr { syntax }),
-            TRY_BLOCK_EXPR => Expr::TryBlockExpr(TryBlockExpr { syntax }),
-            CAST_EXPR => Expr::CastExpr(CastExpr { syntax }),
-            REF_EXPR => Expr::RefExpr(RefExpr { syntax }),
-            PREFIX_EXPR => Expr::PrefixExpr(PrefixExpr { syntax }),
-            RANGE_EXPR => Expr::RangeExpr(RangeExpr { syntax }),
-            BIN_EXPR => Expr::BinExpr(BinExpr { syntax }),
-            LITERAL => Expr::Literal(Literal { syntax }),
-            MACRO_CALL => Expr::MacroCall(MacroCall { syntax }),
-            BOX_EXPR => Expr::BoxExpr(BoxExpr { syntax }),
-            _ => return None,
-        };
-        Some(res)
+    #[allow(unreachable_patterns)]
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
+        match syntax.kind() {
+            TUPLE_EXPR => TupleExpr::cast_or_return(syntax).map(|x| Expr::TupleExpr(x)),
+            ARRAY_EXPR => ArrayExpr::cast_or_return(syntax).map(|x| Expr::ArrayExpr(x)),
+            PAREN_EXPR => ParenExpr::cast_or_return(syntax).map(|x| Expr::ParenExpr(x)),
+            PATH_EXPR => PathExpr::cast_or_return(syntax).map(|x| Expr::PathExpr(x)),
+            LAMBDA_EXPR => LambdaExpr::cast_or_return(syntax).map(|x| Expr::LambdaExpr(x)),
+            IF_EXPR => IfExpr::cast_or_return(syntax).map(|x| Expr::IfExpr(x)),
+            LOOP_EXPR => LoopExpr::cast_or_return(syntax).map(|x| Expr::LoopExpr(x)),
+            FOR_EXPR => ForExpr::cast_or_return(syntax).map(|x| Expr::ForExpr(x)),
+            WHILE_EXPR => WhileExpr::cast_or_return(syntax).map(|x| Expr::WhileExpr(x)),
+            CONTINUE_EXPR => ContinueExpr::cast_or_return(syntax).map(|x| Expr::ContinueExpr(x)),
+            BREAK_EXPR => BreakExpr::cast_or_return(syntax).map(|x| Expr::BreakExpr(x)),
+            LABEL => Label::cast_or_return(syntax).map(|x| Expr::Label(x)),
+            BLOCK_EXPR => BlockExpr::cast_or_return(syntax).map(|x| Expr::BlockExpr(x)),
+            RETURN_EXPR => ReturnExpr::cast_or_return(syntax).map(|x| Expr::ReturnExpr(x)),
+            MATCH_EXPR => MatchExpr::cast_or_return(syntax).map(|x| Expr::MatchExpr(x)),
+            RECORD_LIT => RecordLit::cast_or_return(syntax).map(|x| Expr::RecordLit(x)),
+            CALL_EXPR => CallExpr::cast_or_return(syntax).map(|x| Expr::CallExpr(x)),
+            INDEX_EXPR => IndexExpr::cast_or_return(syntax).map(|x| Expr::IndexExpr(x)),
+            METHOD_CALL_EXPR => {
+                MethodCallExpr::cast_or_return(syntax).map(|x| Expr::MethodCallExpr(x))
+            }
+            FIELD_EXPR => FieldExpr::cast_or_return(syntax).map(|x| Expr::FieldExpr(x)),
+            AWAIT_EXPR => AwaitExpr::cast_or_return(syntax).map(|x| Expr::AwaitExpr(x)),
+            TRY_EXPR => TryExpr::cast_or_return(syntax).map(|x| Expr::TryExpr(x)),
+            TRY_BLOCK_EXPR => TryBlockExpr::cast_or_return(syntax).map(|x| Expr::TryBlockExpr(x)),
+            CAST_EXPR => CastExpr::cast_or_return(syntax).map(|x| Expr::CastExpr(x)),
+            REF_EXPR => RefExpr::cast_or_return(syntax).map(|x| Expr::RefExpr(x)),
+            PREFIX_EXPR => PrefixExpr::cast_or_return(syntax).map(|x| Expr::PrefixExpr(x)),
+            RANGE_EXPR => RangeExpr::cast_or_return(syntax).map(|x| Expr::RangeExpr(x)),
+            BIN_EXPR => BinExpr::cast_or_return(syntax).map(|x| Expr::BinExpr(x)),
+            LITERAL => Literal::cast_or_return(syntax).map(|x| Expr::Literal(x)),
+            MACRO_CALL => MacroCall::cast_or_return(syntax).map(|x| Expr::MacroCall(x)),
+            BOX_EXPR => BoxExpr::cast_or_return(syntax).map(|x| Expr::BoxExpr(x)),
+            _ => Err(syntax),
+        }
     }
     fn syntax(&self) -> &SyntaxNode {
         match self {
-            Expr::TupleExpr(it) => &it.syntax,
-            Expr::ArrayExpr(it) => &it.syntax,
-            Expr::ParenExpr(it) => &it.syntax,
-            Expr::PathExpr(it) => &it.syntax,
-            Expr::LambdaExpr(it) => &it.syntax,
-            Expr::IfExpr(it) => &it.syntax,
-            Expr::LoopExpr(it) => &it.syntax,
-            Expr::ForExpr(it) => &it.syntax,
-            Expr::WhileExpr(it) => &it.syntax,
-            Expr::ContinueExpr(it) => &it.syntax,
-            Expr::BreakExpr(it) => &it.syntax,
-            Expr::Label(it) => &it.syntax,
-            Expr::BlockExpr(it) => &it.syntax,
-            Expr::ReturnExpr(it) => &it.syntax,
-            Expr::MatchExpr(it) => &it.syntax,
-            Expr::RecordLit(it) => &it.syntax,
-            Expr::CallExpr(it) => &it.syntax,
-            Expr::IndexExpr(it) => &it.syntax,
-            Expr::MethodCallExpr(it) => &it.syntax,
-            Expr::FieldExpr(it) => &it.syntax,
-            Expr::AwaitExpr(it) => &it.syntax,
-            Expr::TryExpr(it) => &it.syntax,
-            Expr::TryBlockExpr(it) => &it.syntax,
-            Expr::CastExpr(it) => &it.syntax,
-            Expr::RefExpr(it) => &it.syntax,
-            Expr::PrefixExpr(it) => &it.syntax,
-            Expr::RangeExpr(it) => &it.syntax,
-            Expr::BinExpr(it) => &it.syntax,
-            Expr::Literal(it) => &it.syntax,
-            Expr::MacroCall(it) => &it.syntax,
-            Expr::BoxExpr(it) => &it.syntax,
+            Expr::TupleExpr(it) => it.syntax(),
+            Expr::ArrayExpr(it) => it.syntax(),
+            Expr::ParenExpr(it) => it.syntax(),
+            Expr::PathExpr(it) => it.syntax(),
+            Expr::LambdaExpr(it) => it.syntax(),
+            Expr::IfExpr(it) => it.syntax(),
+            Expr::LoopExpr(it) => it.syntax(),
+            Expr::ForExpr(it) => it.syntax(),
+            Expr::WhileExpr(it) => it.syntax(),
+            Expr::ContinueExpr(it) => it.syntax(),
+            Expr::BreakExpr(it) => it.syntax(),
+            Expr::Label(it) => it.syntax(),
+            Expr::BlockExpr(it) => it.syntax(),
+            Expr::ReturnExpr(it) => it.syntax(),
+            Expr::MatchExpr(it) => it.syntax(),
+            Expr::RecordLit(it) => it.syntax(),
+            Expr::CallExpr(it) => it.syntax(),
+            Expr::IndexExpr(it) => it.syntax(),
+            Expr::MethodCallExpr(it) => it.syntax(),
+            Expr::FieldExpr(it) => it.syntax(),
+            Expr::AwaitExpr(it) => it.syntax(),
+            Expr::TryExpr(it) => it.syntax(),
+            Expr::TryBlockExpr(it) => it.syntax(),
+            Expr::CastExpr(it) => it.syntax(),
+            Expr::RefExpr(it) => it.syntax(),
+            Expr::PrefixExpr(it) => it.syntax(),
+            Expr::RangeExpr(it) => it.syntax(),
+            Expr::BinExpr(it) => it.syntax(),
+            Expr::Literal(it) => it.syntax(),
+            Expr::MacroCall(it) => it.syntax(),
+            Expr::BoxExpr(it) => it.syntax(),
+        }
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        match self {
+            Expr::TupleExpr(it) => it.into_syntax(),
+            Expr::ArrayExpr(it) => it.into_syntax(),
+            Expr::ParenExpr(it) => it.into_syntax(),
+            Expr::PathExpr(it) => it.into_syntax(),
+            Expr::LambdaExpr(it) => it.into_syntax(),
+            Expr::IfExpr(it) => it.into_syntax(),
+            Expr::LoopExpr(it) => it.into_syntax(),
+            Expr::ForExpr(it) => it.into_syntax(),
+            Expr::WhileExpr(it) => it.into_syntax(),
+            Expr::ContinueExpr(it) => it.into_syntax(),
+            Expr::BreakExpr(it) => it.into_syntax(),
+            Expr::Label(it) => it.into_syntax(),
+            Expr::BlockExpr(it) => it.into_syntax(),
+            Expr::ReturnExpr(it) => it.into_syntax(),
+            Expr::MatchExpr(it) => it.into_syntax(),
+            Expr::RecordLit(it) => it.into_syntax(),
+            Expr::CallExpr(it) => it.into_syntax(),
+            Expr::IndexExpr(it) => it.into_syntax(),
+            Expr::MethodCallExpr(it) => it.into_syntax(),
+            Expr::FieldExpr(it) => it.into_syntax(),
+            Expr::AwaitExpr(it) => it.into_syntax(),
+            Expr::TryExpr(it) => it.into_syntax(),
+            Expr::TryBlockExpr(it) => it.into_syntax(),
+            Expr::CastExpr(it) => it.into_syntax(),
+            Expr::RefExpr(it) => it.into_syntax(),
+            Expr::PrefixExpr(it) => it.into_syntax(),
+            Expr::RangeExpr(it) => it.into_syntax(),
+            Expr::BinExpr(it) => it.into_syntax(),
+            Expr::Literal(it) => it.into_syntax(),
+            Expr::MacroCall(it) => it.into_syntax(),
+            Expr::BoxExpr(it) => it.into_syntax(),
+        }
+    }
+}
+impl AstElement for Expr {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            ARRAY_EXPR | AWAIT_EXPR | BIN_EXPR | BLOCK_EXPR | BOX_EXPR | BREAK_EXPR | CALL_EXPR
+            | CAST_EXPR | CONTINUE_EXPR | FIELD_EXPR | FOR_EXPR | IF_EXPR | INDEX_EXPR | LABEL
+            | LAMBDA_EXPR | LITERAL | LOOP_EXPR | MACRO_CALL | MATCH_EXPR | METHOD_CALL_EXPR
+            | PAREN_EXPR | PATH_EXPR | PREFIX_EXPR | RANGE_EXPR | RECORD_LIT | REF_EXPR
+            | RETURN_EXPR | TRY_BLOCK_EXPR | TRY_EXPR | TUPLE_EXPR | WHILE_EXPR => true,
+            _ => false,
+        }
+    }
+    #[allow(unreachable_patterns)]
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        match syntax.kind() {
+            TUPLE_EXPR => TupleExpr::cast_or_return_element(syntax).map(|x| Expr::TupleExpr(x)),
+            ARRAY_EXPR => ArrayExpr::cast_or_return_element(syntax).map(|x| Expr::ArrayExpr(x)),
+            PAREN_EXPR => ParenExpr::cast_or_return_element(syntax).map(|x| Expr::ParenExpr(x)),
+            PATH_EXPR => PathExpr::cast_or_return_element(syntax).map(|x| Expr::PathExpr(x)),
+            LAMBDA_EXPR => LambdaExpr::cast_or_return_element(syntax).map(|x| Expr::LambdaExpr(x)),
+            IF_EXPR => IfExpr::cast_or_return_element(syntax).map(|x| Expr::IfExpr(x)),
+            LOOP_EXPR => LoopExpr::cast_or_return_element(syntax).map(|x| Expr::LoopExpr(x)),
+            FOR_EXPR => ForExpr::cast_or_return_element(syntax).map(|x| Expr::ForExpr(x)),
+            WHILE_EXPR => WhileExpr::cast_or_return_element(syntax).map(|x| Expr::WhileExpr(x)),
+            CONTINUE_EXPR => {
+                ContinueExpr::cast_or_return_element(syntax).map(|x| Expr::ContinueExpr(x))
+            }
+            BREAK_EXPR => BreakExpr::cast_or_return_element(syntax).map(|x| Expr::BreakExpr(x)),
+            LABEL => Label::cast_or_return_element(syntax).map(|x| Expr::Label(x)),
+            BLOCK_EXPR => BlockExpr::cast_or_return_element(syntax).map(|x| Expr::BlockExpr(x)),
+            RETURN_EXPR => ReturnExpr::cast_or_return_element(syntax).map(|x| Expr::ReturnExpr(x)),
+            MATCH_EXPR => MatchExpr::cast_or_return_element(syntax).map(|x| Expr::MatchExpr(x)),
+            RECORD_LIT => RecordLit::cast_or_return_element(syntax).map(|x| Expr::RecordLit(x)),
+            CALL_EXPR => CallExpr::cast_or_return_element(syntax).map(|x| Expr::CallExpr(x)),
+            INDEX_EXPR => IndexExpr::cast_or_return_element(syntax).map(|x| Expr::IndexExpr(x)),
+            METHOD_CALL_EXPR => {
+                MethodCallExpr::cast_or_return_element(syntax).map(|x| Expr::MethodCallExpr(x))
+            }
+            FIELD_EXPR => FieldExpr::cast_or_return_element(syntax).map(|x| Expr::FieldExpr(x)),
+            AWAIT_EXPR => AwaitExpr::cast_or_return_element(syntax).map(|x| Expr::AwaitExpr(x)),
+            TRY_EXPR => TryExpr::cast_or_return_element(syntax).map(|x| Expr::TryExpr(x)),
+            TRY_BLOCK_EXPR => {
+                TryBlockExpr::cast_or_return_element(syntax).map(|x| Expr::TryBlockExpr(x))
+            }
+            CAST_EXPR => CastExpr::cast_or_return_element(syntax).map(|x| Expr::CastExpr(x)),
+            REF_EXPR => RefExpr::cast_or_return_element(syntax).map(|x| Expr::RefExpr(x)),
+            PREFIX_EXPR => PrefixExpr::cast_or_return_element(syntax).map(|x| Expr::PrefixExpr(x)),
+            RANGE_EXPR => RangeExpr::cast_or_return_element(syntax).map(|x| Expr::RangeExpr(x)),
+            BIN_EXPR => BinExpr::cast_or_return_element(syntax).map(|x| Expr::BinExpr(x)),
+            LITERAL => Literal::cast_or_return_element(syntax).map(|x| Expr::Literal(x)),
+            MACRO_CALL => MacroCall::cast_or_return_element(syntax).map(|x| Expr::MacroCall(x)),
+            BOX_EXPR => BoxExpr::cast_or_return_element(syntax).map(|x| Expr::BoxExpr(x)),
+            _ => Err(syntax),
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        match self {
+            Expr::TupleExpr(it) => it.syntax_element(),
+            Expr::ArrayExpr(it) => it.syntax_element(),
+            Expr::ParenExpr(it) => it.syntax_element(),
+            Expr::PathExpr(it) => it.syntax_element(),
+            Expr::LambdaExpr(it) => it.syntax_element(),
+            Expr::IfExpr(it) => it.syntax_element(),
+            Expr::LoopExpr(it) => it.syntax_element(),
+            Expr::ForExpr(it) => it.syntax_element(),
+            Expr::WhileExpr(it) => it.syntax_element(),
+            Expr::ContinueExpr(it) => it.syntax_element(),
+            Expr::BreakExpr(it) => it.syntax_element(),
+            Expr::Label(it) => it.syntax_element(),
+            Expr::BlockExpr(it) => it.syntax_element(),
+            Expr::ReturnExpr(it) => it.syntax_element(),
+            Expr::MatchExpr(it) => it.syntax_element(),
+            Expr::RecordLit(it) => it.syntax_element(),
+            Expr::CallExpr(it) => it.syntax_element(),
+            Expr::IndexExpr(it) => it.syntax_element(),
+            Expr::MethodCallExpr(it) => it.syntax_element(),
+            Expr::FieldExpr(it) => it.syntax_element(),
+            Expr::AwaitExpr(it) => it.syntax_element(),
+            Expr::TryExpr(it) => it.syntax_element(),
+            Expr::TryBlockExpr(it) => it.syntax_element(),
+            Expr::CastExpr(it) => it.syntax_element(),
+            Expr::RefExpr(it) => it.syntax_element(),
+            Expr::PrefixExpr(it) => it.syntax_element(),
+            Expr::RangeExpr(it) => it.syntax_element(),
+            Expr::BinExpr(it) => it.syntax_element(),
+            Expr::Literal(it) => it.syntax_element(),
+            Expr::MacroCall(it) => it.syntax_element(),
+            Expr::BoxExpr(it) => it.syntax_element(),
+        }
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        match self {
+            Expr::TupleExpr(it) => it.into_syntax_element(),
+            Expr::ArrayExpr(it) => it.into_syntax_element(),
+            Expr::ParenExpr(it) => it.into_syntax_element(),
+            Expr::PathExpr(it) => it.into_syntax_element(),
+            Expr::LambdaExpr(it) => it.into_syntax_element(),
+            Expr::IfExpr(it) => it.into_syntax_element(),
+            Expr::LoopExpr(it) => it.into_syntax_element(),
+            Expr::ForExpr(it) => it.into_syntax_element(),
+            Expr::WhileExpr(it) => it.into_syntax_element(),
+            Expr::ContinueExpr(it) => it.into_syntax_element(),
+            Expr::BreakExpr(it) => it.into_syntax_element(),
+            Expr::Label(it) => it.into_syntax_element(),
+            Expr::BlockExpr(it) => it.into_syntax_element(),
+            Expr::ReturnExpr(it) => it.into_syntax_element(),
+            Expr::MatchExpr(it) => it.into_syntax_element(),
+            Expr::RecordLit(it) => it.into_syntax_element(),
+            Expr::CallExpr(it) => it.into_syntax_element(),
+            Expr::IndexExpr(it) => it.into_syntax_element(),
+            Expr::MethodCallExpr(it) => it.into_syntax_element(),
+            Expr::FieldExpr(it) => it.into_syntax_element(),
+            Expr::AwaitExpr(it) => it.into_syntax_element(),
+            Expr::TryExpr(it) => it.into_syntax_element(),
+            Expr::TryBlockExpr(it) => it.into_syntax_element(),
+            Expr::CastExpr(it) => it.into_syntax_element(),
+            Expr::RefExpr(it) => it.into_syntax_element(),
+            Expr::PrefixExpr(it) => it.into_syntax_element(),
+            Expr::RangeExpr(it) => it.into_syntax_element(),
+            Expr::BinExpr(it) => it.into_syntax_element(),
+            Expr::Literal(it) => it.into_syntax_element(),
+            Expr::MacroCall(it) => it.into_syntax_element(),
+            Expr::BoxExpr(it) => it.into_syntax_element(),
         }
     }
 }
@@ -4673,54 +13524,161 @@ impl From<LiteralPat> for Pat {
 }
 impl std::fmt::Display for Pat {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        match self {
+            Pat::OrPat(it) => std::fmt::Display::fmt(it, f),
+            Pat::ParenPat(it) => std::fmt::Display::fmt(it, f),
+            Pat::RefPat(it) => std::fmt::Display::fmt(it, f),
+            Pat::BoxPat(it) => std::fmt::Display::fmt(it, f),
+            Pat::BindPat(it) => std::fmt::Display::fmt(it, f),
+            Pat::PlaceholderPat(it) => std::fmt::Display::fmt(it, f),
+            Pat::DotDotPat(it) => std::fmt::Display::fmt(it, f),
+            Pat::PathPat(it) => std::fmt::Display::fmt(it, f),
+            Pat::RecordPat(it) => std::fmt::Display::fmt(it, f),
+            Pat::TupleStructPat(it) => std::fmt::Display::fmt(it, f),
+            Pat::TuplePat(it) => std::fmt::Display::fmt(it, f),
+            Pat::SlicePat(it) => std::fmt::Display::fmt(it, f),
+            Pat::RangePat(it) => std::fmt::Display::fmt(it, f),
+            Pat::LiteralPat(it) => std::fmt::Display::fmt(it, f),
+        }
     }
 }
 impl AstNode for Pat {
     fn can_cast(kind: SyntaxKind) -> bool {
         match kind {
-            OR_PAT | PAREN_PAT | REF_PAT | BOX_PAT | BIND_PAT | PLACEHOLDER_PAT | DOT_DOT_PAT
-            | PATH_PAT | RECORD_PAT | TUPLE_STRUCT_PAT | TUPLE_PAT | SLICE_PAT | RANGE_PAT
-            | LITERAL_PAT => true,
+            BIND_PAT | BOX_PAT | DOT_DOT_PAT | LITERAL_PAT | OR_PAT | PAREN_PAT | PATH_PAT
+            | PLACEHOLDER_PAT | RANGE_PAT | RECORD_PAT | REF_PAT | SLICE_PAT | TUPLE_PAT
+            | TUPLE_STRUCT_PAT => true,
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
-        let res = match syntax.kind() {
-            OR_PAT => Pat::OrPat(OrPat { syntax }),
-            PAREN_PAT => Pat::ParenPat(ParenPat { syntax }),
-            REF_PAT => Pat::RefPat(RefPat { syntax }),
-            BOX_PAT => Pat::BoxPat(BoxPat { syntax }),
-            BIND_PAT => Pat::BindPat(BindPat { syntax }),
-            PLACEHOLDER_PAT => Pat::PlaceholderPat(PlaceholderPat { syntax }),
-            DOT_DOT_PAT => Pat::DotDotPat(DotDotPat { syntax }),
-            PATH_PAT => Pat::PathPat(PathPat { syntax }),
-            RECORD_PAT => Pat::RecordPat(RecordPat { syntax }),
-            TUPLE_STRUCT_PAT => Pat::TupleStructPat(TupleStructPat { syntax }),
-            TUPLE_PAT => Pat::TuplePat(TuplePat { syntax }),
-            SLICE_PAT => Pat::SlicePat(SlicePat { syntax }),
-            RANGE_PAT => Pat::RangePat(RangePat { syntax }),
-            LITERAL_PAT => Pat::LiteralPat(LiteralPat { syntax }),
-            _ => return None,
-        };
-        Some(res)
+    #[allow(unreachable_patterns)]
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
+        match syntax.kind() {
+            OR_PAT => OrPat::cast_or_return(syntax).map(|x| Pat::OrPat(x)),
+            PAREN_PAT => ParenPat::cast_or_return(syntax).map(|x| Pat::ParenPat(x)),
+            REF_PAT => RefPat::cast_or_return(syntax).map(|x| Pat::RefPat(x)),
+            BOX_PAT => BoxPat::cast_or_return(syntax).map(|x| Pat::BoxPat(x)),
+            BIND_PAT => BindPat::cast_or_return(syntax).map(|x| Pat::BindPat(x)),
+            PLACEHOLDER_PAT => {
+                PlaceholderPat::cast_or_return(syntax).map(|x| Pat::PlaceholderPat(x))
+            }
+            DOT_DOT_PAT => DotDotPat::cast_or_return(syntax).map(|x| Pat::DotDotPat(x)),
+            PATH_PAT => PathPat::cast_or_return(syntax).map(|x| Pat::PathPat(x)),
+            RECORD_PAT => RecordPat::cast_or_return(syntax).map(|x| Pat::RecordPat(x)),
+            TUPLE_STRUCT_PAT => {
+                TupleStructPat::cast_or_return(syntax).map(|x| Pat::TupleStructPat(x))
+            }
+            TUPLE_PAT => TuplePat::cast_or_return(syntax).map(|x| Pat::TuplePat(x)),
+            SLICE_PAT => SlicePat::cast_or_return(syntax).map(|x| Pat::SlicePat(x)),
+            RANGE_PAT => RangePat::cast_or_return(syntax).map(|x| Pat::RangePat(x)),
+            LITERAL_PAT => LiteralPat::cast_or_return(syntax).map(|x| Pat::LiteralPat(x)),
+            _ => Err(syntax),
+        }
     }
     fn syntax(&self) -> &SyntaxNode {
         match self {
-            Pat::OrPat(it) => &it.syntax,
-            Pat::ParenPat(it) => &it.syntax,
-            Pat::RefPat(it) => &it.syntax,
-            Pat::BoxPat(it) => &it.syntax,
-            Pat::BindPat(it) => &it.syntax,
-            Pat::PlaceholderPat(it) => &it.syntax,
-            Pat::DotDotPat(it) => &it.syntax,
-            Pat::PathPat(it) => &it.syntax,
-            Pat::RecordPat(it) => &it.syntax,
-            Pat::TupleStructPat(it) => &it.syntax,
-            Pat::TuplePat(it) => &it.syntax,
-            Pat::SlicePat(it) => &it.syntax,
-            Pat::RangePat(it) => &it.syntax,
-            Pat::LiteralPat(it) => &it.syntax,
+            Pat::OrPat(it) => it.syntax(),
+            Pat::ParenPat(it) => it.syntax(),
+            Pat::RefPat(it) => it.syntax(),
+            Pat::BoxPat(it) => it.syntax(),
+            Pat::BindPat(it) => it.syntax(),
+            Pat::PlaceholderPat(it) => it.syntax(),
+            Pat::DotDotPat(it) => it.syntax(),
+            Pat::PathPat(it) => it.syntax(),
+            Pat::RecordPat(it) => it.syntax(),
+            Pat::TupleStructPat(it) => it.syntax(),
+            Pat::TuplePat(it) => it.syntax(),
+            Pat::SlicePat(it) => it.syntax(),
+            Pat::RangePat(it) => it.syntax(),
+            Pat::LiteralPat(it) => it.syntax(),
+        }
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        match self {
+            Pat::OrPat(it) => it.into_syntax(),
+            Pat::ParenPat(it) => it.into_syntax(),
+            Pat::RefPat(it) => it.into_syntax(),
+            Pat::BoxPat(it) => it.into_syntax(),
+            Pat::BindPat(it) => it.into_syntax(),
+            Pat::PlaceholderPat(it) => it.into_syntax(),
+            Pat::DotDotPat(it) => it.into_syntax(),
+            Pat::PathPat(it) => it.into_syntax(),
+            Pat::RecordPat(it) => it.into_syntax(),
+            Pat::TupleStructPat(it) => it.into_syntax(),
+            Pat::TuplePat(it) => it.into_syntax(),
+            Pat::SlicePat(it) => it.into_syntax(),
+            Pat::RangePat(it) => it.into_syntax(),
+            Pat::LiteralPat(it) => it.into_syntax(),
+        }
+    }
+}
+impl AstElement for Pat {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            BIND_PAT | BOX_PAT | DOT_DOT_PAT | LITERAL_PAT | OR_PAT | PAREN_PAT | PATH_PAT
+            | PLACEHOLDER_PAT | RANGE_PAT | RECORD_PAT | REF_PAT | SLICE_PAT | TUPLE_PAT
+            | TUPLE_STRUCT_PAT => true,
+            _ => false,
+        }
+    }
+    #[allow(unreachable_patterns)]
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        match syntax.kind() {
+            OR_PAT => OrPat::cast_or_return_element(syntax).map(|x| Pat::OrPat(x)),
+            PAREN_PAT => ParenPat::cast_or_return_element(syntax).map(|x| Pat::ParenPat(x)),
+            REF_PAT => RefPat::cast_or_return_element(syntax).map(|x| Pat::RefPat(x)),
+            BOX_PAT => BoxPat::cast_or_return_element(syntax).map(|x| Pat::BoxPat(x)),
+            BIND_PAT => BindPat::cast_or_return_element(syntax).map(|x| Pat::BindPat(x)),
+            PLACEHOLDER_PAT => {
+                PlaceholderPat::cast_or_return_element(syntax).map(|x| Pat::PlaceholderPat(x))
+            }
+            DOT_DOT_PAT => DotDotPat::cast_or_return_element(syntax).map(|x| Pat::DotDotPat(x)),
+            PATH_PAT => PathPat::cast_or_return_element(syntax).map(|x| Pat::PathPat(x)),
+            RECORD_PAT => RecordPat::cast_or_return_element(syntax).map(|x| Pat::RecordPat(x)),
+            TUPLE_STRUCT_PAT => {
+                TupleStructPat::cast_or_return_element(syntax).map(|x| Pat::TupleStructPat(x))
+            }
+            TUPLE_PAT => TuplePat::cast_or_return_element(syntax).map(|x| Pat::TuplePat(x)),
+            SLICE_PAT => SlicePat::cast_or_return_element(syntax).map(|x| Pat::SlicePat(x)),
+            RANGE_PAT => RangePat::cast_or_return_element(syntax).map(|x| Pat::RangePat(x)),
+            LITERAL_PAT => LiteralPat::cast_or_return_element(syntax).map(|x| Pat::LiteralPat(x)),
+            _ => Err(syntax),
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        match self {
+            Pat::OrPat(it) => it.syntax_element(),
+            Pat::ParenPat(it) => it.syntax_element(),
+            Pat::RefPat(it) => it.syntax_element(),
+            Pat::BoxPat(it) => it.syntax_element(),
+            Pat::BindPat(it) => it.syntax_element(),
+            Pat::PlaceholderPat(it) => it.syntax_element(),
+            Pat::DotDotPat(it) => it.syntax_element(),
+            Pat::PathPat(it) => it.syntax_element(),
+            Pat::RecordPat(it) => it.syntax_element(),
+            Pat::TupleStructPat(it) => it.syntax_element(),
+            Pat::TuplePat(it) => it.syntax_element(),
+            Pat::SlicePat(it) => it.syntax_element(),
+            Pat::RangePat(it) => it.syntax_element(),
+            Pat::LiteralPat(it) => it.syntax_element(),
+        }
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        match self {
+            Pat::OrPat(it) => it.into_syntax_element(),
+            Pat::ParenPat(it) => it.into_syntax_element(),
+            Pat::RefPat(it) => it.into_syntax_element(),
+            Pat::BoxPat(it) => it.into_syntax_element(),
+            Pat::BindPat(it) => it.into_syntax_element(),
+            Pat::PlaceholderPat(it) => it.into_syntax_element(),
+            Pat::DotDotPat(it) => it.into_syntax_element(),
+            Pat::PathPat(it) => it.into_syntax_element(),
+            Pat::RecordPat(it) => it.into_syntax_element(),
+            Pat::TupleStructPat(it) => it.into_syntax_element(),
+            Pat::TuplePat(it) => it.into_syntax_element(),
+            Pat::SlicePat(it) => it.into_syntax_element(),
+            Pat::RangePat(it) => it.into_syntax_element(),
+            Pat::LiteralPat(it) => it.into_syntax_element(),
         }
     }
 }
@@ -4741,7 +13699,10 @@ impl From<TokenTree> for AttrInput {
 }
 impl std::fmt::Display for AttrInput {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        match self {
+            AttrInput::Literal(it) => std::fmt::Display::fmt(it, f),
+            AttrInput::TokenTree(it) => std::fmt::Display::fmt(it, f),
+        }
     }
 }
 impl AstNode for AttrInput {
@@ -4751,18 +13712,54 @@ impl AstNode for AttrInput {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
-        let res = match syntax.kind() {
-            LITERAL => AttrInput::Literal(Literal { syntax }),
-            TOKEN_TREE => AttrInput::TokenTree(TokenTree { syntax }),
-            _ => return None,
-        };
-        Some(res)
+    #[allow(unreachable_patterns)]
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
+        match syntax.kind() {
+            LITERAL => Literal::cast_or_return(syntax).map(|x| AttrInput::Literal(x)),
+            TOKEN_TREE => TokenTree::cast_or_return(syntax).map(|x| AttrInput::TokenTree(x)),
+            _ => Err(syntax),
+        }
     }
     fn syntax(&self) -> &SyntaxNode {
         match self {
-            AttrInput::Literal(it) => &it.syntax,
-            AttrInput::TokenTree(it) => &it.syntax,
+            AttrInput::Literal(it) => it.syntax(),
+            AttrInput::TokenTree(it) => it.syntax(),
+        }
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        match self {
+            AttrInput::Literal(it) => it.into_syntax(),
+            AttrInput::TokenTree(it) => it.into_syntax(),
+        }
+    }
+}
+impl AstElement for AttrInput {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            LITERAL | TOKEN_TREE => true,
+            _ => false,
+        }
+    }
+    #[allow(unreachable_patterns)]
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        match syntax.kind() {
+            LITERAL => Literal::cast_or_return_element(syntax).map(|x| AttrInput::Literal(x)),
+            TOKEN_TREE => {
+                TokenTree::cast_or_return_element(syntax).map(|x| AttrInput::TokenTree(x))
+            }
+            _ => Err(syntax),
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        match self {
+            AttrInput::Literal(it) => it.syntax_element(),
+            AttrInput::TokenTree(it) => it.syntax_element(),
+        }
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        match self {
+            AttrInput::Literal(it) => it.into_syntax_element(),
+            AttrInput::TokenTree(it) => it.into_syntax_element(),
         }
     }
 }
@@ -4783,7 +13780,10 @@ impl From<LetStmt> for Stmt {
 }
 impl std::fmt::Display for Stmt {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.syntax(), f)
+        match self {
+            Stmt::ExprStmt(it) => std::fmt::Display::fmt(it, f),
+            Stmt::LetStmt(it) => std::fmt::Display::fmt(it, f),
+        }
     }
 }
 impl AstNode for Stmt {
@@ -4793,18 +13793,52 @@ impl AstNode for Stmt {
             _ => false,
         }
     }
-    fn cast(syntax: SyntaxNode) -> Option<Self> {
-        let res = match syntax.kind() {
-            EXPR_STMT => Stmt::ExprStmt(ExprStmt { syntax }),
-            LET_STMT => Stmt::LetStmt(LetStmt { syntax }),
-            _ => return None,
-        };
-        Some(res)
+    #[allow(unreachable_patterns)]
+    fn cast_or_return(syntax: SyntaxNode) -> Result<Self, SyntaxNode> {
+        match syntax.kind() {
+            EXPR_STMT => ExprStmt::cast_or_return(syntax).map(|x| Stmt::ExprStmt(x)),
+            LET_STMT => LetStmt::cast_or_return(syntax).map(|x| Stmt::LetStmt(x)),
+            _ => Err(syntax),
+        }
     }
     fn syntax(&self) -> &SyntaxNode {
         match self {
-            Stmt::ExprStmt(it) => &it.syntax,
-            Stmt::LetStmt(it) => &it.syntax,
+            Stmt::ExprStmt(it) => it.syntax(),
+            Stmt::LetStmt(it) => it.syntax(),
+        }
+    }
+    fn into_syntax(self) -> SyntaxNode {
+        match self {
+            Stmt::ExprStmt(it) => it.into_syntax(),
+            Stmt::LetStmt(it) => it.into_syntax(),
+        }
+    }
+}
+impl AstElement for Stmt {
+    fn can_cast_element(kind: SyntaxKind) -> bool {
+        match kind {
+            EXPR_STMT | LET_STMT => true,
+            _ => false,
+        }
+    }
+    #[allow(unreachable_patterns)]
+    fn cast_or_return_element(syntax: SyntaxElement) -> Result<Self, SyntaxElement> {
+        match syntax.kind() {
+            EXPR_STMT => ExprStmt::cast_or_return_element(syntax).map(|x| Stmt::ExprStmt(x)),
+            LET_STMT => LetStmt::cast_or_return_element(syntax).map(|x| Stmt::LetStmt(x)),
+            _ => Err(syntax),
+        }
+    }
+    fn syntax_element(&self) -> NodeOrToken<&SyntaxNode, &SyntaxToken> {
+        match self {
+            Stmt::ExprStmt(it) => it.syntax_element(),
+            Stmt::LetStmt(it) => it.syntax_element(),
+        }
+    }
+    fn into_syntax_element(self) -> SyntaxElement {
+        match self {
+            Stmt::ExprStmt(it) => it.into_syntax_element(),
+            Stmt::LetStmt(it) => it.into_syntax_element(),
         }
     }
 }
