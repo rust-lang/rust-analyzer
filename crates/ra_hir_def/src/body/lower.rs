@@ -688,6 +688,7 @@ impl ExprCollector<'_> {
             ast::Pat::BoxPat(_) => Pat::Missing,
             ast::Pat::LiteralPat(_) => Pat::Missing,
             ast::Pat::RangePat(_) => Pat::Missing,
+            ast::Pat::MacroCall(_) => Pat::Missing,
         };
         let ptr = AstPtr::new(&pat);
         self.alloc_pat(pattern, Either::Left(ptr))

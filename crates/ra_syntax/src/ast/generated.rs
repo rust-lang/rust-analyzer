@@ -14853,6 +14853,7 @@ pub enum Pat {
     SlicePat(SlicePat),
     RangePat(RangePat),
     LiteralPat(LiteralPat),
+    MacroCall(MacroCall),
 }
 impl From<OrPat> for Pat {
     fn from(node: OrPat) -> Pat {
@@ -14924,6 +14925,11 @@ impl From<LiteralPat> for Pat {
         Pat::LiteralPat(node)
     }
 }
+impl From<MacroCall> for Pat {
+    fn from(node: MacroCall) -> Pat {
+        Pat::MacroCall(node)
+    }
+}
 impl std::fmt::Display for Pat {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -14941,15 +14947,16 @@ impl std::fmt::Display for Pat {
             Pat::SlicePat(it) => std::fmt::Display::fmt(it, f),
             Pat::RangePat(it) => std::fmt::Display::fmt(it, f),
             Pat::LiteralPat(it) => std::fmt::Display::fmt(it, f),
+            Pat::MacroCall(it) => std::fmt::Display::fmt(it, f),
         }
     }
 }
 impl AstNode for Pat {
     fn can_cast(kind: SyntaxKind) -> bool {
         match kind {
-            BIND_PAT | BOX_PAT | DOT_DOT_PAT | LITERAL_PAT | OR_PAT | PAREN_PAT | PATH_PAT
-            | PLACEHOLDER_PAT | RANGE_PAT | RECORD_PAT | REF_PAT | SLICE_PAT | TUPLE_PAT
-            | TUPLE_STRUCT_PAT => true,
+            BIND_PAT | BOX_PAT | DOT_DOT_PAT | LITERAL_PAT | MACRO_CALL | OR_PAT | PAREN_PAT
+            | PATH_PAT | PLACEHOLDER_PAT | RANGE_PAT | RECORD_PAT | REF_PAT | SLICE_PAT
+            | TUPLE_PAT | TUPLE_STRUCT_PAT => true,
             _ => false,
         }
     }
@@ -14974,6 +14981,7 @@ impl AstNode for Pat {
             SLICE_PAT => SlicePat::cast_or_return(syntax).map(|x| Pat::SlicePat(x)),
             RANGE_PAT => RangePat::cast_or_return(syntax).map(|x| Pat::RangePat(x)),
             LITERAL_PAT => LiteralPat::cast_or_return(syntax).map(|x| Pat::LiteralPat(x)),
+            MACRO_CALL => MacroCall::cast_or_return(syntax).map(|x| Pat::MacroCall(x)),
             _ => Err(syntax),
         }
     }
@@ -14993,6 +15001,7 @@ impl AstNode for Pat {
             Pat::SlicePat(it) => it.syntax(),
             Pat::RangePat(it) => it.syntax(),
             Pat::LiteralPat(it) => it.syntax(),
+            Pat::MacroCall(it) => it.syntax(),
         }
     }
     fn into_syntax(self) -> SyntaxNode {
@@ -15011,15 +15020,16 @@ impl AstNode for Pat {
             Pat::SlicePat(it) => it.into_syntax(),
             Pat::RangePat(it) => it.into_syntax(),
             Pat::LiteralPat(it) => it.into_syntax(),
+            Pat::MacroCall(it) => it.into_syntax(),
         }
     }
 }
 impl AstElement for Pat {
     fn can_cast_element(kind: SyntaxKind) -> bool {
         match kind {
-            BIND_PAT | BOX_PAT | DOT_DOT_PAT | LITERAL_PAT | OR_PAT | PAREN_PAT | PATH_PAT
-            | PLACEHOLDER_PAT | RANGE_PAT | RECORD_PAT | REF_PAT | SLICE_PAT | TUPLE_PAT
-            | TUPLE_STRUCT_PAT => true,
+            BIND_PAT | BOX_PAT | DOT_DOT_PAT | LITERAL_PAT | MACRO_CALL | OR_PAT | PAREN_PAT
+            | PATH_PAT | PLACEHOLDER_PAT | RANGE_PAT | RECORD_PAT | REF_PAT | SLICE_PAT
+            | TUPLE_PAT | TUPLE_STRUCT_PAT => true,
             _ => false,
         }
     }
@@ -15044,6 +15054,7 @@ impl AstElement for Pat {
             SLICE_PAT => SlicePat::cast_or_return_element(syntax).map(|x| Pat::SlicePat(x)),
             RANGE_PAT => RangePat::cast_or_return_element(syntax).map(|x| Pat::RangePat(x)),
             LITERAL_PAT => LiteralPat::cast_or_return_element(syntax).map(|x| Pat::LiteralPat(x)),
+            MACRO_CALL => MacroCall::cast_or_return_element(syntax).map(|x| Pat::MacroCall(x)),
             _ => Err(syntax),
         }
     }
@@ -15063,6 +15074,7 @@ impl AstElement for Pat {
             Pat::SlicePat(it) => it.syntax_element(),
             Pat::RangePat(it) => it.syntax_element(),
             Pat::LiteralPat(it) => it.syntax_element(),
+            Pat::MacroCall(it) => it.syntax_element(),
         }
     }
     fn into_syntax_element(self) -> SyntaxElement {
@@ -15081,6 +15093,7 @@ impl AstElement for Pat {
             Pat::SlicePat(it) => it.into_syntax_element(),
             Pat::RangePat(it) => it.into_syntax_element(),
             Pat::LiteralPat(it) => it.into_syntax_element(),
+            Pat::MacroCall(it) => it.into_syntax_element(),
         }
     }
 }
