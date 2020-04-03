@@ -12,6 +12,8 @@
 //!
 //! Tests for this crate live in `ra_syntax` crate.
 
+#![allow(elided_lifetimes_in_paths)]
+
 #[macro_use]
 mod token_set;
 #[macro_use]

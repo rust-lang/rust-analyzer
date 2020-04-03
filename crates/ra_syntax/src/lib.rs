@@ -19,6 +19,8 @@
 //! [RFC]: <https://github.com/rust-lang/rfcs/pull/2256>
 //! [Swift]: <https://github.com/apple/swift/blob/13d593df6f359d0cb2fc81cfaac273297c539455/lib/Syntax/README.md>
 
+#![allow(elided_lifetimes_in_paths)]
+
 mod syntax_node;
 mod syntax_error;
 mod parsing;
