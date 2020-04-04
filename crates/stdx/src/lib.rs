@@ -61,14 +61,17 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.prefix)?;
-        let mut first = true;
-        for item in self.iter.take().unwrap() {
-            if !first {
+
+        let mut iter = self.iter.take().expect("formattable only once");
+
+        if let Some(first_item) = iter.next() {
+            first_item.fmt(f)?;
+            for item in iter {
                 f.write_str(self.sep)?;
+                item.fmt(f)?;
             }
-            first = false;
-            fmt::Display::fmt(&item, f)?;
         }
+
         f.write_str(self.suffix)?;
         Ok(())
     }
