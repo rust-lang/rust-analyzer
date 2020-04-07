@@ -8,7 +8,7 @@ pub(super) fn opt_type_arg_list(p: &mut Parser, colon_colon_required: bool) {
         m = p.start();
         p.bump(T![::]);
         p.bump(T![<]);
-    } else if !colon_colon_required && p.at(T![<]) && p.nth(1) != T![=] {
+    } else if !colon_colon_required && p.at(T![<]) && !p.at(T![<=]) && !p.at(T![<<]) {
         m = p.start();
         p.bump(T![<]);
     } else {
