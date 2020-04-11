@@ -208,9 +208,9 @@ mod tests {
         }
     }
 
-    fn call_info(text: &str) -> CallInfo {
+    fn call_info(text: &str) -> Option<CallInfo> {
         let (analysis, position) = single_file_with_position(text);
-        analysis.call_info(position).unwrap().unwrap()
+        analysis.call_info(position).unwrap()
     }
 
     #[test]
@@ -218,7 +218,8 @@ mod tests {
         let info = call_info(
             r#"fn foo(x: u32, y: u32) -> u32 {x + y}
 fn bar() { foo(<|>3, ); }"#,
-        );
+        )
+        .unwrap();
 
         assert_eq!(info.parameters(), ["x: u32", "y: u32"]);
         assert_eq!(info.active_parameter, Some(0));
@@ -229,7 +230,8 @@ fn bar() { foo(<|>3, ); }"#,
         let info = call_info(
             r#"fn foo(x: u32, y: u32) -> u32 {x + y}
 fn bar() { foo(3, <|>); }"#,
-        );
+        )
+        .unwrap();
 
         assert_eq!(info.parameters(), ["x: u32", "y: u32"]);
         assert_eq!(info.active_parameter, Some(1));
@@ -240,7 +242,8 @@ fn bar() { foo(3, <|>); }"#,
         let info = call_info(
             r#"fn foo(x: u32, y: u32) -> u32 {x + y}
 fn bar() { foo(<|>); }"#,
-        );
+        )
+        .unwrap();
 
         assert_eq!(info.parameters(), ["x: u32", "y: u32"]);
         assert_eq!(info.active_parameter, Some(0));
@@ -251,7 +254,7 @@ fn bar() { foo(<|>); }"#,
         let info = call_info(
             r#"fn foo<T, U: Copy + Display>(x: T, y: U) -> u32 where T: Copy + Display, U: Debug {x + y}
 fn bar() { foo(<|>3, ); }"#,
-        );
+        ).unwrap();
 
         assert_eq!(info.parameters(), ["x: T", "y: U"]);
         assert_eq!(
@@ -271,7 +274,8 @@ where T: Copy + Display,
         let info = call_info(
             r#"fn foo<T>() -> T where T: Copy + Display {}
 fn bar() { foo(<|>); }"#,
-        );
+        )
+        .unwrap();
 
         assert!(info.parameters().is_empty());
         assert_eq!(
@@ -290,7 +294,8 @@ where T: Copy + Display
         let info = call_info(
             r#"struct F; impl F { pub fn new() { F{}} }
 fn bar() {let _ : F = F::new(<|>);}"#,
-        );
+        )
+        .unwrap();
 
         assert!(info.parameters().is_empty());
         assert_eq!(info.active_parameter, None);
@@ -312,7 +317,8 @@ fn bar() {
     let f : F = F::new();
     f.do_it(<|>);
 }"#,
-        );
+        )
+        .unwrap();
 
         assert_eq!(info.parameters(), ["&self"]);
         assert_eq!(info.active_parameter, None);
@@ -334,7 +340,8 @@ fn bar() {
     let f : F = F::new();
     f.do_it(<|>);
 }"#,
-        );
+        )
+        .unwrap();
 
         assert_eq!(info.parameters(), ["&self", "x: i32"]);
         assert_eq!(info.active_parameter, Some(1));
@@ -354,7 +361,8 @@ fn bar() {
     let _ = foo(<|>);
 }
 "#,
-        );
+        )
+        .unwrap();
 
         assert_eq!(info.parameters(), ["j: u32"]);
         assert_eq!(info.active_parameter, Some(0));
@@ -382,7 +390,8 @@ pub fn add_one(x: i32) -> i32 {
 pub fn do() {
     add_one(<|>
 }"#,
-        );
+        )
+        .unwrap();
 
         assert_eq!(info.parameters(), ["x: i32"]);
         assert_eq!(info.active_parameter, Some(0));
@@ -428,7 +437,8 @@ pub fn do_it() {
     addr {};
     addr::add_one(<|>);
 }"#,
-        );
+        )
+        .unwrap();
 
         assert_eq!(info.parameters(), ["x: i32"]);
         assert_eq!(info.active_parameter, Some(0));
@@ -478,7 +488,8 @@ pub fn foo(mut r: WriteHandler<()>) {
 }
 
 "#,
-        );
+        )
+        .unwrap();
 
         assert_eq!(info.label(), "fn finished(&mut self, ctx: &mut Self::Context)".to_string());
         assert_eq!(info.parameters(), ["&mut self", "ctx: &mut Self::Context"]);
@@ -520,7 +531,8 @@ fn main() {
     let foo = Foo;
     std::thread::spawn(move || foo.bar(<|>));
 }"#,
-        );
+        )
+        .unwrap();
 
         assert_eq!(info.parameters(), ["&self", "_: u32"]);
         assert_eq!(info.active_parameter, Some(1));
@@ -536,7 +548,8 @@ struct TS(u32, i32);
 fn main() {
     let s = TS(0, <|>);
 }"#,
-        );
+        )
+        .unwrap();
 
         assert_eq!(info.label(), "struct TS(u32, i32) -> TS");
         assert_eq!(info.doc().map(|it| it.into()), Some("A cool tuple struct".to_string()));
@@ -551,22 +564,24 @@ struct TS<T>(T);
 fn main() {
     let s = TS(<|>);
 }"#,
-        );
+        )
+        .unwrap();
 
         assert_eq!(info.label(), "struct TS<T>(T) -> TS");
         assert_eq!(info.active_parameter, Some(0));
     }
 
     #[test]
-    #[should_panic]
     fn cant_call_named_structs() {
-        let _ = call_info(
+        let info = call_info(
             r#"
 struct TS { x: u32, y: i32 }
 fn main() {
     let s = TS(<|>);
 }"#,
         );
+
+        assert_eq!(info.is_none(), true);
     }
 
     #[test]
@@ -586,7 +601,8 @@ fn main() {
     let a = E::A(<|>);
 }
             "#,
-        );
+        )
+        .unwrap();
 
         assert_eq!(info.label(), "E::A(0: i32)");
         assert_eq!(info.doc().map(|it| it.into()), Some("A Variant".to_string()));
@@ -594,9 +610,8 @@ fn main() {
     }
 
     #[test]
-    #[should_panic]
     fn cant_call_enum_records() {
-        let _ = call_info(
+        let info = call_info(
             r#"
 enum E {
     /// A Variant
@@ -612,6 +627,8 @@ fn main() {
 }
             "#,
         );
+
+        assert_eq!(info.is_none(), true);
     }
 
     #[test]
@@ -627,7 +644,8 @@ fn f() {
     foo!(<|>);
 }
         "#,
-        );
+        )
+        .unwrap();
 
         assert_eq!(info.label(), "foo!()");
         assert_eq!(info.doc().map(|it| it.into()), Some("empty macro".to_string()));
@@ -649,7 +667,8 @@ fn f() {
                 }
             }
             "#,
-        );
+        )
+        .unwrap();
 
         assert_eq!(info.label(), "fn foo()");
     }
