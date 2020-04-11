@@ -4,8 +4,14 @@ import * as lc from 'vscode-languageclient';
 import { Config } from './config';
 import { createClient } from './client';
 import { isRustEditor, RustEditor } from './util';
+import { DocumentSemanticsTokensSignature } from 'vscode-languageclient/lib/semanticTokens.proposed';
 
 export class Ctx {
+    private readonly onDidSendConfigurationResponseEmitter = new vscode.EventEmitter<undefined>();
+    get onDidSendConfigurationResponse(): vscode.Event<undefined> {
+        return this.onDidSendConfigurationResponseEmitter.event;
+    }
+
     private constructor(
         readonly config: Config,
         private readonly extCtx: vscode.ExtensionContext,
@@ -21,11 +27,26 @@ export class Ctx {
         serverPath: string,
         cwd: string,
     ): Promise<Ctx> {
-        const client = await createClient(serverPath, cwd);
-        const res = new Ctx(config, extCtx, client, serverPath);
-        res.pushCleanup(client.start());
+        const client = createClient(serverPath, cwd, {
+            // Workaround for https://github.com/microsoft/vscode-languageserver-node/issues/576
+            ["provideDocumentSemanticTokens" as any]: async (document: vscode.TextDocument, token: vscode.CancellationToken, next: DocumentSemanticsTokensSignature) => {
+                const res = await next(document, token);
+                if (res === undefined) throw new Error('busy');
+                return res;
+            },
+            // Workaround for https://github.com/rust-analyzer/rust-analyzer/issues/3924
+            workspace: {
+                async configuration(params, token, next) {
+                    const res = await next(params, token);
+                    ctx.onDidSendConfigurationResponseEmitter.fire();
+                    return res;
+                }
+            }
+        });
+        const ctx = new Ctx(config, extCtx, client, serverPath);
+        ctx.pushCleanup(client.start());
         await client.onReady();
-        return res;
+        return ctx;
     }
 
     get activeRustEditor(): RustEditor | undefined {

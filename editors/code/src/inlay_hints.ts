@@ -31,7 +31,7 @@ export function activateInlayHints(ctx: Ctx) {
 
     ctx.pushCleanup(maybeUpdater);
 
-    vscode.workspace.onDidChangeConfiguration(
+    ctx.onDidSendConfigurationResponse(
         maybeUpdater.onConfigChange, maybeUpdater, ctx.subscriptions
     );
 

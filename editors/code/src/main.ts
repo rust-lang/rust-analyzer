@@ -99,7 +99,7 @@ export async function activate(context: vscode.ExtensionContext) {
     activateInlayHints(ctx);
 
     vscode.workspace.onDidChangeConfiguration(
-        _ => ctx?.client?.sendNotification('workspace/didChangeConfiguration', { settings: "" }),
+        _ => ctx?.client.sendNotification('workspace/didChangeConfiguration', { settings: "" }),
         null,
         ctx.subscriptions,
     );
