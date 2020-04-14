@@ -15,9 +15,40 @@ import { spawnSync } from 'child_process';
 import { activateTaskProvider } from './tasks';
 
 let ctx: Ctx | undefined;
+const ctxes: Map<string, Ctx> = new Map();
 
 export async function activate(context: vscode.ExtensionContext) {
     // Register a "dumb" onEnter command for the case where server fails to
+
+async function whenOpeningTextDocument(doc: vscode.TextDocument, context: vscode.ExtensionContext) {
+    if (!isRustDocument(doc)) {
+        return;
+    }
+
+    let workspaceRoot = vscode.workspace.getWorkspaceFolder(doc.uri);
+    if (!workspaceRoot) {
+        return;
+    }
+
+    let cargoRoot = await nearestParentWithCargoToml(workspaceRoot.uri, doc.uri);
+    if (cargoRoot == null) {
+        vscode.window.showWarningMessage("Cargo.toml could not be located");
+        return;
+    }
+
+
+    if (ctxes.has(cargoRoot.path)) {
+        ctx = ctxes.get(cargoRoot.path);
+        return;
+    } else {
+        const workspaceOnCargoRoot = createWorkspaceWithNewLocation(workspaceRoot, cargoRoot);
+        const newCtx = await activate_new(workspaceOnCargoRoot, context);
+        ctxes.set(cargoRoot.path, newCtx);
+        ctx = newCtx;
+    }
+
+}
+
     // start.
     //
     // FIXME: refactor command registration code such that commands are
