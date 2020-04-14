@@ -1,29 +1,16 @@
 import * as vscode from 'vscode';
 
-import { WorkDoneProgress, WorkDoneProgressBegin, WorkDoneProgressReport, WorkDoneProgressEnd, Disposable } from 'vscode-languageclient';
-
-import { Ctx } from './ctx';
+import { WorkDoneProgressBegin, WorkDoneProgressReport, WorkDoneProgressEnd, Disposable } from 'vscode-languageclient';
 
 const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
-export function activateStatusDisplay(ctx: Ctx) {
-    const statusDisplay = new StatusDisplay(ctx.config.checkOnSave.command);
-    ctx.pushCleanup(statusDisplay);
-    const client = ctx.client;
-    if (client != null) {
-        ctx.pushCleanup(client.onProgress(
-            WorkDoneProgress.type,
-            'rustAnalyzer/cargoWatcher',
-            params => statusDisplay.handleProgressNotification(params)
-        ));
-    }
-}
 
-class StatusDisplay implements Disposable {
+
+export class StatusDisplay implements Disposable {
     packageName?: string;
 
     private i: number = 0;
-    private statusBarItem: vscode.StatusBarItem;
+    public statusBarItem: vscode.StatusBarItem;
     private command: string;
     private timer?: NodeJS.Timeout;
 
@@ -33,7 +20,7 @@ class StatusDisplay implements Disposable {
             10,
         );
         this.command = command;
-        this.statusBarItem.hide();
+        this.statusBarItem.show();
     }
 
     show() {

@@ -5,10 +5,9 @@ import { promises as fs } from "fs";
 
 import * as commands from './commands';
 import { activateInlayHints } from './inlay_hints';
-import { activateStatusDisplay } from './status_display';
-import { Ctx } from './ctx';
+import { Ctx,Cmd } from './ctx';
 import { Config, NIGHTLY_TAG } from './config';
-import { log, assert } from './util';
+import { log, assert, isRustDocument, nearestParentWithCargoToml, createWorkspaceWithNewLocation } from './util';
 import { PersistentState } from './persistent_state';
 import { fetchRelease, download } from './net';
 import { spawnSync } from 'child_process';
@@ -51,6 +50,7 @@ async function whenOpeningTextDocument(doc: vscode.TextDocument, context: vscode
         return;
     }
 
+    ctx?.hide();
 
     if (ctxes.has(cargoRoot.path)) {
         ctx = ctxes.get(cargoRoot.path);
@@ -61,6 +61,7 @@ async function whenOpeningTextDocument(doc: vscode.TextDocument, context: vscode
         ctxes.set(cargoRoot.path, newCtx);
         ctx = newCtx;
     }
+    ctx?.show();
 
 }
 
