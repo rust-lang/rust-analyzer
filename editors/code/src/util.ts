@@ -92,45 +92,45 @@ export function createWorkspaceWithNewLocation(workspace: vscode.WorkspaceFolder
         ...workspace,
         name: path.basename(newLoc.fsPath),
         uri: newLoc,
-      };
+    };
 }
 
 // searches up the folder structure until it finds a Cargo.toml
 export async function nearestParentWithCargoToml(
     workspaceRootUri: vscode.Uri,
     fileLoc: vscode.Uri,
-  ): Promise<vscode.Uri | null> {
-    const file_exists: (path: fs.PathLike) => Promise<boolean> = util.promisify(fs.exists);
+): Promise<vscode.Uri | null> {
+    const fileExists: (path: fs.PathLike) => Promise<boolean> = util.promisify(fs.exists);
     // check that the workspace folder already contains the "Cargo.toml"
     const workspaceRoot = workspaceRootUri.fsPath;
     const rootManifest = path.join(workspaceRoot, 'Cargo.toml');
-    if (await file_exists(rootManifest)) {
-      return workspaceRootUri;
+    if (await fileExists(rootManifest)) {
+        return workspaceRootUri;
     }
 
     // algorithm that will strip one folder at a time and check if that folder contains "Cargo.toml"
     let current = fileLoc.fsPath;
     while (true) {
-      const old = current;
-      current = path.dirname(current);
+        const old = current;
+        current = path.dirname(current);
 
-      // break in case there is a bug that could result in a busy loop
-      if (old === current) {
-        break;
-      }
+        // break in case there is a bug that could result in a busy loop
+        if (old === current) {
+            break;
+        }
 
-      // break in case the strip folder reached the workspace root
-      if (workspaceRoot === current) {
-        break;
-      }
+        // break in case the strip folder reached the workspace root
+        if (workspaceRoot === current) {
+            break;
+        }
 
-      // check if "Cargo.toml" is present in the parent folder
-      const cargoPath = path.join(current, 'Cargo.toml');
-      if (await file_exists(cargoPath)) {
-        // ghetto change the uri on Workspace folder to make vscode think it's located elsewhere
-        return vscode.Uri.file(current);
-      }
+        // check if "Cargo.toml" is present in the parent folder
+        const cargoPath = path.join(current, 'Cargo.toml');
+        if (await fileExists(cargoPath)) {
+            // ghetto change the uri on Workspace folder to make vscode think it's located elsewhere
+            return vscode.Uri.file(current);
+        }
     }
 
     return null;
-  }
+}

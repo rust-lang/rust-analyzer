@@ -5,7 +5,7 @@ import { promises as fs } from "fs";
 
 import * as commands from './commands';
 import { activateInlayHints } from './inlay_hints';
-import { Ctx,Cmd } from './ctx';
+import { Ctx, Cmd } from './ctx';
 import { Config, NIGHTLY_TAG } from './config';
 import { log, assert, isRustDocument, nearestParentWithCargoToml, createWorkspaceWithNewLocation } from './util';
 import { PersistentState } from './persistent_state';
@@ -17,12 +17,12 @@ let ctx: Ctx | undefined;
 const ctxes: Map<string, Ctx> = new Map();
 
 
-function registerCtxCommand(name: string, factory: (ctx: Ctx) =>  Cmd, fallback: Cmd | undefined, context: vscode.ExtensionContext) {
+function registerCtxCommand(name: string, factory: (ctx: Ctx) => Cmd, fallback: Cmd | undefined, context: vscode.ExtensionContext) {
     const fullName = `rust-analyzer.${name}`;
 
-    async function wrapped_cmd(...args: any[]): Promise<unknown> {
+    async function wrappedCmd(...args: any[]): Promise<unknown> {
         if (ctx) {
-            let cmd = factory(ctx);
+            const cmd = factory(ctx);
             return await cmd(args);
         } else if (fallback) {
             return await fallback(args);
@@ -30,7 +30,7 @@ function registerCtxCommand(name: string, factory: (ctx: Ctx) =>  Cmd, fallback:
         return;
     }
 
-    const d = vscode.commands.registerCommand(fullName, wrapped_cmd);
+    const d = vscode.commands.registerCommand(fullName, wrappedCmd);
     context.subscriptions.push(d);
 }
 
@@ -39,12 +39,12 @@ async function whenOpeningTextDocument(doc: vscode.TextDocument, context: vscode
         return;
     }
 
-    let workspaceRoot = vscode.workspace.getWorkspaceFolder(doc.uri);
+    const workspaceRoot = vscode.workspace.getWorkspaceFolder(doc.uri);
     if (!workspaceRoot) {
         return;
     }
 
-    let cargoRoot = await nearestParentWithCargoToml(workspaceRoot.uri, doc.uri);
+    const cargoRoot = await nearestParentWithCargoToml(workspaceRoot.uri, doc.uri);
     if (cargoRoot == null) {
         vscode.window.showWarningMessage("Cargo.toml could not be located");
         return;
@@ -57,7 +57,7 @@ async function whenOpeningTextDocument(doc: vscode.TextDocument, context: vscode
         return;
     } else {
         const workspaceOnCargoRoot = createWorkspaceWithNewLocation(workspaceRoot, cargoRoot);
-        const newCtx = await activate_new(workspaceOnCargoRoot, context);
+        const newCtx = await activateNew(workspaceOnCargoRoot, context);
         ctxes.set(cargoRoot.path, newCtx);
         ctx = newCtx;
     }
@@ -65,8 +65,8 @@ async function whenOpeningTextDocument(doc: vscode.TextDocument, context: vscode
 
 }
 
-async function activate_new(workspaceFolder: vscode.WorkspaceFolder, context: vscode.ExtensionContext): Promise<Ctx> {
-// Register a "dumb" onEnter command for the case where server fails to
+async function activateNew(workspaceFolder: vscode.WorkspaceFolder, context: vscode.ExtensionContext): Promise<Ctx> {
+    // Register a "dumb" onEnter command for the case where server fails to
     // start.
     //
     // FIXME: refactor command registration code such that commands are
@@ -86,7 +86,7 @@ async function activate_new(workspaceFolder: vscode.WorkspaceFolder, context: vs
     const serverPath = await bootstrap(config, state);
 
 
-    let ctx = await Ctx.create(config, context, serverPath, workspaceFolder);
+    const ctx = await Ctx.create(config, context, serverPath, workspaceFolder);
 
     context.subscriptions.push(activateTaskProvider(workspaceFolder));
 
@@ -142,7 +142,7 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.workspace.textDocuments.forEach(doc => whenOpeningTextDocument(doc, context));
 
     function changeConfig() {
-        for (let ctx of ctxes.values()) {
+        for (const ctx of ctxes.values()) {
             ctx.client?.sendNotification('workspace/didChangeConfiguration', { settings: "" });
         }
     }
@@ -156,7 +156,7 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export async function deactivate() {
-    for (let ctx of ctxes.values()) {
+    for (const ctx of ctxes.values()) {
         await ctx.dispose();
     }
     ctxes.clear();

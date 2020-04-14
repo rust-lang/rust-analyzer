@@ -12,7 +12,7 @@ export async function createClient(serverPath: string, cwd: vscode.WorkspaceFold
     const run: lc.Executable = {
         command: serverPath,
         args: ["--use-cwd"],
-        options: { cwd: cwd.uri.fsPath  },
+        options: { cwd: cwd.uri.fsPath },
     };
     const serverOptions: lc.ServerOptions = {
         run,

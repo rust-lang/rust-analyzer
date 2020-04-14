@@ -69,7 +69,7 @@ export class Ctx {
     }
 
     dispose() {
-        for (let d of this.subscriptions) {
+        for (const d of this.subscriptions) {
             d.dispose();
         }
     }
