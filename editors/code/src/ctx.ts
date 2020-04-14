@@ -11,6 +11,7 @@ export class Ctx {
         private readonly extCtx: vscode.ExtensionContext,
         readonly client: lc.LanguageClient,
         readonly serverPath: string,
+        readonly subscriptions: Disposable[],
     ) {
 
     }
@@ -22,7 +23,7 @@ export class Ctx {
         cwd: string,
     ): Promise<Ctx> {
         const client = await createClient(serverPath, cwd);
-        const res = new Ctx(config, extCtx, client, serverPath);
+        const res = new Ctx(config, extCtx, client, serverPath, []);
         res.pushCleanup(client.start());
         await client.onReady();
         return res;
@@ -39,23 +40,19 @@ export class Ctx {
         return vscode.window.visibleTextEditors.filter(isRustEditor);
     }
 
-    registerCommand(name: string, factory: (ctx: Ctx) => Cmd) {
-        const fullName = `rust-analyzer.${name}`;
-        const cmd = factory(this);
-        const d = vscode.commands.registerCommand(fullName, cmd);
-        this.pushCleanup(d);
-    }
 
     get globalState(): vscode.Memento {
         return this.extCtx.globalState;
     }
 
-    get subscriptions(): Disposable[] {
-        return this.extCtx.subscriptions;
+    dispose() {
+        for (let d of this.subscriptions) {
+            d.dispose();
+        }
     }
 
     pushCleanup(d: Disposable) {
-        this.extCtx.subscriptions.push(d);
+        this.subscriptions.push(d);
     }
 }
 

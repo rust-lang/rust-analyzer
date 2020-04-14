@@ -17,6 +17,23 @@ import { activateTaskProvider } from './tasks';
 let ctx: Ctx | undefined;
 const ctxes: Map<string, Ctx> = new Map();
 
+
+function registerCtxCommand(name: string, factory: (ctx: Ctx) =>  Cmd, fallback: Cmd | undefined, context: vscode.ExtensionContext) {
+    const fullName = `rust-analyzer.${name}`;
+
+    async function wrapped_cmd(...args: any[]): Promise<unknown> {
+        if (ctx) {
+            let cmd = factory(ctx);
+            return await cmd(args);
+        } else if (fallback) {
+            return await fallback(args);
+        }
+        return;
+    }
+
+    const d = vscode.commands.registerCommand(fullName, wrapped_cmd);
+    context.subscriptions.push(d);
+}
 export async function activate(context: vscode.ExtensionContext) {
     // Register a "dumb" onEnter command for the case where server fails to
 
