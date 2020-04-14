@@ -42,7 +42,7 @@ function getStandardCargoTasks(target: vscode.WorkspaceFolder): vscode.Task[] {
                 `cargo ${command}`,
                 'rust',
                 // What to do when this command is executed.
-                new vscode.ShellExecution('cargo', [command]),
+                new vscode.ShellExecution('cargo', [command], { cwd: target.uri.fsPath } ),
                 // Problem matchers.
                 ['$rustc'],
             );
