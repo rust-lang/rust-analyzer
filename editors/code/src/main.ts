@@ -155,7 +155,10 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export async function deactivate() {
-    await ctx?.client.stop();
+    for (let ctx of ctxes.values()) {
+        await ctx.dispose();
+    }
+    ctxes.clear();
     ctx = undefined;
 }
 
