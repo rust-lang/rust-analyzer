@@ -64,6 +64,8 @@ async function whenOpeningTextDocument(doc: vscode.TextDocument, context: vscode
 
 }
 
+async function activate_new(workspaceFolder: vscode.WorkspaceFolder, context: vscode.ExtensionContext): Promise<Ctx> {
+// Register a "dumb" onEnter command for the case where server fails to
     // start.
     //
     // FIXME: refactor command registration code such that commands are
@@ -83,7 +85,15 @@ async function whenOpeningTextDocument(doc: vscode.TextDocument, context: vscode
     const serverPath = await bootstrap(config, state);
 
 
+    let ctx = await Ctx.create(config, context, serverPath, workspaceFolder);
 
+    context.subscriptions.push(activateTaskProvider(workspaceFolder));
+
+
+    activateInlayHints(ctx);
+
+    return ctx;
+}
 
 export async function activate(context: vscode.ExtensionContext) {
 
