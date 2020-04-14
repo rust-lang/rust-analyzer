@@ -4,14 +4,15 @@ import * as vscode from 'vscode';
 import { CallHierarchyFeature } from 'vscode-languageclient/lib/callHierarchy.proposed';
 import { SemanticTokensFeature, DocumentSemanticsTokensSignature } from 'vscode-languageclient/lib/semanticTokens.proposed';
 
-export async function createClient(serverPath: string, cwd: string): Promise<lc.LanguageClient> {
+export async function createClient(serverPath: string, cwd: vscode.WorkspaceFolder): Promise<lc.LanguageClient> {
     // '.' Is the fallback if no folder is open
     // TODO?: Workspace folders support Uri's (eg: file://test.txt).
     // It might be a good idea to test if the uri points to a file.
 
     const run: lc.Executable = {
         command: serverPath,
-        options: { cwd },
+        args: ["--use-cwd"],
+        options: { cwd: cwd.uri.fsPath  },
     };
     const serverOptions: lc.ServerOptions = {
         run,
@@ -22,7 +23,7 @@ export async function createClient(serverPath: string, cwd: string): Promise<lc.
     );
 
     const clientOptions: lc.LanguageClientOptions = {
-        documentSelector: [{ scheme: 'file', language: 'rust' }],
+        documentSelector: [{ scheme: 'file', language: 'rust', pattern: `**${cwd.uri.path}/**` }],
         initializationOptions: vscode.workspace.getConfiguration("rust-analyzer"),
         traceOutputChannel,
         middleware: {
@@ -32,7 +33,7 @@ export async function createClient(serverPath: string, cwd: string): Promise<lc.
                 if (res === undefined) throw new Error('busy');
                 return res;
             }
-        } as any
+        } as any,
     };
 
     const res = new lc.LanguageClient(
