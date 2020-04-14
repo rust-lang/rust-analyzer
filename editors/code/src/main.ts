@@ -34,8 +34,6 @@ function registerCtxCommand(name: string, factory: (ctx: Ctx) =>  Cmd, fallback:
     const d = vscode.commands.registerCommand(fullName, wrapped_cmd);
     context.subscriptions.push(d);
 }
-export async function activate(context: vscode.ExtensionContext) {
-    // Register a "dumb" onEnter command for the case where server fails to
 
 async function whenOpeningTextDocument(doc: vscode.TextDocument, context: vscode.ExtensionContext) {
     if (!isRustDocument(doc)) {
@@ -79,33 +77,43 @@ async function whenOpeningTextDocument(doc: vscode.TextDocument, context: vscode
     //        "rust-analyzer is not available"
     //    ),
     // )
-    const defaultOnEnter = vscode.commands.registerCommand(
-        'rust-analyzer.onEnter',
-        () => vscode.commands.executeCommand('default:type', { text: '\n' }),
-    );
-    context.subscriptions.push(defaultOnEnter);
 
     const config = new Config(context);
     const state = new PersistentState(context.globalState);
     const serverPath = await bootstrap(config, state);
 
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    if (workspaceFolder === undefined) {
-        const err = "Cannot activate rust-analyzer when no folder is opened";
-        void vscode.window.showErrorMessage(err);
-        throw new Error(err);
-    }
 
-    // Note: we try to start the server before we activate type hints so that it
-    // registers its `onDidChangeDocument` handler before us.
-    //
-    // This a horribly, horribly wrong way to deal with this problem.
-    ctx = await Ctx.create(config, context, serverPath, workspaceFolder.uri.fsPath);
 
-    // Commands which invokes manually via command palette, shortcut, etc.
 
-    // Reloading is inspired by @DanTup maneuver: https://github.com/microsoft/vscode/issues/45774#issuecomment-373423895
-    ctx.registerCommand('reload', _ => async () => {
+export async function activate(context: vscode.ExtensionContext) {
+
+    // context.subscriptions.push(defaultOnEnter);
+
+    // Commands which invokes manually via command palette, shortcut, etc., they will attempt to find the use the RA for the specific document's project
+    const register = (name: string, command: (ctx: Ctx) => Cmd) => registerCtxCommand(name, command, undefined, context);
+    const registerWithFallBack = (name: string, command: (ctx: Ctx) => Cmd, fallback: Cmd) => registerCtxCommand(name, command, fallback, context);
+    register('analyzerStatus', commands.analyzerStatus);
+    register('collectGarbage', commands.collectGarbage);
+    register('matchingBrace', commands.matchingBrace);
+    register('joinLines', commands.joinLines);
+    register('parentModule', commands.parentModule);
+    register('syntaxTree', commands.syntaxTree);
+    register('expandMacro', commands.expandMacro);
+    register('run', commands.run);
+
+    registerWithFallBack('onEnter', commands.onEnter, () => vscode.commands.executeCommand('default:type', { text: '\n' }));
+
+    register('ssr', commands.ssr);
+    register('serverVersion', commands.serverVersion);
+
+    // Internal commands which are invoked by the server.
+    register('runSingle', commands.runSingle);
+    register('debugSingle', commands.debugSingle);
+    register('showReferences', commands.showReferences);
+    register('applySourceChange', commands.applySourceChange);
+    register('selectAndApplySourceChange', commands.selectAndApplySourceChange);
+
+    register('reload', _ => async () => {
         void vscode.window.showInformationMessage('Reloading rust-analyzer...');
         await deactivate();
         while (context.subscriptions.length > 0) {
@@ -117,40 +125,23 @@ async function whenOpeningTextDocument(doc: vscode.TextDocument, context: vscode
         }
         await activate(context).catch(log.error);
     });
+    // Reloading is inspired by @DanTup maneuver: https://github.com/microsoft/vscode/issues/45774#issuecomment-373423895
 
-    ctx.registerCommand('analyzerStatus', commands.analyzerStatus);
-    ctx.registerCommand('collectGarbage', commands.collectGarbage);
-    ctx.registerCommand('matchingBrace', commands.matchingBrace);
-    ctx.registerCommand('joinLines', commands.joinLines);
-    ctx.registerCommand('parentModule', commands.parentModule);
-    ctx.registerCommand('syntaxTree', commands.syntaxTree);
-    ctx.registerCommand('expandMacro', commands.expandMacro);
-    ctx.registerCommand('run', commands.run);
+    vscode.workspace.onDidOpenTextDocument(doc => whenOpeningTextDocument(doc, context), null, context.subscriptions);
+    vscode.workspace.textDocuments.forEach(doc => whenOpeningTextDocument(doc, context));
 
-    defaultOnEnter.dispose();
-    ctx.registerCommand('onEnter', commands.onEnter);
-
-    ctx.registerCommand('ssr', commands.ssr);
-    ctx.registerCommand('serverVersion', commands.serverVersion);
-
-    // Internal commands which are invoked by the server.
-    ctx.registerCommand('runSingle', commands.runSingle);
-    ctx.registerCommand('debugSingle', commands.debugSingle);
-    ctx.registerCommand('showReferences', commands.showReferences);
-    ctx.registerCommand('applySourceChange', commands.applySourceChange);
-    ctx.registerCommand('selectAndApplySourceChange', commands.selectAndApplySourceChange);
-
-    ctx.pushCleanup(activateTaskProvider(workspaceFolder));
-
-    activateStatusDisplay(ctx);
-
-    activateInlayHints(ctx);
+    function changeConfig() {
+        for (let ctx of ctxes.values()) {
+            ctx.client?.sendNotification('workspace/didChangeConfiguration', { settings: "" });
+        }
+    }
 
     vscode.workspace.onDidChangeConfiguration(
-        _ => ctx?.client?.sendNotification('workspace/didChangeConfiguration', { settings: "" }),
+        _ => changeConfig,
         null,
-        ctx.subscriptions,
+        context.subscriptions,
     );
+
 }
 
 export async function deactivate() {
