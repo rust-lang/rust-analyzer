@@ -11,6 +11,7 @@ use std::{fmt::Write, path::PathBuf};
 
 pub(crate) struct Args {
     pub(crate) verbosity: Verbosity,
+    pub(crate) use_cwd: bool,
     pub(crate) command: Command,
 }
 
@@ -43,9 +44,15 @@ impl Args {
     pub(crate) fn parse() -> Result<Result<Args, HelpPrinted>> {
         let mut matches = Arguments::from_env();
 
+        let use_cwd = matches.contains("--use-cwd");
+
         if matches.contains("--version") {
             matches.finish().or_else(handle_extra_flags)?;
-            return Ok(Ok(Args { verbosity: Verbosity::Normal, command: Command::Version }));
+            return Ok(Ok(Args {
+                verbosity: Verbosity::Normal,
+                use_cwd,
+                command: Command::Version,
+            }));
         }
 
         let verbosity = match (
@@ -65,7 +72,7 @@ impl Args {
             Some(it) => it,
             None => {
                 matches.finish().or_else(handle_extra_flags)?;
-                return Ok(Ok(Args { verbosity, command: Command::RunServer }));
+                return Ok(Ok(Args { verbosity, use_cwd, command: Command::RunServer }));
             }
         };
         let command = match subcommand.as_str() {
@@ -230,7 +237,7 @@ SUBCOMMANDS:
                 return Ok(Err(HelpPrinted));
             }
         };
-        Ok(Ok(Args { verbosity, command }))
+        Ok(Ok(Args { verbosity, use_cwd, command }))
     }
 }
 

@@ -39,7 +39,7 @@ fn main() -> Result<()> {
             cli::analysis_bench(args.verbosity, path.as_ref(), what, load_output_dirs)?
         }
 
-        args::Command::RunServer => run_server()?,
+        args::Command::RunServer => run_server(args.use_cwd)?,
         args::Command::Version => println!("rust-analyzer {}", env!("REV")),
     }
     Ok(())
@@ -52,7 +52,7 @@ fn setup_logging() -> Result<()> {
     Ok(())
 }
 
-fn run_server() -> Result<()> {
+fn run_server(use_cwd: bool) -> Result<()> {
     log::info!("lifecycle: server started");
 
     let (connection, io_threads) = Connection::stdio();
@@ -67,15 +67,28 @@ fn run_server() -> Result<()> {
     }
 
     let cwd = std::env::current_dir()?;
-    let root = initialize_params.root_uri.and_then(|it| it.to_file_path().ok()).unwrap_or(cwd);
+    let root = if use_cwd {
+        cwd
+    } else {
+        initialize_params.root_uri.and_then(|it| it.to_file_path().ok()).unwrap_or(cwd)
+    };
 
-    let workspace_roots = initialize_params
-        .workspace_folders
-        .map(|workspaces| {
-            workspaces.into_iter().filter_map(|it| it.uri.to_file_path().ok()).collect::<Vec<_>>()
-        })
-        .filter(|workspaces| !workspaces.is_empty())
-        .unwrap_or_else(|| vec![root]);
+    log::info!("lifecycle: server started");
+
+    let workspace_roots = if use_cwd {
+        vec![root]
+    } else {
+        initialize_params
+            .workspace_folders
+            .map(|workspaces| {
+                workspaces
+                    .into_iter()
+                    .filter_map(|it| it.uri.to_file_path().ok())
+                    .collect::<Vec<_>>()
+            })
+            .filter(|workspaces| !workspaces.is_empty())
+            .unwrap_or_else(|| vec![root])
+    };
 
     let config = {
         let mut config = Config::default();
