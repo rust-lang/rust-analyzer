@@ -12,6 +12,7 @@ use std::{fmt::Write, path::PathBuf};
 pub(crate) struct Args {
     pub(crate) verbosity: Verbosity,
     pub(crate) command: Command,
+    pub(crate) roots: Option<Vec<String>>,
 }
 
 pub(crate) enum Command {
@@ -47,12 +48,25 @@ pub(crate) enum Command {
 }
 
 impl Args {
+    fn get_roots(mut matches: Arguments) -> Result<Option<Vec<String>>> {
+        if matches.contains("--roots") {
+            Ok(Some(matches.free()?))
+        } else {
+            matches.finish().or_else(handle_extra_flags)?;
+            Ok(None)
+        }
+    }
+
     pub(crate) fn parse() -> Result<Result<Args, HelpPrinted>> {
         let mut matches = Arguments::from_env();
 
         if matches.contains("--version") {
             matches.finish().or_else(handle_extra_flags)?;
-            return Ok(Ok(Args { verbosity: Verbosity::Normal, command: Command::Version }));
+            return Ok(Ok(Args {
+                verbosity: Verbosity::Normal,
+                command: Command::Version,
+                roots: None,
+            }));
         }
 
         let verbosity = match (
@@ -71,8 +85,11 @@ impl Args {
         let subcommand = match matches.subcommand()? {
             Some(it) => it,
             None => {
-                matches.finish().or_else(handle_extra_flags)?;
-                return Ok(Ok(Args { verbosity, command: Command::RunServer }));
+                return Ok(Ok(Args {
+                    verbosity,
+                    command: Command::RunServer,
+                    roots: Self::get_roots(matches)?,
+                }));
             }
         };
         let command = match subcommand.as_str() {
@@ -269,7 +286,7 @@ SUBCOMMANDS:
                 return Ok(Err(HelpPrinted));
             }
         };
-        Ok(Ok(Args { verbosity, command }))
+        Ok(Ok(Args { verbosity, command, roots: None }))
     }
 }
 

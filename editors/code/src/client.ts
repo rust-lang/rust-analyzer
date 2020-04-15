@@ -11,6 +11,7 @@ export async function createClient(serverPath: string, cwd: string): Promise<lc.
 
     const run: lc.Executable = {
         command: serverPath,
+        args: ["--roots"].concat(projectFolders),
         options: { cwd },
     };
     const serverOptions: lc.ServerOptions = {
