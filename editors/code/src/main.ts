@@ -8,15 +8,53 @@ import { activateInlayHints } from './inlay_hints';
 import { activateStatusDisplay } from './status_display';
 import { Ctx } from './ctx';
 import { Config, NIGHTLY_TAG } from './config';
-import { log, assert } from './util';
+import { log, assert, nearestParentWithCargoToml, createWorkspaceWithNewLocation } from './util';
 import { PersistentState } from './persistent_state';
 import { fetchRelease, download } from './net';
 import { spawnSync } from 'child_process';
 import { activateTaskProvider } from './tasks';
 
 let ctx: Ctx | undefined;
+let foundProjects: Set<string> = new Set();
+let config: Config | undefined = undefined;
+
+async function locate_rust_projects(root: vscode.Uri) {
+    let cargoRoots = await Promise.all(vscode.workspace.textDocuments.map((doc) => nearestParentWithCargoToml(root, doc.uri)));
+    for (const cargoRoot of cargoRoots) {
+        if (cargoRoot != null) {
+            foundProjects.add(cargoRoot.fsPath);
+        }
+    }
+}
 
 export async function activate(context: vscode.ExtensionContext) {
+
+    config = new Config(context);
+
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (workspaceFolder !== undefined) {
+        await locate_rust_projects(workspaceFolder.uri)
+    }
+
+    vscode.workspace.onDidOpenTextDocument(async (doc) => {
+        const wf = vscode.workspace.getWorkspaceFolder(doc.uri);
+        if (wf) {
+            const cargoRoot = await nearestParentWithCargoToml(wf.uri, doc.uri);
+            if (cargoRoot != null) {
+                const isMissing = !foundProjects.has(cargoRoot.fsPath);
+
+                foundProjects.add(cargoRoot.fsPath);
+                if (isMissing) {
+                        vscode.window.showInformationMessage(
+                            `Found a new project at ${cargoRoot.fsPath}.` +
+                            " Manually run: \"Rust Analyzer: Restart server\"" +
+                            " or set rust-analyzer.server.autoRestartOnNew=true"
+                        );
+                }
+            }
+        }
+    });
+
     // Register a "dumb" onEnter command for the case where server fails to
     // start.
     //
@@ -37,7 +75,8 @@ export async function activate(context: vscode.ExtensionContext) {
     );
     context.subscriptions.push(defaultOnEnter);
 
-    const config = new Config(context);
+    config = new Config(context);
+
     const state = new PersistentState(context.globalState);
     const serverPath = await bootstrap(config, state);
 
@@ -52,8 +91,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // registers its `onDidChangeDocument` handler before us.
     //
     // This a horribly, horribly wrong way to deal with this problem.
-    ctx = await Ctx.create(config, context, serverPath, workspaceFolder.uri.fsPath);
-
+    ctx = await Ctx.create(config, context, serverPath, workspaceFolder.uri.fsPath, Array.from(foundProjects));
     // Commands which invokes manually via command palette, shortcut, etc.
 
     // Reloading is inspired by @DanTup maneuver: https://github.com/microsoft/vscode/issues/45774#issuecomment-373423895

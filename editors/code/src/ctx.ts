@@ -20,8 +20,9 @@ export class Ctx {
         extCtx: vscode.ExtensionContext,
         serverPath: string,
         cwd: string,
+        projectFolders: string[],
     ): Promise<Ctx> {
-        const client = await createClient(serverPath, cwd);
+        const client = await createClient(serverPath, cwd, projectFolders);
         const res = new Ctx(config, extCtx, client, serverPath);
         res.pushCleanup(client.start());
         await client.onReady();
