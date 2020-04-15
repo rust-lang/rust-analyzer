@@ -15,11 +15,11 @@ import { spawnSync } from 'child_process';
 import { activateTaskProvider } from './tasks';
 
 let ctx: Ctx | undefined;
-let foundProjects: Set<string> = new Set();
+const foundProjects: Set<string> = new Set();
 let config: Config | undefined = undefined;
 
-async function locate_rust_projects(root: vscode.Uri) {
-    let cargoRoots = await Promise.all(vscode.workspace.textDocuments.map((doc) => nearestParentWithCargoToml(root, doc.uri)));
+async function locateRustProjects(root: vscode.Uri) {
+    const cargoRoots = await Promise.all(vscode.workspace.textDocuments.map((doc) => nearestParentWithCargoToml(root, doc.uri)));
     for (const cargoRoot of cargoRoots) {
         if (cargoRoot != null) {
             foundProjects.add(cargoRoot.fsPath);
@@ -33,7 +33,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (workspaceFolder !== undefined) {
-        await locate_rust_projects(workspaceFolder.uri)
+        await locateRustProjects(workspaceFolder.uri);
     }
 
     vscode.workspace.onDidOpenTextDocument(async (doc) => {
