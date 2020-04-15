@@ -103,13 +103,11 @@ export async function nearestParentWithCargoToml(
     const file_exists: (path: fs.PathLike) => Promise<boolean> = util.promisify(fs.exists);
     // check that the workspace folder already contains the "Cargo.toml"
     const workspaceRoot = workspaceRootUri.fsPath;
-    const rootManifest = path.join(workspaceRoot, 'Cargo.toml');
-    if (await file_exists(rootManifest)) {
-      return workspaceRootUri;
-    }
-
     // algorithm that will strip one folder at a time and check if that folder contains "Cargo.toml"
     let current = fileLoc.fsPath;
+    if (fileLoc.fsPath.substring(0,workspaceRoot.length) !== workspaceRoot) {
+        return null;
+    }
     while (true) {
       const old = current;
       current = path.dirname(current);
