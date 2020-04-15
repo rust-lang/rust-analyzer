@@ -143,7 +143,9 @@ export async function startRA(context: vscode.ExtensionContext) {
     ctx.registerCommand('applySourceChange', commands.applySourceChange);
     ctx.registerCommand('selectAndApplySourceChange', commands.selectAndApplySourceChange);
 
-    ctx.pushCleanup(activateTaskProvider(workspaceFolder));
+    for (const project of foundProjects) {
+        ctx.pushCleanup(activateTaskProvider(createWorkspaceWithNewLocation(workspaceFolder, vscode.Uri.file(project))));
+    }
 
     activateStatusDisplay(ctx);
 
