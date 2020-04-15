@@ -91,6 +91,8 @@ export class Config {
     get askBeforeDownload() { return this.get<boolean>("updates.askBeforeDownload"); }
     get traceExtension() { return this.get<boolean>("trace.extension"); }
 
+    get autoRestartOnNew() { return this.get<boolean>("server.autoRestartOnNew"); }
+
 
     get inlayHints() {
         return {

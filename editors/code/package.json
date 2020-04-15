@@ -360,6 +360,11 @@
                     "default": true,
                     "description": "Whether to ask for permission before downloading any files from the Internet"
                 },
+                "rust-analyzer.server.autoRestartOnNew": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "automatically restarts rust-analyzer server when a new project is discovered"
+                },
                 "rust-analyzer.serverPath": {
                     "type": [
                         "null",

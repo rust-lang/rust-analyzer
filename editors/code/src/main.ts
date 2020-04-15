@@ -45,15 +45,38 @@ export async function activate(context: vscode.ExtensionContext) {
 
                 foundProjects.add(cargoRoot.fsPath);
                 if (isMissing) {
+                    if (config?.autoRestartOnNew) {
+                        restart(context);
+                    } else {
                         vscode.window.showInformationMessage(
                             `Found a new project at ${cargoRoot.fsPath}.` +
                             " Manually run: \"Rust Analyzer: Restart server\"" +
                             " or set rust-analyzer.server.autoRestartOnNew=true"
                         );
+                    }
                 }
             }
         }
     });
+
+    startRA(context);
+
+}
+
+export async function restart(context: vscode.ExtensionContext) {
+    void vscode.window.showInformationMessage('Reloading rust-analyzer...');
+    await deactivate();
+    while (context.subscriptions.length > 0) {
+        try {
+            context.subscriptions.pop()!.dispose();
+        } catch (err) {
+            log.error("Dispose error:", err);
+        }
+    }
+    await startRA(context).catch(log.error);
+}
+
+export async function startRA(context: vscode.ExtensionContext) {
 
     // Register a "dumb" onEnter command for the case where server fails to
     // start.
@@ -69,6 +92,7 @@ export async function activate(context: vscode.ExtensionContext) {
     //        "rust-analyzer is not available"
     //    ),
     // )
+
     const defaultOnEnter = vscode.commands.registerCommand(
         'rust-analyzer.onEnter',
         () => vscode.commands.executeCommand('default:type', { text: '\n' }),
@@ -95,18 +119,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // Commands which invokes manually via command palette, shortcut, etc.
 
     // Reloading is inspired by @DanTup maneuver: https://github.com/microsoft/vscode/issues/45774#issuecomment-373423895
-    ctx.registerCommand('reload', _ => async () => {
-        void vscode.window.showInformationMessage('Reloading rust-analyzer...');
-        await deactivate();
-        while (context.subscriptions.length > 0) {
-            try {
-                context.subscriptions.pop()!.dispose();
-            } catch (err) {
-                log.error("Dispose error:", err);
-            }
-        }
-        await activate(context).catch(log.error);
-    });
+    ctx.registerCommand('reload', _ => restart);
 
     ctx.registerCommand('analyzerStatus', commands.analyzerStatus);
     ctx.registerCommand('collectGarbage', commands.collectGarbage);
