@@ -38,6 +38,7 @@ fn ${1:feature}() {
 
     snippet(ctx, "macro_rules", "macro_rules! $1 {\n\t($2) => {\n\t\t$0\n\t};\n}").add_to(acc);
     snippet(ctx, "pub(crate)", "pub(crate) $0").add_to(acc);
+    snippet(ctx, "derive", "#[derive($0)]").add_to(acc);
 }
 
 #[cfg(test)]
