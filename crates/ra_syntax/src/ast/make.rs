@@ -4,6 +4,7 @@ use itertools::Itertools;
 use stdx::format_to;
 
 use crate::{ast, AstNode, SourceFile, SyntaxKind, SyntaxNode, SyntaxToken};
+use std::fmt;
 
 pub fn name(text: &str) -> ast::Name {
     ast_from_text(&format!("mod {};", text))
@@ -142,12 +143,8 @@ pub fn condition(expr: ast::Expr, pattern: Option<ast::Pat>) -> ast::Condition {
     }
 }
 
-pub fn bind_pat(name: ast::Name) -> ast::BindPat {
-    return from_text(name.text());
-
-    fn from_text(text: &str) -> ast::BindPat {
-        ast_from_text(&format!("fn f({}: ())", text))
-    }
+pub fn bind_pat(name: impl fmt::Display) -> ast::BindPat {
+    ast_from_text(&format!("fn f({}: ())", name))
 }
 
 pub fn placeholder_pat() -> ast::PlaceholderPat {

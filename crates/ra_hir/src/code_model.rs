@@ -4,7 +4,6 @@ use std::sync::Arc;
 use arrayvec::ArrayVec;
 use either::Either;
 use hir_def::{
-    adt::StructKind,
     adt::VariantData,
     builtin_type::BuiltinType,
     docs::Documentation,
@@ -439,6 +438,13 @@ impl Enum {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StructKind {
+    Tuple(Vec<StructField>),
+    Record(Vec<StructField>),
+    Unit,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct EnumVariant {
     pub(crate) parent: Enum,
@@ -458,15 +464,36 @@ impl EnumVariant {
     }
 
     pub fn fields(self, db: &dyn HirDatabase) -> Vec<StructField> {
-        self.variant_data(db)
-            .fields()
-            .iter()
-            .map(|(id, _)| StructField { parent: self.into(), id })
-            .collect()
+        match self.kind(db) {
+            StructKind::Tuple(fields) | StructKind::Record(fields) => fields,
+            StructKind::Unit => vec![],
+        }
     }
 
     pub fn kind(self, db: &dyn HirDatabase) -> StructKind {
-        self.variant_data(db).kind()
+        let variant_data = self.variant_data(db);
+
+        match variant_data.kind() {
+            hir_def::adt::StructKind::Tuple => {
+                let fields = variant_data
+                    .fields()
+                    .iter()
+                    .map(|(id, _)| StructField { parent: self.into(), id })
+                    .collect();
+
+                StructKind::Tuple(fields)
+            }
+            hir_def::adt::StructKind::Record => {
+                let fields = variant_data
+                    .fields()
+                    .iter()
+                    .map(|(id, _)| StructField { parent: self.into(), id })
+                    .collect();
+
+                StructKind::Record(fields)
+            }
+            hir_def::adt::StructKind::Unit => StructKind::Unit,
+        }
     }
 
     pub(crate) fn variant_data(self, db: &dyn HirDatabase) -> Arc<VariantData> {

@@ -1,9 +1,9 @@
 use std::iter;
 
-use hir::{Adt, HasSource, ModuleDef, Semantics};
+use hir::{Adt, ModuleDef, Semantics, StructKind};
 use itertools::Itertools;
 use ra_ide_db::RootDatabase;
-use ra_syntax::ast::{self, make, AstNode, MatchArm, NameOwner, Pat};
+use ra_syntax::ast::{self, make, AstNode, MatchArm, Pat};
 
 use crate::{Assist, AssistCtx, AssistId};
 
@@ -149,18 +149,17 @@ fn resolve_tuple_of_enum_def(
 fn build_pat(db: &RootDatabase, module: hir::Module, var: hir::EnumVariant) -> Option<ast::Pat> {
     let path = crate::ast_transform::path_to_ast(module.find_use_path(db, ModuleDef::from(var))?);
 
-    // FIXME: use HIR for this; it doesn't currently expose struct vs. tuple vs. unit variants though
-    let pat: ast::Pat = match var.source(db).value.kind() {
-        ast::StructKind::Tuple(field_list) => {
-            let pats =
-                iter::repeat(make::placeholder_pat().into()).take(field_list.fields().count());
+    let pat: ast::Pat = match var.kind(db) {
+        StructKind::Tuple(ref field_list) => {
+            let pats = iter::repeat(make::placeholder_pat().into()).take(field_list.len());
             make::tuple_struct_pat(path, pats).into()
         }
-        ast::StructKind::Record(field_list) => {
-            let pats = field_list.fields().map(|f| make::bind_pat(f.name().unwrap()).into());
+        StructKind::Record(ref field_list) => {
+            let pats =
+                field_list.iter().map(|struct_field| make::bind_pat(struct_field.name(db)).into());
             make::record_pat(path, pats).into()
         }
-        ast::StructKind::Unit => make::path_pat(path),
+        StructKind::Unit => make::path_pat(path),
     };
 
     Some(pat)

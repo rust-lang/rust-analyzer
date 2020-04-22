@@ -54,14 +54,14 @@ pub use crate::{
         Adt, AsAssocItem, AssocItem, AssocItemContainer, AttrDef, Const, Crate, CrateDependency,
         DefWithBody, Docs, Enum, EnumVariant, FieldSource, Function, GenericDef, HasAttrs,
         HasVisibility, ImplDef, Local, MacroDef, Module, ModuleDef, ScopeDef, Static, Struct,
-        StructField, Trait, Type, TypeAlias, TypeParam, Union, VariantDef, Visibility,
+        StructField, StructKind, Trait, Type, TypeAlias, TypeParam, Union, VariantDef, Visibility,
     },
     has_source::HasSource,
     semantics::{original_range, PathResolution, Semantics, SemanticsScope},
 };
 
 pub use hir_def::{
-    adt::StructKind,
+    adt::VariantData,
     body::scope::ExprScopes,
     builtin_type::BuiltinType,
     docs::Documentation,

@@ -273,12 +273,12 @@ impl Completions {
             .map(|field| (field.name(ctx.db), field.signature_ty(ctx.db)));
         let variant_kind = variant.kind(ctx.db);
         let detail = match variant_kind {
-            StructKind::Tuple | StructKind::Unit => detail_types
+            StructKind::Tuple(_) | StructKind::Unit => detail_types
                 .map(|(_, t)| t.display(ctx.db).to_string())
                 .sep_by(", ")
                 .surround_with("(", ")")
                 .to_string(),
-            StructKind::Record => detail_types
+            StructKind::Record(_) => detail_types
                 .map(|(n, t)| format!("{}: {}", n, t.display(ctx.db).to_string()))
                 .sep_by(", ")
                 .surround_with("{ ", " }")
@@ -291,7 +291,7 @@ impl Completions {
                 .set_deprecated(is_deprecated)
                 .detail(detail);
 
-        if variant_kind == StructKind::Tuple {
+        if matches!(variant_kind, StructKind::Tuple(_)) {
             let params = Params::Anonymous(variant.fields(ctx.db).len());
             res = res.add_call_parens(ctx, name, params)
         }
