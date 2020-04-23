@@ -45,6 +45,10 @@ pub(crate) enum Command {
         /// this would include the parser test files.
         all: bool,
     },
+    Integrity {
+        path: PathBuf,
+        only: Option<String>,
+    },
     ProcMacro,
     RunServer,
     Version,
@@ -269,6 +273,34 @@ ARGS:
 
                 Command::Diagnostics { path, load_output_dirs, with_proc_macro, all }
             }
+            "integrity" => {
+                if matches.contains(["-h", "--help"]) {
+                    eprintln!(
+                        "\
+rust-analyzer integrity
+
+USAGE:
+    rust-analyzer integrity [FLAGS] [PATH]
+
+FLAGS:
+    -h, --help              Prints help information
+        --only FILTER       Only test specified files
+
+ARGS:
+    <PATH>"
+                    );
+                    return Ok(Err(HelpPrinted));
+                }
+                let only: Option<String> = matches.opt_value_from_str("--only")?;
+                let path = {
+                    let mut trailing = matches.free()?;
+                    if trailing.len() != 1 {
+                        bail!("Invalid flags");
+                    }
+                    trailing.pop().unwrap().into()
+                };
+                Command::Integrity { path, only }
+            }
             "proc-macro" => Command::ProcMacro,
             _ => {
                 print_subcommands();
@@ -297,7 +329,8 @@ SUBCOMMANDS:
     diagnostics
     proc-macro
     parse
-    symbols"
+    symbols
+    integrity"
     )
 }
 

@@ -1,6 +1,7 @@
 //! Various batch processing tasks, intended primarily for debugging.
 
 mod load_cargo;
+mod integrity;
 mod analysis_stats;
 mod analysis_bench;
 mod diagnostics;
@@ -16,6 +17,7 @@ use ra_syntax::{AstNode, SourceFile};
 pub use analysis_bench::{analysis_bench, BenchWhat, Position};
 pub use analysis_stats::analysis_stats;
 pub use diagnostics::diagnostics;
+pub use integrity::integrity_suite;
 
 #[derive(Clone, Copy)]
 pub enum Verbosity {

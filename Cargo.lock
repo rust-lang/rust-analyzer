@@ -1368,6 +1368,7 @@ dependencies = [
  "tempfile",
  "test_utils",
  "threadpool",
+ "walkdir",
  "winapi 0.3.8",
 ]
 

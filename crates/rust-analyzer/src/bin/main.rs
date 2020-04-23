@@ -30,7 +30,7 @@ fn main() -> Result<()> {
             args.verbosity,
             memory_usage,
             path.as_ref(),
-            only.as_ref().map(String::as_ref),
+            only.as_deref(),
             with_deps,
             randomize,
             load_output_dirs,
@@ -50,7 +50,9 @@ fn main() -> Result<()> {
         args::Command::Diagnostics { path, load_output_dirs, with_proc_macro, all } => {
             cli::diagnostics(path.as_ref(), load_output_dirs, with_proc_macro, all)?
         }
-
+        args::Command::Integrity { path, only } => {
+            cli::integrity_suite(args.verbosity, &path, only.as_deref())?
+        }
         args::Command::ProcMacro => run_proc_macro_srv()?,
         args::Command::RunServer => run_server()?,
         args::Command::Version => println!("rust-analyzer {}", env!("REV")),
