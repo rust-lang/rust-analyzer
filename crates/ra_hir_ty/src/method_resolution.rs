@@ -532,7 +532,10 @@ fn is_valid_candidate(
             let data = db.const_data(c);
             name.map_or(true, |name| data.name.as_ref() == Some(name)) && receiver_ty.is_none()
         }
-        _ => false,
+        AssocItemId::TypeAliasId(t) => {
+            let data = db.type_alias_data(t);
+            name.map_or(true, |name| data.name == *name) && receiver_ty.is_none()
+        }
     }
 }
 

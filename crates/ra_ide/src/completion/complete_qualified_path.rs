@@ -11,11 +11,12 @@ pub(super) fn complete_qualified_path(acc: &mut Completions, ctx: &CompletionCon
         Some(path) => path.clone(),
         _ => return,
     };
-    let def = match ctx.scope().resolve_hir_path(&path) {
+    let scope = ctx.scope();
+    let def = match scope.resolve_hir_path(&path) {
         Some(PathResolution::Def(def)) => def,
         _ => return,
     };
-    let context_module = ctx.scope().module();
+    let context_module = scope.module();
     match def {
         hir::ModuleDef::Module(module) => {
             let module_scope = module.scope(ctx.db, context_module);
@@ -46,11 +47,8 @@ pub(super) fn complete_qualified_path(acc: &mut Completions, ctx: &CompletionCon
                 hir::ModuleDef::TypeAlias(a) => a.ty(ctx.db),
                 _ => unreachable!(),
             };
-            // Iterate assoc types separately
-            // FIXME: complete T::AssocType
-            let krate = ctx.krate;
-            if let Some(krate) = krate {
-                let traits_in_scope = ctx.scope().traits_in_scope();
+            if let Some(krate) = ctx.krate {
+                let traits_in_scope = scope.traits_in_scope();
                 ty.iterate_path_candidates(ctx.db, krate, &traits_in_scope, None, |_ty, item| {
                     if context_module.map_or(false, |m| !item.is_visible_from(ctx.db, m)) {
                         return None;
@@ -64,20 +62,10 @@ pub(super) fn complete_qualified_path(acc: &mut Completions, ctx: &CompletionCon
                     }
                     None::<()>
                 });
-
-                ty.iterate_impl_items(ctx.db, krate, |item| {
-                    if context_module.map_or(false, |m| !item.is_visible_from(ctx.db, m)) {
-                        return None;
-                    }
-                    match item {
-                        hir::AssocItem::Function(_) | hir::AssocItem::Const(_) => {}
-                        hir::AssocItem::TypeAlias(ty) => acc.add_type_alias(ctx, ty),
-                    }
-                    None::<()>
-                });
             }
         }
         hir::ModuleDef::Trait(t) => {
+            // Handles `Trait::assoc` as well as `<Ty as Trait>::assoc`.
             for item in t.items(ctx.db) {
                 if context_module.map_or(false, |m| !item.is_visible_from(ctx.db, m)) {
                     continue;
@@ -578,6 +566,39 @@ mod tests {
                 documentation: Documentation(
                     "An associated type",
                 ),
+            },
+        ]
+        "###
+        );
+    }
+
+    #[test]
+    fn completes_trait_associated_type() {
+        assert_debug_snapshot!(
+            do_reference_completion(
+                r"
+                mod foo {
+                    pub struct S;
+                }
+                trait Tr {
+                    type Assoc;
+                }
+                impl Tr for foo::S {}
+
+                fn f() {
+                    foo::S::<|>
+                }
+                ",
+            ),
+            @r###"
+        [
+            CompletionItem {
+                label: "Assoc",
+                source_range: 248..248,
+                delete: 248..248,
+                insert: "Assoc",
+                kind: TypeAlias,
+                detail: "type Assoc;",
             },
         ]
         "###
