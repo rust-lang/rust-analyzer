@@ -59,6 +59,7 @@ jobs:
         toolchain: stable
         profile: minimal
         override: true
+        target: x86_64-unknown-linux-musl
         components: rustfmt, rust-src
 
     - if: matrix.os == 'ubuntu-latest'
