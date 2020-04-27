@@ -7,6 +7,7 @@ use lsp_server::Connection;
 use rust_analyzer::{cli, config::Config, from_json, Result};
 
 use crate::args::HelpPrinted;
+use std::path::PathBuf;
 
 fn main() -> Result<()> {
     setup_logging()?;
@@ -70,6 +71,7 @@ fn run_proc_macro_srv() -> Result<()> {
     Ok(())
 }
 
+#[allow(deprecated)]
 fn run_server() -> Result<()> {
     log::info!("lifecycle: server started");
 
@@ -80,12 +82,25 @@ fn run_server() -> Result<()> {
     let initialize_params =
         from_json::<lsp_types::InitializeParams>("InitializeParams", initialize_params)?;
 
-    if let Some(client_info) = initialize_params.client_info {
-        log::info!("Client '{}' {}", client_info.name, client_info.version.unwrap_or_default());
+    if let Some(client_info) = initialize_params.client_info.as_ref() {
+        log::info!(
+            "Client '{}' {}",
+            client_info.name,
+            client_info.version.clone().unwrap_or_default()
+        );
     }
 
     let cwd = std::env::current_dir()?;
-    let root = initialize_params.root_uri.and_then(|it| it.to_file_path().ok()).unwrap_or(cwd);
+    let root =
+        initialize_params.root_uri.as_ref().and_then(|it| it.to_file_path().ok()).unwrap_or_else(
+            || {
+                initialize_params
+                    .root_path
+                    .as_ref()
+                    .and_then(|it| Some(PathBuf::from(it)))
+                    .unwrap_or(cwd)
+            },
+        );
 
     let workspace_roots = initialize_params
         .workspace_folders
