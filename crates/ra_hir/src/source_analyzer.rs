@@ -185,7 +185,9 @@ impl SourceAnalyzer {
     ) -> Option<MacroDef> {
         let hygiene = Hygiene::new(db.upcast(), macro_call.file_id);
         let path = macro_call.value.path().and_then(|ast| Path::from_src(ast, &hygiene))?;
-        self.resolver.resolve_path_as_macro(db.upcast(), path.mod_path()).map(|it| it.into())
+        self.resolver
+            .resolve_path_as_macro(db.upcast(), path.mod_path(), &hygiene)
+            .map(|it| it.into())
     }
 
     pub(crate) fn resolve_bind_pat_to_const(
@@ -295,8 +297,9 @@ impl SourceAnalyzer {
         db: &dyn HirDatabase,
         macro_call: InFile<&ast::MacroCall>,
     ) -> Option<HirFileId> {
+        let hygiene = Hygiene::new(db.upcast(), macro_call.file_id);
         let macro_call_id = macro_call.as_call_id(db.upcast(), |path| {
-            self.resolver.resolve_path_as_macro(db.upcast(), &path)
+            self.resolver.resolve_path_as_macro(db.upcast(), &path, &hygiene)
         })?;
         Some(macro_call_id.as_file())
     }
@@ -426,7 +429,7 @@ pub(crate) fn resolve_hir_path(
         .map(|it| PathResolution::Def(it.into()));
     types.or(values).or(items).or_else(|| {
         resolver
-            .resolve_path_as_macro(db.upcast(), path.mod_path())
+            .resolve_path_as_macro(db.upcast(), path.mod_path(), &Hygiene::new_unhygienic())
             .map(|def| PathResolution::Macro(def.into()))
     })
 }

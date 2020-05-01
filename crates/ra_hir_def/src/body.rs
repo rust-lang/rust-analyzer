@@ -22,7 +22,7 @@ use crate::{
     item_scope::BuiltinShadowMode,
     item_scope::ItemScope,
     nameres::CrateDefMap,
-    path::{ModPath, Path},
+    path::{ModPath, Path, PathKind},
     src::HasSource,
     AsMacroCall, DefWithBodyId, HasModule, Lookup, ModuleId,
 };
@@ -152,8 +152,13 @@ impl Expander {
     }
 
     fn resolve_path_as_macro(&self, db: &dyn DefDatabase, path: &ModPath) -> Option<MacroDefId> {
+        let mut path = path.clone();
+        if let Some(crate_id) = self.cfg_expander.hygiene.implicit_dollar_crate() {
+            path.kind = PathKind::DollarCrate(crate_id);
+        }
+
         self.crate_def_map
-            .resolve_path(db, self.module.local_id, path, BuiltinShadowMode::Other)
+            .resolve_path(db, self.module.local_id, &path, BuiltinShadowMode::Other)
             .0
             .take_macros()
     }

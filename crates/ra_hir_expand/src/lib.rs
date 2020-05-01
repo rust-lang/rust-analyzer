@@ -201,7 +201,9 @@ pub struct MacroDefId {
     // `macro` syntax for this, which we don't support yet. As soon as we do
     // (which will probably require touching this code), we can instead use
     // that (and also remove the hacks for resolving built-in derives).
+    /// The crate defining the macro.
     pub krate: Option<CrateId>,
+    /// AST ID of the `macro_rules!` invocation that defined this macro.
     pub ast_id: Option<AstId<ast::MacroCall>>,
     pub kind: MacroDefKind,
 }
@@ -209,6 +211,34 @@ pub struct MacroDefId {
 impl MacroDefId {
     pub fn as_lazy_macro(self, db: &dyn db::AstDatabase, kind: MacroCallKind) -> LazyMacroId {
         db.intern_macro(MacroCallLoc { def: self, kind })
+    }
+
+    /// Returns `true` if this is a `macro_rules!` macro with `#[macro_export(local_inner_macros)]`.
+    ///
+    /// This determines whether to look up any inner macros in the defining crate (instead of the
+    /// crate where the expansion occurs).
+    ///
+    /// (this basically prefixes every internal macro invocation with `$crate`)
+    pub fn local_inner_macros(&self, db: &dyn db::AstDatabase) -> bool {
+        let m = if let Some(id) = self.ast_id {
+            id.to_node(db)
+        } else {
+            return false;
+        };
+
+        // FIXME: cfg_attr
+        let export_attr =
+            m.attrs().find(|attr| attr.simple_name().as_deref() == Some("macro_export"));
+
+        match export_attr {
+            None => false,
+            Some(attr) => attr
+                .as_simple_call()
+                .and_then(|(_, arg)| arg.syntax().first_token())
+                .and_then(|t| t.next_token())
+                .filter(|t| t.kind() == SyntaxKind::IDENT && t.text() == "local_inner_macros")
+                .is_some(),
+        }
     }
 }
 
@@ -287,8 +317,9 @@ pub struct ExpansionInfo {
     exp_map: Arc<mbe::TokenMap>,
 }
 
+use ast::AttrsOwner;
 pub use mbe::Origin;
-use ra_parser::FragmentKind;
+use ra_parser::{FragmentKind, SyntaxKind};
 
 impl ExpansionInfo {
     pub fn call_node(&self) -> Option<InFile<SyntaxNode>> {

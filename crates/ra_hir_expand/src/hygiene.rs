@@ -16,17 +16,20 @@ use crate::{
 pub struct Hygiene {
     // This is what `$crate` expands to
     def_crate: Option<CrateId>,
+    local_inner_macros: bool,
 }
 
 impl Hygiene {
     pub fn new(db: &dyn AstDatabase, file_id: HirFileId) -> Hygiene {
+        let mut local_inner_macros = false;
         let def_crate = match file_id.0 {
             HirFileIdRepr::FileId(_) => None,
             HirFileIdRepr::MacroFile(macro_file) => match macro_file.macro_call_id {
                 MacroCallId::LazyMacro(id) => {
                     let loc = db.lookup_intern_macro(id);
+                    local_inner_macros = loc.def.local_inner_macros(db);
                     match loc.def.kind {
-                        MacroDefKind::Declarative => loc.def.krate,
+                        MacroDefKind::Declarative { .. } => loc.def.krate,
                         MacroDefKind::BuiltIn(_) => None,
                         MacroDefKind::BuiltInDerive(_) => None,
                         MacroDefKind::BuiltInEager(_) => None,
@@ -36,11 +39,21 @@ impl Hygiene {
                 MacroCallId::EagerMacro(_id) => None,
             },
         };
-        Hygiene { def_crate }
+
+        Hygiene { def_crate, local_inner_macros }
     }
 
     pub fn new_unhygienic() -> Hygiene {
-        Hygiene { def_crate: None }
+        Hygiene { def_crate: None, local_inner_macros: false }
+    }
+
+    /// Whether paths to macros should be treated as starting with a `$crate` segment.
+    pub fn implicit_dollar_crate(&self) -> Option<CrateId> {
+        if self.local_inner_macros {
+            self.def_crate
+        } else {
+            None
+        }
     }
 
     // FIXME: this should just return name

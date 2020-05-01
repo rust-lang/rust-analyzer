@@ -426,6 +426,7 @@ impl ExprCollector<'_> {
             }
             ast::Expr::MacroCall(e) => {
                 if let Some(name) = e.is_macro_rules().map(|it| it.as_name()) {
+                    // FIXME: `#[macro_export]` needs to be respected here too.
                     let mac = MacroDefId {
                         krate: Some(self.expander.module.krate),
                         ast_id: Some(self.expander.ast_id(&e)),

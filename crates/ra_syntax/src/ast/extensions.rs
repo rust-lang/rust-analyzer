@@ -87,10 +87,15 @@ impl ast::Attr {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PathSegmentKind {
+    /// A plain name, or `$crate`.
     Name(ast::NameRef),
+    /// A type or trait reference enclosed in `<` and `>`.
     Type { type_ref: Option<ast::TypeRef>, trait_ref: Option<ast::PathType> },
+    /// `self`
     SelfKw,
+    /// `super`
     SuperKw,
+    /// `crate`
     CrateKw,
 }
 

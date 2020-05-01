@@ -8,7 +8,7 @@ use hir_def::{
     resolver::{self, HasResolver, Resolver},
     AsMacroCall, TraitId,
 };
-use hir_expand::ExpansionInfo;
+use hir_expand::{hygiene::Hygiene, ExpansionInfo};
 use hir_ty::associated_type_shorthand_candidates;
 use itertools::Itertools;
 use ra_db::{FileId, FileRange};
@@ -121,9 +121,11 @@ impl<'db, DB: HirDatabase> Semantics<'db, DB> {
     ) -> Option<(SyntaxNode, SyntaxToken)> {
         let macro_call =
             self.find_file(actual_macro_call.syntax().clone()).with_value(actual_macro_call);
+        let hygiene = Hygiene::new(self.db.upcast(), macro_call.file_id);
         let sa = self.analyze2(macro_call.map(|it| it.syntax()), None);
-        let macro_call_id = macro_call
-            .as_call_id(self.db, |path| sa.resolver.resolve_path_as_macro(self.db, &path))?;
+        let macro_call_id = macro_call.as_call_id(self.db, |path| {
+            sa.resolver.resolve_path_as_macro(self.db, &path, &hygiene)
+        })?;
         hir_expand::db::expand_hypothetical(self.db, macro_call_id, hypothetical_args, token_to_map)
     }
 

@@ -2,6 +2,7 @@
 use std::sync::Arc;
 
 use hir_expand::{
+    hygiene::Hygiene,
     name::{name, Name},
     MacroDefId,
 };
@@ -380,9 +381,15 @@ impl Resolver {
         &self,
         db: &dyn DefDatabase,
         path: &ModPath,
+        hygiene: &Hygiene,
     ) -> Option<MacroDefId> {
+        let mut path = path.clone();
+        if let Some(crate_id) = hygiene.implicit_dollar_crate() {
+            path.kind = PathKind::DollarCrate(crate_id);
+        }
+
         // Search item scope legacy macro first
-        if let Some(def) = self.resolve_local_macro_def(path) {
+        if let Some(def) = self.resolve_local_macro_def(&path) {
             return Some(def);
         }
 
