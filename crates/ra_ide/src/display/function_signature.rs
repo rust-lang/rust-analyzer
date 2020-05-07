@@ -201,8 +201,12 @@ impl From<&'_ ast::FnDef> for FunctionSignature {
                 }
 
                 res.extend(param_list.params().map(|param| param.syntax().text().to_string()));
-                res_types.extend(param_list.params().map(|param| {
-                    param.syntax().text().to_string().split(':').nth(1).unwrap()[1..].to_string()
+                res_types.extend(param_list.params().filter_map(|param| {
+                    let param_string = param.syntax().text().to_string();
+                    let param_splitted: Vec<&str> = param_string.split(':').collect();
+                    let param_type = param_splitted.get(1)?;
+
+                    Some(param_type[1..].to_string())
                 }));
             }
             (has_self_param, res, res_types)

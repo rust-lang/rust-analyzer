@@ -473,4 +473,20 @@ mod tests {
         "###
         );
     }
+
+    #[test]
+    fn postfix_completion_dont_panic_for_type_parameter() {
+        // Just a test to check if it doesn't panic for now
+        do_postfix_completion(
+            r#"
+                fn foo(test: u32.<|>) {
+
+                }
+
+                fn main() {
+                    let bar = true;
+                }
+                "#,
+        );
+    }
 }
