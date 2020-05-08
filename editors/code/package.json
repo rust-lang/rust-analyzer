@@ -172,6 +172,41 @@
             "type": "object",
             "title": "Rust Analyzer",
             "properties": {
+                "rust-analyzer.rustupPath": {
+                    "type": "string",
+                    "default": "rustup",
+                    "description": "Path to rustup executable. Ignored if rustup is disabled.",
+                    "scope": "machine"
+                },
+                "rust-analyzer.rustupChannel": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "string",
+                            "enum": [
+                                "default",
+                                "stable",
+                                "beta",
+                                "nightly"
+                            ],
+                            "enumDescriptions": [
+                                "Uses the same channel as your currently open project",
+                                "Explicitly use the `stable` channel",
+                                "Explicitly use the `beta` channel",
+                                "Explicitly use the `nightly` channel"
+                            ]
+                        }
+                    ],
+                    "default": "default",
+                    "description": "Rust channel to invoke rustup with. Ignored if rustup is disabled. By default, uses the same channel as your currently open project."
+                },
+                "rust-analyzer.disableRustup": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Disable usage of rustup and use rustc/cargo from PATH."
+                },
                 "rust-analyzer.diagnostics.enable": {
                     "type": "boolean",
                     "default": true,

@@ -21,7 +21,7 @@ export class Ctx {
         serverPath: string,
         cwd: string,
     ): Promise<Ctx> {
-        const client = createClient(serverPath, cwd);
+        const client = createClient(serverPath, cwd, config);
         const res = new Ctx(config, extCtx, client, serverPath);
         res.pushCleanup(client.start());
         await client.onReady();

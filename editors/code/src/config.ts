@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as cp from 'child_process';
 import { log } from "./util";
 
 export type UpdatesChannel = "stable" | "nightly";
@@ -16,6 +17,9 @@ export class Config {
         "files",
         "highlighting",
         "updates.channel",
+        "rustupPath",
+        "rustupChannel",
+        "disableRustup"
     ]
         .map(opt => `${this.rootSection}.${opt}`);
 
@@ -118,5 +122,92 @@ export class Config {
             openUpDebugPane: this.get<boolean>("debug.openUpDebugPane"),
             sourceFileMap: sourceFileMap,
         };
+    }
+
+    get rustupDisabled(): boolean {
+        return this.get<boolean>('disableRustup');
+    }
+
+    get rustupPath(): string {
+        return this.get<string>('rustupPath');
+    }
+
+    private parseActiveToolchain(rustupOutput: string): string {
+        // There may a default entry under 'installed toolchains' section, so search
+        // for currently active/overridden one only under 'active toolchain' section
+        const activeToolchainsIndex = rustupOutput.search('active toolchain');
+        if (activeToolchainsIndex !== -1) {
+            rustupOutput = rustupOutput.substr(activeToolchainsIndex);
+
+            const matchActiveChannel = /^(\S*) \((?:default|overridden)/gm;
+            const match = matchActiveChannel.exec(rustupOutput);
+            if (!match) {
+                throw new Error(
+                    `couldn't find active toolchain under 'active toolchains'`,
+                );
+            } else if (matchActiveChannel.exec(rustupOutput)) {
+                throw new Error(
+                    `multiple active toolchains found under 'active toolchains'`,
+                );
+            }
+
+            return match[1];
+        }
+
+        // Try matching the third line as the active toolchain
+        const match = /^(?:.*\r?\n){2}(\S*) \((?:default|overridden)/.exec(
+            rustupOutput,
+        );
+        if (match) {
+            return match[1];
+        }
+
+        throw new Error(`couldn't find active toolchains`);
+    }
+
+    private getActiveChannel(wsPath: string): string {
+        // rustup info might differ depending on where it's executed
+        // (e.g. when a toolchain is locally overriden), so executing it
+        // under our current workspace root should give us close enough result
+
+        let activeChannel;
+        try {
+            // `rustup show active-toolchain` is available since rustup 1.12.0
+            activeChannel = cp
+                .execSync(`${this.rustupPath} show active-toolchain`, {
+                    cwd: wsPath,
+                })
+                .toString()
+                .trim();
+            // Since rustup 1.17.0 if the active toolchain is the default, we're told
+            // by means of a " (default)" suffix, so strip that off if it's present
+            // If on the other hand there's an override active, we'll get an
+            // " (overridden by ...)" message instead.
+            activeChannel = activeChannel.replace(/ \(.*\)$/, '');
+        } catch (e) {
+            // Possibly an old rustup version, so try rustup show
+            const showOutput = cp.execSync(`${this.rustupPath} show`, {
+                cwd: wsPath,
+            })
+                .toString();
+            activeChannel = this.parseActiveToolchain(showOutput);
+        }
+
+        return activeChannel;
+    }
+
+    public getRustupChannel(wsPath: string): string {
+        const channel = this.get<string>('rustupChannel');
+        if (channel === 'default' || !channel) {
+            try {
+                return this.getActiveChannel(wsPath);
+            } catch (e) {
+                // rustup might not be installed at the time the configuration is
+                // initially loaded, so silently ignore the error and return a default value
+                return 'nightly';
+            }
+        } else {
+            return channel;
+        }
     }
 }

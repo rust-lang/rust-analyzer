@@ -3,16 +3,21 @@ import * as vscode from 'vscode';
 
 import { CallHierarchyFeature } from 'vscode-languageclient/lib/callHierarchy.proposed';
 import { SemanticTokensFeature, DocumentSemanticsTokensSignature } from 'vscode-languageclient/lib/semanticTokens.proposed';
+import { Config } from './config';
 
-export function createClient(serverPath: string, cwd: string): lc.LanguageClient {
+export function createClient(serverPath: string, cwd: string, config: Config): lc.LanguageClient {
     // '.' Is the fallback if no folder is open
     // TODO?: Workspace folders support Uri's (eg: file://test.txt).
     // It might be a good idea to test if the uri points to a file.
 
-    const run: lc.Executable = {
+    const run: lc.Executable = config.rustupDisabled ? {
         command: serverPath,
         options: { cwd },
-    };
+    } : {
+            command: config.rustupPath,
+            args: ["run", config.getRustupChannel(cwd), serverPath],
+            options: { cwd },
+        };
     const serverOptions: lc.ServerOptions = {
         run,
         debug: run,

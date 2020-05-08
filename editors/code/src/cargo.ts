@@ -4,6 +4,8 @@ import * as path from 'path';
 import * as readline from 'readline';
 import { OutputChannel } from 'vscode';
 import { isValidExecutable } from './util';
+import { Config } from './config';
+import { Readable } from 'stream';
 
 interface CompilationArtifact {
     fileName: string;
@@ -13,7 +15,7 @@ interface CompilationArtifact {
 }
 
 export class Cargo {
-    constructor(readonly rootFolder: string, readonly output: OutputChannel) { }
+    constructor(readonly rootFolder: string, readonly output: OutputChannel, readonly config: Config) { }
 
     private async artifactsFromArgs(cargoArgs: string[]): Promise<CompilationArtifact[]> {
         const artifacts: CompilationArtifact[] = [];
@@ -66,17 +68,26 @@ export class Cargo {
         onStderrString: (data: string) => void
     ): Promise<number> {
         return new Promise((resolve, reject) => {
-            let cargoPath;
-            try {
-                cargoPath = getCargoPathOrFail();
-            } catch (err) {
-                return reject(err);
-            }
+            let cargo: cp.ChildProcessByStdio<null, Readable, Readable>;
+            if (this.config.rustupDisabled) {
+                let cargoPath;
+                try {
+                    cargoPath = getCargoPathOrFail();
+                } catch (err) {
+                    return reject(err);
+                }
 
-            const cargo = cp.spawn(cargoPath, cargoArgs, {
-                stdio: ['ignore', 'pipe', 'pipe'],
-                cwd: this.rootFolder
-            });
+                cargo = cp.spawn(cargoPath, cargoArgs, {
+                    stdio: ['ignore', 'pipe', 'pipe'],
+                    cwd: this.rootFolder
+                });
+            } else {
+                const rustupArgs = ['run', this.config.getRustupChannel(this.rootFolder), 'cargo', ...cargoArgs];
+                cargo = cp.spawn(this.config.rustupPath, rustupArgs, {
+                    stdio: ['ignore', 'pipe', 'pipe'],
+                    cwd: this.rootFolder,
+                });
+            }
 
             cargo.on('error', err => reject(new Error(`could not launch cargo: ${err}`)));
 

@@ -5,6 +5,7 @@ import * as os from "os";
 
 import { Ctx, Cmd } from '../ctx';
 import { Cargo } from '../cargo';
+import { Config } from '../config';
 
 export function run(ctx: Ctx): Cmd {
     let prevRunnable: RunnableQuickPick | undefined;
@@ -91,8 +92,8 @@ function getCppvsDebugConfig(config: ra.Runnable, executable: string, sourceFile
 
 const debugOutput = vscode.window.createOutputChannel("Debug");
 
-async function getDebugExecutable(config: ra.Runnable): Promise<string> {
-    const cargo = new Cargo(config.cwd || '.', debugOutput);
+async function getDebugExecutable(config: ra.Runnable, extensionConfig: Config): Promise<string> {
+    const cargo = new Cargo(config.cwd || '.', debugOutput, extensionConfig);
     const executable = await cargo.executableFromArgs(config.args);
 
     // if we are here, there were no compilation errors.
@@ -134,7 +135,7 @@ export function debugSingle(ctx: Ctx): Cmd {
             debugOutput.show(true);
         }
 
-        const executable = await getDebugExecutable(config);
+        const executable = await getDebugExecutable(config, ctx.config);
         const debugConfig = knownEngines[debugEngine.id](config, executable, debugOptions.sourceFileMap);
         if (debugConfig.type in debugOptions.engineSettings) {
             const settingsMap = (debugOptions.engineSettings as any)[debugConfig.type];
