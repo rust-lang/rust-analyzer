@@ -27,7 +27,7 @@ fn find_registrar_symbol(file: &Path) -> io::Result<Option<String>> {
     Ok(object
         .dynamic_symbols()
         .filter_map(|(_, sym)| sym.name())
-        .find(|sym| is_derive_registrar_symbol(sym))
+        .find(|sym| is_derive_registrar_symbol(dbg!(sym)))
         .map(|sym| {
             // From MacOS docs:
             // https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/dlsym.3.html
