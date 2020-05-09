@@ -399,7 +399,7 @@ fn loop_turn(
         loop_state.pending_libraries.extend(changes);
     }
 
-    let max_in_flight_libs = pool.max_count().saturating_sub(2).max(1);
+    let max_in_flight_libs = pool.max_count().saturating_sub(2).min(1);
     while loop_state.in_flight_libraries < max_in_flight_libs
         && !loop_state.pending_libraries.is_empty()
     {
