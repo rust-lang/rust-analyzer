@@ -479,6 +479,11 @@
         ],
         "grammars": [
             {
+                "language": "rust",
+                "scopeName": "source.rust",
+                "path": "rust.tmGrammar.json"
+            },
+            {
                 "language": "ra_syntax_tree",
                 "scopeName": "source.ra_syntax_tree",
                 "path": "ra_syntax_tree.tmGrammar.json"
@@ -596,28 +601,31 @@
                         "support.type.primitive"
                     ],
                     "lifetime": [
-                        "entity.name.lifetime.rust"
+                        "entity.name.type.lifetime"
                     ],
                     "typeAlias": [
-                        "entity.name.typeAlias"
+                        "entity.name.type.typeAlias"
                     ],
                     "union": [
-                        "entity.name.union"
+                        "entity.name.type.union"
                     ],
                     "struct": [
                         "entity.name.type.struct"
                     ],
-                    "keyword.unsafe": [
-                        "keyword.other.unsafe"
-                    ],
-                    "keyword": [
-                        "keyword"
-                    ],
                     "keyword.controlFlow": [
                         "keyword.control"
                     ],
+                    "keyword": [
+                        "keyword.other"
+                    ],
                     "variable.constant": [
-                        "entity.name.constant"
+                        "variable.other.constant"
+                    ],
+                    "*.mutable": [
+                        "markup.underline"
+                    ],
+                    "*.static": [
+                        "markup.italic"
                     ]
                 }
             }

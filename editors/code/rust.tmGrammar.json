@@ -1,0 +1,293 @@
+{
+	"name": "Rust",
+	"scopeName": "source.rust",
+	"patterns": [
+		{
+			"comment": "Implementation",
+			"begin": "\\b(impl)\\b",
+			"end": "\\{",
+			"beginCaptures": {
+				"1": {
+					"name": "storage.type.rust"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#block_comment"
+				},
+				{
+					"include": "#line_comment"
+				},
+				{
+					"include": "#sigils"
+				},
+				{
+					"name": "keyword.other",
+					"match": "\\b(for|mut|dyn|where|self|Self)\\b"
+				}
+			]
+		},
+		{
+			"include": "#block_doc_comment"
+		},
+		{
+			"include": "#block_comment"
+		},
+		{
+			"include": "#line_doc_comment"
+		},
+		{
+			"include": "#line_comment"
+		},
+		{
+			"comment": "Attribute",
+			"name": "punctuation.definition.tag",
+			"begin": "#\\!?\\[",
+			"end": "\\]",
+			"patterns": [
+				{
+					"include": "#string_literal"
+				},
+				{
+					"include": "#block_doc_comment"
+				},
+				{
+					"include": "#block_comment"
+				},
+				{
+					"include": "#line_doc_comment"
+				},
+				{
+					"include": "#line_comment"
+				}
+			]
+		},
+		{
+			"comment": "Single-quote string literal (character)",
+			"name": "string.quoted.single",
+			"match": "b?'([^'\\\\]|\\\\(x[0-9A-Fa-f]{2}|[0-2][0-7]{0,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.))'"
+		},
+		{
+			"include": "#string_literal"
+		},
+		{
+			"include": "#raw_string_literal"
+		},
+		{
+			"comment": "Floating point literal (fraction)",
+			"name": "constant.numeric.float",
+			"match": "\\b[0-9][0-9_]*\\.[0-9][0-9_]*([eE][+-]?[0-9_]+)?(f32|f64)?\\b"
+		},
+		{
+			"comment": "Floating point literal (exponent)",
+			"name": "constant.numeric.float",
+			"match": "\\b[0-9][0-9_]*(\\.[0-9][0-9_]*)?[eE][+-]?[0-9_]+(f32|f64)?\\b"
+		},
+		{
+			"comment": "Floating point literal (typed)",
+			"name": "constant.numeric.float",
+			"match": "\\b[0-9][0-9_]*(\\.[0-9][0-9_]*)?([eE][+-]?[0-9_]+)?(f32|f64)\\b"
+		},
+		{
+			"comment": "Integer literal (decimal)",
+			"name": "constant.numeric.integer.decimal",
+			"match": "\\b[0-9][0-9_]*([ui](8|16|32|64|128|s|size))?\\b"
+		},
+		{
+			"comment": "Integer literal (hexadecimal)",
+			"name": "constant.numeric.integer.hexadecimal",
+			"match": "\\b0x[a-fA-F0-9_]+([ui](8|16|32|64|128|s|size))?\\b"
+		},
+		{
+			"comment": "Integer literal (octal)",
+			"name": "constant.numeric.integer.octal",
+			"match": "\\b0o[0-7_]+([ui](8|16|32|64|128|s|size))?\\b"
+		},
+		{
+			"comment": "Integer literal (binary)",
+			"name": "constant.numeric.integer.binary",
+			"match": "\\b0b[01_]+([ui](8|16|32|64|128|s|size))?\\b"
+		},
+		{
+			"comment": "Static storage modifier",
+			"name": "storage.modifier.static",
+			"match": "\\bstatic\\b"
+		},
+		{
+			"comment": "Boolean constant",
+			"name": "constant.language.boolean",
+			"match": "\\b(true|false)\\b"
+		},
+		{
+			"comment": "Control keyword",
+			"name": "keyword.control",
+			"match": "\\b(await|break|continue|else|if|in|for|loop|match|return|try|while)\\b"
+		},
+		{
+			"comment": "Keyword",
+			"name": "keyword.other",
+			"match": "\\b(async|crate|extern|mod|let|ref|use|super|move|self|mut|dyn|impl|box|const|pub|unsafe|where|type|enum|struct|trait|union|Self)\\b"
+		},
+		{
+			"comment": "Reserved keyword",
+			"name": "invalid.deprecated",
+			"match": "\\b(abstract|alignof|become|do|final|macro|offsetof|override|priv|proc|pure|sizeof|typeof|virtual|yield)\\b"
+		},
+		{
+			"include": "#sigils"
+		},
+		{
+			"comment": "Named lifetime",
+			"name": "entity.name.type.lifetime",
+			"match": "'([a-zA-Z_][a-zA-Z0-9_]*)\\b",
+			"captures": {
+				"1": {
+					"name": "entity.name.type.lifetime"
+				}
+			}
+		},
+		{
+			"comment": "Reference with named lifetime",
+			"match": "&('([a-zA-Z_][a-zA-Z0-9_]*))\\b",
+			"captures": {
+				"1": {
+					"name": "entity.name.type.lifetime"
+				},
+				"2": {
+					"name": "entity.name.type.lifetime"
+				}
+			}
+        },
+		{
+			"comment": "Miscellaneous operator",
+			"name": "keyword.operator.misc",
+			"match": "(=>|::|\\bas\\b)"
+		},
+		{
+			"comment": "Comparison operator",
+			"name": "keyword.operator.comparison",
+			"match": "(&&|\\|\\||==|!=)"
+		},
+		{
+			"comment": "Assignment operator",
+			"name": "keyword.operator.assignment",
+			"match": "(\\+=|-=|/=|\\*=|%=|\\^=|&=|\\|=|<<=|>>=|=)"
+		},
+		{
+			"comment": "Arithmetic operator",
+			"name": "keyword.operator.arithmetic",
+			"match": "(!|\\+|-|/|\\*|%|\\^|&|\\||<<|>>)"
+		},
+		{
+			"comment": "Comparison operator (second group because of regex precedence)",
+			"name": "keyword.operator.comparison",
+			"match": "(<=|>=|<|>)"
+        },
+        {
+			"comment": "Built-in/core type",
+			"name": "entity.name.type",
+			"match": "\\b(bool|char|usize|isize|u8|u16|u32|u64|u128|i8|i16|i32|i64|i128|f32|f64|str)\\b"
+		},
+		{
+			"comment": "Function call",
+			"match": "\\b([A-Za-z][A-Za-z0-9_]*|_[A-Za-z0-9_]+)\\s*\\(",
+			"captures": {
+				"1": {
+					"name": "entity.name.function"
+				}
+			}
+		},
+		{
+			"comment": "Function call with type parameters",
+			"match": "\\b([A-Za-z][A-Za-z0-9_]*|_[A-Za-z0-9_]+)\\s*(::)(?=\\s*<.*>\\s*\\()",
+			"captures": {
+				"1": {
+					"name": "entity.name.function"
+				},
+				"2": {
+					"name": "keyword.operator.misc"
+				}
+			}
+		},
+		{
+			"comment": "Function definition",
+			"match": "\\b(fn)\\s+([A-Za-z][A-Za-z0-9_]*|_[A-Za-z0-9_]+)",
+			"captures": {
+				"1": {
+					"name": "keyword.other.fn"
+				},
+				"2": {
+					"name": "entity.name.function"
+				}
+			}
+		}
+	],
+	"repository": {
+		"block_doc_comment": {
+			"comment": "Block documentation comment",
+			"name": "comment.block.documentation",
+			"begin": "/\\*[\\*!](?![\\*/])",
+			"end": "\\*/",
+			"patterns": [
+				{
+					"include": "#block_doc_comment"
+				},
+				{
+					"include": "#block_comment"
+				}
+			]
+		},
+		"block_comment": {
+			"comment": "Block comment",
+			"name": "comment.block",
+			"begin": "/\\*",
+			"end": "\\*/",
+			"patterns": [
+				{
+					"include": "#block_doc_comment"
+				},
+				{
+					"include": "#block_comment"
+				}
+			]
+		},
+		"line_doc_comment": {
+			"comment": "Single-line documentation comment",
+			"name": "comment.line.documentation",
+			"begin": "//[!/](?=[^/])",
+			"end": "$"
+		},
+		"line_comment": {
+			"comment": "Single-line comment",
+			"name": "comment.line.double-slash",
+			"begin": "//",
+			"end": "$"
+		},
+		"escaped_character": {
+			"name": "constant.character.escape",
+			"match": "\\\\(x[0-9A-Fa-f]{2}|[0-2][0-7]{0,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.)"
+		},
+		"string_literal": {
+			"comment": "Double-quote string literal",
+			"name": "string.quoted.double",
+			"begin": "b?\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"include": "#escaped_character"
+				}
+			]
+		},
+		"raw_string_literal": {
+			"comment": "Raw double-quote string literal",
+			"name": "string.quoted.double.raw",
+			"begin": "b?r(#*)\"",
+			"end": "\"\\1"
+		},
+		"sigils": {
+			"comment": "Sigil",
+			"name": "keyword.other.sigil",
+			"match": "&"
+		}
+	}
+}

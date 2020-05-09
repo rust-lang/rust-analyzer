@@ -346,7 +346,7 @@ impl ConvWith<&LineIndex> for InlayHint {
 }
 
 impl Conv for Highlight {
-    type Output = (u32, u32);
+    type Output = Option<(u32, u32)>;
 
     fn conv(self) -> Self::Output {
         let mut mods = ModifierSet::default();
@@ -356,10 +356,7 @@ impl Conv for Highlight {
             HighlightTag::Union => UNION,
             HighlightTag::TypeAlias => TYPE_ALIAS,
             HighlightTag::Trait => SemanticTokenType::INTERFACE,
-            HighlightTag::BuiltinType => BUILTIN_TYPE,
-            HighlightTag::SelfType => SemanticTokenType::TYPE,
             HighlightTag::Field => SemanticTokenType::MEMBER,
-            HighlightTag::Function => SemanticTokenType::FUNCTION,
             HighlightTag::Module => SemanticTokenType::NAMESPACE,
             HighlightTag::Constant => {
                 mods |= CONSTANT;
@@ -371,17 +368,10 @@ impl Conv for Highlight {
                 SemanticTokenType::VARIABLE
             }
             HighlightTag::EnumVariant => ENUM_MEMBER,
-            HighlightTag::Macro => SemanticTokenType::MACRO,
             HighlightTag::Local => SemanticTokenType::VARIABLE,
             HighlightTag::TypeParam => SemanticTokenType::TYPE_PARAMETER,
-            HighlightTag::Lifetime => LIFETIME,
-            HighlightTag::ByteLiteral | HighlightTag::NumericLiteral => SemanticTokenType::NUMBER,
-            HighlightTag::CharLiteral | HighlightTag::StringLiteral => SemanticTokenType::STRING,
-            HighlightTag::Comment => SemanticTokenType::COMMENT,
-            HighlightTag::Attribute => ATTRIBUTE,
-            HighlightTag::Keyword => SemanticTokenType::KEYWORD,
-            HighlightTag::UnresolvedReference => UNRESOLVED_REFERENCE,
             HighlightTag::FormatSpecifier => FORMAT_SPECIFIER,
+            _ => return None,
         };
 
         for modifier in self.modifiers.iter() {
@@ -394,7 +384,7 @@ impl Conv for Highlight {
             mods |= modifier;
         }
 
-        (semantic_tokens::type_index(type_), mods.0)
+        Some((semantic_tokens::type_index(type_), mods.0))
     }
 }
 

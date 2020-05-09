@@ -226,13 +226,6 @@ pub(crate) fn highlight(
             element.clone()
         };
 
-        if let Some(token) = element.as_token().cloned().and_then(ast::RawString::cast) {
-            let expanded = element_to_highlight.as_token().unwrap().clone();
-            if highlight_injection(&mut stack, &sema, token, expanded).is_some() {
-                continue;
-            }
-        }
-
         let is_format_string = format_string.as_ref() == Some(&element_to_highlight);
 
         if let Some((highlight, binding_hash)) =
@@ -340,9 +333,9 @@ fn highlight_element(
 
             match name_kind {
                 Some(NameClass::Definition(def)) => {
-                    highlight_name(db, def) | HighlightModifier::Definition
+                    highlight_name(db, def)? | HighlightModifier::Definition
                 }
-                Some(NameClass::ConstReference(def)) => highlight_name(db, def),
+                Some(NameClass::ConstReference(def)) => highlight_name(db, def)?,
                 None => highlight_name_by_syntax(name) | HighlightModifier::Definition,
             }
         }
@@ -361,43 +354,17 @@ fn highlight_element(
                                 binding_hash = Some(calc_binding_hash(&name, *shadow_count))
                             }
                         };
-                        highlight_name(db, def)
+                        highlight_name(db, def)?
                     }
-                    NameRefClass::FieldShorthand { .. } => HighlightTag::Field.into(),
+                    NameRefClass::FieldShorthand { local, .. } => {
+                        let mut h = Highlight::new(HighlightTag::Local);
+                        if local.is_mut(db) || local.ty(db).is_mutable_reference() {
+                            h |= HighlightModifier::Mutable;
+                        }
+                        h
+                    }
                 },
                 None => HighlightTag::UnresolvedReference.into(),
-            }
-        }
-
-        // Simple token-based highlighting
-        COMMENT => HighlightTag::Comment.into(),
-        STRING | RAW_STRING | RAW_BYTE_STRING | BYTE_STRING => HighlightTag::StringLiteral.into(),
-        ATTR => HighlightTag::Attribute.into(),
-        INT_NUMBER | FLOAT_NUMBER => HighlightTag::NumericLiteral.into(),
-        BYTE => HighlightTag::ByteLiteral.into(),
-        CHAR => HighlightTag::CharLiteral.into(),
-        LIFETIME => {
-            let h = Highlight::new(HighlightTag::Lifetime);
-            match element.parent().map(|it| it.kind()) {
-                Some(LIFETIME_PARAM) | Some(LABEL) => h | HighlightModifier::Definition,
-                _ => h,
-            }
-        }
-
-        k if k.is_keyword() => {
-            let h = Highlight::new(HighlightTag::Keyword);
-            match k {
-                T![break]
-                | T![continue]
-                | T![else]
-                | T![for]
-                | T![if]
-                | T![loop]
-                | T![match]
-                | T![return]
-                | T![while] => h | HighlightModifier::ControlFlow,
-                T![unsafe] => h | HighlightModifier::Unsafe,
-                _ => h,
             }
         }
 
@@ -419,35 +386,34 @@ fn highlight_element(
     }
 }
 
-fn highlight_name(db: &RootDatabase, def: Definition) -> Highlight {
+fn highlight_name(db: &RootDatabase, def: Definition) -> Option<Highlight> {
     match def {
-        Definition::Macro(_) => HighlightTag::Macro,
-        Definition::Field(_) => HighlightTag::Field,
-        Definition::ModuleDef(def) => match def {
-            hir::ModuleDef::Module(_) => HighlightTag::Module,
-            hir::ModuleDef::Function(_) => HighlightTag::Function,
-            hir::ModuleDef::Adt(hir::Adt::Struct(_)) => HighlightTag::Struct,
-            hir::ModuleDef::Adt(hir::Adt::Enum(_)) => HighlightTag::Enum,
-            hir::ModuleDef::Adt(hir::Adt::Union(_)) => HighlightTag::Union,
-            hir::ModuleDef::EnumVariant(_) => HighlightTag::EnumVariant,
-            hir::ModuleDef::Const(_) => HighlightTag::Constant,
-            hir::ModuleDef::Static(_) => HighlightTag::Static,
-            hir::ModuleDef::Trait(_) => HighlightTag::Trait,
-            hir::ModuleDef::TypeAlias(_) => HighlightTag::TypeAlias,
-            hir::ModuleDef::BuiltinType(_) => HighlightTag::BuiltinType,
-        },
-        Definition::SelfType(_) => HighlightTag::SelfType,
-        Definition::TypeParam(_) => HighlightTag::TypeParam,
+        Definition::ModuleDef(def) => {
+            let tag = match def {
+                hir::ModuleDef::Adt(hir::Adt::Struct(_)) => HighlightTag::Struct,
+                hir::ModuleDef::Adt(hir::Adt::Enum(_)) => HighlightTag::Enum,
+                hir::ModuleDef::Adt(hir::Adt::Union(_)) => HighlightTag::Union,
+                hir::ModuleDef::EnumVariant(_) => HighlightTag::EnumVariant,
+                hir::ModuleDef::Const(_) => HighlightTag::Constant,
+                hir::ModuleDef::Static(_) => HighlightTag::Static,
+                hir::ModuleDef::Trait(_) => HighlightTag::Trait,
+                hir::ModuleDef::TypeAlias(_) => HighlightTag::TypeAlias,
+                hir::ModuleDef::BuiltinType(_) => HighlightTag::BuiltinType,
+                _ => return None,
+            };
+            Some(Highlight::new(tag))
+        }
+        Definition::TypeParam(_) => Some(Highlight::new(HighlightTag::TypeParam)),
         // FIXME: distinguish between locals and parameters
         Definition::Local(local) => {
             let mut h = Highlight::new(HighlightTag::Local);
             if local.is_mut(db) || local.ty(db).is_mutable_reference() {
                 h |= HighlightModifier::Mutable;
             }
-            return h;
+            Some(h)
         }
+        _ => None,
     }
-    .into()
 }
 
 fn highlight_name_by_syntax(name: ast::Name) -> Highlight {
@@ -468,43 +434,4 @@ fn highlight_name_by_syntax(name: ast::Name) -> Highlight {
         RECORD_FIELD_DEF => HighlightTag::Field.into(),
         _ => default,
     }
-}
-
-fn highlight_injection(
-    acc: &mut HighlightedRangeStack,
-    sema: &Semantics<RootDatabase>,
-    literal: ast::RawString,
-    expanded: SyntaxToken,
-) -> Option<()> {
-    let active_parameter = ActiveParameter::at_token(&sema, expanded)?;
-    if !active_parameter.name.starts_with("ra_fixture") {
-        return None;
-    }
-    let value = literal.value()?;
-    let (analysis, tmp_file_id) = Analysis::from_single_file(value);
-
-    if let Some(range) = literal.open_quote_text_range() {
-        acc.add(HighlightedRange {
-            range,
-            highlight: HighlightTag::StringLiteral.into(),
-            binding_hash: None,
-        })
-    }
-
-    for mut h in analysis.highlight(tmp_file_id).unwrap() {
-        if let Some(r) = literal.map_range_up(h.range) {
-            h.range = r;
-            acc.add(h)
-        }
-    }
-
-    if let Some(range) = literal.close_quote_text_range() {
-        acc.add(HighlightedRange {
-            range,
-            highlight: HighlightTag::StringLiteral.into(),
-            binding_hash: None,
-        })
-    }
-
-    Some(())
 }

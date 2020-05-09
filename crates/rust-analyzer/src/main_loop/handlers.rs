@@ -1175,13 +1175,14 @@ pub fn handle_semantic_tokens(
     let mut builder = SemanticTokensBuilder::default();
 
     for highlight_range in world.analysis().highlight(file_id)?.into_iter() {
-        let (token_index, modifier_bitset) = highlight_range.highlight.conv();
-        for mut range in line_index.lines(highlight_range.range) {
-            if text[range].ends_with('\n') {
-                range = TextRange::new(range.start(), range.end() - TextSize::of('\n'));
+        if let Some((token_index, modifier_bitset)) = highlight_range.highlight.conv() {
+            for mut range in line_index.lines(highlight_range.range) {
+                if text[range].ends_with('\n') {
+                    range = TextRange::new(range.start(), range.end() - TextSize::of('\n'));
+                }
+                let range = range.conv_with(&line_index);
+                builder.push(range, token_index, modifier_bitset);
             }
-            let range = range.conv_with(&line_index);
-            builder.push(range, token_index, modifier_bitset);
         }
     }
 
@@ -1202,8 +1203,9 @@ pub fn handle_semantic_tokens_range(
     let mut builder = SemanticTokensBuilder::default();
 
     for highlight_range in world.analysis().highlight_range(frange)?.into_iter() {
-        let (token_type, token_modifiers) = highlight_range.highlight.conv();
-        builder.push(highlight_range.range.conv_with(&line_index), token_type, token_modifiers);
+        if let Some((token_type, token_modifiers)) = highlight_range.highlight.conv() {
+            builder.push(highlight_range.range.conv_with(&line_index), token_type, token_modifiers);
+        }
     }
 
     let tokens = builder.build();
