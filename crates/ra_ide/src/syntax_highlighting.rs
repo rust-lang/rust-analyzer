@@ -327,9 +327,9 @@ fn highlight_element(
 
             match name_kind {
                 Some(NameClass::Definition(def)) => {
-                    highlight_name(db, def)? | HighlightModifier::Definition
+                    highlight_name(db, false, def)? | HighlightModifier::Definition
                 }
-                Some(NameClass::ConstReference(def)) => highlight_name(db, def)?,
+                Some(NameClass::ConstReference(def)) => highlight_name(db, false, def)?,
                 None => highlight_name_by_syntax(name) | HighlightModifier::Definition,
             }
         }
@@ -337,6 +337,7 @@ fn highlight_element(
         // Highlight references like the definitions they resolve to
         NAME_REF if element.ancestors().any(|it| it.kind() == ATTR) => return None,
         NAME_REF => {
+            let is_path = element.parent().map(|it| it.kind()) == Some(PATH_SEGMENT);
             let name_ref = element.into_node().and_then(ast::NameRef::cast).unwrap();
             match classify_name_ref(sema, &name_ref) {
                 Some(name_kind) => match name_kind {
@@ -348,7 +349,7 @@ fn highlight_element(
                                 binding_hash = Some(calc_binding_hash(&name, *shadow_count))
                             }
                         };
-                        highlight_name(db, def)?
+                        highlight_name(db, is_path, def)?
                     }
                     NameRefClass::FieldShorthand { local, .. } => {
                         let mut h = Highlight::new(HighlightTag::Local);
@@ -380,10 +381,11 @@ fn highlight_element(
     }
 }
 
-fn highlight_name(db: &RootDatabase, def: Definition) -> Option<Highlight> {
+fn highlight_name(db: &RootDatabase, is_path: bool, def: Definition) -> Option<Highlight> {
     match def {
         Definition::ModuleDef(def) => {
             let tag = match def {
+                hir::ModuleDef::Function(_) if is_path => HighlightTag::Function,
                 hir::ModuleDef::Adt(hir::Adt::Struct(_)) => HighlightTag::Struct,
                 hir::ModuleDef::Adt(hir::Adt::Enum(_)) => HighlightTag::Enum,
                 hir::ModuleDef::Adt(hir::Adt::Union(_)) => HighlightTag::Union,

@@ -356,6 +356,7 @@ impl Conv for Highlight {
             HighlightTag::TypeAlias => TYPE_ALIAS,
             HighlightTag::Trait => SemanticTokenType::INTERFACE,
             HighlightTag::Field => SemanticTokenType::MEMBER,
+            HighlightTag::Function => SemanticTokenType::FUNCTION,
             HighlightTag::Module => SemanticTokenType::NAMESPACE,
             HighlightTag::Constant => {
                 mods |= CONSTANT;
