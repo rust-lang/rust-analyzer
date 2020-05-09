@@ -30,10 +30,6 @@ impl ActiveParameter {
     pub(crate) fn at(db: &RootDatabase, position: FilePosition) -> Option<Self> {
         call_info(db, position)?.into_active_parameter()
     }
-
-    pub(crate) fn at_token(sema: &Semantics<RootDatabase>, token: SyntaxToken) -> Option<Self> {
-        call_info_for_token(sema, token)?.into_active_parameter()
-    }
 }
 
 fn call_info_for_token(sema: &Semantics<RootDatabase>, token: SyntaxToken) -> Option<CallInfo> {

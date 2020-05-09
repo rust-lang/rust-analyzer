@@ -12,14 +12,14 @@ use ra_ide_db::{
 };
 use ra_prof::profile;
 use ra_syntax::{
-    ast::{self, HasFormatSpecifier, HasQuotes, HasStringValue},
+    ast::{self, HasFormatSpecifier},
     AstNode, AstToken, Direction, NodeOrToken, SyntaxElement,
     SyntaxKind::*,
-    SyntaxToken, TextRange, WalkEvent, T,
+    TextRange, WalkEvent, T,
 };
 use rustc_hash::FxHashMap;
 
-use crate::{call_info::ActiveParameter, Analysis, FileId};
+use crate::FileId;
 
 use ast::FormatSpecifier;
 pub(crate) use html::highlight_as_html;

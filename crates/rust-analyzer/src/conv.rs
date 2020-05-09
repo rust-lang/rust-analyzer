@@ -24,10 +24,7 @@ use crate::{
     world::WorldSnapshot,
     Result,
 };
-use semantic_tokens::{
-    ATTRIBUTE, BUILTIN_TYPE, ENUM_MEMBER, FORMAT_SPECIFIER, LIFETIME, TYPE_ALIAS, UNION,
-    UNRESOLVED_REFERENCE,
-};
+use semantic_tokens::{ENUM_MEMBER, FORMAT_SPECIFIER, TYPE_ALIAS, UNION};
 
 pub trait Conv {
     type Output;
