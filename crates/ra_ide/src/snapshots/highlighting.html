@@ -29,27 +29,27 @@ pre                 { color: #DCDCCC; background: #3F3F3F; font-size: 22px; padd
 </style>
 <pre><code>#[derive(Clone, Debug)]
 struct <span class="struct declaration">Foo</span> {
-    pub x: <span class="builtin_type">i32</span>,
-    pub y: <span class="builtin_type">i32</span>,
+    pub x: i32,
+    pub y: i32,
 }
 
 fn foo&lt;'a, <span class="type_param declaration">T</span>&gt;() -&gt; <span class="type_param">T</span> {
-    foo::&lt;'a, <span class="builtin_type">i32</span>&gt;()
+    <span class="function">foo</span>::&lt;'a, i32&gt;()
 }
 
-<span class="macro">macro_rules!</span> def_fn {
+macro_rules! def_fn {
     ($($tt:tt)*) =&gt; {$($tt)*}
 }
 
-<span class="macro">def_fn!</span> {
-    fn bar() -&gt; <span class="builtin_type">u32</span> {
+def_fn! {
+    fn bar() -&gt; u32 {
         100
     }
 }
 
 // comment
 fn main() {
-    <span class="macro">println!</span>("Hello, {}!", 92);
+    println!("Hello, {}!", 92);
 
     let mut <span class="variable declaration mutable">vec</span> = <span class="unresolved_reference">Vec</span>::<span class="unresolved_reference">new</span>();
     if true {
@@ -74,7 +74,7 @@ use <span class="enum">Option</span>::*;
 impl&lt;<span class="type_param declaration">T</span>&gt; <span class="enum">Option</span>&lt;<span class="type_param">T</span>&gt; {
     fn and&lt;<span class="type_param declaration">U</span>&gt;(self, <span class="variable declaration">other</span>: <span class="enum">Option</span>&lt;<span class="type_param">U</span>&gt;) -&gt; <span class="enum">Option</span>&lt;(<span class="type_param">T</span>, <span class="type_param">U</span>)&gt; {
         match <span class="variable">other</span> {
-            <span class="enum_variant">None</span> =&gt; <span class="macro">unimplemented!</span>(),
+            <span class="enum_variant">None</span> =&gt; unimplemented!(),
             <span class="variable declaration">Nope</span> =&gt; <span class="variable">Nope</span>,
         }
     }

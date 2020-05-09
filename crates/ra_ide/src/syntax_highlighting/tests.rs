@@ -117,19 +117,18 @@ fn accidentally_quadratic() {
 fn test_ranges() {
     let (analysis, file_id) = single_file(
         r#"
-            #[derive(Clone, Debug)]
-            struct Foo {
-                pub x: i32,
-                pub y: i32,
+            fn main() {
+                let x = 1;
+                println!("Hello, {}", x);
             }"#,
     );
 
     // The "x"
     let highlights = &analysis
-        .highlight_range(FileRange { file_id, range: TextRange::at(82.into(), 1.into()) })
+        .highlight_range(FileRange { file_id, range: TextRange::at(45.into(), 1.into()) })
         .unwrap();
 
-    assert_eq!(&highlights[0].highlight.to_string(), "field.declaration");
+    assert_eq!(&highlights[0].highlight.to_string(), "variable.declaration");
 }
 
 #[test]

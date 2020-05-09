@@ -13,9 +13,9 @@ use ra_ide_db::{
 use ra_prof::profile;
 use ra_syntax::{
     ast::{self, HasFormatSpecifier},
-    AstNode, AstToken, Direction, NodeOrToken, SyntaxElement,
+    AstNode, AstToken, NodeOrToken, SyntaxElement,
     SyntaxKind::*,
-    TextRange, WalkEvent, T,
+    TextRange, WalkEvent,
 };
 use rustc_hash::FxHashMap;
 
@@ -160,13 +160,6 @@ pub(crate) fn highlight(
         match event.clone().map(|it| it.into_node().and_then(ast::MacroCall::cast)) {
             WalkEvent::Enter(Some(mc)) => {
                 current_macro_call = Some(mc.clone());
-                if let Some(range) = macro_call_range(&mc) {
-                    stack.add(HighlightedRange {
-                        range,
-                        highlight: HighlightTag::Macro.into(),
-                        binding_hash: None,
-                    });
-                }
                 continue;
             }
             WalkEvent::Leave(Some(mc)) => {
@@ -283,22 +276,6 @@ fn highlight_format_specifier(kind: FormatSpecifier) -> Option<HighlightTag> {
     })
 }
 
-fn macro_call_range(macro_call: &ast::MacroCall) -> Option<TextRange> {
-    let path = macro_call.path()?;
-    let name_ref = path.segment()?.name_ref()?;
-
-    let range_start = name_ref.syntax().text_range().start();
-    let mut range_end = name_ref.syntax().text_range().end();
-    for sibling in path.syntax().siblings_with_tokens(Direction::Next) {
-        match sibling.kind() {
-            T![!] | IDENT => range_end = sibling.text_range().end(),
-            _ => (),
-        }
-    }
-
-    Some(TextRange::new(range_start, range_end))
-}
-
 fn highlight_element(
     sema: &Semantics<RootDatabase>,
     bindings_shadow_count: &mut FxHashMap<Name, u32>,
@@ -394,7 +371,6 @@ fn highlight_name(db: &RootDatabase, is_path: bool, def: Definition) -> Option<H
                 hir::ModuleDef::Static(_) => HighlightTag::Static,
                 hir::ModuleDef::Trait(_) => HighlightTag::Trait,
                 hir::ModuleDef::TypeAlias(_) => HighlightTag::TypeAlias,
-                hir::ModuleDef::BuiltinType(_) => HighlightTag::BuiltinType,
                 _ => return None,
             };
             Some(Highlight::new(tag))
@@ -427,7 +403,6 @@ fn highlight_name_by_syntax(name: ast::Name) -> Highlight {
         TRAIT_DEF => HighlightTag::Trait.into(),
         TYPE_ALIAS_DEF => HighlightTag::TypeAlias.into(),
         TYPE_PARAM => HighlightTag::TypeParam.into(),
-        RECORD_FIELD_DEF => HighlightTag::Field.into(),
         _ => default,
     }
 }

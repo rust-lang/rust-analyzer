@@ -355,7 +355,6 @@ impl Conv for Highlight {
             HighlightTag::Union => UNION,
             HighlightTag::TypeAlias => TYPE_ALIAS,
             HighlightTag::Trait => SemanticTokenType::INTERFACE,
-            HighlightTag::Field => SemanticTokenType::MEMBER,
             HighlightTag::Function => SemanticTokenType::FUNCTION,
             HighlightTag::Module => SemanticTokenType::NAMESPACE,
             HighlightTag::Constant => {
@@ -371,10 +370,10 @@ impl Conv for Highlight {
             HighlightTag::Local => SemanticTokenType::VARIABLE,
             HighlightTag::TypeParam => SemanticTokenType::TYPE_PARAMETER,
             HighlightTag::NumericLiteral => SemanticTokenType::NUMBER,
+            HighlightTag::UnresolvedReference => return None,
             HighlightTag::FormatSpecifier => FORMAT_SPECIFIER,
             HighlightTag::FormatSpecifierOpen => FORMAT_SPECIFIER_OPEN,
             HighlightTag::FormatSpecifierClose => FORMAT_SPECIFIER_CLOSE,
-            _ => return None,
         };
 
         for modifier in self.modifiers.iter() {
