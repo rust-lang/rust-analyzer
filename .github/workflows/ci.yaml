@@ -114,6 +114,7 @@ jobs:
         toolchain: ${{ matrix.channel }}
         profile: minimal
         override: true
+        components: rustfmt, rust-src
 
     - run: sudo chown -R $(whoami):$(id -ng) ~/.cargo/
 
