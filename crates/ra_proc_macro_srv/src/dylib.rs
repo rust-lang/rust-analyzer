@@ -25,7 +25,7 @@ fn find_registrar_symbol(file: &Path) -> io::Result<Option<String>> {
     let buffer = unsafe { Mmap::map(&file)? };
     let object = object::File::parse(&*buffer).map_err(invalid_data_err)?;
     Ok(object
-        .symbols()
+        .dynamic_symbols()
         .filter_map(|(_, sym)| sym.name())
         .find(|sym| is_derive_registrar_symbol(sym))
         .map(|sym| {
