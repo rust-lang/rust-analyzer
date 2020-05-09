@@ -43,6 +43,8 @@ define_semantic_token_types![
     (UNION, "union"),
     (UNRESOLVED_REFERENCE, "unresolvedReference"),
     (FORMAT_SPECIFIER, "formatSpecifier"),
+    (FORMAT_SPECIFIER_OPEN, "formatSpecifierOpen"),
+    (FORMAT_SPECIFIER_CLOSE, "formatSpecifierClose"),
 ];
 
 macro_rules! define_semantic_token_modifiers {

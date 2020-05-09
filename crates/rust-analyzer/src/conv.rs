@@ -24,7 +24,9 @@ use crate::{
     world::WorldSnapshot,
     Result,
 };
-use semantic_tokens::{ENUM_MEMBER, FORMAT_SPECIFIER, TYPE_ALIAS, UNION};
+use semantic_tokens::{
+    ENUM_MEMBER, FORMAT_SPECIFIER, FORMAT_SPECIFIER_CLOSE, FORMAT_SPECIFIER_OPEN, TYPE_ALIAS, UNION,
+};
 
 pub trait Conv {
     type Output;
@@ -367,7 +369,10 @@ impl Conv for Highlight {
             HighlightTag::EnumVariant => ENUM_MEMBER,
             HighlightTag::Local => SemanticTokenType::VARIABLE,
             HighlightTag::TypeParam => SemanticTokenType::TYPE_PARAMETER,
+            HighlightTag::NumericLiteral => SemanticTokenType::NUMBER,
             HighlightTag::FormatSpecifier => FORMAT_SPECIFIER,
+            HighlightTag::FormatSpecifierOpen => FORMAT_SPECIFIER_OPEN,
+            HighlightTag::FormatSpecifierClose => FORMAT_SPECIFIER_CLOSE,
             _ => return None,
         };
 

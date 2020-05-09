@@ -232,38 +232,32 @@ pub(crate) fn highlight(
             highlight_element(&sema, &mut bindings_shadow_count, element_to_highlight.clone())
         {
             stack.add(HighlightedRange { range, highlight, binding_hash });
-            if let Some(string) =
-                element_to_highlight.as_token().cloned().and_then(ast::String::cast)
-            {
-                stack.push();
-                if is_format_string {
-                    string.lex_format_specifier(|piece_range, kind| {
-                        if let Some(highlight) = highlight_format_specifier(kind) {
-                            stack.add(HighlightedRange {
-                                range: piece_range + range.start(),
-                                highlight: highlight.into(),
-                                binding_hash: None,
-                            });
-                        }
-                    });
-                }
-                stack.pop();
-            } else if let Some(string) =
-                element_to_highlight.as_token().cloned().and_then(ast::RawString::cast)
-            {
-                stack.push();
-                if is_format_string {
-                    string.lex_format_specifier(|piece_range, kind| {
-                        if let Some(highlight) = highlight_format_specifier(kind) {
-                            stack.add(HighlightedRange {
-                                range: piece_range + range.start(),
-                                highlight: highlight.into(),
-                                binding_hash: None,
-                            });
-                        }
-                    });
-                }
-                stack.pop();
+        }
+        if let Some(string) = element_to_highlight.as_token().cloned().and_then(ast::String::cast) {
+            if is_format_string {
+                string.lex_format_specifier(|piece_range, kind| {
+                    if let Some(highlight) = highlight_format_specifier(kind) {
+                        stack.add(HighlightedRange {
+                            range: piece_range + range.start(),
+                            highlight: highlight.into(),
+                            binding_hash: None,
+                        });
+                    }
+                });
+            }
+        } else if let Some(string) =
+            element_to_highlight.as_token().cloned().and_then(ast::RawString::cast)
+        {
+            if is_format_string {
+                string.lex_format_specifier(|piece_range, kind| {
+                    if let Some(highlight) = highlight_format_specifier(kind) {
+                        stack.add(HighlightedRange {
+                            range: piece_range + range.start(),
+                            highlight: highlight.into(),
+                            binding_hash: None,
+                        });
+                    }
+                });
             }
         }
     }
@@ -273,9 +267,9 @@ pub(crate) fn highlight(
 
 fn highlight_format_specifier(kind: FormatSpecifier) -> Option<HighlightTag> {
     Some(match kind {
-        FormatSpecifier::Open
-        | FormatSpecifier::Close
-        | FormatSpecifier::Colon
+        FormatSpecifier::Open => HighlightTag::FormatSpecifierOpen,
+        FormatSpecifier::Close => HighlightTag::FormatSpecifierClose,
+        FormatSpecifier::Colon
         | FormatSpecifier::Fill
         | FormatSpecifier::Align
         | FormatSpecifier::Sign

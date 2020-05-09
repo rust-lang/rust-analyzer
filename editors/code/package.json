@@ -621,6 +621,15 @@
                     "variable.constant": [
                         "variable.other.constant"
                     ],
+                    "formatSpecifier": [
+                        "punctuation.section.embedded"
+                    ],
+                    "formatSpecifierOpen": [
+                        "punctuation.definition.template-expression.begin"
+                    ],
+                    "formatSpecifierClose": [
+                        "punctuation.definition.template-expression.end"
+                    ],
                     "*.mutable": [
                         "markup.underline"
                     ],
