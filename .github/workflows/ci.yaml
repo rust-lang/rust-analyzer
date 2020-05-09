@@ -82,18 +82,70 @@ jobs:
         path: target
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Compile
-      run: cargo test --no-run
-
-    - name: Test
-      run: cargo test
-
-    - name: Prepare cache
-      run: cargo xtask pre-cache
+    - run: cargo test --no-run
+    - run: cargo test
+    - run: cargo xtask pre-cache
 
     - name: Prepare cache 2
       if: matrix.os == 'windows-latest'
       run: Remove-Item ./target/debug/xtask.exe, ./target/debug/deps/xtask.exe
+
+  # Test forward compat
+  rust-unstable:
+    if: ${{ github.event_name == 'pull_request' }}
+    name: Rust ustable
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: [beta, nightly]
+
+    # Don't fail ci, but instead notify about failure with a comment under PR
+    continue-on-error: true
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.channel }}
+        profile: minimal
+        override: true
+
+    - run: sudo chown -R $(whoami):$(id -ng) ~/.cargo/
+
+    - name: Cache cargo registry
+      uses: actions/cache@v1
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-${{ matrix.channel }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache cargo index
+      uses: actions/cache@v1
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-${{ matrix.channel }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Cache cargo target dir
+      uses: actions/cache@v1
+      with:
+        path: target
+        key: ${{ runner.os }}-${{ matrix.channel }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+    - run: cargo +${{ matrix.channel }} test --no-run
+    - run: cargo +${{ matrix.channel }} test
+    - run: cargo +${{ matrix.channel }} xtask pre-cache
+
+    - if: ${{ failure() }}
+      run: |
+        curl --location --request POST \
+        'https://api.github.com/repos/rust-analyzer/rust-analyzer/issues/${{ github.event.number }}/comments' \
+        --header 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' \
+        --header 'Content-Type: application/json' \
+        --data-raw '{ "body": "Ci on **\`${{ matrix.channel }}\`** failed!" }'
 
   typescript:
     name: TypeScript
