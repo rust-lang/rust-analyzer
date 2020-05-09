@@ -93,7 +93,7 @@ jobs:
   # Test forward compat
   rust-unstable:
     if: ${{ github.event_name == 'pull_request' }}
-    name: Rust ustable
+    name: Rust unstable
     runs-on: ubuntu-latest
 
     strategy:
@@ -145,7 +145,7 @@ jobs:
         'https://api.github.com/repos/rust-analyzer/rust-analyzer/issues/${{ github.event.number }}/comments' \
         --header 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' \
         --header 'Content-Type: application/json' \
-        --data-raw '{ "body": "Ci on **\`${{ matrix.channel }}\`** failed!" }'
+        --data-raw '{ "body": "CI on **\`${{ matrix.channel }}\`** failed!" }'
 
   typescript:
     name: TypeScript
