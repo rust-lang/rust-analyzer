@@ -58,7 +58,7 @@ fn check_doc_test(assist_id: &str, before: &str, after: &str) {
 
     let actual = {
         let change = assist.source_change.source_file_edits.pop().unwrap();
-        let mut actual = before.clone();
+        let mut actual = before;
         change.edit.apply(&mut actual);
         actual
     };

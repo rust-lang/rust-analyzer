@@ -221,7 +221,7 @@ impl Config {
             self.client_caps.hierarchical_symbols = value
         }
         if let Some(value) =
-            caps.code_action.as_ref().and_then(|it| Some(it.code_action_literal_support.is_some()))
+            caps.code_action.as_ref().map(|it| it.code_action_literal_support.is_some())
         {
             self.client_caps.code_action_literals = value;
         }

@@ -60,7 +60,7 @@ pub(super) fn lower(
     params: Option<ast::ParamList>,
     body: Option<ast::Expr>,
 ) -> (Body, BodySourceMap) {
-    let ctx = LowerCtx::new(db, expander.current_file_id.clone());
+    let ctx = LowerCtx::new(db, expander.current_file_id);
 
     ExprCollector {
         db,

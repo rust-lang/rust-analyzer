@@ -570,7 +570,7 @@ fn foo() {
         let parse = SourceFile::parse(&before);
         let result = join_lines(&parse.tree(), sel);
         let actual = {
-            let mut actual = before.to_string();
+            let mut actual = before;
             result.apply(&mut actual);
             actual
         };

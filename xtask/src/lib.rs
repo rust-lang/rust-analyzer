@@ -96,7 +96,7 @@ pub fn run_clippy() -> Result<()> {
         "nonminimal_bool",
         "redundant_pattern_matching",
         // TODO: bikeshed
-        // "writeln_empty_string",
+        // FIXME: reduce this list
         "iter_nth_zero",
         "wrong_self_convention",
         "cognitive_complexity",

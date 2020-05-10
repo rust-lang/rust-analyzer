@@ -36,7 +36,7 @@ where
     I: Iterator,
     I::Item: fmt::Display,
 {
-    fn sep_by<'a>(self, sep: &'a str) -> SepByBuilder<'a, Self> {
+    fn sep_by(self, sep: &str) -> SepByBuilder<'_, Self> {
         SepByBuilder::new(sep, self)
     }
 }

@@ -14,7 +14,7 @@ pub fn check_action<F: Fn(&SourceFile, TextSize) -> Option<TextEdit>>(
     let file = SourceFile::parse(&before).ok().unwrap();
     let result = f(&file, before_cursor_pos).expect("code action is not applicable");
     let actual = {
-        let mut actual = before.to_string();
+        let mut actual = before;
         result.apply(&mut actual);
         actual
     };
