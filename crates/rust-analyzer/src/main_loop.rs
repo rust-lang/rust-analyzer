@@ -4,6 +4,8 @@
 mod handlers;
 mod subscriptions;
 pub(crate) mod pending_requests;
+mod progress;
+mod lsp_utils;
 
 use std::{
     borrow::Cow,
@@ -20,11 +22,7 @@ use std::{
 use crossbeam_channel::{never, select, unbounded, RecvError, Sender};
 use itertools::Itertools;
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
-use lsp_types::{
-    DidChangeTextDocumentParams, NumberOrString, TextDocumentContentChangeEvent, WorkDoneProgress,
-    WorkDoneProgressBegin, WorkDoneProgressCreateParams, WorkDoneProgressEnd,
-    WorkDoneProgressReport,
-};
+use lsp_types::{DidChangeTextDocumentParams, NumberOrString, TextDocumentContentChangeEvent};
 use ra_flycheck::{url_from_path_with_drive_lowercasing, CheckTask};
 use ra_ide::{Canceled, FileId, LibraryData, LineIndex, SourceRootId};
 use ra_prof::profile;
@@ -46,6 +44,9 @@ use crate::{
     world::{WorldSnapshot, WorldState},
     Result,
 };
+pub use lsp_utils::show_message;
+use lsp_utils::{is_canceled, notification_cast, notification_is, notification_new, request_new};
+use progress::{IsDone, PrimeCachesProgressNotifier, WorkspaceAnalysisProgressNotifier};
 
 #[derive(Debug)]
 pub struct LspError {
@@ -92,6 +93,7 @@ pub fn main_loop(ws_roots: Vec<PathBuf>, config: Config, connection: Connection)
     }
 
     let mut loop_state = LoopState::default();
+
     let mut world_state = {
         let workspaces = {
             // FIXME: support dynamic workspace loading.
@@ -174,6 +176,12 @@ pub fn main_loop(ws_roots: Vec<PathBuf>, config: Config, connection: Connection)
     };
 
     loop_state.roots_total = world_state.vfs.read().n_roots();
+    loop_state.roots_scanned = 0;
+    loop_state.roots_progress = Some(WorkspaceAnalysisProgressNotifier::begin(
+        connection.sender.clone(),
+        loop_state.next_request_id(),
+        loop_state.roots_total,
+    ));
 
     let pool = ThreadPool::default();
     let (task_sender, task_receiver) = unbounded::<Task>();
@@ -299,7 +307,7 @@ struct LoopState {
     in_flight_libraries: usize,
     pending_libraries: Vec<(SourceRootId, Vec<(FileId, RelativePathBuf, Arc<String>)>)>,
     workspace_loaded: bool,
-    roots_progress_reported: Option<usize>,
+    roots_progress: Option<WorkspaceAnalysisProgressNotifier>,
     roots_scanned: usize,
     roots_total: usize,
     configuration_request_id: Option<RequestId>,
@@ -430,7 +438,7 @@ fn loop_turn(
     }
 
     if show_progress {
-        send_startup_progress(&connection.sender, loop_state);
+        send_workspace_analisys_progress(loop_state);
     }
 
     if state_changed && loop_state.workspace_loaded {
@@ -443,7 +451,22 @@ fn loop_turn(
         pool.execute({
             let subs = loop_state.subscriptions.subscriptions();
             let snap = world_state.snapshot();
-            move || snap.analysis().prime_caches(subs).unwrap_or_else(|_: Canceled| ())
+
+            let total = subs.len();
+
+            let mut progress = PrimeCachesProgressNotifier::begin(
+                connection.sender.clone(),
+                loop_state.next_request_id(),
+                total,
+            );
+
+            move || {
+                snap.analysis()
+                    .prime_caches(subs, move |i| {
+                        progress.report(i + 1);
+                    })
+                    .unwrap_or_else(|_: Canceled| ());
+            }
         });
     }
 
@@ -782,55 +805,12 @@ fn on_diagnostic_task(task: DiagnosticTask, msg_sender: &Sender<Message>, state:
     }
 }
 
-fn send_startup_progress(sender: &Sender<Message>, loop_state: &mut LoopState) {
-    let total: usize = loop_state.roots_total;
-    let prev = loop_state.roots_progress_reported;
-    let progress = loop_state.roots_scanned;
-    loop_state.roots_progress_reported = Some(progress);
-
-    match (prev, loop_state.workspace_loaded) {
-        (None, false) => {
-            let work_done_progress_create = request_new::<lsp_types::request::WorkDoneProgressCreate>(
-                loop_state.next_request_id(),
-                WorkDoneProgressCreateParams {
-                    token: lsp_types::ProgressToken::String("rustAnalyzer/startup".into()),
-                },
-            );
-            sender.send(work_done_progress_create.into()).unwrap();
-            send_startup_progress_notif(
-                sender,
-                WorkDoneProgress::Begin(WorkDoneProgressBegin {
-                    title: "rust-analyzer".into(),
-                    cancellable: None,
-                    message: Some(format!("{}/{} packages", progress, total)),
-                    percentage: Some(100.0 * progress as f64 / total as f64),
-                }),
-            );
+fn send_workspace_analisys_progress(loop_state: &mut LoopState) {
+    if let Some(progress) = &mut loop_state.roots_progress {
+        if loop_state.workspace_loaded || progress.report(loop_state.roots_scanned) == IsDone(true)
+        {
+            loop_state.roots_progress = None;
         }
-        (Some(prev), false) if progress != prev => send_startup_progress_notif(
-            sender,
-            WorkDoneProgress::Report(WorkDoneProgressReport {
-                cancellable: None,
-                message: Some(format!("{}/{} packages", progress, total)),
-                percentage: Some(100.0 * progress as f64 / total as f64),
-            }),
-        ),
-        (_, true) => send_startup_progress_notif(
-            sender,
-            WorkDoneProgress::End(WorkDoneProgressEnd {
-                message: Some(format!("rust-analyzer loaded, {} packages", progress)),
-            }),
-        ),
-        _ => {}
-    }
-
-    fn send_startup_progress_notif(sender: &Sender<Message>, work_done_progress: WorkDoneProgress) {
-        let notif =
-            notification_new::<lsp_types::notification::Progress>(lsp_types::ProgressParams {
-                token: lsp_types::ProgressToken::String("rustAnalyzer/startup".into()),
-                value: lsp_types::ProgressParamsValue::WorkDone(work_done_progress),
-            });
-        sender.send(notif.into()).unwrap();
     }
 }
 
@@ -953,7 +933,7 @@ where
                 }
             }
             Err(e) => {
-                if is_canceled(&e) {
+                if is_canceled(&*e) {
                     Response::new_err(
                         id,
                         ErrorCode::ContentModified as i32,
@@ -980,7 +960,7 @@ fn update_file_notifications_on_threadpool(
             for file_id in subscriptions {
                 match handlers::publish_diagnostics(&world, file_id) {
                     Err(e) => {
-                        if !is_canceled(&e) {
+                        if !is_canceled(&*e) {
                             log::error!("failed to compute diagnostics: {:?}", e);
                         }
                     }
@@ -991,49 +971,6 @@ fn update_file_notifications_on_threadpool(
             }
         })
     }
-}
-
-pub fn show_message(
-    typ: lsp_types::MessageType,
-    message: impl Into<String>,
-    sender: &Sender<Message>,
-) {
-    let message = message.into();
-    let params = lsp_types::ShowMessageParams { typ, message };
-    let not = notification_new::<lsp_types::notification::ShowMessage>(params);
-    sender.send(not.into()).unwrap();
-}
-
-fn is_canceled(e: &Box<dyn std::error::Error + Send + Sync>) -> bool {
-    e.downcast_ref::<Canceled>().is_some()
-}
-
-fn notification_is<N: lsp_types::notification::Notification>(notification: &Notification) -> bool {
-    notification.method == N::METHOD
-}
-
-fn notification_cast<N>(notification: Notification) -> std::result::Result<N::Params, Notification>
-where
-    N: lsp_types::notification::Notification,
-    N::Params: DeserializeOwned,
-{
-    notification.extract(N::METHOD)
-}
-
-fn notification_new<N>(params: N::Params) -> Notification
-where
-    N: lsp_types::notification::Notification,
-    N::Params: Serialize,
-{
-    Notification::new(N::METHOD.to_string(), params)
-}
-
-fn request_new<R>(id: RequestId, params: R::Params) -> Request
-where
-    R: lsp_types::request::Request,
-    R::Params: Serialize,
-{
-    Request::new(id, R::METHOD.to_string(), params)
 }
 
 #[cfg(test)]
