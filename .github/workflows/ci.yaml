@@ -59,7 +59,7 @@ jobs:
         toolchain: stable
         profile: minimal
         override: true
-        components: rustfmt, rust-src
+        components: rustfmt, rust-src, clippy
 
     - if: matrix.os == 'ubuntu-latest'
       run: sudo chown -R $(whoami):$(id -ng) ~/.cargo/
@@ -81,6 +81,8 @@ jobs:
       with:
         path: target
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+    - run: cargo clippy
 
     - name: Compile
       run: cargo test --no-run
