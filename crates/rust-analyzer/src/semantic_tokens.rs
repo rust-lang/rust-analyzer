@@ -75,7 +75,10 @@ pub(crate) struct ModifierSet(pub(crate) u32);
 impl ops::BitOrAssign<SemanticTokenModifier> for ModifierSet {
     fn bitor_assign(&mut self, rhs: SemanticTokenModifier) {
         let idx = SUPPORTED_MODIFIERS.iter().position(|it| it == &rhs).unwrap();
-        self.0 |= 1 << idx;
+        #[allow(clippy::suspicious_op_assign_impl)]
+        {
+            self.0 |= 1 << idx;
+        }
     }
 }
 

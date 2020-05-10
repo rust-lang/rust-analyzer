@@ -29,7 +29,7 @@ pub(crate) fn goto_definition(
     let nav_targets = match_ast! {
         match (token.parent()) {
             ast::NameRef(name_ref) => {
-                reference_definition(&sema, &name_ref).to_vec()
+                reference_definition(&sema, &name_ref).into_vec()
             },
             ast::Name(name) => {
                 let def = classify_name(&sema, &name)?.definition();
@@ -61,7 +61,7 @@ pub(crate) enum ReferenceResult {
 }
 
 impl ReferenceResult {
-    fn to_vec(self) -> Vec<NavigationTarget> {
+    fn into_vec(self) -> Vec<NavigationTarget> {
         match self {
             ReferenceResult::Exact(target) => vec![target],
             ReferenceResult::Approximate(vec) => vec,

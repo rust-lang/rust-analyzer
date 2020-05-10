@@ -169,13 +169,14 @@ impl CargoWorkspace {
 
         let mut out_dir_by_id = FxHashMap::default();
         let mut cfgs = FxHashMap::default();
-        let mut proc_macro_dylib_paths = FxHashMap::default();
-        if cargo_features.load_out_dirs_from_check {
+        let proc_macro_dylib_paths = if cargo_features.load_out_dirs_from_check {
             let resources = load_extern_resources(cargo_toml, cargo_features)?;
             out_dir_by_id = resources.out_dirs;
             cfgs = resources.cfgs;
-            proc_macro_dylib_paths = resources.proc_dylib_paths;
-        }
+            resources.proc_dylib_paths
+        } else {
+            FxHashMap::default()
+        };
 
         let mut pkg_by_id = FxHashMap::default();
         let mut packages = Arena::default();

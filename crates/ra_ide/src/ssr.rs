@@ -328,41 +328,37 @@ fn find(pattern: &SsrPattern, code: &SyntaxNode) -> SsrMatches {
                 if placeholders.iter().any(|n| n.0.as_str() == pattern.text()) {
                     match_.binding.insert(Var(pattern.text().to_string()), code.clone());
                     Some(match_)
+                } else if let (Some(pattern), Some(code)) =
+                    (RecordLit::cast(pattern.clone()), RecordLit::cast(code.clone()))
+                {
+                    check_record_lit(pattern, code, placeholders, match_)
+                } else if let (Some(pattern), Some(code)) =
+                    (CallExpr::cast(pattern.clone()), MethodCallExpr::cast(code.clone()))
+                {
+                    check_call_and_method_call(pattern, code, placeholders, match_)
+                } else if let (Some(pattern), Some(code)) =
+                    (MethodCallExpr::cast(pattern.clone()), CallExpr::cast(code.clone()))
+                {
+                    check_method_call_and_call(pattern, code, placeholders, match_)
                 } else {
-                    if let (Some(pattern), Some(code)) =
-                        (RecordLit::cast(pattern.clone()), RecordLit::cast(code.clone()))
-                    {
-                        check_record_lit(pattern, code, placeholders, match_)
-                    } else if let (Some(pattern), Some(code)) =
-                        (CallExpr::cast(pattern.clone()), MethodCallExpr::cast(code.clone()))
-                    {
-                        check_call_and_method_call(pattern, code, placeholders, match_)
-                    } else if let (Some(pattern), Some(code)) =
-                        (MethodCallExpr::cast(pattern.clone()), CallExpr::cast(code.clone()))
-                    {
-                        check_method_call_and_call(pattern, code, placeholders, match_)
-                    } else {
-                        let mut pattern_children = pattern
-                            .children_with_tokens()
-                            .filter(|element| !element.kind().is_trivia());
-                        let mut code_children = code
-                            .children_with_tokens()
-                            .filter(|element| !element.kind().is_trivia());
-                        let new_ignored_comments =
-                            code.children_with_tokens().filter_map(|element| {
-                                element.as_token().and_then(|token| Comment::cast(token.clone()))
-                            });
-                        match_.ignored_comments.extend(new_ignored_comments);
-                        pattern_children
-                            .by_ref()
-                            .zip(code_children.by_ref())
-                            .fold(Some(match_), |accum, (a, b)| {
-                                accum.and_then(|match_| check(&a, &b, placeholders, match_))
-                            })
-                            .filter(|_| {
-                                pattern_children.next().is_none() && code_children.next().is_none()
-                            })
-                    }
+                    let mut pattern_children = pattern
+                        .children_with_tokens()
+                        .filter(|element| !element.kind().is_trivia());
+                    let mut code_children =
+                        code.children_with_tokens().filter(|element| !element.kind().is_trivia());
+                    let new_ignored_comments = code.children_with_tokens().filter_map(|element| {
+                        element.as_token().and_then(|token| Comment::cast(token.clone()))
+                    });
+                    match_.ignored_comments.extend(new_ignored_comments);
+                    pattern_children
+                        .by_ref()
+                        .zip(code_children.by_ref())
+                        .fold(Some(match_), |accum, (a, b)| {
+                            accum.and_then(|match_| check(&a, &b, placeholders, match_))
+                        })
+                        .filter(|_| {
+                            pattern_children.next().is_none() && code_children.next().is_none()
+                        })
                 }
             }
             _ => None,

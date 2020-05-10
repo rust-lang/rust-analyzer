@@ -85,11 +85,9 @@ fn remove_derive_attrs(tt: &tt::Subtree) -> Option<tt::Subtree> {
         if eat_punct(&mut p, '#') {
             eat_punct(&mut p, '!');
             let parent = p;
-            if eat_subtree(&mut p, tt::DelimiterKind::Bracket) {
-                if eat_ident(&mut p, "derive") {
-                    p = parent.bump();
-                    continue;
-                }
+            if eat_subtree(&mut p, tt::DelimiterKind::Bracket) && eat_ident(&mut p, "derive") {
+                p = parent.bump();
+                continue;
             }
         }
 

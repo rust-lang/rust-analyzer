@@ -28,7 +28,7 @@ macro_rules! format_to {
 
 pub trait SepBy: Sized {
     /// Returns an `impl fmt::Display`, which joins elements via a separator.
-    fn sep_by<'a>(self, sep: &'a str) -> SepByBuilder<'a, Self>;
+    fn sep_by(self, sep: &str) -> SepByBuilder<'_, Self>;
 }
 
 impl<I> SepBy for I

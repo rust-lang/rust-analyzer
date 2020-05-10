@@ -34,11 +34,8 @@ fn complete_attribute_start(acc: &mut Completions, ctx: &CompletionContext, attr
         )
         .kind(CompletionItemKind::Attribute);
 
-        match (attr_completion.snippet, ctx.config.snippet_cap) {
-            (Some(snippet), Some(cap)) => {
-                item = item.insert_snippet(cap, snippet);
-            }
-            _ => {}
+        if let (Some(snippet), Some(cap)) = (attr_completion.snippet, ctx.config.snippet_cap) {
+            item = item.insert_snippet(cap, snippet);
         }
 
         if attribute.kind() == ast::AttrKind::Inner || !attr_completion.should_be_inner {
@@ -133,13 +130,13 @@ const ATTRIBUTES: &[AttrCompletion] = &[
 fn complete_derive(acc: &mut Completions, ctx: &CompletionContext, derive_input: ast::TokenTree) {
     if let Ok(existing_derives) = parse_derive_input(derive_input) {
         for derive_completion in DEFAULT_DERIVE_COMPLETIONS
-            .into_iter()
+            .iter()
             .filter(|completion| !existing_derives.contains(completion.label))
         {
             let mut label = derive_completion.label.to_owned();
             for dependency in derive_completion
                 .dependencies
-                .into_iter()
+                .iter()
                 .filter(|&&dependency| !existing_derives.contains(dependency))
             {
                 label.push_str(", ");

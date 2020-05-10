@@ -56,7 +56,7 @@ fn find_registrar_symbol(file: &Path) -> io::Result<Option<String>> {
         }
         _ => return Ok(None),
     };
-    return Ok(name);
+    Ok(name)
 }
 
 /// Loads dynamic library in platform dependent manner.

@@ -93,7 +93,7 @@ fn definition_owner_name(db: &RootDatabase, def: &Definition) -> Option<String> 
 }
 
 fn determine_mod_path(db: &RootDatabase, def: &Definition) -> Option<String> {
-    let mod_path = def.module(db).map(|module| {
+    def.module(db).map(|module| {
         once(db.crate_graph()[module.krate().into()].display_name.as_ref().map(ToString::to_string))
             .chain(
                 module
@@ -105,8 +105,7 @@ fn determine_mod_path(db: &RootDatabase, def: &Definition) -> Option<String> {
             .chain(once(definition_owner_name(db, def)))
             .flatten()
             .join("::")
-    });
-    mod_path
+    })
 }
 
 fn hover_text_from_name_kind(db: &RootDatabase, def: Definition) -> Option<String> {
