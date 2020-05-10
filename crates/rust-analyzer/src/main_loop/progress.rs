@@ -1,3 +1,5 @@
+//! LSP progress reporting instrumentation.
+
 use super::lsp_utils::{notification_new, request_new};
 use crossbeam_channel::Sender;
 use lsp_server::{Message, RequestId};
@@ -112,10 +114,11 @@ impl ProgressNotifier {
     }
 
     fn send_notification(&self, progress: WorkDoneProgress) {
-        let notif = notification_new::<lsp_types::notification::Progress>(lsp_types::ProgressParams {
-            token: lsp_types::ProgressToken::String(self.token.to_owned()),
-            value: lsp_types::ProgressParamsValue::WorkDone(progress),
-        });
+        let notif =
+            notification_new::<lsp_types::notification::Progress>(lsp_types::ProgressParams {
+                token: lsp_types::ProgressToken::String(self.token.to_owned()),
+                value: lsp_types::ProgressParamsValue::WorkDone(progress),
+            });
         self.sender.send(notif.into()).unwrap();
     }
 
