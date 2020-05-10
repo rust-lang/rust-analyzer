@@ -91,12 +91,57 @@ pub fn run_clippy() -> Result<()> {
     }
 
     let allowed_lints = [
-        "clippy::collapsible_if",
-        "clippy::needless_pass_by_value",
-        "clippy::nonminimal_bool",
-        "clippy::redundant_pattern_matching",
+        "all",
+        "collapsible_if",
+        "needless_pass_by_value",
+        "nonminimal_bool",
+        "redundant_pattern_matching",
+        // TODO: bikeshed
+        // "writeln_empty_string",
+        "iter_nth_zero",
+        "wrong_self_convention",
+        "cognitive_complexity",
+        "single_match",
+        "skip_while_next",
+        "identity_conversion",
+        "useless_format",
+        "trivially_copy_pass_by_ref",
+        "ptr_arg",
+        "useless_let_if_seq",
+        "len_zero",
+        "redundant_closure",
+        "assign_op_pattern",
+        "block_in_if_condition_stmt",
+        "large_enum_variant",
+        "too_many_arguments",
+        "needless_doctest_main",
+        "redundant_field_names",
+        "type_complexity",
+        "single_char_pattern",
+        "inefficient_to_string",
+        "enum_variant_names",
+        "transmute_ptr_to_ptr",
+        "let_and_return",
+        "question_mark",
+        "comparison_chain",
+        "match_ref_pats",
+        "unit_arg",
+        "into_iter_on_ref",
+        "len_without_is_empty",
+        "option_option",
+        "or_fun_call",
+        "single_component_path_imports",
+        "op_ref",
+        "new_ret_no_self",
+        "toplevel_ref_arg",
+        "blacklisted_name",
+        "borrowed_box",
+        "wildcard_in_or_patterns",
     ];
-    run!("cargo clippy --all-features --all-targets -- -A {}", allowed_lints.join(" -A "))?;
+    let allowed_lints =
+        allowed_lints.iter().map(|it| format!("clippy::{}", it)).collect::<Vec<_>>().join(" -A ");
+
+    run!("cargo clippy --all-features --all-targets -- --allow {}", allowed_lints)?;
     Ok(())
 }
 
