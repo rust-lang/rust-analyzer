@@ -20,8 +20,7 @@ pub(crate) fn do_completion_with_options(
     } else {
         single_file_with_position(code)
     };
-    let completions = analysis.completions(position, options).unwrap().unwrap();
-    let completion_items: Vec<CompletionItem> = completions.into();
+    let completion_items = analysis.completions(position, options).unwrap().unwrap();
     let mut kind_completions: Vec<CompletionItem> =
         completion_items.into_iter().filter(|c| c.completion_kind == kind).collect();
     kind_completions.sort_by_key(|c| c.label().to_owned());

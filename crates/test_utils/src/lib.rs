@@ -298,7 +298,7 @@ pub fn parse_single_fixture(fixture: &str) -> Option<FixtureEntry> {
     if fixtures.len() > 1 {
         panic!("too many fixtures");
     }
-    fixtures.into_iter().nth(0)
+    fixtures.into_iter().next()
 }
 
 // Comparison functionality borrowed from cargo:

@@ -893,7 +893,7 @@ pub struct Local {
 impl Local {
     // FIXME: why is this an option? It shouldn't be?
     pub fn name(self, db: &dyn HirDatabase) -> Option<Name> {
-        let body = db.body(self.parent.into());
+        let body = db.body(self.parent);
         match &body[self.pat_id] {
             Pat::Bind { name, .. } => Some(name.clone()),
             _ => None,
@@ -905,7 +905,7 @@ impl Local {
     }
 
     pub fn is_mut(self, db: &dyn HirDatabase) -> bool {
-        let body = db.body(self.parent.into());
+        let body = db.body(self.parent);
         match &body[self.pat_id] {
             Pat::Bind { mode, .. } => match mode {
                 BindingAnnotation::Mutable | BindingAnnotation::RefMut => true,
@@ -924,7 +924,7 @@ impl Local {
     }
 
     pub fn ty(self, db: &dyn HirDatabase) -> Type {
-        let def = DefWithBodyId::from(self.parent);
+        let def = self.parent;
         let infer = db.infer(def);
         let ty = infer[self.pat_id].clone();
         let krate = def.module(db.upcast()).krate;
@@ -932,7 +932,7 @@ impl Local {
     }
 
     pub fn source(self, db: &dyn HirDatabase) -> InFile<Either<ast::BindPat, ast::SelfParam>> {
-        let (_body, source_map) = db.body_with_source_map(self.parent.into());
+        let (_body, source_map) = db.body_with_source_map(self.parent);
         let src = source_map.pat_syntax(self.pat_id).unwrap(); // Hmm...
         let root = src.file_syntax(db.upcast());
         src.map(|ast| {

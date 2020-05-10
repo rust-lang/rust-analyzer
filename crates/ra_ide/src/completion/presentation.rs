@@ -339,7 +339,7 @@ pub(crate) fn compute_score(
 
     // Compute score
     // For the same type
-    if &active_type != ty {
+    if active_type != ty {
         return None;
     }
 

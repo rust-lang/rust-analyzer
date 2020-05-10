@@ -448,7 +448,7 @@ fn match_meta_var(kind: &str, input: &mut TtIter) -> ExpandResult<Option<Fragmen
                     .map_err(|()| err!("expected lifetime")),
                 "literal" => input
                     .expect_literal()
-                    .map(|literal| Some(tt::Leaf::from(literal.clone()).into()))
+                    .map(|literal| Some(literal.clone().into()))
                     .map_err(|()| err!()),
                 // `vis` is optional
                 "vis" => match input.eat_vis() {

@@ -546,7 +546,7 @@ impl TokenConvertor for Convertor {
 
     fn peek(&self) -> Option<Self::Token> {
         if let Some((punct, mut offset)) = self.punct_offset.clone() {
-            offset = offset + TextSize::of('.');
+            offset += TextSize::of('.');
             if usize::from(offset) < punct.text().len() {
                 return Some(SynToken::Punch(punct, offset));
             }

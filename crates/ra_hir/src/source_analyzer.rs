@@ -409,7 +409,7 @@ pub(crate) fn resolve_hir_path(
         resolver.resolve_path_in_value_ns_fully(db.upcast(), path.mod_path()).and_then(|val| {
             let res = match val {
                 ValueNs::LocalBinding(pat_id) => {
-                    let var = Local { parent: body_owner?.into(), pat_id };
+                    let var = Local { parent: body_owner?, pat_id };
                     PathResolution::Local(var)
                 }
                 ValueNs::FunctionId(it) => PathResolution::Def(Function::from(it).into()),

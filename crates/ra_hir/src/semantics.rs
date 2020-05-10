@@ -248,7 +248,7 @@ impl<'db, DB: HirDatabase> Semantics<'db, DB> {
 
     pub fn lower_path(&self, path: &ast::Path) -> Option<Path> {
         let src = self.find_file(path.syntax().clone());
-        Path::from_src(path.clone(), &Hygiene::new(self.db.upcast(), src.file_id.into()))
+        Path::from_src(path.clone(), &Hygiene::new(self.db.upcast(), src.file_id))
     }
 
     pub fn resolve_bind_pat_to_const(&self, pat: &ast::BindPat) -> Option<ModuleDef> {
@@ -440,7 +440,7 @@ impl<'a, DB: HirDatabase> SemanticsScope<'a, DB> {
                 resolver::ScopeDef::AdtSelfType(it) => ScopeDef::AdtSelfType(it.into()),
                 resolver::ScopeDef::GenericParam(id) => ScopeDef::GenericParam(TypeParam { id }),
                 resolver::ScopeDef::Local(pat_id) => {
-                    let parent = resolver.body_owner().unwrap().into();
+                    let parent = resolver.body_owner().unwrap();
                     ScopeDef::Local(Local { parent, pat_id })
                 }
             };

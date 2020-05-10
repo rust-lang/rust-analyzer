@@ -1,4 +1,3 @@
-use hir;
 use ra_syntax::{ast, AstNode, SmolStr, TextRange};
 
 use crate::{utils::insert_use_statement, AssistContext, AssistId, Assists};

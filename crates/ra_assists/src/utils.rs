@@ -117,7 +117,7 @@ impl TryEnum {
             _ => return None,
         };
         TryEnum::ALL.iter().find_map(|&var| {
-            if &enum_.name(sema.db).to_string() == var.type_name() {
+            if enum_.name(sema.db).to_string() == var.type_name() {
                 return Some(var);
             }
             None
@@ -185,14 +185,14 @@ pub use prelude::*;
             .1
             .dependencies(db)
             .into_iter()
-            .find(|dep| &dep.name.to_string() == std_crate)?
+            .find(|dep| dep.name.to_string() == std_crate)?
             .krate;
 
         let mut module = std_crate.root_module(db)?;
         for segment in path {
             module = module.children(db).find_map(|child| {
                 let name = child.name(db)?;
-                if &name.to_string() == segment {
+                if name.to_string() == segment {
                     Some(child)
                 } else {
                     None
@@ -200,7 +200,7 @@ pub use prelude::*;
             })?;
         }
         let def =
-            module.scope(db, None).into_iter().find(|(name, _def)| &name.to_string() == trait_)?.1;
+            module.scope(db, None).into_iter().find(|(name, _def)| name.to_string() == trait_)?.1;
         match def {
             hir::ScopeDef::ModuleDef(hir::ModuleDef::Trait(it)) => Some(it),
             _ => None,

@@ -403,7 +403,7 @@ impl PatStack {
                         // If there is no ellipsis in the tuple pattern, the number
                         // of patterns must equal the constructor arity.
                         if pat_ids.len() == constructor_arity {
-                            Some(self.replace_head_with(pat_ids.into_iter()))
+                            Some(self.replace_head_with(pat_ids.iter()))
                         } else {
                             return Err(MatchCheckErr::MalformedMatchArm);
                         }

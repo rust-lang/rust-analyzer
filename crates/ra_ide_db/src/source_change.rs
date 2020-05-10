@@ -37,7 +37,7 @@ impl SourceChange {
         let label = label.into();
         assert!(label.starts_with(char::is_uppercase));
         SourceChange {
-            label: label,
+            label,
             source_file_edits: edits,
             file_system_edits: vec![],
             cursor_position: None,

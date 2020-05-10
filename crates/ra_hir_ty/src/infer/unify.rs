@@ -120,7 +120,7 @@ impl<T> Canonicalized<T> {
     pub fn decanonicalize_ty(&self, mut ty: Ty) -> Ty {
         ty.walk_mut_binders(
             &mut |ty, binders| {
-                if let &mut Ty::Bound(bound) = ty {
+                if let Ty::Bound(bound) = ty {
                     if bound.debruijn >= binders {
                         *ty = Ty::Infer(self.free_vars[bound.index]);
                     }
