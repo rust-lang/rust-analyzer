@@ -82,7 +82,9 @@ jobs:
         path: target
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
-    - run: cargo clippy
+    # Run clippy only once
+    - if: ${{ matrix.os == 'ubuntu-latest' }}
+      run: cargo clippy
 
     - name: Compile
       run: cargo test --no-run
