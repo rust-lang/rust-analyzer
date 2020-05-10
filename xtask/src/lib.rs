@@ -91,7 +91,6 @@ pub fn run_clippy() -> Result<()> {
     }
 
     let allowed_lints = [
-        "all",
         "collapsible_if",
         "needless_pass_by_value",
         "nonminimal_bool",
@@ -138,8 +137,11 @@ pub fn run_clippy() -> Result<()> {
         "borrowed_box",
         "wildcard_in_or_patterns",
     ];
-    let allowed_lints =
-        allowed_lints.iter().map(|it| format!("clippy::{}", it)).collect::<Vec<_>>().join(" -A ");
+    let allowed_lints = allowed_lints
+        .iter()
+        .map(|it| format!("clippy::{}", it))
+        .collect::<Vec<_>>()
+        .join(" --allow ");
 
     run!("cargo clippy --all-features --all-targets -- --allow {}", allowed_lints)?;
     Ok(())
