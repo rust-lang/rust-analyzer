@@ -438,7 +438,7 @@ fn loop_turn(
     }
 
     if show_progress {
-        send_workspace_analisys_progress(loop_state);
+        send_workspace_analysis_progress(loop_state);
     }
 
     if state_changed && loop_state.workspace_loaded {
@@ -805,7 +805,7 @@ fn on_diagnostic_task(task: DiagnosticTask, msg_sender: &Sender<Message>, state:
     }
 }
 
-fn send_workspace_analisys_progress(loop_state: &mut LoopState) {
+fn send_workspace_analysis_progress(loop_state: &mut LoopState) {
     if let Some(progress) = &mut loop_state.roots_progress {
         if loop_state.workspace_loaded || progress.report(loop_state.roots_scanned) == IsDone(true)
         {
