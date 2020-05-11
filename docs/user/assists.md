@@ -710,6 +710,26 @@ use std::┃collections::HashMap;
 use std::{collections::HashMap};
 ```
 
+## `surround_with_block`
+
+This assist surround expressions with a block expression.
+
+```rust
+// BEFORE
+fn foo() {
+    ┃println!("foo");
+    println!("bar");┃
+}
+
+// AFTER
+fn foo() {
+    {
+        println!("foo");
+        println!("bar");
+    }
+}
+```
+
 ## `unwrap_block`
 
 This assist removes if...else, for, while and loop control statements to just keep the body.

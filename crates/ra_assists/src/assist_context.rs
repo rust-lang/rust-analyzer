@@ -81,6 +81,11 @@ impl<'a> AssistContext<'a> {
     pub(crate) fn covering_element(&self) -> SyntaxElement {
         find_covering_element(self.source_file.syntax(), self.frange.range)
     }
+    pub(crate) fn covering_element_raw_string(&self) -> String {
+        self.source_file.syntax().to_string()
+            [usize::from(self.frange.range.start())..usize::from(self.frange.range.end())]
+            .to_string()
+    }
     // FIXME: remove
     pub(crate) fn covering_node_for_range(&self, range: TextRange) -> SyntaxElement {
         find_covering_element(self.source_file.syntax(), range)

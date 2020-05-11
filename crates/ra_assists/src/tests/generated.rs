@@ -743,6 +743,27 @@ use std::{collections::HashMap};
 }
 
 #[test]
+fn doctest_surround_with_block() {
+    check_doc_test(
+        "surround_with_block",
+        r#####"
+fn foo() {
+    <|>println!("foo");
+    println!("bar");<|>
+}
+"#####,
+        r#####"
+fn foo() {
+    {
+        println!("foo");
+        println!("bar");
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_unwrap_block() {
     check_doc_test(
         "unwrap_block",

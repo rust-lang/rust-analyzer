@@ -128,6 +128,7 @@ mod handlers {
     mod replace_qualified_name_with_use;
     mod replace_unwrap_with_match;
     mod split_import;
+    mod surround_with_block;
     mod unwrap_block;
 
     pub(crate) fn all() -> &'static [Handler] {
@@ -169,6 +170,7 @@ mod handlers {
             replace_qualified_name_with_use::replace_qualified_name_with_use,
             replace_unwrap_with_match::replace_unwrap_with_match,
             split_import::split_import,
+            surround_with_block::surround_with_block,
             unwrap_block::unwrap_block,
             // These are manually sorted for better priorities
             add_missing_impl_members::add_missing_impl_members,
