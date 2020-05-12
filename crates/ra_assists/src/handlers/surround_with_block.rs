@@ -40,7 +40,7 @@ pub(crate) fn surround_with_block(acc: &mut Assists, ctx: &AssistContext) -> Opt
     };
     let target = covering_node.text_range();
 
-    acc.add(AssistId("surrounding_with_block"), "Surrounding with block", target, |edit| {
+    acc.add(AssistId("surround_with_block"), "Surround with block", target, |edit| {
         edit.set_cursor(ctx.frange.range.start());
         let indent_str = "    ";
         let mut inner_expr_lines = ctx
@@ -120,6 +120,24 @@ fn main() {
         bar();
     }
 }"#,
+        );
+
+        check_assist(
+            surround_with_block,
+            r#####"
+fn foo() {
+    <|>println!("foo");
+    println!("bar");<|>
+}
+"#####,
+            r#####"
+fn foo() {
+    <|>{
+        println!("foo");
+        println!("bar");
+    }
+}
+"#####,
         );
     }
 
