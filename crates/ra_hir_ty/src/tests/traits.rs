@@ -1617,6 +1617,35 @@ fn test<F: FnOnce(u32, u64) -> u128>(f: F) {
 }
 
 #[test]
+fn fn_pointer() {
+    assert_snapshot!(
+        infer(r#"
+#[lang = "fn_once"]
+trait FnOnce<Args> {
+    type Output;
+
+    fn call_once(self, args: Args) -> <Self as FnOnce<Args>>::Output;
+}
+
+fn test(f: fn(u32, u32) -> u128) {
+    f.call_once((1, 2));
+}
+"#),
+        @r###"
+    77..81 'self': Self
+    83..87 'args': Args
+    141..142 'f': fn(u32, u32) -> u128
+    166..194 '{     ...2)); }': ()
+    172..173 'f': fn(u32, u32) -> u128
+    172..191 'f.call...1, 2))': u128
+    184..190 '(1, 2)': (u32, u32)
+    185..186 '1': u32
+    188..189 '2': u32
+    "###
+    );
+}
+
+#[test]
 fn closure_1() {
     assert_snapshot!(
         infer(r#"
