@@ -308,6 +308,12 @@ pub struct ClosureFnTraitImplData {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PointerFnTraitImplData {
+    num_args: u16,
+    fn_trait: FnTrait,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UnsizeToSuperTraitObjectData {
     trait_: TraitId,
     super_trait: TraitId,
@@ -327,6 +333,8 @@ pub enum Impl {
     UnsizeToTraitObject(TraitId),
     /// dyn Trait: Unsize<dyn SuperTrait> if Trait: SuperTrait
     UnsizeToSuperTraitObject(UnsizeToSuperTraitObjectData),
+    /// Function pointer types implement the Fn traits synthetically.
+    PointerFnTraitImpl(PointerFnTraitImplData),
 }
 /// This exists just for Chalk, because our ImplIds are only unique per module.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -342,6 +350,8 @@ pub enum AssocTyValue {
     TypeAlias(TypeAliasId),
     /// The output type of the Fn trait implementation.
     ClosureFnTraitImplOutput(ClosureFnTraitImplData),
+    /// The output type of the Fn trait implementation.
+    PointerFnTraitImplOutput(PointerFnTraitImplData),
 }
 /// This exists just for Chalk, because it needs a unique ID for each associated
 /// type value in an impl (even synthetic ones).

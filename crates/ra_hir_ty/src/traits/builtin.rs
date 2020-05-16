@@ -51,6 +51,18 @@ pub(super) fn get_builtin_impls(
         }
     }
 
+    if let Ty::Apply(ApplicationTy { ctor: TypeCtor::FnPtr { num_args }, .. }) = ty {
+        let fn_trait = super::FnTrait::FnOnce;
+        if let Some(actual_trait) = get_fn_trait(db, krate, fn_trait) {
+            if trait_ == actual_trait {
+                let impl_ = super::PointerFnTraitImplData { num_args: *num_args, fn_trait };
+                if check_fn_trait_impl_prerequisites(db, krate, impl_) {
+                    callback(Impl::PointerFnTraitImpl(impl_));
+                }
+            }
+        }
+    }
+
     let unsize_trait = get_unsize_trait(db, krate);
     if let Some(actual_trait) = unsize_trait {
         if trait_ == actual_trait {
@@ -104,6 +116,7 @@ pub(super) fn impl_datum(db: &dyn HirDatabase, krate: CrateId, impl_: Impl) -> B
         Impl::UnsizeToSuperTraitObject(data) => {
             super_trait_object_unsize_impl_datum(db, krate, data)
         }
+        Impl::PointerFnTraitImpl(data) => pointer_fn_impl_datum(db, krate, data),
     }
 }
 
@@ -116,6 +129,9 @@ pub(super) fn associated_ty_value(
         AssocTyValue::TypeAlias(_) => unreachable!(),
         AssocTyValue::ClosureFnTraitImplOutput(data) => {
             closure_fn_trait_output_assoc_ty_value(db, krate, data)
+        }
+        AssocTyValue::PointerFnTraitImplOutput(data) => {
+            pointer_fn_trait_output_assoc_ty_value(db, krate, data)
         }
     }
 }
@@ -141,6 +157,66 @@ fn check_closure_fn_trait_impl_prerequisites(
         None => return false,
     };
     db.trait_data(fn_once_trait).associated_type_by_name(&name![Output]).is_some()
+}
+
+fn check_fn_trait_impl_prerequisites(
+    db: &dyn HirDatabase,
+    krate: CrateId,
+    data: super::PointerFnTraitImplData,
+) -> bool {
+    // the respective Fn/FnOnce/FnMut trait needs to exist
+    if get_fn_trait(db, krate, data.fn_trait).is_none() {
+        return false;
+    }
+
+    // FIXME: there are more assumptions that we should probably check here:
+    // the traits having no type params, FnOnce being a supertrait
+
+    // the FnOnce trait needs to exist and have an assoc type named Output
+    let fn_ptr_trait = match get_fn_trait(db, krate, super::FnTrait::FnOnce) {
+        Some(t) => t,
+        None => return false,
+    };
+    db.trait_data(fn_ptr_trait).associated_type_by_name(&name![Output]).is_some()
+}
+
+fn pointer_fn_impl_datum(
+    db: &dyn HirDatabase,
+    krate: CrateId,
+    data: super::PointerFnTraitImplData,
+) -> BuiltinImplData {
+    // for some function pointer fn(X, Y) -> Z;
+    // impl<T, U, V> Fn<(T, U)> for fn(T, U) -> V { Output = V }
+    let trait_ = get_fn_trait(db, krate, data.fn_trait).expect("fn trait for fn pointer missing");
+    let num_args = data.num_args;
+
+    let arg_ty = Ty::apply(
+        TypeCtor::Tuple { cardinality: num_args },
+        Substs::builder(num_args as usize)
+            .fill_with_bound_vars(DebruijnIndex::INNERMOST, 0)
+            .build(),
+    );
+
+    let self_ty = Ty::apply(
+        TypeCtor::FnPtr { num_args },
+        Substs::builder(num_args as usize + 1)
+            .fill_with_bound_vars(DebruijnIndex::INNERMOST, 0)
+            .build(),
+    );
+
+    let trait_ref = TraitRef {
+        trait_,
+        substs: Substs::build_for_def(db, trait_).push(self_ty).push(arg_ty).build(),
+    };
+
+    let output_ty_id = AssocTyValue::PointerFnTraitImplOutput(data);
+
+    BuiltinImplData {
+        num_vars: num_args as usize + 1,
+        trait_ref,
+        where_clauses: Vec::new(),
+        assoc_ty_values: vec![output_ty_id],
+    }
 }
 
 fn closure_fn_trait_impl_datum(
@@ -190,6 +266,33 @@ fn closure_fn_trait_impl_datum(
         trait_ref,
         where_clauses: Vec::new(),
         assoc_ty_values: vec![output_ty_id],
+    }
+}
+
+fn pointer_fn_trait_output_assoc_ty_value(
+    db: &dyn HirDatabase,
+    krate: CrateId,
+    data: super::PointerFnTraitImplData,
+) -> BuiltinImplAssocTyValueData {
+    let impl_ = Impl::PointerFnTraitImpl(data);
+
+    let num_args = data.num_args;
+
+    let output_ty = Ty::Bound(BoundVar::new(DebruijnIndex::INNERMOST, num_args.into()));
+
+    let fn_trait =
+        get_fn_trait(db, krate, super::FnTrait::FnOnce).expect("assoc ty value should not exist");
+
+    let output_ty_id = db
+        .trait_data(fn_trait)
+        .associated_type_by_name(&name![Output])
+        .expect("assoc ty value should not exist");
+
+    BuiltinImplAssocTyValueData {
+        impl_,
+        assoc_ty_id: output_ty_id,
+        num_vars: num_args as usize + 1,
+        value: output_ty,
     }
 }
 
