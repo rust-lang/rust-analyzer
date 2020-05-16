@@ -383,7 +383,6 @@ fn highlight_element(
         }
 
         // Simple token-based highlighting
-        COMMENT => HighlightTag::Comment.into(),
         STRING | RAW_STRING | RAW_BYTE_STRING | BYTE_STRING => HighlightTag::StringLiteral.into(),
         ATTR => HighlightTag::Attribute.into(),
         INT_NUMBER | FLOAT_NUMBER => HighlightTag::NumericLiteral.into(),
@@ -396,7 +395,6 @@ fn highlight_element(
                 _ => h,
             }
         }
-
         k if k.is_keyword() => {
             let h = Highlight::new(HighlightTag::Keyword);
             match k {
@@ -415,6 +413,10 @@ fn highlight_element(
             }
         }
 
+        // FIXME: implement markdown parser to provide semmantic syntax highlighting
+        // in doc comments. As short-term replacement we use `tmLanguage.json` definitions
+        // with textmate markdown rules injection in vscode
+        // COMMENT => HighlightTag::Comment.into(),
         _ => return None,
     };
 

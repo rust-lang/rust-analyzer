@@ -491,12 +491,19 @@
             {
                 "language": "rust",
                 "scopeName": "source.rust",
-                "path": "rust.tmGrammar.json"
+                "path": "./syntaxes/rust.tmLanguage.json"
             },
             {
                 "language": "ra_syntax_tree",
                 "scopeName": "source.ra_syntax_tree",
-                "path": "ra_syntax_tree.tmGrammar.json"
+                "path": "./syntaxes/ra_syntax_tree.tmLanguage.json"
+            },
+            {
+                "scopeName": "documentation.injection.rust",
+                "path": "./syntaxes/rust_comments.injection.tmLanguage.json",
+                "injectTo": [
+                    "source.rust"
+                ]
             }
         ],
         "problemMatchers": [

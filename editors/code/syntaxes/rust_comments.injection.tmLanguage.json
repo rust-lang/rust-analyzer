@@ -1,0 +1,47 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "injectionSelector": "L:comment",
+    "scopeName": "documentation.injection.rust",
+    "patterns": [
+        { "include": "#rust_fenced_block_in_line_comment" },
+        { "include": "#not_rust_fenced_block_in_line_comment" },
+        { "include": "#rust_block_doc_comment_with_code_blocks" },
+        { "include": "text.html.markdown#inline" }
+    ],
+    "repository": {
+        "rust_fenced_block_in_line_comment": {
+            "name": "markup.fenced_code.block.markdown",
+            "begin": "(^|\\G)(?<=//[/!])\\s*```(\\s|ignore|should_panic|no_run|compile_fail|edition2018|edition2015)$",
+            "while": "^\\s*//[/!](?=(.(?!\\s*```))*$)",
+            "patterns": [{
+                "begin": "(^|\\G)(?<=//[/!])",
+                "while": "(^|\\G)(?<=//[/!])",
+                "patterns": [{ "include": "source.rust" }],
+                "contentName": "meta.embedded.block.rust"
+            }]
+        },
+        "not_rust_fenced_block_in_line_comment": {
+            "begin": "(^|\\G)(?<=//[/!])\\s*```",
+            "while": "^\\s*///(?=(.(?!\\s*```))*$)"
+        },
+        "rust_block_doc_comment_with_code_blocks": {
+            "begin": "(?<=/\\*[\\*!])([^*]|\\*(?!/))*$",
+            "while": "(^|\\G)\\s*\\*(?!/)(?=([^*]|[*](?!/))*$)",
+            "patterns": [
+                { "include": "#rust_fenced_block_in_block_comment" },
+                { "include": "text.html.markdown#fenced_code_block_unknown" }
+            ]
+        },
+        "rust_fenced_block_in_block_comment": {
+            "name": "markup.fenced_code.block.markdown",
+            "begin": "(^|\\G)\\s*```(\\s|ignore|should_panic|no_run|compile_fail|edition2018|edition2015)\\s*$",
+            "end": "(^|\\G)\\s*```\\s*$",
+            "patterns": [{
+                "begin": "(^|\\G)(\\s*)(.*)",
+                "while": "(^|\\G)(?!\\s*```\\s*$)",
+                "contentName": "meta.embedded.block.rust",
+                "patterns": [{ "include": "source.rust" }]
+            }]
+        }
+    }
+}
