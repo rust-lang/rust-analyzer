@@ -99,6 +99,35 @@ export async function activate(context: vscode.ExtensionContext) {
 
     activateInlayHints(ctx);
 
+    const tryActivateCommentsHighlighting = async () => {
+        const pkg = ctx!.config.package;
+        const shouldActivate = ctx!.config.experimental.commentsHighlighting;
+        const grammarPath = "./syntaxes/rust_comments.injection.tmLanguage.json";
+        const grammarIndex = pkg.contributes.grammars.findIndex(it => it.path === grammarPath);
+
+        if ((grammarIndex >= 0) === shouldActivate) return;
+
+        if (grammarIndex < 0 && shouldActivate) {
+            pkg.contributes.grammars.push({
+                scopeName: "documentation.injection.rust",
+                path: grammarPath,
+                injectTo: ["source.rust"]
+            });
+        } else {
+            pkg.contributes.grammars.splice(grammarIndex, 1);
+        }
+
+        // No dynamic grammar overrides so far... https://github.com/microsoft/vscode/issues/53885
+        await fs.writeFile(path.join(context.extensionPath, "package.json"), JSON.stringify(pkg));
+        void vscode.window.showInformationMessage(
+            "Please reload the window to update comments highlighting feature." +
+            "You might need to do this a couple of times (vscode bugs)..."
+        );
+    };
+
+    ctx.pushCleanup(vscode.workspace.onDidChangeConfiguration(tryActivateCommentsHighlighting));
+    tryActivateCommentsHighlighting();
+
     vscode.workspace.onDidChangeConfiguration(
         _ => ctx?.client?.sendNotification('workspace/didChangeConfiguration', { settings: "" }),
         null,

@@ -23,6 +23,7 @@ export class Config {
         version: string;
         releaseTag: string | null;
         enableProposedApi: boolean | undefined;
+        contributes: { grammars: any[] };
     } = vscode.extensions.getExtension(this.extensionId)!.packageJSON;
 
     readonly globalStoragePath: string;
@@ -117,6 +118,15 @@ export class Config {
             engineSettings: this.get<object>("debug.engineSettings"),
             openUpDebugPane: this.get<boolean>("debug.openUpDebugPane"),
             sourceFileMap: sourceFileMap
+        };
+    }
+
+    get experimental() {
+        return {
+            commentsHighlighting: this.cfg.get<boolean>(
+                "experimental.commentsHighlighting",
+                this.channel === "nightly"
+            )
         };
     }
 }

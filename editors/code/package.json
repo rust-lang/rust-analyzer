@@ -182,6 +182,11 @@
             "type": "object",
             "title": "Rust Analyzer",
             "properties": {
+                "rust-analyzer.experimental.commentsHighlighting": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Whether to highlight markdown syntax in comments. Experimental reason: pending proper implementation on the server side"
+                },
                 "rust-analyzer.diagnostics.enable": {
                     "type": "boolean",
                     "default": true,
@@ -497,13 +502,6 @@
                 "language": "ra_syntax_tree",
                 "scopeName": "source.ra_syntax_tree",
                 "path": "./syntaxes/ra_syntax_tree.tmLanguage.json"
-            },
-            {
-                "scopeName": "documentation.injection.rust",
-                "path": "./syntaxes/rust_comments.injection.tmLanguage.json",
-                "injectTo": [
-                    "source.rust"
-                ]
             }
         ],
         "problemMatchers": [

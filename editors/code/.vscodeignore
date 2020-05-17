@@ -2,7 +2,8 @@
 !out/main.js
 !package.json
 !package-lock.json
-!ra_syntax_tree.tmGrammar.json
-!rust.tmGrammar.json
+!syntaxes/ra_syntax_tree.tmLanguage.json
+!syntaxes/rust.tmLanguage.json
+!syntaxes/rust_comments.injection.tmLanguage.json
 !icon.png
 !README.md
