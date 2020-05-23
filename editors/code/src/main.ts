@@ -14,6 +14,8 @@ import { fetchRelease, download } from './net';
 import { activateTaskProvider } from './tasks';
 import { exec } from 'child_process';
 
+import * as ipc from './shared_state';
+
 let ctx: Ctx | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -116,10 +118,27 @@ export async function deactivate() {
 async function bootstrap(config: Config, state: PersistentState): Promise<string> {
     await fs.mkdir(config.globalStoragePath, { recursive: true });
 
-    await bootstrapExtension(config, state);
-    const path = await bootstrapServer(config, state);
+    const sharedStateService = await ipc.sharedStateService();
+    if (!sharedStateService.onDidServerLost) {
+        await bootstrapExtension(config, state);
+        const path = await bootstrapServer(config, state);
+        await sharedStateService.set('path', path);
+        sharedStateService.dispose();
+        return path;
+    }
+    else {
+        return new Promise((resolve) => {
+            const close = (p: string) => { resolve(p); sharedStateService.dispose(); };
 
-    return path;
+            sharedStateService.onDidServerLost!(async () => {
+                const retry = await bootstrap(config, state);
+                close(retry);
+            })
+            sharedStateService.onDidValueChanged((e) => {
+                if (e.id === 'path') close(e.value);
+            });
+        });
+    }
 }
 
 async function bootstrapExtension(config: Config, state: PersistentState): Promise<void> {
