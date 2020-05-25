@@ -6,13 +6,12 @@ mod navigation_target;
 mod structure;
 mod short_label;
 
-use std::fmt::Display;
-
+use lsp_types::MarkedString;
 use ra_syntax::{
     ast::{self, AstNode, AttrsOwner, NameOwner, TypeParamsOwner},
     SyntaxKind::{ATTR, COMMENT},
 };
-use stdx::format_to;
+use std::fmt::Display;
 
 pub use function_signature::FunctionSignature;
 pub use navigation_target::NavigationTarget;
@@ -70,27 +69,26 @@ pub(crate) fn macro_label(node: &ast::MacroCall) -> String {
     format!("{}macro_rules! {}", vis, name)
 }
 
-pub(crate) fn rust_code_markup(code: &impl Display) -> String {
-    rust_code_markup_with_doc(code, None, None)
+pub(crate) fn rust_code_markup(code: &impl Display) -> Vec<MarkedString> {
+    vec![MarkedString::from_language_code(String::from("rust"), code.to_string())]
 }
 
 pub(crate) fn rust_code_markup_with_doc(
     code: &impl Display,
     doc: Option<&str>,
     mod_path: Option<&str>,
-) -> String {
-    let mut buf = String::new();
+) -> Vec<MarkedString> {
+    let mut result = Vec::new();
+
+    result.push(MarkedString::from_language_code(String::from("rust"), code.to_string()));
 
     if let Some(mod_path) = mod_path {
-        if !mod_path.is_empty() {
-            format_to!(buf, "{}\n___\n\n", mod_path);
-        }
+        result.push(MarkedString::from_language_code(String::from("rust"), mod_path.to_string()));
     }
-    format_to!(buf, "```rust\n{}\n```", code);
 
     if let Some(doc) = doc {
-        format_to!(buf, "\n\n{}", doc);
+        result.push(MarkedString::from_markdown(doc.to_string()));
     }
 
-    buf
+    result
 }

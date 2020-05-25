@@ -5,6 +5,7 @@ use hir::{
     Adt, AsAssocItem, AssocItemContainer, FieldSource, HasSource, HirDisplay, ModuleDef,
     ModuleSource, Semantics,
 };
+use lsp_types::MarkedString;
 use ra_db::SourceDatabase;
 use ra_ide_db::{
     defs::{classify_name, classify_name_ref, Definition},
@@ -27,7 +28,7 @@ use std::iter::once;
 /// Contains the results when hovering over an item
 #[derive(Debug, Default)]
 pub struct HoverResult {
-    results: Vec<String>,
+    results: Vec<MarkedString>,
 }
 
 impl HoverResult {
@@ -35,8 +36,10 @@ impl HoverResult {
         Self::default()
     }
 
-    pub fn extend(&mut self, item: Option<String>) {
-        self.results.extend(item);
+    pub fn extend(&mut self, items: Option<Vec<MarkedString>>) {
+        if let Some(items) = items {
+            self.results.extend(items);
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -47,18 +50,18 @@ impl HoverResult {
         self.results.len()
     }
 
-    pub fn first(&self) -> Option<&str> {
-        self.results.first().map(String::as_str)
-    }
+    // pub fn first(&self) -> Option<&str> {
+    //     self.results.first().map(String::as_str)
+    // }
 
-    pub fn results(&self) -> &[String] {
-        &self.results
-    }
+    // pub fn results(&self) -> &[String] {
+    //     &self.results
+    // }
 
     /// Returns the results converted into markup
     /// for displaying in a UI
-    pub fn to_markup(&self) -> String {
-        self.results.join("\n\n---\n")
+    pub fn to_markup(&self) -> Vec<MarkedString> {
+        self.results.clone()
     }
 }
 
@@ -66,11 +69,11 @@ fn hover_text(
     docs: Option<String>,
     desc: Option<String>,
     mod_path: Option<String>,
-) -> Option<String> {
+) -> Option<Vec<MarkedString>> {
     if let Some(desc) = desc {
         Some(rust_code_markup_with_doc(&desc, docs.as_deref(), mod_path.as_deref()))
     } else {
-        docs
+        docs.map(|docs| vec![MarkedString::from_markdown(docs)])
     }
 }
 
@@ -109,7 +112,7 @@ fn determine_mod_path(db: &RootDatabase, def: &Definition) -> Option<String> {
     mod_path
 }
 
-fn hover_text_from_name_kind(db: &RootDatabase, def: Definition) -> Option<String> {
+fn hover_text_from_name_kind(db: &RootDatabase, def: Definition) -> Option<Vec<MarkedString>> {
     let mod_path = determine_mod_path(db, &def);
     return match def {
         Definition::Macro(it) => {
@@ -141,7 +144,7 @@ fn hover_text_from_name_kind(db: &RootDatabase, def: Definition) -> Option<Strin
             ModuleDef::Static(it) => from_def_source(db, it, mod_path),
             ModuleDef::Trait(it) => from_def_source(db, it, mod_path),
             ModuleDef::TypeAlias(it) => from_def_source(db, it, mod_path),
-            ModuleDef::BuiltinType(it) => Some(it.to_string()),
+            ModuleDef::BuiltinType(it) => Some(rust_code_markup(&it)),
         },
         Definition::Local(it) => Some(rust_code_markup(&it.ty(db).display(db))),
         Definition::TypeParam(_) | Definition::SelfType(_) => {
@@ -150,7 +153,11 @@ fn hover_text_from_name_kind(db: &RootDatabase, def: Definition) -> Option<Strin
         }
     };
 
-    fn from_def_source<A, D>(db: &RootDatabase, def: D, mod_path: Option<String>) -> Option<String>
+    fn from_def_source<A, D>(
+        db: &RootDatabase,
+        def: D,
+        mod_path: Option<String>,
+    ) -> Option<Vec<MarkedString>>
     where
         D: HasSource<Ast = A>,
         A: ast::DocCommentsOwner + ast::NameOwner + ShortLabel,

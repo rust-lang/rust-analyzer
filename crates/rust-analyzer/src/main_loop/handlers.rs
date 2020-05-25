@@ -541,13 +541,7 @@ pub fn handle_hover(world: WorldSnapshot, params: lsp_types::HoverParams) -> Res
     };
     let line_index = world.analysis.file_line_index(position.file_id)?;
     let range = to_proto::range(&line_index, info.range);
-    let res = Hover {
-        contents: HoverContents::Markup(MarkupContent {
-            kind: MarkupKind::Markdown,
-            value: crate::markdown::format_docs(&info.info.to_markup()),
-        }),
-        range: Some(range),
-    };
+    let res = Hover { contents: HoverContents::Array(info.info.to_markup()), range: Some(range) };
     Ok(Some(res))
 }
 
