@@ -755,6 +755,12 @@ pub fn foo(_input: TokenStream) -> TokenStream {
         work_done_progress_params: Default::default(),
     });
 
-    let value = res.get("contents").unwrap().get("value").unwrap().to_string();
-    assert_eq!(value, r#""foo::Bar\n___\n\n```rust\nfn bar()\n```""#)
+    let contents = res.get("contents").expect("missing key: contents");
+    assert_eq!(true, contents.is_array(), "expected multiple marked strings");
+
+    let element = contents.get(0).expect("missing content element: 0");
+    assert_eq!(Some(Some("fn bar()")), element.get("value").map(|v| v.as_str()));
+
+    let element = contents.get(1).expect("missing content element: 1");
+    assert_eq!(Some(Some("foo::Bar")), element.get("value").map(|v| v.as_str()));
 }

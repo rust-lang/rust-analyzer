@@ -51,7 +51,7 @@ impl HoverResult {
     }
 
     pub fn first(&self) -> Option<&MarkedString> {
-        self.results.first().clone()
+        self.results.first()
     }
 
     pub fn results(&self) -> &[MarkedString] {
