@@ -69,10 +69,6 @@ pub(crate) fn macro_label(node: &ast::MacroCall) -> String {
     format!("{}macro_rules! {}", vis, name)
 }
 
-pub(crate) fn rust_code_markup(code: &impl Display) -> Vec<MarkedString> {
-    vec![MarkedString::from_language_code(String::from("rust"), code.to_string())]
-}
-
 pub(crate) fn rust_code_markup_with_doc(
     code: &impl Display,
     doc: Option<&str>,
@@ -83,7 +79,7 @@ pub(crate) fn rust_code_markup_with_doc(
     result.push(MarkedString::from_language_code(String::from("rust"), code.to_string()));
 
     if let Some(mod_path) = mod_path {
-        result.push(MarkedString::from_language_code(String::from("rust"), mod_path.to_string()));
+        result.push(MarkedString::from_language_code(String::from("text"), mod_path.to_string()));
     }
 
     if let Some(doc) = doc {

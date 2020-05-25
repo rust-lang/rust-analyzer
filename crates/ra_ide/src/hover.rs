@@ -19,7 +19,7 @@ use ra_syntax::{
 };
 
 use crate::{
-    display::{macro_label, rust_code_markup, rust_code_markup_with_doc, ShortLabel},
+    display::{macro_label, rust_code_markup_with_doc, ShortLabel},
     FilePosition, RangeInfo,
 };
 use itertools::Itertools;
@@ -50,13 +50,13 @@ impl HoverResult {
         self.results.len()
     }
 
-    // pub fn first(&self) -> Option<&str> {
-    //     self.results.first().map(String::as_str)
-    // }
+    pub fn first(&self) -> Option<&MarkedString> {
+        self.results.first().clone()
+    }
 
-    // pub fn results(&self) -> &[String] {
-    //     &self.results
-    // }
+    pub fn results(&self) -> &[MarkedString] {
+        &self.results
+    }
 
     /// Returns the results converted into markup
     /// for displaying in a UI
@@ -144,9 +144,11 @@ fn hover_text_from_name_kind(db: &RootDatabase, def: Definition) -> Option<Vec<M
             ModuleDef::Static(it) => from_def_source(db, it, mod_path),
             ModuleDef::Trait(it) => from_def_source(db, it, mod_path),
             ModuleDef::TypeAlias(it) => from_def_source(db, it, mod_path),
-            ModuleDef::BuiltinType(it) => Some(rust_code_markup(&it)),
+            ModuleDef::BuiltinType(it) => Some(rust_code_markup_with_doc(&it, None, None)),
         },
-        Definition::Local(it) => Some(rust_code_markup(&it.ty(db).display(db))),
+        Definition::Local(it) => {
+            Some(rust_code_markup_with_doc(&it.ty(db).display(db), None, None))
+        }
         Definition::TypeParam(_) | Definition::SelfType(_) => {
             // FIXME: Hover for generic param
             None
@@ -215,7 +217,7 @@ pub(crate) fn hover(db: &RootDatabase, position: FilePosition) -> Option<RangeIn
         }
     }?;
 
-    res.extend(Some(rust_code_markup(&ty.display(db))));
+    res.extend(Some(rust_code_markup_with_doc(&ty.display(db), None, None)));
     let range = sema.original_range(&node).range;
     Some(RangeInfo::new(range, res))
 }
@@ -234,6 +236,7 @@ fn pick_best(tokens: TokenAtOffset<SyntaxToken>) -> Option<SyntaxToken> {
 
 #[cfg(test)]
 mod tests {
+    use lsp_types::{LanguageString, MarkedString};
     use ra_db::FileLoader;
     use ra_syntax::TextRange;
 
@@ -243,20 +246,25 @@ mod tests {
         s.trim_start_matches("```rust\n").trim_end_matches("\n```")
     }
 
-    fn trim_markup_opt(s: Option<&str>) -> Option<&str> {
-        s.map(trim_markup)
+    fn markup_value(s: &MarkedString) -> &str {
+        match s {
+            MarkedString::String(value) => value.as_str(),
+            MarkedString::LanguageString(LanguageString { value, .. }) => value.as_str(),
+        }
+    }
+
+    fn trim_markup_opt(s: Option<&MarkedString>) -> Option<&str> {
+        s.map(markup_value).map(trim_markup)
     }
 
     fn check_hover_result(fixture: &str, expected: &[&str]) -> String {
         let (analysis, position) = analysis_and_position(fixture);
         let hover = analysis.hover(position).unwrap().unwrap();
-        let mut results = Vec::from(hover.info.results());
-        results.sort();
-
+        let results = Vec::from(hover.info.results());
         for (markup, expected) in
             results.iter().zip(expected.iter().chain(std::iter::repeat(&"<missing>")))
         {
-            assert_eq!(trim_markup(&markup), *expected);
+            assert_eq!(trim_markup(markup_value(markup)), *expected);
         }
 
         assert_eq!(hover.info.len(), expected.len());
@@ -268,6 +276,10 @@ mod tests {
     fn check_hover_no_result(fixture: &str) {
         let (analysis, position) = analysis_and_position(fixture);
         assert!(analysis.hover(position).unwrap().is_none());
+    }
+
+    fn marked_lang_code(lang: &str, code: &str) -> MarkedString {
+        MarkedString::from_language_code(lang.to_string(), code.to_string())
     }
 
     #[test]
@@ -339,7 +351,7 @@ mod tests {
                 let foo_test = fo<|>o();
             }
         "#,
-            &["pub fn foo() -> u32"],
+            &["pub fn foo() -> u32", "mock_crate"],
         );
 
         // Multiple candidates but results are ambiguous.
@@ -378,7 +390,7 @@ mod tests {
                 let foo_test = fo<|>o();
             }
         "#,
-            &["pub fn foo<'a, T: AsRef<str>>(b: &'a T) -> &'a str"],
+            &["pub fn foo<'a, T: AsRef<str>>(b: &'a T) -> &'a str", "mock_crate"],
         );
     }
 
@@ -392,7 +404,7 @@ mod tests {
             fn main() {
             }
         "#,
-            &["pub fn foo(a: u32, b: u32) -> u32"],
+            &["pub fn foo(a: u32, b: u32) -> u32", "mock_crate"],
         );
     }
 
@@ -412,7 +424,7 @@ mod tests {
                 };
             }
         "#,
-            &["Foo\n___\n\n```rust\nfield_a: u32"],
+            &["field_a: u32", "mock_crate::Foo"],
         );
 
         // Hovering over the field in the definition
@@ -429,7 +441,7 @@ mod tests {
                 };
             }
         "#,
-            &["Foo\n___\n\n```rust\nfield_a: u32"],
+            &["field_a: u32", "mock_crate::Foo"],
         );
     }
 
@@ -440,7 +452,7 @@ mod tests {
             //- /main.rs
             const foo<|>: u32 = 0;
         "#,
-            &["const foo: u32"],
+            &["const foo: u32", "mock_crate"],
         );
 
         check_hover_result(
@@ -448,7 +460,7 @@ mod tests {
             //- /main.rs
             static foo<|>: u32 = 0;
         "#,
-            &["static foo: u32"],
+            &["static foo: u32", "mock_crate"],
         );
     }
 
@@ -482,7 +494,11 @@ fn main() {
             ",
         );
         let hover = analysis.hover(position).unwrap().unwrap();
-        assert_eq!(trim_markup_opt(hover.info.first()), Some("Option\n___\n\n```rust\nSome"));
+        assert_eq!(hover.info.results.get(0), Some(&marked_lang_code("rust", "Some")));
+        assert_eq!(
+            hover.info.results.get(1),
+            Some(&marked_lang_code("text", "mock_crate::Option"))
+        );
 
         let (analysis, position) = single_file_with_position(
             "
@@ -495,7 +511,7 @@ fn main() {
             ",
         );
         let hover = analysis.hover(position).unwrap().unwrap();
-        assert_eq!(trim_markup_opt(hover.info.first()), Some("Option<i32>"));
+        assert_eq!(hover.info.results.get(0), Some(&marked_lang_code("rust", "Option<i32>")));
     }
 
     #[test]
@@ -508,17 +524,7 @@ fn main() {
                 Non<|>e
             }
         "#,
-            &["
-Option
-___
-
-```rust
-None
-```
-
-The None variant
-            "
-            .trim()],
+            &["None", "mock_crate::Option", "The None variant"],
         );
 
         check_hover_result(
@@ -532,17 +538,7 @@ The None variant
                 let s = Option::Som<|>e(12);
             }
         "#,
-            &["
-Option
-___
-
-```rust
-Some
-```
-
-The Some variant
-            "
-            .trim()],
+            &["Some", "mock_crate::Option", "The Some variant"],
         );
     }
 
@@ -619,9 +615,10 @@ fn func(foo: i32) { if true { <|>foo; }; }
             ",
         );
         let hover = analysis.hover(position).unwrap().unwrap();
+        assert_eq!(hover.info.results.get(0), Some(&marked_lang_code("rust", "fn new() -> Thing")));
         assert_eq!(
-            trim_markup_opt(hover.info.first()),
-            Some("wrapper::Thing\n___\n\n```rust\nfn new() -> Thing")
+            hover.info.results.get(1),
+            Some(&marked_lang_code("text", "mock_crate::wrapper::Thing"))
         );
     }
 
@@ -763,7 +760,7 @@ fn func(foo: i32) { if true { <|>foo; }; }
                 }
             }
             ",
-            &["fn foo()"],
+            &["fn foo()", "mock_crate"],
         );
 
         assert_eq!(hover_on, "foo")
@@ -864,7 +861,7 @@ fn func(foo: i32) { if true { <|>foo; }; }
                 assert!(ba<|>r());
             }
             "#,
-            &["fn bar() -> bool"],
+            &["fn bar() -> bool", "mock_crate"],
         );
 
         assert_eq!(hover_on, "bar");
@@ -898,7 +895,7 @@ fn func(foo: i32) { if true { <|>foo; }; }
                 fo<|>o();
             }
             ",
-            &["fn foo()\n```\n\n<- `\u{3000}` here"],
+            &["fn foo()", "mock_crate", "<- `\u{3000}` here"],
         );
     }
 
@@ -909,21 +906,21 @@ fn func(foo: i32) { if true { <|>foo; }; }
             //- /lib.rs
             async fn foo<|>() {}
             ",
-            &["async fn foo()"],
+            &["async fn foo()", "mock_crate"],
         );
         check_hover_result(
             "
             //- /lib.rs
             pub const unsafe fn foo<|>() {}
             ",
-            &["pub const unsafe fn foo()"],
+            &["pub const unsafe fn foo()", "mock_crate"],
         );
         check_hover_result(
             r#"
             //- /lib.rs
             pub(crate) async unsafe extern "C" fn foo<|>() {}
             "#,
-            &[r#"pub(crate) async unsafe extern "C" fn foo()"#],
+            &[r#"pub(crate) async unsafe extern "C" fn foo()"#, "mock_crate"],
         );
     }
 
@@ -934,7 +931,7 @@ fn func(foo: i32) { if true { <|>foo; }; }
             //- /lib.rs
             unsafe trait foo<|>() {}
             ",
-            &["unsafe trait foo"],
+            &["unsafe trait foo", "mock_crate"],
         );
     }
 
@@ -951,7 +948,7 @@ fn func(foo: i32) { if true { <|>foo; }; }
 
             fn my() {}
             ",
-            &["mod my"],
+            &["mod my", "mock_crate"],
         );
     }
 }

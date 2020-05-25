@@ -12,10 +12,10 @@ use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
     CodeLens, Command, CompletionItem, Diagnostic, DocumentFormattingParams, DocumentHighlight,
-    DocumentSymbol, FoldingRange, FoldingRangeParams, Hover, HoverContents, Location,
-    MarkupContent, MarkupKind, Position, PrepareRenameResponse, Range, RenameParams,
-    SemanticTokensParams, SemanticTokensRangeParams, SemanticTokensRangeResult,
-    SemanticTokensResult, SymbolInformation, TextDocumentIdentifier, Url, WorkspaceEdit,
+    DocumentSymbol, FoldingRange, FoldingRangeParams, Hover, HoverContents, Location, Position,
+    PrepareRenameResponse, Range, RenameParams, SemanticTokensParams, SemanticTokensRangeParams,
+    SemanticTokensRangeResult, SemanticTokensResult, SymbolInformation, TextDocumentIdentifier,
+    Url, WorkspaceEdit,
 };
 use ra_cfg::CfgExpr;
 use ra_ide::{
