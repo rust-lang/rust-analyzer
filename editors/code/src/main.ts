@@ -136,13 +136,13 @@ async function bootstrap(config: Config, state: PersistentState): Promise<string
             const disposables: vscode.Disposable[] = [sharedStateService];
             let closeWaitNotification: () => void;
 
-            const done = new Promise((resolveDone) => { closeWaitNotification = resolveDone });
+            const done = new Promise((resolveDone) => { closeWaitNotification = resolveDone; });
             const close = (p: string) => { resolve(p); disposables.forEach(it => it.dispose()); };
 
             sharedStateService.onDidServerLost!(async () => {
                 closeWaitNotification();
                 await bootstrap(config, state).then(close).catch(reject);
-            }, disposables)
+            }, disposables);
             sharedStateService.onDidValueChanged((e) => {
                 if (e.name === 'path') {
                     closeWaitNotification();

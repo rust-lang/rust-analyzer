@@ -58,7 +58,7 @@ class PipeServer extends SharedStateService {
     }
 
     set(id: string, value: any): Thenable<void> {
-        return this.set_internal(id, value);
+        return this.setInternal(id, value);
     }
 
     dispose() {
@@ -87,7 +87,7 @@ class PipeServer extends SharedStateService {
         });
     }
 
-    private set_internal(name: string, value: any, filter?: net.Socket): Thenable<void> {
+    private setInternal(name: string, value: any, filter?: net.Socket): Thenable<void> {
         this.values.set(name, value);
         this.valueChangedEmitter.fire({ name, value });
         this.clients.forEach(async (it) => {
@@ -111,7 +111,7 @@ class PipeServer extends SharedStateService {
 
             if (request.action === 'set') {
                 (async () => {
-                    await this.set_internal(request.name, request.value, stream).then(() => {
+                    await this.setInternal(request.name, request.value, stream).then(() => {
                         log.debug("S->C: " + JSON.stringify({ id: request.id, ok: true }));
                         send(stream, { ok: true }, request.id);
                     });
@@ -146,7 +146,7 @@ function sendAndWait(socket: net.Socket, request: any): Thenable<any> {
             const messages = data.toString().trimEnd().split('\n');
             messages.forEach(it => {
                 const obj = JSON.parse(it);
-                if (obj.id == requestId) {
+                if (obj.id === requestId) {
                     cleanup();
                     resolve(obj);
                 }
