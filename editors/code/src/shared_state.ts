@@ -27,8 +27,8 @@ function getChannelName(id: string): string {
 }
 
 export abstract class SharedStateService implements Disposable {
-    protected valueChangedEmitter = new EventEmitter<{ name: string; value: any; }>();
-    onDidValueChanged: Event<{ name: string; value: any; }> = this.valueChangedEmitter.event;
+    protected valueChangedEmitter = new EventEmitter<{ name: string; value: any }>();
+    onDidValueChanged: Event<{ name: string; value: any }> = this.valueChangedEmitter.event;
 
     abstract onDidServerLost?: Event<void>;
     abstract get(id: string): Thenable<any>;
@@ -106,29 +106,29 @@ class PipeServer extends SharedStateService {
 
         log.debug("C->S: " + s);
 
-        s.forEach( it => {
+        s.forEach(it => {
             const request = JSON.parse(it);
 
             if (request.action === 'set') {
                 (async () => {
                     await this.set_internal(request.name, request.value, stream).then(() => {
-                        log.debug("S->C: " + JSON.stringify({ id: request.id, ok: true }) );
-                        send(stream, {ok:true}, request.id);
+                        log.debug("S->C: " + JSON.stringify({ id: request.id, ok: true }));
+                        send(stream, { ok: true }, request.id);
                     });
                 })();
             } else if (request.action === 'get') {
                 this.get(request.name).then((v) => {
-                    log.debug("S->C: " + JSON.stringify({ id: request.id, value: v, action: "reply" }) );
+                    log.debug("S->C: " + JSON.stringify({ id: request.id, value: v, action: "reply" }));
                     send(stream, { value: v }, request.id);
                 });
-            }    
+            }
         });
     }
 }
 
 function send(socket: net.Socket, request: any, requestId: number | string) {
     request.id = requestId;
-    socket.write( JSON.stringify(request) + '\n');
+    socket.write(JSON.stringify(request) + '\n');
 }
 
 function sendAndWait(socket: net.Socket, request: any): Thenable<any> {
@@ -138,22 +138,21 @@ function sendAndWait(socket: net.Socket, request: any): Thenable<any> {
         const requestId = nextRequestId;
         nextRequestId += 1;
 
-        let cleanup = () => {
+        const cleanup = () => {
             socket.removeListener('error', ups);
             socket.removeListener('data', resolveData);
         };
-        let resolveData = (data: Buffer) => {
+        const resolveData = (data: Buffer) => {
             const messages = data.toString().trimEnd().split('\n');
-            messages.forEach( it => {
+            messages.forEach(it => {
                 const obj = JSON.parse(it);
-                if( obj.id == requestId )
-                {
+                if (obj.id == requestId) {
                     cleanup();
                     resolve(obj);
                 }
             });
         };
-        let ups = (err: Error) => {
+        const ups = (err: Error) => {
             cleanup();
             reject(err);
         };
@@ -174,7 +173,7 @@ class PipeClient extends SharedStateService {
         socket.on('data', this.handleServerNotify.bind(this));
     }
 
-    private handleServerNotify(data:Buffer) {
+    private handleServerNotify(data: Buffer) {
         const s = data.toString().trimEnd().split('\n');
         s.forEach(it => {
             const request = JSON.parse(it);
@@ -182,7 +181,7 @@ class PipeClient extends SharedStateService {
                 this.valueChangedEmitter.fire({ name: request.name, value: request.value });
                 send(this.socket, {}, request.id);
             }
-        })
+        });
     }
 
     get(name: string): Thenable<any> {
@@ -190,7 +189,7 @@ class PipeClient extends SharedStateService {
     }
 
     set(name: string, value: any): Thenable<void> {
-        return sendAndWait(this.socket, { clientId: this.clientId, action: 'set', name, value});
+        return sendAndWait(this.socket, { clientId: this.clientId, action: 'set', name, value });
     }
 
     dispose() {
@@ -212,7 +211,7 @@ function createServer(id: string): Promise<SharedStateService> {
             // do nothing
         }
 
-        server.listen({path : pipeName, exclusive: true}, () => {
+        server.listen({ path: pipeName, exclusive: true }, () => {
             server.removeListener('error', reject);
             resolve(new PipeServer(server, pipeName));
         });

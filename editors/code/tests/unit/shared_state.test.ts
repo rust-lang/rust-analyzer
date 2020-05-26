@@ -62,6 +62,30 @@ suite('Shared state', () => {
         const client2 = await sharedStateService(testPipeId, 2);
         assert.notDeepEqual(undefined, client2.onDidServerLost);
 
+        let value: { name: string; value: any } | undefined;
+        let value2: { name: string; value: any } | undefined;
+
+        client.onDidValueChanged((v) => { log.debug(`Client 1 value changed: ${v.name} -> ${v.value}`); value = v; });
+        client2.onDidValueChanged((v) => { log.debug(`Client 2 value changed: ${v.name} -> ${v.value}`); value2 = v; });
+
+        await server.set('active', 33);
+        assert.deepEqual(await server.get('active'), 33);
+        assert.deepEqual(await client.get('active'), 33);
+        assert.deepEqual(await client2.get('active'), 33);
+
+        await server.set('active', "!");
+        assert.deepEqual(await server.get('active'), "!");
+        assert.deepEqual(await client.get('active'), "!");
+        assert.deepEqual(await client2.get('active'), "!");
+
+        await server.set('obj', { ok: true });
+        assert.deepEqual(await server.get('obj'), { ok: true });
+        assert.deepEqual(await client.get('obj'), { ok: true });
+        assert.deepEqual(await client2.get('obj'), { ok: true });
+
+        assert.deepEqual({ name: 'obj', value: { ok: true } }, value);
+        assert.deepEqual(value, value2);
+
         server.dispose();
         client.dispose();
         client2.dispose();
