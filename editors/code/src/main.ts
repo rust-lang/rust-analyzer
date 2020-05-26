@@ -134,14 +134,26 @@ async function bootstrap(config: Config, state: PersistentState): Promise<string
     else {
         return new Promise((resolve, reject) => {
             const disposables: vscode.Disposable[] = [sharedStateService];
+            let closeWaitNotification: () => void;
+
+            const done = new Promise((resolveDone) => { closeWaitNotification = resolveDone });
             const close = (p: string) => { resolve(p); disposables.forEach(it => it.dispose()); };
 
             sharedStateService.onDidServerLost!(async () => {
+                closeWaitNotification();
                 await bootstrap(config, state).then(close).catch(reject);
             }, disposables)
             sharedStateService.onDidValueChanged((e) => {
-                if (e.id === 'path') close(e.value);
+                if (e.id === 'path') {
+                    closeWaitNotification();
+                    close(e.value);
+                }
             }, disposables);
+
+            vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: "Waiting for rust-analyzer server downloading..."
+            }, async () => await done);
         });
     }
 }
