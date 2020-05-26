@@ -76,5 +76,4 @@ suite('Shared state', () => {
         client.dispose();
         client2.dispose();
     });
-
 });

@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as os from 'os';
 import * as net from 'net';
-import { Disposable, window, EventEmitter } from 'vscode';
+import { Disposable, EventEmitter } from 'vscode';
 import { log } from './util';
 
 import { Event } from 'vscode-languageclient';
@@ -21,38 +21,35 @@ function getChannelName(id: string): string {
     return path.join(os.tmpdir(), commonName);
 }
 
-export interface SharedStateService extends Disposable {
-    onDidValueChanged: Event<{ id: string, value: any }>;
-    onDidServerLost?: Event<void>;
+export abstract class SharedStateService implements Disposable {
+    protected valueChangedEmitter = new EventEmitter<{ id: string; value: any; }>();
+    onDidValueChanged: Event<{ id: string; value: any; }> = this.valueChangedEmitter.event;
 
-    get(id: string): Thenable<any>;
-    set(id: string, value: any): Thenable<void>;
+    abstract onDidServerLost?: Event<void>;
+    abstract get(id: string): Thenable<any>;
+    abstract set(id: string, value: any): Thenable<void>;
+    abstract dispose(): any;
+
+    get isLocal(): boolean {
+        return this.onDidServerLost !== undefined;
+    }
 }
 
-interface SharedStateServer extends SharedStateService { }
-interface SharedStateClient extends SharedStateService {
-}
-
-const debugOutput = window.createOutputChannel("Update");
-
-function println(message?: any, ...optionalParams: any[]) {
-    log.debug(message, optionalParams);
-
-    debugOutput.appendLine(`${message} ${optionalParams}`);
-}
-
-class PipeServer implements SharedStateServer {
+class PipeServer extends SharedStateService {
     values = new Map<string, any>();
     clients: net.Socket[];
 
     private eventEmitter = new EventEmitter<{ id: string; value: any; }>();
     onDidValueChanged: Event<{ id: string; value: any; }> = this.eventEmitter.event;
+    onDidServerLost: undefined;
 
     constructor(readonly server: net.Server) {
+        super();
+
         server.on('connection', this.handleNewClient.bind(this));
         this.clients = [];
 
-        println('Server ready');
+        log.debug('[U] Server ready');
     }
 
     get(id: string): Thenable<any> {
@@ -64,7 +61,12 @@ class PipeServer implements SharedStateServer {
     }
 
     dispose() {
-        (async () => await new Promise((resolve) => this.server.close(resolve)))();
+        (async () => await new Promise((resolve) => {
+            this.clients.forEach(it => it.destroy());
+            this.server.close(resolve);
+        }))();
+
+        log.debug('[U] Server disposed.');
     }
 
     private handleNewClient(stream: net.Socket) {
@@ -74,8 +76,6 @@ class PipeServer implements SharedStateServer {
             this.clients.forEach((it, index) => {
                 if (it === stream) this.clients.splice(index, 1);
             });
-
-            println("Client is gone.");
         });
 
         stream.on('data', (data) => {
@@ -97,7 +97,7 @@ class PipeServer implements SharedStateServer {
 
     private handleClientMessage(data: Buffer, stream: net.Socket) {
         const obj = JSON.parse(data.toString());
-        println(`  Query: '${data.toString()}'`);
+        log.debug(`[U] C->S: '${data.toString()}'`);
 
         if (obj.action === 'set') {
             (async () => {
@@ -107,7 +107,7 @@ class PipeServer implements SharedStateServer {
         } else {
             this.get(obj.id).then((v) => {
                 const value = JSON.stringify({ id: obj.id, value: v });
-                println(`  - S: '${value}'`);
+                log.debug(`[U]    S->C: '${value}'`);
                 stream.write(value);
             })
         }
@@ -121,7 +121,6 @@ function sendAndWait(socket: net.Socket, request: any): Thenable<any> {
             socket.removeListener('data', resolveData);
         };
         let resolveData = (data: Buffer) => {
-            println(`S->C: '${data.toString()}'`)
             cleanup();
             let result = JSON.parse(data.toString());
             resolve(result);
@@ -138,20 +137,20 @@ function sendAndWait(socket: net.Socket, request: any): Thenable<any> {
     });
 }
 
-class PipeClient implements SharedStateClient {
-    isLocal = false;
-
+class PipeClient extends SharedStateService {
     private serverLost: EventEmitter<void> = new EventEmitter<void>();
     onDidServerLost: Event<void> = this.serverLost.event;
 
-    private eventEmitter = new EventEmitter<{ id: string; value: any; }>();
-    onDidValueChanged: Event<{ id: string; value: any; }> = this.eventEmitter.event;
-
     constructor(readonly socket: net.Socket, readonly clientId: string | number) {
-        socket.on('close', () => {
-            println(`Client ${this.clientId} disconnected`);
-            this.serverLost.fire();
-        })
+        super();
+
+        socket.on('close', () => this.serverLost.fire());
+        socket.on('data', (data) => {
+            const obj = JSON.parse(data.toString());
+            if (obj.action === 'notify') {
+                this.valueChangedEmitter.fire({ id: obj.id, value: obj.value });
+            }
+        });
     }
 
     get(id: string): Thenable<any> {
@@ -159,9 +158,7 @@ class PipeClient implements SharedStateClient {
     }
 
     set(id: string, value: any): Thenable<void> {
-        return sendAndWait(this.socket, { action: 'set', id: id, value: value }).then((v) => {
-            println(`Server set reply: '${v}'`);
-        });
+        return sendAndWait(this.socket, { action: 'set', id: id, value: value });
     }
 
     dispose() {
@@ -170,7 +167,7 @@ class PipeClient implements SharedStateClient {
     }
 }
 
-function createServer(id: string): Promise<SharedStateServer> {
+function createServer(id: string): Promise<SharedStateService> {
     const pipeName = getChannelName(id);
 
     return new Promise((resolve, reject) => {
@@ -183,7 +180,7 @@ function createServer(id: string): Promise<SharedStateServer> {
     });
 }
 
-function connectTo(id: string, clientId: string | number): Promise<SharedStateClient> {
+function connectTo(id: string, clientId: string | number): Promise<SharedStateService> {
     const pipeName = getChannelName(id);
 
     return new Promise((resolve, reject) => {

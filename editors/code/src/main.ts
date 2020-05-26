@@ -120,23 +120,28 @@ async function bootstrap(config: Config, state: PersistentState): Promise<string
 
     const sharedStateService = await ipc.sharedStateService();
     if (!sharedStateService.onDidServerLost) {
-        await bootstrapExtension(config, state);
-        const path = await bootstrapServer(config, state);
-        await sharedStateService.set('path', path);
-        sharedStateService.dispose();
-        return path;
+        try {
+            await bootstrapExtension(config, state);
+            const path = await bootstrapServer(config, state);
+            await sharedStateService.set('path', path);
+
+            return path;
+        }
+        finally {
+            sharedStateService.dispose();
+        }
     }
     else {
-        return new Promise((resolve) => {
-            const close = (p: string) => { resolve(p); sharedStateService.dispose(); };
+        return new Promise((resolve, reject) => {
+            const disposables: vscode.Disposable[] = [sharedStateService];
+            const close = (p: string) => { resolve(p); disposables.forEach(it => it.dispose()); };
 
             sharedStateService.onDidServerLost!(async () => {
-                const retry = await bootstrap(config, state);
-                close(retry);
-            })
+                await bootstrap(config, state).then(close).catch(reject);
+            }, disposables)
             sharedStateService.onDidValueChanged((e) => {
                 if (e.id === 'path') close(e.value);
-            });
+            }, disposables);
         });
     }
 }
