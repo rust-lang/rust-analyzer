@@ -144,7 +144,7 @@ async function bootstrap(config: Config, state: PersistentState): Promise<string
                 await bootstrap(config, state).then(close).catch(reject);
             }, disposables)
             sharedStateService.onDidValueChanged((e) => {
-                if (e.id === 'path') {
+                if (e.name === 'path') {
                     closeWaitNotification();
                     close(e.value);
                 }

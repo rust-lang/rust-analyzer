@@ -9,29 +9,29 @@ suite('Shared state', () => {
 
     test('Single server works', async () => {
         const server = await sharedStateService(testPipeId);
-        assert.equal(undefined, server.onDidServerLost);
+        assert.deepEqual(undefined, server.onDidServerLost);
 
         server.set('progress', 55);
-        assert.equal(await server.get('progress'), 55);
+        assert.deepEqual(await server.get('progress'), 55);
         server.dispose();
     });
 
     test('Server is disposable', async () => {
         const server = await sharedStateService(testPipeId);
-        assert.equal(undefined, server.onDidServerLost);
+        assert.deepEqual(undefined, server.onDidServerLost);
         server.dispose();
 
         const server2 = await sharedStateService(testPipeId);
-        assert.equal(undefined, server2.onDidServerLost);
+        assert.deepEqual(undefined, server2.onDidServerLost);
         server2.dispose();
     });
 
     test('A client can connect to the server', async () => {
         const server = await sharedStateService(testPipeId);
-        assert.equal(undefined, server.onDidServerLost);
+        assert.deepEqual(undefined, server.onDidServerLost);
 
         const client = await sharedStateService(testPipeId);
-        assert.notEqual(undefined, client.onDidServerLost);
+        assert.notDeepEqual(undefined, client.onDidServerLost);
 
         server.dispose();
 
@@ -39,13 +39,13 @@ suite('Shared state', () => {
 
     test('Several clients can connect to the server', async () => {
         const server = await sharedStateService(testPipeId);
-        assert.equal(undefined, server.onDidServerLost);
+        assert.deepEqual(undefined, server.onDidServerLost);
 
-        const client = await sharedStateService(testPipeId);
-        assert.notEqual(undefined, client.onDidServerLost);
+        const client = await sharedStateService(testPipeId, 11);
+        assert.notDeepEqual(undefined, client.onDidServerLost);
 
-        const client2 = await sharedStateService(testPipeId);
-        assert.notEqual(undefined, client2.onDidServerLost);
+        const client2 = await sharedStateService(testPipeId, 22);
+        assert.notDeepEqual(undefined, client2.onDidServerLost);
 
         server.dispose();
         client.dispose();
@@ -54,23 +54,13 @@ suite('Shared state', () => {
 
     test('Server and clients share variables', async () => {
         const server = await sharedStateService(testPipeId);
-        assert.equal(undefined, server.onDidServerLost);
+        assert.deepEqual(undefined, server.onDidServerLost);
 
-        const client = await sharedStateService(testPipeId);
-        assert.notEqual(undefined, client.onDidServerLost);
+        const client = await sharedStateService(testPipeId, 1);
+        assert.notDeepEqual(undefined, client.onDidServerLost);
 
-        const client2 = await sharedStateService(testPipeId);
-        assert.notEqual(undefined, client2.onDidServerLost);
-
-        await server.set('active', 33);
-        assert.equal(await server.get('active'), 33);
-        assert.equal(await client.get('active'), 33);
-        assert.equal(await client2.get('active'), 33);
-
-        await client.set('active', "!");
-        assert.equal(await server.get('active'), "!");
-        assert.equal(await client.get('active'), "!");
-        assert.equal(await client2.get('active'), "!");
+        const client2 = await sharedStateService(testPipeId, 2);
+        assert.notDeepEqual(undefined, client2.onDidServerLost);
 
         server.dispose();
         client.dispose();
