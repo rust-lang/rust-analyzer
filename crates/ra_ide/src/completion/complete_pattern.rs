@@ -79,7 +79,7 @@ mod tests {
                 label: "X",
                 source_range: 246..246,
                 delete: 246..246,
-                insert: "X",
+                insert: "X => $0,",
                 kind: EnumVariant,
                 detail: "()",
             },
@@ -96,6 +96,42 @@ mod tests {
                 delete: 246..246,
                 insert: "m",
                 kind: Module,
+            },
+        ]
+        "###);
+    }
+
+    #[test]
+    fn completes_enum_variants_in_match() {
+        let completions = complete(
+            r"
+            enum E { X, Y }
+
+            fn foo() {
+                let my_var = E::X;
+                match my_var {
+                    E::<|>
+                }
+            }
+            ",
+        );
+        assert_debug_snapshot!(completions, @r###"
+        [
+            CompletionItem {
+                label: "X",
+                source_range: 142..142,
+                delete: 142..142,
+                insert: "X => $0,",
+                kind: EnumVariant,
+                detail: "()",
+            },
+            CompletionItem {
+                label: "Y",
+                source_range: 142..142,
+                delete: 142..142,
+                insert: "Y => $0,",
+                kind: EnumVariant,
+                detail: "()",
             },
         ]
         "###);

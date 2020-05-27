@@ -299,6 +299,7 @@ impl Completions {
                 .surround_with("{ ", " }")
                 .to_string(),
         };
+
         let mut res = CompletionItem::new(
             CompletionKind::Reference,
             ctx.source_range(),
@@ -316,6 +317,10 @@ impl Completions {
         if variant_kind == StructKind::Tuple {
             let params = Params::Anonymous(variant.fields(ctx.db).len());
             res = res.add_call_parens(ctx, qualified_name, params)
+        } else if ctx.is_match_arm {
+            if let Some(it) = ctx.config.snippet_cap {
+                res = res.insert_snippet(it, format!("{} => $0,", qualified_name));
+            }
         }
 
         res.add_to(self);
@@ -411,9 +416,19 @@ impl Builder {
                         .enumerate()
                         .map(|(index, param_name)| format!("${{{}:{}}}", index + 1, param_name))
                         .sep_by(", ");
-                    format!("{}({})$0", name, function_params_snippet)
+                    if ctx.is_match_arm {
+                        format!("{}({}) => $0,", name, function_params_snippet)
+                    } else {
+                        format!("{}({})$0", name, function_params_snippet)
+                    }
                 }
-                _ => format!("{}($0)", name),
+                _ => {
+                    if ctx.is_match_arm {
+                        format!("{}($1) => $0,", name)
+                    } else {
+                        format!("{}($0)", name)
+                    }
+                }
             };
 
             (snippet, format!("{}(…)", name))
@@ -824,7 +839,7 @@ mod tests {
                 label: "None",
                 source_range: 185..188,
                 delete: 185..188,
-                insert: "None",
+                insert: "None => $0,",
                 kind: EnumVariant,
                 detail: "()",
             },
@@ -839,7 +854,7 @@ mod tests {
                 label: "Some(…)",
                 source_range: 185..188,
                 delete: 185..188,
-                insert: "Some($0)",
+                insert: "Some($1) => $0,",
                 kind: EnumVariant,
                 lookup: "Some",
                 detail: "(T)",

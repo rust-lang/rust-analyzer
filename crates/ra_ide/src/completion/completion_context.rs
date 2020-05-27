@@ -58,6 +58,7 @@ pub(crate) struct CompletionContext<'a> {
     /// If this is a macro call, i.e. the () are already there.
     pub(super) is_macro_call: bool,
     pub(super) is_path_type: bool,
+    pub(super) is_match_arm: bool,
     pub(super) has_type_args: bool,
     pub(super) attribute_under_caret: Option<ast::Attr>,
 }
@@ -115,6 +116,7 @@ impl<'a> CompletionContext<'a> {
             is_call: false,
             is_macro_call: false,
             is_path_type: false,
+            is_match_arm: false,
             has_type_args: false,
             dot_receiver_is_ambiguous_float_literal: false,
             attribute_under_caret: None,
@@ -251,6 +253,8 @@ impl<'a> CompletionContext<'a> {
                         }
                     }
                 }
+                self.is_match_arm =
+                    bind_pat.syntax().parent().and_then(ast::MatchArm::cast).is_some();
             }
             if is_node::<ast::Param>(name.syntax()) {
                 self.is_param = true;
@@ -277,6 +281,7 @@ impl<'a> CompletionContext<'a> {
             self.record_lit_syntax =
                 self.sema.find_node_at_offset_with_macros(&original_file, offset);
         }
+        self.is_match_arm = name_ref.syntax().ancestors().find_map(ast::MatchArm::cast).is_some();
 
         self.impl_def = self
             .sema
