@@ -16,10 +16,8 @@ export class Config {
         "files",
         "highlighting",
         "updates.channel",
-        "lens.enable",
-        "lens.run",
-        "lens.debug",
-        "lens.implementations",
+        "lens", // works as lens.*
+        "hoverActions", // works as hoverActions.*
     ]
         .map(opt => `${this.rootSection}.${opt}`);
 
@@ -130,6 +128,15 @@ export class Config {
             run: this.get<boolean>("lens.run"),
             debug: this.get<boolean>("lens.debug"),
             implementations: this.get<boolean>("lens.implementations"),
+        };
+    }
+
+    get hoverActions() {
+        return {
+            enable: this.get<boolean>("hoverActions.enable"),
+            run: this.get<boolean>("hoverActions.run"),
+            debug: this.get<boolean>("hoverActions.debug"),
+            gotoTypeDef: this.get<boolean>("lens.gotoTypeDef"),
         };
     }
 }

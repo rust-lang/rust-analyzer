@@ -22,6 +22,26 @@ use crate::{
     FilePosition, RangeInfo,
 };
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HoverConfig {
+    pub run: bool,
+    pub debug: bool,
+    pub goto_type_def: bool,
+}
+
+impl Default for HoverConfig {
+    fn default() -> Self {
+        // A client should explicitly specify if it supports hover actions!
+        Self { run: false, debug: false, goto_type_def: false }
+    }
+}
+
+impl HoverConfig {
+    pub fn runnable(&self) -> bool {
+        self.run || self.debug
+    }
+}
+
 /// Contains the results when hovering over an item
 #[derive(Debug, Default)]
 pub struct HoverResult {

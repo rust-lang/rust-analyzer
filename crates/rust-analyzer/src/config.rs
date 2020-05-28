@@ -11,7 +11,7 @@ use std::{ffi::OsString, path::PathBuf};
 
 use lsp_types::ClientCapabilities;
 use ra_flycheck::FlycheckConfig;
-use ra_ide::{AssistConfig, CompletionConfig, InlayHintsConfig};
+use ra_ide::{AssistConfig, CompletionConfig, HoverConfig, InlayHintsConfig};
 use ra_project_model::CargoConfig;
 use serde::Deserialize;
 
@@ -35,6 +35,7 @@ pub struct Config {
     pub assist: AssistConfig,
     pub call_info_full: bool,
     pub lens: LensConfig,
+    pub hover: HoverConfig,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -141,6 +142,7 @@ impl Default for Config {
             assist: AssistConfig::default(),
             call_info_full: true,
             lens: LensConfig::default(),
+            hover: HoverConfig::default(),
         }
     }
 }
@@ -240,6 +242,13 @@ impl Config {
             self.lens = LensConfig::NO_LENS;
         }
 
+        let mut use_hover_actions = false;
+        set(value, "/hoverActions/enable", &mut use_hover_actions);
+        if use_hover_actions {
+            set(value, "/hoverActions/run", &mut self.hover.run);
+            set(value, "/hoverActions/debug", &mut self.hover.debug);
+            set(value, "/hoverActions/gotoTypeDef", &mut self.hover.goto_type_def);
+        }
         log::info!("Config::update() = {:#?}", self);
 
         fn get<'a, T: Deserialize<'a>>(value: &'a serde_json::Value, pointer: &str) -> Option<T> {

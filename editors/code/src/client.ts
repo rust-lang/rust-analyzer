@@ -4,6 +4,15 @@ import * as vscode from 'vscode';
 import { CallHierarchyFeature } from 'vscode-languageclient/lib/callHierarchy.proposed';
 import { SemanticTokensFeature, DocumentSemanticsTokensSignature } from 'vscode-languageclient/lib/semanticTokens.proposed';
 
+function toTrusted(obj: vscode.MarkedString): vscode.MarkedString {
+    const md = <vscode.MarkdownString>obj;
+    if (md && md.value.includes("```rust")) {
+        md.isTrusted = true;
+        return md;
+    }
+    return obj;
+}
+
 export function createClient(serverPath: string, cwd: string): lc.LanguageClient {
     // '.' Is the fallback if no folder is open
     // TODO?: Workspace folders support Uri's (eg: file://test.txt).
@@ -31,6 +40,15 @@ export function createClient(serverPath: string, cwd: string): lc.LanguageClient
                 const res = await next(document, token);
                 if (res === undefined) throw new Error('busy');
                 return res;
+            },
+            // Workaround to support actions (trusted vscode.MarkdownString) in hovers
+            // https://github.com/microsoft/vscode/issues/33577
+            async provideHover(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken, next: lc.ProvideHoverSignature) {
+                const hover = await next(document, position, token);
+                if (hover) {
+                    hover.contents = hover.contents.map(toTrusted);
+                }
+                return hover;
             },
             async provideCodeActions(document: vscode.TextDocument, range: vscode.Range, context: vscode.CodeActionContext, token: vscode.CancellationToken, _next: lc.ProvideCodeActionsSignature) {
                 const params: lc.CodeActionParams = {
