@@ -1011,6 +1011,7 @@ fn to_command_link(command: Command, hint: &str) -> String {
         .remove(b'(')
         .remove(b')');
 
+    //It's ok if command.arguments is None
     let args = to_value(command.arguments).unwrap().to_string();
     format!(
         "[{title}](command:{id}?{args} '{hint}')",
@@ -1265,5 +1266,58 @@ mod tests {
         let mut min_features = vec![];
         collect_minimal_features_needed(&cfg_expr, &mut min_features);
         assert!(min_features.is_empty());
+    }
+
+    #[test]
+    fn test_to_command_link_no_args() {
+        let command = Command::new("title".into(), "id".into(), None);
+        let text = to_command_link(command, "hint");
+        assert_eq!("[title](command:id?null 'hint')", text);
+    }
+
+    #[test]
+    fn test_to_command_link() {
+        let runnable = serde_json::json!({
+            "range": {
+                "start": {
+                    "line": 0,
+                    "character": 0
+                },
+                "end": {
+                    "line": 0,
+                    "character": 0
+                }
+            },
+            "label": "LABEL",
+            "bin": "cargo",
+            "args": [
+                "test",
+                "--package",
+                "PACKAGE",
+                "--lib"
+            ],
+            "extraArgs": [
+                "MOD::TEST_MOD::NAME",
+                "--exact",
+                "--nocapture"
+            ],
+            "env": {},
+            "cwd": "."
+        });
+        let command = Command::new("title".into(), "id".into(), Some(vec![runnable.clone()]));
+        let text = to_command_link(command, "hint");
+
+        const PREFIX: &str = "[title](command:id?";
+        const SUFFIX: &str = " 'hint')";
+
+        assert!(text.starts_with(PREFIX));
+        assert!(text.ends_with(SUFFIX));
+
+        let args = &text[PREFIX.len()..text.len() - SUFFIX.len()];
+        let json = percent_encoding::percent_decode_str(args).decode_utf8().unwrap();
+        let obj: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert!(obj.is_array());
+        assert_eq!(runnable, obj[0]);
     }
 }
