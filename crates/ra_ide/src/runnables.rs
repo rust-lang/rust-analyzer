@@ -18,6 +18,41 @@ pub struct Runnable {
     pub cfg_exprs: Vec<CfgExpr>,
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub struct RunnableAction {
+    pub title: &'static str,
+    pub debugee: bool,
+}
+
+const TEST: RunnableAction = RunnableAction { title: "▶\u{fe0e} Run Test", debugee: true };
+const DOCTEST: RunnableAction = RunnableAction { title: "▶\u{fe0e} Run Doctest", debugee: false };
+const BENCH: RunnableAction = RunnableAction { title: "▶\u{fe0e} Run Bench", debugee: true };
+const BIN: RunnableAction = RunnableAction { title: "▶\u{fe0e} Run", debugee: true };
+
+impl Runnable {
+    // test package::module::testname
+    pub fn label(&self, target: Option<String>) -> String {
+        match &self.kind {
+            RunnableKind::Test { test_id, .. } => format!("test {}", test_id),
+            RunnableKind::TestMod { path } => format!("test-mod {}", path),
+            RunnableKind::Bench { test_id } => format!("bench {}", test_id),
+            RunnableKind::DocTest { test_id, .. } => format!("doctest {}", test_id),
+            RunnableKind::Bin => {
+                target.map_or_else(|| "run binary".to_string(), |t| format!("run {}", t))
+            }
+        }
+    }
+
+    pub fn action(&self) -> &'static RunnableAction {
+        match &self.kind {
+            RunnableKind::Test { .. } | RunnableKind::TestMod { .. } => &TEST,
+            RunnableKind::DocTest { .. } => &DOCTEST,
+            RunnableKind::Bench { .. } => &BENCH,
+            RunnableKind::Bin => &BIN,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum TestId {
     Name(String),
@@ -206,6 +241,15 @@ mod tests {
 
     use crate::mock_analysis::analysis_and_position;
 
+    use super::{RunnableAction, Runnable, BENCH, BIN, DOCTEST, TEST};
+
+    fn assert_actions(runnables: &[Runnable], actions: &[&RunnableAction]) {
+        assert_eq!(
+            actions,
+            runnables.into_iter().map(|it| it.action()).collect::<Vec<_>>().as_slice()
+        );
+    }
+
     #[test]
     fn test_runnables() {
         let (analysis, pos) = analysis_and_position(
@@ -258,6 +302,7 @@ mod tests {
         ]
         "###
                 );
+        assert_actions(&runnables, &[&BIN, &TEST, &TEST]);
     }
 
     #[test]
@@ -295,6 +340,7 @@ mod tests {
         ]
         "###
                 );
+        assert_actions(&runnables, &[&BIN, &DOCTEST]);
     }
 
     #[test]
@@ -335,6 +381,7 @@ mod tests {
         ]
         "###
                 );
+        assert_actions(&runnables, &[&BIN, &DOCTEST]);
     }
 
     #[test]
@@ -375,6 +422,7 @@ mod tests {
         ]
         "###
                 );
+        assert_actions(&runnables, &[&TEST, &TEST]);
     }
 
     #[test]
@@ -417,6 +465,7 @@ mod tests {
         ]
         "###
                 );
+        assert_actions(&runnables, &[&TEST, &TEST]);
     }
 
     #[test]
@@ -461,6 +510,7 @@ mod tests {
         ]
         "###
                 );
+        assert_actions(&runnables, &[&TEST, &TEST]);
     }
 
     #[test]
@@ -498,6 +548,7 @@ mod tests {
         ]
         "###
                 );
+        assert_actions(&runnables, &[&TEST]);
     }
 
     #[test]
@@ -543,6 +594,7 @@ mod tests {
         ]
         "###
                 );
+        assert_actions(&runnables, &[&TEST]);
     }
 
     #[test]

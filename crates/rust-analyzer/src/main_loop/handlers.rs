@@ -760,36 +760,27 @@ pub fn handle_code_lens(
     if world.config.lens.runnable() {
         // Gather runnables
         for runnable in world.analysis().runnables(file_id)? {
-            let (run_title, debugee) = match &runnable.kind {
-                RunnableKind::Test { .. } | RunnableKind::TestMod { .. } => {
-                    ("▶\u{fe0e} Run Test", true)
-                }
-                RunnableKind::DocTest { .. } => {
-                    // cargo does not support -no-run for doctests
-                    ("▶\u{fe0e} Run Doctest", false)
-                }
-                RunnableKind::Bench { .. } => {
-                    // Nothing wrong with bench debugging
-                    ("Run Bench", true)
-                }
+            match &runnable.kind {
                 RunnableKind::Bin => {
                     // Do not suggest binary run on other target than binary
                     match &cargo_spec {
                         Some(spec) => match spec.target_kind {
-                            TargetKind::Bin => ("Run", true),
+                            TargetKind::Bin => (),
                             _ => continue,
                         },
                         None => continue,
                     }
                 }
+                _ => ()
             };
 
+            let action = runnable.action();
             let mut r = to_lsp_runnable(&world, file_id, runnable)?;
             if world.config.lens.run {
                 let lens = CodeLens {
                     range: r.range,
                     command: Some(Command {
-                        title: run_title.to_string(),
+                        title: action.title.to_string(),
                         command: "rust-analyzer.runSingle".into(),
                         arguments: Some(vec![to_value(&r).unwrap()]),
                     }),
@@ -798,7 +789,7 @@ pub fn handle_code_lens(
                 lenses.push(lens);
             }
 
-            if debugee && world.config.lens.debug {
+            if action.debugee && world.config.lens.debug {
                 if r.args[0] == "run" {
                     r.args[0] = "build".into();
                 } else {
@@ -973,15 +964,7 @@ fn to_lsp_runnable(
     let (args, extra_args) =
         CargoTargetSpec::runnable_args(spec, &runnable.kind, &features_needed)?;
     let line_index = world.analysis().file_line_index(file_id)?;
-    let label = match &runnable.kind {
-        RunnableKind::Test { test_id, .. } => format!("test {}", test_id),
-        RunnableKind::TestMod { path } => format!("test-mod {}", path),
-        RunnableKind::Bench { test_id } => format!("bench {}", test_id),
-        RunnableKind::DocTest { test_id, .. } => format!("doctest {}", test_id),
-        RunnableKind::Bin => {
-            target.map_or_else(|| "run binary".to_string(), |t| format!("run {}", t))
-        }
-    };
+    let label = runnable.label(target);
     Ok(lsp_ext::Runnable {
         range: to_proto::range(&line_index, runnable.range),
         label,
