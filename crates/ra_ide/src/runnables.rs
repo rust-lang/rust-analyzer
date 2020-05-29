@@ -20,14 +20,14 @@ pub struct Runnable {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct RunnableAction {
-    pub title: &'static str,
+    pub run_title: &'static str,
     pub debugee: bool,
 }
 
-const TEST: RunnableAction = RunnableAction { title: "▶\u{fe0e} Run Test", debugee: true };
-const DOCTEST: RunnableAction = RunnableAction { title: "▶\u{fe0e} Run Doctest", debugee: false };
-const BENCH: RunnableAction = RunnableAction { title: "▶\u{fe0e} Run Bench", debugee: true };
-const BIN: RunnableAction = RunnableAction { title: "▶\u{fe0e} Run", debugee: true };
+const TEST: RunnableAction = RunnableAction { run_title: "▶\u{fe0e} Run Test", debugee: true };
+const DOCTEST: RunnableAction = RunnableAction { run_title: "▶\u{fe0e} Run Doctest", debugee: false };
+const BENCH: RunnableAction = RunnableAction { run_title: "▶\u{fe0e} Run Bench", debugee: true };
+const BIN: RunnableAction = RunnableAction { run_title: "▶\u{fe0e} Run", debugee: true };
 
 impl Runnable {
     // test package::module::testname
@@ -94,7 +94,7 @@ pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable> {
     source_file.syntax().descendants().filter_map(|i| runnable(&sema, i, file_id)).collect()
 }
 
-fn runnable(sema: &Semantics<RootDatabase>, item: SyntaxNode, file_id: FileId) -> Option<Runnable> {
+pub(crate) fn runnable(sema: &Semantics<RootDatabase>, item: SyntaxNode, file_id: FileId) -> Option<Runnable> {
     match_ast! {
         match item {
             ast::FnDef(it) => runnable_fn(sema, it, file_id),

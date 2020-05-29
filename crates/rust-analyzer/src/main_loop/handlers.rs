@@ -19,8 +19,8 @@ use lsp_types::{
 };
 use ra_cfg::CfgExpr;
 use ra_ide::{
-    FileId, FilePosition, FileRange, Query, RangeInfo, Runnable, RunnableKind, SearchScope,
-    TextEdit,
+    FileId, FilePosition, FileRange, HoverAction, Query, RangeInfo, Runnable, RunnableKind,
+    SearchScope, TextEdit,
 };
 use ra_prof::profile;
 use ra_project_model::TargetKind;
@@ -416,7 +416,7 @@ pub fn handle_runnables(
                 }
             }
         }
-        res.push(to_lsp_runnable(&world, file_id, runnable)?);
+        res.push(to_lsp_runnable(&world, file_id, &runnable)?);
     }
 
     // Add `cargo check` and `cargo test` for the whole package
@@ -541,11 +541,13 @@ pub fn handle_hover(world: WorldSnapshot, params: lsp_types::HoverParams) -> Res
     };
     let line_index = world.analysis.file_line_index(position.file_id)?;
     let range = to_proto::range(&line_index, info.range);
+    let mut value = crate::markdown::format_docs(&info.info.to_markup());
+    if let Some(text) = render_hover_actions(&world, position.file_id, info.info.actions()) {
+        value += "\n---\n";
+        value += &text;
+    }
     let res = Hover {
-        contents: HoverContents::Markup(MarkupContent {
-            kind: MarkupKind::Markdown,
-            value: crate::markdown::format_docs(&info.info.to_markup()),
-        }),
+        contents: HoverContents::Markup(MarkupContent { kind: MarkupKind::Markdown, value }),
         range: Some(range),
     };
     Ok(Some(res))
@@ -771,37 +773,24 @@ pub fn handle_code_lens(
                         None => continue,
                     }
                 }
-                _ => ()
+                _ => (),
             };
 
             let action = runnable.action();
-            let mut r = to_lsp_runnable(&world, file_id, runnable)?;
+            let r = to_lsp_runnable(&world, file_id, &runnable)?;
             if world.config.lens.run {
                 let lens = CodeLens {
                     range: r.range,
-                    command: Some(Command {
-                        title: action.title.to_string(),
-                        command: "rust-analyzer.runSingle".into(),
-                        arguments: Some(vec![to_value(&r).unwrap()]),
-                    }),
+                    command: Some(to_run_single_command(&r, action.run_title)),
                     data: None,
                 };
                 lenses.push(lens);
             }
 
             if action.debugee && world.config.lens.debug {
-                if r.args[0] == "run" {
-                    r.args[0] = "build".into();
-                } else {
-                    r.args.push("--no-run".into());
-                }
                 let debug_lens = CodeLens {
                     range: r.range,
-                    command: Some(Command {
-                        title: "Debug".into(),
-                        command: "rust-analyzer.debugSingle".into(),
-                        arguments: Some(vec![to_value(r).unwrap()]),
-                    }),
+                    command: Some(to_debug_single_command(r)),
                     data: None,
                 };
                 lenses.push(debug_lens);
@@ -950,10 +939,32 @@ pub fn publish_diagnostics(world: &WorldSnapshot, file_id: FileId) -> Result<Dia
     Ok(DiagnosticTask::SetNative(file_id, diagnostics))
 }
 
+fn to_run_single_command(runnable: &lsp_ext::Runnable, title: &str) -> Command {
+    Command {
+        title: title.to_string(),
+        command: "rust-analyzer.runSingle".into(),
+        arguments: Some(vec![to_value(runnable).unwrap()]),
+    }
+}
+
+fn to_debug_single_command(mut runnable: lsp_ext::Runnable) -> Command {
+    if runnable.args[0] == "run" {
+        runnable.args[0] = "build".into();
+    } else {
+        runnable.args.push("--no-run".into());
+    }
+
+    Command {
+        title: "Debug".into(),
+        command: "rust-analyzer.debugSingle".into(),
+        arguments: Some(vec![to_value(runnable).unwrap()]),
+    }
+}
+
 fn to_lsp_runnable(
     world: &WorldSnapshot,
     file_id: FileId,
-    runnable: Runnable,
+    runnable: &Runnable,
 ) -> Result<lsp_ext::Runnable> {
     let spec = CargoTargetSpec::for_file(world, file_id)?;
     let target = spec.as_ref().map(|s| s.target.clone());
@@ -978,6 +989,75 @@ fn to_lsp_runnable(
         },
         cwd: world.workspace_root_for(file_id).map(|root| root.to_owned()),
     })
+}
+
+fn to_command_link(command: Command, hint: &str) -> String {
+    use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
+
+    // In command links vscode accepts arguments encodeded via encodeURIComponent
+    //
+    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent
+    // encodeURIComponent() escapes all characters except:
+    // Not Escaped:
+    //     A-Z a-z 0-9 - _ . ! ~ * ' ( )
+    const SET: &AsciiSet = &NON_ALPHANUMERIC
+        .remove(b'-')
+        .remove(b'_')
+        .remove(b'.')
+        .remove(b'!')
+        .remove(b'~')
+        .remove(b'*')
+        .remove(b'\'')
+        .remove(b'(')
+        .remove(b')');
+
+    let args = to_value(command.arguments).unwrap().to_string();
+    format!(
+        "[{title}](command:{id}?{args} '{hint}')",
+        title = command.title,
+        id = command.command,
+        args = utf8_percent_encode(&args, SET),
+        hint = hint
+    )
+}
+
+fn render_hover_actions(
+    world: &WorldSnapshot,
+    file_id: FileId,
+    actions: &[HoverAction],
+) -> Option<String> {
+    if world.config.hover.none() || actions.is_empty() {
+        return None;
+    }
+
+    let mut text = String::new();
+    actions.iter().for_each(|it| match it {
+        HoverAction::Runnable(runnable) => {
+            if let Ok(r) = to_lsp_runnable(world, file_id, runnable) {
+                let action = runnable.action();
+                if world.config.hover.run {
+                    let run_command = to_run_single_command(&r, action.run_title);
+                    text += to_command_link(run_command, &r.label).as_str();
+                }
+
+                if world.config.hover.run && world.config.hover.debug {
+                    text += " | ";
+                }
+
+                if world.config.hover.debug {
+                    let hint = r.label.clone();
+                    let dbg_command = to_debug_single_command(r);
+                    text += to_command_link(dbg_command, &hint).as_str();
+                }
+            }
+        }
+    });
+
+    if text.is_empty() {
+        None
+    } else {
+        Some(text)
+    }
 }
 
 /// Fill minimal features needed
