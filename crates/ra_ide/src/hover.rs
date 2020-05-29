@@ -98,8 +98,8 @@ impl HoverResult {
 
     /// Returns the results converted into markup
     /// for displaying in a UI
-    /// 
-    /// Does not proces actions!
+    ///
+    /// Does not process actions!
     pub fn to_markup(&self) -> String {
         self.results.join("\n\n---\n")
     }
@@ -184,7 +184,7 @@ fn hover_text_from_name_kind(db: &RootDatabase, def: Definition) -> Option<Strin
             ModuleDef::Static(it) => from_def_source(db, it, mod_path),
             ModuleDef::Trait(it) => from_def_source(db, it, mod_path),
             ModuleDef::TypeAlias(it) => from_def_source(db, it, mod_path),
-            ModuleDef::BuiltinType(it) => Some( it.to_string() ),
+            ModuleDef::BuiltinType(it) => Some(it.to_string()),
         },
         Definition::Local(it) => Some(rust_code_markup(&it.ty(db).display(db))),
         Definition::TypeParam(_) | Definition::SelfType(_) => {
@@ -211,9 +211,8 @@ fn runnable_action(
     return match def {
         Definition::ModuleDef(it) => match it {
             ModuleDef::Module(it) => match it.definition_source(sema.db).value {
-                ModuleSource::Module(it) => {
-                    runnable(&sema, it.syntax().clone(), file_id).map(|it| HoverAction::Runnable(it))
-                }
+                ModuleSource::Module(it) => runnable(&sema, it.syntax().clone(), file_id)
+                    .map(|it| HoverAction::Runnable(it)),
                 _ => None,
             },
             ModuleDef::Function(it) => {

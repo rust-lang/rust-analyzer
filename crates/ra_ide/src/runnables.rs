@@ -25,7 +25,8 @@ pub struct RunnableAction {
 }
 
 const TEST: RunnableAction = RunnableAction { run_title: "▶\u{fe0e} Run Test", debugee: true };
-const DOCTEST: RunnableAction = RunnableAction { run_title: "▶\u{fe0e} Run Doctest", debugee: false };
+const DOCTEST: RunnableAction =
+    RunnableAction { run_title: "▶\u{fe0e} Run Doctest", debugee: false };
 const BENCH: RunnableAction = RunnableAction { run_title: "▶\u{fe0e} Run Bench", debugee: true };
 const BIN: RunnableAction = RunnableAction { run_title: "▶\u{fe0e} Run", debugee: true };
 
@@ -94,7 +95,11 @@ pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable> {
     source_file.syntax().descendants().filter_map(|i| runnable(&sema, i, file_id)).collect()
 }
 
-pub(crate) fn runnable(sema: &Semantics<RootDatabase>, item: SyntaxNode, file_id: FileId) -> Option<Runnable> {
+pub(crate) fn runnable(
+    sema: &Semantics<RootDatabase>,
+    item: SyntaxNode,
+    file_id: FileId,
+) -> Option<Runnable> {
     match_ast! {
         match item {
             ast::FnDef(it) => runnable_fn(sema, it, file_id),
