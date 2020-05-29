@@ -241,7 +241,7 @@ mod tests {
 
     use crate::mock_analysis::analysis_and_position;
 
-    use super::{RunnableAction, Runnable, BENCH, BIN, DOCTEST, TEST};
+    use super::{Runnable, RunnableAction, BENCH, BIN, DOCTEST, TEST};
 
     fn assert_actions(runnables: &[Runnable], actions: &[&RunnableAction]) {
         assert_eq!(
@@ -264,6 +264,9 @@ mod tests {
         #[test]
         #[ignore]
         fn test_foo() {}
+
+        #[bench]
+        fn bench() {}
         "#,
         );
         let runnables = analysis.runnables(pos.file_id).unwrap();
@@ -299,10 +302,19 @@ mod tests {
                 },
                 cfg_exprs: [],
             },
+            Runnable {
+                range: 82..104,
+                kind: Bench {
+                    test_id: Path(
+                        "bench",
+                    ),
+                },
+                cfg_exprs: [],
+            },
         ]
         "###
                 );
-        assert_actions(&runnables, &[&BIN, &TEST, &TEST]);
+        assert_actions(&runnables, &[&BIN, &TEST, &TEST, &BENCH]);
     }
 
     #[test]
