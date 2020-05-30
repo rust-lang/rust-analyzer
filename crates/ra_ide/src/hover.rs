@@ -231,7 +231,7 @@ fn goto_type_action(db: &RootDatabase, def: Definition) -> Option<HoverAction> {
     ) {
         if let Some(substs) = substs {
             for ty in substs.iter() {
-                if let Some((adt_id, s)) = ty.as_adt() {
+                if let Some((adt_id, s)) = ty.strip_references().as_adt() {
                     let adt = Adt::from(adt_id);
                     let mod_path = adt_mod_path(db, &adt);
                     acc.push(HoverGotoTypeData::new(mod_path, adt.to_nav(db)));
@@ -391,27 +391,13 @@ mod tests {
         assert!(analysis.hover(position).unwrap().is_none());
     }
 
-    fn assert_goto_action(action: &HoverAction, name: &str, position: u32) {
+    fn assert_goto_action(action: &HoverAction, name_pos: &[(&str, u32)]) {
         assert!(matches!(action, HoverAction::GoToType(v)
-            if v.len() == 1 && matches!(&v[0], HoverGotoTypeData{ hint, link}
-                if hint == name
-                && link.name() == name
-                && link.range().start() == position.into()
-            )
-        ));
-    }
-
-    fn assert_goto_action_2(action: &HoverAction, name: &str, position: u32, name2: &str, position2: u32) {
-        assert!(matches!(action, HoverAction::GoToType(v)
-            if v.len() == 2 && matches!(&v[0], HoverGotoTypeData{ hint, link}
-                if hint == name
-                && link.name() == name
-                && link.range().start() == position.into()
-            ) && matches!(&v[1], HoverGotoTypeData{ hint, link}
-                if hint == name2
-                && link.name() == name2
-                && link.range().start() == position2.into()
-            )
+            if v.len() == name_pos.len() && v.iter().zip(name_pos.iter()).all(|it| matches!(it.0, HoverGotoTypeData{ hint, link}
+                if hint == (it.1).0
+                && link.name() == (it.1).0
+                && link.range().start() == (it.1).1.into()
+            ))
         ));
     }
 
@@ -476,7 +462,10 @@ mod tests {
         );
 
         assert_eq!(1, actions.len());
-        assert_goto_action(&actions[0], "FakeIter", 62);
+        assert_goto_action(
+            &actions[0],
+            &[("FakeIter", 62), ("Scan", 7), ("OtherStruct", 99), ("OtherStruct", 99)],
+        );
     }
 
     #[test]
@@ -621,7 +610,7 @@ fn main() {
         );
 
         assert_eq!(1, actions.len());
-        assert_goto_action(&actions[0], "Test", 7);
+        assert_goto_action(&actions[0], &[("Test", 7)]);
     }
 
     #[test]
@@ -1119,7 +1108,7 @@ fn func(foo: i32) { if true { <|>foo; }; }
         let (_, actions) = check_hover_result(
             "
             //- /lib.rs
-            
+
             mod m<|>y {
                 #[test]
                 fn some_test() {}
@@ -1140,7 +1129,7 @@ fn func(foo: i32) { if true { <|>foo; }; }
         let (_, actions) = check_hover_result(
             "
             //- /lib.rs
-            
+
             mod my {
                 #[test]
                 fn some<|>_test() {}
@@ -1172,6 +1161,25 @@ fn func(foo: i32) { if true { <|>foo; }; }
         );
 
         assert_eq!(1, actions.len());
-        assert_goto_action_2(&actions[0], "Gen", 24, "Arg", 7);
+        assert_goto_action(&actions[0], &[("Gen", 24), ("Arg", 7)]);
+    }
+
+    #[test]
+    fn test_hover_goto_reference_as_param() {
+        let (_, actions) = check_hover_result(
+            r#"
+            //- /main.rs
+            struct Reference(u32);
+            struct Gen<K>(K);
+
+            fn main() {
+                let x<|> = Gen(&Reference(2));
+            }
+            "#,
+            &["Gen<&Reference>"],
+        );
+
+        assert_eq!(1, actions.len());
+        assert_goto_action(&actions[0], &[("Gen", 30), ("Reference", 7)]);
     }
 }

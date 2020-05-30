@@ -986,7 +986,6 @@ fn to_show_references_command(
     position: lsp_types::Position,
     locations: Vec<lsp_types::Location>,
 ) -> Command {
-
     let title = {
         if locations.len() == 1 {
             "1 implementation".into()
@@ -994,7 +993,7 @@ fn to_show_references_command(
             format!("{} implementations", locations.len())
         }
     };
-    
+
     // We cannot use the 'editor.action.showReferences' command directly
     // because that command requires vscode types which we convert in the handler
     // on the client side.
