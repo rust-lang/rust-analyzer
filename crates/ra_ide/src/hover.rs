@@ -52,7 +52,7 @@ impl HoverConfig {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HoverGotoTypeData {
     pub hint: String,
     pub link: NavigationTarget,
@@ -64,7 +64,7 @@ impl HoverGotoTypeData {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum HoverAction {
     Runnable(Runnable),
     GoToType(Vec<HoverGotoTypeData>),
@@ -352,10 +352,13 @@ fn pick_best(tokens: TokenAtOffset<SyntaxToken>) -> Option<SyntaxToken> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use ra_db::FileLoader;
     use ra_syntax::TextRange;
 
     use crate::mock_analysis::{analysis_and_position, single_file_with_position};
+    use crate::runnables::{RunnableKind, TestId};
 
     fn trim_markup(s: &str) -> &str {
         s.trim_start_matches("```rust\n").trim_end_matches("\n```")
@@ -365,7 +368,7 @@ mod tests {
         s.map(trim_markup)
     }
 
-    fn check_hover_result(fixture: &str, expected: &[&str]) -> String {
+    fn check_hover_result(fixture: &str, expected: &[&str]) -> (String, Vec<HoverAction>) {
         let (analysis, position) = analysis_and_position(fixture);
         let hover = analysis.hover(position).unwrap().unwrap();
         let mut results = Vec::from(hover.info.results());
@@ -380,12 +383,40 @@ mod tests {
         assert_eq!(hover.info.len(), expected.len());
 
         let content = analysis.db.file_text(position.file_id);
-        content[hover.range].to_string()
+        (content[hover.range].to_string(), hover.info.actions().to_vec())
     }
 
     fn check_hover_no_result(fixture: &str) {
         let (analysis, position) = analysis_and_position(fixture);
         assert!(analysis.hover(position).unwrap().is_none());
+    }
+
+    fn assert_goto_action(action: &HoverAction, name: &str, position: u32) {
+        assert!(matches!(action, HoverAction::GoToType(v)
+            if v.len() == 1 && matches!(&v[0], HoverGotoTypeData{ hint, link}
+                if hint == name
+                && link.name() == name
+                && link.range().start() == position.into()
+            )
+        ));
+    }
+
+    fn assert_goto_action_2(action: &HoverAction, name: &str, position: u32, name2: &str, position2: u32) {
+        assert!(matches!(action, HoverAction::GoToType(v)
+            if v.len() == 2 && matches!(&v[0], HoverGotoTypeData{ hint, link}
+                if hint == name
+                && link.name() == name
+                && link.range().start() == position.into()
+            ) && matches!(&v[1], HoverGotoTypeData{ hint, link}
+                if hint == name2
+                && link.name() == name2
+                && link.range().start() == position2.into()
+            )
+        ));
+    }
+
+    fn assert_impl_action(action: &HoverAction, position: u32) {
+        assert!(matches!(action, HoverAction::Implementaion(pos) if pos.offset == position.into()));
     }
 
     #[test]
@@ -406,7 +437,7 @@ mod tests {
 
     #[test]
     fn hover_shows_long_type_of_an_expression() {
-        check_hover_result(
+        let (_, actions) = check_hover_result(
             r#"
             //- /main.rs
             struct Scan<A, B, C> {
@@ -443,6 +474,9 @@ mod tests {
             "#,
             &["FakeIter<Scan<OtherStruct<OtherStruct<i32>>, |&mut u32, &u32, &mut u32| -> FakeOption<u32>, u32>>"],
         );
+
+        assert_eq!(1, actions.len());
+        assert_goto_action(&actions[0], "FakeIter", 62);
     }
 
     #[test]
@@ -572,7 +606,7 @@ mod tests {
 
     #[test]
     fn hover_default_generic_types() {
-        check_hover_result(
+        let (_, actions) = check_hover_result(
             r#"
 //- /main.rs
 struct Test<K, T = u8> {
@@ -585,6 +619,9 @@ fn main() {
 }"#,
             &["Test<i32, u8>"],
         );
+
+        assert_eq!(1, actions.len());
+        assert_goto_action(&actions[0], "Test", 7);
     }
 
     #[test]
@@ -870,7 +907,7 @@ fn func(foo: i32) { if true { <|>foo; }; }
 
     #[test]
     fn test_hover_through_macro() {
-        let hover_on = check_hover_result(
+        let (hover_on, _) = check_hover_result(
             "
             //- /lib.rs
             macro_rules! id {
@@ -891,7 +928,7 @@ fn func(foo: i32) { if true { <|>foo; }; }
 
     #[test]
     fn test_hover_through_expr_in_macro() {
-        let hover_on = check_hover_result(
+        let (hover_on, _) = check_hover_result(
             "
             //- /lib.rs
             macro_rules! id {
@@ -909,7 +946,7 @@ fn func(foo: i32) { if true { <|>foo; }; }
 
     #[test]
     fn test_hover_through_expr_in_macro_recursive() {
-        let hover_on = check_hover_result(
+        let (hover_on, _) = check_hover_result(
             "
             //- /lib.rs
             macro_rules! id_deep {
@@ -930,7 +967,7 @@ fn func(foo: i32) { if true { <|>foo; }; }
 
     #[test]
     fn test_hover_through_func_in_macro_recursive() {
-        let hover_on = check_hover_result(
+        let (hover_on, _) = check_hover_result(
             "
             //- /lib.rs
             macro_rules! id_deep {
@@ -954,7 +991,7 @@ fn func(foo: i32) { if true { <|>foo; }; }
 
     #[test]
     fn test_hover_through_literal_string_in_macro() {
-        let hover_on = check_hover_result(
+        let (hover_on, _) = check_hover_result(
             r#"
             //- /lib.rs
             macro_rules! arr {
@@ -973,7 +1010,7 @@ fn func(foo: i32) { if true { <|>foo; }; }
 
     #[test]
     fn test_hover_through_assert_macro() {
-        let hover_on = check_hover_result(
+        let (hover_on, _) = check_hover_result(
             r#"
             //- /lib.rs
             #[rustc_builtin_macro]
@@ -1049,13 +1086,15 @@ fn func(foo: i32) { if true { <|>foo; }; }
 
     #[test]
     fn test_hover_trait_show_qualifiers() {
-        check_hover_result(
+        let (_, actions) = check_hover_result(
             "
             //- /lib.rs
             unsafe trait foo<|>() {}
             ",
             &["unsafe trait foo"],
         );
+        assert_eq!(1, actions.len());
+        assert_impl_action(&actions[0], 13);
     }
 
     #[test]
@@ -1073,5 +1112,66 @@ fn func(foo: i32) { if true { <|>foo; }; }
             ",
             &["mod my"],
         );
+    }
+
+    #[test]
+    fn test_hover_runnable_mod() {
+        let (_, actions) = check_hover_result(
+            "
+            //- /lib.rs
+            
+            mod m<|>y {
+                #[test]
+                fn some_test() {}
+            }
+            ",
+            &["mod my"],
+        );
+
+        assert!(matches!(&actions[0],
+            HoverAction::Runnable(r) if matches!(r,
+                Runnable{ kind, .. } if matches!(kind,
+                    RunnableKind::TestMod{path} if path == "my"))
+        ));
+    }
+
+    #[test]
+    fn test_hover_runnable_test() {
+        let (_, actions) = check_hover_result(
+            "
+            //- /lib.rs
+            
+            mod my {
+                #[test]
+                fn some<|>_test() {}
+            }
+            ",
+            &["my\n```\n\n```rust\nfn some_test()"],
+        );
+
+        println!("{:?}", &actions[0]);
+        assert!(matches!(&actions[0], HoverAction::Runnable(r) if matches!(r,
+            Runnable{ kind, .. } if matches!(kind,
+                RunnableKind::Test{ test_id, .. } if matches!(test_id,
+                    TestId::Path(p) if p == "my::some_test")))));
+    }
+
+    #[test]
+    fn test_hover_goto_two_types() {
+        let (_, actions) = check_hover_result(
+            r#"
+            //- /main.rs
+            struct Arg(u32);
+            struct Gen<K>(K);
+
+            fn main() {
+                let x<|> = Gen(Arg(2));
+            }
+            "#,
+            &["Gen<Arg>"],
+        );
+
+        assert_eq!(1, actions.len());
+        assert_goto_action_2(&actions[0], "Gen", 24, "Arg", 7);
     }
 }

@@ -11,7 +11,7 @@ use ast::DocCommentsOwner;
 use ra_cfg::CfgExpr;
 use std::fmt::Display;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Runnable {
     pub range: TextRange,
     pub kind: RunnableKind,
@@ -54,7 +54,7 @@ impl Runnable {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TestId {
     Name(String),
     Path(String),
@@ -69,7 +69,7 @@ impl Display for TestId {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum RunnableKind {
     Test { test_id: TestId, attr: TestAttr },
     TestMod { path: String },
@@ -174,7 +174,7 @@ fn runnable_fn(
     Some(Runnable { range: fn_def.syntax().text_range(), kind, cfg_exprs })
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct TestAttr {
     pub ignore: bool,
 }
