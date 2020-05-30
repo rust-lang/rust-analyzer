@@ -545,7 +545,7 @@ pub fn handle_hover(world: WorldSnapshot, params: lsp_types::HoverParams) -> Res
     let mut value = crate::markdown::format_docs(&info.info.to_markup());
     let actions = render_hover_actions(&world, position.file_id, info.info.actions());
     if !actions.is_empty() {
-        value += "\n---\n";
+        value += "\n___\n";
         value += &actions;
     }
     let res = Hover {

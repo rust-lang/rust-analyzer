@@ -116,7 +116,7 @@ impl HoverResult {
     ///
     /// Does not process actions!
     pub fn to_markup(&self) -> String {
-        self.results.join("\n\n---\n")
+        self.results.join("\n\n___\n")
     }
 }
 
