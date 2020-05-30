@@ -99,6 +99,7 @@ export async function activate(context: vscode.ExtensionContext) {
     ctx.registerCommand('showReferences', commands.showReferences);
     ctx.registerCommand('applySnippetWorkspaceEdit', commands.applySnippetWorkspaceEditCommand);
     ctx.registerCommand('applyActionGroup', commands.applyActionGroup);
+    ctx.registerCommand('gotoLocation', commands.gotoLocation);
 
     ctx.pushCleanup(activateTaskProvider(workspaceFolder));
 

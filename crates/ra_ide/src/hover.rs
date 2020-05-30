@@ -1,8 +1,8 @@
 use std::iter::once;
 
 use hir::{
-    Adt, AsAssocItem, AssocItemContainer, FieldSource, HasSource, HirDisplay, ModuleDef,
-    ModuleSource, Semantics,
+    Adt, AsAssocItem, AssocItemContainer, FieldSource, HasSource, HirDisplay, Module, ModuleDef,
+    ModuleSource, Semantics, Substs,
 };
 use itertools::Itertools;
 use ra_db::SourceDatabase;
@@ -18,9 +18,9 @@ use ra_syntax::{
 };
 
 use crate::{
-    display::{macro_label, rust_code_markup, rust_code_markup_with_doc, ShortLabel},
+    display::{macro_label, rust_code_markup, rust_code_markup_with_doc, ShortLabel, ToNav},
     runnables::runnable,
-    FileId, FilePosition, RangeInfo, Runnable,
+    FileId, FilePosition, NavigationTarget, RangeInfo, Runnable,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -52,8 +52,21 @@ impl HoverConfig {
 }
 
 #[derive(Debug)]
+pub struct HoverGotoTypeData {
+    pub hint: String,
+    pub link: NavigationTarget,
+}
+
+impl HoverGotoTypeData {
+    fn new(hint: String, link: NavigationTarget) -> Self {
+        Self { hint, link }
+    }
+}
+
+#[derive(Debug)]
 pub enum HoverAction {
     Runnable(Runnable),
+    GoToType(Vec<HoverGotoTypeData>),
 }
 
 /// Contains the results when hovering over an item
@@ -135,25 +148,30 @@ fn definition_owner_name(db: &RootDatabase, def: &Definition) -> Option<String> 
     .map(|name| name.to_string())
 }
 
-fn determine_mod_path(db: &RootDatabase, def: &Definition) -> Option<String> {
-    let mod_path = def.module(db).map(|module| {
-        once(db.crate_graph()[module.krate().into()].display_name.as_ref().map(ToString::to_string))
-            .chain(
-                module
-                    .path_to_root(db)
-                    .into_iter()
-                    .rev()
-                    .map(|it| it.name(db).map(|name| name.to_string())),
-            )
-            .chain(once(definition_owner_name(db, def)))
-            .flatten()
-            .join("::")
-    });
-    mod_path
+fn determine_mod_path(db: &RootDatabase, module: Module, name: Option<String>) -> String {
+    once(db.crate_graph()[module.krate().into()].display_name.as_ref().map(ToString::to_string))
+        .chain(
+            module
+                .path_to_root(db)
+                .into_iter()
+                .rev()
+                .map(|it| it.name(db).map(|name| name.to_string())),
+        )
+        .chain(once(name))
+        .flatten()
+        .join("::")
+}
+
+fn adt_mod_path(db: &RootDatabase, adt: &Adt) -> String {
+    determine_mod_path(db, adt.module(db), Some(adt.name(db).to_string()))
+}
+
+fn definition_mod_path(db: &RootDatabase, def: &Definition) -> Option<String> {
+    def.module(db).map(|module| determine_mod_path(db, module, definition_owner_name(db, def)))
 }
 
 fn hover_text_from_name_kind(db: &RootDatabase, def: Definition) -> Option<String> {
-    let mod_path = determine_mod_path(db, &def);
+    let mod_path = definition_mod_path(db, &def);
     return match def {
         Definition::Macro(it) => {
             let src = it.source(db);
@@ -203,12 +221,40 @@ fn hover_text_from_name_kind(db: &RootDatabase, def: Definition) -> Option<Strin
     }
 }
 
+fn add_subst_targets(db: &RootDatabase, substs: Option<&Substs>, acc: &mut Vec<HoverGotoTypeData>) {
+    if let Some(substs) = substs {
+        for ty in substs.iter() {
+            if let Some((adt_id, s)) = ty.as_adt() {
+                let adt = Adt::from(adt_id);
+                let mod_path = adt_mod_path(db, &adt);
+                acc.push(HoverGotoTypeData::new(mod_path, adt.to_nav(db)));
+                add_subst_targets(db, Some(s), acc);
+            }
+        }
+    }
+}
+
+fn goto_type_action(db: &RootDatabase, def: Definition) -> Option<HoverAction> {
+    match def {
+        Definition::Local(it) => {
+            let ty = it.ty(db);
+            let adt: Adt = ty.autoderef(db).find_map(|ty| ty.as_adt())?;
+            let mod_path = adt_mod_path(db, &adt);
+            let mut targets = vec![HoverGotoTypeData::new(mod_path, adt.to_nav(db))];
+            add_subst_targets(db, ty.substs().as_ref(), &mut targets);
+
+            Some(HoverAction::GoToType(targets))
+        }
+        _ => None,
+    }
+}
+
 fn runnable_action(
     sema: &Semantics<RootDatabase>,
     def: Definition,
     file_id: FileId,
 ) -> Option<HoverAction> {
-    return match def {
+    match def {
         Definition::ModuleDef(it) => match it {
             ModuleDef::Module(it) => match it.definition_source(sema.db).value {
                 ModuleSource::Module(it) => runnable(&sema, it.syntax().clone(), file_id)
@@ -222,7 +268,7 @@ fn runnable_action(
             _ => None,
         },
         _ => None,
-    };
+    }
 }
 
 // Feature: Hover
@@ -250,11 +296,16 @@ pub(crate) fn hover(db: &RootDatabase, position: FilePosition) -> Option<RangeIn
     } {
         let range = sema.original_range(&node).range;
         res.extend(hover_text_from_name_kind(db, name_kind));
-        if let Some(action) = runnable_action(&sema, name_kind, position.file_id) {
-            res.append_action(action);
-        }
 
         if !res.is_empty() {
+            if let Some(action) = runnable_action(&sema, name_kind, position.file_id) {
+                res.append_action(action);
+            }
+
+            if let Some(action) = goto_type_action(db, name_kind) {
+                res.append_action(action);
+            }
+
             return Some(RangeInfo::new(range, res));
         }
     }

@@ -1333,6 +1333,11 @@ impl Type {
         Some(adt.into())
     }
 
+    pub fn substs(&self) -> Option<Substs> {
+        let (_adt, subst) = self.ty.value.as_adt()?;
+        Some(subst.clone())
+    }
+
     // FIXME: provide required accessors such that it becomes implementable from outside.
     pub fn is_equal_for_find_impls(&self, other: &Type) -> bool {
         match (&self.ty.value, &other.ty.value) {

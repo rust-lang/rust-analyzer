@@ -19,7 +19,7 @@ use lsp_types::{
 };
 use ra_cfg::CfgExpr;
 use ra_ide::{
-    FileId, FilePosition, FileRange, HoverAction, Query, RangeInfo, Runnable, RunnableKind,
+    FileId, FilePosition, FileRange, HoverAction, HoverGotoTypeData, Query, RangeInfo, Runnable, RunnableKind,
     SearchScope, TextEdit,
 };
 use ra_prof::profile;
@@ -29,6 +29,7 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::to_value;
 use stdx::format_to;
+use itertools::Itertools;
 
 use crate::{
     cargo_target_spec::CargoTargetSpec,
@@ -961,6 +962,17 @@ fn to_debug_single_command(mut runnable: lsp_ext::Runnable) -> Command {
     }
 }
 
+fn to_goto_link(world: &WorldSnapshot, data: &HoverGotoTypeData) -> String {
+    let link = to_proto::location_link(world, None, data.link.clone()).unwrap();
+    let command = Command {
+        title: data.link.name().to_string(),
+        command: "rust-analyzer.gotoLocation".into(),
+        arguments: Some(vec![to_value(link).unwrap()])
+    };
+
+    to_command_link(command, &data.hint)
+}
+
 fn to_lsp_runnable(
     world: &WorldSnapshot,
     file_id: FileId,
@@ -1050,6 +1062,14 @@ fn render_hover_actions(
                     let dbg_command = to_debug_single_command(r);
                     text += to_command_link(dbg_command, &hint).as_str();
                 }
+            }
+        }
+        HoverAction::GoToType(nav_targets) => {
+            if !nav_targets.is_empty() && world.config.hover.goto_type_def {
+                text += "Go to ";
+                text += nav_targets.iter()
+                    .map( |it| to_goto_link(world, it))
+                    .join(" | ").as_ref();
             }
         }
     });

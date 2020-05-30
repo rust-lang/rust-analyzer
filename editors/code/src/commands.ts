@@ -355,6 +355,20 @@ export function showReferences(ctx: Ctx): Cmd {
     };
 }
 
+export function gotoLocation(ctx: Ctx): Cmd {
+    return async (locationLink: lc.LocationLink) => {
+        const client = ctx.client;
+        if (client) {
+            const uri = client.protocol2CodeConverter.asUri(locationLink.targetUri);
+            let range = client.protocol2CodeConverter.asRange(locationLink.targetSelectionRange);
+            // collapse the range to a cursor position
+            range = range.with({end: range.start});
+            
+            await vscode.window.showTextDocument(uri, {selection: range});
+        }
+    }
+}
+
 export function applyActionGroup(_ctx: Ctx): Cmd {
     return async (actions: { label: string; edit: vscode.WorkspaceEdit }[]) => {
         const selectedAction = await vscode.window.showQuickPick(actions);
