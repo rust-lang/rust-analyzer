@@ -248,6 +248,7 @@ impl Config {
             set(value, "/hoverActions/run", &mut self.hover.run);
             set(value, "/hoverActions/debug", &mut self.hover.debug);
             set(value, "/hoverActions/gotoTypeDef", &mut self.hover.goto_type_def);
+            set(value, "/hoverActions/implementations", &mut self.hover.implementations);
         }
         log::info!("Config::update() = {:#?}", self);
 

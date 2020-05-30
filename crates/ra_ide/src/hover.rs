@@ -28,12 +28,13 @@ pub struct HoverConfig {
     pub run: bool,
     pub debug: bool,
     pub goto_type_def: bool,
+    pub implementations: bool,
 }
 
 impl Default for HoverConfig {
     fn default() -> Self {
         // A client should explicitly specify if it supports hover actions!
-        Self { run: false, debug: false, goto_type_def: false }
+        Self { run: false, debug: false, goto_type_def: false, implementations: false }
     }
 }
 
@@ -43,7 +44,7 @@ impl HoverConfig {
     }
 
     pub fn any(&self) -> bool {
-        self.goto_type_def || self.runnable()
+        self.implementations || self.goto_type_def || self.runnable()
     }
 
     pub fn none(&self) -> bool {
@@ -67,6 +68,7 @@ impl HoverGotoTypeData {
 pub enum HoverAction {
     Runnable(Runnable),
     GoToType(Vec<HoverGotoTypeData>),
+    Implementaion(FilePosition),
 }
 
 /// Contains the results when hovering over an item
@@ -221,20 +223,31 @@ fn hover_text_from_name_kind(db: &RootDatabase, def: Definition) -> Option<Strin
     }
 }
 
-fn add_subst_targets(db: &RootDatabase, substs: Option<&Substs>, acc: &mut Vec<HoverGotoTypeData>) {
-    if let Some(substs) = substs {
-        for ty in substs.iter() {
-            if let Some((adt_id, s)) = ty.as_adt() {
-                let adt = Adt::from(adt_id);
-                let mod_path = adt_mod_path(db, &adt);
-                acc.push(HoverGotoTypeData::new(mod_path, adt.to_nav(db)));
-                add_subst_targets(db, Some(s), acc);
+fn goto_type_action(db: &RootDatabase, def: Definition) -> Option<HoverAction> {
+    fn add_subst_targets(
+        db: &RootDatabase,
+        substs: Option<&Substs>,
+        acc: &mut Vec<HoverGotoTypeData>,
+    ) {
+        if let Some(substs) = substs {
+            for ty in substs.iter() {
+                if let Some((adt_id, s)) = ty.as_adt() {
+                    let adt = Adt::from(adt_id);
+                    let mod_path = adt_mod_path(db, &adt);
+                    acc.push(HoverGotoTypeData::new(mod_path, adt.to_nav(db)));
+                    add_subst_targets(db, Some(s), acc);
+                }
             }
         }
     }
-}
 
-fn goto_type_action(db: &RootDatabase, def: Definition) -> Option<HoverAction> {
+    fn to_impl_action(nav_target: NavigationTarget) -> HoverAction {
+        HoverAction::Implementaion(FilePosition {
+            file_id: nav_target.file_id(),
+            offset: nav_target.range().start(),
+        })
+    }
+
     match def {
         Definition::Local(it) => {
             let ty = it.ty(db);
@@ -245,8 +258,23 @@ fn goto_type_action(db: &RootDatabase, def: Definition) -> Option<HoverAction> {
 
             Some(HoverAction::GoToType(targets))
         }
+        Definition::ModuleDef(it) => match it {
+            ModuleDef::Adt(Adt::Struct(it)) => Some(to_impl_action(it.to_nav(db))),
+            ModuleDef::Adt(Adt::Union(it)) => Some(to_impl_action(it.to_nav(db))),
+            ModuleDef::Adt(Adt::Enum(it)) => Some(to_impl_action(it.to_nav(db))),
+            ModuleDef::Trait(it) => Some(to_impl_action(it.to_nav(db))),
+            _ => None,
+        },
         _ => None,
     }
+
+    /*
+    FilePosition
+    let nav_info = match world.analysis().goto_implementation(position)? {
+        None => return Ok(None),
+        Some(it) => it,
+    };
+    */
 }
 
 fn runnable_action(

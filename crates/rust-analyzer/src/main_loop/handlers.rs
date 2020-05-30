@@ -7,6 +7,7 @@ use std::{
     process::{self, Stdio},
 };
 
+use itertools::Itertools;
 use lsp_server::ErrorCode;
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
@@ -19,8 +20,8 @@ use lsp_types::{
 };
 use ra_cfg::CfgExpr;
 use ra_ide::{
-    FileId, FilePosition, FileRange, HoverAction, HoverGotoTypeData, Query, RangeInfo, Runnable, RunnableKind,
-    SearchScope, TextEdit,
+    FileId, FilePosition, FileRange, HoverAction, HoverGotoTypeData, Query, RangeInfo, Runnable,
+    RunnableKind, SearchScope, TextEdit,
 };
 use ra_prof::profile;
 use ra_project_model::TargetKind;
@@ -29,7 +30,6 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::to_value;
 use stdx::format_to;
-use itertools::Itertools;
 
 use crate::{
     cargo_target_spec::CargoTargetSpec,
@@ -543,9 +543,10 @@ pub fn handle_hover(world: WorldSnapshot, params: lsp_types::HoverParams) -> Res
     let line_index = world.analysis.file_line_index(position.file_id)?;
     let range = to_proto::range(&line_index, info.range);
     let mut value = crate::markdown::format_docs(&info.info.to_markup());
-    if let Some(text) = render_hover_actions(&world, position.file_id, info.info.actions()) {
+    let actions = render_hover_actions(&world, position.file_id, info.info.actions());
+    if !actions.is_empty() {
         value += "\n---\n";
-        value += &text;
+        value += &actions;
     }
     let res = Hover {
         contents: HoverContents::Markup(MarkupContent { kind: MarkupKind::Markdown, value }),
@@ -855,24 +856,12 @@ pub fn handle_code_lens_resolve(world: WorldSnapshot, code_lens: CodeLens) -> Re
                     _ => vec![],
                 };
 
-            let title = if locations.len() == 1 {
-                "1 implementation".into()
-            } else {
-                format!("{} implementations", locations.len())
-            };
+            let cmd = to_show_references_command(
+                &lens_params.text_document_position_params.text_document.uri,
+                code_lens.range.start,
+                locations,
+            );
 
-            // We cannot use the 'editor.action.showReferences' command directly
-            // because that command requires vscode types which we convert in the handler
-            // on the client side.
-            let cmd = Command {
-                title,
-                command: "rust-analyzer.showReferences".into(),
-                arguments: Some(vec![
-                    to_value(&lens_params.text_document_position_params.text_document.uri).unwrap(),
-                    to_value(code_lens.range.start).unwrap(),
-                    to_value(locations).unwrap(),
-                ]),
-            };
             Ok(CodeLens { range: code_lens.range, command: Some(cmd), data: None })
         }
         None => Ok(CodeLens {
@@ -940,39 +929,6 @@ pub fn publish_diagnostics(world: &WorldSnapshot, file_id: FileId) -> Result<Dia
     Ok(DiagnosticTask::SetNative(file_id, diagnostics))
 }
 
-fn to_run_single_command(runnable: &lsp_ext::Runnable, title: &str) -> Command {
-    Command {
-        title: title.to_string(),
-        command: "rust-analyzer.runSingle".into(),
-        arguments: Some(vec![to_value(runnable).unwrap()]),
-    }
-}
-
-fn to_debug_single_command(mut runnable: lsp_ext::Runnable) -> Command {
-    if runnable.args[0] == "run" {
-        runnable.args[0] = "build".into();
-    } else {
-        runnable.args.push("--no-run".into());
-    }
-
-    Command {
-        title: "Debug".into(),
-        command: "rust-analyzer.debugSingle".into(),
-        arguments: Some(vec![to_value(runnable).unwrap()]),
-    }
-}
-
-fn to_goto_link(world: &WorldSnapshot, data: &HoverGotoTypeData) -> String {
-    let link = to_proto::location_link(world, None, data.link.clone()).unwrap();
-    let command = Command {
-        title: data.link.name().to_string(),
-        command: "rust-analyzer.gotoLocation".into(),
-        arguments: Some(vec![to_value(link).unwrap()])
-    };
-
-    to_command_link(command, &data.hint)
-}
-
 fn to_lsp_runnable(
     world: &WorldSnapshot,
     file_id: FileId,
@@ -1003,7 +959,138 @@ fn to_lsp_runnable(
     })
 }
 
-fn to_command_link(command: Command, hint: &str) -> String {
+fn to_run_single_command(runnable: &lsp_ext::Runnable, title: &str) -> Command {
+    Command {
+        title: title.to_string(),
+        command: "rust-analyzer.runSingle".into(),
+        arguments: Some(vec![to_value(runnable).unwrap()]),
+    }
+}
+
+fn to_debug_single_command(mut runnable: lsp_ext::Runnable) -> Command {
+    if runnable.args[0] == "run" {
+        runnable.args[0] = "build".into();
+    } else {
+        runnable.args.push("--no-run".into());
+    }
+
+    Command {
+        title: "Debug".into(),
+        command: "rust-analyzer.debugSingle".into(),
+        arguments: Some(vec![to_value(runnable).unwrap()]),
+    }
+}
+
+fn to_show_references_command(
+    uri: &lsp_types::Url,
+    position: lsp_types::Position,
+    locations: Vec<lsp_types::Location>,
+) -> Command {
+
+    let title = {
+        if locations.len() == 1 {
+            "1 implementation".into()
+        } else {
+            format!("{} implementations", locations.len())
+        }
+    };
+    
+    // We cannot use the 'editor.action.showReferences' command directly
+    // because that command requires vscode types which we convert in the handler
+    // on the client side.
+
+    Command {
+        title,
+        command: "rust-analyzer.showReferences".into(),
+        arguments: Some(vec![
+            to_value(uri).unwrap(),
+            to_value(position).unwrap(),
+            to_value(locations).unwrap(),
+        ]),
+    }
+}
+
+fn render_runnable_action(
+    world: &WorldSnapshot,
+    file_id: FileId,
+    runnable: &Runnable,
+) -> Option<String> {
+    to_lsp_runnable(world, file_id, runnable).ok().and_then(|r| {
+        let action = runnable.action();
+        let mut text = String::new();
+        if world.config.hover.run {
+            let run_command = to_run_single_command(&r, action.run_title);
+            text += render_command_link(run_command, &r.label)?.as_str();
+        }
+
+        if world.config.hover.run && world.config.hover.debug {
+            text += " | ";
+        }
+
+        if world.config.hover.debug {
+            let hint = r.label.clone();
+            let dbg_command = to_debug_single_command(r);
+            text += render_command_link(dbg_command, &hint)?.as_str();
+        }
+
+        Some(text)
+    })
+}
+
+fn render_goto_link(world: &WorldSnapshot, data: &HoverGotoTypeData) -> Option<String> {
+    let value = if world.config.client_caps.location_link {
+        let link = to_proto::location_link(world, None, data.link.clone()).ok()?;
+        to_value(link).ok()?
+    } else {
+        let range = FileRange { file_id: data.link.file_id(), range: data.link.range() };
+        let location = to_proto::location(world, range).ok()?;
+        to_value(location).ok()?
+    };
+
+    let command = Command {
+        title: data.link.name().to_string(),
+        command: "rust-analyzer.gotoLocation".into(),
+        arguments: Some(vec![value]),
+    };
+
+    render_command_link(command, &data.hint)
+}
+
+fn render_goto_action(
+    world: &WorldSnapshot,
+    nav_targets: &Vec<HoverGotoTypeData>,
+) -> Option<String> {
+    if !nav_targets.is_empty() && world.config.hover.goto_type_def {
+        let mut text = "Go to ".to_string();
+        text +=
+            nav_targets.iter().filter_map(|it| render_goto_link(world, it)).join(" | ").as_ref();
+        return Some(text);
+    }
+    None
+}
+
+fn render_show_impl_action(world: &WorldSnapshot, position: &FilePosition) -> Option<String> {
+    if world.config.hover.implementations {
+        if let Some(nav_data) = world.analysis().goto_implementation(*position).unwrap_or(None) {
+            let uri = to_proto::url(world, position.file_id).ok()?;
+            let line_index = world.analysis().file_line_index(position.file_id).ok()?;
+            let position = to_proto::position(&line_index, position.offset);
+            let locations: Vec<_> = nav_data
+                .info
+                .iter()
+                .filter_map(|it| to_proto::location(world, it.file_range()).ok())
+                .collect();
+
+            let command = to_show_references_command(&uri, position, locations);
+
+            return render_command_link(command, "Go to implementations");
+        }
+    }
+
+    None
+}
+
+fn render_command_link(command: Command, hint: &str) -> Option<String> {
     use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 
     // In command links vscode accepts arguments encodeded via encodeURIComponent
@@ -1024,61 +1111,29 @@ fn to_command_link(command: Command, hint: &str) -> String {
         .remove(b')');
 
     //It's ok if command.arguments is None
-    let args = to_value(command.arguments).unwrap().to_string();
-    format!(
+    let args = to_value(command.arguments).ok()?.to_string();
+    Some(format!(
         "[{title}](command:{id}?{args} '{hint}')",
         title = command.title,
         id = command.command,
         args = utf8_percent_encode(&args, SET),
         hint = hint
-    )
+    ))
 }
 
-fn render_hover_actions(
-    world: &WorldSnapshot,
-    file_id: FileId,
-    actions: &[HoverAction],
-) -> Option<String> {
+fn render_hover_actions(world: &WorldSnapshot, file_id: FileId, actions: &[HoverAction]) -> String {
     if world.config.hover.none() || actions.is_empty() {
-        return None;
+        return String::new();
     }
 
-    let mut text = String::new();
-    actions.iter().for_each(|it| match it {
-        HoverAction::Runnable(runnable) => {
-            if let Ok(r) = to_lsp_runnable(world, file_id, runnable) {
-                let action = runnable.action();
-                if world.config.hover.run {
-                    let run_command = to_run_single_command(&r, action.run_title);
-                    text += to_command_link(run_command, &r.label).as_str();
-                }
-
-                if world.config.hover.run && world.config.hover.debug {
-                    text += " | ";
-                }
-
-                if world.config.hover.debug {
-                    let hint = r.label.clone();
-                    let dbg_command = to_debug_single_command(r);
-                    text += to_command_link(dbg_command, &hint).as_str();
-                }
-            }
-        }
-        HoverAction::GoToType(nav_targets) => {
-            if !nav_targets.is_empty() && world.config.hover.goto_type_def {
-                text += "Go to ";
-                text += nav_targets.iter()
-                    .map( |it| to_goto_link(world, it))
-                    .join(" | ").as_ref();
-            }
-        }
-    });
-
-    if text.is_empty() {
-        None
-    } else {
-        Some(text)
-    }
+    actions
+        .iter()
+        .filter_map(|it| match it {
+            HoverAction::Runnable(runnable) => render_runnable_action(world, file_id, runnable),
+            HoverAction::GoToType(nav_targets) => render_goto_action(world, nav_targets),
+            HoverAction::Implementaion(position) => render_show_impl_action(world, position),
+        })
+        .join("\n---\n")
 }
 
 /// Fill minimal features needed
@@ -1289,14 +1344,14 @@ mod tests {
     }
 
     #[test]
-    fn test_to_command_link_no_args() {
+    fn test_render_command_link_no_args() {
         let command = Command::new("title".into(), "id".into(), None);
-        let text = to_command_link(command, "hint");
+        let text = render_command_link(command, "hint").unwrap();
         assert_eq!("[title](command:id?null 'hint')", text);
     }
 
     #[test]
-    fn test_to_command_link() {
+    fn test_render_command_link() {
         let runnable = serde_json::json!({
             "range": {
                 "start": {
@@ -1325,7 +1380,7 @@ mod tests {
             "cwd": "."
         });
         let command = Command::new("title".into(), "id".into(), Some(vec![runnable.clone()]));
-        let text = to_command_link(command, "hint");
+        let text = render_command_link(command, "hint").unwrap();
 
         const PREFIX: &str = "[title](command:id?";
         const SUFFIX: &str = " 'hint')";
