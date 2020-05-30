@@ -53,11 +53,35 @@ pub(crate) fn fill_match_arms(acc: &mut Assists, ctx: &AssistContext) -> Option<
     let missing_arms: Vec<MatchArm> = if let Some(enum_def) = resolve_enum_def(&ctx.sema, &expr) {
         let variants = enum_def.variants(ctx.db);
 
+        let self_pattern = arms
+            .first()
+            .and_then(|arm| arm.pat())
+            .and_then(|pat| pat.syntax().first_child())
+            .and_then(|node| {
+                String::from(node.text()).split("::").map(|elt| elt.to_string()).next()
+            })
+            .map(|first_path_seg| first_path_seg.as_str() == "Self")
+            .unwrap_or_default();
+
         let mut variants = variants
             .into_iter()
             .filter_map(|variant| build_pat(ctx.db, module, variant))
             .filter(|variant_pat| is_variant_missing(&mut arms, variant_pat))
-            .map(|pat| make::match_arm(iter::once(pat), make::expr_empty_block()))
+            .map(|pat| {
+                let pat = if self_pattern {
+                    let pat = pat.syntax().first_child().map(|node| {
+                        String::from(node.text())
+                            .split("::")
+                            .map(|elt| elt.to_string())
+                            .skip(1)
+                            .collect::<Vec<String>>()
+                    });
+                    make::path_pat_from_string(format!("Self::{}", pat.unwrap().join("::")))
+                } else {
+                    pat
+                };
+                make::match_arm(iter::once(pat), make::expr_empty_block())
+            })
             .collect::<Vec<_>>();
         if Some(enum_def) == FamousDefs(&ctx.sema, module.krate()).core_option_Option() {
             // Match `Some` variant first.
@@ -136,8 +160,12 @@ fn is_variant_missing(existing_arms: &mut Vec<MatchArm>, var: &Pat) -> bool {
 }
 
 fn does_pat_match_variant(pat: &Pat, var: &Pat) -> bool {
-    let pat_head = pat.syntax().first_child().map(|node| node.text());
-    let var_head = var.syntax().first_child().map(|node| node.text());
+    let pat_head = pat.syntax().first_child().map(|node| {
+        String::from(node.text()).split("::").map(|elt| elt.to_string()).skip(1).join("::")
+    });
+    let var_head = var.syntax().first_child().map(|node| {
+        String::from(node.text()).split("::").map(|elt| elt.to_string()).skip(1).join("::")
+    });
 
     pat_head == var_head
 }
@@ -680,6 +708,34 @@ mod tests {
                     // foo bar baz
                     $0A::One => {}
                     A::Two => {}
+                }
+            }
+            "#,
+        );
+    }
+
+    #[test]
+    fn fill_match_arms_with_self() {
+        check_assist(
+            fill_match_arms,
+            r#"
+            enum A { One, Two }
+            impl A {
+                fn foo(self) {
+                    match self {
+                        Self::One => {},<|>
+                    }
+                }
+            }
+            "#,
+            r#"
+            enum A { One, Two }
+            impl A {
+                fn foo(self) {
+                    match self {
+                        Self::One => {},
+                        $0Self::Two => {}
+                    }
                 }
             }
             "#,
