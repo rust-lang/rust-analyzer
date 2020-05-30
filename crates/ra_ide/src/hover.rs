@@ -52,7 +52,7 @@ impl HoverConfig {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct HoverGotoTypeData {
     pub hint: String,
     pub link: NavigationTarget,
@@ -227,15 +227,18 @@ fn goto_type_action(db: &RootDatabase, def: Definition) -> Option<HoverAction> {
     fn add_subst_targets(
         db: &RootDatabase,
         substs: Option<&Substs>,
-        acc: &mut Vec<HoverGotoTypeData>,
+        targets: &mut Vec<HoverGotoTypeData>,
     ) {
         if let Some(substs) = substs {
             for ty in substs.iter() {
                 if let Some((adt_id, s)) = ty.strip_references().as_adt() {
                     let adt = Adt::from(adt_id);
                     let mod_path = adt_mod_path(db, &adt);
-                    acc.push(HoverGotoTypeData::new(mod_path, adt.to_nav(db)));
-                    add_subst_targets(db, Some(s), acc);
+                    let item = HoverGotoTypeData::new(mod_path, adt.to_nav(db));
+                    if !targets.contains(&item) {
+                        targets.push(item);
+                    }
+                    add_subst_targets(db, Some(s), targets);
                 }
             }
         }
@@ -253,7 +256,7 @@ fn goto_type_action(db: &RootDatabase, def: Definition) -> Option<HoverAction> {
             let ty = it.ty(db);
             let adt: Adt = ty.autoderef(db).find_map(|ty| ty.as_adt())?;
             let mod_path = adt_mod_path(db, &adt);
-            let mut targets = vec![HoverGotoTypeData::new(mod_path, adt.to_nav(db))];
+            let mut targets = vec![HoverGotoTypeData::new(mod_path, adt.to_nav(db))]; // not a Set to preserve the order
             add_subst_targets(db, ty.substs().as_ref(), &mut targets);
 
             Some(HoverAction::GoToType(targets))
@@ -462,9 +465,10 @@ mod tests {
         );
 
         assert_eq!(1, actions.len());
+        println!("{:?}", &actions[0]);
         assert_goto_action(
             &actions[0],
-            &[("FakeIter", 62), ("Scan", 7), ("OtherStruct", 99), ("OtherStruct", 99)],
+            &[("FakeIter", 62), ("Scan", 7), ("OtherStruct", 99)], // OtherStruct only once!
         );
     }
 
@@ -1138,7 +1142,6 @@ fn func(foo: i32) { if true { <|>foo; }; }
             &["my\n```\n\n```rust\nfn some_test()"],
         );
 
-        println!("{:?}", &actions[0]);
         assert!(matches!(&actions[0], HoverAction::Runnable(r) if matches!(r,
             Runnable{ kind, .. } if matches!(kind,
                 RunnableKind::Test{ test_id, .. } if matches!(test_id,
