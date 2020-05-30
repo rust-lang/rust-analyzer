@@ -1349,6 +1349,7 @@ dependencies = [
  "lsp-server",
  "lsp-types",
  "parking_lot",
+ "percent-encoding",
  "pico-args",
  "ra_cfg",
  "ra_db",

@@ -120,6 +120,16 @@
       "sourceMaps": true,
       "outFiles": [ "${workspaceFolder}/editors/code/out/tests/unit/**/*.js" ],
       "preLaunchTask": "Pretest"
+    },
+    {
+      // Don't forget to set `debug = 2` in `Cargo.toml` before building the server
+      "name": "Win Attach To Server",
+      "type": "cppvsdbg",
+      "request": "attach",
+      "processId":"${command:pickProcess}",
+      "sourceFileMap": {
+          "/rustc/8d69840ab92ea7f4d323420088dd8c9775f180cd": "${env:USERPROFILE}/.rustup/toolchains/stable-x86_64-pc-windows-msvc/lib/rustlib/src/rust"
+      }
     }
   ]
 }

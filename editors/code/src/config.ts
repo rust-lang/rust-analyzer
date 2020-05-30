@@ -136,7 +136,8 @@ export class Config {
             enable: this.get<boolean>("hoverActions.enable"),
             run: this.get<boolean>("hoverActions.run"),
             debug: this.get<boolean>("hoverActions.debug"),
-            gotoTypeDef: this.get<boolean>("lens.gotoTypeDef"),
+            gotoTypeDef: this.get<boolean>("hoverActions.gotoTypeDef"),
+            implementations: this.get<boolean>("hoverActions.implementations"),
         };
     }
 }

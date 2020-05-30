@@ -231,14 +231,14 @@ fn goto_type_action(db: &RootDatabase, def: Definition) -> Option<HoverAction> {
     ) {
         if let Some(substs) = substs {
             for ty in substs.iter() {
-                if let Some((adt_id, s)) = ty.strip_references().as_adt() {
+                if let Some((adt_id, adt_params)) = ty.strip_references().as_adt() {
                     let adt = Adt::from(adt_id);
                     let mod_path = adt_mod_path(db, &adt);
                     let item = HoverGotoTypeData::new(mod_path, adt.to_nav(db));
                     if !targets.contains(&item) {
                         targets.push(item);
                     }
-                    add_subst_targets(db, Some(s), targets);
+                    add_subst_targets(db, Some(adt_params), targets);
                 }
             }
         }
@@ -270,14 +270,6 @@ fn goto_type_action(db: &RootDatabase, def: Definition) -> Option<HoverAction> {
         },
         _ => None,
     }
-
-    /*
-    FilePosition
-    let nav_info = match world.analysis().goto_implementation(position)? {
-        None => return Ok(None),
-        Some(it) => it,
-    };
-    */
 }
 
 fn runnable_action(
@@ -465,7 +457,6 @@ mod tests {
         );
 
         assert_eq!(1, actions.len());
-        println!("{:?}", &actions[0]);
         assert_goto_action(
             &actions[0],
             &[("FakeIter", 62), ("Scan", 7), ("OtherStruct", 99)], // OtherStruct only once!
