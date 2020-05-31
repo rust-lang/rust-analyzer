@@ -76,7 +76,7 @@ Navigates to the type of an identifier.
 
 
 === Hover
-**Source:** https://github.com/rust-analyzer/rust-analyzer/blob/master/crates/ra_ide/src/hover.rs#L63[hover.rs]
+**Source:** https://github.com/rust-analyzer/rust-analyzer/blob/master/crates/ra_ide/src/hover.rs#L123[hover.rs]
 
 Shows additional information, like type of an expression or documentation for definition when "focusing" code.
 Focusing is usually hovering with a mouse, but can also be triggered with a shortcut.
@@ -199,7 +199,7 @@ Navigates to the parent module of the current module.
 
 
 === Run
-**Source:** https://github.com/rust-analyzer/rust-analyzer/blob/master/crates/ra_ide/src/runnables.rs#L45[runnables.rs]
+**Source:** https://github.com/rust-analyzer/rust-analyzer/blob/master/crates/ra_ide/src/runnables.rs#L81[runnables.rs]
 
 Shows a popup suggesting to run a test/benchmark/binary **at the current cursor
 location**. Super useful for repeatedly running just a single test. Do bind this
