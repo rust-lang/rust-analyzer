@@ -228,3 +228,35 @@ pub struct SnippetTextEdit {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub insert_text_format: Option<lsp_types::InsertTextFormat>,
 }
+
+pub enum HoverRequest {}
+
+impl Request for HoverRequest {
+    type Params = lsp_types::HoverParams;
+    type Result = Option<Hover>;
+    const METHOD: &'static str = "textDocument/hover";
+}
+
+#[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
+pub struct Hover {
+    pub contents: lsp_types::HoverContents,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<Range>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actions: Option<Vec<CommandLinkGroup>>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Default, Deserialize, Serialize)]
+pub struct CommandLinkGroup {
+    pub title: Option<String>,
+    pub commands: Vec<CommandLink>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Default, Deserialize, Serialize)]
+pub struct CommandLink {
+    pub title: String,
+    pub command: String,
+    pub tooltip: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arguments: Option<Vec<serde_json::Value>>,
+}

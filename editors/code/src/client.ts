@@ -13,6 +13,25 @@ function toTrusted(obj: vscode.MarkedString): vscode.MarkedString {
     return obj;
 }
 
+interface CommandLinkGroup {
+    title?: string;
+    commands: vscode.Command[];
+}
+
+function renderCommand(cmd: vscode.Command) {
+    return `[${cmd.title}](command:${cmd.command}?${encodeURIComponent(JSON.stringify(cmd.arguments))} '${cmd.tooltip!}')`;
+}
+
+function renderHoverActions(actions: CommandLinkGroup[]): vscode.MarkdownString {
+    const text = actions.map(group =>
+        (group.title ? (group.title + " ") : "") + group.commands.map(renderCommand).join(' | ')
+    ).join('___');
+
+    const result = new vscode.MarkdownString(text);
+    result.isTrusted = true;
+    return result;
+}
+
 export function createClient(serverPath: string, cwd: string): lc.LanguageClient {
     // '.' Is the fallback if no folder is open
     // TODO?: Workspace folders support Uri's (eg: file://test.txt).
@@ -43,12 +62,23 @@ export function createClient(serverPath: string, cwd: string): lc.LanguageClient
             },
             // Workaround to support actions (trusted vscode.MarkdownString) in hovers
             // https://github.com/microsoft/vscode/issues/33577
-            async provideHover(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken, next: lc.ProvideHoverSignature) {
-                const hover = await next(document, position, token);
-                if (hover) {
-                    hover.contents = hover.contents.map(toTrusted);
-                }
-                return hover;
+            async provideHover(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken, _next: lc.ProvideHoverSignature) {
+                return client.sendRequest(lc.HoverRequest.type, client.code2ProtocolConverter.asTextDocumentPositionParams(document, position), token).then(
+                    (result) => {
+                        const hover = client.protocol2CodeConverter.asHover(result);
+                        if (hover) {
+                            hover.contents = hover.contents.map(toTrusted);
+                            const actions = (<any>result).actions;
+                            if (actions) {
+                                hover.contents.push(renderHoverActions(actions));
+                            }
+                        }
+                        return hover;
+                    },
+                    (error) => {
+                        client.logFailedRequest(lc.HoverRequest.type, error);
+                        return Promise.resolve(null);
+                    });
             },
             async provideCodeActions(document: vscode.TextDocument, range: vscode.Range, context: vscode.CodeActionContext, token: vscode.CancellationToken, _next: lc.ProvideCodeActionsSignature) {
                 const params: lc.CodeActionParams = {

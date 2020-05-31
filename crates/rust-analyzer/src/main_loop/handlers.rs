@@ -13,10 +13,10 @@ use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
     CodeLens, Command, CompletionItem, Diagnostic, DocumentFormattingParams, DocumentHighlight,
-    DocumentSymbol, FoldingRange, FoldingRangeParams, Hover, HoverContents, Location,
-    MarkupContent, MarkupKind, Position, PrepareRenameResponse, Range, RenameParams,
-    SemanticTokensParams, SemanticTokensRangeParams, SemanticTokensRangeResult,
-    SemanticTokensResult, SymbolInformation, TextDocumentIdentifier, Url, WorkspaceEdit,
+    DocumentSymbol, FoldingRange, FoldingRangeParams, HoverContents, Location, MarkupContent,
+    MarkupKind, Position, PrepareRenameResponse, Range, RenameParams, SemanticTokensParams,
+    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult, SymbolInformation,
+    TextDocumentIdentifier, Url, WorkspaceEdit,
 };
 use ra_cfg::CfgExpr;
 use ra_ide::{
@@ -533,7 +533,10 @@ pub fn handle_signature_help(
     }))
 }
 
-pub fn handle_hover(world: WorldSnapshot, params: lsp_types::HoverParams) -> Result<Option<Hover>> {
+pub fn handle_hover(
+    world: WorldSnapshot,
+    params: lsp_types::HoverParams,
+) -> Result<Option<lsp_ext::Hover>> {
     let _p = profile("handle_hover");
     let position = from_proto::file_position(&world, params.text_document_position_params)?;
     let info = match world.analysis().hover(position)? {
@@ -542,15 +545,12 @@ pub fn handle_hover(world: WorldSnapshot, params: lsp_types::HoverParams) -> Res
     };
     let line_index = world.analysis.file_line_index(position.file_id)?;
     let range = to_proto::range(&line_index, info.range);
-    let mut value = crate::markdown::format_docs(&info.info.to_markup());
+    let value = crate::markdown::format_docs(&info.info.to_markup());
     let actions = render_hover_actions(&world, position.file_id, info.info.actions());
-    if !actions.is_empty() {
-        value += "\n___\n";
-        value += &actions;
-    }
-    let res = Hover {
+    let res = lsp_ext::Hover {
         contents: HoverContents::Markup(MarkupContent { kind: MarkupKind::Markdown, value }),
         range: Some(range),
+        actions: Some(actions),
     };
     Ok(Some(res))
 }
@@ -1009,34 +1009,43 @@ fn to_show_references_command(
     }
 }
 
+fn to_command_link(command: Command, tooltip: String) -> lsp_ext::CommandLink {
+    lsp_ext::CommandLink {
+        tooltip,
+        title: command.title,
+        command: command.command,
+        arguments: command.arguments,
+    }
+}
+
 fn render_runnable_action(
     world: &WorldSnapshot,
     file_id: FileId,
     runnable: &Runnable,
-) -> Option<String> {
-    to_lsp_runnable(world, file_id, runnable).ok().and_then(|r| {
+) -> Option<lsp_ext::CommandLinkGroup> {
+    to_lsp_runnable(world, file_id, runnable).ok().map(|r| {
+        let mut group = lsp_ext::CommandLinkGroup::default();
+
         let action = runnable.action();
-        let mut text = String::new();
         if world.config.hover.run {
             let run_command = to_run_single_command(&r, action.run_title);
-            text += render_command_link(run_command, &r.label)?.as_str();
-        }
-
-        if world.config.hover.run && world.config.hover.debug {
-            text += " | ";
+            group.commands.push(to_command_link(run_command, r.label.clone()));
         }
 
         if world.config.hover.debug {
             let hint = r.label.clone();
             let dbg_command = to_debug_single_command(r);
-            text += render_command_link(dbg_command, &hint)?.as_str();
+            group.commands.push(to_command_link(dbg_command, hint));
         }
 
-        Some(text)
+        group
     })
 }
 
-fn render_goto_link(world: &WorldSnapshot, data: &HoverGotoTypeData) -> Option<String> {
+fn to_goto_location_command_link(
+    world: &WorldSnapshot,
+    data: &HoverGotoTypeData,
+) -> Option<lsp_ext::CommandLink> {
     let value = if world.config.client_caps.location_link {
         let link = to_proto::location_link(world, None, data.link.clone()).ok()?;
         to_value(link).ok()?
@@ -1046,29 +1055,34 @@ fn render_goto_link(world: &WorldSnapshot, data: &HoverGotoTypeData) -> Option<S
         to_value(location).ok()?
     };
 
-    let command = Command {
+    Some(lsp_ext::CommandLink {
         title: data.link.name().to_string(),
+        tooltip: data.hint.to_string(),
         command: "rust-analyzer.gotoLocation".into(),
         arguments: Some(vec![value]),
-    };
-
-    render_command_link(command, &data.hint)
+    })
 }
 
 fn render_goto_action(
     world: &WorldSnapshot,
     nav_targets: &Vec<HoverGotoTypeData>,
-) -> Option<String> {
+) -> Option<lsp_ext::CommandLinkGroup> {
     if !nav_targets.is_empty() && world.config.hover.goto_type_def {
-        let mut text = "Go to ".to_string();
-        text +=
-            nav_targets.iter().filter_map(|it| render_goto_link(world, it)).join(" | ").as_ref();
-        return Some(text);
+        return Some(lsp_ext::CommandLinkGroup {
+            title: Some("Go to".into()),
+            commands: nav_targets
+                .iter()
+                .filter_map(|it| to_goto_location_command_link(world, it))
+                .collect(),
+        });
     }
     None
 }
 
-fn render_show_impl_action(world: &WorldSnapshot, position: &FilePosition) -> Option<String> {
+fn render_show_impl_action(
+    world: &WorldSnapshot,
+    position: &FilePosition,
+) -> Option<lsp_ext::CommandLinkGroup> {
     if world.config.hover.implementations {
         if let Some(nav_data) = world.analysis().goto_implementation(*position).unwrap_or(None) {
             let uri = to_proto::url(world, position.file_id).ok()?;
@@ -1079,50 +1093,24 @@ fn render_show_impl_action(world: &WorldSnapshot, position: &FilePosition) -> Op
                 .iter()
                 .filter_map(|it| to_proto::location(world, it.file_range()).ok())
                 .collect();
-
             let command = to_show_references_command(&uri, position, locations);
 
-            return render_command_link(command, "Go to implementations");
+            return Some(lsp_ext::CommandLinkGroup {
+                commands: vec![to_command_link(command, "Go to implementations".into())],
+                ..Default::default()
+            });
         }
     }
-
     None
 }
 
-fn render_command_link(command: Command, hint: &str) -> Option<String> {
-    use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
-
-    // In command links vscode accepts arguments encodeded via encodeURIComponent
-    //
-    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent
-    // encodeURIComponent() escapes all characters except:
-    // Not Escaped:
-    //     A-Z a-z 0-9 - _ . ! ~ * ' ( )
-    const SET: &AsciiSet = &NON_ALPHANUMERIC
-        .remove(b'-')
-        .remove(b'_')
-        .remove(b'.')
-        .remove(b'!')
-        .remove(b'~')
-        .remove(b'*')
-        .remove(b'\'')
-        .remove(b'(')
-        .remove(b')');
-
-    //It's ok if command.arguments is None
-    let args = to_value(command.arguments).ok()?.to_string();
-    Some(format!(
-        "[{title}](command:{id}?{args} '{hint}')",
-        title = command.title,
-        id = command.command,
-        args = utf8_percent_encode(&args, SET),
-        hint = hint
-    ))
-}
-
-fn render_hover_actions(world: &WorldSnapshot, file_id: FileId, actions: &[HoverAction]) -> String {
-    if world.config.hover.none() || actions.is_empty() {
-        return String::new();
+fn render_hover_actions(
+    world: &WorldSnapshot,
+    file_id: FileId,
+    actions: &[HoverAction],
+) -> Vec<lsp_ext::CommandLinkGroup> {
+    if world.config.hover.none() {
+        return Vec::new();
     }
 
     actions
@@ -1132,7 +1120,7 @@ fn render_hover_actions(world: &WorldSnapshot, file_id: FileId, actions: &[Hover
             HoverAction::GoToType(nav_targets) => render_goto_action(world, nav_targets),
             HoverAction::Implementaion(position) => render_show_impl_action(world, position),
         })
-        .join("\n---\n")
+        .collect_vec()
 }
 
 /// Fill minimal features needed
@@ -1340,58 +1328,5 @@ mod tests {
         let mut min_features = vec![];
         collect_minimal_features_needed(&cfg_expr, &mut min_features);
         assert!(min_features.is_empty());
-    }
-
-    #[test]
-    fn test_render_command_link_no_args() {
-        let command = Command::new("title".into(), "id".into(), None);
-        let text = render_command_link(command, "hint").unwrap();
-        assert_eq!("[title](command:id?null 'hint')", text);
-    }
-
-    #[test]
-    fn test_render_command_link() {
-        let runnable = serde_json::json!({
-            "range": {
-                "start": {
-                    "line": 0,
-                    "character": 0
-                },
-                "end": {
-                    "line": 0,
-                    "character": 0
-                }
-            },
-            "label": "LABEL",
-            "bin": "cargo",
-            "args": [
-                "test",
-                "--package",
-                "PACKAGE",
-                "--lib"
-            ],
-            "extraArgs": [
-                "MOD::TEST_MOD::NAME",
-                "--exact",
-                "--nocapture"
-            ],
-            "env": {},
-            "cwd": "."
-        });
-        let command = Command::new("title".into(), "id".into(), Some(vec![runnable.clone()]));
-        let text = render_command_link(command, "hint").unwrap();
-
-        const PREFIX: &str = "[title](command:id?";
-        const SUFFIX: &str = " 'hint')";
-
-        assert!(text.starts_with(PREFIX));
-        assert!(text.ends_with(SUFFIX));
-
-        let args = &text[PREFIX.len()..text.len() - SUFFIX.len()];
-        let json = percent_encoding::percent_decode_str(args).decode_utf8().unwrap();
-        let obj: serde_json::Value = serde_json::from_str(&json).unwrap();
-
-        assert!(obj.is_array());
-        assert_eq!(runnable, obj[0]);
     }
 }
