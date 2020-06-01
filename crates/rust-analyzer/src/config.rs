@@ -104,6 +104,7 @@ pub struct ClientCapsConfig {
     pub code_action_literals: bool,
     pub work_done_progress: bool,
     pub code_action_group: bool,
+    pub hover_actions: bool,
 }
 
 impl Default for Config {
@@ -309,7 +310,11 @@ impl Config {
 
             let code_action_group =
                 experimental.get("codeActionGroup").and_then(|it| it.as_bool()) == Some(true);
-            self.client_caps.code_action_group = code_action_group
+            self.client_caps.code_action_group = code_action_group;
+
+            let hover_actions =
+                experimental.get("hoverActions").and_then(|it| it.as_bool()) == Some(true);
+            self.client_caps.hover_actions = hover_actions;
         }
     }
 }

@@ -546,7 +546,7 @@ pub fn handle_hover(
     let line_index = world.analysis.file_line_index(position.file_id)?;
     let range = to_proto::range(&line_index, info.range);
     let value = crate::markdown::format_docs(&info.info.to_markup());
-    let actions = render_hover_actions(&world, position.file_id, info.info.actions());
+    let actions = prepare_hover_actions(&world, position.file_id, info.info.actions());
     let res = lsp_ext::Hover {
         contents: HoverContents::Markup(MarkupContent { kind: MarkupKind::Markdown, value }),
         range: Some(range),
@@ -1011,14 +1011,14 @@ fn to_show_references_command(
 
 fn to_command_link(command: Command, tooltip: String) -> lsp_ext::CommandLink {
     lsp_ext::CommandLink {
-        tooltip,
+        tooltip: Some(tooltip),
         title: command.title,
         command: command.command,
         arguments: command.arguments,
     }
 }
 
-fn render_runnable_action(
+fn to_runnable_action(
     world: &WorldSnapshot,
     file_id: FileId,
     runnable: &Runnable,
@@ -1057,13 +1057,13 @@ fn to_goto_location_command_link(
 
     Some(lsp_ext::CommandLink {
         title: data.link.name().to_string(),
-        tooltip: data.hint.to_string(),
+        tooltip: Some(data.hint.to_string()),
         command: "rust-analyzer.gotoLocation".into(),
         arguments: Some(vec![value]),
     })
 }
 
-fn render_goto_action(
+fn to_goto_action(
     world: &WorldSnapshot,
     nav_targets: &Vec<HoverGotoTypeData>,
 ) -> Option<lsp_ext::CommandLinkGroup> {
@@ -1079,7 +1079,7 @@ fn render_goto_action(
     None
 }
 
-fn render_show_impl_action(
+fn to_show_impl_action(
     world: &WorldSnapshot,
     position: &FilePosition,
 ) -> Option<lsp_ext::CommandLinkGroup> {
@@ -1104,21 +1104,21 @@ fn render_show_impl_action(
     None
 }
 
-fn render_hover_actions(
+fn prepare_hover_actions(
     world: &WorldSnapshot,
     file_id: FileId,
     actions: &[HoverAction],
 ) -> Vec<lsp_ext::CommandLinkGroup> {
-    if world.config.hover.none() {
+    if world.config.hover.none() || !world.config.client_caps.hover_actions {
         return Vec::new();
     }
 
     actions
         .iter()
         .filter_map(|it| match it {
-            HoverAction::Runnable(runnable) => render_runnable_action(world, file_id, runnable),
-            HoverAction::GoToType(nav_targets) => render_goto_action(world, nav_targets),
-            HoverAction::Implementaion(position) => render_show_impl_action(world, position),
+            HoverAction::Runnable(runnable) => to_runnable_action(world, file_id, runnable),
+            HoverAction::GoToType(nav_targets) => to_goto_action(world, nav_targets),
+            HoverAction::Implementaion(position) => to_show_impl_action(world, position),
         })
         .collect_vec()
 }

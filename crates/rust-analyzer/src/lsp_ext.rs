@@ -252,11 +252,13 @@ pub struct CommandLinkGroup {
     pub commands: Vec<CommandLink>,
 }
 
+// LSP v3.15 Command does not have a `tooltip` field, vscode supports one.
 #[derive(Debug, PartialEq, Eq, Clone, Default, Deserialize, Serialize)]
 pub struct CommandLink {
     pub title: String,
     pub command: String,
-    pub tooltip: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tooltip: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arguments: Option<Vec<serde_json::Value>>,
 }
