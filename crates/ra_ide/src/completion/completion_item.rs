@@ -1,6 +1,6 @@
 //! FIXME: write short doc here
 
-use std::fmt;
+use std::{collections::HashSet, fmt};
 
 use hir::Documentation;
 use ra_syntax::TextRange;
@@ -103,7 +103,7 @@ pub enum CompletionScore {
     TypeAndNameMatch,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CompletionItemKind {
     Snippet,
     Keyword,
@@ -333,12 +333,27 @@ impl<'a> Into<CompletionItem> for Builder {
 /// Represents an in-progress set of completions being built.
 #[derive(Debug, Default)]
 pub(crate) struct Completions {
+    existing: HashSet<LabelAndKind>,
     buf: Vec<CompletionItem>,
+}
+
+#[derive(Debug, Hash, PartialEq, Eq)]
+struct LabelAndKind {
+    label: String,
+    kind: Option<CompletionItemKind>,
+}
+impl LabelAndKind {
+    fn new(label: String, kind: Option<CompletionItemKind>) -> Self {
+        Self { label, kind }
+    }
 }
 
 impl Completions {
     pub(crate) fn add(&mut self, item: impl Into<CompletionItem>) {
-        self.buf.push(item.into())
+        let item: CompletionItem = item.into();
+        if self.existing.insert(LabelAndKind::new(item.label.clone(), item.kind.clone())) {
+            self.buf.push(item);
+        }
     }
     pub(crate) fn add_all<I>(&mut self, items: I)
     where

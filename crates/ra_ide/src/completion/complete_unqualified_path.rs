@@ -171,6 +171,42 @@ mod tests {
     }
 
     #[test]
+    fn completes_multiple_let() {
+        assert_debug_snapshot!(
+            do_reference_completion(
+                r"
+                fn main() {
+                    let y: usize = 92;
+                    let y: i32 = 85;
+                    1 + <|>;
+                }
+                "
+            ),
+            @r###"
+        [
+            CompletionItem {
+                label: "main()",
+                source_range: 129..129,
+                delete: 129..129,
+                insert: "main()$0",
+                kind: Function,
+                lookup: "main",
+                detail: "fn main()",
+            },
+            CompletionItem {
+                label: "y",
+                source_range: 129..129,
+                delete: 129..129,
+                insert: "y",
+                kind: Binding,
+                detail: "i32",
+            },
+        ]
+        "###
+        );
+    }
+
+    #[test]
     fn completes_bindings_from_let() {
         assert_debug_snapshot!(
             do_reference_completion(
