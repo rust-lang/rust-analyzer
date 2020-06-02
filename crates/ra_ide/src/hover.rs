@@ -54,8 +54,8 @@ impl HoverConfig {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct HoverGotoTypeData {
-    pub hint: String,
-    pub link: NavigationTarget,
+    pub tooltip: String,
+    pub nav: NavigationTarget,
 }
 
 impl HoverGotoTypeData {
@@ -107,7 +107,7 @@ impl HoverResult {
         &self.actions
     }
 
-    pub fn append_action(&mut self, action: HoverAction) {
+    pub fn push_action(&mut self, action: HoverAction) {
         self.actions.push(action);
     }
 
