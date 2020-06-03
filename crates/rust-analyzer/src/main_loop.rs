@@ -12,13 +12,11 @@ use std::{
     fmt,
     ops::Range,
     panic,
-    path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
 
 use crossbeam_channel::{never, select, unbounded, RecvError, Sender};
-use itertools::Itertools;
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
 use lsp_types::{
     DidChangeTextDocumentParams, NumberOrString, TextDocumentContentChangeEvent, WorkDoneProgress,
@@ -70,7 +68,11 @@ impl fmt::Display for LspError {
 
 impl Error for LspError {}
 
-pub fn main_loop(ws_roots: Vec<PathBuf>, config: Config, connection: Connection) -> Result<()> {
+pub fn main_loop(
+    workspaces: Vec<ProjectWorkspace>,
+    config: Config,
+    connection: Connection,
+) -> Result<()> {
     log::info!("initial config: {:#?}", config);
 
     // Windows scheduler implements priority boosts: if thread waits for an
@@ -94,46 +96,6 @@ pub fn main_loop(ws_roots: Vec<PathBuf>, config: Config, connection: Connection)
 
     let mut loop_state = LoopState::default();
     let mut global_state = {
-        let workspaces = {
-            // FIXME: support dynamic workspace loading.
-            let project_roots: FxHashSet<_> = ws_roots
-                .iter()
-                .filter_map(|it| ra_project_model::ProjectRoot::discover(it).ok())
-                .flatten()
-                .collect();
-
-            if project_roots.is_empty() && config.notifications.cargo_toml_not_found {
-                show_message(
-                    lsp_types::MessageType::Error,
-                    format!(
-                        "rust-analyzer failed to discover workspace, no Cargo.toml found, dirs searched: {}",
-                        ws_roots.iter().format_with(", ", |it, f| f(&it.display()))
-                    ),
-                    &connection.sender,
-                );
-            };
-
-            project_roots
-                .into_iter()
-                .filter_map(|root| {
-                    ra_project_model::ProjectWorkspace::load(
-                        root,
-                        &config.cargo,
-                        config.with_sysroot,
-                    )
-                    .map_err(|err| {
-                        log::error!("failed to load workspace: {:#}", err);
-                        show_message(
-                            lsp_types::MessageType::Error,
-                            format!("rust-analyzer failed to load workspace: {:#}", err),
-                            &connection.sender,
-                        );
-                    })
-                    .ok()
-                })
-                .collect::<Vec<_>>()
-        };
-
         let globs = config
             .files
             .exclude

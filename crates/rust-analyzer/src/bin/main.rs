@@ -3,8 +3,10 @@
 //! Based on cli flags, either spawns an LSP server, or runs a batch analysis
 mod args;
 
+use itertools::Itertools;
 use lsp_server::Connection;
-use rust_analyzer::{cli, config::Config, from_json, Result};
+use rust_analyzer::{cli, config::Config, from_json, show_message, Result};
+use rustc_hash::FxHashSet;
 
 use crate::args::HelpPrinted;
 
@@ -118,7 +120,43 @@ fn run_server() -> Result<()> {
         config
     };
 
-    rust_analyzer::main_loop(workspace_roots, config, connection)?;
+    let workspaces = {
+        // FIXME: support dynamic workspace loading.
+        let project_roots: FxHashSet<_> = workspace_roots
+            .iter()
+            .filter_map(|it| ra_project_model::ProjectRoot::discover(it).ok())
+            .flatten()
+            .collect();
+
+        if project_roots.is_empty() && config.notifications.cargo_toml_not_found {
+            show_message(
+                lsp_types::MessageType::Error,
+                format!(
+                    "rust-analyzer failed to discover workspace, no Cargo.toml found, dirs searched: {}",
+                    workspace_roots.iter().format_with(", ", |it, f| f(&it.display()))
+                ),
+                &connection.sender,
+            );
+        };
+
+        project_roots
+            .into_iter()
+            .filter_map(|root| {
+                ra_project_model::ProjectWorkspace::load(root, &config.cargo, config.with_sysroot)
+                    .map_err(|err| {
+                        log::error!("failed to load workspace: {:#}", err);
+                        show_message(
+                            lsp_types::MessageType::Error,
+                            format!("rust-analyzer failed to load workspace: {:#}", err),
+                            &connection.sender,
+                        );
+                    })
+                    .ok()
+            })
+            .collect::<Vec<_>>()
+    };
+
+    rust_analyzer::main_loop(workspaces, config, connection)?;
 
     log::info!("shutting down IO...");
     io_threads.join()?;
