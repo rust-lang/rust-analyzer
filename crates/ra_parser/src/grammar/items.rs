@@ -100,9 +100,20 @@ pub(super) fn maybe_item(p: &mut Parser, m: Marker, flavor: ItemFlavor) -> Resul
 
     // test_err unsafe_block_in_mod
     // fn foo(){} unsafe { } fn bar(){}
-    if p.at(T![unsafe]) && p.nth(1) != T!['{'] {
-        p.eat(T![unsafe]);
-        has_mods = true;
+
+    // test_err unsafe_default_impl
+    // unsafe default impl Foo {}
+    if p.at(T![unsafe]) {
+        match p.nth(1) {
+            T!['{'] => {}
+            T![default] => {
+                p.err_and_bump("expected default unsafe, found unsafe default");
+            }
+            _ => {
+                p.eat(T![unsafe]);
+                has_mods = true;
+            }
+        }
     }
 
     if p.at(T![extern]) {
@@ -198,9 +209,6 @@ pub(super) fn maybe_item(p: &mut Parser, m: Marker, flavor: ItemFlavor) -> Resul
         //     default type T = Bar;
         //     default fn foo() {}
         // }
-
-        // test unsafe_default_impl
-        // unsafe default impl Foo {}
         T![impl] => {
             traits::impl_def(p);
             m.complete(p, IMPL_DEF);
