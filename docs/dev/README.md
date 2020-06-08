@@ -279,7 +279,7 @@ always obvious from the low-level code.
 Syntax trees are by design incomplete and do not enforce well-formedness.
 If ast method returns an `Option`, it *can* be `None` at runtime, even if this is forbidden by the grammar.
 
-## LSP indenpendence
+## LSP independence
 
 rust-analyzer is independent from LSP.
 It provides features for a hypothetical perfect Rust-specific IDE client.
