@@ -250,6 +250,7 @@ impl ProjectWorkspace {
         load: &mut dyn FnMut(&Path) -> Option<FileId>,
     ) -> CrateGraph {
         let mut crate_graph = CrateGraph::default();
+        let default_cfg_options = get_rustc_cfg_options(target);
         match self {
             ProjectWorkspace::Json { project } => {
                 let crates: FxHashMap<_, _> = project
@@ -263,7 +264,7 @@ impl ProjectWorkspace {
                             json_project::Edition::Edition2018 => Edition::Edition2018,
                         };
                         let cfg_options = {
-                            let mut opts = CfgOptions::default();
+                            let mut opts = default_cfg_options.clone();
                             for cfg in &krate.cfg {
                                 match cfg.find('=') {
                                     None => opts.insert_atom(cfg.into()),
@@ -331,7 +332,7 @@ impl ProjectWorkspace {
                 }
             }
             ProjectWorkspace::Cargo { cargo, sysroot } => {
-                let mut cfg_options = get_rustc_cfg_options(target);
+                let mut cfg_options = default_cfg_options;
 
                 let sysroot_crates: FxHashMap<_, _> = sysroot
                     .crates()
