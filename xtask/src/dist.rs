@@ -1,4 +1,8 @@
-use std::path::PathBuf;
+use std::{
+    fs::File,
+    io,
+    path::{Path, PathBuf},
+};
 
 use anyhow::Result;
 
@@ -6,6 +10,7 @@ use crate::{
     not_bash::{date_iso, fs2, pushd, rm_rf, run},
     project_root,
 };
+use flate2::{write::GzEncoder, Compression};
 
 pub fn run_dist(nightly: bool, client_version: Option<String>) -> Result<()> {
     let dist = project_root().join("dist");
@@ -71,8 +76,15 @@ fn dist_server(nightly: bool) -> Result<()> {
         panic!("Unsupported OS")
     };
 
-    fs2::copy(src, dst)?;
+    gzip(Path::new(src), &PathBuf::from(dst).with_extension("gz"))?;
+    Ok(())
+}
 
+fn gzip(src_path: &Path, dest_path: &Path) -> Result<()> {
+    let mut encoder = GzEncoder::new(File::create(dest_path)?, Compression::default());
+    let mut input = io::BufReader::new(File::open(src_path)?);
+    std::io::copy(&mut input, &mut encoder)?;
+    encoder.finish()?;
     Ok(())
 }
 

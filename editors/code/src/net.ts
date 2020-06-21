@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import * as stream from "stream";
 import * as fs from "fs";
 import * as os from "os";
+import * as zlib from "zlib";
 import * as path from "path";
 import * as util from "util";
 import { log, assert } from "./util";
@@ -60,22 +61,20 @@ export interface GithubRelease {
     }>;
 }
 
+interface DownloadOpts extends DownloadFileOpts {
+    progressTitle: string;
+}
 
-export async function download(
-    downloadUrl: string,
-    destinationPath: string,
-    progressTitle: string,
-    { mode }: { mode?: number } = {},
-) {
+export async function download(opts: DownloadOpts) {
     await vscode.window.withProgress(
         {
             location: vscode.ProgressLocation.Notification,
             cancellable: false,
-            title: progressTitle
+            title: opts.progressTitle
         },
         async (progress, _cancellationToken) => {
             let lastPercentage = 0;
-            await downloadFile(downloadUrl, destinationPath, mode, (readBytes, totalBytes) => {
+            await downloadFile(opts, (readBytes, totalBytes) => {
                 const newPercentage = (readBytes / totalBytes) * 100;
                 progress.report({
                     message: newPercentage.toFixed(0) + "%",
@@ -88,6 +87,13 @@ export async function download(
     );
 }
 
+interface DownloadFileOpts {
+    url: string;
+    dest: fs.PathLike;
+    mode?: number;
+    unzip: boolean;
+}
+
 /**
  * Downloads file from `url` and stores it at `destFilePath` with `mode` (unix permissions).
  * `onProgress` callback is called on recieveing each chunk of bytes
@@ -95,9 +101,7 @@ export async function download(
  * amount of bytes to read as its parameters.
  */
 async function downloadFile(
-    url: string,
-    destFilePath: fs.PathLike,
-    mode: number | undefined,
+    { url, dest, mode, unzip }: DownloadFileOpts,
     onProgress: (readBytes: number, totalBytes: number) => void
 ): Promise<void> {
     const res = await fetch(url);
@@ -112,7 +116,7 @@ async function downloadFile(
     const totalBytes = Number(res.headers.get('content-length'));
     assert(!Number.isNaN(totalBytes), "Sanity check of content-length protocol");
 
-    log.debug("Downloading file of", totalBytes, "bytes size from", url, "to", destFilePath);
+    log.debug("Downloading file of", totalBytes, "bytes size from", url, "to", dest);
 
     let readBytes = 0;
     res.body.on("data", (chunk: Buffer) => {
@@ -123,14 +127,15 @@ async function downloadFile(
     // Put the artifact into a temporary folder to prevent partially downloaded files when user kills vscode
     await withTempFile(async tempFilePath => {
         const destFileStream = fs.createWriteStream(tempFilePath, { mode });
-        await pipeline(res.body, destFileStream);
+        const srcStream = unzip ? res.body.pipe(zlib.createGunzip()) : res.body;
+        await pipeline(srcStream, destFileStream);
         await new Promise<void>(resolve => {
             destFileStream.on("close", resolve);
             destFileStream.destroy();
             // This workaround is awaiting to be removed when vscode moves to newer nodejs version:
             // https://github.com/rust-analyzer/rust-analyzer/issues/3167
         });
-        await moveFile(tempFilePath, destFilePath);
+        await moveFile(tempFilePath, dest);
     });
 }
 
