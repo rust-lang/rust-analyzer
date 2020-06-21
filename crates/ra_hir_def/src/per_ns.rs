@@ -96,10 +96,10 @@ impl PerNs {
 }
 
 #[derive(Clone, Eq, PartialEq)]
-pub struct Compressed(Repr);
+pub struct Compressed(CompressedRepr);
 
 #[derive(Clone, Eq, PartialEq)]
-enum Repr {
+enum CompressedRepr {
     /// No namespace in use.
     None,
     /// Only in type namespace.
@@ -114,7 +114,7 @@ enum Repr {
 
 impl Default for Compressed {
     fn default() -> Self {
-        Compressed(Repr::None)
+        Compressed(CompressedRepr::None)
     }
 }
 
@@ -122,13 +122,13 @@ impl From<PerNs> for Compressed {
     fn from(per_ns: PerNs) -> Self {
         let (t, v, m) = (per_ns.types, per_ns.values, per_ns.macros);
         match (t, v, m) {
-            (None, None, None) => Compressed(Repr::None),
-            (Some((t, v)), None, None) => Compressed(Repr::Ty(t, v)),
-            (None, Some((val, vis)), None) => Compressed(Repr::Val(val, vis)),
+            (None, None, None) => Compressed(CompressedRepr::None),
+            (Some((t, v)), None, None) => Compressed(CompressedRepr::Ty(t, v)),
+            (None, Some((val, vis)), None) => Compressed(CompressedRepr::Val(val, vis)),
             (Some((ty, tvis)), Some((val, vvis)), None) if ty == val && tvis == vvis => {
-                Compressed(Repr::TyVal(ty, tvis))
+                Compressed(CompressedRepr::TyVal(ty, tvis))
             }
-            _ => Compressed(Repr::Other(Box::new(per_ns))),
+            _ => Compressed(CompressedRepr::Other(Box::new(per_ns))),
         }
     }
 }
@@ -136,11 +136,11 @@ impl From<PerNs> for Compressed {
 impl From<Compressed> for PerNs {
     fn from(comp: Compressed) -> Self {
         match comp.0 {
-            Repr::None => PerNs::none(),
-            Repr::Ty(t, v) => PerNs::types(t, v),
-            Repr::Val(t, v) => PerNs::values(t, v),
-            Repr::TyVal(t, v) => PerNs::both(t, t, v),
-            Repr::Other(o) => *o,
+            CompressedRepr::None => PerNs::none(),
+            CompressedRepr::Ty(t, v) => PerNs::types(t, v),
+            CompressedRepr::Val(t, v) => PerNs::values(t, v),
+            CompressedRepr::TyVal(t, v) => PerNs::both(t, t, v),
+            CompressedRepr::Other(o) => *o,
         }
     }
 }
@@ -148,11 +148,11 @@ impl From<Compressed> for PerNs {
 impl<'a> From<&'a Compressed> for PerNs {
     fn from(comp: &'a Compressed) -> Self {
         match &comp.0 {
-            Repr::None => PerNs::none(),
-            Repr::Ty(t, v) => PerNs::types(*t, *v),
-            Repr::Val(t, v) => PerNs::values(*t, *v),
-            Repr::TyVal(t, v) => PerNs::both(*t, *t, *v),
-            Repr::Other(o) => **o,
+            CompressedRepr::None => PerNs::none(),
+            CompressedRepr::Ty(t, v) => PerNs::types(*t, *v),
+            CompressedRepr::Val(t, v) => PerNs::values(*t, *v),
+            CompressedRepr::TyVal(t, v) => PerNs::both(*t, *t, *v),
+            CompressedRepr::Other(o) => **o,
         }
     }
 }
