@@ -7,13 +7,15 @@ use ra_db::CrateId;
 use rustc_hash::FxHashMap;
 
 use crate::{
-    db::DefDatabase, per_ns::PerNs, visibility::Visibility, AdtId, BuiltinType, HasModule, ImplId,
-    Lookup, MacroDefId, ModuleDefId, TraitId,
+    db::DefDatabase,
+    per_ns::{Compressed, PerNs},
+    visibility::Visibility,
+    AdtId, BuiltinType, HasModule, ImplId, Lookup, MacroDefId, ModuleDefId, TraitId,
 };
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct ItemScope {
-    visible: FxHashMap<Name, PerNs>,
+    visible: FxHashMap<Name, Compressed>,
     defs: Vec<ModuleDefId>,
     impls: Vec<ImplId>,
     /// Macros visible in current module in legacy textual scope
@@ -52,13 +54,13 @@ pub(crate) enum BuiltinShadowMode {
 impl ItemScope {
     pub fn entries<'a>(&'a self) -> impl Iterator<Item = (&'a Name, PerNs)> + 'a {
         //FIXME: shadowing
-        self.visible.iter().map(|(n, def)| (n, *def))
+        self.visible.iter().map(|(n, def)| (n, def.into()))
     }
 
     pub fn entries_without_primitives<'a>(
         &'a self,
     ) -> impl Iterator<Item = (&'a Name, PerNs)> + 'a {
-        self.visible.iter().map(|(n, def)| (n, *def))
+        self.visible.iter().map(|(n, def)| (n, def.into()))
     }
 
     pub fn declarations(&self) -> impl Iterator<Item = ModuleDefId> + '_ {
@@ -77,7 +79,9 @@ impl ItemScope {
 
     /// Iterate over all module scoped macros
     pub(crate) fn macros<'a>(&'a self) -> impl Iterator<Item = (&'a Name, MacroDefId)> + 'a {
-        self.visible.iter().filter_map(|(name, def)| def.take_macros().map(|macro_| (name, macro_)))
+        self.visible
+            .iter()
+            .filter_map(|(name, def)| PerNs::from(def).take_macros().map(|macro_| (name, macro_)))
     }
 
     /// Iterate over all legacy textual scoped macros visible at the end of the module
@@ -87,12 +91,12 @@ impl ItemScope {
 
     /// Get a name from current module scope, legacy macros are not included
     pub(crate) fn get(&self, name: &Name) -> PerNs {
-        self.visible.get(name).copied().unwrap_or_else(PerNs::none)
+        self.visible.get(name).map(PerNs::from).unwrap_or_else(PerNs::none)
     }
 
     pub(crate) fn name_of(&self, item: ItemInNs) -> Option<(&Name, Visibility)> {
         for (name, per_ns) in &self.visible {
-            if let Some(vis) = item.match_with(*per_ns) {
+            if let Some(vis) = item.match_with(per_ns.into()) {
                 return Some((name, vis));
             }
         }
@@ -100,7 +104,7 @@ impl ItemScope {
     }
 
     pub(crate) fn traits<'a>(&'a self) -> impl Iterator<Item = TraitId> + 'a {
-        self.visible.values().filter_map(|def| match def.take_types() {
+        self.visible.values().filter_map(|def| match PerNs::from(def).take_types() {
             Some(ModuleDefId::TraitId(t)) => Some(t),
             _ => None,
         })
@@ -124,7 +128,8 @@ impl ItemScope {
 
     pub(crate) fn push_res(&mut self, name: Name, def: PerNs) -> bool {
         let mut changed = false;
-        let existing = self.visible.entry(name).or_default();
+        let existing_comp = self.visible.entry(name).or_default();
+        let mut existing = PerNs::from(&*existing_comp);
 
         if existing.types.is_none() && def.types.is_some() {
             existing.types = def.types;
@@ -139,11 +144,15 @@ impl ItemScope {
             changed = true;
         }
 
+        if changed {
+            *existing_comp = Compressed::from(existing);
+        }
+
         changed
     }
 
     pub(crate) fn resolutions<'a>(&'a self) -> impl Iterator<Item = (Name, PerNs)> + 'a {
-        self.visible.iter().map(|(name, res)| (name.clone(), *res))
+        self.visible.iter().map(|(name, res)| (name.clone(), res.into()))
     }
 
     pub(crate) fn collect_legacy_macros(&self) -> FxHashMap<Name, MacroDefId> {

@@ -6,6 +6,7 @@
 use hir_expand::MacroDefId;
 
 use crate::{item_scope::ItemInNs, visibility::Visibility, ModuleDefId};
+use std::fmt;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct PerNs {
@@ -92,4 +93,79 @@ impl PerNs {
             .chain(self.values.map(|it| ItemInNs::Values(it.0)).into_iter())
             .chain(self.macros.map(|it| ItemInNs::Macros(it.0)).into_iter())
     }
+}
+
+#[derive(Clone, Eq, PartialEq)]
+pub struct Compressed(Repr);
+
+#[derive(Clone, Eq, PartialEq)]
+enum Repr {
+    /// No namespace in use.
+    None,
+    /// Only in type namespace.
+    Ty(ModuleDefId, Visibility),
+    /// Only in value namespace.
+    Val(ModuleDefId, Visibility),
+    /// Same item in type and value namespaces.
+    TyVal(ModuleDefId, Visibility),
+
+    Other(Box<PerNs>),
+}
+
+impl Default for Compressed {
+    fn default() -> Self {
+        Compressed(Repr::None)
+    }
+}
+
+impl From<PerNs> for Compressed {
+    fn from(per_ns: PerNs) -> Self {
+        let (t, v, m) = (per_ns.types, per_ns.values, per_ns.macros);
+        match (t, v, m) {
+            (None, None, None) => Compressed(Repr::None),
+            (Some((t, v)), None, None) => Compressed(Repr::Ty(t, v)),
+            (None, Some((val, vis)), None) => Compressed(Repr::Val(val, vis)),
+            (Some((ty, tvis)), Some((val, vvis)), None) if ty == val && tvis == vvis => {
+                Compressed(Repr::TyVal(ty, tvis))
+            }
+            _ => Compressed(Repr::Other(Box::new(per_ns))),
+        }
+    }
+}
+
+impl From<Compressed> for PerNs {
+    fn from(comp: Compressed) -> Self {
+        match comp.0 {
+            Repr::None => PerNs::none(),
+            Repr::Ty(t, v) => PerNs::types(t, v),
+            Repr::Val(t, v) => PerNs::values(t, v),
+            Repr::TyVal(t, v) => PerNs::both(t, t, v),
+            Repr::Other(o) => *o,
+        }
+    }
+}
+
+impl<'a> From<&'a Compressed> for PerNs {
+    fn from(comp: &'a Compressed) -> Self {
+        match &comp.0 {
+            Repr::None => PerNs::none(),
+            Repr::Ty(t, v) => PerNs::types(*t, *v),
+            Repr::Val(t, v) => PerNs::values(*t, *v),
+            Repr::TyVal(t, v) => PerNs::both(*t, *t, *v),
+            Repr::Other(o) => **o,
+        }
+    }
+}
+
+impl fmt::Debug for Compressed {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        PerNs::from(self).fmt(f)
+    }
+}
+
+/// `Compressed` is heavily used in `CrateDefMap`. Make sure its size doesn't unintentionally
+/// increase, as that can have a somewhat large impact on memory usage.
+#[test]
+fn compressed_size() {
+    assert_eq!(std::mem::size_of::<Compressed>(), 32);
 }
