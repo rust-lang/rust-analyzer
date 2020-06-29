@@ -18,7 +18,6 @@ use crate::{
 pub(crate) struct TextTreeSink<'a> {
     text: &'a str,
     tokens: &'a [Token],
-    text_pos: TextSize,
     token_pos: usize,
     state: State,
     inner: SyntaxTreeBuilder,
@@ -38,12 +37,7 @@ impl<'a> TreeSink for TextTreeSink<'a> {
             State::Normal => (),
         }
         self.eat_trivias();
-        let n_tokens = n_tokens as usize;
-        let len = self.tokens[self.token_pos..self.token_pos + n_tokens]
-            .iter()
-            .map(|it| it.len)
-            .sum::<TextSize>();
-        self.do_token(kind, len, n_tokens);
+        self.do_token(kind, usize::from(n_tokens));
     }
 
     fn start_node(&mut self, kind: SyntaxKind) {
@@ -60,15 +54,12 @@ impl<'a> TreeSink for TextTreeSink<'a> {
 
         let n_trivias =
             self.tokens[self.token_pos..].iter().take_while(|it| it.kind.is_trivia()).count();
-        let leading_trivias = &self.tokens[self.token_pos..self.token_pos + n_trivias];
-        let mut trivia_end =
-            self.text_pos + leading_trivias.iter().map(|it| it.len).sum::<TextSize>();
-
         let n_attached_trivias = {
+            let leading_trivias = &self.tokens[self.token_pos..self.token_pos + n_trivias];
+            let mut trivia_end = self.offset_at(self.token_pos + n_trivias);
             let leading_trivias = leading_trivias.iter().rev().map(|it| {
-                let next_end = trivia_end - it.len;
-                let range = TextRange::new(next_end, trivia_end);
-                trivia_end = next_end;
+                let range = TextRange::new(it.offset, trivia_end);
+                trivia_end = it.offset;
                 (it.kind, &self.text[range])
             });
             n_attached_trivias(kind, leading_trivias)
@@ -87,7 +78,7 @@ impl<'a> TreeSink for TextTreeSink<'a> {
     }
 
     fn error(&mut self, error: ParseError) {
-        self.inner.error(error, self.text_pos)
+        self.inner.error(error, self.offset_at(self.token_pos))
     }
 }
 
@@ -96,7 +87,6 @@ impl<'a> TextTreeSink<'a> {
         Self {
             text,
             tokens,
-            text_pos: 0.into(),
             token_pos: 0,
             state: State::PendingStart,
             inner: SyntaxTreeBuilder::default(),
@@ -120,7 +110,7 @@ impl<'a> TextTreeSink<'a> {
             if !token.kind.is_trivia() {
                 break;
             }
-            self.do_token(token.kind, token.len, 1);
+            self.do_token(token.kind, 1);
         }
     }
 
@@ -128,16 +118,22 @@ impl<'a> TextTreeSink<'a> {
         for _ in 0..n {
             let token = self.tokens[self.token_pos];
             assert!(token.kind.is_trivia());
-            self.do_token(token.kind, token.len, 1);
+            self.do_token(token.kind, 1);
         }
     }
 
-    fn do_token(&mut self, kind: SyntaxKind, len: TextSize, n_tokens: usize) {
-        let range = TextRange::at(self.text_pos, len);
+    fn do_token(&mut self, kind: SyntaxKind, n_tokens: usize) {
+        let range = TextRange::new(
+            self.tokens[self.token_pos].offset,
+            self.offset_at(self.token_pos + n_tokens),
+        );
         let text: SmolStr = self.text[range].into();
-        self.text_pos += len;
         self.token_pos += n_tokens;
         self.inner.token(kind, text);
+    }
+
+    fn offset_at(&self, idx: usize) -> TextSize {
+        self.tokens.get(idx).map_or_else(|| TextSize::of(self.text), |it| it.offset)
     }
 }
 

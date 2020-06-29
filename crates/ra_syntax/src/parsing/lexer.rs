@@ -2,8 +2,7 @@
 //! It is just a bridge to `rustc_lexer`.
 
 use rustc_lexer::{LiteralKind as LK, RawStrError};
-
-use std::convert::TryInto;
+use std::{convert::TryInto, iter};
 
 use crate::{
     SyntaxError,
@@ -16,15 +15,15 @@ use crate::{
 pub struct Token {
     /// The kind of token.
     pub kind: SyntaxKind,
-    /// The length of the token.
-    pub len: TextSize,
+    /// The offset of the token.
+    pub offset: TextSize,
 }
 
 /// Break a string up into its component tokens.
 /// Beware that it checks for shebang first and its length contributes to resulting
 /// tokens offsets.
 pub fn tokenize(text: &str) -> (Vec<Token>, Vec<SyntaxError>) {
-    // non-empty string is a precondtion of `rustc_lexer::strip_shebang()`.
+    // non-empty string is a precondition of `rustc_lexer::strip_shebang()`.
     if text.is_empty() {
         return Default::default();
     }
@@ -32,33 +31,45 @@ pub fn tokenize(text: &str) -> (Vec<Token>, Vec<SyntaxError>) {
     let mut tokens = Vec::new();
     let mut errors = Vec::new();
 
-    let mut offset = match rustc_lexer::strip_shebang(text) {
+    let mut offset: TextSize = match rustc_lexer::strip_shebang(text) {
         Some(shebang_len) => {
-            tokens.push(Token { kind: SHEBANG, len: shebang_len.try_into().unwrap() });
-            shebang_len
+            tokens.push(Token { kind: SHEBANG, offset: 0.into() });
+            shebang_len.try_into().unwrap()
         }
-        None => 0,
+        None => 0.into(),
     };
 
-    let text_without_shebang = &text[offset..];
+    let text_without_shebang = &text[usize::from(offset)..];
 
     for rustc_token in rustc_lexer::tokenize(text_without_shebang) {
-        let token_len: TextSize = rustc_token.len.try_into().unwrap();
-        let token_range = TextRange::at(offset.try_into().unwrap(), token_len);
+        let range = TextRange::at(offset, rustc_token.len.try_into().unwrap());
 
-        let (syntax_kind, err_message) =
-            rustc_token_kind_to_syntax_kind(&rustc_token.kind, &text[token_range]);
+        let (kind, err_message) = rustc_token_kind_to_syntax_kind(&rustc_token.kind, &text[range]);
 
-        tokens.push(Token { kind: syntax_kind, len: token_len });
+        tokens.push(Token { kind, offset });
 
         if let Some(err_message) = err_message {
-            errors.push(SyntaxError::new(err_message, token_range));
+            errors.push(SyntaxError::new(err_message, range));
         }
 
-        offset += rustc_token.len;
+        offset = range.end();
     }
 
     (tokens, errors)
+}
+
+/// Returns an iterator over `(SyntaxKind, TextRange)`.
+/// Needs `text` to find out the length of the last token.
+pub fn kinds_with_ranges<'t>(
+    text: &str,
+    tokens: &'t [Token],
+) -> impl 't + Iterator<Item = (SyntaxKind, TextRange)> + Clone {
+    let next_offsets =
+        tokens.iter().skip(1).map(|it| it.offset).chain(iter::once(TextSize::of(text)));
+    tokens
+        .iter()
+        .zip(next_offsets)
+        .map(|(token, next_offset)| (token.kind, TextRange::new(token.offset, next_offset)))
 }
 
 /// Returns `SyntaxKind` and `Option<SyntaxError>` of the first token
@@ -70,8 +81,8 @@ pub fn tokenize(text: &str) -> (Vec<Token>, Vec<SyntaxError>) {
 /// Beware that unescape errors are not checked at tokenization time.
 pub fn lex_single_syntax_kind(text: &str) -> Option<(SyntaxKind, Option<SyntaxError>)> {
     lex_first_token(text)
-        .filter(|(token, _)| token.len == TextSize::of(text))
-        .map(|(token, error)| (token.kind, error))
+        .filter(|(_, token_len, _err)| *token_len == TextSize::of(text))
+        .map(|(kind, _, err)| (kind, err))
 }
 
 /// The same as `lex_single_syntax_kind()` but returns only `SyntaxKind` and
@@ -80,19 +91,18 @@ pub fn lex_single_syntax_kind(text: &str) -> Option<(SyntaxKind, Option<SyntaxEr
 /// Beware that unescape errors are not checked at tokenization time.
 pub fn lex_single_valid_syntax_kind(text: &str) -> Option<SyntaxKind> {
     lex_first_token(text)
-        .filter(|(token, error)| !error.is_some() && token.len == TextSize::of(text))
-        .map(|(token, _error)| token.kind)
+        .filter(|(_, token_len, err)| !err.is_some() && *token_len == TextSize::of(text))
+        .map(|(kind, _, _err)| kind)
 }
 
-/// Returns `SyntaxKind` and `Option<SyntaxError>` of the first token
-/// encountered at the beginning of the string.
+/// Returns `SyntaxKind`, `TextSize` (the length) and `Option<SyntaxError>`
+/// of the first token encountered at the beginning of the string.
 ///
-/// Returns `None` if the string contains zero tokens or if the token was parsed
-/// with an error.
+/// Returns `None` if the string contains zero tokens.
 /// The token is malformed if the returned error is not `None`.
 ///
 /// Beware that unescape errors are not checked at tokenization time.
-fn lex_first_token(text: &str) -> Option<(Token, Option<SyntaxError>)> {
+fn lex_first_token(text: &str) -> Option<(SyntaxKind, TextSize, Option<SyntaxError>)> {
     // non-empty string is a precondtion of `rustc_lexer::first_token()`.
     if text.is_empty() {
         return None;
@@ -101,11 +111,10 @@ fn lex_first_token(text: &str) -> Option<(Token, Option<SyntaxError>)> {
     let rustc_token = rustc_lexer::first_token(text);
     let (syntax_kind, err_message) = rustc_token_kind_to_syntax_kind(&rustc_token.kind, text);
 
-    let token = Token { kind: syntax_kind, len: rustc_token.len.try_into().unwrap() };
-    let optional_error = err_message
-        .map(|err_message| SyntaxError::new(err_message, TextRange::up_to(TextSize::of(text))));
+    let token_len: TextSize = rustc_token.len.try_into().unwrap();
+    let optional_error = err_message.map(|msg| SyntaxError::new(msg, TextRange::up_to(token_len)));
 
-    Some((token, optional_error))
+    Some((syntax_kind, token_len, optional_error))
 }
 
 /// Returns `SyntaxKind` and an optional tokenize error message.

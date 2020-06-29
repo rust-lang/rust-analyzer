@@ -6,7 +6,7 @@
 //! e.g. expressions, type references etc.
 
 use crate::{SsrError, SsrPattern, SsrRule};
-use ra_syntax::{ast, AstNode, SmolStr, SyntaxKind};
+use ra_syntax::{ast, kinds_with_ranges, AstNode, SmolStr, SyntaxKind};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::str::FromStr;
 
@@ -186,21 +186,13 @@ fn validate_rule(rule: &SsrRule) -> Result<(), SsrError> {
 }
 
 fn tokenize(source: &str) -> Result<Vec<Token>, SsrError> {
-    let mut start = 0;
     let (raw_tokens, errors) = ra_syntax::tokenize(source);
     if let Some(first_error) = errors.first() {
         bail!("Failed to parse pattern: {}", first_error);
     }
-    let mut tokens: Vec<Token> = Vec::new();
-    for raw_token in raw_tokens {
-        let token_len = usize::from(raw_token.len);
-        tokens.push(Token {
-            kind: raw_token.kind,
-            text: SmolStr::new(&source[start..start + token_len]),
-        });
-        start += token_len;
-    }
-    Ok(tokens)
+    Ok(kinds_with_ranges(source, &raw_tokens)
+        .map(|(kind, range)| Token { kind, text: SmolStr::new(&source[range]) })
+        .collect())
 }
 
 fn parse_placeholder(tokens: &mut std::vec::IntoIter<Token>) -> Result<Placeholder, SsrError> {

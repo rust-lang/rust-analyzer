@@ -3,9 +3,9 @@
 use ra_parser::{FragmentKind, ParseError, TreeSink};
 use ra_syntax::{
     ast::{self, make::tokens::doc_comment},
-    tokenize, AstToken, Parse, SmolStr, SyntaxKind,
+    kinds_with_ranges, tokenize, AstToken, Parse, SmolStr, SyntaxKind,
     SyntaxKind::*,
-    SyntaxNode, SyntaxToken, SyntaxTreeBuilder, TextRange, TextSize, Token as RawToken, T,
+    SyntaxNode, SyntaxToken, SyntaxTreeBuilder, TextRange, TextSize, T,
 };
 use rustc_hash::FxHashMap;
 use tt::buffer::{Cursor, TokenBuffer};
@@ -99,8 +99,7 @@ pub fn parse_to_token_tree(text: &str) -> Option<(tt::Subtree, TokenMap)> {
 
     let mut conv = RawConvertor {
         text,
-        offset: TextSize::default(),
-        inner: tokens.iter(),
+        inner: kinds_with_ranges(text, &tokens),
         id_alloc: TokenIdAlloc {
             map: Default::default(),
             global_offset: TextSize::default(),
@@ -264,11 +263,10 @@ impl TokenIdAlloc {
 }
 
 /// A Raw Token (straightly from lexer) convertor
-struct RawConvertor<'a> {
+struct RawConvertor<'a, I> {
     text: &'a str,
-    offset: TextSize,
     id_alloc: TokenIdAlloc,
-    inner: std::slice::Iter<'a, RawToken>,
+    inner: I,
 }
 
 trait SrcToken: std::fmt::Debug {
@@ -414,9 +412,9 @@ trait TokenConvertor {
     fn id_alloc(&mut self) -> &mut TokenIdAlloc;
 }
 
-impl<'a> SrcToken for (RawToken, &'a str) {
+impl<'a> SrcToken for (SyntaxKind, &'a str) {
     fn kind(&self) -> SyntaxKind {
-        self.0.kind
+        self.0
     }
 
     fn to_char(&self) -> Option<char> {
@@ -428,30 +426,23 @@ impl<'a> SrcToken for (RawToken, &'a str) {
     }
 }
 
-impl RawConvertor<'_> {}
+impl<'a, I> TokenConvertor for RawConvertor<'a, I>
+where
+    I: Iterator<Item = (SyntaxKind, TextRange)> + Clone,
+{
+    type Token = (SyntaxKind, &'a str);
 
-impl<'a> TokenConvertor for RawConvertor<'a> {
-    type Token = (RawToken, &'a str);
-
-    fn convert_doc_comment(&self, token: &Self::Token) -> Option<Vec<tt::TokenTree>> {
-        convert_doc_comment(&doc_comment(token.1))
+    fn convert_doc_comment(&self, (_kind, text): &Self::Token) -> Option<Vec<tt::TokenTree>> {
+        convert_doc_comment(&doc_comment(text))
     }
 
     fn bump(&mut self) -> Option<(Self::Token, TextRange)> {
-        let token = self.inner.next()?;
-        let range = TextRange::at(self.offset, token.len);
-        self.offset += token.len;
-
-        Some(((*token, &self.text[range]), range))
+        let (kind, range) = self.inner.next()?;
+        Some(((kind, &self.text[range]), range))
     }
 
     fn peek(&self) -> Option<Self::Token> {
-        let token = self.inner.as_slice().get(0).cloned();
-
-        token.map(|it| {
-            let range = TextRange::at(self.offset, it.len);
-            (it, &self.text[range])
-        })
+        self.inner.clone().next().map(|(kind, range)| (kind, &self.text[range]))
     }
 
     fn id_alloc(&mut self) -> &mut TokenIdAlloc {
