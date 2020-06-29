@@ -1,2 +1,2 @@
-STRING 3 "\"\\n"
+STRING 0..3 "\"\\n"
 > error0..3 token("\"\\n") msg(Missing trailing `"` symbol to terminate the string literal)

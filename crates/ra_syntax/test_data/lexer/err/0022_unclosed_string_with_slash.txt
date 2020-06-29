@@ -1,2 +1,2 @@
-STRING 2 "\"\\"
+STRING 0..2 "\"\\"
 > error0..2 token("\"\\") msg(Missing trailing `"` symbol to terminate the string literal)
