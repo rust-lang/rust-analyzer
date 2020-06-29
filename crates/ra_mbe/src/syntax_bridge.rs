@@ -99,7 +99,6 @@ pub fn parse_to_token_tree(text: &str) -> Option<(tt::Subtree, TokenMap)> {
 
     let mut conv = RawConvertor {
         text,
-        offset: TextSize::default(),
         inner: tokens.iter(),
         id_alloc: TokenIdAlloc {
             map: Default::default(),
@@ -266,7 +265,6 @@ impl TokenIdAlloc {
 /// A Raw Token (straightly from lexer) convertor
 struct RawConvertor<'a> {
     text: &'a str,
-    offset: TextSize,
     id_alloc: TokenIdAlloc,
     inner: std::slice::Iter<'a, RawToken>,
 }
@@ -439,19 +437,11 @@ impl<'a> TokenConvertor for RawConvertor<'a> {
 
     fn bump(&mut self) -> Option<(Self::Token, TextRange)> {
         let token = self.inner.next()?;
-        let range = TextRange::at(self.offset, token.len);
-        self.offset += token.len;
-
-        Some(((*token, &self.text[range]), range))
+        Some(((*token, &self.text[token.range]), token.range))
     }
 
     fn peek(&self) -> Option<Self::Token> {
-        let token = self.inner.as_slice().get(0).cloned();
-
-        token.map(|it| {
-            let range = TextRange::at(self.offset, it.len);
-            (it, &self.text[range])
-        })
+        self.inner.clone().next().map(|&it| (it, &self.text[it.range]))
     }
 
     fn id_alloc(&mut self) -> &mut TokenIdAlloc {

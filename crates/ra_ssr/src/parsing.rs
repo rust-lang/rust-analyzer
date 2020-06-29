@@ -186,21 +186,17 @@ fn validate_rule(rule: &SsrRule) -> Result<(), SsrError> {
 }
 
 fn tokenize(source: &str) -> Result<Vec<Token>, SsrError> {
-    let mut start = 0;
     let (raw_tokens, errors) = ra_syntax::tokenize(source);
     if let Some(first_error) = errors.first() {
         bail!("Failed to parse pattern: {}", first_error);
     }
-    let mut tokens: Vec<Token> = Vec::new();
-    for raw_token in raw_tokens {
-        let token_len = usize::from(raw_token.len);
-        tokens.push(Token {
+    Ok(raw_tokens
+        .into_iter()
+        .map(|raw_token| Token {
             kind: raw_token.kind,
-            text: SmolStr::new(&source[start..start + token_len]),
-        });
-        start += token_len;
-    }
-    Ok(tokens)
+            text: SmolStr::new(&source[raw_token.range]),
+        })
+        .collect())
 }
 
 fn parse_placeholder(tokens: &mut std::vec::IntoIter<Token>) -> Result<Placeholder, SsrError> {

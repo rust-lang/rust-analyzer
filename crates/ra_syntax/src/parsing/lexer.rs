@@ -12,12 +12,12 @@ use crate::{
 };
 
 /// A token of Rust source.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Token {
     /// The kind of token.
     pub kind: SyntaxKind,
     /// The length of the token.
-    pub len: TextSize,
+    pub range: TextRange,
 }
 
 /// Break a string up into its component tokens.
@@ -32,30 +32,30 @@ pub fn tokenize(text: &str) -> (Vec<Token>, Vec<SyntaxError>) {
     let mut tokens = Vec::new();
     let mut errors = Vec::new();
 
-    let mut offset = match rustc_lexer::strip_shebang(text) {
+    let mut offset: TextSize = match rustc_lexer::strip_shebang(text) {
         Some(shebang_len) => {
-            tokens.push(Token { kind: SHEBANG, len: shebang_len.try_into().unwrap() });
-            shebang_len
+            tokens.push(Token {
+                kind: SHEBANG,
+                range: TextRange::new(0.into(), shebang_len.try_into().unwrap()),
+            });
+            shebang_len.try_into().unwrap()
         }
-        None => 0,
+        None => 0.into(),
     };
 
-    let text_without_shebang = &text[offset..];
+    let text_without_shebang = &text[usize::from(offset)..];
 
     for rustc_token in rustc_lexer::tokenize(text_without_shebang) {
-        let token_len: TextSize = rustc_token.len.try_into().unwrap();
-        let token_range = TextRange::at(offset.try_into().unwrap(), token_len);
+        let range = TextRange::at(offset, rustc_token.len.try_into().unwrap());
 
-        let (syntax_kind, err_message) =
-            rustc_token_kind_to_syntax_kind(&rustc_token.kind, &text[token_range]);
-
-        tokens.push(Token { kind: syntax_kind, len: token_len });
+        let (kind, err_message) = rustc_token_kind_to_syntax_kind(&rustc_token.kind, &text[range]);
+        tokens.push(Token { kind, range });
 
         if let Some(err_message) = err_message {
-            errors.push(SyntaxError::new(err_message, token_range));
+            errors.push(SyntaxError::new(err_message, range));
         }
 
-        offset += rustc_token.len;
+        offset = range.end();
     }
 
     (tokens, errors)
@@ -70,7 +70,7 @@ pub fn tokenize(text: &str) -> (Vec<Token>, Vec<SyntaxError>) {
 /// Beware that unescape errors are not checked at tokenization time.
 pub fn lex_single_syntax_kind(text: &str) -> Option<(SyntaxKind, Option<SyntaxError>)> {
     lex_first_token(text)
-        .filter(|(token, _)| token.len == TextSize::of(text))
+        .filter(|(token, _)| token.range.end() == TextSize::of(text))
         .map(|(token, error)| (token.kind, error))
 }
 
@@ -80,7 +80,7 @@ pub fn lex_single_syntax_kind(text: &str) -> Option<(SyntaxKind, Option<SyntaxEr
 /// Beware that unescape errors are not checked at tokenization time.
 pub fn lex_single_valid_syntax_kind(text: &str) -> Option<SyntaxKind> {
     lex_first_token(text)
-        .filter(|(token, error)| !error.is_some() && token.len == TextSize::of(text))
+        .filter(|(token, error)| !error.is_some() && token.range.end() == TextSize::of(text))
         .map(|(token, _error)| token.kind)
 }
 
@@ -99,12 +99,10 @@ fn lex_first_token(text: &str) -> Option<(Token, Option<SyntaxError>)> {
     }
 
     let rustc_token = rustc_lexer::first_token(text);
-    let (syntax_kind, err_message) = rustc_token_kind_to_syntax_kind(&rustc_token.kind, text);
+    let (kind, err_message) = rustc_token_kind_to_syntax_kind(&rustc_token.kind, text);
 
-    let token = Token { kind: syntax_kind, len: rustc_token.len.try_into().unwrap() };
-    let optional_error = err_message
-        .map(|err_message| SyntaxError::new(err_message, TextRange::up_to(TextSize::of(text))));
-
+    let token = Token { kind, range: TextRange::up_to(rustc_token.len.try_into().unwrap()) };
+    let optional_error = err_message.map(|msg| SyntaxError::new(msg, token.range));
     Some((token, optional_error))
 }
 
@@ -209,7 +207,6 @@ fn rustc_token_kind_to_syntax_kind(
                 return (STRING, Some("Missing trailing `\"` symbol to terminate the string literal"))
             }
 
-
             LK::ByteStr { terminated: true } => BYTE_STRING,
             LK::ByteStr { terminated: false } => {
                 return (BYTE_STRING, Some("Missing trailing `\"` symbol to terminate the byte string literal"))
@@ -222,7 +219,6 @@ fn rustc_token_kind_to_syntax_kind(
                     return (RAW_STRING, Some("Missing trailing `\"` to terminate the raw string literal"))
                 } else {
                     return (RAW_STRING, Some("Missing trailing `\"` with `#` symbols to terminate the raw string literal"))
-
                 },
                 Some(RawStrError::TooManyDelimiters { .. }) => return (RAW_STRING, Some("Too many `#` symbols: raw strings may be delimited by up to 65535 `#` symbols")),
             },
@@ -233,7 +229,6 @@ fn rustc_token_kind_to_syntax_kind(
                     return (RAW_BYTE_STRING, Some("Missing trailing `\"` to terminate the raw byte string literal"))
                 } else {
                     return (RAW_BYTE_STRING, Some("Missing trailing `\"` with `#` symbols to terminate the raw byte string literal"))
-
                 },
                 Some(RawStrError::TooManyDelimiters { .. }) => return (RAW_BYTE_STRING, Some("Too many `#` symbols: raw byte strings may be delimited by up to 65535 `#` symbols")),
             },

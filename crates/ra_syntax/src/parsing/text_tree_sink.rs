@@ -9,8 +9,9 @@ use crate::{
     syntax_node::GreenNode,
     SmolStr, SyntaxError,
     SyntaxKind::{self, *},
-    SyntaxTreeBuilder, TextRange, TextSize,
+    SyntaxTreeBuilder, TextRange,
 };
+use ra_text_edit::TextSize;
 
 /// Bridges the parser with our specific syntax tree representation.
 ///
@@ -18,7 +19,6 @@ use crate::{
 pub(crate) struct TextTreeSink<'a> {
     text: &'a str,
     tokens: &'a [Token],
-    text_pos: TextSize,
     token_pos: usize,
     state: State,
     inner: SyntaxTreeBuilder,
@@ -38,12 +38,7 @@ impl<'a> TreeSink for TextTreeSink<'a> {
             State::Normal => (),
         }
         self.eat_trivias();
-        let n_tokens = n_tokens as usize;
-        let len = self.tokens[self.token_pos..self.token_pos + n_tokens]
-            .iter()
-            .map(|it| it.len)
-            .sum::<TextSize>();
-        self.do_token(kind, len, n_tokens);
+        self.do_many_tokens(kind, n_tokens);
     }
 
     fn start_node(&mut self, kind: SyntaxKind) {
@@ -61,18 +56,13 @@ impl<'a> TreeSink for TextTreeSink<'a> {
         let n_trivias =
             self.tokens[self.token_pos..].iter().take_while(|it| it.kind.is_trivia()).count();
         let leading_trivias = &self.tokens[self.token_pos..self.token_pos + n_trivias];
-        let mut trivia_end =
-            self.text_pos + leading_trivias.iter().map(|it| it.len).sum::<TextSize>();
 
-        let n_attached_trivias = {
-            let leading_trivias = leading_trivias.iter().rev().map(|it| {
-                let next_end = trivia_end - it.len;
-                let range = TextRange::new(next_end, trivia_end);
-                trivia_end = next_end;
-                (it.kind, &self.text[range])
-            });
-            n_attached_trivias(kind, leading_trivias)
-        };
+        // FIXME: instead of looking for trivias in reverse just eat all trivias up intil the first comment?
+        let n_attached_trivias = n_attached_trivias(
+            kind,
+            leading_trivias.iter().rev().map(|it| (it.kind, &self.text[it.range])),
+        );
+
         self.eat_n_trivias(n_trivias - n_attached_trivias);
         self.inner.start_node(kind);
         self.eat_n_trivias(n_attached_trivias);
@@ -87,7 +77,11 @@ impl<'a> TreeSink for TextTreeSink<'a> {
     }
 
     fn error(&mut self, error: ParseError) {
-        self.inner.error(error, self.text_pos)
+        let offset = self
+            .tokens
+            .get(self.token_pos)
+            .map_or_else(|| TextSize::of(self.text), |it| it.range.start());
+        self.inner.error(error, offset);
     }
 }
 
@@ -96,7 +90,6 @@ impl<'a> TextTreeSink<'a> {
         Self {
             text,
             tokens,
-            text_pos: 0.into(),
             token_pos: 0,
             state: State::PendingStart,
             inner: SyntaxTreeBuilder::default(),
@@ -120,7 +113,7 @@ impl<'a> TextTreeSink<'a> {
             if !token.kind.is_trivia() {
                 break;
             }
-            self.do_token(token.kind, token.len, 1);
+            self.do_one_token(token);
         }
     }
 
@@ -128,16 +121,25 @@ impl<'a> TextTreeSink<'a> {
         for _ in 0..n {
             let token = self.tokens[self.token_pos];
             assert!(token.kind.is_trivia());
-            self.do_token(token.kind, token.len, 1);
+            self.do_one_token(token);
         }
     }
 
-    fn do_token(&mut self, kind: SyntaxKind, len: TextSize, n_tokens: usize) {
-        let range = TextRange::at(self.text_pos, len);
+    fn do_many_tokens(&mut self, kind: SyntaxKind, n_tokens: u8) {
+        let last_token = self.token_pos + usize::from(n_tokens) - 1;
+        let range = TextRange::new(
+            self.tokens[self.token_pos].range.start(),
+            self.tokens[last_token].range.end(),
+        );
         let text: SmolStr = self.text[range].into();
-        self.text_pos += len;
-        self.token_pos += n_tokens;
+        self.token_pos = last_token + 1;
         self.inner.token(kind, text);
+    }
+
+    fn do_one_token(&mut self, token: Token) {
+        let text: SmolStr = self.text[token.range].into();
+        self.token_pos += 1;
+        self.inner.token(token.kind, text);
     }
 }
 
