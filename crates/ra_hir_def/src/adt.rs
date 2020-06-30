@@ -28,12 +28,14 @@ use ra_cfg::CfgOptions;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructData {
     pub name: Name,
+    pub is_public: bool,
     pub variant_data: Arc<VariantData>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumData {
     pub name: Name,
+    pub is_public: bool,
     pub variants: Arena<EnumVariantData>,
 }
 
@@ -65,9 +67,14 @@ impl StructData {
         let cfg_options = db.crate_graph()[loc.container.module(db).krate].cfg_options.clone();
 
         let strukt = &item_tree[loc.id.value];
+        let vis = &item_tree[strukt.visibility];
         let variant_data = lower_fields(&item_tree, &cfg_options, &strukt.fields);
 
-        Arc::new(StructData { name: strukt.name.clone(), variant_data: Arc::new(variant_data) })
+        Arc::new(StructData {
+            name: strukt.name.clone(),
+            is_public: vis.is_public(),
+            variant_data: Arc::new(variant_data),
+        })
     }
     pub(crate) fn union_data_query(db: &dyn DefDatabase, id: UnionId) -> Arc<StructData> {
         let loc = id.lookup(db);
@@ -75,9 +82,14 @@ impl StructData {
         let cfg_options = db.crate_graph()[loc.container.module(db).krate].cfg_options.clone();
 
         let union = &item_tree[loc.id.value];
+        let vis = &item_tree[union.visibility];
         let variant_data = lower_fields(&item_tree, &cfg_options, &union.fields);
 
-        Arc::new(StructData { name: union.name.clone(), variant_data: Arc::new(variant_data) })
+        Arc::new(StructData {
+            name: union.name.clone(),
+            is_public: vis.is_public(),
+            variant_data: Arc::new(variant_data),
+        })
     }
 }
 
@@ -88,6 +100,7 @@ impl EnumData {
         let cfg_options = db.crate_graph()[loc.container.module(db).krate].cfg_options.clone();
 
         let enum_ = &item_tree[loc.id.value];
+        let vis = &item_tree[enum_.visibility];
         let mut variants = Arena::new();
         for var_id in enum_.variants.clone() {
             if item_tree.attrs(var_id.into()).is_cfg_enabled(&cfg_options) {
@@ -101,7 +114,7 @@ impl EnumData {
             }
         }
 
-        Arc::new(EnumData { name: enum_.name.clone(), variants })
+        Arc::new(EnumData { name: enum_.name.clone(), is_public: vis.is_public(), variants })
     }
 
     pub fn variant(&self, name: &Name) -> Option<LocalEnumVariantId> {

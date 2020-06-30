@@ -99,7 +99,7 @@ fn test() {
 //- /core.rs crate:core
 #[prelude_import] use ops::*;
 mod ops {
-    trait Try {
+    pub trait Try {
         type Ok;
         type Error;
     }
@@ -139,7 +139,7 @@ fn test() {
 //- /core.rs crate:core
 #[prelude_import] use iter::*;
 mod iter {
-    trait IntoIterator {
+    pub trait IntoIterator {
         type Item;
     }
 }

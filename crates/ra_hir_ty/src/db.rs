@@ -70,6 +70,9 @@ pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> {
     #[salsa::invoke(crate::method_resolution::CrateImplDefs::impls_in_crate_query)]
     fn impls_in_crate(&self, krate: CrateId) -> Arc<CrateImplDefs>;
 
+    #[salsa::invoke(crate::method_resolution::CrateImplDefs::public_impls_in_crate_query)]
+    fn public_impls_in_crate(&self, krate: CrateId) -> Arc<CrateImplDefs>;
+
     #[salsa::invoke(crate::method_resolution::CrateImplDefs::impls_from_deps_query)]
     fn impls_from_deps(&self, krate: CrateId) -> Arc<CrateImplDefs>;
 

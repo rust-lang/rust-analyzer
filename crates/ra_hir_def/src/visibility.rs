@@ -73,6 +73,10 @@ impl RawVisibility {
         }
     }
 
+    pub(crate) fn is_public(&self) -> bool {
+        matches!(self, RawVisibility::Public)
+    }
+
     pub fn resolve(
         &self,
         db: &dyn DefDatabase,

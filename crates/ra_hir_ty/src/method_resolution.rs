@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use arrayvec::ArrayVec;
 use hir_def::{
-    lang_item::LangItemTarget, type_ref::Mutability, AssocContainerId, AssocItemId, FunctionId,
-    HasModule, ImplId, Lookup, TraitId,
+    db::DefDatabase, lang_item::LangItemTarget, type_ref::Mutability, AdtId, AssocContainerId,
+    AssocItemId, FunctionId, HasModule, ImplId, Lookup, TraitId,
 };
 use hir_expand::name::Name;
 use ra_db::CrateId;
@@ -38,6 +38,32 @@ impl TyFingerprint {
     }
 }
 
+/// Determines whether `fp` may be used outside the defining crate.
+///
+/// If this returns `false`, *inherent* impls of the type cannot be used by downstream crates. Note
+/// that this does not affect *trait* impls, which may still be externally visible (eg. via `impl
+/// Trait`).
+fn is_ty_public(db: &dyn DefDatabase, fp: TyFingerprint) -> bool {
+    if let TyFingerprint::Apply(TypeCtor::Adt(adt)) = fp {
+        match adt {
+            AdtId::StructId(it) => db.struct_data(it).is_public,
+            AdtId::UnionId(it) => db.union_data(it).is_public,
+            AdtId::EnumId(it) => db.enum_data(it).is_public,
+        }
+    } else {
+        // For any other type, we conservatively assume it is public.
+        true
+    }
+}
+
+/// Determines whether `tr` may be used outside the defining crate.
+///
+/// If this returns `false`, no impls of this trait can be used by downstream crates, independent
+/// of the implementing type.
+fn is_trait_public(db: &dyn DefDatabase, tr: TraitId) -> bool {
+    db.trait_data(tr).is_public
+}
+
 /// A queryable and mergeable collection of impls.
 #[derive(Debug, PartialEq, Eq)]
 pub struct CrateImplDefs {
@@ -52,7 +78,21 @@ impl CrateImplDefs {
             inherent_impls: FxHashMap::default(),
             impls_by_trait: FxHashMap::default(),
         };
-        res.fill(db, krate);
+        res.fill(db, krate, true);
+
+        Arc::new(res)
+    }
+
+    pub(crate) fn public_impls_in_crate_query(
+        db: &dyn HirDatabase,
+        krate: CrateId,
+    ) -> Arc<CrateImplDefs> {
+        let _p = profile("public_impls_in_crate_query");
+        let mut res = CrateImplDefs {
+            inherent_impls: FxHashMap::default(),
+            impls_by_trait: FxHashMap::default(),
+        };
+        res.fill(db, krate, false);
 
         Arc::new(res)
     }
@@ -78,31 +118,37 @@ impl CrateImplDefs {
         // wasting memory.
         for dep in &crate_graph[krate].dependencies {
             res.merge(&db.impls_from_deps(dep.crate_id));
-            res.merge(&db.impls_in_crate(dep.crate_id));
+            res.merge(&db.public_impls_in_crate(dep.crate_id));
         }
 
         Arc::new(res)
     }
 
-    fn fill(&mut self, db: &dyn HirDatabase, krate: CrateId) {
+    fn fill(&mut self, db: &dyn HirDatabase, krate: CrateId, include_private: bool) {
         let crate_def_map = db.crate_def_map(krate);
         for (_module_id, module_data) in crate_def_map.modules.iter() {
             for impl_id in module_data.scope.impls() {
+                let self_ty = db.impl_self_ty(impl_id);
+                let self_ty_fp = TyFingerprint::for_impl(&self_ty.value);
+
                 match db.impl_trait(impl_id) {
                     Some(tr) => {
-                        let self_ty = db.impl_self_ty(impl_id);
-                        let self_ty_fp = TyFingerprint::for_impl(&self_ty.value);
-                        self.impls_by_trait
-                            .entry(tr.value.trait_)
-                            .or_default()
-                            .entry(self_ty_fp)
-                            .or_default()
-                            .push(impl_id);
+                        // Trait impl.
+                        if include_private || is_trait_public(db.upcast(), tr.value.trait_) {
+                            self.impls_by_trait
+                                .entry(tr.value.trait_)
+                                .or_default()
+                                .entry(self_ty_fp)
+                                .or_default()
+                                .push(impl_id);
+                        }
                     }
                     None => {
-                        let self_ty = db.impl_self_ty(impl_id);
-                        if let Some(self_ty_fp) = TyFingerprint::for_impl(&self_ty.value) {
-                            self.inherent_impls.entry(self_ty_fp).or_default().push(impl_id);
+                        if let Some(self_ty_fp) = self_ty_fp {
+                            // Inherent impl.
+                            if include_private || is_ty_public(db.upcast(), self_ty_fp) {
+                                self.inherent_impls.entry(self_ty_fp).or_default().push(impl_id);
+                            }
                         }
                     }
                 }

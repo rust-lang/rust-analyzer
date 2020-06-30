@@ -78,6 +78,7 @@ impl TypeAliasData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TraitData {
     pub name: Name,
+    pub is_public: bool,
     pub items: Vec<(Name, AssocItemId)>,
     pub auto: bool,
 }
@@ -87,6 +88,7 @@ impl TraitData {
         let tr_loc = tr.lookup(db);
         let item_tree = db.item_tree(tr_loc.id.file_id);
         let tr_def = &item_tree[tr_loc.id.value];
+        let vis = &item_tree[tr_def.visibility];
         let name = tr_def.name.clone();
         let auto = tr_def.auto;
         let module_id = tr_loc.container.module(db);
@@ -103,7 +105,7 @@ impl TraitData {
             100,
         );
 
-        Arc::new(TraitData { name, items, auto })
+        Arc::new(TraitData { name, is_public: vis.is_public(), items, auto })
     }
 
     pub fn associated_types(&self) -> impl Iterator<Item = TypeAliasId> + '_ {

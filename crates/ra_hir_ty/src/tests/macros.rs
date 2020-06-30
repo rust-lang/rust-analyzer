@@ -700,7 +700,7 @@ fn infer_derive_clone_in_core() {
 #[prelude_import]
 use clone::*;
 mod clone {
-    trait Clone {
+    pub trait Clone {
         fn clone(&self) -> Self;
     }
 }
