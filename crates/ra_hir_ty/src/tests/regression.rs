@@ -779,3 +779,21 @@ pub trait Service<Request> {
     "###
     );
 }
+
+#[test]
+fn your_stack_belongs_to_me() {
+    check_types(
+        "
+    macro_rules! n_nuple {
+        ($e:tt) => ();
+        ($($rest:tt)*) => {{
+            (n_nuple!($($rest)*)None,)
+        }};
+    }
+    fn main() {
+        let t = n_nuple!(1,2,3);
+        t;
+    } //^ ()
+",
+    )
+}

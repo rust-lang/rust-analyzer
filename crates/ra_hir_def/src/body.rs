@@ -1,9 +1,26 @@
 //! Defines `Body`: a lowered representation of bodies of functions, statics and
 //! consts.
+
+pub(crate) static STACK: AtomicUsize = AtomicUsize::new(0);
+
+macro_rules! stack {
+    ($name:literal) => {
+        let anchor = 92;
+        let addr = &anchor as *const _ as usize;
+        let prev = crate::body::STACK.swap(addr, std::sync::atomic::Ordering::Relaxed);
+        let diff = prev.saturating_sub(addr);
+        eprintln!("{:10} {}", $name, diff / std::mem::size_of::<usize>());
+    };
+}
+
 mod lower;
 pub mod scope;
 
-use std::{mem, ops::Index, sync::Arc};
+use std::{
+    mem,
+    ops::Index,
+    sync::{atomic::AtomicUsize, Arc},
+};
 
 use drop_bomb::DropBomb;
 use either::Either;
@@ -91,6 +108,7 @@ impl Expander {
         local_scope: Option<&ItemScope>,
         macro_call: ast::MacroCall,
     ) -> Option<(Mark, T)> {
+        eprintln!("{:?}", self.recursive_limit);
         if self.recursive_limit > 1024 {
             return None;
         }
