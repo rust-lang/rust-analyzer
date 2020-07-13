@@ -21,7 +21,7 @@
         "Programming Languages"
     ],
     "engines": {
-        "vscode": "^1.44.1"
+        "vscode": "^1.46"
     },
     "enableProposedApi": true,
     "scripts": {
@@ -45,7 +45,7 @@
         "@types/mocha": "^7.0.2",
         "@types/node": "~12.7.0",
         "@types/node-fetch": "^2.5.7",
-        "@types/vscode": "^1.44.1",
+        "@types/vscode": "^1.46",
         "@typescript-eslint/eslint-plugin": "^3.4.0",
         "@typescript-eslint/parser": "^3.4.0",
         "eslint": "^7.3.1",
@@ -63,10 +63,112 @@
         "onCommand:rust-analyzer.analyzerStatus",
         "onCommand:rust-analyzer.memoryUsage",
         "onCommand:rust-analyzer.reloadWorkspace",
+        "onDebugInitialConfigurations",
+        "onDebugDynamicConfigurations:rust",
+        "onDebugResolve:rust",
         "workspaceContains:**/Cargo.toml"
     ],
     "main": "./out/src/main",
     "contributes": {
+        "breakpoints": [
+            {
+                "language": "rust"
+            }
+        ],
+        "debuggers": [
+            {
+                "type": "rust",
+                "label": "Rust (preview)",
+                "languages": [
+                    "rust"
+                ],
+                "configurationAttributes": {
+                    "launch": {
+                        "properties": {
+                            "oneOf": [
+                                {
+                                    "required": [
+                                        "program"
+                                    ]
+                                },
+                                {
+                                    "required": [
+                                        "cargo"
+                                    ]
+                                }
+                            ],
+                            "cargo": {
+                                "command": {
+                                    "enum": [
+                                        "run",
+                                        "test",
+                                        "bench"
+                                    ],
+                                    "default": "run"
+                                },
+                                "args": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "default": []
+                                },
+                                "env": {
+                                    "description": "Environment variables to add to the environment for the cargo only. Example: { \"VAR\": \"VALUE\" }.",
+                                    "type": "object",
+                                    "patternProperties": {
+                                        ".*": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "default": {}
+                                },
+                                "required": [
+                                    "command"
+                                ]
+                            },
+                            "program": {
+                                "type": "string",
+                                "description": "Full path to program executable."
+                            },
+                            "args": {
+                                "type": "array",
+                                "description": "Command line arguments passed to the program. In case of `cargo` launch this is the arguments after `--`.",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "default": []
+                            },
+                            "cwd": {
+                                "type": "string",
+                                "description": "The working directory of the target.",
+                                "default": "${workspaceFolder}"
+                            },
+                            "env": {
+                                "description": "Environment variables to add to the environment for the program. Example: { \"VAR\": \"VALUE\" }.",
+                                "type": "object",
+                                "patternProperties": {
+                                    ".*": {
+                                        "type": "string"
+                                    }
+                                },
+                                "default": {}
+                            },
+                            "envFile": {
+                                "type": "string",
+                                "description": "Absolute path to a file containing environment variable definitions. This file has JSON with key value pairs and optional mask.",
+                                "default": "${workspaceFolder}/.vscode/env.json"
+                            },
+                            "debugEngineSettings": {
+                                "type": "object",
+                                "default": {},
+                                "description": "Optional settings passed to the underlying debug engine. E.g. { \"cppvsdbg\": { \"logging\":{ \"moduleLoad\": false } } } }"
+                            }
+                        }
+                    }
+                }
+            }
+        ],
         "taskDefinitions": [
             {
                 "type": "cargo",

@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { prepareEnv } from '../../src/run';
+import { prepareRunnableEnv } from '../../src/run';
 import { RunnableEnvCfg } from '../../src/config';
 import * as ra from '../../src/lsp_ext';
 
@@ -16,7 +16,7 @@ function makeRunnable(label: string): ra.Runnable {
 
 function fakePrepareEnv(runnableName: string, config: RunnableEnvCfg): Record<string, string> {
     const runnable = makeRunnable(runnableName);
-    return prepareEnv(runnable, config);
+    return prepareRunnableEnv(runnable, config);
 }
 
 suite('Runnable env', () => {

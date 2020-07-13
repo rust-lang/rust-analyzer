@@ -13,6 +13,7 @@ import { fetchRelease, download } from './net';
 import { activateTaskProvider } from './tasks';
 import { setContextValue } from './util';
 import { exec } from 'child_process';
+import { activateDebugConfigurationProvider } from './debug';
 
 let ctx: Ctx | undefined;
 
@@ -125,6 +126,7 @@ async function tryActivate(context: vscode.ExtensionContext) {
 
     ctx.pushCleanup(activateTaskProvider(workspaceFolder, ctx.config));
 
+    activateDebugConfigurationProvider(workspaceFolder, ctx);
     activateInlayHints(ctx);
 
     vscode.workspace.onDidChangeConfiguration(

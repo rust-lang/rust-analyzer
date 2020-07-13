@@ -4,15 +4,15 @@ import * as ra from './lsp_ext';
 import * as tasks from './tasks';
 
 import { Ctx } from './ctx';
-import { makeDebugConfig } from './debug';
+import { makeDebugConfig, prepareEnv } from './debug';
 import { Config, RunnableEnvCfg } from './config';
 
 const quickPickButtons = [{ iconPath: new vscode.ThemeIcon("save"), tooltip: "Save as a launch.json configurtation." }];
 
-export async function selectRunnable(ctx: Ctx, prevRunnable?: RunnableQuickPick, debuggeeOnly = false, showButtons: boolean = true): Promise<RunnableQuickPick | undefined> {
+export async function currentRunnables(ctx: Ctx): Promise<ra.Runnable[]> {
     const editor = ctx.activeRustEditor;
     const client = ctx.client;
-    if (!editor || !client) return;
+    if (!editor || !client) return [];
 
     const textDocument: lc.TextDocumentIdentifier = {
         uri: editor.document.uri.toString(),
@@ -24,6 +24,18 @@ export async function selectRunnable(ctx: Ctx, prevRunnable?: RunnableQuickPick,
             editor.selection.active,
         ),
     });
+
+    return runnables;
+}
+
+export function isDebuggable(runnable: ra.Runnable): boolean {
+    return !(runnable.label.startsWith('doctest') || runnable.label.startsWith('cargo'));
+}
+
+export async function selectRunnable(ctx: Ctx, prevRunnable?: RunnableQuickPick, debuggeeOnly = false, showButtons: boolean = true): Promise<RunnableQuickPick | undefined> {
+    const runnables = await currentRunnables(ctx);
+    if (runnables.length == 0) return;
+
     const items: RunnableQuickPick[] = [];
     if (prevRunnable) {
         items.push(prevRunnable);
@@ -36,7 +48,7 @@ export async function selectRunnable(ctx: Ctx, prevRunnable?: RunnableQuickPick,
             continue;
         }
 
-        if (debuggeeOnly && (r.label.startsWith('doctest') || r.label.startsWith('cargo'))) {
+        if (debuggeeOnly && !isDebuggable(r) ) {
             continue;
         }
         items.push(new RunnableQuickPick(r));
@@ -96,25 +108,11 @@ export class RunnableQuickPick implements vscode.QuickPickItem {
     }
 }
 
-export function prepareEnv(runnable: ra.Runnable, runnableEnvCfg: RunnableEnvCfg): Record<string, string> {
-    const env: Record<string, string> = { "RUST_BACKTRACE": "short" };
+export function prepareRunnableEnv(runnable: ra.Runnable, runnableEnvCfg: RunnableEnvCfg): Record<string, string> {
+    const env = prepareEnv(runnable.label, { "RUST_BACKTRACE": "short" }, runnableEnvCfg);
 
     if (runnable.args.expectTest) {
         env["UPDATE_EXPECT"] = "1";
-    }
-
-    Object.assign(env, process.env as { [key: string]: string });
-
-    if (runnableEnvCfg) {
-        if (Array.isArray(runnableEnvCfg)) {
-            for (const it of runnableEnvCfg) {
-                if (!it.mask || new RegExp(it.mask).test(runnable.label)) {
-                    Object.assign(env, it.env);
-                }
-            }
-        } else {
-            Object.assign(env, runnableEnvCfg);
-        }
     }
 
     return env;
@@ -138,7 +136,7 @@ export async function createTask(runnable: ra.Runnable, config: Config): Promise
         command: args[0], // run, test, etc...
         args: args.slice(1),
         cwd: runnable.args.workspaceRoot || ".",
-        env: prepareEnv(runnable, config.runnableEnv),
+        env: prepareRunnableEnv(runnable, config.runnableEnv),
     };
 
     const target = vscode.workspace.workspaceFolders![0]; // safe, see main activate()

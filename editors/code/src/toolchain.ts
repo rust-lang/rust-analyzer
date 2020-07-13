@@ -84,7 +84,18 @@ export class Cargo {
         if (artifacts.length === 0) {
             throw new Error('No compilation artifacts');
         } else if (artifacts.length > 1) {
-            throw new Error('Multiple compilation artifacts are not supported.');
+            if (artifacts[0].isTest) {
+                const binaries = artifacts.filter(it => it.kind == "bin").map(it => it.name).join(', ');
+                throw new Error('Could not determine which test suite to run.\n' +
+                    'Use the `--bin` option to test the specified binary, or the `--lib` option to test the library.\n\n' +
+                    `Available binaries: ${binaries}`);
+
+            } else {
+                const binaries = artifacts.map(it => it.name).join(', ');
+                throw new Error('Could not determine which binary to run.\n' +
+                    'Use the `--bin` option to specify a binary, or the `default-run` manifest key.\n\n' +
+                    `Available binaries: ${binaries}`);
+            }
         }
 
         return artifacts[0].fileName;
