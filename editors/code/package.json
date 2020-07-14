@@ -21,7 +21,7 @@
         "Programming Languages"
     ],
     "engines": {
-        "vscode": "^1.46"
+        "vscode": "^1.46.0"
     },
     "enableProposedApi": true,
     "scripts": {
@@ -98,6 +98,7 @@
                                 }
                             ],
                             "cargo": {
+                                "description": "Cargo options.",
                                 "command": {
                                     "enum": [
                                         "run",
@@ -166,7 +167,127 @@
                             }
                         }
                     }
-                }
+                },
+                "configurationSnippets": [
+                    {
+                        "label": "Rust: Main binary",
+                        "body": {
+                            "type": "rust",
+                            "request": "launch",
+                            "name": "${1:Run main binary}",
+                            "cargo": {
+                                "command": "run"
+                            }
+                        }
+                    },
+                    {
+                        "label": "Rust: All tests",
+                        "body": {
+                            "type": "rust",
+                            "request": "launch",
+                            "name": "${1:Run all tests}",
+                            "cargo": {
+                                "command": "test"
+                            }
+                        }
+                    },
+                    {
+                        "label": "Rust: Example",
+                        "body": {
+                            "type": "rust",
+                            "request": "launch",
+                            "name": "${2:Run example}",
+                            "cargo": {
+                                "command": "run",
+                                "args": [
+                                    "--example",
+                                    "${1:Example name}"
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "label": "Rust: Specified binary",
+                        "body": {
+                            "type": "rust",
+                            "request": "launch",
+                            "name": "${2:Run binary}",
+                            "cargo": {
+                                "command": "run",
+                                "args": [
+                                    "--bin",
+                                    "${1:Binary name}"
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "label": "Rust: Library unit tests",
+                        "body": {
+                            "type": "rust",
+                            "request": "launch",
+                            "name": "${1:Run unit tests}",
+                            "cargo": {
+                                "command": "test",
+                                "args": [
+                                    "--lib"
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "label": "Rust: Specified binary tests",
+                        "body": {
+                            "type": "rust",
+                            "request": "launch",
+                            "name": "${2:Run binary tests}",
+                            "cargo": {
+                                "command": "test",
+                                "args": [
+                                    "--bin",
+                                    "${1:Binary name}"
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "label": "Rust: Specified library unit test",
+                        "body": {
+                            "type": "rust",
+                            "request": "launch",
+                            "name": "${2:Run unit test}",
+                            "cargo": {
+                                "command": "test",
+                                "args": [
+                                    "--lib"
+                                ]
+                            },
+                            "args": [
+                                "${1:Test name}",
+                                "--nocapture"
+                            ]
+                        }
+                    },
+                    {
+                        "label": "Rust: Specified integration test",
+                        "body": {
+                            "type": "rust",
+                            "request": "launch",
+                            "name": "${3:Run integration test}",
+                            "cargo": {
+                                "command": "test",
+                                "args": [
+                                    "--bin",
+                                    "${1:Binary name}"
+                                ]
+                            },
+                            "args": [
+                                "${2:Test name}",
+                                "--nocapture"
+                            ]
+                        }
+                    }
+                ]
             }
         ],
         "taskDefinitions": [
