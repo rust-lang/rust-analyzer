@@ -65,7 +65,9 @@ function workspaceRoot() : string {
     return path.normalize(vscode.workspace.workspaceFolders![0].uri.fsPath); // folder exists or RA is not active.
 }
 
-function simplifyPath(p: string): string {
+function simplifyPath(p?: string): string | undefined {
+    if (!p) return undefined;
+
     return path.normalize(p).replace(workspaceRoot(), '${workspaceRoot}');
 }
 
@@ -132,7 +134,7 @@ function proxyFromRunnable(runnable: ra.Runnable): ProxyDebugConfiguration | und
             args: runnable.args.cargoArgs.slice(1),
         },
         args: runnable.args.executableArgs,
-        cwd: runnable.args.workspaceRoot,
+        cwd: simplifyPath(runnable.args.workspaceRoot),
     };
 
     return proxyConfig;
@@ -189,7 +191,7 @@ class ProxyConfigurationProvider implements vscode.DebugConfigurationProvider {
         const executable = await this.getExecutable(proxyCfg, cwd);
         const env = prepareEnv(proxyCfg.name, proxyCfg.env, this.context.config.runnableEnv);
         const debugOptions = this.context.config.debug;
-        const debugConfig = configProvider(proxyCfg, simplifyPath(executable), env, debugOptions.sourceFileMap);
+        const debugConfig = configProvider(proxyCfg, simplifyPath(executable)!, env, debugOptions.sourceFileMap);
 
         const customEngineSettings = proxyCfg.debugEngineSettings ?? debugOptions.engineSettings;
         if (debugConfig.type in customEngineSettings) {
