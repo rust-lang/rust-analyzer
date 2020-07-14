@@ -19,7 +19,7 @@ export interface ArtifactSpec {
 }
 
 export class Cargo {
-    constructor(readonly rootFolder: string, readonly env: Record<string,string> | undefined, readonly output: OutputChannel) { }
+    constructor(readonly rootFolder: string, readonly env: Record<string, string> | undefined, readonly output: OutputChannel) { }
 
     // Made public for testing purposes
     static artifactSpec(args: readonly string[]): ArtifactSpec {
@@ -85,7 +85,7 @@ export class Cargo {
             throw new Error('No compilation artifacts');
         } else if (artifacts.length > 1) {
             if (artifacts[0].isTest) {
-                const binaries = artifacts.filter(it => it.kind == "bin").map(it => it.name).join(', ');
+                const binaries = artifacts.filter(it => it.kind === "bin").map(it => it.name).join(', ');
                 throw new Error('Could not determine which test suite to run.\n' +
                     'Use the `--bin` option to test the specified binary, or the `--lib` option to test the library.\n\n' +
                     `Available binaries: ${binaries}`);

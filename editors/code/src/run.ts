@@ -34,7 +34,7 @@ export function isDebuggable(runnable: ra.Runnable): boolean {
 
 export async function selectRunnable(ctx: Ctx, prevRunnable?: RunnableQuickPick, debuggeeOnly = false, showButtons: boolean = true): Promise<RunnableQuickPick | undefined> {
     const runnables = await currentRunnables(ctx);
-    if (runnables.length == 0) return;
+    if (runnables.length === 0) return;
 
     const items: RunnableQuickPick[] = [];
     if (prevRunnable) {
@@ -48,7 +48,7 @@ export async function selectRunnable(ctx: Ctx, prevRunnable?: RunnableQuickPick,
             continue;
         }
 
-        if (debuggeeOnly && !isDebuggable(r) ) {
+        if (debuggeeOnly && !isDebuggable(r)) {
             continue;
         }
         items.push(new RunnableQuickPick(r));

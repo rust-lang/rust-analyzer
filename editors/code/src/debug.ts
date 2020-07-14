@@ -61,7 +61,7 @@ export async function startDebugSession(_ctx: Ctx, runnable: ra.Runnable): Promi
     return vscode.debug.startDebugging(undefined, debugConfig);
 }
 
-function workspaceRoot() : string {
+function workspaceRoot(): string {
     return path.normalize(vscode.workspace.workspaceFolders![0].uri.fsPath); // folder exists or RA is not active.
 }
 
@@ -107,19 +107,19 @@ function getCppvsDebugConfig(proxyCfg: ProxyDebugConfiguration, executable: stri
 // These interfaces should be in sync with pacakge.json debuggers : rust : configurationAttributes
 type CargoCommand = "run" | "test" | "bench";
 interface CargoDebugConfiguration {
-    command: CargoCommand,
-    args?: string[],
-    env?: Record<string, string>,
-    cwd?: string,
+    command: CargoCommand;
+    args?: string[];
+    env?: Record<string, string>;
+    cwd?: string;
 }
 interface ProxyDebugConfiguration extends vscode.DebugConfiguration {
-    program?: string,
-    cargo?: CargoDebugConfiguration,
-    args?: string[],
-    cwd?: string,
-    env?: Record<string, string>,
-    envFile?: string,
-    debugEngineSettings?: Record<string, object>,
+    program?: string;
+    cargo?: CargoDebugConfiguration;
+    args?: string[];
+    cwd?: string;
+    env?: Record<string, string>;
+    envFile?: string;
+    debugEngineSettings?: Record<string, object>;
 }
 
 function proxyFromRunnable(runnable: ra.Runnable): ProxyDebugConfiguration | undefined {
@@ -179,7 +179,7 @@ class ProxyConfigurationProvider implements vscode.DebugConfigurationProvider {
 
     async resolveDebugConfiguration(folder: vscode.WorkspaceFolder | undefined, debugConfiguration: vscode.DebugConfiguration, _token?: vscode.CancellationToken): Promise<vscode.DebugConfiguration> {
         // debugConfiguration is {} if the user clicks Run\Debug button on the Run panel and there is no launch.json.
-        const proxyCfg = Object.keys(debugConfiguration).length == 0 ? DEFAULT_TARGETS[0] : debugConfiguration as ProxyDebugConfiguration;
+        const proxyCfg = Object.keys(debugConfiguration).length === 0 ? DEFAULT_TARGETS[0] : debugConfiguration as ProxyDebugConfiguration;
         const configProvider = this.selectDebugConfigProvider();
 
         debugOutput.clear();
