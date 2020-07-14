@@ -19,7 +19,7 @@ export interface ArtifactSpec {
 }
 
 export class Cargo {
-    constructor(readonly rootFolder: string, readonly output: OutputChannel) { }
+    constructor(readonly rootFolder: string, readonly env: Record<string,string> | undefined, readonly output: OutputChannel) { }
 
     // Made public for testing purposes
     static artifactSpec(args: readonly string[]): ArtifactSpec {
@@ -109,7 +109,8 @@ export class Cargo {
         return new Promise((resolve, reject) => {
             const cargo = cp.spawn(cargoPath(), cargoArgs, {
                 stdio: ['ignore', 'pipe', 'pipe'],
-                cwd: this.rootFolder
+                cwd: this.rootFolder,
+                env: this.env
             });
 
             cargo.on('error', err => reject(new Error(`could not launch cargo: ${err}`)));

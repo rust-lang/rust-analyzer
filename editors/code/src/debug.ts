@@ -61,74 +61,19 @@ export async function startDebugSession(_ctx: Ctx, runnable: ra.Runnable): Promi
     return vscode.debug.startDebugging(undefined, debugConfig);
 }
 
+function workspaceRoot() : string {
+    return path.normalize(vscode.workspace.workspaceFolders![0].uri.fsPath); // folder exists or RA is not active.
+}
+
 function simplifyPath(p: string): string {
-    const wsFolder = path.normalize(vscode.workspace.workspaceFolders![0].uri.fsPath); // folder exists or RA is not active.
-    return path.normalize(p).replace(wsFolder, '${workspaceRoot}');
+    return path.normalize(p).replace(workspaceRoot(), '${workspaceRoot}');
 }
 
-function expandPath(p: string): string {
-    const wsFolder = path.normalize(vscode.workspace.workspaceFolders![0].uri.fsPath); // folder exists or RA is not active.
-    return p.replace('${workspaceRoot}', wsFolder);
+function expandPath(p?: string): string | undefined {
+    if (!p) return undefined;
+
+    return p.replace('${workspaceRoot}', workspaceRoot());
 }
-
-
-// async function getDebugConfiguration(ctx: Ctx, proxyCfg: ProxyDebugConfiguration): Promise<vscode.DebugConfiguration> {
-//     const knownEngines: Record<string, DebugConfigProvider> = {
-//         "vadimcn.vscode-lldb": getLldbDebugConfig,
-//         "ms-vscode.cpptools": getCppvsDebugConfig
-//     };
-//     const debugOptions = ctx.config.debug;
-
-//     let debugEngine = null;
-//     if (debugOptions.engine === "auto") {
-//         for (var engineId in knownEngines) {
-//             debugEngine = vscode.extensions.getExtension(engineId);
-//             if (debugEngine) break;
-//         }
-//     } else {
-//         debugEngine = vscode.extensions.getExtension(debugOptions.engine);
-//     }
-
-//     if (!debugEngine) {
-//         throw `Install [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)`
-//             + ` or [MS C++ tools](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools) extension for debugging.`;
-//     }
-
-//     debugOutput.clear();
-//     if (ctx.config.debug.openDebugPane) {
-//         debugOutput.show(true);
-//     }
-
-//     const executable = await getDebugExecutable(runnable);
-//     const env = prepareEnv(runnable, ctx.config.runnableEnv);
-//     const debugConfig = knownEngines[debugEngine.id](runnable, simplifyPath(executable), env, debugOptions.sourceFileMap);
-//     if (debugConfig.type in debugOptions.engineSettings) {
-//         const settingsMap = (debugOptions.engineSettings as any)[debugConfig.type];
-//         for (var key in settingsMap) {
-//             debugConfig[key] = settingsMap[key];
-//         }
-//     }
-
-//     if (debugConfig.name === "run binary") {
-//         // The LSP side: crates\rust-analyzer\src\main_loop\handlers.rs,
-//         // fn to_lsp_runnable(...) with RunnableKind::Bin
-//         debugConfig.name = `run ${path.basename(executable)}`;
-//     }
-
-//     if (debugConfig.cwd) {
-//         debugConfig.cwd = simplifyPath(debugConfig.cwd);
-//     }
-
-//     return debugConfig;
-// }
-
-// async function getDebugExecutable(runnable: ra.Runnable): Promise<string> {
-//     const cargo = new Cargo(runnable.args.workspaceRoot || '.', debugOutput);
-//     const executable = await cargo.executableFromArgs(runnable.args.cargoArgs);
-
-//     // if we are here, there were no compilation errors.
-//     return executable;
-// }
 
 function getLldbDebugConfig(proxyCfg: ProxyDebugConfiguration, executable: string, env: Record<string, string>, sourceFileMap?: Record<string, string>): vscode.DebugConfiguration {
     return {
@@ -187,38 +132,39 @@ function proxyFromRunnable(runnable: ra.Runnable): ProxyDebugConfiguration | und
             args: runnable.args.cargoArgs.slice(1),
         },
         args: runnable.args.executableArgs,
-        cwd: runnable.args.workspaceRoot ? simplifyPath(runnable.args.workspaceRoot) : undefined,
+        cwd: runnable.args.workspaceRoot,
     };
 
     return proxyConfig;
 }
 
+const DEFAULT_TARGETS: ProxyDebugConfiguration[] =
+    [
+        {
+            type: "rust",
+            request: "launch",
+            name: "Main binary",
+            cargo: {
+                command: "run"
+            }
+        },
+        {
+            type: "rust",
+            request: "launch",
+            name: "Tests",
+            cargo: {
+                command: "test"
+            }
+        },
+    ];
+
 class ProxyConfigurationProvider implements vscode.DebugConfigurationProvider {
+
     constructor(readonly workspaceRoot: vscode.WorkspaceFolder, readonly context: Ctx) { }
 
-    async provideDebugConfigurations?(_folder: vscode.WorkspaceFolder | undefined, _token?: vscode.CancellationToken): Promise<vscode.DebugConfiguration[]> {
-        const defaultTargets: ProxyDebugConfiguration[] =
-            [
-                {
-                    type: "rust",
-                    request: "launch",
-                    name: "Main binary",
-                    cargo: {
-                        command: "run"
-                    }
-                },
-                {
-                    type: "rust",
-                    request: "launch",
-                    name: "Tests",
-                    cargo: {
-                        command: "test"
-                    }
-                },
-            ];
-
+    async provideDebugConfigurations(_folder: vscode.WorkspaceFolder | undefined, _token?: vscode.CancellationToken): Promise<vscode.DebugConfiguration[]> {
         const runnables = await currentRunnables(this.context);
-        const targets = [...defaultTargets];
+        const targets = [...DEFAULT_TARGETS];
         runnables.forEach(it => {
             const proxyConfig = proxyFromRunnable(it);
             if (proxyConfig) {
@@ -229,10 +175,64 @@ class ProxyConfigurationProvider implements vscode.DebugConfigurationProvider {
         return targets;
     }
 
-    async resolveDebugConfiguration?(folder: vscode.WorkspaceFolder | undefined, debugConfiguration: vscode.DebugConfiguration, _token?: vscode.CancellationToken): Promise<vscode.DebugConfiguration> {
-        const proxyCfg = debugConfiguration as ProxyDebugConfiguration;
-        const cwd = expandPath(proxyCfg.cwd || folder?.uri.fsPath || vscode.workspace.workspaceFolders![0].uri.fsPath);
+    async resolveDebugConfiguration(folder: vscode.WorkspaceFolder | undefined, debugConfiguration: vscode.DebugConfiguration, _token?: vscode.CancellationToken): Promise<vscode.DebugConfiguration> {
+        // debugConfiguration is {} if the user clicks Run\Debug button on the Run panel and there is no launch.json.
+        const proxyCfg = Object.keys(debugConfiguration).length == 0 ? DEFAULT_TARGETS[0] : debugConfiguration as ProxyDebugConfiguration;
+        const configProvider = this.selectDebugConfigProvider();
 
+        debugOutput.clear();
+        if (this.context.config.debug.openDebugPane) {
+            debugOutput.show(true);
+        }
+
+        const cwd = expandPath(proxyCfg.cwd) || folder?.uri.fsPath || workspaceRoot();
+        const executable = await this.getExecutable(proxyCfg, cwd);
+        const env = prepareEnv(proxyCfg.name, proxyCfg.env, this.context.config.runnableEnv);
+        const debugOptions = this.context.config.debug;
+        const debugConfig = configProvider(proxyCfg, simplifyPath(executable), env, debugOptions.sourceFileMap);
+
+        const customEngineSettings = proxyCfg.debugEngineSettings ?? debugOptions.engineSettings;
+        if (debugConfig.type in customEngineSettings) {
+            const settingsMap = (debugOptions.engineSettings as any)[debugConfig.type];
+            for (var key in settingsMap) {
+                debugConfig[key] = settingsMap[key];
+            }
+        }
+
+        if (debugConfig.name === "run binary") {
+            // The LSP side: crates\rust-analyzer\src\main_loop\handlers.rs,
+            // fn to_lsp_runnable(...) with RunnableKind::Bin
+            debugConfig.name = `run ${path.basename(executable)}`;
+        }
+
+        return debugConfig;
+    }
+
+    private async getExecutable(proxyCfg: ProxyDebugConfiguration, cwd: string): Promise<string> {
+        let executable: string;
+        if (proxyCfg.cargo) {
+            const cargoCwd = expandPath(proxyCfg.cargo.cwd) || cwd;
+            const cargo = new Cargo(cargoCwd, proxyCfg.cargo.env, debugOutput);
+            const cargoArgs: string[] = [proxyCfg.cargo.command];
+            if (proxyCfg.cargo.args) {
+                cargoArgs.push(...proxyCfg.cargo.args);
+            }
+            executable = await cargo.executableFromArgs(cargoArgs);
+        }
+        else if (proxyCfg.program) {
+            executable = proxyCfg.program;
+        }
+        else {
+            throw `Invalid rust debug configuration: ${proxyCfg.name}`;
+        }
+        return executable;
+    }
+
+    async resolveDebugConfigurationWithSubstitutedVariables?(_folder: vscode.WorkspaceFolder | undefined, debugConfiguration: vscode.DebugConfiguration, _token?: vscode.CancellationToken): Promise<vscode.DebugConfiguration> {
+        return debugConfiguration;
+    }
+
+    private selectDebugConfigProvider(): DebugConfigProvider {
         const knownEngines: Record<string, DebugConfigProvider> = {
             "vadimcn.vscode-lldb": getLldbDebugConfig,
             "ms-vscode.cpptools": getCppvsDebugConfig
@@ -250,50 +250,13 @@ class ProxyConfigurationProvider implements vscode.DebugConfigurationProvider {
         }
 
         if (!debugEngine) {
-            throw `Install [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)`
-            + ` or [MS C++ tools](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools) extension for debugging.`;
+            vscode.window.showErrorMessage(`Install [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)`
+                + ` or [MS C++ tools](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools) extension for debugging.`);
+
+            throw "No debug engine!";
         }
 
-        debugOutput.clear();
-        if (this.context.config.debug.openDebugPane) {
-            debugOutput.show(true);
-        }
-
-        let executable: string;
-        if (proxyCfg.cargo) {
-            const cargoCwd = proxyCfg.cargo.cwd ? expandPath(proxyCfg.cargo.cwd) : cwd;
-            const cargo = new Cargo(cargoCwd, debugOutput);
-            const cargoArgs: string[] = [proxyCfg.cargo.command];
-            if (proxyCfg.cargo.args) {
-                cargoArgs.push(...proxyCfg.cargo.args);
-            }
-            executable = await cargo.executableFromArgs(cargoArgs);
-        } else if (proxyCfg.program) {
-            executable = proxyCfg.program;
-        } else {
-            throw `Invalid rust debug configuration: ${proxyCfg.name}`;
-        }
-
-        const env = prepareEnv(proxyCfg.name, proxyCfg.env, this.context.config.runnableEnv);
-        const debugConfig = knownEngines[debugEngine.id](proxyCfg, simplifyPath(executable), env, debugOptions.sourceFileMap);
-        if (debugConfig.type in debugOptions.engineSettings) {
-            const settingsMap = (debugOptions.engineSettings as any)[debugConfig.type];
-            for (var key in settingsMap) {
-                debugConfig[key] = settingsMap[key];
-            }
-        }
-
-        if (debugConfig.name === "run binary") {
-            // The LSP side: crates\rust-analyzer\src\main_loop\handlers.rs,
-            // fn to_lsp_runnable(...) with RunnableKind::Bin
-            debugConfig.name = `run ${path.basename(executable)}`;
-        }
-
-        return debugConfig;
-    }
-
-    async resolveDebugConfigurationWithSubstitutedVariables?(_folder: vscode.WorkspaceFolder | undefined, debugConfiguration: vscode.DebugConfiguration, _token?: vscode.CancellationToken): Promise<vscode.DebugConfiguration> {
-        return debugConfiguration;
+        return knownEngines[debugEngine.id];
     }
 }
 
