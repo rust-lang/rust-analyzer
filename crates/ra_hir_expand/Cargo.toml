@@ -12,6 +12,7 @@ doctest = false
 log = "0.4.8"
 either = "1.5.3"
 rustc-hash = "1.0.0"
+string_cache = "0.8.0"
 
 ra_arena = { path = "../ra_arena" }
 ra_db = { path = "../ra_db" }
@@ -21,3 +22,6 @@ ra_prof = { path = "../ra_prof" }
 tt = { path = "../ra_tt", package = "ra_tt" }
 mbe = { path = "../ra_mbe", package = "ra_mbe" }
 test_utils = { path = "../test_utils"}
+
+[build-dependencies]
+string_cache_codegen = "0.5.1"

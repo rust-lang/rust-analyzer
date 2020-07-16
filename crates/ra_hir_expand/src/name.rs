@@ -4,6 +4,8 @@ use std::fmt;
 
 use ra_syntax::{ast, SmolStr};
 
+include!(concat!(env!("OUT_DIR"), "/ra_atom.rs"));
+
 /// `Name` is a wrapper around string, which is used in hir for both references
 /// and declarations. In theory, names should also carry hygiene info, but we are
 /// not there yet!
@@ -122,96 +124,28 @@ impl AsName for ra_db::Dependency {
 }
 
 pub mod known {
-    macro_rules! known_names {
-        ($($ident:ident),* $(,)?) => {
-            $(
-                #[allow(bad_style)]
-                pub const $ident: super::Name =
-                    super::Name::new_inline_ascii(stringify!($ident).as_bytes());
-            )*
+    macro_rules! make {
+        ($ident:ident) => {
+            #[allow(bad_style)]
+            pub const $ident: super::Name =
+                super::Name::new_inline_ascii(stringify!($ident).as_bytes());
+        };
+        ($ident:ident @ $real:tt) => {
+            #[allow(bad_style)]
+            pub const $ident: super::Name =
+                super::Name::new_inline_ascii(stringify!($real).as_bytes());
         };
     }
 
-    known_names!(
-        // Primitives
-        isize,
-        i8,
-        i16,
-        i32,
-        i64,
-        i128,
-        usize,
-        u8,
-        u16,
-        u32,
-        u64,
-        u128,
-        f32,
-        f64,
-        bool,
-        char,
-        str,
-        // Special names
-        macro_rules,
-        doc,
-        // Components of known path (value or mod name)
-        std,
-        core,
-        alloc,
-        iter,
-        ops,
-        future,
-        result,
-        boxed,
-        // Components of known path (type name)
-        IntoIterator,
-        Item,
-        Try,
-        Ok,
-        Future,
-        Result,
-        Output,
-        Target,
-        Box,
-        RangeFrom,
-        RangeFull,
-        RangeInclusive,
-        RangeToInclusive,
-        RangeTo,
-        Range,
-        Neg,
-        Not,
-        Index,
-        // Builtin macros
-        file,
-        column,
-        compile_error,
-        line,
-        assert,
-        stringify,
-        concat,
-        include,
-        include_bytes,
-        include_str,
-        format_args,
-        format_args_nl,
-        env,
-        option_env,
-        // Builtin derives
-        Copy,
-        Clone,
-        Default,
-        Debug,
-        Hash,
-        Ord,
-        PartialOrd,
-        Eq,
-        PartialEq,
-    );
+    macro_rules! x {
+        ($($ident:ident $(@ $real:tt)?,)+) => {
+            $(
+                make!($ident $(@ $real)?);
+            )+
+        };
+    }
 
-    // self/Self cannot be used as an identifier
-    pub const SELF_PARAM: super::Name = super::Name::new_inline_ascii(b"self");
-    pub const SELF_TYPE: super::Name = super::Name::new_inline_ascii(b"Self");
+    include!("../known_names.rs");
 
     #[macro_export]
     macro_rules! name {
