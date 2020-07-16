@@ -256,23 +256,23 @@ fn glob_shadowed_def() {
         "###,
     );
     assert_snapshot!(map, @r###"
-        ⋮crate
-        ⋮Bar: t v
-        ⋮bar: t
-        ⋮baz: t
-        ⋮foo: t
-        ⋮
-        ⋮crate::bar
-        ⋮baz: t
-        ⋮
-        ⋮crate::bar::baz
-        ⋮Bar: t v
-        ⋮
-        ⋮crate::foo
-        ⋮baz: t
-        ⋮
-        ⋮crate::foo::baz
-        ⋮Foo: t v
+crate
+Bar: t v
+bar: t
+baz: t
+foo: t
+
+crate::foo
+baz: t
+
+crate::foo::baz
+Foo: t v
+
+crate::bar
+baz: t
+
+crate::bar::baz
+Bar: t v
     "###
     );
 }
@@ -302,23 +302,23 @@ fn glob_shadowed_def_reversed() {
         "###,
     );
     assert_snapshot!(map, @r###"
-        ⋮crate
-        ⋮Bar: t v
-        ⋮bar: t
-        ⋮baz: t
-        ⋮foo: t
-        ⋮
-        ⋮crate::bar
-        ⋮baz: t
-        ⋮
-        ⋮crate::bar::baz
-        ⋮Bar: t v
-        ⋮
-        ⋮crate::foo
-        ⋮baz: t
-        ⋮
-        ⋮crate::foo::baz
-        ⋮Foo: t v
+crate
+Bar: t v
+bar: t
+baz: t
+foo: t
+
+crate::foo
+baz: t
+
+crate::foo::baz
+Foo: t v
+
+crate::bar
+baz: t
+
+crate::bar::baz
+Bar: t v
     "###
     );
 }
@@ -339,30 +339,30 @@ fn glob_shadowed_def_dependencies() {
         "###,
     );
     assert_snapshot!(map, @r###"
-        ⋮crate
-        ⋮a: t
-        ⋮b: t
-        ⋮c: t
-        ⋮d: t
-        ⋮
-        ⋮crate::d
-        ⋮Y: t v
-        ⋮foo: t
-        ⋮
-        ⋮crate::c
-        ⋮foo: t
-        ⋮
-        ⋮crate::c::foo
-        ⋮Y: t v
-        ⋮
-        ⋮crate::b
-        ⋮foo: t
-        ⋮
-        ⋮crate::a
-        ⋮foo: t
-        ⋮
-        ⋮crate::a::foo
-        ⋮X: t v
+crate
+a: t
+b: t
+c: t
+d: t
+
+crate::d
+Y: t v
+foo: t
+
+crate::a
+foo: t
+
+crate::a::foo
+X: t v
+
+crate::b
+foo: t
+
+crate::c
+foo: t
+
+crate::c::foo
+Y: t v
     "###
     );
 }

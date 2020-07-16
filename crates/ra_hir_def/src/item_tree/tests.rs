@@ -224,35 +224,35 @@ fn smoke() {
         }
     ",
         expect![[r##"
-            inner attrs: Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("attr"))] }, input: None }]) }
+            inner attrs: Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('attr' type=inline)))] }, input: None }]) }
 
             top-level items:
-            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("attr_on_use"))] }, input: None }]) }]
-            Import { path: ModPath { kind: Plain, segments: [Name(Text("a"))] }, alias: None, visibility: RawVisibilityId("pub(self)"), is_glob: false, is_prelude: false, ast_id: FileAstId::<ra_syntax::ast::generated::nodes::UseItem>(0) }
-            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("attr_on_use"))] }, input: None }]) }]
-            Import { path: ModPath { kind: Plain, segments: [Name(Text("b"))] }, alias: None, visibility: RawVisibilityId("pub(self)"), is_glob: true, is_prelude: false, ast_id: FileAstId::<ra_syntax::ast::generated::nodes::UseItem>(0) }
-            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("ext_crate"))] }, input: None }]) }]
-            ExternCrate { path: ModPath { kind: Plain, segments: [Name(Text("krate"))] }, alias: None, visibility: RawVisibilityId("pub(self)"), is_macro_use: false, ast_id: FileAstId::<ra_syntax::ast::generated::nodes::ExternCrateItem>(1) }
-            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("on_trait"))] }, input: None }]) }]
-            Trait { name: Name(Text("Tr")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(0), auto: false, items: [TypeAlias(Idx::<TypeAlias>(0)), Const(Idx::<Const>(0)), Function(Idx::<Function>(0)), Function(Idx::<Function>(1))], ast_id: FileAstId::<ra_syntax::ast::generated::nodes::TraitDef>(2) }
-            > #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("assoc_ty"))] }, input: None }]) }]
-            > TypeAlias { name: Name(Text("AssocTy")), visibility: RawVisibilityId("pub(self)"), bounds: [Path(Path { type_anchor: None, mod_path: ModPath { kind: Plain, segments: [Name(Text("Tr"))] }, generic_args: [Some(GenericArgs { args: [Type(Tuple([]))], has_self_type: false, bindings: [] })] })], generic_params: GenericParamsId(4294967295), type_ref: None, ast_id: FileAstId::<ra_syntax::ast::generated::nodes::TypeAliasDef>(8) }
-            > #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("assoc_const"))] }, input: None }]) }]
-            > Const { name: Some(Name(Text("CONST"))), visibility: RawVisibilityId("pub(self)"), type_ref: Path(Path { type_anchor: None, mod_path: ModPath { kind: Plain, segments: [Name(Text("u8"))] }, generic_args: [None] }), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::ConstDef>(9) }
-            > #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("assoc_method"))] }, input: None }]) }]
-            > Function { name: Name(Text("method")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: true, is_unsafe: false, params: [Reference(Path(Path { type_anchor: None, mod_path: ModPath { kind: Plain, segments: [Name(Text("Self"))] }, generic_args: [None] }), Shared)], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(10) }
-            > #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("assoc_dfl_method"))] }, input: None }]) }]
-            > Function { name: Name(Text("dfl_method")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: true, is_unsafe: false, params: [Reference(Path(Path { type_anchor: None, mod_path: ModPath { kind: Plain, segments: [Name(Text("Self"))] }, generic_args: [None] }), Mut)], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(11) }
-            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("struct0"))] }, input: None }]) }]
-            Struct { name: Name(Text("Struct0")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(1), fields: Unit, ast_id: FileAstId::<ra_syntax::ast::generated::nodes::StructDef>(3), kind: Unit }
-            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("struct1"))] }, input: None }]) }]
-            Struct { name: Name(Text("Struct1")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(2), fields: Tuple(IdRange::<ra_hir_def::item_tree::Field>(0..1)), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::StructDef>(4), kind: Tuple }
-            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("struct2"))] }, input: None }]) }]
-            Struct { name: Name(Text("Struct2")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(3), fields: Record(IdRange::<ra_hir_def::item_tree::Field>(1..2)), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::StructDef>(5), kind: Record }
-            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("en"))] }, input: None }]) }]
-            Enum { name: Name(Text("En")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), variants: IdRange::<ra_hir_def::item_tree::Variant>(0..1), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::EnumDef>(6) }
-            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("un"))] }, input: None }]) }]
-            Union { name: Name(Text("Un")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), fields: Record(IdRange::<ra_hir_def::item_tree::Field>(3..4)), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::UnionDef>(7) }
+            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('attr_on_use' type=dynamic)))] }, input: None }]) }]
+            Import { path: ModPath { kind: Plain, segments: [Name(Text(Atom('a' type=inline)))] }, alias: None, visibility: RawVisibilityId("pub(self)"), is_glob: false, is_prelude: false, ast_id: FileAstId::<ra_syntax::ast::generated::nodes::UseItem>(0) }
+            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('attr_on_use' type=dynamic)))] }, input: None }]) }]
+            Import { path: ModPath { kind: Plain, segments: [Name(Text(Atom('b' type=inline)))] }, alias: None, visibility: RawVisibilityId("pub(self)"), is_glob: true, is_prelude: false, ast_id: FileAstId::<ra_syntax::ast::generated::nodes::UseItem>(0) }
+            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('ext_crate' type=dynamic)))] }, input: None }]) }]
+            ExternCrate { path: ModPath { kind: Plain, segments: [Name(Text(Atom('krate' type=inline)))] }, alias: None, visibility: RawVisibilityId("pub(self)"), is_macro_use: false, ast_id: FileAstId::<ra_syntax::ast::generated::nodes::ExternCrateItem>(1) }
+            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('on_trait' type=dynamic)))] }, input: None }]) }]
+            Trait { name: Name(Text(Atom('Tr' type=inline))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(0), auto: false, items: [TypeAlias(Idx::<TypeAlias>(0)), Const(Idx::<Const>(0)), Function(Idx::<Function>(0)), Function(Idx::<Function>(1))], ast_id: FileAstId::<ra_syntax::ast::generated::nodes::TraitDef>(2) }
+            > #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('assoc_ty' type=dynamic)))] }, input: None }]) }]
+            > TypeAlias { name: Name(Text(Atom('AssocTy' type=inline))), visibility: RawVisibilityId("pub(self)"), bounds: [Path(Path { type_anchor: None, mod_path: ModPath { kind: Plain, segments: [Name(Text(Atom('Tr' type=inline)))] }, generic_args: [Some(GenericArgs { args: [Type(Tuple([]))], has_self_type: false, bindings: [] })] })], generic_params: GenericParamsId(4294967295), type_ref: None, ast_id: FileAstId::<ra_syntax::ast::generated::nodes::TypeAliasDef>(8) }
+            > #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('assoc_const' type=dynamic)))] }, input: None }]) }]
+            > Const { name: Some(Name(Text(Atom('CONST' type=inline)))), visibility: RawVisibilityId("pub(self)"), type_ref: Path(Path { type_anchor: None, mod_path: ModPath { kind: Plain, segments: [Name(Text(Atom('u8' type=static)))] }, generic_args: [None] }), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::ConstDef>(9) }
+            > #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('assoc_method' type=dynamic)))] }, input: None }]) }]
+            > Function { name: Name(Text(Atom('method' type=inline))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: true, is_unsafe: false, params: [Reference(Path(Path { type_anchor: None, mod_path: ModPath { kind: Plain, segments: [Name(Text(Atom('Self' type=static)))] }, generic_args: [None] }), Shared)], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(10) }
+            > #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('assoc_dfl_method' type=dynamic)))] }, input: None }]) }]
+            > Function { name: Name(Text(Atom('dfl_method' type=dynamic))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: true, is_unsafe: false, params: [Reference(Path(Path { type_anchor: None, mod_path: ModPath { kind: Plain, segments: [Name(Text(Atom('Self' type=static)))] }, generic_args: [None] }), Mut)], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(11) }
+            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('struct0' type=inline)))] }, input: None }]) }]
+            Struct { name: Name(Text(Atom('Struct0' type=inline))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(1), fields: Unit, ast_id: FileAstId::<ra_syntax::ast::generated::nodes::StructDef>(3), kind: Unit }
+            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('struct1' type=inline)))] }, input: None }]) }]
+            Struct { name: Name(Text(Atom('Struct1' type=inline))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(2), fields: Tuple(IdRange::<ra_hir_def::item_tree::Field>(0..1)), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::StructDef>(4), kind: Tuple }
+            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('struct2' type=inline)))] }, input: None }]) }]
+            Struct { name: Name(Text(Atom('Struct2' type=inline))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(3), fields: Record(IdRange::<ra_hir_def::item_tree::Field>(1..2)), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::StructDef>(5), kind: Record }
+            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('en' type=inline)))] }, input: None }]) }]
+            Enum { name: Name(Text(Atom('En' type=inline))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), variants: IdRange::<ra_hir_def::item_tree::Variant>(0..1), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::EnumDef>(6) }
+            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('un' type=inline)))] }, input: None }]) }]
+            Union { name: Name(Text(Atom('Un' type=inline))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), fields: Record(IdRange::<ra_hir_def::item_tree::Field>(3..4)), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::UnionDef>(7) }
         "##]],
     );
 }
@@ -274,13 +274,13 @@ fn simple_inner_items() {
             inner attrs: Attrs { entries: None }
 
             top-level items:
-            Impl { generic_params: GenericParamsId(0), target_trait: Some(Path(Path { type_anchor: None, mod_path: ModPath { kind: Plain, segments: [Name(Text("D"))] }, generic_args: [None] })), target_type: Path(Path { type_anchor: None, mod_path: ModPath { kind: Plain, segments: [Name(Text("Response"))] }, generic_args: [Some(GenericArgs { args: [Type(Path(Path { type_anchor: None, mod_path: ModPath { kind: Plain, segments: [Name(Text("T"))] }, generic_args: [None] }))], has_self_type: false, bindings: [] })] }), is_negative: false, items: [Function(Idx::<Function>(1))], ast_id: FileAstId::<ra_syntax::ast::generated::nodes::ImplDef>(0) }
-            > Function { name: Name(Text("foo")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: false, is_unsafe: false, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(1) }
+            Impl { generic_params: GenericParamsId(0), target_trait: Some(Path(Path { type_anchor: None, mod_path: ModPath { kind: Plain, segments: [Name(Text(Atom('D' type=inline)))] }, generic_args: [None] })), target_type: Path(Path { type_anchor: None, mod_path: ModPath { kind: Plain, segments: [Name(Text(Atom('Response' type=dynamic)))] }, generic_args: [Some(GenericArgs { args: [Type(Path(Path { type_anchor: None, mod_path: ModPath { kind: Plain, segments: [Name(Text(Atom('T' type=inline)))] }, generic_args: [None] }))], has_self_type: false, bindings: [] })] }), is_negative: false, items: [Function(Idx::<Function>(1))], ast_id: FileAstId::<ra_syntax::ast::generated::nodes::ImplDef>(0) }
+            > Function { name: Name(Text(Atom('foo' type=inline))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: false, is_unsafe: false, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(1) }
 
             inner items:
 
             for AST FileAstId::<ra_syntax::ast::generated::nodes::ModuleItem>(2):
-            Function { name: Name(Text("end")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(1), has_self_param: false, is_unsafe: false, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(2) }
+            Function { name: Name(Text(Atom('end' type=inline))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(1), has_self_param: false, is_unsafe: false, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(2) }
 
         "#]],
     );
@@ -302,10 +302,10 @@ fn extern_attrs() {
             inner attrs: Attrs { entries: None }
 
             top-level items:
-            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("attr_a"))] }, input: None }, Attr { path: ModPath { kind: Plain, segments: [Name(Text("block_attr"))] }, input: None }]) }]
-            Function { name: Name(Text("a")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: false, is_unsafe: true, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(1) }
-            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("attr_b"))] }, input: None }, Attr { path: ModPath { kind: Plain, segments: [Name(Text("block_attr"))] }, input: None }]) }]
-            Function { name: Name(Text("b")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: false, is_unsafe: true, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(2) }
+            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('attr_a' type=inline)))] }, input: None }, Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('block_attr' type=dynamic)))] }, input: None }]) }]
+            Function { name: Name(Text(Atom('a' type=inline))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: false, is_unsafe: true, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(1) }
+            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('attr_b' type=inline)))] }, input: None }, Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('block_attr' type=dynamic)))] }, input: None }]) }]
+            Function { name: Name(Text(Atom('b' type=inline))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: false, is_unsafe: true, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(2) }
         "##]],
     );
 }
@@ -326,12 +326,12 @@ fn trait_attrs() {
             inner attrs: Attrs { entries: None }
 
             top-level items:
-            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("trait_attr"))] }, input: None }]) }]
-            Trait { name: Name(Text("Tr")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(0), auto: false, items: [Function(Idx::<Function>(0)), Function(Idx::<Function>(1))], ast_id: FileAstId::<ra_syntax::ast::generated::nodes::TraitDef>(0) }
-            > #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("attr_a"))] }, input: None }]) }]
-            > Function { name: Name(Text("a")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: false, is_unsafe: false, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(1) }
-            > #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("attr_b"))] }, input: None }]) }]
-            > Function { name: Name(Text("b")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: false, is_unsafe: false, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(2) }
+            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('trait_attr' type=dynamic)))] }, input: None }]) }]
+            Trait { name: Name(Text(Atom('Tr' type=inline))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(0), auto: false, items: [Function(Idx::<Function>(0)), Function(Idx::<Function>(1))], ast_id: FileAstId::<ra_syntax::ast::generated::nodes::TraitDef>(0) }
+            > #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('attr_a' type=inline)))] }, input: None }]) }]
+            > Function { name: Name(Text(Atom('a' type=inline))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: false, is_unsafe: false, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(1) }
+            > #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('attr_b' type=inline)))] }, input: None }]) }]
+            > Function { name: Name(Text(Atom('b' type=inline))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: false, is_unsafe: false, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(2) }
         "##]],
     );
 }
@@ -352,12 +352,12 @@ fn impl_attrs() {
             inner attrs: Attrs { entries: None }
 
             top-level items:
-            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("impl_attr"))] }, input: None }]) }]
-            Impl { generic_params: GenericParamsId(4294967295), target_trait: None, target_type: Path(Path { type_anchor: None, mod_path: ModPath { kind: Plain, segments: [Name(Text("Ty"))] }, generic_args: [None] }), is_negative: false, items: [Function(Idx::<Function>(0)), Function(Idx::<Function>(1))], ast_id: FileAstId::<ra_syntax::ast::generated::nodes::ImplDef>(0) }
-            > #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("attr_a"))] }, input: None }]) }]
-            > Function { name: Name(Text("a")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: false, is_unsafe: false, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(1) }
-            > #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("attr_b"))] }, input: None }]) }]
-            > Function { name: Name(Text("b")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: false, is_unsafe: false, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(2) }
+            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('impl_attr' type=dynamic)))] }, input: None }]) }]
+            Impl { generic_params: GenericParamsId(4294967295), target_trait: None, target_type: Path(Path { type_anchor: None, mod_path: ModPath { kind: Plain, segments: [Name(Text(Atom('Ty' type=inline)))] }, generic_args: [None] }), is_negative: false, items: [Function(Idx::<Function>(0)), Function(Idx::<Function>(1))], ast_id: FileAstId::<ra_syntax::ast::generated::nodes::ImplDef>(0) }
+            > #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('attr_a' type=inline)))] }, input: None }]) }]
+            > Function { name: Name(Text(Atom('a' type=inline))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: false, is_unsafe: false, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(1) }
+            > #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('attr_b' type=inline)))] }, input: None }]) }]
+            > Function { name: Name(Text(Atom('b' type=inline))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: false, is_unsafe: false, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(2) }
         "##]],
     );
 }
@@ -408,13 +408,13 @@ fn inner_item_attrs() {
             inner attrs: Attrs { entries: None }
 
             top-level items:
-            Function { name: Name(Text("foo")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: false, is_unsafe: false, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(0) }
+            Function { name: Name(Text(Atom('foo' type=inline))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: false, is_unsafe: false, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(0) }
 
             inner items:
 
             for AST FileAstId::<ra_syntax::ast::generated::nodes::ModuleItem>(1):
-            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text("on_inner"))] }, input: None }]) }]
-            Function { name: Name(Text("inner")), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: false, is_unsafe: false, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(1) }
+            #[Attrs { entries: Some([Attr { path: ModPath { kind: Plain, segments: [Name(Text(Atom('on_inner' type=dynamic)))] }, input: None }]) }]
+            Function { name: Name(Text(Atom('inner' type=inline))), visibility: RawVisibilityId("pub(self)"), generic_params: GenericParamsId(4294967295), has_self_param: false, is_unsafe: false, params: [], is_varargs: false, ret_type: Tuple([]), ast_id: FileAstId::<ra_syntax::ast::generated::nodes::FnDef>(1) }
 
         "##]],
     );
@@ -432,8 +432,8 @@ fn assoc_item_macros() {
             inner attrs: Attrs { entries: None }
 
             top-level items:
-            Impl { generic_params: GenericParamsId(4294967295), target_trait: None, target_type: Path(Path { type_anchor: None, mod_path: ModPath { kind: Plain, segments: [Name(Text("S"))] }, generic_args: [None] }), is_negative: false, items: [MacroCall(Idx::<MacroCall>(0))], ast_id: FileAstId::<ra_syntax::ast::generated::nodes::ImplDef>(0) }
-            > MacroCall { name: None, path: ModPath { kind: Plain, segments: [Name(Text("items"))] }, is_export: false, is_local_inner: false, is_builtin: false, ast_id: FileAstId::<ra_syntax::ast::generated::nodes::MacroCall>(1) }
+            Impl { generic_params: GenericParamsId(4294967295), target_trait: None, target_type: Path(Path { type_anchor: None, mod_path: ModPath { kind: Plain, segments: [Name(Text(Atom('S' type=inline)))] }, generic_args: [None] }), is_negative: false, items: [MacroCall(Idx::<MacroCall>(0))], ast_id: FileAstId::<ra_syntax::ast::generated::nodes::ImplDef>(0) }
+            > MacroCall { name: None, path: ModPath { kind: Plain, segments: [Name(Text(Atom('items' type=inline)))] }, is_export: false, is_local_inner: false, is_builtin: false, ast_id: FileAstId::<ra_syntax::ast::generated::nodes::MacroCall>(1) }
         "#]],
     );
 }

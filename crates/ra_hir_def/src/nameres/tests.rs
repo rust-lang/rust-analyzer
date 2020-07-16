@@ -308,16 +308,16 @@ fn edition_2015_imports() {
     );
 
     assert_snapshot!(map, @r###"
-        ⋮crate
-        ⋮bar: t
-        ⋮foo: t
-        ⋮
-        ⋮crate::bar
-        ⋮Bar: t v
-        ⋮
-        ⋮crate::foo
-        ⋮Bar: t v
-        ⋮FromLib: t v
+crate
+bar: t
+foo: t
+
+crate::foo
+Bar: t v
+FromLib: t v
+
+crate::bar
+Bar: t v
     "###);
 }
 
@@ -574,15 +574,15 @@ mod b {
     );
 
     assert_snapshot!(map, @r###"
-    ⋮crate
-    ⋮T: t v
-    ⋮a: t
-    ⋮b: t
-    ⋮
-    ⋮crate::b
-    ⋮T: v
-    ⋮
-    ⋮crate::a
-    ⋮T: t v
-"###);
+crate
+T: t v
+a: t
+b: t
+
+crate::a
+T: t v
+
+crate::b
+T: v
+    "###);
 }

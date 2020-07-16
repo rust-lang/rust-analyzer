@@ -442,8 +442,8 @@ mod tests {
         main:
         - publ1 (t)
         - real_pu2 (t)
+        - real_pu2::Pub (t)
         - real_pub (t)
-        - real_pub::Pub (t)
         lib:
         - Pub (t)
         - Pub2 (t)

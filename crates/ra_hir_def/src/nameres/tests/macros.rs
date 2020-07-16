@@ -404,36 +404,36 @@ fn plain_macros_are_legacy_textual_scoped() {
         "#,
     );
     assert_snapshot!(map, @r###"
-   ⋮crate
-   ⋮Ok: t v
-   ⋮OkAfter: t v
-   ⋮OkShadowStop: t v
-   ⋮m1: t
-   ⋮m2: t
-   ⋮m3: t
-   ⋮m5: t
-   ⋮m7: t
-   ⋮ok_double_macro_use_shadow: v
-   ⋮
-   ⋮crate::m7
-   ⋮
-   ⋮crate::m1
-   ⋮
-   ⋮crate::m5
-   ⋮m6: t
-   ⋮
-   ⋮crate::m5::m6
-   ⋮
-   ⋮crate::m2
-   ⋮
-   ⋮crate::m3
-   ⋮OkAfterInside: t v
-   ⋮OkMacroUse: t v
-   ⋮m4: t
-   ⋮ok_shadow: v
-   ⋮
-   ⋮crate::m3::m4
-   ⋮ok_shadow_deep: v
+crate
+Ok: t v
+OkAfter: t v
+OkShadowStop: t v
+m1: t
+m2: t
+m3: t
+m5: t
+m7: t
+ok_double_macro_use_shadow: v
+
+crate::m5
+m6: t
+
+crate::m5::m6
+
+crate::m7
+
+crate::m1
+
+crate::m2
+
+crate::m3
+OkAfterInside: t v
+OkMacroUse: t v
+m4: t
+ok_shadow: v
+
+crate::m3::m4
+ok_shadow_deep: v
     "###);
 }
 

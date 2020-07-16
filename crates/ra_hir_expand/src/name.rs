@@ -14,7 +14,7 @@ pub struct Name(Repr);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum Repr {
-    Text(SmolStr),
+    Text(RaAtom),
     TupleField(usize),
 }
 
@@ -31,8 +31,8 @@ impl Name {
     /// Note: this is private to make creating name from random string hard.
     /// Hopefully, this should allow us to integrate hygiene cleaner in the
     /// future, and to switch to interned representation of names.
-    const fn new_text(text: SmolStr) -> Name {
-        Name(Repr::Text(text))
+    fn new_text(text: SmolStr) -> Name {
+        Name(Repr::Text((&*text).into()))
     }
 
     pub fn new_tuple_field(idx: usize) -> Name {
@@ -41,12 +41,7 @@ impl Name {
 
     pub fn new_lifetime(lt: &ra_syntax::SyntaxToken) -> Name {
         assert!(lt.kind() == ra_syntax::SyntaxKind::LIFETIME);
-        Name(Repr::Text(lt.text().clone()))
-    }
-
-    /// Shortcut to create inline plain text name
-    const fn new_inline_ascii(text: &[u8]) -> Name {
-        Name::new_text(SmolStr::new_inline_from_ascii(text.len(), text))
+        Name(Repr::Text((&**lt.text()).into()))
     }
 
     /// Resolve a name from the text of token.
@@ -124,23 +119,11 @@ impl AsName for ra_db::Dependency {
 }
 
 pub mod known {
-    macro_rules! make {
-        ($ident:ident) => {
-            #[allow(bad_style)]
-            pub const $ident: super::Name =
-                super::Name::new_inline_ascii(stringify!($ident).as_bytes());
-        };
-        ($ident:ident @ $real:tt) => {
-            #[allow(bad_style)]
-            pub const $ident: super::Name =
-                super::Name::new_inline_ascii(stringify!($real).as_bytes());
-        };
-    }
-
     macro_rules! x {
-        ($($ident:ident $(@ $real:tt)?,)+) => {
+        ($($ident:ident = $real:tt,)+) => {
             $(
-                make!($ident $(@ $real)?);
+                #[allow(bad_style)]
+                pub const $ident: super::Name = super::Name(super::Repr::Text(ra_atom!($real)));
             )+
         };
     }
