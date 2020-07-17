@@ -1,0 +1,24 @@
+name: rust-analyzer
+base: core18
+version: git
+summary: An experimental Rust compiler front-end for IDEs 
+description: |
+    rust-analyzer is an experimental modular compiler frontend for the Rust language. It is a part of a larger rls-2.0 effort to create excellent IDE support for Rust.
+grade: stable 
+confinement: strict 
+
+parts:
+    rust-analyzer:
+        plugin: rust
+        source: https://github.com/rust-analyzer/rust-analyzer.git
+        build-packages:
+            - gcc-multilib
+        stage-packages:
+            - cargo
+            - rust-src
+
+apps:
+    rust-analyzer:
+        command: ./bin/rust-analyzer
+        plugs:
+            - home
