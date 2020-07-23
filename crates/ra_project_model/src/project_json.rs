@@ -7,7 +7,6 @@ use ra_cfg::CfgOptions;
 use ra_db::{CrateId, CrateName, Dependency, Edition};
 use rustc_hash::FxHashSet;
 use serde::{de, Deserialize};
-use stdx::split_delim;
 
 /// Roots and crates that compose this Rust project.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -64,12 +63,7 @@ impl ProjectJson {
                         cfg: {
                             let mut cfg = CfgOptions::default();
                             for entry in &crate_data.cfg {
-                                match split_delim(entry, '=') {
-                                    Some((key, value)) => {
-                                        cfg.insert_key_value(key.into(), value.into());
-                                    }
-                                    None => cfg.insert_atom(entry.into()),
-                                }
+                                cfg.insert(entry);
                             }
                             cfg
                         },

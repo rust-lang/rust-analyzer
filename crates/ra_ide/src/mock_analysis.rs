@@ -104,8 +104,7 @@ impl MockAnalysis {
             assert!(path.starts_with('/'));
 
             let mut cfg = CfgOptions::default();
-            data.cfg_atoms.iter().for_each(|it| cfg.insert_atom(it.into()));
-            data.cfg_key_values.iter().for_each(|(k, v)| cfg.insert_key_value(k.into(), v.into()));
+            data.cfg.iter().for_each(|it| cfg.insert(it));
             let edition: Edition =
                 data.edition.and_then(|it| it.parse().ok()).unwrap_or(Edition::Edition2018);
 

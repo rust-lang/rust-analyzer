@@ -222,7 +222,7 @@ impl Analysis {
         // FIXME: cfg options
         // Default to enable test for single file.
         let mut cfg_options = CfgOptions::default();
-        cfg_options.insert_atom("test".into());
+        cfg_options.insert("test");
         crate_graph.add_crate_root(
             file_id,
             Edition::Edition2018,

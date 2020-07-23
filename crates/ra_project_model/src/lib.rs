@@ -355,7 +355,7 @@ impl ProjectWorkspace {
                 let mut pkg_crates = FxHashMap::default();
 
                 // Add test cfg for non-sysroot crates
-                cfg_options.insert_atom("test".into());
+                cfg_options.insert("test".into());
 
                 // Next, create crates for each package, target pair
                 for pkg in cargo.packages() {
@@ -370,13 +370,7 @@ impl ProjectWorkspace {
                                     opts.insert_key_value("feature".into(), feature.into());
                                 }
                                 for cfg in cargo[pkg].cfgs.iter() {
-                                    match cfg.find('=') {
-                                        Some(split) => opts.insert_key_value(
-                                            cfg[..split].into(),
-                                            cfg[split + 1..].trim_matches('"').into(),
-                                        ),
-                                        None => opts.insert_atom(cfg.into()),
-                                    };
+                                    opts.insert(cfg)
                                 }
                                 opts
                             };
@@ -522,7 +516,7 @@ fn get_rustc_cfg_options(target: Option<&str>) -> CfgOptions {
 
     // Some nightly-only cfgs, which are required for stdlib
     {
-        cfg_options.insert_atom("target_thread_local".into());
+        cfg_options.insert("target_thread_local");
         for &target_has_atomic in ["8", "16", "32", "64", "cas", "ptr"].iter() {
             cfg_options.insert_key_value("target_has_atomic".into(), target_has_atomic.into());
             cfg_options
@@ -544,20 +538,13 @@ fn get_rustc_cfg_options(target: Option<&str>) -> CfgOptions {
     match rustc_cfgs {
         Ok(rustc_cfgs) => {
             for line in rustc_cfgs.lines() {
-                match line.find('=') {
-                    None => cfg_options.insert_atom(line.into()),
-                    Some(pos) => {
-                        let key = &line[..pos];
-                        let value = line[pos + 1..].trim_matches('"');
-                        cfg_options.insert_key_value(key.into(), value.into());
-                    }
-                }
+                cfg_options.insert(line);
             }
         }
         Err(e) => log::error!("failed to get rustc cfgs: {:#}", e),
     }
 
-    cfg_options.insert_atom("debug_assertions".into());
+    cfg_options.insert("debug_assertions");
 
     cfg_options
 }

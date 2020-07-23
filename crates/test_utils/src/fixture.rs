@@ -10,8 +10,7 @@ pub struct Fixture {
     pub text: String,
     pub krate: Option<String>,
     pub deps: Vec<String>,
-    pub cfg_atoms: Vec<String>,
-    pub cfg_key_values: Vec<(String, String)>,
+    pub cfg: Vec<String>,
     pub edition: Option<String>,
     pub env: FxHashMap<String, String>,
 }
@@ -67,8 +66,7 @@ impl Fixture {
         let mut krate = None;
         let mut deps = Vec::new();
         let mut edition = None;
-        let mut cfg_atoms = Vec::new();
-        let mut cfg_key_values = Vec::new();
+        let mut cfg = Vec::new();
         let mut env = FxHashMap::default();
         for component in components[1..].iter() {
             let (key, value) = split_delim(component, ':').unwrap();
@@ -76,14 +74,7 @@ impl Fixture {
                 "crate" => krate = Some(value.to_string()),
                 "deps" => deps = value.split(',').map(|it| it.to_string()).collect(),
                 "edition" => edition = Some(value.to_string()),
-                "cfg" => {
-                    for entry in value.split(',') {
-                        match split_delim(entry, '=') {
-                            Some((k, v)) => cfg_key_values.push((k.to_string(), v.to_string())),
-                            None => cfg_atoms.push(entry.to_string()),
-                        }
-                    }
-                }
+                "cfg" => cfg.extend(value.split(',').map(ToOwned::to_owned)),
                 "env" => {
                     for key in value.split(',') {
                         if let Some((k, v)) = split_delim(key, '=') {
@@ -95,16 +86,7 @@ impl Fixture {
             }
         }
 
-        Fixture {
-            path,
-            text: String::new(),
-            krate: krate,
-            deps,
-            cfg_atoms,
-            cfg_key_values,
-            edition,
-            env,
-        }
+        Fixture { path, text: String::new(), krate: krate, deps, cfg, edition, env }
     }
 }
 
@@ -139,4 +121,8 @@ fn parse_fixture_gets_full_meta() {
     assert_eq!("foo", meta.krate.as_ref().unwrap());
     assert_eq!("/lib.rs", meta.path);
     assert_eq!(2, meta.env.len());
+
+    assert!(meta.cfg.iter().any(|x| x == "foo=a"));
+    assert!(meta.cfg.iter().any(|x| x == "bar=b"));
+    assert!(meta.cfg.iter().any(|x| x == "atom"));
 }

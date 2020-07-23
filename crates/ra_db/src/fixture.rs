@@ -210,8 +210,7 @@ struct FileMeta {
 impl From<Fixture> for FileMeta {
     fn from(f: Fixture) -> FileMeta {
         let mut cfg = CfgOptions::default();
-        f.cfg_atoms.iter().for_each(|it| cfg.insert_atom(it.into()));
-        f.cfg_key_values.iter().for_each(|(k, v)| cfg.insert_key_value(k.into(), v.into()));
+        f.cfg.iter().for_each(|it| cfg.insert(it));
 
         FileMeta {
             path: f.path,
