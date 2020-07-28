@@ -1,0 +1,21 @@
+Enum =
+ 'enum' Name Generics? WhereClause? '{' variants:EnumItems? '}'
+
+EnumItems =
+ EnumItem ( ',' EnumItem )* ','?
+
+EnumItem =
+ OuterAttribute* Visibility?
+ Name ( EnumItemTuple | EnumItemStruct | EnumItemDiscriminant )?
+
+EnumItemTuple =
+ '(' TupleFields? ')'
+
+EnumItemStruct =
+ '{' StructFields? '}'
+
+EnumItemDiscriminant =
+ '=' Expression
+
+MethodCallExpression =
+   receiver:Expression '.' PathExprSegment '(' CallParams? ')'
