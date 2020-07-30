@@ -310,7 +310,7 @@ pub fn analysis_stats(
 
 fn shuffle<T>(rng: &mut Rand32, slice: &mut [T]) {
     for i in (1..slice.len()).rev() {
-        let idx = rng.rand_range(0..i as u32) as usize;
+        let idx = rng.rand_range(0..(i + 1) as u32) as usize;
         slice.swap(idx, i)
     }
 }
