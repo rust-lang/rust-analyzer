@@ -1,0 +1,56 @@
+# See docs: https://embarkstudios.github.io/cargo-deny/checks/index.html
+
+[advisories]
+vulnerability = "deny"
+unmaintained = "deny"
+yanked = "deny"
+notice = "deny"
+ignore = [
+    # This crate is used through `vfs-notify`.
+    #
+    # Original error message:
+    # The [`net2`](https://crates.io/crates/net2) crate has been deprecated
+    # and users are encouraged to considered [`socket2`](https://crates.io/crates/socket2) instead.
+    "RUSTSEC-2020-0016"
+]
+
+[bans]
+multiple-versions = "deny"
+skip = [
+    # This older version of winapi is pulled through vfs-notify
+    { version = "=0.2.8", name = "winapi" }
+
+    # { version = "=0.42.0", name = "crate_name_here" },
+]
+skip-tree = [
+    # { version = "=0.42.0", name = "crate_name_here", depth = 6 },
+]
+deny = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
+
+[licenses]
+unlicensed = "deny"
+copyleft = "deny"
+
+# Run `cargo deny list` to see which crates use which license
+# and add them to this array if you accept them
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "ISC",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "Zlib",
+]
+deny = []
+default = "deny"
+allow-osi-fsf-free = "neither"
+
+# We want really high confidence when inferring licenses from text
+confidence-threshold = 0.93
