@@ -152,8 +152,9 @@ fn add_missing_impl_members_inner(
         let n_existing_items = impl_item_list.assoc_items().count();
         let source_scope = ctx.sema.scope_for_def(trait_);
         let target_scope = ctx.sema.scope(impl_item_list.syntax());
-        let ast_transform = QualifyPaths::new(&target_scope, &source_scope)
-            .or(SubstituteTypeParams::for_trait_impl(&source_scope, trait_, impl_def));
+        let ast_transform = QualifyPaths::new(&target_scope, &source_scope, builder.file()).or(
+            SubstituteTypeParams::for_trait_impl(&source_scope, trait_, impl_def, builder.file()),
+        );
         let items = missing_items
             .into_iter()
             .map(|it| ast_transform::apply(&*ast_transform, it))

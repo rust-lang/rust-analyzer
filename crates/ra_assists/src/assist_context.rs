@@ -221,6 +221,10 @@ impl AssistBuilder {
         }
     }
 
+    pub(crate) fn file(&self) -> FileId {
+        self.file_id
+    }
+
     pub(crate) fn edit_file(&mut self, file_id: FileId) {
         self.file_id = file_id;
     }

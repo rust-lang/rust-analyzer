@@ -1,7 +1,8 @@
 //! `AstTransformer`s are functions that replace nodes in an AST and can be easily combined.
 use rustc_hash::FxHashMap;
 
-use hir::{HirDisplay, PathResolution, SemanticsScope};
+use hir::{HirDisplay, Hygiene, PathResolution, SemanticsScope};
+use ra_db::FileId;
 use ra_syntax::{
     algo::SyntaxRewriter,
     ast::{self, AstNode},
@@ -33,6 +34,7 @@ impl<'a> AstTransform<'a> for NullTransformer {
 pub struct SubstituteTypeParams<'a> {
     source_scope: &'a SemanticsScope<'a>,
     substs: FxHashMap<hir::TypeParam, ast::Type>,
+    file_id: FileId,
     previous: Box<dyn AstTransform<'a> + 'a>,
 }
 
@@ -42,6 +44,7 @@ impl<'a> SubstituteTypeParams<'a> {
         // FIXME: there's implicit invariant that `trait_` and  `source_scope` match...
         trait_: hir::Trait,
         impl_def: ast::Impl,
+        file_id: FileId,
     ) -> SubstituteTypeParams<'a> {
         let substs = get_syntactic_substs(impl_def).unwrap_or_default();
         let generic_def: hir::GenericDef = trait_.into();
@@ -75,6 +78,7 @@ impl<'a> SubstituteTypeParams<'a> {
         return SubstituteTypeParams {
             source_scope,
             substs: substs_by_param,
+            file_id,
             previous: Box::new(NullTransformer),
         };
 
@@ -110,9 +114,8 @@ impl<'a> SubstituteTypeParams<'a> {
             ast::Type::PathType(path_type) => path_type.path()?,
             _ => return None,
         };
-        // FIXME: use `hir::Path::from_src` instead.
-        #[allow(deprecated)]
-        let path = hir::Path::from_ast(path)?;
+        let hygiene = Hygiene::new(self.source_scope.db.upcast(), self.file_id.into());
+        let path = hir::Path::from_src(path, &hygiene)?;
         let resolution = self.source_scope.resolve_hir_path(&path)?;
         match resolution {
             hir::PathResolution::TypeParam(tp) => Some(self.substs.get(&tp)?.syntax().clone()),
@@ -133,12 +136,17 @@ impl<'a> AstTransform<'a> for SubstituteTypeParams<'a> {
 pub struct QualifyPaths<'a> {
     target_scope: &'a SemanticsScope<'a>,
     source_scope: &'a SemanticsScope<'a>,
+    file_id: FileId,
     previous: Box<dyn AstTransform<'a> + 'a>,
 }
 
 impl<'a> QualifyPaths<'a> {
-    pub fn new(target_scope: &'a SemanticsScope<'a>, source_scope: &'a SemanticsScope<'a>) -> Self {
-        Self { target_scope, source_scope, previous: Box::new(NullTransformer) }
+    pub fn new(
+        target_scope: &'a SemanticsScope<'a>,
+        source_scope: &'a SemanticsScope<'a>,
+        file_id: FileId,
+    ) -> Self {
+        Self { target_scope, source_scope, file_id, previous: Box::new(NullTransformer) }
     }
 
     fn get_substitution_inner(
@@ -152,10 +160,10 @@ impl<'a> QualifyPaths<'a> {
             // don't try to qualify `Fn(Foo) -> Bar` paths, they are in prelude anyway
             return None;
         }
-        // FIXME: use `hir::Path::from_src` instead.
-        #[allow(deprecated)]
-        let hir_path = hir::Path::from_ast(p.clone());
-        let resolution = self.source_scope.resolve_hir_path(&hir_path?)?;
+
+        let hygiene = Hygiene::new(self.source_scope.db.upcast(), self.file_id.into());
+        let hir_path = hir::Path::from_src(p.clone(), &hygiene)?;
+        let resolution = self.source_scope.resolve_hir_path(&hir_path)?;
         match resolution {
             PathResolution::Def(def) => {
                 let found_path = from.find_use_path(self.source_scope.db.upcast(), def)?;
