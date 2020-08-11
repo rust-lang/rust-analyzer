@@ -16,15 +16,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee2a4ec343196209d6594e19543ae87a39f96d5534d7174822a3ad825dd6ed7e"
 
 [[package]]
-name = "aho-corasick"
-version = "0.7.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "043164d8ba5c4c3035fec9bbee8647c0261d788f3474306f93bb65901cae0e86"
-dependencies = [
- "memchr",
-]
-
-[[package]]
 name = "ansi_term"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -44,6 +35,10 @@ name = "anymap"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33954243bd79057c2de7338850b85983a44588021f8a5fee574a8888c6de4344"
+
+[[package]]
+name = "arena"
+version = "0.1.0"
 
 [[package]]
 name = "arrayvec"
@@ -285,9 +280,9 @@ checksum = "9bda8e21c04aca2ae33ffc2fd8c23134f3cac46db123ba97bd9d3f3b8a4a85e1"
 
 [[package]]
 name = "either"
-version = "1.5.3"
+version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb1f6b1ce1c140482ea30ddd3335fc0024ac7ee112895426e0a629a6c20adfe3"
+checksum = "cd56b59865bce947ac5958779cfa508f6c3b9497cc762b7e24a12d11ccde2c4f"
 
 [[package]]
 name = "ena"
@@ -354,8 +349,16 @@ dependencies = [
  "crossbeam-channel",
  "jod-thread",
  "log",
- "ra_toolchain",
  "serde_json",
+ "toolchain",
+]
+
+[[package]]
+name = "fmt"
+version = "0.1.0"
+dependencies = [
+ "itertools",
+ "ra_syntax",
 ]
 
 [[package]]
@@ -641,10 +644,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60302e4db3a61da70c0cb7991976248362f30319e88850c487b9b95bbf059e00"
 
 [[package]]
-name = "memchr"
-version = "2.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3728d817d99e5ac407411fa471ff9800a778d88a24685968b36824eaf4bee400"
+name = "mbe"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "ra_parser",
+ "ra_syntax",
+ "rustc-hash",
+ "smallvec",
+ "test_utils",
+ "tt",
+]
 
 [[package]]
 name = "memmap"
@@ -852,9 +862,9 @@ dependencies = [
 
 [[package]]
 name = "perf-event-open-sys"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95db63e37862bc1b842135d2234ef9418f222cc660c6752f45e7cf9ddfb97f96"
+checksum = "83e7183862f36d10263d0a1ccaef50fef734ade948bf026afd1bd97355c78273"
 dependencies = [
  "libc",
 ]
@@ -900,35 +910,31 @@ dependencies = [
 ]
 
 [[package]]
-name = "ra_arena"
-version = "0.1.0"
-
-[[package]]
 name = "ra_assists"
 version = "0.1.0"
 dependencies = [
  "either",
+ "fmt",
  "itertools",
  "ra_db",
- "ra_fmt",
  "ra_hir",
  "ra_ide_db",
  "ra_prof",
  "ra_syntax",
- "ra_text_edit",
  "rustc-hash",
  "stdx",
  "test_utils",
+ "text_edit",
 ]
 
 [[package]]
 name = "ra_cfg"
 version = "0.1.0"
 dependencies = [
- "ra_mbe",
+ "mbe",
  "ra_syntax",
- "ra_tt",
  "rustc-hash",
+ "tt",
 ]
 
 [[package]]
@@ -938,20 +944,12 @@ dependencies = [
  "ra_cfg",
  "ra_prof",
  "ra_syntax",
- "ra_tt",
  "rustc-hash",
  "salsa",
  "stdx",
  "test_utils",
+ "tt",
  "vfs",
-]
-
-[[package]]
-name = "ra_fmt"
-version = "0.1.0"
-dependencies = [
- "itertools",
- "ra_syntax",
 ]
 
 [[package]]
@@ -977,6 +975,7 @@ name = "ra_hir_def"
 version = "0.1.0"
 dependencies = [
  "anymap",
+ "arena",
  "drop_bomb",
  "either",
  "expect",
@@ -984,42 +983,42 @@ dependencies = [
  "indexmap",
  "itertools",
  "log",
+ "mbe",
  "once_cell",
- "ra_arena",
  "ra_cfg",
  "ra_db",
  "ra_hir_expand",
- "ra_mbe",
  "ra_prof",
  "ra_syntax",
- "ra_tt",
  "rustc-hash",
  "smallvec",
  "stdx",
  "test_utils",
+ "tt",
 ]
 
 [[package]]
 name = "ra_hir_expand"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "either",
  "log",
- "ra_arena",
+ "mbe",
  "ra_db",
- "ra_mbe",
  "ra_parser",
  "ra_prof",
  "ra_syntax",
- "ra_tt",
  "rustc-hash",
  "test_utils",
+ "tt",
 ]
 
 [[package]]
 name = "ra_hir_ty"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "arrayvec",
  "chalk-ir",
  "chalk-recursive",
@@ -1028,7 +1027,6 @@ dependencies = [
  "expect",
  "itertools",
  "log",
- "ra_arena",
  "ra_db",
  "ra_hir_def",
  "ra_hir_expand",
@@ -1050,6 +1048,7 @@ version = "0.1.0"
 dependencies = [
  "either",
  "expect",
+ "fmt",
  "indexmap",
  "itertools",
  "log",
@@ -1057,16 +1056,15 @@ dependencies = [
  "ra_assists",
  "ra_cfg",
  "ra_db",
- "ra_fmt",
  "ra_hir",
  "ra_ide_db",
  "ra_prof",
  "ra_ssr",
  "ra_syntax",
- "ra_text_edit",
  "rustc-hash",
  "stdx",
  "test_utils",
+ "text_edit",
 ]
 
 [[package]]
@@ -1081,24 +1079,11 @@ dependencies = [
  "ra_hir",
  "ra_prof",
  "ra_syntax",
- "ra_text_edit",
  "rayon",
  "rustc-hash",
  "stdx",
  "test_utils",
-]
-
-[[package]]
-name = "ra_mbe"
-version = "0.1.0"
-dependencies = [
- "log",
- "ra_parser",
- "ra_syntax",
- "ra_tt",
- "rustc-hash",
- "smallvec",
- "test_utils",
+ "text_edit",
 ]
 
 [[package]]
@@ -1115,9 +1100,9 @@ dependencies = [
  "crossbeam-channel",
  "jod-thread",
  "log",
- "ra_tt",
  "serde",
  "serde_json",
+ "tt",
 ]
 
 [[package]]
@@ -1128,25 +1113,25 @@ dependencies = [
  "difference",
  "goblin",
  "libloading",
+ "mbe",
  "memmap",
- "ra_mbe",
  "ra_proc_macro",
- "ra_toolchain",
- "ra_tt",
  "serde_derive",
  "test_utils",
+ "toolchain",
+ "tt",
 ]
 
 [[package]]
 name = "ra_prof"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "backtrace",
  "cfg-if",
  "libc",
  "once_cell",
  "perf-event",
- "ra_arena",
 ]
 
 [[package]]
@@ -1154,18 +1139,18 @@ name = "ra_project_model"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "arena",
  "cargo_metadata",
  "log",
  "paths",
- "ra_arena",
  "ra_cfg",
  "ra_db",
  "ra_proc_macro",
- "ra_toolchain",
  "rustc-hash",
  "serde",
  "serde_json",
  "stdx",
+ "toolchain",
 ]
 
 [[package]]
@@ -1177,9 +1162,9 @@ dependencies = [
  "ra_hir",
  "ra_ide_db",
  "ra_syntax",
- "ra_text_edit",
  "rustc-hash",
  "test_utils",
+ "text_edit",
 ]
 
 [[package]]
@@ -1191,7 +1176,6 @@ dependencies = [
  "itertools",
  "once_cell",
  "ra_parser",
- "ra_text_edit",
  "rayon",
  "rowan",
  "rustc-ap-rustc_lexer",
@@ -1200,29 +1184,8 @@ dependencies = [
  "smol_str",
  "stdx",
  "test_utils",
+ "text_edit",
  "walkdir",
-]
-
-[[package]]
-name = "ra_text_edit"
-version = "0.1.0"
-dependencies = [
- "text-size",
-]
-
-[[package]]
-name = "ra_toolchain"
-version = "0.1.0"
-dependencies = [
- "home",
-]
-
-[[package]]
-name = "ra_tt"
-version = "0.1.0"
-dependencies = [
- "smol_str",
- "stdx",
 ]
 
 [[package]]
@@ -1262,10 +1225,7 @@ version = "1.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c3780fcf44b193bc4d09f36d2a3c87b251da4a046c87795a0d35f4f927ad8e6"
 dependencies = [
- "aho-corasick",
- "memchr",
  "regex-syntax",
- "thread_local",
 ]
 
 [[package]]
@@ -1310,6 +1270,7 @@ dependencies = [
  "log",
  "lsp-server",
  "lsp-types",
+ "mbe",
  "mimalloc",
  "oorandom",
  "parking_lot",
@@ -1321,22 +1282,21 @@ dependencies = [
  "ra_hir_ty",
  "ra_ide",
  "ra_ide_db",
- "ra_mbe",
  "ra_proc_macro_srv",
  "ra_prof",
  "ra_project_model",
  "ra_ssr",
  "ra_syntax",
- "ra_text_edit",
- "ra_toolchain",
- "ra_tt",
  "rayon",
  "rustc-hash",
  "serde",
  "serde_json",
  "stdx",
  "test_utils",
+ "text_edit",
  "threadpool",
+ "toolchain",
+ "tt",
  "vfs",
  "vfs-notify",
  "winapi 0.3.9",
@@ -1457,18 +1417,18 @@ checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 
 [[package]]
 name = "serde"
-version = "1.0.114"
+version = "1.0.115"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5317f7588f0a5078ee60ef675ef96735a1442132dc645eb1d12c018620ed8cd3"
+checksum = "e54c9a88f2da7238af84b5101443f0c0d0a3bbdc455e34a5c9497b1903ed55d5"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.114"
+version = "1.0.115"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a0be94b04690fbaed37cddffc5c134bf537c8e3329d53e982fe04c374978f8e"
+checksum = "609feed1d0a73cc36a0182a840a9b37b4a82f0b1150369f0536a9e3f2a31dc48"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1514,9 +1474,9 @@ checksum = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
 
 [[package]]
 name = "smallvec"
-version = "1.4.1"
+version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3757cb9d89161a2f24e1cf78efa0c1fcff485d18e3f55e0aa3480824ddaa0f3f"
+checksum = "fbee7696b84bbf3d89a1c2eccff0850e3047ed46bfcd2e92c29a2d074d57e252"
 
 [[package]]
 name = "smol_str"
@@ -1581,6 +1541,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f03e7efdedc3bc78cb2337f1e2785c39e45f5ef762d9e4ebb137fff7380a6d8a"
 
 [[package]]
+name = "text_edit"
+version = "0.1.0"
+dependencies = [
+ "text-size",
+]
+
+[[package]]
 name = "thin-dst"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1621,10 +1588,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "53953d2d3a5ad81d9f844a32f14ebb121f50b650cd59d0ee2a07cf13c617efed"
 
 [[package]]
+name = "toolchain"
+version = "0.1.0"
+dependencies = [
+ "home",
+]
+
+[[package]]
 name = "tracing"
-version = "0.1.18"
+version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0aae59226cf195d8e74d4b34beae1859257efb4e5fed3f147d2dc2c7d372178"
+checksum = "6d79ca061b032d6ce30c660fded31189ca0b9922bf483cd70759f13a2d86786c"
 dependencies = [
  "cfg-if",
  "tracing-attributes",
@@ -1633,9 +1607,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-attributes"
-version = "0.1.9"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0693bf8d6f2bf22c690fc61a9d21ac69efdbb894a17ed596b9af0f01e64b84b"
+checksum = "1fe233f4227389ab7df5b32649239da7ebe0b281824b4e84b342d04d3fd8c25e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1644,9 +1618,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-core"
-version = "0.1.13"
+version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d593f98af59ebc017c0648f0117525db358745a8894a8d684e185ba3f45954f9"
+checksum = "db63662723c316b43ca36d833707cc93dff82a02ba3d7e354f342682cc8b3545"
 dependencies = [
  "lazy_static",
 ]
@@ -1674,9 +1648,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-subscriber"
-version = "0.2.10"
+version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7b33f8b2ef2ab0c3778c12646d9c42a24f7772bee4cdafc72199644a9f58fdc"
+checksum = "abd165311cc4d7a555ad11cc77a37756df836182db0d81aac908c8184c584f40"
 dependencies = [
  "ansi_term",
  "chrono",
@@ -1687,6 +1661,7 @@ dependencies = [
  "serde_json",
  "sharded-slab",
  "smallvec",
+ "thread_local",
  "tracing-core",
  "tracing-log",
  "tracing-serde",
@@ -1704,6 +1679,14 @@ dependencies = [
  "termcolor",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "tt"
+version = "0.1.0"
+dependencies = [
+ "smol_str",
+ "stdx",
 ]
 
 [[package]]
