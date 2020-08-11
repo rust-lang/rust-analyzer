@@ -22,13 +22,13 @@ smallvec = "1.4.0"
 
 stdx = { path = "../stdx", version = "0.1.0" }
 
-ra_arena = { path = "../ra_arena", version = "0.1.0" }
+arena = { path = "../arena", version = "0.1.0" }
 ra_db = { path = "../ra_db", version = "0.1.0" }
 ra_syntax = { path = "../ra_syntax", version = "0.1.0" }
 ra_prof = { path = "../ra_prof", version = "0.1.0" }
 hir_expand = { path = "../ra_hir_expand", version = "0.1.0", package = "ra_hir_expand" }
 test_utils = { path = "../test_utils", version = "0.1.0" }
-mbe = { path = "../ra_mbe", version = "0.1.0", package = "ra_mbe" }
+mbe = { path = "../mbe", version = "0.1.0" }
 ra_cfg = { path = "../ra_cfg", version = "0.1.0" }
 tt = { path = "../tt", version = "0.1.0" }
 

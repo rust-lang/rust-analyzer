@@ -56,7 +56,7 @@ use hir_expand::{
     ast_id_map::FileAstId, eager::expand_eager_macro, hygiene::Hygiene, AstId, HirFileId, InFile,
     MacroCallId, MacroCallKind, MacroDefId, MacroDefKind,
 };
-use ra_arena::Idx;
+use arena::Idx;
 use ra_db::{impl_intern_key, salsa, CrateId};
 use ra_syntax::ast;
 

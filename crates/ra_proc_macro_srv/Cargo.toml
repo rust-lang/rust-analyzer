@@ -11,7 +11,7 @@ doctest = false
 
 [dependencies]
 tt = { path = "../tt", version = "0.1.0" }
-ra_mbe = { path = "../ra_mbe", version = "0.1.0" }
+mbe = { path = "../mbe", version = "0.1.0" }
 ra_proc_macro = { path = "../ra_proc_macro", version = "0.1.0" }
 goblin = "0.2.1"
 libloading = "0.6.0"

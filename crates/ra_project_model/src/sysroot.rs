@@ -4,7 +4,7 @@ use std::{convert::TryFrom, env, ops, path::Path, process::Command};
 
 use anyhow::{bail, format_err, Result};
 use paths::{AbsPath, AbsPathBuf};
-use ra_arena::{Arena, Idx};
+use arena::{Arena, Idx};
 
 use crate::utf8_stdout;
 

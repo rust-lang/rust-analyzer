@@ -3,7 +3,7 @@
 use std::{collections::hash_map::Entry, mem, sync::Arc};
 
 use hir_expand::{ast_id_map::AstIdMap, hygiene::Hygiene, HirFileId};
-use ra_arena::map::ArenaMap;
+use arena::map::ArenaMap;
 use ra_syntax::{
     ast::{self, ModuleItemOwner},
     SyntaxNode,

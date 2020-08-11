@@ -21,7 +21,7 @@ use hir_expand::{
     name::{name, AsName, Name},
     HirFileId, InFile,
 };
-use ra_arena::{Arena, Idx, RawId};
+use arena::{Arena, Idx, RawId};
 use ra_syntax::{ast, match_ast};
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;

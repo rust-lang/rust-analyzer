@@ -224,7 +224,7 @@ use hir_def::{
     expr::{Expr, Literal, Pat, PatId},
     AdtId, EnumVariantId, VariantId,
 };
-use ra_arena::Idx;
+use arena::Idx;
 use smallvec::{smallvec, SmallVec};
 
 use crate::{db::HirDatabase, ApplicationTy, InferenceResult, Ty, TypeCtor};

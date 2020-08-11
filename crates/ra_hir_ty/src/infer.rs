@@ -30,7 +30,7 @@ use hir_def::{
     TypeAliasId, VariantId,
 };
 use hir_expand::{diagnostics::DiagnosticSink, name::name};
-use ra_arena::map::ArenaMap;
+use arena::map::ArenaMap;
 use ra_prof::profile;
 use ra_syntax::SmolStr;
 use rustc_hash::FxHashMap;

@@ -180,7 +180,7 @@ impl TidyDocs {
             "ra_hir",
             "ra_hir_expand",
             "ra_ide",
-            "ra_mbe",
+            "mbe",
             "ra_parser",
             "ra_prof",
             "ra_project_model",

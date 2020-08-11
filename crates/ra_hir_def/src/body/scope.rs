@@ -2,7 +2,7 @@
 use std::sync::Arc;
 
 use hir_expand::name::Name;
-use ra_arena::{Arena, Idx};
+use arena::{Arena, Idx};
 use rustc_hash::FxHashMap;
 
 use crate::{

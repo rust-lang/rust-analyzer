@@ -19,7 +19,7 @@ use hir_def::{
     UnionId, VariantId,
 };
 use hir_expand::name::Name;
-use ra_arena::map::ArenaMap;
+use arena::map::ArenaMap;
 use ra_db::CrateId;
 use smallvec::SmallVec;
 use stdx::impl_from;

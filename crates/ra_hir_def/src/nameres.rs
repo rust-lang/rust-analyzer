@@ -57,7 +57,7 @@ mod tests;
 use std::sync::Arc;
 
 use hir_expand::{diagnostics::DiagnosticSink, name::Name, InFile};
-use ra_arena::Arena;
+use arena::Arena;
 use ra_db::{CrateId, Edition, FileId};
 use ra_prof::profile;
 use ra_syntax::ast;

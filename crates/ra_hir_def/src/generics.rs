@@ -9,7 +9,7 @@ use hir_expand::{
     name::{name, AsName, Name},
     InFile,
 };
-use ra_arena::{map::ArenaMap, Arena};
+use arena::{map::ArenaMap, Arena};
 use ra_db::FileId;
 use ra_prof::profile;
 use ra_syntax::ast::{self, GenericParamsOwner, NameOwner, TypeBoundsOwner};
