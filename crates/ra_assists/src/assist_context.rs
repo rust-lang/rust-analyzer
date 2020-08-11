@@ -5,7 +5,7 @@ use std::mem;
 use algo::find_covering_element;
 use hir::Semantics;
 use ra_db::{FileId, FileRange};
-use ra_fmt::{leading_indent, reindent};
+use fmt::{leading_indent, reindent};
 use ra_ide_db::{
     source_change::{SourceChange, SourceFileEdit},
     RootDatabase,
@@ -15,7 +15,7 @@ use ra_syntax::{
     AstNode, SourceFile, SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TextSize,
     TokenAtOffset,
 };
-use ra_text_edit::TextEditBuilder;
+use text_edit::TextEditBuilder;
 
 use crate::{
     assist_config::{AssistConfig, SnippetCap},

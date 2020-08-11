@@ -9,7 +9,7 @@ use ra_syntax::{
     SyntaxKind::{PATH, PATH_SEGMENT},
     SyntaxNode, T,
 };
-use ra_text_edit::TextEditBuilder;
+use text_edit::TextEditBuilder;
 
 use crate::assist_context::AssistContext;
 use either::Either;
@@ -442,7 +442,7 @@ fn make_assist_add_new_use(
     edit: &mut TextEditBuilder,
 ) {
     if let Some(anchor) = anchor {
-        let indent = ra_fmt::leading_indent(anchor);
+        let indent = fmt::leading_indent(anchor);
         let mut buf = String::new();
         if after {
             buf.push_str("\n");

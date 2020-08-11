@@ -20,17 +20,17 @@ itertools = "0.9.0"
 indexmap = "1.4.0"
 smallvec = "1.4.0"
 
-stdx = { path = "../stdx" }
+stdx = { path = "../stdx", version = "0.1.0" }
 
-ra_arena = { path = "../ra_arena" }
-ra_db = { path = "../ra_db" }
-ra_syntax = { path = "../ra_syntax" }
-ra_prof = { path = "../ra_prof" }
-hir_expand = { path = "../ra_hir_expand", package = "ra_hir_expand" }
-test_utils = { path = "../test_utils" }
-mbe = { path = "../ra_mbe", package = "ra_mbe" }
-ra_cfg = { path = "../ra_cfg" }
-tt = { path = "../ra_tt", package = "ra_tt" }
+ra_arena = { path = "../ra_arena", version = "0.1.0" }
+ra_db = { path = "../ra_db", version = "0.1.0" }
+ra_syntax = { path = "../ra_syntax", version = "0.1.0" }
+ra_prof = { path = "../ra_prof", version = "0.1.0" }
+hir_expand = { path = "../ra_hir_expand", version = "0.1.0", package = "ra_hir_expand" }
+test_utils = { path = "../test_utils", version = "0.1.0" }
+mbe = { path = "../ra_mbe", version = "0.1.0", package = "ra_mbe" }
+ra_cfg = { path = "../ra_cfg", version = "0.1.0" }
+tt = { path = "../tt", version = "0.1.0" }
 
 [dev-dependencies]
 expect = { path = "../expect" }

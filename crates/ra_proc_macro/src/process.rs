@@ -1,7 +1,7 @@
 //! Handle process life-time and message passing for proc-macro client
 
 use crossbeam_channel::{bounded, Receiver, Sender};
-use ra_tt::Subtree;
+use tt::Subtree;
 
 use crate::msg::{ErrorCode, Message, Request, Response, ResponseError};
 use crate::rpc::{ExpansionResult, ExpansionTask, ListMacrosResult, ListMacrosTask, ProcMacroKind};
@@ -50,7 +50,7 @@ impl ProcMacroProcessSrv {
     pub fn find_proc_macros(
         &self,
         dylib_path: &Path,
-    ) -> Result<Vec<(String, ProcMacroKind)>, ra_tt::ExpansionError> {
+    ) -> Result<Vec<(String, ProcMacroKind)>, tt::ExpansionError> {
         let task = ListMacrosTask { lib: dylib_path.to_path_buf() };
 
         let result: ListMacrosResult = self.send_task(Request::ListMacro(task))?;
@@ -62,7 +62,7 @@ impl ProcMacroProcessSrv {
         dylib_path: &Path,
         subtree: &Subtree,
         derive_name: &str,
-    ) -> Result<Subtree, ra_tt::ExpansionError> {
+    ) -> Result<Subtree, tt::ExpansionError> {
         let task = ExpansionTask {
             macro_body: subtree.clone(),
             macro_name: derive_name.to_string(),
@@ -74,38 +74,38 @@ impl ProcMacroProcessSrv {
         Ok(result.expansion)
     }
 
-    pub fn send_task<R>(&self, req: Request) -> Result<R, ra_tt::ExpansionError>
+    pub fn send_task<R>(&self, req: Request) -> Result<R, tt::ExpansionError>
     where
         R: TryFrom<Response, Error = &'static str>,
     {
         let sender = match &self.inner {
-            None => return Err(ra_tt::ExpansionError::Unknown("No sender is found.".to_string())),
+            None => return Err(tt::ExpansionError::Unknown("No sender is found.".to_string())),
             Some(it) => it,
         };
 
         let (result_tx, result_rx) = bounded(0);
         let sender = match sender.upgrade() {
             None => {
-                return Err(ra_tt::ExpansionError::Unknown("Proc macro process is closed.".into()))
+                return Err(tt::ExpansionError::Unknown("Proc macro process is closed.".into()))
             }
             Some(it) => it,
         };
         sender.send(Task { req: req.into(), result_tx }).unwrap();
         let res = result_rx
             .recv()
-            .map_err(|_| ra_tt::ExpansionError::Unknown("Proc macro thread is closed.".into()))?;
+            .map_err(|_| tt::ExpansionError::Unknown("Proc macro thread is closed.".into()))?;
 
         match res {
             Some(Response::Error(err)) => {
-                return Err(ra_tt::ExpansionError::ExpansionError(err.message));
+                return Err(tt::ExpansionError::ExpansionError(err.message));
             }
             Some(res) => Ok(res.try_into().map_err(|err| {
-                ra_tt::ExpansionError::Unknown(format!(
+                tt::ExpansionError::Unknown(format!(
                     "Fail to get response, reason : {:#?} ",
                     err
                 ))
             })?),
-            None => Err(ra_tt::ExpansionError::Unknown("Empty result".into())),
+            None => Err(tt::ExpansionError::Unknown("Empty result".into())),
         }
     }
 }

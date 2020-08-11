@@ -14,13 +14,13 @@ rustc-hash = "1.1.0"
 
 cargo_metadata = "0.11.1"
 
-ra_arena = { path = "../ra_arena" }
-ra_cfg = { path = "../ra_cfg" }
-ra_db = { path = "../ra_db" }
-ra_toolchain = { path = "../ra_toolchain" }
-ra_proc_macro =  { path = "../ra_proc_macro" }
-paths =  { path = "../paths" }
-stdx =  { path = "../stdx" }
+ra_arena = { path = "../ra_arena", version = "0.1.0" }
+ra_cfg = { path = "../ra_cfg", version = "0.1.0" }
+ra_db = { path = "../ra_db", version = "0.1.0" }
+toolchain = { path = "../toolchain", version = "0.1.0" }
+ra_proc_macro =  { path = "../ra_proc_macro", version = "0.1.0" }
+paths =  { path = "../paths", version = "0.1.0" }
+stdx =  { path = "../stdx", version = "0.1.0" }
 
 serde = { version = "1.0.106", features = ["derive"] }
 serde_json = "1.0.48"

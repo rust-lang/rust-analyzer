@@ -1,6 +1,6 @@
 use hir::{EnumVariant, Module, ModuleDef, Name};
 use ra_db::FileId;
-use ra_fmt::leading_indent;
+use fmt::leading_indent;
 use ra_ide_db::{defs::Definition, search::Reference, RootDatabase};
 use ra_syntax::{
     algo::find_node_at_offset,

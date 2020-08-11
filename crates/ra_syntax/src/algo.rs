@@ -6,7 +6,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use ra_text_edit::TextEditBuilder;
+use text_edit::TextEditBuilder;
 use rustc_hash::FxHashMap;
 
 use crate::{

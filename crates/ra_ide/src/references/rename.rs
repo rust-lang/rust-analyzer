@@ -11,7 +11,7 @@ use ra_syntax::{
     ast::{self, NameOwner},
     lex_single_valid_syntax_kind, match_ast, AstNode, SyntaxKind, SyntaxNode, SyntaxToken,
 };
-use ra_text_edit::TextEdit;
+use text_edit::TextEdit;
 use std::convert::TryInto;
 use test_utils::mark;
 
@@ -271,7 +271,7 @@ fn rename_reference(
 #[cfg(test)]
 mod tests {
     use expect::{expect, Expect};
-    use ra_text_edit::TextEditBuilder;
+    use text_edit::TextEditBuilder;
     use stdx::trim_indent;
     use test_utils::{assert_eq_text, mark};
 

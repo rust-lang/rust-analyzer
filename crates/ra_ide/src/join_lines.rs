@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use ra_fmt::{compute_ws, extract_trivial_expression};
+use fmt::{compute_ws, extract_trivial_expression};
 use ra_syntax::{
     algo::{find_covering_element, non_trivia_sibling},
     ast::{self, AstNode, AstToken},
@@ -7,7 +7,7 @@ use ra_syntax::{
     SyntaxKind::{self, WHITESPACE},
     SyntaxNode, SyntaxToken, TextRange, TextSize, T,
 };
-use ra_text_edit::{TextEdit, TextEditBuilder};
+use text_edit::{TextEdit, TextEditBuilder};
 
 // Feature: Join Lines
 //

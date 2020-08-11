@@ -19,7 +19,7 @@ use ra_syntax::{
     ast::{self, edit::IndentLevel, make, AstNode},
     SyntaxNode, TextRange, T,
 };
-use ra_text_edit::{TextEdit, TextEditBuilder};
+use text_edit::{TextEdit, TextEditBuilder};
 
 use crate::{Diagnostic, FileId, FileSystemEdit, Fix, SourceFileEdit};
 

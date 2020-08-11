@@ -10,7 +10,7 @@ mod process;
 pub mod msg;
 
 use process::{ProcMacroProcessSrv, ProcMacroProcessThread};
-use ra_tt::{SmolStr, Subtree};
+use tt::{SmolStr, Subtree};
 use std::{
     ffi::OsStr,
     io,
@@ -36,12 +36,12 @@ impl PartialEq for ProcMacroProcessExpander {
     }
 }
 
-impl ra_tt::TokenExpander for ProcMacroProcessExpander {
+impl tt::TokenExpander for ProcMacroProcessExpander {
     fn expand(
         &self,
         subtree: &Subtree,
         _attr: Option<&Subtree>,
-    ) -> Result<Subtree, ra_tt::ExpansionError> {
+    ) -> Result<Subtree, tt::ExpansionError> {
         self.process.custom_derive(&self.dylib_path, subtree, &self.name)
     }
 }
@@ -75,7 +75,7 @@ impl ProcMacroClient {
     pub fn by_dylib_path(
         &self,
         dylib_path: &Path,
-    ) -> Vec<(SmolStr, Arc<dyn ra_tt::TokenExpander>)> {
+    ) -> Vec<(SmolStr, Arc<dyn tt::TokenExpander>)> {
         match &self.kind {
             ProcMacroClientKind::Dummy => vec![],
             ProcMacroClientKind::Process { process, .. } => {
@@ -94,7 +94,7 @@ impl ProcMacroClient {
                         match kind {
                             ProcMacroKind::CustomDerive => {
                                 let name = SmolStr::new(&name);
-                                let expander: Arc<dyn ra_tt::TokenExpander> =
+                                let expander: Arc<dyn tt::TokenExpander> =
                                     Arc::new(ProcMacroProcessExpander {
                                         process: process.clone(),
                                         name: name.clone(),

@@ -4,7 +4,7 @@ use crate::matching::Var;
 use crate::{resolving::ResolvedRule, Match, SsrMatches};
 use ra_syntax::ast::{self, AstToken};
 use ra_syntax::{SyntaxElement, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TextSize};
-use ra_text_edit::TextEdit;
+use text_edit::TextEdit;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 /// Returns a text edit that will replace each match in `matches` with its corresponding replacement
@@ -24,7 +24,7 @@ fn matches_to_edit_at_offset(
     relative_start: TextSize,
     rules: &[ResolvedRule],
 ) -> TextEdit {
-    let mut edit_builder = ra_text_edit::TextEditBuilder::default();
+    let mut edit_builder = text_edit::TextEditBuilder::default();
     for m in &matches.matches {
         edit_builder.replace(
             m.range.range.checked_sub(relative_start).unwrap(),
