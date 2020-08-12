@@ -15,8 +15,8 @@
 
 mod on_enter;
 
-use ra_db::{FilePosition, SourceDatabase};
 use fmt::leading_indent;
+use ra_db::{FilePosition, SourceDatabase};
 use ra_ide_db::{source_change::SourceFileEdit, RootDatabase};
 use ra_syntax::{
     algo::find_node_at_offset,

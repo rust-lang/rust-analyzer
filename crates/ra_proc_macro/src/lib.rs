@@ -10,13 +10,13 @@ mod process;
 pub mod msg;
 
 use process::{ProcMacroProcessSrv, ProcMacroProcessThread};
-use tt::{SmolStr, Subtree};
 use std::{
     ffi::OsStr,
     io,
     path::{Path, PathBuf},
     sync::Arc,
 };
+use tt::{SmolStr, Subtree};
 
 pub use rpc::{ExpansionResult, ExpansionTask, ListMacrosResult, ListMacrosTask, ProcMacroKind};
 
@@ -72,10 +72,7 @@ impl ProcMacroClient {
         ProcMacroClient { kind: ProcMacroClientKind::Dummy }
     }
 
-    pub fn by_dylib_path(
-        &self,
-        dylib_path: &Path,
-    ) -> Vec<(SmolStr, Arc<dyn tt::TokenExpander>)> {
+    pub fn by_dylib_path(&self, dylib_path: &Path) -> Vec<(SmolStr, Arc<dyn tt::TokenExpander>)> {
         match &self.kind {
             ProcMacroClientKind::Dummy => vec![],
             ProcMacroClientKind::Process { process, .. } => {

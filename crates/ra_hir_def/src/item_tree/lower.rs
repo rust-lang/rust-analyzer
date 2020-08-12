@@ -2,8 +2,8 @@
 
 use std::{collections::hash_map::Entry, mem, sync::Arc};
 
-use hir_expand::{ast_id_map::AstIdMap, hygiene::Hygiene, HirFileId};
 use arena::map::ArenaMap;
+use hir_expand::{ast_id_map::AstIdMap, hygiene::Hygiene, HirFileId};
 use ra_syntax::{
     ast::{self, ModuleItemOwner},
     SyntaxNode,

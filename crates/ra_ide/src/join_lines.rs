@@ -1,5 +1,5 @@
-use itertools::Itertools;
 use fmt::{compute_ws, extract_trivial_expression};
+use itertools::Itertools;
 use ra_syntax::{
     algo::{find_covering_element, non_trivia_sibling},
     ast::{self, AstNode, AstToken},

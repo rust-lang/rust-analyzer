@@ -9,7 +9,7 @@
 //! FIXME: No span and source file information is implemented yet
 
 use crate::proc_macro::bridge::{self, server};
-use tt as tt;
+use tt;
 
 use std::collections::{Bound, HashMap};
 use std::hash::Hash;

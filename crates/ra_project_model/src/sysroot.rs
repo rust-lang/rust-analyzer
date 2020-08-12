@@ -3,8 +3,8 @@
 use std::{convert::TryFrom, env, ops, path::Path, process::Command};
 
 use anyhow::{bail, format_err, Result};
-use paths::{AbsPath, AbsPathBuf};
 use arena::{Arena, Idx};
+use paths::{AbsPath, AbsPathBuf};
 
 use crate::utf8_stdout;
 

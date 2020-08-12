@@ -100,10 +100,7 @@ impl ProcMacroProcessSrv {
                 return Err(tt::ExpansionError::ExpansionError(err.message));
             }
             Some(res) => Ok(res.try_into().map_err(|err| {
-                tt::ExpansionError::Unknown(format!(
-                    "Fail to get response, reason : {:#?} ",
-                    err
-                ))
+                tt::ExpansionError::Unknown(format!("Fail to get response, reason : {:#?} ", err))
             })?),
             None => Err(tt::ExpansionError::Unknown("Empty result".into())),
         }

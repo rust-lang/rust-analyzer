@@ -6,12 +6,12 @@
 //! to be much easier, we deliberately duplicate `tt` structs with `#[serde(with = "XXDef")]`
 //! for separation of code responsibility.
 
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use tt::{
     Delimiter, DelimiterKind, Ident, Leaf, Literal, Punct, SmolStr, Spacing, Subtree, TokenId,
     TokenTree,
 };
-use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 
 #[derive(Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub struct ListMacrosTask {
