@@ -1,4 +1,4 @@
-use ra_fmt::unwrap_trivial_block;
+use fmt::unwrap_trivial_block;
 use syntax::{
     ast::{
         self,

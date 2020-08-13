@@ -363,6 +363,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "fmt"
+version = "0.0.0"
+dependencies = [
+ "itertools",
+ "syntax",
+]
+
+[[package]]
 name = "fsevent"
 version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -927,10 +935,10 @@ name = "ra_assists"
 version = "0.1.0"
 dependencies = [
  "either",
+ "fmt",
  "itertools",
  "profile",
  "ra_db",
- "ra_fmt",
  "ra_hir",
  "ra_ide_db",
  "rustc-hash",
@@ -963,14 +971,6 @@ dependencies = [
  "test_utils",
  "tt",
  "vfs",
-]
-
-[[package]]
-name = "ra_fmt"
-version = "0.1.0"
-dependencies = [
- "itertools",
- "syntax",
 ]
 
 [[package]]
@@ -1069,6 +1069,7 @@ version = "0.1.0"
 dependencies = [
  "either",
  "expect",
+ "fmt",
  "indexmap",
  "itertools",
  "log",
@@ -1077,7 +1078,6 @@ dependencies = [
  "ra_assists",
  "ra_cfg",
  "ra_db",
- "ra_fmt",
  "ra_hir",
  "ra_ide_db",
  "ra_ssr",

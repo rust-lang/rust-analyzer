@@ -33,7 +33,7 @@ pub(crate) fn expand_macro(db: &RootDatabase, position: FilePosition) -> Option<
 
     // FIXME:
     // macro expansion may lose all white space information
-    // But we hope someday we can use ra_fmt for that
+    // But we hope someday we can use `fmt` for that
     let expansion = insert_whitespaces(expanded);
     Some(ExpandedMacro { name: name_ref.text().to_string(), expansion })
 }

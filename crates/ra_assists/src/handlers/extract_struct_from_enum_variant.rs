@@ -1,6 +1,6 @@
+use fmt::leading_indent;
 use hir::{EnumVariant, Module, ModuleDef, Name};
 use ra_db::FileId;
-use ra_fmt::leading_indent;
 use ra_ide_db::{defs::Definition, search::Reference, RootDatabase};
 use rustc_hash::FxHashSet;
 use syntax::{

@@ -3,9 +3,9 @@
 use std::mem;
 
 use algo::find_covering_element;
+use fmt::{leading_indent, reindent};
 use hir::Semantics;
 use ra_db::{FileId, FileRange};
-use ra_fmt::{leading_indent, reindent};
 use ra_ide_db::{
     source_change::{SourceChange, SourceFileEdit},
     RootDatabase,
