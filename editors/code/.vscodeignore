@@ -3,6 +3,7 @@
 !out
 out/**
 !out/src
+!resources/
 !package.json
 !package-lock.json
 !ra_syntax_tree.tmGrammar.json
