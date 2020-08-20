@@ -61,14 +61,8 @@ jobs:
         path: target
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Compile
-      run: cargo test --no-run --locked
-
-    - name: Test
-      run: cargo test
-
-    - name: Prepare cache
-      run: cargo xtask pre-cache
+    - name: Test Groups
+      run: cargo xtask ci
 
   # Weird targets to catch non-portable code
   rust-cross:

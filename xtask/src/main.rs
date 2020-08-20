@@ -121,6 +121,16 @@ FLAGS:
             args.finish()?;
             MetricsCmd { dry_run }.run()
         }
+        "ci" => {
+            println!("::group::foo");
+            std::thread::sleep(std::time::Duration::from_secs(10));
+            println!("::endgroup::");
+
+            println!("::group::bar");
+            std::thread::sleep(std::time::Duration::from_secs(10));
+            println!("::endgroup::");
+            Ok(())
+        }
         _ => {
             eprintln!(
                 "\
