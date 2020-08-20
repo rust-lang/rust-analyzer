@@ -1,5 +1,5 @@
 [workspace]
-members = [ "crates/*", "xtask/" ]
+members = [ "crates/*", "libs/*", "xtask/" ]
 
 [profile.dev]
 # Disabling debug info speeds up builds a bunch,

@@ -73,6 +73,7 @@ pub fn trim_indent(mut text: &str) -> String {
         .map(|it| it.len() - it.trim_start().len())
         .min()
         .unwrap_or(0);
+
     lines_with_ends(text)
         .map(
             |line| {

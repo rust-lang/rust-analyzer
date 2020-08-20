@@ -34,4 +34,4 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.2", default-features = false, features = ["env-filter", "registry"] }
 tracing-tree = { version = "0.1.4" }
 
-expect = { path = "../expect" }
+expect-test = "0.0.1"

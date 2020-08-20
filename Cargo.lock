@@ -354,6 +354,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "expect-test"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5805222e7dfbc694189eb13eb3a4df3b612b012903f1313eb969a6fa2e78e58"
+dependencies = [
+ "difference",
+ "once_cell",
+]
+
+[[package]]
+name = "expect-test"
+version = "0.1.0"
+dependencies = [
+ "difference",
+ "once_cell",
+]
+
+[[package]]
 name = "filetime"
 version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -553,7 +571,7 @@ dependencies = [
  "chalk-recursive",
  "chalk-solve",
  "ena",
- "expect",
+ "expect-test 0.0.1",
  "hir_def",
  "hir_expand",
  "itertools",
