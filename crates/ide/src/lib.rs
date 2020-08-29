@@ -174,7 +174,10 @@ impl Default for AnalysisHost {
 /// state is advanced using `AnalysisHost::apply_change` method, all existing
 /// `Analysis` are canceled (most method return `Err(Canceled)`).
 #[derive(Debug)]
-pub struct Analysis {
+pub struct Analysis
+where
+    Self: Send,
+{
     db: salsa::Snapshot<RootDatabase>,
 }
 
@@ -507,10 +510,4 @@ impl Analysis {
     {
         self.db.catch_canceled(f)
     }
-}
-
-#[test]
-fn analysis_is_send() {
-    fn is_send<T: Send>() {}
-    is_send::<Analysis>();
 }
