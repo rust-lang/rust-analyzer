@@ -152,7 +152,7 @@ export function onEnter(ctx: Ctx): Cmd {
     }
 
     return async () => {
-        if (await handleKeypress()) return;
+        if (ctx.config.enhancedEnter && await handleKeypress()) return;
 
         await vscode.commands.executeCommand('default:type', { text: '\n' });
     };
