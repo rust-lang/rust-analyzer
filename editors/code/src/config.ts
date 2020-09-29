@@ -5,6 +5,7 @@ export type UpdatesChannel = "stable" | "nightly";
 
 export const NIGHTLY_TAG = "nightly";
 
+export type ServerEnvCfg = undefined | Record<string, string>;
 export type RunnableEnvCfg = undefined | Record<string, string> | { mask?: string; env: Record<string, string> }[];
 
 export class Config {
@@ -13,6 +14,7 @@ export class Config {
     readonly rootSection = "rust-analyzer";
     private readonly requiresReloadOpts = [
         "serverPath",
+        "serverEnv",
         "cargo",
         "procMacro",
         "files",
@@ -92,6 +94,7 @@ export class Config {
     }
 
     get serverPath() { return this.get<null | string>("serverPath"); }
+    get serverEnv() { return this.get<ServerEnvCfg>("serverEnv"); }
     get channel() { return this.get<UpdatesChannel>("updates.channel"); }
     get askBeforeDownload() { return this.get<boolean>("updates.askBeforeDownload"); }
     get traceExtension() { return this.get<boolean>("trace.extension"); }

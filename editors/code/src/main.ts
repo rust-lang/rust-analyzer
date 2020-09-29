@@ -65,6 +65,7 @@ async function tryActivate(context: vscode.ExtensionContext) {
         log.error("Bootstrap error", err);
         throw new Error(message);
     });
+    const env = config.serverEnv ?? {};
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (workspaceFolder === undefined) {
@@ -75,7 +76,7 @@ async function tryActivate(context: vscode.ExtensionContext) {
     // registers its `onDidChangeDocument` handler before us.
     //
     // This a horribly, horribly wrong way to deal with this problem.
-    ctx = await Ctx.create(config, context, serverPath, workspaceFolder.uri.fsPath);
+    ctx = await Ctx.create(config, context, serverPath, workspaceFolder.uri.fsPath, env);
 
     setContextValue(RUST_PROJECT_CONTEXT_NAME, true);
 

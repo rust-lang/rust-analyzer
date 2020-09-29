@@ -476,6 +476,11 @@
                     "default": null,
                     "description": "Path to rust-analyzer executable (points to bundled binary by default). If this is set, then \"rust-analyzer.updates.channel\" setting is not used"
                 },
+                "rust-analyzer.serverEnv": {
+                    "type": "object",
+                    "default": null,
+                    "description": "Environment variables to set for the rust-analyzer executable in form of { \"key\": \"value\"}"
+                },
                 "rust-analyzer.trace.server": {
                     "type": "string",
                     "scope": "window",
