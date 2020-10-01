@@ -364,7 +364,9 @@ fn is_param_name_similar_to_fn_name(
     fn_name: Option<&String>,
 ) -> bool {
     match (param_num, fn_name) {
-        (0, Some(function)) => function.ends_with(param_name),
+        (0, Some(function)) => {
+            function == param_name || function.ends_with(&format!("_{}", param_name))
+        }
         _ => false,
     }
 }
@@ -452,6 +454,66 @@ fn main() {
       //^ a
         4,
       //^ b
+    );
+}"#,
+        );
+    }
+
+    #[test]
+    fn param_name_similar_to_fn_name_still_hints() {
+        check_with_config(
+            InlayHintsConfig {
+                parameter_hints: true,
+                type_hints: false,
+                chaining_hints: false,
+                max_length: None,
+            },
+            r#"
+fn max(x: i32, y: i32) -> i32 { x + y }
+fn main() { 
+    let _x = max(
+        4,
+      //^ x
+        4,
+      //^ y
+    );
+}"#,
+        );
+    }
+
+    #[test]
+    fn param_name_similar_to_fn_name() {
+        check_with_config(
+            InlayHintsConfig {
+                parameter_hints: true,
+                type_hints: false,
+                chaining_hints: false,
+                max_length: None,
+            },
+            r#"
+fn strip_suffix(suffix: i32) -> i32 { suffix }
+fn main() {
+    let _x = strip_suffix(
+        4,
+    );
+}"#,
+        );
+    }
+
+    #[test]
+    fn param_name_same_as_fn_name() {
+        check_with_config(
+            InlayHintsConfig {
+                parameter_hints: true,
+                type_hints: false,
+                chaining_hints: false,
+                max_length: None,
+            },
+            r#"
+fn foo(foo: i32) -> i32 { foo }
+fn main() {
+    let _x = foo(
+        4,
     );
 }"#,
         );
