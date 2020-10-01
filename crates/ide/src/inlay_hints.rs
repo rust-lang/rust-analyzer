@@ -470,7 +470,7 @@ fn main() {
             },
             r#"
 fn max(x: i32, y: i32) -> i32 { x + y }
-fn main() { 
+fn main() {
     let _x = max(
         4,
       //^ x
