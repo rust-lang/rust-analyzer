@@ -168,8 +168,11 @@ fn get_param_name_hints(
             };
             Some((param_name, arg))
         })
-        .filter(|(param_name, arg)| should_show_param_name_hint(sema, &callable, &param_name, &arg))
-        .map(|(param_name, arg)| InlayHint {
+        .enumerate()
+        .filter(|(param_num, (param_name, arg))| {
+            should_show_param_name_hint(sema, &callable, param_name, *param_num, &arg)
+        })
+        .map(|(_, (param_name, arg))| InlayHint {
             range: arg.syntax().text_range(),
             kind: InlayKind::ParameterHint,
             label: param_name.into(),
@@ -314,6 +317,7 @@ fn should_show_param_name_hint(
     sema: &Semantics<RootDatabase>,
     callable: &hir::Callable,
     param_name: &str,
+    param_num: usize,
     argument: &ast::Expr,
 ) -> bool {
     let param_name = param_name.trim_start_matches('_');
@@ -326,6 +330,7 @@ fn should_show_param_name_hint(
     if param_name.is_empty()
         || Some(param_name) == fn_name.as_ref().map(|s| s.trim_start_matches('_'))
         || is_argument_similar_to_param_name(sema, argument, param_name)
+        || is_param_name_similar_to_fn_name(param_name, param_num, fn_name.as_ref())
         || param_name.starts_with("ra_fixture")
     {
         return false;
@@ -350,6 +355,17 @@ fn is_argument_similar_to_param_name(
             let argument_string = repr.trim_start_matches('_');
             argument_string.starts_with(param_name) || argument_string.ends_with(param_name)
         }
+    }
+}
+
+fn is_param_name_similar_to_fn_name(
+    param_name: &str,
+    param_num: usize,
+    fn_name: Option<&String>,
+) -> bool {
+    match (param_num, fn_name) {
+        (0, Some(function)) => function.ends_with(param_name),
+        _ => false,
     }
 }
 
