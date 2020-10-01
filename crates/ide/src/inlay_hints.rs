@@ -327,6 +327,7 @@ fn should_show_param_name_hint(
         | hir::CallableKind::TupleEnumVariant(_)
         | hir::CallableKind::Closure => None,
     };
+
     if param_name.is_empty()
         || Some(param_name) == fn_name.as_ref().map(|s| s.trim_start_matches('_'))
         || is_argument_similar_to_param_name(sema, argument, param_name)
@@ -363,9 +364,16 @@ fn is_param_name_similar_to_fn_name(
     param_num: usize,
     fn_name: Option<&String>,
 ) -> bool {
+    // if its the first parameter, don't show it if:
+    // - is the same as the function name, or
+    // - the function ends with '_' + param_name
+
     match (param_num, fn_name) {
         (0, Some(function)) => {
-            function == param_name || function.ends_with(&format!("_{}", param_name))
+            function == param_name
+                || (function.len() > param_name.len()
+                    && function.chars().nth(function.len() - param_name.len() - 1) == Some('_')
+                    && function.ends_with(param_name))
         }
         _ => false,
     }
