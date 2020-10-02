@@ -499,9 +499,9 @@ fn main() {
                 max_length: None,
             },
             r#"
-fn strip_suffix(suffix: i32) -> i32 { suffix }
+fn param_with_underscore(with_underscore: i32) -> i32 { with_underscore }
 fn main() {
-    let _x = strip_suffix(
+    let _x = param_with_underscore(
         4,
     );
 }"#,
