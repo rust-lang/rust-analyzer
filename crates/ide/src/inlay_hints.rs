@@ -364,7 +364,7 @@ fn is_param_name_similar_to_fn_name(
     param_num: usize,
     fn_name: Option<&String>,
 ) -> bool {
-    // if its the first parameter, don't show it if:
+    // if it's the first parameter, don't show it if:
     // - is the same as the function name, or
     // - the function ends with '_' + param_name
 
