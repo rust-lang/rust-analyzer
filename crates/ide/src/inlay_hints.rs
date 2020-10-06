@@ -372,8 +372,8 @@ fn is_param_name_similar_to_fn_name(
         (0, Some(function)) => {
             function == param_name
                 || (function.len() > param_name.len()
-                    && function.ends_with(param_name))
-                    && function[..function.len() - param_name.len()].ends_with('_')
+                    && function.ends_with(param_name)
+                    && function[..function.len() - param_name.len()].ends_with('_'))
         }
         _ => false,
     }
