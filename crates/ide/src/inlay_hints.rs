@@ -168,11 +168,8 @@ fn get_param_name_hints(
             };
             Some((param_name, arg))
         })
-        .enumerate()
-        .filter(|(param_num, (param_name, arg))| {
-            should_show_param_name_hint(sema, &callable, param_name, *param_num, &arg)
-        })
-        .map(|(_, (param_name, arg))| InlayHint {
+        .filter(|(param_name, arg)| should_show_param_name_hint(sema, &callable, param_name, &arg))
+        .map(|(param_name, arg)| InlayHint {
             range: arg.syntax().text_range(),
             kind: InlayKind::ParameterHint,
             label: param_name.into(),
@@ -317,7 +314,6 @@ fn should_show_param_name_hint(
     sema: &Semantics<RootDatabase>,
     callable: &hir::Callable,
     param_name: &str,
-    param_num: usize,
     argument: &ast::Expr,
 ) -> bool {
     let param_name = param_name.trim_start_matches('_');
@@ -331,7 +327,7 @@ fn should_show_param_name_hint(
     if param_name.is_empty()
         || Some(param_name) == fn_name.as_ref().map(|s| s.trim_start_matches('_'))
         || is_argument_similar_to_param_name(sema, argument, param_name)
-        || is_param_name_similar_to_fn_name(param_name, param_num, fn_name.as_ref())
+        || is_param_name_similar_to_fn_name(param_name, callable, fn_name.as_ref())
         || param_name.starts_with("ra_fixture")
     {
         return false;
@@ -361,15 +357,15 @@ fn is_argument_similar_to_param_name(
 
 fn is_param_name_similar_to_fn_name(
     param_name: &str,
-    param_num: usize,
+    callable: &Callable,
     fn_name: Option<&String>,
 ) -> bool {
-    // if it's the first parameter, don't show it if:
+    // if it's the only parameter, don't show it if:
     // - is the same as the function name, or
     // - the function ends with '_' + param_name
 
-    match (param_num, fn_name) {
-        (0, Some(function)) => {
+    match (callable.n_params(), fn_name) {
+        (1, Some(function)) => {
             function == param_name
                 || (function.len() > param_name.len()
                     && function.ends_with(param_name)
@@ -522,6 +518,28 @@ fn foo(foo: i32) -> i32 { foo }
 fn main() {
     let _x = foo(
         4,
+    );
+}"#,
+        );
+    }
+
+    #[test]
+    fn never_hide_param_when_multiple_params() {
+        check_with_config(
+            InlayHintsConfig {
+                parameter_hints: true,
+                type_hints: false,
+                chaining_hints: false,
+                max_length: None,
+            },
+            r#"
+fn foo(bar: i32, baz: i32) -> i32 { bar + baz }
+fn main() {
+    let _x = foo(
+        4,
+      //^ bar
+        8,
+      //^ baz
     );
 }"#,
         );
