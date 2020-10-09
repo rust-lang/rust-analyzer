@@ -48,13 +48,14 @@ pub use hir_def::{
     body::scope::ExprScopes,
     builtin_type::BuiltinType,
     docs::Documentation,
+    find_path::PrefixKind,
     item_scope::ItemInNs,
     nameres::ModuleSource,
-    path::ModPath,
+    path::{ModPath, PathKind},
     type_ref::{Mutability, TypeRef},
 };
 pub use hir_expand::{
-    name::AsName, name::Name, HirFileId, InFile, MacroCallId, MacroCallLoc,
+    name::known, name::AsName, name::Name, HirFileId, InFile, MacroCallId, MacroCallLoc,
     /* FIXME */ MacroDefId, MacroFile, Origin,
 };
 pub use hir_ty::display::HirDisplay;
@@ -62,7 +63,4 @@ pub use hir_ty::display::HirDisplay;
 // These are negative re-exports: pub using these names is forbidden, they
 // should remain private to hir internals.
 #[allow(unused)]
-use {
-    hir_def::path::{Path, PathKind},
-    hir_expand::hygiene::Hygiene,
-};
+use {hir_def::path::Path, hir_expand::hygiene::Hygiene};

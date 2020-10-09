@@ -10,11 +10,12 @@
 use std::{ffi::OsString, path::PathBuf};
 
 use flycheck::FlycheckConfig;
+use hir::PrefixKind;
 use ide::{
     AssistConfig, CompletionConfig, DiagnosticsConfig, HoverConfig, InlayHintsConfig,
     MergeBehaviour,
 };
-use lsp_types::ClientCapabilities;
+use lsp_types::{ClientCapabilities, MarkupKind};
 use project_model::{CargoConfig, ProjectJson, ProjectJsonData, ProjectManifest};
 use rustc_hash::FxHashSet;
 use serde::Deserialize;
@@ -38,6 +39,7 @@ pub struct Config {
     pub cargo: CargoConfig,
     pub rustfmt: RustfmtConfig,
     pub flycheck: Option<FlycheckConfig>,
+    pub runnables: RunnablesConfig,
 
     pub inlay_hints: InlayHintsConfig,
     pub completion: CompletionConfig,
@@ -124,6 +126,15 @@ pub enum RustfmtConfig {
     CustomCommand { command: String, args: Vec<String> },
 }
 
+/// Configuration for runnable items, such as `main` function or tests.
+#[derive(Debug, Clone, Default)]
+pub struct RunnablesConfig {
+    /// Custom command to be executed instead of `cargo` for runnables.
+    pub override_cargo: Option<String>,
+    /// Additional arguments for the `cargo`, e.g. `--release`.
+    pub cargo_extra_args: Vec<String>,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ClientCapsConfig {
     pub location_link: bool,
@@ -164,6 +175,7 @@ impl Config {
                 extra_args: Vec::new(),
                 features: Vec::new(),
             }),
+            runnables: RunnablesConfig::default(),
 
             inlay_hints: InlayHintsConfig {
                 type_hints: true,
@@ -220,6 +232,10 @@ impl Config {
             load_out_dirs_from_check: data.cargo_loadOutDirsFromCheck,
             target: data.cargo_target.clone(),
         };
+        self.runnables = RunnablesConfig {
+            override_cargo: data.runnables_overrideCargo,
+            cargo_extra_args: data.runnables_cargoExtraArgs,
+        };
 
         self.proc_macro_srv = if data.procMacro_enable {
             std::env::current_exe().ok().map(|path| (path, vec!["proc-macro".into()]))
@@ -274,6 +290,11 @@ impl Config {
             MergeBehaviourDef::Full => Some(MergeBehaviour::Full),
             MergeBehaviourDef::Last => Some(MergeBehaviour::Last),
         };
+        self.assist.insert_use.prefix_kind = match data.assist_importPrefix {
+            ImportPrefixDef::Plain => PrefixKind::Plain,
+            ImportPrefixDef::ByCrate => PrefixKind::ByCrate,
+            ImportPrefixDef::BySelf => PrefixKind::BySelf,
+        };
 
         self.call_info_full = data.callInfo_full;
 
@@ -312,6 +333,7 @@ impl Config {
             debug: data.hoverActions_enable && data.hoverActions_debug,
             goto_type_def: data.hoverActions_enable && data.hoverActions_gotoTypeDef,
             links_in_hover: data.hoverActions_linksInHover,
+            markdown: true,
         };
 
         log::info!("Config::update() = {:#?}", self);
@@ -319,6 +341,9 @@ impl Config {
 
     pub fn update_caps(&mut self, caps: &ClientCapabilities) {
         if let Some(doc_caps) = caps.text_document.as_ref() {
+            if let Some(value) = doc_caps.hover.as_ref().and_then(|it| it.content_format.as_ref()) {
+                self.hover.markdown = value.contains(&MarkupKind::Markdown)
+            }
             if let Some(value) = doc_caps.definition.as_ref().and_then(|it| it.link_support) {
                 self.client_caps.location_link = value;
             }
@@ -388,11 +413,19 @@ enum ManifestOrProjectJson {
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 enum MergeBehaviourDef {
     None,
     Full,
     Last,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum ImportPrefixDef {
+    Plain,
+    BySelf,
+    ByCrate,
 }
 
 macro_rules! config_data {
@@ -419,6 +452,7 @@ macro_rules! config_data {
 config_data! {
     struct ConfigData {
         assist_importMergeBehaviour: MergeBehaviourDef = MergeBehaviourDef::None,
+        assist_importPrefix: ImportPrefixDef           = ImportPrefixDef::Plain,
 
         callInfo_full: bool = true,
 
@@ -473,6 +507,9 @@ config_data! {
         lruCapacity: Option<usize>                 = None,
         notifications_cargoTomlNotFound: bool      = true,
         procMacro_enable: bool                     = false,
+
+        runnables_overrideCargo: Option<String> = None,
+        runnables_cargoExtraArgs: Vec<String>   = Vec::new(),
 
         rustfmt_extraArgs: Vec<String>               = Vec::new(),
         rustfmt_overrideCommand: Option<Vec<String>> = None,

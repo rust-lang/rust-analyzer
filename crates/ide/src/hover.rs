@@ -15,6 +15,7 @@ use test_utils::mark;
 use crate::{
     display::{macro_label, ShortLabel, ToNav, TryToNav},
     link_rewrite::{remove_links, rewrite_links},
+    markdown_remove::remove_markdown,
     markup::Markup,
     runnables::runnable,
     FileId, FilePosition, NavigationTarget, RangeInfo, Runnable,
@@ -27,6 +28,7 @@ pub struct HoverConfig {
     pub debug: bool,
     pub goto_type_def: bool,
     pub links_in_hover: bool,
+    pub markdown: bool,
 }
 
 impl Default for HoverConfig {
@@ -37,6 +39,7 @@ impl Default for HoverConfig {
             debug: true,
             goto_type_def: true,
             links_in_hover: true,
+            markdown: true,
         }
     }
 }
@@ -48,6 +51,7 @@ impl HoverConfig {
         debug: false,
         goto_type_def: false,
         links_in_hover: true,
+        markdown: true,
     };
 
     pub fn any(&self) -> bool {
@@ -91,6 +95,7 @@ pub(crate) fn hover(
     db: &RootDatabase,
     position: FilePosition,
     links_in_hover: bool,
+    markdown: bool,
 ) -> Option<RangeInfo<HoverResult>> {
     let sema = Semantics::new(db);
     let file = sema.parse(position.file_id).syntax().clone();
@@ -109,7 +114,9 @@ pub(crate) fn hover(
     };
     if let Some(definition) = definition {
         if let Some(markup) = hover_for_definition(db, definition) {
-            let markup = if links_in_hover {
+            let markup = if !markdown {
+                remove_markdown(&markup.as_str())
+            } else if links_in_hover {
                 rewrite_links(db, &markup.as_str(), &definition)
             } else {
                 remove_links(&markup.as_str())
@@ -147,7 +154,11 @@ pub(crate) fn hover(
         }
     };
 
-    res.markup = Markup::fenced_block(&ty.display(db));
+    res.markup = if markdown {
+        Markup::fenced_block(&ty.display(db))
+    } else {
+        ty.display(db).to_string().into()
+    };
     let range = sema.original_range(&node).range;
     Some(RangeInfo::new(range, res))
 }
@@ -289,7 +300,7 @@ fn definition_owner_name(db: &RootDatabase, def: &Definition) -> Option<String> 
 
 fn render_path(db: &RootDatabase, module: Module, item_name: Option<String>) -> String {
     let crate_name =
-        db.crate_graph()[module.krate().into()].display_name.as_ref().map(ToString::to_string);
+        db.crate_graph()[module.krate().into()].declaration_name.as_ref().map(ToString::to_string);
     let module_path = module
         .path_to_root(db)
         .into_iter()
@@ -377,18 +388,18 @@ mod tests {
     use base_db::FileLoader;
     use expect_test::{expect, Expect};
 
-    use crate::mock_analysis::analysis_and_position;
+    use crate::fixture;
 
     use super::*;
 
     fn check_hover_no_result(ra_fixture: &str) {
-        let (analysis, position) = analysis_and_position(ra_fixture);
-        assert!(analysis.hover(position, true).unwrap().is_none());
+        let (analysis, position) = fixture::position(ra_fixture);
+        assert!(analysis.hover(position, true, true).unwrap().is_none());
     }
 
     fn check(ra_fixture: &str, expect: Expect) {
-        let (analysis, position) = analysis_and_position(ra_fixture);
-        let hover = analysis.hover(position, true).unwrap().unwrap();
+        let (analysis, position) = fixture::position(ra_fixture);
+        let hover = analysis.hover(position, true, true).unwrap().unwrap();
 
         let content = analysis.db.file_text(position.file_id);
         let hovered_element = &content[hover.range];
@@ -398,8 +409,19 @@ mod tests {
     }
 
     fn check_hover_no_links(ra_fixture: &str, expect: Expect) {
-        let (analysis, position) = analysis_and_position(ra_fixture);
-        let hover = analysis.hover(position, false).unwrap().unwrap();
+        let (analysis, position) = fixture::position(ra_fixture);
+        let hover = analysis.hover(position, false, true).unwrap().unwrap();
+
+        let content = analysis.db.file_text(position.file_id);
+        let hovered_element = &content[hover.range];
+
+        let actual = format!("*{}*\n{}\n", hovered_element, hover.info.markup);
+        expect.assert_eq(&actual)
+    }
+
+    fn check_hover_no_markdown(ra_fixture: &str, expect: Expect) {
+        let (analysis, position) = fixture::position(ra_fixture);
+        let hover = analysis.hover(position, true, false).unwrap().unwrap();
 
         let content = analysis.db.file_text(position.file_id);
         let hovered_element = &content[hover.range];
@@ -409,8 +431,8 @@ mod tests {
     }
 
     fn check_actions(ra_fixture: &str, expect: Expect) {
-        let (analysis, position) = analysis_and_position(ra_fixture);
-        let hover = analysis.hover(position, true).unwrap().unwrap();
+        let (analysis, position) = fixture::position(ra_fixture);
+        let hover = analysis.hover(position, true, true).unwrap().unwrap();
         expect.assert_debug_eq(&hover.info.actions)
     }
 
@@ -429,6 +451,23 @@ fn main() {
                 ```rust
                 u32
                 ```
+            "#]],
+        );
+    }
+
+    #[test]
+    fn hover_remove_markdown_if_configured() {
+        check_hover_no_markdown(
+            r#"
+pub fn foo() -> u32 { 1 }
+
+fn main() {
+    let foo_test = foo()<|>;
+}
+"#,
+            expect![[r#"
+                *foo()*
+                u32
             "#]],
         );
     }
@@ -963,7 +1002,7 @@ impl Thing {
             "#]],
         )
     } /* FIXME: revive these tests
-              let (analysis, position) = analysis_and_position(
+              let (analysis, position) = fixture::position(
                   "
                   struct Thing { x: u32 }
                   impl Thing {
@@ -977,7 +1016,7 @@ impl Thing {
               let hover = analysis.hover(position).unwrap().unwrap();
               assert_eq!(trim_markup(&hover.info.markup.as_str()), ("Thing"));
 
-              let (analysis, position) = analysis_and_position(
+              let (analysis, position) = fixture::position(
                   "
                   enum Thing { A }
                   impl Thing {
@@ -990,7 +1029,7 @@ impl Thing {
               let hover = analysis.hover(position).unwrap().unwrap();
               assert_eq!(trim_markup(&hover.info.markup.as_str()), ("enum Thing"));
 
-              let (analysis, position) = analysis_and_position(
+              let (analysis, position) = fixture::position(
                   "
                   enum Thing { A }
                   impl Thing {
@@ -1275,7 +1314,7 @@ fn bar() { fo<|>o(); }
                     Implementaion(
                         FilePosition {
                             file_id: FileId(
-                                1,
+                                0,
                             ),
                             offset: 13,
                         },
@@ -1289,9 +1328,9 @@ fn bar() { fo<|>o(); }
     fn test_hover_extern_crate() {
         check(
             r#"
-//- /main.rs
+//- /main.rs crate:main deps:std
 extern crate st<|>d;
-//- /std/lib.rs
+//- /std/lib.rs crate:std
 //! Standard library for this test
 //!
 //! Printed?
@@ -1307,9 +1346,9 @@ extern crate st<|>d;
         );
         check(
             r#"
-//- /main.rs
+//- /main.rs crate:main deps:std
 extern crate std as ab<|>c;
-//- /std/lib.rs
+//- /std/lib.rs crate:std
 //! Standard library for this test
 //!
 //! Printed?
@@ -1989,7 +2028,7 @@ fn foo() { let bar = Bar; bar.fo<|>o(); }
                     Implementaion(
                         FilePosition {
                             file_id: FileId(
-                                1,
+                                0,
                             ),
                             offset: 6,
                         },
@@ -2008,7 +2047,7 @@ fn foo() { let bar = Bar; bar.fo<|>o(); }
                     Implementaion(
                         FilePosition {
                             file_id: FileId(
-                                1,
+                                0,
                             ),
                             offset: 7,
                         },
@@ -2027,7 +2066,7 @@ fn foo() { let bar = Bar; bar.fo<|>o(); }
                     Implementaion(
                         FilePosition {
                             file_id: FileId(
-                                1,
+                                0,
                             ),
                             offset: 6,
                         },
@@ -2046,7 +2085,7 @@ fn foo() { let bar = Bar; bar.fo<|>o(); }
                     Implementaion(
                         FilePosition {
                             file_id: FileId(
-                                1,
+                                0,
                             ),
                             offset: 5,
                         },
@@ -2069,7 +2108,7 @@ fn foo_<|>test() {}
                         Runnable {
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    1,
+                                    0,
                                 ),
                                 full_range: 0..24,
                                 focus_range: Some(
@@ -2112,7 +2151,7 @@ mod tests<|> {
                         Runnable {
                             nav: NavigationTarget {
                                 file_id: FileId(
-                                    1,
+                                    0,
                                 ),
                                 full_range: 0..46,
                                 focus_range: Some(
@@ -2151,7 +2190,7 @@ fn main() { let s<|>t = S{ f1:0 }; }
                                 mod_path: "test::S",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 0..19,
                                     focus_range: Some(
@@ -2190,7 +2229,7 @@ fn main() { let s<|>t = S{ f1:Arg(0) }; }
                                 mod_path: "test::S",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 17..37,
                                     focus_range: Some(
@@ -2209,7 +2248,7 @@ fn main() { let s<|>t = S{ f1:Arg(0) }; }
                                 mod_path: "test::Arg",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 0..16,
                                     focus_range: Some(
@@ -2248,7 +2287,7 @@ fn main() { let s<|>t = S{ f1: S{ f1: Arg(0) } }; }
                                 mod_path: "test::S",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 17..37,
                                     focus_range: Some(
@@ -2267,7 +2306,7 @@ fn main() { let s<|>t = S{ f1: S{ f1: Arg(0) } }; }
                                 mod_path: "test::Arg",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 0..16,
                                     focus_range: Some(
@@ -2309,7 +2348,7 @@ fn main() { let s<|>t = (A(1), B(2), M::C(3) ); }
                                 mod_path: "test::A",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 0..14,
                                     focus_range: Some(
@@ -2328,7 +2367,7 @@ fn main() { let s<|>t = (A(1), B(2), M::C(3) ); }
                                 mod_path: "test::B",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 15..29,
                                     focus_range: Some(
@@ -2347,7 +2386,7 @@ fn main() { let s<|>t = (A(1), B(2), M::C(3) ); }
                                 mod_path: "test::M::C",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 42..60,
                                     focus_range: Some(
@@ -2386,7 +2425,7 @@ fn main() { let s<|>t = foo(); }
                                 mod_path: "test::Foo",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 0..12,
                                     focus_range: Some(
@@ -2426,7 +2465,7 @@ fn main() { let s<|>t = foo(); }
                                 mod_path: "test::Foo",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 0..15,
                                     focus_range: Some(
@@ -2445,7 +2484,7 @@ fn main() { let s<|>t = foo(); }
                                 mod_path: "test::S",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 16..25,
                                     focus_range: Some(
@@ -2485,7 +2524,7 @@ fn main() { let s<|>t = foo(); }
                                 mod_path: "test::Foo",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 0..12,
                                     focus_range: Some(
@@ -2504,7 +2543,7 @@ fn main() { let s<|>t = foo(); }
                                 mod_path: "test::Bar",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 13..25,
                                     focus_range: Some(
@@ -2547,7 +2586,7 @@ fn main() { let s<|>t = foo(); }
                                 mod_path: "test::Foo",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 0..15,
                                     focus_range: Some(
@@ -2566,7 +2605,7 @@ fn main() { let s<|>t = foo(); }
                                 mod_path: "test::Bar",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 16..31,
                                     focus_range: Some(
@@ -2585,7 +2624,7 @@ fn main() { let s<|>t = foo(); }
                                 mod_path: "test::S1",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 32..44,
                                     focus_range: Some(
@@ -2604,7 +2643,7 @@ fn main() { let s<|>t = foo(); }
                                 mod_path: "test::S2",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 45..57,
                                     focus_range: Some(
@@ -2641,7 +2680,7 @@ fn foo(ar<|>g: &impl Foo) {}
                                 mod_path: "test::Foo",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 0..12,
                                     focus_range: Some(
@@ -2681,7 +2720,7 @@ fn foo(ar<|>g: &impl Foo + Bar<S>) {}
                                 mod_path: "test::Foo",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 0..12,
                                     focus_range: Some(
@@ -2700,7 +2739,7 @@ fn foo(ar<|>g: &impl Foo + Bar<S>) {}
                                 mod_path: "test::Bar",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 13..28,
                                     focus_range: Some(
@@ -2719,7 +2758,7 @@ fn foo(ar<|>g: &impl Foo + Bar<S>) {}
                                 mod_path: "test::S",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 29..39,
                                     focus_range: Some(
@@ -2764,7 +2803,7 @@ mod future {
                                 mod_path: "test::future::Future",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 101..163,
                                     focus_range: Some(
@@ -2783,7 +2822,7 @@ mod future {
                                 mod_path: "test::S",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 0..9,
                                     focus_range: Some(
@@ -2821,7 +2860,7 @@ fn foo(ar<|>g: &impl Foo<S>) {}
                                 mod_path: "test::Foo",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 0..15,
                                     focus_range: Some(
@@ -2840,7 +2879,7 @@ fn foo(ar<|>g: &impl Foo<S>) {}
                                 mod_path: "test::S",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 16..27,
                                     focus_range: Some(
@@ -2883,7 +2922,7 @@ fn main() { let s<|>t = foo(); }
                                 mod_path: "test::B",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 42..55,
                                     focus_range: Some(
@@ -2902,7 +2941,7 @@ fn main() { let s<|>t = foo(); }
                                 mod_path: "test::Foo",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 0..12,
                                     focus_range: Some(
@@ -2939,7 +2978,7 @@ fn foo(ar<|>g: &dyn Foo) {}
                                 mod_path: "test::Foo",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 0..12,
                                     focus_range: Some(
@@ -2977,7 +3016,7 @@ fn foo(ar<|>g: &dyn Foo<S>) {}
                                 mod_path: "test::Foo",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 0..15,
                                     focus_range: Some(
@@ -2996,7 +3035,7 @@ fn foo(ar<|>g: &dyn Foo<S>) {}
                                 mod_path: "test::S",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 16..27,
                                     focus_range: Some(
@@ -3037,7 +3076,7 @@ fn foo(a<|>rg: &impl ImplTrait<B<dyn DynTrait<B<S>>>>) {}
                                 mod_path: "test::ImplTrait",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 0..21,
                                     focus_range: Some(
@@ -3056,7 +3095,7 @@ fn foo(a<|>rg: &impl ImplTrait<B<dyn DynTrait<B<S>>>>) {}
                                 mod_path: "test::B",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 43..57,
                                     focus_range: Some(
@@ -3075,7 +3114,7 @@ fn foo(a<|>rg: &impl ImplTrait<B<dyn DynTrait<B<S>>>>) {}
                                 mod_path: "test::DynTrait",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 22..42,
                                     focus_range: Some(
@@ -3094,7 +3133,7 @@ fn foo(a<|>rg: &impl ImplTrait<B<dyn DynTrait<B<S>>>>) {}
                                 mod_path: "test::S",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 58..69,
                                     focus_range: Some(
@@ -3142,7 +3181,7 @@ fn main() { let s<|>t = test().get(); }
                                 mod_path: "test::Foo",
                                 nav: NavigationTarget {
                                     file_id: FileId(
-                                        1,
+                                        0,
                                     ),
                                     full_range: 0..62,
                                     focus_range: Some(
@@ -3162,5 +3201,35 @@ fn main() { let s<|>t = test().get(); }
                 ]
             "#]],
         );
+    }
+
+    #[test]
+    fn hover_displays_normalized_crate_names() {
+        check(
+            r#"
+//- /lib.rs crate:name-with-dashes
+pub mod wrapper {
+    pub struct Thing { x: u32 }
+
+    impl Thing {
+        pub fn new() -> Thing { Thing { x: 0 } }
+    }
+}
+
+//- /main.rs crate:main deps:name-with-dashes
+fn main() { let foo_test = name_with_dashes::wrapper::Thing::new<|>(); }
+"#,
+            expect![[r#"
+            *new*
+
+            ```rust
+            name_with_dashes::wrapper::Thing
+            ```
+
+            ```rust
+            pub fn new() -> Thing
+            ```
+            "#]],
+        )
     }
 }

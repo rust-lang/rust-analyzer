@@ -13,7 +13,10 @@ use syntax::{
     SyntaxNode,
 };
 
-use crate::{utils::insert_use, AssistContext, AssistId, AssistKind, Assists, GroupLabel};
+use crate::{
+    utils::insert_use, utils::mod_path_to_ast, AssistContext, AssistId, AssistKind, Assists,
+    GroupLabel,
+};
 
 // Assist: auto_import
 //
@@ -54,7 +57,7 @@ pub(crate) fn auto_import(acc: &mut Assists, ctx: &AssistContext) -> Option<()> 
             range,
             |builder| {
                 let new_syntax =
-                    insert_use(&scope, import.to_ast_path(), ctx.config.insert_use.merge);
+                    insert_use(&scope, mod_path_to_ast(&import), ctx.config.insert_use.merge);
                 builder.replace(syntax.text_range(), new_syntax.to_string())
             },
         );
@@ -191,12 +194,16 @@ impl AutoImportAssets {
                 _ => Some(candidate),
             })
             .filter_map(|candidate| match candidate {
-                Either::Left(module_def) => {
-                    self.module_with_name_to_import.find_use_path_prefixed(db, module_def)
-                }
-                Either::Right(macro_def) => {
-                    self.module_with_name_to_import.find_use_path_prefixed(db, macro_def)
-                }
+                Either::Left(module_def) => self.module_with_name_to_import.find_use_path_prefixed(
+                    db,
+                    module_def,
+                    ctx.config.insert_use.prefix_kind,
+                ),
+                Either::Right(macro_def) => self.module_with_name_to_import.find_use_path_prefixed(
+                    db,
+                    macro_def,
+                    ctx.config.insert_use.prefix_kind,
+                ),
             })
             .filter(|use_path| !use_path.segments.is_empty())
             .take(20)

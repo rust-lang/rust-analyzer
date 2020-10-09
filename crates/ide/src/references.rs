@@ -190,14 +190,15 @@ fn get_struct_def_name_for_struct_literal_search(
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        mock_analysis::{analysis_and_position, MockAnalysis},
-        Declaration, Reference, ReferenceSearchResult, SearchScope,
-    };
+    use base_db::FileId;
+    use expect_test::{expect, Expect};
+    use stdx::format_to;
+
+    use crate::{fixture, SearchScope};
 
     #[test]
     fn test_struct_literal_after_space() {
-        let refs = get_all_refs(
+        check(
             r#"
 struct Foo <|>{
     a: i32,
@@ -210,17 +211,17 @@ fn main() {
     f = Foo {a: Foo::f()};
 }
 "#,
-        );
-        check_result(
-            refs,
-            "Foo STRUCT FileId(1) 0..26 7..10 Other",
-            &["FileId(1) 101..104 StructLiteral"],
+            expect![[r#"
+                Foo STRUCT FileId(0) 0..26 7..10 Other
+
+                FileId(0) 101..104 StructLiteral
+            "#]],
         );
     }
 
     #[test]
     fn test_struct_literal_before_space() {
-        let refs = get_all_refs(
+        check(
             r#"
 struct Foo<|> {}
     fn main() {
@@ -228,17 +229,18 @@ struct Foo<|> {}
     f = Foo {};
 }
 "#,
-        );
-        check_result(
-            refs,
-            "Foo STRUCT FileId(1) 0..13 7..10 Other",
-            &["FileId(1) 41..44 Other", "FileId(1) 54..57 StructLiteral"],
+            expect![[r#"
+                Foo STRUCT FileId(0) 0..13 7..10 Other
+
+                FileId(0) 41..44 Other
+                FileId(0) 54..57 StructLiteral
+            "#]],
         );
     }
 
     #[test]
     fn test_struct_literal_with_generic_type() {
-        let refs = get_all_refs(
+        check(
             r#"
 struct Foo<T> <|>{}
     fn main() {
@@ -246,17 +248,17 @@ struct Foo<T> <|>{}
     f = Foo {};
 }
 "#,
-        );
-        check_result(
-            refs,
-            "Foo STRUCT FileId(1) 0..16 7..10 Other",
-            &["FileId(1) 64..67 StructLiteral"],
+            expect![[r#"
+                Foo STRUCT FileId(0) 0..16 7..10 Other
+
+                FileId(0) 64..67 StructLiteral
+            "#]],
         );
     }
 
     #[test]
     fn test_struct_literal_for_tuple() {
-        let refs = get_all_refs(
+        check(
             r#"
 struct Foo<|>(i32);
 
@@ -265,17 +267,17 @@ fn main() {
     f = Foo(1);
 }
 "#,
-        );
-        check_result(
-            refs,
-            "Foo STRUCT FileId(1) 0..16 7..10 Other",
-            &["FileId(1) 54..57 StructLiteral"],
+            expect![[r#"
+                Foo STRUCT FileId(0) 0..16 7..10 Other
+
+                FileId(0) 54..57 StructLiteral
+            "#]],
         );
     }
 
     #[test]
     fn test_find_all_refs_for_local() {
-        let refs = get_all_refs(
+        check(
             r#"
 fn main() {
     let mut i = 1;
@@ -288,22 +290,20 @@ fn main() {
 
     i = 5;
 }"#,
-        );
-        check_result(
-            refs,
-            "i IDENT_PAT FileId(1) 24..25 Other Write",
-            &[
-                "FileId(1) 50..51 Other Write",
-                "FileId(1) 54..55 Other Read",
-                "FileId(1) 76..77 Other Write",
-                "FileId(1) 94..95 Other Write",
-            ],
+            expect![[r#"
+                i IDENT_PAT FileId(0) 24..25 Other Write
+
+                FileId(0) 50..51 Other Write
+                FileId(0) 54..55 Other Read
+                FileId(0) 76..77 Other Write
+                FileId(0) 94..95 Other Write
+            "#]],
         );
     }
 
     #[test]
     fn search_filters_by_range() {
-        let refs = get_all_refs(
+        check(
             r#"
 fn foo() {
     let spam<|> = 92;
@@ -314,41 +314,46 @@ fn bar() {
     spam + spam
 }
 "#,
-        );
-        check_result(
-            refs,
-            "spam IDENT_PAT FileId(1) 19..23 Other",
-            &["FileId(1) 34..38 Other Read", "FileId(1) 41..45 Other Read"],
+            expect![[r#"
+                spam IDENT_PAT FileId(0) 19..23 Other
+
+                FileId(0) 34..38 Other Read
+                FileId(0) 41..45 Other Read
+            "#]],
         );
     }
 
     #[test]
     fn test_find_all_refs_for_param_inside() {
-        let refs = get_all_refs(
+        check(
             r#"
-fn foo(i : u32) -> u32 {
-    i<|>
-}
+fn foo(i : u32) -> u32 { i<|> }
 "#,
+            expect![[r#"
+                i IDENT_PAT FileId(0) 7..8 Other
+
+                FileId(0) 25..26 Other Read
+            "#]],
         );
-        check_result(refs, "i IDENT_PAT FileId(1) 7..8 Other", &["FileId(1) 29..30 Other Read"]);
     }
 
     #[test]
     fn test_find_all_refs_for_fn_param() {
-        let refs = get_all_refs(
+        check(
             r#"
-fn foo(i<|> : u32) -> u32 {
-    i
-}
+fn foo(i<|> : u32) -> u32 { i }
 "#,
+            expect![[r#"
+                i IDENT_PAT FileId(0) 7..8 Other
+
+                FileId(0) 25..26 Other Read
+            "#]],
         );
-        check_result(refs, "i IDENT_PAT FileId(1) 7..8 Other", &["FileId(1) 29..30 Other Read"]);
     }
 
     #[test]
     fn test_find_all_refs_field_name() {
-        let refs = get_all_refs(
+        check(
             r#"
 //- /lib.rs
 struct Foo {
@@ -359,30 +364,33 @@ fn main(s: Foo) {
     let f = s.spam;
 }
 "#,
-        );
-        check_result(
-            refs,
-            "spam RECORD_FIELD FileId(1) 17..30 21..25 Other",
-            &["FileId(1) 67..71 Other Read"],
+            expect![[r#"
+                spam RECORD_FIELD FileId(0) 17..30 21..25 Other
+
+                FileId(0) 67..71 Other Read
+            "#]],
         );
     }
 
     #[test]
     fn test_find_all_refs_impl_item_name() {
-        let refs = get_all_refs(
+        check(
             r#"
 struct Foo;
 impl Foo {
     fn f<|>(&self) {  }
 }
 "#,
+            expect![[r#"
+                f FN FileId(0) 27..43 30..31 Other
+
+            "#]],
         );
-        check_result(refs, "f FN FileId(1) 27..43 30..31 Other", &[]);
     }
 
     #[test]
     fn test_find_all_refs_enum_var_name() {
-        let refs = get_all_refs(
+        check(
             r#"
 enum Foo {
     A,
@@ -390,13 +398,33 @@ enum Foo {
     C,
 }
 "#,
+            expect![[r#"
+                B VARIANT FileId(0) 22..23 22..23 Other
+
+            "#]],
         );
-        check_result(refs, "B VARIANT FileId(1) 22..23 22..23 Other", &[]);
+    }
+
+    #[test]
+    fn test_find_all_refs_enum_var_field() {
+        check(
+            r#"
+enum Foo {
+    A,
+    B { field<|>: u8 },
+    C,
+}
+"#,
+            expect![[r#"
+                field RECORD_FIELD FileId(0) 26..35 26..31 Other
+
+            "#]],
+        );
     }
 
     #[test]
     fn test_find_all_refs_two_modules() {
-        let (analysis, pos) = analysis_and_position(
+        check(
             r#"
 //- /lib.rs
 pub mod foo;
@@ -428,12 +456,12 @@ fn f() {
     let i = foo::Foo<|> { n: 5 };
 }
 "#,
-        );
-        let refs = analysis.find_all_refs(pos, None).unwrap().unwrap();
-        check_result(
-            refs,
-            "Foo STRUCT FileId(2) 17..51 28..31 Other",
-            &["FileId(1) 53..56 StructLiteral", "FileId(3) 79..82 StructLiteral"],
+            expect![[r#"
+                Foo STRUCT FileId(1) 17..51 28..31 Other
+
+                FileId(0) 53..56 StructLiteral
+                FileId(2) 79..82 StructLiteral
+            "#]],
         );
     }
 
@@ -442,7 +470,7 @@ fn f() {
     // which is the whole `foo.rs`, and the second one is in `use foo::Foo`.
     #[test]
     fn test_find_all_refs_decl_module() {
-        let (analysis, pos) = analysis_and_position(
+        check(
             r#"
 //- /lib.rs
 mod foo<|>;
@@ -458,14 +486,17 @@ pub struct Foo {
     pub n: u32,
 }
 "#,
+            expect![[r#"
+                foo SOURCE_FILE FileId(1) 0..35 Other
+
+                FileId(0) 14..17 Other
+            "#]],
         );
-        let refs = analysis.find_all_refs(pos, None).unwrap().unwrap();
-        check_result(refs, "foo SOURCE_FILE FileId(2) 0..35 Other", &["FileId(1) 14..17 Other"]);
     }
 
     #[test]
     fn test_find_all_refs_super_mod_vis() {
-        let (analysis, pos) = analysis_and_position(
+        check(
             r#"
 //- /lib.rs
 mod foo;
@@ -483,12 +514,12 @@ pub(super) struct Foo<|> {
     pub n: u32,
 }
 "#,
-        );
-        let refs = analysis.find_all_refs(pos, None).unwrap().unwrap();
-        check_result(
-            refs,
-            "Foo STRUCT FileId(3) 0..41 18..21 Other",
-            &["FileId(2) 20..23 Other", "FileId(2) 47..50 StructLiteral"],
+            expect![[r#"
+                Foo STRUCT FileId(2) 0..41 18..21 Other
+
+                FileId(1) 20..23 Other
+                FileId(1) 47..50 StructLiteral
+            "#]],
         );
     }
 
@@ -508,29 +539,31 @@ pub(super) struct Foo<|> {
             fn f() { super::quux(); }
         "#;
 
-        let (mock, pos) = MockAnalysis::with_files_and_position(code);
-        let bar = mock.id_of("/bar.rs");
-        let analysis = mock.analysis();
+        check_with_scope(
+            code,
+            None,
+            expect![[r#"
+                quux FN FileId(0) 19..35 26..30 Other
 
-        let refs = analysis.find_all_refs(pos, None).unwrap().unwrap();
-        check_result(
-            refs,
-            "quux FN FileId(1) 19..35 26..30 Other",
-            &["FileId(2) 16..20 StructLiteral", "FileId(3) 16..20 StructLiteral"],
+                FileId(1) 16..20 StructLiteral
+                FileId(2) 16..20 StructLiteral
+            "#]],
         );
 
-        let refs =
-            analysis.find_all_refs(pos, Some(SearchScope::single_file(bar))).unwrap().unwrap();
-        check_result(
-            refs,
-            "quux FN FileId(1) 19..35 26..30 Other",
-            &["FileId(3) 16..20 StructLiteral"],
+        check_with_scope(
+            code,
+            Some(SearchScope::single_file(FileId(2))),
+            expect![[r#"
+                quux FN FileId(0) 19..35 26..30 Other
+
+                FileId(2) 16..20 StructLiteral
+            "#]],
         );
     }
 
     #[test]
     fn test_find_all_refs_macro_def() {
-        let refs = get_all_refs(
+        check(
             r#"
 #[macro_export]
 macro_rules! m1<|> { () => (()) }
@@ -540,34 +573,36 @@ fn foo() {
     m1();
 }
 "#,
-        );
-        check_result(
-            refs,
-            "m1 MACRO_CALL FileId(1) 0..46 29..31 Other",
-            &["FileId(1) 63..65 StructLiteral", "FileId(1) 73..75 StructLiteral"],
+            expect![[r#"
+                m1 MACRO_CALL FileId(0) 0..46 29..31 Other
+
+                FileId(0) 63..65 StructLiteral
+                FileId(0) 73..75 StructLiteral
+            "#]],
         );
     }
 
     #[test]
     fn test_basic_highlight_read_write() {
-        let refs = get_all_refs(
+        check(
             r#"
 fn foo() {
     let mut i<|> = 0;
     i = i + 1;
 }
 "#,
-        );
-        check_result(
-            refs,
-            "i IDENT_PAT FileId(1) 23..24 Other Write",
-            &["FileId(1) 34..35 Other Write", "FileId(1) 38..39 Other Read"],
+            expect![[r#"
+                i IDENT_PAT FileId(0) 23..24 Other Write
+
+                FileId(0) 34..35 Other Write
+                FileId(0) 38..39 Other Read
+            "#]],
         );
     }
 
     #[test]
     fn test_basic_highlight_field_read_write() {
-        let refs = get_all_refs(
+        check(
             r#"
 struct S {
     f: u32,
@@ -578,38 +613,41 @@ fn foo() {
     s.f<|> = 0;
 }
 "#,
-        );
-        check_result(
-            refs,
-            "f RECORD_FIELD FileId(1) 15..21 15..16 Other",
-            &["FileId(1) 55..56 Other Read", "FileId(1) 68..69 Other Write"],
+            expect![[r#"
+                f RECORD_FIELD FileId(0) 15..21 15..16 Other
+
+                FileId(0) 55..56 Other Read
+                FileId(0) 68..69 Other Write
+            "#]],
         );
     }
 
     #[test]
     fn test_basic_highlight_decl_no_write() {
-        let refs = get_all_refs(
+        check(
             r#"
 fn foo() {
     let i<|>;
     i = 1;
 }
 "#,
+            expect![[r#"
+                i IDENT_PAT FileId(0) 19..20 Other
+
+                FileId(0) 26..27 Other Write
+            "#]],
         );
-        check_result(refs, "i IDENT_PAT FileId(1) 19..20 Other", &["FileId(1) 26..27 Other Write"]);
     }
 
     #[test]
     fn test_find_struct_function_refs_outside_module() {
-        let refs = get_all_refs(
+        check(
             r#"
 mod foo {
     pub struct Foo;
 
     impl Foo {
-        pub fn new<|>() -> Foo {
-            Foo
-        }
+        pub fn new<|>() -> Foo { Foo }
     }
 }
 
@@ -617,80 +655,132 @@ fn main() {
     let _f = foo::Foo::new();
 }
 "#,
-        );
-        check_result(
-            refs,
-            "new FN FileId(1) 54..101 61..64 Other",
-            &["FileId(1) 146..149 StructLiteral"],
+            expect![[r#"
+                new FN FileId(0) 54..81 61..64 Other
+
+                FileId(0) 126..129 StructLiteral
+            "#]],
         );
     }
 
     #[test]
     fn test_find_all_refs_nested_module() {
-        let code = r#"
-            //- /lib.rs
-            mod foo {
-                mod bar;
-            }
+        check(
+            r#"
+//- /lib.rs
+mod foo { mod bar; }
 
-            fn f<|>() {}
+fn f<|>() {}
 
-            //- /foo/bar.rs
-            use crate::f;
+//- /foo/bar.rs
+use crate::f;
 
-            fn g() {
-                f();
-            }
-        "#;
+fn g() { f(); }
+"#,
+            expect![[r#"
+                f FN FileId(0) 22..31 25..26 Other
 
-        let (analysis, pos) = analysis_and_position(code);
-        let refs = analysis.find_all_refs(pos, None).unwrap().unwrap();
-        check_result(
-            refs,
-            "f FN FileId(1) 26..35 29..30 Other",
-            &["FileId(2) 11..12 Other", "FileId(2) 28..29 StructLiteral"],
+                FileId(1) 11..12 Other
+                FileId(1) 24..25 StructLiteral
+            "#]],
         );
     }
 
-    fn get_all_refs(ra_fixture: &str) -> ReferenceSearchResult {
-        let (analysis, position) = analysis_and_position(ra_fixture);
-        analysis.find_all_refs(position, None).unwrap().unwrap()
+    #[test]
+    fn test_find_all_refs_struct_pat() {
+        check(
+            r#"
+struct S {
+    field<|>: u8,
+}
+
+fn f(s: S) {
+    match s {
+        S { field } => {}
+    }
+}
+"#,
+            expect![[r#"
+                field RECORD_FIELD FileId(0) 15..24 15..20 Other
+
+                FileId(0) 68..73 FieldShorthandForField Read
+            "#]],
+        );
     }
 
-    fn check_result(res: ReferenceSearchResult, expected_decl: &str, expected_refs: &[&str]) {
-        res.declaration().assert_match(expected_decl);
-        assert_eq!(res.references.len(), expected_refs.len());
-        res.references()
-            .iter()
-            .enumerate()
-            .for_each(|(i, r)| ref_assert_match(r, expected_refs[i]));
+    #[test]
+    fn test_find_all_refs_enum_var_pat() {
+        check(
+            r#"
+enum En {
+    Variant {
+        field<|>: u8,
+    }
+}
+
+fn f(e: En) {
+    match e {
+        En::Variant { field } => {}
+    }
+}
+"#,
+            expect![[r#"
+                field RECORD_FIELD FileId(0) 32..41 32..37 Other
+
+                FileId(0) 102..107 FieldShorthandForField Read
+            "#]],
+        );
     }
 
-    impl Declaration {
-        fn debug_render(&self) -> String {
-            let mut s = format!("{} {:?}", self.nav.debug_render(), self.kind);
-            if let Some(access) = self.access {
-                s.push_str(&format!(" {:?}", access));
+    #[test]
+    fn test_find_all_refs_enum_var_privacy() {
+        check(
+            r#"
+mod m {
+    pub enum En {
+        Variant {
+            field<|>: u8,
+        }
+    }
+}
+
+fn f() -> m::En {
+    m::En::Variant { field: 0 }
+}
+"#,
+            expect![[r#"
+                field RECORD_FIELD FileId(0) 56..65 56..61 Other
+
+                FileId(0) 125..130 Other Read
+            "#]],
+        );
+    }
+
+    fn check(ra_fixture: &str, expect: Expect) {
+        check_with_scope(ra_fixture, None, expect)
+    }
+
+    fn check_with_scope(ra_fixture: &str, search_scope: Option<SearchScope>, expect: Expect) {
+        let (analysis, pos) = fixture::position(ra_fixture);
+        let refs = analysis.find_all_refs(pos, search_scope).unwrap().unwrap();
+
+        let mut actual = String::new();
+        {
+            let decl = refs.declaration;
+            format_to!(actual, "{} {:?}", decl.nav.debug_render(), decl.kind);
+            if let Some(access) = decl.access {
+                format_to!(actual, " {:?}", access)
             }
-            s
+            actual += "\n\n";
         }
 
-        fn assert_match(&self, expected: &str) {
-            let actual = self.debug_render();
-            test_utils::assert_eq_text!(expected.trim(), actual.trim(),);
+        for r in &refs.references {
+            format_to!(actual, "{:?} {:?} {:?}", r.file_range.file_id, r.file_range.range, r.kind);
+            if let Some(access) = r.access {
+                format_to!(actual, " {:?}", access);
+            }
+            actual += "\n";
         }
-    }
-
-    fn ref_debug_render(r: &Reference) -> String {
-        let mut s = format!("{:?} {:?} {:?}", r.file_range.file_id, r.file_range.range, r.kind);
-        if let Some(access) = r.access {
-            s.push_str(&format!(" {:?}", access));
-        }
-        s
-    }
-
-    fn ref_assert_match(r: &Reference, expected: &str) {
-        let actual = ref_debug_render(r);
-        test_utils::assert_eq_text!(expected.trim(), actual.trim(),);
+        expect.assert_eq(&actual)
     }
 }

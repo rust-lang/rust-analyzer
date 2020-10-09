@@ -15,7 +15,8 @@ macro_rules! eprintln {
     ($($tt:tt)*) => { stdx::eprintln!($($tt)*) };
 }
 
-pub mod mock_analysis;
+#[cfg(test)]
+mod fixture;
 
 mod markup;
 mod prime_caches;
@@ -45,6 +46,7 @@ mod syntax_highlighting;
 mod syntax_tree;
 mod typing;
 mod link_rewrite;
+mod markdown_remove;
 
 use std::sync::Arc;
 
@@ -86,12 +88,11 @@ pub use assists::{
     utils::MergeBehaviour, Assist, AssistConfig, AssistId, AssistKind, ResolvedAssist,
 };
 pub use base_db::{
-    Canceled, CrateGraph, CrateId, Edition, FileId, FilePosition, FileRange, SourceRoot,
+    Canceled, Change, CrateGraph, CrateId, Edition, FileId, FilePosition, FileRange, SourceRoot,
     SourceRootId,
 };
 pub use hir::{Documentation, Semantics};
 pub use ide_db::{
-    change::AnalysisChange,
     label::Label,
     line_index::{LineCol, LineIndex},
     search::SearchScope,
@@ -140,7 +141,7 @@ impl AnalysisHost {
 
     /// Applies changes to the current state of the world. If there are
     /// outstanding snapshots, they will be canceled.
-    pub fn apply_change(&mut self, change: AnalysisChange) {
+    pub fn apply_change(&mut self, change: Change) {
         self.db.apply_change(change)
     }
 
@@ -194,7 +195,7 @@ impl Analysis {
         file_set.insert(file_id, VfsPath::new_virtual_path("/main.rs".to_string()));
         let source_root = SourceRoot::new_local(file_set);
 
-        let mut change = AnalysisChange::new();
+        let mut change = Change::new();
         change.set_roots(vec![source_root]);
         let mut crate_graph = CrateGraph::default();
         // FIXME: cfg options
@@ -376,8 +377,9 @@ impl Analysis {
         &self,
         position: FilePosition,
         links_in_hover: bool,
+        markdown: bool,
     ) -> Cancelable<Option<RangeInfo<HoverResult>>> {
-        self.with_db(|db| hover::hover(db, position, links_in_hover))
+        self.with_db(|db| hover::hover(db, position, links_in_hover, markdown))
     }
 
     /// Computes parameter information for the given call expression.

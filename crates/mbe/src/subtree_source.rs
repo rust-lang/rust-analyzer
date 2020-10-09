@@ -155,9 +155,14 @@ fn convert_delim(d: Option<tt::DelimiterKind>, closing: bool) -> TtToken {
 }
 
 fn convert_literal(l: &tt::Literal) -> TtToken {
-    let kind = lex_single_syntax_kind(&l.text)
+    let is_negated = l.text.starts_with('-');
+    let inner_text = &l.text[if is_negated { 1 } else { 0 }..];
+
+    let kind = lex_single_syntax_kind(inner_text)
         .map(|(kind, _error)| kind)
-        .filter(|kind| kind.is_literal())
+        .filter(|kind| {
+            kind.is_literal() && (!is_negated || matches!(kind, FLOAT_NUMBER | INT_NUMBER))
+        })
         .unwrap_or_else(|| panic!("Fail to convert given literal {:#?}", &l));
 
     TtToken { kind, is_joint_to_next: false, text: l.text.clone() }
@@ -193,5 +198,26 @@ fn convert_leaf(leaf: &tt::Leaf) -> TtToken {
         tt::Leaf::Literal(l) => convert_literal(l),
         tt::Leaf::Ident(ident) => convert_ident(ident),
         tt::Leaf::Punct(punct) => convert_punct(*punct),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{convert_literal, TtToken};
+    use syntax::{SmolStr, SyntaxKind};
+
+    #[test]
+    fn test_negative_literal() {
+        assert_eq!(
+            convert_literal(&tt::Literal {
+                id: tt::TokenId::unspecified(),
+                text: SmolStr::new("-42.0")
+            }),
+            TtToken {
+                kind: SyntaxKind::FLOAT_NUMBER,
+                is_joint_to_next: false,
+                text: SmolStr::new("-42.0")
+            }
+        );
     }
 }

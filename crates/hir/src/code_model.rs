@@ -2,8 +2,9 @@
 use std::{iter, sync::Arc};
 
 use arrayvec::ArrayVec;
-use base_db::{CrateId, Edition, FileId};
+use base_db::{CrateId, CrateName, Edition, FileId};
 use either::Either;
+use hir_def::find_path::PrefixKind;
 use hir_def::{
     adt::ReprKind,
     adt::StructKind,
@@ -29,8 +30,12 @@ use hir_expand::{
 use hir_ty::{
     autoderef,
     display::{HirDisplayError, HirFormatter},
-    method_resolution, ApplicationTy, CallableDefId, Canonical, FnSig, GenericPredicate,
-    InEnvironment, Substs, TraitEnvironment, Ty, TyDefId, TypeCtor,
+    method_resolution,
+    traits::Solution,
+    traits::SolutionVariables,
+    ApplicationTy, BoundVar, CallableDefId, Canonical, DebruijnIndex, FnSig, GenericPredicate,
+    InEnvironment, Obligation, ProjectionPredicate, ProjectionTy, Substs, TraitEnvironment, Ty,
+    TyDefId, TyKind, TypeCtor,
 };
 use rustc_hash::FxHashSet;
 use stdx::impl_from;
@@ -98,8 +103,8 @@ impl Crate {
         db.crate_graph()[self.id].edition
     }
 
-    pub fn display_name(self, db: &dyn HirDatabase) -> Option<String> {
-        db.crate_graph()[self.id].display_name.clone()
+    pub fn declaration_name(self, db: &dyn HirDatabase) -> Option<CrateName> {
+        db.crate_graph()[self.id].declaration_name.clone()
     }
 
     pub fn query_external_importables(
@@ -145,7 +150,7 @@ impl Crate {
             }
         }).flat_map(|t| t).next();
 
-        doc_url.map(|s| s.trim_matches('"').trim_end_matches("/").to_owned() + "/")
+        doc_url.map(|s| s.trim_matches('"').trim_end_matches('/').to_owned() + "/")
     }
 }
 
@@ -390,8 +395,9 @@ impl Module {
         self,
         db: &dyn DefDatabase,
         item: impl Into<ItemInNs>,
+        prefix_kind: PrefixKind,
     ) -> Option<ModPath> {
-        hir_def::find_path::find_path_prefixed(db, item.into(), self.into())
+        hir_def::find_path::find_path_prefixed(db, item.into(), self.into(), prefix_kind)
     }
 }
 
@@ -1358,6 +1364,35 @@ impl Type {
         };
 
         db.trait_solve(self.krate, goal).is_some()
+    }
+
+    pub fn normalize_trait_assoc_type(
+        &self,
+        db: &dyn HirDatabase,
+        r#trait: Trait,
+        args: &[Type],
+        alias: TypeAlias,
+    ) -> Option<Ty> {
+        let subst = Substs::build_for_def(db, r#trait.id)
+            .push(self.ty.value.clone())
+            .fill(args.iter().map(|t| t.ty.value.clone()))
+            .build();
+        let predicate = ProjectionPredicate {
+            projection_ty: ProjectionTy { associated_ty: alias.id, parameters: subst },
+            ty: Ty::Bound(BoundVar::new(DebruijnIndex::INNERMOST, 0)),
+        };
+        let goal = Canonical {
+            value: InEnvironment::new(
+                self.ty.environment.clone(),
+                Obligation::Projection(predicate),
+            ),
+            kinds: Arc::new([TyKind::General]),
+        };
+
+        match db.trait_solve(self.krate, goal)? {
+            Solution::Unique(SolutionVariables(subst)) => subst.value.first().cloned(),
+            Solution::Ambig(_) => None,
+        }
     }
 
     pub fn is_copy(&self, db: &dyn HirDatabase) -> bool {

@@ -4,17 +4,16 @@ use std::{cmp::Ordering, fmt, hash::BuildHasherDefault, sync::Arc};
 
 use base_db::CrateId;
 use fst::{self, Streamer};
+use hir_expand::name::Name;
 use indexmap::{map::Entry, IndexMap};
+use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHasher};
 use smallvec::SmallVec;
 use syntax::SmolStr;
 
 use crate::{
-    db::DefDatabase,
-    item_scope::ItemInNs,
-    path::{ModPath, PathKind},
-    visibility::Visibility,
-    AssocItemId, ModuleDefId, ModuleId, TraitId,
+    db::DefDatabase, item_scope::ItemInNs, visibility::Visibility, AssocItemId, ModuleDefId,
+    ModuleId, TraitId,
 };
 
 type FxIndexMap<K, V> = IndexMap<K, V, BuildHasherDefault<FxHasher>>;
@@ -23,9 +22,26 @@ type FxIndexMap<K, V> = IndexMap<K, V, BuildHasherDefault<FxHasher>>;
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ImportInfo {
     /// A path that can be used to import the item, relative to the crate's root.
-    pub path: ModPath,
+    pub path: ImportPath,
     /// The module containing this item.
     pub container: ModuleId,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct ImportPath {
+    pub segments: Vec<Name>,
+}
+
+impl fmt::Display for ImportPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.segments.iter().format("::"), f)
+    }
+}
+
+impl ImportPath {
+    fn len(&self) -> usize {
+        self.segments.len()
+    }
 }
 
 /// A map from publicly exported items to the path needed to import/name them from a downstream
@@ -61,7 +77,7 @@ impl ImportMap {
         let mut import_map = Self::default();
 
         // We look only into modules that are public(ly reexported), starting with the crate root.
-        let empty = ModPath { kind: PathKind::Plain, segments: vec![] };
+        let empty = ImportPath { segments: vec![] };
         let root = ModuleId { krate, local_id: def_map.root };
         let mut worklist = vec![(root, empty)];
         while let Some((module, mod_path)) = worklist.pop() {
@@ -152,8 +168,8 @@ impl ImportMap {
     }
 
     /// Returns the `ModPath` needed to import/mention `item`, relative to this crate's root.
-    pub fn path_of(&self, item: ItemInNs) -> Option<&ModPath> {
-        Some(&self.map.get(&item)?.path)
+    pub fn path_of(&self, item: ItemInNs) -> Option<&ImportPath> {
+        self.import_info_for(item).map(|it| &it.path)
     }
 
     pub fn import_info_for(&self, item: ItemInNs) -> Option<&ImportInfo> {
@@ -197,7 +213,7 @@ impl fmt::Debug for ImportMap {
     }
 }
 
-fn fst_path(path: &ModPath) -> String {
+fn fst_path(path: &ImportPath) -> String {
     let mut s = path.to_string();
     s.make_ascii_lowercase();
     s
@@ -334,14 +350,14 @@ mod tests {
 
     use super::*;
 
-    fn check_search(ra_fixture: &str, krate_name: &str, query: Query, expect: Expect) {
+    fn check_search(ra_fixture: &str, crate_name: &str, query: Query, expect: Expect) {
         let db = TestDB::with_files(ra_fixture);
         let crate_graph = db.crate_graph();
         let krate = crate_graph
             .iter()
             .find(|krate| {
-                crate_graph[*krate].display_name.as_ref().map(|n| n.to_string())
-                    == Some(krate_name.to_string())
+                crate_graph[*krate].declaration_name.as_ref().map(|n| n.to_string())
+                    == Some(crate_name.to_string())
             })
             .unwrap();
 
@@ -359,7 +375,7 @@ mod tests {
                     let path = map.path_of(item).unwrap();
                     format!(
                         "{}::{} ({})\n",
-                        crate_graph[krate].display_name.as_ref().unwrap(),
+                        crate_graph[krate].declaration_name.as_ref().unwrap(),
                         path,
                         mark
                     )
@@ -400,7 +416,7 @@ mod tests {
             .iter()
             .filter_map(|krate| {
                 let cdata = &crate_graph[krate];
-                let name = cdata.display_name.as_ref()?;
+                let name = cdata.declaration_name.as_ref()?;
 
                 let map = db.import_map(krate);
 

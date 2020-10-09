@@ -1,4 +1,5 @@
-use hir::{Adt, Callable, HirDisplay, Semantics, Type};
+use assists::utils::FamousDefs;
+use hir::{known, HirDisplay, Semantics};
 use ide_db::RootDatabase;
 use stdx::to_lower_snake_case;
 use syntax::{
@@ -119,17 +120,18 @@ fn get_chaining_hints(
             return None;
         }
         if matches!(expr, ast::Expr::PathExpr(_)) {
-            if let Some(Adt::Struct(st)) = ty.as_adt() {
+            if let Some(hir::Adt::Struct(st)) = ty.as_adt() {
                 if st.fields(sema.db).is_empty() {
                     return None;
                 }
             }
         }
-        let label = ty.display_truncated(sema.db, config.max_length).to_string();
         acc.push(InlayHint {
             range: expr.syntax().text_range(),
             kind: InlayKind::ChainingHint,
-            label: label.into(),
+            label: hint_iterator(sema, config, &ty).unwrap_or_else(|| {
+                ty.display_truncated(sema.db, config.max_length).to_string().into()
+            }),
         });
     }
     Some(())
@@ -189,20 +191,61 @@ fn get_bind_pat_hints(
 
     let ty = sema.type_of_pat(&pat.clone().into())?;
 
-    if should_not_display_type_hint(sema.db, &pat, &ty) {
+    if should_not_display_type_hint(sema, &pat, &ty) {
         return None;
     }
-
     acc.push(InlayHint {
         range: pat.syntax().text_range(),
         kind: InlayKind::TypeHint,
-        label: ty.display_truncated(sema.db, config.max_length).to_string().into(),
+        label: hint_iterator(sema, config, &ty)
+            .unwrap_or_else(|| ty.display_truncated(sema.db, config.max_length).to_string().into()),
     });
+
     Some(())
 }
 
-fn pat_is_enum_variant(db: &RootDatabase, bind_pat: &ast::IdentPat, pat_ty: &Type) -> bool {
-    if let Some(Adt::Enum(enum_data)) = pat_ty.as_adt() {
+/// Checks if the type is an Iterator from std::iter and replaces its hint with an `impl Iterator<Item = Ty>`.
+fn hint_iterator(
+    sema: &Semantics<RootDatabase>,
+    config: &InlayHintsConfig,
+    ty: &hir::Type,
+) -> Option<SmolStr> {
+    let db = sema.db;
+    let strukt = std::iter::successors(Some(ty.clone()), |ty| ty.remove_ref())
+        .last()
+        .and_then(|strukt| strukt.as_adt())?;
+    let krate = strukt.krate(db)?;
+    if krate.declaration_name(db).as_deref() != Some("core") {
+        return None;
+    }
+    let iter_trait = FamousDefs(sema, krate).core_iter_Iterator()?;
+    let iter_mod = FamousDefs(sema, krate).core_iter()?;
+    // assert this type comes from `core::iter`
+    iter_mod.visibility_of(db, &iter_trait.into()).filter(|&vis| vis == hir::Visibility::Public)?;
+    if ty.impls_trait(db, iter_trait, &[]) {
+        let assoc_type_item = iter_trait.items(db).into_iter().find_map(|item| match item {
+            hir::AssocItem::TypeAlias(alias) if alias.name(db) == known::Item => Some(alias),
+            _ => None,
+        })?;
+        if let Some(ty) = ty.normalize_trait_assoc_type(db, iter_trait, &[], assoc_type_item) {
+            const LABEL_START: &str = "impl Iterator<Item = ";
+            const LABEL_END: &str = ">";
+
+            let ty_display = ty.display_truncated(
+                db,
+                config
+                    .max_length
+                    .map(|len| len.saturating_sub(LABEL_START.len() + LABEL_END.len())),
+            );
+            return Some(format!("{}{}{}", LABEL_START, ty_display, LABEL_END).into());
+        }
+    }
+
+    None
+}
+
+fn pat_is_enum_variant(db: &RootDatabase, bind_pat: &ast::IdentPat, pat_ty: &hir::Type) -> bool {
+    if let Some(hir::Adt::Enum(enum_data)) = pat_ty.as_adt() {
         let pat_text = bind_pat.to_string();
         enum_data
             .variants(db)
@@ -215,15 +258,17 @@ fn pat_is_enum_variant(db: &RootDatabase, bind_pat: &ast::IdentPat, pat_ty: &Typ
 }
 
 fn should_not_display_type_hint(
-    db: &RootDatabase,
+    sema: &Semantics<RootDatabase>,
     bind_pat: &ast::IdentPat,
-    pat_ty: &Type,
+    pat_ty: &hir::Type,
 ) -> bool {
+    let db = sema.db;
+
     if pat_ty.is_unknown() {
         return true;
     }
 
-    if let Some(Adt::Struct(s)) = pat_ty.as_adt() {
+    if let Some(hir::Adt::Struct(s)) = pat_ty.as_adt() {
         if s.fields(db).is_empty() && s.name(db).to_string() == bind_pat.to_string() {
             return true;
         }
@@ -249,6 +294,15 @@ fn should_not_display_type_hint(
                     return it.condition().and_then(|condition| condition.pat()).is_some()
                         && pat_is_enum_variant(db, bind_pat, pat_ty);
                 },
+                ast::ForExpr(it) => {
+                    // We *should* display hint only if user provided "in {expr}" and we know the type of expr (and it's not unit).
+                    // Type of expr should be iterable.
+                    return it.in_token().is_none() ||
+                        it.iterable()
+                            .and_then(|iterable_expr|sema.type_of_expr(&iterable_expr))
+                            .map(|iterable_ty| iterable_ty.is_unknown() || iterable_ty.is_unit())
+                            .unwrap_or(true)
+                },
                 _ => (),
             }
         }
@@ -258,7 +312,7 @@ fn should_not_display_type_hint(
 
 fn should_show_param_name_hint(
     sema: &Semantics<RootDatabase>,
-    callable: &Callable,
+    callable: &hir::Callable,
     param_name: &str,
     argument: &ast::Expr,
 ) -> bool {
@@ -305,7 +359,7 @@ fn is_enum_name_similar_to_param_name(
     param_name: &str,
 ) -> bool {
     match sema.type_of_expr(argument).and_then(|t| t.as_adt()) {
-        Some(Adt::Enum(e)) => to_lower_snake_case(&e.name(sema.db).to_string()) == param_name,
+        Some(hir::Adt::Enum(e)) => to_lower_snake_case(&e.name(sema.db).to_string()) == param_name,
         _ => false,
     }
 }
@@ -326,7 +380,7 @@ fn is_obvious_param(param_name: &str) -> bool {
     param_name.len() == 1 || is_obvious_param_name
 }
 
-fn get_callable(sema: &Semantics<RootDatabase>, expr: &ast::Expr) -> Option<Callable> {
+fn get_callable(sema: &Semantics<RootDatabase>, expr: &ast::Expr) -> Option<hir::Callable> {
     match expr {
         ast::Expr::CallExpr(expr) => sema.type_of_expr(&expr.expr()?)?.as_callable(sema.db),
         ast::Expr::MethodCallExpr(expr) => sema.resolve_method_call_as_callable(expr),
@@ -336,17 +390,20 @@ fn get_callable(sema: &Semantics<RootDatabase>, expr: &ast::Expr) -> Option<Call
 
 #[cfg(test)]
 mod tests {
+    use assists::utils::FamousDefs;
     use expect_test::{expect, Expect};
     use test_utils::extract_annotations;
 
-    use crate::{inlay_hints::InlayHintsConfig, mock_analysis::single_file};
+    use crate::{fixture, inlay_hints::InlayHintsConfig};
 
     fn check(ra_fixture: &str) {
         check_with_config(InlayHintsConfig::default(), ra_fixture);
     }
 
     fn check_with_config(config: InlayHintsConfig, ra_fixture: &str) {
-        let (analysis, file_id) = single_file(ra_fixture);
+        let ra_fixture =
+            format!("//- /main.rs crate:main deps:core\n{}\n{}", ra_fixture, FamousDefs::FIXTURE);
+        let (analysis, file_id) = fixture::file(&ra_fixture);
         let expected = extract_annotations(&*analysis.file_text(file_id).unwrap());
         let inlay_hints = analysis.inlay_hints(file_id, &config).unwrap();
         let actual =
@@ -355,7 +412,9 @@ mod tests {
     }
 
     fn check_expect(config: InlayHintsConfig, ra_fixture: &str, expect: Expect) {
-        let (analysis, file_id) = single_file(ra_fixture);
+        let ra_fixture =
+            format!("//- /main.rs crate:main deps:core\n{}\n{}", ra_fixture, FamousDefs::FIXTURE);
+        let (analysis, file_id) = fixture::file(&ra_fixture);
         let inlay_hints = analysis.inlay_hints(file_id, &config).unwrap();
         expect.assert_debug_eq(&inlay_hints)
     }
@@ -491,19 +550,6 @@ fn main() {
 
     let return_42 = || 42;
       //^^^^^^^^^ || -> i32
-}"#,
-        );
-    }
-
-    #[test]
-    fn for_expression() {
-        check(
-            r#"
-fn main() {
-    let mut start = 0;
-      //^^^^^^^^^ i32
-    for increment in 0..2 { start += increment; }
-      //^^^^^^^^^ i32
 }"#,
         );
     }
@@ -800,12 +846,12 @@ fn main() {
             expect![[r#"
                 [
                     InlayHint {
-                        range: 147..172,
+                        range: 148..173,
                         kind: ChainingHint,
                         label: "B",
                     },
                     InlayHint {
-                        range: 147..154,
+                        range: 148..155,
                         kind: ChainingHint,
                         label: "A",
                     },
@@ -866,12 +912,12 @@ fn main() {
             expect![[r#"
                 [
                     InlayHint {
-                        range: 143..190,
+                        range: 144..191,
                         kind: ChainingHint,
                         label: "C",
                     },
                     InlayHint {
-                        range: 143..179,
+                        range: 144..180,
                         kind: ChainingHint,
                         label: "B",
                     },
@@ -911,14 +957,227 @@ fn main() {
             expect![[r#"
                 [
                     InlayHint {
-                        range: 246..283,
+                        range: 247..284,
                         kind: ChainingHint,
                         label: "B<X<i32, bool>>",
                     },
                     InlayHint {
-                        range: 246..265,
+                        range: 247..266,
                         kind: ChainingHint,
                         label: "A<X<i32, bool>>",
+                    },
+                ]
+            "#]],
+        );
+    }
+
+    #[test]
+    fn incomplete_for_no_hint() {
+        check(
+            r#"
+fn main() {
+    let data = &[1i32, 2, 3];
+      //^^^^ &[i32; _]
+    for i
+}"#,
+        );
+        check(
+            r#"
+pub struct Vec<T> {}
+
+impl<T> Vec<T> {
+    pub fn new() -> Self { Vec {} }
+    pub fn push(&mut self, t: T) {}
+}
+
+impl<T> IntoIterator for Vec<T> {
+    type Item=T;
+}
+
+fn main() {
+    let mut data = Vec::new();
+      //^^^^^^^^ Vec<&str>
+    data.push("foo");
+    for i in
+
+    println!("Unit expr");
+}
+
+//- /alloc.rs crate:alloc deps:core
+mod collections {
+    struct Vec<T> {}
+    impl<T> Vec<T> {
+        fn new() -> Self { Vec {} }
+        fn push(&mut self, t: T) { }
+    }
+    impl<T> IntoIterator for Vec<T> {
+        type Item=T;
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn complete_for_hint() {
+        check(
+            r#"
+pub struct Vec<T> {}
+
+impl<T> Vec<T> {
+    pub fn new() -> Self { Vec {} }
+    pub fn push(&mut self, t: T) {}
+}
+
+impl<T> IntoIterator for Vec<T> {
+    type Item=T;
+}
+
+fn main() {
+    let mut data = Vec::new();
+      //^^^^^^^^ Vec<&str>
+    data.push("foo");
+    for i in data {
+      //^ &str
+      let z = i;
+        //^ &str
+    }
+}
+//- /alloc.rs crate:alloc deps:core
+mod collections {
+    struct Vec<T> {}
+    impl<T> Vec<T> {
+        fn new() -> Self { Vec {} }
+        fn push(&mut self, t: T) { }
+    }
+    impl<T> IntoIterator for Vec<T> {
+        type Item=T;
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn multi_dyn_trait_bounds() {
+        check_with_config(
+            InlayHintsConfig {
+                type_hints: true,
+                parameter_hints: false,
+                chaining_hints: false,
+                max_length: None,
+            },
+            r#"
+pub struct Vec<T> {}
+
+impl<T> Vec<T> {
+    pub fn new() -> Self { Vec {} }
+}
+
+pub struct Box<T> {}
+
+trait Display {}
+trait Sync {}
+
+fn main() {
+    let _v = Vec::<Box<&(dyn Display + Sync)>>::new();
+      //^^ Vec<Box<&(dyn Display + Sync)>>
+    let _v = Vec::<Box<*const (dyn Display + Sync)>>::new();
+      //^^ Vec<Box<*const (dyn Display + Sync)>>
+    let _v = Vec::<Box<dyn Display + Sync>>::new();
+      //^^ Vec<Box<dyn Display + Sync>>
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn shorten_iterator_hints() {
+        check_with_config(
+            InlayHintsConfig {
+                parameter_hints: false,
+                type_hints: true,
+                chaining_hints: false,
+                max_length: None,
+            },
+            r#"
+use core::iter;
+
+struct MyIter;
+
+impl Iterator for MyIter {
+    type Item = ();
+    fn next(&mut self) -> Option<Self::Item> {
+        None
+    }
+}
+
+fn main() {
+    let _x = MyIter;
+      //^^ MyIter
+    let _x = iter::repeat(0);
+      //^^ impl Iterator<Item = i32>
+    fn generic<T: Clone>(t: T) {
+        let _x = iter::repeat(t);
+          //^^ impl Iterator<Item = T>
+        let _chained = iter::repeat(t).take(10);
+          //^^^^^^^^ impl Iterator<Item = T>
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn shorten_iterator_chaining_hints() {
+        check_expect(
+            InlayHintsConfig {
+                parameter_hints: false,
+                type_hints: false,
+                chaining_hints: true,
+                max_length: None,
+            },
+            r#"
+use core::iter;
+
+struct MyIter;
+
+impl Iterator for MyIter {
+    type Item = ();
+    fn next(&mut self) -> Option<Self::Item> {
+        None
+    }
+}
+
+fn main() {
+    let _x = MyIter.by_ref()
+        .take(5)
+        .by_ref()
+        .take(5)
+        .by_ref();
+}
+"#,
+            expect![[r#"
+                [
+                    InlayHint {
+                        range: 175..242,
+                        kind: ChainingHint,
+                        label: "impl Iterator<Item = ()>",
+                    },
+                    InlayHint {
+                        range: 175..225,
+                        kind: ChainingHint,
+                        label: "impl Iterator<Item = ()>",
+                    },
+                    InlayHint {
+                        range: 175..207,
+                        kind: ChainingHint,
+                        label: "impl Iterator<Item = ()>",
+                    },
+                    InlayHint {
+                        range: 175..190,
+                        kind: ChainingHint,
+                        label: "&mut MyIter",
                     },
                 ]
             "#]],
