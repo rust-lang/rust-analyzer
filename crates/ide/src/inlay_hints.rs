@@ -1,5 +1,5 @@
 use assists::utils::FamousDefs;
-use hir::{known, HirDisplay, Semantics};
+use hir::{known, Callable, HirDisplay, Semantics};
 use ide_db::RootDatabase;
 use stdx::to_lower_snake_case;
 use syntax::{
