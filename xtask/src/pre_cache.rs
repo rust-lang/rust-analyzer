@@ -1,8 +1,11 @@
-use std::path::Path;
+use std::{
+    fs::FileType,
+    path::{Path, PathBuf},
+};
 
 use anyhow::Result;
 
-use crate::not_bash::rm_rf;
+use crate::not_bash::{fs2, rm_rf};
 
 pub struct PreCacheCmd;
 
@@ -16,8 +19,30 @@ impl PreCacheCmd {
         }
         rm_rf(slow_tests_cookie)?;
 
+        for path in read_dir("./target/debug", FileType::is_file)? {
+            // Can't delete yourself on windows :-(
+            if !path.ends_with("xtask.exe") {
+                rm_rf(&path)?
+            }
+        }
+
+        fs2::remove_file("./target/.rustc_info.json")?;
+
         Ok(())
     }
 }
+fn read_dir(path: impl AsRef<Path>, cond: impl Fn(&FileType) -> bool) -> Result<Vec<PathBuf>> {
+    read_dir_impl(path.as_ref(), &cond)
+}
 
-//
+fn read_dir_impl(path: &Path, cond: &dyn Fn(&FileType) -> bool) -> Result<Vec<PathBuf>> {
+    let mut res = Vec::new();
+    for entry in path.read_dir()? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if cond(&file_type) {
+            res.push(entry.path())
+        }
+    }
+    Ok(res)
+}
