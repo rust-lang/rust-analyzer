@@ -19,8 +19,6 @@ impl PreCacheCmd {
         }
         rm_rf(slow_tests_cookie)?;
 
-        fs2::remove_file("./target/.rustc_info.json")?;
-
         for dir in read_dir("./crates", FileType::is_dir)? {
             let crate_name = dir.file_name().unwrap().to_str().unwrap();
             run!("cargo clean -p {}", crate_name).unwrap();
