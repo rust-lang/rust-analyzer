@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::Result;
 
-use crate::not_bash::{fs2, rm_rf, run};
+use crate::not_bash::{rm_rf, run};
 
 pub struct PreCacheCmd;
 
