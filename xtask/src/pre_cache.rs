@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::{
     fs::FileType,
     path::{Path, PathBuf},
@@ -21,7 +22,7 @@ impl PreCacheCmd {
 
         for path in read_dir("./target/debug", FileType::is_file)? {
             // Can't delete yourself on windows :-(
-            if !path.ends_with("xtask.exe") {
+            if !path.ends_with("xtask.exe") && path.extension() != Some(&OsStr::new("d")) {
                 rm_rf(&path)?
             }
         }
