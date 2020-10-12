@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::Result;
 
-use crate::not_bash::{fs2, rm_rf, run};
+use crate::not_bash::{fs2, rm_rf};
 
 pub struct PreCacheCmd;
 
@@ -28,11 +28,6 @@ impl PreCacheCmd {
 
         fs2::remove_file("./target/.rustc_info.json")?;
 
-        for dir in read_dir("./crates", FileType::is_dir)? {
-            let crate_name = dir.file_name().unwrap().to_str().unwrap();
-            run!("cargo clean -p {}", crate_name).unwrap();
-        }
-
         Ok(())
     }
 }
@@ -51,5 +46,3 @@ fn read_dir_impl(path: &Path, cond: &dyn Fn(&FileType) -> bool) -> Result<Vec<Pa
     }
     Ok(res)
 }
-
-//
