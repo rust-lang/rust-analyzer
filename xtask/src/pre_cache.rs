@@ -47,7 +47,10 @@ impl PreCacheCmd {
                     }
                 };
                 let stem = stem.replace('-', "_");
-                if to_delete.contains(&stem) && !file_name.ends_with(".dSYM") {
+                if to_delete.contains(&stem)
+                    && !file_name.ends_with(".dSYM")
+                    && !file_name.ends_with(".d")
+                {
                     rm_rf(path)?;
                 }
             }
@@ -78,5 +81,3 @@ fn rsplit_once(haystack: &str, delim: char) -> Option<(&str, &str)> {
     let prefix = split.next()?;
     Some((prefix, suffix))
 }
-
-//
