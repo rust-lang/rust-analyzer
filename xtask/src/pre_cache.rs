@@ -47,7 +47,7 @@ impl PreCacheCmd {
                     }
                 };
                 let stem = stem.replace('-', "_");
-                if to_delete.contains(&stem) {
+                if to_delete.contains(&stem) && !file_name.ends_with(".dSYM") {
                     rm_rf(path)?;
                 }
             }
