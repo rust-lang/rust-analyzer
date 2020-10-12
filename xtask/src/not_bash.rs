@@ -59,6 +59,7 @@ impl Drop for Pushenv {
 
 pub fn rm_rf(path: impl AsRef<Path>) -> io::Result<()> {
     let path = path.as_ref();
+    eprintln!("rm -rf {}", path.display());
     if !path.exists() {
         return Ok(());
     }
