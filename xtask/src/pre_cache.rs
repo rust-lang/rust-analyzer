@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::Result;
 
-use crate::not_bash::{fs2, rm_rf};
+use crate::not_bash::{fs2, rm_rf, run};
 
 pub struct PreCacheCmd;
 
@@ -28,32 +28,9 @@ impl PreCacheCmd {
 
         fs2::remove_file("./target/.rustc_info.json")?;
 
-        let to_delete = read_dir("./crates", FileType::is_dir)?
-            .into_iter()
-            .map(|path| path.file_name().unwrap().to_string_lossy().replace('-', "_"))
-            .collect::<Vec<_>>();
-
-        for &dir in ["./target/debug/deps", "target/debug/.fingerprint"].iter() {
-            for path in read_dir(dir, |_file_type| true)? {
-                if path.ends_with("xtask.exe") {
-                    continue;
-                }
-                let file_name = path.file_name().unwrap().to_string_lossy();
-                let (stem, _) = match rsplit_once(&file_name, '-') {
-                    Some(it) => it,
-                    None => {
-                        rm_rf(path)?;
-                        continue;
-                    }
-                };
-                let stem = stem.replace('-', "_");
-                if to_delete.contains(&stem)
-                    && !file_name.ends_with(".dSYM")
-                    && !file_name.ends_with(".d")
-                {
-                    rm_rf(path)?;
-                }
-            }
+        for dir in read_dir("./crates", FileType::is_dir)? {
+            let crate_name = dir.file_name().unwrap().to_str().unwrap();
+            run!("cargo clean -p {}", crate_name).unwrap();
         }
 
         Ok(())
@@ -74,12 +51,3 @@ fn read_dir_impl(path: &Path, cond: &dyn Fn(&FileType) -> bool) -> Result<Vec<Pa
     }
     Ok(res)
 }
-
-fn rsplit_once(haystack: &str, delim: char) -> Option<(&str, &str)> {
-    let mut split = haystack.rsplitn(2, delim);
-    let suffix = split.next()?;
-    let prefix = split.next()?;
-    Some((prefix, suffix))
-}
-
-//
