@@ -1,4 +1,3 @@
-use std::ffi::OsStr;
 use std::{
     fs::FileType,
     path::{Path, PathBuf},
@@ -19,13 +18,6 @@ impl PreCacheCmd {
             panic!("slow tests were skipped on CI!")
         }
         rm_rf(slow_tests_cookie)?;
-
-        for path in read_dir("./target/debug", FileType::is_file)? {
-            // Can't delete yourself on windows :-(
-            if !path.ends_with("xtask.exe") && path.extension() != Some(&OsStr::new("d")) {
-                rm_rf(&path)?
-            }
-        }
 
         fs2::remove_file("./target/.rustc_info.json")?;
 
@@ -52,5 +44,3 @@ fn read_dir_impl(path: &Path, cond: &dyn Fn(&FileType) -> bool) -> Result<Vec<Pa
     }
     Ok(res)
 }
-
-//
