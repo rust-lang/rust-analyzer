@@ -319,7 +319,7 @@
                 {
                     "comment": "inferred types, wildcard patterns, ignored params",
                     "name": "comment.char.underscore.rust",
-                    "match": "\\b_\\w*\\b"
+                    "match": "\\b_\\w*\\b[^!\\(]"
                 }
             ]
         },
