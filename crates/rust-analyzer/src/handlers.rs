@@ -12,7 +12,6 @@ use ide::{
     RangeInfo, Runnable, RunnableKind, SearchScope, TextEdit,
 };
 use itertools::Itertools;
-use lsp_server::ErrorCode;
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
