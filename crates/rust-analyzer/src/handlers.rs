@@ -659,14 +659,6 @@ pub(crate) fn handle_rename(
     let _p = profile::span("handle_rename");
     let position = from_proto::file_position(&snap, params.text_document_position)?;
 
-    if params.new_name.is_empty() {
-        return Err(LspError::new(
-            ErrorCode::InvalidParams as i32,
-            "New Name cannot be empty".into(),
-        )
-        .into());
-    }
-
     let change = snap.analysis.rename(position, &*params.new_name)??;
     let workspace_edit = to_proto::workspace_edit(&snap, change.info)?;
     Ok(Some(workspace_edit))
