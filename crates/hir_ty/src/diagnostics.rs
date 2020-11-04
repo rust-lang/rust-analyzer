@@ -39,7 +39,7 @@ pub fn validate_body(db: &dyn HirDatabase, owner: DefWithBodyId, sink: &mut Diag
 // Diagnostic: no-such-field
 //
 // This diagnostic is triggered if created structure does not have field provided in record.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NoSuchField {
     pub file: HirFileId,
     pub field: AstPtr<ast::RecordExprField>,
@@ -74,7 +74,7 @@ impl Diagnostic for NoSuchField {
 //
 // let a = A { a: 10 };
 // ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MissingFields {
     pub file: HirFileId,
     pub field_list_parent: AstPtr<ast::RecordExpr>,
@@ -125,7 +125,7 @@ impl Diagnostic for MissingFields {
 //     // ...
 // }
 // ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MissingPatFields {
     pub file: HirFileId,
     pub field_list_parent: AstPtr<ast::RecordPat>,
@@ -162,7 +162,7 @@ impl Diagnostic for MissingPatFields {
 // Diagnostic: missing-match-arm
 //
 // This diagnostic is triggered if `match` block is missing one or more match arms.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MissingMatchArms {
     pub file: HirFileId,
     pub match_expr: AstPtr<ast::Expr>,
@@ -195,7 +195,7 @@ impl Diagnostic for MissingMatchArms {
 //     10
 // }
 // ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MissingOkInTailExpr {
     pub file: HirFileId,
     pub expr: AstPtr<ast::Expr>,
@@ -219,7 +219,7 @@ impl Diagnostic for MissingOkInTailExpr {
 // Diagnostic: break-outside-of-loop
 //
 // This diagnostic is triggered if `break` keyword is used outside of a loop.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BreakOutsideOfLoop {
     pub file: HirFileId,
     pub expr: AstPtr<ast::Expr>,
@@ -243,7 +243,7 @@ impl Diagnostic for BreakOutsideOfLoop {
 // Diagnostic: missing-unsafe
 //
 // This diagnostic is triggered if operation marked as `unsafe` is used outside of `unsafe` function or block.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MissingUnsafe {
     pub file: HirFileId,
     pub expr: AstPtr<ast::Expr>,
@@ -267,7 +267,7 @@ impl Diagnostic for MissingUnsafe {
 // Diagnostic: mismatched-arg-count
 //
 // This diagnostic is triggered if function is invoked with an incorrect amount of arguments.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MismatchedArgCount {
     pub file: HirFileId,
     pub call_expr: AstPtr<ast::Expr>,
@@ -294,7 +294,7 @@ impl Diagnostic for MismatchedArgCount {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CaseType {
     // `some_var`
     LowerSnakeCase,
@@ -319,7 +319,7 @@ impl fmt::Display for CaseType {
 // Diagnostic: incorrect-ident-case
 //
 // This diagnostic is triggered if item name doesn't follow https://doc.rust-lang.org/1.0.0/style/style/naming/README.html[Rust naming convention].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IncorrectCase {
     pub file: HirFileId,
     pub ident: AstPtr<ast::Name>,

@@ -6,7 +6,7 @@ use ide_db::source_change::SourceFileEdit;
 use syntax::{ast, match_ast, AstNode, SyntaxNode};
 use text_edit::TextEdit;
 
-use crate::{Diagnostic, Fix};
+use crate::diagnostics::{Diagnostic, EagerFix, Fix};
 
 pub(super) fn check(acc: &mut Vec<Diagnostic>, file_id: FileId, node: &SyntaxNode) {
     match_ast! {
@@ -46,15 +46,14 @@ fn check_expr_field_shorthand(
         let edit = edit_builder.finish();
 
         let field_range = record_field.syntax().text_range();
-        acc.push(
-            Diagnostic::hint(field_range, "Shorthand struct initialization".to_string()).with_fix(
-                Some(Fix::new(
-                    "Use struct shorthand initialization",
-                    SourceFileEdit { file_id, edit }.into(),
-                    field_range,
-                )),
-            ),
-        );
+        acc.push({
+            let fix = Fix::new(field_range).eager(EagerFix::new(
+                "Use struct shorthand initialization",
+                SourceFileEdit { file_id, edit }.into(),
+            ));
+            Diagnostic::hint(field_range, "Shorthand struct initialization".to_string())
+                .with_fix(fix)
+        });
     }
 }
 
@@ -86,13 +85,13 @@ fn check_pat_field_shorthand(
         let edit = edit_builder.finish();
 
         let field_range = record_pat_field.syntax().text_range();
-        acc.push(Diagnostic::hint(field_range, "Shorthand struct pattern".to_string()).with_fix(
-            Some(Fix::new(
+        acc.push({
+            let fix = Fix::new(field_range).eager(EagerFix::new(
                 "Use struct field shorthand",
                 SourceFileEdit { file_id, edit }.into(),
-                field_range,
-            )),
-        ));
+            ));
+            Diagnostic::hint(field_range, "Shorthand struct pattern".to_string()).with_fix(fix)
+        });
     }
 }
 

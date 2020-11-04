@@ -7,7 +7,7 @@
 mod fixes;
 mod field_shorthand;
 
-use std::cell::RefCell;
+use std::{cell::RefCell, fmt};
 
 use hir::{
     diagnostics::{Diagnostic as _, DiagnosticSinkBuilder},
@@ -23,9 +23,12 @@ use syntax::{
 };
 use text_edit::TextEdit;
 
-use crate::{FileId, Label, SourceChange, SourceFileEdit};
+use crate::{Analysis, FileId, Label, SourceChange, SourceFileEdit};
 
 use self::fixes::DiagnosticWithFix;
+
+/// Preparing a fix may be a resource consuming operation, thus it's better be done only when required.
+pub type LazyFix = Box<dyn FnOnce(&Semantics<RootDatabase>) -> Option<EagerFix>>;
 
 #[derive(Debug)]
 pub struct Diagnostic {
@@ -33,8 +36,9 @@ pub struct Diagnostic {
     pub message: String,
     pub range: TextRange,
     pub severity: Severity,
-    pub fix: Option<Fix>,
     pub unused: bool,
+
+    pub fix: Option<Fix>,
 }
 
 impl Diagnostic {
@@ -46,27 +50,63 @@ impl Diagnostic {
         Self { message, range, severity: Severity::WeakWarning, fix: None, unused: false }
     }
 
-    fn with_fix(self, fix: Option<Fix>) -> Self {
-        Self { fix, ..self }
-    }
-
     fn with_unused(self, unused: bool) -> Self {
         Self { unused, ..self }
     }
+
+    fn with_fix(self, fix: Fix) -> Self {
+        Self { fix: Some(fix), ..self }
+    }
 }
 
-#[derive(Debug)]
 pub struct Fix {
-    pub label: Label,
-    pub source_change: SourceChange,
+    pub lazy_fix: Option<LazyFix>,
+    pub eager_fix: Option<EagerFix>,
+
     /// Allows to trigger the fix only when the caret is in the range given
     pub fix_trigger_range: TextRange,
 }
 
+impl fmt::Debug for Fix {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Fix").field("fix_trigger_range", &self.fix_trigger_range).finish()
+    }
+}
+
 impl Fix {
-    fn new(label: &str, source_change: SourceChange, fix_trigger_range: TextRange) -> Self {
+    pub fn new(fix_trigger_range: TextRange) -> Self {
+        Self { lazy_fix: None, eager_fix: None, fix_trigger_range }
+    }
+
+    fn lazy(self, lazy_fix: LazyFix) -> Self {
+        Self { lazy_fix: Some(lazy_fix), ..self }
+    }
+
+    fn eager(self, eager_fix: EagerFix) -> Self {
+        Self { eager_fix: Some(eager_fix), ..self }
+    }
+
+    pub fn get_fix(self, analysis: &Analysis) -> Option<EagerFix> {
+        if let Some(fix) = self.eager_fix {
+            return Some(fix);
+        }
+        if let Some(lazy_fix) = self.lazy_fix {
+            return analysis.with_semantics(|sema| lazy_fix(sema));
+        }
+        None
+    }
+}
+
+#[derive(Debug)]
+pub struct EagerFix {
+    pub label: Label,
+    pub source_change: SourceChange,
+}
+
+impl EagerFix {
+    fn new(label: &str, source_change: SourceChange) -> Self {
         let label = Label::new(label);
-        Self { label, source_change, fix_trigger_range }
+        Self { label, source_change }
     }
 }
 
@@ -148,12 +188,36 @@ pub(crate) fn diagnostics(
     res.into_inner()
 }
 
-fn diagnostic_with_fix<D: DiagnosticWithFix>(d: &D, sema: &Semantics<RootDatabase>) -> Diagnostic {
-    Diagnostic::error(sema.diagnostics_display_range(d).range, d.message()).with_fix(d.fix(&sema))
+fn diagnostic_with_fix<D: DiagnosticWithFix + Clone>(
+    d: &D,
+    sema: &Semantics<RootDatabase>,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::error(sema.diagnostics_display_range(d).range, d.message());
+    if let Some(range) = d.trigger_range(sema) {
+        let d_ = d.clone();
+        let lazy_fix: LazyFix = Box::new(move |sema| d_.fix(&sema));
+        let fix = Fix::new(range).lazy(lazy_fix);
+
+        diagnostic = diagnostic.with_fix(fix);
+    }
+
+    diagnostic
 }
 
-fn warning_with_fix<D: DiagnosticWithFix>(d: &D, sema: &Semantics<RootDatabase>) -> Diagnostic {
-    Diagnostic::hint(sema.diagnostics_display_range(d).range, d.message()).with_fix(d.fix(&sema))
+fn warning_with_fix<D: DiagnosticWithFix + Clone>(
+    d: &D,
+    sema: &Semantics<RootDatabase>,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic::hint(sema.diagnostics_display_range(d).range, d.message());
+    if let Some(range) = d.trigger_range(sema) {
+        let d_ = d.clone();
+        let lazy_fix: LazyFix = Box::new(move |sema| d_.fix(&sema));
+        let fix = Fix::new(range).lazy(lazy_fix);
+
+        diagnostic = diagnostic.with_fix(fix);
+    }
+
+    diagnostic
 }
 
 fn check_unnecessary_braces_in_use_statement(
@@ -174,13 +238,13 @@ fn check_unnecessary_braces_in_use_statement(
                     edit_builder.finish()
                 });
 
+        let fix = Fix::new(use_range).eager(EagerFix::new(
+            "Remove unnecessary braces",
+            SourceFileEdit { file_id, edit }.into(),
+        ));
         acc.push(
             Diagnostic::hint(use_range, "Unnecessary braces in use statement".to_string())
-                .with_fix(Some(Fix::new(
-                    "Remove unnecessary braces",
-                    SourceFileEdit { file_id, edit }.into(),
-                    use_range,
-                ))),
+                .with_fix(fix),
         );
     }
 
@@ -221,7 +285,9 @@ mod tests {
             .unwrap()
             .pop()
             .unwrap();
-        let mut fix = diagnostic.fix.unwrap();
+        let fix_object = diagnostic.fix.unwrap();
+        let trigger_range = fix_object.fix_trigger_range;
+        let mut fix = fix_object.get_fix(&analysis).unwrap();
         let edit = fix.source_change.source_file_edits.pop().unwrap().edit;
         let target_file_contents = analysis.file_text(file_position.file_id).unwrap();
         let actual = {
@@ -232,9 +298,9 @@ mod tests {
 
         assert_eq_text!(&after, &actual);
         assert!(
-            fix.fix_trigger_range.contains_inclusive(file_position.offset),
+            trigger_range.contains_inclusive(file_position.offset),
             "diagnostic fix range {:?} does not touch cursor position {:?}",
-            fix.fix_trigger_range,
+            trigger_range,
             file_position.offset
         );
     }
@@ -249,7 +315,9 @@ mod tests {
             .unwrap()
             .pop()
             .unwrap();
-        let fix = diagnostic.fix.unwrap();
+        let fix_object = diagnostic.fix.unwrap();
+        let trigger_range = fix_object.fix_trigger_range;
+        let fix = fix_object.get_fix(&analysis).unwrap();
         let target_file_contents = analysis.file_text(file_position.file_id).unwrap();
         let actual = {
             let mut actual = target_file_contents.to_string();
@@ -262,9 +330,9 @@ mod tests {
 
         assert_eq_text!(&after, &actual);
         assert!(
-            fix.fix_trigger_range.contains_inclusive(file_position.offset),
+            trigger_range.contains_inclusive(file_position.offset),
             "diagnostic fix range {:?} does not touch cursor position {:?}",
-            fix.fix_trigger_range,
+            trigger_range,
             file_position.offset
         );
     }
@@ -280,7 +348,7 @@ mod tests {
             .unwrap()
             .pop()
             .unwrap();
-        let mut fix = diagnostic.fix.unwrap();
+        let mut fix = diagnostic.fix.unwrap().get_fix(&analysis).unwrap();
         let edit = fix.source_change.source_file_edits.pop().unwrap();
         let changed_file_id = edit.file_id;
         let before = analysis.file_text(changed_file_id).unwrap();
@@ -570,25 +638,12 @@ fn test_fn() {
                         message: "unresolved module",
                         range: 0..8,
                         severity: Error,
+                        unused: false,
                         fix: Some(
                             Fix {
-                                label: "Create module",
-                                source_change: SourceChange {
-                                    source_file_edits: [],
-                                    file_system_edits: [
-                                        CreateFile {
-                                            anchor: FileId(
-                                                0,
-                                            ),
-                                            dst: "foo.rs",
-                                        },
-                                    ],
-                                    is_snippet: false,
-                                },
                                 fix_trigger_range: 0..8,
                             },
                         ),
-                        unused: false,
                     },
                 ]
             "#]],
@@ -699,22 +754,22 @@ mod a {
     fn test_add_field_from_usage() {
         check_fix(
             r"
-fn main() {
-    Foo { bar: 3, baz<|>: false};
-}
-struct Foo {
-    bar: i32
-}
-",
+    fn main() {
+        Foo { bar: 3, baz<|>: false};
+    }
+    struct Foo {
+        bar: i32
+    }
+    ",
             r"
-fn main() {
-    Foo { bar: 3, baz: false};
-}
-struct Foo {
-    bar: i32,
-    baz: bool
-}
-",
+    fn main() {
+        Foo { bar: 3, baz: false};
+    }
+    struct Foo {
+        bar: i32,
+        baz: bool
+    }
+    ",
         )
     }
 
@@ -722,23 +777,23 @@ struct Foo {
     fn test_add_field_in_other_file_from_usage() {
         check_apply_diagnostic_fix_in_other_file(
             r"
-            //- /main.rs
-            mod foo;
+                //- /main.rs
+                mod foo;
 
-            fn main() {
-                <|>foo::Foo { bar: 3, baz: false};
-            }
-            //- /foo.rs
-            struct Foo {
-                bar: i32
-            }
-            ",
+                fn main() {
+                    <|>foo::Foo { bar: 3, baz: false};
+                }
+                //- /foo.rs
+                struct Foo {
+                    bar: i32
+                }
+                ",
             r"
-            struct Foo {
-                bar: i32,
-                pub(crate) baz: bool
-            }
-            ",
+                struct Foo {
+                    bar: i32,
+                    pub(crate) baz: bool
+                }
+                ",
         )
     }
 

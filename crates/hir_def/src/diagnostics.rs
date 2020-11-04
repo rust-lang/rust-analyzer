@@ -18,7 +18,7 @@ pub fn validate_body(db: &dyn DefDatabase, owner: DefWithBodyId, sink: &mut Diag
 // Diagnostic: unresolved-module
 //
 // This diagnostic is triggered if rust-analyzer is unable to discover referred module.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UnresolvedModule {
     pub file: HirFileId,
     pub decl: AstPtr<ast::Module>,

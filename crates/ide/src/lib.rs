@@ -524,6 +524,14 @@ impl Analysis {
         })
     }
 
+    pub(crate) fn with_semantics<F, T>(&self, f: F) -> T
+    where
+        F: FnOnce(&Semantics<RootDatabase>) -> T,
+    {
+        let sema = Semantics::new(&self.db as &RootDatabase);
+        f(&sema)
+    }
+
     /// Performs an operation on that may be Canceled.
     fn with_db<F, T>(&self, f: F) -> Cancelable<T>
     where
