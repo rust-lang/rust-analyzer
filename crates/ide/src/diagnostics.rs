@@ -28,7 +28,7 @@ use crate::{Analysis, FileId, Label, SourceChange, SourceFileEdit};
 use self::fixes::DiagnosticWithFix;
 
 /// Preparing a fix may be a resource consuming operation, thus it's better be done only when required.
-pub type LazyFix = Box<dyn FnOnce(&Semantics<RootDatabase>) -> Option<EagerFix>>;
+pub(crate) type LazyFix = Box<dyn FnOnce(&Semantics<RootDatabase>) -> Option<EagerFix>>;
 
 #[derive(Debug)]
 pub struct Diagnostic {
@@ -377,6 +377,85 @@ mod tests {
         let (analysis, file_id) = fixture::file(ra_fixture);
         let diagnostics = analysis.diagnostics(&DiagnosticsConfig::default(), file_id).unwrap();
         expect.assert_debug_eq(&diagnostics)
+    }
+
+    /// This test ensures that fixes aren't resolved at the moment of creation.
+    ///
+    /// Inside we implement `DiagnosticWithFix` for some existing diagnostic, which will panic upon `fix` method
+    /// invocation.
+    /// After that, we check some fixture that *will* trigger the diagnostic, but fix should not be resolved
+    /// at this moment.
+    #[test]
+    fn fixes_are_lazy() {
+        // Imports are located within this test, since they're pretty specific and not required for any other test.
+        use super::{
+            diagnostic_with_fix, Diagnostic, DiagnosticSinkBuilder, DiagnosticWithFix, EagerFix,
+        };
+        use crate::{RootDatabase, Semantics};
+        use hir::{db::AstDatabase, diagnostics::BreakOutsideOfLoop};
+        use ide_db::base_db::SourceDatabase;
+        use std::cell::RefCell;
+        use syntax::{AstNode, TextRange};
+
+        // `BreakOutsideOfLoop` is chosen as one that obviously will never have a fix.
+        impl DiagnosticWithFix for BreakOutsideOfLoop {
+            fn trigger_range(&self, sema: &Semantics<RootDatabase>) -> Option<TextRange> {
+                let root = sema.db.parse_or_expand(self.file)?;
+                let expr = self.expr.to_node(&root);
+
+                Some(expr.syntax().text_range())
+            }
+
+            fn fix(&self, _sema: &Semantics<RootDatabase>) -> Option<EagerFix> {
+                panic!("Fix should never be resolved within this test")
+            }
+        }
+
+        fn check_custom_diagnostic(ra_fixture: &str, expect: Expect) {
+            let (analysis, file_id) = fixture::file(ra_fixture);
+
+            analysis.with_semantics(|sema| {
+                let _parse = sema.db.parse(file_id);
+
+                let res = RefCell::new(Vec::new());
+                let mut sink = DiagnosticSinkBuilder::new()
+                    .on::<hir::diagnostics::BreakOutsideOfLoop, _>(|d| {
+                        res.borrow_mut().push(diagnostic_with_fix(d, &sema));
+                    })
+                    .build(|d| {
+                        res.borrow_mut().push(Diagnostic::error(
+                            sema.diagnostics_display_range(d).range,
+                            d.message(),
+                        ));
+                    });
+
+                if let Some(m) = sema.to_module_def(file_id) {
+                    m.diagnostics(sema.db, &mut sink);
+                };
+                drop(sink);
+                let diagnostics = res.into_inner();
+                expect.assert_debug_eq(&diagnostics);
+            })
+        }
+
+        check_custom_diagnostic(
+            r#"fn main() { break; }"#,
+            expect![[r#"
+                [
+                    Diagnostic {
+                        message: "break outside of loop",
+                        range: 12..17,
+                        severity: Error,
+                        unused: false,
+                        fix: Some(
+                            Fix {
+                                fix_trigger_range: 12..17,
+                            },
+                        ),
+                    },
+                ]
+            "#]],
+        );
     }
 
     #[test]
