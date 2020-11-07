@@ -1,20 +1,22 @@
 use std::iter;
 
-use ast::edit::IndentLevel;
+use hir::AsName;
 use ide_db::{defs::Definition, search::Reference};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::{
     algo::{self, SyntaxRewriter},
-    ast::edit::AstNodeEdit,
-    ast::ArgListOwner,
-    ast::GenericParamsOwner,
-    ast::{self, make, NameOwner, VisibilityOwner},
-    AstNode, SourceFile,
+    ast::{
+        self,
+        edit::{AstNodeEdit, IndentLevel},
+        make, ArgListOwner, GenericParamsOwner, NameOwner, VisibilityOwner,
+    },
+    AstNode, SourceFile, SyntaxNode,
 };
 
 use crate::{
     assist_context::{AssistContext, Assists},
-    utils, AssistId, AssistKind,
+    utils::{self, ImportScope},
+    AssistId, AssistKind,
 };
 
 // Assist: factor_out_from_enum_variants
@@ -49,11 +51,11 @@ pub(crate) fn factor_out_from_enum_variants(acc: &mut Assists, ctx: &AssistConte
         return None;
     }
 
-    let new_ty = make::name(&format!("Enum{}", enum_name.text()));
+    let new_enum_name = make::name(&format!("Enum{}", enum_name.text()));
     let db = ctx.db();
     let enum_hir = ctx.sema.to_def(&enum_)?;
     let module = enum_hir.module(db);
-    if utils::existing_definition(db, &new_ty, module) {
+    if utils::existing_definition(db, &new_enum_name, module) {
         return None;
     }
 
@@ -81,8 +83,8 @@ pub(crate) fn factor_out_from_enum_variants(acc: &mut Assists, ctx: &AssistConte
                         make::record_field(enum_vis.clone(), name, make::ty(ty))
                     })
                     .chain(iter::once({
-                        let ty = make::ty(new_ty.text());
-                        let name = make::name(&stdx::to_lower_snake_case(new_ty.text()));
+                        let ty = make::ty(new_enum_name.text());
+                        let name = make::name(&stdx::to_lower_snake_case(new_enum_name.text()));
                         make::record_field(enum_vis.clone(), name, ty)
                     })),
             );
@@ -100,18 +102,20 @@ pub(crate) fn factor_out_from_enum_variants(acc: &mut Assists, ctx: &AssistConte
                     .or_insert_with(SyntaxRewriter::default);
                 let source_file = ctx.sema.parse(reference.file_range.file_id);
                 update_constructor(
+                    ctx,
                     rewriter,
-                    reference,
+                    &reference,
                     &source_file,
-                    new_ty.text(),
+                    enum_hir,
+                    new_enum_name.text(),
                     &new_fields,
                     common_fields.len(),
+                    &mut visited_modules_set,
                 );
             }
 
             let mut rewriter = rewriters.remove(&ctx.frange.file_id).unwrap_or_default();
             for (file_id, rewriter) in rewriters {
-                // FIXME(#6465): Currently broken for multiple files.
                 builder.edit_file(file_id);
                 builder.rewrite(rewriter);
             }
@@ -127,7 +131,9 @@ pub(crate) fn factor_out_from_enum_variants(acc: &mut Assists, ctx: &AssistConte
             let ws = make::tokens::whitespace(&format!("\n\n{}", indent_level));
             rewriter.insert_before(enum_.syntax(), &ws);
 
-            update_tuple_enum(&mut rewriter, &enum_, &enum_name, &new_ty, common_fields.len());
+            update_tuple_enum(&mut rewriter, &enum_, common_fields.len());
+            rewriter.replace(enum_name.syntax(), new_enum_name.syntax());
+
             builder.rewrite(rewriter);
         },
     );
@@ -166,12 +172,15 @@ fn common_tuple_fields(
 }
 
 fn update_constructor(
+    ctx: &AssistContext,
     rewriter: &mut SyntaxRewriter,
-    reference: Reference,
+    reference: &Reference,
     source_file: &SourceFile,
+    enum_hir: hir::Enum,
     new_enum_name: &str,
     struct_fields: &ast::RecordFieldList,
     n_common_fields: usize,
+    visited_modules_set: &mut FxHashSet<hir::Module>,
 ) -> Option<()> {
     // FIXME: check for ast::RecordExpr
     let path_expr = algo::find_node_at_offset::<ast::PathExpr>(
@@ -201,7 +210,7 @@ fn update_constructor(
     );
     let name_refs =
         struct_fields.fields().filter_map(|it| it.name().map(|it| make::name_ref(it.text())));
-    // Because there's an extra field containing an enum, name_refs.count() == n_common_fields + 1
+    // There's an extra field containing an enum, so name_refs.count() == n_common_fields + 1
     debug_assert_eq!(name_refs.clone().count(), n_common_fields + 1);
 
     let record_expr_field_list = make::record_expr_field_list(
@@ -215,18 +224,47 @@ fn update_constructor(
     let level = IndentLevel::from_node(call.syntax());
     rewriter.replace(call.syntax(), constructor.indent(level).syntax());
 
+    // Insert imports
+    let module = ctx.sema.scope(path_expr.syntax()).module()?;
+    if !visited_modules_set.contains(&module) {
+        visited_modules_set.insert(module);
+        let import = make::name(new_enum_name).as_name();
+        insert_import(ctx, rewriter, path_expr.syntax(), &module, enum_hir.into(), import)?;
+    }
+
+    Some(())
+}
+
+fn insert_import(
+    ctx: &AssistContext,
+    rewriter: &mut SyntaxRewriter,
+    position: &SyntaxNode,
+    module: &hir::Module,
+    item: hir::ModuleDef,
+    import: hir::Name,
+) -> Option<()> {
+    let db = ctx.db();
+    let mod_path = module.find_use_path_prefixed(db, item, hir::PrefixKind::BySelf);
+    if let Some(mut mod_path) = mod_path {
+        mod_path.segments.pop();
+        mod_path.segments.push(import);
+        let scope = ImportScope::find_insert_use_container(position, ctx)?;
+
+        *rewriter += utils::insert_use(
+            &scope,
+            utils::mod_path_to_ast(&mod_path),
+            ctx.config.insert_use.merge,
+        );
+    }
+
     Some(())
 }
 
 fn update_tuple_enum(
     rewriter: &mut SyntaxRewriter,
     enum_: &ast::Enum,
-    enum_name: &ast::Name,
-    new_enum_name: &ast::Name,
     n_common_fields: usize,
 ) -> Option<()> {
-    rewriter.replace(enum_name.syntax(), new_enum_name.syntax());
-
     for variant in enum_.variant_list()?.variants() {
         let mut fields = match variant.field_list()? {
             ast::FieldList::TupleFieldList(f) => f.fields().skip(n_common_fields).peekable(),
@@ -321,6 +359,77 @@ mod also_test_indentation {
             enum_field_1: true,
             enum_a: EnumA::Two,
         };
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn factor_out_with_import_works() {
+        check_assist(
+            factor_out_from_enum_variants,
+            r#"
+enum Data {
+    A(i32,<|> bool),
+    B(i32),
+}
+
+fn func() {
+    let _ = Data::B(50);
+}
+
+mod foo {
+    fn func() {
+        let _ = crate::Data::B(50);
+    }
+
+    mod bar {
+        use crate::Data;
+
+        fn func() {
+            let _ = Data::B(50);
+        }
+    }
+}
+"#,
+            r#"
+struct Data {
+    enum_field_0: i32,
+    enum_data: EnumData,
+}
+
+enum EnumData {
+    A(bool),
+    B,
+}
+
+fn func() {
+    let _ = Data {
+        enum_field_0: 50,
+        enum_data: EnumData::B,
+    };
+}
+
+mod foo {
+    use crate::EnumData;
+
+    fn func() {
+        let _ = crate::Data {
+            enum_field_0: 50,
+            enum_data: EnumData::B,
+        };
+    }
+
+    mod bar {
+        use crate::{Data, EnumData};
+
+        fn func() {
+            let _ = Data {
+                enum_field_0: 50,
+                enum_data: EnumData::B,
+            };
+        }
     }
 }
 "#,
