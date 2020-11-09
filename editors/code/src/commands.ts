@@ -7,7 +7,7 @@ import { applySnippetWorkspaceEdit, applySnippetTextEdits } from './snippets';
 import { spawnSync } from 'child_process';
 import { RunnableQuickPick, selectRunnable, createTask } from './run';
 import { AstInspector } from './ast_inspector';
-import { isRustDocument, sleep, isRustEditor } from './util';
+import { log, isRustDocument, sleep, isRustEditor } from './util';
 import { startDebugSession, makeDebugConfig } from './debug';
 
 export * from './ast_inspector';
@@ -180,6 +180,27 @@ export function parentModule(ctx: Ctx): Cmd {
 
         const uri = client.protocol2CodeConverter.asUri(loc.targetUri);
         const range = client.protocol2CodeConverter.asRange(loc.targetRange);
+
+        const doc = await vscode.workspace.openTextDocument(uri);
+        const e = await vscode.window.showTextDocument(doc);
+        e.selection = new vscode.Selection(range.start, range.start);
+        e.revealRange(range, vscode.TextEditorRevealType.InCenter);
+    };
+}
+
+export function openCargoToml(ctx: Ctx): Cmd {
+    return async () => {
+        const editor = ctx.activeRustEditor;
+        const client = ctx.client;
+        if (!editor || !client) return;
+
+        const response = await client.sendRequest(ra.openCargoToml, {
+            textDocument: ctx.client.code2ProtocolConverter.asTextDocumentIdentifier(editor.document),
+        });
+        if (!response) return;
+
+        const uri = client.protocol2CodeConverter.asUri(response.uri);
+        const range = client.protocol2CodeConverter.asRange(response.range);
 
         const doc = await vscode.workspace.openTextDocument(uri);
         const e = await vscode.window.showTextDocument(doc);

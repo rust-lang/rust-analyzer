@@ -120,3 +120,9 @@ export interface CommandLinkGroup {
 }
 
 export const openDocs = new lc.RequestType<lc.TextDocumentPositionParams, string | void, void>('experimental/externalDocs');
+
+export const openCargoToml = new lc.RequestType<OpenCargoTomlParams, lc.Location, void>("experimental/openCargoToml");
+
+export interface OpenCargoTomlParams {
+    textDocument: lc.TextDocumentIdentifier;
+}
