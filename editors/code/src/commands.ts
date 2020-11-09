@@ -7,7 +7,7 @@ import { applySnippetWorkspaceEdit, applySnippetTextEdits } from './snippets';
 import { spawnSync } from 'child_process';
 import { RunnableQuickPick, selectRunnable, createTask } from './run';
 import { AstInspector } from './ast_inspector';
-import { log, isRustDocument, sleep, isRustEditor } from './util';
+import { isRustDocument, sleep, isRustEditor } from './util';
 import { startDebugSession, makeDebugConfig } from './debug';
 
 export * from './ast_inspector';
