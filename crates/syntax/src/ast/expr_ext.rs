@@ -2,7 +2,7 @@
 
 use crate::{
     ast::{self, support, AstChildren, AstNode},
-    SmolStr,
+    AstToken,
     SyntaxKind::*,
     SyntaxToken, T,
 };
@@ -298,12 +298,12 @@ impl ast::ArrayExpr {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum LiteralKind {
-    String,
-    ByteString,
+    String(ast::String),
+    ByteString(ast::ByteString),
+    IntNumber(ast::IntNumber),
+    FloatNumber(ast::FloatNumber),
     Char,
     Byte,
-    IntNumber { suffix: Option<SmolStr> },
-    FloatNumber { suffix: Option<SmolStr> },
     Bool(bool),
 }
 
@@ -315,112 +315,28 @@ impl ast::Literal {
             .and_then(|e| e.into_token())
             .unwrap()
     }
-
-    fn find_suffix(text: &str, possible_suffixes: &[&str]) -> Option<SmolStr> {
-        possible_suffixes
-            .iter()
-            .find(|&suffix| text.ends_with(suffix))
-            .map(|&suffix| SmolStr::new(suffix))
-    }
-
     pub fn kind(&self) -> LiteralKind {
-        const INT_SUFFIXES: [&str; 12] = [
-            "u64", "u32", "u16", "u8", "usize", "isize", "i64", "i32", "i16", "i8", "u128", "i128",
-        ];
-        const FLOAT_SUFFIXES: [&str; 2] = ["f32", "f64"];
-
         let token = self.token();
 
-        match token.kind() {
-            INT_NUMBER => {
-                // FYI: there was a bug here previously, thus the if statement below is necessary.
-                // The lexer treats e.g. `1f64` as an integer literal. See
-                // https://github.com/rust-analyzer/rust-analyzer/issues/1592
-                // and the comments on the linked PR.
+        if let Some(t) = ast::IntNumber::cast(token.clone()) {
+            return LiteralKind::IntNumber(t);
+        }
+        if let Some(t) = ast::FloatNumber::cast(token.clone()) {
+            return LiteralKind::FloatNumber(t);
+        }
+        if let Some(t) = ast::String::cast(token.clone()) {
+            return LiteralKind::String(t);
+        }
+        if let Some(t) = ast::ByteString::cast(token.clone()) {
+            return LiteralKind::ByteString(t);
+        }
 
-                let text = token.text();
-                if let suffix @ Some(_) = Self::find_suffix(&text, &FLOAT_SUFFIXES) {
-                    LiteralKind::FloatNumber { suffix }
-                } else {
-                    LiteralKind::IntNumber { suffix: Self::find_suffix(&text, &INT_SUFFIXES) }
-                }
-            }
-            FLOAT_NUMBER => {
-                let text = token.text();
-                LiteralKind::FloatNumber { suffix: Self::find_suffix(&text, &FLOAT_SUFFIXES) }
-            }
-            STRING | RAW_STRING => LiteralKind::String,
+        match token.kind() {
             T![true] => LiteralKind::Bool(true),
             T![false] => LiteralKind::Bool(false),
-            BYTE_STRING | RAW_BYTE_STRING => LiteralKind::ByteString,
             CHAR => LiteralKind::Char,
             BYTE => LiteralKind::Byte,
             _ => unreachable!(),
-        }
-    }
-
-    // FIXME: should probably introduce string token type?
-    // https://github.com/rust-analyzer/rust-analyzer/issues/6308
-    pub fn int_value(&self) -> Option<(Radix, u128)> {
-        let suffix = match self.kind() {
-            LiteralKind::IntNumber { suffix } => suffix,
-            _ => return None,
-        };
-
-        let token = self.token();
-        let mut text = token.text().as_str();
-        text = &text[..text.len() - suffix.map_or(0, |it| it.len())];
-
-        let buf;
-        if text.contains("_") {
-            buf = text.replace('_', "");
-            text = buf.as_str();
-        };
-
-        let radix = Radix::identify(text)?;
-        let digits = &text[radix.prefix_len()..];
-        let value = u128::from_str_radix(digits, radix as u32).ok()?;
-        Some((radix, value))
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub enum Radix {
-    Binary = 2,
-    Octal = 8,
-    Decimal = 10,
-    Hexadecimal = 16,
-}
-
-impl Radix {
-    pub const ALL: &'static [Radix] =
-        &[Radix::Binary, Radix::Octal, Radix::Decimal, Radix::Hexadecimal];
-
-    fn identify(literal_text: &str) -> Option<Self> {
-        // We cannot express a literal in anything other than decimal in under 3 characters, so we return here if possible.
-        if literal_text.len() < 3 && literal_text.chars().all(|c| c.is_digit(10)) {
-            return Some(Self::Decimal);
-        }
-
-        let res = match &literal_text[..2] {
-            "0b" => Radix::Binary,
-            "0o" => Radix::Octal,
-            "0x" => Radix::Hexadecimal,
-            _ => Radix::Decimal,
-        };
-
-        // Checks that all characters after the base prefix are all valid digits for that base.
-        if literal_text[res.prefix_len()..].chars().all(|c| c.is_digit(res as u32)) {
-            Some(res)
-        } else {
-            None
-        }
-    }
-
-    const fn prefix_len(&self) -> usize {
-        match self {
-            Self::Decimal => 0,
-            _ => 2,
         }
     }
 }

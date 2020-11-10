@@ -8,11 +8,11 @@ use std::{
 use rustc_lexer::unescape::{unescape_literal, Mode};
 
 use crate::{
-    ast::{AstToken, Comment, RawString, String, Whitespace},
+    ast::{self, AstToken},
     TextRange, TextSize,
 };
 
-impl Comment {
+impl ast::Comment {
     pub fn kind(&self) -> CommentKind {
         kind_by_prefix(self.text())
     }
@@ -80,7 +80,7 @@ fn kind_by_prefix(text: &str) -> CommentKind {
     panic!("bad comment text: {:?}", text)
 }
 
-impl Whitespace {
+impl ast::Whitespace {
     pub fn spans_multiple_lines(&self) -> bool {
         let text = self.text();
         text.find('\n').map_or(false, |idx| text[idx + 1..].contains('\n'))
@@ -114,43 +114,28 @@ impl QuoteOffsets {
     }
 }
 
-pub trait HasQuotes: AstToken {
-    fn quote_offsets(&self) -> Option<QuoteOffsets> {
-        let text = self.text().as_str();
-        let offsets = QuoteOffsets::new(text)?;
-        let o = self.syntax().text_range().start();
-        let offsets = QuoteOffsets {
-            quotes: (offsets.quotes.0 + o, offsets.quotes.1 + o),
-            contents: offsets.contents + o,
-        };
-        Some(offsets)
+impl ast::String {
+    pub fn is_raw(&self) -> bool {
+        self.text().starts_with('r')
     }
-    fn open_quote_text_range(&self) -> Option<TextRange> {
-        self.quote_offsets().map(|it| it.quotes.0)
+    pub fn map_range_up(&self, range: TextRange) -> Option<TextRange> {
+        let contents_range = self.text_range_between_quotes()?;
+        assert!(TextRange::up_to(contents_range.len()).contains_range(range));
+        Some(range + contents_range.start())
     }
 
-    fn close_quote_text_range(&self) -> Option<TextRange> {
-        self.quote_offsets().map(|it| it.quotes.1)
-    }
+    pub fn value(&self) -> Option<Cow<'_, str>> {
+        if self.is_raw() {
+            let text = self.text().as_str();
+            let text =
+                &text[self.text_range_between_quotes()? - self.syntax().text_range().start()];
+            return Some(Cow::Borrowed(text));
+        }
 
-    fn text_range_between_quotes(&self) -> Option<TextRange> {
-        self.quote_offsets().map(|it| it.contents)
-    }
-}
-
-impl HasQuotes for String {}
-impl HasQuotes for RawString {}
-
-pub trait HasStringValue: HasQuotes {
-    fn value(&self) -> Option<Cow<'_, str>>;
-}
-
-impl HasStringValue for String {
-    fn value(&self) -> Option<Cow<'_, str>> {
         let text = self.text().as_str();
         let text = &text[self.text_range_between_quotes()? - self.syntax().text_range().start()];
 
-        let mut buf = std::string::String::with_capacity(text.len());
+        let mut buf = String::with_capacity(text.len());
         let mut has_error = false;
         unescape_literal(text, Mode::Str, &mut |_, unescaped_char| match unescaped_char {
             Ok(c) => buf.push(c),
@@ -164,21 +149,31 @@ impl HasStringValue for String {
         let res = if buf == text { Cow::Borrowed(text) } else { Cow::Owned(buf) };
         Some(res)
     }
-}
 
-impl HasStringValue for RawString {
-    fn value(&self) -> Option<Cow<'_, str>> {
+    pub fn quote_offsets(&self) -> Option<QuoteOffsets> {
         let text = self.text().as_str();
-        let text = &text[self.text_range_between_quotes()? - self.syntax().text_range().start()];
-        Some(Cow::Borrowed(text))
+        let offsets = QuoteOffsets::new(text)?;
+        let o = self.syntax().text_range().start();
+        let offsets = QuoteOffsets {
+            quotes: (offsets.quotes.0 + o, offsets.quotes.1 + o),
+            contents: offsets.contents + o,
+        };
+        Some(offsets)
+    }
+    pub fn text_range_between_quotes(&self) -> Option<TextRange> {
+        self.quote_offsets().map(|it| it.contents)
+    }
+    pub fn open_quote_text_range(&self) -> Option<TextRange> {
+        self.quote_offsets().map(|it| it.quotes.0)
+    }
+    pub fn close_quote_text_range(&self) -> Option<TextRange> {
+        self.quote_offsets().map(|it| it.quotes.1)
     }
 }
 
-impl RawString {
-    pub fn map_range_up(&self, range: TextRange) -> Option<TextRange> {
-        let contents_range = self.text_range_between_quotes()?;
-        assert!(TextRange::up_to(contents_range.len()).contains_range(range));
-        Some(range + contents_range.start())
+impl ast::ByteString {
+    pub fn is_raw(&self) -> bool {
+        self.text().starts_with("br")
     }
 }
 
@@ -500,7 +495,7 @@ pub trait HasFormatSpecifier: AstToken {
     }
 }
 
-impl HasFormatSpecifier for String {
+impl HasFormatSpecifier for ast::String {
     fn char_ranges(
         &self,
     ) -> Option<Vec<(TextRange, Result<char, rustc_lexer::unescape::EscapeError>)>> {
@@ -521,18 +516,86 @@ impl HasFormatSpecifier for String {
     }
 }
 
-impl HasFormatSpecifier for RawString {
-    fn char_ranges(
-        &self,
-    ) -> Option<Vec<(TextRange, Result<char, rustc_lexer::unescape::EscapeError>)>> {
-        let text = self.text().as_str();
-        let text = &text[self.text_range_between_quotes()? - self.syntax().text_range().start()];
-        let offset = self.text_range_between_quotes()?.start() - self.syntax().text_range().start();
+impl ast::IntNumber {
+    const SUFFIXES: &'static [&'static str] = &[
+        "u8", "u16", "u32", "u64", "u128", "usize", // Unsigned.
+        "i8", "i16", "i32", "i64", "i128", "isize", // Signed.
+    ];
 
-        let mut res = Vec::with_capacity(text.len());
-        for (idx, c) in text.char_indices() {
-            res.push((TextRange::at(idx.try_into().unwrap(), TextSize::of(c)) + offset, Ok(c)));
+    pub fn radix(&self) -> Radix {
+        match self.text().get(..2).unwrap_or_default() {
+            "0b" => Radix::Binary,
+            "0o" => Radix::Octal,
+            "0x" => Radix::Hexadecimal,
+            _ => Radix::Decimal,
         }
-        Some(res)
+    }
+
+    pub fn value(&self) -> Option<u128> {
+        let token = self.syntax();
+
+        let mut text = token.text().as_str();
+        if let Some(suffix) = self.suffix() {
+            text = &text[..text.len() - suffix.len()]
+        }
+
+        let radix = self.radix();
+        text = &text[radix.prefix_len()..];
+
+        let buf;
+        if text.contains("_") {
+            buf = text.replace('_', "");
+            text = buf.as_str();
+        };
+
+        let value = u128::from_str_radix(text, radix as u32).ok()?;
+        Some(value)
+    }
+
+    pub fn suffix(&self) -> Option<&str> {
+        let text = self.text();
+        // FIXME: don't check a fixed set of suffixes, `1_0_1_l_o_l` is valid
+        // syntax, suffix is `l_o_l`.
+        ast::IntNumber::SUFFIXES.iter().chain(ast::FloatNumber::SUFFIXES.iter()).find_map(
+            |suffix| {
+                if text.ends_with(suffix) {
+                    return Some(&text[text.len() - suffix.len()..]);
+                }
+                None
+            },
+        )
+    }
+}
+
+impl ast::FloatNumber {
+    const SUFFIXES: &'static [&'static str] = &["f32", "f64"];
+    pub fn suffix(&self) -> Option<&str> {
+        let text = self.text();
+        ast::FloatNumber::SUFFIXES.iter().find_map(|suffix| {
+            if text.ends_with(suffix) {
+                return Some(&text[text.len() - suffix.len()..]);
+            }
+            None
+        })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub enum Radix {
+    Binary = 2,
+    Octal = 8,
+    Decimal = 10,
+    Hexadecimal = 16,
+}
+
+impl Radix {
+    pub const ALL: &'static [Radix] =
+        &[Radix::Binary, Radix::Octal, Radix::Decimal, Radix::Hexadecimal];
+
+    const fn prefix_len(&self) -> usize {
+        match self {
+            Self::Decimal => 0,
+            _ => 2,
+        }
     }
 }
