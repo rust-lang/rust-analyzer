@@ -24,7 +24,7 @@ use crate::{
 pub use insert_use::MergeBehaviour;
 pub(crate) use insert_use::{insert_use, ImportScope};
 
-pub fn existing_definition(db: &RootDatabase, name: &ast::Name, module: hir::Module) -> bool {
+pub fn existing_type_definition(db: &RootDatabase, name: &ast::Name, module: hir::Module) -> bool {
     module
         .scope(db, None)
         .into_iter()

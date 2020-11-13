@@ -1,7 +1,7 @@
-use std::iter;
+use std::{collections::hash_map::Entry, iter};
 
-use hir::AsName;
-use ide_db::{defs::Definition, search::Reference};
+use hir::{AsName, ModuleDef};
+use ide_db::{base_db::FileId, defs::Definition, search::Reference, RootDatabase};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::{
     algo::{self, SyntaxRewriter},
@@ -10,7 +10,7 @@ use syntax::{
         edit::{AstNodeEdit, IndentLevel},
         make, ArgListOwner, GenericParamsOwner, NameOwner, VisibilityOwner,
     },
-    AstNode, SourceFile, SyntaxNode,
+    match_ast, AstNode, SourceFile, SyntaxNode,
 };
 
 use crate::{
@@ -55,7 +55,7 @@ pub(crate) fn factor_out_from_enum_variants(acc: &mut Assists, ctx: &AssistConte
     let db = ctx.db();
     let enum_hir = ctx.sema.to_def(&enum_)?;
     let module = enum_hir.module(db);
-    if utils::existing_definition(db, &new_enum_name, module) {
+    if utils::existing_type_definition(db, &new_enum_name, module) {
         return None;
     }
 
@@ -72,7 +72,6 @@ pub(crate) fn factor_out_from_enum_variants(acc: &mut Assists, ctx: &AssistConte
         AssistId("factor_out_from_enum_variants", AssistKind::RefactorRewrite),
         "Factor out from enum variants",
         target,
-        // FIXME: Find and update usage of the enum.
         |builder| {
             let new_fields = make::record_field_list(
                 common_fields
@@ -95,7 +94,9 @@ pub(crate) fn factor_out_from_enum_variants(acc: &mut Assists, ctx: &AssistConte
 
             let mut visited_modules_set = FxHashSet::default();
             visited_modules_set.insert(module);
+            let mut renamed_exprs = FxHashMap::default();
             let mut rewriters = FxHashMap::default();
+
             for reference in usages {
                 let rewriter = rewriters
                     .entry(reference.file_range.file_id)
@@ -106,11 +107,21 @@ pub(crate) fn factor_out_from_enum_variants(acc: &mut Assists, ctx: &AssistConte
                     rewriter,
                     &reference,
                     &source_file,
-                    enum_hir,
+                    &enum_,
                     new_enum_name.text(),
                     &new_fields,
                     common_fields.len(),
                     &mut visited_modules_set,
+                );
+                update_usage(
+                    ctx,
+                    rewriter,
+                    &reference,
+                    &source_file,
+                    &new_enum_name.text(),
+                    &new_fields,
+                    common_fields.len(),
+                    &mut renamed_exprs,
                 );
             }
 
@@ -137,6 +148,143 @@ pub(crate) fn factor_out_from_enum_variants(acc: &mut Assists, ctx: &AssistConte
             builder.rewrite(rewriter);
         },
     );
+
+    Some(())
+}
+
+fn update_usage(
+    ctx: &AssistContext,
+    rewriter: &mut SyntaxRewriter,
+    reference: &Reference,
+    source_file: &SourceFile,
+    new_enum_name: &str,
+    struct_fields: &ast::RecordFieldList,
+    n_common_fields: usize,
+    renamed_exprs: &mut FxHashMap<(FileId, SyntaxNode), ast::Expr>,
+) -> Option<()> {
+    eprintln!("==================================\n");
+
+    // Update the enum variant in the pattern.
+    // FIXME: check for ast::RecordPat
+    let pat = algo::find_node_at_offset::<ast::TupleStructPat>(
+        source_file.syntax(),
+        reference.file_range.range.start(),
+    )?;
+
+    let path = pat.path()?;
+    // FIXME: Deal with case where there is no qualifier. E.g., enum variant has been imported.
+    let (old_enum_path, variant) = (path.qualifier()?, path.segment()?);
+    let new_enum_path = match old_enum_path.qualifier() {
+        Some(q) => make::path_qualified(q, make::path_segment(make::name_ref(new_enum_name))),
+        _ => make::path_unqualified(make::path_segment(make::name_ref(new_enum_name))),
+    };
+    let new_path = make::path_qualified(new_enum_path, variant);
+
+    let mut fields = pat.fields().skip(n_common_fields).peekable();
+    let tuple_struct_pat;
+    let new_pat = match fields.peek() {
+        Some(_) => {
+            tuple_struct_pat = make::tuple_struct_pat(new_path, fields);
+            tuple_struct_pat.syntax()
+        }
+        _ => new_path.syntax(),
+    };
+    rewriter.replace(pat.syntax(), new_pat);
+
+    // Update usage so that pattern matching is done against the new enum
+    let mut if_or_match = None;
+    let expr = pat.syntax().ancestors().find_map(|node| {
+        match_ast! {
+            match node {
+                ast::IfExpr(it) => {
+                    if_or_match = Some(it.syntax().clone());
+                    let cond = it.condition()?;
+                    cond.let_token()?;
+                    cond.expr()
+                },
+                ast::MatchExpr(it) => {
+                    if_or_match = Some(it.syntax().clone());
+                    it.expr()
+                },
+                _ => None,
+            }
+        }
+    })?;
+    let if_or_match = if_or_match?;
+
+    // Updating usage is easy if the expr is something like a PathExpr.
+    // But if the usage is a CallExpr/similar, tacking on a field access to the enum will make us
+    // lose access to the other fields.
+    // The CallExpr has to be saved in a variable beforehand to use its fields later.
+    //
+    // This closure will perform said update and return the expr that we can use to access the
+    // struct.
+    let mut rewrite_and_insert_with = || {
+        let field = make::name_ref(&stdx::to_lower_snake_case(new_enum_name));
+        match expr.clone() {
+            it @ ast::Expr::PathExpr(_) => {
+                let enum_field = make::expr_field(it.clone(), field);
+                rewriter.replace(it.syntax(), enum_field.syntax());
+                Some(it)
+            }
+            ast::Expr::FieldExpr(it) if matches!(it.expr()?, ast::Expr::PathExpr(_)) => {
+                let it = ast::Expr::from(it);
+                let enum_field = make::expr_field(it.clone(), field);
+                rewriter.replace(it.syntax(), enum_field.syntax());
+                Some(it)
+            }
+            it => {
+                // FIXME: Maybe use a better name? Should be a variable that probably won't collide
+                let name = make::name("TEMP_VARIABLE");
+                let module = ctx.sema.scope(pat.syntax()).module()?;
+                if existing_variable_definition(ctx.db(), &name, module) {
+                    return None;
+                }
+
+                let assign = make::let_stmt(make::ident_pat(name.clone()).into(), Some(it.clone()));
+                let level = IndentLevel::from_node(it.syntax());
+                let ws = make::tokens::whitespace(&format!("\n{}", level));
+                rewriter.insert_before(&if_or_match, assign.indent(level).syntax());
+                rewriter.insert_before(&if_or_match, &ws);
+
+                let new_expr = make::expr_path(make::path_unqualified(make::path_segment(
+                    make::name_ref(name.text()),
+                )));
+                let enum_field = make::expr_field(new_expr.clone(), field);
+                rewriter.replace(it.syntax(), enum_field.syntax());
+
+                Some(new_expr)
+            }
+        }
+    };
+    let struct_expr: &ast::Expr = renamed_exprs
+        .entry((reference.file_range.file_id, expr.syntax().clone()))
+        .or_insert(rewrite_and_insert_with()?);
+
+    // Update the usage of common fields.
+    let struct_fields: Vec<_> = struct_fields.fields().collect();
+    // FIXME: Deal with `..` in pattern fields.
+    let fields =
+        pat.fields().take(n_common_fields).enumerate().filter_map(|(n, field)| match field {
+            ast::Pat::IdentPat(ident) => Some((n, ident)),
+            _ => None,
+        });
+
+    for (n, field) in fields {
+        let usages = Definition::Local(ctx.sema.to_def(&field)?).usages(&ctx.sema).all();
+        for usage in usages {
+            let name_ref = algo::find_node_at_offset::<ast::NameRef>(
+                source_file.syntax(),
+                usage.file_range.range.start(),
+            )?;
+            let new = make::expr_field(
+                struct_expr.clone(),
+                make::name_ref(struct_fields[n].name()?.text()),
+            );
+
+            rewriter.replace(name_ref.syntax(), new.syntax());
+        }
+    }
 
     Some(())
 }
@@ -176,7 +324,7 @@ fn update_constructor(
     rewriter: &mut SyntaxRewriter,
     reference: &Reference,
     source_file: &SourceFile,
-    enum_hir: hir::Enum,
+    enum_: &ast::Enum,
     new_enum_name: &str,
     struct_fields: &ast::RecordFieldList,
     n_common_fields: usize,
@@ -189,6 +337,15 @@ fn update_constructor(
     )?;
     let path = path_expr.path()?;
     let (old_enum_path, variant) = (path.qualifier()?, path.segment()?);
+
+    // Make sure to only update constructors, not associated methods.
+    enum_.variant_list()?.variants().find_map(|it| {
+        if variant.name_ref()?.text() == it.name()?.text() {
+            Some(())
+        } else {
+            None
+        }
+    })?;
 
     let call = path_expr.syntax().parent().and_then(ast::CallExpr::cast)?;
     let args = call.arg_list()?.args().collect::<Vec<_>>();
@@ -208,10 +365,11 @@ fn update_constructor(
         make::name_ref(&stdx::to_lower_snake_case(new_enum_name)),
         Some(enum_constructor),
     );
-    let name_refs =
-        struct_fields.fields().filter_map(|it| it.name().map(|it| make::name_ref(it.text())));
-    // There's an extra field containing an enum, so name_refs.count() == n_common_fields + 1
-    debug_assert_eq!(name_refs.clone().count(), n_common_fields + 1);
+    let name_refs = struct_fields.fields().map(|it| {
+        it.name()
+            .map(|it| make::name_ref(it.text()))
+            .expect("We created this RecordField, so we know it has a name.")
+    });
 
     let record_expr_field_list = make::record_expr_field_list(
         name_refs
@@ -229,6 +387,7 @@ fn update_constructor(
     if !visited_modules_set.contains(&module) {
         visited_modules_set.insert(module);
         let import = make::name(new_enum_name).as_name();
+        let enum_hir = ctx.sema.to_def(enum_)?;
         insert_import(ctx, rewriter, path_expr.syntax(), &module, enum_hir.into(), import)?;
     }
 
@@ -283,6 +442,21 @@ fn update_tuple_enum(
     }
 
     Some(())
+}
+
+fn existing_variable_definition(db: &RootDatabase, name: &ast::Name, module: hir::Module) -> bool {
+    module
+        .scope(db, None)
+        .into_iter()
+        // only check variable-namespace
+        .filter(|(_, def)| match def {
+            hir::ScopeDef::ModuleDef(def) => matches!(def,
+                ModuleDef::Const(_) | ModuleDef::Static(_)
+            ),
+            hir::ScopeDef::Local(_) => true,
+            _ => false,
+        })
+        .any(|(def, _)| def == name.as_name())
 }
 
 #[cfg(test)]
@@ -447,12 +621,13 @@ enum A {
 }
 
 fn func(it: A) {
-    match it {
+    let _output = match it {
         A::One(text, n) => {
-            println!("{}", text.repeat(n));
+            // repeat the text n times
+            text.repeat(n)
         }
-        A::Two(text) => println!("{}", text),
-    }
+        A::Two(text) => text,
+    };
 }
 "#,
             r#"
@@ -467,12 +642,288 @@ enum EnumA {
 }
 
 fn func(it: A) {
-    match it.enum_a {
+    let _output = match it.enum_a {
         EnumA::One(n) => {
-            println!("{}", it.enum_field_0.repeat(n));
+            // repeat the text n times
+            it.enum_field_0.repeat(n)
         }
-        EnumA::Two => println!("{}", it.enum_field_0),
+        EnumA::Two => it.enum_field_0,
+    };
+}
+"#,
+        );
     }
+
+    #[test]
+    fn factor_out_update_iflet_works() {
+        check_assist(
+            factor_out_from_enum_variants,
+            r#"
+enum A {
+    One(String, usize),
+    Two(String),<|>
+}
+
+mod foo {
+    fn func(it: crate::A) {
+        if let crate::A::One(text, n) = it {
+            // repeat the text n times
+            let _output = text.repeat(n);
+        }
+    }
+}
+"#,
+            r#"
+struct A {
+    enum_field_0: String,
+    enum_a: EnumA,
+}
+
+enum EnumA {
+    One(usize),
+    Two,
+}
+
+mod foo {
+    fn func(it: crate::A) {
+        if let crate::EnumA::One(n) = it.enum_a {
+            // repeat the text n times
+            let _output = it.enum_field_0.repeat(n);
+        }
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn factor_out_update_pattern_with_field_works() {
+        check_assist(
+            factor_out_from_enum_variants,
+            r#"
+enum A {
+    One(String, usize),<|>
+    Two(String),
+}
+
+mod foo {
+    fn func(it: (bool, crate::A)) {
+        if let crate::A::One(text, n) = it.1 {
+            // repeat the text n times
+            let _output = text.repeat(n);
+        }
+    }
+}
+"#,
+            r#"
+struct A {
+    enum_field_0: String,
+    enum_a: EnumA,
+}
+
+enum EnumA {
+    One(usize),
+    Two,
+}
+
+mod foo {
+    fn func(it: (bool, crate::A)) {
+        if let crate::EnumA::One(n) = it.1.enum_a {
+            // repeat the text n times
+            let _output = it.1.enum_field_0.repeat(n);
+        }
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn factor_out_update_expr_works() {
+        check_assist(
+            factor_out_from_enum_variants,
+            r#"
+enum A {
+    One(String, usize),
+    Two(String),<|>
+}
+
+impl Default for A {
+    fn default() -> A {
+        A::One("hi".into(), 42)
+    }
+}
+
+fn func() {
+    if let A::One(text, n) = A::default() {
+        // repeat the text n times
+        let _output = text.repeat(n);
+    }
+}
+"#,
+            r#"
+struct A {
+    enum_field_0: String,
+    enum_a: EnumA,
+}
+
+enum EnumA {
+    One(usize),
+    Two,
+}
+
+impl Default for A {
+    fn default() -> A {
+        A {
+            enum_field_0: "hi".into(),
+            enum_a: EnumA::One(42),
+        }
+    }
+}
+
+fn func() {
+    let TEMP_VARIABLE = A::default();
+    if let EnumA::One(n) = TEMP_VARIABLE.enum_a {
+        // repeat the text n times
+        let _output = TEMP_VARIABLE.enum_field_0.repeat(n);
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn factor_out_update_pattern_with_literal_works() {
+        check_assist(
+            factor_out_from_enum_variants,
+            r#"
+enum A {
+    One(usize, usize, usize),<|>
+    Two(usize, usize),
+}
+
+fn func(it: A) {
+    match it {
+        A::One(0, j, k) => {
+            let _ = j * k;
+        }
+        A::One(2, j, k) if (j + k) % 2 == 0 => {
+            let _ = (j + k) / 2;
+        }
+        A::One(i @ 5..=20, j, k) => {
+            let _ = i + j * k;
+        }
+        A::One(i, j, k @ 30..=50) => {
+            let _ = k + i * j;
+        }
+        _ => {}
+    }
+}
+"#,
+            r#"
+struct A {
+    enum_field_0: usize,
+    enum_field_1: usize,
+    enum_a: EnumA,
+}
+
+enum EnumA {
+    One(usize),
+    Two,
+}
+
+fn func(it: A) {
+    match it.enum_a {
+        EnumA::One(k) if it.enum_field_0 == 0 => {
+            let _ = it.enum_field_1 * k;
+        }
+        EnumA::One(k) if it.enum_field_0 == 2 && (it.enum_field_1 + k) % 2 == 0 => {
+            let _ = (it.enum_field_1 + k) / 2;
+        }
+        EnumA::One(k) if (5..=20).contains(&it.enum_field_0) => {
+            let _ = it.enum_field_0 + it.enum_field_1 * k;
+        }
+        EnumA::One(k @ 30..=50) => {
+            let _ = k + it.enum_field_0 * it.enum_field_1;
+        }
+        _ => {}
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn factor_out_update_pattern_with_rest_works() {
+        check_assist(
+            factor_out_from_enum_variants,
+            r#"
+enum A {
+    One(u8, String, usize, bool, i32, f64, Vec<char>),
+    Two(u8, String, usize, bool, i32),<|>
+}
+
+fn func(it: A) {
+    match it {
+        A::One(0, s, u, ..) => {
+            let _: (String, usize) = (s, u);
+        }
+        A::One(1, s, u, .., v) => {
+            let _: (String, usize, Vec<char>) = (s, u, v);
+        }
+        A::One(2, s, .., f, v) => {
+            let _: (String, f64, Vec<char>) = (s, f, v);
+        }
+        A::One(3, .., i, f, v) => {
+            let _: (i32, f64, Vec<char>) = (i, f, v);
+        }
+        A::One(.., f, v) => {
+            let _: (f64, Vec<char>) = (f, v);
+        }
+        A::Two(4, .., i) => {
+            let _: i32 = i;
+        }
+        A::Two(..) => {}
+    };
+}
+"#,
+            r#"
+struct A {
+    enum_field_0: u8,
+    enum_field_1: String,
+    enum_field_2: usize,
+    enum_field_3: bool,
+    enum_field_4: i32,
+    enum_a: EnumA,
+}
+
+enum EnumA {
+    One(f64, Vec<char>),
+    Two,
+}
+
+fn func(it: A) {
+    match it.enum_a {
+        EnumA::One(..) if it.enum_field_0 == 0 => {
+            let _: (String, usize) = (it.enum_field_1, it.enum_field_2);
+        }
+        EnumA::One(.., v) if it.enum_field_0 == 1 => {
+            let _: (String, usize, Vec<char>) = (it.enum_field_1, it.enum_field_2, v);
+        }
+        EnumA::One(f, v) if it.enum_field_0 == 2 => {
+            let _: (String, f64, Vec<char>) = (it.enum_field_1, f, v);
+        }
+        EnumA::One(f, v) if it.enum_field_0 == 3 => {
+            let _: (i32, f64, Vec<char>) = (it.enum_field_4, f, v);
+        }
+        EnumA::One(f, v) => {
+            let _: (f64, Vec<char>) = (f, v);
+        }
+        EnumA::Two if it.enum_field_0 == 4 => {
+            let _: i32 = it.enum_field_4;
+        }
+        EnumA::Two => {},
+    };
 }
 "#,
         );

@@ -11,7 +11,7 @@ use syntax::{
 };
 
 use crate::{
-    utils::{existing_definition, insert_use, mod_path_to_ast, ImportScope},
+    utils::{existing_type_definition, insert_use, mod_path_to_ast, ImportScope},
     AssistContext, AssistId, AssistKind, Assists,
 };
 
@@ -40,7 +40,7 @@ pub(crate) fn extract_struct_from_enum_variant(
 
     let db = ctx.db();
     let module = variant_hir.parent_enum(db).module(db);
-    if existing_definition(db, &variant_name, module) {
+    if existing_type_definition(db, &variant_name, module) {
         return None;
     }
 

@@ -204,6 +204,9 @@ pub fn expr_call(f: ast::Expr, arg_list: ast::ArgList) -> ast::Expr {
 pub fn expr_method_call(receiver: ast::Expr, method: &str, arg_list: ast::ArgList) -> ast::Expr {
     expr_from_text(&format!("{}.{}{}", receiver, method, arg_list))
 }
+pub fn expr_field(expr: ast::Expr, name_ref: ast::NameRef) -> ast::Expr {
+    expr_from_text(&format!("{}.{}", expr, name_ref))
+}
 pub fn expr_ref(expr: ast::Expr, exclusive: bool) -> ast::Expr {
     expr_from_text(&if exclusive { format!("&mut {}", expr) } else { format!("&{}", expr) })
 }
