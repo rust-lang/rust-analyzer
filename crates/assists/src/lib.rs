@@ -125,6 +125,7 @@ mod handlers {
     mod add_turbo_fish;
     mod apply_demorgan;
     mod auto_import;
+    mod change_fields_visibility;
     mod change_visibility;
     mod convert_integer_literal;
     mod early_return;
@@ -175,6 +176,7 @@ mod handlers {
             apply_demorgan::apply_demorgan,
             auto_import::auto_import,
             change_visibility::change_visibility,
+            change_fields_visibility::change_fields_visibility,
             convert_integer_literal::convert_integer_literal,
             early_return::convert_to_guarded_return,
             expand_glob_import::expand_glob_import,

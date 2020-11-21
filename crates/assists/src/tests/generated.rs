@@ -159,6 +159,25 @@ pub mod std { pub mod collections { pub struct HashMap { } } }
 }
 
 #[test]
+fn doctest_change_fields_visibility() {
+    check_doc_test(
+        "change_fields_visibility",
+        r#####"
+pub struct <|>Foo {
+   bar: usize,
+   test: String
+}
+"#####,
+        r#####"
+pub struct Foo {
+   pub bar: usize,
+   pub test: String
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_change_visibility() {
     check_doc_test(
         "change_visibility",
