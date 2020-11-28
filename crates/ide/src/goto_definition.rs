@@ -1,5 +1,6 @@
 use hir::Semantics;
 use ide_db::{
+    base_db::FileId,
     defs::{NameClass, NameRefClass},
     symbol_index, RootDatabase,
 };
@@ -45,6 +46,7 @@ pub(crate) fn goto_definition(
                 let nav = adt_def.to_nav(db);
                 vec![nav]
             },
+            ast::PathSegment(segment) => vec![self_to_nav_target(segment, position.file_id)?],
             _ => return None,
         }
     };
@@ -61,6 +63,27 @@ fn pick_best(tokens: TokenAtOffset<SyntaxToken>) -> Option<SyntaxToken> {
             _ => 1,
         }
     }
+}
+
+fn self_to_nav_target(segment: ast::PathSegment, file_id: FileId) -> Option<NavigationTarget> {
+    segment.self_token()?;
+    let path = segment.parent_path();
+    if path.qualifier().is_some() && !ast::PathExpr::can_cast(path.syntax().parent()?.kind()) {
+        return None;
+    }
+    let func = segment.syntax().ancestors().find_map(ast::Fn::cast)?;
+    let self_param = func.param_list()?.self_param()?;
+    let self_token = self_param.self_token()?;
+    Some(NavigationTarget {
+        file_id,
+        full_range: self_param.syntax().text_range(),
+        focus_range: Some(self_token.text_range()),
+        name: self_token.text().clone(),
+        kind: self_token.kind(),
+        container_name: None,
+        description: None,
+        docs: None,
+    })
 }
 
 #[derive(Debug)]
@@ -1013,5 +1036,33 @@ impl Foo {
 }
 "#,
         );
+    }
+
+    #[test]
+    fn goto_self_param() {
+        check(
+            r#"
+struct Foo {}
+
+impl Foo {
+    fn bar(&self) {
+          //^^^^
+        let foo = sel<|>f;
+    }"#,
+        )
+    }
+
+    #[test]
+    fn goto_self_param_ty_specified() {
+        check(
+            r#"
+struct Foo {}
+
+impl Foo {
+    fn bar(&self: &Foo) {
+          //^^^^
+        let foo = sel<|>f;
+    }"#,
+        )
     }
 }
