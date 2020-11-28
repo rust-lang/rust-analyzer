@@ -41,12 +41,18 @@ pub(crate) fn goto_definition(
                 vec![nav]
             },
             ast::SelfParam(self_param) => {
-                let ty = sema.type_of_self(&self_param)?;
-                let adt_def = ty.autoderef(db).filter_map(|ty| ty.as_adt()).last()?;
-                let nav = adt_def.to_nav(db);
-                vec![nav]
+                vec![self_to_nav_target(self_param, position.file_id)?]
             },
-            ast::PathSegment(segment) => vec![self_to_nav_target(segment, position.file_id)?],
+            ast::PathSegment(segment) => {
+                segment.self_token()?;
+                let path = segment.parent_path();
+                if path.qualifier().is_some() && !ast::PathExpr::can_cast(path.syntax().parent()?.kind()) {
+                    return None;
+                }
+                let func = segment.syntax().ancestors().find_map(ast::Fn::cast)?;
+                let self_param = func.param_list()?.self_param()?;
+                vec![self_to_nav_target(self_param, position.file_id)?]
+            },
             _ => return None,
         }
     };
@@ -65,14 +71,7 @@ fn pick_best(tokens: TokenAtOffset<SyntaxToken>) -> Option<SyntaxToken> {
     }
 }
 
-fn self_to_nav_target(segment: ast::PathSegment, file_id: FileId) -> Option<NavigationTarget> {
-    segment.self_token()?;
-    let path = segment.parent_path();
-    if path.qualifier().is_some() && !ast::PathExpr::can_cast(path.syntax().parent()?.kind()) {
-        return None;
-    }
-    let func = segment.syntax().ancestors().find_map(ast::Fn::cast)?;
-    let self_param = func.param_list()?.self_param()?;
+fn self_to_nav_target(self_param: ast::SelfParam, file_id: FileId) -> Option<NavigationTarget> {
     let self_token = self_param.self_token()?;
     Some(NavigationTarget {
         file_id,
@@ -1010,35 +1009,6 @@ fn g() -> <() as Iterator<A = (), B<|> = u8>>::A {}
     }
 
     #[test]
-    fn todo_def_type_for_self() {
-        check(
-            r#"
-struct Foo {}
-     //^^^
-
-impl Foo {
-    fn bar(&self<|>) {}
-}
-"#,
-        );
-    }
-
-    #[test]
-    fn todo_def_type_for_arbitrary_self() {
-        check(
-            r#"
-struct Arc<T>(T);
-     //^^^
-struct Foo {}
-
-impl Foo {
-    fn bar(self<|>: Arc<Self>) {}
-}
-"#,
-        );
-    }
-
-    #[test]
     fn goto_self_param() {
         check(
             r#"
@@ -1062,6 +1032,19 @@ impl Foo {
     fn bar(&self: &Foo) {
           //^^^^
         let foo = sel<|>f;
+    }"#,
+        )
+    }
+
+    #[test]
+    fn goto_self_param_on_decl() {
+        check(
+            r#"
+struct Foo {}
+
+impl Foo {
+    fn bar(&self<|>) {
+          //^^^^
     }"#,
         )
     }
