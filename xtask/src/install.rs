@@ -70,7 +70,16 @@ impl InstallCmd {
             install_server(server).context("install server")?;
         }
         if let Some(client) = self.client {
-            install_client(client).context("install client")?;
+            if !install_client(client).context("install client")? {
+                if cfg!(unix) {
+                    eprintln!("Could not locate `code` to install Visual Studio Code extension!");
+                } else {
+                    eprintln!(
+                        "Could not locate `code.exe` to install Visual Studio Code extension!"
+                    );
+                }
+                eprintln!("This error may be safely ignored if you do not have Visual Studio Code installed.");
+            }
         }
         Ok(())
     }
@@ -109,7 +118,7 @@ fn fix_path_for_mac() -> Result<()> {
     Ok(())
 }
 
-fn install_client(client_opt: ClientOpt) -> Result<()> {
+fn install_client(client_opt: ClientOpt) -> Result<bool> {
     let _dir = pushd("./editors/code");
 
     let find_code = |f: fn(&str) -> bool| -> Result<&'static str> {
@@ -119,15 +128,24 @@ fn install_client(client_opt: ClientOpt) -> Result<()> {
     };
 
     let installed_extensions = if cfg!(unix) {
+        let code = match find_code(|bin| cmd!("{bin} --version").read().is_ok()) {
+            Ok(code_path) => code_path,
+            _ => return Ok(false),
+        };
+
         cmd!("npm --version").run().context("`npm` is required to build the VS Code plugin")?;
         cmd!("npm install").run()?;
 
         cmd!("npm run package --scripts-prepend-node-path").run()?;
 
-        let code = find_code(|bin| cmd!("{bin} --version").read().is_ok())?;
         cmd!("{code} --install-extension rust-analyzer.vsix --force").run()?;
         cmd!("{code} --list-extensions").read()?
     } else {
+        let code = match find_code(|bin| cmd!("cmd.exe /c {bin}.cmd --version").read().is_ok()) {
+            Ok(code_path) => code_path,
+            _ => return Ok(false),
+        };
+
         cmd!("cmd.exe /c npm --version")
             .run()
             .context("`npm` is required to build the VS Code plugin")?;
@@ -135,7 +153,6 @@ fn install_client(client_opt: ClientOpt) -> Result<()> {
 
         cmd!("cmd.exe /c npm run package").run()?;
 
-        let code = find_code(|bin| cmd!("cmd.exe /c {bin}.cmd --version").read().is_ok())?;
         cmd!("cmd.exe /c {code}.cmd --install-extension rust-analyzer.vsix --force").run()?;
         cmd!("cmd.exe /c {code}.cmd --list-extensions").read()?
     };
@@ -148,7 +165,7 @@ fn install_client(client_opt: ClientOpt) -> Result<()> {
         );
     }
 
-    Ok(())
+    Ok(true)
 }
 
 fn install_server(opts: ServerOpt) -> Result<()> {
