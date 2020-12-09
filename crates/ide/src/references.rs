@@ -236,6 +236,7 @@ fn find_all_label_references(
     let label_text = lifetime_token.text();
     let label = syntax.ancestors().find_map(|syn| {
         (match_ast! {
+            // all of these expressions declare loop labels
             match syn {
                 ast::EffectExpr(it) => it.label(),
                 ast::LoopExpr(it) => it.label(),
@@ -246,21 +247,6 @@ fn find_all_label_references(
         })
         .filter(|label| label.lifetime_token().as_ref().map(|lt| lt.text()) == Some(label_text))
     })?;
-    let lt = label.lifetime_token()?;
-    let declaration = Declaration {
-        nav: NavigationTarget {
-            file_id: position.file_id,
-            full_range: lt.text_range(),
-            focus_range: Some(lt.text_range()),
-            name: label_text.clone(),
-            kind: lt.kind(),
-            container_name: None,
-            description: None,
-            docs: None,
-        },
-        kind: ReferenceKind::Label,
-        access: None,
-    };
     let label_parent = label.syntax().parent()?;
     let expr = match_ast! {
         match label_parent {
@@ -275,6 +261,7 @@ fn find_all_label_references(
         .descendants()
         .filter_map(|syn| {
             match_ast! {
+                // only these expressions may refer to labels
                 match syn {
                     ast::BreakExpr(it) => it.lifetime_token().filter(|lt| lt.text() == label_text),
                     ast::ContinueExpr(it) => it.lifetime_token().filter(|lt| lt.text() == label_text),
@@ -284,11 +271,26 @@ fn find_all_label_references(
         })
         .map(|token| Reference {
             file_range: FileRange { file_id: position.file_id, range: token.text_range() },
-            kind: ReferenceKind::Label,
+            kind: ReferenceKind::Lifetime,
             access: None,
         })
         .collect();
 
+    let lt = label.lifetime_token()?;
+    let declaration = Declaration {
+        nav: NavigationTarget {
+            file_id: position.file_id,
+            full_range: lt.text_range(),
+            focus_range: Some(lt.text_range()),
+            name: label_text.clone(),
+            kind: lt.kind(),
+            container_name: None,
+            description: None,
+            docs: None,
+        },
+        kind: ReferenceKind::Lifetime,
+        access: None,
+    };
     Some(RangeInfo::new(
         lifetime_token.text_range(),
         ReferenceSearchResult { declaration, references },
@@ -301,7 +303,7 @@ fn find_all_lifetime_references(
     syntax: &SyntaxNode,
 ) -> Option<RangeInfo<ReferenceSearchResult>> {
     let lifetime_text = lifetime_token.text();
-    // we need to look for something that holds a GenericParamList as this is a definition site for lifetimes
+    // we need to look for something that holds a GenericParamList as this is the declaration site for lifetimes
     let (lifetime_param, generic_param_list, where_clause) =
         syntax.ancestors().find_map(|syn| {
             let (gpl, where_clause) = match_ast! {
@@ -327,21 +329,6 @@ fn find_all_lifetime_references(
             ))
         })?;
     let lt = lifetime_param.lifetime_token()?;
-    let declaration = Declaration {
-        nav: NavigationTarget {
-            file_id: position.file_id,
-            full_range: lt.text_range(),
-            focus_range: Some(lt.text_range()),
-            name: lifetime_text.clone(),
-            kind: lt.kind(),
-            container_name: None,
-            description: None,
-            docs: None,
-        },
-        kind: ReferenceKind::Label,
-        access: None,
-    };
-    let gpl_parent = generic_param_list.syntax().parent()?;
     let mut references = Vec::new();
 
     // find references in the GenericParamList itself
@@ -369,16 +356,38 @@ fn find_all_lifetime_references(
             );
         }
     }
+    let gpl_parent = generic_param_list.syntax().parent()?;
     // find references in the other inner nodes of whatever we are in
-    find_lifetime_references(&mut references, lifetime_text, position.file_id, gpl_parent);
+    find_lifetime_references_in_declaring_node(
+        &mut references,
+        lifetime_text,
+        position.file_id,
+        gpl_parent,
+    );
 
+    let declaration = Declaration {
+        nav: NavigationTarget {
+            file_id: position.file_id,
+            full_range: lt.text_range(),
+            focus_range: Some(lt.text_range()),
+            name: lifetime_text.clone(),
+            kind: lt.kind(),
+            container_name: None,
+            description: None,
+            docs: None,
+        },
+        kind: ReferenceKind::Lifetime,
+        access: None,
+    };
     Some(RangeInfo::new(
         lifetime_token.text_range(),
         ReferenceSearchResult { declaration, references },
     ))
 }
 
-fn find_lifetime_references(
+/// Searches for lifetime references in the node that declared the lifetime ignoring its WhereClause
+/// and GenericParamlist.
+fn find_lifetime_references_in_declaring_node(
     references: &mut Vec<Reference>,
     lifetime_text: &SmolStr,
     file_id: FileId,
@@ -444,6 +453,7 @@ fn find_lifetime_references(
     };
 }
 
+/// Searches for lifetime references in the given syntax node by doing token text matching.
 fn find_lifetime_references_in(
     references: &mut Vec<Reference>,
     lifetime_text: &SmolStr,
@@ -453,13 +463,15 @@ fn find_lifetime_references_in(
     references.extend(syntax.descendants_with_tokens().filter_map(|ele| match ele {
         NodeOrToken::Token(token) if token.text() == lifetime_text => Some(Reference {
             file_range: FileRange { file_id, range: token.text_range() },
-            kind: ReferenceKind::Label,
+            kind: ReferenceKind::Lifetime,
             access: None,
         }),
         _ => None,
     }));
 }
 
+/// Searches for lifetimes in an AssocItemList from an Impl or Trait, this is required to delegate
+/// the special searching for associated functions via [`find_lifetime_references_in_fn`].
 fn find_lifetime_references_in_assoc_list(
     references: &mut Vec<Reference>,
     lifetime_text: &SmolStr,
@@ -486,6 +498,7 @@ fn find_lifetime_references_in_assoc_list(
                     find_lifetime_references_in_fn(references, lifetime_text, file_id, &body);
                 }
             }
+            ast::AssocItem::MacroCall(_) => (/* FIXME */),
             _ => {
                 find_lifetime_references_in(references, lifetime_text, file_id, assoc_item.syntax())
             }
@@ -493,14 +506,17 @@ fn find_lifetime_references_in_assoc_list(
     }
 }
 
+/// Searches for the given lifetime text in the functions body. This is special cased to skip inner
+/// defined items as these can shadow the lifetime we are looking for.
 fn find_lifetime_references_in_fn(
     references: &mut Vec<Reference>,
     lifetime_text: &SmolStr,
     file_id: FileId,
     body: &ast::BlockExpr,
 ) {
-    // skip inner items inside this function as they may redeclare a lifetime with the same name
-    // as the one we are looking for
+    // skip inner items inside the function as they may redeclare a lifetime with the same name
+    // as the one we are looking for, inner items may also not re-use outer generics without redeclaring
+    // them so they are safe to skip
     let items = [
         SyntaxKind::STRUCT,
         SyntaxKind::ENUM,
@@ -531,7 +547,7 @@ fn find_lifetime_references_in_fn(
                 {
                     references.push(Reference {
                         file_range: FileRange { file_id, range: token.text_range() },
-                        kind: ReferenceKind::Label,
+                        kind: ReferenceKind::Lifetime,
                         access: None,
                     });
                 }
@@ -1220,10 +1236,10 @@ fn main() {
 }
 "#,
             expect![[r#"
-                'foo LIFETIME FileId(0) 16..20 16..20 Label
+                'foo LIFETIME FileId(0) 16..20 16..20 Lifetime
 
-                FileId(0) 77..81 Label
-                FileId(0) 107..111 Label
+                FileId(0) 77..81 Lifetime
+                FileId(0) 107..111 Lifetime
             "#]],
         );
     }
@@ -1242,10 +1258,10 @@ fn main() {
 }
 "#,
             expect![[r#"
-                'foo LIFETIME FileId(0) 16..20 16..20 Label
+                'foo LIFETIME FileId(0) 16..20 16..20 Lifetime
 
-                FileId(0) 77..81 Label
-                FileId(0) 107..111 Label
+                FileId(0) 77..81 Lifetime
+                FileId(0) 107..111 Lifetime
             "#]],
         );
     }
@@ -1263,13 +1279,13 @@ fn foo<'a, 'b: 'a>(x: &'a<|> ()) -> &'a () where &'a (): Foo<'a>  {
 }
 "#,
             expect![[r#"
-                'a LIFETIME FileId(0) 56..58 56..58 Label
+                'a LIFETIME FileId(0) 56..58 56..58 Lifetime
 
-                FileId(0) 64..66 Label
-                FileId(0) 96..98 Label
-                FileId(0) 107..109 Label
-                FileId(0) 72..74 Label
-                FileId(0) 83..85 Label
+                FileId(0) 64..66 Lifetime
+                FileId(0) 96..98 Lifetime
+                FileId(0) 107..109 Lifetime
+                FileId(0) 72..74 Lifetime
+                FileId(0) 83..85 Lifetime
             "#]],
         );
     }
@@ -1281,10 +1297,10 @@ fn foo<'a, 'b: 'a>(x: &'a<|> ()) -> &'a () where &'a (): Foo<'a>  {
 type Foo<'a, T> where T: 'a<|> = &'a T;
 "#,
             expect![[r#"
-                'a LIFETIME FileId(0) 9..11 9..11 Label
+                'a LIFETIME FileId(0) 9..11 9..11 Lifetime
 
-                FileId(0) 25..27 Label
-                FileId(0) 31..33 Label
+                FileId(0) 25..27 Lifetime
+                FileId(0) 31..33 Lifetime
             "#]],
         );
     }
@@ -1304,11 +1320,11 @@ impl<'a> Foo<'a> for &'a () {
 }
 "#,
             expect![[r#"
-                'a LIFETIME FileId(0) 48..50 48..50 Label
+                'a LIFETIME FileId(0) 48..50 48..50 Lifetime
 
-                FileId(0) 56..58 Label
-                FileId(0) 65..67 Label
-                FileId(0) 90..92 Label
+                FileId(0) 56..58 Lifetime
+                FileId(0) 65..67 Lifetime
+                FileId(0) 90..92 Lifetime
             "#]],
         );
     }
