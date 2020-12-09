@@ -360,6 +360,10 @@ fn rename_reference(
         None => return Err(RenameError("No references found at position".to_string())),
     };
 
+    if refs.declaration().kind == ReferenceKind::Lifetime {
+        return Err(RenameError("Renaming references is not yet suported".to_string()));
+    }
+
     let edit = refs
         .into_iter()
         .map(|reference| source_edit_from_reference(sema, reference, new_name))
