@@ -13,6 +13,7 @@ pub(crate) mod rename;
 
 use hir::Semantics;
 use ide_db::{
+    base_db::FileId,
     defs::{Definition, NameClass, NameRefClass},
     search::Reference,
     search::{ReferenceAccess, ReferenceKind, SearchScope},
@@ -20,8 +21,9 @@ use ide_db::{
 };
 use syntax::{
     algo::find_node_at_offset,
-    ast::{self, LoopBodyOwner, NameOwner},
-    match_ast, AstNode, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TokenAtOffset,
+    ast::{self, GenericParamsOwner, LoopBodyOwner, NameOwner, TypeBoundsOwner},
+    match_ast, AstNode, NodeOrToken, SmolStr, SyntaxKind, SyntaxNode, SyntaxToken, TextRange,
+    TokenAtOffset, T,
 };
 
 use crate::{display::TryToNav, FilePosition, FileRange, NavigationTarget, RangeInfo};
@@ -212,14 +214,12 @@ fn try_find_lifetime_references(
 
     match_ast! {
         match parent {
-            ast::LifetimeArg(it) => find_all_lifetime_references(),
-            // &'lt self
-            ast::SelfParam(it) => find_all_lifetime_references(),
-            ast::RefType(it) => find_all_lifetime_references(),
-            ast::LifetimeParam(it) => find_all_lifetime_references(),// decl
-            // HRTB
-            ast::WherePred(it) => find_all_lifetime_references(),
-            ast::TypeBound(it) => find_all_lifetime_references(),
+            ast::LifetimeArg(_it) => find_all_lifetime_references(position, lifetime_token, &parent),
+            ast::SelfParam(_it) => find_all_lifetime_references(position, lifetime_token, &parent),
+            ast::RefType(_it) => find_all_lifetime_references(position, lifetime_token, &parent),
+            ast::LifetimeParam(_it) => find_all_lifetime_references(position, lifetime_token, &parent),// decl
+            ast::WherePred(_it) => find_all_lifetime_references(position, lifetime_token, &parent),
+            ast::TypeBound(_it) => find_all_lifetime_references(position, lifetime_token, &parent),
             ast::Label(_it) => find_all_label_references(position, lifetime_token, &parent), // decl
             ast::BreakExpr(_it) => find_all_label_references(position, lifetime_token, &parent),
             ast::ContinueExpr(_it) => find_all_label_references(position, lifetime_token, &parent),
@@ -295,8 +295,209 @@ fn find_all_label_references(
     ))
 }
 
-fn find_all_lifetime_references() -> Option<RangeInfo<ReferenceSearchResult>> {
-    None
+fn find_all_lifetime_references(
+    position: FilePosition,
+    lifetime_token: SyntaxToken,
+    syntax: &SyntaxNode,
+) -> Option<RangeInfo<ReferenceSearchResult>> {
+    let lifetime_text = lifetime_token.text();
+    // we need to look for something that holds a GenericParamList as this is a definition site for lifetimes
+    let (lifetime_param, gpl, where_clause) = syntax.ancestors().find_map(|syn| {
+        let (gpl, where_clause) = match_ast! {
+            match syn {
+                ast::Fn(it) => (it.generic_param_list()?, it.where_clause()),
+                ast::TypeAlias(it) => (it.generic_param_list()?, it.where_clause()),
+                ast::Struct(it) => (it.generic_param_list()?, it.where_clause()),
+                ast::Enum(it) => (it.generic_param_list()?, it.where_clause()),
+                ast::Union(it) => (it.generic_param_list()?, it.where_clause()),
+                ast::Trait(it) => (it.generic_param_list()?, it.where_clause()),
+                ast::Impl(it) => (it.generic_param_list()?, it.where_clause()),
+                ast::WherePred(it) => (it.generic_param_list()?, None),
+                ast::ForType(it) => (it.generic_param_list()?, None),
+                _ => return None,
+            }
+        };
+        Some((
+            gpl.lifetime_params().find(|tp| {
+                tp.lifetime_token().as_ref().map(|lt| lt.text()) == Some(lifetime_text)
+            })?,
+            gpl,
+            where_clause,
+        ))
+    })?;
+    let lt = lifetime_param.lifetime_token()?;
+    let declaration = Declaration {
+        nav: NavigationTarget {
+            file_id: position.file_id,
+            full_range: lt.text_range(),
+            focus_range: Some(lt.text_range()),
+            name: lifetime_text.clone(),
+            kind: lt.kind(),
+            container_name: None,
+            description: None,
+            docs: None,
+        },
+        kind: ReferenceKind::Label,
+        access: None,
+    };
+    let gpl_parent = gpl.syntax().parent()?;
+    let file_id = position.file_id;
+    let mut references = Vec::new();
+    match_ast! {
+        match gpl_parent {
+            ast::Fn(it) => {
+                if let Some(param_list) = it.param_list() {
+                    find_lifetime_references_in(&mut references, lifetime_text, file_id, param_list.syntax());
+                }
+                if let Some(ret_type) = it.ret_type() {
+                    find_lifetime_references_in(&mut references, lifetime_text, file_id, ret_type.syntax());
+                }
+                if let Some(body) = it.body() {
+                    find_lifetime_references_in_fn(&mut references, lifetime_text, file_id, &body);
+                }
+            },
+            ast::TypeAlias(it) => {
+                if let Some(type_bound_list) = it.type_bound_list() {
+                    find_lifetime_references_in(&mut references, lifetime_text, file_id, type_bound_list.syntax());
+                }
+                if let Some(ty) = it.ty() {
+                    find_lifetime_references_in(&mut references, lifetime_text, file_id, ty.syntax());
+                }
+            },
+            ast::Struct(it) => if let Some(field_list) = it.field_list() {
+                find_lifetime_references_in(&mut references, lifetime_text, file_id, field_list.syntax());
+            },
+            ast::Enum(it) => if let Some(variant_list) = it.variant_list() {
+                find_lifetime_references_in(&mut references, lifetime_text, file_id, variant_list.syntax());
+            },
+            ast::Union(it) => if let Some(record_field_list) = it.record_field_list() {
+                find_lifetime_references_in(&mut references, lifetime_text, file_id, record_field_list.syntax());
+            },
+            ast::Trait(it) => {
+                if let Some(type_bound_list) = it.type_bound_list() {
+                    find_lifetime_references_in(&mut references, lifetime_text, file_id, type_bound_list.syntax());
+                }
+                if let Some(assoc_item_list) = it.assoc_item_list() {
+                    find_lifetime_references_assoc_list(&mut references, lifetime_text, file_id, &assoc_item_list);
+                }
+            },
+            ast::Impl(it) => if let Some(assoc_item_list) = it.assoc_item_list() {
+                find_lifetime_references_assoc_list(&mut references, lifetime_text, file_id, &assoc_item_list);
+            },
+            ast::WherePred(it) => if let Some(ty) = it.ty() {
+                find_lifetime_references_in(&mut references, lifetime_text, file_id, ty.syntax());
+            },
+            ast::ForType(it) => if let Some(ty) = it.ty() {
+                find_lifetime_references_in(&mut references, lifetime_text, file_id, ty.syntax());
+            },
+            _ => return None,
+        }
+    };
+
+    for param in gpl.generic_params().filter(|gp| !matches!(gp, ast::GenericParam::LifetimeParam(lp) if lp.lifetime_token().as_ref() == Some(&lt))) {
+        find_lifetime_references_in(
+            &mut references,
+            lifetime_text,
+            position.file_id,
+            param.syntax(),
+        );
+    }
+    if let Some(where_clause) = where_clause {
+        for predicate in where_clause.predicates() {
+            find_lifetime_references_in(
+                &mut references,
+                lifetime_text,
+                position.file_id,
+                predicate.syntax(),
+            );
+        }
+    }
+
+    Some(RangeInfo::new(
+        lifetime_token.text_range(),
+        ReferenceSearchResult { declaration, references },
+    ))
+}
+
+fn find_lifetime_references_in(
+    references: &mut Vec<Reference>,
+    lifetime_text: &SmolStr,
+    file_id: FileId,
+    syntax: &SyntaxNode,
+) {
+    references.extend(syntax.descendants_with_tokens().filter_map(|ele| match ele {
+        NodeOrToken::Token(token) if token.text() == lifetime_text => Some(Reference {
+            file_range: FileRange { file_id, range: token.text_range() },
+            kind: ReferenceKind::Label,
+            access: None,
+        }),
+        _ => None,
+    }));
+}
+
+fn find_lifetime_references_assoc_list(
+    references: &mut Vec<Reference>,
+    lifetime_text: &SmolStr,
+    file_id: FileId,
+    assoc_items: &ast::AssocItemList,
+) {
+    for assoc_item in assoc_items.assoc_items() {
+        match assoc_item {
+            ast::AssocItem::Fn(fn_) => {
+                if let Some(fn_) = fn_.body() {
+                    find_lifetime_references_in_fn(references, lifetime_text, file_id, &fn_);
+                }
+            }
+            _ => {
+                find_lifetime_references_in(references, lifetime_text, file_id, assoc_item.syntax())
+            }
+        }
+    }
+}
+
+fn find_lifetime_references_in_fn(
+    references: &mut Vec<Reference>,
+    lifetime_text: &SmolStr,
+    file_id: FileId,
+    body: &ast::BlockExpr,
+) {
+    let items = [
+        SyntaxKind::STRUCT,
+        SyntaxKind::ENUM,
+        SyntaxKind::FN,
+        SyntaxKind::UNION,
+        SyntaxKind::TYPE_ALIAS,
+        SyntaxKind::IMPL,
+        SyntaxKind::TRAIT,
+    ];
+    let mut skip_until = None;
+    for event in body.syntax().preorder_with_tokens() {
+        if let Some(kind) = skip_until {
+            if matches!(event,
+                        syntax::WalkEvent::Leave(NodeOrToken::Node(node)) if node.kind() == kind)
+            {
+                skip_until = None
+            }
+            continue;
+        }
+        match event {
+            syntax::WalkEvent::Enter(NodeOrToken::Node(node)) => {
+                if items.contains(&node.kind()) {
+                    skip_until = Some(node.kind());
+                }
+            }
+            syntax::WalkEvent::Enter(NodeOrToken::Token(token))
+                if token.kind() == T![lifetime] && token.text() == lifetime_text =>
+            {
+                references.push(Reference {
+                    file_range: FileRange { file_id, range: token.text_range() },
+                    kind: ReferenceKind::Label,
+                    access: None,
+                });
+            }
+            _ => (),
+        }
+    }
 }
 
 fn try_find_self_references(
@@ -1004,6 +1205,30 @@ fn main() {
 
                 FileId(0) 77..81 Label
                 FileId(0) 107..111 Label
+            "#]],
+        );
+    }
+
+    #[test]
+    fn test_find_lifetimes() {
+        check(
+            r#"
+trait Foo<'a> {}
+impl<'a> Foo<'a> for &'a () {}
+
+fn foo<'a, 'b: 'a>(x: &'a<|> ()) -> &'a () where &'a (): Foo<'a>  {
+    fn bar<'a>(_: &'a ()) {}
+    x
+}
+"#,
+            expect![[r#"
+                'a LIFETIME FileId(0) 56..58 56..58 Label
+
+                FileId(0) 72..74 Label
+                FileId(0) 83..85 Label
+                FileId(0) 64..66 Label
+                FileId(0) 96..98 Label
+                FileId(0) 107..109 Label
             "#]],
         );
     }
