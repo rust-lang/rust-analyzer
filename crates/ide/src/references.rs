@@ -422,8 +422,16 @@ fn find_lifetime_references(
                     find_lifetime_references_in_assoc_list(references, lifetime_text, file_id, &assoc_item_list);
                 }
             },
-            ast::Impl(it) => if let Some(assoc_item_list) = it.assoc_item_list() {
-                find_lifetime_references_in_assoc_list(references, lifetime_text, file_id, &assoc_item_list);
+            ast::Impl(it) => {
+                if let Some(trait_) = it.trait_() {
+                    find_lifetime_references_in(references, lifetime_text, file_id, trait_.syntax());
+                }
+                if let Some(self_ty) = it.self_ty() {
+                    find_lifetime_references_in(references, lifetime_text, file_id, self_ty.syntax());
+                }
+                if let Some(assoc_item_list) = it.assoc_item_list() {
+                    find_lifetime_references_in_assoc_list(references, lifetime_text, file_id, &assoc_item_list);
+                }
             },
             ast::WherePred(it) => if let Some(ty) = it.ty() {
                 find_lifetime_references_in(references, lifetime_text, file_id, ty.syntax());
@@ -459,9 +467,22 @@ fn find_lifetime_references_in_assoc_list(
     assoc_items: &ast::AssocItemList,
 ) {
     for assoc_item in assoc_items.assoc_items() {
+        // assoc items can't shadow lifetime variables
         match assoc_item {
-            ast::AssocItem::Fn(fn_) => {
-                if let Some(body) = fn_.body() {
+            ast::AssocItem::Fn(it) => {
+                if let Some(it) = it.generic_param_list() {
+                    find_lifetime_references_in(references, lifetime_text, file_id, it.syntax());
+                }
+                if let Some(it) = it.param_list() {
+                    find_lifetime_references_in(references, lifetime_text, file_id, it.syntax());
+                }
+                if let Some(it) = it.ret_type() {
+                    find_lifetime_references_in(references, lifetime_text, file_id, it.syntax());
+                }
+                if let Some(it) = it.where_clause() {
+                    find_lifetime_references_in(references, lifetime_text, file_id, it.syntax());
+                }
+                if let Some(body) = it.body() {
                     find_lifetime_references_in_fn(references, lifetime_text, file_id, &body);
                 }
             }
@@ -1230,7 +1251,7 @@ fn main() {
     }
 
     #[test]
-    fn test_find_lifetimes() {
+    fn test_find_lifetimes_function() {
         check(
             r#"
 trait Foo<'a> {}
@@ -1249,6 +1270,45 @@ fn foo<'a, 'b: 'a>(x: &'a<|> ()) -> &'a () where &'a (): Foo<'a>  {
                 FileId(0) 107..109 Label
                 FileId(0) 72..74 Label
                 FileId(0) 83..85 Label
+            "#]],
+        );
+    }
+
+    #[test]
+    fn test_find_type_alias() {
+        check(
+            r#"
+type Foo<'a, T> where T: 'a<|> = &'a T;
+"#,
+            expect![[r#"
+                'a LIFETIME FileId(0) 9..11 9..11 Label
+
+                FileId(0) 25..27 Label
+                FileId(0) 31..33 Label
+            "#]],
+        );
+    }
+
+    #[test]
+    fn test_find_trait_impl() {
+        check(
+            r#"
+trait Foo<'a> {
+    fn foo() -> &'a ();
+}
+
+impl<'a> Foo<'a> for &'a () {
+    fn foo() -> &'a<|> () {
+        unimplemented!()
+    }
+}
+"#,
+            expect![[r#"
+                'a LIFETIME FileId(0) 48..50 48..50 Label
+
+                FileId(0) 56..58 Label
+                FileId(0) 65..67 Label
+                FileId(0) 90..92 Label
             "#]],
         );
     }
