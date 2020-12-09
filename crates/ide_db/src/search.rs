@@ -32,6 +32,7 @@ pub enum ReferenceKind {
     StructLiteral,
     RecordFieldExprOrPat,
     SelfKw,
+    Label,
     Other,
 }
 

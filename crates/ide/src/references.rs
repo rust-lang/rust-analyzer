@@ -20,8 +20,8 @@ use ide_db::{
 };
 use syntax::{
     algo::find_node_at_offset,
-    ast::{self, NameOwner},
-    match_ast, AstNode, SyntaxKind, SyntaxNode, TextRange, TokenAtOffset,
+    ast::{self, LoopBodyOwner, NameOwner},
+    match_ast, AstNode, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TokenAtOffset,
 };
 
 use crate::{display::TryToNav, FilePosition, FileRange, NavigationTarget, RangeInfo};
@@ -90,6 +90,10 @@ pub(crate) fn find_all_refs(
     let syntax = sema.parse(position.file_id).syntax().clone();
 
     if let Some(res) = try_find_self_references(&syntax, position) {
+        return Some(res);
+    }
+
+    if let Some(res) = try_find_lifetime_references(&syntax, position) {
         return Some(res);
     }
 
@@ -195,6 +199,103 @@ fn get_struct_def_name_for_struct_literal_search(
             return left.ancestors().find_map(ast::Struct::cast).and_then(|l| l.name());
         }
     }
+    None
+}
+
+fn try_find_lifetime_references(
+    syntax: &SyntaxNode,
+    position: FilePosition,
+) -> Option<RangeInfo<ReferenceSearchResult>> {
+    let lifetime_token =
+        syntax.token_at_offset(position.offset).find(|t| t.kind() == SyntaxKind::LIFETIME)?;
+    let parent = lifetime_token.parent();
+
+    match_ast! {
+        match parent {
+            ast::LifetimeArg(it) => find_all_lifetime_references(),
+            // &'lt self
+            ast::SelfParam(it) => find_all_lifetime_references(),
+            ast::RefType(it) => find_all_lifetime_references(),
+            ast::LifetimeParam(it) => find_all_lifetime_references(),// decl
+            // HRTB
+            ast::WherePred(it) => find_all_lifetime_references(),
+            ast::TypeBound(it) => find_all_lifetime_references(),
+            ast::Label(_it) => find_all_label_references(position, lifetime_token, &parent), // decl
+            ast::BreakExpr(_it) => find_all_label_references(position, lifetime_token, &parent),
+            ast::ContinueExpr(_it) => find_all_label_references(position, lifetime_token, &parent),
+            _ => None,
+        }
+    }
+}
+
+fn find_all_label_references(
+    position: FilePosition,
+    lifetime_token: SyntaxToken,
+    syntax: &SyntaxNode,
+) -> Option<RangeInfo<ReferenceSearchResult>> {
+    let label_text = lifetime_token.text();
+    let label = syntax.ancestors().find_map(|syn| {
+        (match_ast! {
+            match syn {
+                ast::EffectExpr(it) => it.label(),
+                ast::LoopExpr(it) => it.label(),
+                ast::WhileExpr(it) => it.label(),
+                ast::ForExpr(it) => it.label(),
+                _ => None,
+            }
+        })
+        .filter(|label| label.lifetime_token().as_ref().map(|lt| lt.text()) == Some(label_text))
+    })?;
+    let lt = label.lifetime_token()?;
+    let declaration = Declaration {
+        nav: NavigationTarget {
+            file_id: position.file_id,
+            full_range: lt.text_range(),
+            focus_range: Some(lt.text_range()),
+            name: label_text.clone(),
+            kind: lt.kind(),
+            container_name: None,
+            description: None,
+            docs: None,
+        },
+        kind: ReferenceKind::Label,
+        access: None,
+    };
+    let label_parent = label.syntax().parent()?;
+    let expr = match_ast! {
+        match label_parent {
+            ast::EffectExpr(it) => it.block_expr()?.syntax().clone(),
+            ast::LoopExpr(it) => it.loop_body()?.syntax().clone(),
+            ast::WhileExpr(it) => it.loop_body()?.syntax().clone(),
+            ast::ForExpr(it) => it.loop_body()?.syntax().clone(),
+            _ => return None,
+        }
+    };
+    let references = expr
+        .descendants()
+        .filter_map(|syn| {
+            match_ast! {
+                match syn {
+                    ast::BreakExpr(it) => it.lifetime_token().filter(|lt| lt.text() == label_text),
+                    ast::ContinueExpr(it) => it.lifetime_token().filter(|lt| lt.text() == label_text),
+                    _ => None,
+                }
+            }
+        })
+        .map(|token| Reference {
+            file_range: FileRange { file_id: position.file_id, range: token.text_range() },
+            kind: ReferenceKind::Label,
+            access: None,
+        })
+        .collect();
+
+    Some(RangeInfo::new(
+        lifetime_token.text_range(),
+        ReferenceSearchResult { declaration, references },
+    ))
+}
+
+fn find_all_lifetime_references() -> Option<RangeInfo<ReferenceSearchResult>> {
     None
 }
 
@@ -859,6 +960,50 @@ impl Foo {
 
                 FileId(0) 71..75 SelfKw Read
                 FileId(0) 152..156 SelfKw Read
+            "#]],
+        );
+    }
+
+    #[test]
+    fn test_find_labels() {
+        check(
+            r#"
+fn main() {
+    'foo: loop {
+        'bar: while true {
+            continue 'foo;
+        }
+        break 'foo<|>;
+    }
+}
+"#,
+            expect![[r#"
+                'foo LIFETIME FileId(0) 16..20 16..20 Label
+
+                FileId(0) 77..81 Label
+                FileId(0) 107..111 Label
+            "#]],
+        );
+    }
+
+    #[test]
+    fn test_find_labels_decl() {
+        check(
+            r#"
+fn main() {
+    'foo<|>: loop {
+        'bar: while true {
+            continue 'foo;
+        }
+        break 'foo;
+    }
+}
+"#,
+            expect![[r#"
+                'foo LIFETIME FileId(0) 16..20 16..20 Label
+
+                FileId(0) 77..81 Label
+                FileId(0) 107..111 Label
             "#]],
         );
     }
