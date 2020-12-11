@@ -19,7 +19,14 @@ use vfs::AbsPathBuf;
 #[global_allocator]
 static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+#[cfg(feature = "dhat")]
+#[global_allocator]
+static ALLOC: dhat::DhatAlloc = dhat::DhatAlloc;
+
 fn main() {
+    #[cfg(feature = "dhat")]
+    let _dhat = dhat::Dhat::start_heap_profiling();
+
     if let Err(err) = try_main() {
         eprintln!("{}", err);
         process::exit(101);

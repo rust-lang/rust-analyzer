@@ -342,6 +342,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "dhat"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6215e8fa3bc1ef9d0a1d22531c6cf7c9dab504ea001e8a206502ce5f630db697"
+dependencies = [
+ "backtrace",
+ "fxhash",
+ "lazy_static",
+ "serde",
+ "serde_json",
+ "thousands",
+]
+
+[[package]]
 name = "difference"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -479,6 +493,15 @@ name = "fuchsia-zircon-sys"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3dcaa9ae7725d12cdb85b3ad99a434db70b468c09ded17e012d86b5c1010f7a7"
+
+[[package]]
+name = "fxhash"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c31b6d751ae2c7f11320402d34e41349dd1016f8d5d45e48c4312bc8625af50c"
+dependencies = [
+ "byteorder",
+]
 
 [[package]]
 name = "generator"
@@ -1344,6 +1367,7 @@ dependencies = [
  "anyhow",
  "cfg",
  "crossbeam-channel 0.5.0",
+ "dhat",
  "env_logger",
  "expect-test",
  "flycheck",
@@ -1701,6 +1725,12 @@ name = "thin-dst"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db3c46be180f1af9673ebb27bc1235396f61ef6965b3fe0dbb2e624deb604f0e"
+
+[[package]]
+name = "thousands"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3bf63baf9f5039dadc247375c29eb13706706cfde997d0330d05aa63a77d8820"
 
 [[package]]
 name = "thread_local"
