@@ -897,4 +897,92 @@ impl TestStruct {
 "#,
         );
     }
+
+    #[test]
+    fn test_add_reference_to_int() {
+        check_fixes(
+            r#"
+fn main() {
+    test(<|>123);
+}
+
+fn test(arg: &i32) {}
+            "#,
+            r#"
+fn main() {
+    test(&123);
+}
+
+fn test(arg: &i32) {}
+            "#,
+        );
+    }
+
+    #[test]
+    fn test_add_mutable_reference_to_int() {
+        check_fixes(
+            r#"
+fn main() {
+    test(<|>123);
+}
+
+fn test(arg: &mut i32) {}
+            "#,
+            r#"
+fn main() {
+    test(&mut 123);
+}
+
+fn test(arg: &mut i32) {}
+            "#,
+        );
+    }
+
+    #[test]
+    fn test_add_reference_to_array() {
+        check_fixes(
+            r#"
+fn main() {
+    test(<|>[1, 2, 3]);
+}
+
+fn test(arg: &[i32]) {}
+            "#,
+            r#"
+fn main() {
+    test(&[1, 2, 3]);
+}
+
+fn test(arg: &[i32]) {}
+            "#,
+        );
+    }
+
+    #[test]
+    fn test_add_reference_to_method_call() {
+        check_fixes(
+            r#"
+fn main() {
+    Test.call_by_ref(<|>123);
+}
+
+struct Test;
+
+impl Test {
+    fn call_by_ref(&self, arg: &i32) {}
+}
+            "#,
+            r#"
+fn main() {
+    Test.call_by_ref(&123);
+}
+
+struct Test;
+
+impl Test {
+    fn call_by_ref(&self, arg: &i32) {}
+}
+            "#,
+        );
+    }
 }
