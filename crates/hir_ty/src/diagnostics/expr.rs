@@ -11,8 +11,8 @@ use crate::{
     db::HirDatabase,
     diagnostics::{
         match_check::{is_useful, MatchCheckCtx, Matrix, PatStack, Usefulness},
-        MismatchedArgCount, MissingFields, MissingMatchArms, MissingOkInTailExpr, MissingPatFields,
-        RemoveThisSemicolon,
+        AddReferenceToArg, MismatchedArgCount, MissingFields, MissingMatchArms,
+        MissingOkInTailExpr, MissingPatFields, RemoveThisSemicolon,
     },
     utils::variant_data,
     ApplicationTy, InferenceResult, Ty, TypeCtor,
@@ -155,14 +155,17 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
 
         // FIXME: Due to shortcomings in the current type system implementation, only emit this
         // diagnostic if there are no type mismatches in the containing function.
-        if self.infer.type_mismatches.iter().next().is_some() {
-            return Some(());
-        }
+        // if self.infer.type_mismatches.iter().next().is_some() {
+        //     return Some(());
+        // }
+
+        let infer = &self.infer;
+        let sink = &mut self.sink;
 
         let is_method_call = matches!(expr, Expr::MethodCall { .. });
         let (sig, args) = match expr {
             Expr::Call { callee, args } => {
-                let callee = &self.infer.type_of_expr[*callee];
+                let callee = &infer.type_of_expr[*callee];
                 let sig = callee.callable_sig(db)?;
                 (sig, args.clone())
             }
@@ -173,7 +176,7 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
                 // FIXME: note that we erase information about substs here. This
                 // is not right, but, luckily, doesn't matter as we care only
                 // about the number of params
-                let callee = self.infer.method_resolution(call_id)?;
+                let callee = infer.method_resolution(call_id)?;
                 let sig = db.callable_item_signature(callee.into()).value;
 
                 (sig, args)
@@ -190,14 +193,15 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
         let mut param_count = params.len();
         let mut arg_count = args.len();
 
+        let (_, source_map) = db.body_with_source_map(self.owner.into());
+
         if arg_count != param_count {
-            let (_, source_map) = db.body_with_source_map(self.owner.into());
             if let Ok(source_ptr) = source_map.expr_syntax(call_id) {
                 if is_method_call {
                     param_count -= 1;
                     arg_count -= 1;
                 }
-                self.sink.push(MismatchedArgCount {
+                sink.push(MismatchedArgCount {
                     file: source_ptr.file_id,
                     call_expr: source_ptr.value,
                     expected: param_count,
@@ -205,6 +209,33 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
                 });
             }
         }
+
+        let mut args_with_params = args.iter().zip(params.iter());
+
+        if is_method_call {
+            args_with_params.next();
+        }
+
+        args_with_params
+            .filter_map(|(arg, param)| {
+                let arg_ty = infer.type_of_expr.get(*arg)?;
+
+                let (arg, mutability) = match (arg_ty.as_reference(), param.as_reference()) {
+                    (None, Some((referenced_ty, mutability))) if referenced_ty == arg_ty => {
+                        Some((arg, mutability))
+                    }
+                    _ => None,
+                }?;
+
+                Some((source_map.expr_syntax(*arg).ok()?, mutability))
+            })
+            .for_each(|(source_ptr, mutability)| {
+                sink.push(AddReferenceToArg {
+                    file: source_ptr.file_id,
+                    arg_expr: source_ptr.value,
+                    mutability,
+                });
+            });
 
         None
     }

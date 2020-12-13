@@ -134,6 +134,9 @@ pub(crate) fn diagnostics(
         .on::<hir::diagnostics::RemoveThisSemicolon, _>(|d| {
             res.borrow_mut().push(diagnostic_with_fix(d, &sema));
         })
+        .on::<hir::diagnostics::AddReferenceToArg, _>(|d| {
+            res.borrow_mut().push(diagnostic_with_fix(d, &sema));
+        })
         .on::<hir::diagnostics::IncorrectCase, _>(|d| {
             res.borrow_mut().push(warning_with_fix(d, &sema));
         })
