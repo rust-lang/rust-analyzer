@@ -636,4 +636,46 @@ fn main() {
 "#,
         )
     }
+
+    #[test]
+    fn add_reference_to_int() {
+        check_diagnostics(
+            r#"
+fn main() {
+    test(123);
+       //^^^ Consider borrowing this argument
+}
+
+fn test(arg: &i32) {}
+            "#,
+        )
+    }
+
+    #[test]
+    fn add_mutable_reference_to_int() {
+        check_diagnostics(
+            r#"
+fn main() {
+    test(123);
+       //^^^ Consider borrowing this argument
+}
+
+fn test(arg: &mut i32) {}
+            "#,
+        )
+    }
+
+    #[test]
+    fn add_reference_to_array() {
+        check_diagnostics(
+            r#"
+fn main() {
+    test([1, 2, 3]);
+       //^^^^^^^^^ Consider borrowing this argument
+}
+
+fn test(arg: &[i32]) {}
+            "#,
+        )
+    }
 }
