@@ -678,4 +678,22 @@ fn test(arg: &[i32]) {}
             "#,
         )
     }
+
+    #[test]
+    fn add_reference_to_method_call() {
+        check_diagnostics(
+            r#"
+fn main() {
+    Test.call_by_ref(123);
+                   //^^^ Consider borrowing this argument
+}
+
+struct Test;
+
+impl Test {
+    fn call_by_ref(&self, arg: &i32) {}
+}
+            "#,
+        )
+    }
 }
