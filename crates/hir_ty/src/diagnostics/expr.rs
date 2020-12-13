@@ -221,6 +221,19 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
                 let arg_ty = infer.type_of_expr.get(*arg)?;
 
                 let (arg, mutability) = match (arg_ty.as_reference(), param.as_reference()) {
+                    (
+                        None,
+                        Some((
+                            Ty::Apply(ApplicationTy { ctor: TypeCtor::Slice, parameters }),
+                            mutability,
+                        )),
+                    ) => {
+                        if arg_ty.substs()?.as_single() != parameters.as_single() {
+                            return None;
+                        }
+
+                        Some((arg, mutability))
+                    }
                     (None, Some((referenced_ty, mutability))) if referenced_ty == arg_ty => {
                         Some((arg, mutability))
                     }
