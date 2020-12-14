@@ -682,7 +682,7 @@ fn main() {
             r#"
 fn main() {
     test(123);
-       //^^^ Consider borrowing this argument
+       //^^^ Consider borrowing this initializer
 }
 
 fn test(arg: &i32) {}
@@ -696,7 +696,7 @@ fn test(arg: &i32) {}
             r#"
 fn main() {
     test(123);
-       //^^^ Consider borrowing this argument
+       //^^^ Consider borrowing this initializer
 }
 
 fn test(arg: &mut i32) {}
@@ -710,7 +710,7 @@ fn test(arg: &mut i32) {}
             r#"
 fn main() {
     test([1, 2, 3]);
-       //^^^^^^^^^ Consider borrowing this argument
+       //^^^^^^^^^ Consider borrowing this initializer
 }
 
 fn test(arg: &[i32]) {}
@@ -724,7 +724,7 @@ fn test(arg: &[i32]) {}
             r#"
 fn main() {
     Test.call_by_ref(123);
-                   //^^^ Consider borrowing this argument
+                   //^^^ Consider borrowing this initializer
 }
 
 struct Test;
