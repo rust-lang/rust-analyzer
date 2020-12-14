@@ -410,7 +410,7 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
     }
 }
 
-pub fn check_missing_refs(
+fn check_missing_refs(
     infer: &InferenceResult,
     arg: ExprId,
     param: &Ty,
