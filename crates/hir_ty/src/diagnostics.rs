@@ -341,6 +341,10 @@ impl Diagnostic for AddReferenceToInitializer {
     fn as_any(&self) -> &(dyn Any + Send + 'static) {
         self
     }
+
+    fn is_experimental(&self) -> bool {
+        true
+    }
 }
 
 #[derive(Debug)]
