@@ -134,7 +134,7 @@ pub(crate) fn diagnostics(
         .on::<hir::diagnostics::RemoveThisSemicolon, _>(|d| {
             res.borrow_mut().push(diagnostic_with_fix(d, &sema));
         })
-        .on::<hir::diagnostics::AddReferenceToArg, _>(|d| {
+        .on::<hir::diagnostics::AddReferenceToInitializer, _>(|d| {
             res.borrow_mut().push(diagnostic_with_fix(d, &sema));
         })
         .on::<hir::diagnostics::IncorrectCase, _>(|d| {
@@ -981,6 +981,38 @@ struct Test;
 
 impl Test {
     fn call_by_ref(&self, arg: &i32) {}
+}
+            "#,
+        );
+    }
+
+    #[test]
+    fn test_add_reference_to_let_stmt() {
+        check_fixes(
+            r#"
+fn main() {
+    let test: &i32 = <|>123;
+}
+            "#,
+            r#"
+fn main() {
+    let test: &i32 = &123;
+}
+            "#,
+        );
+    }
+
+    #[test]
+    fn test_add_mutable_reference_to_let_stmt() {
+        check_fixes(
+            r#"
+fn main() {
+    let test: &mut i32 = <|>123;
+}
+            "#,
+            r#"
+fn main() {
+    let test: &mut i32 = &mut 123;
 }
             "#,
         );

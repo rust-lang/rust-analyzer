@@ -319,19 +319,19 @@ impl Diagnostic for MismatchedArgCount {
 }
 
 #[derive(Debug)]
-pub struct AddReferenceToArg {
+pub struct AddReferenceToInitializer {
     pub file: HirFileId,
     pub arg_expr: AstPtr<ast::Expr>,
     pub mutability: Mutability,
 }
 
-impl Diagnostic for AddReferenceToArg {
+impl Diagnostic for AddReferenceToInitializer {
     fn code(&self) -> DiagnosticCode {
         DiagnosticCode("add-reference-to-arg")
     }
 
     fn message(&self) -> String {
-        "Consider borrowing this argument".to_string()
+        "Consider borrowing this initializer".to_string()
     }
 
     fn display_source(&self) -> InFile<SyntaxNodePtr> {

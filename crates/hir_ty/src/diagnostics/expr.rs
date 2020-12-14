@@ -11,16 +11,17 @@ use crate::{
     db::HirDatabase,
     diagnostics::{
         match_check::{is_useful, MatchCheckCtx, Matrix, PatStack, Usefulness},
-        AddReferenceToArg, MismatchedArgCount, MissingFields, MissingMatchArms,
+        AddReferenceToInitializer, MismatchedArgCount, MissingFields, MissingMatchArms,
         MissingOkInTailExpr, MissingPatFields, RemoveThisSemicolon,
     },
     utils::variant_data,
-    ApplicationTy, InferenceResult, Ty, TypeCtor,
+    ApplicationTy, InferenceResult, Ty, TyLoweringContext, TypeCtor,
 };
 
 pub(crate) use hir_def::{
     body::{Body, BodySourceMap},
     expr::{Expr, ExprId, MatchArm, Pat, PatId},
+    type_ref::Mutability,
     LocalFieldId, VariantId,
 };
 
@@ -55,6 +56,9 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
             }
 
             match expr {
+                Expr::Block { statements, .. } => {
+                    self.validate_block(db, statements);
+                }
                 Expr::Match { expr, arms } => {
                     self.validate_match(id, *expr, arms, db, self.infer.clone());
                 }
@@ -150,6 +154,36 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
         }
     }
 
+    fn validate_block(&mut self, db: &dyn HirDatabase, statements: &[Statement]) {
+        let (_, source_map) = db.body_with_source_map(self.owner.into());
+
+        let resolver = self.owner.resolver(db.upcast());
+        let context = TyLoweringContext::new(db, &resolver);
+
+        let infer = &self.infer;
+        let sink = &mut self.sink;
+
+        statements
+            .iter()
+            .filter_map(|statement| match statement {
+                Statement::Let { type_ref: Some(type_ref), initializer: Some(expr_id), .. } => {
+                    let param = Ty::from_hir(&context, type_ref);
+                    let (expr_without_ref, mutability) =
+                        check_missing_refs(infer, *expr_id, &param)?;
+
+                    Some((source_map.expr_syntax(expr_without_ref).ok()?, mutability))
+                }
+                _ => None,
+            })
+            .for_each(|(source_ptr, mutability)| {
+                sink.push(AddReferenceToInitializer {
+                    file: source_ptr.file_id,
+                    arg_expr: source_ptr.value,
+                    mutability,
+                });
+            });
+    }
+
     fn validate_call(&mut self, db: &dyn HirDatabase, call_id: ExprId, expr: &Expr) -> Option<()> {
         // Check that the number of arguments matches the number of parameters.
 
@@ -218,32 +252,12 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
 
         args_with_params
             .filter_map(|(arg, param)| {
-                let arg_ty = infer.type_of_expr.get(*arg)?;
+                let (arg, mutability) = check_missing_refs(infer, *arg, param)?;
 
-                let (arg, mutability) = match (arg_ty.as_reference(), param.as_reference()) {
-                    (
-                        None,
-                        Some((
-                            Ty::Apply(ApplicationTy { ctor: TypeCtor::Slice, parameters }),
-                            mutability,
-                        )),
-                    ) => {
-                        if arg_ty.substs()?.as_single() != parameters.as_single() {
-                            return None;
-                        }
-
-                        Some((arg, mutability))
-                    }
-                    (None, Some((referenced_ty, mutability))) if referenced_ty == arg_ty => {
-                        Some((arg, mutability))
-                    }
-                    _ => None,
-                }?;
-
-                Some((source_map.expr_syntax(*arg).ok()?, mutability))
+                Some((source_map.expr_syntax(arg).ok()?, mutability))
             })
             .for_each(|(source_ptr, mutability)| {
-                sink.push(AddReferenceToArg {
+                sink.push(AddReferenceToInitializer {
                     file: source_ptr.file_id,
                     arg_expr: source_ptr.value,
                     mutability,
@@ -393,6 +407,31 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
             self.sink
                 .push(RemoveThisSemicolon { file: source_ptr.file_id, expr: source_ptr.value });
         }
+    }
+}
+
+pub fn check_missing_refs(
+    infer: &InferenceResult,
+    arg: ExprId,
+    param: &Ty,
+) -> Option<(ExprId, Mutability)> {
+    let arg_ty = infer.type_of_expr.get(arg)?;
+
+    match (arg_ty.as_reference(), param.as_reference()) {
+        (
+            None,
+            Some((Ty::Apply(ApplicationTy { ctor: TypeCtor::Slice, parameters }), mutability)),
+        ) => {
+            if arg_ty.substs()?.as_single() != parameters.as_single() {
+                return None;
+            }
+
+            Some((arg, mutability))
+        }
+        (None, Some((referenced_ty, mutability))) if referenced_ty == arg_ty => {
+            Some((arg, mutability))
+        }
+        _ => None,
     }
 }
 
@@ -692,6 +731,30 @@ struct Test;
 
 impl Test {
     fn call_by_ref(&self, arg: &i32) {}
+}
+            "#,
+        )
+    }
+
+    #[test]
+    fn add_reference_to_let_stmt() {
+        check_diagnostics(
+            r#"
+fn main() {
+    let test: &i32 = 123;
+                   //^^^ Consider borrowing this initializer
+}
+            "#,
+        )
+    }
+
+    #[test]
+    fn add_mutable_reference_to_let_stmt() {
+        check_diagnostics(
+            r#"
+fn main() {
+    let test: &mut i32 = 123;
+                       //^^^ Consider borrowing this initializer
 }
             "#,
         )

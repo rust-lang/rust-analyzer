@@ -3,7 +3,7 @@
 use hir::{
     db::AstDatabase,
     diagnostics::{
-        AddReferenceToArg, Diagnostic, IncorrectCase, MissingFields, MissingOkInTailExpr,
+        AddReferenceToInitializer, Diagnostic, IncorrectCase, MissingFields, MissingOkInTailExpr,
         NoSuchField, RemoveThisSemicolon, UnresolvedModule,
     },
     HasSource, HirDisplay, InFile, Mutability, Semantics, VariantDef,
@@ -126,7 +126,7 @@ impl DiagnosticWithFix for RemoveThisSemicolon {
     }
 }
 
-impl DiagnosticWithFix for AddReferenceToArg {
+impl DiagnosticWithFix for AddReferenceToInitializer {
     fn fix(&self, sema: &Semantics<RootDatabase>) -> Option<Fix> {
         let root = sema.db.parse_or_expand(self.file)?;
         let arg_expr = self.arg_expr.to_node(&root);
