@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use hir_def::{expr::Statement, path::path, resolver::HasResolver, AdtId, DefWithBodyId};
 use hir_expand::diagnostics::DiagnosticSink;
-use once_cell::unsync::Lazy;
 use rustc_hash::FxHashSet;
 use syntax::{ast, AstPtr};
 
@@ -91,14 +90,14 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
         let sink = &mut self.sink;
         let owner = self.owner;
 
-        let source_map = Lazy::new(move || db.body_with_source_map(owner).1);
-
         infer
             .type_mismatches
             .iter()
             .filter_map(|(expr, mismatch)| {
                 let (expr_without_ref, mutability) =
                     check_missing_refs(infer, expr, &mismatch.expected)?;
+
+                let (_, source_map) = db.body_with_source_map(owner);
 
                 Some((source_map.expr_syntax(expr_without_ref).ok()?, mutability))
             })
