@@ -20,6 +20,7 @@ scoped-tls = "1"
 chalk-solve = { version = "0.43", default-features = false }
 chalk-ir = "0.43"
 chalk-recursive = "0.43"
+once_cell = { version = "1.5.0", features = ["unstable"] }
 
 stdx = { path = "../stdx", version = "0.0.0" }
 hir_def = { path = "../hir_def", version = "0.0.0" }
@@ -35,4 +36,3 @@ expect-test = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.2", default-features = false, features = ["env-filter", "registry"] }
 tracing-tree = { version = "0.1.4" }
-once_cell = { version = "1.5.0", features = ["unstable"] }
