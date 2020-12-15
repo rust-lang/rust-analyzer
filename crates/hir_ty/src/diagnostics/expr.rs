@@ -88,11 +88,13 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
 
         let infer = &self.infer;
         let sink = &mut self.sink;
-        
-        infer.type_mismatches
+
+        infer
+            .type_mismatches
             .iter()
             .filter_map(|(expr, mismatch)| {
-                let (expr_without_ref, mutability) = check_missing_refs(infer, expr, &mismatch.expected)?;
+                let (expr_without_ref, mutability) =
+                    check_missing_refs(infer, expr, &mismatch.expected)?;
 
                 Some((source_map.expr_syntax(expr_without_ref).ok()?, mutability))
             })
@@ -208,7 +210,7 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
 
         let mut param_count = params.len();
         let mut arg_count = args.len();
-        
+
         if arg_count != param_count {
             let (_, source_map) = db.body_with_source_map(self.owner.into());
             if let Ok(source_ptr) = source_map.expr_syntax(call_id) {
