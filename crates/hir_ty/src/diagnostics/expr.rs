@@ -15,7 +15,7 @@ use crate::{
         MissingOkInTailExpr, MissingPatFields, RemoveThisSemicolon,
     },
     utils::variant_data,
-    ApplicationTy, InferenceResult, Ty, TyLoweringContext, TypeCtor,
+    ApplicationTy, InferenceResult, Ty, TypeCtor,
 };
 
 pub(crate) use hir_def::{
@@ -41,7 +41,7 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
     }
 
     pub(super) fn validate_body(&mut self, db: &dyn HirDatabase) {
-        let body = db.body(self.owner.into());
+        let (body, source_map) = db.body_with_source_map(self.owner.into());
 
         for (id, expr) in body.exprs.iter() {
             if let Some((variant_def, missed_fields, true)) =
@@ -56,9 +56,6 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
             }
 
             match expr {
-                Expr::Block { statements, .. } => {
-                    self.validate_block(db, statements);
-                }
                 Expr::Match { expr, arms } => {
                     self.validate_match(id, *expr, arms, db, self.infer.clone());
                 }
@@ -88,6 +85,24 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
                 self.validate_missing_tail_expr(body.body_expr, *id, db);
             }
         }
+
+        let infer = &self.infer;
+        let sink = &mut self.sink;
+        
+        infer.type_mismatches
+            .iter()
+            .filter_map(|(expr, mismatch)| {
+                let (expr_without_ref, mutability) = check_missing_refs(infer, expr, &mismatch.expected)?;
+
+                Some((source_map.expr_syntax(expr_without_ref).ok()?, mutability))
+            })
+            .for_each(|(source_ptr, mutability)| {
+                sink.push(AddReferenceToInitializer {
+                    file: source_ptr.file_id,
+                    arg_expr: source_ptr.value,
+                    mutability,
+                });
+            });
     }
 
     fn create_record_literal_missing_fields_diagnostic(
@@ -154,52 +169,19 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
         }
     }
 
-    fn validate_block(&mut self, db: &dyn HirDatabase, statements: &[Statement]) {
-        let (_, source_map) = db.body_with_source_map(self.owner.into());
-
-        let resolver = self.owner.resolver(db.upcast());
-        let context = TyLoweringContext::new(db, &resolver);
-
-        let infer = &self.infer;
-        let sink = &mut self.sink;
-
-        statements
-            .iter()
-            .filter_map(|statement| match statement {
-                Statement::Let { type_ref: Some(type_ref), initializer: Some(expr_id), .. } => {
-                    let param = Ty::from_hir(&context, type_ref);
-                    let (expr_without_ref, mutability) =
-                        check_missing_refs(infer, *expr_id, &param)?;
-
-                    Some((source_map.expr_syntax(expr_without_ref).ok()?, mutability))
-                }
-                _ => None,
-            })
-            .for_each(|(source_ptr, mutability)| {
-                sink.push(AddReferenceToInitializer {
-                    file: source_ptr.file_id,
-                    arg_expr: source_ptr.value,
-                    mutability,
-                });
-            });
-    }
-
     fn validate_call(&mut self, db: &dyn HirDatabase, call_id: ExprId, expr: &Expr) -> Option<()> {
         // Check that the number of arguments matches the number of parameters.
 
         // FIXME: Due to shortcomings in the current type system implementation, only emit this
         // diagnostic if there are no type mismatches in the containing function.
-        // if self.infer.type_mismatches.iter().next().is_some() {
-        //     return Some(());
-        // }
-
-        let infer = &self.infer;
-        let sink = &mut self.sink;
+        if self.infer.type_mismatches.iter().next().is_some() {
+            return Some(());
+        }
 
         let is_method_call = matches!(expr, Expr::MethodCall { .. });
         let (sig, args) = match expr {
             Expr::Call { callee, args } => {
-                let callee = &infer.type_of_expr[*callee];
+                let callee = &self.infer.type_of_expr[*callee];
                 let sig = callee.callable_sig(db)?;
                 (sig, args.clone())
             }
@@ -210,7 +192,7 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
                 // FIXME: note that we erase information about substs here. This
                 // is not right, but, luckily, doesn't matter as we care only
                 // about the number of params
-                let callee = infer.method_resolution(call_id)?;
+                let callee = self.infer.method_resolution(call_id)?;
                 let sig = db.callable_item_signature(callee.into()).value;
 
                 (sig, args)
@@ -226,16 +208,15 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
 
         let mut param_count = params.len();
         let mut arg_count = args.len();
-
-        let (_, source_map) = db.body_with_source_map(self.owner.into());
-
+        
         if arg_count != param_count {
+            let (_, source_map) = db.body_with_source_map(self.owner.into());
             if let Ok(source_ptr) = source_map.expr_syntax(call_id) {
                 if is_method_call {
                     param_count -= 1;
                     arg_count -= 1;
                 }
-                sink.push(MismatchedArgCount {
+                self.sink.push(MismatchedArgCount {
                     file: source_ptr.file_id,
                     call_expr: source_ptr.value,
                     expected: param_count,
@@ -243,26 +224,6 @@ impl<'a, 'b> ExprValidator<'a, 'b> {
                 });
             }
         }
-
-        let mut args_with_params = args.iter().zip(params.iter());
-
-        if is_method_call {
-            args_with_params.next();
-        }
-
-        args_with_params
-            .filter_map(|(arg, param)| {
-                let (arg, mutability) = check_missing_refs(infer, *arg, param)?;
-
-                Some((source_map.expr_syntax(arg).ok()?, mutability))
-            })
-            .for_each(|(source_ptr, mutability)| {
-                sink.push(AddReferenceToInitializer {
-                    file: source_ptr.file_id,
-                    arg_expr: source_ptr.value,
-                    mutability,
-                });
-            });
 
         None
     }

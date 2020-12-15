@@ -136,7 +136,7 @@ impl DiagnosticWithFix for AddReferenceToInitializer {
             Mutability::Mut => format!("&mut {}", arg_expr.syntax()),
         };
 
-        let text_range = arg_expr.syntax().text_range();
+        let text_range = sema.original_range(arg_expr.syntax()).range;
 
         let edit = TextEdit::replace(text_range, arg_with_ref);
         let source_change =
