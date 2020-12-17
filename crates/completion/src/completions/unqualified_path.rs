@@ -98,7 +98,9 @@ fn complete_enum_variants(acc: &mut Completions, ctx: &CompletionContext, ty: &T
 // .Fuzzy search details
 //
 // To avoid an excessive amount of the results returned, completion input is checked for inclusion in the identifiers only
-// (i.e. in `HashMap` in the `std::collections::HashMap` path), also not in the module indentifiers.
+// (i.e. in `HashMap` in the `std::collections::HashMap` path), also not in the module identifiers.
+//
+// It also avoids searching for any imports for inputs with their length less that 3 symbols.
 //
 // .Merge Behavior
 //
@@ -122,6 +124,10 @@ fn fuzzy_completion(acc: &mut Completions, ctx: &CompletionContext) -> Option<()
     let _p = profile::span("fuzzy_completion");
     let potential_import_name = ctx.token.to_string();
 
+    if potential_import_name.len() < 3 {
+        return None;
+    }
+
     let current_module = ctx.scope.module()?;
     let anchor = ctx.name_ref_syntax.as_ref()?;
     let import_scope = ImportScope::find_insert_use_container(anchor.syntax(), &ctx.sema)?;
@@ -144,6 +150,7 @@ fn fuzzy_completion(acc: &mut Completions, ctx: &CompletionContext) -> Option<()
         })
     })
     .filter(|(mod_path, _)| mod_path.len() > 1)
+    .take(10)
     .filter_map(|(import_path, definition)| {
         render_resolution_with_import(
             RenderContext::new(ctx),
