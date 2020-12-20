@@ -284,13 +284,14 @@ pub enum ModuleSource {
 
 mod diagnostics {
     use cfg::{CfgExpr, CfgOptions};
+    use either::Either;
     use hir_expand::diagnostics::DiagnosticSink;
     use hir_expand::hygiene::Hygiene;
     use hir_expand::{InFile, MacroCallKind};
     use syntax::ast::AttrsOwner;
     use syntax::{ast, AstNode, AstPtr, SyntaxKind, SyntaxNodePtr};
 
-    use crate::path::ModPath;
+    use crate::{attr::Attr, path::ModPath};
     use crate::{db::DefDatabase, diagnostics::*, nameres::LocalModuleId, AstId};
 
     #[derive(Debug, PartialEq, Eq)]
@@ -300,6 +301,8 @@ mod diagnostics {
         UnresolvedExternCrate { ast: AstId<ast::ExternCrate> },
 
         UnresolvedImport { ast: AstId<ast::Use>, index: usize },
+
+        UnresolvedAttribute { item: AstId<ast::Item>, attr: Attr },
 
         UnconfiguredCode { ast: AstId<ast::Item>, cfg: CfgExpr, opts: CfgOptions },
 
@@ -342,6 +345,14 @@ mod diagnostics {
             index: usize,
         ) -> Self {
             Self { in_module: container, kind: DiagnosticKind::UnresolvedImport { ast, index } }
+        }
+
+        pub(super) fn unresolved_attribute(
+            container: LocalModuleId,
+            item: AstId<ast::Item>,
+            attr: Attr,
+        ) -> Self {
+            Self { in_module: container, kind: DiagnosticKind::UnresolvedAttribute { item, attr } }
         }
 
         pub(super) fn unconfigured_code(
@@ -412,6 +423,18 @@ mod diagnostics {
 
                     if let Some(tree) = tree {
                         sink.push(UnresolvedImport { file: ast.file_id, node: AstPtr::new(&tree) });
+                    }
+                }
+
+                DiagnosticKind::UnresolvedAttribute { item, attr } => {
+                    let node = item.to_node(db.upcast());
+                    let attr_src = attr.to_src(&node);
+
+                    if let Either::Left(attr) = attr_src {
+                        sink.push(UnresolvedAttribute {
+                            file: item.file_id,
+                            node: AstPtr::new(&attr),
+                        });
                     }
                 }
 

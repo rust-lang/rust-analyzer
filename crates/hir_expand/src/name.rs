@@ -155,6 +155,9 @@ pub mod known {
         derive,
         doc,
         cfg_attr,
+        proc_macro,
+        proc_macro_derive,
+        proc_macro_attribute,
         // Components of known path (value or mod name)
         std,
         core,

@@ -95,6 +95,39 @@ impl Diagnostic for UnresolvedImport {
     }
 }
 
+// Diagnostic: unresolved-attribute
+//
+// This diagnostic is triggered if rust-analyzer is unable to resolve an attribute.
+#[derive(Debug)]
+pub struct UnresolvedAttribute {
+    pub file: HirFileId,
+    pub node: AstPtr<ast::Attr>,
+}
+
+impl Diagnostic for UnresolvedAttribute {
+    fn code(&self) -> DiagnosticCode {
+        DiagnosticCode("unresolved-attribute")
+    }
+
+    fn message(&self) -> String {
+        "unresolved attribute".to_string()
+    }
+
+    fn display_source(&self) -> InFile<SyntaxNodePtr> {
+        InFile::new(self.file, self.node.clone().into())
+    }
+
+    fn as_any(&self) -> &(dyn Any + Send + 'static) {
+        self
+    }
+
+    fn is_experimental(&self) -> bool {
+        // This will fail to resolve any attribute that is consumed by a procedural attribute macro.
+        // Also, this diagnostic in quite new and might have bugs.
+        true
+    }
+}
+
 // Diagnostic: inactive-code
 //
 // This diagnostic is shown for code with inactive `#[cfg]` attributes.

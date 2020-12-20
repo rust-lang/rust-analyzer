@@ -7,11 +7,11 @@ use std::iter;
 
 use base_db::{CrateId, FileId, ProcMacroId};
 use cfg::{CfgExpr, CfgOptions};
+use either::Either;
 use hir_expand::{
-    ast_id_map::FileAstId,
     builtin_derive::find_builtin_derive,
     builtin_macro::find_builtin_macro,
-    name::{AsName, Name},
+    name::{name, AsName, Name},
     proc_macro::ProcMacroExpander,
     HirFileId, MacroCallId, MacroDefId, MacroDefKind,
 };
@@ -22,7 +22,7 @@ use test_utils::mark;
 use tt::{Leaf, TokenTree};
 
 use crate::{
-    attr::Attrs,
+    attr::{AttrInput, Attrs},
     db::DefDatabase,
     item_scope::{ImportType, PerNsGlobImports},
     item_tree::{
@@ -36,9 +36,9 @@ use crate::{
     path::{ImportAlias, ModPath, PathKind},
     per_ns::PerNs,
     visibility::{RawVisibility, Visibility},
-    AdtId, AsMacroCall, AstId, AstIdWithPath, ConstLoc, ContainerId, DeriveInvoc, EnumLoc,
-    EnumVariantId, FunctionLoc, ImplLoc, Intern, LocalModuleId, ModuleDefId, ModuleId, StaticLoc,
-    StructLoc, TraitLoc, TypeAliasLoc, UnionLoc,
+    AdtId, AsMacroCall, AstId, AstIdWithPath, AttrInvoc, ConstLoc, ContainerId, DeriveInvoc,
+    EnumLoc, EnumVariantId, FunctionLoc, ImplLoc, Intern, LocalModuleId, ModuleDefId, ModuleId,
+    StaticLoc, StructLoc, TraitLoc, TypeAliasLoc, UnionLoc,
 };
 
 const GLOB_RECURSION_LIMIT: usize = 100;
@@ -195,9 +195,9 @@ struct MacroDirective {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct DeriveDirective {
+struct AttrDirective {
     module_id: LocalModuleId,
-    invoc: DeriveInvoc,
+    invoc: Either<AttrInvoc, DeriveInvoc>,
 }
 
 struct DefData<'a> {
@@ -215,7 +215,7 @@ struct DefCollector<'a> {
     unresolved_imports: Vec<ImportDirective>,
     resolved_imports: Vec<ImportDirective>,
     unexpanded_macros: Vec<MacroDirective>,
-    unexpanded_attribute_macros: Vec<DeriveDirective>,
+    unexpanded_attribute_macros: Vec<AttrDirective>,
     mod_dirs: FxHashMap<LocalModuleId, ModDir>,
     cfg_options: &'a CfgOptions,
     /// List of procedural macros defined by this crate. This is read from the dynamic library
@@ -740,6 +740,14 @@ impl DefCollector<'_> {
     }
 
     fn resolve_macros(&mut self) -> ReachedFixedPoint {
+        let _p = profile::span("DefCollector::resolve_macros").detail(|| {
+            format!(
+                "{} macros, {} attrs",
+                self.unexpanded_macros.len(),
+                self.unexpanded_attribute_macros.len()
+            )
+        });
+
         let mut macros = std::mem::replace(&mut self.unexpanded_macros, Vec::new());
         let mut attribute_macros =
             std::mem::replace(&mut self.unexpanded_attribute_macros, Vec::new());
@@ -772,9 +780,12 @@ impl DefCollector<'_> {
             true
         });
         attribute_macros.retain(|directive| {
-            if let Some(call_id) = directive.invoc.as_call_id(self.db, self.def_map.krate, |path| {
-                self.resolve_attribute_macro(&directive, &path)
-            }) {
+            let resolver = |path| self.resolve_attribute_macro(&directive, &path);
+            let call = match &directive.invoc {
+                Either::Left(attr) => attr.as_call_id(self.db, self.def_map.krate, resolver),
+                Either::Right(derive) => derive.as_call_id(self.db, self.def_map.krate, resolver),
+            };
+            if let Some(call_id) = call {
                 resolved.push((directive.module_id, call_id, 0));
                 res = ReachedFixedPoint::No;
                 return false;
@@ -795,7 +806,7 @@ impl DefCollector<'_> {
 
     fn resolve_attribute_macro(
         &self,
-        directive: &DeriveDirective,
+        directive: &AttrDirective,
         path: &ModPath,
     ) -> Option<MacroDefId> {
         let resolved_res = self.def_map.resolve_path_fp_with_macro(
@@ -859,6 +870,16 @@ impl DefCollector<'_> {
 
     fn finish(mut self) -> CrateDefMap {
         // Emit diagnostics for all remaining unresolved imports.
+
+        for directive in &self.unexpanded_attribute_macros {
+            if let Either::Left(invoc) = &directive.invoc {
+                self.def_map.diagnostics.push(DefDiagnostic::unresolved_attribute(
+                    directive.module_id,
+                    invoc.ast_id,
+                    invoc.attr.clone(),
+                ));
+            }
+        }
 
         // We'd like to avoid emitting a diagnostics avalanche when some `extern crate` doesn't
         // resolve. We first emit diagnostics for unresolved extern crates and collect the missing
@@ -960,6 +981,9 @@ impl ModCollector<'_, '_> {
                     continue;
                 }
             }
+
+            self.collect_attrs(item, &attrs);
+
             let module =
                 ModuleId { krate: self.def_collector.def_map.krate, local_id: self.module_id };
             let container = ContainerId::ModuleId(module);
@@ -1040,8 +1064,6 @@ impl ModCollector<'_, '_> {
                 ModItem::Function(id) => {
                     let func = &self.item_tree[id];
 
-                    self.collect_proc_macro_def(&func.name, &attrs);
-
                     def = Some(DefData {
                         id: FunctionLoc {
                             container: container.into(),
@@ -1057,11 +1079,6 @@ impl ModCollector<'_, '_> {
                 ModItem::Struct(id) => {
                     let it = &self.item_tree[id];
 
-                    // FIXME: check attrs to see if this is an attribute macro invocation;
-                    // in which case we don't add the invocation, just a single attribute
-                    // macro invocation
-                    self.collect_derives(&attrs, it.ast_id.upcast());
-
                     def = Some(DefData {
                         id: StructLoc { container, id: ItemTreeId::new(self.file_id, id) }
                             .intern(self.def_collector.db)
@@ -1074,11 +1091,6 @@ impl ModCollector<'_, '_> {
                 ModItem::Union(id) => {
                     let it = &self.item_tree[id];
 
-                    // FIXME: check attrs to see if this is an attribute macro invocation;
-                    // in which case we don't add the invocation, just a single attribute
-                    // macro invocation
-                    self.collect_derives(&attrs, it.ast_id.upcast());
-
                     def = Some(DefData {
                         id: UnionLoc { container, id: ItemTreeId::new(self.file_id, id) }
                             .intern(self.def_collector.db)
@@ -1090,11 +1102,6 @@ impl ModCollector<'_, '_> {
                 }
                 ModItem::Enum(id) => {
                     let it = &self.item_tree[id];
-
-                    // FIXME: check attrs to see if this is an attribute macro invocation;
-                    // in which case we don't add the invocation, just a single attribute
-                    // macro invocation
-                    self.collect_derives(&attrs, it.ast_id.upcast());
 
                     def = Some(DefData {
                         id: EnumLoc { container, id: ItemTreeId::new(self.file_id, id) }
@@ -1286,48 +1293,98 @@ impl ModCollector<'_, '_> {
         res
     }
 
-    fn collect_derives(&mut self, attrs: &Attrs, ast_id: FileAstId<ast::Item>) {
-        for derive in attrs.by_key("derive").attrs() {
-            match derive.parse_derive() {
-                Some(derive_macros) => {
-                    for path in derive_macros {
-                        let invoc = DeriveInvoc { ast_id: InFile::new(self.file_id, ast_id), path };
-                        self.def_collector
-                            .unexpanded_attribute_macros
-                            .push(DeriveDirective { module_id: self.module_id, invoc });
+    fn collect_attrs(&mut self, owner: ModItem, attrs: &Attrs) {
+        let ast_id = owner.ast_id(self.item_tree);
+
+        for attr in &**attrs {
+            // Special cases: `derive`, and proc macro declaration attributes.
+
+            let name = attr.path.as_ident();
+            if name == Some(&name![derive]) {
+                match owner {
+                    ModItem::Struct(_) | ModItem::Enum(_) | ModItem::Union(_) => {}
+                    _ => {
+                        // FIXME: diagnose invalid item for `#[derive]`
+                        continue;
                     }
                 }
-                None => {
-                    // FIXME: diagnose
-                    log::debug!("malformed derive: {:?}", derive);
-                }
-            }
-        }
-    }
 
-    /// If `attrs` registers a procedural macro, collects its definition.
-    fn collect_proc_macro_def(&mut self, func_name: &Name, attrs: &Attrs) {
-        // FIXME: this should only be done in the root module of `proc-macro` crates, not everywhere
-        // FIXME: distinguish the type of macro
-        let macro_name = if attrs.by_key("proc_macro").exists()
-            || attrs.by_key("proc_macro_attribute").exists()
-        {
-            func_name.clone()
-        } else {
-            let derive = attrs.by_key("proc_macro_derive");
-            if let Some(arg) = derive.tt_values().next() {
-                if let [TokenTree::Leaf(Leaf::Ident(trait_name)), ..] = &*arg.token_trees {
-                    trait_name.as_name()
+                match attr.parse_derive() {
+                    Some(derive_macros) => {
+                        for path in derive_macros {
+                            self.def_collector.unexpanded_attribute_macros.push(AttrDirective {
+                                module_id: self.module_id,
+                                invoc: Either::Right(DeriveInvoc {
+                                    ast_id: InFile::new(self.file_id, ast_id),
+                                    path: path.clone(),
+                                }),
+                            });
+                        }
+                    }
+                    None => {
+                        // FIXME: diagnose
+                        log::debug!("malformed derive: {:?}", attr);
+                    }
+                }
+                continue;
+            }
+
+            if name == Some(&name![proc_macro])
+                || name == Some(&name![proc_macro_attribute])
+                || name == Some(&name![proc_macro_derive])
+            {
+                let func_name = match owner {
+                    ModItem::Function(f) => &self.item_tree[f].name,
+                    _ => {
+                        // FIXME: diagnose invalid proc macro attribute target
+                        continue;
+                    }
+                };
+
+                // FIXME: this should only be done in the root module of `proc-macro` crates, not everywhere
+                // FIXME: distinguish the type of macro
+                let macro_name = if name == Some(&name![proc_macro])
+                    || name == Some(&name![proc_macro_attribute])
+                {
+                    func_name.clone()
+                } else if name == Some(&name![proc_macro_derive]) {
+                    if let Some(AttrInput::TokenTree(arg)) = &attr.input {
+                        if let [TokenTree::Leaf(Leaf::Ident(trait_name)), ..] = &*arg.token_trees {
+                            trait_name.as_name()
+                        } else {
+                            log::trace!("malformed `#[proc_macro_derive]`: {}", arg);
+                            continue;
+                        }
+                    } else {
+                        continue;
+                    }
                 } else {
-                    log::trace!("malformed `#[proc_macro_derive]`: {}", arg);
-                    return;
-                }
-            } else {
-                return;
-            }
-        };
+                    unreachable!();
+                };
 
-        self.def_collector.resolve_proc_macro(&macro_name);
+                self.def_collector.resolve_proc_macro(&macro_name);
+                continue;
+            }
+
+            // For all other attributes, first resolve them as builtins.
+            if let Some(name) = name {
+                let builtins =
+                    &[crate::builtin_attr::INERT_ATTRIBUTES, crate::builtin_attr::EXTRA_ATTRIBUTES];
+                if builtins.iter().any(|list| list.contains(&&&*name.to_string())) {
+                    continue;
+                }
+            }
+
+            // If that fails, let them go through normal name resolution.
+            self.def_collector.unexpanded_attribute_macros.push(AttrDirective {
+                module_id: self.module_id,
+                invoc: Either::Left(AttrInvoc {
+                    ast_id: InFile::new(self.file_id, ast_id),
+                    attr: attr.clone(),
+                }),
+            });
+            // FIXME: This allows calling custom derives as `#[Trait]`
+        }
     }
 
     fn collect_macro_rules(&mut self, id: FileItemTreeId<MacroRules>) {

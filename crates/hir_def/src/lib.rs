@@ -543,6 +543,12 @@ struct DeriveInvoc {
     path: path::ModPath,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct AttrInvoc {
+    ast_id: AstId<ast::Item>,
+    attr: Attr,
+}
+
 /// Helper wrapper for `AstId` with `ModPath`
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct AstIdWithPath<T: ast::AstNode> {
@@ -600,7 +606,10 @@ impl AsMacroCall for DeriveInvoc {
         error_sink: &mut dyn FnMut(hir_expand::ExpandError),
     ) -> Option<MacroCallId> {
         let def: MacroDefId = resolver(self.path.clone()).or_else(|| {
-            error_sink(mbe::ExpandError::Other(format!("could not resolve macro `{}`", self.path)));
+            error_sink(mbe::ExpandError::Other(format!(
+                "could not resolve derive macro `{}`",
+                self.path,
+            )));
             None
         })?;
 
@@ -609,6 +618,33 @@ impl AsMacroCall for DeriveInvoc {
                 db.upcast(),
                 krate,
                 MacroCallKind::Derive(self.ast_id, self.path.segments.last()?.to_string()),
+            )
+            .into(),
+        )
+    }
+}
+
+impl AsMacroCall for AttrInvoc {
+    fn as_call_id_with_errors(
+        &self,
+        db: &dyn db::DefDatabase,
+        krate: CrateId,
+        resolver: impl Fn(path::ModPath) -> Option<MacroDefId>,
+        error_sink: &mut dyn FnMut(hir_expand::ExpandError),
+    ) -> Option<MacroCallId> {
+        let def: MacroDefId = resolver(self.attr.path.clone()).or_else(|| {
+            error_sink(mbe::ExpandError::Other(format!(
+                "could not resolve macro `{}`",
+                self.attr.path,
+            )));
+            None
+        })?;
+
+        Some(
+            def.as_lazy_macro(
+                db.upcast(),
+                krate,
+                MacroCallKind::Attr(self.ast_id, self.attr.path.segments.last()?.to_string()),
             )
             .into(),
         )
