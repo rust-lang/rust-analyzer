@@ -53,6 +53,7 @@ mod test_db;
 use std::hash::{Hash, Hasher};
 
 use arena::Idx;
+use attr::Attr;
 use base_db::{impl_intern_key, salsa, CrateId};
 use hir_expand::{
     ast_id_map::FileAstId, eager::expand_eager_macro, hygiene::Hygiene, AstId, HirFileId, InFile,
@@ -536,6 +537,12 @@ impl AsMacroCall for InFile<&ast::MacroCall> {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct DeriveInvoc {
+    ast_id: AstId<ast::Item>,
+    path: path::ModPath,
+}
+
 /// Helper wrapper for `AstId` with `ModPath`
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct AstIdWithPath<T: ast::AstNode> {
@@ -584,13 +591,13 @@ impl AsMacroCall for AstIdWithPath<ast::MacroCall> {
     }
 }
 
-impl AsMacroCall for AstIdWithPath<ast::Item> {
+impl AsMacroCall for DeriveInvoc {
     fn as_call_id_with_errors(
         &self,
         db: &dyn db::DefDatabase,
         krate: CrateId,
         resolver: impl Fn(path::ModPath) -> Option<MacroDefId>,
-        error_sink: &mut dyn FnMut(mbe::ExpandError),
+        error_sink: &mut dyn FnMut(hir_expand::ExpandError),
     ) -> Option<MacroCallId> {
         let def: MacroDefId = resolver(self.path.clone()).or_else(|| {
             error_sink(mbe::ExpandError::Other(format!("could not resolve macro `{}`", self.path)));
@@ -601,7 +608,7 @@ impl AsMacroCall for AstIdWithPath<ast::Item> {
             def.as_lazy_macro(
                 db.upcast(),
                 krate,
-                MacroCallKind::Attr(self.ast_id, self.path.segments.last()?.to_string()),
+                MacroCallKind::Derive(self.ast_id, self.path.segments.last()?.to_string()),
             )
             .into(),
         )

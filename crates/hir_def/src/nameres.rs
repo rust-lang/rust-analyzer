@@ -432,7 +432,7 @@ mod diagnostics {
                             let node = ast.to_node(db.upcast());
                             (ast.file_id, SyntaxNodePtr::from(AstPtr::new(&node)), None)
                         }
-                        MacroCallKind::Attr(ast, name) => {
+                        MacroCallKind::Derive(ast, name) | MacroCallKind::Attr(ast, name) => {
                             let node = ast.to_node(db.upcast());
 
                             // Compute the precise location of the macro name's token in the derive
@@ -483,7 +483,7 @@ mod diagnostics {
                             let node = ast.to_node(db.upcast());
                             (ast.file_id, SyntaxNodePtr::from(AstPtr::new(&node)))
                         }
-                        MacroCallKind::Attr(ast, _) => {
+                        MacroCallKind::Derive(ast, _) | MacroCallKind::Attr(ast, _) => {
                             let node = ast.to_node(db.upcast());
                             (ast.file_id, SyntaxNodePtr::from(AstPtr::new(&node)))
                         }

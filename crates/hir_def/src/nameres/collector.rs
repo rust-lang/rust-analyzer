@@ -36,9 +36,9 @@ use crate::{
     path::{ImportAlias, ModPath, PathKind},
     per_ns::PerNs,
     visibility::{RawVisibility, Visibility},
-    AdtId, AsMacroCall, AstId, AstIdWithPath, ConstLoc, ContainerId, EnumLoc, EnumVariantId,
-    FunctionLoc, ImplLoc, Intern, LocalModuleId, ModuleDefId, ModuleId, StaticLoc, StructLoc,
-    TraitLoc, TypeAliasLoc, UnionLoc,
+    AdtId, AsMacroCall, AstId, AstIdWithPath, ConstLoc, ContainerId, DeriveInvoc, EnumLoc,
+    EnumVariantId, FunctionLoc, ImplLoc, Intern, LocalModuleId, ModuleDefId, ModuleId, StaticLoc,
+    StructLoc, TraitLoc, TypeAliasLoc, UnionLoc,
 };
 
 const GLOB_RECURSION_LIMIT: usize = 100;
@@ -197,7 +197,7 @@ struct MacroDirective {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct DeriveDirective {
     module_id: LocalModuleId,
-    ast_id: AstIdWithPath<ast::Item>,
+    invoc: DeriveInvoc,
 }
 
 struct DefData<'a> {
@@ -772,11 +772,9 @@ impl DefCollector<'_> {
             true
         });
         attribute_macros.retain(|directive| {
-            if let Some(call_id) =
-                directive.ast_id.as_call_id(self.db, self.def_map.krate, |path| {
-                    self.resolve_attribute_macro(&directive, &path)
-                })
-            {
+            if let Some(call_id) = directive.invoc.as_call_id(self.db, self.def_map.krate, |path| {
+                self.resolve_attribute_macro(&directive, &path)
+            }) {
                 resolved.push((directive.module_id, call_id, 0));
                 res = ReachedFixedPoint::No;
                 return false;
@@ -1293,10 +1291,10 @@ impl ModCollector<'_, '_> {
             match derive.parse_derive() {
                 Some(derive_macros) => {
                     for path in derive_macros {
-                        let ast_id = AstIdWithPath::new(self.file_id, ast_id, path);
+                        let invoc = DeriveInvoc { ast_id: InFile::new(self.file_id, ast_id), path };
                         self.def_collector
                             .unexpanded_attribute_macros
-                            .push(DeriveDirective { module_id: self.module_id, ast_id });
+                            .push(DeriveDirective { module_id: self.module_id, invoc });
                     }
                 }
                 None => {
