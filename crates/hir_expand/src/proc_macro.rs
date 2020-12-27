@@ -44,10 +44,24 @@ impl ProcMacroExpander {
                     .clone()
                     .ok_or_else(|| err!("No derive macro found."))?;
 
-                let tt = remove_derive_attrs(tt)
-                    .ok_or_else(|| err!("Fail to remove derive for custom derive"))?;
+                let mut tt = tt;
+                let tt_processed;
+                match proc_macro.kind {
+                    base_db::ProcMacroKind::CustomDerive => {
+                        tt_processed = remove_derive_attrs(tt)
+                            .ok_or_else(|| err!("Fail to remove derive for custom derive"))?;
+                        tt = &tt_processed;
+                    }
+                    base_db::ProcMacroKind::FuncLike => {
+                        // Nothing to do.
+                    }
+                    base_db::ProcMacroKind::Attr => {
+                        // FIXME: support them
+                        return Err(mbe::ExpandError::UnresolvedProcMacro);
+                    }
+                }
 
-                proc_macro.expander.expand(&tt, None).map_err(mbe::ExpandError::from)
+                proc_macro.expander.expand(tt, None).map_err(mbe::ExpandError::from)
             }
             None => Err(mbe::ExpandError::UnresolvedProcMacro),
         }
