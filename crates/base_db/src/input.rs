@@ -169,7 +169,9 @@ pub struct ProcMacro {
 impl Eq for ProcMacro {}
 impl PartialEq for ProcMacro {
     fn eq(&self, other: &ProcMacro) -> bool {
-        self.name == other.name && Arc::ptr_eq(&self.expander, &other.expander)
+        let thisptr = self.expander.as_ref() as *const dyn ProcMacroExpander as *const u8;
+        let otherptr = other.expander.as_ref() as *const dyn ProcMacroExpander as *const u8;
+        self.name == other.name && std::ptr::eq(thisptr, otherptr)
     }
 }
 
