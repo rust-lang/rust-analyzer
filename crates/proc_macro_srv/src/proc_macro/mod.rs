@@ -77,7 +77,10 @@ impl FromStr for TokenStream {
 /// with `Delimiter::None` delimiters and negative numeric literals.
 impl fmt::Display for TokenStream {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.to_string())
+        // NOTE(kinnison)
+        // This differs from the "upstream" because we cannot use the ToString
+        // impl commented out above.
+        f.write_str(&self.0.to_string())
     }
 }
 
@@ -428,7 +431,15 @@ impl From<Literal> for TokenTree {
 /// with `Delimiter::None` delimiters and negative numeric literals.
 impl fmt::Display for TokenTree {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.to_string())
+        // NOTE(kinnison)
+        // This differs from the "upstream" because we cannot use the ToString
+        // impl commented out above.
+        f.write_str(&match self {
+            TokenTree::Group(g) => g.to_string(),
+            TokenTree::Ident(i) => i.to_string(),
+            TokenTree::Punct(p) => p.to_string(),
+            TokenTree::Literal(l) => l.to_string(),
+        })
     }
 }
 
@@ -533,7 +544,11 @@ impl Group {
 /// with `Delimiter::None` delimiters.
 impl fmt::Display for Group {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.to_string())
+        // NOTE(kinnison)
+        // This differs from the "upstream" because we cannot use the ToString
+        // impl commented out above.
+        let stream = TokenStream::from(TokenTree::from(self.clone()));
+        f.write_str(&stream.to_string())
     }
 }
 
@@ -612,7 +627,11 @@ impl Punct {
 /// back into the same character.
 impl fmt::Display for Punct {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.to_string())
+        // NOTE(kinnison)
+        // This differs from the "upstream" because we cannot use the ToString
+        // impl commented out above.
+        let stream = TokenStream::from(TokenTree::from(self.clone()));
+        f.write_str(&stream.to_string())
     }
 }
 
@@ -683,7 +702,11 @@ impl Ident {
 /// back into the same identifier.
 impl fmt::Display for Ident {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.to_string())
+        // NOTE(kinnison)
+        // This differs from the "upstream" because we cannot use the ToString
+        // impl commented out above.
+        let stream = TokenStream::from(TokenTree::from(self.clone()));
+        f.write_str(&stream.to_string())
     }
 }
 
@@ -914,7 +937,11 @@ impl Literal {
 /// back into the same literal (except for possible rounding for floating point literals).
 impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.to_string())
+        // NOTE(kinnison)
+        // This differs from the "upstream" because we cannot use the ToString
+        // impl commented out above.
+        let stream = TokenStream::from(TokenTree::from(self.clone()));
+        f.write_str(&stream.to_string())
     }
 }
 
