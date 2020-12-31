@@ -108,6 +108,7 @@ fn extract_tail(ctx: &AssistContext) -> Option<(FnType, ast::Expr, InsertOrRepla
             (FnType::Function, tail_expr, ret_range, action)
         };
     let frange = ctx.frange.range;
+    #[cfg_attr(not(test), allow(clippy::if_same_then_else))]
     if return_type_range.contains_range(frange) {
         mark::hit!(cursor_in_ret_position);
         mark::hit!(cursor_in_ret_position_closure);
