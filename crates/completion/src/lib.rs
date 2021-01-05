@@ -128,6 +128,10 @@ pub fn completions(
     completions::trait_impl::complete_trait_impl(&mut acc, &ctx);
     completions::mod_::complete_mod(&mut acc, &ctx);
 
+    if ctx.config.enable_autoimport_completions {
+        completions::fuzzy_imports::complete_fuzzy(&mut acc, &ctx);
+    }
+
     Some(acc)
 }
 

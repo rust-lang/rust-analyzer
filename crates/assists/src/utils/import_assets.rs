@@ -5,8 +5,6 @@ use ide_db::{imports_locator, RootDatabase};
 use rustc_hash::FxHashSet;
 use syntax::{ast, AstNode, SyntaxNode};
 
-use crate::assist_config::InsertUseConfig;
-
 #[derive(Debug)]
 pub(crate) enum ImportCandidate {
     /// Simple name like 'HashMap'
@@ -179,10 +177,9 @@ impl ImportAssets {
         };
 
         let name_to_import = self.get_search_query().to_string();
-        let unfiltered_imports = match self.import_candidate {
-            ImportCandidate::TraitAssocItem(_) | ImportCandidate::TraitMethod(_) => {}
-            _ => imports_locator::find_exact_imports(sema, current_crate, name_to_import),
-        };
+        let unfiltered_imports =
+            // TODO kb search differently for queries
+            imports_locator::find_exact_imports(sema, current_crate, name_to_import);
 
         let mut res = unfiltered_imports
             .filter_map(filter)

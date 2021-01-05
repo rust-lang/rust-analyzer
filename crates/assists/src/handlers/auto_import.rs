@@ -95,7 +95,7 @@ pub(crate) fn auto_import(acc: &mut Assists, ctx: &AssistContext) -> Option<()> 
             None
         }?;
     let proposed_imports =
-        import_assets.search_for_imports(&ctx.sema, &ctx.config.insert_use.prefix_kind);
+        import_assets.search_for_imports(&ctx.sema, ctx.config.insert_use.prefix_kind);
     if proposed_imports.is_empty() {
         return None;
     }

@@ -79,6 +79,8 @@ pub fn find_similar_associated_items<'a>(
         .search_mode(import_map::SearchMode::Fuzzy)
         .assoc_items_only();
 
+    // TODO kb do we need local queries at all?
+    // Seems like `import_map` contains all necessary for the importing
     let mut local_query = symbol_index::Query::new(fuzzy_search_string);
 
     if let Some(limit) = limit {
