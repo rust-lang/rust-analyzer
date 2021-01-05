@@ -1,7 +1,10 @@
 //! This module contains an import search functionality that is provided to the assists module.
 //! Later, this should be moved away to a separate crate that is accessible from the assists module.
 
-use hir::{import_map, AsAssocItem, Crate, MacroDef, ModuleDef, Semantics};
+use hir::{
+    import_map::{self, ImportKind},
+    AsAssocItem, Crate, MacroDef, ModuleDef, Semantics,
+};
 use syntax::{ast, AstNode, SyntaxKind::NAME};
 
 use crate::{
@@ -40,13 +43,13 @@ pub fn find_similar_imports<'a>(
     krate: Crate,
     limit: Option<usize>,
     fuzzy_search_string: String,
-    ignore_assoc_items: bool,
     name_only: bool,
 ) -> impl Iterator<Item = Either<ModuleDef, MacroDef>> + 'a {
     let _p = profile::span("find_similar_imports");
 
     let mut external_query = import_map::Query::new(fuzzy_search_string.clone())
-        .search_mode(import_map::SearchMode::Fuzzy);
+        .search_mode(import_map::SearchMode::Fuzzy)
+        .exclude_import_kind(ImportKind::AssociatedItem);
     if name_only {
         external_query = external_query.name_only();
     }
@@ -59,20 +62,42 @@ pub fn find_similar_imports<'a>(
     }
 
     let db = sema.db;
-    find_imports(sema, krate, local_query, external_query).filter(move |import_candidate| {
-        if ignore_assoc_items {
-            match import_candidate {
-                Either::Left(ModuleDef::Function(function)) => function.as_assoc_item(db).is_none(),
-                Either::Left(ModuleDef::Const(const_)) => const_.as_assoc_item(db).is_none(),
-                Either::Left(ModuleDef::TypeAlias(type_alias)) => {
-                    type_alias.as_assoc_item(db).is_none()
-                }
-                _ => true,
-            }
-        } else {
-            true
-        }
-    })
+    find_imports(sema, krate, local_query, external_query)
+        .filter(move |import_candidate| !is_assoc_item(import_candidate, db))
+}
+
+// TODO kb not like we can import an assoc item, so the name and location are wrong
+pub fn find_similar_associated_items<'a>(
+    sema: &Semantics<'a, RootDatabase>,
+    krate: Crate,
+    limit: Option<usize>,
+    fuzzy_search_string: String,
+) -> impl Iterator<Item = Either<ModuleDef, MacroDef>> + 'a {
+    let _p = profile::span("find_similar_associated_items");
+
+    let mut external_query = import_map::Query::new(fuzzy_search_string.clone())
+        .search_mode(import_map::SearchMode::Fuzzy)
+        .assoc_items_only();
+
+    let mut local_query = symbol_index::Query::new(fuzzy_search_string);
+
+    if let Some(limit) = limit {
+        local_query.limit(limit);
+        external_query = external_query.limit(limit);
+    }
+
+    let db = sema.db;
+    find_imports(sema, krate, local_query, external_query)
+        .filter(move |import_candidate| is_assoc_item(import_candidate, db))
+}
+
+fn is_assoc_item(import_candidate: &Either<ModuleDef, MacroDef>, db: &RootDatabase) -> bool {
+    match import_candidate {
+        Either::Left(ModuleDef::Function(function)) => function.as_assoc_item(db).is_some(),
+        Either::Left(ModuleDef::Const(const_)) => const_.as_assoc_item(db).is_some(),
+        Either::Left(ModuleDef::TypeAlias(type_alias)) => type_alias.as_assoc_item(db).is_some(),
+        _ => false,
+    }
 }
 
 fn find_imports<'a>(
