@@ -1,6 +1,6 @@
 //! Look up accessible paths for items.
 use either::Either;
-use hir::{AsAssocItem, AssocItemContainer, ModuleDef, Semantics};
+use hir::{AsAssocItem, AssocItemContainer, ModuleDef, PrefixKind, Semantics};
 use ide_db::{imports_locator, RootDatabase};
 use rustc_hash::FxHashSet;
 use syntax::{ast, AstNode, SyntaxNode};
@@ -36,14 +36,14 @@ pub(crate) struct PathImportCandidate {
 }
 
 #[derive(Debug)]
-pub(crate) struct ImportAssets {
+pub struct ImportAssets {
     import_candidate: ImportCandidate,
     module_with_name_to_import: hir::Module,
     syntax_under_caret: SyntaxNode,
 }
 
 impl ImportAssets {
-    pub(crate) fn for_method_call(
+    pub fn for_method_call(
         method_call: ast::MethodCallExpr,
         sema: &Semantics<RootDatabase>,
     ) -> Option<Self> {
@@ -56,7 +56,7 @@ impl ImportAssets {
         })
     }
 
-    pub(crate) fn for_regular_path(
+    pub fn for_regular_path(
         path_under_caret: ast::Path,
         sema: &Semantics<RootDatabase>,
     ) -> Option<Self> {
@@ -90,17 +90,16 @@ impl ImportAssets {
         }
     }
 
-    pub(crate) fn search_for_imports(
+    pub fn search_for_imports(
         &self,
         sema: &Semantics<RootDatabase>,
-        config: &InsertUseConfig,
+        prefix_kind: PrefixKind,
     ) -> Vec<(hir::ModPath, hir::ItemInNs)> {
         let _p = profile::span("import_assists::search_for_imports");
-        self.search_for(sema, Some(config.prefix_kind))
+        self.search_for(sema, Some(prefix_kind))
     }
 
     /// This may return non-absolute paths if a part of the returned path is already imported into scope.
-    #[allow(dead_code)]
     pub(crate) fn search_for_relative_paths(
         &self,
         sema: &Semantics<RootDatabase>,
@@ -179,24 +178,26 @@ impl ImportAssets {
             }
         };
 
-        let mut res = imports_locator::find_exact_imports(
-            sema,
-            current_crate,
-            self.get_search_query().to_string(),
-        )
-        .filter_map(filter)
-        .filter_map(|candidate| {
-            let item: hir::ItemInNs = candidate.either(Into::into, Into::into);
-            if let Some(prefix_kind) = prefixed {
-                self.module_with_name_to_import.find_use_path_prefixed(db, item, prefix_kind)
-            } else {
-                self.module_with_name_to_import.find_use_path(db, item)
-            }
-            .map(|path| (path, item))
-        })
-        .filter(|(use_path, _)| use_path.len() > 1)
-        .take(20)
-        .collect::<Vec<_>>();
+        let name_to_import = self.get_search_query().to_string();
+        let unfiltered_imports = match self.import_candidate {
+            ImportCandidate::TraitAssocItem(_) | ImportCandidate::TraitMethod(_) => {}
+            _ => imports_locator::find_exact_imports(sema, current_crate, name_to_import),
+        };
+
+        let mut res = unfiltered_imports
+            .filter_map(filter)
+            .filter_map(|candidate| {
+                let item: hir::ItemInNs = candidate.either(Into::into, Into::into);
+                if let Some(prefix_kind) = prefixed {
+                    self.module_with_name_to_import.find_use_path_prefixed(db, item, prefix_kind)
+                } else {
+                    self.module_with_name_to_import.find_use_path(db, item)
+                }
+                .map(|path| (path, item))
+            })
+            .filter(|(use_path, _)| use_path.len() > 1)
+            .take(20)
+            .collect::<Vec<_>>();
         res.sort_by_key(|(path, _)| path.clone());
         res
     }

@@ -1,6 +1,7 @@
 //! Completes references after dot (fields and method calls).
 
 use hir::{HasVisibility, Type};
+use ide_db::imports_locator;
 use rustc_hash::FxHashSet;
 use test_utils::mark;
 
@@ -56,7 +57,27 @@ fn complete_methods(acc: &mut Completions, ctx: &CompletionContext, receiver: &T
             }
             None::<()>
         });
+
+        if ctx.config.enable_autoimport_completions && ctx.config.resolve_additional_edits_lazily()
+        {
+            fuzzy_dot_trait_completion(acc, ctx);
+        }
     }
+}
+
+fn fuzzy_dot_trait_completion(acc: &mut Completions, ctx: &CompletionContext) -> Option<()> {
+    let potential_import_name = ctx.token.to_string();
+    let _p = profile::span("fuzzy_dot_trait_completion").detail(|| potential_import_name.clone());
+
+    let zz = imports_locator::find_similar_associated_items(
+        &ctx.sema,
+        ctx.krate?,
+        Some(40),
+        potential_import_name,
+    )
+    .collect::<Vec<_>>();
+    dbg!(zz);
+    None
 }
 
 #[cfg(test)]

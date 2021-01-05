@@ -142,7 +142,6 @@ fn fuzzy_completion(acc: &mut Completions, ctx: &CompletionContext) -> Option<()
         Some(40),
         potential_import_name,
         true,
-        true,
     )
     .filter_map(|import_candidate| {
         Some(match import_candidate {
