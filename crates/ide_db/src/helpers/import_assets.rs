@@ -1,12 +1,13 @@
 //! Look up accessible paths for items.
 use either::Either;
 use hir::{AsAssocItem, AssocItemContainer, ModuleDef, PrefixKind, Semantics};
-use ide_db::{imports_locator, RootDatabase};
 use rustc_hash::FxHashSet;
 use syntax::{ast, AstNode, SyntaxNode};
 
+use crate::{imports_locator, RootDatabase};
+
 #[derive(Debug)]
-pub(crate) enum ImportCandidate {
+pub enum ImportCandidate {
     /// Simple name like 'HashMap'
     UnqualifiedName(PathImportCandidate),
     /// First part of the qualified name.
@@ -23,14 +24,14 @@ pub(crate) enum ImportCandidate {
 }
 
 #[derive(Debug)]
-pub(crate) struct TraitImportCandidate {
-    pub(crate) ty: hir::Type,
-    pub(crate) name: ast::NameRef,
+pub struct TraitImportCandidate {
+    pub ty: hir::Type,
+    pub name: ast::NameRef,
 }
 
 #[derive(Debug)]
-pub(crate) struct PathImportCandidate {
-    pub(crate) name: ast::NameRef,
+pub struct PathImportCandidate {
+    pub name: ast::NameRef,
 }
 
 #[derive(Debug)]
@@ -71,11 +72,11 @@ impl ImportAssets {
         })
     }
 
-    pub(crate) fn syntax_under_caret(&self) -> &SyntaxNode {
+    pub fn syntax_under_caret(&self) -> &SyntaxNode {
         &self.syntax_under_caret
     }
 
-    pub(crate) fn import_candidate(&self) -> &ImportCandidate {
+    pub fn import_candidate(&self) -> &ImportCandidate {
         &self.import_candidate
     }
 
@@ -98,7 +99,7 @@ impl ImportAssets {
     }
 
     /// This may return non-absolute paths if a part of the returned path is already imported into scope.
-    pub(crate) fn search_for_relative_paths(
+    pub fn search_for_relative_paths(
         &self,
         sema: &Semantics<RootDatabase>,
     ) -> Vec<(hir::ModPath, hir::ItemInNs)> {

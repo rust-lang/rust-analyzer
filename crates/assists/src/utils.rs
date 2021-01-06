@@ -1,6 +1,3 @@
-//! Assorted functions shared by several assists.
-pub(crate) mod import_assets;
-
 use std::ops;
 
 use hir::HasSource;

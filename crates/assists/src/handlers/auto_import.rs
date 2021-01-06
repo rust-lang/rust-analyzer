@@ -1,13 +1,11 @@
 use ide_db::helpers::{
+    import_assets::{ImportAssets, ImportCandidate},
     insert_use::{insert_use, ImportScope},
     mod_path_to_ast,
 };
 use syntax::ast;
 
-use crate::{
-    utils::import_assets::{ImportAssets, ImportCandidate},
-    AssistContext, AssistId, AssistKind, Assists, GroupLabel,
-};
+use crate::{AssistContext, AssistId, AssistKind, Assists, GroupLabel};
 
 // Feature: Auto Import
 //
