@@ -6,7 +6,7 @@
 //!
 //! ```
 //! fn main() {
-//!     pda<|>
+//!     pda$0
 //! }
 //! # pub mod std { pub mod marker { pub struct PhantomData { } } }
 //! ```
@@ -47,8 +47,11 @@
 
 use either::Either;
 use hir::{ModPath, ScopeDef};
-use ide_db::{helpers::insert_use::ImportScope, imports_locator};
-use syntax::AstNode;
+use ide_db::{
+    helpers::{import_assets::ImportAssets, insert_use::ImportScope},
+    imports_locator,
+};
+use syntax::{ast, AstNode};
 use test_utils::mark;
 
 use crate::{
@@ -61,60 +64,61 @@ use crate::{
 use super::Completions;
 
 pub(crate) fn complete_fuzzy(acc: &mut Completions, ctx: &CompletionContext) -> Option<()> {
-    fuzzy_completion(acc, ctx);
-    fuzzy_dot_trait_completion(acc, ctx);
-    None
-}
-
-// integrate it with ImportAssets, make them distinguins fuzzy/not fuzzy and assoc items/regular paths searches.
-fn fuzzy_dot_trait_completion(acc: &mut Completions, ctx: &CompletionContext) -> Option<()> {
+    if ctx.attribute_under_caret.is_some() || ctx.mod_declaration_under_caret.is_some() {
+        return None;
+    }
     let potential_import_name = ctx.token.to_string();
-    let _p = profile::span("fuzzy_dot_trait_completion").detail(|| potential_import_name.clone());
-
-    let zz = imports_locator::find_similar_associated_items(
-        &ctx.sema,
-        ctx.krate?,
-        Some(40),
-        potential_import_name,
-    )
-    .collect::<Vec<_>>();
-    dbg!(zz);
-    None
-}
-
-fn fuzzy_completion(acc: &mut Completions, ctx: &CompletionContext) -> Option<()> {
-    let potential_import_name = ctx.token.to_string();
-    let _p = profile::span("fuzzy_completion").detail(|| potential_import_name.clone());
-
     if potential_import_name.len() < 2 {
         return None;
     }
+    let _p = profile::span("complete_fuzzy").detail(|| potential_import_name.to_string());
 
     let current_module = ctx.scope.module()?;
+
+    let mut all_mod_paths = match dbg!(import_assets(ctx)) {
+        Some(import_assets) => import_assets
+            // TODO kb sync PrefixKind with the auto_import settings
+            .search_for_imports(&ctx.sema, hir::PrefixKind::Plain)
+            .into_iter()
+            .map(|(mod_path, item_in_ns)| {
+                let scope_item = match item_in_ns {
+                    hir::ItemInNs::Types(id) => ScopeDef::ModuleDef(id.into()),
+                    hir::ItemInNs::Values(id) => ScopeDef::ModuleDef(id.into()),
+                    hir::ItemInNs::Macros(id) => ScopeDef::MacroDef(id.into()),
+                };
+                (mod_path, scope_item)
+            })
+            .filter(|(mod_path, _)| mod_path.len() > 1)
+            .collect::<Vec<_>>(),
+
+        None => imports_locator::find_similar_imports(
+            &ctx.sema,
+            ctx.krate?,
+            Some(40),
+            potential_import_name.clone(),
+            true,
+        )
+        .filter_map(|import_candidate| {
+            Some(match import_candidate {
+                Either::Left(module_def) => (
+                    current_module.find_use_path(ctx.db, module_def)?,
+                    ScopeDef::ModuleDef(module_def),
+                ),
+                Either::Right(macro_def) => (
+                    current_module.find_use_path(ctx.db, macro_def)?,
+                    ScopeDef::MacroDef(macro_def),
+                ),
+            })
+        })
+        .into_iter()
+        .filter(|(mod_path, _)| mod_path.len() > 1)
+        .collect::<Vec<_>>(),
+    };
+
     let anchor = ctx.name_ref_syntax.as_ref()?;
     let import_scope = ImportScope::find_insert_use_container(anchor.syntax(), &ctx.sema)?;
 
     let user_input_lowercased = potential_import_name.to_lowercase();
-    let mut all_mod_paths = imports_locator::find_similar_imports(
-        &ctx.sema,
-        ctx.krate?,
-        Some(40),
-        potential_import_name,
-        true,
-    )
-    .filter_map(|import_candidate| {
-        Some(match import_candidate {
-            Either::Left(module_def) => {
-                (current_module.find_use_path(ctx.db, module_def)?, ScopeDef::ModuleDef(module_def))
-            }
-            Either::Right(macro_def) => {
-                (current_module.find_use_path(ctx.db, macro_def)?, ScopeDef::MacroDef(macro_def))
-            }
-        })
-    })
-    .filter(|(mod_path, _)| mod_path.len() > 1)
-    .collect::<Vec<_>>();
-
     all_mod_paths.sort_by_cached_key(|(mod_path, _)| {
         compute_fuzzy_completion_order_key(mod_path, &user_input_lowercased)
     });
@@ -130,6 +134,21 @@ fn fuzzy_completion(acc: &mut Completions, ctx: &CompletionContext) -> Option<()
         Some(item)
     }));
     Some(())
+}
+
+fn import_assets(ctx: &CompletionContext) -> Option<ImportAssets> {
+    if let Some(path_qual) = &ctx.path_qual {
+        // TODO kb wrong, have to include the name too
+        return ImportAssets::for_exact_path(path_qual.clone(), &ctx.sema);
+    }
+    if let Some(dot_receiver) = &ctx.dot_receiver {
+        return ImportAssets::for_method_call(
+            // TODO kb for fuzzy method search, this might not work
+            ast::MethodCallExpr::cast(dot_receiver.syntax().clone())?,
+            &ctx.sema,
+        );
+    }
+    None
 }
 
 fn compute_fuzzy_completion_order_key(
@@ -174,7 +193,7 @@ pub mod io {
 
 //- /main.rs crate:main deps:dep
 fn main() {
-    stdi<|>
+    stdi$0
 }
 "#,
             r#"
@@ -201,7 +220,7 @@ macro_rules! macro_with_curlies {
 
 //- /main.rs crate:main deps:dep
 fn main() {
-    curli<|>
+    curli$0
 }
 "#,
             r#"
@@ -230,7 +249,7 @@ pub mod some_module {
 use dep::{FirstStruct, some_module::SecondStruct};
 
 fn main() {
-    this<|>
+    this$0
 }
 "#,
             r#"
@@ -267,7 +286,7 @@ pub mod some_module {
 use dep::{FirstStruct, some_module::SecondStruct};
 
 fn main() {
-    hir<|>
+    hir$0
 }
 "#,
             expect![[r#"
@@ -275,6 +294,37 @@ fn main() {
                 st dep::some_module::AfterThirdStruct
                 st dep::some_module::ThiiiiiirdStruct
             "#]],
+        );
+    }
+
+    #[test]
+    fn trait_function_fuzzy_completion() {
+        check_edit(
+            "test_function",
+            r#"
+//- /lib.rs crate:dep
+pub mod test_mod {
+    pub trait TestTrait {
+        fn random_number();
+    }
+    pub struct TestStruct {}
+    impl TestTrait for TestStruct {
+        fn random_number() {}
+    }
+}
+
+//- /main.rs crate:main deps:dep
+fn main() {
+    dep::test_mod::TestStruct::ran$0
+}
+"#,
+            r#"
+use dep::test_mod::TestTrait;
+
+fn main() {
+    dep::test_mod::TestStruct::random_number()$0
+}
+"#,
         );
     }
 }

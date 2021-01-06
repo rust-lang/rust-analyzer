@@ -38,7 +38,7 @@ use crate::{
 pub(crate) fn qualify_path(acc: &mut Assists, ctx: &AssistContext) -> Option<()> {
     let import_assets =
         if let Some(path_under_caret) = ctx.find_node_at_offset_with_descend::<ast::Path>() {
-            ImportAssets::for_regular_path(path_under_caret, &ctx.sema)
+            ImportAssets::for_exact_path(path_under_caret, &ctx.sema)
         } else if let Some(method_under_caret) =
             ctx.find_node_at_offset_with_descend::<ast::MethodCallExpr>()
         {

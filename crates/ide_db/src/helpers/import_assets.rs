@@ -55,23 +55,33 @@ impl ImportAssets {
         })
     }
 
-    pub fn for_regular_path(
-        path_under_caret: ast::Path,
+    pub fn for_exact_path(
+        fully_qualified_path: ast::Path,
         sema: &Semantics<RootDatabase>,
     ) -> Option<Self> {
-        let syntax_under_caret = path_under_caret.syntax().to_owned();
+        let syntax_under_caret = fully_qualified_path.syntax().to_owned();
         if syntax_under_caret.ancestors().find_map(ast::Use::cast).is_some() {
             return None;
         }
 
         let module_with_name_to_import = sema.scope(&syntax_under_caret).module()?;
         Some(Self {
-            import_candidate: ImportCandidate::for_regular_path(sema, &path_under_caret)?,
+            import_candidate: ImportCandidate::for_regular_path(sema, &fully_qualified_path)?,
             module_with_name_to_import,
             syntax_under_caret,
         })
     }
 
+    pub fn for_fuzzy_path(
+        qualifier: ast::Path,
+        fuzzy_name: &str,
+        sema: &Semantics<RootDatabase>,
+    ) -> Option<Self> {
+        todo!()
+    }
+}
+
+impl ImportAssets {
     pub fn syntax_under_caret(&self) -> &SyntaxNode {
         &self.syntax_under_caret
     }
@@ -94,7 +104,7 @@ impl ImportAssets {
         sema: &Semantics<RootDatabase>,
         prefix_kind: PrefixKind,
     ) -> Vec<(hir::ModPath, hir::ItemInNs)> {
-        let _p = profile::span("import_assists::search_for_imports");
+        let _p = profile::span("import_assets::search_for_imports");
         self.search_for(sema, Some(prefix_kind))
     }
 
@@ -103,7 +113,7 @@ impl ImportAssets {
         &self,
         sema: &Semantics<RootDatabase>,
     ) -> Vec<(hir::ModPath, hir::ItemInNs)> {
-        let _p = profile::span("import_assists::search_for_relative_paths");
+        let _p = profile::span("import_assets::search_for_relative_paths");
         self.search_for(sema, None)
     }
 
