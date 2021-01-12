@@ -98,9 +98,16 @@ pub(crate) fn hover(
             ast::NameRef(name_ref) => NameRefClass::classify(&sema, &name_ref).map(|d| d.referenced(sema.db)),
             ast::Lifetime(lifetime) => NameClass::classify_lifetime(&sema, &lifetime)
                 .map_or_else(|| NameRefClass::classify_lifetime(&sema, &lifetime).map(|d| d.referenced(sema.db)), |d| d.defined(sema.db)),
+            ast::SelfParam(self_param) => NameClass::classify_self_param(&sema, &self_param).and_then(|d| d.defined(sema.db)),
+            ast::PathSegment(path) => if token.kind() == T![self] {
+                NameRefClass::classify_self_param(&sema, &token).map(|d| d.referenced(sema.db))
+            } else {
+                None
+            },
             _ => None,
         }
     };
+
     if let Some(definition) = definition {
         if let Some(markup) = hover_for_definition(db, definition) {
             let markup = markup.as_str();
@@ -134,17 +141,14 @@ pub(crate) fn hover(
         return None;
     }
 
-    let node = token.ancestors().find(|n| {
-        ast::Expr::can_cast(n.kind())
-            || ast::Pat::can_cast(n.kind())
-            || ast::SelfParam::can_cast(n.kind())
-    })?;
+    let node = token
+        .ancestors()
+        .find(|n| ast::Expr::can_cast(n.kind()) || ast::Pat::can_cast(n.kind()))?;
 
     let ty = match_ast! {
         match node {
             ast::Expr(it) => sema.type_of_expr(&it)?,
             ast::Pat(it) => sema.type_of_pat(&it)?,
-            ast::SelfParam(self_param) => sema.type_of_self(&self_param)?,
             // If this node is a MACRO_CALL, it means that `descend_into_macros` failed to resolve.
             // (e.g expanding a builtin macro). So we give up here.
             ast::MacroCall(_it) => return None,
@@ -219,6 +223,7 @@ fn goto_type_action(db: &RootDatabase, def: Definition) -> Option<HoverAction> {
         it.trait_bounds(db).into_iter().for_each(|it| push_new_def(it.into()));
     } else {
         let ty = match def {
+            Definition::Field(it) => it.signature_ty(db),
             Definition::Local(it) => it.ty(db),
             Definition::GenericParam(GenericParam::ConstParam(it)) => it.ty(db),
             _ => return None,
@@ -386,7 +391,7 @@ fn pick_best(tokens: TokenAtOffset<SyntaxToken>) -> Option<SyntaxToken> {
     return tokens.max_by_key(priority);
     fn priority(n: &SyntaxToken) -> usize {
         match n.kind() {
-            IDENT | INT_NUMBER | LIFETIME_IDENT => 3,
+            IDENT | INT_NUMBER | LIFETIME_IDENT | T![self] => 3,
             T!['('] | T![')'] => 2,
             kind if kind.is_trivia() => 0,
             _ => 1,
@@ -3023,6 +3028,43 @@ fn foo(a$0rg: &impl ImplTrait<B<dyn DynTrait<B<S>>>>) {}
     }
 
     #[test]
+    fn test_hover_field_has_go_to_type() {
+        check_actions(
+            r#"
+struct Bar;
+struct Foo {
+    foo: Bar
+}
+
+fn foo(foo: Foo) {
+    foo.foo$0;
+}
+"#,
+            expect![[r#"
+                [
+                    GoToType(
+                        [
+                            HoverGotoTypeData {
+                                mod_path: "test::Bar",
+                                nav: NavigationTarget {
+                                    file_id: FileId(
+                                        0,
+                                    ),
+                                    full_range: 0..11,
+                                    focus_range: 7..10,
+                                    name: "Bar",
+                                    kind: Struct,
+                                    description: "struct Bar",
+                                },
+                            },
+                        ],
+                    ),
+                ]
+            "#]],
+        );
+    }
+
+    #[test]
     fn test_hover_associated_type_has_goto_type_action() {
         check_actions(
             r#"
@@ -3130,6 +3172,40 @@ fn foo<T: Foo>(t: T$0){}
     }
 
     #[test]
+    fn test_hover_self_has_go_to_type() {
+        check_actions(
+            r#"
+struct Foo;
+
+impl Foo {
+    fn foo(&self$0) {}
+}
+"#,
+            expect![[r#"
+                [
+                    GoToType(
+                        [
+                            HoverGotoTypeData {
+                                mod_path: "test::Foo",
+                                nav: NavigationTarget {
+                                    file_id: FileId(
+                                        0,
+                                    ),
+                                    full_range: 0..11,
+                                    focus_range: 7..10,
+                                    name: "Foo",
+                                    kind: Struct,
+                                    description: "struct Foo",
+                                },
+                            },
+                        ],
+                    ),
+                ]
+            "#]],
+        );
+    }
+
+    #[test]
     fn hover_displays_normalized_crate_names() {
         check(
             r#"
@@ -3193,6 +3269,7 @@ impl Foo {
 "#,
             expect![[r#"
                 *&self*
+
                 ```rust
                 &Foo
                 ```
@@ -3212,6 +3289,7 @@ impl Foo {
 "#,
             expect![[r#"
                 *self: Arc<Foo>*
+
                 ```rust
                 Arc<Foo>
                 ```
