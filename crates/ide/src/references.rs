@@ -458,7 +458,7 @@ fn main() {
     i = 5;
 }"#,
             expect![[r#"
-                i Local FileId(0) 24..25 Other Write
+                i Local FileId(0) 20..25 24..25 Other Write
 
                 FileId(0) 50..51 Other Write
                 FileId(0) 54..55 Other Read
@@ -482,7 +482,7 @@ fn bar() {
 }
 "#,
             expect![[r#"
-                spam Local FileId(0) 19..23 Other
+                spam Local FileId(0) 19..23 19..23 Other
 
                 FileId(0) 34..38 Other Read
                 FileId(0) 41..45 Other Read
@@ -497,7 +497,7 @@ fn bar() {
 fn foo(i : u32) -> u32 { i$0 }
 "#,
             expect![[r#"
-                i ValueParam FileId(0) 7..8 Other
+                i ValueParam FileId(0) 7..8 7..8 Other
 
                 FileId(0) 25..26 Other Read
             "#]],
@@ -511,7 +511,7 @@ fn foo(i : u32) -> u32 { i$0 }
 fn foo(i$0 : u32) -> u32 { i }
 "#,
             expect![[r#"
-                i ValueParam FileId(0) 7..8 Other
+                i ValueParam FileId(0) 7..8 7..8 Other
 
                 FileId(0) 25..26 Other Read
             "#]],
@@ -759,7 +759,7 @@ fn foo() {
 }
 "#,
             expect![[r#"
-                i Local FileId(0) 23..24 Other Write
+                i Local FileId(0) 19..24 23..24 Other Write
 
                 FileId(0) 34..35 Other Write
                 FileId(0) 38..39 Other Read
@@ -799,7 +799,7 @@ fn foo() {
 }
 "#,
             expect![[r#"
-                i Local FileId(0) 19..20 Other
+                i Local FileId(0) 19..20 19..20 Other
 
                 FileId(0) 26..27 Other Write
             "#]],
@@ -941,7 +941,7 @@ impl Foo {
 }
 "#,
             expect![[r#"
-                self SelfParam FileId(0) 47..51 SelfKw
+                self SelfParam FileId(0) 47..51 47..51 SelfKw
 
                 FileId(0) 71..75 SelfKw Read
                 FileId(0) 152..156 SelfKw Read
@@ -1051,7 +1051,7 @@ fn main() {
 }
 "#,
             expect![[r#"
-                a Local FileId(0) 59..60 Other
+                a Local FileId(0) 59..60 59..60 Other
 
                 FileId(0) 80..81 Other Read
             "#]],
@@ -1069,7 +1069,7 @@ fn main() {
 }
 "#,
             expect![[r#"
-                a Local FileId(0) 59..60 Other
+                a Local FileId(0) 59..60 59..60 Other
 
                 FileId(0) 80..81 Other Read
             "#]],
