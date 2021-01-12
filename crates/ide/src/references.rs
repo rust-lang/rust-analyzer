@@ -21,10 +21,10 @@ use ide_db::{
 use syntax::{
     algo::find_node_at_offset,
     ast::{self, NameOwner},
-    match_ast, AstNode, SyntaxNode, TextRange, TokenAtOffset, T,
+    AstNode, SyntaxNode, TextRange, TokenAtOffset, T,
 };
 
-use crate::{display::TryToNav, FilePosition, FileRange, NavigationTarget, RangeInfo, SymbolKind};
+use crate::{display::TryToNav, FilePosition, FileRange, NavigationTarget, RangeInfo};
 
 #[derive(Debug, Clone)]
 pub struct ReferenceSearchResult {
@@ -90,10 +90,6 @@ pub(crate) fn find_all_refs(
     let _p = profile::span("find_all_refs");
     let syntax = sema.parse(position.file_id).syntax().clone();
 
-    if let Some(res) = try_find_self_references(&syntax, position) {
-        return Some(res);
-    }
-
     let (opt_name, search_kind) = if let Some(name) =
         get_struct_def_name_for_struct_literal_search(&sema, &syntax, position)
     {
@@ -122,6 +118,18 @@ pub(crate) fn find_all_refs(
 
     let mut kind = ReferenceKind::Other;
     if let Definition::Local(local) = def {
+        kind = match local.source(sema.db).value {
+            either::Either::Left(pat)
+                if matches!(
+                    pat.syntax().parent().and_then(ast::RecordPatField::cast),
+                    Some(pat_field) if pat_field.name_ref().is_none()
+                ) =>
+            {
+                ReferenceKind::FieldShorthandForLocal
+            }
+            either::Either::Right(_) => ReferenceKind::SelfKw,
+            _ => kind,
+        };
         if let either::Either::Left(pat) = local.source(sema.db).value {
             if matches!(
                 pat.syntax().parent().and_then(ast::RecordPatField::cast),
@@ -154,9 +162,27 @@ fn find_name(
         return Some(RangeInfo::new(range, def));
     }
 
-    let (FileRange { range, .. }, def) = if let Some(lifetime) =
-        sema.find_node_at_offset_with_descend::<ast::Lifetime>(&syntax, position.offset)
+    let (FileRange { range, .. }, def) = if let Some(self_token) =
+        syntax.token_at_offset(position.offset).find(|t| t.kind() == T![self])
     {
+        let def = if let Some(self_param) = ast::SelfParam::cast(self_token.parent()) {
+            NameClass::classify_self_param(sema, &self_param)?.referenced_or_defined(sema.db)
+        } else {
+            NameRefClass::classify_self_param(sema, &self_token)
+                .map(|class| NameRefClass::referenced(class, sema.db))?
+        };
+        (FileRange { file_id: position.file_id, range: self_token.text_range() }, def)
+    } else if let Some(name_ref) =
+        sema.find_node_at_offset_with_descend::<ast::NameRef>(&syntax, position.offset)
+    {
+        (
+            sema.original_range(name_ref.syntax()),
+            NameRefClass::classify(sema, &name_ref)?.referenced(sema.db),
+        )
+    } else {
+        let lifetime =
+            sema.find_node_at_offset_with_descend::<ast::Lifetime>(&syntax, position.offset)?;
+
         if let Some(def) = NameRefClass::classify_lifetime(sema, &lifetime)
             .map(|class| NameRefClass::referenced(class, sema.db))
         {
@@ -167,13 +193,6 @@ fn find_name(
                 NameClass::classify_lifetime(sema, &lifetime)?.referenced_or_defined(sema.db),
             )
         }
-    } else {
-        let name_ref =
-            sema.find_node_at_offset_with_descend::<ast::NameRef>(&syntax, position.offset)?;
-        (
-            sema.original_range(name_ref.syntax()),
-            NameRefClass::classify(sema, &name_ref)?.referenced(sema.db),
-        )
     };
     Some(RangeInfo::new(range, def))
 }
@@ -249,79 +268,6 @@ fn get_enum_def_name_for_struct_literal_search(
         }
     }
     None
-}
-
-fn try_find_self_references(
-    syntax: &SyntaxNode,
-    position: FilePosition,
-) -> Option<RangeInfo<ReferenceSearchResult>> {
-    let FilePosition { file_id, offset } = position;
-    let self_token = syntax.token_at_offset(offset).find(|t| t.kind() == T![self])?;
-    let parent = self_token.parent();
-    match_ast! {
-        match parent {
-            ast::SelfParam(it) => (),
-            ast::PathSegment(segment) => {
-                segment.self_token()?;
-                let path = segment.parent_path();
-                if path.qualifier().is_some() && !ast::PathExpr::can_cast(path.syntax().parent()?.kind()) {
-                    return None;
-                }
-            },
-            _ => return None,
-        }
-    };
-    let function = parent.ancestors().find_map(ast::Fn::cast)?;
-    let self_param = function.param_list()?.self_param()?;
-    let param_self_token = self_param.self_token()?;
-
-    let declaration = Declaration {
-        nav: NavigationTarget {
-            file_id,
-            full_range: self_param.syntax().text_range(),
-            focus_range: Some(param_self_token.text_range()),
-            name: param_self_token.text().clone(),
-            kind: Some(SymbolKind::SelfParam),
-            container_name: None,
-            description: None,
-            docs: None,
-        },
-        kind: ReferenceKind::SelfKw,
-        access: Some(if self_param.mut_token().is_some() {
-            ReferenceAccess::Write
-        } else {
-            ReferenceAccess::Read
-        }),
-    };
-    let refs = function
-        .body()
-        .map(|body| {
-            body.syntax()
-                .descendants()
-                .filter_map(ast::PathExpr::cast)
-                .filter_map(|expr| {
-                    let path = expr.path()?;
-                    if path.qualifier().is_none() {
-                        path.segment()?.self_token()
-                    } else {
-                        None
-                    }
-                })
-                .map(|token| FileReference {
-                    range: token.text_range(),
-                    kind: ReferenceKind::SelfKw,
-                    access: declaration.access, // FIXME: properly check access kind here instead of copying it from the declaration
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-    let mut references = UsageSearchResult::default();
-    references.references.insert(file_id, refs);
-
-    Some(RangeInfo::new(
-        param_self_token.text_range(),
-        ReferenceSearchResult { declaration, references },
-    ))
 }
 
 #[cfg(test)]
@@ -995,7 +941,7 @@ impl Foo {
 }
 "#,
             expect![[r#"
-                self SelfParam FileId(0) 47..51 47..51 SelfKw Read
+                self SelfParam FileId(0) 47..51 SelfKw
 
                 FileId(0) 71..75 SelfKw Read
                 FileId(0) 152..156 SelfKw Read
