@@ -7,10 +7,11 @@
 use std::{convert::TryInto, mem};
 
 use base_db::{FileId, FileRange, SourceDatabaseExt};
+use either::Either;
 use hir::{DefWithBody, HasSource, Module, ModuleSource, Semantics, Visibility};
 use once_cell::unsync::Lazy;
 use rustc_hash::FxHashMap;
-use syntax::{ast, match_ast, AstNode, TextRange, TextSize};
+use syntax::{ast, match_ast, AstNode, SyntaxToken, TextRange, TextSize};
 
 use crate::defs::NameClass;
 use crate::{
@@ -318,6 +319,7 @@ impl<'a> FindUsages<'a> {
             Some(it) => it.to_string(),
             None => return,
         };
+        let searching_for_self = name == "self";
 
         let pat = name.as_str();
         for (file_id, search_range) in search_scope {
@@ -332,7 +334,16 @@ impl<'a> FindUsages<'a> {
                 if !search_range.contains_inclusive(offset) {
                     continue;
                 }
-
+                if searching_for_self {
+                    if let Some(self_tok) =
+                        tree.token_at_offset(offset).find(|t| t.kind() == syntax::T![self])
+                    {
+                        if self.found_self_ref(&self_tok, file_id, sink) {
+                            return;
+                        }
+                    }
+                    continue;
+                }
                 if let Some(name_ref) = sema.find_node_at_offset_with_descend(&tree, offset) {
                     if self.found_name_ref(&name_ref, sink) {
                         return;
@@ -348,6 +359,26 @@ impl<'a> FindUsages<'a> {
                     }
                 }
             }
+        }
+    }
+
+    fn found_self_ref(
+        &self,
+        self_token: &SyntaxToken,
+        file_id: FileId,
+        sink: &mut dyn FnMut(FileId, FileReference) -> bool,
+    ) -> bool {
+        assert_eq!(self_token.kind(), syntax::T![self]);
+        match NameRefClass::classify_self_param(self.sema, self_token) {
+            Some(NameRefClass::Definition(def)) if &def == self.def => {
+                let reference = FileReference {
+                    range: self_token.text_range(),
+                    kind: ReferenceKind::SelfKw,
+                    access: reference_access(&def, Either::Right(self_token)),
+                };
+                sink(file_id, reference)
+            }
+            _ => false, // not a usage
         }
     }
 
@@ -385,8 +416,11 @@ impl<'a> FindUsages<'a> {
                 };
 
                 let FileRange { file_id, range } = self.sema.original_range(name_ref.syntax());
-                let reference =
-                    FileReference { range, kind, access: reference_access(&def, &name_ref) };
+                let reference = FileReference {
+                    range,
+                    kind,
+                    access: reference_access(&def, Either::Left(&name_ref)),
+                };
                 sink(file_id, reference)
             }
             Some(NameRefClass::FieldShorthand { local_ref: local, field_ref: field }) => {
@@ -395,12 +429,15 @@ impl<'a> FindUsages<'a> {
                     Definition::Field(_) if &field == self.def => FileReference {
                         range,
                         kind: ReferenceKind::FieldShorthandForField,
-                        access: reference_access(&field, &name_ref),
+                        access: reference_access(&field, Either::Left(&name_ref)),
                     },
                     Definition::Local(l) if &local == l => FileReference {
                         range,
                         kind: ReferenceKind::FieldShorthandForLocal,
-                        access: reference_access(&Definition::Local(local), &name_ref),
+                        access: reference_access(
+                            &Definition::Local(local),
+                            Either::Left(&name_ref),
+                        ),
                     },
                     _ => return false, // not a usage
                 };
@@ -434,13 +471,17 @@ impl<'a> FindUsages<'a> {
     }
 }
 
-fn reference_access(def: &Definition, name_ref: &ast::NameRef) -> Option<ReferenceAccess> {
+fn reference_access(
+    def: &Definition,
+    name_ref: Either<&ast::NameRef, &SyntaxToken>,
+) -> Option<ReferenceAccess> {
     // Only Locals and Fields have accesses for now.
     if !matches!(def, Definition::Local(_) | Definition::Field(_)) {
         return None;
     }
 
-    let mode = name_ref.syntax().ancestors().find_map(|node| {
+    let syntax = name_ref.either(|name_ref| name_ref.syntax().clone(), SyntaxToken::parent);
+    let mode = syntax.ancestors().find_map(|node| {
         match_ast! {
             match (node) {
                 ast::BinExpr(expr) => {
@@ -448,7 +489,7 @@ fn reference_access(def: &Definition, name_ref: &ast::NameRef) -> Option<Referen
                         // If the variable or field ends on the LHS's end then it's a Write (covers fields and locals).
                         // FIXME: This is not terribly accurate.
                         if let Some(lhs) = expr.lhs() {
-                            if lhs.syntax().text_range().end() == name_ref.syntax().text_range().end() {
+                            if lhs.syntax().text_range().end() == syntax.text_range().end() {
                                 return Some(ReferenceAccess::Write);
                             }
                         }
