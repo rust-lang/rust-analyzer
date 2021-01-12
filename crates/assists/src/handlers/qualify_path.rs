@@ -36,13 +36,15 @@ use crate::{
 // # pub mod std { pub mod collections { pub struct HashMap { } } }
 // ```
 pub(crate) fn qualify_path(acc: &mut Assists, ctx: &AssistContext) -> Option<()> {
-    let import_assets =
+    let (syntax_under_caret, import_assets) =
         if let Some(path_under_caret) = ctx.find_node_at_offset_with_descend::<ast::Path>() {
-            ImportAssets::for_exact_path(path_under_caret, &ctx.sema)
+            Some(path_under_caret.syntax().clone())
+                .zip(ImportAssets::for_exact_path(path_under_caret, &ctx.sema))
         } else if let Some(method_under_caret) =
             ctx.find_node_at_offset_with_descend::<ast::MethodCallExpr>()
         {
-            ImportAssets::for_method_call(method_under_caret, &ctx.sema)
+            Some(method_under_caret.syntax().clone())
+                .zip(ImportAssets::for_method_call(method_under_caret, &ctx.sema))
         } else {
             None
         }?;
@@ -52,30 +54,32 @@ pub(crate) fn qualify_path(acc: &mut Assists, ctx: &AssistContext) -> Option<()>
     }
 
     let candidate = import_assets.import_candidate();
-    let range = ctx.sema.original_range(import_assets.syntax_under_caret()).range;
+    let range = ctx.sema.original_range(&syntax_under_caret).range;
 
     let qualify_candidate = match candidate {
-        ImportCandidate::QualifierStart(_) => {
-            mark::hit!(qualify_path_qualifier_start);
-            let path = ast::Path::cast(import_assets.syntax_under_caret().clone())?;
-            let (prev_segment, segment) = (path.qualifier()?.segment()?, path.segment()?);
-            QualifyCandidate::QualifierStart(segment, prev_segment.generic_arg_list())
-        }
-        ImportCandidate::UnqualifiedName(_) => {
-            mark::hit!(qualify_path_unqualified_name);
-            let path = ast::Path::cast(import_assets.syntax_under_caret().clone())?;
-            let generics = path.segment()?.generic_arg_list();
-            QualifyCandidate::UnqualifiedName(generics)
-        }
+        ImportCandidate::Name(candidate) => match candidate.qualifier {
+            Some(_) => {
+                mark::hit!(qualify_path_qualifier_start);
+                let path = ast::Path::cast(syntax_under_caret.clone())?;
+                let (prev_segment, segment) = (path.qualifier()?.segment()?, path.segment()?);
+                QualifyCandidate::QualifierStart(segment, prev_segment.generic_arg_list())
+            }
+            None => {
+                mark::hit!(qualify_path_unqualified_name);
+                let path = ast::Path::cast(syntax_under_caret.clone())?;
+                let generics = path.segment()?.generic_arg_list();
+                QualifyCandidate::UnqualifiedName(generics)
+            }
+        },
         ImportCandidate::TraitAssocItem(_) => {
             mark::hit!(qualify_path_trait_assoc_item);
-            let path = ast::Path::cast(import_assets.syntax_under_caret().clone())?;
+            let path = ast::Path::cast(syntax_under_caret.clone())?;
             let (qualifier, segment) = (path.qualifier()?, path.segment()?);
             QualifyCandidate::TraitAssocItem(qualifier, segment)
         }
         ImportCandidate::TraitMethod(_) => {
             mark::hit!(qualify_path_trait_method);
-            let mcall_expr = ast::MethodCallExpr::cast(import_assets.syntax_under_caret().clone())?;
+            let mcall_expr = ast::MethodCallExpr::cast(syntax_under_caret.clone())?;
             QualifyCandidate::TraitMethod(ctx.sema.db, mcall_expr)
         }
     };
@@ -188,16 +192,22 @@ fn item_as_trait(item: hir::ItemInNs) -> Option<hir::Trait> {
 
 fn group_label(candidate: &ImportCandidate) -> GroupLabel {
     let name = match candidate {
-        ImportCandidate::UnqualifiedName(it) | ImportCandidate::QualifierStart(it) => &it.name,
+        ImportCandidate::Name(it) => &it.name,
         ImportCandidate::TraitAssocItem(it) | ImportCandidate::TraitMethod(it) => &it.name,
-    };
+    }
+    .text();
     GroupLabel(format!("Qualify {}", name))
 }
 
 fn label(candidate: &ImportCandidate, import: &hir::ModPath) -> String {
     match candidate {
-        ImportCandidate::UnqualifiedName(_) => format!("Qualify as `{}`", &import),
-        ImportCandidate::QualifierStart(_) => format!("Qualify with `{}`", &import),
+        ImportCandidate::Name(candidate) => {
+            if candidate.qualifier.is_some() {
+                format!("Qualify with `{}`", &import)
+            } else {
+                format!("Qualify as `{}`", &import)
+            }
+        }
         ImportCandidate::TraitAssocItem(_) => format!("Qualify `{}`", &import),
         ImportCandidate::TraitMethod(_) => format!("Qualify with cast as `{}`", &import),
     }

@@ -94,7 +94,6 @@ pub(crate) fn complete_fuzzy(acc: &mut Completions, ctx: &CompletionContext) -> 
         None => imports_locator::find_similar_imports(
             &ctx.sema,
             ctx.krate?,
-            Some(40),
             potential_import_name.clone(),
             true,
         )

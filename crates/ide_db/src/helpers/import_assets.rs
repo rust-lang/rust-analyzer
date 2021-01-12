@@ -2,17 +2,17 @@
 use either::Either;
 use hir::{AsAssocItem, AssocItemContainer, ModuleDef, PrefixKind, Semantics};
 use rustc_hash::FxHashSet;
-use syntax::{ast, AstNode, SyntaxNode};
+use syntax::{ast, AstNode};
 
 use crate::{imports_locator, RootDatabase};
 
 #[derive(Debug)]
 pub enum ImportCandidate {
-    /// Simple name like 'HashMap'
-    UnqualifiedName(PathImportCandidate),
-    /// First part of the qualified name.
-    /// For 'std::collections::HashMap', that will be 'std'.
-    QualifierStart(PathImportCandidate),
+    // TODO kb docs
+    Name(PathImportCandidate),
+
+    // TODO kb collapse the trait enums?
+    //
     /// A trait associated function (with no self parameter) or associated constant.
     /// For 'test_mod::TestEnum::test_function', `ty` is the `test_mod::TestEnum` expression type
     /// and `name` is the `test_function`
@@ -25,20 +25,35 @@ pub enum ImportCandidate {
 
 #[derive(Debug)]
 pub struct TraitImportCandidate {
-    pub ty: hir::Type,
-    pub name: ast::NameRef,
+    pub receiver_ty: hir::Type,
+    pub name: NameToImport,
 }
 
 #[derive(Debug)]
 pub struct PathImportCandidate {
-    pub name: ast::NameRef,
+    pub qualifier: Option<ast::Path>,
+    pub name: NameToImport,
+}
+
+#[derive(Debug)]
+pub enum NameToImport {
+    Exact(String),
+    Fuzzy(String),
+}
+
+impl NameToImport {
+    pub fn text(&self) -> &str {
+        match self {
+            NameToImport::Exact(text) => text.as_str(),
+            NameToImport::Fuzzy(text) => text.as_str(),
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct ImportAssets {
     import_candidate: ImportCandidate,
-    module_with_name_to_import: hir::Module,
-    syntax_under_caret: SyntaxNode,
+    module_with_candidate: hir::Module,
 }
 
 impl ImportAssets {
@@ -47,11 +62,10 @@ impl ImportAssets {
         sema: &Semantics<RootDatabase>,
     ) -> Option<Self> {
         let syntax_under_caret = method_call.syntax().to_owned();
-        let module_with_name_to_import = sema.scope(&syntax_under_caret).module()?;
+        let module_with_candidate = sema.scope(&syntax_under_caret).module()?;
         Some(Self {
             import_candidate: ImportCandidate::for_method_call(sema, &method_call)?,
-            module_with_name_to_import,
-            syntax_under_caret,
+            module_with_candidate,
         })
     }
 
@@ -64,38 +78,24 @@ impl ImportAssets {
             return None;
         }
 
-        let module_with_name_to_import = sema.scope(&syntax_under_caret).module()?;
+        let module_with_candidate = sema.scope(&syntax_under_caret).module()?;
         Some(Self {
             import_candidate: ImportCandidate::for_regular_path(sema, &fully_qualified_path)?,
-            module_with_name_to_import,
-            syntax_under_caret,
+            module_with_candidate,
         })
-    }
-
-    pub fn for_fuzzy_path(
-        qualifier: ast::Path,
-        fuzzy_name: &str,
-        sema: &Semantics<RootDatabase>,
-    ) -> Option<Self> {
-        todo!()
     }
 }
 
 impl ImportAssets {
-    pub fn syntax_under_caret(&self) -> &SyntaxNode {
-        &self.syntax_under_caret
-    }
-
     pub fn import_candidate(&self) -> &ImportCandidate {
         &self.import_candidate
     }
 
-    fn get_search_query(&self) -> &str {
+    fn name_to_import(&self) -> &NameToImport {
         match &self.import_candidate {
-            ImportCandidate::UnqualifiedName(candidate)
-            | ImportCandidate::QualifierStart(candidate) => candidate.name.text(),
+            ImportCandidate::Name(candidate) => &candidate.name,
             ImportCandidate::TraitAssocItem(candidate)
-            | ImportCandidate::TraitMethod(candidate) => candidate.name.text(),
+            | ImportCandidate::TraitMethod(candidate) => &candidate.name,
         }
     }
 
@@ -124,7 +124,7 @@ impl ImportAssets {
     ) -> Vec<(hir::ModPath, hir::ItemInNs)> {
         let db = sema.db;
         let mut trait_candidates = FxHashSet::default();
-        let current_crate = self.module_with_name_to_import.krate();
+        let current_crate = self.module_with_candidate.krate();
 
         let filter = |candidate: Either<hir::ModuleDef, hir::MacroDef>| {
             trait_candidates.clear();
@@ -145,7 +145,7 @@ impl ImportAssets {
                     trait_candidates.insert(located_assoc_item.into());
 
                     trait_candidate
-                        .ty
+                        .receiver_ty
                         .iterate_path_candidates(
                             db,
                             current_crate,
@@ -170,7 +170,7 @@ impl ImportAssets {
                     trait_candidates.insert(located_assoc_item.into());
 
                     trait_candidate
-                        .ty
+                        .receiver_ty
                         .iterate_method_candidates(
                             db,
                             current_crate,
@@ -187,19 +187,40 @@ impl ImportAssets {
             }
         };
 
-        let name_to_import = self.get_search_query().to_string();
-        let unfiltered_imports =
-            // TODO kb search differently for queries
-            imports_locator::find_exact_imports(sema, current_crate, name_to_import);
+        // TODO kb useless collects due to different opaque types + stupid clone()'s
+        let unfiltered_imports = match self.name_to_import() {
+            NameToImport::Exact(exact_name) => {
+                imports_locator::find_exact_imports(sema, current_crate, exact_name.clone())
+                    .collect::<Vec<_>>()
+            }
+            NameToImport::Fuzzy(fuzzy_name) => match self.import_candidate {
+                ImportCandidate::TraitAssocItem(_) | ImportCandidate::TraitMethod(_) => {
+                    imports_locator::find_similar_associated_items(
+                        sema,
+                        current_crate,
+                        fuzzy_name.clone(),
+                    )
+                    .collect::<Vec<_>>()
+                }
+                _ => imports_locator::find_similar_imports(
+                    sema,
+                    current_crate,
+                    fuzzy_name.clone(),
+                    true,
+                )
+                .collect::<Vec<_>>(),
+            },
+        }
+        .into_iter();
 
         let mut res = unfiltered_imports
             .filter_map(filter)
             .filter_map(|candidate| {
                 let item: hir::ItemInNs = candidate.either(Into::into, Into::into);
                 if let Some(prefix_kind) = prefixed {
-                    self.module_with_name_to_import.find_use_path_prefixed(db, item, prefix_kind)
+                    self.module_with_candidate.find_use_path_prefixed(db, item, prefix_kind)
                 } else {
-                    self.module_with_name_to_import.find_use_path(db, item)
+                    self.module_with_candidate.find_use_path(db, item)
                 }
                 .map(|path| (path, item))
             })
@@ -227,22 +248,19 @@ impl ImportCandidate {
         match sema.resolve_method_call(method_call) {
             Some(_) => None,
             None => Some(Self::TraitMethod(TraitImportCandidate {
-                ty: sema.type_of_expr(&method_call.receiver()?)?,
-                name: method_call.name_ref()?,
+                receiver_ty: sema.type_of_expr(&method_call.receiver()?)?,
+                name: NameToImport::Exact(method_call.name_ref()?.to_string()),
             })),
         }
     }
 
-    fn for_regular_path(
-        sema: &Semantics<RootDatabase>,
-        path_under_caret: &ast::Path,
-    ) -> Option<Self> {
-        if sema.resolve_path(path_under_caret).is_some() {
+    fn for_regular_path(sema: &Semantics<RootDatabase>, path: &ast::Path) -> Option<Self> {
+        if sema.resolve_path(path).is_some() {
             return None;
         }
 
-        let segment = path_under_caret.segment()?;
-        let candidate = if let Some(qualifier) = path_under_caret.qualifier() {
+        let segment = path.segment()?;
+        let candidate = if let Some(qualifier) = path.qualifier() {
             let qualifier_start = qualifier.syntax().descendants().find_map(ast::NameRef::cast)?;
             let qualifier_start_path =
                 qualifier_start.syntax().ancestors().find_map(ast::Path::cast)?;
@@ -255,18 +273,24 @@ impl ImportCandidate {
                 match qualifier_resolution {
                     hir::PathResolution::Def(hir::ModuleDef::Adt(assoc_item_path)) => {
                         ImportCandidate::TraitAssocItem(TraitImportCandidate {
-                            ty: assoc_item_path.ty(sema.db),
-                            name: segment.name_ref()?,
+                            receiver_ty: assoc_item_path.ty(sema.db),
+                            name: NameToImport::Exact(segment.name_ref()?.to_string()),
                         })
                     }
                     _ => return None,
                 }
             } else {
-                ImportCandidate::QualifierStart(PathImportCandidate { name: qualifier_start })
+                ImportCandidate::Name(PathImportCandidate {
+                    qualifier: Some(qualifier),
+                    name: NameToImport::Exact(qualifier_start.to_string()),
+                })
             }
         } else {
-            ImportCandidate::UnqualifiedName(PathImportCandidate {
-                name: segment.syntax().descendants().find_map(ast::NameRef::cast)?,
+            ImportCandidate::Name(PathImportCandidate {
+                qualifier: None,
+                name: NameToImport::Exact(
+                    segment.syntax().descendants().find_map(ast::NameRef::cast)?.to_string(),
+                ),
             })
         };
         Some(candidate)

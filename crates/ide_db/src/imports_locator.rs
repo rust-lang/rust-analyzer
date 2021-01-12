@@ -15,6 +15,8 @@ use crate::{
 use either::Either;
 use rustc_hash::FxHashSet;
 
+const QUERY_SEARCH_LIMIT: usize = 40;
+
 pub fn find_exact_imports<'a>(
     sema: &Semantics<'a, RootDatabase>,
     krate: Crate,
@@ -27,11 +29,11 @@ pub fn find_exact_imports<'a>(
         {
             let mut local_query = symbol_index::Query::new(name_to_import.clone());
             local_query.exact();
-            local_query.limit(40);
+            local_query.limit(QUERY_SEARCH_LIMIT);
             local_query
         },
         import_map::Query::new(name_to_import)
-            .limit(40)
+            .limit(QUERY_SEARCH_LIMIT)
             .name_only()
             .search_mode(import_map::SearchMode::Equals)
             .case_sensitive(),
@@ -41,7 +43,6 @@ pub fn find_exact_imports<'a>(
 pub fn find_similar_imports<'a>(
     sema: &Semantics<'a, RootDatabase>,
     krate: Crate,
-    limit: Option<usize>,
     fuzzy_search_string: String,
     name_only: bool,
 ) -> impl Iterator<Item = Either<ModuleDef, MacroDef>> + 'a {
@@ -49,17 +50,14 @@ pub fn find_similar_imports<'a>(
 
     let mut external_query = import_map::Query::new(fuzzy_search_string.clone())
         .search_mode(import_map::SearchMode::Fuzzy)
-        .exclude_import_kind(ImportKind::AssociatedItem);
+        .exclude_import_kind(ImportKind::AssociatedItem)
+        .limit(QUERY_SEARCH_LIMIT);
     if name_only {
         external_query = external_query.name_only();
     }
 
     let mut local_query = symbol_index::Query::new(fuzzy_search_string);
-
-    if let Some(limit) = limit {
-        local_query.limit(limit);
-        external_query = external_query.limit(limit);
-    }
+    local_query.limit(QUERY_SEARCH_LIMIT);
 
     let db = sema.db;
     find_imports(sema, krate, local_query, external_query)
@@ -70,21 +68,17 @@ pub fn find_similar_imports<'a>(
 pub fn find_similar_associated_items<'a>(
     sema: &Semantics<'a, RootDatabase>,
     krate: Crate,
-    limit: Option<usize>,
     fuzzy_search_string: String,
 ) -> impl Iterator<Item = Either<ModuleDef, MacroDef>> + 'a {
     let _p = profile::span("find_similar_associated_items");
 
-    let mut external_query = import_map::Query::new(fuzzy_search_string.clone())
+    let external_query = import_map::Query::new(fuzzy_search_string.clone())
         .search_mode(import_map::SearchMode::Fuzzy)
-        .assoc_items_only();
+        .assoc_items_only()
+        .limit(QUERY_SEARCH_LIMIT);
 
     let mut local_query = symbol_index::Query::new(fuzzy_search_string);
-
-    if let Some(limit) = limit {
-        local_query.limit(limit);
-        external_query = external_query.limit(limit);
-    }
+    local_query.limit(QUERY_SEARCH_LIMIT);
 
     let db = sema.db;
     find_imports(sema, krate, local_query, external_query)
