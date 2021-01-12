@@ -226,35 +226,34 @@ pub(super) fn element(
                 T![unsafe] => h | HlMod::Unsafe,
                 T![true] | T![false] => HlTag::BoolLiteral.into(),
                 T![self] => {
-                    let self_param_is_mut = element
+                    match element
                         .parent()
                         .and_then(ast::SelfParam::cast)
-                        .and_then(|p| p.mut_token())
-                        .is_some();
-                    let self_path = &element
-                        .parent()
-                        .as_ref()
-                        .and_then(SyntaxNode::parent)
-                        .and_then(ast::Path::cast)
-                        .and_then(|p| sema.resolve_path(&p));
-                    let mut h = HlTag::Symbol(SymbolKind::SelfParam).into();
-                    if self_param_is_mut
-                        || matches!(self_path,
-                            Some(hir::PathResolution::Local(local))
-                                if local.is_self(db)
-                                    && (local.is_mut(db) || local.ty(db).is_mutable_reference())
-                        )
+                        .and_then(|self_param| NameClass::classify_self_param(sema, &self_param))
                     {
-                        h |= HlMod::Mutable
-                    }
+                        Some(NameClass::Definition(def)) => {
+                            highlight_def(db, def) | HlMod::Definition
+                        }
+                        None => match NameRefClass::classify_self_param(
+                            sema,
+                            element.as_token().unwrap(),
+                        ) {
+                            Some(NameRefClass::Definition(def)) => {
+                                let mut h = highlight_def(db, def);
 
-                    if let Some(hir::PathResolution::Local(local)) = self_path {
-                        if is_consumed_lvalue(element, &local, db) {
-                            h |= HlMod::Consuming;
+                                if let Definition::Local(local) = &def {
+                                    if is_consumed_lvalue(element.clone().into(), local, db) {
+                                        h |= HlMod::Consuming;
+                                    }
+                                }
+                                h
+                            }
+                            _ => Highlight::new(HlTag::Symbol(SymbolKind::SelfParam)),
+                        },
+                        _ => {
+                            Highlight::new(HlTag::Symbol(SymbolKind::SelfParam)) | HlMod::Definition
                         }
                     }
-
-                    h
                 }
                 T![ref] => element
                     .parent()
@@ -345,7 +344,9 @@ fn highlight_def(db: &RootDatabase, def: Definition) -> Highlight {
             hir::GenericParam::LifetimeParam(_) => HlTag::Symbol(SymbolKind::LifetimeParam),
         },
         Definition::Local(local) => {
-            let tag = if local.is_param(db) {
+            let tag = if local.is_self(db) {
+                HlTag::Symbol(SymbolKind::SelfParam)
+            } else if local.is_param(db) {
                 HlTag::Symbol(SymbolKind::ValueParam)
             } else {
                 HlTag::Symbol(SymbolKind::Local)
