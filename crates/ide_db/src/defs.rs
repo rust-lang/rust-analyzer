@@ -11,7 +11,7 @@ use hir::{
 };
 use syntax::{
     ast::{self, AstNode},
-    match_ast, SyntaxKind, SyntaxNode, SyntaxToken,
+    match_ast, SyntaxKind, SyntaxNode, SyntaxToken, T,
 };
 
 use crate::RootDatabase;
@@ -413,7 +413,7 @@ impl NameRefClass {
         sema: &Semantics<RootDatabase>,
         self_token: &SyntaxToken,
     ) -> Option<NameRefClass> {
-        assert_eq!(self_token.kind(), syntax::T![self]);
+        assert_eq!(self_token.kind(), T![self]);
         let parent = self_token.parent();
         let segment = ast::PathSegment::cast(parent.clone())?;
         let path = segment.parent_path();
@@ -422,8 +422,7 @@ impl NameRefClass {
             return None;
         }
 
-        // FIXME: can we search through macros?
-        let function = parent.ancestors().find_map(ast::Fn::cast)?;
+        let function = sema.ancestors_with_macros(parent).find_map(ast::Fn::cast)?;
         let self_param = function.param_list()?.self_param()?;
         sema.to_def(&self_param).map(Definition::Local).map(NameRefClass::Definition)
     }

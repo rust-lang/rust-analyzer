@@ -99,12 +99,11 @@ pub(crate) fn hover(
             ast::Lifetime(lifetime) => NameClass::classify_lifetime(&sema, &lifetime)
                 .map_or_else(|| NameRefClass::classify_lifetime(&sema, &lifetime).map(|d| d.referenced(sema.db)), |d| d.defined(sema.db)),
             ast::SelfParam(self_param) => NameClass::classify_self_param(&sema, &self_param).and_then(|d| d.defined(sema.db)),
-            ast::PathSegment(path) => if token.kind() == T![self] {
+            _ => if token.kind() == T![self] {
                 NameRefClass::classify_self_param(&sema, &token).map(|d| d.referenced(sema.db))
             } else {
                 None
             },
-            _ => None,
         }
     };
 

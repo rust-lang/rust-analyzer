@@ -1,19 +1,18 @@
-use either::Either;
 use hir::{HasAttrs, ModuleDef, Semantics};
 use ide_db::{
-    base_db::FileId,
     defs::{Definition, NameClass, NameRefClass},
     symbol_index, RootDatabase,
 };
 use syntax::{
-    ast, match_ast, AstNode, AstToken, SyntaxKind::*, SyntaxToken, TextSize, TokenAtOffset, T,
+    ast, match_ast, AstNode, AstToken, SmolStr, SyntaxKind::*, SyntaxToken, TextSize,
+    TokenAtOffset, T,
 };
 
 use crate::{
     display::{ToNav, TryToNav},
     doc_links::extract_definitions_from_markdown,
     runnables::doc_owner_to_def,
-    FilePosition, NavigationTarget, RangeInfo, SymbolKind,
+    FilePosition, NavigationTarget, RangeInfo,
 };
 
 // Feature: Go to Definition
@@ -42,34 +41,30 @@ pub(crate) fn goto_definition(
     let nav_targets = match_ast! {
         match parent {
             ast::NameRef(name_ref) => {
-                reference_definition(&sema, Either::Right(&name_ref)).to_vec()
+                reference_definition(&sema, NameRefClass::classify(&sema, &name_ref), name_ref.text()).to_vec()
             },
             ast::Name(name) => {
                 let def = NameClass::classify(&sema, &name)?.referenced_or_defined(sema.db);
                 let nav = def.try_to_nav(sema.db)?;
                 vec![nav]
             },
-            ast::SelfParam(self_param) => {
-                vec![self_to_nav_target(self_param, position.file_id)?]
-            },
-            ast::PathSegment(segment) => {
-                segment.self_token()?;
-                let path = segment.parent_path();
-                if path.qualifier().is_some() && !ast::PathExpr::can_cast(path.syntax().parent()?.kind()) {
-                    return None;
-                }
-                let func = segment.syntax().ancestors().find_map(ast::Fn::cast)?;
-                let self_param = func.param_list()?.self_param()?;
-                vec![self_to_nav_target(self_param, position.file_id)?]
-            },
             ast::Lifetime(lt) => if let Some(name_class) = NameClass::classify_lifetime(&sema, &lt) {
                 let def = name_class.referenced_or_defined(sema.db);
                 let nav = def.try_to_nav(sema.db)?;
                 vec![nav]
             } else {
-                reference_definition(&sema, Either::Left(&lt)).to_vec()
+                reference_definition(&sema, NameRefClass::classify_lifetime(&sema, &lt), lt.text()).to_vec()
             },
-            _ => return None,
+            ast::SelfParam(self_param) => {
+                let def = NameClass::classify_self_param(&sema, &self_param)?.referenced_or_defined(sema.db);
+                let nav = def.try_to_nav(sema.db)?;
+                vec![nav]
+            },
+            _ => if token.kind() == T![self] {
+                reference_definition(&sema, NameRefClass::classify_self_param(&sema, &token), token.text()).to_vec()
+            } else {
+                vec![]
+            },
         }
     };
 
@@ -134,20 +129,6 @@ fn pick_best(tokens: TokenAtOffset<SyntaxToken>) -> Option<SyntaxToken> {
     }
 }
 
-fn self_to_nav_target(self_param: ast::SelfParam, file_id: FileId) -> Option<NavigationTarget> {
-    let self_token = self_param.self_token()?;
-    Some(NavigationTarget {
-        file_id,
-        full_range: self_param.syntax().text_range(),
-        focus_range: Some(self_token.text_range()),
-        name: self_token.text().clone(),
-        kind: Some(SymbolKind::SelfParam),
-        container_name: None,
-        description: None,
-        docs: None,
-    })
-}
-
 #[derive(Debug)]
 pub(crate) enum ReferenceResult {
     Exact(NavigationTarget),
@@ -165,13 +146,10 @@ impl ReferenceResult {
 
 pub(crate) fn reference_definition(
     sema: &Semantics<RootDatabase>,
-    name_ref: Either<&ast::Lifetime, &ast::NameRef>,
+    ref_class: Option<NameRefClass>,
+    text: &SmolStr,
 ) -> ReferenceResult {
-    let name_kind = name_ref.either(
-        |lifetime| NameRefClass::classify_lifetime(sema, lifetime),
-        |name_ref| NameRefClass::classify(sema, name_ref),
-    );
-    if let Some(def) = name_kind {
+    if let Some(def) = ref_class {
         let def = def.referenced(sema.db);
         return match def.try_to_nav(sema.db) {
             Some(nav) => ReferenceResult::Exact(nav),
@@ -180,9 +158,8 @@ pub(crate) fn reference_definition(
     }
 
     // Fallback index based approach:
-    let name = name_ref.either(ast::Lifetime::text, ast::NameRef::text);
     let navs =
-        symbol_index::index_resolve(sema.db, name).into_iter().map(|s| s.to_nav(sema.db)).collect();
+        symbol_index::index_resolve(sema.db, text).into_iter().map(|s| s.to_nav(sema.db)).collect();
     ReferenceResult::Approximate(navs)
 }
 
