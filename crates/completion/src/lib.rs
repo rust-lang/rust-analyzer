@@ -142,6 +142,7 @@ pub fn resolve_completion_edits(
     position: FilePosition,
     full_import_path: &str,
     imported_name: String,
+    import_for_trait_assoc_item: bool,
 ) -> Option<Vec<TextEdit>> {
     let ctx = CompletionContext::new(db, position, config)?;
     let anchor = ctx.name_ref_syntax.as_ref()?;
@@ -157,7 +158,9 @@ pub fn resolve_completion_edits(
         })
         .find(|mod_path| mod_path.to_string() == full_import_path)?;
 
-    ImportEdit { import_path, import_scope }.to_text_edit(config.merge).map(|edit| vec![edit])
+    ImportEdit { import_path, import_scope, import_for_trait_assoc_item }
+        .to_text_edit(config.merge)
+        .map(|edit| vec![edit])
 }
 
 #[cfg(test)]

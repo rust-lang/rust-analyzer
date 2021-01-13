@@ -92,20 +92,18 @@ pub(crate) fn complete_fuzzy(acc: &mut Completions, ctx: &CompletionContext) -> 
     });
 
     acc.add_all(all_mod_paths.into_iter().filter_map(|(import_path, definition)| {
-        let import_edit = ImportEdit { import_path, import_scope: import_scope.clone() };
-        let import_name = import_edit.import_path.segments.last()?.to_string();
         // TODO kb fugly and why here, not in the renderer?
-        let local_name = match definition {
-            ScopeDef::ModuleDef(ModuleDef::Function(f)) => {
-                format!("{}::{}", import_name, f.name(ctx.db))
-            }
-            ScopeDef::ModuleDef(ModuleDef::Const(c)) => {
-                format!("{}::{}", import_name, c.name(ctx.db)?)
-            }
-            ScopeDef::ModuleDef(ModuleDef::TypeAlias(t)) => {
-                format!("{}::{}", import_name, t.name(ctx.db))
-            }
-            _ => import_name,
+        let (import_for_trait_assoc_item, local_name) = match definition {
+            // TODO kb need to check that this is actually trait assoc items
+            ScopeDef::ModuleDef(ModuleDef::Function(f)) => (true, f.name(ctx.db).to_string()),
+            ScopeDef::ModuleDef(ModuleDef::Const(c)) => (true, c.name(ctx.db)?.to_string()),
+            ScopeDef::ModuleDef(ModuleDef::TypeAlias(t)) => (true, t.name(ctx.db).to_string()),
+            _ => (false, import_path.segments.last()?.to_string()),
+        };
+        let import_edit = ImportEdit {
+            import_path,
+            import_scope: import_scope.clone(),
+            import_for_trait_assoc_item,
         };
         let mut item = render_resolution_with_import(
             RenderContext::new(ctx),
@@ -281,25 +279,34 @@ fn main() {
 
     #[test]
     fn trait_function_fuzzy_completion() {
-        check_edit(
-            "TestTrait::random_number",
-            r#"
-//- /lib.rs crate:dep
-pub mod test_mod {
-    pub trait TestTrait {
-        fn random_number();
-    }
-    pub struct TestStruct {}
-    impl TestTrait for TestStruct {
-        fn random_number() {}
-    }
-}
+        let fixture = r#"
+        //- /lib.rs crate:dep
+        pub mod test_mod {
+            pub trait TestTrait {
+                fn random_number();
+            }
+            pub struct TestStruct {}
+            impl TestTrait for TestStruct {
+                fn random_number() {}
+            }
+        }
 
-//- /main.rs crate:main deps:dep
-fn main() {
-    dep::test_mod::TestStruct::ran$0
-}
-"#,
+        //- /main.rs crate:main deps:dep
+        fn main() {
+            dep::test_mod::TestStruct::ran$0
+        }
+        "#;
+
+        check(
+            fixture,
+            expect![[r#"
+            fn random_number() [dep::test_mod::TestTrait] fn random_number()
+        "#]],
+        );
+
+        check_edit(
+            "random_number",
+            fixture,
             r#"
 use dep::test_mod::TestTrait;
 
