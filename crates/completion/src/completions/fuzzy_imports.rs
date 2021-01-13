@@ -316,4 +316,86 @@ fn main() {
 "#,
         );
     }
+
+    #[test]
+    fn trait_const_fuzzy_completion() {
+        let fixture = r#"
+        //- /lib.rs crate:dep
+        pub mod test_mod {
+            pub trait TestTrait {
+                const SOME_CONST: u8;
+            }
+            pub struct TestStruct {}
+            impl TestTrait for TestStruct {
+                const SOME_CONST: u8 = 42;
+            }
+        }
+
+        //- /main.rs crate:main deps:dep
+        fn main() {
+            dep::test_mod::TestStruct::som$0
+        }
+        "#;
+
+        check(
+            fixture,
+            expect![[r#"
+            ct SOME_CONST [dep::test_mod::TestTrait]
+        "#]],
+        );
+
+        check_edit(
+            "SOME_CONST",
+            fixture,
+            r#"
+use dep::test_mod::TestTrait;
+
+fn main() {
+    dep::test_mod::TestStruct::SOME_CONST$0
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn trait_method_fuzzy_completion() {
+        let fixture = r#"
+        //- /lib.rs crate:dep
+        pub mod test_mod {
+            pub trait TestTrait {
+                fn random_number(&self);
+            }
+            pub struct TestStruct {}
+            impl TestTrait for TestStruct {
+                fn random_number(&self) {}
+            }
+        }
+
+        //- /main.rs crate:main deps:dep
+        fn main() {
+            let test_struct = dep::test_mod::TestStruct {};
+            test_struct.ran$0
+        }
+        "#;
+
+        check(
+            fixture,
+            expect![[r#"
+            me random_number() [dep::test_mod::TestTrait] fn random_number(&self)
+        "#]],
+        );
+
+        check_edit(
+            "random_number",
+            fixture,
+            r#"
+use dep::test_mod::TestTrait;
+
+fn main() {
+    let test_struct = dep::test_mod::TestStruct {};
+    test_struct.random_number()$0
+}
+"#,
+        );
+    }
 }
