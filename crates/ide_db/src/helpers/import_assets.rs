@@ -1,6 +1,6 @@
 //! Look up accessible paths for items.
 use either::Either;
-use hir::{AsAssocItem, AssocItemContainer, Module, ModuleDef, PrefixKind, Semantics};
+use hir::{AsAssocItem, AssocItem, AssocItemContainer, Module, ModuleDef, PrefixKind, Semantics};
 use rustc_hash::FxHashSet;
 use syntax::{ast, AstNode};
 
@@ -180,7 +180,7 @@ impl ImportAssets {
             trait_candidates.clear();
             match &self.import_candidate {
                 ImportCandidate::TraitAssocItem(trait_candidate) => {
-                    let located_assoc_item = match candidate {
+                    let located_assoc_item_trait = match candidate {
                         Either::Left(ModuleDef::Function(located_function)) => {
                             located_function.as_assoc_item(db)
                         }
@@ -192,7 +192,7 @@ impl ImportAssets {
                     .map(|assoc| assoc.container(db))
                     .and_then(Self::assoc_to_trait)?;
 
-                    trait_candidates.insert(located_assoc_item.into());
+                    trait_candidates.insert(located_assoc_item_trait.into());
 
                     trait_candidate
                         .receiver_ty
@@ -201,13 +201,22 @@ impl ImportAssets {
                             current_crate,
                             &trait_candidates,
                             None,
-                            |_, assoc| Self::assoc_to_trait(assoc.container(db)),
+                            |_, assoc| {
+                                if is_trait_assoc_item(db, assoc.clone()) {
+                                    Some(match assoc {
+                                        AssocItem::Function(f) => ModuleDef::from(f),
+                                        AssocItem::Const(c) => ModuleDef::from(c),
+                                        AssocItem::TypeAlias(t) => ModuleDef::from(t),
+                                    })
+                                } else {
+                                    None
+                                }
+                            },
                         )
-                        .map(ModuleDef::from)
                         .map(Either::Left)
                 }
                 ImportCandidate::TraitMethod(trait_candidate) => {
-                    let located_assoc_item =
+                    let located_assoc_item_trait =
                         if let Either::Left(ModuleDef::Function(located_function)) = candidate {
                             located_function
                                 .as_assoc_item(db)
@@ -217,7 +226,7 @@ impl ImportAssets {
                             None
                         }?;
 
-                    trait_candidates.insert(located_assoc_item.into());
+                    trait_candidates.insert(located_assoc_item_trait.into());
 
                     trait_candidate
                         .receiver_ty
@@ -227,7 +236,11 @@ impl ImportAssets {
                             &trait_candidates,
                             None,
                             |_, function| {
-                                Self::assoc_to_trait(function.as_assoc_item(db)?.container(db))
+                                if is_trait_assoc_item(db, function.as_assoc_item(db)?) {
+                                    Some(function)
+                                } else {
+                                    None
+                                }
                             },
                         )
                         .map(ModuleDef::from)
@@ -267,18 +280,41 @@ impl ImportAssets {
         let mut res = unfiltered_imports
             .filter_map(filter)
             .filter_map(|candidate| {
-                let item: hir::ItemInNs = candidate.either(Into::into, Into::into);
+                let item: hir::ItemInNs = candidate.clone().either(Into::into, Into::into);
+
+                let item_to_search = match self.import_candidate {
+                    ImportCandidate::TraitAssocItem(_) | ImportCandidate::TraitMethod(_) => {
+                        let assoc_item_trait = match candidate {
+                            Either::Left(ModuleDef::Const(c)) => {
+                                Self::assoc_to_trait(c.as_assoc_item(db)?.container(db))
+                            }
+                            Either::Left(ModuleDef::Function(f)) => {
+                                Self::assoc_to_trait(f.as_assoc_item(db)?.container(db))
+                            }
+                            Either::Left(ModuleDef::TypeAlias(t)) => {
+                                Self::assoc_to_trait(t.as_assoc_item(db)?.container(db))
+                            }
+                            _ => None,
+                        }?;
+                        ModuleDef::from(assoc_item_trait).into()
+                    }
+                    _ => item,
+                };
+
                 if let Some(prefix_kind) = prefixed {
-                    self.module_with_candidate.find_use_path_prefixed(db, item, prefix_kind)
+                    self.module_with_candidate.find_use_path_prefixed(
+                        db,
+                        item_to_search,
+                        prefix_kind,
+                    )
                 } else {
-                    self.module_with_candidate.find_use_path(db, item)
+                    self.module_with_candidate.find_use_path(db, item_to_search)
                 }
                 .map(|path| (path, item))
             })
             .filter(|(use_path, _)| use_path.len() > 1)
-            .take(20)
             .collect::<Vec<_>>();
-        res.sort_by_key(|(path, _)| path.clone());
+        res.sort_by_cached_key(|(path, _)| path.clone());
         res
     }
 
@@ -289,6 +325,10 @@ impl ImportAssets {
             None
         }
     }
+}
+
+fn is_trait_assoc_item(db: &RootDatabase, assoc: AssocItem) -> bool {
+    matches!(assoc.container(db), AssocItemContainer::Trait(_))
 }
 
 impl ImportCandidate {

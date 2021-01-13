@@ -45,7 +45,7 @@
 //! Note that having this flag set to `true` does not guarantee that the feature is enabled: your client needs to have the corredponding
 //! capability enabled.
 
-use hir::{ModPath, ScopeDef};
+use hir::{ModPath, ModuleDef, ScopeDef};
 use ide_db::helpers::{import_assets::ImportAssets, insert_use::ImportScope};
 use syntax::AstNode;
 use test_utils::mark;
@@ -71,6 +71,7 @@ pub(crate) fn complete_fuzzy(acc: &mut Completions, ctx: &CompletionContext) -> 
 
     let user_input_lowercased = potential_import_name.to_lowercase();
     let mut all_mod_paths = import_assets(ctx, potential_import_name)?
+        // TODO kb unite the hir prefix setting with auto_imports
         .search_for_imports(&ctx.sema, hir::PrefixKind::Plain)
         .into_iter()
         .map(|(mod_path, item_in_ns)| {
@@ -81,7 +82,6 @@ pub(crate) fn complete_fuzzy(acc: &mut Completions, ctx: &CompletionContext) -> 
             };
             (mod_path, scope_item)
         })
-        .filter(|(mod_path, _)| mod_path.len() > 1)
         .collect::<Vec<_>>();
 
     let anchor = ctx.name_ref_syntax.as_ref()?;
@@ -92,9 +92,25 @@ pub(crate) fn complete_fuzzy(acc: &mut Completions, ctx: &CompletionContext) -> 
     });
 
     acc.add_all(all_mod_paths.into_iter().filter_map(|(import_path, definition)| {
+        let import_edit = ImportEdit { import_path, import_scope: import_scope.clone() };
+        let import_name = import_edit.import_path.segments.last()?.to_string();
+        // TODO kb fugly and why here, not in the renderer?
+        let local_name = match definition {
+            ScopeDef::ModuleDef(ModuleDef::Function(f)) => {
+                format!("{}::{}", import_name, f.name(ctx.db))
+            }
+            ScopeDef::ModuleDef(ModuleDef::Const(c)) => {
+                format!("{}::{}", import_name, c.name(ctx.db)?)
+            }
+            ScopeDef::ModuleDef(ModuleDef::TypeAlias(t)) => {
+                format!("{}::{}", import_name, t.name(ctx.db))
+            }
+            _ => import_name,
+        };
         let mut item = render_resolution_with_import(
             RenderContext::new(ctx),
-            ImportEdit { import_path, import_scope: import_scope.clone() },
+            import_edit,
+            local_name,
             &definition,
         )?;
         item.completion_kind = CompletionKind::Magic;
@@ -266,7 +282,7 @@ fn main() {
     #[test]
     fn trait_function_fuzzy_completion() {
         check_edit(
-            "test_function",
+            "TestTrait::random_number",
             r#"
 //- /lib.rs crate:dep
 pub mod test_mod {

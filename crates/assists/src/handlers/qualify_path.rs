@@ -1,6 +1,6 @@
 use std::iter;
 
-use hir::AsName;
+use hir::{AsAssocItem, AsName, AssocItemContainer};
 use ide_db::helpers::{
     import_assets::{ImportAssets, ImportCandidate},
     mod_path_to_ast,
@@ -143,7 +143,7 @@ impl QualifyCandidate<'_> {
         let generics =
             mcall_expr.generic_arg_list().as_ref().map_or_else(String::new, ToString::to_string);
         let arg_list = mcall_expr.arg_list().map(|arg_list| arg_list.args());
-        let trait_ = item_as_trait(item)?;
+        let trait_ = item_as_trait(db, item)?;
         let method = find_trait_method(db, trait_, &trait_method_name)?;
         if let Some(self_access) = method.self_param(db).map(|sp| sp.access(db)) {
             let receiver = match self_access {
@@ -182,11 +182,24 @@ fn find_trait_method(
     }
 }
 
-fn item_as_trait(item: hir::ItemInNs) -> Option<hir::Trait> {
-    if let hir::ModuleDef::Trait(trait_) = hir::ModuleDef::from(item.as_module_def_id()?) {
+fn item_as_trait(db: &RootDatabase, item: hir::ItemInNs) -> Option<hir::Trait> {
+    let item_module_def = hir::ModuleDef::from(item.as_module_def_id()?);
+
+    if let hir::ModuleDef::Trait(trait_) = item_module_def {
         Some(trait_)
     } else {
-        None
+        let assoc_item_container = match item_module_def {
+            hir::ModuleDef::Function(f) => f.as_assoc_item(db),
+            hir::ModuleDef::Const(c) => c.as_assoc_item(db),
+            hir::ModuleDef::TypeAlias(t) => t.as_assoc_item(db),
+            _ => None,
+        }?
+        .container(db);
+        if let AssocItemContainer::Trait(trait_) = assoc_item_container {
+            Some(trait_)
+        } else {
+            None
+        }
     }
 }
 

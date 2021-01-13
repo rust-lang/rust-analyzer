@@ -49,13 +49,10 @@ pub(crate) fn render_resolution<'a>(
 pub(crate) fn render_resolution_with_import<'a>(
     ctx: RenderContext<'a>,
     import_edit: ImportEdit,
+    local_name: String,
     resolution: &ScopeDef,
 ) -> Option<CompletionItem> {
-    Render::new(ctx).render_resolution(
-        import_edit.import_path.segments.last()?.to_string(),
-        Some(import_edit),
-        resolution,
-    )
+    Render::new(ctx).render_resolution(local_name, Some(import_edit), resolution)
 }
 
 /// Interface for data and methods required for items rendering.
