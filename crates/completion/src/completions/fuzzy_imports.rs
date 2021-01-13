@@ -45,13 +45,9 @@
 //! Note that having this flag set to `true` does not guarantee that the feature is enabled: your client needs to have the corredponding
 //! capability enabled.
 
-use either::Either;
 use hir::{ModPath, ScopeDef};
-use ide_db::{
-    helpers::{import_assets::ImportAssets, insert_use::ImportScope},
-    imports_locator,
-};
-use syntax::{ast, AstNode};
+use ide_db::helpers::{import_assets::ImportAssets, insert_use::ImportScope};
+use syntax::AstNode;
 use test_utils::mark;
 
 use crate::{
@@ -73,51 +69,24 @@ pub(crate) fn complete_fuzzy(acc: &mut Completions, ctx: &CompletionContext) -> 
     }
     let _p = profile::span("complete_fuzzy").detail(|| potential_import_name.to_string());
 
-    let current_module = ctx.scope.module()?;
-
-    let mut all_mod_paths = match dbg!(import_assets(ctx)) {
-        Some(import_assets) => import_assets
-            // TODO kb sync PrefixKind with the auto_import settings
-            .search_for_imports(&ctx.sema, hir::PrefixKind::Plain)
-            .into_iter()
-            .map(|(mod_path, item_in_ns)| {
-                let scope_item = match item_in_ns {
-                    hir::ItemInNs::Types(id) => ScopeDef::ModuleDef(id.into()),
-                    hir::ItemInNs::Values(id) => ScopeDef::ModuleDef(id.into()),
-                    hir::ItemInNs::Macros(id) => ScopeDef::MacroDef(id.into()),
-                };
-                (mod_path, scope_item)
-            })
-            .filter(|(mod_path, _)| mod_path.len() > 1)
-            .collect::<Vec<_>>(),
-
-        None => imports_locator::find_similar_imports(
-            &ctx.sema,
-            ctx.krate?,
-            potential_import_name.clone(),
-            true,
-        )
-        .filter_map(|import_candidate| {
-            Some(match import_candidate {
-                Either::Left(module_def) => (
-                    current_module.find_use_path(ctx.db, module_def)?,
-                    ScopeDef::ModuleDef(module_def),
-                ),
-                Either::Right(macro_def) => (
-                    current_module.find_use_path(ctx.db, macro_def)?,
-                    ScopeDef::MacroDef(macro_def),
-                ),
-            })
-        })
+    let user_input_lowercased = potential_import_name.to_lowercase();
+    let mut all_mod_paths = import_assets(ctx, potential_import_name)?
+        .search_for_imports(&ctx.sema, hir::PrefixKind::Plain)
         .into_iter()
+        .map(|(mod_path, item_in_ns)| {
+            let scope_item = match item_in_ns {
+                hir::ItemInNs::Types(id) => ScopeDef::ModuleDef(id.into()),
+                hir::ItemInNs::Values(id) => ScopeDef::ModuleDef(id.into()),
+                hir::ItemInNs::Macros(id) => ScopeDef::MacroDef(id.into()),
+            };
+            (mod_path, scope_item)
+        })
         .filter(|(mod_path, _)| mod_path.len() > 1)
-        .collect::<Vec<_>>(),
-    };
+        .collect::<Vec<_>>();
 
     let anchor = ctx.name_ref_syntax.as_ref()?;
     let import_scope = ImportScope::find_insert_use_container(anchor.syntax(), &ctx.sema)?;
 
-    let user_input_lowercased = potential_import_name.to_lowercase();
     all_mod_paths.sort_by_cached_key(|(mod_path, _)| {
         compute_fuzzy_completion_order_key(mod_path, &user_input_lowercased)
     });
@@ -135,19 +104,17 @@ pub(crate) fn complete_fuzzy(acc: &mut Completions, ctx: &CompletionContext) -> 
     Some(())
 }
 
-fn import_assets(ctx: &CompletionContext) -> Option<ImportAssets> {
-    if let Some(path_qual) = &ctx.path_qual {
-        // TODO kb wrong, have to include the name too
-        return ImportAssets::for_exact_path(path_qual.clone(), &ctx.sema);
-    }
+fn import_assets(ctx: &CompletionContext, fuzzy_name: String) -> Option<ImportAssets> {
+    let current_module = ctx.scope.module()?;
     if let Some(dot_receiver) = &ctx.dot_receiver {
-        return ImportAssets::for_method_call(
-            // TODO kb for fuzzy method search, this might not work
-            ast::MethodCallExpr::cast(dot_receiver.syntax().clone())?,
-            &ctx.sema,
-        );
+        ImportAssets::for_fuzzy_method_call(
+            current_module,
+            ctx.sema.type_of_expr(dot_receiver)?,
+            fuzzy_name,
+        )
+    } else {
+        ImportAssets::for_fuzzy_path(current_module, ctx.path_qual.clone(), fuzzy_name, &ctx.sema)
     }
-    None
 }
 
 fn compute_fuzzy_completion_order_key(

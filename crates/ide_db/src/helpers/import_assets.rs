@@ -1,6 +1,6 @@
 //! Look up accessible paths for items.
 use either::Either;
-use hir::{AsAssocItem, AssocItemContainer, ModuleDef, PrefixKind, Semantics};
+use hir::{AsAssocItem, AssocItemContainer, Module, ModuleDef, PrefixKind, Semantics};
 use rustc_hash::FxHashSet;
 use syntax::{ast, AstNode};
 
@@ -82,6 +82,56 @@ impl ImportAssets {
         Some(Self {
             import_candidate: ImportCandidate::for_regular_path(sema, &fully_qualified_path)?,
             module_with_candidate,
+        })
+    }
+
+    pub fn for_fuzzy_path(
+        module: Module,
+        qualifier: Option<ast::Path>,
+        fuzzy_name: String,
+        sema: &Semantics<RootDatabase>,
+    ) -> Option<Self> {
+        match qualifier {
+            Some(qualifier) => {
+                let qualifier_resolution = sema.resolve_path(&qualifier)?;
+                match qualifier_resolution {
+                    hir::PathResolution::Def(hir::ModuleDef::Adt(assoc_item_path)) => Some(Self {
+                        import_candidate: ImportCandidate::TraitAssocItem(TraitImportCandidate {
+                            receiver_ty: assoc_item_path.ty(sema.db),
+                            name: NameToImport::Fuzzy(fuzzy_name),
+                        }),
+                        module_with_candidate: module,
+                    }),
+                    _ => Some(Self {
+                        import_candidate: ImportCandidate::Name(PathImportCandidate {
+                            qualifier: Some(qualifier),
+                            name: NameToImport::Fuzzy(fuzzy_name),
+                        }),
+                        module_with_candidate: module,
+                    }),
+                }
+            }
+            None => Some(Self {
+                import_candidate: ImportCandidate::Name(PathImportCandidate {
+                    qualifier: None,
+                    name: NameToImport::Fuzzy(fuzzy_name),
+                }),
+                module_with_candidate: module,
+            }),
+        }
+    }
+
+    pub fn for_fuzzy_method_call(
+        module: Module,
+        receiver_ty: hir::Type,
+        fuzzy_method_name: String,
+    ) -> Option<Self> {
+        Some(Self {
+            import_candidate: ImportCandidate::TraitMethod(TraitImportCandidate {
+                receiver_ty,
+                name: NameToImport::Fuzzy(fuzzy_method_name),
+            }),
+            module_with_candidate: module,
         })
     }
 }
@@ -195,6 +245,7 @@ impl ImportAssets {
             }
             NameToImport::Fuzzy(fuzzy_name) => match self.import_candidate {
                 ImportCandidate::TraitAssocItem(_) | ImportCandidate::TraitMethod(_) => {
+                    // TODO kb for the associated items, we need to return the assoc item in the rendered completion, not the trait itself
                     imports_locator::find_similar_associated_items(
                         sema,
                         current_crate,
