@@ -40,48 +40,46 @@ pub fn find_exact_imports<'a>(
     )
 }
 
+pub enum AssocItemSearch {
+    Include,
+    Exclude,
+    AssocItemsOnly,
+}
+
 pub fn find_similar_imports<'a>(
     sema: &Semantics<'a, RootDatabase>,
     krate: Crate,
     fuzzy_search_string: String,
-    name_only: bool,
+    assoc_item_search: AssocItemSearch,
 ) -> impl Iterator<Item = Either<ModuleDef, MacroDef>> + 'a {
     let _p = profile::span("find_similar_imports");
 
     let mut external_query = import_map::Query::new(fuzzy_search_string.clone())
         .search_mode(import_map::SearchMode::Fuzzy)
-        .exclude_import_kind(ImportKind::AssociatedItem)
+        .name_only()
         .limit(QUERY_SEARCH_LIMIT);
-    if name_only {
-        external_query = external_query.name_only();
+
+    match assoc_item_search {
+        AssocItemSearch::Include => {}
+        AssocItemSearch::Exclude => {
+            external_query = external_query.exclude_import_kind(ImportKind::AssociatedItem);
+        }
+        AssocItemSearch::AssocItemsOnly => {
+            external_query = external_query.assoc_items_only();
+        }
     }
 
     let mut local_query = symbol_index::Query::new(fuzzy_search_string);
     local_query.limit(QUERY_SEARCH_LIMIT);
 
     let db = sema.db;
-    find_imports(sema, krate, local_query, external_query)
-        .filter(move |import_candidate| !is_assoc_item(import_candidate, db))
-}
-
-pub fn find_similar_associated_items<'a>(
-    sema: &Semantics<'a, RootDatabase>,
-    krate: Crate,
-    fuzzy_search_string: String,
-) -> impl Iterator<Item = Either<ModuleDef, MacroDef>> + 'a {
-    let _p = profile::span("find_similar_associated_items");
-
-    let external_query = import_map::Query::new(fuzzy_search_string.clone())
-        .search_mode(import_map::SearchMode::Fuzzy)
-        .assoc_items_only()
-        .limit(QUERY_SEARCH_LIMIT);
-
-    let mut local_query = symbol_index::Query::new(fuzzy_search_string);
-    local_query.limit(QUERY_SEARCH_LIMIT);
-
-    let db = sema.db;
-    find_imports(sema, krate, local_query, external_query)
-        .filter(move |import_candidate| is_assoc_item(import_candidate, db))
+    find_imports(sema, krate, local_query, external_query).filter(move |import_candidate| {
+        match assoc_item_search {
+            AssocItemSearch::Include => true,
+            AssocItemSearch::Exclude => !is_assoc_item(import_candidate, db),
+            AssocItemSearch::AssocItemsOnly => is_assoc_item(import_candidate, db),
+        }
+    })
 }
 
 fn is_assoc_item(import_candidate: &Either<ModuleDef, MacroDef>, db: &RootDatabase) -> bool {

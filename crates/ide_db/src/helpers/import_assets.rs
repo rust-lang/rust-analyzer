@@ -4,15 +4,16 @@ use hir::{AsAssocItem, AssocItem, AssocItemContainer, Module, ModuleDef, PrefixK
 use rustc_hash::FxHashSet;
 use syntax::{ast, AstNode};
 
-use crate::{imports_locator, RootDatabase};
+use crate::{
+    imports_locator::{self, AssocItemSearch},
+    RootDatabase,
+};
 
 #[derive(Debug)]
 pub enum ImportCandidate {
     // TODO kb docs
     Name(PathImportCandidate),
 
-    // TODO kb collapse the trait enums?
-    //
     /// A trait associated function (with no self parameter) or associated constant.
     /// For 'test_mod::TestEnum::test_function', `ty` is the `test_mod::TestEnum` expression type
     /// and `name` is the `test_function`
@@ -256,23 +257,18 @@ impl ImportAssets {
                 imports_locator::find_exact_imports(sema, current_crate, exact_name.clone())
                     .collect::<Vec<_>>()
             }
-            NameToImport::Fuzzy(fuzzy_name) => match self.import_candidate {
-                ImportCandidate::TraitAssocItem(_) | ImportCandidate::TraitMethod(_) => {
-                    imports_locator::find_similar_associated_items(
-                        sema,
-                        current_crate,
-                        fuzzy_name.clone(),
-                    )
-                    .collect::<Vec<_>>()
-                }
-                _ => imports_locator::find_similar_imports(
-                    sema,
-                    current_crate,
-                    fuzzy_name.clone(),
-                    true,
-                )
-                .collect::<Vec<_>>(),
-            },
+            NameToImport::Fuzzy(fuzzy_name) => imports_locator::find_similar_imports(
+                sema,
+                current_crate,
+                fuzzy_name.clone(),
+                match self.import_candidate {
+                    ImportCandidate::TraitAssocItem(_) | ImportCandidate::TraitMethod(_) => {
+                        AssocItemSearch::AssocItemsOnly
+                    }
+                    _ => AssocItemSearch::Exclude,
+                },
+            )
+            .collect::<Vec<_>>(),
         }
         .into_iter();
 
