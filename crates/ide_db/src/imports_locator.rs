@@ -64,7 +64,6 @@ pub fn find_similar_imports<'a>(
         .filter(move |import_candidate| !is_assoc_item(import_candidate, db))
 }
 
-// TODO kb not like we can import an assoc item, so the name and location are wrong
 pub fn find_similar_associated_items<'a>(
     sema: &Semantics<'a, RootDatabase>,
     krate: Crate,

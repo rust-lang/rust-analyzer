@@ -258,7 +258,6 @@ impl ImportAssets {
             }
             NameToImport::Fuzzy(fuzzy_name) => match self.import_candidate {
                 ImportCandidate::TraitAssocItem(_) | ImportCandidate::TraitMethod(_) => {
-                    // TODO kb for the associated items, we need to return the assoc item in the rendered completion, not the trait itself
                     imports_locator::find_similar_associated_items(
                         sema,
                         current_crate,

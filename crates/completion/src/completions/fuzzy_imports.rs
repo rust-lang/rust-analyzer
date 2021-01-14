@@ -26,9 +26,11 @@
 //! (i.e. in `HashMap` in the `std::collections::HashMap` path).
 //! For the same reasons, avoids searching for any imports for inputs with their length less that 2 symbols.
 //!
-//! .Merge Behavior
+//! .Import configuration
 //!
 //! It is possible to configure how use-trees are merged with the `importMergeBehavior` setting.
+//! The style of imports in the same crate is configurable through the `importPrefix` setting.
+//!
 //! Mimics the corresponding behavior of the `Auto Import` feature.
 //!
 //! .LSP and performance implications
@@ -71,8 +73,7 @@ pub(crate) fn complete_fuzzy(acc: &mut Completions, ctx: &CompletionContext) -> 
 
     let user_input_lowercased = potential_import_name.to_lowercase();
     let mut all_mod_paths = import_assets(ctx, potential_import_name)?
-        // TODO kb unite the hir prefix setting with auto_imports
-        .search_for_imports(&ctx.sema, hir::PrefixKind::Plain)
+        .search_for_imports(&ctx.sema, ctx.config.insert_use.prefix_kind)
         .into_iter()
         .map(|(mod_path, item_in_ns)| {
             let scope_item = match item_in_ns {
