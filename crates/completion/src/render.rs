@@ -10,7 +10,7 @@ pub(crate) mod type_alias;
 
 mod builder_ext;
 
-use hir::{Documentation, HasAttrs, HirDisplay, Mutability, ScopeDef, Type};
+use hir::{Documentation, HasAttrs, HirDisplay, ModuleDef, Mutability, ScopeDef, Type};
 use ide_db::{helpers::SnippetCap, RootDatabase};
 use syntax::TextRange;
 use test_utils::mark;
@@ -49,9 +49,14 @@ pub(crate) fn render_resolution<'a>(
 pub(crate) fn render_resolution_with_import<'a>(
     ctx: RenderContext<'a>,
     import_edit: ImportEdit,
-    local_name: String,
     resolution: &ScopeDef,
 ) -> Option<CompletionItem> {
+    let local_name = match resolution {
+        ScopeDef::ModuleDef(ModuleDef::Function(f)) => f.name(ctx.completion.db).to_string(),
+        ScopeDef::ModuleDef(ModuleDef::Const(c)) => c.name(ctx.completion.db)?.to_string(),
+        ScopeDef::ModuleDef(ModuleDef::TypeAlias(t)) => t.name(ctx.completion.db).to_string(),
+        _ => import_edit.import_path.segments.last()?.to_string(),
+    };
     Render::new(ctx).render_resolution(local_name, Some(import_edit), resolution)
 }
 
@@ -176,6 +181,7 @@ impl<'a> Render<'a> {
             // FIXME: add CompletionItemKind::Union
             ScopeDef::ModuleDef(Adt(hir::Adt::Union(_))) => CompletionItemKind::Struct,
             ScopeDef::ModuleDef(Adt(hir::Adt::Enum(_))) => CompletionItemKind::Enum,
+            // TODO kb this is not working for trait imports properly
             ScopeDef::ModuleDef(Const(..)) => CompletionItemKind::Const,
             ScopeDef::ModuleDef(Static(..)) => CompletionItemKind::Static,
             ScopeDef::ModuleDef(Trait(..)) => CompletionItemKind::Trait,

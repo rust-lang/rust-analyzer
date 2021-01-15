@@ -1,6 +1,6 @@
 use std::iter;
 
-use hir::{AsAssocItem, AsName, AssocItemContainer};
+use hir::AsName;
 use ide_db::helpers::{
     import_assets::{ImportAssets, ImportCandidate},
     mod_path_to_ast,
@@ -57,20 +57,19 @@ pub(crate) fn qualify_path(acc: &mut Assists, ctx: &AssistContext) -> Option<()>
     let range = ctx.sema.original_range(&syntax_under_caret).range;
 
     let qualify_candidate = match candidate {
-        ImportCandidate::Name(candidate) => match candidate.qualifier {
-            Some(_) => {
+        ImportCandidate::Path(candidate) => {
+            if candidate.qualifier.is_some() {
                 mark::hit!(qualify_path_qualifier_start);
                 let path = ast::Path::cast(syntax_under_caret.clone())?;
                 let (prev_segment, segment) = (path.qualifier()?.segment()?, path.segment()?);
                 QualifyCandidate::QualifierStart(segment, prev_segment.generic_arg_list())
-            }
-            None => {
+            } else {
                 mark::hit!(qualify_path_unqualified_name);
                 let path = ast::Path::cast(syntax_under_caret.clone())?;
                 let generics = path.segment()?.generic_arg_list();
                 QualifyCandidate::UnqualifiedName(generics)
             }
-        },
+        }
         ImportCandidate::TraitAssocItem(_) => {
             mark::hit!(qualify_path_trait_assoc_item);
             let path = ast::Path::cast(syntax_under_caret.clone())?;
@@ -188,24 +187,13 @@ fn item_as_trait(db: &RootDatabase, item: hir::ItemInNs) -> Option<hir::Trait> {
     if let hir::ModuleDef::Trait(trait_) = item_module_def {
         Some(trait_)
     } else {
-        let assoc_item_container = match item_module_def {
-            hir::ModuleDef::Function(f) => f.as_assoc_item(db),
-            hir::ModuleDef::Const(c) => c.as_assoc_item(db),
-            hir::ModuleDef::TypeAlias(t) => t.as_assoc_item(db),
-            _ => None,
-        }?
-        .container(db);
-        if let AssocItemContainer::Trait(trait_) = assoc_item_container {
-            Some(trait_)
-        } else {
-            None
-        }
+        item_module_def.as_assoc_item(db)?.containing_trait(db)
     }
 }
 
 fn group_label(candidate: &ImportCandidate) -> GroupLabel {
     let name = match candidate {
-        ImportCandidate::Name(it) => &it.name,
+        ImportCandidate::Path(it) => &it.name,
         ImportCandidate::TraitAssocItem(it) | ImportCandidate::TraitMethod(it) => &it.name,
     }
     .text();
@@ -214,7 +202,7 @@ fn group_label(candidate: &ImportCandidate) -> GroupLabel {
 
 fn label(candidate: &ImportCandidate, import: &hir::ModPath) -> String {
     match candidate {
-        ImportCandidate::Name(candidate) => {
+        ImportCandidate::Path(candidate) => {
             if candidate.qualifier.is_some() {
                 format!("Qualify with `{}`", &import)
             } else {

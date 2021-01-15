@@ -47,7 +47,7 @@
 //! Note that having this flag set to `true` does not guarantee that the feature is enabled: your client needs to have the corredponding
 //! capability enabled.
 
-use hir::{ModPath, ModuleDef, ScopeDef};
+use hir::{ModPath, ScopeDef};
 use ide_db::helpers::{import_assets::ImportAssets, insert_use::ImportScope};
 use syntax::AstNode;
 use test_utils::mark;
@@ -62,6 +62,9 @@ use crate::{
 use super::Completions;
 
 pub(crate) fn complete_fuzzy(acc: &mut Completions, ctx: &CompletionContext) -> Option<()> {
+    if !ctx.config.enable_autoimport_completions {
+        return None;
+    }
     if ctx.attribute_under_caret.is_some() || ctx.mod_declaration_under_caret.is_some() {
         return None;
     }
@@ -93,25 +96,20 @@ pub(crate) fn complete_fuzzy(acc: &mut Completions, ctx: &CompletionContext) -> 
     });
 
     acc.add_all(all_mod_paths.into_iter().filter_map(|(import_path, definition)| {
-        // TODO kb fugly and why here, not in the renderer?
-        let (import_for_trait_assoc_item, local_name) = match definition {
-            // TODO kb need to check that this is actually trait assoc items
-            ScopeDef::ModuleDef(ModuleDef::Function(f)) => (true, f.name(ctx.db).to_string()),
-            ScopeDef::ModuleDef(ModuleDef::Const(c)) => (true, c.name(ctx.db)?.to_string()),
-            ScopeDef::ModuleDef(ModuleDef::TypeAlias(t)) => (true, t.name(ctx.db).to_string()),
-            _ => (false, import_path.segments.last()?.to_string()),
+        let import_for_trait_assoc_item = match definition {
+            ScopeDef::ModuleDef(module_def) => module_def
+                .as_assoc_item(ctx.db)
+                .map(|assoc| assoc.containing_trait(ctx.db).is_some())
+                .unwrap_or(false),
+            _ => false,
         };
         let import_edit = ImportEdit {
             import_path,
             import_scope: import_scope.clone(),
             import_for_trait_assoc_item,
         };
-        let mut item = render_resolution_with_import(
-            RenderContext::new(ctx),
-            import_edit,
-            local_name,
-            &definition,
-        )?;
+        let mut item =
+            render_resolution_with_import(RenderContext::new(ctx), import_edit, &definition)?;
         item.completion_kind = CompletionKind::Magic;
 
         Some(item)
