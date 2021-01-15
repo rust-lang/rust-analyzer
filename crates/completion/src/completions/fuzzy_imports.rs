@@ -61,6 +61,7 @@ use crate::{
 
 use super::Completions;
 
+// TODO kb filter out already imported items
 pub(crate) fn complete_fuzzy(acc: &mut Completions, ctx: &CompletionContext) -> Option<()> {
     if !ctx.config.enable_autoimport_completions {
         return None;
@@ -282,35 +283,41 @@ fn main() {
         //- /lib.rs crate:dep
         pub mod test_mod {
             pub trait TestTrait {
-                fn random_number();
+                const SPECIAL_CONST: u8;
+                type HumbleType;
+                fn weird_function();
+                fn random_method(&self);
             }
             pub struct TestStruct {}
             impl TestTrait for TestStruct {
-                fn random_number() {}
+                const SPECIAL_CONST: u8 = 42;
+                type HumbleType = ();
+                fn weird_function() {}
+                fn random_method(&self) {}
             }
         }
 
         //- /main.rs crate:main deps:dep
         fn main() {
-            dep::test_mod::TestStruct::ran$0
+            dep::test_mod::TestStruct::wei$0
         }
         "#;
 
         check(
             fixture,
             expect![[r#"
-            fn random_number() [dep::test_mod::TestTrait] fn random_number()
+            fn weird_function() [dep::test_mod::TestTrait] fn weird_function()
         "#]],
         );
 
         check_edit(
-            "random_number",
+            "weird_function",
             fixture,
             r#"
 use dep::test_mod::TestTrait;
 
 fn main() {
-    dep::test_mod::TestStruct::random_number()$0
+    dep::test_mod::TestStruct::weird_function()$0
 }
 "#,
         );
@@ -322,35 +329,41 @@ fn main() {
         //- /lib.rs crate:dep
         pub mod test_mod {
             pub trait TestTrait {
-                const SOME_CONST: u8;
+                const SPECIAL_CONST: u8;
+                type HumbleType;
+                fn weird_function();
+                fn random_method(&self);
             }
             pub struct TestStruct {}
             impl TestTrait for TestStruct {
-                const SOME_CONST: u8 = 42;
+                const SPECIAL_CONST: u8 = 42;
+                type HumbleType = ();
+                fn weird_function() {}
+                fn random_method(&self) {}
             }
         }
 
         //- /main.rs crate:main deps:dep
         fn main() {
-            dep::test_mod::TestStruct::som$0
+            dep::test_mod::TestStruct::spe$0
         }
         "#;
 
         check(
             fixture,
             expect![[r#"
-            ct SOME_CONST [dep::test_mod::TestTrait]
+            ct SPECIAL_CONST [dep::test_mod::TestTrait]
         "#]],
         );
 
         check_edit(
-            "SOME_CONST",
+            "SPECIAL_CONST",
             fixture,
             r#"
 use dep::test_mod::TestTrait;
 
 fn main() {
-    dep::test_mod::TestStruct::SOME_CONST
+    dep::test_mod::TestStruct::SPECIAL_CONST
 }
 "#,
         );
@@ -362,11 +375,17 @@ fn main() {
         //- /lib.rs crate:dep
         pub mod test_mod {
             pub trait TestTrait {
-                fn random_number(&self);
+                const SPECIAL_CONST: u8;
+                type HumbleType;
+                fn weird_function();
+                fn random_method(&self);
             }
             pub struct TestStruct {}
             impl TestTrait for TestStruct {
-                fn random_number(&self) {}
+                const SPECIAL_CONST: u8 = 42;
+                type HumbleType = ();
+                fn weird_function() {}
+                fn random_method(&self) {}
             }
         }
 
@@ -380,19 +399,19 @@ fn main() {
         check(
             fixture,
             expect![[r#"
-            me random_number() [dep::test_mod::TestTrait] fn random_number(&self)
+            me random_method() [dep::test_mod::TestTrait] fn random_method(&self)
         "#]],
         );
 
         check_edit(
-            "random_number",
+            "random_method",
             fixture,
             r#"
 use dep::test_mod::TestTrait;
 
 fn main() {
     let test_struct = dep::test_mod::TestStruct {};
-    test_struct.random_number()$0
+    test_struct.random_method()$0
 }
 "#,
         );
@@ -405,17 +424,23 @@ fn main() {
         //- /lib.rs crate:dep
         pub mod test_mod {
             pub trait TestTrait {
-                type SpecialType;
+                const SPECIAL_CONST: u8;
+                type HumbleType;
+                fn weird_function();
+                fn random_method(&self);
             }
             pub struct TestStruct {}
             impl TestTrait for TestStruct {
-                type SpecialType = ();
+                const SPECIAL_CONST: u8 = 42;
+                type HumbleType = ();
+                fn weird_function() {}
+                fn random_method(&self) {}
             }
         }
 
         //- /main.rs crate:main deps:dep
         fn main() {
-            dep::test_mod::TestStruct::spe$0
+            dep::test_mod::TestStruct::hum$0
         }
         "#,
             expect![[r#""#]],

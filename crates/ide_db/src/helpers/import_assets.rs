@@ -1,6 +1,6 @@
 //! Look up accessible paths for items.
 use either::Either;
-use hir::{AsAssocItem, AssocItem, MacroDef, Module, ModuleDef, PrefixKind, Semantics, Trait};
+use hir::{AsAssocItem, AssocItem, Module, ModuleDef, PrefixKind, Semantics};
 use rustc_hash::FxHashSet;
 use syntax::{ast, AstNode};
 
@@ -180,7 +180,11 @@ impl ImportAssets {
             trait_candidates.clear();
             match &self.import_candidate {
                 ImportCandidate::TraitAssocItem(trait_candidate) => {
-                    trait_candidates.insert(import_candidate_to_trait(db, candidate)?.into());
+                    let canidate_assoc_item = match candidate {
+                        Either::Left(module_def) => module_def.as_assoc_item(db),
+                        _ => None,
+                    }?;
+                    trait_candidates.insert(canidate_assoc_item.containing_trait(db)?.into());
 
                     trait_candidate
                         .receiver_ty
@@ -190,12 +194,8 @@ impl ImportAssets {
                             &trait_candidates,
                             None,
                             |_, assoc| {
-                                if assoc.clone().containing_trait(db).is_some() {
-                                    Some(match assoc {
-                                        AssocItem::Function(f) => ModuleDef::from(f),
-                                        AssocItem::Const(c) => ModuleDef::from(c),
-                                        AssocItem::TypeAlias(t) => ModuleDef::from(t),
-                                    })
+                                if canidate_assoc_item == assoc {
+                                    Some(assoc_to_module_def(assoc))
                                 } else {
                                     None
                                 }
@@ -204,7 +204,11 @@ impl ImportAssets {
                         .map(Either::Left)
                 }
                 ImportCandidate::TraitMethod(trait_candidate) => {
-                    trait_candidates.insert(import_candidate_to_trait(db, candidate)?.into());
+                    let canidate_assoc_item = match candidate {
+                        Either::Left(module_def) => module_def.as_assoc_item(db),
+                        _ => None,
+                    }?;
+                    trait_candidates.insert(canidate_assoc_item.containing_trait(db)?.into());
 
                     trait_candidate
                         .receiver_ty
@@ -214,8 +218,9 @@ impl ImportAssets {
                             &trait_candidates,
                             None,
                             |_, function| {
-                                if function.as_assoc_item(db)?.containing_trait(db).is_some() {
-                                    Some(function)
+                                let assoc = function.as_assoc_item(db)?;
+                                if canidate_assoc_item == assoc {
+                                    Some(assoc_to_module_def(assoc))
                                 } else {
                                     None
                                 }
@@ -256,7 +261,13 @@ impl ImportAssets {
 
                 let item_to_search = match self.import_candidate {
                     ImportCandidate::TraitAssocItem(_) | ImportCandidate::TraitMethod(_) => {
-                        ModuleDef::from(import_candidate_to_trait(db, candidate)?).into()
+                        let canidate_trait = match candidate {
+                            Either::Left(module_def) => {
+                                module_def.as_assoc_item(db)?.containing_trait(db)
+                            }
+                            _ => None,
+                        }?;
+                        ModuleDef::from(canidate_trait).into()
                     }
                     _ => item,
                 };
@@ -279,13 +290,11 @@ impl ImportAssets {
     }
 }
 
-fn import_candidate_to_trait(
-    db: &RootDatabase,
-    candidate: Either<ModuleDef, MacroDef>,
-) -> Option<Trait> {
-    match candidate {
-        Either::Left(module_def) => module_def.as_assoc_item(db)?.containing_trait(db),
-        _ => None,
+fn assoc_to_module_def(assoc: AssocItem) -> ModuleDef {
+    match assoc {
+        AssocItem::Function(f) => f.into(),
+        AssocItem::Const(c) => c.into(),
+        AssocItem::TypeAlias(t) => t.into(),
     }
 }
 
