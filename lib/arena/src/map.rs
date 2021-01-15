@@ -6,9 +6,9 @@ use crate::Idx;
 
 /// A map from arena IDs to some other type. Space requirement is O(highest ID).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ArenaMap<ID, V> {
+pub struct ArenaMap<Id, V> {
     v: Vec<Option<V>>,
-    _ty: PhantomData<ID>,
+    _ty: PhantomData<Id>,
 }
 
 impl<T, V> ArenaMap<Idx<T>, V> {
