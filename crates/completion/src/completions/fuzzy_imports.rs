@@ -350,7 +350,7 @@ fn main() {
 use dep::test_mod::TestTrait;
 
 fn main() {
-    dep::test_mod::TestStruct::SOME_CONST$0
+    dep::test_mod::TestStruct::SOME_CONST
 }
 "#,
         );
@@ -395,6 +395,30 @@ fn main() {
     test_struct.random_number()$0
 }
 "#,
+        );
+    }
+
+    #[test]
+    fn no_trait_type_fuzzy_completion() {
+        check(
+            r#"
+        //- /lib.rs crate:dep
+        pub mod test_mod {
+            pub trait TestTrait {
+                type SpecialType;
+            }
+            pub struct TestStruct {}
+            impl TestTrait for TestStruct {
+                type SpecialType = ();
+            }
+        }
+
+        //- /main.rs crate:main deps:dep
+        fn main() {
+            dep::test_mod::TestStruct::spe$0
+        }
+        "#,
+            expect![[r#""#]],
         );
     }
 }

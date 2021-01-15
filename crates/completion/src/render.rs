@@ -181,7 +181,6 @@ impl<'a> Render<'a> {
             // FIXME: add CompletionItemKind::Union
             ScopeDef::ModuleDef(Adt(hir::Adt::Union(_))) => CompletionItemKind::Struct,
             ScopeDef::ModuleDef(Adt(hir::Adt::Enum(_))) => CompletionItemKind::Enum,
-            // TODO kb this is not working for trait imports properly
             ScopeDef::ModuleDef(Const(..)) => CompletionItemKind::Const,
             ScopeDef::ModuleDef(Static(..)) => CompletionItemKind::Static,
             ScopeDef::ModuleDef(Trait(..)) => CompletionItemKind::Trait,
