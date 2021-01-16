@@ -233,11 +233,9 @@ impl ImportAssets {
             }
         };
 
-        // TODO kb useless collects due to different opaque types + stupid clone()'s
         let unfiltered_imports = match self.name_to_import() {
             NameToImport::Exact(exact_name) => {
                 imports_locator::find_exact_imports(sema, current_crate, exact_name.clone())
-                    .collect::<Vec<_>>()
             }
             NameToImport::Fuzzy(fuzzy_name) => imports_locator::find_similar_imports(
                 sema,
@@ -249,10 +247,8 @@ impl ImportAssets {
                     }
                     _ => AssocItemSearch::Exclude,
                 },
-            )
-            .collect::<Vec<_>>(),
-        }
-        .into_iter();
+            ),
+        };
 
         let mut res = unfiltered_imports
             .filter_map(filter)

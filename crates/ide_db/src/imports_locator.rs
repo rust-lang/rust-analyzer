@@ -21,9 +21,9 @@ pub fn find_exact_imports<'a>(
     sema: &Semantics<'a, RootDatabase>,
     krate: Crate,
     name_to_import: String,
-) -> impl Iterator<Item = Either<ModuleDef, MacroDef>> {
+) -> Box<dyn Iterator<Item = Either<ModuleDef, MacroDef>>> {
     let _p = profile::span("find_exact_imports");
-    find_imports(
+    Box::new(find_imports(
         sema,
         krate,
         {
@@ -37,7 +37,7 @@ pub fn find_exact_imports<'a>(
             .name_only()
             .search_mode(import_map::SearchMode::Equals)
             .case_sensitive(),
-    )
+    ))
 }
 
 pub enum AssocItemSearch {
@@ -51,7 +51,7 @@ pub fn find_similar_imports<'a>(
     krate: Crate,
     fuzzy_search_string: String,
     assoc_item_search: AssocItemSearch,
-) -> impl Iterator<Item = Either<ModuleDef, MacroDef>> + 'a {
+) -> Box<dyn Iterator<Item = Either<ModuleDef, MacroDef>> + 'a> {
     let _p = profile::span("find_similar_imports");
 
     let mut external_query = import_map::Query::new(fuzzy_search_string.clone())
@@ -73,13 +73,13 @@ pub fn find_similar_imports<'a>(
     local_query.limit(QUERY_SEARCH_LIMIT);
 
     let db = sema.db;
-    find_imports(sema, krate, local_query, external_query).filter(move |import_candidate| {
-        match assoc_item_search {
+    Box::new(find_imports(sema, krate, local_query, external_query).filter(
+        move |import_candidate| match assoc_item_search {
             AssocItemSearch::Include => true,
             AssocItemSearch::Exclude => !is_assoc_item(import_candidate, db),
             AssocItemSearch::AssocItemsOnly => is_assoc_item(import_candidate, db),
-        }
-    })
+        },
+    ))
 }
 
 fn is_assoc_item(import_candidate: &Either<ModuleDef, MacroDef>, db: &RootDatabase) -> bool {
