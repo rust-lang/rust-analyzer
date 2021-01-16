@@ -29,8 +29,6 @@
 //! .Import configuration
 //!
 //! It is possible to configure how use-trees are merged with the `importMergeBehavior` setting.
-//! The style of imports in the same crate is configurable through the `importPrefix` setting.
-//!
 //! Mimics the corresponding behavior of the `Auto Import` feature.
 //!
 //! .LSP and performance implications
@@ -61,7 +59,6 @@ use crate::{
 
 use super::Completions;
 
-// TODO kb filter out already imported items
 pub(crate) fn complete_fuzzy(acc: &mut Completions, ctx: &CompletionContext) -> Option<()> {
     if !ctx.config.enable_autoimport_completions {
         return None;
@@ -77,7 +74,7 @@ pub(crate) fn complete_fuzzy(acc: &mut Completions, ctx: &CompletionContext) -> 
 
     let user_input_lowercased = potential_import_name.to_lowercase();
     let mut all_mod_paths = import_assets(ctx, potential_import_name)?
-        .search_for_imports(&ctx.sema, ctx.config.insert_use.prefix_kind)
+        .search_for_relative_paths(&ctx.sema)
         .into_iter()
         .map(|(mod_path, item_in_ns)| {
             let scope_item = match item_in_ns {
@@ -439,6 +436,68 @@ fn main() {
         }
 
         //- /main.rs crate:main deps:dep
+        fn main() {
+            dep::test_mod::TestStruct::hum$0
+        }
+        "#,
+            expect![[r#""#]],
+        );
+    }
+
+    #[test]
+    fn does_not_propose_names_in_scope() {
+        check(
+            r#"
+        //- /lib.rs crate:dep
+        pub mod test_mod {
+            pub trait TestTrait {
+                const SPECIAL_CONST: u8;
+                type HumbleType;
+                fn weird_function();
+                fn random_method(&self);
+            }
+            pub struct TestStruct {}
+            impl TestTrait for TestStruct {
+                const SPECIAL_CONST: u8 = 42;
+                type HumbleType = ();
+                fn weird_function() {}
+                fn random_method(&self) {}
+            }
+        }
+
+        //- /main.rs crate:main deps:dep
+        use dep::test_mod::TestStruct;
+        fn main() {
+            TestSt$0
+        }
+        "#,
+            expect![[r#""#]],
+        );
+    }
+
+    #[test]
+    fn does_not_propose_traits_in_scope() {
+        check(
+            r#"
+        //- /lib.rs crate:dep
+        pub mod test_mod {
+            pub trait TestTrait {
+                const SPECIAL_CONST: u8;
+                type HumbleType;
+                fn weird_function();
+                fn random_method(&self);
+            }
+            pub struct TestStruct {}
+            impl TestTrait for TestStruct {
+                const SPECIAL_CONST: u8 = 42;
+                type HumbleType = ();
+                fn weird_function() {}
+                fn random_method(&self) {}
+            }
+        }
+
+        //- /main.rs crate:main deps:dep
+        use dep::test_mod::{TestStruct, TestTrait};
         fn main() {
             dep::test_mod::TestStruct::hum$0
         }
