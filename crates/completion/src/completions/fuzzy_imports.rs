@@ -52,7 +52,6 @@ use test_utils::mark;
 
 use crate::{
     context::CompletionContext,
-    item::CompletionKind,
     render::{render_resolution_with_import, RenderContext},
     ImportEdit,
 };
@@ -72,6 +71,8 @@ pub(crate) fn complete_fuzzy(acc: &mut Completions, ctx: &CompletionContext) -> 
     }
     let _p = profile::span("complete_fuzzy").detail(|| potential_import_name.to_string());
 
+    let import_scope =
+        ImportScope::find_insert_use_container(ctx.name_ref_syntax.as_ref()?.syntax(), &ctx.sema)?;
     let user_input_lowercased = potential_import_name.to_lowercase();
     let mut all_mod_paths = import_assets(ctx, potential_import_name)?
         .search_for_relative_paths(&ctx.sema)
@@ -85,10 +86,6 @@ pub(crate) fn complete_fuzzy(acc: &mut Completions, ctx: &CompletionContext) -> 
             (mod_path, scope_item)
         })
         .collect::<Vec<_>>();
-
-    let anchor = ctx.name_ref_syntax.as_ref()?;
-    let import_scope = ImportScope::find_insert_use_container(anchor.syntax(), &ctx.sema)?;
-
     all_mod_paths.sort_by_cached_key(|(mod_path, _)| {
         compute_fuzzy_completion_order_key(mod_path, &user_input_lowercased)
     });
@@ -97,8 +94,8 @@ pub(crate) fn complete_fuzzy(acc: &mut Completions, ctx: &CompletionContext) -> 
         let import_for_trait_assoc_item = match definition {
             ScopeDef::ModuleDef(module_def) => module_def
                 .as_assoc_item(ctx.db)
-                .map(|assoc| assoc.containing_trait(ctx.db).is_some())
-                .unwrap_or(false),
+                .and_then(|assoc| assoc.containing_trait(ctx.db))
+                .is_some(),
             _ => false,
         };
         let import_edit = ImportEdit {
@@ -106,11 +103,7 @@ pub(crate) fn complete_fuzzy(acc: &mut Completions, ctx: &CompletionContext) -> 
             import_scope: import_scope.clone(),
             import_for_trait_assoc_item,
         };
-        let mut item =
-            render_resolution_with_import(RenderContext::new(ctx), import_edit, &definition)?;
-        item.completion_kind = CompletionKind::Magic;
-
-        Some(item)
+        render_resolution_with_import(RenderContext::new(ctx), import_edit, &definition)
     }));
     Some(())
 }
@@ -303,7 +296,7 @@ fn main() {
         check(
             fixture,
             expect![[r#"
-            fn weird_function() [dep::test_mod::TestTrait] fn weird_function()
+            fn weird_function() (dep::test_mod::TestTrait) fn weird_function()
         "#]],
         );
 
@@ -349,7 +342,7 @@ fn main() {
         check(
             fixture,
             expect![[r#"
-            ct SPECIAL_CONST [dep::test_mod::TestTrait]
+            ct SPECIAL_CONST (dep::test_mod::TestTrait)
         "#]],
         );
 
@@ -396,7 +389,7 @@ fn main() {
         check(
             fixture,
             expect![[r#"
-            me random_method() [dep::test_mod::TestTrait] fn random_method(&self)
+            me random_method() (dep::test_mod::TestTrait) fn random_method(&self)
         "#]],
         );
 

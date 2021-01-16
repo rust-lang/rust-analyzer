@@ -61,11 +61,9 @@ impl ImportAssets {
         method_call: &ast::MethodCallExpr,
         sema: &Semantics<RootDatabase>,
     ) -> Option<Self> {
-        let syntax_under_caret = method_call.syntax().to_owned();
-        let module_with_candidate = sema.scope(&syntax_under_caret).module()?;
         Some(Self {
             import_candidate: ImportCandidate::for_method_call(sema, method_call)?,
-            module_with_candidate,
+            module_with_candidate: sema.scope(method_call.syntax()).module()?,
         })
     }
 
@@ -73,56 +71,54 @@ impl ImportAssets {
         fully_qualified_path: &ast::Path,
         sema: &Semantics<RootDatabase>,
     ) -> Option<Self> {
-        let syntax_under_caret = fully_qualified_path.syntax().to_owned();
+        let syntax_under_caret = fully_qualified_path.syntax();
         if syntax_under_caret.ancestors().find_map(ast::Use::cast).is_some() {
             return None;
         }
-
-        let module_with_candidate = sema.scope(&syntax_under_caret).module()?;
         Some(Self {
             import_candidate: ImportCandidate::for_regular_path(sema, fully_qualified_path)?,
-            module_with_candidate,
+            module_with_candidate: sema.scope(syntax_under_caret).module()?,
         })
     }
 
     pub fn for_fuzzy_path(
-        module: Module,
+        module_with_path: Module,
         qualifier: Option<ast::Path>,
         fuzzy_name: String,
         sema: &Semantics<RootDatabase>,
     ) -> Option<Self> {
-        match qualifier {
+        Some(match qualifier {
             Some(qualifier) => {
                 let qualifier_resolution = sema.resolve_path(&qualifier)?;
                 match qualifier_resolution {
-                    hir::PathResolution::Def(hir::ModuleDef::Adt(assoc_item_path)) => Some(Self {
+                    hir::PathResolution::Def(hir::ModuleDef::Adt(assoc_item_path)) => Self {
                         import_candidate: ImportCandidate::TraitAssocItem(TraitImportCandidate {
                             receiver_ty: assoc_item_path.ty(sema.db),
                             name: NameToImport::Fuzzy(fuzzy_name),
                         }),
-                        module_with_candidate: module,
-                    }),
-                    _ => Some(Self {
+                        module_with_candidate: module_with_path,
+                    },
+                    _ => Self {
                         import_candidate: ImportCandidate::Path(PathImportCandidate {
                             qualifier: Some(qualifier),
                             name: NameToImport::Fuzzy(fuzzy_name),
                         }),
-                        module_with_candidate: module,
-                    }),
+                        module_with_candidate: module_with_path,
+                    },
                 }
             }
-            None => Some(Self {
+            None => Self {
                 import_candidate: ImportCandidate::Path(PathImportCandidate {
                     qualifier: None,
                     name: NameToImport::Fuzzy(fuzzy_name),
                 }),
-                module_with_candidate: module,
-            }),
-        }
+                module_with_candidate: module_with_path,
+            },
+        })
     }
 
     pub fn for_fuzzy_method_call(
-        module: Module,
+        module_with_method_call: Module,
         receiver_ty: hir::Type,
         fuzzy_method_name: String,
     ) -> Option<Self> {
@@ -131,7 +127,7 @@ impl ImportAssets {
                 receiver_ty,
                 name: NameToImport::Fuzzy(fuzzy_method_name),
             }),
-            module_with_candidate: module,
+            module_with_candidate: module_with_method_call,
         })
     }
 }

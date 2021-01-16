@@ -57,7 +57,10 @@ pub(crate) fn render_resolution_with_import<'a>(
         ScopeDef::ModuleDef(ModuleDef::TypeAlias(t)) => t.name(ctx.completion.db).to_string(),
         _ => import_edit.import_path.segments.last()?.to_string(),
     };
-    Render::new(ctx).render_resolution(local_name, Some(import_edit), resolution)
+    Render::new(ctx).render_resolution(local_name, Some(import_edit), resolution).map(|mut item| {
+        item.completion_kind = CompletionKind::Magic;
+        item
+    })
 }
 
 /// Interface for data and methods required for items rendering.

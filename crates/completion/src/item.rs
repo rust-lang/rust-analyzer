@@ -325,7 +325,7 @@ impl Builder {
             if import_to_add.import_for_trait_assoc_item {
                 lookup = lookup.or_else(|| Some(label.clone()));
                 insert_text = insert_text.or_else(|| Some(label.clone()));
-                label = format!("{} [{}]", label, import_to_add.import_path);
+                label = format!("{} ({})", label, import_to_add.import_path);
             } else {
                 let mut import_path_without_last_segment = import_to_add.import_path.to_owned();
                 let _ = import_path_without_last_segment.segments.pop();

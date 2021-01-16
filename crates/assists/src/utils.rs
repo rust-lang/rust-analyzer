@@ -1,3 +1,4 @@
+//! Assorted functions shared by several assists.
 use std::ops;
 
 use hir::HasSource;
