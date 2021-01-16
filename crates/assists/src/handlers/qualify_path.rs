@@ -1,10 +1,7 @@
 use std::iter;
 
 use hir::AsName;
-use ide_db::helpers::{
-    import_assets::{ImportAssets, ImportCandidate},
-    mod_path_to_ast,
-};
+use ide_db::helpers::{import_assets::ImportCandidate, mod_path_to_ast};
 use ide_db::RootDatabase;
 use syntax::{
     ast,
@@ -17,6 +14,8 @@ use crate::{
     assist_context::{AssistContext, Assists},
     AssistId, AssistKind, GroupLabel,
 };
+
+use super::auto_import::find_importable_node;
 
 // Assist: qualify_path
 //
@@ -36,18 +35,7 @@ use crate::{
 // # pub mod std { pub mod collections { pub struct HashMap { } } }
 // ```
 pub(crate) fn qualify_path(acc: &mut Assists, ctx: &AssistContext) -> Option<()> {
-    let (syntax_under_caret, import_assets) =
-        if let Some(path_under_caret) = ctx.find_node_at_offset_with_descend::<ast::Path>() {
-            Some(path_under_caret.syntax().clone())
-                .zip(ImportAssets::for_exact_path(path_under_caret, &ctx.sema))
-        } else if let Some(method_under_caret) =
-            ctx.find_node_at_offset_with_descend::<ast::MethodCallExpr>()
-        {
-            Some(method_under_caret.syntax().clone())
-                .zip(ImportAssets::for_method_call(method_under_caret, &ctx.sema))
-        } else {
-            None
-        }?;
+    let (import_assets, syntax_under_caret) = find_importable_node(ctx)?;
     let proposed_imports = import_assets.search_for_relative_paths(&ctx.sema);
     if proposed_imports.is_empty() {
         return None;
@@ -60,25 +48,25 @@ pub(crate) fn qualify_path(acc: &mut Assists, ctx: &AssistContext) -> Option<()>
         ImportCandidate::Path(candidate) => {
             if candidate.qualifier.is_some() {
                 mark::hit!(qualify_path_qualifier_start);
-                let path = ast::Path::cast(syntax_under_caret.clone())?;
+                let path = ast::Path::cast(syntax_under_caret)?;
                 let (prev_segment, segment) = (path.qualifier()?.segment()?, path.segment()?);
                 QualifyCandidate::QualifierStart(segment, prev_segment.generic_arg_list())
             } else {
                 mark::hit!(qualify_path_unqualified_name);
-                let path = ast::Path::cast(syntax_under_caret.clone())?;
+                let path = ast::Path::cast(syntax_under_caret)?;
                 let generics = path.segment()?.generic_arg_list();
                 QualifyCandidate::UnqualifiedName(generics)
             }
         }
         ImportCandidate::TraitAssocItem(_) => {
             mark::hit!(qualify_path_trait_assoc_item);
-            let path = ast::Path::cast(syntax_under_caret.clone())?;
+            let path = ast::Path::cast(syntax_under_caret)?;
             let (qualifier, segment) = (path.qualifier()?, path.segment()?);
             QualifyCandidate::TraitAssocItem(qualifier, segment)
         }
         ImportCandidate::TraitMethod(_) => {
             mark::hit!(qualify_path_trait_method);
-            let mcall_expr = ast::MethodCallExpr::cast(syntax_under_caret.clone())?;
+            let mcall_expr = ast::MethodCallExpr::cast(syntax_under_caret)?;
             QualifyCandidate::TraitMethod(ctx.sema.db, mcall_expr)
         }
     };

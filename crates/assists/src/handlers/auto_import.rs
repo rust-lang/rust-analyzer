@@ -3,7 +3,7 @@ use ide_db::helpers::{
     insert_use::{insert_use, ImportScope},
     mod_path_to_ast,
 };
-use syntax::{ast, AstNode};
+use syntax::{ast, AstNode, SyntaxNode};
 
 use crate::{AssistContext, AssistId, AssistKind, Assists, GroupLabel};
 
@@ -82,19 +82,7 @@ use crate::{AssistContext, AssistId, AssistKind, Assists, GroupLabel};
 // # pub mod std { pub mod collections { pub struct HashMap { } } }
 // ```
 pub(crate) fn auto_import(acc: &mut Assists, ctx: &AssistContext) -> Option<()> {
-    // TODO kb duplicate code in `qualify_path` + redundant eager syntax().clone(), refactor
-    let (syntax_under_caret, import_assets) =
-        if let Some(path_under_caret) = ctx.find_node_at_offset_with_descend::<ast::Path>() {
-            Some(path_under_caret.syntax().clone())
-                .zip(ImportAssets::for_exact_path(path_under_caret, &ctx.sema))
-        } else if let Some(method_under_caret) =
-            ctx.find_node_at_offset_with_descend::<ast::MethodCallExpr>()
-        {
-            Some(method_under_caret.syntax().clone())
-                .zip(ImportAssets::for_method_call(method_under_caret, &ctx.sema))
-        } else {
-            None
-        }?;
+    let (import_assets, syntax_under_caret) = find_importable_node(ctx)?;
     let proposed_imports =
         import_assets.search_for_imports(&ctx.sema, ctx.config.insert_use.prefix_kind);
     if proposed_imports.is_empty() {
@@ -118,6 +106,20 @@ pub(crate) fn auto_import(acc: &mut Assists, ctx: &AssistContext) -> Option<()> 
         );
     }
     Some(())
+}
+
+pub(super) fn find_importable_node(ctx: &AssistContext) -> Option<(ImportAssets, SyntaxNode)> {
+    if let Some(path_under_caret) = ctx.find_node_at_offset_with_descend::<ast::Path>() {
+        ImportAssets::for_exact_path(&path_under_caret, &ctx.sema)
+            .zip(Some(path_under_caret.syntax().clone()))
+    } else if let Some(method_under_caret) =
+        ctx.find_node_at_offset_with_descend::<ast::MethodCallExpr>()
+    {
+        ImportAssets::for_method_call(&method_under_caret, &ctx.sema)
+            .zip(Some(method_under_caret.syntax().clone()))
+    } else {
+        None
+    }
 }
 
 fn import_group_message(import_candidate: &ImportCandidate) -> GroupLabel {

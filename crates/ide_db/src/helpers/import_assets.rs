@@ -58,19 +58,19 @@ pub struct ImportAssets {
 
 impl ImportAssets {
     pub fn for_method_call(
-        method_call: ast::MethodCallExpr,
+        method_call: &ast::MethodCallExpr,
         sema: &Semantics<RootDatabase>,
     ) -> Option<Self> {
         let syntax_under_caret = method_call.syntax().to_owned();
         let module_with_candidate = sema.scope(&syntax_under_caret).module()?;
         Some(Self {
-            import_candidate: ImportCandidate::for_method_call(sema, &method_call)?,
+            import_candidate: ImportCandidate::for_method_call(sema, method_call)?,
             module_with_candidate,
         })
     }
 
     pub fn for_exact_path(
-        fully_qualified_path: ast::Path,
+        fully_qualified_path: &ast::Path,
         sema: &Semantics<RootDatabase>,
     ) -> Option<Self> {
         let syntax_under_caret = fully_qualified_path.syntax().to_owned();
@@ -80,7 +80,7 @@ impl ImportAssets {
 
         let module_with_candidate = sema.scope(&syntax_under_caret).module()?;
         Some(Self {
-            import_candidate: ImportCandidate::for_regular_path(sema, &fully_qualified_path)?,
+            import_candidate: ImportCandidate::for_regular_path(sema, fully_qualified_path)?,
             module_with_candidate,
         })
     }
