@@ -148,16 +148,11 @@ impl Vfs {
     }
 
     /// Returns an iterator over the stored ids and their corresponding paths.
-    ///
-    /// This will skip deleted files.
     pub fn iter(&self) -> impl Iterator<Item = (FileId, &VfsPath)> + '_ {
-        (0..self.data.len())
-            .map(|it| FileId(it as u32))
-            .filter(move |&file_id| self.get(file_id).exists())
-            .map(move |file_id| {
-                let path = self.interner.lookup(file_id);
-                (file_id, path)
-            })
+        (0..self.data.len()).map(|it| FileId(it as u32)).map(move |file_id| {
+            let path = self.interner.lookup(file_id);
+            (file_id, path)
+        })
     }
 
     /// Update the `path` with the given `contents`. `None` means the file was deleted.
