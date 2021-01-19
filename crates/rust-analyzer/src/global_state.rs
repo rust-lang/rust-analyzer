@@ -64,7 +64,7 @@ pub(crate) struct GlobalState {
     sender: Sender<lsp_server::Message>,
     req_queue: ReqQueue,
     pub(crate) task_pool: Handle<TaskPool<Task>, Receiver<Task>>,
-    pub(crate) loader: Handle<Box<dyn vfs::loader::Handle>, Receiver<vfs::loader::Message>>,
+    //pub(crate) loader: Handle<Box<dyn vfs::loader::Handle>, Receiver<vfs::loader::Message>>,
     pub(crate) flycheck: Vec<FlycheckHandle>,
     pub(crate) flycheck_sender: Sender<flycheck::Message>,
     pub(crate) flycheck_receiver: Receiver<flycheck::Message>,
@@ -74,6 +74,8 @@ pub(crate) struct GlobalState {
     pub(crate) mem_docs: FxHashMap<VfsPath, DocumentData>,
     pub(crate) semantic_tokens_cache: Arc<Mutex<FxHashMap<Url, SemanticTokens>>>,
     pub(crate) vfs: Arc<RwLock<(vfs::Vfs, FxHashMap<FileId, LineEndings>)>>,
+    // N.B. must be dropped after `vfs`, since vfs holds the transmitter for the handle
+    pub(crate) loader_receiver: Receiver<vfs::loader::Message>,
     pub(crate) shutdown_requested: bool,
     pub(crate) status: Status,
     pub(crate) source_root_config: SourceRootConfig,
@@ -101,7 +103,7 @@ impl GlobalState {
             let (sender, receiver) = unbounded::<vfs::loader::Message>();
             let handle: vfs_notify::NotifyHandle =
                 vfs::loader::Handle::spawn(Box::new(move |msg| sender.send(msg).unwrap()));
-            let handle = Box::new(handle) as Box<dyn vfs::loader::Handle>;
+            let handle = Box::new(handle) as Box<dyn vfs::loader::Handle + Send + Sync>;
             Handle { handle, receiver }
         };
 
@@ -117,7 +119,6 @@ impl GlobalState {
             sender,
             req_queue: ReqQueue::default(),
             task_pool,
-            loader,
             flycheck: Vec::new(),
             flycheck_sender,
             flycheck_receiver,
@@ -126,7 +127,8 @@ impl GlobalState {
             diagnostics: Default::default(),
             mem_docs: FxHashMap::default(),
             semantic_tokens_cache: Arc::new(Default::default()),
-            vfs: Arc::new(RwLock::new((vfs::Vfs::default(), FxHashMap::default()))),
+            vfs: Arc::new(RwLock::new((vfs::Vfs::new(loader.handle), FxHashMap::default()))),
+            loader_receiver: loader.receiver,
             shutdown_requested: false,
             status: Status::default(),
             source_root_config: SourceRootConfig::default(),

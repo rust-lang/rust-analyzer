@@ -25,12 +25,8 @@ pub fn load_cargo(
     )?;
 
     let (sender, receiver) = unbounded();
-    let mut vfs = vfs::Vfs::default();
-    let mut loader = {
-        let loader =
-            vfs_notify::NotifyHandle::spawn(Box::new(move |msg| sender.send(msg).unwrap()));
-        Box::new(loader)
-    };
+    let loader = vfs_notify::NotifyHandle::spawn(Box::new(move |msg| sender.send(msg).unwrap()));
+    let mut vfs = vfs::Vfs::new(Box::new(loader));
 
     let proc_macro_client = if with_proc_macro {
         let path = std::env::current_exe()?;
@@ -40,14 +36,14 @@ pub fn load_cargo(
     };
 
     let crate_graph = ws.to_crate_graph(proc_macro_client.as_ref(), &mut |path: &AbsPath| {
-        let contents = loader.load_sync(path);
+        let contents = vfs.loader.load_sync(path);
         let path = vfs::VfsPath::from(path.to_path_buf());
         vfs.set_file_contents(path.clone(), contents);
         vfs.file_id(&path)
     });
 
     let project_folders = ProjectFolders::new(&[ws]);
-    loader.set_config(vfs::loader::Config { load: project_folders.load, watch: vec![] });
+    vfs.loader.set_config(vfs::loader::Config { load: project_folders.load, watch: vec![] });
 
     log::debug!("crate graph: {:?}", crate_graph);
     let host = load(crate_graph, project_folders.source_root_config, &mut vfs, &receiver);

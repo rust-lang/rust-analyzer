@@ -166,7 +166,7 @@ impl GlobalState {
             recv(self.task_pool.receiver) -> task =>
                 Some(Event::Task(task.unwrap())),
 
-            recv(self.loader.receiver) -> task =>
+            recv(self.loader_receiver) -> task =>
                 Some(Event::Vfs(task.unwrap())),
 
             recv(self.flycheck_receiver) -> task =>
@@ -300,7 +300,7 @@ impl GlobalState {
                         }
                     }
                     // Coalesce many VFS event into a single loop turn
-                    task = match self.loader.receiver.try_recv() {
+                    task = match self.loader_receiver.try_recv() {
                         Ok(task) => task,
                         Err(_) => break,
                     }
@@ -580,7 +580,7 @@ impl GlobalState {
                     this.semantic_tokens_cache.lock().remove(&params.text_document.uri);
 
                     if let Some(path) = path.as_path() {
-                        this.loader.handle.invalidate(path.to_path_buf());
+                        this.vfs.write().0.loader.invalidate(path.to_path_buf());
                     }
                 }
 
@@ -644,7 +644,7 @@ impl GlobalState {
             .on::<lsp_types::notification::DidChangeWatchedFiles>(|this, params| {
                 for change in params.changes {
                     if let Ok(path) = from_proto::abs_path(&change.uri) {
-                        this.loader.handle.invalidate(path);
+                        this.vfs.write().0.loader.invalidate(path);
                     }
                 }
                 Ok(())

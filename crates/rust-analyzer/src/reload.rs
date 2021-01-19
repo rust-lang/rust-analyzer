@@ -235,18 +235,21 @@ impl GlobalState {
             FilesWatcher::Client => vec![],
             FilesWatcher::Notify => project_folders.watch,
         };
-        self.loader.handle.set_config(vfs::loader::Config { load: project_folders.load, watch });
+        self.vfs
+            .write()
+            .0
+            .loader
+            .set_config(vfs::loader::Config { load: project_folders.load, watch });
 
         // Create crate graph from all the workspaces
         let crate_graph = {
             let mut crate_graph = CrateGraph::default();
             let vfs = &mut self.vfs.write().0;
-            let loader = &mut self.loader;
             let mem_docs = &self.mem_docs;
             let mut load = |path: &AbsPath| {
                 let vfs_path = vfs::VfsPath::from(path.to_path_buf());
                 if !mem_docs.contains_key(&vfs_path) {
-                    let contents = loader.handle.load_sync(path);
+                    let contents = vfs.loader.load_sync(path);
                     vfs.set_file_contents(vfs_path.clone(), contents);
                 }
                 let res = vfs.file_id(&vfs_path);

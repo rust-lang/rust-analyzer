@@ -62,11 +62,11 @@ pub struct FileId(pub u32);
 /// Storage for all files read by rust-analyzer.
 ///
 /// For more informations see the [crate-level](crate) documentation.
-#[derive(Default)]
 pub struct Vfs {
     interner: PathInterner,
-    data: Vec<FileContents>,
+    data: Vec<Option<FileContents>>,
     changes: Vec<ChangedFile>,
+    pub loader: Box<dyn loader::Handle + Send + Sync>,
 }
 
 /// Changed file in the [`Vfs`].
@@ -109,13 +109,13 @@ impl FileContents {
     fn deleted() -> Self {
         Self(None)
     }
-
-    fn exists(&self) -> bool {
-        self.0.is_some()
-    }
 }
 
 impl Vfs {
+    pub fn new(loader: Box<dyn loader::Handle + Send + Sync>) -> Self {
+        Self { loader, interner: PathInterner::default(), data: vec![], changes: vec![] }
+    }
+
     /// Number of files currently stored.
     ///
     /// Note that this includes deleted files.
@@ -163,6 +163,17 @@ impl Vfs {
     /// [`FileId`] for it.
     pub fn set_file_contents(&mut self, path: VfsPath, contents: Option<Vec<u8>>) -> bool {
         let file_id = self.alloc_file_id(path);
+        self.set_id_contents(file_id, contents)
+    }
+
+    /// Update the `id` with the given `contents`. `None` means the file was deleted.
+    ///
+    /// Returns `true` if the file was modified, and saves the [change](ChangedFile).
+    ///
+    /// # Panics
+    ///
+    /// Panics if no file is associated to `file_id`.
+    pub fn set_id_contents(&mut self, file_id: FileId, contents: Option<Vec<u8>>) -> bool {
         let change_kind = match (&self.get(file_id).0, &contents) {
             (None, None) => return false,
             (None, Some(_)) => ChangeKind::Create,
@@ -171,7 +182,7 @@ impl Vfs {
             (Some(_), Some(_)) => ChangeKind::Modify,
         };
 
-        *self.get_mut(file_id) = FileContents(contents);
+        self.data[file_id.0 as usize] = Some(FileContents(contents));
         self.changes.push(ChangedFile { file_id, change_kind });
         true
     }
@@ -197,26 +208,37 @@ impl Vfs {
         let file_id = self.interner.intern(path);
         let idx = file_id.0 as usize;
         let len = self.data.len().max(idx + 1);
-        self.data.resize_with(len, FileContents::deleted);
+        self.data.resize_with(len, || Some(FileContents::deleted()));
         file_id
     }
 
     /// Returns the content associated with the given `file_id`.
+    /// If the file has not yet been loaded, this loads it from disk.
     ///
     /// # Panics
     ///
     /// Panics if no file is associated to that id.
-    fn get(&self, file_id: FileId) -> &FileContents {
-        &self.data[file_id.0 as usize]
+    fn get(&mut self, file_id: FileId) -> &FileContents {
+        self.get_or_load(file_id)
     }
 
     /// Mutably returns the content associated with the given `file_id`.
+    /// If the file has not yet been loaded, this loads it from disk.
     ///
     /// # Panics
     ///
-    /// Panics if no file is associated to that id.
-    fn get_mut(&mut self, file_id: FileId) -> &mut FileContents {
-        &mut self.data[file_id.0 as usize]
+    /// Panics if
+    /// - the `VfsPath` has not been loaded and does not correspond to an on-disk path, or
+    /// - no file is associated to `file_id`
+    fn get_or_load(&mut self, file_id: FileId) -> &mut FileContents {
+        if self.data[file_id.0 as usize].is_none() {
+            let vfs_path = self.interner.lookup(file_id);
+            let path = vfs_path.as_path().expect("tried to lazily load an in-memory file");
+            let contents = self.loader.load_sync(path);
+            self.set_id_contents(file_id, contents);
+        }
+        // NOTE: this double-index is a limitation of the borrow checker, it can be removed with polonius
+        self.data[file_id.0 as usize].as_mut().unwrap()
     }
 }
 

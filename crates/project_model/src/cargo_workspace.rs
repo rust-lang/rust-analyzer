@@ -332,7 +332,7 @@ impl CargoWorkspace {
         }
 
         let workspace_root = AbsPathBuf::assert(meta.workspace_root);
-        Ok(CargoWorkspace { packages, targets, workspace_root: workspace_root })
+        Ok(CargoWorkspace { packages, targets, workspace_root })
     }
 
     pub fn packages<'a>(&'a self) -> impl Iterator<Item = Package> + ExactSizeIterator + 'a {
