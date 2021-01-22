@@ -43,9 +43,10 @@ config_data! {
         cargo_allFeatures: bool          = "false",
         /// List of features to activate.
         cargo_features: Vec<String>      = "[]",
-        /// Run `cargo check` on startup to get the correct value for package
-        /// OUT_DIRs.
-        cargo_loadOutDirsFromCheck: bool = "false",
+        /// Needed for autocomplete for some crates that generate source files in the cargo
+        /// `OUT_DIR`. Runs `cargo check` on startup to get the correct value for package
+        /// `OUT_DIR`s.
+        cargo_checkOutDirs: bool = "false",
         /// Do not activate the `default` feature.
         cargo_noDefaultFeatures: bool    = "false",
         /// Compilation target (target triple).
@@ -474,7 +475,7 @@ impl Config {
             no_default_features: self.data.cargo_noDefaultFeatures,
             all_features: self.data.cargo_allFeatures,
             features: self.data.cargo_features.clone(),
-            load_out_dirs_from_check: self.data.cargo_loadOutDirsFromCheck,
+            load_out_dirs_from_check: self.data.cargo_checkOutDirs,
             target: self.data.cargo_target.clone(),
             rustc_source,
             no_sysroot: self.data.cargo_noSysroot,
@@ -740,7 +741,7 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
     let doc = doc.iter().map(|it| it.trim()).join(" ");
     assert!(
         doc.ends_with('.') && doc.starts_with(char::is_uppercase),
-        "bad docs for {}: {:?}",
+        "bad docs for {}. Must start with a capital and end with a period: {:?}",
         field,
         doc
     );

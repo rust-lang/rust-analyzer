@@ -57,6 +57,9 @@ COMMANDS:
 
 not specified         Launch LSP server
 
+--print-config-schema
+                      Prints out the VSCode config JSON.
+
 parse < main.rs       Parse tree
     --no-dump         Suppress printing
 

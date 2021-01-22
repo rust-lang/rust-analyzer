@@ -220,135 +220,6 @@
             "type": "object",
             "title": "Rust Analyzer",
             "properties": {
-                "rust-analyzer.cargoRunner": {
-                    "type": [
-                        "null",
-                        "string"
-                    ],
-                    "default": null,
-                    "description": "Custom cargo runner extension ID."
-                },
-                "rust-analyzer.runnableEnv": {
-                    "anyOf": [
-                        {
-                            "type": "null"
-                        },
-                        {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "mask": {
-                                        "type": "string",
-                                        "description": "Runnable name mask"
-                                    },
-                                    "env": {
-                                        "type": "object",
-                                        "description": "Variables in form of { \"key\": \"value\"}"
-                                    }
-                                }
-                            }
-                        },
-                        {
-                            "type": "object",
-                            "description": "Variables in form of { \"key\": \"value\"}"
-                        }
-                    ],
-                    "default": null,
-                    "markdownDescription": "Environment variables passed to the runnable launched using `Test` or `Debug` lens or `rust-analyzer.run` command."
-                },
-                "rust-analyzer.inlayHints.enable": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Whether to show inlay hints."
-                },
-                "rust-analyzer.updates.channel": {
-                    "type": "string",
-                    "enum": [
-                        "stable",
-                        "nightly"
-                    ],
-                    "default": "stable",
-                    "markdownEnumDescriptions": [
-                        "`stable` updates are shipped weekly, they don't contain cutting-edge features from VSCode proposed APIs but have less bugs in general.",
-                        "`nightly` updates are shipped daily (extension updates automatically by downloading artifacts directly from GitHub), they contain cutting-edge features and latest bug fixes. These releases help us get your feedback very quickly and speed up rust-analyzer development **drastically**."
-                    ],
-                    "markdownDescription": "Choose `nightly` updates to get the latest features and bug fixes every day. While `stable` releases occur weekly and don't contain cutting-edge features from VSCode proposed APIs."
-                },
-                "rust-analyzer.updates.askBeforeDownload": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Whether to ask for permission before downloading any files from the Internet."
-                },
-                "rust-analyzer.server.path": {
-                    "type": [
-                        "null",
-                        "string"
-                    ],
-                    "default": null,
-                    "markdownDescription": "Path to rust-analyzer executable (points to bundled binary by default). If this is set, then `#rust-analyzer.updates.channel#` setting is not used"
-                },
-                "rust-analyzer.server.extraEnv": {
-                    "type": [
-                        "null",
-                        "object"
-                    ],
-                    "default": null,
-                    "markdownDescription": "Extra environment variables that will be passed to the rust-analyzer executable. Useful for passing e.g. `RA_LOG` for debugging."
-                },
-                "rust-analyzer.trace.server": {
-                    "type": "string",
-                    "scope": "window",
-                    "enum": [
-                        "off",
-                        "messages",
-                        "verbose"
-                    ],
-                    "enumDescriptions": [
-                        "No traces",
-                        "Error only",
-                        "Full log"
-                    ],
-                    "default": "off",
-                    "description": "Trace requests to the rust-analyzer (this is usually overly verbose and not recommended for regular users)."
-                },
-                "rust-analyzer.trace.extension": {
-                    "description": "Enable logging of VS Code extensions itself.",
-                    "type": "boolean",
-                    "default": false
-                },
-                "rust-analyzer.debug.engine": {
-                    "type": "string",
-                    "enum": [
-                        "auto",
-                        "vadimcn.vscode-lldb",
-                        "ms-vscode.cpptools"
-                    ],
-                    "default": "auto",
-                    "description": "Preferred debug engine.",
-                    "markdownEnumDescriptions": [
-                        "First try to use [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb), if it's not installed try to use [MS C++ tools](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools).",
-                        "Use [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)",
-                        "Use [MS C++ tools](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools)"
-                    ]
-                },
-                "rust-analyzer.debug.sourceFileMap": {
-                    "type": "object",
-                    "description": "Optional source file mappings passed to the debug engine.",
-                    "default": {
-                        "/rustc/<id>": "${env:USERPROFILE}/.rustup/toolchains/<toolchain-id>/lib/rustlib/src/rust"
-                    }
-                },
-                "rust-analyzer.debug.openDebugPane": {
-                    "markdownDescription": "Whether to open up the `Debug Panel` on debugging start.",
-                    "type": "boolean",
-                    "default": false
-                },
-                "rust-analyzer.debug.engineSettings": {
-                    "type": "object",
-                    "default": {},
-                    "markdownDescription": "Optional settings passed to the debug engine. Example: `{ \"lldb\": { \"terminal\":\"external\"} }`"
-                },
                 "rust-analyzer.assist.importMergeBehavior": {
                     "markdownDescription": "The strategy to use when inserting new imports or merging imports.",
                     "default": "full",
@@ -402,8 +273,8 @@
                         "type": "string"
                     }
                 },
-                "rust-analyzer.cargo.loadOutDirsFromCheck": {
-                    "markdownDescription": "Run `cargo check` on startup to get the correct value for package OUT_DIRs.",
+                "rust-analyzer.cargo.checkOutDirs": {
+                    "markdownDescription": "Needed for autocomplete for some crates that generate source files in the cargo `OUT_DIR`. Runs `cargo check` on startup to get the correct value for package `OUT_DIR`s.",
                     "default": false,
                     "type": "boolean"
                 },
