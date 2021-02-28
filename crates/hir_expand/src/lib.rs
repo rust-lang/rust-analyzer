@@ -187,6 +187,27 @@ impl HirFileId {
             }
         }
     }
+
+    /// Indicate it is macro file generated for declarative
+    pub fn is_declarative(&self, db: &dyn db::AstDatabase) -> Option<InFile<ast::Item>> {
+        match self.0 {
+            HirFileIdRepr::FileId(_) => None,
+            HirFileIdRepr::MacroFile(macro_file) => {
+                let lazy_id = match macro_file.macro_call_id {
+                    MacroCallId::LazyMacro(id) => id,
+                    MacroCallId::EagerMacro(_id) => {
+                        return None;
+                    }
+                };
+                let loc: MacroCallLoc = db.lookup_intern_macro(lazy_id);
+                let item = match loc.def.kind {
+                    MacroDefKind::Declarative => loc.kind.node(db),
+                    _ => return None,
+                };
+                Some(item.with_value(ast::Item::cast(item.value.clone())?))
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

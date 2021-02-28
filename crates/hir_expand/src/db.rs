@@ -273,7 +273,17 @@ fn expand_proc_macro(
         _ => unreachable!(),
     };
 
-    expander.expand(db, loc.krate, &macro_arg.0)
+    // rustc insert `Groups` with `Delimiter::None` for proc-macro generated from macro_rules! expansion
+    //
+    // https://github.com/rust-lang/rust/pull/73084/
+    // https://github.com/rust-analyzer/rust-analyzer/issues/7787
+    let call_site: HirFileId = loc.kind.file_id();
+    if call_site.is_declarative(db).is_some() {
+        let tt = tt::Subtree { delimiter: None, token_trees: vec![macro_arg.0.clone().into()] };
+        expander.expand(db, loc.krate, &tt)
+    } else {
+        expander.expand(db, loc.krate, &macro_arg.0)
+    }
 }
 
 fn parse_or_expand(db: &dyn AstDatabase, file_id: HirFileId) -> Option<SyntaxNode> {
