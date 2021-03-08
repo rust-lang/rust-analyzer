@@ -98,13 +98,15 @@ config_data! {
         diagnostics_enableExperimental: bool    = "true",
         /// List of rust-analyzer diagnostics to disable.
         diagnostics_disabled: FxHashSet<String> = "[]",
-        /// List of warnings that should be displayed with info severity.\n\nThe
-        /// warnings will be indicated by a blue squiggly underline in code and
-        /// a blue icon in the `Problems Panel`.
+        /// List of warnings that should be displayed with info severity.
+        ///
+        /// The warnings will be indicated by a blue squiggly underline in code and a blue icon in
+        /// the `Problems Panel`.
         diagnostics_warningsAsHint: Vec<String> = "[]",
-        /// List of warnings that should be displayed with hint severity.\n\nThe
-        /// warnings will be indicated by faded text or three dots in code and
-        /// will not show up in the `Problems Panel`.
+        /// List of warnings that should be displayed with hint severity.
+        ///
+        /// The warnings will be indicated by faded text or three dots in code and will not show up
+        /// in the `Problems Panel`.
         diagnostics_warningsAsInfo: Vec<String> = "[]",
 
         /// Controls file watching implementation.
@@ -158,7 +160,9 @@ config_data! {
         lens_references: bool = "false",
 
         /// Disable project auto-discovery in favor of explicitly specified set
-        /// of projects.\n\nElements must be paths pointing to `Cargo.toml`,
+        /// of projects.
+        ///
+        /// Elements must be paths pointing to `Cargo.toml`,
         /// `rust-project.json`, or JSON objects in `rust-project.json` format.
         linkedProjects: Vec<ManifestOrProjectJson> = "[]",
 
@@ -177,7 +181,9 @@ config_data! {
         /// Command to be executed instead of 'cargo' for runnables.
         runnables_overrideCargo: Option<String> = "null",
         /// Additional arguments to be passed to cargo for runnables such as
-        /// tests or binaries.\nFor example, it may be `--release`.
+        /// tests or binaries.
+        ///
+        /// For example, it may be `--release`.
         runnables_cargoExtraArgs: Vec<String>   = "[]",
 
         /// Path to the rust compiler sources, for usage in rustc_private projects, or "discover"
@@ -760,8 +766,49 @@ fn schema(fields: &[(&'static str, &'static str, &[&str], &str)]) -> serde_json:
     map.into()
 }
 
+enum DocMode {
+    Json,
+    #[cfg(test)]
+    AsciiDoc,
+}
+
+fn generate_doc<'a>(doc: &'a [&str], mode: DocMode) -> String {
+    // asciidoctor syntax looks like
+    // ```
+    // some docs here, with a new line +
+    // and docs following
+    // ```
+    // Collapse regular newlines which are probably just word-wrapped, but leave entirely empty lines as hard breaks.
+    use std::borrow::Cow;
+    let line_ending = if matches!(mode, DocMode::Json) { "\n" } else { " +\n" };
+    let doc_line = |line: &'a str| -> &'a str {
+        if matches!(mode, DocMode::Json) {
+            line.trim_start()
+        } else {
+            line
+        }
+    };
+    doc.windows(2)
+        .map(|window| {
+            let doc_line = doc_line(window[0]);
+            // Add `+` if this is asciidoctor syntax and should be a hard break
+            if window[1].is_empty() && !doc_line.is_empty() {
+                Cow::Owned(format!("{}{}", doc_line, line_ending))
+            } else {
+                doc_line.into()
+            }
+        })
+        // Remove the empty line
+        .filter(|line| !line.is_empty())
+        // `.windows()` doesn't include the last line
+        .chain(doc.last().map(|&x| doc_line(x).into()))
+        // When emitting JSON, we trim the start of the line, so we need to add back a space between
+        // word-wrapped lines.
+        .join(if matches!(mode, DocMode::Json) { " " } else { "" })
+}
+
 fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json::Value {
-    let doc = doc.iter().map(|it| it.trim()).join(" ");
+    let doc = generate_doc(doc, DocMode::Json);
     assert!(
         doc.ends_with('.') && doc.starts_with(char::is_uppercase),
         "bad docs for {}: {:?}",
@@ -850,7 +897,8 @@ fn manual(fields: &[(&'static str, &'static str, &[&str], &str)]) -> String {
         .iter()
         .map(|(field, _ty, doc, default)| {
             let name = format!("rust-analyzer.{}", field.replace("_", "."));
-            format!("[[{}]]{} (default: `{}`)::\n{}\n", name, name, default, doc.join(" "))
+            let doc = generate_doc(doc, DocMode::AsciiDoc);
+            format!("[[{}]]{} (default: `{}`)::\n{}\n", name, name, default, doc)
         })
         .collect::<String>()
 }
@@ -895,6 +943,30 @@ mod tests {
     }
 
     #[test]
+    fn manual_self_test() {
+        let expected = "\
+[[rust-analyzer.rustcSource]]rust-analyzer.rustcSource (default: `null`)::
+ Path to the Cargo.toml of the rust compiler workspace, for usage in rustc_private projects, or \"discover\" to try to automatically find it. +
+ This option is not reloaded automatically; you must restart rust-analyzer for it to take effect.
+[[rust-analyzer.rustfmt.extraArgs]]rust-analyzer.rustfmt.extraArgs (default: `[]`)::
+ Additional arguments to `rustfmt`.
+";
+        assert_eq!(manual(&[
+            ("rustcSource", "",
+                &[
+                    " Path to the Cargo.toml of the rust compiler workspace, for usage in rustc_private projects,",
+                    " or \"discover\" to try to automatically find it.",
+                    "",
+                    " This option is not reloaded automatically; you must restart rust-analyzer for it to take effect."
+                ], "null"
+            ),
+            ("rustfmt.extraArgs", "", &[
+                " Additional arguments to `rustfmt`."
+            ], "[]"),
+        ]), expected);
+    }
+
+    #[test]
     fn generate_config_documentation() {
         let docs_path = project_root().join("docs/user/generated_config.adoc");
         let current = fs::read_to_string(&docs_path).unwrap();
@@ -902,7 +974,7 @@ mod tests {
 
         if remove_ws(&current) != remove_ws(&expected) {
             fs::write(&docs_path, expected).unwrap();
-            panic!("updated config manual");
+            panic!("updated config manual (rerun this test and it should pass)");
         }
     }
 

@@ -546,7 +546,7 @@
                     "uniqueItems": true
                 },
                 "rust-analyzer.diagnostics.warningsAsHint": {
-                    "markdownDescription": "List of warnings that should be displayed with info severity.\\n\\nThe warnings will be indicated by a blue squiggly underline in code and a blue icon in the `Problems Panel`.",
+                    "markdownDescription": "List of warnings that should be displayed with info severity.\n The warnings will be indicated by a blue squiggly underline in code and a blue icon in the `Problems Panel`.",
                     "default": [],
                     "type": "array",
                     "items": {
@@ -554,7 +554,7 @@
                     }
                 },
                 "rust-analyzer.diagnostics.warningsAsInfo": {
-                    "markdownDescription": "List of warnings that should be displayed with hint severity.\\n\\nThe warnings will be indicated by faded text or three dots in code and will not show up in the `Problems Panel`.",
+                    "markdownDescription": "List of warnings that should be displayed with hint severity.\n The warnings will be indicated by faded text or three dots in code and will not show up in the `Problems Panel`.",
                     "default": [],
                     "type": "array",
                     "items": {
@@ -659,7 +659,7 @@
                     "type": "boolean"
                 },
                 "rust-analyzer.linkedProjects": {
-                    "markdownDescription": "Disable project auto-discovery in favor of explicitly specified set of projects.\\n\\nElements must be paths pointing to `Cargo.toml`, `rust-project.json`, or JSON objects in `rust-project.json` format.",
+                    "markdownDescription": "Disable project auto-discovery in favor of explicitly specified set of projects.\n Elements must be paths pointing to `Cargo.toml`, `rust-project.json`, or JSON objects in `rust-project.json` format.",
                     "default": [],
                     "type": "array",
                     "items": {
@@ -705,7 +705,7 @@
                     ]
                 },
                 "rust-analyzer.runnables.cargoExtraArgs": {
-                    "markdownDescription": "Additional arguments to be passed to cargo for runnables such as tests or binaries.\\nFor example, it may be `--release`.",
+                    "markdownDescription": "Additional arguments to be passed to cargo for runnables such as tests or binaries.\n For example, it may be `--release`.",
                     "default": [],
                     "type": "array",
                     "items": {
