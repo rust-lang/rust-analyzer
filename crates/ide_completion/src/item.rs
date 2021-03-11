@@ -354,7 +354,7 @@ pub(crate) struct Builder {
 }
 
 impl Builder {
-    pub(crate) fn build(&self) -> CompletionItem {
+    pub(crate) fn build(self) -> CompletionItem {
         let builder = self.clone();
         let _p = profile::span("item::Builder::build");
 

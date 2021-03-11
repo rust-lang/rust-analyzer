@@ -39,12 +39,9 @@ impl<'a> MacroRender<'a> {
     }
 
     fn render(&self, import_to_add: Option<ImportEdit>) -> Option<CompletionItem> {
-        let mut builder = &mut CompletionItem::new(
-            CompletionKind::Reference,
-            self.ctx.source_range(),
-            &self.label(),
-        );
-        builder = builder
+        let mut builder =
+            CompletionItem::new(CompletionKind::Reference, self.ctx.source_range(), &self.label());
+        builder
             .kind(SymbolKind::Macro)
             .set_documentation(self.docs.clone())
             .set_deprecated(self.ctx.is_deprecated(self.macro_))
@@ -52,16 +49,18 @@ impl<'a> MacroRender<'a> {
             .set_detail(self.detail());
 
         let needs_bang = self.needs_bang();
-        builder = match self.ctx.snippet_cap() {
+        match self.ctx.snippet_cap() {
             Some(cap) if needs_bang => {
                 let snippet = self.snippet();
                 let lookup = self.lookup();
-                builder.insert_snippet(cap, snippet).lookup_by(lookup)
+                builder.insert_snippet(cap, snippet).lookup_by(lookup);
             }
-            None if needs_bang => builder.insert_text(self.banged_name()),
+            None if needs_bang => {
+                builder.insert_text(self.banged_name());
+            }
             _ => {
                 cov_mark::hit!(dont_insert_macro_call_parens_unncessary);
-                builder.insert_text(&self.name)
+                builder.insert_text(&self.name);
             }
         };
 

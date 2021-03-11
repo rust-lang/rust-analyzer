@@ -34,7 +34,7 @@ pub(crate) fn complete_item_snippet(acc: &mut Completions, ctx: &CompletionConte
         None => return,
     };
 
-    snippet(
+    let mut test_module_builder = snippet(
         ctx,
         cap,
         "tmod (Test module)",
@@ -48,11 +48,11 @@ mod tests {
         $0
     }
 }",
-    )
-    .lookup_by("tmod")
-    .add_to(acc);
+    );
+    test_module_builder.lookup_by("tmod");
+    test_module_builder.add_to(acc);
 
-    snippet(
+    let mut test_function_builder = snippet(
         ctx,
         cap,
         "tfn (Test function)",
@@ -61,11 +61,13 @@ mod tests {
 fn ${1:feature}() {
     $0
 }",
-    )
-    .lookup_by("tfn")
-    .add_to(acc);
+    );
+    test_function_builder.lookup_by("tfn");
+    test_function_builder.add_to(acc);
 
-    snippet(ctx, cap, "macro_rules", "macro_rules! $1 {\n\t($2) => {\n\t\t$0\n\t};\n}").add_to(acc);
+    let macro_rules_builder =
+        snippet(ctx, cap, "macro_rules", "macro_rules! $1 {\n\t($2) => {\n\t\t$0\n\t};\n}");
+    macro_rules_builder.add_to(acc);
 }
 
 #[cfg(test)]
