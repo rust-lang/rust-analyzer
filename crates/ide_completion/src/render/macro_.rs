@@ -44,7 +44,7 @@ impl<'a> MacroRender<'a> {
             self.ctx.source_range(),
             &self.label(),
         );
-        builder = builder
+        builder
             .kind(SymbolKind::Macro)
             .set_documentation(self.docs.clone())
             .set_deprecated(self.ctx.is_deprecated(self.macro_))
