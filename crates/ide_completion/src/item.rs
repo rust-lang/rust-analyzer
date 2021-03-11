@@ -355,12 +355,11 @@ pub(crate) struct Builder {
 
 impl Builder {
     pub(crate) fn build(self) -> CompletionItem {
-        let builder = self.clone();
         let _p = profile::span("item::Builder::build");
 
-        let mut label = builder.label;
-        let mut lookup = builder.lookup;
-        let mut insert_text = builder.insert_text;
+        let mut label = self.label;
+        let mut lookup = self.lookup;
+        let mut insert_text = self.insert_text;
 
         if let Some(original_path) = self
             .import_to_add
@@ -378,7 +377,7 @@ impl Builder {
             }
         }
 
-        let text_edit = match builder.text_edit {
+        let text_edit = match self.text_edit {
             Some(it) => it,
             None => {
                 TextEdit::replace(self.source_range, insert_text.unwrap_or_else(|| label.clone()))
@@ -390,8 +389,8 @@ impl Builder {
             label,
             insert_text_format: self.insert_text_format,
             text_edit,
-            detail: builder.detail,
-            documentation: builder.documentation,
+            detail: self.detail,
+            documentation: self.documentation,
             lookup,
             kind: self.kind,
             completion_kind: self.completion_kind,
@@ -399,7 +398,7 @@ impl Builder {
             trigger_call_info: self.trigger_call_info.unwrap_or(false),
             relevance: self.relevance,
             ref_match: self.ref_match,
-            import_to_add: builder.import_to_add,
+            import_to_add: self.import_to_add,
         }
     }
     pub(crate) fn lookup_by(&mut self, lookup: impl Into<String>) -> &mut Builder {
