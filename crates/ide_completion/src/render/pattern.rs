@@ -71,7 +71,9 @@ fn build_completion(
     pat: String,
     item: impl HasAttrs + Copy,
 ) -> CompletionItem {
-    let completion = CompletionItem::new(CompletionKind::Snippet, ctx.source_range(), name)
+    let mut completion =
+        &mut CompletionItem::new(CompletionKind::Snippet, ctx.source_range(), name);
+    completion = completion
         .kind(CompletionItemKind::Binding)
         .set_documentation(ctx.docs(item))
         .set_deprecated(ctx.is_deprecated(item))

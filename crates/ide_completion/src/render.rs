@@ -145,15 +145,16 @@ impl<'a> Render<'a> {
     fn add_field(&mut self, field: hir::Field, ty: &Type) -> CompletionItem {
         let is_deprecated = self.ctx.is_deprecated(field);
         let name = field.name(self.ctx.db());
-        let mut item = CompletionItem::new(
+        let mut builder = CompletionItem::new(
             CompletionKind::Reference,
             self.ctx.source_range(),
             name.to_string(),
-        )
-        .kind(SymbolKind::Field)
-        .detail(ty.display(self.ctx.db()).to_string())
-        .set_documentation(field.docs(self.ctx.db()))
-        .set_deprecated(is_deprecated);
+        );
+        let mut item = builder
+            .kind(SymbolKind::Field)
+            .detail(ty.display(self.ctx.db()).to_string())
+            .set_documentation(field.docs(self.ctx.db()))
+            .set_deprecated(is_deprecated);
 
         if let Some(relevance) = compute_relevance(&self.ctx, &ty, &name.to_string()) {
             item = item.set_relevance(relevance);
@@ -238,7 +239,7 @@ impl<'a> Render<'a> {
         };
 
         let mut item =
-            CompletionItem::new(completion_kind, self.ctx.source_range(), local_name.clone());
+            &mut CompletionItem::new(completion_kind, self.ctx.source_range(), local_name.clone());
         if let ScopeDef::Local(local) = resolution {
             let ty = local.ty(self.ctx.db());
             if !ty.is_unknown() {

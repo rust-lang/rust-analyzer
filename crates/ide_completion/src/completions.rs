@@ -49,7 +49,7 @@ impl Into<Vec<CompletionItem>> for Completions {
 impl Builder {
     /// Convenience method, which allows to add a freshly created completion into accumulator
     /// without binding it to the variable.
-    pub(crate) fn add_to(self, acc: &mut Completions) {
+    pub(crate) fn add_to(&self, acc: &mut Completions) {
         acc.add(self.build())
     }
 }

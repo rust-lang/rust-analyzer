@@ -165,8 +165,9 @@ pub(crate) fn complete_expr_keyword(acc: &mut Completions, ctx: &CompletionConte
 }
 
 fn add_keyword(ctx: &CompletionContext, acc: &mut Completions, kw: &str, snippet: &str) {
-    let builder = CompletionItem::new(CompletionKind::Keyword, ctx.source_range(), kw)
-        .kind(CompletionItemKind::Keyword);
+    let mut builder = &mut CompletionItem::new(CompletionKind::Keyword, ctx.source_range(), kw);
+    builder = builder.kind(CompletionItemKind::Keyword);
+
     let builder = match ctx.config.snippet_cap {
         Some(cap) => {
             let tmp;

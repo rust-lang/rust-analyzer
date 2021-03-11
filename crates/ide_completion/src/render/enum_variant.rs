@@ -55,16 +55,17 @@ impl<'a> EnumRender<'a> {
     }
 
     fn render(self, import_to_add: Option<ImportEdit>) -> CompletionItem {
-        let mut builder = CompletionItem::new(
+        let mut builder = &mut CompletionItem::new(
             CompletionKind::Reference,
             self.ctx.source_range(),
             self.qualified_name.clone(),
-        )
-        .kind(SymbolKind::Variant)
-        .set_documentation(self.variant.docs(self.ctx.db()))
-        .set_deprecated(self.ctx.is_deprecated(self.variant))
-        .add_import(import_to_add)
-        .detail(self.detail());
+        );
+        builder = builder
+            .kind(SymbolKind::Variant)
+            .set_documentation(self.variant.docs(self.ctx.db()))
+            .set_deprecated(self.ctx.is_deprecated(self.variant))
+            .add_import(import_to_add)
+            .detail(self.detail());
 
         if self.variant_kind == StructKind::Tuple {
             cov_mark::hit!(inserts_parens_for_tuple_enums);

@@ -145,9 +145,8 @@ fn add_function_impl(
         format!("fn {}(..)", fn_name)
     };
 
-    let builder = CompletionItem::new(CompletionKind::Magic, ctx.source_range(), label)
-        .lookup_by(fn_name)
-        .set_documentation(func.docs(ctx.db));
+    let builder = &mut CompletionItem::new(CompletionKind::Magic, ctx.source_range(), label);
+    builder.lookup_by(fn_name).set_documentation(func.docs(ctx.db));
 
     let completion_kind = if func.self_param(ctx.db).is_some() {
         CompletionItemKind::Method

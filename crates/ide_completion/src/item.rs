@@ -354,12 +354,13 @@ pub(crate) struct Builder {
 }
 
 impl Builder {
-    pub(crate) fn build(self) -> CompletionItem {
+    pub(crate) fn build(&self) -> CompletionItem {
+        let builder = self.clone();
         let _p = profile::span("item::Builder::build");
 
-        let mut label = self.label;
-        let mut lookup = self.lookup;
-        let mut insert_text = self.insert_text;
+        let mut label = builder.label;
+        let mut lookup = builder.lookup;
+        let mut insert_text = builder.insert_text;
 
         if let Some(original_path) = self
             .import_to_add
@@ -377,7 +378,7 @@ impl Builder {
             }
         }
 
-        let text_edit = match self.text_edit {
+        let text_edit = match builder.text_edit {
             Some(it) => it,
             None => {
                 TextEdit::replace(self.source_range, insert_text.unwrap_or_else(|| label.clone()))
@@ -389,8 +390,8 @@ impl Builder {
             label,
             insert_text_format: self.insert_text_format,
             text_edit,
-            detail: self.detail,
-            documentation: self.documentation,
+            detail: builder.detail,
+            documentation: builder.documentation,
             lookup,
             kind: self.kind,
             completion_kind: self.completion_kind,
@@ -398,45 +399,45 @@ impl Builder {
             trigger_call_info: self.trigger_call_info.unwrap_or(false),
             relevance: self.relevance,
             ref_match: self.ref_match,
-            import_to_add: self.import_to_add,
+            import_to_add: builder.import_to_add,
         }
     }
-    pub(crate) fn lookup_by(mut self, lookup: impl Into<String>) -> Builder {
+    pub(crate) fn lookup_by(&mut self, lookup: impl Into<String>) -> &mut Builder {
         self.lookup = Some(lookup.into());
         self
     }
-    pub(crate) fn label(mut self, label: impl Into<String>) -> Builder {
+    pub(crate) fn label(&mut self, label: impl Into<String>) -> &mut Builder {
         self.label = label.into();
         self
     }
-    pub(crate) fn insert_text(mut self, insert_text: impl Into<String>) -> Builder {
+    pub(crate) fn insert_text(&mut self, insert_text: impl Into<String>) -> &mut Builder {
         self.insert_text = Some(insert_text.into());
         self
     }
     pub(crate) fn insert_snippet(
-        mut self,
+        &mut self,
         _cap: SnippetCap,
         snippet: impl Into<String>,
-    ) -> Builder {
+    ) -> &mut Builder {
         self.insert_text_format = InsertTextFormat::Snippet;
         self.insert_text(snippet)
     }
-    pub(crate) fn kind(mut self, kind: impl Into<CompletionItemKind>) -> Builder {
+    pub(crate) fn kind(&mut self, kind: impl Into<CompletionItemKind>) -> &mut Builder {
         self.kind = Some(kind.into());
         self
     }
-    pub(crate) fn text_edit(mut self, edit: TextEdit) -> Builder {
+    pub(crate) fn text_edit(&mut self, edit: TextEdit) -> &mut Builder {
         self.text_edit = Some(edit);
         self
     }
-    pub(crate) fn snippet_edit(mut self, _cap: SnippetCap, edit: TextEdit) -> Builder {
+    pub(crate) fn snippet_edit(&mut self, _cap: SnippetCap, edit: TextEdit) -> &mut Builder {
         self.insert_text_format = InsertTextFormat::Snippet;
         self.text_edit(edit)
     }
-    pub(crate) fn detail(self, detail: impl Into<String>) -> Builder {
+    pub(crate) fn detail(&mut self, detail: impl Into<String>) -> &mut Builder {
         self.set_detail(Some(detail))
     }
-    pub(crate) fn set_detail(mut self, detail: Option<impl Into<String>>) -> Builder {
+    pub(crate) fn set_detail(&mut self, detail: Option<impl Into<String>>) -> &mut Builder {
         self.detail = detail.map(Into::into);
         if let Some(detail) = &self.detail {
             if never!(detail.contains('\n'), "multiline detail:\n{}", detail) {
@@ -446,30 +447,30 @@ impl Builder {
         self
     }
     #[allow(unused)]
-    pub(crate) fn documentation(self, docs: Documentation) -> Builder {
+    pub(crate) fn documentation(&mut self, docs: Documentation) -> &mut Builder {
         self.set_documentation(Some(docs))
     }
-    pub(crate) fn set_documentation(mut self, docs: Option<Documentation>) -> Builder {
+    pub(crate) fn set_documentation(&mut self, docs: Option<Documentation>) -> &mut Builder {
         self.documentation = docs.map(Into::into);
         self
     }
-    pub(crate) fn set_deprecated(mut self, deprecated: bool) -> Builder {
+    pub(crate) fn set_deprecated(&mut self, deprecated: bool) -> &mut Builder {
         self.deprecated = deprecated;
         self
     }
-    pub(crate) fn set_relevance(mut self, relevance: Relevance) -> Builder {
+    pub(crate) fn set_relevance(&mut self, relevance: Relevance) -> &mut Builder {
         self.relevance = relevance;
         self
     }
-    pub(crate) fn trigger_call_info(mut self) -> Builder {
+    pub(crate) fn trigger_call_info(&mut self) -> &mut Builder {
         self.trigger_call_info = Some(true);
         self
     }
-    pub(crate) fn add_import(mut self, import_to_add: Option<ImportEdit>) -> Builder {
+    pub(crate) fn add_import(&mut self, import_to_add: Option<ImportEdit>) -> &mut Builder {
         self.import_to_add = import_to_add;
         self
     }
-    pub(crate) fn ref_match(mut self, mutability: Mutability) -> Builder {
+    pub(crate) fn ref_match(&mut self, mutability: Mutability) -> &mut Builder {
         self.ref_match = Some(mutability);
         self
     }

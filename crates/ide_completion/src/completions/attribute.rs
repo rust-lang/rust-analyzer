@@ -41,12 +41,12 @@ pub(crate) fn complete_attribute(acc: &mut Completions, ctx: &CompletionContext)
 fn complete_attribute_start(acc: &mut Completions, ctx: &CompletionContext, attribute: &ast::Attr) {
     let is_inner = attribute.kind() == ast::AttrKind::Inner;
     for attr_completion in ATTRIBUTES.iter().filter(|compl| is_inner || !compl.prefer_inner) {
-        let mut item = CompletionItem::new(
+        let mut item = &mut CompletionItem::new(
             CompletionKind::Attribute,
             ctx.source_range(),
             attr_completion.label,
-        )
-        .kind(CompletionItemKind::Attribute);
+        );
+        item = item.kind(CompletionItemKind::Attribute);
 
         if let Some(lookup) = attr_completion.lookup {
             item = item.lookup_by(lookup);
@@ -168,16 +168,18 @@ fn complete_derive(acc: &mut Completions, ctx: &CompletionContext, derive_input:
             );
             let lookup = components.join(", ");
             let label = components.iter().rev().join(", ");
-            CompletionItem::new(CompletionKind::Attribute, ctx.source_range(), label)
-                .lookup_by(lookup)
-                .kind(CompletionItemKind::Attribute)
-                .add_to(acc)
+            let builder =
+                &mut CompletionItem::new(CompletionKind::Attribute, ctx.source_range(), label);
+            builder.lookup_by(lookup).kind(CompletionItemKind::Attribute).add_to(acc);
         }
 
         for custom_derive_name in get_derive_names_in_scope(ctx).difference(&existing_derives) {
-            CompletionItem::new(CompletionKind::Attribute, ctx.source_range(), custom_derive_name)
-                .kind(CompletionItemKind::Attribute)
-                .add_to(acc)
+            let builder = &mut CompletionItem::new(
+                CompletionKind::Attribute,
+                ctx.source_range(),
+                custom_derive_name,
+            );
+            builder.kind(CompletionItemKind::Attribute).add_to(acc);
         }
     }
 }

@@ -39,13 +39,17 @@ impl<'a> MacroRender<'a> {
     }
 
     fn render(&self, import_to_add: Option<ImportEdit>) -> Option<CompletionItem> {
-        let mut builder =
-            CompletionItem::new(CompletionKind::Reference, self.ctx.source_range(), &self.label())
-                .kind(SymbolKind::Macro)
-                .set_documentation(self.docs.clone())
-                .set_deprecated(self.ctx.is_deprecated(self.macro_))
-                .add_import(import_to_add)
-                .set_detail(self.detail());
+        let mut builder = &mut CompletionItem::new(
+            CompletionKind::Reference,
+            self.ctx.source_range(),
+            &self.label(),
+        );
+        builder = builder
+            .kind(SymbolKind::Macro)
+            .set_documentation(self.docs.clone())
+            .set_deprecated(self.ctx.is_deprecated(self.macro_))
+            .add_import(import_to_add)
+            .set_detail(self.detail());
 
         let needs_bang = self.needs_bang();
         builder = match self.ctx.snippet_cap() {

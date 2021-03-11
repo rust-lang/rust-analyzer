@@ -8,9 +8,8 @@ use crate::{
 };
 
 fn snippet(ctx: &CompletionContext, cap: SnippetCap, label: &str, snippet: &str) -> Builder {
-    CompletionItem::new(CompletionKind::Snippet, ctx.source_range(), label)
-        .insert_snippet(cap, snippet)
-        .kind(CompletionItemKind::Snippet)
+    let mut builder = CompletionItem::new(CompletionKind::Snippet, ctx.source_range(), label);
+    builder.insert_snippet(cap, snippet).kind(CompletionItemKind::Snippet).clone()
 }
 
 pub(crate) fn complete_expr_snippet(acc: &mut Completions, ctx: &CompletionContext) {
