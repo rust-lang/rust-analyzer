@@ -170,6 +170,7 @@ mod handlers {
     mod toggle_ignore;
     mod unmerge_use;
     mod unwrap_block;
+    mod unwrap_type;
     mod wrap_return_type_in_result;
 
     pub(crate) fn all() -> &'static [Handler] {
@@ -239,6 +240,7 @@ mod handlers {
             toggle_ignore::toggle_ignore,
             unmerge_use::unmerge_use,
             unwrap_block::unwrap_block,
+            unwrap_type::unwrap_type,
             wrap_return_type_in_result::wrap_return_type_in_result,
             // These are manually sorted for better priorities. By default,
             // priority is determined by the size of the target range (smaller
