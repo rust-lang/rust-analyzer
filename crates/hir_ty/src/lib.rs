@@ -60,11 +60,9 @@ pub type PlaceholderIndex = chalk_ir::PlaceholderIndex;
 
 pub type ChalkTraitId = chalk_ir::TraitId<Interner>;
 
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
-pub enum Lifetime {
-    Parameter(LifetimeParamId),
-    Static,
-}
+pub type Lifetime = chalk_ir::Lifetime<Interner>;
+pub type LifetimeData = chalk_ir::LifetimeData<Interner>;
+pub type LifetimeOutlives = chalk_ir::LifetimeOutlives<Interner>;
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct OpaqueTy {
@@ -561,6 +559,34 @@ impl TypeWalk for TraitRef {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TypeOutlives {
+    /// The type which must outlive the given lifetime.
+    pub ty: Ty,
+    /// The lifetime which the type must outlive.
+    pub lifetime: Lifetime,
+}
+
+impl TypeWalk for TypeOutlives {
+    fn walk(&self, f: &mut impl FnMut(&Ty)) {
+        self.ty.walk(f);
+    }
+
+    fn walk_mut_binders(
+        &mut self,
+        f: &mut impl FnMut(&mut Ty, DebruijnIndex),
+        binders: DebruijnIndex,
+    ) {
+        self.ty.walk_mut_binders(f, binders);
+    }
+}
+
+impl TypeWalk for LifetimeOutlives {
+    fn walk(&self, _: &mut impl FnMut(&Ty)) {}
+
+    fn walk_mut_binders(&mut self, _: &mut impl FnMut(&mut Ty, DebruijnIndex), _: DebruijnIndex) {}
+}
+
 /// Like `generics::WherePredicate`, but with resolved types: A condition on the
 /// parameters of a generic item.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -569,6 +595,10 @@ pub enum GenericPredicate {
     Implemented(TraitRef),
     /// An associated type bindings like in `Iterator<Item = T>`.
     AliasEq(AliasEq),
+    /// One lifetime outlives another.
+    LifetimeOutlives(LifetimeOutlives),
+    /// Type outlives a lifetime.
+    TypeOutlives(TypeOutlives),
     /// We couldn't resolve the trait reference. (If some type parameters can't
     /// be resolved, they will just be Unknown).
     Error,
@@ -589,7 +619,7 @@ impl GenericPredicate {
             GenericPredicate::AliasEq(AliasEq { alias: AliasTy::Projection(proj), .. }) => {
                 Some(proj.trait_ref(db))
             }
-            GenericPredicate::AliasEq(_) | GenericPredicate::Error => None,
+            _ => None,
         }
     }
 }
@@ -599,6 +629,8 @@ impl TypeWalk for GenericPredicate {
         match self {
             GenericPredicate::Implemented(trait_ref) => trait_ref.walk(f),
             GenericPredicate::AliasEq(alias_eq) => alias_eq.walk(f),
+            GenericPredicate::TypeOutlives(ty_outlives) => ty_outlives.walk(f),
+            GenericPredicate::LifetimeOutlives(lt_outlives) => lt_outlives.walk(f),
             GenericPredicate::Error => {}
         }
     }
@@ -611,6 +643,10 @@ impl TypeWalk for GenericPredicate {
         match self {
             GenericPredicate::Implemented(trait_ref) => trait_ref.walk_mut_binders(f, binders),
             GenericPredicate::AliasEq(alias_eq) => alias_eq.walk_mut_binders(f, binders),
+            GenericPredicate::TypeOutlives(ty_outlives) => ty_outlives.walk_mut_binders(f, binders),
+            GenericPredicate::LifetimeOutlives(lt_outlives) => {
+                lt_outlives.walk_mut_binders(f, binders)
+            }
             GenericPredicate::Error => {}
         }
     }
@@ -1197,6 +1233,12 @@ pub fn to_placeholder_idx(db: &dyn HirDatabase, id: TypeParamId) -> PlaceholderI
         ui: chalk_ir::UniverseIndex::ROOT,
         idx: salsa::InternKey::as_intern_id(&interned_id).as_usize(),
     }
+}
+
+pub fn lt_from_placeholder_idx(db: &dyn HirDatabase, idx: PlaceholderIndex) -> LifetimeParamId {
+    assert_eq!(idx.ui, chalk_ir::UniverseIndex::ROOT);
+    let interned_id = salsa::InternKey::from_intern_id(salsa::InternId::from(idx.idx));
+    db.lookup_intern_lifetime_param_id(interned_id)
 }
 
 pub fn to_chalk_trait_id(id: TraitId) -> ChalkTraitId {

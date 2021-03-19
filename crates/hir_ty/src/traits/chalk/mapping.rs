@@ -15,7 +15,7 @@ use crate::{
     primitive::UintTy,
     traits::{Canonical, Obligation},
     AliasTy, CallableDefId, FnPointer, GenericPredicate, InEnvironment, OpaqueTy, ProjectionTy,
-    Scalar, Substitution, TraitRef, Ty,
+    Scalar, Substitution, TraitRef, Ty, TypeOutlives,
 };
 
 use super::interner::*;
@@ -304,6 +304,18 @@ impl ToChalk for TypeAliasAsValue {
     }
 }
 
+impl ToChalk for TypeOutlives {
+    type Chalk = chalk_ir::TypeOutlives<Interner>;
+
+    fn to_chalk(self, db: &dyn HirDatabase) -> Self::Chalk {
+        chalk_ir::TypeOutlives { ty: self.ty.to_chalk(db), lifetime: self.lifetime }
+    }
+
+    fn from_chalk(db: &dyn HirDatabase, chalk: Self::Chalk) -> Self {
+        TypeOutlives { ty: from_chalk(db, chalk.ty), lifetime: chalk.lifetime }
+    }
+}
+
 impl ToChalk for GenericPredicate {
     type Chalk = chalk_ir::QuantifiedWhereClause<Interner>;
 
@@ -316,6 +328,13 @@ impl ToChalk for GenericPredicate {
             }
             GenericPredicate::AliasEq(alias_eq) => make_binders(
                 chalk_ir::WhereClause::AliasEq(alias_eq.to_chalk(db).shifted_in(&Interner)),
+                0,
+            ),
+            GenericPredicate::LifetimeOutlives(lt_outlives) => {
+                make_binders(chalk_ir::WhereClause::LifetimeOutlives(lt_outlives), 0)
+            }
+            GenericPredicate::TypeOutlives(ty_outlives) => make_binders(
+                chalk_ir::WhereClause::TypeOutlives(ty_outlives.to_chalk(db).shifted_in(&Interner)),
                 0,
             ),
             GenericPredicate::Error => panic!("tried passing GenericPredicate::Error to Chalk"),
@@ -339,15 +358,11 @@ impl ToChalk for GenericPredicate {
             chalk_ir::WhereClause::AliasEq(alias_eq) => {
                 GenericPredicate::AliasEq(from_chalk(db, alias_eq))
             }
-
-            chalk_ir::WhereClause::LifetimeOutlives(_) => {
-                // we shouldn't get these from Chalk
-                panic!("encountered LifetimeOutlives from Chalk")
+            chalk_ir::WhereClause::LifetimeOutlives(lt_outlives) => {
+                GenericPredicate::LifetimeOutlives(lt_outlives)
             }
-
-            chalk_ir::WhereClause::TypeOutlives(_) => {
-                // we shouldn't get these from Chalk
-                panic!("encountered TypeOutlives from Chalk")
+            chalk_ir::WhereClause::TypeOutlives(ty_outlives) => {
+                GenericPredicate::TypeOutlives(from_chalk(db, ty_outlives))
             }
         }
     }
@@ -430,8 +445,13 @@ impl ToChalk for Obligation {
 
     fn to_chalk(self, db: &dyn HirDatabase) -> chalk_ir::DomainGoal<Interner> {
         match self {
-            Obligation::Trait(tr) => tr.to_chalk(db).cast(&Interner),
-            Obligation::AliasEq(alias_eq) => alias_eq.to_chalk(db).cast(&Interner),
+            Obligation::Trait(it) => it.to_chalk(db).cast(&Interner),
+            Obligation::AliasEq(it) => it.to_chalk(db).cast(&Interner),
+            Obligation::LifetimeOutlives(it) => it.cast(&Interner),
+            Obligation::TypeOutlives(it) => {
+                // Is there a CastTo impl missing?
+                chalk_ir::DomainGoal::Holds(chalk_ir::WhereClause::TypeOutlives(it.to_chalk(db)))
+            }
         }
     }
 

@@ -96,6 +96,12 @@ impl<'a, 'b> Canonicalizer<'a, 'b> {
             Obligation::AliasEq(alias_eq) => {
                 Obligation::AliasEq(self.do_canonicalize(alias_eq, DebruijnIndex::INNERMOST))
             }
+            Obligation::LifetimeOutlives(lt_outlives) => Obligation::LifetimeOutlives(
+                self.do_canonicalize(lt_outlives, DebruijnIndex::INNERMOST),
+            ),
+            Obligation::TypeOutlives(ty_outlives) => Obligation::TypeOutlives(
+                self.do_canonicalize(ty_outlives, DebruijnIndex::INNERMOST),
+            ),
         };
         self.into_canonicalized(InEnvironment {
             value: result,

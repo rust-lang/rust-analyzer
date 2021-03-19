@@ -9,8 +9,8 @@ use hir_def::{lang_item::LangItemTarget, TraitId};
 use stdx::panic_context;
 
 use crate::{
-    db::HirDatabase, AliasTy, Canonical, DebruijnIndex, GenericPredicate, HirDisplay, Substitution,
-    TraitRef, Ty, TyKind, TypeWalk,
+    db::HirDatabase, AliasTy, Canonical, DebruijnIndex, GenericPredicate, HirDisplay,
+    LifetimeOutlives, Substitution, TraitRef, Ty, TyKind, TypeOutlives, TypeWalk,
 };
 
 use self::chalk::{from_chalk, Interner, ToChalk};
@@ -93,15 +93,20 @@ pub enum Obligation {
     /// parameter to the `TraitRef`).
     Trait(TraitRef),
     AliasEq(AliasEq),
+    LifetimeOutlives(LifetimeOutlives),
+    TypeOutlives(TypeOutlives),
 }
 
 impl Obligation {
     pub fn from_predicate(predicate: GenericPredicate) -> Option<Obligation> {
-        match predicate {
-            GenericPredicate::Implemented(trait_ref) => Some(Obligation::Trait(trait_ref)),
-            GenericPredicate::AliasEq(alias_eq) => Some(Obligation::AliasEq(alias_eq)),
-            GenericPredicate::Error => None,
-        }
+        let obligation = match predicate {
+            GenericPredicate::Implemented(it) => Obligation::Trait(it),
+            GenericPredicate::AliasEq(it) => Obligation::AliasEq(it),
+            GenericPredicate::LifetimeOutlives(it) => Obligation::LifetimeOutlives(it),
+            GenericPredicate::TypeOutlives(it) => Obligation::TypeOutlives(it),
+            GenericPredicate::Error => return None,
+        };
+        Some(obligation)
     }
 }
 
@@ -142,6 +147,8 @@ pub(crate) fn trait_solve_query(
     let _p = profile::span("trait_solve_query").detail(|| match &goal.value.value {
         Obligation::Trait(it) => db.trait_data(it.hir_trait_id()).name.to_string(),
         Obligation::AliasEq(_) => "alias_eq".to_string(),
+        Obligation::LifetimeOutlives(_) => "lifetime_outlives".to_string(),
+        Obligation::TypeOutlives(_) => "type_outlives".to_string(),
     });
     log::info!("trait_solve_query({})", goal.value.value.display(db));
 

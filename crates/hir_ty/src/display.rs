@@ -1,6 +1,9 @@
 //! FIXME: write short doc here
 
-use std::{borrow::Cow, fmt};
+use std::{
+    borrow::Cow,
+    fmt::{self, Debug},
+};
 
 use arrayvec::ArrayVec;
 use chalk_ir::Mutability;
@@ -17,10 +20,11 @@ use hir_def::{
 use hir_expand::name::Name;
 
 use crate::{
-    db::HirDatabase, from_assoc_type_id, from_foreign_def_id, from_placeholder_idx, primitive,
-    to_assoc_type_id, traits::chalk::from_chalk, utils::generics, AdtId, AliasEq, AliasTy,
-    CallableDefId, CallableSig, GenericPredicate, ImplTraitId, Interner, Lifetime, Obligation,
-    OpaqueTy, ProjectionTy, Scalar, Substitution, TraitRef, Ty, TyKind,
+    db::HirDatabase, from_assoc_type_id, from_foreign_def_id, from_placeholder_idx,
+    lt_from_placeholder_idx, primitive, to_assoc_type_id, traits::chalk::from_chalk,
+    utils::generics, AdtId, AliasEq, AliasTy, CallableDefId, CallableSig, GenericPredicate,
+    ImplTraitId, Interner, Lifetime, LifetimeData, LifetimeOutlives, Obligation, OpaqueTy,
+    ProjectionTy, Scalar, Substitution, TraitRef, Ty, TyKind, TypeOutlives,
 };
 
 pub struct HirFormatter<'a> {
@@ -731,7 +735,7 @@ fn write_bounds_like_dyn_trait(
                 }
                 ty.hir_fmt(f)?;
             }
-            GenericPredicate::Error => {
+            _ => {
                 if angle_open {
                     // impl Trait<X, {error}>
                     write!(f, ", ")?;
@@ -799,21 +803,51 @@ impl HirDisplay for GenericPredicate {
                 )?;
                 ty.hir_fmt(f)?;
             }
+            GenericPredicate::LifetimeOutlives(lt_outlives) => lt_outlives.hir_fmt(f)?,
+            GenericPredicate::TypeOutlives(ty_outlives) => ty_outlives.hir_fmt(f)?,
             GenericPredicate::AliasEq(_) | GenericPredicate::Error => write!(f, "{{error}}")?,
         }
         Ok(())
     }
 }
 
+impl HirDisplay for TypeOutlives {
+    fn hir_fmt(&self, f: &mut HirFormatter) -> Result<(), HirDisplayError> {
+        self.ty.hir_fmt(f)?;
+        write!(f, ": ")?;
+        self.lifetime.hir_fmt(f)
+    }
+}
+
+impl HirDisplay for LifetimeOutlives {
+    fn hir_fmt(&self, f: &mut HirFormatter) -> Result<(), HirDisplayError> {
+        self.a.hir_fmt(f)?;
+        write!(f, ": ")?;
+        self.b.hir_fmt(f)
+    }
+}
+
 impl HirDisplay for Lifetime {
     fn hir_fmt(&self, f: &mut HirFormatter) -> Result<(), HirDisplayError> {
+        self.interned().hir_fmt(f)
+    }
+}
+
+impl HirDisplay for LifetimeData {
+    fn hir_fmt(&self, f: &mut HirFormatter) -> Result<(), HirDisplayError> {
         match self {
-            Lifetime::Parameter(id) => {
+            LifetimeData::BoundVar(idx) => write!(f, "?{}.{}", idx.debruijn.depth(), idx.index),
+            LifetimeData::InferenceVar(_) => write!(f, "_"),
+            LifetimeData::Placeholder(idx) => {
+                let id = lt_from_placeholder_idx(f.db, *idx);
                 let generics = generics(f.db.upcast(), id.parent);
                 let param_data = &generics.params.lifetimes[id.local_id];
-                write!(f, "{}", &param_data.name)
+                write!(f, "{}", param_data.name)
             }
-            Lifetime::Static => write!(f, "'static"),
+            LifetimeData::Static => write!(f, "'static"),
+            LifetimeData::Empty(_) => Ok(()),
+            LifetimeData::Erased => Ok(()),
+            LifetimeData::Phantom(_, _) => Ok(()),
         }
     }
 }
@@ -834,6 +868,16 @@ impl HirDisplay for Obligation {
                 }
                 write!(f, " => ")?;
                 ty.hir_fmt(f)?;
+                write!(f, ")")
+            }
+            Obligation::LifetimeOutlives(it) => {
+                write!(f, "LifetimeOutlives(")?;
+                it.hir_fmt(f)?;
+                write!(f, ")")
+            }
+            Obligation::TypeOutlives(it) => {
+                write!(f, "TypeOutlives(")?;
+                it.hir_fmt(f)?;
                 write!(f, ")")
             }
         }
