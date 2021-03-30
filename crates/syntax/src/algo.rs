@@ -581,7 +581,9 @@ impl ops::AddAssign for SyntaxRewriter<'_> {
                 indexmap::map::Entry::Occupied(mut occupied) => {
                     occupied.get_mut().extend(insertions)
                 }
-                indexmap::map::Entry::Vacant(vacant) => drop(vacant.insert(insertions)),
+                indexmap::map::Entry::Vacant(vacant) => {
+                    vacant.insert(insertions);
+                }
             }
         }
     }
