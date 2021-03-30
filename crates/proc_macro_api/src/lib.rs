@@ -59,6 +59,10 @@ impl base_db::ProcMacroExpander for ProcMacroProcessExpander {
         let result: ExpansionResult = self.process.send_task(msg::Request::ExpansionMacro(task))?;
         Ok(result.expansion)
     }
+
+    fn get_ptr(&self) -> *const () {
+        self as *const Self as *const ()
+    }
 }
 
 #[derive(Debug)]

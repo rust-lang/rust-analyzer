@@ -157,6 +157,8 @@ pub trait ProcMacroExpander: fmt::Debug + Send + Sync + RefUnwindSafe {
         attrs: Option<&Subtree>,
         env: &Env,
     ) -> Result<Subtree, ExpansionError>;
+
+    fn get_ptr(&self) -> *const ();
 }
 
 #[derive(Debug, Clone)]
@@ -169,7 +171,7 @@ pub struct ProcMacro {
 impl Eq for ProcMacro {}
 impl PartialEq for ProcMacro {
     fn eq(&self, other: &ProcMacro) -> bool {
-        self.name == other.name && Arc::ptr_eq(&self.expander, &other.expander)
+        self.name == other.name && self.expander.get_ptr() == other.expander.get_ptr()
     }
 }
 
