@@ -918,6 +918,9 @@ fn main() {
             auto_import,
             r"
 //- /lib.rs crate:dep
+pub mod formatters;
+
+//- /formatters.rs crate:dep
 pub struct FMT;
 pub struct fmt;
 
@@ -926,7 +929,7 @@ fn main() {
     FMT$0;
 }
 ",
-            r"use dep::FMT;
+            r"use dep::formatters::FMT;
 
 fn main() {
     FMT;

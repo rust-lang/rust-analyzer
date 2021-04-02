@@ -57,7 +57,7 @@
 //! fn insert_source_code_here() {}
 //! "
 //! ```
-use std::{mem, str::FromStr, sync::Arc};
+use std::{collections::hash_map::Entry, mem, str::FromStr, sync::Arc};
 
 use cfg::CfgOptions;
 use rustc_hash::FxHashMap;
@@ -175,19 +175,34 @@ impl ChangeFixture {
 
             if let Some(krate) = meta.krate {
                 let crate_name = CrateName::normalize_dashes(&krate);
-                let crate_id = crate_graph.add_crate_root(
-                    file_id,
-                    meta.edition,
-                    Some(crate_name.clone().into()),
-                    meta.cfg,
-                    meta.env,
-                    Default::default(),
-                );
-                let prev = crates.insert(crate_name.clone(), crate_id);
-                assert!(prev.is_none());
-                for dep in meta.deps {
-                    let dep = CrateName::normalize_dashes(&dep);
-                    crate_deps.push((crate_name.clone(), dep))
+                match crates.entry(crate_name.clone()) {
+                    Entry::Occupied(_) => {
+                        assert_eq!(
+                            crate_deps,
+                            meta.deps
+                                .iter()
+                                .map(|dep| (crate_name.clone(), CrateName::normalize_dashes(dep)))
+                                .collect::<Vec<_>>(),
+                            "Crate {} has two modules with different dependencies in metadata",
+                            krate,
+                        )
+                    }
+                    Entry::Vacant(v) => {
+                        let new_crate_id = crate_graph.add_crate_root(
+                            file_id,
+                            meta.edition,
+                            Some(crate_name.clone().into()),
+                            meta.cfg,
+                            meta.env,
+                            Default::default(),
+                        );
+                        v.insert(new_crate_id);
+
+                        for dep in meta.deps {
+                            let dep = CrateName::normalize_dashes(&dep);
+                            crate_deps.push((crate_name.clone(), dep))
+                        }
+                    }
                 }
             } else if meta.path == "/main.rs" || meta.path == "/lib.rs" {
                 assert!(default_crate_root.is_none());
