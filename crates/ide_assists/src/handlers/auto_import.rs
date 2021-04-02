@@ -920,7 +920,7 @@ fn main() {
 //- /lib.rs crate:dep
 pub mod formatters;
 
-//- /formatters.rs crate:dep
+//- /formatters.rs
 pub struct FMT;
 pub struct fmt;
 

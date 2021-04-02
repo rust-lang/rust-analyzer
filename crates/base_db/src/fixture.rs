@@ -177,15 +177,20 @@ impl ChangeFixture {
                 let crate_name = CrateName::normalize_dashes(&krate);
                 match crates.entry(crate_name.clone()) {
                     Entry::Occupied(_) => {
-                        assert_eq!(
-                            crate_deps,
-                            meta.deps
-                                .iter()
-                                .map(|dep| (crate_name.clone(), CrateName::normalize_dashes(dep)))
-                                .collect::<Vec<_>>(),
-                            "Crate {} has two modules with different dependencies in metadata",
-                            krate,
-                        )
+                        if !meta.deps.is_empty() {
+                            assert_eq!(
+                                crate_deps,
+                                meta.deps
+                                    .iter()
+                                    .map(|dep| (
+                                        crate_name.clone(),
+                                        CrateName::normalize_dashes(dep)
+                                    ))
+                                    .collect::<Vec<_>>(),
+                                "Crate {} has two modules with different dependencies in metadata",
+                                krate,
+                            )
+                        }
                     }
                     Entry::Vacant(v) => {
                         let new_crate_id = crate_graph.add_crate_root(
