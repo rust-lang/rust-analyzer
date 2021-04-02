@@ -24,7 +24,7 @@ export class Ctx {
         serverPath: string,
         cwd: string,
     ): Promise<Ctx> {
-        const client = createClient(serverPath, cwd, config.serverExtraEnv);
+        const client = createClient(serverPath, cwd, config.serverExtraArgs, config.serverExtraEnv);
 
         const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
         extCtx.subscriptions.push(statusBar);
