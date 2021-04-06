@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use hir::{Documentation, Mutability};
+use hir::Documentation;
 use ide_db::{
     helpers::{
         import_assets::LocatedImport,
@@ -72,10 +72,6 @@ pub struct CompletionItem {
     /// based on relevance and fuzzy matching with the already typed identifier.
     relevance: CompletionRelevance,
 
-    /// Indicates that a reference or mutable reference to this variable is a
-    /// possible match.
-    ref_match: Option<Mutability>,
-
     /// The import data to add to completion's edits.
     import_to_add: Option<ImportEdit>,
 }
@@ -112,9 +108,6 @@ impl fmt::Debug for CompletionItem {
             s.field("relevance", &self.relevance);
         }
 
-        if let Some(mutability) = &self.ref_match {
-            s.field("ref_match", &format!("&{}", mutability.as_keyword_for_ref()));
-        }
         if self.trigger_call_info {
             s.field("trigger_call_info", &true);
         }
@@ -299,7 +292,6 @@ impl CompletionItem {
             deprecated: false,
             trigger_call_info: None,
             relevance: CompletionRelevance::default(),
-            ref_match: None,
             import_to_add: None,
         }
     }
@@ -349,16 +341,6 @@ impl CompletionItem {
         self.trigger_call_info
     }
 
-    pub fn ref_match(&self) -> Option<(Mutability, CompletionRelevance)> {
-        // Relevance of the ref match should be the same as the original
-        // match, but with exact type match set because self.ref_match
-        // is only set if there is an exact type match.
-        let mut relevance = self.relevance;
-        relevance.type_match = Some(CompletionRelevanceTypeMatch::Exact);
-
-        self.ref_match.map(|mutability| (mutability, relevance))
-    }
-
     pub fn import_to_add(&self) -> Option<&ImportEdit> {
         self.import_to_add.as_ref()
     }
@@ -405,7 +387,6 @@ pub(crate) struct Builder {
     deprecated: bool,
     trigger_call_info: Option<bool>,
     relevance: CompletionRelevance,
-    ref_match: Option<Mutability>,
 }
 
 impl Builder {
@@ -452,7 +433,6 @@ impl Builder {
             deprecated: self.deprecated,
             trigger_call_info: self.trigger_call_info.unwrap_or(false),
             relevance: self.relevance,
-            ref_match: self.ref_match,
             import_to_add: self.import_to_add,
         }
     }
@@ -522,10 +502,6 @@ impl Builder {
     }
     pub(crate) fn add_import(&mut self, import_to_add: Option<ImportEdit>) -> &mut Builder {
         self.import_to_add = import_to_add;
-        self
-    }
-    pub(crate) fn ref_match(&mut self, mutability: Mutability) -> &mut Builder {
-        self.ref_match = Some(mutability);
         self
     }
 }

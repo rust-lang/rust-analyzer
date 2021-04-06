@@ -10,9 +10,7 @@ pub(crate) mod type_alias;
 
 mod builder_ext;
 
-use hir::{
-    AsAssocItem, Documentation, HasAttrs, HirDisplay, ModuleDef, Mutability, ScopeDef, Type,
-};
+use hir::{AsAssocItem, Documentation, HasAttrs, HirDisplay, ModuleDef, ScopeDef, Type};
 use ide_db::{
     helpers::{item_name, SnippetCap},
     RootDatabase, SymbolKind,
@@ -148,12 +146,6 @@ impl<'a> Render<'a> {
             ..CompletionRelevance::default()
         });
 
-        if let Some(_ref_match) = compute_ref_match(self.ctx.completion, ty) {
-            // FIXME
-            // For now we don't properly calculate the edits for ref match
-            // completions on struct fields, so we've disabled them. See #8058.
-        }
-
         item.build()
     }
 
@@ -250,10 +242,6 @@ impl<'a> Render<'a> {
                 is_local: true,
                 ..CompletionRelevance::default()
             });
-
-            if let Some(ref_match) = compute_ref_match(self.ctx.completion, &ty) {
-                item.ref_match(ref_match);
-            }
         };
 
         // Add `<>` for generic types
@@ -335,23 +323,6 @@ fn compute_exact_name_match(ctx: &CompletionContext, completion_name: impl Into<
     ctx.expected_name.as_ref().map_or(false, |name| name.text() == completion_name)
 }
 
-fn compute_ref_match(ctx: &CompletionContext, completion_ty: &hir::Type) -> Option<Mutability> {
-    let expected_type = ctx.expected_type.as_ref()?;
-    if completion_ty != expected_type {
-        let expected_type_without_ref = expected_type.remove_ref()?;
-        if completion_ty.autoderef(ctx.db).any(|deref_ty| deref_ty == expected_type_without_ref) {
-            cov_mark::hit!(suggest_ref);
-            let mutability = if expected_type.is_mutable_reference() {
-                Mutability::Mut
-            } else {
-                Mutability::Shared
-            };
-            return Some(mutability);
-        };
-    }
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use expect_test::{expect, Expect};
@@ -389,21 +360,10 @@ mod tests {
         let actual = get_all_items(TEST_CONFIG, ra_fixture)
             .into_iter()
             .filter(|it| it.completion_kind == CompletionKind::Reference)
-            .flat_map(|it| {
-                let mut items = vec![];
-
+            .map(|it| {
                 let tag = it.kind().unwrap().tag();
                 let relevance = display_relevance(it.relevance());
-                items.push(format!("{} {} {}\n", tag, it.label(), relevance));
-
-                if let Some((mutability, relevance)) = it.ref_match() {
-                    let label = format!("&{}{}", mutability.as_keyword_for_ref(), it.label());
-                    let relevance = display_relevance(relevance);
-
-                    items.push(format!("{} {} {}\n", tag, label, relevance));
-                }
-
-                items
+                format!("{} {} {}\n", tag, it.label(), relevance)
             })
             .collect::<String>();
 

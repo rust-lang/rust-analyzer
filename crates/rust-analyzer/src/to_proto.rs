@@ -181,7 +181,7 @@ pub(crate) fn snippet_text_edit_vec(
 pub(crate) fn completion_item(
     line_index: &LineIndex,
     item: CompletionItem,
-) -> Vec<lsp_types::CompletionItem> {
+) -> lsp_types::CompletionItem {
     let mut additional_text_edits = Vec::new();
     let mut text_edit = None;
     // LSP does not allow arbitrary edits in completion, so we have to do a
@@ -244,25 +244,9 @@ pub(crate) fn completion_item(
         lsp_item.command = Some(command::trigger_parameter_hints());
     }
 
-    let mut res = match item.ref_match() {
-        Some((mutability, relevance)) => {
-            let mut lsp_item_with_ref = lsp_item.clone();
-            set_score(&mut lsp_item_with_ref, relevance);
-            lsp_item_with_ref.label =
-                format!("&{}{}", mutability.as_keyword_for_ref(), lsp_item_with_ref.label);
-            if let Some(lsp_types::CompletionTextEdit::Edit(it)) = &mut lsp_item_with_ref.text_edit
-            {
-                it.new_text = format!("&{}{}", mutability.as_keyword_for_ref(), it.new_text);
-            }
-            vec![lsp_item_with_ref, lsp_item]
-        }
-        None => vec![lsp_item],
-    };
+    lsp_item.insert_text_format = Some(insert_text_format(item.insert_text_format()));
 
-    for lsp_item in res.iter_mut() {
-        lsp_item.insert_text_format = Some(insert_text_format(item.insert_text_format()));
-    }
-    res
+    lsp_item
 }
 
 pub(crate) fn signature_help(
@@ -1136,7 +1120,7 @@ mod tests {
             .into_iter()
             .filter(|c| c.label().ends_with("arg"))
             .map(|c| completion_item(&line_index, c))
-            .flat_map(|comps| comps.into_iter().map(|c| (c.label, c.sort_text)))
+            .map(|c| (c.label, c.sort_text))
             .collect();
         expect_test::expect![[r#"
             [

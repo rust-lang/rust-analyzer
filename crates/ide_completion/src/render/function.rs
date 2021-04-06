@@ -7,10 +7,7 @@ use syntax::ast::Fn;
 
 use crate::{
     item::{CompletionItem, CompletionItemKind, CompletionKind, CompletionRelevance, ImportEdit},
-    render::{
-        builder_ext::Params, compute_exact_name_match, compute_ref_match, compute_type_match,
-        RenderContext,
-    },
+    render::{builder_ext::Params, compute_exact_name_match, compute_type_match, RenderContext},
 };
 
 pub(crate) fn render_fn<'a>(
@@ -77,15 +74,6 @@ impl<'a> FunctionRender<'a> {
             exact_name_match: compute_exact_name_match(self.ctx.completion, self.name.clone()),
             ..CompletionRelevance::default()
         });
-
-        if let Some(ref_match) = compute_ref_match(self.ctx.completion, &ret_type) {
-            // FIXME
-            // For now we don't properly calculate the edits for ref match
-            // completions on methods, so we've disabled them. See #8058.
-            if !self.is_method {
-                item.ref_match(ref_match);
-            }
-        }
 
         item.build()
     }

@@ -18,7 +18,7 @@ pub(crate) mod unqualified_path;
 
 use std::iter;
 
-use hir::{known, ModPath, ScopeDef, Type};
+use hir::{known, ModPath, Mutability, ScopeDef, Type};
 use ide_db::SymbolKind;
 
 use crate::{
@@ -241,4 +241,21 @@ fn complete_enum_variants(
             }
         }
     }
+}
+
+fn compute_ref_match(ctx: &CompletionContext, completion_ty: &hir::Type) -> Option<Mutability> {
+    let expected_type = ctx.expected_type.as_ref()?;
+    if completion_ty != expected_type {
+        let expected_type_without_ref = expected_type.remove_ref()?;
+        if completion_ty.autoderef(ctx.db).any(|deref_ty| deref_ty == expected_type_without_ref) {
+            cov_mark::hit!(suggest_ref);
+            let mutability = if expected_type.is_mutable_reference() {
+                Mutability::Mut
+            } else {
+                Mutability::Shared
+            };
+            return Some(mutability);
+        };
+    }
+    None
 }

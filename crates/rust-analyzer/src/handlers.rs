@@ -667,16 +667,14 @@ pub(crate) fn handle_completion(
 
     let items: Vec<CompletionItem> = items
         .into_iter()
-        .flat_map(|item| {
-            let mut new_completion_items = to_proto::completion_item(&line_index, item.clone());
+        .map(|item| {
+            let mut new_completion_item = to_proto::completion_item(&line_index, item.clone());
 
             if completion_config.enable_imports_on_the_fly {
-                for new_item in &mut new_completion_items {
-                    fill_resolve_data(&mut new_item.data, &item, &text_document_position);
-                }
+                fill_resolve_data(&mut new_completion_item.data, &item, &text_document_position);
             }
 
-            new_completion_items
+            new_completion_item
         })
         .collect();
 

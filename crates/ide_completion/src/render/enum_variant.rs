@@ -6,7 +6,7 @@ use itertools::Itertools;
 
 use crate::{
     item::{CompletionItem, CompletionKind, ImportEdit},
-    render::{builder_ext::Params, compute_ref_match, compute_type_match, RenderContext},
+    render::{builder_ext::Params, compute_type_match, RenderContext},
     CompletionRelevance,
 };
 
@@ -80,10 +80,6 @@ impl<'a> EnumRender<'a> {
             type_match: compute_type_match(self.ctx.completion, &ty),
             ..CompletionRelevance::default()
         });
-
-        if let Some(ref_match) = compute_ref_match(self.ctx.completion, &ty) {
-            item.ref_match(ref_match);
-        }
 
         item.build()
     }
