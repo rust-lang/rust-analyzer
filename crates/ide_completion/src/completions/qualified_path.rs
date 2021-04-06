@@ -45,7 +45,7 @@ pub(crate) fn complete_qualified_path(acc: &mut Completions, ctx: &CompletionCon
                     }
                 }
 
-                acc.add_resolution(ctx, name.to_string(), &def);
+                acc.add_resolution(ctx, name.to_string(), &def, None);
             }
         }
         PathResolution::Def(def @ hir::ModuleDef::Adt(_))

@@ -91,8 +91,11 @@ impl Completions {
         ctx: &CompletionContext,
         local_name: String,
         resolution: &ScopeDef,
+        is_ref: Option<Mutability>,
     ) {
-        if let Some(item) = render_resolution(RenderContext::new(ctx), local_name, resolution) {
+        if let Some(item) =
+            render_resolution(RenderContext::new(ctx), local_name, resolution, is_ref)
+        {
             self.add(item);
         }
     }

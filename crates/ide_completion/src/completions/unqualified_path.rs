@@ -5,6 +5,8 @@ use syntax::AstNode;
 
 use crate::{CompletionContext, Completions};
 
+use super::compute_ref_match;
+
 pub(crate) fn complete_unqualified_path(acc: &mut Completions, ctx: &CompletionContext) {
     if !ctx.is_trivial_path {
         return;
@@ -36,7 +38,14 @@ pub(crate) fn complete_unqualified_path(acc: &mut Completions, ctx: &CompletionC
                 }
             }
         }
-        acc.add_resolution(ctx, name.to_string(), &res);
+        acc.add_resolution(ctx, name.to_string(), &res, None);
+
+        if let ScopeDef::Local(local) = res {
+            let ty = local.ty(ctx.db);
+            if let Some(mutability) = compute_ref_match(ctx, &ty) {
+                acc.add_resolution(ctx, name.to_string(), &res, Some(mutability));
+            }
+        };
     });
 }
 

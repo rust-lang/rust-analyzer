@@ -229,6 +229,16 @@ impl Ty {
     pub fn into_inner(self) -> TyKind {
         Arc::try_unwrap(self.0).unwrap_or_else(|a| (*a).clone())
     }
+
+    pub fn add_ref(self, ref_mutability: hir_def::type_ref::Mutability) -> Ty {
+        let mutability = match ref_mutability {
+            hir_def::type_ref::Mutability::Shared => Mutability::Not,
+            hir_def::type_ref::Mutability::Mut => Mutability::Mut,
+        };
+
+        let kind = TyKind::Ref(mutability, self);
+        Ty(Arc::new(kind))
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]

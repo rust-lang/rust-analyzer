@@ -1721,6 +1721,10 @@ impl Type {
         matches!(self.ty.kind(&Interner), TyKind::Ref(hir_ty::Mutability::Mut, ..))
     }
 
+    pub fn is_shared_reference(&self) -> bool {
+        matches!(self.ty.kind(&Interner), TyKind::Ref(hir_ty::Mutability::Not, ..))
+    }
+
     pub fn is_usize(&self) -> bool {
         matches!(self.ty.kind(&Interner), TyKind::Scalar(Scalar::Uint(UintTy::Usize)))
     }
@@ -1730,6 +1734,12 @@ impl Type {
             TyKind::Ref(.., ty) => Some(self.derived(ty.clone())),
             _ => None,
         }
+    }
+
+    pub fn add_ref(mut self, ref_mutability: Mutability) -> Type {
+        self.ty = self.ty.add_ref(ref_mutability);
+
+        self
     }
 
     pub fn is_unknown(&self) -> bool {

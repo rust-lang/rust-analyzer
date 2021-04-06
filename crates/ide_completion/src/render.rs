@@ -10,7 +10,9 @@ pub(crate) mod type_alias;
 
 mod builder_ext;
 
-use hir::{AsAssocItem, Documentation, HasAttrs, HirDisplay, ModuleDef, ScopeDef, Type};
+use hir::{
+    AsAssocItem, Documentation, HasAttrs, HirDisplay, ModuleDef, Mutability, ScopeDef, Type,
+};
 use ide_db::{
     helpers::{item_name, SnippetCap},
     RootDatabase, SymbolKind,
@@ -44,8 +46,9 @@ pub(crate) fn render_resolution<'a>(
     ctx: RenderContext<'a>,
     local_name: String,
     resolution: &ScopeDef,
+    is_ref: Option<Mutability>,
 ) -> Option<CompletionItem> {
-    Render::new(ctx).render_resolution(local_name, None, resolution)
+    Render::new(ctx).render_resolution(local_name, None, resolution, is_ref)
 }
 
 pub(crate) fn render_resolution_with_import<'a>(
@@ -59,7 +62,7 @@ pub(crate) fn render_resolution_with_import<'a>(
         ScopeDef::ModuleDef(ModuleDef::TypeAlias(t)) => t.name(ctx.completion.db).to_string(),
         _ => item_name(ctx.db(), import_edit.import.original_item)?.to_string(),
     };
-    Render::new(ctx).render_resolution(local_name, Some(import_edit), &resolution).map(
+    Render::new(ctx).render_resolution(local_name, Some(import_edit), &resolution, None).map(
         |mut item| {
             item.completion_kind = CompletionKind::Magic;
             item
@@ -166,6 +169,7 @@ impl<'a> Render<'a> {
         local_name: String,
         import_to_add: Option<ImportEdit>,
         resolution: &ScopeDef,
+        is_ref: Option<Mutability>,
     ) -> Option<CompletionItem> {
         let _p = profile::span("render_resolution");
         use hir::ModuleDef::*;
@@ -228,10 +232,21 @@ impl<'a> Render<'a> {
             }
         };
 
-        let mut item =
-            CompletionItem::new(completion_kind, self.ctx.source_range(), local_name.clone());
+        let label = match is_ref {
+            Some(mutability) => {
+                format!("&{}{}", mutability.as_keyword_for_ref(), &local_name)
+            }
+            None => local_name.clone(),
+        };
+        let mut item = CompletionItem::new(completion_kind, self.ctx.source_range(), label);
         if let ScopeDef::Local(local) = resolution {
-            let ty = local.ty(self.ctx.db());
+            let ty = {
+                let mut ty = local.ty(self.ctx.db());
+                if let Some(mutability) = is_ref {
+                    ty = ty.add_ref(mutability);
+                }
+                ty
+            };
             if !ty.is_unknown() {
                 item.detail(ty.display(self.ctx.db()).to_string());
             }
@@ -302,6 +317,7 @@ fn compute_type_match(
     completion_ty: &hir::Type,
 ) -> Option<CompletionRelevanceTypeMatch> {
     let expected_type = ctx.expected_type.as_ref()?;
+    let expected_type_without_ref = expected_type.remove_ref();
 
     // We don't ever consider unit type to be an exact type match, since
     // nearly always this is not meaningful to the user.
@@ -310,6 +326,13 @@ fn compute_type_match(
     }
 
     if completion_ty == expected_type {
+        Some(CompletionRelevanceTypeMatch::Exact)
+    } else if completion_ty.autoderef(ctx.db).any(|deref_ty| {
+        Some(deref_ty) == expected_type_without_ref
+            && ((expected_type.is_mutable_reference() && completion_ty.is_mutable_reference())
+                || (expected_type.is_shared_reference() && completion_ty.is_shared_reference()))
+    }) {
+        // FIXME add specific CompletionRelevanceTypeMatch variant for deref match
         Some(CompletionRelevanceTypeMatch::Exact)
     } else if expected_type.could_unify_with(completion_ty) {
         Some(CompletionRelevanceTypeMatch::CouldUnify)
@@ -1045,6 +1068,23 @@ fn main() {
             expect![[r#"
                 [
                     CompletionItem {
+                        label: "&mut s",
+                        source_range: 70..70,
+                        delete: 70..70,
+                        insert: "&mut s",
+                        kind: SymbolKind(
+                            Local,
+                        ),
+                        detail: "&mut S",
+                        relevance: CompletionRelevance {
+                            exact_name_match: true,
+                            type_match: Some(
+                                Exact,
+                            ),
+                            is_local: true,
+                        },
+                    },
+                    CompletionItem {
                         label: "S",
                         source_range: 70..70,
                         delete: 70..70,
@@ -1090,7 +1130,6 @@ fn main() {
                             type_match: None,
                             is_local: true,
                         },
-                        ref_match: "&mut ",
                     },
                 ]
             "#]],
