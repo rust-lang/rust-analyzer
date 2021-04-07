@@ -1,6 +1,6 @@
 //! Completion of names from the current scope, e.g. locals and imported items.
 
-use hir::ScopeDef;
+use hir::{ModuleDef, ScopeDef};
 use syntax::AstNode;
 
 use crate::{CompletionContext, Completions};
@@ -40,11 +40,20 @@ pub(crate) fn complete_unqualified_path(acc: &mut Completions, ctx: &CompletionC
         }
         acc.add_resolution(ctx, name.to_string(), &res, None);
 
-        if let ScopeDef::Local(local) = res {
-            let ty = local.ty(ctx.db);
-            if let Some(mutability) = compute_ref_match(ctx, &ty) {
-                acc.add_resolution(ctx, name.to_string(), &res, Some(mutability));
+        match res {
+            ScopeDef::ModuleDef(ModuleDef::Function(func)) => {
+                let ty = func.ret_type(ctx.db);
+                if let Some(mutability) = compute_ref_match(ctx, &ty) {
+                    acc.add_resolution(ctx, name.to_string(), &res, Some(mutability));
+                }
             }
+            ScopeDef::Local(local) => {
+                let ty = local.ty(ctx.db);
+                if let Some(mutability) = compute_ref_match(ctx, &ty) {
+                    acc.add_resolution(ctx, name.to_string(), &res, Some(mutability));
+                }
+            }
+            _ => {}
         };
     });
 }

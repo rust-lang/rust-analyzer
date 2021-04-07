@@ -1,6 +1,6 @@
 //! Renderer for function calls.
 
-use hir::{HasSource, HirDisplay, Type};
+use hir::{HasSource, HirDisplay, Mutability, Type};
 use ide_db::SymbolKind;
 use itertools::Itertools;
 use syntax::ast::Fn;
@@ -15,9 +15,10 @@ pub(crate) fn render_fn<'a>(
     import_to_add: Option<ImportEdit>,
     local_name: Option<String>,
     fn_: hir::Function,
+    is_ref: Option<Mutability>,
 ) -> Option<CompletionItem> {
     let _p = profile::span("render_fn");
-    Some(FunctionRender::new(ctx, local_name, fn_)?.render(import_to_add))
+    Some(FunctionRender::new(ctx, local_name, fn_)?.render(import_to_add, is_ref))
 }
 
 #[derive(Debug)]
@@ -40,23 +41,38 @@ impl<'a> FunctionRender<'a> {
         Some(FunctionRender { ctx, name, func: fn_, ast_node })
     }
 
-    fn render(self, import_to_add: Option<ImportEdit>) -> CompletionItem {
+    fn render(
+        self,
+        import_to_add: Option<ImportEdit>,
+        is_ref: Option<Mutability>,
+    ) -> CompletionItem {
         let params = self.params();
-        let mut item = CompletionItem::new(
-            CompletionKind::Reference,
-            self.ctx.source_range(),
-            self.name.clone(),
-        );
+        let label = match is_ref {
+            Some(mutability) => {
+                format!("&{}{}", mutability.as_keyword_for_ref(), &self.name)
+            }
+            None => self.name.clone(),
+        };
+        let mut item =
+            CompletionItem::new(CompletionKind::Reference, self.ctx.source_range(), label.clone());
         item.kind(self.kind())
             .set_documentation(self.ctx.docs(self.func))
             .set_deprecated(
                 self.ctx.is_deprecated(self.func) || self.ctx.is_deprecated_assoc_item(self.func),
             )
             .detail(self.detail())
-            .add_call_parens(self.ctx.completion, self.name.clone(), params)
+            .add_call_parens(self.ctx.completion, label, params)
             .add_import(import_to_add);
 
-        let ret_type = self.func.ret_type(self.ctx.db());
+        let ret_type = {
+            let mut ty = self.func.ret_type(self.ctx.db());
+            if let Some(mutability) = is_ref {
+                ty = ty.add_ref(mutability);
+            }
+
+            ty
+        };
+
         item.set_relevance(CompletionRelevance {
             type_match: compute_type_match(self.ctx.completion, &ret_type),
             exact_name_match: compute_exact_name_match(self.ctx.completion, self.name.clone()),

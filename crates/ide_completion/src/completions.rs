@@ -121,7 +121,7 @@ impl Completions {
         func: hir::Function,
         local_name: Option<String>,
     ) {
-        if let Some(item) = render_fn(RenderContext::new(ctx), None, local_name, func) {
+        if let Some(item) = render_fn(RenderContext::new(ctx), None, local_name, func, None) {
             self.add(item)
         }
     }
@@ -132,7 +132,7 @@ impl Completions {
         func: hir::Function,
         local_name: Option<String>,
     ) {
-        if let Some(item) = render_fn(RenderContext::new(ctx), None, local_name, func) {
+        if let Some(item) = render_fn(RenderContext::new(ctx), None, local_name, func, None) {
             self.add(item)
         }
     }

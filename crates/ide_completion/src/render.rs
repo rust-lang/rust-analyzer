@@ -181,7 +181,7 @@ impl<'a> Render<'a> {
 
         let kind = match resolution {
             ScopeDef::ModuleDef(Function(func)) => {
-                return render_fn(self.ctx, import_to_add, Some(local_name), *func);
+                return render_fn(self.ctx, import_to_add, Some(local_name), *func, is_ref);
             }
             ScopeDef::ModuleDef(Variant(_))
                 if self.ctx.completion.is_pat_binding_or_const
