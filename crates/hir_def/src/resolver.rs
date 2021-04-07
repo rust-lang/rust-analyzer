@@ -2,6 +2,7 @@
 use std::sync::Arc;
 
 use base_db::CrateId;
+use either::Either;
 use hir_expand::{
     name::{name, Name},
     MacroDefId,
@@ -667,7 +668,10 @@ impl HasResolver for FunctionId {
 
 impl HasResolver for ImportId {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
-        self.lookup(db).container.resolver(db)
+        match self.lookup(db) {
+            Either::Left(it) => it.container.resolver(db),
+            Either::Right(it) => it.container.resolver(db),
+        }
     }
 }
 

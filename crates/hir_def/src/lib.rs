@@ -58,6 +58,7 @@ use std::{
 
 use adt::VariantData;
 use base_db::{impl_intern_key, salsa, CrateId};
+use either::Either;
 use hir_expand::{
     ast_id_map::FileAstId,
     eager::{expand_eager_macro, ErrorEmitted, ErrorSink},
@@ -70,8 +71,8 @@ use syntax::ast;
 
 use crate::builtin_type::BuiltinType;
 use item_tree::{
-    Const, Enum, Function, Impl, Import, ItemTreeId, ItemTreeNode, ModItem, Static, Struct, Trait,
-    TypeAlias, Union,
+    Const, Enum, ExternCrate, Function, Impl, Import, ItemTreeId, ItemTreeNode, ModItem, Static,
+    Struct, Trait, TypeAlias, Union,
 };
 use stdx::impl_from;
 
@@ -192,7 +193,7 @@ macro_rules! impl_intern {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ImportId(salsa::InternId);
-type ImportLoc = AssocItemLoc<Import>;
+type ImportLoc = Either<ItemLoc<Import>, ItemLoc<ExternCrate>>;
 impl_intern!(ImportId, ImportLoc, intern_import, lookup_intern_import);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -554,7 +555,7 @@ impl HasModule for GenericDefId {
     }
 }
 
-impl HasModule for StaticLoc {
+impl<N: ItemTreeNode> HasModule for ItemLoc<N> {
     fn module(&self, _db: &dyn db::DefDatabase) -> ModuleId {
         self.container
     }
@@ -592,7 +593,10 @@ impl AttrDefId {
             AttrDefId::TraitId(it) => it.lookup(db).container.krate,
             AttrDefId::TypeAliasId(it) => it.lookup(db).module(db).krate,
             AttrDefId::ImplId(it) => it.lookup(db).container.krate,
-            AttrDefId::ImportId(it) => it.lookup(db).module(db).krate,
+            AttrDefId::ImportId(it) => match it.lookup(db) {
+                Either::Left(it) => it.module(db).krate,
+                Either::Right(it) => it.module(db).krate,
+            },
             AttrDefId::GenericParamId(it) => {
                 match it {
                     GenericParamId::TypeParamId(it) => it.parent,
