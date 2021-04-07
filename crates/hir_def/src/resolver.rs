@@ -21,9 +21,9 @@ use crate::{
     per_ns::PerNs,
     visibility::{RawVisibility, Visibility},
     AdtId, AssocContainerId, ConstId, ConstParamId, DefWithBodyId, EnumId, EnumVariantId,
-    FunctionId, GenericDefId, GenericParamId, HasModule, ImplId, LifetimeParamId, LocalModuleId,
-    Lookup, ModuleDefId, ModuleId, StaticId, StructId, TraitId, TypeAliasId, TypeParamId,
-    VariantId,
+    FunctionId, GenericDefId, GenericParamId, HasModule, ImplId, ImportId, LifetimeParamId,
+    LocalModuleId, Lookup, ModuleDefId, ModuleId, StaticId, StructId, TraitId, TypeAliasId,
+    TypeParamId, VariantId,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -662,6 +662,12 @@ impl<T: Into<AdtId> + Copy> HasResolver for T {
 impl HasResolver for FunctionId {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
         self.lookup(db).container.resolver(db).push_generic_params_scope(db, self.into())
+    }
+}
+
+impl HasResolver for ImportId {
+    fn resolver(self, db: &dyn DefDatabase) -> Resolver {
+        self.lookup(db).container.resolver(db)
     }
 }
 

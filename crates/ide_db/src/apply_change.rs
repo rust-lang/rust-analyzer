@@ -225,6 +225,7 @@ impl RootDatabase {
             hir::db::InternEagerExpansionQuery
 
             // InternDatabase
+            hir::db::InternImportQuery
             hir::db::InternFunctionQuery
             hir::db::InternStructQuery
             hir::db::InternUnionQuery
@@ -234,6 +235,7 @@ impl RootDatabase {
             hir::db::InternTraitQuery
             hir::db::InternTypeAliasQuery
             hir::db::InternImplQuery
+            hir::db::InternBlockQuery
 
             // HirDatabase
             hir::db::InternTypeParamIdQuery

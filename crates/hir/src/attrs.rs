@@ -103,6 +103,7 @@ fn resolve_doc_path(
         AttrDefId::TraitId(it) => it.resolver(db.upcast()),
         AttrDefId::TypeAliasId(it) => it.resolver(db.upcast()),
         AttrDefId::ImplId(it) => it.resolver(db.upcast()),
+        AttrDefId::ImportId(it) => it.resolver(db.upcast()),
         AttrDefId::GenericParamId(it) => match it {
             GenericParamId::TypeParamId(it) => it.parent,
             GenericParamId::LifetimeParamId(it) => it.parent,

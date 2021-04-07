@@ -336,6 +336,7 @@ impl AttrsWithOwner {
             AttrDefId::StaticId(it) => attrs_from_item_tree(it.lookup(db).id, db),
             AttrDefId::FunctionId(it) => attrs_from_item_tree(it.lookup(db).id, db),
             AttrDefId::TypeAliasId(it) => attrs_from_item_tree(it.lookup(db).id, db),
+            AttrDefId::ImportId(it) => attrs_from_item_tree(it.lookup(db).id, db),
             AttrDefId::GenericParamId(it) => match it {
                 GenericParamId::TypeParamId(it) => {
                     let src = it.parent.child_source(db);
@@ -428,6 +429,7 @@ impl AttrsWithOwner {
             AttrDefId::ConstId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
             AttrDefId::TraitId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
             AttrDefId::TypeAliasId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
+            AttrDefId::ImportId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
             AttrDefId::MacroDefId(id) => match id.ast_id() {
                 Either::Left(it) => {
                     it.with_value(ast::AttrsOwnerNode::new(it.to_node(db.upcast())))

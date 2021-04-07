@@ -20,13 +20,15 @@ use crate::{
     nameres::DefMap,
     visibility::{self, Visibility},
     AttrDefId, BlockId, BlockLoc, ConstId, ConstLoc, DefWithBodyId, EnumId, EnumLoc, FunctionId,
-    FunctionLoc, GenericDefId, ImplId, ImplLoc, LocalEnumVariantId, LocalFieldId, StaticId,
-    StaticLoc, StructId, StructLoc, TraitId, TraitLoc, TypeAliasId, TypeAliasLoc, UnionId,
-    UnionLoc, VariantId,
+    FunctionLoc, GenericDefId, ImplId, ImplLoc, ImportId, ImportLoc, LocalEnumVariantId,
+    LocalFieldId, StaticId, StaticLoc, StructId, StructLoc, TraitId, TraitLoc, TypeAliasId,
+    TypeAliasLoc, UnionId, UnionLoc, VariantId,
 };
 
 #[salsa::query_group(InternDatabaseStorage)]
 pub trait InternDatabase: SourceDatabase {
+    #[salsa::interned]
+    fn intern_import(&self, loc: ImportLoc) -> ImportId;
     #[salsa::interned]
     fn intern_function(&self, loc: FunctionLoc) -> FunctionId;
     #[salsa::interned]

@@ -70,7 +70,7 @@ use syntax::ast;
 
 use crate::builtin_type::BuiltinType;
 use item_tree::{
-    Const, Enum, Function, Impl, ItemTreeId, ItemTreeNode, ModItem, Static, Struct, Trait,
+    Const, Enum, Function, Impl, Import, ItemTreeId, ItemTreeNode, ModItem, Static, Struct, Trait,
     TypeAlias, Union,
 };
 use stdx::impl_from;
@@ -189,6 +189,11 @@ macro_rules! impl_intern {
         }
     };
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ImportId(salsa::InternId);
+type ImportLoc = AssocItemLoc<Import>;
+impl_intern!(ImportId, ImportLoc, intern_import, lookup_intern_import);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FunctionId(salsa::InternId);
@@ -417,6 +422,7 @@ pub enum AttrDefId {
     MacroDefId(MacroDefId),
     ImplId(ImplId),
     GenericParamId(GenericParamId),
+    ImportId(ImportId),
 }
 
 impl_from!(
@@ -431,7 +437,8 @@ impl_from!(
     TypeAliasId,
     MacroDefId,
     ImplId,
-    GenericParamId
+    GenericParamId,
+    ImportId
     for AttrDefId
 );
 
@@ -585,6 +592,7 @@ impl AttrDefId {
             AttrDefId::TraitId(it) => it.lookup(db).container.krate,
             AttrDefId::TypeAliasId(it) => it.lookup(db).module(db).krate,
             AttrDefId::ImplId(it) => it.lookup(db).container.krate,
+            AttrDefId::ImportId(it) => it.lookup(db).module(db).krate,
             AttrDefId::GenericParamId(it) => {
                 match it {
                     GenericParamId::TypeParamId(it) => it.parent,
