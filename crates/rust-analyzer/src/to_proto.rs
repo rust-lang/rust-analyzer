@@ -1099,7 +1099,7 @@ mod tests {
             encoding: OffsetEncoding::Utf16,
         };
         let (analysis, file_id) = Analysis::from_single_file(text);
-        let completions: Vec<(String, Option<String>)> = analysis
+        let mut completions: Vec<(String, Option<String>)> = analysis
             .completions(
                 &ide::CompletionConfig {
                     enable_postfix_completions: true,
@@ -1122,6 +1122,10 @@ mod tests {
             .map(|c| completion_item(&line_index, c))
             .map(|c| (c.label, c.sort_text))
             .collect();
+
+        // Sort by increasing sort_text, as the LSP clients will do.
+        completions.sort_by_key(|c| c.1.clone());
+
         expect_test::expect![[r#"
             [
                 (

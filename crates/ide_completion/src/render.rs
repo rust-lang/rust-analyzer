@@ -190,7 +190,8 @@ impl<'a> Render<'a> {
                 CompletionItemKind::SymbolKind(SymbolKind::Variant)
             }
             ScopeDef::ModuleDef(Variant(var)) => {
-                let item = render_variant(self.ctx, import_to_add, Some(local_name), *var, None);
+                let item =
+                    render_variant(self.ctx, import_to_add, Some(local_name), *var, None, None);
                 return Some(item);
             }
             ScopeDef::MacroDef(mac) => {

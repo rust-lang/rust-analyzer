@@ -1,6 +1,6 @@
 //! Renderer for `enum` variants.
 
-use hir::{HasAttrs, HirDisplay, ModPath, StructKind};
+use hir::{HasAttrs, HirDisplay, ModPath, Mutability, StructKind};
 use ide_db::SymbolKind;
 use itertools::Itertools;
 
@@ -16,9 +16,10 @@ pub(crate) fn render_variant<'a>(
     local_name: Option<String>,
     variant: hir::Variant,
     path: Option<ModPath>,
+    is_ref: Option<Mutability>,
 ) -> CompletionItem {
     let _p = profile::span("render_enum_variant");
-    EnumRender::new(ctx, local_name, variant, path).render(import_to_add)
+    EnumRender::new(ctx, local_name, variant, path).render(import_to_add, is_ref)
 }
 
 #[derive(Debug)]
@@ -55,12 +56,19 @@ impl<'a> EnumRender<'a> {
         EnumRender { ctx, name, variant, path, qualified_name, short_qualified_name, variant_kind }
     }
 
-    fn render(self, import_to_add: Option<ImportEdit>) -> CompletionItem {
-        let mut item = CompletionItem::new(
-            CompletionKind::Reference,
-            self.ctx.source_range(),
-            self.qualified_name.clone(),
-        );
+    fn render(
+        self,
+        import_to_add: Option<ImportEdit>,
+        is_ref: Option<Mutability>,
+    ) -> CompletionItem {
+        let label = match is_ref {
+            Some(mutability) => {
+                format!("&{}{}", mutability.as_keyword_for_ref(), &self.qualified_name)
+            }
+            None => self.qualified_name.clone(),
+        };
+        let mut item =
+            CompletionItem::new(CompletionKind::Reference, self.ctx.source_range(), label);
         item.kind(SymbolKind::Variant)
             .set_documentation(self.variant.docs(self.ctx.db()))
             .set_deprecated(self.ctx.is_deprecated(self.variant))
@@ -75,7 +83,16 @@ impl<'a> EnumRender<'a> {
             item.lookup_by(self.short_qualified_name);
         }
 
-        let ty = self.variant.parent_enum(self.ctx.completion.db).ty(self.ctx.completion.db);
+        let ty = {
+            let mut ty =
+                self.variant.parent_enum(self.ctx.completion.db).ty(self.ctx.completion.db);
+            if let Some(mutability) = is_ref {
+                ty = ty.add_ref(mutability);
+            }
+
+            ty
+        };
+
         item.set_relevance(CompletionRelevance {
             type_match: compute_type_match(self.ctx.completion, &ty),
             ..CompletionRelevance::default()

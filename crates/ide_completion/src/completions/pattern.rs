@@ -15,7 +15,7 @@ pub(crate) fn complete_pattern(acc: &mut Completions, ctx: &CompletionContext) {
         if let Some(ty) = ctx.expected_type.as_ref() {
             super::complete_enum_variants(acc, ctx, ty, |acc, ctx, variant, path| {
                 acc.add_qualified_variant_pat(ctx, variant, path.clone());
-                acc.add_qualified_enum_variant(ctx, variant, path);
+                acc.add_qualified_enum_variant(ctx, variant, path, None);
             });
         }
     }

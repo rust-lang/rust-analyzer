@@ -53,7 +53,7 @@ pub(crate) fn complete_qualified_path(acc: &mut Completions, ctx: &CompletionCon
         | PathResolution::Def(def @ hir::ModuleDef::BuiltinType(_)) => {
             if let hir::ModuleDef::Adt(Adt::Enum(e)) = def {
                 for variant in e.variants(ctx.db) {
-                    acc.add_enum_variant(ctx, variant, None);
+                    acc.add_enum_variant(ctx, variant, None, None);
                 }
             }
             let ty = match def {
@@ -123,7 +123,7 @@ pub(crate) fn complete_qualified_path(acc: &mut Completions, ctx: &CompletionCon
 
                 if let Some(Adt::Enum(e)) = ty.as_adt() {
                     for variant in e.variants(ctx.db) {
-                        acc.add_enum_variant(ctx, variant, None);
+                        acc.add_enum_variant(ctx, variant, None, None);
                     }
                 }
 

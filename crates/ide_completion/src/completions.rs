@@ -187,8 +187,9 @@ impl Completions {
         ctx: &CompletionContext,
         variant: hir::Variant,
         path: ModPath,
+        is_ref: Option<Mutability>,
     ) {
-        let item = render_variant(RenderContext::new(ctx), None, None, variant, Some(path));
+        let item = render_variant(RenderContext::new(ctx), None, None, variant, Some(path), is_ref);
         self.add(item);
     }
 
@@ -197,8 +198,9 @@ impl Completions {
         ctx: &CompletionContext,
         variant: hir::Variant,
         local_name: Option<String>,
+        is_ref: Option<Mutability>,
     ) {
-        let item = render_variant(RenderContext::new(ctx), None, local_name, variant, None);
+        let item = render_variant(RenderContext::new(ctx), None, local_name, variant, None, is_ref);
         self.add(item);
     }
 }

@@ -21,7 +21,11 @@ pub(crate) fn complete_unqualified_path(acc: &mut Completions, ctx: &CompletionC
 
     if let Some(ty) = &ctx.expected_type {
         super::complete_enum_variants(acc, ctx, ty, |acc, ctx, variant, path| {
-            acc.add_qualified_enum_variant(ctx, variant, path)
+            acc.add_qualified_enum_variant(ctx, variant, path.clone(), None);
+            let ty = variant.parent_enum(ctx.db).ty(ctx.db);
+            if let Some(mutability) = super::compute_ref_match(ctx, &ty) {
+                acc.add_qualified_enum_variant(ctx, variant, path, Some(mutability));
+            }
         });
     }
 
