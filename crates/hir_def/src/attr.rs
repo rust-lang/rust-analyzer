@@ -16,7 +16,7 @@ use mbe::ast_to_token_tree;
 use smallvec::{smallvec, SmallVec};
 use syntax::{
     ast::{self, AstNode, AttrsOwner},
-    match_ast, AstPtr, AstToken, SmolStr, SyntaxNode, TextRange, TextSize,
+    match_ast, AstToken, SmolStr, SyntaxNode, TextRange, TextSize,
 };
 use tt::Subtree;
 
@@ -406,14 +406,10 @@ impl AttrsWithOwner {
                 return AttrSourceMap { attrs };
             }
             AttrDefId::FieldId(id) => {
-                let map = db.fields_attrs_source_map(id.parent);
-                let file_id = id.parent.file_id(db);
-                let root = db.parse_or_expand(file_id).unwrap();
-                let owner = match &map[id.local_id] {
-                    Either::Left(it) => ast::AttrsOwnerNode::new(it.to_node(&root)),
-                    Either::Right(it) => ast::AttrsOwnerNode::new(it.to_node(&root)),
-                };
-                InFile::new(file_id, owner)
+                id.parent.child_source(db).map(|source| match &source[id.local_id] {
+                    Either::Left(field) => ast::AttrsOwnerNode::new(field.clone()),
+                    Either::Right(field) => ast::AttrsOwnerNode::new(field.clone()),
+                })
             }
             AttrDefId::AdtId(adt) => match adt {
                 AdtId::StructId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
@@ -421,12 +417,10 @@ impl AttrsWithOwner {
                 AdtId::EnumId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
             },
             AttrDefId::FunctionId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
-            AttrDefId::EnumVariantId(id) => {
-                let map = db.variants_attrs_source_map(id.parent);
-                let file_id = id.parent.lookup(db).id.file_id();
-                let root = db.parse_or_expand(file_id).unwrap();
-                InFile::new(file_id, ast::AttrsOwnerNode::new(map[id.local_id].to_node(&root)))
-            }
+            AttrDefId::EnumVariantId(id) => id
+                .parent
+                .child_source(db)
+                .map(|source| ast::AttrsOwnerNode::new(source[id.local_id].clone())),
             AttrDefId::StaticId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
             AttrDefId::ConstId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
             AttrDefId::TraitId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
@@ -752,37 +746,4 @@ fn collect_attrs(
         .map(|docs_text| (docs_text.syntax().text_range().start(), Either::Right(docs_text)));
     // sort here by syntax node offset because the source can have doc attributes and doc strings be interleaved
     docs.chain(attrs).sorted_by_key(|&(offset, _)| offset).map(|(_, attr)| attr)
-}
-
-pub(crate) fn variants_attrs_source_map(
-    db: &dyn DefDatabase,
-    def: EnumId,
-) -> Arc<ArenaMap<LocalEnumVariantId, AstPtr<ast::Variant>>> {
-    let mut res = ArenaMap::default();
-    let child_source = def.child_source(db);
-
-    for (idx, variant) in child_source.value.iter() {
-        res.insert(idx, AstPtr::new(variant));
-    }
-
-    Arc::new(res)
-}
-
-pub(crate) fn fields_attrs_source_map(
-    db: &dyn DefDatabase,
-    def: VariantId,
-) -> Arc<ArenaMap<LocalFieldId, Either<AstPtr<ast::TupleField>, AstPtr<ast::RecordField>>>> {
-    let mut res = ArenaMap::default();
-    let child_source = def.child_source(db);
-
-    for (idx, variant) in child_source.value.iter() {
-        res.insert(
-            idx,
-            variant
-                .as_ref()
-                .either(|l| Either::Left(AstPtr::new(l)), |r| Either::Right(AstPtr::new(r))),
-        );
-    }
-
-    Arc::new(res)
 }
