@@ -164,3 +164,29 @@ impl ast::Use {
         ted::remove(self.syntax())
     }
 }
+
+impl ast::Impl {
+    /// Add a node to at the start of the impl block.
+    pub fn push_front(&self, item: ast::AssocItem) {
+        let l_curly = self.get_or_create_assoc_item_list().l_curly_token().unwrap();
+        let position = Position::after(l_curly);
+        ted::insert(position, item.syntax());
+    }
+
+    /// Add a node at the end of the impl block.
+    pub fn push_back(&self, item: ast::AssocItem) {
+        let r_curly = self.get_or_create_assoc_item_list().r_curly_token().unwrap();
+        let position = Position::before(r_curly);
+        ted::insert(position, item.syntax());
+    }
+
+    /// Get the associated item list of this impl, or create one if none exists.
+    pub fn get_or_create_assoc_item_list(&self) -> ast::AssocItemList {
+        self.assoc_item_list().unwrap_or_else(|| {
+            let list = make::assoc_item_list();
+            let position = Position::after(self.syntax());
+            ted::insert(position, list.syntax());
+            list
+        })
+    }
+}
