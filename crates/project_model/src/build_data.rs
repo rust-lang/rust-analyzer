@@ -1,10 +1,12 @@
 //! Handles build script specific information
 
 use std::{
-    io::BufReader,
+    io::{BufReader, Read},
     path::PathBuf,
     process::{Command, Stdio},
     sync::Arc,
+    sync::Mutex,
+    thread,
 };
 
 use anyhow::Result;
@@ -172,8 +174,17 @@ impl WorkspaceBuildData {
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).stdin(Stdio::null());
 
         let mut child = cmd.spawn().map(JodChild)?;
+
         let child_stdout = child.stdout.take().unwrap();
         let stdout = BufReader::new(child_stdout);
+
+        let stderr_vec = Arc::new(Mutex::new(Vec::new()));
+
+        let stderr_vec_clone = stderr_vec.clone();
+        let mut stderr = BufReader::new(child.stderr.take().unwrap());
+        let thread = thread::spawn(move || {
+            stderr.read_to_end(stderr_vec_clone.lock().unwrap().as_mut()).unwrap()
+        });
 
         let mut res = WorkspaceBuildData::default();
         for message in cargo_metadata::Message::parse_stream(stdout).flatten() {
@@ -244,9 +255,13 @@ impl WorkspaceBuildData {
             }
         }
 
-        let output = child.into_inner().wait_with_output()?;
-        if !output.status.success() {
-            let mut stderr = String::from_utf8(output.stderr).unwrap_or_default();
+        thread.join().unwrap();
+
+        let status = child.wait().unwrap();
+
+        if !status.success() {
+            let mut stderr =
+                String::from_utf8(stderr_vec.lock().unwrap().to_owned()).unwrap_or_default();
             if stderr.is_empty() {
                 stderr = "cargo check failed".to_string();
             }
