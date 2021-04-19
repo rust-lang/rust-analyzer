@@ -18,6 +18,7 @@ serde_json = "1.0.48"
 anyhow = "1.0.26"
 itertools = "0.10.0"
 la-arena = { version = "0.2.0", path = "../../lib/arena" }
+crossbeam-utils = "0.8"
 
 cfg = { path = "../cfg", version = "0.0.0" }
 base_db = { path = "../base_db", version = "0.0.0" }

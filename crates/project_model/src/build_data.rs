@@ -5,13 +5,12 @@ use std::{
     path::PathBuf,
     process::{Command, Stdio},
     sync::Arc,
-    sync::Mutex,
-    thread,
 };
 
 use anyhow::Result;
 use cargo_metadata::camino::Utf8Path;
 use cargo_metadata::{BuildScript, Message};
+use crossbeam_utils::thread;
 use itertools::Itertools;
 use paths::{AbsPath, AbsPathBuf};
 use rustc_hash::FxHashMap;
@@ -178,13 +177,12 @@ impl WorkspaceBuildData {
         let child_stdout = child.stdout.take().unwrap();
         let stdout = BufReader::new(child_stdout);
 
-        let stderr_vec = Arc::new(Mutex::new(Vec::new()));
-
-        let stderr_vec_clone = stderr_vec.clone();
         let mut stderr = BufReader::new(child.stderr.take().unwrap());
-        let thread = thread::spawn(move || {
-            stderr.read_to_end(stderr_vec_clone.lock().unwrap().as_mut()).unwrap()
-        });
+        let mut stderr_vec = Vec::new();
+        thread::scope(|s| {
+            s.spawn(|_| stderr.read_to_end(stderr_vec.as_mut()).unwrap());
+        })
+        .unwrap();
 
         let mut res = WorkspaceBuildData::default();
         for message in cargo_metadata::Message::parse_stream(stdout).flatten() {
@@ -255,13 +253,10 @@ impl WorkspaceBuildData {
             }
         }
 
-        thread.join().unwrap();
-
         let status = child.wait().unwrap();
 
         if !status.success() {
-            let mut stderr =
-                String::from_utf8(stderr_vec.lock().unwrap().to_owned()).unwrap_or_default();
+            let mut stderr = String::from_utf8(stderr_vec).unwrap_or_default();
             if stderr.is_empty() {
                 stderr = "cargo check failed".to_string();
             }
