@@ -439,6 +439,12 @@ interface JsonProject {
     /// dependencies yourself and, for example, have several different "sysroots" in
     /// one graph of crates.
     sysroot_src?: string;
+    /// Path to the workspace root directory for this project.
+    ///
+    /// Relative paths are treated relative to the directory containing this `rust-project.json`.
+    ///
+    /// If not supplied, this defaults to the directory containing this `rust-project.json`.
+    project_root?: string;
     /// The set of crates comprising the current project.
     /// Must include all transitive dependencies as well as sysroot crate (libstd, libcore and such).
     crates: Crate[];

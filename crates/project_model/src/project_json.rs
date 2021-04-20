@@ -45,7 +45,10 @@ impl ProjectJson {
     pub fn new(base: &AbsPath, data: ProjectJsonData) -> ProjectJson {
         ProjectJson {
             sysroot_src: data.sysroot_src.map(|it| base.join(it)),
-            project_root: base.to_path_buf(),
+            project_root: data
+                .project_root
+                .map(|it| base.join(it))
+                .unwrap_or_else(|| base.to_path_buf()),
             crates: data
                 .crates
                 .into_iter()
@@ -113,6 +116,7 @@ impl ProjectJson {
 #[derive(Deserialize, Debug, Clone)]
 pub struct ProjectJsonData {
     sysroot_src: Option<PathBuf>,
+    project_root: Option<PathBuf>,
     crates: Vec<CrateData>,
 }
 
