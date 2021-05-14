@@ -437,9 +437,9 @@ dependencies = [
 
 [[package]]
 name = "fsevent-sys"
-version = "3.0.2"
+version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77a29c77f1ca394c3e73a9a5d24cfcabb734682d9634fc398f2204a63c994120"
+checksum = "ca6f5e6817058771c10f0eb0f05ddf1e35844266f972004fe8e4b21fda295bd5"
 dependencies = [
  "libc",
 ]
@@ -939,11 +939,10 @@ dependencies = [
 
 [[package]]
 name = "notify"
-version = "5.0.0-pre.7"
+version = "5.0.0-pre.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ebe7699a0f8c5759450716ee03d231685c22b4fe8f406c42c22e0ad94d40ce7"
+checksum = "46bbbcd078f1f00ddb7a9abe70b96e91229b44b0b3afdec610f8e5137f8f014b"
 dependencies = [
- "anymap",
  "bitflags",
  "crossbeam-channel",
  "filetime",
@@ -1456,18 +1455,18 @@ dependencies = [
 
 [[package]]
 name = "serde"
-version = "1.0.125"
+version = "1.0.126"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "558dc50e1a5a5fa7112ca2ce4effcb321b0300c0d4ccf0776a9f60cd89031171"
+checksum = "ec7505abeacaec74ae4778d9d9328fe5a5d04253220a85c4ee022239fc996d03"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.125"
+version = "1.0.126"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b093b7a2bb58203b5da3056c05b4ec1fed827dcfdb37347a8841695263b3d06d"
+checksum = "963a7dbc9895aeac7ac90e74f34a5d5261828f79df35cbed41e10189d3804d43"
 dependencies = [
  "proc-macro2",
  "quote",
