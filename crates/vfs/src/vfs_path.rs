@@ -20,9 +20,9 @@ impl VfsPath {
     /// # Panics
     ///
     /// Panics if `path` does not start with `'/'`.
-    pub fn new_virtual_path(path: String) -> VfsPath {
+    pub fn new_virtual_path(path: &str) -> VfsPath {
         assert!(path.starts_with('/'));
-        VfsPath(VfsPathRepr::VirtualPath(VirtualPath(path)))
+        VfsPath(VfsPathRepr::VirtualPath(VirtualPath(path.to_string())))
     }
 
     /// Returns the `AbsPath` representation of `self` if `self` is on the file system.
