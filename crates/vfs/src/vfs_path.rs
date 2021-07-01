@@ -22,10 +22,8 @@ impl serde::Serialize for VfsPath {
     }
 }
 
-#[cfg(unix)]
-use std::path::{Path, PathBuf};
-
 #[cfg(not(target_arch = "wasm32"))]
+use std::path::{Path, PathBuf};
 impl<'de> serde::Deserialize<'de> for VfsPath {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
