@@ -89,11 +89,11 @@ impl<'de> serde::Deserialize<'de> for CrateId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
-        {
-            let s: &str = serde::Deserialize::deserialize(deserializer)?;
-            let id = s.parse::<u32>().unwrap();
-            Ok(CrateId(id))
-        }
+    {
+        let s: &str = serde::Deserialize::deserialize(deserializer)?;
+        let id = s.parse::<u32>().unwrap();
+        Ok(CrateId(id))
+    }
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq, Hash)]

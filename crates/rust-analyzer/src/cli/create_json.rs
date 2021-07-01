@@ -23,21 +23,17 @@ impl CreateJsonCmd {
     /// cargo run --bin rust-analyzer create-json ../ink/examples/flipper/Cargo.toml
     /// ```
     pub fn run(self, root: &Path) -> Result<()> {
-        
-
         let (_crate_graph, change) = get_crate_data(root, &|_| {})?;
 
         // let (_, change2) = get_crate_data(root, &|_| {})?;
 
         // let _json =
         //    serde_json::to_string(&crate_graph).expect("serialization of crate_graph must work");
-        
 
-        let json =
-            serde_json::to_string(&change).expect("serialization of change must work");
-            /* 
+        let json = serde_json::to_string(&change).expect("serialization of change must work");
+        /*
         _let deserialized_change: Change = serde_json::from_str(&json).expect("`Change` deserialization must work");
-        // let json = str::replace(&json,  "'","@@@"); 
+        // let json = str::replace(&json,  "'","@@@");
         let file_id = FileId(182);
         let mut host = AnalysisHost::new(None);
         host.apply_change(deserialized_change);
@@ -53,9 +49,9 @@ impl CreateJsonCmd {
             .collect();
         // let _highlights = analysis.highlight(file_id);
         */
-        
+
         println!("{}", json);
-      
+
         /*  let mut host = AnalysisHost::new(None);
         host.apply_change(change);
         let analysis = host.analysis();
@@ -63,11 +59,8 @@ impl CreateJsonCmd {
         */
         // let _highlights = analysis.highlight(file_id);
         // println!("{}", json);
- 
-        
 
         // let deserialized_change: Change = serde_json::from_str(&json).expect("`Change` deserialization must work");
-
 
         // println!("change_json:\n{}", change_json);
 
@@ -98,10 +91,7 @@ impl CreateJsonCmd {
     }
 }
 
-fn get_crate_data(
-    root: &Path,
-    progress: &dyn Fn(String),
-) -> Result<(CrateGraph, Change)> {
+fn get_crate_data(root: &Path, progress: &dyn Fn(String)) -> Result<(CrateGraph, Change)> {
     let mut cargo_config = CargoConfig::default();
     cargo_config.no_sysroot = false;
     let root = AbsPathBuf::assert(std::env::current_dir()?.join(root));
