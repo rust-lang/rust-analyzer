@@ -15,6 +15,8 @@ use crate::reload::{ProjectFolders, SourceRootConfig};
 
 use vfs::{loader::Handle, AbsPath, AbsPathBuf};
 
+use std::fs;
+
 pub struct CreateJsonCmd {}
 
 impl CreateJsonCmd {
@@ -23,7 +25,7 @@ impl CreateJsonCmd {
     /// cargo run --bin rust-analyzer create-json ../ink/examples/flipper/Cargo.toml
     /// ```
     pub fn run(self, root: &Path) -> Result<()> {
-        let (_crate_graph, change) = get_crate_data(root, &|_| {})?;
+        let change = get_crate_data(root, &|_| {})?;
 
         // let (_, change2) = get_crate_data(root, &|_| {})?;
 
@@ -50,7 +52,9 @@ impl CreateJsonCmd {
         // let _highlights = analysis.highlight(file_id);
         */
 
-        println!("{}", json);
+        fs::write("./change.json", json).expect("Unable to write file");
+
+        // println!("{}", json);
 
         /*  let mut host = AnalysisHost::new(None);
         host.apply_change(change);
@@ -91,7 +95,7 @@ impl CreateJsonCmd {
     }
 }
 
-fn get_crate_data(root: &Path, progress: &dyn Fn(String)) -> Result<(CrateGraph, Change)> {
+fn get_crate_data(root: &Path, progress: &dyn Fn(String)) -> Result<Change> {
     let mut cargo_config = CargoConfig::default();
     cargo_config.no_sysroot = false;
     let root = AbsPathBuf::assert(std::env::current_dir()?.join(root));
@@ -150,7 +154,7 @@ fn get_crate_data(root: &Path, progress: &dyn Fn(String)) -> Result<(CrateGraph,
     let change =
         get_change(crate_graph.clone(), project_folders.source_root_config, &mut vfs, &receiver);
 
-    Ok((crate_graph, change))
+    Ok(change)
 }
 
 fn get_change(
@@ -192,3 +196,6 @@ fn get_change(
 
     analysis_change
 }
+
+
+
