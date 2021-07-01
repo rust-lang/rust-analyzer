@@ -7,7 +7,9 @@ use std::{fmt, slice::Iter as SliceIter};
 use tt::SmolStr;
 
 /// A simple configuration value passed in from the outside.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(
+    serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd,
+)]
 pub enum CfgAtom {
     /// eg. `#[cfg(test)]`
     Flag(SmolStr),

@@ -8,6 +8,7 @@ mod tests;
 use std::fmt;
 
 use rustc_hash::FxHashSet;
+use serde;
 use tt::SmolStr;
 
 pub use cfg_expr::{CfgAtom, CfgExpr};
@@ -23,7 +24,7 @@ pub use dnf::DnfExpr;
 /// of key and value in `key_values`.
 ///
 /// See: <https://doc.rust-lang.org/reference/conditional-compilation.html#set-configuration-options>
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 pub struct CfgOptions {
     enabled: FxHashSet<CfgAtom>,
 }
