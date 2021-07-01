@@ -24,7 +24,7 @@ use vfs::{file_set::FileSet, FileId, VfsPath};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SourceRootId(pub u32);
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct SourceRoot {
     /// Sysroot or crates.io library.
     ///
@@ -67,7 +67,7 @@ impl SourceRoot {
 /// Note that `CrateGraph` is build-system agnostic: it's a concept of the Rust
 /// language proper, not a concept of the build system. In practice, we get
 /// `CrateGraph` by lowering `cargo metadata` output.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Default, PartialEq, Eq)]
 pub struct CrateGraph {
     arena: FxHashMap<CrateId, CrateData>,
 }
@@ -75,7 +75,28 @@ pub struct CrateGraph {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CrateId(pub u32);
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+impl serde::Serialize for CrateId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let s = self.0.to_string();
+        serializer.serialize_str(&s)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for CrateId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+        {
+            let s: &str = serde::Deserialize::deserialize(deserializer)?;
+            let id = s.parse::<u32>().unwrap();
+            Ok(CrateId(id))
+        }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CrateName(SmolStr);
 
 impl CrateName {
@@ -109,7 +130,7 @@ impl ops::Deref for CrateName {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CrateDisplayName {
     // The name we use to display various paths (with `_`).
     crate_name: CrateName,
@@ -144,10 +165,10 @@ impl CrateDisplayName {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct ProcMacroId(pub u32);
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
+#[derive(serde::Serialize, serde::Deserialize, Copy, Clone, Eq, PartialEq, Debug, Hash)]
 pub enum ProcMacroKind {
     CustomDerive,
     FuncLike,
@@ -170,7 +191,32 @@ pub struct ProcMacro {
     pub expander: Arc<dyn ProcMacroExpander>,
 }
 
-#[derive(Debug, Clone)]
+impl serde::Serialize for ProcMacro {
+    fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        unimplemented!("serializing `ProcMacro` is not yet supported!!");
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ProcMacro {
+    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        unimplemented!("deserializing `ProcMacro` is not yet supported!");
+    }
+}
+
+impl Eq for ProcMacro {}
+impl PartialEq for ProcMacro {
+    fn eq(&self, other: &ProcMacro) -> bool {
+        self.name == other.name && Arc::ptr_eq(&self.expander, &other.expander)
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct CrateData {
     pub root_file_id: FileId,
     pub edition: Edition,
@@ -188,7 +234,9 @@ pub struct CrateData {
     pub proc_macro: Vec<ProcMacro>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    serde::Serialize, serde::Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash,
+)]
 pub enum Edition {
     Edition2015,
     Edition2018,
@@ -199,12 +247,12 @@ impl Edition {
     pub const CURRENT: Edition = Edition::Edition2018;
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(serde::Serialize, serde::Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 pub struct Env {
     entries: FxHashMap<String, String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct Dependency {
     pub crate_id: CrateId,
     pub name: CrateName,

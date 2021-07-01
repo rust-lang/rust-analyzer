@@ -93,6 +93,7 @@ dependencies = [
  "profile",
  "rustc-hash",
  "salsa",
+ "serde",
  "stdx",
  "syntax",
  "test_utils",
