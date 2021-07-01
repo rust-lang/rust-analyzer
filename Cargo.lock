@@ -516,6 +516,7 @@ dependencies = [
  "parser",
  "profile",
  "rustc-hash",
+ "serde",
  "syntax",
  "test_utils",
  "tt",

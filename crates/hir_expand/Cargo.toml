@@ -21,6 +21,7 @@ parser = { path = "../parser", version = "0.0.0" }
 profile = { path = "../profile", version = "0.0.0" }
 tt = { path = "../tt", version = "0.0.0" }
 mbe = { path = "../mbe", version = "0.0.0" }
+serde = { version = "1.0.106", features = ["derive"] }
 
 [dev-dependencies]
 test_utils = { path = "../test_utils" }
