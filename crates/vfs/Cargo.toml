@@ -11,6 +11,7 @@ doctest = false
 [dependencies]
 rustc-hash = "1.0"
 fst = "0.4"
+serde = { version = "1.0.106", features = ["derive"] }
 
 paths = { path = "../paths", version = "0.0.0" }
 indexmap = "1.6.2"

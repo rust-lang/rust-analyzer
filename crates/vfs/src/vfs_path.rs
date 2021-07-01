@@ -12,6 +12,46 @@ use paths::{AbsPath, AbsPathBuf};
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct VfsPath(VfsPathRepr);
 
+impl serde::Serialize for VfsPath {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let s = self.to_string();
+        serializer.serialize_str(&s)
+    }
+}
+
+#[cfg(unix)]
+use std::path::{Path, PathBuf};
+
+#[cfg(not(target_arch = "wasm32"))]
+impl<'de> serde::Deserialize<'de> for VfsPath {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let path: &str = serde::Deserialize::deserialize(deserializer)?;
+        let path = Path::new(path);
+        let path = PathBuf::from(path);
+        let path = AbsPathBuf::assert(path);
+        let path = VfsPath::from(path);
+        Ok(path)
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<'de> serde::Deserialize<'de> for VfsPath {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let path: &str = serde::Deserialize::deserialize(deserializer)?;
+        let path = VfsPath::new_virtual_path(path.to_string());
+        Ok(path)
+    }
+}
+
 impl VfsPath {
     /// Creates an "in-memory" path from `/`-separated string.
     ///
@@ -268,7 +308,7 @@ mod windows_paths {
 }
 
 /// Internal, private representation of [`VfsPath`].
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 enum VfsPathRepr {
     PathBuf(AbsPathBuf),
     VirtualPath(VirtualPath),
@@ -307,7 +347,9 @@ impl fmt::Debug for VfsPathRepr {
 /// `/`-separated virtual path.
 ///
 /// This is used to describe files that do not reside on the file system.
-#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(
+    serde::Serialize, serde::Deserialize, Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash,
+)]
 struct VirtualPath(String);
 
 impl VirtualPath {
