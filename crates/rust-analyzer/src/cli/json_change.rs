@@ -111,3 +111,18 @@ fn get_change_data(root: &Path, progress: &dyn Fn(String)) -> Result<Change> {
 
     Ok(change)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_serialize_deserialize_change() -> Result<()> {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
+        let change = get_change_data(path, &|_| {})?;
+        let json = serde_json::to_string(&change)?;
+        let deserialized_change: Change = serde_json::from_str(&json)?;
+        assert_eq!(change, deserialized_change);
+        Ok(())
+    }
+}
