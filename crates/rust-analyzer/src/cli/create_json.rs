@@ -21,7 +21,7 @@ impl CreateJsonCmd {
     /// cargo run --bin rust-analyzer create-json ../ink/examples/flipper/Cargo.toml
     /// ```
     pub fn run(self, root: &Path) -> Result<()> {
-        let change = get_crate_data(root, &|_| {})?;
+        let change = get_change_data(root, &|_| {})?;
 
         // let (_, change2) = get_crate_data(root, &|_| {})?;
 
@@ -91,7 +91,7 @@ impl CreateJsonCmd {
     }
 }
 
-fn get_crate_data(root: &Path, progress: &dyn Fn(String)) -> Result<Change> {
+fn get_change_data(root: &Path, progress: &dyn Fn(String)) -> Result<Change> {
     let mut cargo_config = CargoConfig::default();
     cargo_config.no_sysroot = false;
     let root = AbsPathBuf::assert(std::env::current_dir()?.join(root));
