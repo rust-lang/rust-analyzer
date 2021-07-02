@@ -50,7 +50,7 @@ pub(crate) fn parse_text_fragment<T: AstNode>(
 
     let (tree, parser_errors) = tree_sink.finish();
     use parser::TokenSource;
-    if !parser_errors.is_empty() || token_source.current().kind != SyntaxKind::EOF {
+    if !parser_errors.is_empty() || token_source.current().kind != SyntaxKind::Eof {
         return Err(());
     }
 

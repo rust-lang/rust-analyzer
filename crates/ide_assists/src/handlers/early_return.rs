@@ -8,7 +8,7 @@ use syntax::{
         make,
     },
     AstNode,
-    SyntaxKind::{FN, LOOP_EXPR, L_CURLY, R_CURLY, WHILE_EXPR, WHITESPACE},
+    SyntaxKind::{LCurly, RCurly, FN, LOOP_EXPR, WHILE_EXPR, WHITESPACE},
     SyntaxNode,
 };
 
@@ -96,11 +96,11 @@ pub(crate) fn convert_to_guarded_return(acc: &mut Assists, ctx: &AssistContext) 
         _ => return None,
     };
 
-    if then_block.syntax().first_child_or_token().map(|t| t.kind() == L_CURLY).is_none() {
+    if then_block.syntax().first_child_or_token().map(|t| t.kind() == LCurly).is_none() {
         return None;
     }
 
-    then_block.syntax().last_child_or_token().filter(|t| t.kind() == R_CURLY)?;
+    then_block.syntax().last_child_or_token().filter(|t| t.kind() == RCurly)?;
 
     let target = if_expr.syntax().text_range();
     acc.add(

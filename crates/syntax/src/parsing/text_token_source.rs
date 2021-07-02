@@ -2,7 +2,7 @@
 
 use parser::TokenSource;
 
-use crate::{parsing::lexer::Token, SyntaxKind::EOF, TextRange, TextSize};
+use crate::{parsing::lexer::Token, SyntaxKind::Eof, TextRange, TextSize};
 
 /// Implementation of `parser::TokenSource` that takes tokens from source code text.
 pub(crate) struct TextTokenSource<'t> {
@@ -33,7 +33,7 @@ impl<'t> TokenSource for TextTokenSource<'t> {
     }
 
     fn bump(&mut self) {
-        if self.curr.0.kind == EOF {
+        if self.curr.0.kind == Eof {
             return;
         }
 
@@ -58,7 +58,7 @@ fn mk_token(pos: usize, token_offset_pairs: &[(Token, TextSize)]) -> parser::Tok
                 .map(|(_, next_offset)| offset + token.len == *next_offset)
                 .unwrap_or(false),
         ),
-        None => (EOF, false),
+        None => (Eof, false),
     };
     parser::Token { kind, is_jointed_to_next }
 }

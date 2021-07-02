@@ -171,7 +171,7 @@ fn tuple_expr(p: &mut Parser) -> CompletedMarker {
 
     let mut saw_comma = false;
     let mut saw_expr = false;
-    while !p.at(EOF) && !p.at(T![')']) {
+    while !p.at(Eof) && !p.at(T![')']) {
         saw_expr = true;
 
         // test tuple_attrs
@@ -204,7 +204,7 @@ fn array_expr(p: &mut Parser) -> CompletedMarker {
     let mut has_semi = false;
 
     p.bump(T!['[']);
-    while !p.at(EOF) && !p.at(T![']']) {
+    while !p.at(Eof) && !p.at(T![']']) {
         n_exprs += 1;
 
         // test array_attrs
@@ -395,7 +395,7 @@ pub(crate) fn match_arm_list(p: &mut Parser) {
     // }
     attributes::inner_attrs(p);
 
-    while !p.at(EOF) && !p.at(T!['}']) {
+    while !p.at(Eof) && !p.at(T!['}']) {
         if p.at(T!['{']) {
             error_block(p, "expected match arm");
             continue;

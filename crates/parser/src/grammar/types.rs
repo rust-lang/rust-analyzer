@@ -65,7 +65,7 @@ fn paren_or_tuple_type(p: &mut Parser) {
     p.bump(T!['(']);
     let mut n_types: u32 = 0;
     let mut trailing_comma: bool = false;
-    while !p.at(EOF) && !p.at(T![')']) {
+    while !p.at(Eof) && !p.at(T![')']) {
         n_types += 1;
         type_(p);
         if p.eat(T![,]) {

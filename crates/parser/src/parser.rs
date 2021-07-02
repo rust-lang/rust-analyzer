@@ -7,7 +7,7 @@ use drop_bomb::DropBomb;
 use crate::{
     event::Event,
     ParseError,
-    SyntaxKind::{self, EOF, ERROR, L_DOLLAR, R_DOLLAR, TOMBSTONE},
+    SyntaxKind::{self, Eof, Tombstone, ERROR, L_DOLLAR, R_DOLLAR},
     TokenSet, TokenSource, T,
 };
 
@@ -174,7 +174,7 @@ impl<'t> Parser<'t> {
     /// Advances the parser by one token
     pub(crate) fn bump_any(&mut self) {
         let kind = self.nth(0);
-        if kind == EOF {
+        if kind == Eof {
             return;
         }
         self.do_bump(kind, 1)
@@ -187,7 +187,7 @@ impl<'t> Parser<'t> {
     /// `union` keyword, and keyword is what ends up in the
     /// final tree.
     pub(crate) fn bump_remap(&mut self, kind: SyntaxKind) {
-        if self.nth(0) == EOF {
+        if self.nth(0) == Eof {
             // FIXME: panic!?
             return;
         }
@@ -297,7 +297,7 @@ impl Marker {
         let idx = self.pos as usize;
         if idx == p.events.len() - 1 {
             match p.events.pop() {
-                Some(Event::Start { kind: TOMBSTONE, forward_parent: None }) => (),
+                Some(Event::Start { kind: Tombstone, forward_parent: None }) => (),
                 _ => unreachable!(),
             }
         }
@@ -344,7 +344,7 @@ impl CompletedMarker {
         let start_idx = self.start_pos as usize;
         let finish_idx = self.finish_pos as usize;
         match &mut p.events[start_idx] {
-            Event::Start { kind, forward_parent: None } => *kind = TOMBSTONE,
+            Event::Start { kind, forward_parent: None } => *kind = Tombstone,
             _ => unreachable!(),
         }
         match &mut p.events[finish_idx] {

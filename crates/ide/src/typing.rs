@@ -95,7 +95,7 @@ fn on_opening_brace_typed(file: &Parse<SourceFile>, offset: TextSize) -> Option<
     }
 
     let brace_token = file.tree().syntax().token_at_offset(offset).right_biased()?;
-    if brace_token.kind() != SyntaxKind::L_CURLY {
+    if brace_token.kind() != SyntaxKind::LCurly {
         return None;
     }
 

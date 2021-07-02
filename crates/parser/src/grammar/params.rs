@@ -54,7 +54,7 @@ fn list_(p: &mut Parser, flavor: Flavor) {
         }
     }
 
-    while !p.at(EOF) && !p.at(ket) {
+    while !p.at(Eof) && !p.at(ket) {
         // test param_outer_arg
         // fn f(#[attr1] pat: Type) {}
         let m = match param_marker.take() {

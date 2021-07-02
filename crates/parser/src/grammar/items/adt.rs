@@ -69,7 +69,7 @@ pub(crate) fn variant_list(p: &mut Parser) {
     assert!(p.at(T!['{']));
     let m = p.start();
     p.bump(T!['{']);
-    while !p.at(EOF) && !p.at(T!['}']) {
+    while !p.at(Eof) && !p.at(T!['}']) {
         if p.at(T!['{']) {
             error_block(p, "expected enum variant");
             continue;
@@ -106,7 +106,7 @@ pub(crate) fn record_field_list(p: &mut Parser) {
     assert!(p.at(T!['{']));
     let m = p.start();
     p.bump(T!['{']);
-    while !p.at(T!['}']) && !p.at(EOF) {
+    while !p.at(T!['}']) && !p.at(Eof) {
         if p.at(T!['{']) {
             error_block(p, "expected field");
             continue;
@@ -146,7 +146,7 @@ fn tuple_field_list(p: &mut Parser) {
     if !p.expect(T!['(']) {
         return;
     }
-    while !p.at(T![')']) && !p.at(EOF) {
+    while !p.at(T![')']) && !p.at(Eof) {
         let m = p.start();
         // test tuple_field_attrs
         // struct S (

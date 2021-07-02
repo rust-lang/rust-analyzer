@@ -88,7 +88,7 @@ pub(super) fn stmt(p: &mut Parser, with_semi: StmtWithSemi, prefer_expr: bool) {
         p.error(format!("attributes are not allowed on {:?}", kind));
     }
 
-    if p.at(T!['}']) || (prefer_expr && p.at(EOF)) {
+    if p.at(T!['}']) || (prefer_expr && p.at(Eof)) {
         // test attr_on_last_expr_in_block
         // fn foo() {
         //     { #[A] bar!()? }
@@ -175,7 +175,7 @@ pub(super) fn expr_block_contents(p: &mut Parser) {
     // This is checked by a validator
     attributes::inner_attrs(p);
 
-    while !p.at(EOF) && !p.at(T!['}']) {
+    while !p.at(Eof) && !p.at(T!['}']) {
         // test nocontentexpr
         // fn foo(){
         //     ;;;some_expr();;;;{;;;};;;;Ok(())
@@ -554,7 +554,7 @@ fn arg_list(p: &mut Parser) {
     assert!(p.at(T!['(']));
     let m = p.start();
     p.bump(T!['(']);
-    while !p.at(T![')']) && !p.at(EOF) {
+    while !p.at(T![')']) && !p.at(Eof) {
         // test arg_with_attr
         // fn main() {
         //     foo(#[attr] 92)
@@ -605,7 +605,7 @@ pub(crate) fn record_expr_field_list(p: &mut Parser) {
     assert!(p.at(T!['{']));
     let m = p.start();
     p.bump(T!['{']);
-    while !p.at(EOF) && !p.at(T!['}']) {
+    while !p.at(Eof) && !p.at(T!['}']) {
         let m = p.start();
         // test record_literal_field_with_attr
         // fn main() {

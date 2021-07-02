@@ -277,12 +277,12 @@ impl<'db, 'sema> Matcher<'db, 'sema> {
         if let Some(SyntaxElement::Token(p)) = pattern.peek() {
             // If the code has a comma and the pattern is about to close something, then accept the
             // comma without advancing the pattern. i.e. ignore trailing commas.
-            if code.kind() == SyntaxKind::COMMA && is_closing_token(p.kind()) {
+            if code.kind() == SyntaxKind::Comma && is_closing_token(p.kind()) {
                 return Ok(());
             }
             // Conversely, if the pattern has a comma and the code doesn't, skip that part of the
             // pattern and continue to match the code.
-            if p.kind() == SyntaxKind::COMMA && is_closing_token(code.kind()) {
+            if p.kind() == SyntaxKind::Comma && is_closing_token(code.kind()) {
                 pattern.next();
             }
         }
@@ -685,7 +685,7 @@ impl Phase<'_> {
 }
 
 fn is_closing_token(kind: SyntaxKind) -> bool {
-    kind == SyntaxKind::R_PAREN || kind == SyntaxKind::R_CURLY || kind == SyntaxKind::R_BRACK
+    kind == SyntaxKind::RParen || kind == SyntaxKind::RCurly || kind == SyntaxKind::RBrack
 }
 
 pub(crate) fn record_match_fails_reasons_scope<F, T>(debug_active: bool, f: F) -> T

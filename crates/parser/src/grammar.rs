@@ -93,7 +93,7 @@ pub(crate) mod fragments {
     pub(crate) fn macro_stmts(p: &mut Parser) {
         let m = p.start();
 
-        while !p.at(EOF) {
+        while !p.at(Eof) {
             if p.at(T![;]) {
                 p.bump(T![;]);
                 continue;

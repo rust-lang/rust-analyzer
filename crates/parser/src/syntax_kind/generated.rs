@@ -6,20 +6,20 @@
 #[repr(u16)]
 pub enum SyntaxKind {
     #[doc(hidden)]
-    TOMBSTONE,
+    Tombstone,
     #[doc(hidden)]
-    EOF,
-    SEMICOLON,
-    COMMA,
-    L_PAREN,
-    R_PAREN,
-    L_CURLY,
-    R_CURLY,
-    L_BRACK,
-    R_BRACK,
-    L_ANGLE,
-    R_ANGLE,
-    AT,
+    Eof,
+    Semicolon,
+    Comma,
+    LParen,
+    RParen,
+    LCurly,
+    RCurly,
+    LBrack,
+    RBrack,
+    LAngle,
+    RAngle,
+    At,
     POUND,
     TILDE,
     QUESTION,
@@ -57,12 +57,12 @@ pub enum SyntaxKind {
     PERCENTEQ,
     AMP2,
     PIPE2,
-    SHL,
-    SHR,
-    SHLEQ,
-    SHREQ,
-    AS_KW,
-    ASYNC_KW,
+    Shl,
+    Shr,
+    Shleq,
+    Shreq,
+    Askw,
+    AsyncKw,
     AWAIT_KW,
     BOX_KW,
     BREAK_KW,
@@ -261,7 +261,7 @@ use self::SyntaxKind::*;
 impl SyntaxKind {
     pub fn is_keyword(self) -> bool {
         match self {
-            AS_KW | ASYNC_KW | AWAIT_KW | BOX_KW | BREAK_KW | CONST_KW | CONTINUE_KW | CRATE_KW
+            Askw | AsyncKw | AWAIT_KW | BOX_KW | BREAK_KW | CONST_KW | CONTINUE_KW | CRATE_KW
             | DYN_KW | ELSE_KW | ENUM_KW | EXTERN_KW | FALSE_KW | FN_KW | FOR_KW | IF_KW
             | IMPL_KW | IN_KW | LET_KW | LOOP_KW | MACRO_KW | MATCH_KW | MOD_KW | MOVE_KW
             | MUT_KW | PUB_KW | REF_KW | RETURN_KW | SELF_KW | STATIC_KW | STRUCT_KW | SUPER_KW
@@ -273,12 +273,12 @@ impl SyntaxKind {
     }
     pub fn is_punct(self) -> bool {
         match self {
-            SEMICOLON | COMMA | L_PAREN | R_PAREN | L_CURLY | R_CURLY | L_BRACK | R_BRACK
-            | L_ANGLE | R_ANGLE | AT | POUND | TILDE | QUESTION | DOLLAR | AMP | PIPE | PLUS
-            | STAR | SLASH | CARET | PERCENT | UNDERSCORE | DOT | DOT2 | DOT3 | DOT2EQ | COLON
+            Semicolon | Comma | LParen | RParen | LCurly | RCurly | LBrack | RBrack | LAngle
+            | RAngle | At | POUND | TILDE | QUESTION | DOLLAR | AMP | PIPE | PLUS | STAR
+            | SLASH | CARET | PERCENT | UNDERSCORE | DOT | DOT2 | DOT3 | DOT2EQ | COLON
             | COLON2 | EQ | EQ2 | FAT_ARROW | BANG | NEQ | MINUS | THIN_ARROW | LTEQ | GTEQ
             | PLUSEQ | MINUSEQ | PIPEEQ | AMPEQ | CARETEQ | SLASHEQ | STAREQ | PERCENTEQ | AMP2
-            | PIPE2 | SHL | SHR | SHLEQ | SHREQ => true,
+            | PIPE2 | Shl | Shr | Shleq | Shreq => true,
             _ => false,
         }
     }
@@ -290,8 +290,8 @@ impl SyntaxKind {
     }
     pub fn from_keyword(ident: &str) -> Option<SyntaxKind> {
         let kw = match ident {
-            "as" => AS_KW,
-            "async" => ASYNC_KW,
+            "as" => Askw,
+            "async" => AsyncKw,
             "await" => AWAIT_KW,
             "box" => BOX_KW,
             "break" => BREAK_KW,
@@ -337,17 +337,17 @@ impl SyntaxKind {
     }
     pub fn from_char(c: char) -> Option<SyntaxKind> {
         let tok = match c {
-            ';' => SEMICOLON,
-            ',' => COMMA,
-            '(' => L_PAREN,
-            ')' => R_PAREN,
-            '{' => L_CURLY,
-            '}' => R_CURLY,
-            '[' => L_BRACK,
-            ']' => R_BRACK,
-            '<' => L_ANGLE,
-            '>' => R_ANGLE,
-            '@' => AT,
+            ';' => Semicolon,
+            ',' => Comma,
+            '(' => LParen,
+            ')' => RParen,
+            '{' => LCurly,
+            '}' => RCurly,
+            '[' => LBrack,
+            ']' => RBrack,
+            '<' => LAngle,
+            '>' => RAngle,
+            '@' => At,
             '#' => POUND,
             '~' => TILDE,
             '?' => QUESTION,

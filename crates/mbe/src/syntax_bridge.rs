@@ -737,7 +737,7 @@ mod tests {
         let buffer = tt::buffer::TokenBuffer::from_tokens(tts);
         let mut tt_src = SubtreeTokenSource::new(&buffer);
         let mut tokens = vec![];
-        while tt_src.current().kind != EOF {
+        while tt_src.current().kind != Eof {
             tokens.push((tt_src.current().kind, tt_src.text()));
             tt_src.bump();
         }

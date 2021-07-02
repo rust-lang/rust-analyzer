@@ -150,7 +150,7 @@ pub fn append_child_raw(node: &(impl Into<SyntaxNode> + Clone), child: impl Elem
 fn ws_before(position: &Position, new: &SyntaxElement) -> Option<SyntaxToken> {
     let prev = match &position.repr {
         PositionRepr::FirstChild(_) => return None,
-        PositionRepr::After(it) if it.kind() == SyntaxKind::L_CURLY => {
+        PositionRepr::After(it) if it.kind() == SyntaxKind::LCurly => {
             if new.kind() == SyntaxKind::USE {
                 if let Some(item_list) = it.parent().and_then(ast::ItemList::cast) {
                     let mut indent = IndentLevel::from_element(&item_list.syntax().clone().into());

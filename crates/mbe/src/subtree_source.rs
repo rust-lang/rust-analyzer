@@ -78,7 +78,7 @@ impl<'a> SubtreeTokenSource {
         }
 
         let mut res = SubtreeTokenSource {
-            curr: (Token { kind: EOF, is_jointed_to_next: false }, 0),
+            curr: (Token { kind: Eof, is_jointed_to_next: false }, 0),
             cached,
         };
         res.curr = (res.token(0), 0);
@@ -88,7 +88,7 @@ impl<'a> SubtreeTokenSource {
     fn token(&self, pos: usize) -> Token {
         match self.cached.get(pos) {
             Some(it) => it.tt,
-            None => Token { kind: EOF, is_jointed_to_next: false },
+            None => Token { kind: Eof, is_jointed_to_next: false },
         }
     }
 }
@@ -105,7 +105,7 @@ impl<'a> TokenSource for SubtreeTokenSource {
 
     /// bump cursor to next token
     fn bump(&mut self) {
-        if self.current().kind == EOF {
+        if self.current().kind == Eof {
             return;
         }
         self.curr = (self.token(self.curr.1 + 1), self.curr.1 + 1);

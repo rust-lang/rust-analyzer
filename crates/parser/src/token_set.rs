@@ -35,8 +35,8 @@ const fn mask(kind: SyntaxKind) -> u128 {
 #[test]
 fn token_set_works_for_tokens() {
     use crate::SyntaxKind::*;
-    let ts = TokenSet::new(&[EOF, SHEBANG]);
-    assert!(ts.contains(EOF));
+    let ts = TokenSet::new(&[Eof, SHEBANG]);
+    assert!(ts.contains(Eof));
     assert!(ts.contains(SHEBANG));
     assert!(!ts.contains(PLUS));
 }

@@ -83,7 +83,7 @@ fn completion_match(mut token: SyntaxToken) -> Option<(ImplCompletionKind, Synta
         token = token.prev_token()?;
     }
 
-    let parent_kind = token.parent().map_or(SyntaxKind::EOF, |it| it.kind());
+    let parent_kind = token.parent().map_or(SyntaxKind::Eof, |it| it.kind());
     let impl_item_offset = match token.kind() {
         // `impl .. { const $0 }`
         // ERROR      0

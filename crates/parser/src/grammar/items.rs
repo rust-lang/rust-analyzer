@@ -19,7 +19,7 @@ use super::*;
 // struct S;
 pub(super) fn mod_contents(p: &mut Parser, stop_on_r_curly: bool) {
     attributes::inner_attrs(p);
-    while !(stop_on_r_curly && p.at(T!['}']) || p.at(EOF)) {
+    while !(stop_on_r_curly && p.at(T!['}']) || p.at(Eof)) {
         item_or_macro(p, stop_on_r_curly)
     }
 }
@@ -73,7 +73,7 @@ pub(super) fn item_or_macro(p: &mut Parser, stop_on_r_curly: bool) {
             p.error("unmatched `}`");
             p.bump(T!['}']);
             e.complete(p, ERROR);
-        } else if !p.at(EOF) && !p.at(T!['}']) {
+        } else if !p.at(Eof) && !p.at(T!['}']) {
             p.err_and_bump("expected an item");
         } else {
             p.error("expected an item");
@@ -487,7 +487,7 @@ pub(crate) fn token_tree(p: &mut Parser) {
     };
     let m = p.start();
     p.bump_any();
-    while !p.at(EOF) && !p.at(closing_paren_kind) {
+    while !p.at(Eof) && !p.at(closing_paren_kind) {
         match p.current() {
             T!['{'] | T!['('] | T!['['] => token_tree(p),
             T!['}'] => {

@@ -46,7 +46,7 @@ pub(crate) fn on_enter(db: &RootDatabase, position: FilePosition) -> Option<Text
         return on_enter_in_comment(&comment, &file, position.offset);
     }
 
-    if token.kind() == L_CURLY {
+    if token.kind() == LCurly {
         // Typing enter after the `{` of a block expression, where the `}` is on the same line
         if let Some(edit) = find_node_at_offset(file.syntax(), position.offset - TextSize::of('{'))
             .and_then(|block| on_enter_in_block(block, position))

@@ -364,7 +364,7 @@ impl ast::MatchArmList {
                     .siblings_with_tokens(Direction::Next)
                     .find(|it| it.kind() == T![,]);
                 if needs_comma(&last_arm) && comma.is_none() {
-                    elements.push(make::token(SyntaxKind::COMMA).into());
+                    elements.push(make::token(SyntaxKind::Comma).into());
                 }
                 Position::after(comma.unwrap_or_else(|| last_arm.syntax().clone().into()))
             }
@@ -377,7 +377,7 @@ impl ast::MatchArmList {
         elements.push(make::tokens::whitespace(&format!("\n{}", indent)).into());
         elements.push(arm.syntax().clone().into());
         if needs_comma(&arm) {
-            elements.push(make::token(SyntaxKind::COMMA).into());
+            elements.push(make::token(SyntaxKind::Comma).into());
         }
         ted::insert_all(position, elements);
 

@@ -110,7 +110,7 @@ fn insert_whitespaces(syn: SyntaxNode) -> String {
                 res.push_str(token.text());
                 res.push(' ');
             }
-            L_CURLY if is_next(|it| it != R_CURLY, true) => {
+            LCurly if is_next(|it| it != RCurly, true) => {
                 indent += 1;
                 if is_last(is_text, false) {
                     res.push(' ');
@@ -118,13 +118,13 @@ fn insert_whitespaces(syn: SyntaxNode) -> String {
                 res.push_str("{\n");
                 res.extend(iter::repeat(" ").take(2 * indent));
             }
-            R_CURLY if is_last(|it| it != L_CURLY, true) => {
+            RCurly if is_last(|it| it != LCurly, true) => {
                 indent = indent.saturating_sub(1);
                 res.push('\n');
                 res.extend(iter::repeat(" ").take(2 * indent));
                 res.push_str("}");
             }
-            R_CURLY => {
+            RCurly => {
                 res.push_str("}\n");
                 res.extend(iter::repeat(" ").take(2 * indent));
             }

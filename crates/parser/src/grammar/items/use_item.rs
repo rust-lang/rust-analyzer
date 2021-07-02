@@ -119,7 +119,7 @@ pub(crate) fn use_tree_list(p: &mut Parser) {
     assert!(p.at(T!['{']));
     let m = p.start();
     p.bump(T!['{']);
-    while !p.at(EOF) && !p.at(T!['}']) {
+    while !p.at(Eof) && !p.at(T!['}']) {
         use_tree(p, false);
         if !p.at(T!['}']) {
             p.expect(T![,]);

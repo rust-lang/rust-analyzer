@@ -12,7 +12,7 @@ fn generic_param_list(p: &mut Parser) {
     let m = p.start();
     p.bump(T![<]);
 
-    while !p.at(EOF) && !p.at(T![>]) {
+    while !p.at(Eof) && !p.at(T![>]) {
         let m = p.start();
 
         // test generic_lifetime_type_attribute

@@ -198,7 +198,7 @@ fn record_pat_field_list(p: &mut Parser) {
     assert!(p.at(T!['{']));
     let m = p.start();
     p.bump(T!['{']);
-    while !p.at(EOF) && !p.at(T!['}']) {
+    while !p.at(Eof) && !p.at(T!['}']) {
         match p.current() {
             // A trailing `..` is *not* treated as a REST_PAT.
             T![.] if p.at(T![..]) => p.bump(T![..]),
@@ -308,7 +308,7 @@ fn tuple_pat(p: &mut Parser) -> CompletedMarker {
     let mut has_comma = false;
     let mut has_pat = false;
     let mut has_rest = false;
-    while !p.at(EOF) && !p.at(T![')']) {
+    while !p.at(Eof) && !p.at(T![')']) {
         has_pat = true;
         if !p.at_ts(PATTERN_FIRST) {
             p.error("expected a pattern");
@@ -341,7 +341,7 @@ fn slice_pat(p: &mut Parser) -> CompletedMarker {
 }
 
 fn pat_list(p: &mut Parser, ket: SyntaxKind) {
-    while !p.at(EOF) && !p.at(ket) {
+    while !p.at(Eof) && !p.at(ket) {
         if !p.at_ts(PATTERN_FIRST) {
             p.error("expected a pattern");
             break;
