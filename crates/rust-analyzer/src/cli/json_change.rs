@@ -13,12 +13,12 @@ use std::fs;
 
 use crate::cli::load_cargo::load_change;
 
-pub struct CreateJsonCmd {}
+pub struct JsonChangeCmd {}
 
-impl CreateJsonCmd {
+impl JsonChangeCmd {
     /// Execute with e.g.
     /// ```no_compile
-    /// cargo run --bin rust-analyzer create-json ../ink/examples/flipper/Cargo.toml
+    /// cargo run --bin rust-analyzer json-change ../ink/examples/flipper/Cargo.toml
     /// ```
     pub fn run(self, root: &Path) -> Result<()> {
         let change = get_change_data(root, &|_| {})?;
