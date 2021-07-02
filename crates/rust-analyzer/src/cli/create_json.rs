@@ -1,21 +1,22 @@
 //! Fully type-check project and print various stats, like the number of type
 //! errors.
 
-use crossbeam_channel::{unbounded, Receiver};
+use crossbeam_channel::unbounded;
 use ide::Change;
-use ide_db::base_db::CrateGraph;
 use project_model::{
     BuildDataCollector, CargoConfig, ProcMacroClient, ProjectManifest, ProjectWorkspace,
 };
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 
 use crate::cli::{load_cargo::LoadCargoConfig, Result};
 
-use crate::reload::{ProjectFolders, SourceRootConfig};
+use crate::reload::ProjectFolders;
 
 use vfs::{loader::Handle, AbsPath, AbsPathBuf};
 
 use std::fs;
+
+use crate::cli::load_cargo::load_crate_graph;
 
 pub struct CreateJsonCmd {}
 
@@ -151,51 +152,12 @@ fn get_crate_data(root: &Path, progress: &dyn Fn(String)) -> Result<Change> {
         version: 0,
     });
 
-    let change =
-        get_change(crate_graph.clone(), project_folders.source_root_config, &mut vfs, &receiver);
+    let change = load_crate_graph(
+        crate_graph.clone(),
+        project_folders.source_root_config,
+        &mut vfs,
+        &receiver,
+    );
 
     Ok(change)
 }
-
-fn get_change(
-    crate_graph: CrateGraph,
-    source_root_config: SourceRootConfig,
-    vfs: &mut vfs::Vfs,
-    receiver: &Receiver<vfs::loader::Message>,
-) -> Change {
-    let mut analysis_change = Change::new();
-
-    // wait until Vfs has loaded all roots
-    for task in receiver {
-        match task {
-            vfs::loader::Message::Progress { n_done, n_total, config_version: _ } => {
-                if n_done == n_total {
-                    break;
-                }
-            }
-            vfs::loader::Message::Loaded { files } => {
-                for (path, contents) in files {
-                    vfs.set_file_contents(path.into(), contents);
-                }
-            }
-        }
-    }
-    let changes = vfs.take_changes();
-    for file in changes {
-        if file.exists() {
-            let contents = vfs.file_contents(file.file_id).to_vec();
-            if let Ok(text) = String::from_utf8(contents) {
-                analysis_change.change_file(file.file_id, Some(Arc::new(text)))
-            }
-        }
-    }
-    let source_roots = source_root_config.partition(&vfs);
-    analysis_change.set_roots(source_roots);
-
-    analysis_change.set_crate_graph(crate_graph);
-
-    analysis_change
-}
-
-
-

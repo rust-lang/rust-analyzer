@@ -83,8 +83,15 @@ fn load_workspace(
     });
 
     log::debug!("crate graph: {:?}", crate_graph);
-    let host =
+
+    let lru_cap = std::env::var("RA_LRU_CAP").ok().and_then(|it| it.parse::<usize>().ok());
+    let mut host = AnalysisHost::new(lru_cap);
+    host.raw_database_mut().set_enable_proc_attr_macros(true);
+
+    let change =
         load_crate_graph(crate_graph, project_folders.source_root_config, &mut vfs, &receiver);
+
+    host.apply_change(change);
 
     if config.prefill_caches {
         host.analysis().prime_caches(|_| {})?;
@@ -92,17 +99,13 @@ fn load_workspace(
     Ok((host, vfs, proc_macro_client))
 }
 
-fn load_crate_graph(
+pub(crate) fn load_crate_graph(
     crate_graph: CrateGraph,
     source_root_config: SourceRootConfig,
     vfs: &mut vfs::Vfs,
     receiver: &Receiver<vfs::loader::Message>,
-) -> AnalysisHost {
-    let lru_cap = std::env::var("RA_LRU_CAP").ok().and_then(|it| it.parse::<usize>().ok());
-    let mut host = AnalysisHost::new(lru_cap);
+) -> Change {
     let mut analysis_change = Change::new();
-
-    host.raw_database_mut().set_enable_proc_attr_macros(true);
 
     // wait until Vfs has loaded all roots
     for task in receiver {
@@ -133,8 +136,7 @@ fn load_crate_graph(
 
     analysis_change.set_crate_graph(crate_graph);
 
-    host.apply_change(analysis_change);
-    host
+    analysis_change
 }
 
 #[cfg(test)]
