@@ -22,71 +22,8 @@ impl JsonChangeCmd {
     /// ```
     pub fn run(self, root: &Path) -> Result<()> {
         let change = get_change_data(root, &|_| {})?;
-
-        // let (_, change2) = get_crate_data(root, &|_| {})?;
-
-        // let _json =
-        //    serde_json::to_string(&crate_graph).expect("serialization of crate_graph must work");
-
         let json = serde_json::to_string(&change).expect("serialization of change must work");
-        /*
-        _let deserialized_change: Change = serde_json::from_str(&json).expect("`Change` deserialization must work");
-        // let json = str::replace(&json,  "'","@@@");
-        let file_id = FileId(182);
-        let mut host = AnalysisHost::new(None);
-        host.apply_change(deserialized_change);
-        let analysis = host.analysis();
-        println!("getting status");
-        let status = analysis.status(Some(file_id)).unwrap();
-        println!("{}", status);
-        let _config = DiagnosticsConfig::default();
-        let _highlights: Vec<_> = analysis
-            .highlight(file_id)
-            .unwrap()
-            .into_iter()
-            .collect();
-        // let _highlights = analysis.highlight(file_id);
-        */
-
         fs::write("./change.json", json).expect("Unable to write file");
-
-        // println!("{}", json);
-
-        /*  let mut host = AnalysisHost::new(None);
-        host.apply_change(change);
-        let analysis = host.analysis();
-        let file_id = FileId(0);
-        */
-        // let _highlights = analysis.highlight(file_id);
-        // println!("{}", json);
-
-        // let deserialized_change: Change = serde_json::from_str(&json).expect("`Change` deserialization must work");
-
-        // println!("change_json:\n{}", change_json);
-
-        // deserialize from json string
-        /*
-        let deserialized_crate_graph: CrateGraph =
-            serde_json::from_str(&json).expect("deserialization must work");
-        assert_eq!(
-            crate_graph, deserialized_crate_graph,
-            "Deserialized `CrateGraph` is not equal!"
-        );
-        */
-
-        // Missing: Create a new `Change` object.
-        //
-        // `serde::Serialize` and `serde::Deserialize` are already supported by `Change`.
-        // So this should work out of the box after the object has been created:
-        //
-        // ```
-        // let json = serde_json::to_string(&change).expect("`Change` serialization must work");
-        // println!("change json:\n{}", json);
-        // let deserialized_change: Change = serde_json::from_str(&json).expect("`Change` deserialization must work");
-        // assert_eq!(change.roots, deserialized_change.roots, "Deserialized `Change.roots` is not equal!");
-        // assert_eq!(change.files_changed, deserialized_change.files_changed, "Deserialized `Change.roots` is not equal!");
-        // ```
-
         Ok(())
     }
 }
