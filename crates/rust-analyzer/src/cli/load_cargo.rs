@@ -41,6 +41,25 @@ fn load_workspace(
     config: &LoadCargoConfig,
     progress: &dyn Fn(String),
 ) -> Result<(AnalysisHost, vfs::Vfs, Option<ProcMacroClient>)> {
+    let lru_cap = std::env::var("RA_LRU_CAP").ok().and_then(|it| it.parse::<usize>().ok());
+    let mut host = AnalysisHost::new(lru_cap);
+    host.raw_database_mut().set_enable_proc_attr_macros(true);
+
+    let (change, vfs, proc_macro_client) = load_change(ws, config, progress)?;
+
+    host.apply_change(change);
+
+    if config.prefill_caches {
+        host.analysis().prime_caches(|_| {})?;
+    }
+    Ok((host, vfs, proc_macro_client))
+}
+
+fn load_change(
+    ws: ProjectWorkspace,
+    config: &LoadCargoConfig,
+    progress: &dyn Fn(String),
+) -> Result<(Change, vfs::Vfs, Option<ProcMacroClient>)> {
     let (sender, receiver) = unbounded();
     let mut vfs = vfs::Vfs::default();
     let mut loader = {
@@ -84,19 +103,10 @@ fn load_workspace(
 
     log::debug!("crate graph: {:?}", crate_graph);
 
-    let lru_cap = std::env::var("RA_LRU_CAP").ok().and_then(|it| it.parse::<usize>().ok());
-    let mut host = AnalysisHost::new(lru_cap);
-    host.raw_database_mut().set_enable_proc_attr_macros(true);
-
     let change =
         load_crate_graph(crate_graph, project_folders.source_root_config, &mut vfs, &receiver);
 
-    host.apply_change(change);
-
-    if config.prefill_caches {
-        host.analysis().prime_caches(|_| {})?;
-    }
-    Ok((host, vfs, proc_macro_client))
+    Ok((change, vfs, proc_macro_client))
 }
 
 pub(crate) fn load_crate_graph(
