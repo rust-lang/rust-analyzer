@@ -55,7 +55,7 @@ fn load_workspace(
     Ok((host, vfs, proc_macro_client))
 }
 
-fn load_change(
+pub(crate) fn load_change(
     ws: ProjectWorkspace,
     config: &LoadCargoConfig,
     progress: &dyn Fn(String),
@@ -109,7 +109,7 @@ fn load_change(
     Ok((change, vfs, proc_macro_client))
 }
 
-pub(crate) fn load_crate_graph(
+fn load_crate_graph(
     crate_graph: CrateGraph,
     source_root_config: SourceRootConfig,
     vfs: &mut vfs::Vfs,

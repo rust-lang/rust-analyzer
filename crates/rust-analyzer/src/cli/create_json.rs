@@ -1,22 +1,17 @@
 //! Fully type-check project and print various stats, like the number of type
 //! errors.
 
-use crossbeam_channel::unbounded;
 use ide::Change;
-use project_model::{
-    BuildDataCollector, CargoConfig, ProcMacroClient, ProjectManifest, ProjectWorkspace,
-};
+use project_model::{CargoConfig, ProjectManifest, ProjectWorkspace};
 use std::path::Path;
 
 use crate::cli::{load_cargo::LoadCargoConfig, Result};
 
-use crate::reload::ProjectFolders;
-
-use vfs::{loader::Handle, AbsPath, AbsPathBuf};
+use vfs::{AbsPath, AbsPathBuf};
 
 use std::fs;
 
-use crate::cli::load_cargo::load_crate_graph;
+use crate::cli::load_cargo::load_change;
 
 pub struct CreateJsonCmd {}
 
@@ -111,53 +106,8 @@ fn get_crate_data(root: &Path, progress: &dyn Fn(String)) -> Result<Change> {
         with_proc_macro: false,
         prefill_caches: false,
     };
-    let (sender, receiver) = unbounded();
-    let mut vfs = vfs::Vfs::default();
-    let mut loader = {
-        let loader =
-            vfs_notify::NotifyHandle::spawn(Box::new(move |msg| sender.send(msg).unwrap()));
-        Box::new(loader)
-    };
 
-    let proc_macro_client = if config.with_proc_macro {
-        let path = std::env::current_exe()?;
-        Some(ProcMacroClient::extern_process(path, &["proc-macro"]).unwrap())
-    } else {
-        None
-    };
-
-    let build_data = if config.load_out_dirs_from_check {
-        let mut collector = BuildDataCollector::new(config.wrap_rustc);
-        ws.collect_build_data_configs(&mut collector);
-        Some(collector.collect(progress)?)
-    } else {
-        None
-    };
-
-    let crate_graph = ws.to_crate_graph(
-        build_data.as_ref(),
-        proc_macro_client.as_ref(),
-        &mut |path: &AbsPath| {
-            let contents = loader.load_sync(path);
-            let path = vfs::VfsPath::from(path.to_path_buf());
-            vfs.set_file_contents(path.clone(), contents);
-            vfs.file_id(&path)
-        },
-    );
-
-    let project_folders = ProjectFolders::new(&[ws], &[], build_data.as_ref());
-    loader.set_config(vfs::loader::Config {
-        load: project_folders.load,
-        watch: vec![],
-        version: 0,
-    });
-
-    let change = load_crate_graph(
-        crate_graph.clone(),
-        project_folders.source_root_config,
-        &mut vfs,
-        &receiver,
-    );
+    let (change, _, _) = load_change(ws, &config, progress)?;
 
     Ok(change)
 }
