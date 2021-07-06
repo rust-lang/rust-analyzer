@@ -13,6 +13,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::SmolStr;
 use tt::{ExpansionError, Subtree};
 use vfs::{file_set::FileSet, FileId, VfsPath};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, ser::SerializeStruct};
 
 /// Files are grouped into source roots. A source root is a directory on the
 /// file systems which is watched for changes. Typically it corresponds to a
@@ -24,7 +25,7 @@ use vfs::{file_set::FileSet, FileId, VfsPath};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SourceRootId(pub u32);
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct SourceRoot {
     /// Sysroot or crates.io library.
     ///
@@ -67,7 +68,7 @@ impl SourceRoot {
 /// Note that `CrateGraph` is build-system agnostic: it's a concept of the Rust
 /// language proper, not a concept of the build system. In practice, we get
 /// `CrateGraph` by lowering `cargo metadata` output.
-#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
 pub struct CrateGraph {
     arena: FxHashMap<CrateId, CrateData>,
 }
@@ -75,28 +76,28 @@ pub struct CrateGraph {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CrateId(pub u32);
 
-impl serde::Serialize for CrateId {
+impl Serialize for CrateId {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         let s = self.0.to_string();
         serializer.serialize_str(&s)
     }
 }
 
-impl<'de> serde::Deserialize<'de> for CrateId {
+impl<'de> Deserialize<'de> for CrateId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
-        let s: &str = serde::Deserialize::deserialize(deserializer)?;
+        let s: &str = Deserialize::deserialize(deserializer)?;
         let id = s.parse::<u32>().unwrap();
         Ok(CrateId(id))
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CrateName(SmolStr);
 
 impl CrateName {
@@ -130,7 +131,7 @@ impl ops::Deref for CrateName {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CrateDisplayName {
     // The name we use to display various paths (with `_`).
     crate_name: CrateName,
@@ -165,10 +166,10 @@ impl CrateDisplayName {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct ProcMacroId(pub u32);
 
-#[derive(serde::Serialize, serde::Deserialize, Copy, Clone, Eq, PartialEq, Debug, Hash)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Debug, Hash)]
 pub enum ProcMacroKind {
     CustomDerive,
     FuncLike,
@@ -191,21 +192,24 @@ pub struct ProcMacro {
     pub expander: Arc<dyn ProcMacroExpander>,
 }
 
-impl serde::Serialize for ProcMacro {
-    fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+impl Serialize for ProcMacro {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
-        unimplemented!("serializing `ProcMacro` is not yet supported!!");
+        let mut state = serializer.serialize_struct("ProcMacro", 2)?;
+        state.serialize_field("name", &self.name)?;
+        state.serialize_field("kind", &self.kind)?;
+        state.end()
     }
 }
 
-impl<'de> serde::Deserialize<'de> for ProcMacro {
-    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
+impl<'de> Deserialize<'de> for ProcMacro {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
-        unimplemented!("deserializing `ProcMacro` is not yet supported!");
+        unimplemented!()
     }
 }
 
@@ -216,7 +220,7 @@ impl PartialEq for ProcMacro {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct CrateData {
     pub root_file_id: FileId,
     pub edition: Edition,
@@ -235,7 +239,7 @@ pub struct CrateData {
 }
 
 #[derive(
-    serde::Serialize, serde::Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash,
+    Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash,
 )]
 pub enum Edition {
     Edition2015,
@@ -247,12 +251,12 @@ impl Edition {
     pub const CURRENT: Edition = Edition::Edition2018;
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 pub struct Env {
     entries: FxHashMap<String, String>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct Dependency {
     pub crate_id: CrateId,
     pub name: CrateName,
