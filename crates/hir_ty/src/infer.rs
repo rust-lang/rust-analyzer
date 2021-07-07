@@ -797,7 +797,7 @@ impl Expectation {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Diverges {
+enum Diverges {
     Maybe,
     Always,
 }
