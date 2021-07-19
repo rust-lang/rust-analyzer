@@ -7,7 +7,7 @@ use std::path::Path;
 
 use crate::cli::{load_cargo::LoadCargoConfig, Result};
 
-use vfs::{AbsPathBuf};
+use vfs::AbsPathBuf;
 
 use std::fs;
 

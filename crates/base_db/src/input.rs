@@ -10,10 +10,10 @@ use std::{fmt, iter::FromIterator, ops, panic::RefUnwindSafe, str::FromStr, sync
 
 use cfg::CfgOptions;
 use rustc_hash::{FxHashMap, FxHashSet};
+use serde::{ser::SerializeStruct, Deserialize, Deserializer, Serialize, Serializer};
 use syntax::SmolStr;
 use tt::{ExpansionError, Subtree};
 use vfs::{file_set::FileSet, FileId, VfsPath};
-use serde::{Deserialize, Deserializer, Serialize, Serializer, ser::SerializeStruct};
 
 /// Files are grouped into source roots. A source root is a directory on the
 /// file systems which is watched for changes. Typically it corresponds to a
@@ -238,9 +238,7 @@ pub struct CrateData {
     pub proc_macro: Vec<ProcMacro>,
 }
 
-#[derive(
-    Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash,
-)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Edition {
     Edition2015,
     Edition2018,
