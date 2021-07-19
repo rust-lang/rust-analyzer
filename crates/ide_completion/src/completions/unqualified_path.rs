@@ -1,5 +1,6 @@
 //! Completion of names from the current scope, e.g. locals and imported items.
 
+use array_iterator::ArrayIterator;
 use hir::ScopeDef;
 use syntax::{ast, AstNode};
 
@@ -19,11 +20,11 @@ pub(crate) fn complete_unqualified_path(acc: &mut Completions, ctx: &CompletionC
             }
         });
 
-        std::array::IntoIter::new(["self::", "super::", "crate::"])
+        ArrayIterator::new(["self::", "super::", "crate::"])
             .for_each(|kw| acc.add_keyword(ctx, kw));
         return;
     }
-    std::array::IntoIter::new(["self", "super", "crate"]).for_each(|kw| acc.add_keyword(ctx, kw));
+    ArrayIterator::new(["self", "super", "crate"]).for_each(|kw| acc.add_keyword(ctx, kw));
 
     if ctx.expects_item() || ctx.expects_assoc_item() {
         // only show macros in {Assoc}ItemList
