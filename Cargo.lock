@@ -48,6 +48,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33954243bd79057c2de7338850b85983a44588021f8a5fee574a8888c6de4344"
 
 [[package]]
+name = "array_iterator"
+version = "1.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "769af754c2afad9a410ffdfdae3c0e48b98fba3d72bfe0b5316b277e7d1566e1"
+
+[[package]]
 name = "arrayvec"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -611,6 +617,7 @@ dependencies = [
 name = "ide_completion"
 version = "0.0.0"
 dependencies = [
+ "array_iterator",
  "base_db",
  "cov-mark",
  "either",

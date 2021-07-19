@@ -3,6 +3,7 @@
 //! This module uses a bit of static metadata to provide completions
 //! for built-in attributes.
 
+use array_iterator::ArrayIterator;
 use hir::HasAttrs;
 use ide_db::helpers::generated_lints::{CLIPPY_LINTS, DEFAULT_LINTS, FEATURES};
 use once_cell::sync::Lazy;
@@ -168,7 +169,7 @@ macro_rules! attrs {
 #[rustfmt::skip]
 static KIND_TO_ATTRIBUTES: Lazy<FxHashMap<SyntaxKind, &[&str]>> = Lazy::new(|| {
     use SyntaxKind::*;
-    std::array::IntoIter::new([
+    ArrayIterator::new([
         (
             SOURCE_FILE,
             attrs!(
