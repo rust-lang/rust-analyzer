@@ -56,16 +56,51 @@ fn generate_lint_descriptor(buf: &mut String) {
         .skip(1)
         .filter(|l| !l.is_empty())
         .map(|line| {
-            let (name, rest) = line.trim().split_once(char::is_whitespace).unwrap();
-            let (_default_level, description) =
-                rest.trim().split_once(char::is_whitespace).unwrap();
-            (name.trim(), Cow::Borrowed(description.trim()))
+            let mut name: &str = "";
+            let mut _default_level: &str= "";
+            let mut description: String = "".to_string();
+            let mut splitted = line.trim().split(char::is_whitespace);
+            let mut piece = splitted.next();
+            while !piece.is_some() {
+                match piece{
+                    None => piece = splitted.next(),
+                    Some(piece_v) => {name = piece_v; break;}
+                }
+            }
+            while !piece.is_some() {
+                match piece{
+                    None => piece = splitted.next(),
+                    Some(piece_v) => {_default_level = piece_v; break;}
+                }
+            }
+            while !piece.is_some() {
+                match piece{
+                    None => piece = splitted.next(),
+                    Some(_piece_v) => {description =  splitted.collect::<Vec<&str>>().join(" "); break;}
+                }
+            }
+            (name.trim(), Cow::Owned(description.trim().to_string()))
         })
         .collect::<Vec<_>>();
     lints.extend(
         stdout[start_lint_groups..end_lint_groups].lines().skip(1).filter(|l| !l.is_empty()).map(
             |line| {
-                let (name, lints) = line.trim().split_once(char::is_whitespace).unwrap();
+                let mut name: &str = "";
+                let mut lints: String = "".to_string();
+                let mut splitted = line.trim().split(char::is_whitespace);
+                let mut piece = splitted.next();
+                while !piece.is_some() {
+                    match piece{
+                        None => piece = splitted.next(),
+                        Some(piece_v) => {name = piece_v; break;}
+                    }
+                }
+                while !piece.is_some() {
+                    match piece{
+                        None => piece = splitted.next(),
+                        Some(piece_v) => {lints =  splitted.collect::<Vec<&str>>().join(" "); break;}
+                    }
+                }
                 (name.trim(), format!("lint group for: {}", lints.trim()).into())
             },
         ),
