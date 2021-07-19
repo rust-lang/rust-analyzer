@@ -45,7 +45,8 @@ pub(crate) fn complete_unqualified_path(acc: &mut Completions, ctx: &CompletionC
         ctx.scope.process_all_names(&mut |name, res| {
             let add_resolution = match res {
                 ScopeDef::MacroDef(mac) => mac.is_fn_like(),
-                ScopeDef::ModuleDef(hir::ModuleDef::Trait(_) | hir::ModuleDef::Module(_)) => true,
+                ScopeDef::ModuleDef(hir::ModuleDef::Trait(_)) |
+                ScopeDef::ModuleDef(hir::ModuleDef::Module(_)) => true,
                 _ => false,
             };
             if add_resolution {
