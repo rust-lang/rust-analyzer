@@ -390,7 +390,8 @@ impl VirtualPath {
 
             match (file_stem, extension) {
                 (None, None) => None,
-                (None | Some(""), Some(_)) => Some((file_name, None)),
+                (None, Some(_)) => Some((file_name, None)),
+                ( Some(""), Some(_)) => Some((file_name, None)),
                 (Some(file_stem), extension) => Some((file_stem, extension)),
             }
         }
