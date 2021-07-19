@@ -3,6 +3,7 @@
 
 use std::{array, iter};
 
+use arrayvec::ArrayVec;
 use base_db::CrateId;
 use chalk_ir::{fold::Shift, BoundVar, DebruijnIndex};
 use hir_def::{
@@ -30,7 +31,8 @@ pub(crate) fn fn_traits(db: &dyn DefDatabase, krate: CrateId) -> impl Iterator<I
         db.lang_item(krate, "fn_mut".into()),
         db.lang_item(krate, "fn_once".into()),
     ];
-    array::IntoIter::new(fn_traits).into_iter().flatten().flat_map(|it| it.as_trait())
+    // FIXME: Replace ArrayVec when into_iter is a thing on arrays
+    ArrayVec::from(fn_traits).into_iter().flatten().flat_map(|it| it.as_trait())
 }
 
 fn direct_super_traits(db: &dyn DefDatabase, trait_: TraitId) -> Vec<TraitId> {
