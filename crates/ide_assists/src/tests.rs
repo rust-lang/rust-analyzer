@@ -182,10 +182,9 @@ fn check(handler: Handler, before: &str, expected: ExpectedResult, assist_label:
             "unresolved assist should not contain source changes"
         ),
         (Some(_), ExpectedResult::NotApplicable) => panic!("assist should not be applicable!"),
-        (
-            None,
-            ExpectedResult::After(_) | ExpectedResult::Target(_) | ExpectedResult::Unresolved,
-        ) => {
+        (None, ExpectedResult::After(_))
+        | (None, ExpectedResult::Target(_))
+        | (None, ExpectedResult::Unresolved) => {
             panic!("code action is not applicable")
         }
         (None, ExpectedResult::NotApplicable) => (),

@@ -296,7 +296,7 @@ fn traverse(
                 Some(parent) => {
                     // We only care Name and Name_ref
                     match (token.kind(), parent.kind()) {
-                        (IDENT, NAME | NAME_REF) => parent.into(),
+                        (IDENT, NAME) | (IDENT, NAME_REF) => parent.into(),
                         _ => token.into(),
                     }
                 }
@@ -312,7 +312,7 @@ fn traverse(
                 Some(parent) => {
                     // We only care Name and Name_ref
                     match (token.kind(), parent.kind()) {
-                        (IDENT, NAME | NAME_REF) => parent.into(),
+                        (IDENT, NAME) | (IDENT, NAME_REF) => parent.into(),
                         _ => token.into(),
                     }
                 }

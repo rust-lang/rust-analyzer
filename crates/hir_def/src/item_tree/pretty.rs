@@ -65,7 +65,7 @@ impl<'a> Printer<'a> {
     fn blank(&mut self) {
         let mut iter = self.buf.chars().rev().fuse();
         match (iter.next(), iter.next()) {
-            (Some('\n'), Some('\n') | None) | (None, None) => {}
+            (Some('\n'), Some('\n')) | (Some('\n'), None) | (None, None) => {}
             (Some('\n'), Some(_)) => {
                 self.buf.push('\n');
             }
@@ -79,7 +79,7 @@ impl<'a> Printer<'a> {
 
     fn whitespace(&mut self) {
         match self.buf.chars().next_back() {
-            None | Some('\n' | ' ') => {}
+            None | Some('\n') | Some(' ') => {}
             _ => self.buf.push(' '),
         }
     }
