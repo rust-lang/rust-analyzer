@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [macos-latest]
 
     steps:
     - name: Checkout repository
@@ -54,83 +54,7 @@ jobs:
       uses: Swatinem/rust-cache@ce325b60658c1b38465c06cc965b79baf32c1e72
 
     - name: Compile
-      run: cargo test --no-run --locked
+      run: cargo test -p rust-analyzer --no-run --locked
 
     - name: Test
-      run: cargo test -- --nocapture
-
-  # Weird targets to catch non-portable code
-  rust-cross:
-    name: Rust Cross
-    runs-on: ubuntu-latest
-
-    env:
-      targets: "powerpc-unknown-linux-gnu x86_64-unknown-linux-musl"
-      # The rust-analyzer binary is not expected to compile on WASM, but the IDE
-      # crate should
-      targets_ide: "wasm32-unknown-unknown"
-
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
-
-    - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        profile: minimal
-        override: true
-
-    - name: Install Rust targets
-      run: rustup target add ${{ env.targets }} ${{ env.targets_ide }}
-
-    - name: Cache Dependencies
-      uses: Swatinem/rust-cache@ce325b60658c1b38465c06cc965b79baf32c1e72
-
-    - name: Check
-      run: |
-        for target in ${{ env.targets }}; do
-          cargo check --target=$target --all-targets
-        done
-        for target in ${{ env.targets_ide }}; do
-          cargo check -p ide --target=$target --all-targets
-        done
-
-  typescript:
-    name: TypeScript
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-
-    runs-on: ${{ matrix.os }}
-
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
-
-    - name: Install Nodejs
-      uses: actions/setup-node@v1
-      with:
-        node-version: 12.x
-
-    - run: npm ci
-      working-directory: ./editors/code
-
-#    - run: npm audit || { sleep 10 && npm audit; } || { sleep 30 && npm audit; }
-#      if: runner.os == 'Linux'
-#      working-directory: ./editors/code
-
-    - run: npm run lint
-      working-directory: ./editors/code
-
-    - name: Run vscode tests
-      uses: GabrielBB/xvfb-action@v1.2
-      env:
-        VSCODE_CLI: 1
-      with:
-        run: npm --prefix ./editors/code test
-        # working-directory: ./editors/code  # does not work: https://github.com/GabrielBB/xvfb-action/issues/8
-
-    - run: npm run package --scripts-prepend-node-path
-      working-directory: ./editors/code
+      run: cargo test -p rust-analyzer -- --nocapture out_dirs_check

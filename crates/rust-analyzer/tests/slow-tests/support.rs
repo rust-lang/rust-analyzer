@@ -141,7 +141,7 @@ pub(crate) struct Server {
     _thread: jod_thread::JoinHandle<()>,
     client: Connection,
     /// XXX: remove the tempdir last
-    dir: TestDir,
+    pub(crate) dir: TestDir,
 }
 
 impl Server {

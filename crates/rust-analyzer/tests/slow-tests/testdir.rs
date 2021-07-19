@@ -5,7 +5,7 @@ use std::{
 };
 
 pub(crate) struct TestDir {
-    path: PathBuf,
+    pub(crate) path: PathBuf,
     keep: bool,
 }
 

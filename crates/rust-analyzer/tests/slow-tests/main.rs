@@ -18,14 +18,11 @@ use std::{collections::HashMap, path::PathBuf, time::Instant};
 use expect_test::expect;
 use lsp_types::{
     notification::DidOpenTextDocument,
-    request::{
-        CodeActionRequest, Completion, Formatting, GotoTypeDefinition, HoverRequest,
-        WillRenameFiles,
-    },
+    request::{CodeActionRequest, Completion, Formatting, HoverRequest, WillRenameFiles},
     CodeActionContext, CodeActionParams, CompletionParams, DidOpenTextDocumentParams,
-    DocumentFormattingParams, FileRename, FormattingOptions, GotoDefinitionParams, HoverParams,
-    PartialResultParams, Position, Range, RenameFilesParams, TextDocumentItem,
-    TextDocumentPositionParams, WorkDoneProgressParams,
+    DocumentFormattingParams, FileRename, FormattingOptions, HoverParams, PartialResultParams,
+    Position, Range, RenameFilesParams, TextDocumentItem, TextDocumentPositionParams,
+    WorkDoneProgressParams,
 };
 use rust_analyzer::lsp_ext::{OnEnter, Runnables, RunnablesParams};
 use serde_json::json;
@@ -569,10 +566,6 @@ version = \"0.0.0\"
 
 #[test]
 fn out_dirs_check() {
-    if skip_slow_tests() {
-        return;
-    }
-
     let server = Project::with_fixture(
         r###"
 //- /Cargo.toml
@@ -626,78 +619,35 @@ fn main() {
             "noSysroot": true,
         }
     }))
-    .server()
-    .wait_until_workspace_is_loaded();
+    .server();
 
-    let res = server.send_request::<HoverRequest>(HoverParams {
-        text_document_position_params: TextDocumentPositionParams::new(
-            server.doc_id("src/main.rs"),
-            Position::new(19, 10),
-        ),
-        work_done_progress_params: Default::default(),
-    });
-    assert!(res.to_string().contains("&str"));
+    let dir = &server.dir.path;
+    eprintln!("dir = {:?}", dir.display());
+    let meta = exec("cargo metadata --format-version 1", dir).unwrap();
+    let meta = meta.parse::<serde_json::Value>().unwrap();
+    eprintln!("meta:\n{:#}\n\n", meta);
 
-    let res = server.send_request::<HoverRequest>(HoverParams {
-        text_document_position_params: TextDocumentPositionParams::new(
-            server.doc_id("src/main.rs"),
-            Position::new(20, 10),
-        ),
-        work_done_progress_params: Default::default(),
-    });
-    assert!(res.to_string().contains("&str"));
+    let wr = meta["workspace_root"].as_str().unwrap();
+    eprintln!("wr = {:?}", wr);
 
-    server.request::<GotoTypeDefinition>(
-        GotoDefinitionParams {
-            text_document_position_params: TextDocumentPositionParams::new(
-                server.doc_id("src/main.rs"),
-                Position::new(17, 9),
-            ),
-            work_done_progress_params: Default::default(),
-            partial_result_params: Default::default(),
-        },
-        json!([{
-            "originSelectionRange": {
-                "end": { "character": 10, "line": 17 },
-                "start": { "character": 8, "line": 17 }
-            },
-            "targetRange": {
-                "end": { "character": 9, "line": 8 },
-                "start": { "character": 0, "line": 7 }
-            },
-            "targetSelectionRange": {
-                "end": { "character": 8, "line": 8 },
-                "start": { "character": 7, "line": 8 }
-            },
-            "targetUri": "file:///[..]src/main.rs"
-        }]),
-    );
+    eprintln!("build:");
+    let check = exec("cargo check --message-format json", &wr.into()).unwrap();
+    for line in check.lines() {
+        if let Ok(value) = line.parse::<serde_json::Value>() {
+            eprintln!("{:#}", value);
+        } else {
+            eprintln!("{}", line);
+        }
+    }
+}
 
-    server.request::<GotoTypeDefinition>(
-        GotoDefinitionParams {
-            text_document_position_params: TextDocumentPositionParams::new(
-                server.doc_id("src/main.rs"),
-                Position::new(18, 9),
-            ),
-            work_done_progress_params: Default::default(),
-            partial_result_params: Default::default(),
-        },
-        json!([{
-            "originSelectionRange": {
-                "end": { "character": 10, "line": 18 },
-                "start": { "character": 8, "line": 18 }
-            },
-            "targetRange": {
-                "end": { "character": 9, "line": 12 },
-                "start": { "character": 0, "line":11 }
-            },
-            "targetSelectionRange": {
-                "end": { "character": 8, "line": 12 },
-                "start": { "character": 7, "line": 12 }
-            },
-            "targetUri": "file:///[..]src/main.rs"
-        }]),
-    );
+fn exec(command: &str, wd: &PathBuf) -> std::io::Result<String> {
+    let args = command.split_ascii_whitespace().collect::<Vec<_>>();
+    let (cmd, args) = args.split_first().unwrap();
+    let output = std::process::Command::new(cmd).current_dir(wd).args(args).output()?;
+    let stdout = String::from_utf8(output.stdout)
+        .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))?;
+    Ok(stdout.trim().to_string())
 }
 
 #[test]
