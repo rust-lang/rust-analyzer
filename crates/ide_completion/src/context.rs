@@ -289,7 +289,7 @@ impl<'a> CompletionContext<'a> {
     pub(crate) fn expect_field(&self) -> bool {
         matches!(
             self.completion_location,
-            Some(ImmediateLocation::RecordField | ImmediateLocation::TupleField)
+            Some(ImmediateLocation::RecordField) | Some(ImmediateLocation::TupleField)
         )
     }
 
