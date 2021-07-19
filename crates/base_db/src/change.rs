@@ -3,14 +3,14 @@
 
 use std::{fmt, sync::Arc};
 
+use crate::{CrateGraph, SourceDatabaseExt, SourceRoot, SourceRootId};
 use rustc_hash::FxHashSet;
 use salsa::Durability;
+use serde::{Deserialize, Serialize};
 use vfs::FileId;
 
-use crate::{CrateGraph, SourceDatabaseExt, SourceRoot, SourceRootId};
-
 /// Encapsulate a bunch of raw `.set` calls on the database.
-#[derive(serde::Serialize, serde::Deserialize, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct Change {
     pub roots: Option<Vec<SourceRoot>>,
     pub files_changed: Vec<(FileId, Option<Arc<String>>)>,

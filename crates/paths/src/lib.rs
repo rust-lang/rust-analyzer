@@ -1,6 +1,5 @@
 //! Thin wrappers around `std::path`, distinguishing between absolute and
 //! relative paths.
-use serde;
 use std::{
     borrow::Borrow,
     convert::{TryFrom, TryInto},
@@ -8,6 +7,8 @@ use std::{
     ops,
     path::{Component, Path, PathBuf},
 };
+
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Wrapper around an absolute [`PathBuf`].
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
@@ -67,19 +68,19 @@ impl PartialEq<AbsPath> for AbsPathBuf {
     }
 }
 
-impl serde::Serialize for AbsPathBuf {
+impl Serialize for AbsPathBuf {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         self.0.serialize(serializer)
     }
 }
 
-impl<'de> serde::Deserialize<'de> for AbsPathBuf {
+impl<'de> Deserialize<'de> for AbsPathBuf {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
         let path = PathBuf::deserialize(deserializer)?;
         AbsPathBuf::try_from(path).map_err(|path| {

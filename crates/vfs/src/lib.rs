@@ -43,8 +43,9 @@ pub mod loader;
 mod path_interner;
 mod vfs_path;
 
-use serde;
 use std::{fmt, mem};
+
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::path_interner::PathInterner;
 
@@ -60,22 +61,22 @@ pub use paths::{AbsPath, AbsPathBuf};
 #[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct FileId(pub u32);
 
-impl serde::Serialize for FileId {
+impl Serialize for FileId {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         let s = self.0.to_string();
         serializer.serialize_str(&s)
     }
 }
 
-impl<'de> serde::Deserialize<'de> for FileId {
+impl<'de> Deserialize<'de> for FileId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
-        let s: &str = serde::Deserialize::deserialize(deserializer)?;
+        let s: &str = Deserialize::deserialize(deserializer)?;
         let id = s.parse::<u32>().unwrap();
         Ok(FileId(id))
     }

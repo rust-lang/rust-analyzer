@@ -4,12 +4,11 @@
 
 use std::{fmt, slice::Iter as SliceIter};
 
+use serde::{Deserialize, Serialize};
 use tt::SmolStr;
 
 /// A simple configuration value passed in from the outside.
-#[derive(
-    serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd,
-)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub enum CfgAtom {
     /// eg. `#[cfg(test)]`
     Flag(SmolStr),
