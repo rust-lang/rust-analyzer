@@ -169,7 +169,7 @@ fn retain_adt_literal_usages(
             });
             usages.references.retain(|_, it| !it.is_empty());
         }
-        Definition::ModuleDef(hir::ModuleDef::Adt(_) | hir::ModuleDef::Variant(_)) => {
+        Definition::ModuleDef(hir::ModuleDef::Adt(_)) | Definition::ModuleDef(hir::ModuleDef::Variant(_)) => {
             refs.for_each(|it| {
                 it.retain(|reference| reference.name.as_name_ref().map_or(false, is_lit_name_ref))
             });
