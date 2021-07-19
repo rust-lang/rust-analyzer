@@ -71,31 +71,69 @@ pub(crate) fn remove_dbg(acc: &mut Assists, ctx: &AssistContext) -> Option<()> {
             let wrap = match ast::Expr::cast(parent) {
                 Some(parent) => match (expr, parent) {
                     (ast::Expr::CastExpr(_), ast::Expr::CastExpr(_)) => false,
-                    (
-                        ast::Expr::BoxExpr(_) | ast::Expr::PrefixExpr(_) | ast::Expr::RefExpr(_),
-                        ast::Expr::AwaitExpr(_)
-                        | ast::Expr::CallExpr(_)
-                        | ast::Expr::CastExpr(_)
-                        | ast::Expr::FieldExpr(_)
-                        | ast::Expr::IndexExpr(_)
-                        | ast::Expr::MethodCallExpr(_)
-                        | ast::Expr::RangeExpr(_)
-                        | ast::Expr::TryExpr(_),
-                    ) => true,
-                    (
-                        ast::Expr::BinExpr(_) | ast::Expr::CastExpr(_) | ast::Expr::RangeExpr(_),
-                        ast::Expr::AwaitExpr(_)
-                        | ast::Expr::BinExpr(_)
-                        | ast::Expr::CallExpr(_)
-                        | ast::Expr::CastExpr(_)
-                        | ast::Expr::FieldExpr(_)
-                        | ast::Expr::IndexExpr(_)
-                        | ast::Expr::MethodCallExpr(_)
-                        | ast::Expr::PrefixExpr(_)
-                        | ast::Expr::RangeExpr(_)
-                        | ast::Expr::RefExpr(_)
-                        | ast::Expr::TryExpr(_),
-                    ) => true,
+
+                    (ast::Expr::BoxExpr(_), ast::Expr::AwaitExpr(_)) |
+                    (ast::Expr::BoxExpr(_), ast::Expr::CallExpr(_)) |
+                    (ast::Expr::BoxExpr(_), ast::Expr::CastExpr(_)) |
+                    (ast::Expr::BoxExpr(_), ast::Expr::FieldExpr(_)) |
+                    (ast::Expr::BoxExpr(_), ast::Expr::IndexExpr(_)) |
+                    (ast::Expr::BoxExpr(_), ast::Expr::MethodCallExpr(_)) |
+                    (ast::Expr::BoxExpr(_), ast::Expr::RangeExpr(_)) |
+                    (ast::Expr::BoxExpr(_), ast::Expr::TryExpr(_)) => true,
+
+                    (ast::Expr::PrefixExpr(_), ast::Expr::AwaitExpr(_)) |
+                    (ast::Expr::PrefixExpr(_), ast::Expr::CallExpr(_)) |
+                    (ast::Expr::PrefixExpr(_), ast::Expr::CastExpr(_)) |
+                    (ast::Expr::PrefixExpr(_), ast::Expr::FieldExpr(_)) |
+                    (ast::Expr::PrefixExpr(_), ast::Expr::IndexExpr(_)) |
+                    (ast::Expr::PrefixExpr(_), ast::Expr::MethodCallExpr(_)) |
+                    (ast::Expr::PrefixExpr(_), ast::Expr::RangeExpr(_)) |
+                    (ast::Expr::PrefixExpr(_), ast::Expr::TryExpr(_)) => true,
+
+                    (ast::Expr::RefExpr(_), ast::Expr::AwaitExpr(_)) |
+                    (ast::Expr::RefExpr(_), ast::Expr::CallExpr(_)) |
+                    (ast::Expr::RefExpr(_), ast::Expr::CastExpr(_)) |
+                    (ast::Expr::RefExpr(_), ast::Expr::FieldExpr(_)) |
+                    (ast::Expr::RefExpr(_), ast::Expr::IndexExpr(_)) |
+                    (ast::Expr::RefExpr(_), ast::Expr::MethodCallExpr(_)) |
+                    (ast::Expr::RefExpr(_), ast::Expr::RangeExpr(_)) |
+                    (ast::Expr::RefExpr(_), ast::Expr::TryExpr(_)) => true,
+
+                    (ast::Expr::BinExpr(_), ast::Expr::AwaitExpr(_)) |
+                    (ast::Expr::BinExpr(_), ast::Expr::BinExpr(_)) |
+                    (ast::Expr::BinExpr(_), ast::Expr::CallExpr(_)) |
+                    (ast::Expr::BinExpr(_), ast::Expr::CastExpr(_)) |
+                    (ast::Expr::BinExpr(_), ast::Expr::FieldExpr(_)) |
+                    (ast::Expr::BinExpr(_), ast::Expr::IndexExpr(_)) |
+                    (ast::Expr::BinExpr(_), ast::Expr::MethodCallExpr(_)) |
+                    (ast::Expr::BinExpr(_), ast::Expr::PrefixExpr(_)) |
+                    (ast::Expr::BinExpr(_), ast::Expr::RangeExpr(_)) |
+                    (ast::Expr::BinExpr(_), ast::Expr::RefExpr(_)) |
+                    (ast::Expr::BinExpr(_), ast::Expr::TryExpr(_))  => true,
+
+                    (ast::Expr::CastExpr(_), ast::Expr::AwaitExpr(_)) |
+                    (ast::Expr::CastExpr(_), ast::Expr::BinExpr(_)) |
+                    (ast::Expr::CastExpr(_), ast::Expr::CallExpr(_)) |
+                    (ast::Expr::CastExpr(_), ast::Expr::FieldExpr(_)) |
+                    (ast::Expr::CastExpr(_), ast::Expr::IndexExpr(_)) |
+                    (ast::Expr::CastExpr(_), ast::Expr::MethodCallExpr(_)) |
+                    (ast::Expr::CastExpr(_), ast::Expr::PrefixExpr(_)) |
+                    (ast::Expr::CastExpr(_), ast::Expr::RangeExpr(_)) |
+                    (ast::Expr::CastExpr(_), ast::Expr::RefExpr(_)) |
+                    (ast::Expr::CastExpr(_), ast::Expr::TryExpr(_))  => true,
+
+                    (ast::Expr::RangeExpr(_), ast::Expr::AwaitExpr(_)) |
+                    (ast::Expr::RangeExpr(_), ast::Expr::BinExpr(_)) |
+                    (ast::Expr::RangeExpr(_), ast::Expr::CallExpr(_)) |
+                    (ast::Expr::RangeExpr(_), ast::Expr::CastExpr(_)) |
+                    (ast::Expr::RangeExpr(_), ast::Expr::FieldExpr(_)) |
+                    (ast::Expr::RangeExpr(_), ast::Expr::IndexExpr(_)) |
+                    (ast::Expr::RangeExpr(_), ast::Expr::MethodCallExpr(_)) |
+                    (ast::Expr::RangeExpr(_), ast::Expr::PrefixExpr(_)) |
+                    (ast::Expr::RangeExpr(_), ast::Expr::RangeExpr(_)) |
+                    (ast::Expr::RangeExpr(_), ast::Expr::RefExpr(_)) |
+                    (ast::Expr::RangeExpr(_), ast::Expr::TryExpr(_))  => true,
+
                     _ => false,
                 },
                 None => false,
