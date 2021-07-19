@@ -7,7 +7,7 @@ use std::path::Path;
 
 use crate::cli::{load_cargo::LoadCargoConfig, Result};
 
-use vfs::{AbsPath, AbsPathBuf};
+use vfs::{AbsPathBuf};
 
 use std::fs;
 
@@ -33,8 +33,7 @@ fn get_change_data(root: &Path, progress: &dyn Fn(String)) -> Result<Change> {
     cargo_config.no_sysroot = false;
     let root = AbsPathBuf::assert(std::env::current_dir()?.join(root));
 
-    let root = AbsPath::assert(&root);
-    let root = ProjectManifest::discover_single(root)?;
+    let root = ProjectManifest::discover_single(&root)?;
     let ws = ProjectWorkspace::load(root, &cargo_config, &|_| {})?;
 
     let config = LoadCargoConfig {

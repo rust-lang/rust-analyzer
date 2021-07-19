@@ -11,7 +11,7 @@ use std::{
 
 /// Wrapper around an absolute [`PathBuf`].
 #[derive(
-    serde::Serialize, serde::Deserialize, Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash,
+    Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash,
 )]
 pub struct AbsPathBuf(PathBuf);
 
