@@ -107,8 +107,9 @@ impl Fixture {
         let mut res: Vec<Fixture> = Vec::new();
 
         if fixture.starts_with("//- minicore:") {
-            let first_line = fixture.split_inclusive('\n').next().unwrap();
-            mini_core = Some(MiniCore::parse(first_line));
+            let first_line = fixture.split('\n').next().unwrap().to_owned() + "\n";
+            
+            mini_core = Some(MiniCore::parse(&first_line));
             fixture = &fixture[first_line.len()..];
         }
 
@@ -164,9 +165,21 @@ impl Fixture {
         let mut env = FxHashMap::default();
         let mut introduce_new_source_root = false;
         for component in components[1..].iter() {
-            let (key, value) = component
-                .split_once(':')
-                .unwrap_or_else(|| panic!("invalid meta line: {:?}", meta));
+            let mut splitted = component.split(':');
+            let key: &str;
+            let value: &str;
+            match splitted.next() {
+                Some(key_part) => {
+                    match splitted.next() {
+                        Some(value_part) => {
+                            key = key_part;
+                            value = value_part;
+                        }
+                        None => {panic!("invalid meta line: {:?}", meta);}
+                   }
+                }
+                None => {panic!("invalid meta line: {:?}", meta);}
+            }
             match key {
                 "crate" => krate = Some(value.to_string()),
                 "deps" => deps = value.split(',').map(|it| it.to_string()).collect(),
@@ -237,7 +250,7 @@ impl MiniCore {
     pub fn source_code(mut self) -> String {
         let mut buf = String::new();
         let raw_mini_core = include_str!("./minicore.rs");
-        let mut lines = raw_mini_core.split_inclusive('\n');
+        let mut lines = raw_mini_core.split('\n');
 
         let mut parsing_flags = false;
         let mut implications = Vec::new();
@@ -245,7 +258,7 @@ impl MiniCore {
         // Parse `//!` preamble and extract flags and dependencies.
         for line in lines.by_ref() {
             let line = match line.strip_prefix("//!") {
-                Some(it) => it,
+                Some(it) => it.to_string() + "\n",
                 None => {
                     assert!(line.trim().is_empty());
                     break;
@@ -253,14 +266,33 @@ impl MiniCore {
             };
 
             if parsing_flags {
-                let (flag, deps) = line.split_once(':').unwrap();
+                let flag: String;
+                let deps: String;
+                let mut splitted = line.split(':');
+                match splitted.next() {
+                    Some(flag_v) => {
+                        flag = flag_v.to_owned();
+                        match splitted.next() {
+                            Some(deps_v) => {
+                                deps = deps_v.to_owned();
+                            },
+                            None => {
+                                deps = "".to_owned();
+                            }
+                        }
+                    },
+                    None => {
+                        flag = "".to_owned();
+                        deps = "".to_owned();
+                    }
+                }
                 let flag = flag.trim();
-                self.valid_flags.push(flag.to_string());
+                self.valid_flags.push(flag.to_string().to_owned());
                 for dep in deps.split(", ") {
                     let dep = dep.trim();
                     if !dep.is_empty() {
-                        self.assert_valid_flag(dep);
-                        implications.push((flag, dep));
+                        self.assert_valid_flag(&dep);
+                        implications.push((flag.to_owned(), dep.to_owned()));
                     }
                 }
             }
@@ -277,8 +309,8 @@ impl MiniCore {
         // Fixed point loop to compute transitive closure of flags.
         loop {
             let mut changed = false;
-            for &(u, v) in implications.iter() {
-                if self.has_flag(u) && !self.has_flag(v) {
+            for (u, v) in implications.iter() {
+                if self.has_flag(&u) && !self.has_flag(&v) {
                     self.activated_flags.push(v.to_string());
                     changed = true;
                 }
