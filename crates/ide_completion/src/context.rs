@@ -707,8 +707,8 @@ fn path_or_use_tree_qualifier(path: &ast::Path) -> Option<(ast::Path, bool)> {
 
 fn has_ref(token: &SyntaxToken) -> bool {
     let mut token = token.clone();
-    for skip in [WHITESPACE, IDENT, T![mut]] {
-        if token.kind() == skip {
+    for skip in [WHITESPACE, IDENT, T![mut]].iter() {
+        if &token.kind() == skip {
             token = match token.prev_token() {
                 Some(it) => it,
                 None => return false,
