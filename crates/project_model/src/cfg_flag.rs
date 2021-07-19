@@ -4,6 +4,7 @@
 use std::str::FromStr;
 
 use cfg::CfgOptions;
+use stdx::split_once;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum CfgFlag {
@@ -14,7 +15,7 @@ pub enum CfgFlag {
 impl FromStr for CfgFlag {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let res = match s.split_once('=') {
+        let res = match split_once(s, '=') {
             Some((key, value)) => {
                 if !(value.starts_with('"') && value.ends_with('"')) {
                     return Err(format!("Invalid cfg ({:?}), value should be in quotes", s));

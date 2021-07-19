@@ -62,7 +62,7 @@
 //! ```
 
 use rustc_hash::FxHashMap;
-use stdx::trim_indent;
+use stdx::{lines_with_ends, split_once, trim_indent};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Fixture {
@@ -114,7 +114,7 @@ impl Fixture {
 
         let default = if fixture.contains("//-") { None } else { Some("//- /main.rs") };
 
-        for (ix, line) in default.into_iter().chain(fixture.split_inclusive('\n')).enumerate() {
+        for (ix, line) in default.into_iter().chain(lines_with_ends(&fixture)).enumerate() {
             if line.contains("//-") {
                 assert!(
                     line.starts_with("//-"),
@@ -173,7 +173,7 @@ impl Fixture {
                 "edition" => edition = Some(value.to_string()),
                 "cfg" => {
                     for entry in value.split(',') {
-                        match entry.split_once('=') {
+                        match split_once(entry, '=') {
                             Some((k, v)) => cfg_key_values.push((k.to_string(), v.to_string())),
                             None => cfg_atoms.push(entry.to_string()),
                         }
@@ -181,7 +181,7 @@ impl Fixture {
                 }
                 "env" => {
                     for key in value.split(',') {
-                        if let Some((k, v)) = key.split_once('=') {
+                        if let Some((k, v)) = split_once(key, '=') {
                             env.insert(k.into(), v.into());
                         }
                     }
