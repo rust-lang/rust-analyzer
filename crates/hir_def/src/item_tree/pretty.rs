@@ -721,18 +721,20 @@ impl<'a> Printer<'a> {
 
 impl<'a> Write for Printer<'a> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        for line in s.split_inclusive('\n') {
+        match self.buf.chars().last() {
+           Some('\n') | None => {}
+           _ => self.buf.push('\n'),
+        }
+
+        for line in s.split('\n') {
             if self.needs_indent {
-                match self.buf.chars().last() {
-                    Some('\n') | None => {}
-                    _ => self.buf.push('\n'),
-                }
+                self.buf.push('\n');
                 self.buf.push_str(&"    ".repeat(self.indent_level));
                 self.needs_indent = false;
             }
 
             self.buf.push_str(line);
-            self.needs_indent = line.ends_with('\n');
+            self.needs_indent = true;
         }
 
         Ok(())
