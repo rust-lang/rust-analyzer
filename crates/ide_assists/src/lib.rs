@@ -114,6 +114,7 @@ mod handlers {
     mod unmerge_use;
     mod unwrap_block;
     mod wrap_return_type_in_result;
+    mod wrap_string_in_format;
 
     pub(crate) fn all() -> &'static [Handler] {
         &[
@@ -186,6 +187,7 @@ mod handlers {
             unmerge_use::unmerge_use,
             unwrap_block::unwrap_block,
             wrap_return_type_in_result::wrap_return_type_in_result,
+            wrap_string_in_format::wrap_string_in_format,
             // These are manually sorted for better priorities. By default,
             // priority is determined by the size of the target range (smaller
             // target wins). If the ranges are equal, position in this list is

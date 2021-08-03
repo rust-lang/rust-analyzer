@@ -1602,3 +1602,20 @@ fn foo() -> Result<i32, ${0:_}> { Ok(42i32) }
 "#####,
     )
 }
+
+#[test]
+fn doctest_wrap_string_in_format() {
+    check_doc_test(
+        "wrap_string_in_format",
+        r#####"
+fn main() {
+    "Hello,$0 World!";
+}
+"#####,
+        r#####"
+fn main() {
+    format!("Hello, World!");
+}
+"#####,
+    )
+}
