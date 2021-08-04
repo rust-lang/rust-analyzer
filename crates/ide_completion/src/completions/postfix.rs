@@ -1,6 +1,7 @@
 //! Postfix completions, like `Ok(10).ifl$0` => `if let Ok() = Ok(10) { $0 }`.
 
 mod format_like;
+mod types;
 
 use ide_db::{
     helpers::{FamousDefs, SnippetCap},
@@ -21,25 +22,27 @@ use crate::{
     CompletionItem, CompletionItemKind, CompletionRelevance, Completions,
 };
 
-pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
-    if !ctx.config.enable_postfix_completions {
-        return;
-    }
-
+/// Generate expression postfix complections.
+/// Returns true if this is a valid context for expression completions.
+pub(crate) fn complete_postfix_expr(
+    acc: &mut Completions,
+    ctx: &CompletionContext,
+    cap: SnippetCap,
+) -> bool {
     let (dot_receiver, receiver_is_ambiguous_float_literal) = match &ctx.completion_location {
         Some(ImmediateLocation::MethodCall { receiver: Some(it), .. }) => (it, false),
         Some(ImmediateLocation::FieldAccess {
             receiver: Some(it),
             receiver_is_ambiguous_float_literal,
         }) => (it, *receiver_is_ambiguous_float_literal),
-        _ => return,
+        _ => return false,
     };
 
     let receiver_text = get_receiver_text(dot_receiver, receiver_is_ambiguous_float_literal);
 
     let receiver_ty = match ctx.sema.type_of_expr(dot_receiver) {
         Some(it) => it.original,
-        None => return,
+        None => return false,
     };
 
     // Suggest .await syntax for types that implement Future trait
@@ -49,10 +52,6 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
         item.add_to(acc);
     }
 
-    let cap = match ctx.config.snippet_cap {
-        Some(it) => it,
-        None => return,
-    };
     let try_enum = TryEnum::from_ty(&ctx.sema, &receiver_ty.strip_references());
     if let Some(try_enum) = &try_enum {
         match try_enum {
@@ -289,6 +288,22 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
         if let Some(literal_text) = ast::String::cast(literal.token()) {
             add_format_like_completions(acc, ctx, &dot_receiver, cap, &literal_text);
         }
+    }
+
+    true
+}
+
+pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
+    if !ctx.config.enable_postfix_completions {
+        return;
+    }
+    let cap = match ctx.config.snippet_cap {
+        Some(it) => it,
+        None => return,
+    };
+
+    if !types::complete_postfix_type(acc, ctx, cap) {
+        complete_postfix_expr(acc, ctx, cap);
     }
 }
 
