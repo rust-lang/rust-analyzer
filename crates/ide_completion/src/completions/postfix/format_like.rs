@@ -19,7 +19,7 @@
 use ide_db::helpers::SnippetCap;
 use syntax::ast::{self, AstToken};
 
-use crate::{completions::postfix::postfix_snippet, context::CompletionContext, Completions};
+use crate::{completions::postfix::postfix_snippet_expr, context::CompletionContext, Completions};
 
 /// Mapping ("postfix completion item" => "macro to use")
 static KINDS: &[(&str, &str)] = &[
@@ -53,7 +53,7 @@ pub(crate) fn add_format_like_completions(
         for (label, macro_name) in KINDS {
             let snippet = parser.to_suggestion(macro_name);
 
-            postfix_snippet(ctx, cap, dot_receiver, label, macro_name, snippet).add_to(acc);
+            postfix_snippet_expr(ctx, cap, dot_receiver, label, macro_name, snippet).add_to(acc);
         }
     }
 }
