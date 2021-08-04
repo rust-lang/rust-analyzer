@@ -63,7 +63,7 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
                     dot_receiver,
                     "ifl",
                     "if let Ok {}",
-                    &format!("if let Ok($1) = {} {{\n    $0\n}}", receiver_text),
+                    format!("if let Ok($1) = {} {{\n    $0\n}}", receiver_text),
                 )
                 .add_to(acc);
 
@@ -73,7 +73,7 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
                     dot_receiver,
                     "while",
                     "while let Ok {}",
-                    &format!("while let Ok($1) = {} {{\n    $0\n}}", receiver_text),
+                    format!("while let Ok($1) = {} {{\n    $0\n}}", receiver_text),
                 )
                 .add_to(acc);
             }
@@ -84,7 +84,7 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
                     dot_receiver,
                     "ifl",
                     "if let Some {}",
-                    &format!("if let Some($1) = {} {{\n    $0\n}}", receiver_text),
+                    format!("if let Some($1) = {} {{\n    $0\n}}", receiver_text),
                 )
                 .add_to(acc);
 
@@ -94,7 +94,7 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
                     dot_receiver,
                     "while",
                     "while let Some {}",
-                    &format!("while let Some($1) = {} {{\n    $0\n}}", receiver_text),
+                    format!("while let Some($1) = {} {{\n    $0\n}}", receiver_text),
                 )
                 .add_to(acc);
             }
@@ -106,7 +106,7 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
             dot_receiver,
             "if",
             "if expr {}",
-            &format!("if {} {{\n    $0\n}}", receiver_text),
+            format!("if {} {{\n    $0\n}}", receiver_text),
         )
         .add_to(acc);
         postfix_snippet(
@@ -115,10 +115,10 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
             dot_receiver,
             "while",
             "while expr {}",
-            &format!("while {} {{\n    $0\n}}", receiver_text),
+            format!("while {} {{\n    $0\n}}", receiver_text),
         )
         .add_to(acc);
-        postfix_snippet(ctx, cap, dot_receiver, "not", "!expr", &format!("!{}", receiver_text))
+        postfix_snippet(ctx, cap, dot_receiver, "not", "!expr", format!("!{}", receiver_text))
             .add_to(acc);
     } else if let Some(trait_) = FamousDefs(&ctx.sema, ctx.krate).core_iter_IntoIterator() {
         if receiver_ty.impls_trait(ctx.db, trait_, &[]) {
@@ -128,23 +128,16 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
                 dot_receiver,
                 "for",
                 "for ele in expr {}",
-                &format!("for ele in {} {{\n    $0\n}}", receiver_text),
+                format!("for ele in {} {{\n    $0\n}}", receiver_text),
             )
             .add_to(acc);
         }
     }
 
-    postfix_snippet(ctx, cap, dot_receiver, "ref", "&expr", &format!("&{}", receiver_text))
+    postfix_snippet(ctx, cap, dot_receiver, "ref", "&expr", format!("&{}", receiver_text))
         .add_to(acc);
-    postfix_snippet(
-        ctx,
-        cap,
-        dot_receiver,
-        "refm",
-        "&mut expr",
-        &format!("&mut {}", receiver_text),
-    )
-    .add_to(acc);
+    postfix_snippet(ctx, cap, dot_receiver, "refm", "&mut expr", format!("&mut {}", receiver_text))
+        .add_to(acc);
 
     // The rest of the postfix completions create an expression that moves an argument,
     // so it's better to consider references now to avoid breaking the compilation
@@ -160,7 +153,7 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
                     &dot_receiver,
                     "match",
                     "match expr {}",
-                    &format!("match {} {{\n    Ok(${{1:_}}) => {{$2}},\n    Err(${{3:_}}) => {{$0}},\n}}", receiver_text),
+                    format!("match {} {{\n    Ok(${{1:_}}) => {{$2}},\n    Err(${{3:_}}) => {{$0}},\n}}", receiver_text),
                 )
                 .add_to(acc);
             }
@@ -171,7 +164,7 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
                     &dot_receiver,
                     "match",
                     "match expr {}",
-                    &format!(
+                    format!(
                         "match {} {{\n    Some(${{1:_}}) => {{$2}},\n    None => {{$0}},\n}}",
                         receiver_text
                     ),
@@ -186,7 +179,7 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
                 &dot_receiver,
                 "match",
                 "match expr {}",
-                &format!("match {} {{\n    ${{1:_}} => {{$0}},\n}}", receiver_text),
+                format!("match {} {{\n    ${{1:_}} => {{$0}},\n}}", receiver_text),
             )
             .add_to(acc);
         }
@@ -198,22 +191,15 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
         &dot_receiver,
         "box",
         "Box::new(expr)",
-        &format!("Box::new({})", receiver_text),
+        format!("Box::new({})", receiver_text),
     )
     .add_to(acc);
 
-    postfix_snippet(ctx, cap, &dot_receiver, "ok", "Ok(expr)", &format!("Ok({})", receiver_text))
+    postfix_snippet(ctx, cap, &dot_receiver, "ok", "Ok(expr)", format!("Ok({})", receiver_text))
         .add_to(acc);
 
-    postfix_snippet(
-        ctx,
-        cap,
-        &dot_receiver,
-        "err",
-        "Err(expr)",
-        &format!("Err({})", receiver_text),
-    )
-    .add_to(acc);
+    postfix_snippet(ctx, cap, &dot_receiver, "err", "Err(expr)", format!("Err({})", receiver_text))
+        .add_to(acc);
 
     postfix_snippet(
         ctx,
@@ -221,7 +207,7 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
         &dot_receiver,
         "some",
         "Some(expr)",
-        &format!("Some({})", receiver_text),
+        format!("Some({})", receiver_text),
     )
     .add_to(acc);
 
@@ -231,7 +217,7 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
         &dot_receiver,
         "dbg",
         "dbg!(expr)",
-        &format!("dbg!({})", receiver_text),
+        format!("dbg!({})", receiver_text),
     )
     .add_to(acc);
 
@@ -241,7 +227,7 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
         &dot_receiver,
         "dbgr",
         "dbg!(&expr)",
-        &format!("dbg!(&{})", receiver_text),
+        format!("dbg!(&{})", receiver_text),
     )
     .add_to(acc);
 
@@ -251,7 +237,7 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
         &dot_receiver,
         "call",
         "function(expr)",
-        &format!("${{1}}({})", receiver_text),
+        format!("${{1}}({})", receiver_text),
     )
     .add_to(acc);
 
@@ -263,7 +249,7 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
                 &dot_receiver,
                 "let",
                 "let",
-                &format!("let $0 = {};", receiver_text),
+                format!("let $0 = {};", receiver_text),
             )
             .add_to(acc);
             postfix_snippet(
@@ -272,7 +258,7 @@ pub(crate) fn complete_postfix(acc: &mut Completions, ctx: &CompletionContext) {
                 &dot_receiver,
                 "letm",
                 "let mut",
-                &format!("let mut $0 = {};", receiver_text),
+                format!("let mut $0 = {};", receiver_text),
             )
             .add_to(acc);
         }
@@ -311,13 +297,13 @@ fn postfix_snippet(
     receiver: &ast::Expr,
     label: &str,
     detail: &str,
-    snippet: &str,
+    snippet: String,
 ) -> Builder {
     let edit = {
         let receiver_syntax = receiver.syntax();
         let receiver_range = ctx.sema.original_range(receiver_syntax).range;
         let delete_range = TextRange::new(receiver_range.start(), ctx.source_range().end());
-        TextEdit::replace(delete_range, snippet.to_string())
+        TextEdit::replace(delete_range, snippet)
     };
     let mut item = CompletionItem::new(CompletionKind::Postfix, ctx.source_range(), label);
     item.detail(detail).kind(CompletionItemKind::Snippet).snippet_edit(cap, edit);
