@@ -11,7 +11,7 @@ import { fetchRelease, download } from './net';
 import { activateTaskProvider } from './tasks';
 import { setContextValue } from './util';
 import { exec, spawnSync } from 'child_process';
-import { RunnableProvider } from './test_explorer';
+import { RunnableDataProvider, TestDataProvider, TestExplorerProvider} from './test_explorer';
 
 let ctx: Ctx | undefined;
 
@@ -151,25 +151,13 @@ async function initCommonContext(context: vscode.ExtensionContext, ctx: Ctx) {
     ctx.registerCommand('resolveCodeAction', commands.resolveCodeAction);
     ctx.registerCommand('applyActionGroup', commands.applyActionGroup);
     ctx.registerCommand('gotoLocation', commands.gotoLocation);
-
-    ctx.pushCleanup(activateTaskProvider(workspaceFolder, ctx.config));
-
-    activateInlayHints(ctx);
-
-    vscode.workspace.onDidChangeConfiguration(
-        _ => ctx?.client?.sendNotification('workspace/didChangeConfiguration', { settings: "" }),
-        null,
-        ctx.subscriptions,
-    );
-
-    vscode.window.createTreeView('testExplorer', {
-        "treeDataProvider": new RunnableProvider(),
-        "showCollapseAll": true,
-        "canSelectMany": true,
-    });
-
+    
+    let dataProvider = new TestDataProvider();
+    new TestExplorerProvider(dataProvider, ctx);
+    
+    let runnableProvider = new RunnableDataProvider();
     vscode.window.createTreeView('runnableExplorer', {
-        "treeDataProvider": new RunnableProvider(),
+        "treeDataProvider": runnableProvider,
         "showCollapseAll": true,
         "canSelectMany": true,
     });

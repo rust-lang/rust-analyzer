@@ -153,3 +153,16 @@ export const enum Direction {
     Up = "Up",
     Down = "Down"
 }
+
+export enum RunKind {
+    Run,
+    Debug,
+}
+
+export interface RunTestsParams {
+    include?: string[],
+    exclude?: string[],
+    runKind: RunKind,
+};
+
+export const runTests = new lc.RequestType<RunTestsParams, void, void>("experimental/runTests");

@@ -546,3 +546,25 @@ pub struct Append {
     pub target_id: usize,
     //TODO: ...
 } 
+
+pub enum RunTests {}
+
+impl Request for AnalyzerStatus {
+    type Params = RunTestsParams;
+    type Result = ();
+
+    const METHOD: &'static str = "experimental/runTests";
+}
+
+enum RunKind {
+    Run,
+    Debug,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RunTestsParams {
+    pub include: Vec<String>,
+    pub exclude: Vec<String>,
+    pub run_kind: RunKind,
+}
