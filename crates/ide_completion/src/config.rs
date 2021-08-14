@@ -15,4 +15,5 @@ pub struct CompletionConfig {
     pub add_call_argument_snippets: bool,
     pub snippet_cap: Option<SnippetCap>,
     pub insert_use: InsertUseConfig,
+    pub label_details: bool,
 }

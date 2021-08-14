@@ -1,10 +1,11 @@
 //! Advertises the capabilities of the LSP Server.
 use lsp_types::{
     CallHierarchyServerCapability, ClientCapabilities, CodeActionKind, CodeActionOptions,
-    CodeActionProviderCapability, CodeLensOptions, CompletionOptions, DeclarationCapability,
-    DocumentOnTypeFormattingOptions, FileOperationFilter, FileOperationPattern,
-    FileOperationPatternKind, FileOperationRegistrationOptions, FoldingRangeProviderCapability,
-    HoverProviderCapability, ImplementationProviderCapability, OneOf, RenameOptions, SaveOptions,
+    CodeActionProviderCapability, CodeLensOptions, CompletionOptions,
+    CompletionOptionsCompletionItem, DeclarationCapability, DocumentOnTypeFormattingOptions,
+    FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
+    FileOperationRegistrationOptions, FoldingRangeProviderCapability, HoverProviderCapability,
+    ImplementationProviderCapability, OneOf, RenameOptions, SaveOptions,
     SelectionRangeProviderCapability, SemanticTokensFullOptions, SemanticTokensLegend,
     SemanticTokensOptions, ServerCapabilities, SignatureHelpOptions, TextDocumentSyncCapability,
     TextDocumentSyncKind, TextDocumentSyncOptions, TypeDefinitionProviderCapability,
@@ -30,7 +31,7 @@ pub fn server_capabilities(config: &Config) -> ServerCapabilities {
             resolve_provider: completions_resolve_provider(&config.caps),
             trigger_characters: Some(vec![":".to_string(), ".".to_string(), "'".to_string()]),
             all_commit_characters: None,
-            completion_item: None,
+            completion_item: completion_item(&config.caps),
             work_done_progress_options: WorkDoneProgressOptions { work_done_progress: None },
         }),
         signature_help_provider: Some(SignatureHelpOptions {
@@ -125,6 +126,19 @@ pub fn server_capabilities(config: &Config) -> ServerCapabilities {
             "workspaceSymbolScopeKindFiltering": true,
         })),
     }
+}
+
+pub(crate) fn completion_item(
+    caps: &ClientCapabilities,
+) -> Option<CompletionOptionsCompletionItem> {
+    let label_details_support = caps
+        .text_document
+        .as_ref()
+        .and_then(|it| it.completion.as_ref())
+        .and_then(|it| it.completion_item.as_ref())
+        .and_then(|it| it.label_details_support)?;
+
+    Some(CompletionOptionsCompletionItem { label_details_support: Some(label_details_support) })
 }
 
 fn completions_resolve_provider(client_caps: &ClientCapabilities) -> Option<bool> {

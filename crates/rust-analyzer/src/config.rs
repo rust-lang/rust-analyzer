@@ -25,7 +25,7 @@ use serde::{de::DeserializeOwned, Deserialize};
 use vfs::AbsPathBuf;
 
 use crate::{
-    caps::completion_item_edit_resolve,
+    caps::{completion_item, completion_item_edit_resolve},
     diagnostics::DiagnosticsMapConfig,
     line_index::OffsetEncoding,
     lsp_ext::supports_utf8,
@@ -772,6 +772,10 @@ impl Config {
                     .snippet_support?,
                 false
             )),
+            label_details: match completion_item(&self.caps) {
+                Some(it) => it.label_details_support.unwrap_or(false),
+                _ => false,
+            },
         }
     }
     pub fn assist(&self) -> AssistConfig {

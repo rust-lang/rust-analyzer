@@ -13,6 +13,7 @@ use ide::{
     SourceChange, StructureNodeKind, SymbolKind, TextEdit, TextRange, TextSize,
 };
 use itertools::Itertools;
+use lsp_types::CompletionItemLabelDetails;
 use serde_json::to_value;
 use vfs::AbsPath;
 
@@ -253,6 +254,11 @@ fn completion_item(
         deprecated: Some(item.deprecated()),
         ..Default::default()
     };
+
+    if config.completion().label_details {
+        lsp_item.label_details =
+            Some(CompletionItemLabelDetails { detail: None, description: lsp_item.detail.clone() });
+    }
 
     set_score(&mut lsp_item, max_relevance, item.relevance());
 

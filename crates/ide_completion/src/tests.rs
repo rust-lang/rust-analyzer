@@ -73,6 +73,7 @@ pub(crate) const TEST_CONFIG: CompletionConfig = CompletionConfig {
         group: true,
         skip_glob_imports: true,
     },
+    label_details: false,
 };
 
 pub(crate) fn completion_list(code: &str) -> String {
