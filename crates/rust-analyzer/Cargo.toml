@@ -24,7 +24,8 @@ env_logger = { version = "0.9", default-features = false }
 itertools = "0.10.0"
 jod-thread = "0.1.0"
 log = "0.4.8"
-lsp-types = { version = "0.89.0", features = ["proposed"] }
+#lsp-types = { version = "0.89.0", features = ["proposed"] }
+lsp-types = { git = "https://github.com/kjeremy/languageserver-types", branch = "completion-item-label-details", features = ["proposed"] }
 parking_lot = "0.11.0"
 xflags = "0.2.1"
 oorandom = "11.1.2"
