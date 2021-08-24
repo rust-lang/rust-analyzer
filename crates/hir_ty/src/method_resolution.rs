@@ -16,6 +16,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
     autoderef,
+    consteval::{self, ConstExt},
     db::HirDatabase,
     from_foreign_def_id,
     primitive::{self, FloatTy, IntTy, UintTy},
@@ -955,12 +956,21 @@ fn autoderef_method_receiver(
 ) -> Vec<Canonical<Ty>> {
     let mut deref_chain: Vec<_> = autoderef::autoderef(db, Some(krate), ty).collect();
     // As a last step, we can do array unsizing (that's the only unsizing that rustc does for method receivers!)
-    if let Some(TyKind::Array(parameters, _)) =
-        deref_chain.last().map(|ty| ty.value.kind(&Interner))
+    if let Some((TyKind::Array(parameters, array_len), binders)) =
+        deref_chain.last().map(|ty| (ty.value.kind(&Interner), &ty.binders))
     {
-        let kinds = deref_chain.last().unwrap().binders.clone();
-        let unsized_ty = TyKind::Slice(parameters.clone()).intern(&Interner);
-        deref_chain.push(Canonical { value: unsized_ty, binders: kinds })
+        let kinds = binders.clone();
+        let parameters = parameters.clone();
+
+        if !array_len.is_unknown() {
+            let unknown_array_len_ty =
+                TyKind::Array(parameters.clone(), consteval::usize_const(None)).intern(&Interner);
+            let kinds = kinds.clone();
+            deref_chain.push(Canonical { value: unknown_array_len_ty, binders: kinds });
+        }
+
+        let unsized_ty = TyKind::Slice(parameters).intern(&Interner);
+        deref_chain.push(Canonical { value: unsized_ty, binders: kinds });
     }
     deref_chain
 }
