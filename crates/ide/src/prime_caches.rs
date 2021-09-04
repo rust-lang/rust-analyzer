@@ -28,8 +28,19 @@ pub(crate) fn prime_caches(db: &RootDatabase, cb: &(dyn Fn(PrimeCachesProgress) 
         let crate_name = graph[crate_id].display_name.as_deref().unwrap_or_default().to_string();
 
         cb(PrimeCachesProgress { on_crate: crate_name, n_done: i, n_total: topo.len() });
-        db.crate_def_map(crate_id);
-        db.import_map(crate_id);
+        let t1 = {
+            let s = std::time::Instant::now();
+            db.crate_def_map(crate_id);
+            s.elapsed()
+        };
+
+        let t2 = {
+            let s = std::time::Instant::now();
+            db.import_map(crate_id);
+            s.elapsed()
+        };
+
+        eprintln!("{:.2?} {:.2?}", t1, t2)
     }
 }
 
