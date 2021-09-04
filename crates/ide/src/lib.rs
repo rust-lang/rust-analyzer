@@ -83,6 +83,7 @@ pub use crate::{
     markup::Markup,
     move_item::Direction,
     prime_caches::PrimeCachesProgress,
+    prime_caches::PrimeCachesWorkChunk,
     references::ReferenceSearchResult,
     rename::RenameError,
     runnables::{Runnable, RunnableKind, TestId},
@@ -240,6 +241,14 @@ impl Analysis {
         F: Fn(PrimeCachesProgress) + Sync + std::panic::UnwindSafe,
     {
         self.with_db(move |db| prime_caches::prime_caches(db, &cb))
+    }
+
+    pub fn prime_caches_prepare_work(&self) -> Cancellable<Vec<PrimeCachesWorkChunk>> {
+        self.with_db(move |db| prime_caches::prime_caches_prepare_work(db))
+    }
+
+    pub fn prime_caches_do_work(&self, work: PrimeCachesWorkChunk) -> Cancellable<()> {
+        self.with_db(move |db| prime_caches::prime_caches_do_work(db, work))
     }
 
     /// Gets the text of the source file.

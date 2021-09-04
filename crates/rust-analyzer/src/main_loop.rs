@@ -2,7 +2,10 @@
 //! requests/replies and notifications back to the client.
 use std::{
     fmt,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc,
+    },
     time::{Duration, Instant},
 };
 
@@ -484,21 +487,73 @@ impl GlobalState {
             self.fetch_build_data();
         }
         if self.prime_caches_queue.should_start_op() {
-            self.task_pool.handle.spawn_with_sender({
+            let n_tasks = std::env::var("PRIMING_TASKS")
+                .ok()
+                .and_then(|it| it.parse::<usize>().ok())
+                .unwrap_or_default();
+            if n_tasks == 0 {
+                let start = std::time::Instant::now();
+                self.task_pool.handle.spawn_with_sender({
+                    let analysis = self.snapshot().analysis;
+                    move |sender| {
+                        sender.send(Task::PrimeCaches(PrimeCachesProgress::Begin)).unwrap();
+                        let res = analysis.prime_caches(|progress| {
+                            let report = PrimeCachesProgress::Report(progress);
+                            sender.send(Task::PrimeCaches(report)).unwrap();
+                        });
+                        eprintln!("PRIME CACHES 1: {:0.2?}", start.elapsed());
+                        sender
+                            .send(Task::PrimeCaches(PrimeCachesProgress::End {
+                                cancelled: res.is_err(),
+                            }))
+                            .unwrap();
+                    }
+                });
+            } else {
                 let analysis = self.snapshot().analysis;
-                move |sender| {
-                    sender.send(Task::PrimeCaches(PrimeCachesProgress::Begin)).unwrap();
-                    let res = analysis.prime_caches(|progress| {
-                        let report = PrimeCachesProgress::Report(progress);
-                        sender.send(Task::PrimeCaches(report)).unwrap();
+                let work = analysis.prime_caches_prepare_work().unwrap();
+
+                let (ws, wr) = crossbeam_channel::bounded(work.len());
+                work.into_iter().for_each(|it| ws.try_send(it).unwrap());
+                let ctx =
+                    Arc::new((AtomicBool::new(false), AtomicUsize::new(0), AtomicBool::new(false)));
+
+                let start = std::time::Instant::now();
+                for _ in 0..n_tasks {
+                    self.task_pool.handle.spawn_with_sender({
+                        let ctx = Arc::clone(&ctx);
+                        let analysis = self.snapshot().analysis;
+                        let wr = wr.clone();
+                        move |sender| {
+                            if ctx
+                                .2
+                                .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
+                                .is_ok()
+                            {
+                                sender.send(Task::PrimeCaches(PrimeCachesProgress::Begin)).unwrap();
+                            }
+
+                            for w in wr {
+                                match analysis.prime_caches_do_work(w) {
+                                    Ok(()) => (),
+                                    Err(_) => {
+                                        ctx.0.store(true, Ordering::Relaxed);
+                                        break;
+                                    }
+                                }
+                            }
+                            if ctx.1.fetch_add(1, Ordering::AcqRel) + 1 == n_tasks {
+                                eprintln!("PRIME CACHES 2: {:0.2?}", start.elapsed());
+                                sender
+                                    .send(Task::PrimeCaches(PrimeCachesProgress::End {
+                                        cancelled: ctx.0.load(Ordering::Relaxed),
+                                    }))
+                                    .unwrap()
+                            }
+                        }
                     });
-                    sender
-                        .send(Task::PrimeCaches(PrimeCachesProgress::End {
-                            cancelled: res.is_err(),
-                        }))
-                        .unwrap();
                 }
-            });
+            }
         }
 
         let status = self.current_status();

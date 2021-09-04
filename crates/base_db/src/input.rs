@@ -324,27 +324,38 @@ impl CrateGraph {
     /// come before the crate itself).
     pub fn crates_in_topological_order(&self) -> Vec<CrateId> {
         let mut res = Vec::new();
-        let mut visited = FxHashSet::default();
+        let mut levels = FxHashMap::default();
 
         for krate in self.arena.keys().copied() {
-            go(self, &mut visited, &mut res, krate);
+            go(self, &mut levels, &mut res, krate);
         }
+        eprintln!("levels = {:?}", res.len());
+        let res = res.into_iter().flatten().collect::<Vec<_>>();
+        eprintln!("total  = {:?}", res.len());
 
         return res;
 
         fn go(
             graph: &CrateGraph,
-            visited: &mut FxHashSet<CrateId>,
-            res: &mut Vec<CrateId>,
+            levels: &mut FxHashMap<CrateId, usize>,
+            res: &mut Vec<Vec<CrateId>>,
             source: CrateId,
-        ) {
-            if !visited.insert(source) {
-                return;
+        ) -> usize {
+            if let Some(&level) = levels.get(&source) {
+                return level;
             }
-            for dep in graph[source].dependencies.iter() {
-                go(graph, visited, res, dep.crate_id)
+            let level = graph[source]
+                .dependencies
+                .iter()
+                .map(|dep| go(graph, levels, res, dep.crate_id) + 1)
+                .max()
+                .unwrap_or_default();
+            levels.insert(source, level);
+            if res.len() == level {
+                res.push(Vec::new());
             }
-            res.push(source)
+            res[level].push(source);
+            level
         }
     }
 
