@@ -61,17 +61,15 @@
 
 use std::rc::Rc;
 
+use smallvec::{smallvec, SmallVec};
+use syntax::SmolStr;
+
 use crate::{
     expander::{Binding, Bindings, Fragment},
     parser::{Op, OpDelimited, OpDelimitedIter, RepeatKind, Separator},
     tt_iter::TtIter,
-    ExpandError, MetaTemplate,
+    ExpandError, ExpandResult, FragmentKind, MetaTemplate,
 };
-
-use super::ExpandResult;
-use parser::FragmentKind::*;
-use smallvec::{smallvec, SmallVec};
-use syntax::SmolStr;
 
 impl Bindings {
     fn push_optional(&mut self, name: &SmolStr) {
@@ -691,14 +689,14 @@ fn match_leaf(lhs: &tt::Leaf, src: &mut TtIter) -> Result<(), ExpandError> {
 
 fn match_meta_var(kind: &str, input: &mut TtIter) -> ExpandResult<Option<Fragment>> {
     let fragment = match kind {
-        "path" => Path,
-        "expr" => Expr,
-        "ty" => Type,
-        "pat" | "pat_param" => Pattern, // FIXME: edition2021
-        "stmt" => Statement,
-        "block" => Block,
-        "meta" => MetaItem,
-        "item" => Item,
+        "path" => FragmentKind::Path,
+        "expr" => FragmentKind::Expr,
+        "ty" => FragmentKind::Type,
+        "pat" | "pat_param" => FragmentKind::Pattern, // FIXME: edition2021
+        "stmt" => FragmentKind::Statement,
+        "block" => FragmentKind::Block,
+        "meta" => FragmentKind::MetaItem,
+        "item" => FragmentKind::Item,
         _ => {
             let tt_result = match kind {
                 "ident" => input
@@ -842,7 +840,7 @@ impl<'a> TtIter<'a> {
 
     fn eat_vis(&mut self) -> Option<tt::TokenTree> {
         let mut fork = self.clone();
-        match fork.expect_fragment(Visibility) {
+        match fork.expect_fragment(FragmentKind::Visibility) {
             ExpandResult { value: tt, err: None } => {
                 *self = fork;
                 tt
