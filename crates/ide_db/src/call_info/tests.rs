@@ -394,6 +394,32 @@ fn main() {
 }
 
 #[test]
+fn test_enum_in_nested_method_in_lambda() {
+    check(
+        r#"
+enum A {
+    A,
+    B
+}
+
+fn bar(_: A) { }
+
+fn spawn(f: impl FnOnce()) {
+    f();
+}
+
+fn main() {
+    let foo = Foo;
+    spawn(move || {
+        bar(A:$0)
+    });
+}
+"#,
+        expect![[""]],
+    );
+}
+
+#[test]
 fn works_for_tuple_structs() {
     check(
         r#"
