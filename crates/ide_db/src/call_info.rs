@@ -186,14 +186,14 @@ impl FnCallNode {
         syntax
             .ancestors()
             .find_map(|node| {
-                /// Do not return when syntax error cause we might return the wrong function.
-                ///
-                /// ``rust
-                /// std::thread::spawn(move || {
-                ///    bar(A:$0)
-                /// });
-                /// ```
-                /// This snippet returns `spawn` instead of `bar`.
+                // Do not return when syntax error cause we might return the wrong function.
+                //
+                // ``rust
+                // std::thread::spawn(move || {
+                //    bar(A:$0)
+                // });
+                // ```
+                // This snippet returns `spawn` instead of `bar`.
                 if node.kind() == SyntaxKind::ERROR {
                     return Some(None);
                 }
