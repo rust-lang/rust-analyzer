@@ -63,7 +63,7 @@ pub struct Match {
 pub(crate) struct PlaceholderMatch {
     /// The node that the placeholder matched to. If set, then we'll search for further matches
     /// within this node. It isn't set when we match tokens within a macro call's token tree.
-    pub(crate) node: Option<SyntaxNode>,
+    pub(crate) _node: Option<SyntaxNode>,
     pub(crate) range: FileRange,
     /// More matches, found within `node`.
     pub(crate) inner_matches: SsrMatches,
@@ -717,7 +717,7 @@ fn recording_match_fail_reasons() -> bool {
 impl PlaceholderMatch {
     fn new(node: Option<&SyntaxNode>, range: FileRange) -> Self {
         Self {
-            node: node.cloned(),
+            _node: node.cloned(),
             range,
             inner_matches: SsrMatches::default(),
             autoderef_count: 0,
@@ -805,7 +805,7 @@ mod tests {
         assert_eq!(matches.matches[0].placeholder_values.len(), 1);
         assert_eq!(
             matches.matches[0].placeholder_values[&Var("x".to_string())]
-                .node
+                ._node
                 .as_ref()
                 .unwrap()
                 .text(),

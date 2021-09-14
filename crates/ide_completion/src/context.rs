@@ -107,7 +107,7 @@ pub(crate) struct CompletionContext<'a> {
 
     pub(super) pattern_ctx: Option<PatternContext>,
     pub(super) path_context: Option<PathCompletionContext>,
-    pub(super) active_parameter: Option<ActiveParameter>,
+    pub(super) _active_parameter: Option<ActiveParameter>,
     pub(super) locals: Vec<(String, Local)>,
 
     pub(super) incomplete_let: bool,
@@ -170,7 +170,7 @@ impl<'a> CompletionContext<'a> {
             attribute_under_caret: None,
             previous_token: None,
             path_context: None,
-            active_parameter: ActiveParameter::at(db, position),
+            _active_parameter: ActiveParameter::at(db, position),
             locals,
             incomplete_let: false,
             no_completion_required: false,

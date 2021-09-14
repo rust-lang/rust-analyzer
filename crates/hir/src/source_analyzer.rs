@@ -43,7 +43,7 @@ pub(crate) struct SourceAnalyzer {
     body: Option<Arc<Body>>,
     body_source_map: Option<Arc<BodySourceMap>>,
     infer: Option<Arc<InferenceResult>>,
-    scopes: Option<Arc<ExprScopes>>,
+    _scopes: Option<Arc<ExprScopes>>,
 }
 
 impl SourceAnalyzer {
@@ -65,7 +65,7 @@ impl SourceAnalyzer {
             body: Some(body),
             body_source_map: Some(source_map),
             infer: Some(db.infer(def)),
-            scopes: Some(scopes),
+            _scopes: Some(scopes),
             file_id: node.file_id,
         }
     }
@@ -79,7 +79,7 @@ impl SourceAnalyzer {
             body: None,
             body_source_map: None,
             infer: None,
-            scopes: None,
+            _scopes: None,
             file_id: node.file_id,
         }
     }
