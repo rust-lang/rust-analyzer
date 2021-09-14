@@ -561,7 +561,12 @@ fn arg_list(p: &mut Parser) {
         if !expr_with_attrs(p) {
             break;
         }
-        if !p.at(T![')']) && !p.expect(T![,]) {
+        if !p.at(T![')']) && !p.eat(T![,]) {
+            // test_err arg_recover
+            // fn main() {
+            //     foo(y, x:, z)
+            // }
+            p.err_recover(&format!("expected {:?}", T![,]), TokenSet::EMPTY);
             break;
         }
     }

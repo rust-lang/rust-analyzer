@@ -6,7 +6,7 @@ use stdx::format_to;
 use syntax::{
     algo,
     ast::{self, ArgListOwner, NameOwner},
-    match_ast, AstNode, Direction, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, TextSize,
+    match_ast, AstNode, Direction, SyntaxNode, SyntaxToken, TextRange, TextSize,
 };
 
 use crate::RootDatabase;
@@ -183,36 +183,21 @@ pub enum FnCallNode {
 
 impl FnCallNode {
     fn with_node(syntax: &SyntaxNode) -> Option<FnCallNode> {
-        syntax
-            .ancestors()
-            .find_map(|node| {
-                // Do not return when syntax error cause we might return the wrong function.
-                //
-                // ``rust
-                // std::thread::spawn(move || {
-                //    bar(A:$0)
-                // });
-                // ```
-                // This snippet returns `spawn` instead of `bar`.
-                if node.kind() == SyntaxKind::ERROR {
-                    return Some(None);
+        syntax.ancestors().find_map(|node| {
+            match_ast! {
+                match node {
+                    ast::CallExpr(it) => Some(FnCallNode::CallExpr(it)),
+                    ast::MethodCallExpr(it) => {
+                        let arg_list = it.arg_list()?;
+                        if !arg_list.syntax().text_range().contains_range(syntax.text_range()) {
+                            return None;
+                        }
+                        Some(FnCallNode::MethodCallExpr(it))
+                    },
+                    _ => None,
                 }
-
-                match_ast! {
-                    match node {
-                        ast::CallExpr(it) => Some(Some(FnCallNode::CallExpr(it))),
-                        ast::MethodCallExpr(it) => {
-                            let arg_list = it.arg_list()?;
-                            if !arg_list.syntax().text_range().contains_range(syntax.text_range()) {
-                                return None;
-                            }
-                            Some(Some(FnCallNode::MethodCallExpr(it)))
-                        },
-                        _ => None,
-                    }
-                }
-            })
-            .flatten()
+            }
+        })
     }
 
     pub fn with_node_exact(node: &SyntaxNode) -> Option<FnCallNode> {
