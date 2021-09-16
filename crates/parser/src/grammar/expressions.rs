@@ -561,12 +561,26 @@ fn arg_list(p: &mut Parser) {
         if !expr_with_attrs(p) {
             break;
         }
-        if !p.at(T![')']) && !p.eat(T![,]) {
-            // test_err arg_recover
+        if p.at(T![:]) {
+            // Eat a trailing `:` so the arg-list doesn't break if the user is typing a path
+
+            // test_err arg_recover_colon
             // fn main() {
-            //     foo(y, x:, z)
+            //     foo(y, x:, z);
             // }
-            p.err_recover(&format!("expected {:?}", T![,]), TokenSet::EMPTY);
+            p.err_and_bump(&format!("expected {:?}", T![,]));
+        }
+        if p.at(IDENT) {
+            // Eat a ident so the arg-list doesn't break if the user is inserting a new param.
+
+            // test_err arg_recover_ident
+            // fn main() {
+            //     foo(y, x orig::fun(, z);
+            // }
+            p.error(&format!("expected {:?}", T![,]));
+            continue;
+        }
+        if !p.at(T![')']) && !p.expect(T![,]) {
             break;
         }
     }

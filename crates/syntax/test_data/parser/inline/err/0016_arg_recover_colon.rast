@@ -1,5 +1,5 @@
-SOURCE_FILE@0..32
-  FN@0..31
+SOURCE_FILE@0..33
+  FN@0..32
     FN_KW@0..2 "fn"
     WHITESPACE@2..3 " "
     NAME@3..7
@@ -8,17 +8,17 @@ SOURCE_FILE@0..32
       L_PAREN@7..8 "("
       R_PAREN@8..9 ")"
     WHITESPACE@9..10 " "
-    BLOCK_EXPR@10..31
+    BLOCK_EXPR@10..32
       L_CURLY@10..11 "{"
       WHITESPACE@11..16 "\n    "
-      EXPR_STMT@16..25
-        CALL_EXPR@16..25
+      EXPR_STMT@16..30
+        CALL_EXPR@16..29
           PATH_EXPR@16..19
             PATH@16..19
               PATH_SEGMENT@16..19
                 NAME_REF@16..19
                   IDENT@16..19 "foo"
-          ARG_LIST@19..25
+          ARG_LIST@19..29
             L_PAREN@19..20 "("
             PATH_EXPR@20..21
               PATH@20..21
@@ -34,24 +34,16 @@ SOURCE_FILE@0..32
                     IDENT@23..24 "x"
             ERROR@24..25
               COLON@24..25 ":"
-      EXPR_STMT@25..26
-        ERROR@25..26
-          COMMA@25..26 ","
-      WHITESPACE@26..27 " "
-      EXPR_STMT@27..28
-        PATH_EXPR@27..28
-          PATH@27..28
-            PATH_SEGMENT@27..28
-              NAME_REF@27..28
-                IDENT@27..28 "z"
-      ERROR@28..29
-        R_PAREN@28..29 ")"
-      WHITESPACE@29..30 "\n"
-      R_CURLY@30..31 "}"
-  WHITESPACE@31..32 "\n"
+            COMMA@25..26 ","
+            WHITESPACE@26..27 " "
+            PATH_EXPR@27..28
+              PATH@27..28
+                PATH_SEGMENT@27..28
+                  NAME_REF@27..28
+                    IDENT@27..28 "z"
+            R_PAREN@28..29 ")"
+        SEMICOLON@29..30 ";"
+      WHITESPACE@30..31 "\n"
+      R_CURLY@31..32 "}"
+  WHITESPACE@32..33 "\n"
 error 24..24: expected COMMA
-error 25..25: expected SEMICOLON
-error 25..25: expected expression
-error 26..26: expected SEMICOLON
-error 28..28: expected SEMICOLON
-error 28..28: expected expression
