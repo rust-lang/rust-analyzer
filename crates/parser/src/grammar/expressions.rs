@@ -580,17 +580,19 @@ fn arg_list(p: &mut Parser) {
             p.error(&format!("expected {:?}", T![,]));
             continue;
         }
-        if !p.at(T![')']) && !p.expect(T![,]) {
-            break;
-        }
-        if p.eat(T![,]) {
+        if p.at(T![,]) && p.nth_at(1, T![,]) {
             // Eat a `,` if the user is inserting comma before a param.
 
             // test_err arg_recover_comma
             // fn main() {
             //     foo(y, x, ,z);
             // }
+            p.eat(T![,]);
             p.error("expected expression");
+        }
+
+        if !p.at(T![')']) && !p.expect(T![,]) {
+            break;
         }
     }
     p.eat(T![')']);
