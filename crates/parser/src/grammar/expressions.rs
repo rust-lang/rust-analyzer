@@ -583,6 +583,15 @@ fn arg_list(p: &mut Parser) {
         if !p.at(T![')']) && !p.expect(T![,]) {
             break;
         }
+        if p.eat(T![,]) {
+            // Eat a `,` if the user is inserting comma before a param.
+
+            // test_err arg_recover_comma
+            // fn main() {
+            //     foo(y, x, ,z);
+            // }
+            p.error("expected expression");
+        }
     }
     p.eat(T![')']);
     m.complete(p, ARG_LIST);
