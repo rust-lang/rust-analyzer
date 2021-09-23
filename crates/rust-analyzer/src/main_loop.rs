@@ -559,6 +559,7 @@ impl GlobalState {
                 Ok(())
             })?
             .on_sync_mut::<lsp_ext::MemoryUsage>(|s, p| handlers::handle_memory_usage(s, p))?
+            .on_sync_mut::<lsp_ext::StartCheck>(handlers::handle_start_check)?
             .on_sync::<lsp_ext::JoinLines>(handlers::handle_join_lines)?
             .on_sync::<lsp_ext::OnEnter>(handlers::handle_on_enter)?
             .on_sync::<lsp_types::request::SelectionRangeRequest>(handlers::handle_selection_range)?
@@ -689,8 +690,10 @@ impl GlobalState {
                 Ok(())
             })?
             .on::<lsp_types::notification::DidSaveTextDocument>(|this, params| {
-                for flycheck in &this.flycheck {
-                    flycheck.update();
+                if this.config.flycheck(false).is_some() {
+                    for flycheck in &this.flycheck {
+                        flycheck.update();
+                    }
                 }
                 if let Ok(abs_path) = from_proto::abs_path(&params.text_document.uri) {
                     if reload::should_refresh_for_change(&abs_path, ChangeKind::Modify) {

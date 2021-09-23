@@ -116,6 +116,15 @@ pub(crate) fn handle_view_hir(
     Ok(res)
 }
 
+pub(crate) fn handle_start_check(this: &mut GlobalState, _params: ()) -> Result<()> {
+    this.reload_flycheck(true);
+    for flycheck in &this.flycheck {
+        flycheck.update();
+    }
+    this.fetch_workspaces_queue.request_op();
+    Ok(())
+}
+
 pub(crate) fn handle_view_item_tree(
     snap: GlobalStateSnapshot,
     params: lsp_ext::ViewItemTreeParams,

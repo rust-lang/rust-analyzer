@@ -690,8 +690,9 @@ impl Config {
             },
         }
     }
-    pub fn flycheck(&self) -> Option<FlycheckConfig> {
-        if !self.data.checkOnSave_enable {
+
+    pub fn flycheck(&self, force_enable: bool) -> Option<FlycheckConfig> {
+        if !self.data.checkOnSave_enable && !force_enable {
             return None;
         }
         let flycheck_config = match &self.data.checkOnSave_overrideCommand {

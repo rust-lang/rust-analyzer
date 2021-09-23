@@ -62,6 +62,14 @@ impl Request for ViewHir {
     const METHOD: &'static str = "rust-analyzer/viewHir";
 }
 
+pub enum StartCheck {}
+
+impl Request for StartCheck {
+    type Params = ();
+    type Result = ();
+    const METHOD: &'static str = "rust-analyzer/startCheck";
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ViewCrateGraphParams {

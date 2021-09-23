@@ -140,6 +140,7 @@ async function initCommonContext(context: vscode.ExtensionContext, ctx: Ctx) {
 
     ctx.registerCommand('ssr', commands.ssr);
     ctx.registerCommand('serverVersion', commands.serverVersion);
+    ctx.registerCommand('startCheck', commands.startCheck);
     ctx.registerCommand('toggleInlayHints', commands.toggleInlayHints);
 
     // Internal commands which are invoked by the server.

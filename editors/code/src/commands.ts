@@ -287,6 +287,16 @@ export function serverVersion(ctx: Ctx): Cmd {
     };
 }
 
+export function startCheck(ctx: Ctx): Cmd {
+    return async () => {
+        if (!ctx.client) return '';
+
+        await vscode.workspace.saveAll();
+
+        return ctx.client.sendRequest(ra.startCheck);
+    };
+}
+
 export function toggleInlayHints(ctx: Ctx): Cmd {
     return async () => {
         await vscode

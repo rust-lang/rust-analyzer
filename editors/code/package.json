@@ -206,6 +206,11 @@
                 "category": "Rust Analyzer"
             },
             {
+                "command": "rust-analyzer.startCheck",
+                "title": "Start Check",
+                "category": "Rust Analyzer"
+            },
+            {
                 "command": "rust-analyzer.toggleInlayHints",
                 "title": "Toggle inlay hints",
                 "category": "Rust Analyzer"
@@ -1325,6 +1330,10 @@
                 },
                 {
                     "command": "rust-analyzer.serverVersion",
+                    "when": "inRustProject"
+                },
+                {
+                    "command": "rust-analyzer.startCheck",
                     "when": "inRustProject"
                 },
                 {

@@ -1,5 +1,5 @@
 <!---
-lsp_ext.rs hash: ad52054176909945
+lsp_ext.rs hash: 99a50afc551f88ca
 
 If you need to change the above hash to make the test pass, please check if you
 need to adjust this doc as well and ping this issue:
@@ -491,6 +491,16 @@ Primarily for debugging, but very useful for all people working on rust-analyzer
 
 Returns a textual representation of the HIR of the function containing the cursor.
 For debugging or when working on rust-analyzer itself.
+
+## Start check
+
+**Method:** `rust-analyzer/startCheck`
+
+**Request:** `null`
+
+**Response:** `null`
+
+Start check
 
 ## View ItemTree
 

@@ -49,8 +49,8 @@ impl GlobalState {
         }
         if self.config.linked_projects() != old_config.linked_projects() {
             self.fetch_workspaces_queue.request_op()
-        } else if self.config.flycheck() != old_config.flycheck() {
-            self.reload_flycheck();
+        } else if self.config.flycheck(false) != old_config.flycheck(false) {
+            self.reload_flycheck(false);
         }
 
         // Apply experimental feature flags.
@@ -338,7 +338,7 @@ impl GlobalState {
 
         self.analysis_host.apply_change(change);
         self.process_changes();
-        self.reload_flycheck();
+        self.reload_flycheck(false);
         tracing::info!("did switch workspaces");
     }
 
@@ -384,9 +384,9 @@ impl GlobalState {
         }
     }
 
-    fn reload_flycheck(&mut self) {
+    pub(crate) fn reload_flycheck(&mut self, force_enable: bool) {
         let _p = profile::span("GlobalState::reload_flycheck");
-        let config = match self.config.flycheck() {
+        let config = match self.config.flycheck(force_enable) {
             Some(it) => it,
             None => {
                 self.flycheck = Vec::new();
