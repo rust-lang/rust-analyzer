@@ -1267,7 +1267,7 @@ macro_rules! foo {
 
 #[test]
 fn test_expr_after_path_colons() {
-    assert!(parse_macro(
+    assert!(!parse_macro(
         r#"
 macro_rules! m {
     ($k:expr) => {
