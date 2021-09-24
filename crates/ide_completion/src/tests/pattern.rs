@@ -347,3 +347,18 @@ fn foo() {
         "#]],
     )
 }
+
+#[test]
+fn completes_func_param_already_annotated() {
+    check_empty(
+        r#"
+struct Foo(u32);
+fn foo(F$0: Foo) {}
+"#,
+        expect![[r#"
+     kw mut
+     bn Foo Foo($1)$0
+     st Foo
+ "#]],
+    )
+}

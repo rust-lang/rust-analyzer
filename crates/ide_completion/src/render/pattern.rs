@@ -92,9 +92,13 @@ fn render_pat(
         ctx.completion.pattern_ctx,
         Some(PatternContext { is_param: Some(ParamKind::Function), .. })
     ) {
-        pat.push(':');
-        pat.push(' ');
-        pat.push_str(name);
+        if let Some(ty) = ctx.completion.expected_type.as_ref() {
+            if ty.is_unknown() {
+                pat.push(':');
+                pat.push(' ');
+                pat.push_str(name);
+            }
+        }
     }
     if ctx.snippet_cap().is_some() {
         pat.push_str("$0");
