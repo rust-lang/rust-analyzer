@@ -59,4 +59,4 @@ SOURCE_FILE@0..43
       R_CURLY@41..42 "}"
   WHITESPACE@42..43 "\n"
 error 24..24: expected ','
-error 36..36: expected argument
+error 36..36: expected expression
