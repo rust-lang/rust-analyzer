@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { Ctx } from './ctx';
 import * as ra from './lsp_ext';
+import { RunStatusUpdate, RunStatusUpdateKind } from './lsp_ext';
 
 const iconsRootPath = path.join(path.dirname(__dirname), '..', 'resources', 'icons'); 
 
@@ -57,6 +58,7 @@ interface Function {
     id: string, 
     name: string,
     location: string,
+    range: [[number, number],[number, number]],
     testKind: TestKind,
 }
 
@@ -364,81 +366,55 @@ export class RunnableDataProvider {
     }
 }
 
-enum RunStatusUpdateKind {
-    Started,
-    Failed,
-    Errored,
-    Passed,
-    RawOutput,
-    Finish,
-    Skiped,
-}
-
-type RunStatusUpdate = (Started | Failed | Errored | Passed | RawOutput | Finish | Skiped)[];
-
-interface Skiped {
-    kind: RunStatusUpdateKind.Skiped,
-    id: string,
-}
-
-interface Finish {
-    kind: RunStatusUpdateKind.Finish,
-}
-
-interface Started {
-    kind: RunStatusUpdateKind.Started,
-    id: string,
-}
-
-interface Failed {
-    kind: RunStatusUpdateKind.Failed,
-    id: string,
-    message: vscode.TestMessage,
-    duration: number,
-}
-
-interface Errored {
-    kind: RunStatusUpdateKind.Errored,
-    id: string,
-    message: vscode.TestMessage,
-    duration: number,
-}
-
-interface Passed {
-    kind: RunStatusUpdateKind.Passed,
-    id: string,
-    duration: number,
-}
-
-interface RawOutput {
-    kind: RunStatusUpdateKind.RawOutput,
-    id: string,
-    message: string,
-}
-
-class TestExecutorControler {
+/**
+ * Provides an API for creation and control tests run, and receiving notification of its
+ * state.
+ */
+class TestRunControler {
     private readonly client;
-    
+    private readonly emitter;
+
     constructor(ctx: Ctx) {
         this.client = ctx.client;
+        this.emitter = new vscode.EventEmitter<RunStatusUpdate>()
+        this.onStatusUpdate = this.emitter.event
+        this.client.onNotification(ra.runStatus, this.emitter.fire);
     }
     
-    onStatusUpdate: vscode.Event<RunStatusUpdate>;
+    /**
+     * Subscription function that accepts a callback that fires when an event occurs.
+     */
+    readonly onStatusUpdate: vscode.Event<RunStatusUpdate>;
 
+    /**
+     * Creates run a set of tests.
+     * 
+     * We can think about it like some funny branch algebra. Since the data are in sync, 
+     * we represent a branch by its root as the backend can select branches by it. 
+     * So, insted to pass all needed test for execution, we represented it by function:
+     * 
+     * launched = include / exclude
+     * 
+     * @param include Selectable branch roots from the test tree
+     * @param exclude Substractable subbranch roots from included forest
+     * @param runKind 
+     */
     async execute(include: string[] | undefined, exclude: string[] | undefined, runKind: ra.RunKind) {
-        const params: ra.RunTestsParams = {include, exclude, runKind};
-        this.client.sendRequest(ra.runTests, params);
+        this.client.sendRequest(ra.runTests, {include, exclude, runKind});
     }
-
+    
+    /**
+     * Interrupts current run
+     */
     async cancel() {
-        this.client.sendRequest();
+        this.client.sendRequest(ra.cancelTests);
     }
 }
 
 export class TestExplorerProvider {
     private controller: vscode.TestController;
     private treeDataProvider: vscode.TreeDataProvider<Node>;
-    private testExecutor: TestExecutorControler;
+    private testExecutor: TestRunControler;
     private runProfile: vscode.TestRunProfile;
     private debugProfile: vscode.TestRunProfile;
     
@@ -503,8 +479,7 @@ export class TestExplorerProvider {
     handleRunRequest(request: vscode.TestRunRequest, token: vscode.CancellationToken) {
         token.onCancellationRequested(() => this.testExecutor.cancel());
 
-        let dateTime = new Date();
-        let run = this.controller.createTestRun(request, `run - ${dateTime}`, true);
+        let run = this.controller.createTestRun(request, undefined, true);
 
         let queue: vscode.TestItem[] = [];
         if (request.include) {
@@ -512,9 +487,6 @@ export class TestExplorerProvider {
         } else {
             this.controller.items.forEach(test => queue.push(test));
         }
-
-        // queue = queue.filter(i => request.exclude?.includes(i));
-        // request.exclude?.forEach(test => run.skipped(test));
         
         bfsTestItems(queue, (test, context) => { 
             context.isTerminate = token.isCancellationRequested;
@@ -585,7 +557,7 @@ export class TestExplorerProvider {
     /// Create TestController, set onDidChangeTreeData notified listener function,
     /// create two profile for usually run and debug 
     constructor(treeProvider: vscode.TreeDataProvider<Node>, ctx: Ctx) {
-        this.testExecutor = new TestExecutorControler(ctx);
+        this.testExecutor = new TestRunControler(ctx);
         this.controller = vscode.tests.createTestController("rust-analyzer", "rust");
         this.treeDataProvider = treeProvider;
         this.treeDataProvider.onDidChangeTreeData!(this.updateBranch);

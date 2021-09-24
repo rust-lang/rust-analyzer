@@ -2,6 +2,7 @@
  * This file mirrors `crates/rust-analyzer/src/lsp_ext.rs` declarations.
  */
 
+import { TestMessage } from "vscode";
 import * as lc from "vscode-languageclient";
 
 export interface AnalyzerStatusParams {
@@ -135,13 +136,11 @@ export interface CommandLinkGroup {
 
 export const openDocs = new lc.RequestType<lc.TextDocumentPositionParams, string | void, void>('experimental/externalDocs');
 
-export const openCargoToml = new lc.RequestType<OpenCargoTomlParams, lc.Location, void>("experimental/openCargoToml");
-
 export interface OpenCargoTomlParams {
     textDocument: lc.TextDocumentIdentifier;
 }
 
-export const moveItem = new lc.RequestType<MoveItemParams, lc.TextEdit[], void>("experimental/moveItem");
+export const openCargoToml = new lc.RequestType<OpenCargoTomlParams, lc.Location, void>("experimental/openCargoToml");
 
 export interface MoveItemParams {
     textDocument: lc.TextDocumentIdentifier;
@@ -153,6 +152,8 @@ export const enum Direction {
     Up = "Up",
     Down = "Down"
 }
+
+export const moveItem = new lc.RequestType<MoveItemParams, lc.TextEdit[], void>("experimental/moveItem");
 
 export enum RunKind {
     Run,
@@ -166,3 +167,59 @@ export interface RunTestsParams {
 };
 
 export const runTests = new lc.RequestType<RunTestsParams, void, void>("experimental/runTests");
+
+export const cancelTests = new lc.RequestType0<null, void>("experimenral/cancel");
+
+export enum RunStatusUpdateKind {
+    Started = 0,
+    Failed = 1,
+    Errored = 2,
+    Passed = 3,
+    Skiped = 4,
+    Finish = 5,
+    RawOutput = 6,
+}
+
+export type RunStatusUpdate = (Started | Failed | Errored | Passed | RawOutput | Skiped | Finish)[];
+
+export interface Skiped {
+    kind: RunStatusUpdateKind.Skiped,
+    id: string,
+};
+
+export interface Finish {
+    kind: RunStatusUpdateKind.Finish,
+};
+
+export interface Started {
+    kind: RunStatusUpdateKind.Started,
+    id: string,
+};
+
+export interface Failed {
+    kind: RunStatusUpdateKind.Failed,
+    id: string,
+    message: TestMessage | TestMessage[],
+    duration: number,
+};
+
+export interface Errored {
+    kind: RunStatusUpdateKind.Errored,
+    id: string,
+    message: TestMessage | TestMessage[],
+    duration: number,
+};
+
+export interface Passed {
+    kind: RunStatusUpdateKind.Passed,
+    id: string,
+    duration: number,
+};
+
+export interface RawOutput {
+    kind: RunStatusUpdateKind.RawOutput,
+    id: string,
+    message: string,
+};
+
+export const runStatus = new lc.NotificationType<RunStatusUpdate>("experimental/runStatusUpdate");

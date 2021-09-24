@@ -568,3 +568,84 @@ pub struct RunTestsParams {
     pub exclude: Vec<String>,
     pub run_kind: RunKind,
 }
+
+pub enum RunStatusNotification {}
+
+impl Notification for RunStatusNotification {
+    type Params = Vec<>;
+
+    const METHOD: &'static str = "experimental/runStatusUpdate";
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct TestMessage {
+    message: String,
+    expected_output: String,
+    actual_output: String,
+    //TODO: location: (),
+}
+
+enum UpdateKind {
+    Started = 0,
+    Failed = 1,
+    Errored = 2,
+    Passed = 3,
+    Skiped = 4,
+    Finish = 5,
+    RawOutput = 6,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct Skiped {
+    kind: UpdateKind,
+    id: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct Finish {
+    kind: UpdateKind, 
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct Started {
+    kind: UpdateKind,
+    id: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct Failed {
+    kind: UpdateKind,
+    id: String,
+    message: TestMessage,
+    duration: f64,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct Errored {
+    kind: UpdateKind,
+    id: String,
+    message: TestMessage,
+    duration: f64,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct Passed {
+    kind: UpdateKind,
+    id: String,
+    duration: f64,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct RawOutput {
+    kind: UpdateKind,
+    id: String,
+    message: String,
+}
