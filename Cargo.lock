@@ -522,6 +522,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "hir_runnables"
+version = "0.0.0"
+dependencies = [
+ "base_db",
+ "hir",
+]
+
+[[package]]
 name = "hir_ty"
 version = "0.0.0"
 dependencies = [
