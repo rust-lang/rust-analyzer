@@ -49,7 +49,7 @@ fn path_for_qualifier(p: &mut Parser, mode: Mode, mut qual: CompletedMarker) -> 
     loop {
         let use_tree = matches!(p.nth(2), T![*] | T!['{']);
         if use_tree {
-            break;
+            return qual;
         }
 
         if p.at(T![::]) {
