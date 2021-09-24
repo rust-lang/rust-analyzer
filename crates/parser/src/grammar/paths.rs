@@ -124,7 +124,7 @@ fn path_segment(p: &mut Parser, mode: Mode, first: bool) {
 
 fn opt_path_type_args(p: &mut Parser, mode: Mode) {
     match mode {
-        Mode::Use | Mode::ExprPat => {}
+        Mode::Use => {}
         Mode::Type => {
             // test path_fn_trait_args
             // type F = Box<Fn(i32) -> ()>;
@@ -135,6 +135,6 @@ fn opt_path_type_args(p: &mut Parser, mode: Mode) {
                 generic_args::opt_generic_arg_list(p, false)
             }
         }
-        Mode::Expr => generic_args::opt_generic_arg_list(p, true),
+        Mode::Expr | Mode::ExprPat => generic_args::opt_generic_arg_list(p, true),
     }
 }
