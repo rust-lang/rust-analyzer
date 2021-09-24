@@ -27,6 +27,10 @@ pub(super) fn expr_path(p: &mut Parser) {
     path(p, Mode::Expr)
 }
 
+pub(super) fn expr_pat_path(p: &mut Parser) {
+    path(p, Mode::ExprPat)
+}
+
 pub(crate) fn type_path_for_qualifier(p: &mut Parser, qual: CompletedMarker) -> CompletedMarker {
     path_for_qualifier(p, Mode::Type, qual)
 }
@@ -36,6 +40,7 @@ enum Mode {
     Use,
     Type,
     Expr,
+    ExprPat,
 }
 
 fn path(p: &mut Parser, mode: Mode) {
@@ -48,7 +53,7 @@ fn path(p: &mut Parser, mode: Mode) {
 fn path_for_qualifier(p: &mut Parser, mode: Mode, mut qual: CompletedMarker) -> CompletedMarker {
     loop {
         let use_tree = matches!(p.nth(2), T![*] | T!['{']);
-        if use_tree {
+        if use_tree && mode == Mode::Use {
             return qual;
         }
 
@@ -119,7 +124,7 @@ fn path_segment(p: &mut Parser, mode: Mode, first: bool) {
 
 fn opt_path_type_args(p: &mut Parser, mode: Mode) {
     match mode {
-        Mode::Use => {}
+        Mode::Use | Mode::ExprPat => {}
         Mode::Type => {
             // test path_fn_trait_args
             // type F = Box<Fn(i32) -> ()>;

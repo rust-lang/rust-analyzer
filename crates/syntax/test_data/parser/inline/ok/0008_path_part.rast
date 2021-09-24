@@ -1,5 +1,5 @@
-SOURCE_FILE@0..103
-  FN@0..102
+SOURCE_FILE@0..125
+  FN@0..124
     FN_KW@0..2 "fn"
     WHITESPACE@2..3 " "
     NAME@3..6
@@ -8,7 +8,7 @@ SOURCE_FILE@0..103
       L_PAREN@6..7 "("
       R_PAREN@7..8 ")"
     WHITESPACE@8..9 " "
-    BLOCK_EXPR@9..102
+    BLOCK_EXPR@9..124
       L_CURLY@9..10 "{"
       WHITESPACE@10..15 "\n    "
       LET_STMT@15..33
@@ -91,6 +91,32 @@ SOURCE_FILE@0..103
           L_PAREN@97..98 "("
           R_PAREN@98..99 ")"
         SEMICOLON@99..100 ";"
-      WHITESPACE@100..101 "\n"
-      R_CURLY@101..102 "}"
-  WHITESPACE@102..103 "\n"
+      WHITESPACE@100..105 "\n    "
+      FN@105..122
+        FN_KW@105..107 "fn"
+        WHITESPACE@107..108 " "
+        NAME@108..109
+          IDENT@108..109 "f"
+        PARAM_LIST@109..121
+          L_PAREN@109..110 "("
+          PARAM@110..120
+            PATH_PAT@110..116
+              PATH@110..116
+                PATH@110..111
+                  PATH_SEGMENT@110..111
+                    NAME_REF@110..111
+                      IDENT@110..111 "A"
+                COLON2@111..113 "::"
+                PATH_SEGMENT@113..116
+                  NAME_REF@113..116
+                    IDENT@113..116 "Two"
+            COLON@116..117 ":"
+            WHITESPACE@117..118 " "
+            TUPLE_TYPE@118..120
+              L_PAREN@118..119 "("
+              R_PAREN@119..120 ")"
+          R_PAREN@120..121 ")"
+        SEMICOLON@121..122 ";"
+      WHITESPACE@122..123 "\n"
+      R_CURLY@123..124 "}"
+  WHITESPACE@124..125 "\n"

@@ -159,11 +159,12 @@ fn literal_pat(p: &mut Parser) -> CompletedMarker {
 //     let ::Bar = ();
 //     let Bar { .. } = ();
 //     let Bar(..) = ();
+//     fn f(A::Two: ());
 // }
 fn path_or_macro_pat(p: &mut Parser) -> CompletedMarker {
     assert!(paths::is_path_start(p));
     let m = p.start();
-    paths::expr_path(p);
+    paths::expr_pat_path(p);
     let kind = match p.current() {
         T!['('] => {
             tuple_pat_fields(p);

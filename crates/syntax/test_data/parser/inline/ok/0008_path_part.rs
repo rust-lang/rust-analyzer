@@ -3,4 +3,5 @@ fn foo() {
     let ::Bar = ();
     let Bar { .. } = ();
     let Bar(..) = ();
+    fn f(A::Two: ());
 }
