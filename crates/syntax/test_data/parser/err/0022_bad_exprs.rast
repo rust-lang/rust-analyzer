@@ -52,14 +52,14 @@ SOURCE_FILE@0..112
     BLOCK_EXPR@41..68
       L_CURLY@41..42 "{"
       WHITESPACE@42..43 " "
-      EXPR_STMT@43..54
-        CALL_EXPR@43..54
+      EXPR_STMT@43..61
+        CALL_EXPR@43..61
           PATH_EXPR@43..46
             PATH@43..46
               PATH_SEGMENT@43..46
                 NAME_REF@43..46
                   IDENT@43..46 "foo"
-          ARG_LIST@46..54
+          ARG_LIST@46..61
             L_PAREN@46..47 "("
             LITERAL@47..48
               INT_NUMBER@47..48 "1"
@@ -71,15 +71,11 @@ SOURCE_FILE@0..112
             WHITESPACE@52..53 " "
             ERROR@53..54
               AT@53..54 "@"
-      EXPR_STMT@54..55
-        ERROR@54..55
-          COMMA@54..55 ","
-      WHITESPACE@55..56 " "
-      IMPL@56..60
-        IMPL_KW@56..60 "impl"
-      EXPR_STMT@60..61
-        ERROR@60..61
-          COMMA@60..61 ","
+            COMMA@54..55 ","
+            WHITESPACE@55..56 " "
+            ERROR@56..60
+              IMPL_KW@56..60 "impl"
+            COMMA@60..61 ","
       WHITESPACE@61..62 " "
       LET_STMT@62..65
         LET_KW@62..65 "let"
@@ -100,8 +96,8 @@ SOURCE_FILE@0..112
     BLOCK_EXPR@76..111
       L_CURLY@76..77 "{"
       WHITESPACE@77..78 " "
-      EXPR_STMT@78..93
-        METHOD_CALL_EXPR@78..93
+      EXPR_STMT@78..104
+        METHOD_CALL_EXPR@78..104
           PATH_EXPR@78..81
             PATH@78..81
               PATH_SEGMENT@78..81
@@ -110,7 +106,7 @@ SOURCE_FILE@0..112
           DOT@81..82 "."
           NAME_REF@82..85
             IDENT@82..85 "bar"
-          ARG_LIST@85..93
+          ARG_LIST@85..104
             L_PAREN@85..86 "("
             LITERAL@86..87
               INT_NUMBER@86..87 "1"
@@ -122,21 +118,15 @@ SOURCE_FILE@0..112
             WHITESPACE@91..92 " "
             ERROR@92..93
               AT@92..93 "@"
-      EXPR_STMT@93..94
-        ERROR@93..94
-          COMMA@93..94 ","
-      WHITESPACE@94..95 " "
-      EXPR_STMT@95..96
-        ERROR@95..96
-          R_BRACK@95..96 "]"
-      EXPR_STMT@96..97
-        ERROR@96..97
-          COMMA@96..97 ","
-      WHITESPACE@97..98 " "
-      TRAIT@98..104
-        TRAIT_KW@98..103 "trait"
-        ERROR@103..104
-          COMMA@103..104 ","
+            COMMA@93..94 ","
+            WHITESPACE@94..95 " "
+            ERROR@95..96
+              R_BRACK@95..96 "]"
+            COMMA@96..97 ","
+            WHITESPACE@97..98 " "
+            ERROR@98..103
+              TRAIT_KW@98..103 "trait"
+            COMMA@103..104 ","
       WHITESPACE@104..105 " "
       LET_STMT@105..108
         LET_KW@105..108 "let"
@@ -155,26 +145,17 @@ error 26..26: expected `;`, `{`, or `(`
 error 30..30: expected pattern
 error 31..31: expected SEMICOLON
 error 53..53: expected expression
-error 54..54: expected SEMICOLON
-error 54..54: expected expression
-error 55..55: expected SEMICOLON
-error 60..60: expected type
-error 60..60: expected `{`
-error 60..60: expected expression
+error 56..56: expected expression
+error 61..61: expected expression
 error 61..61: expected SEMICOLON
 error 65..65: expected pattern
 error 65..65: expected SEMICOLON
 error 65..65: expected expression
 error 92..92: expected expression
-error 93..93: expected SEMICOLON
-error 93..93: expected expression
-error 94..94: expected SEMICOLON
 error 95..95: expected expression
-error 96..96: expected SEMICOLON
-error 96..96: expected expression
-error 97..97: expected SEMICOLON
-error 103..103: expected a name
-error 104..104: expected `{`
+error 98..98: expected expression
+error 104..104: expected expression
+error 104..104: expected SEMICOLON
 error 108..108: expected pattern
 error 108..108: expected SEMICOLON
 error 108..108: expected expression

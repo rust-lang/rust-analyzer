@@ -33,7 +33,7 @@ SOURCE_FILE@0..43
                   NAME_REF@23..24
                     IDENT@23..24 "x"
             WHITESPACE@24..25 " "
-            CALL_EXPR@25..36
+            CALL_EXPR@25..39
               PATH_EXPR@25..34
                 PATH@25..34
                   PATH@25..29
@@ -44,21 +44,19 @@ SOURCE_FILE@0..43
                   PATH_SEGMENT@31..34
                     NAME_REF@31..34
                       IDENT@31..34 "fun"
-              ARG_LIST@34..36
+              ARG_LIST@34..39
                 L_PAREN@34..35 "("
-                ERROR@35..36
-                  COMMA@35..36 ","
-            WHITESPACE@36..37 " "
-            PATH_EXPR@37..38
-              PATH@37..38
-                PATH_SEGMENT@37..38
-                  NAME_REF@37..38
-                    IDENT@37..38 "z"
-            R_PAREN@38..39 ")"
+                COMMA@35..36 ","
+                WHITESPACE@36..37 " "
+                PATH_EXPR@37..38
+                  PATH@37..38
+                    PATH_SEGMENT@37..38
+                      NAME_REF@37..38
+                        IDENT@37..38 "z"
+                R_PAREN@38..39 ")"
         SEMICOLON@39..40 ";"
       WHITESPACE@40..41 "\n"
       R_CURLY@41..42 "}"
   WHITESPACE@42..43 "\n"
-error 24..24: expected COMMA
-error 35..35: expected expression
-error 36..36: expected COMMA
+error 24..24: expected ','
+error 36..36: expected argument

@@ -48,12 +48,22 @@ fn path(p: &mut Parser, mode: Mode) {
 fn path_for_qualifier(p: &mut Parser, mode: Mode, mut qual: CompletedMarker) -> CompletedMarker {
     loop {
         let use_tree = matches!(p.nth(2), T![*] | T!['{']);
-        if p.at(T![::]) && !use_tree {
+        if use_tree {
+            break;
+        }
+
+        if p.at(T![::]) {
             let path = qual.precede(p);
             p.bump(T![::]);
             path_segment(p, mode, false);
             let path = path.complete(p, PATH);
             qual = path;
+        } else if p.at(T![:]) && mode == Mode::Expr {
+            // test_err missing_colon
+            // fn main() {
+            //  let a = crate::h:;
+            // }
+            p.err_and_bump(&format!("expected {:?}", T!(::)));
         } else {
             return qual;
         }

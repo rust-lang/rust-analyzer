@@ -45,4 +45,4 @@ SOURCE_FILE@0..33
       WHITESPACE@30..31 "\n"
       R_CURLY@31..32 "}"
   WHITESPACE@32..33 "\n"
-error 25..25: expected expression
+error 27..27: expected argument

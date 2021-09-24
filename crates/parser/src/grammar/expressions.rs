@@ -553,45 +553,41 @@ fn arg_list(p: &mut Parser) {
     assert!(p.at(T!['(']));
     let m = p.start();
     p.bump(T!['(']);
+
     while !p.at(T![')']) && !p.at(EOF) {
+        // test_err arg_recover_comma
+        // fn main() {
+        //     foo(y, x, ,z);
+        // }
+        while p.eat(T![,]) {
+            p.error("expected expression");
+        }
         // test arg_with_attr
         // fn main() {
         //     foo(#[attr] 92)
         // }
-        if !expr_with_attrs(p) {
-            break;
-        }
-        if p.at(T![:]) {
-            // Eat a trailing `:` so the arg-list doesn't break if the user is typing a path
 
-            // test_err arg_recover_colon
-            // fn main() {
-            //     foo(y, x:, z);
-            // }
-            p.err_and_bump(&format!("expected {:?}", T![,]));
-        }
-        if p.at(IDENT) {
-            // Eat a ident so the arg-list doesn't break if the user is inserting a new param.
+        // test_err arg_recover_colon
+        // fn main() {
+        //     foo(y, x:, z);
+        // }
+        expr_with_attrs(p);
 
+        if !p.at(T![,]) {
             // test_err arg_recover_ident
             // fn main() {
             //     foo(y, x orig::fun(, z);
             // }
-            p.error(&format!("expected {:?}", T![,]));
-            continue;
-        }
-        if p.at(T![,]) && p.nth_at(1, T![,]) {
-            // Eat a `,` if the user is inserting comma before a param.
-
-            // test_err arg_recover_comma
-            // fn main() {
-            //     foo(y, x, ,z);
-            // }
-            p.eat(T![,]);
-            p.error("expected expression");
+            if p.at_ts(EXPR_FIRST) {
+                p.error("expected ','");
+                continue;
+            } else {
+                break;
+            }
         }
 
-        if !p.at(T![')']) && !p.expect(T![,]) {
+        p.eat(T![,]);
+        if p.at(T![')']) {
             break;
         }
     }

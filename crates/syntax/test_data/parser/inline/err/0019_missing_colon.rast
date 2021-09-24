@@ -1,0 +1,39 @@
+SOURCE_FILE@0..34
+  FN@0..33
+    FN_KW@0..2 "fn"
+    WHITESPACE@2..3 " "
+    NAME@3..7
+      IDENT@3..7 "main"
+    PARAM_LIST@7..9
+      L_PAREN@7..8 "("
+      R_PAREN@8..9 ")"
+    WHITESPACE@9..10 " "
+    BLOCK_EXPR@10..33
+      L_CURLY@10..11 "{"
+      WHITESPACE@11..13 "\n "
+      LET_STMT@13..31
+        LET_KW@13..16 "let"
+        WHITESPACE@16..17 " "
+        IDENT_PAT@17..18
+          NAME@17..18
+            IDENT@17..18 "a"
+        WHITESPACE@18..19 " "
+        EQ@19..20 "="
+        WHITESPACE@20..21 " "
+        PATH_EXPR@21..30
+          PATH@21..29
+            PATH@21..26
+              PATH_SEGMENT@21..26
+                NAME_REF@21..26
+                  CRATE_KW@21..26 "crate"
+            COLON2@26..28 "::"
+            PATH_SEGMENT@28..29
+              NAME_REF@28..29
+                IDENT@28..29 "h"
+          ERROR@29..30
+            COLON@29..30 ":"
+        SEMICOLON@30..31 ";"
+      WHITESPACE@31..32 "\n"
+      R_CURLY@32..33 "}"
+  WHITESPACE@33..34 "\n"
+error 29..29: expected COLON2
