@@ -16,6 +16,7 @@ pub mod traits;
 pub mod call_info;
 pub mod helpers;
 pub mod path_transform;
+pub mod runnables;
 
 pub mod search;
 pub mod rename;
@@ -29,7 +30,7 @@ use base_db::{
 use hir::db::{AstDatabase, DefDatabase, HirDatabase};
 use rustc_hash::FxHashSet;
 
-use crate::{line_index::LineIndex, symbol_index::SymbolsDatabase};
+use crate::{line_index::LineIndex, symbol_index::SymbolsDatabase, runnables::RunnableDatabase};
 
 /// `base_db` is normally also needed in places where `ide_db` is used, so this re-export is for convenience.
 pub use base_db;
@@ -43,8 +44,9 @@ pub use base_db;
     hir::db::AstDatabaseStorage,
     hir::db::DefDatabaseStorage,
     hir::db::HirDatabaseStorage,
-    RunnableDatabaseStorage,
+    runnables::RunnableDatabaseStorage,
 )]
+
 pub struct RootDatabase {
     storage: salsa::Storage<RootDatabase>,
 }
@@ -69,6 +71,12 @@ impl Upcast<dyn DefDatabase> for RootDatabase {
 
 impl Upcast<dyn HirDatabase> for RootDatabase {
     fn upcast(&self) -> &(dyn HirDatabase + 'static) {
+        &*self
+    }
+}
+
+impl Upcast<dyn RunnableDatabase> for RootDatabase {
+    fn upcast(&self) -> &(dyn RunnableDatabase + 'static) {
         &*self
     }
 }

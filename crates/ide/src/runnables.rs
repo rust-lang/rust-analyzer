@@ -5,12 +5,7 @@ use cfg::CfgExpr;
 use either::Either;
 use hir::{AsAssocItem, HasAttrs, HasSource, HirDisplay, Semantics};
 use ide_assists::utils::test_related_attribute;
-use ide_db::{
-    base_db::{FilePosition, FileRange},
-    helpers::visit_file_defs,
-    search::SearchScope,
-    RootDatabase, SymbolKind,
-};
+use ide_db::{RootDatabase, SymbolKind, base_db::{FilePosition, FileRange, Upcast}, helpers::visit_file_defs, search::SearchScope};
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 use stdx::{always, format_to};
@@ -121,76 +116,7 @@ impl Runnable {
 // |===
 // image::https://user-images.githubusercontent.com/48062697/113065583-055aae80-91b1-11eb-958f-d67efcaf6a2f.gif[]
 pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable> {
-    let sema = Semantics::new(db);
-
-    let mut res = Vec::new();
-    // Record all runnables that come from macro expansions here instead.
-    // In case an expansion creates multiple runnables we want to name them to avoid emitting a bunch of equally named runnables.
-    let mut in_macro_expansion = FxHashMap::<hir::HirFileId, Vec<Runnable>>::default();
-    let mut add_opt = |runnable: Option<Runnable>, def| {
-        if let Some(runnable) = runnable.filter(|runnable| {
-            always!(
-                runnable.nav.file_id == file_id,
-                "tried adding a runnable pointing to a different file: {:?} for {:?}",
-                runnable.kind,
-                file_id
-            )
-        }) {
-            if let Some(def) = def {
-                let file_id = match def {
-                    hir::ModuleDef::Module(it) => it.declaration_source(db).map(|src| src.file_id),
-                    hir::ModuleDef::Function(it) => it.source(db).map(|src| src.file_id),
-                    _ => None,
-                };
-                if let Some(file_id) = file_id.filter(|file| file.call_node(db).is_some()) {
-                    in_macro_expansion.entry(file_id).or_default().push(runnable);
-                    return;
-                }
-            }
-            res.push(runnable);
-        }
-    };
-    visit_file_defs(&sema, file_id, &mut |def| match def {
-        Either::Left(def) => {
-            let runnable = match def {
-                hir::ModuleDef::Module(it) => runnable_mod(&sema, it),
-                hir::ModuleDef::Function(it) => runnable_fn(&sema, it),
-                _ => None,
-            };
-            add_opt(runnable.or_else(|| module_def_doctest(sema.db, def)), Some(def));
-        }
-        Either::Right(impl_) => {
-            add_opt(runnable_impl(&sema, &impl_), None);
-            impl_
-                .items(db)
-                .into_iter()
-                .map(|assoc| {
-                    (
-                        match assoc {
-                            hir::AssocItem::Function(it) => runnable_fn(&sema, it)
-                                .or_else(|| module_def_doctest(sema.db, it.into())),
-                            hir::AssocItem::Const(it) => module_def_doctest(sema.db, it.into()),
-                            hir::AssocItem::TypeAlias(it) => module_def_doctest(sema.db, it.into()),
-                        },
-                        assoc,
-                    )
-                })
-                .for_each(|(r, assoc)| add_opt(r, Some(assoc.into())));
-        }
-    });
-
-    sema.to_module_defs(file_id)
-        .map(|it| runnable_mod_outline_definition(&sema, it))
-        .for_each(|it| add_opt(it, None));
-
-    res.extend(in_macro_expansion.into_iter().flat_map(|(_, runnables)| {
-        let use_name_in_title = runnables.len() != 1;
-        runnables.into_iter().map(move |mut r| {
-            r.use_name_in_title = use_name_in_title;
-            r
-        })
-    }));
-    res
+    //TODO: db.upcast::<RunnableDatabase>().file_runnables(file_id)
 }
 
 // Feature: Related Tests
@@ -461,31 +387,6 @@ impl TestAttr {
     }
 }
 
-const RUSTDOC_FENCE: &str = "```";
-const RUSTDOC_CODE_BLOCK_ATTRIBUTES_RUNNABLE: &[&str] =
-    &["", "rust", "should_panic", "edition2015", "edition2018", "edition2021"];
-
-fn has_runnable_doc_test(attrs: &hir::Attrs) -> bool {
-    attrs.docs().map_or(false, |doc| {
-        let mut in_code_block = false;
-
-        for line in String::from(doc).lines() {
-            if let Some(header) = line.strip_prefix(RUSTDOC_FENCE) {
-                in_code_block = !in_code_block;
-
-                if in_code_block
-                    && header
-                        .split(',')
-                        .all(|sub| RUSTDOC_CODE_BLOCK_ATTRIBUTES_RUNNABLE.contains(&sub.trim()))
-                {
-                    return true;
-                }
-            }
-        }
-
-        false
-    })
-}
 
 // We could create runnables for modules with number_of_test_submodules > 0,
 // but that bloats the runnables for no real benefit, since all tests can be run by the submodule already

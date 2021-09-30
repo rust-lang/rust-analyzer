@@ -200,7 +200,7 @@ macro_rules! impl_intern {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FunctionId(salsa::InternId);
-type FunctionLoc = AssocItemLoc<Function>;
+pub type FunctionLoc = AssocItemLoc<Function>;
 impl_intern!(FunctionId, FunctionLoc, intern_function, lookup_intern_function);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

@@ -53,6 +53,7 @@ mod typing;
 mod view_crate_graph;
 mod view_hir;
 mod view_item_tree;
+mod runnables;
 
 use std::sync::Arc;
 
