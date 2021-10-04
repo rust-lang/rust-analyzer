@@ -88,8 +88,8 @@ impl PathResolution {
 }
 
 /// Primary API to get semantic information, like types, from syntax trees.
-pub struct Semantics<'db, DB> {
-    pub db: &'db DB,
+pub struct Semantics<'db> {
+    pub db: &'db dyn HirDatabase,
     imp: SemanticsImpl<'db>,
 }
 
@@ -100,14 +100,14 @@ pub struct SemanticsImpl<'db> {
     cache: RefCell<FxHashMap<SyntaxNode, HirFileId>>,
 }
 
-impl<DB> fmt::Debug for Semantics<'_, DB> {
+impl fmt::Debug for Semantics<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Semantics {{ ... }}")
     }
 }
 
-impl<'db, DB: HirDatabase> Semantics<'db, DB> {
-    pub fn new(db: &DB) -> Semantics<DB> {
+impl<'db> Semantics<'db> {
+    pub fn new(db: &dyn HirDatabase) -> Semantics {
         let impl_ = SemanticsImpl::new(db);
         Semantics { db, imp: impl_ }
     }
