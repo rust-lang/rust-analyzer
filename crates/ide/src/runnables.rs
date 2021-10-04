@@ -4,7 +4,6 @@ use ast::NameOwner;
 use cfg::CfgExpr;
 use either::Either;
 use hir::{AsAssocItem, HasAttrs, HasSource, HirDisplay, Semantics};
-use ide_assists::utils::test_related_attribute;
 use ide_db::{RootDatabase, SymbolKind, base_db::{FilePosition, FileRange, Upcast}, helpers::visit_file_defs, search::SearchScope};
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -217,73 +216,6 @@ fn parent_test_module(sema: &Semantics<RootDatabase>, fn_def: &ast::Fn) -> Optio
     })
 }
 
-pub(crate) fn runnable_fn(sema: &Semantics<RootDatabase>, def: hir::Function) -> Option<Runnable> {
-    let func = def.source(sema.db)?;
-    let name_string = def.name(sema.db).to_string();
-
-    let root = def.module(sema.db).krate().root_module(sema.db);
-
-    let kind = if name_string == "main" && def.module(sema.db) == root {
-        RunnableKind::Bin
-    } else {
-        let canonical_path = {
-            let def: hir::ModuleDef = def.into();
-            def.canonical_path(sema.db)
-        };
-        let test_id = canonical_path.map(TestId::Path).unwrap_or(TestId::Name(name_string));
-
-        if test_related_attribute(&func.value).is_some() {
-            let attr = TestAttr::from_fn(&func.value);
-            RunnableKind::Test { test_id, attr }
-        } else if func.value.has_atom_attr("bench") {
-            RunnableKind::Bench { test_id }
-        } else {
-            return None;
-        }
-    };
-
-    let nav = NavigationTarget::from_named(
-        sema.db,
-        func.as_ref().map(|it| it as &dyn ast::NameOwner),
-        SymbolKind::Function,
-    );
-    let cfg = def.attrs(sema.db).cfg();
-    Some(Runnable { use_name_in_title: false, nav, kind, cfg })
-}
-
-pub(crate) fn runnable_mod(sema: &Semantics<RootDatabase>, def: hir::Module) -> Option<Runnable> {
-    if !has_test_function_or_multiple_test_submodules(sema, &def) {
-        return None;
-    }
-    let path =
-        def.path_to_root(sema.db).into_iter().rev().filter_map(|it| it.name(sema.db)).join("::");
-
-    let attrs = def.attrs(sema.db);
-    let cfg = attrs.cfg();
-    let nav = NavigationTarget::from_module_to_decl(sema.db, def);
-    Some(Runnable { use_name_in_title: false, nav, kind: RunnableKind::TestMod { path }, cfg })
-}
-
-pub(crate) fn runnable_impl(sema: &Semantics<RootDatabase>, def: &hir::Impl) -> Option<Runnable> {
-    let attrs = def.attrs(sema.db);
-    if !has_runnable_doc_test(&attrs) {
-        return None;
-    }
-    let cfg = attrs.cfg();
-    let nav = def.try_to_nav(sema.db)?;
-    let ty = def.self_ty(sema.db);
-    let adt_name = ty.as_adt()?.name(sema.db);
-    let mut ty_args = ty.type_arguments().peekable();
-    let params = if ty_args.peek().is_some() {
-        format!("<{}>", ty_args.format_with(", ", |ty, cb| cb(&ty.display(sema.db))))
-    } else {
-        String::new()
-    };
-    let test_id = TestId::Path(format!("{}{}", adt_name, params));
-
-    Some(Runnable { use_name_in_title: false, nav, kind: RunnableKind::DocTest { test_id }, cfg })
-}
-
 /// Creates a test mod runnable for outline modules at the top of their definition.
 fn runnable_mod_outline_definition(
     sema: &Semantics<RootDatabase>,
@@ -385,36 +317,6 @@ impl TestAttr {
             .any(|attribute_text| attribute_text == "ignore");
         TestAttr { ignore }
     }
-}
-
-
-// We could create runnables for modules with number_of_test_submodules > 0,
-// but that bloats the runnables for no real benefit, since all tests can be run by the submodule already
-fn has_test_function_or_multiple_test_submodules(
-    sema: &Semantics<RootDatabase>,
-    module: &hir::Module,
-) -> bool {
-    let mut number_of_test_submodules = 0;
-
-    for item in module.declarations(sema.db) {
-        match item {
-            hir::ModuleDef::Function(f) => {
-                if let Some(it) = f.source(sema.db) {
-                    if test_related_attribute(&it.value).is_some() {
-                        return true;
-                    }
-                }
-            }
-            hir::ModuleDef::Module(submodule) => {
-                if has_test_function_or_multiple_test_submodules(sema, &submodule) {
-                    number_of_test_submodules += 1;
-                }
-            }
-            _ => (),
-        }
-    }
-
-    number_of_test_submodules > 1
 }
 
 #[cfg(test)]

@@ -61,19 +61,6 @@ pub fn extract_trivial_expression(block: &ast::BlockExpr) -> Option<ast::Expr> {
     None
 }
 
-/// This is a method with a heuristics to support test methods annotated with custom test annotations, such as
-/// `#[test_case(...)]`, `#[tokio::test]` and similar.
-/// Also a regular `#[test]` annotation is supported.
-///
-/// It may produce false positives, for example, `#[wasm_bindgen_test]` requires a different command to run the test,
-/// but it's better than not to have the runnables for the tests at all.
-pub fn test_related_attribute(fn_def: &ast::Fn) -> Option<ast::Attr> {
-    fn_def.attrs().find_map(|attr| {
-        let path = attr.path()?;
-        path.syntax().text().to_string().contains("test").then(|| attr)
-    })
-}
-
 #[derive(Copy, Clone, PartialEq)]
 pub enum DefaultMethods {
     Only,
