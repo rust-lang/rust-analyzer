@@ -122,6 +122,45 @@ struct Point<'a> {
 }
 
 #[test]
+fn doctest_add_missing_match_arms() {
+    check_doc_test(
+        "add_missing_match_arms",
+        r#####"
+enum Action { Move { distance: u32 }, Stop }
+
+fn handle(action: Action) {
+    match action {
+        $0
+    }
+}
+"#####,
+        r#####"
+enum Action { Move { distance: u32 }, Stop }
+
+fn handle(action: Action) {
+    match action {
+        $0Action::Move { distance } => todo!(),
+        Action::Stop => todo!(),
+    }
+}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_add_return_type() {
+    check_doc_test(
+        "add_return_type",
+        r#####"
+fn foo() { 4$02i32 }
+"#####,
+        r#####"
+fn foo() -> i32 { 42i32 }
+"#####,
+    )
+}
+
+#[test]
 fn doctest_add_turbo_fish() {
     check_doc_test(
         "add_turbo_fish",
@@ -208,6 +247,29 @@ fn main() {
     } else {
         None
     }
+}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_convert_for_loop_with_for_each() {
+    check_doc_test(
+        "convert_for_loop_with_for_each",
+        r#####"
+fn main() {
+    let x = vec![1, 2, 3];
+    for$0 v in x {
+        let y = v * 2;
+    }
+}
+"#####,
+        r#####"
+fn main() {
+    let x = vec![1, 2, 3];
+    x.into_iter().for_each(|v| {
+        let y = v * 2;
+    });
 }
 "#####,
     )
@@ -517,32 +579,6 @@ fn main() {
 }
 
 #[test]
-fn doctest_fill_match_arms() {
-    check_doc_test(
-        "fill_match_arms",
-        r#####"
-enum Action { Move { distance: u32 }, Stop }
-
-fn handle(action: Action) {
-    match action {
-        $0
-    }
-}
-"#####,
-        r#####"
-enum Action { Move { distance: u32 }, Stop }
-
-fn handle(action: Action) {
-    match action {
-        $0Action::Move { distance } => todo!(),
-        Action::Stop => todo!(),
-    }
-}
-"#####,
-    )
-}
-
-#[test]
 fn doctest_fix_visibility() {
     check_doc_test(
         "fix_visibility",
@@ -608,6 +644,28 @@ fn foo<T: Clone +$0 Copy>() { }
 "#####,
         r#####"
 fn foo<T: Copy + Clone>() { }
+"#####,
+    )
+}
+
+#[test]
+fn doctest_generate_constant() {
+    check_doc_test(
+        "generate_constant",
+        r#####"
+struct S { i: usize }
+impl S { pub fn new(n: usize) {} }
+fn main() {
+    let v = S::new(CAPA$0CITY);
+}
+"#####,
+        r#####"
+struct S { i: usize }
+impl S { pub fn new(n: usize) {} }
+fn main() {
+    const CAPACITY: usize = $0;
+    let v = S::new(CAPACITY);
+}
 "#####,
     )
 }
@@ -995,19 +1053,6 @@ impl Person {
 }
 
 #[test]
-fn doctest_infer_function_return_type() {
-    check_doc_test(
-        "infer_function_return_type",
-        r#####"
-fn foo() { 4$02i32 }
-"#####,
-        r#####"
-fn foo() -> i32 { 42i32 }
-"#####,
-    )
-}
-
-#[test]
 fn doctest_inline_call() {
     check_doc_test(
         "inline_call",
@@ -1029,6 +1074,43 @@ fn foo(name: Option<&str>) {
 }
 
 #[test]
+fn doctest_inline_into_callers() {
+    check_doc_test(
+        "inline_into_callers",
+        r#####"
+fn print(_: &str) {}
+fn foo$0(word: &str) {
+    if !word.is_empty() {
+        print(word);
+    }
+}
+fn bar() {
+    foo("안녕하세요");
+    foo("여러분");
+}
+"#####,
+        r#####"
+fn print(_: &str) {}
+
+fn bar() {
+    {
+        let word = "안녕하세요";
+        if !word.is_empty() {
+            print(word);
+        }
+    };
+    {
+        let word = "여러분";
+        if !word.is_empty() {
+            print(word);
+        }
+    };
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_inline_local_variable() {
     check_doc_test(
         "inline_local_variable",
@@ -1042,6 +1124,19 @@ fn main() {
 fn main() {
     (1 + 2) * 4;
 }
+"#####,
+    )
+}
+
+#[test]
+fn doctest_introduce_named_generic() {
+    check_doc_test(
+        "introduce_named_generic",
+        r#####"
+fn foo(bar: $0impl Bar) {}
+"#####,
+        r#####"
+fn foo<B: Bar>(bar: B) {}
 "#####,
     )
 }
@@ -1224,6 +1319,22 @@ fn apply<T, U, F>(f: F, x: T) -> U where F: FnOnce(T) -> U {
 }
 
 #[test]
+fn doctest_move_from_mod_rs() {
+    check_doc_test(
+        "move_from_mod_rs",
+        r#####"
+//- /main.rs
+mod a;
+//- /a/mod.rs
+$0fn t() {}$0
+"#####,
+        r#####"
+fn t() {}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_move_guard_to_arm_body() {
     check_doc_test(
         "move_guard_to_arm_body",
@@ -1263,6 +1374,22 @@ mod $0foo {
 "#####,
         r#####"
 mod foo;
+"#####,
+    )
+}
+
+#[test]
+fn doctest_move_to_mod_rs() {
+    check_doc_test(
+        "move_to_mod_rs",
+        r#####"
+//- /main.rs
+mod a;
+//- /a.rs
+$0fn t() {}$0
+"#####,
+        r#####"
+fn t() {}
 "#####,
     )
 }
@@ -1478,29 +1605,6 @@ impl Debug for S {
 }
 
 #[test]
-fn doctest_replace_for_loop_with_for_each() {
-    check_doc_test(
-        "replace_for_loop_with_for_each",
-        r#####"
-fn main() {
-    let x = vec![1, 2, 3];
-    for$0 v in x {
-        let y = v * 2;
-    }
-}
-"#####,
-        r#####"
-fn main() {
-    let x = vec![1, 2, 3];
-    x.into_iter().for_each(|v| {
-        let y = v * 2;
-    });
-}
-"#####,
-    )
-}
-
-#[test]
 fn doctest_replace_if_let_with_match() {
     check_doc_test(
         "replace_if_let_with_match",
@@ -1524,19 +1628,6 @@ fn handle(action: Action) {
         _ => bar(),
     }
 }
-"#####,
-    )
-}
-
-#[test]
-fn doctest_replace_impl_trait_with_generic() {
-    check_doc_test(
-        "replace_impl_trait_with_generic",
-        r#####"
-fn foo(bar: $0impl Bar) {}
-"#####,
-        r#####"
-fn foo<B: Bar>(bar: B) {}
 "#####,
     )
 }
@@ -1624,6 +1715,27 @@ fn main() {
         r#####"
 fn main() {
     find('{');
+}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_replace_try_expr_with_match() {
+    check_doc_test(
+        "replace_try_expr_with_match",
+        r#####"
+//- minicore:option
+fn handle() {
+    let pat = Some(true)$0?;
+}
+"#####,
+        r#####"
+fn handle() {
+    let pat = match Some(true) {
+        Some(it) => it,
+        None => return None,
+    };
 }
 "#####,
     )

@@ -5,16 +5,17 @@
 
 // FIXME: this badly needs rename/rewrite (matklad, 2020-02-06).
 
+use arrayvec::ArrayVec;
 use hir::{
     Field, GenericParam, HasVisibility, Impl, Label, Local, MacroDef, Module, ModuleDef, Name,
     PathResolution, Semantics, Visibility,
 };
 use syntax::{
     ast::{self, AstNode},
-    match_ast, SyntaxKind,
+    match_ast, SyntaxKind, SyntaxNode, SyntaxToken,
 };
 
-use crate::RootDatabase;
+use crate::{helpers::try_resolve_derive_input_at, RootDatabase};
 
 // FIXME: a more precise name would probably be `Symbol`?
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
@@ -29,6 +30,73 @@ pub enum Definition {
 }
 
 impl Definition {
+    pub fn from_token(
+        sema: &Semantics<RootDatabase>,
+        token: &SyntaxToken,
+    ) -> ArrayVec<Definition, 2> {
+        let parent = match token.parent() {
+            Some(parent) => parent,
+            None => return Default::default(),
+        };
+        let attr = parent
+            .ancestors()
+            .find_map(ast::TokenTree::cast)
+            .and_then(|tt| tt.parent_meta())
+            .and_then(|meta| meta.parent_attr());
+        if let Some(attr) = attr {
+            try_resolve_derive_input_at(&sema, &attr, &token)
+                .map(Definition::Macro)
+                .into_iter()
+                .collect()
+        } else {
+            Self::from_node(sema, &parent)
+        }
+    }
+
+    pub fn from_node(sema: &Semantics<RootDatabase>, node: &SyntaxNode) -> ArrayVec<Definition, 2> {
+        let mut res = ArrayVec::new();
+        (|| {
+            match_ast! {
+                match node {
+                    ast::Name(name) => {
+                        match NameClass::classify(&sema, &name)? {
+                            NameClass::Definition(it) | NameClass::ConstReference(it) => res.push(it),
+                            NameClass::PatFieldShorthand { local_def, field_ref } => {
+                                res.push(Definition::Local(local_def));
+                                res.push(Definition::Field(field_ref));
+                            }
+                        }
+                    },
+                    ast::NameRef(name_ref) => {
+                        match NameRefClass::classify(sema, &name_ref)? {
+                            NameRefClass::Definition(it) => res.push(it),
+                            NameRefClass::FieldShorthand { local_ref, field_ref } => {
+                                res.push(Definition::Local(local_ref));
+                                res.push(Definition::Field(field_ref));
+                            }
+                        }
+                    },
+                    ast::Lifetime(lifetime) => {
+                        let def = if let Some(x) = NameClass::classify_lifetime(&sema, &lifetime) {
+                            NameClass::defined(x)
+                        } else {
+                            NameRefClass::classify_lifetime(&sema, &lifetime).and_then(|class| match class {
+                                NameRefClass::Definition(it) => Some(it),
+                                _ => None,
+                            })
+                        };
+                        if let Some(def) = def {
+                            res.push(def);
+                        }
+                    },
+                    _ => (),
+                }
+            }
+            Some(())
+        })();
+        res
+    }
+
     pub fn module(&self, db: &RootDatabase) -> Option<Module> {
         match self {
             Definition::Macro(it) => it.module(db),

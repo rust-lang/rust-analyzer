@@ -4,7 +4,7 @@ use std::{collections::hash_map::Entry, mem, sync::Arc};
 
 use hir_expand::{ast_id_map::AstIdMap, hygiene::Hygiene, name::known, HirFileId};
 use syntax::{
-    ast::{self, ModuleItemOwner},
+    ast::{self, HasModuleItem},
     SyntaxNode, WalkEvent,
 };
 
@@ -40,7 +40,7 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    pub(super) fn lower_module_items(mut self, item_owner: &dyn ModuleItemOwner) -> ItemTree {
+    pub(super) fn lower_module_items(mut self, item_owner: &dyn HasModuleItem) -> ItemTree {
         self.tree.top_level =
             item_owner.items().flat_map(|item| self.lower_mod_item(&item, false)).collect();
         self.tree
@@ -401,7 +401,7 @@ impl<'a> Ctx<'a> {
         let mut res = Function {
             name,
             visibility,
-            generic_params: Interned::new(GenericParams::default()),
+            explicit_generic_params: Interned::new(GenericParams::default()),
             abi,
             params,
             ret_type: Interned::new(ret_type),
@@ -409,7 +409,8 @@ impl<'a> Ctx<'a> {
             ast_id,
             flags,
         };
-        res.generic_params = self.lower_generic_params(GenericsOwner::Function(&res), func);
+        res.explicit_generic_params =
+            self.lower_generic_params(GenericsOwner::Function(&res), func);
 
         Some(id(self.data().functions.alloc(res)))
     }
@@ -644,7 +645,7 @@ impl<'a> Ctx<'a> {
     fn lower_generic_params_and_inner_items(
         &mut self,
         owner: GenericsOwner<'_>,
-        node: &impl ast::GenericParamsOwner,
+        node: &impl ast::HasGenericParams,
     ) -> Interned<GenericParams> {
         // Generics are part of item headers and may contain inner items we need to collect.
         if let Some(params) = node.generic_param_list() {
@@ -660,45 +661,35 @@ impl<'a> Ctx<'a> {
     fn lower_generic_params(
         &mut self,
         owner: GenericsOwner<'_>,
-        node: &impl ast::GenericParamsOwner,
+        node: &impl ast::HasGenericParams,
     ) -> Interned<GenericParams> {
-        let mut sm = &mut Default::default();
         let mut generics = GenericParams::default();
         match owner {
-            GenericsOwner::Function(func) => {
-                generics.fill(&self.body_ctx, sm, node);
-                // lower `impl Trait` in arguments
-                for id in func.params.clone() {
-                    if let Param::Normal(ty) = &self.data().params[id] {
-                        generics.fill_implicit_impl_trait_args(ty);
-                    }
-                }
-            }
-            GenericsOwner::Struct
+            GenericsOwner::Function(_)
+            | GenericsOwner::Struct
             | GenericsOwner::Enum
             | GenericsOwner::Union
             | GenericsOwner::TypeAlias => {
-                generics.fill(&self.body_ctx, sm, node);
+                generics.fill(&self.body_ctx, node);
             }
             GenericsOwner::Trait(trait_def) => {
                 // traits get the Self type as an implicit first type parameter
-                let self_param_id = generics.types.alloc(TypeParamData {
+                generics.types.alloc(TypeParamData {
                     name: Some(name![Self]),
                     default: None,
                     provenance: TypeParamProvenance::TraitSelf,
                 });
-                sm.type_params.insert(self_param_id, Either::Right(trait_def.clone()));
                 // add super traits as bounds on Self
                 // i.e., trait Foo: Bar is equivalent to trait Foo where Self: Bar
                 let self_param = TypeRef::Path(name![Self].into());
                 generics.fill_bounds(&self.body_ctx, trait_def, Either::Left(self_param));
-                generics.fill(&self.body_ctx, &mut sm, node);
+                generics.fill(&self.body_ctx, node);
             }
             GenericsOwner::Impl => {
                 // Note that we don't add `Self` here: in `impl`s, `Self` is not a
                 // type-parameter, but rather is a type-alias for impl's target
                 // type, so this is handled by the resolver.
-                generics.fill(&self.body_ctx, &mut sm, node);
+                generics.fill(&self.body_ctx, node);
             }
         }
 
@@ -706,7 +697,7 @@ impl<'a> Ctx<'a> {
         Interned::new(generics)
     }
 
-    fn lower_type_bounds(&mut self, node: &impl ast::TypeBoundsOwner) -> Vec<Interned<TypeBound>> {
+    fn lower_type_bounds(&mut self, node: &impl ast::HasTypeBounds) -> Vec<Interned<TypeBound>> {
         match node.type_bound_list() {
             Some(bound_list) => bound_list
                 .bounds()
@@ -716,7 +707,7 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    fn lower_visibility(&mut self, item: &impl ast::VisibilityOwner) -> RawVisibilityId {
+    fn lower_visibility(&mut self, item: &impl ast::HasVisibility) -> RawVisibilityId {
         let vis = match self.forced_visibility {
             Some(vis) => return vis,
             None => RawVisibility::from_ast_with_hygiene(self.db, item.visibility(), &self.hygiene),

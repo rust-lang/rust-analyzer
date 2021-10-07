@@ -2,13 +2,13 @@ use hir::Semantics;
 use ide_db::{
     base_db::FilePosition,
     defs::{Definition, NameClass, NameRefClass},
-    helpers::{for_each_break_expr, for_each_tail_expr, pick_best_token},
-    search::{FileReference, ReferenceAccess, SearchScope},
+    helpers::{for_each_break_expr, for_each_tail_expr, node_ext::walk_expr, pick_best_token},
+    search::{FileReference, ReferenceCategory, SearchScope},
     RootDatabase,
 };
 use rustc_hash::FxHashSet;
 use syntax::{
-    ast::{self, LoopBodyOwner},
+    ast::{self, HasLoopBody},
     match_ast, AstNode,
     SyntaxKind::IDENT,
     SyntaxNode, SyntaxToken, TextRange, TextSize, T,
@@ -19,7 +19,10 @@ use crate::{display::TryToNav, references, NavigationTarget};
 #[derive(PartialEq, Eq, Hash)]
 pub struct HighlightedRange {
     pub range: TextRange,
-    pub access: Option<ReferenceAccess>,
+    // FIXME: This needs to be more precise. Reference category makes sense only
+    // for references, but we also have defs. And things like exit points are
+    // neither.
+    pub category: Option<ReferenceCategory>,
 }
 
 #[derive(Default, Clone)]
@@ -87,7 +90,10 @@ fn highlight_references(
                 .remove(&file_id)
         })
         .flatten()
-        .map(|FileReference { access, range, .. }| HighlightedRange { range, access });
+        .map(|FileReference { category: access, range, .. }| HighlightedRange {
+            range,
+            category: access,
+        });
 
     let declarations = defs.iter().flat_map(|def| {
         match def {
@@ -99,8 +105,12 @@ fn highlight_references(
         .filter(|decl| decl.file_id == file_id)
         .and_then(|decl| {
             let range = decl.focus_range?;
-            let access = references::decl_access(&def, syntax, range);
-            Some(HighlightedRange { range, access })
+            let category = if references::decl_mutability(&def, syntax, range) {
+                Some(ReferenceCategory::Write)
+            } else {
+                None
+            };
+            Some(HighlightedRange { range, category })
         })
     });
 
@@ -122,21 +132,23 @@ fn highlight_exit_points(
     ) -> Option<Vec<HighlightedRange>> {
         let mut highlights = Vec::new();
         let body = body?;
-        body.walk(&mut |expr| match expr {
+        walk_expr(&body, &mut |expr| match expr {
             ast::Expr::ReturnExpr(expr) => {
                 if let Some(token) = expr.return_token() {
-                    highlights.push(HighlightedRange { access: None, range: token.text_range() });
+                    highlights.push(HighlightedRange { category: None, range: token.text_range() });
                 }
             }
             ast::Expr::TryExpr(try_) => {
                 if let Some(token) = try_.question_mark_token() {
-                    highlights.push(HighlightedRange { access: None, range: token.text_range() });
+                    highlights.push(HighlightedRange { category: None, range: token.text_range() });
                 }
             }
             ast::Expr::MethodCallExpr(_) | ast::Expr::CallExpr(_) | ast::Expr::MacroCall(_) => {
                 if sema.type_of_expr(&expr).map_or(false, |ty| ty.original.is_never()) {
-                    highlights
-                        .push(HighlightedRange { access: None, range: expr.syntax().text_range() });
+                    highlights.push(HighlightedRange {
+                        category: None,
+                        range: expr.syntax().text_range(),
+                    });
                 }
             }
             _ => (),
@@ -154,7 +166,7 @@ fn highlight_exit_points(
                         .map_or_else(|| tail.syntax().text_range(), |tok| tok.text_range()),
                     _ => tail.syntax().text_range(),
                 };
-                highlights.push(HighlightedRange { access: None, range })
+                highlights.push(HighlightedRange { category: None, range })
             });
         }
         Some(highlights)
@@ -164,8 +176,8 @@ fn highlight_exit_points(
             match anc {
                 ast::Fn(fn_) => hl(sema, fn_.body().map(ast::Expr::BlockExpr)),
                 ast::ClosureExpr(closure) => hl(sema, closure.body()),
-                ast::EffectExpr(effect) => if matches!(effect.effect(), ast::Effect::Async(_) | ast::Effect::Try(_)| ast::Effect::Const(_)) {
-                    hl(sema, effect.block_expr().map(ast::Expr::BlockExpr))
+                ast::BlockExpr(block_expr) => if matches!(block_expr.modifier(), Some(ast::BlockModifier::Async(_) | ast::BlockModifier::Try(_)| ast::BlockModifier::Const(_))) {
+                    hl(sema, Some(block_expr.into()))
                 } else {
                     continue;
                 },
@@ -180,20 +192,20 @@ fn highlight_break_points(token: SyntaxToken) -> Option<Vec<HighlightedRange>> {
     fn hl(
         token: Option<SyntaxToken>,
         label: Option<ast::Label>,
-        body: Option<ast::BlockExpr>,
+        body: Option<ast::StmtList>,
     ) -> Option<Vec<HighlightedRange>> {
         let mut highlights = Vec::new();
         let range = cover_range(
             token.map(|tok| tok.text_range()),
             label.as_ref().map(|it| it.syntax().text_range()),
         );
-        highlights.extend(range.map(|range| HighlightedRange { access: None, range }));
+        highlights.extend(range.map(|range| HighlightedRange { category: None, range }));
         for_each_break_expr(label, body, &mut |break_| {
             let range = cover_range(
                 break_.break_token().map(|it| it.text_range()),
                 break_.lifetime().map(|it| it.syntax().text_range()),
             );
-            highlights.extend(range.map(|range| HighlightedRange { access: None, range }));
+            highlights.extend(range.map(|range| HighlightedRange { category: None, range }));
         });
         Some(highlights)
     }
@@ -204,7 +216,7 @@ fn highlight_break_points(token: SyntaxToken) -> Option<Vec<HighlightedRange>> {
             ast::LoopExpr(l) => l.label().and_then(|it| it.lifetime()),
             ast::ForExpr(f) => f.label().and_then(|it| it.lifetime()),
             ast::WhileExpr(w) => w.label().and_then(|it| it.lifetime()),
-            ast::EffectExpr(b) => Some(b.label().and_then(|it| it.lifetime())?),
+            ast::BlockExpr(b) => Some(b.label().and_then(|it| it.lifetime())?),
             _ => return None,
         }
     };
@@ -218,16 +230,16 @@ fn highlight_break_points(token: SyntaxToken) -> Option<Vec<HighlightedRange>> {
     for anc in token.ancestors().flat_map(ast::Expr::cast) {
         return match anc {
             ast::Expr::LoopExpr(l) if label_matches(l.label()) => {
-                hl(l.loop_token(), l.label(), l.loop_body())
+                hl(l.loop_token(), l.label(), l.loop_body().and_then(|it| it.stmt_list()))
             }
             ast::Expr::ForExpr(f) if label_matches(f.label()) => {
-                hl(f.for_token(), f.label(), f.loop_body())
+                hl(f.for_token(), f.label(), f.loop_body().and_then(|it| it.stmt_list()))
             }
             ast::Expr::WhileExpr(w) if label_matches(w.label()) => {
-                hl(w.while_token(), w.label(), w.loop_body())
+                hl(w.while_token(), w.label(), w.loop_body().and_then(|it| it.stmt_list()))
             }
-            ast::Expr::EffectExpr(e) if e.label().is_some() && label_matches(e.label()) => {
-                hl(None, e.label(), e.block_expr())
+            ast::Expr::BlockExpr(e) if e.label().is_some() && label_matches(e.label()) => {
+                hl(None, e.label(), e.stmt_list())
             }
             _ => continue,
         };
@@ -241,13 +253,13 @@ fn highlight_yield_points(token: SyntaxToken) -> Option<Vec<HighlightedRange>> {
         body: Option<ast::Expr>,
     ) -> Option<Vec<HighlightedRange>> {
         let mut highlights =
-            vec![HighlightedRange { access: None, range: async_token?.text_range() }];
+            vec![HighlightedRange { category: None, range: async_token?.text_range() }];
         if let Some(body) = body {
-            body.walk(&mut |expr| {
+            walk_expr(&body, &mut |expr| {
                 if let ast::Expr::AwaitExpr(expr) = expr {
                     if let Some(token) = expr.await_token() {
                         highlights
-                            .push(HighlightedRange { access: None, range: token.text_range() });
+                            .push(HighlightedRange { category: None, range: token.text_range() });
                     }
                 }
             });
@@ -258,7 +270,12 @@ fn highlight_yield_points(token: SyntaxToken) -> Option<Vec<HighlightedRange>> {
         return match_ast! {
             match anc {
                 ast::Fn(fn_) => hl(fn_.async_token(), fn_.body().map(ast::Expr::BlockExpr)),
-                ast::EffectExpr(effect) => hl(effect.async_token(), effect.block_expr().map(ast::Expr::BlockExpr)),
+                ast::BlockExpr(block_expr) => {
+                    if block_expr.async_token().is_none() {
+                        continue;
+                    }
+                    hl(block_expr.async_token(), Some(block_expr.into()))
+                },
                 ast::ClosureExpr(closure) => hl(closure.async_token(), closure.body()),
                 _ => continue,
             }
@@ -348,10 +365,10 @@ mod tests {
             .map(|hl| {
                 (
                     hl.range,
-                    hl.access.map(|it| {
+                    hl.category.map(|it| {
                         match it {
-                            ReferenceAccess::Read => "read",
-                            ReferenceAccess::Write => "write",
+                            ReferenceCategory::Read => "read",
+                            ReferenceCategory::Write => "write",
                         }
                         .to_string()
                     }),

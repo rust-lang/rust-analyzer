@@ -52,8 +52,8 @@ pub use crate::{
     ptr::{AstPtr, SyntaxNodePtr},
     syntax_error::SyntaxError,
     syntax_node::{
-        SyntaxElement, SyntaxElementChildren, SyntaxNode, SyntaxNodeChildren, SyntaxToken,
-        SyntaxTreeBuilder,
+        PreorderWithTokens, SyntaxElement, SyntaxElementChildren, SyntaxNode, SyntaxNodeChildren,
+        SyntaxToken, SyntaxTreeBuilder,
     },
     token_text::TokenText,
 };
@@ -162,10 +162,6 @@ impl SourceFile {
         let (green, mut errors) = parsing::parse_text(text);
         let root = SyntaxNode::new_root(green.clone());
 
-        if cfg!(debug_assertions) {
-            validation::validate_block_structure(&root);
-        }
-
         errors.extend(validation::validate(&root));
 
         assert_eq!(root.kind(), SyntaxKind::SOURCE_FILE);
@@ -259,7 +255,7 @@ macro_rules! match_ast {
 /// API.
 #[test]
 fn api_walkthrough() {
-    use ast::{ModuleItemOwner, NameOwner};
+    use ast::{HasModuleItem, HasName};
 
     let source_code = "
         fn foo() {
@@ -299,7 +295,8 @@ fn api_walkthrough() {
 
     // Let's get the `1 + 1` expression!
     let body: ast::BlockExpr = func.body().unwrap();
-    let expr: ast::Expr = body.tail_expr().unwrap();
+    let stmt_list: ast::StmtList = body.stmt_list().unwrap();
+    let expr: ast::Expr = stmt_list.tail_expr().unwrap();
 
     // Enums are used to group related ast nodes together, and can be used for
     // matching. However, because there are no public fields, it's possible to
@@ -335,8 +332,8 @@ fn api_walkthrough() {
     assert_eq!(text.to_string(), "1 + 1");
 
     // There's a bunch of traversal methods on `SyntaxNode`:
-    assert_eq!(expr_syntax.parent().as_ref(), Some(body.syntax()));
-    assert_eq!(body.syntax().first_child_or_token().map(|it| it.kind()), Some(T!['{']));
+    assert_eq!(expr_syntax.parent().as_ref(), Some(stmt_list.syntax()));
+    assert_eq!(stmt_list.syntax().first_child_or_token().map(|it| it.kind()), Some(T!['{']));
     assert_eq!(
         expr_syntax.next_sibling_or_token().map(|it| it.kind()),
         Some(SyntaxKind::WHITESPACE)

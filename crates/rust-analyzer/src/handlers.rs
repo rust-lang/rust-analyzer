@@ -7,6 +7,7 @@ use std::{
     process::{self, Stdio},
 };
 
+use anyhow::Context;
 use ide::{
     AnnotationConfig, AssistKind, AssistResolveStrategy, FileId, FilePosition, FileRange,
     HoverAction, HoverGotoTypeData, Query, RangeInfo, Runnable, RunnableKind, SingleResolve,
@@ -435,10 +436,9 @@ pub(crate) fn handle_workspace_symbol(
         // If no explicit marker was set, check request params. If that's also empty
         // use global config.
         if !all_symbols {
-            let search_kind = if let Some(ref search_kind) = params.search_kind {
-                search_kind
-            } else {
-                &config.search_kind
+            let search_kind = match params.search_kind {
+                Some(ref search_kind) => search_kind,
+                None => &config.search_kind,
             };
             all_symbols = match search_kind {
                 lsp_ext::WorkspaceSymbolSearchKind::OnlyTypes => false,
@@ -447,10 +447,9 @@ pub(crate) fn handle_workspace_symbol(
         }
 
         if !libs {
-            let search_scope = if let Some(ref search_scope) = params.search_scope {
-                search_scope
-            } else {
-                &config.search_scope
+            let search_scope = match params.search_scope {
+                Some(ref search_scope) => search_scope,
+                None => &config.search_scope,
             };
             libs = match search_scope {
                 lsp_ext::WorkspaceSymbolSearchScope::Workspace => false,
@@ -795,8 +794,10 @@ pub(crate) fn handle_completion_resolve(
         .resolve_completion_edits(
             &snap.config.completion(),
             FilePosition { file_id, offset },
-            &resolve_data.full_import_path,
-            resolve_data.imported_name,
+            resolve_data
+                .imports
+                .into_iter()
+                .map(|import| (import.full_import_path, import.imported_name)),
         )?
         .into_iter()
         .flat_map(|edit| edit.into_iter().map(|indel| to_proto::text_edit(&line_index, indel)))
@@ -1143,6 +1144,7 @@ pub(crate) fn handle_code_lens(
             annotate_impls: lens_config.implementations,
             annotate_references: lens_config.refs,
             annotate_method_references: lens_config.method_refs,
+            annotate_enum_variant_references: lens_config.enum_variant_refs,
         },
         file_id,
     )?;
@@ -1190,9 +1192,9 @@ pub(crate) fn handle_document_highlight(
     };
     let res = refs
         .into_iter()
-        .map(|ide::HighlightedRange { range, access }| lsp_types::DocumentHighlight {
+        .map(|ide::HighlightedRange { range, category }| lsp_types::DocumentHighlight {
             range: to_proto::range(&line_index, range),
-            kind: access.map(to_proto::document_highlight_kind),
+            kind: category.map(to_proto::document_highlight_kind),
         })
         .collect();
     Ok(Some(res))
@@ -1705,8 +1707,12 @@ fn run_rustfmt(
         }
     };
 
-    let mut rustfmt =
-        rustfmt.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
+    let mut rustfmt = rustfmt
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .context(format!("Failed to spawn {:?}", rustfmt))?;
 
     rustfmt.stdin.as_mut().unwrap().write_all(file.as_bytes())?;
 

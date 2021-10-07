@@ -14,41 +14,45 @@ use syntax::{
         self,
         edit::{self, AstNodeEdit},
         edit_in_place::AttrsOwnerEdit,
-        make, ArgListOwner, AttrsOwner, GenericParamsOwner, NameOwner, TypeBoundsOwner,
+        make, HasArgList, HasAttrs, HasGenericParams, HasName, HasTypeBounds, Whitespace,
     },
-    ted, AstNode, Direction, SmolStr,
+    ted, AstNode, AstToken, Direction, SmolStr, SourceFile,
     SyntaxKind::*,
-    SyntaxNode, TextSize, T,
+    SyntaxNode, TextRange, TextSize, T,
 };
 
 use crate::assist_context::{AssistBuilder, AssistContext};
 
 pub(crate) use gen_trait_fn_body::gen_trait_fn_body;
 
-pub(crate) fn unwrap_trivial_block(block: ast::BlockExpr) -> ast::Expr {
-    extract_trivial_expression(&block)
+pub(crate) fn unwrap_trivial_block(block_expr: ast::BlockExpr) -> ast::Expr {
+    extract_trivial_expression(&block_expr)
         .filter(|expr| !expr.syntax().text().contains_char('\n'))
-        .unwrap_or_else(|| block.into())
+        .unwrap_or_else(|| block_expr.into())
 }
 
-pub fn extract_trivial_expression(block: &ast::BlockExpr) -> Option<ast::Expr> {
+pub fn extract_trivial_expression(block_expr: &ast::BlockExpr) -> Option<ast::Expr> {
+    if block_expr.modifier().is_some() {
+        return None;
+    }
+    let stmt_list = block_expr.stmt_list()?;
     let has_anything_else = |thing: &SyntaxNode| -> bool {
         let mut non_trivial_children =
-            block.syntax().children_with_tokens().filter(|it| match it.kind() {
+            stmt_list.syntax().children_with_tokens().filter(|it| match it.kind() {
                 WHITESPACE | T!['{'] | T!['}'] => false,
                 _ => it.as_node() != Some(thing),
             });
         non_trivial_children.next().is_some()
     };
 
-    if let Some(expr) = block.tail_expr() {
+    if let Some(expr) = stmt_list.tail_expr() {
         if has_anything_else(expr.syntax()) {
             return None;
         }
         return Some(expr);
     }
     // Unwrap `{ continue; }`
-    let stmt = block.statements().next()?;
+    let stmt = stmt_list.statements().next()?;
     if let ast::Stmt::ExprStmt(expr_stmt) = stmt {
         if has_anything_else(expr_stmt.syntax()) {
             return None;
@@ -70,7 +74,12 @@ pub fn extract_trivial_expression(block: &ast::BlockExpr) -> Option<ast::Expr> {
 pub fn test_related_attribute(fn_def: &ast::Fn) -> Option<ast::Attr> {
     fn_def.attrs().find_map(|attr| {
         let path = attr.path()?;
-        path.syntax().text().to_string().contains("test").then(|| attr)
+        let text = path.syntax().text().to_string();
+        if text.starts_with("test") || text.ends_with("test") {
+            Some(attr)
+        } else {
+            None
+        }
     })
 }
 
@@ -241,13 +250,10 @@ fn invert_special_case(expr: &ast::Expr) -> Option<ast::Expr> {
             };
             Some(make::expr_method_call(receiver, make::name_ref(method), arg_list))
         }
-        ast::Expr::PrefixExpr(pe) if pe.op_kind()? == ast::UnaryOp::Not => {
-            if let ast::Expr::ParenExpr(parexpr) = pe.expr()? {
-                parexpr.expr()
-            } else {
-                pe.expr()
-            }
-        }
+        ast::Expr::PrefixExpr(pe) if pe.op_kind()? == ast::UnaryOp::Not => match pe.expr()? {
+            ast::Expr::ParenExpr(parexpr) => parexpr.expr(),
+            _ => pe.expr(),
+        },
         ast::Expr::Literal(lit) => match lit.kind() {
             ast::LiteralKind::Bool(b) => match b {
                 true => Some(ast::Expr::Literal(make::expr_literal("false"))),
@@ -267,13 +273,10 @@ pub(crate) fn does_pat_match_variant(pat: &ast::Pat, var: &ast::Pat) -> bool {
     let first_node_text = |pat: &ast::Pat| pat.syntax().first_child().map(|node| node.text());
 
     let pat_head = match pat {
-        ast::Pat::IdentPat(bind_pat) => {
-            if let Some(p) = bind_pat.pat() {
-                first_node_text(&p)
-            } else {
-                return pat.syntax().text() == var.syntax().text();
-            }
-        }
+        ast::Pat::IdentPat(bind_pat) => match bind_pat.pat() {
+            Some(p) => first_node_text(&p),
+            None => return pat.syntax().text() == var.syntax().text(),
+        },
         pat => first_node_text(pat),
     };
 
@@ -495,4 +498,30 @@ pub(crate) fn get_methods(items: &ast::AssocItemList) -> Vec<ast::Fn> {
         })
         .filter(|f| f.name().is_some())
         .collect()
+}
+
+/// Trim(remove leading and trailing whitespace) `initial_range` in `source_file`, return the trimmed range.
+pub(crate) fn trimmed_text_range(source_file: &SourceFile, initial_range: TextRange) -> TextRange {
+    let mut trimmed_range = initial_range;
+    while source_file
+        .syntax()
+        .token_at_offset(trimmed_range.start())
+        .find_map(Whitespace::cast)
+        .is_some()
+        && trimmed_range.start() < trimmed_range.end()
+    {
+        let start = trimmed_range.start() + TextSize::from(1);
+        trimmed_range = TextRange::new(start, trimmed_range.end());
+    }
+    while source_file
+        .syntax()
+        .token_at_offset(trimmed_range.end())
+        .find_map(Whitespace::cast)
+        .is_some()
+        && trimmed_range.start() < trimmed_range.end()
+    {
+        let end = trimmed_range.end() - TextSize::from(1);
+        trimmed_range = TextRange::new(trimmed_range.start(), end);
+    }
+    trimmed_range
 }

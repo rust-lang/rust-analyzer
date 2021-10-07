@@ -1,7 +1,7 @@
 //! Builtin macro
 use crate::{
     db::AstDatabase, name, quote, AstId, CrateId, MacroCallId, MacroCallLoc, MacroDefId,
-    MacroDefKind, TextSize,
+    MacroDefKind,
 };
 
 use base_db::{AnchoredPath, Edition, FileId};
@@ -103,6 +103,7 @@ register_builtin! {
     (assert, Assert) => assert_expand,
     (stringify, Stringify) => stringify_expand,
     (format_args, FormatArgs) => format_args_expand,
+    (const_format_args, ConstFormatArgs) => format_args_expand,
     // format_args_nl only differs in that it adds a newline in the end,
     // so we use the same stub expansion for now
     (format_args_nl, FormatArgsNl) => format_args_expand,
@@ -148,25 +149,14 @@ fn line_expand(
 }
 
 fn stringify_expand(
-    db: &dyn AstDatabase,
-    id: MacroCallId,
-    _tt: &tt::Subtree,
+    _db: &dyn AstDatabase,
+    _id: MacroCallId,
+    tt: &tt::Subtree,
 ) -> ExpandResult<tt::Subtree> {
-    let loc = db.lookup_intern_macro(id);
-
-    let macro_content = {
-        let arg = match loc.kind.arg(db) {
-            Some(arg) => arg,
-            None => return ExpandResult::only_err(mbe::ExpandError::UnexpectedToken),
-        };
-        let macro_args = arg;
-        let text = macro_args.text();
-        let without_parens = TextSize::of('(')..text.len() - TextSize::of(')');
-        text.slice(without_parens).to_string()
-    };
+    let pretty = tt::pretty(&tt.token_trees);
 
     let expanded = quote! {
-        #macro_content
+        #pretty
     };
 
     ExpandResult::ok(expanded)
@@ -191,22 +181,29 @@ fn assert_expand(
     _id: MacroCallId,
     tt: &tt::Subtree,
 ) -> ExpandResult<tt::Subtree> {
-    // A hacky implementation for goto def and hover
-    // We expand `assert!(cond, arg1, arg2)` to
-    // ```
-    // {(cond, &(arg1), &(arg2));}
-    // ```,
-    // which is wrong but useful.
-
+    let krate = tt::Ident { text: "$crate".into(), id: tt::TokenId::unspecified() };
     let args = parse_exprs_with_sep(tt, ',');
-
-    let arg_tts = args.into_iter().flat_map(|arg| {
-        quote! { &(#arg), }
-    }.token_trees);
-
-    let expanded = quote! {
-        { { (##arg_tts); } }
+    let expanded = match &*args {
+        [cond, panic_args @ ..] => {
+            let comma = tt::Subtree {
+                delimiter: None,
+                token_trees: vec![tt::TokenTree::Leaf(tt::Leaf::Punct(tt::Punct {
+                    char: ',',
+                    spacing: tt::Spacing::Alone,
+                    id: tt::TokenId::unspecified(),
+                }))],
+            };
+            let cond = cond.clone();
+            let panic_args = itertools::Itertools::intersperse(panic_args.iter().cloned(), comma);
+            quote! {{
+                if !#cond {
+                    #krate::panic!(##panic_args);
+                }
+            }}
+        }
+        [] => quote! {{}},
     };
+
     ExpandResult::ok(expanded)
 }
 
@@ -270,13 +267,30 @@ fn format_args_expand(
 fn asm_expand(
     _db: &dyn AstDatabase,
     _id: MacroCallId,
-    _tt: &tt::Subtree,
+    tt: &tt::Subtree,
 ) -> ExpandResult<tt::Subtree> {
-    // both asm and llvm_asm don't return anything, so we can expand them to nothing,
-    // for now
-    let expanded = quote! {
+    // We expand all assembly snippets to `format_args!` invocations to get format syntax
+    // highlighting for them.
+
+    let krate = tt::Ident { text: "$crate".into(), id: tt::TokenId::unspecified() };
+
+    let mut literals = Vec::new();
+    for tt in tt.token_trees.chunks(2) {
+        match tt {
+            [tt::TokenTree::Leaf(tt::Leaf::Literal(lit))]
+            | [tt::TokenTree::Leaf(tt::Leaf::Literal(lit)), tt::TokenTree::Leaf(tt::Leaf::Punct(tt::Punct { char: ',', id: _, spacing: _ }))] =>
+            {
+                let krate = krate.clone();
+                literals.push(quote!(#krate::format_args!(#lit);));
+            }
+            _ => break,
+        }
+    }
+
+    let expanded = quote! {{
+        ##literals
         ()
-    };
+    }};
     ExpandResult::ok(expanded)
 }
 
@@ -558,7 +572,7 @@ mod tests {
 
     use base_db::{fixture::WithFixture, SourceDatabase};
     use expect_test::{expect, Expect};
-    use syntax::ast::NameOwner;
+    use syntax::ast::HasName;
 
     use crate::{
         name::AsName, test_db::TestDB, AstNode, EagerCallInfo, ExpandTo, MacroCallId,
@@ -685,7 +699,11 @@ mod tests {
             r#"
             #[rustc_builtin_macro]
             macro_rules! stringify {() => {}}
-            stringify!(a b c)
+            stringify!(
+                a
+                b
+                c
+            )
             "#,
             expect![["\"a b c\""]],
         );
@@ -738,7 +756,7 @@ mod tests {
             }
             assert!(true, "{} {:?}", arg1(a, b, c), arg2);
             "#,
-            expect![["{{(&(true), &(\"{} {:?}\"), &(arg1(a,b,c)), &(arg2),);}}"]],
+            expect![[r#"{if!true{$crate::panic!("{} {:?}",arg1(a,b,c),arg2);}}"#]],
         );
     }
 
@@ -788,6 +806,23 @@ mod tests {
             "#,
             expect![[
                 r#"unsafe{std::fmt::Arguments::new_v1(&[], &[std::fmt::ArgumentV1::new(&(a::<A,B>()),std::fmt::Display::fmt),std::fmt::ArgumentV1::new(&(b),std::fmt::Display::fmt),])}"#
+            ]],
+        );
+    }
+
+    #[test]
+    fn test_format_args_expand_with_broken_member_access() {
+        check_expansion(
+            r#"
+            #[rustc_builtin_macro]
+            macro_rules! format_args {
+                ($fmt:expr) => ({ /* compiler built-in */ });
+                ($fmt:expr, $($args:tt)*) => ({ /* compiler built-in */ })
+            }
+            format_args!("{} {:?}", a.);
+            "#,
+            expect![[
+                r#"unsafe{std::fmt::Arguments::new_v1(&[], &[std::fmt::ArgumentV1::new(&(a.),std::fmt::Display::fmt),])}"#
             ]],
         );
     }

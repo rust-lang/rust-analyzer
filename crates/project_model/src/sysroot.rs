@@ -4,7 +4,7 @@
 //! but we can't process `.rlib` and need source code instead. The source code
 //! is typically installed with `rustup component add rust-src` command.
 
-use std::{convert::TryFrom, env, fs, ops, path::PathBuf, process::Command};
+use std::{convert::TryFrom, env, fs, iter, ops, path::PathBuf, process::Command};
 
 use anyhow::{format_err, Result};
 use la_arena::{Arena, Idx};
@@ -39,10 +39,15 @@ impl Sysroot {
         &self.root
     }
 
-    pub fn public_deps(&self) -> impl Iterator<Item = (&'static str, SysrootCrate)> + '_ {
+    pub fn public_deps(&self) -> impl Iterator<Item = (&'static str, SysrootCrate, bool)> + '_ {
         // core is added as a dependency before std in order to
         // mimic rustcs dependency order
-        ["core", "alloc", "std"].iter().filter_map(move |&it| Some((it, self.by_name(it)?)))
+        ["core", "alloc", "std"]
+            .iter()
+            .copied()
+            .zip(iter::repeat(true))
+            .chain(iter::once(("test", false)))
+            .filter_map(move |(name, prelude)| Some((name, self.by_name(name)?, prelude)))
     }
 
     pub fn proc_macro(&self) -> Option<SysrootCrate> {
@@ -183,13 +188,13 @@ fn get_rustc_src(sysroot_path: &AbsPath) -> Option<ManifestPath> {
 }
 
 fn get_rust_src(sysroot_path: &AbsPath) -> Option<AbsPathBuf> {
-    // Try the new path first since the old one still exists.
-    let rust_src = sysroot_path.join("lib/rustlib/src/rust");
-    tracing::debug!(
-        "Checking sysroot (looking for `library` and `src` dirs): {}",
-        rust_src.display()
-    );
-    ["library", "src"].iter().map(|it| rust_src.join(it)).find(|it| fs::metadata(it).is_ok())
+    let rust_src = sysroot_path.join("lib/rustlib/src/rust/library");
+    tracing::debug!("Checking sysroot: {}", rust_src.display());
+    if fs::metadata(&rust_src).is_ok() {
+        Some(rust_src)
+    } else {
+        None
+    }
 }
 
 const SYSROOT_CRATES: &str = "

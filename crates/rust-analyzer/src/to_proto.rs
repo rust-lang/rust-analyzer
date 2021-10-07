@@ -9,7 +9,7 @@ use ide::{
     Annotation, AnnotationKind, Assist, AssistKind, CallInfo, Cancellable, CompletionItem,
     CompletionItemKind, CompletionRelevance, Documentation, FileId, FileRange, FileSystemEdit,
     Fold, FoldKind, Highlight, HlMod, HlOperator, HlPunct, HlRange, HlTag, Indel, InlayHint,
-    InlayKind, Markup, NavigationTarget, ReferenceAccess, RenameError, Runnable, Severity,
+    InlayKind, Markup, NavigationTarget, ReferenceCategory, RenameError, Runnable, Severity,
     SourceChange, StructureNodeKind, SymbolKind, TextEdit, TextRange, TextSize,
 };
 use itertools::Itertools;
@@ -75,11 +75,11 @@ pub(crate) fn structure_node_kind(kind: StructureNodeKind) -> lsp_types::SymbolK
 }
 
 pub(crate) fn document_highlight_kind(
-    reference_access: ReferenceAccess,
+    category: ReferenceCategory,
 ) -> lsp_types::DocumentHighlightKind {
-    match reference_access {
-        ReferenceAccess::Read => lsp_types::DocumentHighlightKind::Read,
-        ReferenceAccess::Write => lsp_types::DocumentHighlightKind::Write,
+    match category {
+        ReferenceCategory::Read => lsp_types::DocumentHighlightKind::Read,
+        ReferenceCategory::Write => lsp_types::DocumentHighlightKind::Write,
     }
 }
 
@@ -270,14 +270,20 @@ fn completion_item(
         lsp_item.insert_text_format = Some(lsp_types::InsertTextFormat::Snippet);
     }
     if config.completion().enable_imports_on_the_fly {
-        if let Some(import_edit) = item.import_to_add() {
-            let import_path = &import_edit.import.import_path;
-            if let Some(import_name) = import_path.segments().last() {
-                let data = lsp_ext::CompletionResolveData {
-                    position: tdpp.clone(),
-                    full_import_path: import_path.to_string(),
-                    imported_name: import_name.to_string(),
-                };
+        if let imports @ [_, ..] = item.imports_to_add() {
+            let imports: Vec<_> = imports
+                .iter()
+                .filter_map(|import_edit| {
+                    let import_path = &import_edit.import.import_path;
+                    let import_name = import_path.segments().last()?;
+                    Some(lsp_ext::CompletionImport {
+                        full_import_path: import_path.to_string(),
+                        imported_name: import_name.to_string(),
+                    })
+                })
+                .collect();
+            if !imports.is_empty() {
+                let data = lsp_ext::CompletionResolveData { position: tdpp.clone(), imports };
                 lsp_item.data = Some(to_value(data).unwrap());
             }
         }
@@ -529,23 +535,25 @@ fn semantic_token_type_and_modifiers(
 
     for modifier in highlight.mods.iter() {
         let modifier = match modifier {
+            HlMod::Associated => continue,
+            HlMod::Async => semantic_tokens::ASYNC,
             HlMod::Attribute => semantic_tokens::ATTRIBUTE_MODIFIER,
+            HlMod::Callable => semantic_tokens::CALLABLE,
+            HlMod::Consuming => semantic_tokens::CONSUMING,
+            HlMod::ControlFlow => semantic_tokens::CONTROL_FLOW,
+            HlMod::CrateRoot => semantic_tokens::CRATE_ROOT,
+            HlMod::DefaultLibrary => lsp_types::SemanticTokenModifier::DEFAULT_LIBRARY,
             HlMod::Definition => lsp_types::SemanticTokenModifier::DECLARATION,
             HlMod::Documentation => lsp_types::SemanticTokenModifier::DOCUMENTATION,
             HlMod::Injected => semantic_tokens::INJECTED,
-            HlMod::ControlFlow => semantic_tokens::CONTROL_FLOW,
-            HlMod::Mutable => semantic_tokens::MUTABLE,
-            HlMod::Reference => semantic_tokens::REFERENCE,
-            HlMod::Consuming => semantic_tokens::CONSUMING,
-            HlMod::Async => semantic_tokens::ASYNC,
-            HlMod::Library => semantic_tokens::LIBRARY,
-            HlMod::Public => semantic_tokens::PUBLIC,
-            HlMod::Unsafe => semantic_tokens::UNSAFE,
-            HlMod::Callable => semantic_tokens::CALLABLE,
-            HlMod::Static => lsp_types::SemanticTokenModifier::STATIC,
             HlMod::IntraDocLink => semantic_tokens::INTRA_DOC_LINK,
+            HlMod::Library => semantic_tokens::LIBRARY,
+            HlMod::Mutable => semantic_tokens::MUTABLE,
+            HlMod::Public => semantic_tokens::PUBLIC,
+            HlMod::Reference => semantic_tokens::REFERENCE,
+            HlMod::Static => lsp_types::SemanticTokenModifier::STATIC,
             HlMod::Trait => semantic_tokens::TRAIT_MODIFIER,
-            HlMod::Associated => continue,
+            HlMod::Unsafe => semantic_tokens::UNSAFE,
         };
         mods |= modifier;
     }

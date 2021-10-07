@@ -4,18 +4,48 @@
 
 mod block;
 
-use crate::{
-    algo,
-    ast::{self, VisibilityOwner},
-    match_ast, AstNode, SyntaxError,
-    SyntaxKind::{CONST, FN, INT_NUMBER, TYPE_ALIAS},
-    SyntaxNode, SyntaxToken, TextSize, T,
-};
+use std::convert::TryFrom;
+
 use rowan::Direction;
 use rustc_lexer::unescape::{
     self, unescape_byte, unescape_byte_literal, unescape_char, unescape_literal, Mode,
 };
-use std::convert::TryFrom;
+
+use crate::{
+    algo,
+    ast::{self, HasVisibility},
+    match_ast, AstNode, SyntaxError,
+    SyntaxKind::{CONST, FN, INT_NUMBER, TYPE_ALIAS},
+    SyntaxNode, SyntaxToken, TextSize, T,
+};
+
+pub(crate) fn validate(root: &SyntaxNode) -> Vec<SyntaxError> {
+    // FIXME:
+    // * Add unescape validation of raw string literals and raw byte string literals
+    // * Add validation of doc comments are being attached to nodes
+
+    let mut errors = Vec::new();
+    for node in root.descendants() {
+        match_ast! {
+            match node {
+                ast::Literal(it) => validate_literal(it, &mut errors),
+                ast::Const(it) => validate_const(it, &mut errors),
+                ast::BlockExpr(it) => block::validate_block_expr(it, &mut errors),
+                ast::FieldExpr(it) => validate_numeric_name(it.name_ref(), &mut errors),
+                ast::RecordExprField(it) => validate_numeric_name(it.name_ref(), &mut errors),
+                ast::Visibility(it) => validate_visibility(it, &mut errors),
+                ast::RangeExpr(it) => validate_range_expr(it, &mut errors),
+                ast::PathSegment(it) => validate_path_keywords(it, &mut errors),
+                ast::RefType(it) => validate_trait_object_ref_ty(it, &mut errors),
+                ast::PtrType(it) => validate_trait_object_ptr_ty(it, &mut errors),
+                ast::FnPtrType(it) => validate_trait_object_fn_ptr_ret_ty(it, &mut errors),
+                ast::MacroRules(it) => validate_macro_rules(it, &mut errors),
+                _ => (),
+            }
+        }
+    }
+    errors
+}
 
 fn rustc_unescape_error_to_string(err: unescape::EscapeError) -> &'static str {
     use unescape::EscapeError as EE;
@@ -84,34 +114,6 @@ fn rustc_unescape_error_to_string(err: unescape::EscapeError) -> &'static str {
     err_message
 }
 
-pub(crate) fn validate(root: &SyntaxNode) -> Vec<SyntaxError> {
-    // FIXME:
-    // * Add unescape validation of raw string literals and raw byte string literals
-    // * Add validation of doc comments are being attached to nodes
-
-    let mut errors = Vec::new();
-    for node in root.descendants() {
-        match_ast! {
-            match node {
-                ast::Literal(it) => validate_literal(it, &mut errors),
-                ast::Const(it) => validate_const(it, &mut errors),
-                ast::BlockExpr(it) => block::validate_block_expr(it, &mut errors),
-                ast::FieldExpr(it) => validate_numeric_name(it.name_ref(), &mut errors),
-                ast::RecordExprField(it) => validate_numeric_name(it.name_ref(), &mut errors),
-                ast::Visibility(it) => validate_visibility(it, &mut errors),
-                ast::RangeExpr(it) => validate_range_expr(it, &mut errors),
-                ast::PathSegment(it) => validate_path_keywords(it, &mut errors),
-                ast::RefType(it) => validate_trait_object_ref_ty(it, &mut errors),
-                ast::PtrType(it) => validate_trait_object_ptr_ty(it, &mut errors),
-                ast::FnPtrType(it) => validate_trait_object_fn_ptr_ret_ty(it, &mut errors),
-                ast::MacroRules(it) => validate_macro_rules(it, &mut errors),
-                _ => (),
-            }
-        }
-    }
-    errors
-}
-
 fn validate_literal(literal: ast::Literal, acc: &mut Vec<SyntaxError>) {
     // FIXME: move this function to outer scope (https://github.com/rust-analyzer/rust-analyzer/pull/2834#discussion_r366196658)
     fn unquote(text: &str, prefix_len: usize, end_delimiter: char) -> Option<&str> {
@@ -135,7 +137,7 @@ fn validate_literal(literal: ast::Literal, acc: &mut Vec<SyntaxError>) {
                         if let Err(err) = char {
                             push_err(1, (range.start, err));
                         }
-                    })
+                    });
                 }
             }
         }
@@ -146,7 +148,7 @@ fn validate_literal(literal: ast::Literal, acc: &mut Vec<SyntaxError>) {
                         if let Err(err) = char {
                             push_err(2, (range.start, err));
                         }
-                    })
+                    });
                 }
             }
         }
@@ -168,7 +170,7 @@ fn validate_literal(literal: ast::Literal, acc: &mut Vec<SyntaxError>) {
 
 pub(crate) fn validate_block_structure(root: &SyntaxNode) {
     let mut stack = Vec::new();
-    for node in root.descendants() {
+    for node in root.descendants_with_tokens() {
         match node.kind() {
             T!['{'] => stack.push(node),
             T!['}'] => {
@@ -181,11 +183,12 @@ pub(crate) fn validate_block_structure(root: &SyntaxNode) {
                         root,
                     );
                     assert!(
-                        node.next_sibling().is_none() && pair.prev_sibling().is_none(),
+                        node.next_sibling_or_token().is_none()
+                            && pair.prev_sibling_or_token().is_none(),
                         "\nfloating curlys at {:?}\nfile:\n{}\nerror:\n{}\n",
                         node,
                         root.text(),
-                        node.text(),
+                        node,
                     );
                 }
             }
@@ -211,13 +214,10 @@ fn validate_numeric_name(name_ref: Option<ast::NameRef>, errors: &mut Vec<Syntax
 }
 
 fn validate_visibility(vis: ast::Visibility, errors: &mut Vec<SyntaxError>) {
-    if vis.in_token().is_none() {
-        if vis.path().and_then(|p| p.as_single_name_ref()).and_then(|n| n.ident_token()).is_some() {
-            errors.push(SyntaxError::new(
-                "incorrect visibility restriction",
-                vis.syntax.text_range(),
-            ));
-        }
+    let path_without_in_token = vis.in_token().is_none()
+        && vis.path().and_then(|p| p.as_single_name_ref()).and_then(|n| n.ident_token()).is_some();
+    if path_without_in_token {
+        errors.push(SyntaxError::new("incorrect visibility restriction", vis.syntax.text_range()));
     }
     let parent = match vis.syntax().parent() {
         Some(it) => it,

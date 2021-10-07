@@ -1,21 +1,25 @@
 //! A module with ide helpers for high-level ide features.
+pub mod famous_defs;
+pub mod generated_lints;
 pub mod import_assets;
 pub mod insert_use;
 pub mod merge_imports;
+pub mod node_ext;
 pub mod rust_doc;
-pub mod generated_lints;
 
 use std::collections::VecDeque;
 
 use base_db::FileId;
 use either::Either;
-use hir::{Crate, Enum, ItemInNs, MacroDef, Module, ModuleDef, Name, ScopeDef, Semantics, Trait};
+use hir::{ItemInNs, MacroDef, ModuleDef, Name, Semantics};
 use syntax::{
-    ast::{self, make, LoopBodyOwner},
+    ast::{self, make, HasLoopBody},
     AstNode, Direction, SyntaxElement, SyntaxKind, SyntaxToken, TokenAtOffset, WalkEvent, T,
 };
 
 use crate::RootDatabase;
+
+pub use self::famous_defs::FamousDefs;
 
 pub fn item_name(db: &RootDatabase, item: ItemInNs) -> Option<Name> {
     match item {
@@ -27,7 +31,7 @@ pub fn item_name(db: &RootDatabase, item: ItemInNs) -> Option<Name> {
 
 /// Resolves the path at the cursor token as a derive macro if it inside a token tree of a derive attribute.
 pub fn try_resolve_derive_input_at(
-    sema: &Semantics<RootDatabase>,
+    sema: &hir::Semantics<RootDatabase>,
     derive_attr: &ast::Attr,
     cursor: &SyntaxToken,
 ) -> Option<MacroDef> {
@@ -113,123 +117,6 @@ pub fn visit_file_defs(
     module.impl_defs(db).into_iter().for_each(|impl_| cb(Either::Right(impl_)));
 }
 
-/// Helps with finding well-know things inside the standard library. This is
-/// somewhat similar to the known paths infra inside hir, but it different; We
-/// want to make sure that IDE specific paths don't become interesting inside
-/// the compiler itself as well.
-///
-/// Note that, by default, rust-analyzer tests **do not** include core or std
-/// libraries. If you are writing tests for functionality using [`FamousDefs`],
-/// you'd want to include minicore (see `test_utils::MiniCore`) declaration at
-/// the start of your tests:
-///
-/// ```
-/// //- minicore: iterator, ord, derive
-/// ```
-pub struct FamousDefs<'a, 'b>(pub &'a Semantics<'b, RootDatabase>, pub Option<Crate>);
-
-#[allow(non_snake_case)]
-impl FamousDefs<'_, '_> {
-    pub fn std(&self) -> Option<Crate> {
-        self.find_crate("std")
-    }
-
-    pub fn core(&self) -> Option<Crate> {
-        self.find_crate("core")
-    }
-
-    pub fn core_cmp_Ord(&self) -> Option<Trait> {
-        self.find_trait("core:cmp:Ord")
-    }
-
-    pub fn core_convert_From(&self) -> Option<Trait> {
-        self.find_trait("core:convert:From")
-    }
-
-    pub fn core_convert_Into(&self) -> Option<Trait> {
-        self.find_trait("core:convert:Into")
-    }
-
-    pub fn core_option_Option(&self) -> Option<Enum> {
-        self.find_enum("core:option:Option")
-    }
-
-    pub fn core_result_Result(&self) -> Option<Enum> {
-        self.find_enum("core:result:Result")
-    }
-
-    pub fn core_default_Default(&self) -> Option<Trait> {
-        self.find_trait("core:default:Default")
-    }
-
-    pub fn core_iter_Iterator(&self) -> Option<Trait> {
-        self.find_trait("core:iter:traits:iterator:Iterator")
-    }
-
-    pub fn core_iter_IntoIterator(&self) -> Option<Trait> {
-        self.find_trait("core:iter:traits:collect:IntoIterator")
-    }
-
-    pub fn core_iter(&self) -> Option<Module> {
-        self.find_module("core:iter")
-    }
-
-    pub fn core_ops_Deref(&self) -> Option<Trait> {
-        self.find_trait("core:ops:Deref")
-    }
-
-    fn find_trait(&self, path: &str) -> Option<Trait> {
-        match self.find_def(path)? {
-            hir::ScopeDef::ModuleDef(hir::ModuleDef::Trait(it)) => Some(it),
-            _ => None,
-        }
-    }
-
-    fn find_enum(&self, path: &str) -> Option<Enum> {
-        match self.find_def(path)? {
-            hir::ScopeDef::ModuleDef(hir::ModuleDef::Adt(hir::Adt::Enum(it))) => Some(it),
-            _ => None,
-        }
-    }
-
-    fn find_module(&self, path: &str) -> Option<Module> {
-        match self.find_def(path)? {
-            hir::ScopeDef::ModuleDef(hir::ModuleDef::Module(it)) => Some(it),
-            _ => None,
-        }
-    }
-
-    fn find_crate(&self, name: &str) -> Option<Crate> {
-        let krate = self.1?;
-        let db = self.0.db;
-        let res =
-            krate.dependencies(db).into_iter().find(|dep| dep.name.to_string() == name)?.krate;
-        Some(res)
-    }
-
-    fn find_def(&self, path: &str) -> Option<ScopeDef> {
-        let db = self.0.db;
-        let mut path = path.split(':');
-        let trait_ = path.next_back()?;
-        let std_crate = path.next()?;
-        let std_crate = self.find_crate(std_crate)?;
-        let mut module = std_crate.root_module(db);
-        for segment in path {
-            module = module.children(db).find_map(|child| {
-                let name = child.name(db)?;
-                if name.to_string() == segment {
-                    Some(child)
-                } else {
-                    None
-                }
-            })?;
-        }
-        let def =
-            module.scope(db, None).into_iter().find(|(name, _def)| name.to_string() == trait_)?.1;
-        Some(def)
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SnippetCap {
     _private: (),
@@ -252,26 +139,27 @@ impl SnippetCap {
 pub fn for_each_tail_expr(expr: &ast::Expr, cb: &mut dyn FnMut(&ast::Expr)) {
     match expr {
         ast::Expr::BlockExpr(b) => {
-            if let Some(e) = b.tail_expr() {
-                for_each_tail_expr(&e, cb);
-            }
-        }
-        ast::Expr::EffectExpr(e) => match e.effect() {
-            ast::Effect::Label(label) => {
-                for_each_break_expr(Some(label), e.block_expr(), &mut |b| {
-                    cb(&ast::Expr::BreakExpr(b))
-                });
-                if let Some(b) = e.block_expr() {
-                    for_each_tail_expr(&ast::Expr::BlockExpr(b), cb);
+            match b.modifier() {
+                Some(
+                    ast::BlockModifier::Async(_)
+                    | ast::BlockModifier::Try(_)
+                    | ast::BlockModifier::Const(_),
+                ) => return cb(expr),
+
+                Some(ast::BlockModifier::Label(label)) => {
+                    for_each_break_expr(Some(label), b.stmt_list(), &mut |b| {
+                        cb(&ast::Expr::BreakExpr(b))
+                    });
                 }
+                Some(ast::BlockModifier::Unsafe(_)) => (),
+                None => (),
             }
-            ast::Effect::Unsafe(_) => {
-                if let Some(e) = e.block_expr().and_then(|b| b.tail_expr()) {
+            if let Some(stmt_list) = b.stmt_list() {
+                if let Some(e) = stmt_list.tail_expr() {
                     for_each_tail_expr(&e, cb);
                 }
             }
-            ast::Effect::Async(_) | ast::Effect::Try(_) | ast::Effect::Const(_) => cb(expr),
-        },
+        }
         ast::Expr::IfExpr(if_) => {
             let mut if_ = if_.clone();
             loop {
@@ -289,7 +177,9 @@ pub fn for_each_tail_expr(expr: &ast::Expr, cb: &mut dyn FnMut(&ast::Expr)) {
             }
         }
         ast::Expr::LoopExpr(l) => {
-            for_each_break_expr(l.label(), l.loop_body(), &mut |b| cb(&ast::Expr::BreakExpr(b)))
+            for_each_break_expr(l.label(), l.loop_body().and_then(|it| it.stmt_list()), &mut |b| {
+                cb(&ast::Expr::BreakExpr(b))
+            })
         }
         ast::Expr::MatchExpr(m) => {
             if let Some(arms) = m.match_arm_list() {
@@ -329,7 +219,7 @@ pub fn for_each_tail_expr(expr: &ast::Expr, cb: &mut dyn FnMut(&ast::Expr)) {
 /// Calls `cb` on each break expr inside of `body` that is applicable for the given label.
 pub fn for_each_break_expr(
     label: Option<ast::Label>,
-    body: Option<ast::BlockExpr>,
+    body: Option<ast::StmtList>,
     cb: &mut dyn FnMut(ast::BreakExpr),
 ) {
     let label = label.and_then(|lbl| lbl.lifetime());
@@ -349,7 +239,7 @@ pub fn for_each_break_expr(
                     ast::Expr::LoopExpr(_) | ast::Expr::WhileExpr(_) | ast::Expr::ForExpr(_) => {
                         depth += 1
                     }
-                    ast::Expr::EffectExpr(e) if e.label().is_some() => depth += 1,
+                    ast::Expr::BlockExpr(e) if e.label().is_some() => depth += 1,
                     ast::Expr::BreakExpr(b)
                         if (depth == 0 && b.lifetime().is_none()) || eq_label(b.lifetime()) =>
                     {
@@ -361,7 +251,7 @@ pub fn for_each_break_expr(
                     ast::Expr::LoopExpr(_) | ast::Expr::WhileExpr(_) | ast::Expr::ForExpr(_) => {
                         depth -= 1
                     }
-                    ast::Expr::EffectExpr(e) if e.label().is_some() => depth -= 1,
+                    ast::Expr::BlockExpr(e) if e.label().is_some() => depth -= 1,
                     _ => (),
                 },
             }

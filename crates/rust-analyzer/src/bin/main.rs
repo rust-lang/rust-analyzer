@@ -87,12 +87,15 @@ fn try_main() -> Result<()> {
         flags::RustAnalyzerCmd::Diagnostics(cmd) => cmd.run()?,
         flags::RustAnalyzerCmd::Ssr(cmd) => cmd.run()?,
         flags::RustAnalyzerCmd::Search(cmd) => cmd.run()?,
+        flags::RustAnalyzerCmd::Lsif(cmd) => cmd.run()?,
     }
     Ok(())
 }
 
 fn setup_logging(log_file: Option<&Path>) -> Result<()> {
-    env::set_var("RUST_BACKTRACE", "short");
+    if env::var("RUST_BACKTRACE").is_err() {
+        env::set_var("RUST_BACKTRACE", "short");
+    }
 
     let log_file = match log_file {
         Some(path) => {

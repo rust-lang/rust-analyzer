@@ -25,8 +25,8 @@ use std::{hash::Hash, iter, sync::Arc};
 use base_db::{impl_intern_key, salsa, CrateId, FileId, FileRange};
 use syntax::{
     algo::skip_trivia_token,
-    ast::{self, AstNode, AttrsOwner},
-    Direction, SyntaxNode, SyntaxToken, TextRange, TextSize,
+    ast::{self, AstNode, HasAttrs},
+    Direction, SyntaxNode, SyntaxToken, TextRange,
 };
 
 use crate::{
@@ -721,7 +721,7 @@ impl ExpandTo {
 
         match parent.kind() {
             MACRO_ITEMS | SOURCE_FILE | ITEM_LIST => ExpandTo::Items,
-            MACRO_STMTS | EXPR_STMT | BLOCK_EXPR => ExpandTo::Statements,
+            MACRO_STMTS | EXPR_STMT | STMT_LIST => ExpandTo::Statements,
             MACRO_PAT => ExpandTo::Pattern,
             MACRO_TYPE => ExpandTo::Type,
 

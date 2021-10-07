@@ -462,7 +462,7 @@ impl<'db, 'sema> Matcher<'db, 'sema> {
                 let mut last_matched_token = child;
                 // Read code tokens util we reach one equal to the next token from our pattern
                 // or we reach the end of the token tree.
-                while let Some(next) = children.next() {
+                for next in &mut children {
                     match &next {
                         SyntaxElement::Token(t) => {
                             if Some(t.to_string()) == next_pattern_token {
@@ -527,7 +527,7 @@ impl<'db, 'sema> Matcher<'db, 'sema> {
         pattern_ufcs: &UfcsCallInfo,
         code: &ast::MethodCallExpr,
     ) -> Result<(), MatchFailed> {
-        use ast::ArgListOwner;
+        use ast::HasArgList;
         let code_resolved_function = self
             .sema
             .resolve_method_call(code)
@@ -587,7 +587,7 @@ impl<'db, 'sema> Matcher<'db, 'sema> {
         pattern_ufcs: &UfcsCallInfo,
         code: &ast::CallExpr,
     ) -> Result<(), MatchFailed> {
-        use ast::ArgListOwner;
+        use ast::HasArgList;
         // Check that the first argument is the expected type.
         if let (Some(pattern_type), Some(expr)) = (
             &pattern_ufcs.qualifier_type,
@@ -763,7 +763,7 @@ impl Iterator for PatternIterator {
     type Item = SyntaxElement;
 
     fn next(&mut self) -> Option<SyntaxElement> {
-        while let Some(element) = self.iter.next() {
+        for element in &mut self.iter {
             if !element.kind().is_trivia() {
                 return Some(element);
             }

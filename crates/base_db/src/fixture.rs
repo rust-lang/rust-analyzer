@@ -10,8 +10,8 @@ use tt::Subtree;
 use vfs::{file_set::FileSet, VfsPath};
 
 use crate::{
-    input::CrateName, Change, CrateDisplayName, CrateGraph, CrateId, Edition, Env, FileId,
-    FilePosition, FileRange, ProcMacro, ProcMacroExpander, ProcMacroExpansionError,
+    input::CrateName, Change, CrateDisplayName, CrateGraph, CrateId, Dependency, Edition, Env,
+    FileId, FilePosition, FileRange, ProcMacro, ProcMacroExpander, ProcMacroExpansionError,
     SourceDatabaseExt, SourceRoot, SourceRootId,
 };
 
@@ -144,8 +144,9 @@ impl ChangeFixture {
                 let prev = crates.insert(crate_name.clone(), crate_id);
                 assert!(prev.is_none());
                 for dep in meta.deps {
+                    let prelude = meta.extern_prelude.contains(&dep);
                     let dep = CrateName::normalize_dashes(&dep);
-                    crate_deps.push((crate_name.clone(), dep))
+                    crate_deps.push((crate_name.clone(), dep, prelude))
                 }
             } else if meta.path == "/main.rs" || meta.path == "/lib.rs" {
                 assert!(default_crate_root.is_none());
@@ -161,7 +162,8 @@ impl ChangeFixture {
         }
 
         if crates.is_empty() {
-            let crate_root = default_crate_root.unwrap();
+            let crate_root = default_crate_root
+                .expect("missing default crate root, specify a main.rs or lib.rs");
             crate_graph.add_crate_root(
                 crate_root,
                 Edition::CURRENT,
@@ -172,10 +174,15 @@ impl ChangeFixture {
                 Default::default(),
             );
         } else {
-            for (from, to) in crate_deps {
+            for (from, to, prelude) in crate_deps {
                 let from_id = crates[&from];
                 let to_id = crates[&to];
-                crate_graph.add_dep(from_id, CrateName::new(&to).unwrap(), to_id).unwrap();
+                crate_graph
+                    .add_dep(
+                        from_id,
+                        Dependency::with_prelude(CrateName::new(&to).unwrap(), to_id, prelude),
+                    )
+                    .unwrap();
             }
         }
 
@@ -202,7 +209,9 @@ impl ChangeFixture {
             );
 
             for krate in all_crates {
-                crate_graph.add_dep(krate, CrateName::new("core").unwrap(), core_crate).unwrap();
+                crate_graph
+                    .add_dep(krate, Dependency::new(CrateName::new("core").unwrap(), core_crate))
+                    .unwrap();
             }
         }
 
@@ -218,7 +227,7 @@ impl ChangeFixture {
             );
             roots.push(SourceRoot::new_library(fs));
 
-            change.change_file(proc_lib_file, Some(Arc::new(String::from(source))));
+            change.change_file(proc_lib_file, Some(Arc::new(source)));
 
             let all_crates = crate_graph.crates_in_topological_order();
 
@@ -234,7 +243,10 @@ impl ChangeFixture {
 
             for krate in all_crates {
                 crate_graph
-                    .add_dep(krate, CrateName::new("proc_macros").unwrap(), proc_macros_crate)
+                    .add_dep(
+                        krate,
+                        Dependency::new(CrateName::new("proc_macros").unwrap(), proc_macros_crate),
+                    )
                     .unwrap();
             }
         }
@@ -262,6 +274,10 @@ pub fn identity(_attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn input_replace(attr: TokenStream, _item: TokenStream) -> TokenStream {
     attr
 }
+#[proc_macro]
+pub fn mirror(input: TokenStream) -> TokenStream {
+    input
+}
 "#;
     let proc_macros = std::array::IntoIter::new([
         ProcMacro {
@@ -274,8 +290,13 @@ pub fn input_replace(attr: TokenStream, _item: TokenStream) -> TokenStream {
             kind: crate::ProcMacroKind::Attr,
             expander: Arc::new(AttributeInputReplaceProcMacroExpander),
         },
+        ProcMacro {
+            name: "mirror".into(),
+            kind: crate::ProcMacroKind::FuncLike,
+            expander: Arc::new(MirrorProcMacroExpander),
+        },
     ])
-    .filter(|pm| proc_macros.iter().any(|name| name == &pm.name))
+    .filter(|pm| proc_macros.iter().any(|name| name == pm.name))
     .collect();
     (proc_macros, source.into())
 }
@@ -291,6 +312,7 @@ struct FileMeta {
     path: String,
     krate: Option<String>,
     deps: Vec<String>,
+    extern_prelude: Vec<String>,
     cfg: CfgOptions,
     edition: Edition,
     env: Env,
@@ -303,10 +325,12 @@ impl From<Fixture> for FileMeta {
         f.cfg_atoms.iter().for_each(|it| cfg.insert_atom(it.into()));
         f.cfg_key_values.iter().for_each(|(k, v)| cfg.insert_key_value(k.into(), v.into()));
 
+        let deps = f.deps;
         FileMeta {
             path: f.path,
             krate: f.krate,
-            deps: f.deps,
+            extern_prelude: f.extern_prelude.unwrap_or_else(|| deps.clone()),
+            deps,
             cfg,
             edition: f.edition.as_ref().map_or(Edition::CURRENT, |v| Edition::from_str(v).unwrap()),
             env: f.env.into_iter().collect(),
@@ -346,5 +370,30 @@ impl ProcMacroExpander for AttributeInputReplaceProcMacroExpander {
         attrs
             .cloned()
             .ok_or_else(|| ProcMacroExpansionError::Panic("Expected attribute input".into()))
+    }
+}
+
+#[derive(Debug)]
+struct MirrorProcMacroExpander;
+impl ProcMacroExpander for MirrorProcMacroExpander {
+    fn expand(
+        &self,
+        input: &Subtree,
+        _: Option<&Subtree>,
+        _: &Env,
+    ) -> Result<Subtree, ProcMacroExpansionError> {
+        fn traverse(input: &Subtree) -> Subtree {
+            let mut res = Subtree::default();
+            res.delimiter = input.delimiter;
+            for tt in input.token_trees.iter().rev() {
+                let tt = match tt {
+                    tt::TokenTree::Leaf(leaf) => tt::TokenTree::Leaf(leaf.clone()),
+                    tt::TokenTree::Subtree(sub) => tt::TokenTree::Subtree(traverse(sub)),
+                };
+                res.token_trees.push(tt);
+            }
+            res
+        }
+        Ok(traverse(input))
     }
 }

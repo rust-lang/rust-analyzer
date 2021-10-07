@@ -177,7 +177,7 @@ impl<'t> Parser<'t> {
         if kind == EOF {
             return;
         }
-        self.do_bump(kind, 1)
+        self.do_bump(kind, 1);
     }
 
     /// Advances the parser by one token, remapping its kind.
@@ -200,7 +200,7 @@ impl<'t> Parser<'t> {
     /// does.
     pub(crate) fn error<T: Into<String>>(&mut self, message: T) {
         let msg = ParseError(Box::new(message.into()));
-        self.push_event(Event::Error { msg })
+        self.push_event(Event::Error { msg });
     }
 
     /// Consume the next token if it is `kind` or emit an error
@@ -258,7 +258,7 @@ impl<'t> Parser<'t> {
     }
 
     fn push_event(&mut self, event: Event) {
-        self.events.push(event)
+        self.events.push(event);
     }
 }
 
@@ -285,9 +285,8 @@ impl Marker {
             }
             _ => unreachable!(),
         }
-        let finish_pos = p.events.len() as u32;
         p.push_event(Event::Finish);
-        CompletedMarker::new(self.pos, finish_pos, kind)
+        CompletedMarker::new(self.pos, kind)
     }
 
     /// Abandons the syntax tree node. All its children
@@ -305,14 +304,13 @@ impl Marker {
 }
 
 pub(crate) struct CompletedMarker {
-    start_pos: u32,
-    finish_pos: u32,
+    pos: u32,
     kind: SyntaxKind,
 }
 
 impl CompletedMarker {
-    fn new(start_pos: u32, finish_pos: u32, kind: SyntaxKind) -> Self {
-        CompletedMarker { start_pos, finish_pos, kind }
+    fn new(pos: u32, kind: SyntaxKind) -> Self {
+        CompletedMarker { pos, kind }
     }
 
     /// This method allows to create a new node which starts
@@ -330,29 +328,27 @@ impl CompletedMarker {
     /// distance to `NEWSTART` into forward_parent(=2 in this case);
     pub(crate) fn precede(self, p: &mut Parser) -> Marker {
         let new_pos = p.start();
-        let idx = self.start_pos as usize;
+        let idx = self.pos as usize;
         match &mut p.events[idx] {
             Event::Start { forward_parent, .. } => {
-                *forward_parent = Some(new_pos.pos - self.start_pos);
+                *forward_parent = Some(new_pos.pos - self.pos);
             }
             _ => unreachable!(),
         }
         new_pos
     }
 
-    /// Undo this completion and turns into a `Marker`
-    pub(crate) fn undo_completion(self, p: &mut Parser) -> Marker {
-        let start_idx = self.start_pos as usize;
-        let finish_idx = self.finish_pos as usize;
-        match &mut p.events[start_idx] {
-            Event::Start { kind, forward_parent: None } => *kind = TOMBSTONE,
+    /// Extends this completed marker *to the left* up to `m`.
+    pub(crate) fn extend_to(self, p: &mut Parser, mut m: Marker) -> CompletedMarker {
+        m.bomb.defuse();
+        let idx = m.pos as usize;
+        match &mut p.events[idx] {
+            Event::Start { forward_parent, .. } => {
+                *forward_parent = Some(self.pos - m.pos);
+            }
             _ => unreachable!(),
         }
-        match &mut p.events[finish_idx] {
-            slot @ Event::Finish => *slot = Event::tombstone(),
-            _ => unreachable!(),
-        }
-        Marker::new(self.start_pos)
+        self
     }
 
     pub(crate) fn kind(&self) -> SyntaxKind {

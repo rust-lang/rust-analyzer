@@ -12,7 +12,7 @@ use hir_ty::{
     },
     Interner, TraitRefExt, WhereClause,
 };
-use syntax::ast::{self, NameOwner};
+use syntax::ast::{self, HasName};
 
 use crate::{
     Adt, Const, ConstParam, Enum, Field, Function, GenericParam, HasCrate, HasVisibility,
@@ -241,7 +241,7 @@ impl HirDisplay for TypeParam {
             return Ok(());
         }
 
-        let bounds = f.db.generic_predicates_for_param(self.id);
+        let bounds = f.db.generic_predicates_for_param(self.id, None);
         let substs = TyBuilder::type_params_subst(f.db, self.id.parent);
         let predicates: Vec<_> =
             bounds.iter().cloned().map(|b| b.substitute(&Interner, &substs)).collect();

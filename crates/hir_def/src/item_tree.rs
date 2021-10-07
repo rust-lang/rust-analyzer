@@ -44,7 +44,7 @@ use std::{
     sync::Arc,
 };
 
-use ast::{AstNode, NameOwner, StructKind};
+use ast::{AstNode, HasName, StructKind};
 use base_db::CrateId;
 use either::Either;
 use hir_expand::{
@@ -475,10 +475,9 @@ macro_rules! mod_items {
                 }
 
                 fn id_from_mod_item(mod_item: ModItem) -> Option<FileItemTreeId<Self>> {
-                    if let ModItem::$typ(id) = mod_item {
-                        Some(id)
-                    } else {
-                        None
+                    match mod_item {
+                        ModItem::$typ(id) => Some(id),
+                        _ => None,
                     }
                 }
 
@@ -605,7 +604,7 @@ pub struct ExternBlock {
 pub struct Function {
     pub name: Name,
     pub visibility: RawVisibilityId,
-    pub generic_params: Interned<GenericParams>,
+    pub explicit_generic_params: Interned<GenericParams>,
     pub abi: Option<Interned<str>>,
     pub params: IdRange<Param>,
     pub ret_type: Interned<TypeRef>,

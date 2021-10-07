@@ -1,12 +1,17 @@
-use hir::{HasSource, HirDisplay, Module, TypeInfo};
-use ide_db::{base_db::FileId, helpers::SnippetCap};
+use hir::{HasSource, HirDisplay, Module, ModuleDef, Semantics, TypeInfo};
+use ide_db::{
+    base_db::FileId,
+    defs::{Definition, NameRefClass},
+    helpers::SnippetCap,
+    RootDatabase,
+};
 use rustc_hash::{FxHashMap, FxHashSet};
 use stdx::to_lower_snake_case;
 use syntax::{
     ast::{
         self,
         edit::{AstNodeEdit, IndentLevel},
-        make, ArgListOwner, AstNode, CallExpr, ModuleItemOwner,
+        make, AstNode, CallExpr, HasArgList, HasModuleItem,
     },
     SyntaxKind, SyntaxNode, TextRange, TextSize,
 };
@@ -44,27 +49,6 @@ use crate::{
 // ```
 pub(crate) fn generate_function(acc: &mut Assists, ctx: &AssistContext) -> Option<()> {
     gen_fn(acc, ctx).or_else(|| gen_method(acc, ctx))
-}
-
-enum FuncExpr {
-    Func(ast::CallExpr),
-    Method(ast::MethodCallExpr),
-}
-
-impl FuncExpr {
-    fn arg_list(&self) -> Option<ast::ArgList> {
-        match self {
-            FuncExpr::Func(fn_call) => fn_call.arg_list(),
-            FuncExpr::Method(m_call) => m_call.arg_list(),
-        }
-    }
-
-    fn syntax(&self) -> &SyntaxNode {
-        match self {
-            FuncExpr::Func(fn_call) => fn_call.syntax(),
-            FuncExpr::Method(m_call) => m_call.syntax(),
-        }
-    }
 }
 
 fn gen_fn(acc: &mut Assists, ctx: &AssistContext) -> Option<()> {
@@ -208,10 +192,9 @@ impl FunctionTemplate {
             Some(cap) => {
                 let cursor = if self.should_focus_return_type {
                     // Focus the return type if there is one
-                    if let Some(ref ret_type) = self.ret_type {
-                        ret_type.syntax()
-                    } else {
-                        self.tail_expr.syntax()
+                    match self.ret_type {
+                        Some(ref ret_type) => ret_type.syntax(),
+                        None => self.tail_expr.syntax(),
                     }
                 } else {
                     self.tail_expr.syntax()
@@ -249,7 +232,8 @@ impl FunctionBuilder {
         let needs_pub = target_module.is_some();
         let target_module = target_module.or_else(|| current_module(target.syntax(), ctx))?;
         let fn_name = make::name(fn_name);
-        let (type_params, params) = fn_args(ctx, target_module, FuncExpr::Func(call.clone()))?;
+        let (type_params, params) =
+            fn_args(ctx, target_module, ast::CallableExpr::Call(call.clone()))?;
 
         let await_expr = call.syntax().parent().and_then(ast::AwaitExpr::cast);
         let is_async = await_expr.is_some();
@@ -279,7 +263,8 @@ impl FunctionBuilder {
         let needs_pub =
             !module_is_descendant(&current_module(call.syntax(), ctx)?, &target_module, ctx);
         let fn_name = make::name(&name.text());
-        let (type_params, params) = fn_args(ctx, target_module, FuncExpr::Method(call.clone()))?;
+        let (type_params, params) =
+            fn_args(ctx, target_module, ast::CallableExpr::MethodCall(call.clone()))?;
 
         let await_expr = call.syntax().parent().and_then(ast::AwaitExpr::cast);
         let is_async = await_expr.is_some();
@@ -387,7 +372,7 @@ fn get_fn_target(
             file = in_file;
             target
         }
-        None => next_space_for_fn_after_call_site(FuncExpr::Func(call))?,
+        None => next_space_for_fn_after_call_site(ast::CallableExpr::Call(call))?,
     };
     Some((target.clone(), file, get_insert_offset(&target)))
 }
@@ -433,19 +418,18 @@ impl GeneratedFunctionTarget {
 fn fn_args(
     ctx: &AssistContext,
     target_module: hir::Module,
-    call: FuncExpr,
+    call: ast::CallableExpr,
 ) -> Option<(Option<ast::GenericParamList>, ast::ParamList)> {
     let mut arg_names = Vec::new();
     let mut arg_types = Vec::new();
     for arg in call.arg_list()?.args() {
-        arg_names.push(fn_arg_name(&arg));
+        arg_names.push(fn_arg_name(&ctx.sema, &arg));
         arg_types.push(match fn_arg_type(ctx, target_module, &arg) {
             Some(ty) => {
                 if !ty.is_empty() && ty.starts_with('&') {
-                    if let Some((new_ty, _)) = useless_type_special_case("", &ty[1..].to_owned()) {
-                        new_ty
-                    } else {
-                        ty
+                    match useless_type_special_case("", &ty[1..].to_owned()) {
+                        Some((new_ty, _)) => new_ty,
+                        None => ty,
                     }
                 } else {
                     ty
@@ -463,8 +447,8 @@ fn fn_args(
         None,
         make::param_list(
             match call {
-                FuncExpr::Func(_) => None,
-                FuncExpr::Method(_) => Some(make::self_param()),
+                ast::CallableExpr::Call(_) => None,
+                ast::CallableExpr::MethodCall(_) => Some(make::self_param()),
             },
             params,
         ),
@@ -503,12 +487,18 @@ fn deduplicate_arg_names(arg_names: &mut Vec<String>) {
     }
 }
 
-fn fn_arg_name(arg_expr: &ast::Expr) -> String {
+fn fn_arg_name(sema: &Semantics<RootDatabase>, arg_expr: &ast::Expr) -> String {
     let name = (|| match arg_expr {
-        ast::Expr::CastExpr(cast_expr) => Some(fn_arg_name(&cast_expr.expr()?)),
+        ast::Expr::CastExpr(cast_expr) => Some(fn_arg_name(sema, &cast_expr.expr()?)),
         expr => {
-            let s = expr.syntax().descendants().filter_map(ast::NameRef::cast).last()?.to_string();
-            Some(to_lower_snake_case(&s))
+            let name_ref = expr.syntax().descendants().filter_map(ast::NameRef::cast).last()?;
+            if let Some(NameRefClass::Definition(Definition::ModuleDef(
+                ModuleDef::Const(_) | ModuleDef::Static(_),
+            ))) = NameRefClass::classify(sema, &name_ref)
+            {
+                return Some(name_ref.to_string().to_lowercase());
+            };
+            Some(to_lower_snake_case(&name_ref.to_string()))
         }
     })();
     match name {
@@ -531,18 +521,14 @@ fn fn_arg_type(
         return None;
     }
 
-    if let Ok(rendered) = ty.display_source_code(ctx.db(), target_module.into()) {
-        Some(rendered)
-    } else {
-        None
-    }
+    ty.display_source_code(ctx.db(), target_module.into()).ok()
 }
 
 /// Returns the position inside the current mod or file
 /// directly after the current block
 /// We want to write the generated function directly after
 /// fns, impls or macro calls, but inside mods
-fn next_space_for_fn_after_call_site(expr: FuncExpr) -> Option<GeneratedFunctionTarget> {
+fn next_space_for_fn_after_call_site(expr: ast::CallableExpr) -> Option<GeneratedFunctionTarget> {
     let mut ancestors = expr.syntax().ancestors().peekable();
     let mut last_ancestor: Option<SyntaxNode> = None;
     while let Some(next_ancestor) = ancestors.next() {
@@ -568,20 +554,14 @@ fn next_space_for_fn_in_module(
 ) -> Option<(FileId, GeneratedFunctionTarget)> {
     let file = module_source.file_id.original_file(db);
     let assist_item = match &module_source.value {
-        hir::ModuleSource::SourceFile(it) => {
-            if let Some(last_item) = it.items().last() {
-                GeneratedFunctionTarget::BehindItem(last_item.syntax().clone())
-            } else {
-                GeneratedFunctionTarget::BehindItem(it.syntax().clone())
-            }
-        }
-        hir::ModuleSource::Module(it) => {
-            if let Some(last_item) = it.item_list().and_then(|it| it.items().last()) {
-                GeneratedFunctionTarget::BehindItem(last_item.syntax().clone())
-            } else {
-                GeneratedFunctionTarget::InEmptyItemList(it.item_list()?.syntax().clone())
-            }
-        }
+        hir::ModuleSource::SourceFile(it) => match it.items().last() {
+            Some(last_item) => GeneratedFunctionTarget::BehindItem(last_item.syntax().clone()),
+            None => GeneratedFunctionTarget::BehindItem(it.syntax().clone()),
+        },
+        hir::ModuleSource::Module(it) => match it.item_list().and_then(|it| it.items().last()) {
+            Some(last_item) => GeneratedFunctionTarget::BehindItem(last_item.syntax().clone()),
+            None => GeneratedFunctionTarget::InEmptyItemList(it.item_list()?.syntax().clone()),
+        },
         hir::ModuleSource::BlockExpr(it) => {
             if let Some(last_item) =
                 it.statements().take_while(|stmt| matches!(stmt, ast::Stmt::Item(_))).last()
@@ -1681,6 +1661,75 @@ fn main() {
 }
 
 fn foo(arg0: ()) ${0:-> _} {
+    todo!()
+}
+",
+        )
+    }
+
+    #[test]
+    fn add_function_with_const_arg() {
+        check_assist(
+            generate_function,
+            r"
+const VALUE: usize = 0;
+fn main() {
+    foo$0(VALUE);
+}
+",
+            r"
+const VALUE: usize = 0;
+fn main() {
+    foo(VALUE);
+}
+
+fn foo(value: usize) ${0:-> _} {
+    todo!()
+}
+",
+        )
+    }
+
+    #[test]
+    fn add_function_with_static_arg() {
+        check_assist(
+            generate_function,
+            r"
+static VALUE: usize = 0;
+fn main() {
+    foo$0(VALUE);
+}
+",
+            r"
+static VALUE: usize = 0;
+fn main() {
+    foo(VALUE);
+}
+
+fn foo(value: usize) ${0:-> _} {
+    todo!()
+}
+",
+        )
+    }
+
+    #[test]
+    fn add_function_with_static_mut_arg() {
+        check_assist(
+            generate_function,
+            r"
+static mut VALUE: usize = 0;
+fn main() {
+    foo$0(VALUE);
+}
+",
+            r"
+static mut VALUE: usize = 0;
+fn main() {
+    foo(VALUE);
+}
+
+fn foo(value: usize) ${0:-> _} {
     todo!()
 }
 ",

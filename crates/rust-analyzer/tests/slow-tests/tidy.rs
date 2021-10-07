@@ -191,7 +191,7 @@ fn deny_clippy(path: &Path, text: &str) {
         // The documentation in string literals may contain anything for its own purposes
         "ide_db/src/helpers/generated_lints.rs",
         // The tests test clippy lint hovers
-        "ide/src/hover.rs",
+        "ide/src/hover/tests.rs",
     ];
     if ignore.iter().any(|p| path.ends_with(p)) {
         return;
@@ -273,7 +273,7 @@ fn check_todo(path: &Path, text: &str) {
         // Some of our assists generate `todo!()`.
         "handlers/add_turbo_fish.rs",
         "handlers/generate_function.rs",
-        "handlers/fill_match_arms.rs",
+        "handlers/add_missing_match_arms.rs",
         "handlers/replace_derive_with_manual_impl.rs",
         // To support generating `todo!()` in assists, we have `expr_todo()` in
         // `ast::make`.
@@ -282,6 +282,8 @@ fn check_todo(path: &Path, text: &str) {
         "ide_db/src/helpers/generated_lints.rs",
         "ide_assists/src/utils/gen_trait_fn_body.rs",
         "ide_assists/src/tests/generated.rs",
+        // The tests for missing fields
+        "ide_diagnostics/src/handlers/missing_fields.rs",
     ];
     if need_todo.iter().any(|p| path.ends_with(p)) {
         return;

@@ -1,21 +1,17 @@
-use std::{convert::TryInto, iter};
+use std::convert::TryInto;
 
-use either::Either;
-use hir::{AsAssocItem, InFile, ModuleDef, Semantics};
+use crate::{
+    display::TryToNav, doc_links::token_as_doc_comment, FilePosition, NavigationTarget, RangeInfo,
+};
+use hir::{AsAssocItem, ModuleDef, Semantics};
 use ide_db::{
     base_db::{AnchoredPath, FileId, FileLoader},
-    defs::{Definition, NameClass, NameRefClass},
-    helpers::{pick_best_token, try_resolve_derive_input_at},
+    defs::Definition,
+    helpers::pick_best_token,
     RootDatabase,
 };
 use itertools::Itertools;
-use syntax::{ast, match_ast, AstNode, AstToken, SyntaxKind::*, SyntaxToken, TextRange, T};
-
-use crate::{
-    display::{ToNav, TryToNav},
-    doc_links::{doc_attributes, extract_definitions_from_docs, resolve_doc_path_for_def},
-    FilePosition, NavigationTarget, RangeInfo,
-};
+use syntax::{ast, AstNode, AstToken, SyntaxKind::*, SyntaxToken, TextRange, T};
 
 // Feature: Go to Definition
 //
@@ -32,7 +28,7 @@ pub(crate) fn goto_definition(
     db: &RootDatabase,
     position: FilePosition,
 ) -> Option<RangeInfo<Vec<NavigationTarget>>> {
-    let sema = Semantics::new(db);
+    let sema = &Semantics::new(db);
     let file = sema.parse(position.file_id).syntax().clone();
     let original_token =
         pick_best_token(file.token_at_offset(position.offset), |kind| match kind {
@@ -40,57 +36,33 @@ pub(crate) fn goto_definition(
             kind if kind.is_trivia() => 0,
             _ => 1,
         })?;
-    if let Some(_) = ast::Comment::cast(original_token.clone()) {
-        let parent = original_token.parent()?;
-        let (attributes, def) = doc_attributes(&sema, &parent)?;
-        let (docs, doc_mapping) = attributes.docs_with_rangemap(db)?;
-        let (_, link, ns) =
-            extract_definitions_from_docs(&docs).into_iter().find(|&(range, ..)| {
-                doc_mapping.map(range).map_or(false, |InFile { file_id, value: range }| {
-                    file_id == position.file_id.into() && range.contains(position.offset)
-                })
-            })?;
-        let nav = resolve_doc_path_for_def(db, def, &link, ns)?.try_to_nav(db)?;
-        return Some(RangeInfo::new(original_token.text_range(), vec![nav]));
+    if let Some(doc_comment) = token_as_doc_comment(&original_token) {
+        return doc_comment.get_definition_with_descend_at(sema, position.offset, |def, _, _| {
+            let nav = def.try_to_nav(db)?;
+            Some(RangeInfo::new(original_token.text_range(), vec![nav]))
+        });
     }
     let navs = sema
         .descend_into_macros_many(original_token.clone())
         .into_iter()
         .filter_map(|token| {
             let parent = token.parent()?;
-            let navs = match_ast! {
-                match parent {
-                    ast::NameRef(name_ref) => {
-                        reference_definition(&sema, Either::Right(&name_ref))
-                    },
-                    ast::Name(name) => {
-                        match NameClass::classify(&sema, &name)? {
-                            NameClass::Definition(def) | NameClass::ConstReference(def) => {
-                                try_find_trait_item_definition(sema.db, &def)
-                                    .unwrap_or_else(|| def_to_nav(sema.db, def))
-                            }
-                            NameClass::PatFieldShorthand { local_def, field_ref } => {
-                                local_and_field_to_nav(sema.db, local_def, field_ref)
-                            },
-                        }
-                    },
-                    ast::Lifetime(lt) => {
-                        match NameClass::classify_lifetime(&sema, &lt) {
-                            Some(name_class) => {
-                                match name_class {
-                                    NameClass::Definition(def) => def_to_nav(sema.db, def),
-                                    _ => return None,
-                                }
-                            }
-                            None => reference_definition(&sema, Either::Left(&lt)),
-                        }
-                    },
-                    ast::TokenTree(tt) =>
-                        try_lookup_include_path_or_derive(&sema, tt, token, position.file_id)?,
-                    _ => return None,
+            if let Some(tt) = ast::TokenTree::cast(parent.clone()) {
+                if let x @ Some(_) =
+                    try_lookup_include_path(&sema, tt, token.clone(), position.file_id)
+                {
+                    return x;
                 }
-            };
-            Some(navs)
+            }
+            Some(
+                Definition::from_token(&sema, &token)
+                    .into_iter()
+                    .flat_map(|def| {
+                        try_find_trait_item_definition(sema.db, &def)
+                            .unwrap_or_else(|| def_to_nav(sema.db, def))
+                    })
+                    .collect::<Vec<_>>(),
+            )
         })
         .flatten()
         .unique()
@@ -99,41 +71,31 @@ pub(crate) fn goto_definition(
     Some(RangeInfo::new(original_token.text_range(), navs))
 }
 
-fn try_lookup_include_path_or_derive(
+fn try_lookup_include_path(
     sema: &Semantics<RootDatabase>,
     tt: ast::TokenTree,
     token: SyntaxToken,
     file_id: FileId,
 ) -> Option<Vec<NavigationTarget>> {
-    match ast::String::cast(token.clone()) {
-        Some(token) => {
-            let path = token.value()?.into_owned();
-            let macro_call = tt.syntax().parent().and_then(ast::MacroCall::cast)?;
-            let name = macro_call.path()?.segment()?.name_ref()?;
-            if !matches!(&*name.text(), "include" | "include_str" | "include_bytes") {
-                return None;
-            }
-            let file_id = sema.db.resolve_path(AnchoredPath { anchor: file_id, path: &path })?;
-            let size = sema.db.file_text(file_id).len().try_into().ok()?;
-            Some(vec![NavigationTarget {
-                file_id,
-                full_range: TextRange::new(0.into(), size),
-                name: path.into(),
-                focus_range: None,
-                kind: None,
-                container_name: None,
-                description: None,
-                docs: None,
-            }])
-        }
-        None => try_resolve_derive_input_at(
-            sema,
-            &tt.syntax().ancestors().nth(2).and_then(ast::Attr::cast)?,
-            &token,
-        )
-        .and_then(|it| it.try_to_nav(sema.db))
-        .map(|it| vec![it]),
+    let token = ast::String::cast(token.clone())?;
+    let path = token.value()?.into_owned();
+    let macro_call = tt.syntax().parent().and_then(ast::MacroCall::cast)?;
+    let name = macro_call.path()?.segment()?.name_ref()?;
+    if !matches!(&*name.text(), "include" | "include_str" | "include_bytes") {
+        return None;
     }
+    let file_id = sema.db.resolve_path(AnchoredPath { anchor: file_id, path: &path })?;
+    let size = sema.db.file_text(file_id).len().try_into().ok()?;
+    Some(vec![NavigationTarget {
+        file_id,
+        full_range: TextRange::new(0.into(), size),
+        name: path.into(),
+        focus_range: None,
+        kind: None,
+        container_name: None,
+        description: None,
+        docs: None,
+    }])
 }
 
 /// finds the trait definition of an impl'd item
@@ -168,35 +130,8 @@ fn try_find_trait_item_definition(
         .map(|it| vec![it])
 }
 
-pub(crate) fn reference_definition(
-    sema: &Semantics<RootDatabase>,
-    name_ref: Either<&ast::Lifetime, &ast::NameRef>,
-) -> Vec<NavigationTarget> {
-    let name_kind = match name_ref.either(
-        |lifetime| NameRefClass::classify_lifetime(sema, lifetime),
-        |name_ref| NameRefClass::classify(sema, name_ref),
-    ) {
-        Some(class) => class,
-        None => return Vec::new(),
-    };
-    match name_kind {
-        NameRefClass::Definition(def) => def_to_nav(sema.db, def),
-        NameRefClass::FieldShorthand { local_ref, field_ref } => {
-            local_and_field_to_nav(sema.db, local_ref, field_ref)
-        }
-    }
-}
-
 fn def_to_nav(db: &RootDatabase, def: Definition) -> Vec<NavigationTarget> {
     def.try_to_nav(db).map(|it| vec![it]).unwrap_or_default()
-}
-
-fn local_and_field_to_nav(
-    db: &RootDatabase,
-    local: hir::Local,
-    field: hir::Field,
-) -> Vec<NavigationTarget> {
-    iter::once(local.to_nav(db)).chain(field.try_to_nav(db)).collect()
 }
 
 #[cfg(test)]

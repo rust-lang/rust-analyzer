@@ -17,7 +17,7 @@ use la_arena::ArenaMap;
 use mbe::{syntax_node_to_token_tree, DelimiterKind};
 use smallvec::{smallvec, SmallVec};
 use syntax::{
-    ast::{self, AstNode, AttrsOwner},
+    ast::{self, AstNode, HasAttrs, IsString},
     match_ast, AstPtr, AstToken, SmolStr, SyntaxNode, TextRange, TextSize,
 };
 use tt::Subtree;
@@ -101,11 +101,7 @@ impl ops::Deref for AttrsWithOwner {
 impl RawAttrs {
     pub(crate) const EMPTY: Self = Self { entries: None };
 
-    pub(crate) fn new(
-        db: &dyn DefDatabase,
-        owner: &dyn ast::AttrsOwner,
-        hygiene: &Hygiene,
-    ) -> Self {
+    pub(crate) fn new(db: &dyn DefDatabase, owner: &dyn ast::HasAttrs, hygiene: &Hygiene) -> Self {
         let entries = collect_attrs(owner)
             .flat_map(|(id, attr)| match attr {
                 Either::Left(attr) => {
@@ -122,7 +118,7 @@ impl RawAttrs {
         Self { entries: if entries.is_empty() { None } else { Some(entries) } }
     }
 
-    fn from_attrs_owner(db: &dyn DefDatabase, owner: InFile<&dyn ast::AttrsOwner>) -> Self {
+    fn from_attrs_owner(db: &dyn DefDatabase, owner: InFile<&dyn ast::HasAttrs>) -> Self {
         let hygiene = Hygiene::new(db.upcast(), owner.file_id);
         Self::new(db, owner.value, &hygiene)
     }
@@ -208,7 +204,7 @@ impl Attrs {
         let mut res = ArenaMap::default();
 
         for (id, var) in src.value.iter() {
-            let attrs = RawAttrs::from_attrs_owner(db, src.with_value(var as &dyn ast::AttrsOwner))
+            let attrs = RawAttrs::from_attrs_owner(db, src.with_value(var as &dyn ast::HasAttrs))
                 .filter(db, krate);
 
             res.insert(id, attrs)
@@ -226,7 +222,7 @@ impl Attrs {
         let mut res = ArenaMap::default();
 
         for (id, fld) in src.value.iter() {
-            let owner: &dyn AttrsOwner = match fld {
+            let owner: &dyn HasAttrs = match fld {
                 Either::Left(tuple) => tuple,
                 Either::Right(record) => record,
             };
@@ -312,7 +308,7 @@ impl AttrsWithOwner {
                     Some(it) => {
                         let raw_attrs = RawAttrs::from_attrs_owner(
                             db,
-                            it.as_ref().map(|it| it as &dyn ast::AttrsOwner),
+                            it.as_ref().map(|it| it as &dyn ast::HasAttrs),
                         );
                         match mod_data.definition_source(db) {
                             InFile { file_id, value: ModuleSource::SourceFile(file) } => raw_attrs
@@ -323,9 +319,9 @@ impl AttrsWithOwner {
                     None => RawAttrs::from_attrs_owner(
                         db,
                         mod_data.definition_source(db).as_ref().map(|src| match src {
-                            ModuleSource::SourceFile(file) => file as &dyn ast::AttrsOwner,
-                            ModuleSource::Module(module) => module as &dyn ast::AttrsOwner,
-                            ModuleSource::BlockExpr(block) => block as &dyn ast::AttrsOwner,
+                            ModuleSource::SourceFile(file) => file as &dyn ast::HasAttrs,
+                            ModuleSource::Module(module) => module as &dyn ast::HasAttrs,
+                            ModuleSource::BlockExpr(block) => block as &dyn ast::HasAttrs,
                         }),
                     ),
                 }
@@ -398,9 +394,9 @@ impl AttrsWithOwner {
                     None => {
                         let InFile { file_id, value } = mod_data.definition_source(db);
                         let attrs_owner = match &value {
-                            ModuleSource::SourceFile(file) => file as &dyn ast::AttrsOwner,
-                            ModuleSource::Module(module) => module as &dyn ast::AttrsOwner,
-                            ModuleSource::BlockExpr(block) => block as &dyn ast::AttrsOwner,
+                            ModuleSource::SourceFile(file) => file as &dyn ast::HasAttrs,
+                            ModuleSource::Module(module) => module as &dyn ast::HasAttrs,
+                            ModuleSource::BlockExpr(block) => block as &dyn ast::HasAttrs,
                         };
                         return AttrSourceMap::new(InFile::new(file_id, attrs_owner));
                     }
@@ -411,51 +407,51 @@ impl AttrsWithOwner {
                 let file_id = id.parent.file_id(db);
                 let root = db.parse_or_expand(file_id).unwrap();
                 let owner = match &map[id.local_id] {
-                    Either::Left(it) => ast::AttrsOwnerNode::new(it.to_node(&root)),
-                    Either::Right(it) => ast::AttrsOwnerNode::new(it.to_node(&root)),
+                    Either::Left(it) => ast::AnyHasAttrs::new(it.to_node(&root)),
+                    Either::Right(it) => ast::AnyHasAttrs::new(it.to_node(&root)),
                 };
                 InFile::new(file_id, owner)
             }
             AttrDefId::AdtId(adt) => match adt {
-                AdtId::StructId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
-                AdtId::UnionId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
-                AdtId::EnumId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
+                AdtId::StructId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
+                AdtId::UnionId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
+                AdtId::EnumId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
             },
-            AttrDefId::FunctionId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
+            AttrDefId::FunctionId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
             AttrDefId::EnumVariantId(id) => {
                 let map = db.variants_attrs_source_map(id.parent);
                 let file_id = id.parent.lookup(db).id.file_id();
                 let root = db.parse_or_expand(file_id).unwrap();
-                InFile::new(file_id, ast::AttrsOwnerNode::new(map[id.local_id].to_node(&root)))
+                InFile::new(file_id, ast::AnyHasAttrs::new(map[id.local_id].to_node(&root)))
             }
-            AttrDefId::StaticId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
-            AttrDefId::ConstId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
-            AttrDefId::TraitId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
-            AttrDefId::TypeAliasId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
+            AttrDefId::StaticId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
+            AttrDefId::ConstId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
+            AttrDefId::TraitId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
+            AttrDefId::TypeAliasId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
             AttrDefId::MacroDefId(id) => id.ast_id().either(
-                |it| it.with_value(ast::AttrsOwnerNode::new(it.to_node(db.upcast()))),
-                |it| it.with_value(ast::AttrsOwnerNode::new(it.to_node(db.upcast()))),
+                |it| it.with_value(ast::AnyHasAttrs::new(it.to_node(db.upcast()))),
+                |it| it.with_value(ast::AnyHasAttrs::new(it.to_node(db.upcast()))),
             ),
-            AttrDefId::ImplId(id) => id.lookup(db).source(db).map(ast::AttrsOwnerNode::new),
+            AttrDefId::ImplId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
             AttrDefId::GenericParamId(id) => match id {
                 GenericParamId::TypeParamId(id) => {
                     id.parent.child_source(db).map(|source| match &source[id.local_id] {
-                        Either::Left(id) => ast::AttrsOwnerNode::new(id.clone()),
-                        Either::Right(id) => ast::AttrsOwnerNode::new(id.clone()),
+                        Either::Left(id) => ast::AnyHasAttrs::new(id.clone()),
+                        Either::Right(id) => ast::AnyHasAttrs::new(id.clone()),
                     })
                 }
                 GenericParamId::LifetimeParamId(id) => id
                     .parent
                     .child_source(db)
-                    .map(|source| ast::AttrsOwnerNode::new(source[id.local_id].clone())),
+                    .map(|source| ast::AnyHasAttrs::new(source[id.local_id].clone())),
                 GenericParamId::ConstParamId(id) => id
                     .parent
                     .child_source(db)
-                    .map(|source| ast::AttrsOwnerNode::new(source[id.local_id].clone())),
+                    .map(|source| ast::AnyHasAttrs::new(source[id.local_id].clone())),
             },
         };
 
-        AttrSourceMap::new(owner.as_ref().map(|node| node as &dyn AttrsOwner))
+        AttrSourceMap::new(owner.as_ref().map(|node| node as &dyn HasAttrs))
     }
 
     pub fn docs_with_rangemap(
@@ -524,7 +520,8 @@ fn inner_attributes(
             },
             ast::Fn(it) => {
                 let body = it.body()?;
-                (body.attrs(), ast::CommentIter::from_syntax_node(body.syntax()))
+                let stmt_list = body.stmt_list()?;
+                (stmt_list.attrs(), ast::CommentIter::from_syntax_node(body.syntax()))
             },
             ast::Impl(it) => {
                 let assoc_item_list = it.assoc_item_list()?;
@@ -547,13 +544,14 @@ fn inner_attributes(
     Some((attrs, docs))
 }
 
+#[derive(Debug)]
 pub struct AttrSourceMap {
     attrs: Vec<InFile<ast::Attr>>,
     doc_comments: Vec<InFile<ast::Comment>>,
 }
 
 impl AttrSourceMap {
-    fn new(owner: InFile<&dyn ast::AttrsOwner>) -> Self {
+    fn new(owner: InFile<&dyn ast::HasAttrs>) -> Self {
         let mut attrs = Vec::new();
         let mut doc_comments = Vec::new();
         for (_, attr) in collect_attrs(owner.value) {
@@ -599,6 +597,7 @@ impl AttrSourceMap {
 }
 
 /// A struct to map text ranges from [`Documentation`] back to TextRanges in the syntax tree.
+#[derive(Debug)]
 pub struct DocsRangeMap {
     source_map: AttrSourceMap,
     // (docstring-line-range, attr_index, attr-string-range)
@@ -608,6 +607,7 @@ pub struct DocsRangeMap {
 }
 
 impl DocsRangeMap {
+    /// Maps a [`TextRange`] relative to the documentation string back to its AST range
     pub fn map(&self, range: TextRange) -> Option<InFile<TextRange>> {
         let found = self.mapping.binary_search_by(|(probe, ..)| probe.ordering(range)).ok()?;
         let (line_docs_range, idx, original_line_src_range) = self.mapping[found];
@@ -619,8 +619,15 @@ impl DocsRangeMap {
 
         let InFile { file_id, value: source } = self.source_map.source_of_id(idx);
         match source {
-            Either::Left(_) => None, // FIXME, figure out a nice way to handle doc attributes here
-            // as well as for whats done in syntax highlight doc injection
+            Either::Left(attr) => {
+                let string = get_doc_string_in_attr(&attr)?;
+                let text_range = string.open_quote_text_range()?;
+                let range = TextRange::at(
+                    text_range.end() + original_line_src_range.start() + relative_range.start(),
+                    string.syntax().text_range().len().min(range.len()),
+                );
+                Some(InFile { file_id, value: range })
+            }
             Either::Right(comment) => {
                 let text_range = comment.syntax().text_range();
                 let range = TextRange::at(
@@ -633,6 +640,22 @@ impl DocsRangeMap {
                 Some(InFile { file_id, value: range })
             }
         }
+    }
+}
+
+fn get_doc_string_in_attr(it: &ast::Attr) -> Option<ast::String> {
+    match it.expr() {
+        // #[doc = lit]
+        Some(ast::Expr::Literal(lit)) => match lit.kind() {
+            ast::LiteralKind::String(it) => Some(it),
+            _ => None,
+        },
+        // #[cfg_attr(..., doc = "", ...)]
+        None => {
+            // FIXME: See highlight injection for what to do here
+            None
+        }
+        _ => None,
     }
 }
 
@@ -785,10 +808,10 @@ impl<'a> AttrQuery<'a> {
 
 fn attrs_from_ast<N>(src: AstId<N>, db: &dyn DefDatabase) -> RawAttrs
 where
-    N: ast::AttrsOwner,
+    N: ast::HasAttrs,
 {
     let src = InFile::new(src.file_id, src.to_node(db.upcast()));
-    RawAttrs::from_attrs_owner(db, src.as_ref().map(|it| it as &dyn ast::AttrsOwner))
+    RawAttrs::from_attrs_owner(db, src.as_ref().map(|it| it as &dyn ast::HasAttrs))
 }
 
 fn attrs_from_item_tree<N: ItemTreeNode>(id: ItemTreeId<N>, db: &dyn DefDatabase) -> RawAttrs {
@@ -798,7 +821,7 @@ fn attrs_from_item_tree<N: ItemTreeNode>(id: ItemTreeId<N>, db: &dyn DefDatabase
 }
 
 fn collect_attrs(
-    owner: &dyn ast::AttrsOwner,
+    owner: &dyn ast::HasAttrs,
 ) -> impl Iterator<Item = (AttrId, Either<ast::Attr, ast::Comment>)> {
     let (inner_attrs, inner_docs) = inner_attributes(owner.syntax())
         .map_or((None, None), |(attrs, docs)| (Some(attrs), Some(docs)));

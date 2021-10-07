@@ -19,7 +19,7 @@ pub(crate) fn pattern(p: &mut Parser) {
 
 /// Parses a pattern list separated by pipes `|`.
 pub(super) fn pattern_top(p: &mut Parser) {
-    pattern_top_r(p, PAT_RECOVERY_SET)
+    pattern_top_r(p, PAT_RECOVERY_SET);
 }
 
 pub(crate) fn pattern_single(p: &mut Parser) {
@@ -69,18 +69,23 @@ fn pattern_single_r(p: &mut Parser, recovery_set: TokenSet) {
         //         200 .. 301 => (),
         //         302 .. => (),
         //     }
+        //
+        //     match Some(10 as u8) {
+        //         Some(0) | None => (),
+        //         Some(1..) => ()
+        //     }
         // }
 
         // FIXME: support half_open_range_patterns (`..=2`),
         // exclusive_range_pattern (`..5`) with missing lhs
-        for &range_op in [T![...], T![..=], T![..]].iter() {
+        for range_op in [T![...], T![..=], T![..]] {
             if p.at(range_op) {
                 let m = lhs.precede(p);
                 p.bump(range_op);
 
-                // `0 .. =>` or `let 0 .. =`
-                //       ^                ^
-                if p.at(T![=]) {
+                // `0 .. =>` or `let 0 .. =` or `Some(0 .. )`
+                //       ^                ^                ^
+                if p.at(T![=]) | p.at(T![')']) {
                     // test half_open_range_pat
                     // fn f() { let 0 .. = 1u32; }
                 } else {
@@ -200,46 +205,64 @@ fn tuple_pat_fields(p: &mut Parser) {
     p.expect(T![')']);
 }
 
+// test record_pat_field
+// fn foo() {
+//     let S { 0: 1 } = ();
+//     let S { x: 1 } = ();
+//     let S { #[cfg(any())] x: 1 } = ();
+// }
+fn record_pat_field(p: &mut Parser) {
+    match p.current() {
+        IDENT | INT_NUMBER if p.nth(1) == T![:] => {
+            name_ref_or_index(p);
+            p.bump(T![:]);
+            pattern(p);
+        }
+        T![.] => {
+            if p.at(T![..]) {
+                p.bump(T![..]);
+            } else {
+                ident_pat(p, false);
+            }
+        }
+        T![box] => {
+            // FIXME: not all box patterns should be allowed
+            box_pat(p);
+        }
+        _ => {
+            ident_pat(p, false);
+        }
+    }
+}
+
 // test record_pat_field_list
 // fn foo() {
 //     let S {} = ();
 //     let S { f, ref mut g } = ();
 //     let S { h: _, ..} = ();
 //     let S { h: _, } = ();
+//     let S { #[cfg(any())] .. } = ();
 // }
 fn record_pat_field_list(p: &mut Parser) {
     assert!(p.at(T!['{']));
     let m = p.start();
     p.bump(T!['{']);
     while !p.at(EOF) && !p.at(T!['}']) {
+        let m = p.start();
+        attributes::outer_attrs(p);
+
         match p.current() {
             // A trailing `..` is *not* treated as a REST_PAT.
-            T![.] if p.at(T![..]) => p.bump(T![..]),
-            T!['{'] => error_block(p, "expected ident"),
-
+            T![.] if p.at(T![..]) => {
+                p.bump(T![..]);
+                m.complete(p, REST_PAT);
+            }
+            T!['{'] => {
+                error_block(p, "expected ident");
+                m.abandon(p);
+            }
             _ => {
-                let m = p.start();
-                attributes::outer_attrs(p);
-                match p.current() {
-                    // test record_pat_field
-                    // fn foo() {
-                    //     let S { 0: 1 } = ();
-                    //     let S { x: 1 } = ();
-                    //     let S { #[cfg(any())] x: 1 } = ();
-                    // }
-                    IDENT | INT_NUMBER if p.nth(1) == T![:] => {
-                        name_ref_or_index(p);
-                        p.bump(T![:]);
-                        pattern(p);
-                    }
-                    T![box] => {
-                        // FIXME: not all box patterns should be allowed
-                        box_pat(p);
-                    }
-                    _ => {
-                        ident_pat(p, false);
-                    }
-                }
+                record_pat_field(p);
                 m.complete(p, RECORD_PAT_FIELD);
             }
         }

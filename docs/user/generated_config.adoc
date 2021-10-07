@@ -16,7 +16,7 @@ The path structure for newly inserted paths to use.
 [[rust-analyzer.assist.importGroup]]rust-analyzer.assist.importGroup (default: `true`)::
 +
 --
-Group inserted imports by the [following order](https://rust-analyzer.github.io/manual.html#auto-import). Groups are separated by newlines.
+Group inserted imports by the https://rust-analyzer.github.io/manual.html#auto-import[following order]. Groups are separated by newlines.
 --
 [[rust-analyzer.assist.allowMergingIntoGlobImports]]rust-analyzer.assist.allowMergingIntoGlobImports (default: `true`)::
 +
@@ -136,6 +136,11 @@ Only applies when `#rust-analyzer.completion.addCallParenthesis#` is set.
 --
 Whether to add parenthesis when completing functions.
 --
+[[rust-analyzer.completion.snippets]]rust-analyzer.completion.snippets (default: `{}`)::
++
+--
+Custom completion snippets.
+--
 [[rust-analyzer.completion.postfix.enable]]rust-analyzer.completion.postfix.enable (default: `true`)::
 +
 --
@@ -191,7 +196,7 @@ List of warnings that should be displayed with info severity.
 The warnings will be indicated by a blue squiggly underline in code
 and a blue icon in the `Problems Panel`.
 --
-[[rust-analyzer.experimental.procAttrMacros]]rust-analyzer.experimental.procAttrMacros (default: `false`)::
+[[rust-analyzer.experimental.procAttrMacros]]rust-analyzer.experimental.procAttrMacros (default: `true`)::
 +
 --
 Expand attribute macros.
@@ -355,8 +360,14 @@ Whether to show `Method References` lens. Only applies when
 [[rust-analyzer.lens.references]]rust-analyzer.lens.references (default: `false`)::
 +
 --
-Whether to show `References` lens. Only applies when
-`#rust-analyzer.lens.enable#` is set.
+Whether to show `References` lens for Struct, Enum, Union and Trait.
+Only applies when `#rust-analyzer.lens.enable#` is set.
+--
+[[rust-analyzer.lens.enumVariantReferences]]rust-analyzer.lens.enumVariantReferences (default: `false`)::
++
+--
+Whether to show `References` lens for Enum Variants.
+Only applies when `#rust-analyzer.lens.enable#` is set.
 --
 [[rust-analyzer.lens.forceCustomCommands]]rust-analyzer.lens.forceCustomCommands (default: `true`)::
 +

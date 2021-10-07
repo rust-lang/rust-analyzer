@@ -264,10 +264,9 @@ impl<'a> InferenceContext<'a> {
 
                 // collect explicitly written argument types
                 for arg_type in arg_types.iter() {
-                    let arg_ty = if let Some(type_ref) = arg_type {
-                        self.make_ty(type_ref)
-                    } else {
-                        self.table.new_type_var()
+                    let arg_ty = match arg_type {
+                        Some(type_ref) => self.make_ty(type_ref),
+                        None => self.table.new_type_var(),
                     };
                     sig_tys.push(arg_ty);
                 }
@@ -915,7 +914,7 @@ impl<'a> InferenceContext<'a> {
     ) -> Ty {
         for stmt in statements {
             match stmt {
-                Statement::Let { pat, type_ref, initializer } => {
+                Statement::Let { pat, type_ref, initializer, else_branch } => {
                     let decl_ty = type_ref
                         .as_ref()
                         .map(|tr| self.make_ty(tr))
@@ -930,6 +929,13 @@ impl<'a> InferenceContext<'a> {
                         if decl_ty.is_unknown() {
                             ty = actual_ty;
                         }
+                    }
+
+                    if let Some(expr) = else_branch {
+                        self.infer_expr_coerce(
+                            *expr,
+                            &Expectation::has_type(Ty::new(&Interner, TyKind::Never)),
+                        );
                     }
 
                     self.infer_pat(*pat, &ty, BindingMode::default());

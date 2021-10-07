@@ -27,13 +27,14 @@ use either::Either;
 use hir::{AsAssocItem, FieldSource, HasSource, InFile, ModuleSource, Semantics};
 use stdx::never;
 use syntax::{
-    ast::{self, NameOwner},
+    ast::{self, HasName},
     lex_single_syntax_kind, AstNode, SyntaxKind, TextRange, T,
 };
 use text_edit::{TextEdit, TextEditBuilder};
 
 use crate::{
     defs::Definition,
+    helpers::node_ext::expr_as_name_ref,
     search::FileReference,
     source_change::{FileSystemEdit, SourceChange},
     RootDatabase,
@@ -155,7 +156,7 @@ impl Definition {
         fn name_range<D>(def: D, sema: &Semantics<RootDatabase>) -> Option<FileRange>
         where
             D: HasSource,
-            D::Ast: ast::NameOwner,
+            D::Ast: ast::HasName,
         {
             let src = def.source(sema.db)?;
             let name = src.value.name()?;
@@ -290,23 +291,26 @@ pub fn source_edit_from_references(
     new_name: &str,
 ) -> TextEdit {
     let mut edit = TextEdit::builder();
-    for reference in references {
-        let has_emitted_edit = match &reference.name {
+    // macros can cause multiple refs to occur for the same text range, so keep track of what we have edited so far
+    let mut edited_ranges = Vec::new();
+    for &FileReference { range, ref name, .. } in references {
+        let has_emitted_edit = match name {
             // if the ranges differ then the node is inside a macro call, we can't really attempt
             // to make special rewrites like shorthand syntax and such, so just rename the node in
             // the macro input
-            ast::NameLike::NameRef(name_ref)
-                if name_ref.syntax().text_range() == reference.range =>
-            {
+            ast::NameLike::NameRef(name_ref) if name_ref.syntax().text_range() == range => {
                 source_edit_from_name_ref(&mut edit, name_ref, new_name, def)
             }
-            ast::NameLike::Name(name) if name.syntax().text_range() == reference.range => {
+            ast::NameLike::Name(name) if name.syntax().text_range() == range => {
                 source_edit_from_name(&mut edit, name, new_name)
             }
             _ => false,
         };
         if !has_emitted_edit {
-            edit.replace(reference.range, new_name.to_string());
+            if !edited_ranges.contains(&range.start()) {
+                edit.replace(range, new_name.to_string());
+                edited_ranges.push(range.start());
+            }
         }
     }
 
@@ -314,7 +318,7 @@ pub fn source_edit_from_references(
 }
 
 fn source_edit_from_name(edit: &mut TextEditBuilder, name: &ast::Name, new_name: &str) -> bool {
-    if let Some(_) = ast::RecordPatField::for_field_name(name) {
+    if ast::RecordPatField::for_field_name(name).is_some() {
         if let Some(ident_pat) = name.syntax().parent().and_then(ast::IdentPat::cast) {
             cov_mark::hit!(rename_record_pat_field_name_split);
             // Foo { ref mut field } -> Foo { new_name: ref mut field }
@@ -339,7 +343,7 @@ fn source_edit_from_name_ref(
     if let Some(record_field) = ast::RecordExprField::for_name_ref(name_ref) {
         let rcf_name_ref = record_field.name_ref();
         let rcf_expr = record_field.expr();
-        match &(rcf_name_ref, rcf_expr.and_then(|it| it.name_ref())) {
+        match &(rcf_name_ref, rcf_expr.and_then(|it| expr_as_name_ref(&it))) {
             // field: init-expr, check if we can use a field init shorthand
             (Some(field_name), Some(init)) => {
                 if field_name == name_ref {

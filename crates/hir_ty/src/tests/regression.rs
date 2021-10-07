@@ -1177,3 +1177,47 @@ fn multiexp_inner() {
         "#,
     );
 }
+
+#[test]
+fn macro_expands_to_impl_trait() {
+    check_no_mismatches(
+        r#"
+trait Foo {}
+
+macro_rules! ty {
+    () => {
+        impl Foo
+    }
+}
+
+fn foo(_: ty!()) {}
+
+fn bar() {
+    foo(());
+}
+    "#,
+    )
+}
+
+#[test]
+fn nested_macro_in_fn_params() {
+    check_no_mismatches(
+        r#"
+macro_rules! U32Inner {
+    () => {
+        u32
+    };
+}
+
+macro_rules! U32 {
+    () => {
+        U32Inner!()
+    };
+}
+
+fn mamba(a: U32!(), p: u32) -> u32 {
+    a
+}
+    "#,
+    )
+}

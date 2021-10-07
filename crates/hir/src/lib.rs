@@ -72,7 +72,7 @@ use once_cell::unsync::Lazy;
 use rustc_hash::FxHashSet;
 use stdx::{format_to, impl_from};
 use syntax::{
-    ast::{self, AttrsOwner, NameOwner},
+    ast::{self, HasAttrs as _, HasName},
     AstNode, AstPtr, SmolStr, SyntaxKind, SyntaxNodePtr,
 };
 use tt::{Ident, Leaf, Literal, TokenTree};
@@ -673,7 +673,12 @@ impl Module {
 
     pub fn declarations(self, db: &dyn HirDatabase) -> Vec<ModuleDef> {
         let def_map = self.id.def_map(db.upcast());
-        def_map[self.id.local_id].scope.declarations().map(ModuleDef::from).collect()
+        let scope = &def_map[self.id.local_id].scope;
+        scope
+            .declarations()
+            .map(ModuleDef::from)
+            .chain(scope.unnamed_consts().map(|id| ModuleDef::Const(Const::from(id))))
+            .collect()
     }
 
     pub fn impl_defs(self, db: &dyn HirDatabase) -> Vec<Impl> {
@@ -1114,7 +1119,7 @@ impl DefWithBody {
                                 if let ast::Expr::RecordExpr(record_expr) =
                                     &source_ptr.value.to_node(&root)
                                 {
-                                    if let Some(_) = record_expr.record_expr_field_list() {
+                                    if record_expr.record_expr_field_list().is_some() {
                                         acc.push(
                                             MissingFields {
                                                 file: source_ptr.file_id,
@@ -1138,7 +1143,7 @@ impl DefWithBody {
                                 if let Some(expr) = source_ptr.value.as_ref().left() {
                                     let root = source_ptr.file_syntax(db.upcast());
                                     if let ast::Pat::RecordPat(record_pat) = expr.to_node(&root) {
-                                        if let Some(_) = record_pat.record_pat_field_list() {
+                                        if record_pat.record_pat_field_list().is_some() {
                                             acc.push(
                                                 MissingFields {
                                                     file: source_ptr.file_id,
@@ -2019,7 +2024,7 @@ impl TypeParam {
     }
 
     pub fn trait_bounds(self, db: &dyn HirDatabase) -> Vec<Trait> {
-        db.generic_predicates_for_param(self.id)
+        db.generic_predicates_for_param(self.id, None)
             .iter()
             .filter_map(|pred| match &pred.skip_binders().skip_binders() {
                 hir_ty::WhereClause::Implemented(trait_ref) => {
@@ -2114,10 +2119,9 @@ impl Impl {
         };
 
         let fp = TyFingerprint::for_inherent_impl(&ty);
-        let fp = if let Some(fp) = fp {
-            fp
-        } else {
-            return Vec::new();
+        let fp = match fp {
+            Some(fp) => fp,
+            None => return Vec::new(),
         };
 
         let mut all = Vec::new();
@@ -2499,9 +2503,7 @@ impl Type {
 
     pub fn autoderef<'a>(&'a self, db: &'a dyn HirDatabase) -> impl Iterator<Item = Type> + 'a {
         // There should be no inference vars in types passed here
-        // FIXME check that?
-        let canonical =
-            Canonical { value: self.ty.clone(), binders: CanonicalVarKinds::empty(&Interner) };
+        let canonical = hir_ty::replace_errors_with_variables(&self.ty);
         let environment = self.env.env.clone();
         let ty = InEnvironment { goal: canonical, environment };
         autoderef(db, Some(self.krate), ty)
@@ -2595,10 +2597,7 @@ impl Type {
         callback: &mut dyn FnMut(&Ty, AssocItemId) -> ControlFlow<()>,
     ) {
         // There should be no inference vars in types passed here
-        // FIXME check that?
-        // FIXME replace Unknown by bound vars here
-        let canonical =
-            Canonical { value: self.ty.clone(), binders: CanonicalVarKinds::empty(&Interner) };
+        let canonical = hir_ty::replace_errors_with_variables(&self.ty);
 
         let env = self.env.clone();
         let krate = krate.id;

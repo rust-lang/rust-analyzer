@@ -2,13 +2,13 @@ use super::*;
 
 pub(super) fn inner_attrs(p: &mut Parser) {
     while p.at(T![#]) && p.nth(1) == T![!] {
-        attr(p, true)
+        attr(p, true);
     }
 }
 
 pub(super) fn outer_attrs(p: &mut Parser) {
     while p.at(T![#]) {
-        attr(p, false)
+        attr(p, false);
     }
 }
 
@@ -41,7 +41,7 @@ pub(super) fn meta(p: &mut Parser) {
     match p.current() {
         T![=] => {
             p.bump(T![=]);
-            if expressions::expr(p).0.is_none() {
+            if !expressions::expr(p) {
                 p.error("expected expression");
             }
         }

@@ -64,10 +64,11 @@ pre                 { color: #DCDCCC; background: #3F3F3F; font-size: 22px; padd
     <span class="keyword">pub</span> <span class="keyword">trait</span> <span class="trait declaration public">Fn</span><span class="angle">&lt;</span><span class="type_param declaration">Args</span><span class="angle">&gt;</span><span class="colon">:</span> <span class="trait public">FnMut</span><span class="angle">&lt;</span><span class="type_param">Args</span><span class="angle">&gt;</span> <span class="brace">{</span><span class="brace">}</span>
 <span class="brace">}</span>
 
-
-<span class="keyword">struct</span> <span class="struct declaration">Foo</span> <span class="brace">{</span>
-    <span class="keyword">pub</span> <span class="field declaration public">x</span><span class="colon">:</span> <span class="builtin_type">i32</span><span class="comma">,</span>
-    <span class="keyword">pub</span> <span class="field declaration public">y</span><span class="colon">:</span> <span class="builtin_type">i32</span><span class="comma">,</span>
+proc_macros::<span class="macro">mirror!</span> <span class="brace">{</span>
+    <span class="brace">{</span>
+        <span class="comma">,</span><span class="builtin_type">i32</span> <span class="colon">:</span><span class="field declaration public">x</span> <span class="keyword">pub</span>
+        <span class="comma">,</span><span class="builtin_type">i32</span> <span class="colon">:</span><span class="field declaration public">y</span> <span class="keyword">pub</span>
+    <span class="brace">}</span> <span class="struct declaration">Foo</span> <span class="keyword">struct</span>
 <span class="brace">}</span>
 
 <span class="keyword">trait</span> <span class="trait declaration">Bar</span> <span class="keyword">where</span> <span class="type_param">Self</span><span class="colon">:</span> <span class="brace">{</span>
@@ -240,24 +241,24 @@ pre                 { color: #DCDCCC; background: #3F3F3F; font-size: 22px; padd
     <span class="brace">}</span>
 <span class="brace">}</span>
 
-<span class="keyword async">async</span> <span class="keyword">fn</span> <span class="function declaration async">learn_and_sing</span><span class="parenthesis">(</span><span class="parenthesis">)</span> <span class="brace">{</span>
-    <span class="keyword">let</span> <span class="variable declaration">song</span> <span class="operator">=</span> <span class="unresolved_reference">learn_song</span><span class="parenthesis">(</span><span class="parenthesis">)</span><span class="operator">.</span><span class="keyword control async">await</span><span class="semicolon">;</span>
-    <span class="unresolved_reference">sing_song</span><span class="parenthesis">(</span><span class="variable consuming">song</span><span class="parenthesis">)</span><span class="operator">.</span><span class="keyword control async">await</span><span class="semicolon">;</span>
+<span class="keyword async">async</span> <span class="keyword">fn</span> <span class="function async declaration">learn_and_sing</span><span class="parenthesis">(</span><span class="parenthesis">)</span> <span class="brace">{</span>
+    <span class="keyword">let</span> <span class="variable declaration">song</span> <span class="operator">=</span> <span class="unresolved_reference">learn_song</span><span class="parenthesis">(</span><span class="parenthesis">)</span><span class="operator">.</span><span class="keyword async control">await</span><span class="semicolon">;</span>
+    <span class="unresolved_reference">sing_song</span><span class="parenthesis">(</span><span class="variable consuming">song</span><span class="parenthesis">)</span><span class="operator">.</span><span class="keyword async control">await</span><span class="semicolon">;</span>
 <span class="brace">}</span>
 
-<span class="keyword async">async</span> <span class="keyword">fn</span> <span class="function declaration async">async_main</span><span class="parenthesis">(</span><span class="parenthesis">)</span> <span class="brace">{</span>
+<span class="keyword async">async</span> <span class="keyword">fn</span> <span class="function async declaration">async_main</span><span class="parenthesis">(</span><span class="parenthesis">)</span> <span class="brace">{</span>
     <span class="keyword">let</span> <span class="variable declaration">f1</span> <span class="operator">=</span> <span class="function async">learn_and_sing</span><span class="parenthesis">(</span><span class="parenthesis">)</span><span class="semicolon">;</span>
     <span class="keyword">let</span> <span class="variable declaration">f2</span> <span class="operator">=</span> <span class="unresolved_reference">dance</span><span class="parenthesis">(</span><span class="parenthesis">)</span><span class="semicolon">;</span>
     futures::<span class="macro">join!</span><span class="parenthesis">(</span>f1<span class="comma">,</span> f2<span class="parenthesis">)</span><span class="semicolon">;</span>
 <span class="brace">}</span>
 
 <span class="keyword">fn</span> <span class="function declaration">use_foo_items</span><span class="parenthesis">(</span><span class="parenthesis">)</span> <span class="brace">{</span>
-    <span class="keyword">let</span> <span class="variable declaration">bob</span> <span class="operator">=</span> <span class="module library">foo</span><span class="operator">::</span><span class="struct library">Person</span> <span class="brace">{</span>
+    <span class="keyword">let</span> <span class="variable declaration">bob</span> <span class="operator">=</span> <span class="module crate_root library">foo</span><span class="operator">::</span><span class="struct library">Person</span> <span class="brace">{</span>
         <span class="field library">name</span><span class="colon">:</span> <span class="string_literal">"Bob"</span><span class="comma">,</span>
-        <span class="field library">age</span><span class="colon">:</span> <span class="module library">foo</span><span class="operator">::</span><span class="module library">consts</span><span class="operator">::</span><span class="constant library">NUMBER</span><span class="comma">,</span>
+        <span class="field library">age</span><span class="colon">:</span> <span class="module crate_root library">foo</span><span class="operator">::</span><span class="module library">consts</span><span class="operator">::</span><span class="constant library">NUMBER</span><span class="comma">,</span>
     <span class="brace">}</span><span class="semicolon">;</span>
 
-    <span class="keyword">let</span> <span class="variable declaration">control_flow</span> <span class="operator">=</span> <span class="module library">foo</span><span class="operator">::</span><span class="function library">identity</span><span class="parenthesis">(</span><span class="module library">foo</span><span class="operator">::</span><span class="enum library">ControlFlow</span><span class="operator">::</span><span class="enum_variant library">Continue</span><span class="parenthesis">)</span><span class="semicolon">;</span>
+    <span class="keyword">let</span> <span class="variable declaration">control_flow</span> <span class="operator">=</span> <span class="module crate_root library">foo</span><span class="operator">::</span><span class="function library">identity</span><span class="parenthesis">(</span><span class="module crate_root library">foo</span><span class="operator">::</span><span class="enum library">ControlFlow</span><span class="operator">::</span><span class="enum_variant library">Continue</span><span class="parenthesis">)</span><span class="semicolon">;</span>
 
     <span class="keyword control">if</span> <span class="variable">control_flow</span><span class="operator">.</span><span class="function associated consuming library">should_die</span><span class="parenthesis">(</span><span class="parenthesis">)</span> <span class="brace">{</span>
         foo::<span class="macro">die!</span><span class="parenthesis">(</span><span class="parenthesis">)</span><span class="semicolon">;</span>

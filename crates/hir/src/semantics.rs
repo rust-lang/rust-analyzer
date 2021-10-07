@@ -17,7 +17,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::{smallvec, SmallVec};
 use syntax::{
     algo::skip_trivia_token,
-    ast::{self, GenericParamsOwner, LoopBodyOwner},
+    ast::{self, HasGenericParams, HasLoopBody},
     match_ast, AstNode, Direction, SyntaxNode, SyntaxNodePtr, SyntaxToken, TextRange, TextSize,
 };
 
@@ -25,9 +25,9 @@ use crate::{
     db::HirDatabase,
     semantics::source_to_def::{ChildContainer, SourceToDefCache, SourceToDefCtx},
     source_analyzer::{resolve_hir_path, SourceAnalyzer},
-    Access, AssocItem, Callable, ConstParam, Crate, Field, Function, HirFileId, Impl, InFile,
-    Label, LifetimeParam, Local, MacroDef, Module, ModuleDef, Name, Path, ScopeDef, Trait, Type,
-    TypeAlias, TypeParam, VariantDef,
+    Access, AssocItem, Callable, ConstParam, Crate, Field, Function, HasSource, HirFileId, Impl,
+    InFile, Label, LifetimeParam, Local, MacroDef, Module, ModuleDef, Name, Path, ScopeDef, Trait,
+    Type, TypeAlias, TypeParam, VariantDef,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -188,6 +188,14 @@ impl<'db, DB: HirDatabase> Semantics<'db, DB> {
     /// Maps a node down by mapping its first and last token down.
     pub fn descend_node_into_attributes<N: AstNode>(&self, node: N) -> SmallVec<[N; 1]> {
         self.imp.descend_node_into_attributes(node)
+    }
+
+    /// Search for a definition's source and cache its syntax tree
+    pub fn source<Def: HasSource>(&self, def: Def) -> Option<InFile<Def::Ast>>
+    where
+        Def::Ast: AstNode,
+    {
+        self.imp.source(def)
     }
 
     pub fn hir_file_for(&self, syntax_node: &SyntaxNode) -> HirFileId {
@@ -481,7 +489,7 @@ impl<'db> SemanticsImpl<'db> {
         )
     }
 
-    // This might not be the correct way to due this, but it works for now
+    // This might not be the correct way to do this, but it works for now
     fn descend_node_into_attributes<N: AstNode>(&self, node: N) -> SmallVec<[N; 1]> {
         let mut res = smallvec![];
         let tokens = (|| {
@@ -542,40 +550,56 @@ impl<'db> SemanticsImpl<'db> {
             None => return,
         };
         let sa = self.analyze(&parent);
-        let mut queue = vec![InFile::new(sa.file_id, token)];
+        let mut stack: SmallVec<[_; 1]> = smallvec![InFile::new(sa.file_id, token)];
         let mut cache = self.expansion_info_cache.borrow_mut();
+
+        let mut process_expansion_for_token =
+            |stack: &mut SmallVec<_>, file_id, item, token: InFile<&_>| {
+                let mapped_tokens = cache
+                    .entry(file_id)
+                    .or_insert_with(|| file_id.expansion_info(self.db.upcast()))
+                    .as_ref()?
+                    .map_token_down(self.db.upcast(), item, token)?;
+
+                let len = stack.len();
+                // requeue the tokens we got from mapping our current token down
+                stack.extend(mapped_tokens.inspect(|token| {
+                    if let Some(parent) = token.value.parent() {
+                        self.cache(find_root(&parent), token.file_id);
+                    }
+                }));
+                // if the length changed we have found a mapping for the token
+                (stack.len() != len).then(|| ())
+            };
+
         // Remap the next token in the queue into a macro call its in, if it is not being remapped
         // either due to not being in a macro-call or because its unused push it into the result vec,
         // otherwise push the remapped tokens back into the queue as they can potentially be remapped again.
-        while let Some(token) = queue.pop() {
+        while let Some(token) = stack.pop() {
             self.db.unwind_if_cancelled();
             let was_not_remapped = (|| {
-                if let Some((call_id, item)) = token
-                    .value
-                    .ancestors()
-                    .filter_map(ast::Item::cast)
-                    .filter_map(|item| {
-                        self.with_ctx(|ctx| ctx.item_to_macro_call(token.with_value(item.clone())))
-                            .zip(Some(item))
-                    })
-                    .last()
-                {
+                // are we inside an attribute macro call
+                let containing_attribute_macro_call = self.with_ctx(|ctx| {
+                    token
+                        .value
+                        .ancestors()
+                        .filter_map(ast::Item::cast)
+                        .filter_map(|item| {
+                            Some((ctx.item_to_macro_call(token.with_value(item.clone()))?, item))
+                        })
+                        .last()
+                });
+                if let Some((call_id, item)) = containing_attribute_macro_call {
                     let file_id = call_id.as_file();
-                    let tokens = cache
-                        .entry(file_id)
-                        .or_insert_with(|| file_id.expansion_info(self.db.upcast()))
-                        .as_ref()?
-                        .map_token_down(self.db.upcast(), Some(item), token.as_ref())?;
-
-                    let len = queue.len();
-                    queue.extend(tokens.inspect(|token| {
-                        if let Some(parent) = token.value.parent() {
-                            self.cache(find_root(&parent), token.file_id);
-                        }
-                    }));
-                    return (queue.len() != len).then(|| ());
+                    return process_expansion_for_token(
+                        &mut stack,
+                        file_id,
+                        Some(item),
+                        token.as_ref(),
+                    );
                 }
 
+                // or are we inside a function-like macro call
                 if let Some(macro_call) = token.value.ancestors().find_map(ast::MacroCall::cast) {
                     let tt = macro_call.token_tree()?;
                     let l_delim = match tt.left_delimiter_token() {
@@ -589,21 +613,12 @@ impl<'db> SemanticsImpl<'db> {
                     if !TextRange::new(l_delim, r_delim).contains_range(token.value.text_range()) {
                         return None;
                     }
-                    let file_id = sa.expand(self.db, token.with_value(&macro_call))?;
-                    let tokens = cache
-                        .entry(file_id)
-                        .or_insert_with(|| file_id.expansion_info(self.db.upcast()))
-                        .as_ref()?
-                        .map_token_down(self.db.upcast(), None, token.as_ref())?;
 
-                    let len = queue.len();
-                    queue.extend(tokens.inspect(|token| {
-                        if let Some(parent) = token.value.parent() {
-                            self.cache(find_root(&parent), token.file_id);
-                        }
-                    }));
-                    return (queue.len() != len).then(|| ());
+                    let file_id = sa.expand(self.db, token.with_value(&macro_call))?;
+                    return process_expansion_for_token(&mut stack, file_id, None, token.as_ref());
                 }
+
+                // outside of a macro invocation so this is a "final" token
                 None
             })()
             .is_none();
@@ -682,20 +697,7 @@ impl<'db> SemanticsImpl<'db> {
     fn resolve_lifetime_param(&self, lifetime: &ast::Lifetime) -> Option<LifetimeParam> {
         let text = lifetime.text();
         let lifetime_param = lifetime.syntax().ancestors().find_map(|syn| {
-            let gpl = match_ast! {
-                match syn {
-                    ast::Fn(it) => it.generic_param_list()?,
-                    ast::TypeAlias(it) => it.generic_param_list()?,
-                    ast::Struct(it) => it.generic_param_list()?,
-                    ast::Enum(it) => it.generic_param_list()?,
-                    ast::Union(it) => it.generic_param_list()?,
-                    ast::Trait(it) => it.generic_param_list()?,
-                    ast::Impl(it) => it.generic_param_list()?,
-                    ast::WherePred(it) => it.generic_param_list()?,
-                    ast::ForType(it) => it.generic_param_list()?,
-                    _ => return None,
-                }
-            };
+            let gpl = ast::AnyHasGenericParams::cast(syn)?.generic_param_list()?;
             gpl.lifetime_params()
                 .find(|tp| tp.lifetime().as_ref().map(|lt| lt.text()).as_ref() == Some(&text))
         })?;
@@ -711,7 +713,7 @@ impl<'db> SemanticsImpl<'db> {
                     ast::ForExpr(it) => it.label(),
                     ast::WhileExpr(it) => it.label(),
                     ast::LoopExpr(it) => it.label(),
-                    ast::EffectExpr(it) => it.label(),
+                    ast::BlockExpr(it) => it.label(),
                     _ => None,
                 }
             };
@@ -849,6 +851,15 @@ impl<'db> SemanticsImpl<'db> {
         let file_id = self.db.lookup_intern_trait(def.id).id.file_id();
         let resolver = def.id.resolver(self.db.upcast());
         SemanticsScope { db: self.db, file_id, resolver }
+    }
+
+    fn source<Def: HasSource>(&self, def: Def) -> Option<InFile<Def::Ast>>
+    where
+        Def::Ast: AstNode,
+    {
+        let res = def.source(self.db)?;
+        self.cache(find_root(res.value.syntax()), res.file_id);
+        Some(res)
     }
 
     fn analyze(&self, node: &SyntaxNode) -> SourceAnalyzer {

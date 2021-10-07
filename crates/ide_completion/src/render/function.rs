@@ -74,10 +74,9 @@ impl<'a> FunctionRender<'a> {
 
     fn render(self, import_to_add: Option<ImportEdit>) -> CompletionItem {
         let params = self.params();
-        let call = if let Some(receiver) = &self.receiver {
-            format!("{}.{}", receiver, &self.name)
-        } else {
-            self.name.clone()
+        let call = match &self.receiver {
+            Some(receiver) => format!("{}.{}", receiver, &self.name),
+            None => self.name.clone(),
         };
         let mut item =
             CompletionItem::new(CompletionKind::Reference, self.ctx.source_range(), call.clone());
@@ -98,7 +97,10 @@ impl<'a> FunctionRender<'a> {
             }
         }
 
-        item.add_import(import_to_add).lookup_by(self.name);
+        if let Some(import_to_add) = import_to_add {
+            item.add_import(import_to_add);
+        }
+        item.lookup_by(self.name);
 
         let ret_type = self.func.ret_type(self.ctx.db());
         item.set_relevance(CompletionRelevance {

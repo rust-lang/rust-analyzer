@@ -9,7 +9,7 @@ use ide_db::{
 };
 use syntax::{
     algo::find_node_at_offset,
-    ast::{self, NameOrNameRef, NameOwner},
+    ast::{self, HasName, NameOrNameRef},
     match_ast, AstNode, NodeOrToken,
     SyntaxKind::{self, *},
     SyntaxNode, SyntaxToken, TextRange, TextSize, T,
@@ -326,7 +326,7 @@ impl<'a> CompletionContext<'a> {
     }
 
     pub(crate) fn has_block_expr_parent(&self) -> bool {
-        matches!(self.completion_location, Some(ImmediateLocation::BlockExpr))
+        matches!(self.completion_location, Some(ImmediateLocation::StmtList))
     }
 
     pub(crate) fn expects_ident_pat_or_ref_expr(&self) -> bool {
@@ -383,6 +383,7 @@ impl<'a> CompletionContext<'a> {
                         | ImmediateLocation::ModDeclaration(_)
                         | ImmediateLocation::RecordPat(_)
                         | ImmediateLocation::RecordExpr(_)
+                        | ImmediateLocation::Rename
                 )
             )
     }
@@ -508,10 +509,9 @@ impl<'a> CompletionContext<'a> {
                             .and_then(|pat| self.sema.type_of_pat(&pat))
                             .or_else(|| it.initializer().and_then(|it| self.sema.type_of_expr(&it)))
                             .map(TypeInfo::original);
-                        let name = if let Some(ast::Pat::IdentPat(ident)) = it.pat() {
-                            ident.name().map(NameOrNameRef::Name)
-                        } else {
-                            None
+                        let name = match it.pat() {
+                            Some(ast::Pat::IdentPat(ident)) => ident.name().map(NameOrNameRef::Name),
+                            Some(_) | None => None,
                         };
 
                         (ty, name)
@@ -818,9 +818,9 @@ impl<'a> CompletionContext<'a> {
                     if let Some(stmt) = ast::ExprStmt::cast(node.clone()) {
                         return Some(stmt.syntax().text_range() == name_ref.syntax().text_range());
                     }
-                    if let Some(block) = ast::BlockExpr::cast(node) {
+                    if let Some(stmt_list) = ast::StmtList::cast(node) {
                         return Some(
-                            block.tail_expr().map(|e| e.syntax().text_range())
+                            stmt_list.tail_expr().map(|e| e.syntax().text_range())
                                 == Some(name_ref.syntax().text_range()),
                         );
                     }
@@ -868,7 +868,8 @@ mod tests {
 
     fn check_expected_type_and_name(ra_fixture: &str, expect: Expect) {
         let (db, pos) = position(ra_fixture);
-        let completion_context = CompletionContext::new(&db, pos, &TEST_CONFIG).unwrap();
+        let config = TEST_CONFIG;
+        let completion_context = CompletionContext::new(&db, pos, &config).unwrap();
 
         let ty = completion_context
             .expected_type

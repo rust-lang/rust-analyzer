@@ -1,17 +1,16 @@
 //! Various extension methods to ast Nodes, which are hard to code-generate.
 //! Extensions for various expressions live in a sibling `expr_extensions` module.
+//!
+//! These methods should only do simple, shallow tasks related to the syntax of the node itself.
 
 use std::{borrow::Cow, fmt, iter::successors};
 
 use itertools::Itertools;
 use parser::SyntaxKind;
-use rowan::{GreenNodeData, GreenTokenData, WalkEvent};
+use rowan::{GreenNodeData, GreenTokenData};
 
 use crate::{
-    ast::{
-        self, support, AstChildren, AstNode, AstToken, AttrsOwner, GenericParamsOwner, NameOwner,
-        SyntaxNode,
-    },
+    ast::{self, support, AstNode, AstToken, HasAttrs, HasGenericParams, HasName, SyntaxNode},
     NodeOrToken, SmolStr, SyntaxElement, SyntaxToken, TokenText, T,
 };
 
@@ -48,73 +47,15 @@ fn text_of_first_token(node: &SyntaxNode) -> TokenText<'_> {
     }
 }
 
+impl ast::HasModuleItem for ast::StmtList {}
+
 impl ast::BlockExpr {
-    pub fn items(&self) -> AstChildren<ast::Item> {
-        support::children(self.syntax())
+    // FIXME: remove all these methods, they belong to ast::StmtList
+    pub fn statements(&self) -> impl Iterator<Item = ast::Stmt> {
+        self.stmt_list().into_iter().flat_map(|it| it.statements())
     }
-
-    pub fn is_empty(&self) -> bool {
-        self.statements().next().is_none() && self.tail_expr().is_none()
-    }
-
-    pub fn as_lone_tail(&self) -> Option<ast::Expr> {
-        self.statements().next().is_none().then(|| self.tail_expr()).flatten()
-    }
-}
-
-impl ast::Pat {
-    /// Preorder walk all the pattern's sub patterns.
-    pub fn walk(&self, cb: &mut dyn FnMut(ast::Pat)) {
-        let mut preorder = self.syntax().preorder();
-        while let Some(event) = preorder.next() {
-            let node = match event {
-                WalkEvent::Enter(node) => node,
-                WalkEvent::Leave(_) => continue,
-            };
-            let kind = node.kind();
-            match ast::Pat::cast(node) {
-                Some(pat @ ast::Pat::ConstBlockPat(_)) => {
-                    preorder.skip_subtree();
-                    cb(pat);
-                }
-                Some(pat) => {
-                    cb(pat);
-                }
-                // skip const args
-                None if ast::GenericArg::can_cast(kind) => {
-                    preorder.skip_subtree();
-                }
-                None => (),
-            }
-        }
-    }
-}
-
-impl ast::Type {
-    /// Preorder walk all the type's sub types.
-    pub fn walk(&self, cb: &mut dyn FnMut(ast::Type)) {
-        let mut preorder = self.syntax().preorder();
-        while let Some(event) = preorder.next() {
-            let node = match event {
-                WalkEvent::Enter(node) => node,
-                WalkEvent::Leave(_) => continue,
-            };
-            let kind = node.kind();
-            match ast::Type::cast(node) {
-                Some(ty @ ast::Type::MacroType(_)) => {
-                    preorder.skip_subtree();
-                    cb(ty)
-                }
-                Some(ty) => {
-                    cb(ty);
-                }
-                // skip const args
-                None if ast::ConstArg::can_cast(kind) => {
-                    preorder.skip_subtree();
-                }
-                None => (),
-            }
-        }
+    pub fn tail_expr(&self) -> Option<ast::Expr> {
+        self.stmt_list()?.tail_expr()
     }
 }
 
@@ -156,7 +97,7 @@ impl AstNode for Macro {
     }
 }
 
-impl NameOwner for Macro {
+impl HasName for Macro {
     fn name(&self) -> Option<ast::Name> {
         match self {
             Macro::MacroRules(mac) => mac.name(),
@@ -165,37 +106,7 @@ impl NameOwner for Macro {
     }
 }
 
-impl AttrsOwner for Macro {}
-
-/// Basically an owned `dyn AttrsOwner` without extra boxing.
-pub struct AttrsOwnerNode {
-    node: SyntaxNode,
-}
-
-impl AttrsOwnerNode {
-    pub fn new<N: AttrsOwner>(node: N) -> Self {
-        AttrsOwnerNode { node: node.syntax().clone() }
-    }
-}
-
-impl AttrsOwner for AttrsOwnerNode {}
-impl AstNode for AttrsOwnerNode {
-    fn can_cast(_: SyntaxKind) -> bool
-    where
-        Self: Sized,
-    {
-        false
-    }
-    fn cast(_: SyntaxNode) -> Option<Self>
-    where
-        Self: Sized,
-    {
-        None
-    }
-    fn syntax(&self) -> &SyntaxNode {
-        &self.node
-    }
-}
+impl HasAttrs for Macro {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AttrKind {
@@ -365,9 +276,9 @@ impl ast::Path {
 
 impl ast::Use {
     pub fn is_simple_glob(&self) -> bool {
-        self.use_tree()
-            .map(|use_tree| use_tree.use_tree_list().is_none() && use_tree.star_token().is_some())
-            .unwrap_or(false)
+        self.use_tree().map_or(false, |use_tree| {
+            use_tree.use_tree_list().is_none() && use_tree.star_token().is_some()
+        })
     }
 }
 
@@ -473,7 +384,15 @@ impl ast::RecordExprField {
         if let Some(name_ref) = self.name_ref() {
             return Some(name_ref);
         }
-        self.expr()?.name_ref()
+        if let ast::Expr::PathExpr(expr) = self.expr()? {
+            let path = expr.path()?;
+            let segment = path.segment()?;
+            let name_ref = segment.name_ref()?;
+            if path.qualifier().is_none() {
+                return Some(name_ref);
+            }
+        }
+        None
     }
 }
 
@@ -602,16 +521,7 @@ impl ast::Variant {
 
 impl ast::Item {
     pub fn generic_param_list(&self) -> Option<ast::GenericParamList> {
-        match self {
-            ast::Item::Enum(it) => it.generic_param_list(),
-            ast::Item::Fn(it) => it.generic_param_list(),
-            ast::Item::Impl(it) => it.generic_param_list(),
-            ast::Item::Struct(it) => it.generic_param_list(),
-            ast::Item::Trait(it) => it.generic_param_list(),
-            ast::Item::TypeAlias(it) => it.generic_param_list(),
-            ast::Item::Union(it) => it.generic_param_list(),
-            _ => None,
-        }
+        ast::AnyHasGenericParams::cast(self.syntax().clone())?.generic_param_list()
     }
 }
 
@@ -639,10 +549,9 @@ impl ast::FieldExpr {
     }
 
     pub fn field_access(&self) -> Option<FieldKind> {
-        if let Some(nr) = self.name_ref() {
-            Some(FieldKind::Name(nr))
-        } else {
-            self.index_token().map(FieldKind::Index)
+        match self.name_ref() {
+            Some(nr) => Some(FieldKind::Name(nr)),
+            None => self.index_token().map(FieldKind::Index),
         }
     }
 }
@@ -760,29 +669,6 @@ impl ast::Visibility {
             None => VisibilityKind::Pub,
         }
     }
-
-    pub fn is_eq_to(&self, other: &Self) -> bool {
-        match (self.kind(), other.kind()) {
-            (VisibilityKind::In(this), VisibilityKind::In(other)) => {
-                stdx::iter_eq_by(this.segments(), other.segments(), |lhs, rhs| {
-                    lhs.kind().zip(rhs.kind()).map_or(false, |it| match it {
-                        (PathSegmentKind::CrateKw, PathSegmentKind::CrateKw)
-                        | (PathSegmentKind::SelfKw, PathSegmentKind::SelfKw)
-                        | (PathSegmentKind::SuperKw, PathSegmentKind::SuperKw) => true,
-                        (PathSegmentKind::Name(lhs), PathSegmentKind::Name(rhs)) => {
-                            lhs.text() == rhs.text()
-                        }
-                        _ => false,
-                    })
-                })
-            }
-            (VisibilityKind::PubSelf, VisibilityKind::PubSelf)
-            | (VisibilityKind::PubSuper, VisibilityKind::PubSuper)
-            | (VisibilityKind::PubCrate, VisibilityKind::PubCrate)
-            | (VisibilityKind::Pub, VisibilityKind::Pub) => true,
-            _ => false,
-        }
-    }
 }
 
 impl ast::LifetimeParam {
@@ -835,6 +721,16 @@ impl ast::TokenTree {
             .into_token()
             .filter(|it| matches!(it.kind(), T!['}'] | T![')'] | T![']']))
     }
+
+    pub fn parent_meta(&self) -> Option<ast::Meta> {
+        self.syntax().parent().and_then(ast::Meta::cast)
+    }
+}
+
+impl ast::Meta {
+    pub fn parent_attr(&self) -> Option<ast::Attr> {
+        self.syntax().parent().and_then(ast::Attr::cast)
+    }
 }
 
 impl ast::GenericParamList {
@@ -858,21 +754,21 @@ impl ast::GenericParamList {
     }
 }
 
-impl ast::DocCommentsOwner for ast::SourceFile {}
-impl ast::DocCommentsOwner for ast::Fn {}
-impl ast::DocCommentsOwner for ast::Struct {}
-impl ast::DocCommentsOwner for ast::Union {}
-impl ast::DocCommentsOwner for ast::RecordField {}
-impl ast::DocCommentsOwner for ast::TupleField {}
-impl ast::DocCommentsOwner for ast::Enum {}
-impl ast::DocCommentsOwner for ast::Variant {}
-impl ast::DocCommentsOwner for ast::Trait {}
-impl ast::DocCommentsOwner for ast::Module {}
-impl ast::DocCommentsOwner for ast::Static {}
-impl ast::DocCommentsOwner for ast::Const {}
-impl ast::DocCommentsOwner for ast::TypeAlias {}
-impl ast::DocCommentsOwner for ast::Impl {}
-impl ast::DocCommentsOwner for ast::MacroRules {}
-impl ast::DocCommentsOwner for ast::MacroDef {}
-impl ast::DocCommentsOwner for ast::Macro {}
-impl ast::DocCommentsOwner for ast::Use {}
+impl ast::HasDocComments for ast::SourceFile {}
+impl ast::HasDocComments for ast::Fn {}
+impl ast::HasDocComments for ast::Struct {}
+impl ast::HasDocComments for ast::Union {}
+impl ast::HasDocComments for ast::RecordField {}
+impl ast::HasDocComments for ast::TupleField {}
+impl ast::HasDocComments for ast::Enum {}
+impl ast::HasDocComments for ast::Variant {}
+impl ast::HasDocComments for ast::Trait {}
+impl ast::HasDocComments for ast::Module {}
+impl ast::HasDocComments for ast::Static {}
+impl ast::HasDocComments for ast::Const {}
+impl ast::HasDocComments for ast::TypeAlias {}
+impl ast::HasDocComments for ast::Impl {}
+impl ast::HasDocComments for ast::MacroRules {}
+impl ast::HasDocComments for ast::MacroDef {}
+impl ast::HasDocComments for ast::Macro {}
+impl ast::HasDocComments for ast::Use {}

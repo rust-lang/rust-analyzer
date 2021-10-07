@@ -133,7 +133,9 @@ pub struct HlRange {
 // constant:: Emitted for consts.
 // consuming:: Emitted for locals that are being consumed when use in a function call.
 // controlFlow:: Emitted for control-flow related tokens, this includes the `?` operator.
+// crateRoot:: Emitted for crate names, like `serde` and `crate`.
 // declaration:: Emitted for names of definitions, like `foo` in `fn foo() {}`.
+// defaultLibrary:: Emitted for items from built-in crates (std, core, alloc, test and proc_macro).
 // documentation:: Emitted for documentation comments.
 // injected:: Emitted for doc-string injected highlighting like rust source blocks in documentation.
 // intraDocLink:: Emitted for intra doc links in doc-strings.
@@ -196,7 +198,7 @@ fn traverse(
     let mut bindings_shadow_count: FxHashMap<Name, u32> = FxHashMap::default();
 
     let mut current_macro_call: Option<ast::MacroCall> = None;
-    let mut current_attr_macro_call = None;
+    let mut current_attr_call = None;
     let mut current_macro: Option<ast::Macro> = None;
     let mut macro_highlighter = MacroHighlighter::default();
     let mut inside_attribute = false;
@@ -235,7 +237,7 @@ fn traverse(
                         },
                         ast::Item(item) => {
                             if sema.is_attr_macro_call(&item) {
-                                current_attr_macro_call = Some(item);
+                                current_attr_call = Some(item);
                             }
                         },
                         ast::Attr(__) => inside_attribute = true,
@@ -256,8 +258,8 @@ fn traverse(
                             macro_highlighter = MacroHighlighter::default();
                         },
                         ast::Item(item) => {
-                            if current_attr_macro_call == Some(item) {
-                                current_attr_macro_call = None;
+                            if current_attr_call == Some(item) {
+                                current_attr_call = None;
                             }
                         },
                         ast::Attr(__) => inside_attribute = false,
@@ -286,34 +288,29 @@ fn traverse(
             }
         }
 
-        let element_to_highlight = if current_macro_call.is_some() && element.kind() != COMMENT {
+        let descend_token = (current_macro_call.is_some() || current_attr_call.is_some())
+            && element.kind() != COMMENT;
+        let element_to_highlight = if descend_token {
             // Inside a macro -- expand it first
             let token = match element.clone().into_token() {
-                Some(it) if it.parent().map_or(false, |it| it.kind() == TOKEN_TREE) => it,
-                _ => continue,
-            };
-            let token = sema.descend_into_macros(token.clone());
-            match token.parent() {
-                Some(parent) => {
-                    // We only care Name and Name_ref
-                    match (token.kind(), parent.kind()) {
-                        (IDENT, NAME | NAME_REF) => parent.into(),
-                        _ => token.into(),
+                Some(it) if current_macro_call.is_some() => {
+                    let not_in_tt = it.parent().map_or(true, |it| it.kind() != TOKEN_TREE);
+                    if not_in_tt {
+                        continue;
                     }
+                    it
                 }
-                None => token.into(),
-            }
-        } else if current_attr_macro_call.is_some() {
-            let token = match element.clone().into_token() {
                 Some(it) => it,
                 _ => continue,
             };
-            let token = sema.descend_into_macros(token.clone());
+            let token = sema.descend_into_macros(token);
             match token.parent() {
                 Some(parent) => {
                     // We only care Name and Name_ref
                     match (token.kind(), parent.kind()) {
-                        (IDENT, NAME | NAME_REF) => parent.into(),
+                        (T![ident], NAME | NAME_REF) => parent.into(),
+                        (T![self] | T![super] | T![crate], NAME_REF) => parent.into(),
+                        (INT_NUMBER, NAME_REF) => parent.into(),
                         _ => token.into(),
                     }
                 }
@@ -323,16 +320,17 @@ fn traverse(
             element.clone()
         };
 
-        if let Some(token) = element.as_token().cloned().and_then(ast::String::cast) {
+        if let Some(token) = element.into_token().and_then(ast::String::cast) {
             if token.is_raw() {
-                let expanded = element_to_highlight.as_token().unwrap().clone();
-                if inject::ra_fixture(hl, sema, token, expanded).is_some() {
-                    continue;
+                if let Some(expanded) = element_to_highlight.as_token() {
+                    if inject::ra_fixture(hl, sema, token, expanded.clone()).is_some() {
+                        continue;
+                    }
                 }
             }
         }
 
-        if let Some(_) = macro_highlighter.highlight(element_to_highlight.clone()) {
+        if macro_highlighter.highlight(element_to_highlight.clone()).is_some() {
             continue;
         }
 
@@ -350,7 +348,7 @@ fn traverse(
             hl.add(HlRange { range, highlight, binding_hash });
         }
 
-        if let Some(string) = element_to_highlight.as_token().cloned().and_then(ast::String::cast) {
+        if let Some(string) = element_to_highlight.into_token().and_then(ast::String::cast) {
             highlight_format_string(hl, &string, range);
             // Highlight escape sequences
             if let Some(char_ranges) = string.char_ranges() {
@@ -375,9 +373,8 @@ fn macro_call_range(macro_call: &ast::MacroCall) -> Option<TextRange> {
     let range_start = name_ref.syntax().text_range().start();
     let mut range_end = name_ref.syntax().text_range().end();
     for sibling in path.syntax().siblings_with_tokens(Direction::Next) {
-        match sibling.kind() {
-            T![!] | IDENT => range_end = sibling.text_range().end(),
-            _ => (),
+        if let T![!] | T![ident] = sibling.kind() {
+            range_end = sibling.text_range().end();
         }
     }
 

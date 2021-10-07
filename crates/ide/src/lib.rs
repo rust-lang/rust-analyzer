@@ -46,6 +46,7 @@ mod references;
 mod rename;
 mod runnables;
 mod ssr;
+mod static_index;
 mod status;
 mod syntax_highlighting;
 mod syntax_tree;
@@ -86,6 +87,7 @@ pub use crate::{
     references::ReferenceSearchResult,
     rename::RenameError,
     runnables::{Runnable, RunnableKind, TestId},
+    static_index::{StaticIndex, StaticIndexedFile, TokenId, TokenStaticData},
     syntax_highlighting::{
         tags::{Highlight, HlMod, HlMods, HlOperator, HlPunct, HlTag},
         HlRange,
@@ -96,7 +98,8 @@ pub use ide_assists::{
     Assist, AssistConfig, AssistId, AssistKind, AssistResolveStrategy, SingleResolve,
 };
 pub use ide_completion::{
-    CompletionConfig, CompletionItem, CompletionItemKind, CompletionRelevance, ImportEdit,
+    CompletionConfig, CompletionItem, CompletionItemKind, CompletionRelevance, ImportEdit, Snippet,
+    SnippetScope,
 };
 pub use ide_db::{
     base_db::{
@@ -106,7 +109,7 @@ pub use ide_db::{
     call_info::CallInfo,
     label::Label,
     line_index::{LineCol, LineColUtf16, LineIndex},
-    search::{ReferenceAccess, SearchScope},
+    search::{ReferenceCategory, SearchScope},
     source_change::{FileSystemEdit, SourceChange},
     symbol_index::Query,
     RootDatabase, SymbolKind,
@@ -158,9 +161,6 @@ impl AnalysisHost {
         self.db.apply_change(change)
     }
 
-    pub fn collect_garbage(&mut self) {
-        self.db.collect_garbage();
-    }
     /// NB: this clears the database
     pub fn per_query_memory_usage(&mut self) -> Vec<(String, profile::Bytes)> {
         self.db.per_query_memory_usage()
@@ -530,19 +530,10 @@ impl Analysis {
         &self,
         config: &CompletionConfig,
         position: FilePosition,
-        full_import_path: &str,
-        imported_name: String,
+        imports: impl IntoIterator<Item = (String, String)> + std::panic::UnwindSafe,
     ) -> Cancellable<Vec<TextEdit>> {
         Ok(self
-            .with_db(|db| {
-                ide_completion::resolve_completion_edits(
-                    db,
-                    config,
-                    position,
-                    full_import_path,
-                    imported_name,
-                )
-            })?
+            .with_db(|db| ide_completion::resolve_completion_edits(db, config, position, imports))?
             .unwrap_or_default())
     }
 

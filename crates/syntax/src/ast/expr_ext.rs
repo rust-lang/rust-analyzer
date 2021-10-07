@@ -1,6 +1,6 @@
 //! Various extension methods to ast Expr Nodes, which are hard to code-generate.
-
-use rowan::WalkEvent;
+//!
+//! These methods should only do simple, shallow tasks related to the syntax of the node itself.
 
 use crate::{
     ast::{
@@ -10,10 +10,10 @@ use crate::{
     },
     AstToken,
     SyntaxKind::*,
-    SyntaxToken, T,
+    SyntaxNode, SyntaxToken, T,
 };
 
-impl ast::AttrsOwner for ast::Expr {}
+impl ast::HasAttrs for ast::Expr {}
 
 impl ast::Expr {
     pub fn is_block_like(&self) -> bool {
@@ -25,141 +25,7 @@ impl ast::Expr {
                 | ast::Expr::WhileExpr(_)
                 | ast::Expr::BlockExpr(_)
                 | ast::Expr::MatchExpr(_)
-                | ast::Expr::EffectExpr(_)
         )
-    }
-
-    pub fn name_ref(&self) -> Option<ast::NameRef> {
-        if let ast::Expr::PathExpr(expr) = self {
-            let path = expr.path()?;
-            let segment = path.segment()?;
-            let name_ref = segment.name_ref()?;
-            if path.qualifier().is_none() {
-                return Some(name_ref);
-            }
-        }
-        None
-    }
-
-    /// Preorder walk all the expression's child expressions.
-    pub fn walk(&self, cb: &mut dyn FnMut(ast::Expr)) {
-        self.preorder(&mut |ev| {
-            if let WalkEvent::Enter(expr) = ev {
-                cb(expr);
-            }
-            false
-        })
-    }
-
-    /// Preorder walk all the expression's child expressions preserving events.
-    /// If the callback returns true on an [`WalkEvent::Enter`], the subtree of the expression will be skipped.
-    /// Note that the subtree may already be skipped due to the context analysis this function does.
-    pub fn preorder(&self, cb: &mut dyn FnMut(WalkEvent<ast::Expr>) -> bool) {
-        let mut preorder = self.syntax().preorder();
-        while let Some(event) = preorder.next() {
-            let node = match event {
-                WalkEvent::Enter(node) => node,
-                WalkEvent::Leave(node) => {
-                    if let Some(expr) = ast::Expr::cast(node) {
-                        cb(WalkEvent::Leave(expr));
-                    }
-                    continue;
-                }
-            };
-            match ast::Stmt::cast(node.clone()) {
-                // recursively walk the initializer, skipping potential const pat expressions
-                // let statements aren't usually nested too deeply so this is fine to recurse on
-                Some(ast::Stmt::LetStmt(l)) => {
-                    if let Some(expr) = l.initializer() {
-                        expr.preorder(cb);
-                    }
-                    preorder.skip_subtree();
-                }
-                // Don't skip subtree since we want to process the expression child next
-                Some(ast::Stmt::ExprStmt(_)) => (),
-                // This might be an expression
-                Some(ast::Stmt::Item(ast::Item::MacroCall(mcall))) => {
-                    cb(WalkEvent::Enter(ast::Expr::MacroCall(mcall)));
-                    preorder.skip_subtree();
-                }
-                // skip inner items which might have their own expressions
-                Some(ast::Stmt::Item(_)) => preorder.skip_subtree(),
-                None => {
-                    // skip const args, those expressions are a different context
-                    if ast::GenericArg::can_cast(node.kind()) {
-                        preorder.skip_subtree();
-                    } else if let Some(expr) = ast::Expr::cast(node) {
-                        let is_different_context = match &expr {
-                            ast::Expr::EffectExpr(effect) => {
-                                matches!(
-                                    effect.effect(),
-                                    ast::Effect::Async(_)
-                                        | ast::Effect::Try(_)
-                                        | ast::Effect::Const(_)
-                                )
-                            }
-                            ast::Expr::ClosureExpr(_) => true,
-                            _ => false,
-                        };
-                        let skip = cb(WalkEvent::Enter(expr));
-                        if skip || is_different_context {
-                            preorder.skip_subtree();
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// Preorder walk all the expression's child patterns.
-    pub fn walk_patterns(&self, cb: &mut dyn FnMut(ast::Pat)) {
-        let mut preorder = self.syntax().preorder();
-        while let Some(event) = preorder.next() {
-            let node = match event {
-                WalkEvent::Enter(node) => node,
-                WalkEvent::Leave(_) => continue,
-            };
-            match ast::Stmt::cast(node.clone()) {
-                Some(ast::Stmt::LetStmt(l)) => {
-                    if let Some(pat) = l.pat() {
-                        pat.walk(cb);
-                    }
-                    if let Some(expr) = l.initializer() {
-                        expr.walk_patterns(cb);
-                    }
-                    preorder.skip_subtree();
-                }
-                // Don't skip subtree since we want to process the expression child next
-                Some(ast::Stmt::ExprStmt(_)) => (),
-                // skip inner items which might have their own patterns
-                Some(ast::Stmt::Item(_)) => preorder.skip_subtree(),
-                None => {
-                    // skip const args, those are a different context
-                    if ast::GenericArg::can_cast(node.kind()) {
-                        preorder.skip_subtree();
-                    } else if let Some(expr) = ast::Expr::cast(node.clone()) {
-                        let is_different_context = match &expr {
-                            ast::Expr::EffectExpr(effect) => {
-                                matches!(
-                                    effect.effect(),
-                                    ast::Effect::Async(_)
-                                        | ast::Effect::Try(_)
-                                        | ast::Effect::Const(_)
-                                )
-                            }
-                            ast::Expr::ClosureExpr(_) => true,
-                            _ => false,
-                        };
-                        if is_different_context {
-                            preorder.skip_subtree();
-                        }
-                    } else if let Some(pat) = ast::Pat::cast(node) {
-                        preorder.skip_subtree();
-                        pat.walk(cb);
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -374,6 +240,7 @@ impl ast::Literal {
             .and_then(|e| e.into_token())
             .unwrap()
     }
+
     pub fn kind(&self) -> LiteralKind {
         let token = self.token();
 
@@ -400,38 +267,23 @@ impl ast::Literal {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Effect {
+pub enum BlockModifier {
     Async(SyntaxToken),
     Unsafe(SyntaxToken),
     Try(SyntaxToken),
     Const(SyntaxToken),
-    // Very much not an effect, but we stuff it into this node anyway
     Label(ast::Label),
 }
 
-impl ast::EffectExpr {
-    pub fn effect(&self) -> Effect {
-        if let Some(token) = self.async_token() {
-            return Effect::Async(token);
-        }
-        if let Some(token) = self.unsafe_token() {
-            return Effect::Unsafe(token);
-        }
-        if let Some(token) = self.try_token() {
-            return Effect::Try(token);
-        }
-        if let Some(token) = self.const_token() {
-            return Effect::Const(token);
-        }
-        if let Some(label) = self.label() {
-            return Effect::Label(label);
-        }
-        unreachable!("ast::EffectExpr without Effect")
-    }
-}
-
 impl ast::BlockExpr {
+    pub fn modifier(&self) -> Option<BlockModifier> {
+        self.async_token()
+            .map(BlockModifier::Async)
+            .or_else(|| self.unsafe_token().map(BlockModifier::Unsafe))
+            .or_else(|| self.try_token().map(BlockModifier::Try))
+            .or_else(|| self.const_token().map(BlockModifier::Const))
+            .or_else(|| self.label().map(BlockModifier::Label))
+    }
     /// false if the block is an intrinsic part of the syntax and can't be
     /// replaced with arbitrary expression.
     ///
@@ -444,7 +296,7 @@ impl ast::BlockExpr {
             Some(it) => it,
             None => return true,
         };
-        !matches!(parent.kind(), FN | IF_EXPR | WHILE_EXPR | LOOP_EXPR | EFFECT_EXPR)
+        !matches!(parent.kind(), FN | IF_EXPR | WHILE_EXPR | LOOP_EXPR)
     }
 }
 
@@ -458,5 +310,43 @@ fn test_literal_with_attr() {
 impl ast::RecordExprField {
     pub fn parent_record_lit(&self) -> ast::RecordExpr {
         self.syntax().ancestors().find_map(ast::RecordExpr::cast).unwrap()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum CallableExpr {
+    Call(ast::CallExpr),
+    MethodCall(ast::MethodCallExpr),
+}
+
+impl ast::HasAttrs for CallableExpr {}
+impl ast::HasArgList for CallableExpr {}
+
+impl AstNode for CallableExpr {
+    fn can_cast(kind: parser::SyntaxKind) -> bool
+    where
+        Self: Sized,
+    {
+        ast::CallExpr::can_cast(kind) || ast::MethodCallExpr::can_cast(kind)
+    }
+
+    fn cast(syntax: SyntaxNode) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        if let Some(it) = ast::CallExpr::cast(syntax.clone()) {
+            Some(Self::Call(it))
+        } else if let Some(it) = ast::MethodCallExpr::cast(syntax.clone()) {
+            Some(Self::MethodCall(it))
+        } else {
+            None
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode {
+        match self {
+            Self::Call(it) => it.syntax(),
+            Self::MethodCall(it) => it.syntax(),
+        }
     }
 }

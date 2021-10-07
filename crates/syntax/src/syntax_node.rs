@@ -31,6 +31,7 @@ pub type SyntaxToken = rowan::SyntaxToken<RustLanguage>;
 pub type SyntaxElement = rowan::SyntaxElement<RustLanguage>;
 pub type SyntaxNodeChildren = rowan::SyntaxNodeChildren<RustLanguage>;
 pub type SyntaxElementChildren = rowan::SyntaxElementChildren<RustLanguage>;
+pub type PreorderWithTokens = rowan::api::PreorderWithTokens<RustLanguage>;
 
 #[derive(Default)]
 pub struct SyntaxTreeBuilder {
@@ -46,7 +47,7 @@ impl SyntaxTreeBuilder {
 
     pub fn finish(self) -> Parse<SyntaxNode> {
         let (green, errors) = self.finish_raw();
-        if cfg!(debug_assertions) {
+        if cfg!(debug_assertions) && false {
             let node = SyntaxNode::new_root(green.clone());
             crate::validation::validate_block_structure(&node);
         }
@@ -55,19 +56,19 @@ impl SyntaxTreeBuilder {
 
     pub fn token(&mut self, kind: SyntaxKind, text: &str) {
         let kind = RustLanguage::kind_to_raw(kind);
-        self.inner.token(kind, text)
+        self.inner.token(kind, text);
     }
 
     pub fn start_node(&mut self, kind: SyntaxKind) {
         let kind = RustLanguage::kind_to_raw(kind);
-        self.inner.start_node(kind)
+        self.inner.start_node(kind);
     }
 
     pub fn finish_node(&mut self) {
-        self.inner.finish_node()
+        self.inner.finish_node();
     }
 
     pub fn error(&mut self, error: parser::ParseError, text_pos: TextSize) {
-        self.errors.push(SyntaxError::new_at_offset(*error.0, text_pos))
+        self.errors.push(SyntaxError::new_at_offset(*error.0, text_pos));
     }
 }

@@ -8,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use ast::NameOwner;
+use ast::HasName;
 use expect_test::expect_file;
 use rayon::prelude::*;
 use test_utils::{bench, bench_fixture, project_root};
@@ -227,12 +227,9 @@ where
     T: crate::AstNode,
     F: Fn(&str) -> Result<T, ()>,
 {
-    dir_tests(&test_data_dir(), ok_paths, "rast", |text, path| {
-        if let Ok(node) = f(text) {
-            format!("{:#?}", crate::ast::AstNode::syntax(&node))
-        } else {
-            panic!("Failed to parse '{:?}'", path);
-        }
+    dir_tests(&test_data_dir(), ok_paths, "rast", |text, path| match f(text) {
+        Ok(node) => format!("{:#?}", crate::ast::AstNode::syntax(&node)),
+        Err(_) => panic!("Failed to parse '{:?}'", path),
     });
     dir_tests(&test_data_dir(), err_paths, "rast", |text, path| {
         if f(text).is_ok() {

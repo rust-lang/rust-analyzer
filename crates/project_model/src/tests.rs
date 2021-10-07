@@ -47,13 +47,12 @@ fn get_test_json_file<T: DeserializeOwned>(file: &str) -> T {
     fixup_paths(&mut json);
     return serde_json::from_value(json).unwrap();
 
-    fn fixup_paths(val: &mut serde_json::Value) -> () {
+    fn fixup_paths(val: &mut serde_json::Value) {
         match val {
             serde_json::Value::String(s) => replace_root(s, true),
             serde_json::Value::Array(vals) => vals.iter_mut().for_each(fixup_paths),
             serde_json::Value::Object(kvals) => kvals.values_mut().for_each(fixup_paths),
             serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {
-                ()
             }
         }
     }
@@ -167,6 +166,7 @@ fn cargo_hello_world_project_model_with_wildcard_overrides() {
                                 name: CrateName(
                                     "libc",
                                 ),
+                                prelude: true,
                             },
                         ],
                         proc_macro: [],
@@ -232,6 +232,7 @@ fn cargo_hello_world_project_model_with_wildcard_overrides() {
                                 name: CrateName(
                                     "libc",
                                 ),
+                                prelude: true,
                             },
                         ],
                         proc_macro: [],
@@ -288,6 +289,7 @@ fn cargo_hello_world_project_model_with_wildcard_overrides() {
                                 name: CrateName(
                                     "hello_world",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -296,6 +298,7 @@ fn cargo_hello_world_project_model_with_wildcard_overrides() {
                                 name: CrateName(
                                     "libc",
                                 ),
+                                prelude: true,
                             },
                         ],
                         proc_macro: [],
@@ -408,6 +411,7 @@ fn cargo_hello_world_project_model_with_wildcard_overrides() {
                                 name: CrateName(
                                     "hello_world",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -416,6 +420,7 @@ fn cargo_hello_world_project_model_with_wildcard_overrides() {
                                 name: CrateName(
                                     "libc",
                                 ),
+                                prelude: true,
                             },
                         ],
                         proc_macro: [],
@@ -528,6 +533,7 @@ fn cargo_hello_world_project_model_with_wildcard_overrides() {
                                 name: CrateName(
                                     "hello_world",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -536,6 +542,7 @@ fn cargo_hello_world_project_model_with_wildcard_overrides() {
                                 name: CrateName(
                                     "libc",
                                 ),
+                                prelude: true,
                             },
                         ],
                         proc_macro: [],
@@ -616,6 +623,7 @@ fn cargo_hello_world_project_model_with_selective_overrides() {
                                 name: CrateName(
                                     "libc",
                                 ),
+                                prelude: true,
                             },
                         ],
                         proc_macro: [],
@@ -681,6 +689,7 @@ fn cargo_hello_world_project_model_with_selective_overrides() {
                                 name: CrateName(
                                     "libc",
                                 ),
+                                prelude: true,
                             },
                         ],
                         proc_macro: [],
@@ -739,6 +748,7 @@ fn cargo_hello_world_project_model_with_selective_overrides() {
                                 name: CrateName(
                                     "hello_world",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -747,6 +757,7 @@ fn cargo_hello_world_project_model_with_selective_overrides() {
                                 name: CrateName(
                                     "libc",
                                 ),
+                                prelude: true,
                             },
                         ],
                         proc_macro: [],
@@ -861,6 +872,7 @@ fn cargo_hello_world_project_model_with_selective_overrides() {
                                 name: CrateName(
                                     "hello_world",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -869,6 +881,7 @@ fn cargo_hello_world_project_model_with_selective_overrides() {
                                 name: CrateName(
                                     "libc",
                                 ),
+                                prelude: true,
                             },
                         ],
                         proc_macro: [],
@@ -983,6 +996,7 @@ fn cargo_hello_world_project_model_with_selective_overrides() {
                                 name: CrateName(
                                     "hello_world",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -991,6 +1005,7 @@ fn cargo_hello_world_project_model_with_selective_overrides() {
                                 name: CrateName(
                                     "libc",
                                 ),
+                                prelude: true,
                             },
                         ],
                         proc_macro: [],
@@ -1062,6 +1077,7 @@ fn cargo_hello_world_project_model() {
                                 name: CrateName(
                                     "libc",
                                 ),
+                                prelude: true,
                             },
                         ],
                         proc_macro: [],
@@ -1129,6 +1145,7 @@ fn cargo_hello_world_project_model() {
                                 name: CrateName(
                                     "libc",
                                 ),
+                                prelude: true,
                             },
                         ],
                         proc_macro: [],
@@ -1187,6 +1204,7 @@ fn cargo_hello_world_project_model() {
                                 name: CrateName(
                                     "hello_world",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -1195,6 +1213,7 @@ fn cargo_hello_world_project_model() {
                                 name: CrateName(
                                     "libc",
                                 ),
+                                prelude: true,
                             },
                         ],
                         proc_macro: [],
@@ -1311,6 +1330,7 @@ fn cargo_hello_world_project_model() {
                                 name: CrateName(
                                     "hello_world",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -1319,6 +1339,7 @@ fn cargo_hello_world_project_model() {
                                 name: CrateName(
                                     "libc",
                                 ),
+                                prelude: true,
                             },
                         ],
                         proc_macro: [],
@@ -1435,6 +1456,7 @@ fn cargo_hello_world_project_model() {
                                 name: CrateName(
                                     "hello_world",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -1443,6 +1465,7 @@ fn cargo_hello_world_project_model() {
                                 name: CrateName(
                                     "libc",
                                 ),
+                                prelude: true,
                             },
                         ],
                         proc_macro: [],
@@ -1492,6 +1515,7 @@ fn rust_project_hello_world_project_model() {
                                 name: CrateName(
                                     "core",
                                 ),
+                                prelude: true,
                             },
                         ],
                         proc_macro: [],
@@ -1582,6 +1606,7 @@ fn rust_project_hello_world_project_model() {
                                 name: CrateName(
                                     "std",
                                 ),
+                                prelude: true,
                             },
                         ],
                         proc_macro: [],
@@ -1645,6 +1670,7 @@ fn rust_project_hello_world_project_model() {
                                 name: CrateName(
                                     "core",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -1653,6 +1679,7 @@ fn rust_project_hello_world_project_model() {
                                 name: CrateName(
                                     "alloc",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -1661,6 +1688,16 @@ fn rust_project_hello_world_project_model() {
                                 name: CrateName(
                                     "std",
                                 ),
+                                prelude: true,
+                            },
+                            Dependency {
+                                crate_id: CrateId(
+                                    9,
+                                ),
+                                name: CrateName(
+                                    "test",
+                                ),
+                                prelude: false,
                             },
                         ],
                         proc_macro: [],
@@ -1805,6 +1842,7 @@ fn rust_project_hello_world_project_model() {
                                 name: CrateName(
                                     "alloc",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -1813,6 +1851,7 @@ fn rust_project_hello_world_project_model() {
                                 name: CrateName(
                                     "core",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -1821,6 +1860,7 @@ fn rust_project_hello_world_project_model() {
                                 name: CrateName(
                                     "panic_abort",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -1829,6 +1869,7 @@ fn rust_project_hello_world_project_model() {
                                 name: CrateName(
                                     "panic_unwind",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -1837,6 +1878,7 @@ fn rust_project_hello_world_project_model() {
                                 name: CrateName(
                                     "profiler_builtins",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -1845,6 +1887,7 @@ fn rust_project_hello_world_project_model() {
                                 name: CrateName(
                                     "std_detect",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -1853,6 +1896,7 @@ fn rust_project_hello_world_project_model() {
                                 name: CrateName(
                                     "term",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -1861,6 +1905,7 @@ fn rust_project_hello_world_project_model() {
                                 name: CrateName(
                                     "test",
                                 ),
+                                prelude: true,
                             },
                             Dependency {
                                 crate_id: CrateId(
@@ -1869,6 +1914,7 @@ fn rust_project_hello_world_project_model() {
                                 name: CrateName(
                                     "unwind",
                                 ),
+                                prelude: true,
                             },
                         ],
                         proc_macro: [],

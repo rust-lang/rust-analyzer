@@ -1,6 +1,7 @@
 use std::convert::TryFrom;
 
 use ide_assists::utils::extract_trivial_expression;
+use ide_db::helpers::node_ext::expr_as_name_ref;
 use itertools::Itertools;
 use syntax::{
     ast::{self, AstNode, AstToken, IsString},
@@ -135,10 +136,9 @@ fn remove_newline(
             }
             T!['}'] => {
                 // Removes: comma, newline (incl. surrounding whitespace)
-                let space = if let Some(left) = prev.prev_sibling_or_token() {
-                    compute_ws(left.kind(), next.kind())
-                } else {
-                    " "
+                let space = match prev.prev_sibling_or_token() {
+                    Some(left) => compute_ws(left.kind(), next.kind()),
+                    None => " ",
                 };
                 edit.replace(
                     TextRange::new(prev.text_range().start(), token.text_range().end()),
@@ -211,7 +211,7 @@ fn remove_newline(
 }
 
 fn join_single_expr_block(edit: &mut TextEditBuilder, token: &SyntaxToken) -> Option<()> {
-    let block_expr = ast::BlockExpr::cast(token.parent()?)?;
+    let block_expr = ast::BlockExpr::cast(token.ancestors().nth(1)?)?;
     if !block_expr.is_standalone() {
         return None;
     }
@@ -263,7 +263,7 @@ fn join_assignments(
         return None;
     }
     let lhs = bin_expr.lhs()?;
-    let name_ref = lhs.name_ref()?;
+    let name_ref = expr_as_name_ref(&lhs)?;
 
     if name_ref.to_string() != let_ident_pat.syntax().to_string() {
         cov_mark::hit!(join_assignments_mismatch);

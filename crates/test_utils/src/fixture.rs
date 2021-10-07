@@ -70,6 +70,7 @@ pub struct Fixture {
     pub text: String,
     pub krate: Option<String>,
     pub deps: Vec<String>,
+    pub extern_prelude: Option<Vec<String>>,
     pub cfg_atoms: Vec<String>,
     pub cfg_key_values: Vec<(String, String)>,
     pub edition: Option<String>,
@@ -141,14 +142,14 @@ impl Fixture {
 
             if line.starts_with("//-") {
                 let meta = Fixture::parse_meta_line(line);
-                res.push(meta)
+                res.push(meta);
             } else {
                 if line.starts_with("// ")
                     && line.contains(':')
                     && !line.contains("::")
                     && line.chars().all(|it| !it.is_uppercase())
                 {
-                    panic!("looks like invalid metadata line: {:?}", line)
+                    panic!("looks like invalid metadata line: {:?}", line);
                 }
 
                 if let Some(entry) = res.last_mut() {
@@ -171,6 +172,7 @@ impl Fixture {
 
         let mut krate = None;
         let mut deps = Vec::new();
+        let mut extern_prelude = None;
         let mut edition = None;
         let mut cfg_atoms = Vec::new();
         let mut cfg_key_values = Vec::new();
@@ -183,6 +185,14 @@ impl Fixture {
             match key {
                 "crate" => krate = Some(value.to_string()),
                 "deps" => deps = value.split(',').map(|it| it.to_string()).collect(),
+                "extern-prelude" => {
+                    if value.is_empty() {
+                        extern_prelude = Some(Vec::new());
+                    } else {
+                        extern_prelude =
+                            Some(value.split(',').map(|it| it.to_string()).collect::<Vec<_>>());
+                    }
+                }
                 "edition" => edition = Some(value.to_string()),
                 "cfg" => {
                     for entry in value.split(',') {
@@ -204,11 +214,21 @@ impl Fixture {
             }
         }
 
+        for prelude_dep in extern_prelude.iter().flatten() {
+            assert!(
+                deps.contains(prelude_dep),
+                "extern-prelude {:?} must be a subset of deps {:?}",
+                extern_prelude,
+                deps
+            );
+        }
+
         Fixture {
             path,
             text: String::new(),
             krate,
             deps,
+            extern_prelude,
             cfg_atoms,
             cfg_key_values,
             edition,
@@ -236,9 +256,9 @@ impl MiniCore {
         let line = line.strip_prefix("//- minicore:").unwrap().trim();
         for entry in line.split(", ") {
             if res.has_flag(entry) {
-                panic!("duplicate minicore flag: {:?}", entry)
+                panic!("duplicate minicore flag: {:?}", entry);
             }
-            res.activated_flags.push(entry.to_string())
+            res.activated_flags.push(entry.to_string());
         }
 
         res
@@ -290,7 +310,7 @@ impl MiniCore {
         // Fixed point loop to compute transitive closure of flags.
         loop {
             let mut changed = false;
-            for &(u, v) in implications.iter() {
+            for &(u, v) in &implications {
                 if self.has_flag(u) && !self.has_flag(v) {
                     self.activated_flags.push(v.to_string());
                     changed = true;
@@ -334,7 +354,7 @@ impl MiniCore {
             }
 
             if keep {
-                buf.push_str(line)
+                buf.push_str(line);
             }
             if line_region {
                 active_regions.pop().unwrap();
@@ -346,7 +366,6 @@ impl MiniCore {
                 panic!("unused minicore flag: {:?}", flag);
             }
         }
-        format!("{}", buf);
         buf
     }
 }

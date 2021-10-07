@@ -5,7 +5,7 @@ use ide_db::{
     helpers::visit_file_defs,
     RootDatabase,
 };
-use syntax::{ast::NameOwner, AstNode, TextRange};
+use syntax::{ast::HasName, AstNode, TextRange};
 
 use crate::{
     fn_references::find_all_methods,
@@ -40,6 +40,7 @@ pub struct AnnotationConfig {
     pub annotate_impls: bool,
     pub annotate_references: bool,
     pub annotate_method_references: bool,
+    pub annotate_enum_variant_references: bool,
 }
 
 pub(crate) fn annotations(
@@ -64,17 +65,54 @@ pub(crate) fn annotations(
     visit_file_defs(&Semantics::new(db), file_id, &mut |def| match def {
         Either::Left(def) => {
             let range = match def {
-                hir::ModuleDef::Const(konst) => {
+                hir::ModuleDef::Const(konst) if config.annotate_references => {
                     konst.source(db).and_then(|node| name_range(&node, file_id))
                 }
-                hir::ModuleDef::Trait(trait_) => {
+                hir::ModuleDef::Trait(trait_)
+                    if config.annotate_references || config.annotate_impls =>
+                {
                     trait_.source(db).and_then(|node| name_range(&node, file_id))
                 }
-                hir::ModuleDef::Adt(adt) => {
-                    adt.source(db).and_then(|node| name_range(&node, file_id))
-                }
+                hir::ModuleDef::Adt(adt) => match adt {
+                    hir::Adt::Enum(enum_) => {
+                        if config.annotate_enum_variant_references {
+                            enum_
+                                .variants(db)
+                                .into_iter()
+                                .map(|variant| {
+                                    variant.source(db).and_then(|node| name_range(&node, file_id))
+                                })
+                                .filter_map(std::convert::identity)
+                                .for_each(|range| {
+                                    annotations.push(Annotation {
+                                        range,
+                                        kind: AnnotationKind::HasReferences {
+                                            position: FilePosition {
+                                                file_id,
+                                                offset: range.start(),
+                                            },
+                                            data: None,
+                                        },
+                                    })
+                                })
+                        }
+                        if config.annotate_references || config.annotate_impls {
+                            enum_.source(db).and_then(|node| name_range(&node, file_id))
+                        } else {
+                            None
+                        }
+                    }
+                    _ => {
+                        if config.annotate_references || config.annotate_impls {
+                            adt.source(db).and_then(|node| name_range(&node, file_id))
+                        } else {
+                            None
+                        }
+                    }
+                },
                 _ => None,
             };
+
             let (range, offset) = match range {
                 Some(range) => (range, range.start()),
                 None => return,
@@ -99,7 +137,7 @@ pub(crate) fn annotations(
                 });
             }
 
-            fn name_range<T: NameOwner>(node: &InFile<T>, file_id: FileId) -> Option<TextRange> {
+            fn name_range<T: HasName>(node: &InFile<T>, file_id: FileId) -> Option<TextRange> {
                 if node.file_id == file_id.into() {
                     node.value.name().map(|it| it.syntax().text_range())
                 } else {
@@ -173,6 +211,7 @@ mod tests {
                     annotate_impls: true,
                     annotate_references: true,
                     annotate_method_references: true,
+                    annotate_enum_variant_references: true,
                 },
                 file_id,
             )

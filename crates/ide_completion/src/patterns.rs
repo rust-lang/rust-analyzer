@@ -8,7 +8,7 @@ use hir::Semantics;
 use ide_db::RootDatabase;
 use syntax::{
     algo::non_trivia_sibling,
-    ast::{self, ArgListOwner, LoopBodyOwner},
+    ast::{self, HasArgList, HasLoopBody},
     match_ast, AstNode, Direction, SyntaxElement,
     SyntaxKind::*,
     SyntaxNode, SyntaxToken, TextRange, TextSize, T,
@@ -32,13 +32,14 @@ pub(crate) enum ImmediatePrevSibling {
 pub(crate) enum ImmediateLocation {
     Use,
     UseTree,
+    Rename,
     Impl,
     Trait,
     RecordField,
     TupleField,
     RefExpr,
     IdentPat,
-    BlockExpr,
+    StmtList,
     ItemList,
     TypeBound,
     // Fake file ast node
@@ -201,7 +202,8 @@ pub(crate) fn determine_location(
             ast::Use(_it) => ImmediateLocation::Use,
             ast::UseTree(_it) => ImmediateLocation::UseTree,
             ast::UseTreeList(_it) => ImmediateLocation::UseTree,
-            ast::BlockExpr(_it) => ImmediateLocation::BlockExpr,
+            ast::Rename(_it) => ImmediateLocation::Rename,
+            ast::StmtList(_it) => ImmediateLocation::StmtList,
             ast::SourceFile(_it) => ImmediateLocation::ItemList,
             ast::ItemList(_it) => ImmediateLocation::ItemList,
             ast::RefExpr(_it) => ImmediateLocation::RefExpr,
@@ -421,8 +423,8 @@ mod tests {
 
     #[test]
     fn test_block_expr_loc() {
-        check_location(r"fn my_fn() { let a = 2; f$0 }", ImmediateLocation::BlockExpr);
-        check_location(r"fn my_fn() { f$0 f }", ImmediateLocation::BlockExpr);
+        check_location(r"fn my_fn() { let a = 2; f$0 }", ImmediateLocation::StmtList);
+        check_location(r"fn my_fn() { f$0 f }", ImmediateLocation::StmtList);
     }
 
     #[test]

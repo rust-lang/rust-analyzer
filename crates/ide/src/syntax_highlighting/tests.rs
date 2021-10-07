@@ -10,7 +10,7 @@ use crate::{fixture, FileRange, HlTag, TextRange};
 fn test_highlighting() {
     check_highlighting(
         r#"
-//- proc_macros: identity
+//- proc_macros: identity, mirror
 //- /main.rs crate:main deps:foo
 use inner::{self as inner_mod};
 mod inner {}
@@ -36,10 +36,11 @@ pub mod ops {
     pub trait Fn<Args>: FnMut<Args> {}
 }
 
-
-struct Foo {
-    pub x: i32,
-    pub y: i32,
+proc_macros::mirror! {
+    {
+        ,i32 :x pub
+        ,i32 :y pub
+    } Foo struct
 }
 
 trait Bar where Self: {
@@ -440,9 +441,48 @@ macro_rules! println {
     })
 }
 #[rustc_builtin_macro]
-macro_rules! format_args_nl {
-    ($fmt:expr) => {{ /* compiler built-in */ }};
-    ($fmt:expr, $($args:tt)*) => {{ /* compiler built-in */ }};
+#[macro_export]
+macro_rules! format_args {}
+#[rustc_builtin_macro]
+#[macro_export]
+macro_rules! const_format_args {}
+#[rustc_builtin_macro]
+#[macro_export]
+macro_rules! format_args_nl {}
+
+mod panic {
+    pub macro panic_2015 {
+        () => (
+            $crate::panicking::panic("explicit panic")
+        ),
+        ($msg:literal $(,)?) => (
+            $crate::panicking::panic($msg)
+        ),
+        // Use `panic_str` instead of `panic_display::<&str>` for non_fmt_panic lint.
+        ($msg:expr $(,)?) => (
+            $crate::panicking::panic_str($msg)
+        ),
+        // Special-case the single-argument case for const_panic.
+        ("{}", $arg:expr $(,)?) => (
+            $crate::panicking::panic_display(&$arg)
+        ),
+        ($fmt:expr, $($arg:tt)+) => (
+            $crate::panicking::panic_fmt($crate::const_format_args!($fmt, $($arg)+))
+        ),
+    }
+}
+
+#[rustc_builtin_macro(std_panic)]
+#[macro_export]
+macro_rules! panic {}
+#[rustc_builtin_macro]
+macro_rules! assert {}
+#[rustc_builtin_macro]
+macro_rules! asm {}
+
+macro_rules! toho {
+    () => ($crate::panic!("not yet implemented"));
+    ($($arg:tt)+) => ($crate::panic!("not yet implemented: {}", $crate::format_args!($($arg)+)));
 }
 
 fn main() {
@@ -494,6 +534,13 @@ fn main() {
     println!("{ничоси}", ничоси = 92);
 
     println!("{:x?} {} ", thingy, n2);
+    panic!("{}", 0);
+    panic!("more {}", 1);
+    assert!(true, "{}", 1);
+    assert!(true, "{} asdasd", 1);
+    toho!("{}fmt", 0);
+    asm!("mov eax, {0}");
+    format_args!(concat!("{}"), "{}");
 }"#
         .trim(),
         expect_file!["./test_data/highlight_strings.html"],
@@ -729,6 +776,67 @@ fn test_extern_crate() {
         pub struct A
         "#,
         expect_file!["./test_data/highlight_extern_crate.html"],
+        false,
+    );
+}
+
+#[test]
+fn test_crate_root() {
+    check_highlighting(
+        r#"
+        //- minicore: iterators
+        //- /main.rs crate:main deps:foo
+        extern crate foo;
+        use core::iter;
+
+        pub const NINETY_TWO: u8 = 92;
+
+        use foo as foooo;
+
+        pub(crate) fn main() {
+            let baz = iter::repeat(92);
+        }
+
+        mod bar {
+            pub(in super) const FORTY_TWO: u8 = 42;
+
+            mod baz {
+                use super::super::NINETY_TWO;
+                use crate::foooo::Point;
+
+                pub(in super::super) const TWENTY_NINE: u8 = 29;
+            }
+        }
+        //- /foo.rs crate:foo
+        struct Point {
+            x: u8,
+            y: u8,
+        }
+
+        mod inner {
+            pub(super) fn swap(p: crate::Point) -> crate::Point {
+                crate::Point { x: p.y, y: p.x }
+            }
+        }
+        "#,
+        expect_file!["./test_data/highlight_crate_root.html"],
+        false,
+    );
+}
+
+#[test]
+fn test_default_library() {
+    check_highlighting(
+        r#"
+        //- minicore: option, iterators
+        use core::iter;
+
+        fn main() {
+            let foo = Some(92);
+            let nums = iter::repeat(foo.unwrap());
+        }
+        "#,
+        expect_file!["./test_data/highlight_default_library.html"],
         false,
     );
 }

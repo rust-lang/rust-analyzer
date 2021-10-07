@@ -5,7 +5,9 @@
 use std::{collections::VecDeque, convert::TryFrom, fmt, fs, process::Command};
 
 use anyhow::{format_err, Context, Result};
-use base_db::{CrateDisplayName, CrateGraph, CrateId, CrateName, Edition, Env, FileId, ProcMacro};
+use base_db::{
+    CrateDisplayName, CrateGraph, CrateId, CrateName, Dependency, Edition, Env, FileId, ProcMacro,
+};
 use cfg::{CfgDiff, CfgOptions};
 use paths::{AbsPath, AbsPathBuf};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -189,7 +191,7 @@ impl ProjectWorkspace {
                     Some(rustc_dir) => Some({
                         let meta = CargoWorkspace::fetch_metadata(&rustc_dir, config, progress)
                             .with_context(|| {
-                                format!("Failed to read Cargo metadata for Rust sources")
+                                "Failed to read Cargo metadata for Rust sources".to_string()
                             })?;
                         CargoWorkspace::new(meta)
                     }),
@@ -328,12 +330,12 @@ impl ProjectWorkspace {
                         }
                         PackageRoot { is_local, include, exclude }
                     })
-                    .chain(sysroot.into_iter().map(|sysroot| PackageRoot {
+                    .chain(sysroot.iter().map(|sysroot| PackageRoot {
                         is_local: false,
                         include: vec![sysroot.root().to_path_buf()],
                         exclude: Vec::new(),
                     }))
-                    .chain(rustc.into_iter().flat_map(|rustc| {
+                    .chain(rustc.iter().flat_map(|rustc| {
                         rustc.packages().map(move |krate| PackageRoot {
                             is_local: false,
                             include: vec![rustc[krate].manifest.parent().to_path_buf()],
@@ -343,7 +345,7 @@ impl ProjectWorkspace {
                     .collect()
             }
             ProjectWorkspace::DetachedFiles { files, sysroot, .. } => files
-                .into_iter()
+                .iter()
                 .map(|detached_file| PackageRoot {
                     is_local: true,
                     include: vec![detached_file.clone()],
@@ -468,9 +470,7 @@ fn project_json_to_crate_graph(
     for (from, krate) in project.crates() {
         if let Some(&from) = crates.get(&from) {
             if let Some((public_deps, libproc_macro)) = &sysroot_deps {
-                for (name, to) in public_deps.iter() {
-                    add_dep(&mut crate_graph, from, name.clone(), *to)
-                }
+                public_deps.add(from, &mut crate_graph);
                 if krate.is_proc_macro {
                     if let Some(proc_macro) = libproc_macro {
                         add_dep(
@@ -507,7 +507,7 @@ fn cargo_to_crate_graph(
     let mut crate_graph = CrateGraph::default();
     let (public_deps, libproc_macro) = match sysroot {
         Some(sysroot) => sysroot_to_crate_graph(&mut crate_graph, sysroot, rustc_cfg.clone(), load),
-        None => (Vec::new(), None),
+        None => (SysrootPublicDeps::default(), None),
     };
 
     let mut cfg_options = CfgOptions::default();
@@ -553,7 +553,7 @@ fn cargo_to_crate_graph(
                     &mut crate_graph,
                     &cargo[pkg],
                     build_scripts.outputs.get(pkg),
-                    &cfg_options,
+                    cfg_options,
                     load_proc_macro,
                     file_id,
                     &cargo[tgt].name,
@@ -563,11 +563,12 @@ fn cargo_to_crate_graph(
                     pkg_to_lib_crate.insert(pkg, crate_id);
                 }
                 if let Some(proc_macro) = libproc_macro {
-                    add_dep(
+                    add_dep_with_prelude(
                         &mut crate_graph,
                         crate_id,
                         CrateName::new("proc_macro").unwrap(),
                         proc_macro,
+                        cargo[tgt].is_proc_macro,
                     );
                 }
 
@@ -588,9 +589,7 @@ fn cargo_to_crate_graph(
                     add_dep(&mut crate_graph, *from, name, to);
                 }
             }
-            for (name, krate) in public_deps.iter() {
-                add_dep(&mut crate_graph, *from, name.clone(), *krate);
-            }
+            public_deps.add(*from, &mut crate_graph);
         }
     }
 
@@ -672,9 +671,7 @@ fn detached_files_to_crate_graph(
             Vec::new(),
         );
 
-        for (name, krate) in public_deps.iter() {
-            add_dep(&mut crate_graph, detached_file_crate, name.clone(), *krate);
-        }
+        public_deps.add(detached_file_crate, &mut crate_graph);
     }
     crate_graph
 }
@@ -686,7 +683,7 @@ fn handle_rustc_crates(
     cfg_options: &CfgOptions,
     load_proc_macro: &mut dyn FnMut(&AbsPath) -> Vec<ProcMacro>,
     pkg_to_lib_crate: &mut FxHashMap<la_arena::Idx<crate::PackageData>, CrateId>,
-    public_deps: &[(CrateName, CrateId)],
+    public_deps: &SysrootPublicDeps,
     cargo: &CargoWorkspace,
     pkg_crates: &FxHashMap<la_arena::Idx<crate::PackageData>, Vec<(CrateId, TargetKind)>>,
 ) {
@@ -726,9 +723,7 @@ fn handle_rustc_crates(
                     );
                     pkg_to_lib_crate.insert(pkg, crate_id);
                     // Add dependencies on core / std / alloc for this crate
-                    for (name, krate) in public_deps.iter() {
-                        add_dep(crate_graph, crate_id, name.clone(), *krate);
-                    }
+                    public_deps.add(crate_id, crate_graph);
                     rustc_pkg_crates.entry(pkg).or_insert_with(Vec::new).push(crate_id);
                 }
             }
@@ -815,7 +810,7 @@ fn add_target_crate_root(
             .map(|feat| CfgFlag::KeyValue { key: "feature".into(), value: feat.0.into() }),
     );
 
-    let crate_id = crate_graph.add_crate_root(
+    crate_graph.add_crate_root(
         file_id,
         edition,
         Some(display_name),
@@ -823,9 +818,21 @@ fn add_target_crate_root(
         potential_cfg_options,
         env,
         proc_macro,
-    );
+    )
+}
 
-    crate_id
+#[derive(Default)]
+struct SysrootPublicDeps {
+    deps: Vec<(CrateName, CrateId, bool)>,
+}
+
+impl SysrootPublicDeps {
+    /// Makes `from` depend on the public sysroot crates.
+    fn add(&self, from: CrateId, crate_graph: &mut CrateGraph) {
+        for (name, krate, prelude) in &self.deps {
+            add_dep_with_prelude(crate_graph, from, name.clone(), *krate, *prelude);
+        }
+    }
 }
 
 fn sysroot_to_crate_graph(
@@ -833,7 +840,7 @@ fn sysroot_to_crate_graph(
     sysroot: &Sysroot,
     rustc_cfg: Vec<CfgFlag>,
     load: &mut dyn FnMut(&AbsPath) -> Option<FileId>,
-) -> (Vec<(CrateName, CrateId)>, Option<CrateId>) {
+) -> (SysrootPublicDeps, Option<CrateId>) {
     let _p = profile::span("sysroot_to_crate_graph");
     let mut cfg_options = CfgOptions::default();
     cfg_options.extend(rustc_cfg);
@@ -867,17 +874,35 @@ fn sysroot_to_crate_graph(
         }
     }
 
-    let public_deps = sysroot
-        .public_deps()
-        .map(|(name, idx)| (CrateName::new(name).unwrap(), sysroot_crates[&idx]))
-        .collect::<Vec<_>>();
+    let public_deps = SysrootPublicDeps {
+        deps: sysroot
+            .public_deps()
+            .map(|(name, idx, prelude)| {
+                (CrateName::new(name).unwrap(), sysroot_crates[&idx], prelude)
+            })
+            .collect::<Vec<_>>(),
+    };
 
     let libproc_macro = sysroot.proc_macro().and_then(|it| sysroot_crates.get(&it).copied());
     (public_deps, libproc_macro)
 }
 
 fn add_dep(graph: &mut CrateGraph, from: CrateId, name: CrateName, to: CrateId) {
-    if let Err(err) = graph.add_dep(from, name, to) {
+    add_dep_inner(graph, from, Dependency::new(name, to))
+}
+
+fn add_dep_with_prelude(
+    graph: &mut CrateGraph,
+    from: CrateId,
+    name: CrateName,
+    to: CrateId,
+    prelude: bool,
+) {
+    add_dep_inner(graph, from, Dependency::with_prelude(name, to, prelude))
+}
+
+fn add_dep_inner(graph: &mut CrateGraph, from: CrateId, dep: Dependency) {
+    if let Err(err) = graph.add_dep(from, dep) {
         tracing::error!("{}", err)
     }
 }
@@ -893,27 +918,27 @@ fn inject_cargo_env(package: &PackageData, env: &mut Env) {
     // CARGO_BIN_NAME, CARGO_BIN_EXE_<name>
 
     let manifest_dir = package.manifest.parent();
-    env.set("CARGO_MANIFEST_DIR".into(), manifest_dir.as_os_str().to_string_lossy().into_owned());
+    env.set("CARGO_MANIFEST_DIR", manifest_dir.as_os_str().to_string_lossy().into_owned());
 
     // Not always right, but works for common cases.
-    env.set("CARGO".into(), "cargo".into());
+    env.set("CARGO", "cargo".into());
 
-    env.set("CARGO_PKG_VERSION".into(), package.version.to_string());
-    env.set("CARGO_PKG_VERSION_MAJOR".into(), package.version.major.to_string());
-    env.set("CARGO_PKG_VERSION_MINOR".into(), package.version.minor.to_string());
-    env.set("CARGO_PKG_VERSION_PATCH".into(), package.version.patch.to_string());
-    env.set("CARGO_PKG_VERSION_PRE".into(), package.version.pre.to_string());
+    env.set("CARGO_PKG_VERSION", package.version.to_string());
+    env.set("CARGO_PKG_VERSION_MAJOR", package.version.major.to_string());
+    env.set("CARGO_PKG_VERSION_MINOR", package.version.minor.to_string());
+    env.set("CARGO_PKG_VERSION_PATCH", package.version.patch.to_string());
+    env.set("CARGO_PKG_VERSION_PRE", package.version.pre.to_string());
 
-    env.set("CARGO_PKG_AUTHORS".into(), String::new());
+    env.set("CARGO_PKG_AUTHORS", String::new());
 
-    env.set("CARGO_PKG_NAME".into(), package.name.clone());
+    env.set("CARGO_PKG_NAME", package.name.clone());
     // FIXME: This isn't really correct (a package can have many crates with different names), but
     // it's better than leaving the variable unset.
-    env.set("CARGO_CRATE_NAME".into(), CrateName::normalize_dashes(&package.name).to_string());
-    env.set("CARGO_PKG_DESCRIPTION".into(), String::new());
-    env.set("CARGO_PKG_HOMEPAGE".into(), String::new());
-    env.set("CARGO_PKG_REPOSITORY".into(), String::new());
-    env.set("CARGO_PKG_LICENSE".into(), String::new());
+    env.set("CARGO_CRATE_NAME", CrateName::normalize_dashes(&package.name).to_string());
+    env.set("CARGO_PKG_DESCRIPTION", String::new());
+    env.set("CARGO_PKG_HOMEPAGE", String::new());
+    env.set("CARGO_PKG_REPOSITORY", String::new());
+    env.set("CARGO_PKG_LICENSE", String::new());
 
-    env.set("CARGO_PKG_LICENSE_FILE".into(), String::new());
+    env.set("CARGO_PKG_LICENSE_FILE", String::new());
 }

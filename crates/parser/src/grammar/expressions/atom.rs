@@ -59,7 +59,7 @@ pub(super) const ATOM_EXPR_FIRST: TokenSet =
         LIFETIME_IDENT,
     ]));
 
-const EXPR_RECOVERY_SET: TokenSet = TokenSet::new(&[LET_KW, R_DOLLAR]);
+const EXPR_RECOVERY_SET: TokenSet = TokenSet::new(&[T![let], R_DOLLAR]);
 
 pub(super) fn atom_expr(p: &mut Parser, r: Restrictions) -> Option<(CompletedMarker, BlockLike)> {
     if let Some(m) = literal(p) {
@@ -93,8 +93,8 @@ pub(super) fn atom_expr(p: &mut Parser, r: Restrictions) -> Option<(CompletedMar
                 // test labeled_block
                 // fn f() { 'label: {}; }
                 T!['{'] => {
-                    block_expr(p);
-                    m.complete(p, EFFECT_EXPR)
+                    stmt_list(p);
+                    m.complete(p, BLOCK_EXPR)
                 }
                 _ => {
                     // test_err misplaced_label_err
@@ -111,8 +111,8 @@ pub(super) fn atom_expr(p: &mut Parser, r: Restrictions) -> Option<(CompletedMar
             let m = p.start();
             p.bump(T![async]);
             p.eat(T![move]);
-            block_expr(p);
-            m.complete(p, EFFECT_EXPR)
+            stmt_list(p);
+            m.complete(p, BLOCK_EXPR)
         }
         T![match] => match_expr(p),
         // test unsafe_block
@@ -120,16 +120,16 @@ pub(super) fn atom_expr(p: &mut Parser, r: Restrictions) -> Option<(CompletedMar
         T![unsafe] if la == T!['{'] => {
             let m = p.start();
             p.bump(T![unsafe]);
-            block_expr(p);
-            m.complete(p, EFFECT_EXPR)
+            stmt_list(p);
+            m.complete(p, BLOCK_EXPR)
         }
         // test const_block
         // fn f() { const { } }
         T![const] if la == T!['{'] => {
             let m = p.start();
             p.bump(T![const]);
-            block_expr(p);
-            m.complete(p, EFFECT_EXPR)
+            stmt_list(p);
+            m.complete(p, BLOCK_EXPR)
         }
         T!['{'] => {
             // test for_range_from
@@ -138,7 +138,9 @@ pub(super) fn atom_expr(p: &mut Parser, r: Restrictions) -> Option<(CompletedMar
             //        break;
             //    }
             // }
-            block_expr_unchecked(p)
+            let m = p.start();
+            stmt_list(p);
+            m.complete(p, BLOCK_EXPR)
         }
         T![return] => return_expr(p),
         T![yield] => yield_expr(p),
@@ -150,9 +152,7 @@ pub(super) fn atom_expr(p: &mut Parser, r: Restrictions) -> Option<(CompletedMar
         }
     };
     let blocklike = match done.kind() {
-        IF_EXPR | WHILE_EXPR | FOR_EXPR | LOOP_EXPR | MATCH_EXPR | BLOCK_EXPR | EFFECT_EXPR => {
-            BlockLike::Block
-        }
+        IF_EXPR | WHILE_EXPR | FOR_EXPR | LOOP_EXPR | MATCH_EXPR | BLOCK_EXPR => BlockLike::Block,
         _ => BlockLike::NotBlock,
     };
     Some((done, blocklike))
@@ -176,7 +176,7 @@ fn tuple_expr(p: &mut Parser) -> CompletedMarker {
 
         // test tuple_attrs
         // const A: (i64, i64) = (1, #[cfg(test)] 2);
-        if !expr_with_attrs(p) {
+        if !expr(p) {
             break;
         }
 
@@ -209,7 +209,7 @@ fn array_expr(p: &mut Parser) -> CompletedMarker {
 
         // test array_attrs
         // const A: &[i64] = &[1, #[cfg(test)] 2];
-        if !expr_with_attrs(p) {
+        if !expr(p) {
             break;
         }
 
@@ -374,7 +374,7 @@ fn match_expr(p: &mut Parser) -> CompletedMarker {
     if p.at(T!['{']) {
         match_arm_list(p);
     } else {
-        p.error("expected `{`")
+        p.error("expected `{`");
     }
     m.complete(p, MATCH_EXPR)
 }
@@ -438,7 +438,10 @@ fn match_arm(p: &mut Parser) {
         match_guard(p);
     }
     p.expect(T![=>]);
-    let blocklike = expr_stmt(p).1;
+    let blocklike = match expr_stmt(p, None) {
+        Some((_, blocklike)) => blocklike,
+        None => BlockLike::NotBlock,
+    };
 
     // test match_arms_commas
     // fn foo() {
@@ -483,16 +486,18 @@ pub(crate) fn block_expr(p: &mut Parser) {
         p.error("expected a block");
         return;
     }
-    block_expr_unchecked(p);
+    let m = p.start();
+    stmt_list(p);
+    m.complete(p, BLOCK_EXPR);
 }
 
-fn block_expr_unchecked(p: &mut Parser) -> CompletedMarker {
+fn stmt_list(p: &mut Parser) -> CompletedMarker {
     assert!(p.at(T!['{']));
     let m = p.start();
     p.bump(T!['{']);
     expr_block_contents(p);
     p.expect(T!['}']);
-    m.complete(p, BLOCK_EXPR)
+    m.complete(p, STMT_LIST)
 }
 
 // test return_expr
@@ -594,8 +599,12 @@ fn try_block_expr(p: &mut Parser, m: Option<Marker>) -> CompletedMarker {
     }
 
     p.bump(T![try]);
-    block_expr(p);
-    m.complete(p, EFFECT_EXPR)
+    if p.at(T!['{']) {
+        stmt_list(p);
+    } else {
+        p.error("expected a block");
+    }
+    m.complete(p, BLOCK_EXPR)
 }
 
 // test box_expr
@@ -619,18 +628,18 @@ fn meta_var_expr(p: &mut Parser) -> CompletedMarker {
     assert!(p.at(L_DOLLAR));
     let m = p.start();
     p.bump(L_DOLLAR);
-    let (completed, _is_block) =
-        expr_bp(p, Restrictions { forbid_structs: false, prefer_stmt: false }, 1);
+    let expr = expr_bp(p, None, Restrictions { forbid_structs: false, prefer_stmt: false }, 1);
 
-    match (completed, p.current()) {
-        (Some(it), R_DOLLAR) => {
+    match (expr, p.current()) {
+        (Some((cm, _)), R_DOLLAR) => {
             p.bump(R_DOLLAR);
+            // FIXME: this leaves the dollar hanging in the air...
             m.abandon(p);
-            it
+            cm
         }
         _ => {
             while !p.at(R_DOLLAR) {
-                p.bump_any()
+                p.bump_any();
             }
             p.bump(R_DOLLAR);
             m.complete(p, ERROR)

@@ -8,6 +8,7 @@ use std::{
     fmt::Write,
 };
 
+use itertools::Itertools;
 use proc_macro2::{Punct, Spacing};
 use quote::{format_ident, quote};
 use ungrammar::{rust_grammar, Grammar, Rule};
@@ -18,22 +19,22 @@ use crate::tests::ast_src::{
 
 #[test]
 fn sourcegen_ast() {
+    let syntax_kinds = generate_syntax_kinds(KINDS_SRC);
+    let syntax_kinds_file =
+        sourcegen::project_root().join("crates/parser/src/syntax_kind/generated.rs");
+    sourcegen::ensure_file_contents(syntax_kinds_file.as_path(), &syntax_kinds);
+
     let grammar = rust_grammar();
     let ast = lower(&grammar);
 
-    let syntax_kinds_file =
-        sourcegen::project_root().join("crates/parser/src/syntax_kind/generated.rs");
-    let syntax_kinds = generate_syntax_kinds(KINDS_SRC);
-    sourcegen::ensure_file_contents(syntax_kinds_file.as_path(), &syntax_kinds);
-
+    let ast_tokens = generate_tokens(&ast);
     let ast_tokens_file =
         sourcegen::project_root().join("crates/syntax/src/ast/generated/tokens.rs");
-    let contents = generate_tokens(&ast);
-    sourcegen::ensure_file_contents(ast_tokens_file.as_path(), &contents);
+    sourcegen::ensure_file_contents(ast_tokens_file.as_path(), &ast_tokens);
 
+    let ast_nodes = generate_nodes(KINDS_SRC, &ast);
     let ast_nodes_file = sourcegen::project_root().join("crates/syntax/src/ast/generated/nodes.rs");
-    let contents = generate_nodes(KINDS_SRC, &ast);
-    sourcegen::ensure_file_contents(ast_nodes_file.as_path(), &contents);
+    sourcegen::ensure_file_contents(ast_nodes_file.as_path(), &ast_nodes);
 }
 
 fn generate_tokens(grammar: &AstSrc) -> String {
@@ -208,6 +209,58 @@ fn generate_nodes(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         })
         .unzip();
 
+    let (any_node_defs, any_node_boilerplate_impls): (Vec<_>, Vec<_>) = grammar
+        .nodes
+        .iter()
+        .flat_map(|node| node.traits.iter().map(move |t| (t, node)))
+        .into_group_map()
+        .into_iter()
+        .sorted_by_key(|(k, _)| *k)
+        .map(|(trait_name, nodes)| {
+            let name = format_ident!("Any{}", trait_name);
+            let trait_name = format_ident!("{}", trait_name);
+            let kinds: Vec<_> = nodes
+                .iter()
+                .map(|name| format_ident!("{}", to_upper_snake_case(&name.name.to_string())))
+                .collect();
+
+            (
+                quote! {
+                    #[pretty_doc_comment_placeholder_workaround]
+                    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+                    pub struct #name {
+                        pub(crate) syntax: SyntaxNode,
+                    }
+                    impl ast::#trait_name for #name {}
+                },
+                quote! {
+                    impl #name {
+                        #[inline]
+                        pub fn new<T: ast::#trait_name>(node: T) -> #name {
+                            #name {
+                                syntax: node.syntax().clone()
+                            }
+                        }
+                    }
+                    impl AstNode for #name {
+                        fn can_cast(kind: SyntaxKind) -> bool {
+                            match kind {
+                                #(#kinds)|* => true,
+                                _ => false,
+                            }
+                        }
+                        fn cast(syntax: SyntaxNode) -> Option<Self> {
+                            Self::can_cast(syntax.kind()).then(|| #name { syntax })
+                        }
+                        fn syntax(&self) -> &SyntaxNode {
+                            &self.syntax
+                        }
+                    }
+                },
+            )
+        })
+        .unzip();
+
     let enum_names = grammar.enums.iter().map(|it| &it.name);
     let node_names = grammar.nodes.iter().map(|it| &it.name);
 
@@ -244,8 +297,10 @@ fn generate_nodes(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
 
         #(#node_defs)*
         #(#enum_defs)*
+        #(#any_node_defs)*
         #(#node_boilerplate_impls)*
         #(#enum_boilerplate_impls)*
+        #(#any_node_boilerplate_impls)*
         #(#display_impls)*
     };
 
@@ -263,7 +318,8 @@ fn generate_nodes(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         }
     }
 
-    sourcegen::add_preamble("sourcegen_ast", sourcegen::reformat(res))
+    let res = sourcegen::add_preamble("sourcegen_ast", sourcegen::reformat(res));
+    res.replace("#[derive", "\n#[derive")
 }
 
 fn write_doc_comment(contents: &[String], dest: &mut String) {
@@ -502,12 +558,13 @@ impl Field {
 }
 
 fn lower(grammar: &Grammar) -> AstSrc {
-    let mut res = AstSrc::default();
-
-    res.tokens = "Whitespace Comment String ByteString IntNumber FloatNumber"
-        .split_ascii_whitespace()
-        .map(|it| it.to_string())
-        .collect::<Vec<_>>();
+    let mut res = AstSrc {
+        tokens: "Whitespace Comment String ByteString IntNumber FloatNumber"
+            .split_ascii_whitespace()
+            .map(|it| it.to_string())
+            .collect::<Vec<_>>(),
+        ..Default::default()
+    };
 
     let nodes = grammar.iter().collect::<Vec<_>>();
 
@@ -685,14 +742,14 @@ fn extract_enums(ast: &mut AstSrc) {
 
 fn extract_struct_traits(ast: &mut AstSrc) {
     let traits: &[(&str, &[&str])] = &[
-        ("AttrsOwner", &["attrs"]),
-        ("NameOwner", &["name"]),
-        ("VisibilityOwner", &["visibility"]),
-        ("GenericParamsOwner", &["generic_param_list", "where_clause"]),
-        ("TypeBoundsOwner", &["type_bound_list", "colon_token"]),
-        ("ModuleItemOwner", &["items"]),
-        ("LoopBodyOwner", &["label", "loop_body"]),
-        ("ArgListOwner", &["arg_list"]),
+        ("HasAttrs", &["attrs"]),
+        ("HasName", &["name"]),
+        ("HasVisibility", &["visibility"]),
+        ("HasGenericParams", &["generic_param_list", "where_clause"]),
+        ("HasTypeBounds", &["type_bound_list", "colon_token"]),
+        ("HasModuleItem", &["items"]),
+        ("HasLoopBody", &["label", "loop_body"]),
+        ("HasArgList", &["arg_list"]),
     ];
 
     for node in &mut ast.nodes {

@@ -156,7 +156,7 @@ fn rename_to_self(sema: &Semantics<RootDatabase>, local: hir::Local) -> RenameRe
         _ => bail!("Cannot rename local to self outside of function"),
     };
 
-    if let Some(_) = fn_def.self_param(sema.db) {
+    if fn_def.self_param(sema.db).is_some() {
         bail!("Method already has a self parameter");
     }
 
@@ -1898,6 +1898,51 @@ fn func$0() {
 #[proc_macros::identity]
 fn function() {
     function();
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn in_macro_multi_mapping() {
+        check(
+            "a",
+            r#"
+fn foo() {
+    macro_rules! match_ast2 {
+        ($node:ident {
+            $( $res:expr, )*
+        }) => {{
+            $( if $node { $res } else )*
+            { loop {} }
+        }};
+    }
+    let $0d = 3;
+    match_ast2! {
+        d {
+            d,
+            d,
+        }
+    };
+}
+"#,
+            r#"
+fn foo() {
+    macro_rules! match_ast2 {
+        ($node:ident {
+            $( $res:expr, )*
+        }) => {{
+            $( if $node { $res } else )*
+            { loop {} }
+        }};
+    }
+    let a = 3;
+    match_ast2! {
+        a {
+            a,
+            a,
+        }
+    };
 }
 "#,
         )
