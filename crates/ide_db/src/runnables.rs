@@ -10,11 +10,28 @@ use syntax::ast;
 use crate::helpers::visit_file_defs;
 use std::collections::LinkedList;
 
+/// FIXME: Test module
+/// https://doc.rust-lang.org/rust-by-example/testing/unit_testing.html?search=#[cfg(test)]
+
+/// FIXME: Runnable extracting shoild respect project layout: 
+/// https://doc.rust-lang.org/cargo/reference/manifest.html
+/// and also it should respect 'configuring a target' 
+/// https://doc.rust-lang.org/cargo/reference/manifest.html#configuring-a-target
 #[derive(PartialEq, Eq, Debug, Clone)]
 enum RunnableFuncKind {
+    /// Unit test function
+    /// https://doc.rust-lang.org/rust-by-example/testing/unit_testing.html
     Test,
+    /// Benchmark test
+    /// https://doc.rust-lang.org/1.7.0/book/benchmark-tests.html
     Bench,
+    /// Just `main` when it entry point of programm
+    /// NOTE: We have two case when main not entry - start macro or
+    /// shim override
     Bin,
+    /// Custom entry point, marked with `#[start]`
+    /// https://doc.rust-lang.org/unstable-book/language-features/start.html?highlight=start#start
+    Start,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
