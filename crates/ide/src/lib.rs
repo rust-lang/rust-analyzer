@@ -58,14 +58,7 @@ mod runnables;
 use std::sync::Arc;
 
 use cfg::CfgOptions;
-use ide_db::{
-    base_db::{
-        salsa::{self, ParallelDatabase},
-        Env, FileLoader, FileSet, SourceDatabase, VfsPath,
-    },
-    symbol_index::{self, FileSymbol},
-    LineIndexDatabase,
-};
+use ide_db::{LineIndexDatabase, base_db::{Env, FileLoader, FileSet, SourceDatabase, Upcast, VfsPath, salsa::{self, ParallelDatabase}}, symbol_index::{self, FileSymbol}};
 use syntax::SourceFile;
 
 use crate::display::ToNav;
@@ -477,7 +470,7 @@ impl Analysis {
 
     /// Returns the set of possible targets to run for the current file.
     pub fn runnables(&self, file_id: FileId) -> Cancellable<Vec<Runnable>> {
-        self.with_db(|db| runnables::runnables(db, file_id))
+        self.with_db(|db| runnables::runnables(db.upcast(), file_id))
     }
 
     /// Returns the set of tests for the given file position.

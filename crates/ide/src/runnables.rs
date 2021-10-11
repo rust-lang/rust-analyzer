@@ -102,6 +102,41 @@ impl Runnable {
     }
 }
 
+impl Runnable {
+    pub fn from_db_repr(sema: &Semantics, runnable: ide_db::runnables::Runnable) -> Self {
+        match runnable {
+            ide_db::runnables::Runnable::Module { location, content} 
+                => from_mod(sema, runnable),
+            ide_db::runnables::Runnable::Function(runnable)
+                => from_fn(sema, runnable),
+        }
+    }
+    
+    fn from_mod(sema: &Semantics, def: hir::Module) -> Runnable {
+        //TODO: replace by [hir::ModuleDef::canonical_path]
+        let path = 
+            def.path_to_root(sema.db).into_iter().rev().filter_map(|it| it.name(sema.db)).join("::");
+        let cfg = def.attrs(sema.db).cfg();
+        let nav = NavigationTarget::from_module_to_decl(sema.db, def);
+        Runnable { 
+            use_name_in_title: false, 
+            nav, 
+            kind: RunnableKind::TestMod { path }, 
+            cfg 
+        }
+    }
+    
+    fn from_fn(sema: &Semantics, def: hir::Function) -> Runnable {
+        let cfg = def.attrs(sema.db).cfg();
+        let nav = NavigationTarget::from_named(
+            sema.db,
+            func.as_ref().map(|it| it as &dyn ast::NameOwner),
+            SymbolKind::Function,
+        );
+        Runnable { use_name_in_title: false, nav, kind, cfg }
+    }
+}
+
 // Feature: Run
 //
 // Shows a popup suggesting to run a test/benchmark/binary **at the current cursor
@@ -114,8 +149,8 @@ impl Runnable {
 // | VS Code | **Rust Analyzer: Run**
 // |===
 // image::https://user-images.githubusercontent.com/48062697/113065583-055aae80-91b1-11eb-958f-d67efcaf6a2f.gif[]
-pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable> {
-    //TODO: db.upcast::<RunnableDatabase>().file_runnables(file_id)
+pub(crate) fn runnables(db: &dyn RunnableDatabase, file_id: FileId) -> Vec<Runnable> {
+    db.file_runnables(file_id)
 }
 
 // Feature: Related Tests
@@ -145,7 +180,7 @@ pub(crate) fn related_tests(
 }
 
 fn find_related_tests(
-    sema: &Semantics<RootDatabase>,
+    sema: &Semantics,
     position: FilePosition,
     search_scope: Option<SearchScope>,
     tests: &mut FxHashSet<Runnable>,
@@ -208,100 +243,12 @@ fn parent_test_module(sema: &Semantics<RootDatabase>, fn_def: &ast::Fn) -> Optio
         let module = ast::Module::cast(node)?;
         let module = sema.to_def(&module)?;
 
-        if has_test_function_or_multiple_test_submodules(sema, &module) {
+        if is_contains_runnable(sema, &module) {
             Some(module)
         } else {
             None
         }
     })
-}
-
-/// Creates a test mod runnable for outline modules at the top of their definition.
-fn runnable_mod_outline_definition(
-    sema: &Semantics<RootDatabase>,
-    def: hir::Module,
-) -> Option<Runnable> {
-    if !has_test_function_or_multiple_test_submodules(sema, &def) {
-        return None;
-    }
-    let path =
-        def.path_to_root(sema.db).into_iter().rev().filter_map(|it| it.name(sema.db)).join("::");
-
-    let attrs = def.attrs(sema.db);
-    let cfg = attrs.cfg();
-    match def.definition_source(sema.db).value {
-        hir::ModuleSource::SourceFile(_) => Some(Runnable {
-            use_name_in_title: false,
-            nav: def.to_nav(sema.db),
-            kind: RunnableKind::TestMod { path },
-            cfg,
-        }),
-        _ => None,
-    }
-}
-
-fn module_def_doctest(db: &RootDatabase, def: hir::ModuleDef) -> Option<Runnable> {
-    let attrs = match def {
-        hir::ModuleDef::Module(it) => it.attrs(db),
-        hir::ModuleDef::Function(it) => it.attrs(db),
-        hir::ModuleDef::Adt(it) => it.attrs(db),
-        hir::ModuleDef::Variant(it) => it.attrs(db),
-        hir::ModuleDef::Const(it) => it.attrs(db),
-        hir::ModuleDef::Static(it) => it.attrs(db),
-        hir::ModuleDef::Trait(it) => it.attrs(db),
-        hir::ModuleDef::TypeAlias(it) => it.attrs(db),
-        hir::ModuleDef::BuiltinType(_) => return None,
-    };
-    if !has_runnable_doc_test(&attrs) {
-        return None;
-    }
-    let def_name = def.name(db)?;
-    let path = (|| {
-        let mut path = String::new();
-        def.canonical_module_path(db)?
-            .flat_map(|it| it.name(db))
-            .for_each(|name| format_to!(path, "{}::", name));
-        // This probably belongs to canonical_path?
-        if let Some(assoc_item) = def.as_assoc_item(db) {
-            if let hir::AssocItemContainer::Impl(imp) = assoc_item.container(db) {
-                let ty = imp.self_ty(db);
-                if let Some(adt) = ty.as_adt() {
-                    let name = adt.name(db);
-                    let mut ty_args = ty.type_arguments().peekable();
-                    format_to!(path, "{}", name);
-                    if ty_args.peek().is_some() {
-                        format_to!(
-                            path,
-                            "<{}>",
-                            ty_args.format_with(", ", |ty, cb| cb(&ty.display(db)))
-                        );
-                    }
-                    format_to!(path, "::{}", def_name);
-                    return Some(path);
-                }
-            }
-        }
-        format_to!(path, "{}", def_name);
-        Some(path)
-    })();
-
-    let test_id = path.map_or_else(|| TestId::Name(def_name.to_string()), TestId::Path);
-
-    let mut nav = match def {
-        hir::ModuleDef::Module(def) => NavigationTarget::from_module_to_decl(db, def),
-        def => def.try_to_nav(db)?,
-    };
-    nav.focus_range = None;
-    nav.description = None;
-    nav.docs = None;
-    nav.kind = None;
-    let res = Runnable {
-        use_name_in_title: false,
-        nav,
-        kind: RunnableKind::DocTest { test_id },
-        cfg: attrs.cfg(),
-    };
-    Some(res)
 }
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
