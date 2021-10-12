@@ -6,32 +6,37 @@ use hir::{Crate, HasAttrs, HasSource, Module, Semantics, db::{AstDatabase, HirDa
 use hir_def::{FunctionLoc};
 use rustc_hash::FxHashMap;
 use stdx::{always, format_to};
-use syntax::ast;
+use syntax::{TextRange, ast};
 use crate::helpers::visit_file_defs;
 use std::collections::LinkedList;
 
-/// FIXME: Test module
-/// https://doc.rust-lang.org/rust-by-example/testing/unit_testing.html?search=#[cfg(test)]
-
-/// FIXME: Runnable extracting shoild respect project layout: 
-/// https://doc.rust-lang.org/cargo/reference/manifest.html
-/// and also it should respect 'configuring a target' 
-/// https://doc.rust-lang.org/cargo/reference/manifest.html#configuring-a-target
+/// Defines the kind of [RunnableFunc]
 #[derive(PartialEq, Eq, Debug, Clone)]
 enum RunnableFuncKind {
-    /// Unit test function
-    /// https://doc.rust-lang.org/rust-by-example/testing/unit_testing.html
+    /// The [unit test function](https://doc.rust-lang.org/reference/attributes/testing.html?highlight=test#testing-attributes),
+    /// i.e. function marked with `#[test]` attribute and whose signature satisfies requirements.
     Test,
-    /// Benchmark test
-    /// https://doc.rust-lang.org/1.7.0/book/benchmark-tests.html
+    /// The [benchmark test function](https://doc.rust-lang.org/unstable-book/library-features/test.html),
+    /// i.e. function marked with `#[bench]` attribute and whose signature satisfies requirements.
+    /// Requires the unstable feature `test` to be enabled.
     Bench,
-    /// Just `main` when it entry point of programm
-    /// NOTE: We have two case when main not entry - start macro or
-    /// shim override
+    /// It is the entry point of the crate. Default is a function with the name `main` 
+    /// that signature satisfies requirements. If unstable feature 
+    /// [`start`](https://doc.rust-lang.org/unstable-book/language-features/start.html?highlight=start#start)
+    /// enabled, insted use function market with attribute `#[start]` that signature satisfies requirements. 
     Bin,
-    /// Custom entry point, marked with `#[start]`
-    /// https://doc.rust-lang.org/unstable-book/language-features/start.html?highlight=start#start
-    Start,
+}
+
+struct DoctestLocation {
+    file_id: FileId,
+    range: TextRange,
+}
+
+/// [Documentation tests](https://doc.rust-lang.org/rustdoc/documentation-tests.html)
+/// these are special inserts into mardown that contain Rust code and can be executed 
+/// as tests.
+struct Doctest {
+    location: DoctestLocation,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -40,18 +45,24 @@ struct RunnableFunc {
     location: FunctionLoc,
 }
 
+/// We can think about it as a representation a partial view from AST. 
+/// The leaves of which are runnables: [RunnableFunc] and [Doctest], and 
+/// the edges are Modules.
+/// The main purpose of this partial view is that store runnables with 
+/// respect to the project structure.
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum Runnable {
+pub enum RunnableView {
     Module {
         location: Module,
-        content: LinkedList<Runnable>,
+        content: LinkedList<RunnableView>,
     },
-    Function(RunnableFunc)
+    Function(RunnableFunc),
+    Doctest(Doctest),
 }
 
 type WorkspaceRunnables = FxHashMap<Crate, CrateRunnables>;
 type CrateRunnables = FxHashMap<FileId, FileRunnables>;
-type FileRunnables = Vec<Runnable>;
+type FileRunnables = Vec<RunnableView>;
 
 // TODO: Dirty code, probably it should be, for example, member of [hir::Crate] 
 fn crate_source_root<DB>(db: DB, krate: Crate) -> Arc<SourceRoot> 
@@ -96,8 +107,8 @@ fn file_runnables(db: &dyn RunnableDatabase, file_id: FileId) -> FileRunnables {
     let mut res = Vec::new();
     // Record all runnables that come from macro expansions here instead.
     // In case an expansion creates multiple runnables we want to name them to avoid emitting a bunch of equally named runnables.
-    let mut in_macro_expansion = FxHashMap::<hir::HirFileId, Vec<Runnable>>::default();
-    let mut add_opt = |runnable: Option<Runnable>, def| {
+    let mut in_macro_expansion = FxHashMap::<hir::HirFileId, Vec<RunnableView>>::default();
+    let mut add_opt = |runnable: Option<RunnableView>, def| {
         if let Some(runnable) = runnable.filter(|runnable| {
             always!(
                 runnable.nav.file_id == file_id,
@@ -167,7 +178,7 @@ fn file_runnables(db: &dyn RunnableDatabase, file_id: FileId) -> FileRunnables {
 fn runnable_mod_outline_definition(
     sema: &Semantics,
     def: hir::Module,
-) -> Option<Runnable> {
+) -> Option<RunnableView> {
     if !is_contains_runnable(sema, &def) {
         return None;
     }
@@ -186,11 +197,11 @@ fn runnable_mod_outline_definition(
     //     _ => None,
     // }
 
-    Some(Runnable::Module{ location: def, content: ()})
+    Some(RunnableView::Module{ location: def, content: ()})
 }
 
 /// Checks if module containe runnable in doc than create [Runnable] from it
-fn module_def_doctest(db: &dyn RunnableDatabase, def: hir::ModuleDef) -> Option<Runnable> {
+fn module_def_doctest(db: &dyn RunnableDatabase, def: hir::ModuleDef) -> Option<RunnableView> {
     let attrs = match def {
         hir::ModuleDef::Module(it) => it.attrs(db),
         hir::ModuleDef::Function(it) => it.attrs(db),
@@ -245,7 +256,7 @@ fn module_def_doctest(db: &dyn RunnableDatabase, def: hir::ModuleDef) -> Option<
     nav.description = None;
     nav.docs = None;
     nav.kind = None;
-    let res = Runnable {
+    let res = RunnableView {
         use_name_in_title: false,
         nav,
         kind: RunnableKind::DocTest { test_id },
@@ -255,7 +266,7 @@ fn module_def_doctest(db: &dyn RunnableDatabase, def: hir::ModuleDef) -> Option<
 }
 
 /// Checks if implementation containe runnable in doc than create [Runnable] from it
-fn runnable_impl(sema: &Semantics, def: &hir::Impl) -> Option<Runnable> {
+fn runnable_impl(sema: &Semantics, def: &hir::Impl) -> Option<RunnableView> {
     let attrs = def.attrs(sema.db);
     if !is_contains_runnable_in_doc(&attrs) {
         return None;
@@ -277,16 +288,16 @@ fn runnable_impl(sema: &Semantics, def: &hir::Impl) -> Option<Runnable> {
 }
 
 /// Checks if a [hir::Module] is runnable and if it is, then construct [Runnable] from it
-fn runnable_mod(sema: &Semantics, def: hir::Module) -> Option<Runnable> {
+fn runnable_mod(sema: &Semantics, def: hir::Module) -> Option<RunnableView> {
     if !is_contains_runnable(sema, &def) {
         return None;
     }
     
-    Some(Runnable::Module{ location: def, content: todo!() })
+    Some(RunnableView::Module{ location: def, content: todo!() })
 }
 
 /// Checks if a [hir::Function] is runnable and if it is, then construct [Runnable] from it 
-fn runnable_fn(sema: &Semantics, def: hir::Function) -> Option<Runnable> {
+fn runnable_fn(sema: &Semantics, def: hir::Function) -> Option<RunnableView> {
     let func = def.source(sema.db)?;
     let name_string = def.name(sema.db).to_string();
 
@@ -313,7 +324,7 @@ fn runnable_fn(sema: &Semantics, def: hir::Function) -> Option<Runnable> {
         }
     };
 
-    Some(Runnable::Function(RunnableFunc{ kind, location: todo!() }))
+    Some(RunnableView::Function(RunnableFunc{ kind, location: todo!() }))
 }
 
 /// This is a method with a heuristics to support test methods annotated 
