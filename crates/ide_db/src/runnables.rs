@@ -174,6 +174,75 @@ fn file_runnables(db: &dyn RunnableDatabase, file_id: FileId) -> FileRunnables {
     res
 }
 
+fn validate_main_signature() {
+    enum ValidationResult {
+        // Occurrence when function signature is incomplete
+        Unknown,
+        // Non-compliance error detected
+        Error,
+        // Function signature satisfy requirements
+        Valid,
+    }
+
+    //  Checking if functions signature equal one of following:
+    //  if found trait std::process::Termination:
+    //      'fn() -> impl Termination'
+    //  in other case:
+    //      'fn() -> ()'
+    //      'fn() -> Result<(), E> where E: Error'
+    // 
+    // TODO: check multiple definitions 
+    // TRACK: when [RFC 1937](https://github.com/rust-lang/rust/issues/43301) stabilized,
+    // and the trait will be moved to lib core, the function should rely entirely on trait 
+    // searching and check return type for conformation to it 
+    let validate_signature = |fn_def: &ast::FnDef| -> ValidationResult {
+        let type_param = fn_def.type_param_list();
+        if type_param.is_some() {
+            return ValidationResult::Error;
+        }
+        if fn_def.where_clause().is_some() {
+            return ValidationResult::Error;
+        }
+
+        let par_list = fn_def.param_list(); 
+        if par_list.is_none() {
+            return ValidationResult::Unknown;
+        }        
+        let par_list = par_list.unwrap();       
+        let par_num = par_list.params().count();
+        let is_have_self = par_list.self_param().is_some();        
+        if par_num != 0 || is_have_self {
+            return ValidationResult::Error;
+        }
+        
+        if fn_def.ret_type().is_none() {
+            return ValidationResult::Unknown;
+        }
+        let ret_type = fn_def.ret_type().unwrap();
+        let type_ref = ret_type.type_ref();
+        if type_ref.is_none() {
+            return ValidationResult::Valid; 
+        }
+        let type_ref = type_ref.unwrap();
+        
+        let module = sema.to_def(fn_def).unwrap().module(sema.db).to_source();
+        let attrs = Attrs::from_attrs_owner(sema.db, module);
+        let features = attrs.by_key("feature");
+
+        // TODO: Candidate search the whole project, separate it 
+        
+        ValidationResult::Valid
+    };
+}
+
+fn validate_start_signature() {
+    todo!()
+}
+
+fn validate_bench_signature() {
+    
+}
+
 /// Creates a test mod runnable for outline modules at the top of their definition.
 fn runnable_mod_outline_definition(
     sema: &Semantics,

@@ -103,11 +103,11 @@ impl Runnable {
 }
 
 impl Runnable {
-    pub fn from_db_repr(sema: &Semantics, runnable: ide_db::runnables::Runnable) -> Self {
+    pub fn from_db_repr(sema: &Semantics, runnable: ide_db::runnables::RunnableView) -> Self {
         match runnable {
-            ide_db::runnables::Runnable::Module { location, content} 
+            ide_db::runnables::RunnableView::Module { location, content} 
                 => from_mod(sema, runnable),
-            ide_db::runnables::Runnable::Function(runnable)
+            ide_db::runnables::RunnableView::Function(runnable)
                 => from_fn(sema, runnable),
         }
     }
