@@ -637,6 +637,45 @@ mod derive {
             "#]],
         )
     }
+
+    #[test]
+    fn derive_flyimport() {
+        check_derive(
+            r#"
+//- proc_macros: derive_identity
+#[derive(der$0)] struct Test;
+"#,
+            expect![[r#"
+                at derive_identity (use proc_macros::derive_identity)
+            "#]],
+        );
+        check_derive(
+            r#"
+//- proc_macros: derive_identity
+use proc_macros::derive_identity;
+#[derive(der$0)] struct Test;
+"#,
+            expect![[r#"
+                at derive_identity
+            "#]],
+        );
+    }
+
+    #[test]
+    fn derive_flyimport_edit() {
+        check_edit(
+            "derive_identity",
+            r#"
+//- proc_macros: derive_identity
+#[derive(der$0)] struct Test;
+"#,
+            r#"
+use proc_macros::derive_identity;
+
+#[derive(derive_identity)] struct Test;
+"#,
+        );
+    }
 }
 
 mod lint {

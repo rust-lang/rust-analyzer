@@ -125,7 +125,7 @@ pub(crate) fn import_on_the_fly(acc: &mut Completions, ctx: &CompletionContext) 
         }
     };
 
-    let _p = profile::span("import_on_the_fly").detail(|| potential_import_name.to_string());
+    let _p = profile::span("import_on_the_fly").detail(|| potential_import_name.clone());
 
     let user_input_lowercased = potential_import_name.to_lowercase();
     let import_assets = import_assets(ctx, potential_import_name)?;
@@ -205,7 +205,7 @@ fn import_assets(ctx: &CompletionContext, fuzzy_name: String) -> Option<ImportAs
     }
 }
 
-fn compute_fuzzy_completion_order_key(
+pub(super) fn compute_fuzzy_completion_order_key(
     proposed_mod_path: &hir::ModPath,
     user_input_lowercased: &str,
 ) -> usize {
