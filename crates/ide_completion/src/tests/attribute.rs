@@ -589,7 +589,6 @@ mod derive {
 "#,
             expect![[r#"
                 at Default
-                at Debug
                 at Clone, Copy
                 at PartialEq
                 at PartialEq, Eq
@@ -609,7 +608,6 @@ mod derive {
 "#,
             expect![[r#"
                 at Default
-                at Debug
                 at Clone, Copy
                 at Eq
                 at Eq, PartialOrd, Ord
@@ -628,7 +626,6 @@ mod derive {
 "#,
             expect![[r#"
                 at Default
-                at Debug
                 at Clone, Copy
                 at Eq
                 at Eq, PartialOrd, Ord
