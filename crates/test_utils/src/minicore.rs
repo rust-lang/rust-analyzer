@@ -87,6 +87,10 @@ pub mod default {
     pub trait Default: Sized {
         fn default() -> Self;
     }
+    // region:derive
+    #[rustc_builtin_macro]
+    pub macro Default($item:item) {}
+    // endregion:derive
 }
 // endregion:default
 
@@ -375,6 +379,10 @@ pub mod fmt {
     pub trait Debug {
         fn fmt(&self, f: &mut Formatter<'_>) -> Result;
     }
+    // region:derive
+    #[rustc_builtin_macro]
+    pub macro Debug($item:item) {}
+    // endregion:derive
 }
 // endregion:fmt
 
@@ -610,6 +618,7 @@ pub mod prelude {
             cmp::{Ord, PartialOrd},             // :ord
             convert::{From, Into},              // :from
             default::Default,                   // :default
+            fmt::Debug,                         // :result
             iter::{IntoIterator, Iterator},     // :iterator
             macros::builtin::derive,            // :derive
             marker::Copy,                       // :copy
