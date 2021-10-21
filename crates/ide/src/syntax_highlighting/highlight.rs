@@ -328,10 +328,10 @@ fn highlight_name_ref(
             NameRefClass::FieldShorthand { .. } => SymbolKind::Field.into(),
         };
         if h.tag == HlTag::Symbol(SymbolKind::Module) {
-            if name_ref.self_token().is_some() {
-                return SymbolKind::SelfParam.into();
-            }
-            if name_ref.crate_token().is_some() || name_ref.super_token().is_some() {
+            if name_ref.self_token().is_some()
+                || name_ref.crate_token().is_some()
+                || name_ref.super_token().is_some()
+            {
                 h.tag = HlTag::Keyword;
             }
         }
