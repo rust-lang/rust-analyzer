@@ -612,6 +612,7 @@ impl DefCollector<'_> {
     ) {
         // Textual scoping
         self.define_legacy_macro(module_id, name.clone(), macro_);
+        self.def_map.macro_modules.insert(macro_, (module_id, name.clone()));
 
         // Module scoping
         // In Rust, `#[macro_export]` macros are unconditionally visible at the
@@ -648,6 +649,7 @@ impl DefCollector<'_> {
         macro_: MacroDefId,
         vis: &RawVisibility,
     ) {
+        self.def_map.macro_modules.insert(macro_, (module_id, name.clone()));
         let vis =
             self.def_map.resolve_visibility(self.db, module_id, vis).unwrap_or(Visibility::Public);
         self.update(module_id, &[(Some(name), PerNs::macros(macro_, vis))], vis, ImportType::Named);
@@ -658,6 +660,7 @@ impl DefCollector<'_> {
     /// A proc macro is similar to normal macro scope, but it would not visible in legacy textual scoped.
     /// And unconditionally exported.
     fn define_proc_macro(&mut self, name: Name, macro_: MacroDefId) {
+        self.def_map.macro_modules.insert(macro_, (self.def_map.root, name.clone()));
         self.update(
             self.def_map.root,
             &[(Some(name), PerNs::macros(macro_, Visibility::Public))],
@@ -1868,7 +1871,6 @@ impl ModCollector<'_, '_> {
                     }
                 }
             };
-            let krate = self.def_collector.def_map.krate;
             match find_builtin_macro(name, krate, ast_id) {
                 Some(macro_id) => {
                     self.def_collector.define_macro_rules(
@@ -1890,7 +1892,7 @@ impl ModCollector<'_, '_> {
 
         // Case 2: normal `macro_rules!` macro
         let macro_id = MacroDefId {
-            krate: self.def_collector.def_map.krate,
+            krate,
             kind: MacroDefKind::Declarative(ast_id),
             local_inner: is_local_inner,
         };

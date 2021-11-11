@@ -101,7 +101,7 @@ impl ChildBySource for ModuleId {
 impl ChildBySource for ItemScope {
     fn child_by_source_to(&self, db: &dyn DefDatabase, res: &mut DynMap, file_id: HirFileId) {
         self.declarations().for_each(|item| add_module_def(db, file_id, res, item));
-        self.macros().for_each(|(_, makro)| {
+        self.macros().chain(self.legacy_macros()).for_each(|(_, makro)| {
             let ast_id = makro.ast_id();
             if ast_id.either(|it| it.file_id, |it| it.file_id) == file_id {
                 let src = match ast_id {

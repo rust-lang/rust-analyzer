@@ -95,7 +95,7 @@ use hir_def::{
     GenericDefId, ImplId, LifetimeParamId, ModuleId, StaticId, StructId, TraitId, TypeAliasId,
     TypeParamId, UnionId, VariantId,
 };
-use hir_expand::{name::AsName, AstId, HirFileId, MacroCallId, MacroDefId, MacroDefKind};
+use hir_expand::{name::AsName, HirFileId, MacroCallId, MacroDefId};
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use stdx::impl_from;
@@ -300,19 +300,7 @@ impl SourceToDefCtx<'_, '_> {
     }
 
     pub(super) fn macro_to_def(&mut self, src: InFile<ast::Macro>) -> Option<MacroDefId> {
-        let makro = self.dyn_map(src.as_ref()).and_then(|it| it[keys::MACRO].get(&src).copied());
-        if let res @ Some(_) = makro {
-            return res;
-        }
-
-        // Not all macros are recorded in the dyn map, only the ones behaving like items, so fall back
-        // for the non-item like definitions.
-        let file_ast_id = self.db.ast_id_map(src.file_id).ast_id(&src.value);
-        let ast_id = AstId::new(src.file_id, file_ast_id.upcast());
-        let kind = MacroDefKind::Declarative(ast_id);
-        let file_id = src.file_id.original_file(self.db.upcast());
-        let krate = self.file_to_def(file_id).get(0).copied()?.krate();
-        Some(MacroDefId { krate, kind, local_inner: false })
+        self.dyn_map(src.as_ref()).and_then(|it| it[keys::MACRO].get(&src).copied())
     }
 
     pub(super) fn find_container(&mut self, src: InFile<&SyntaxNode>) -> Option<ChildContainer> {

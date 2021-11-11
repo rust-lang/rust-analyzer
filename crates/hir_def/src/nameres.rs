@@ -78,6 +78,8 @@ use crate::{
 
 use self::proc_macro::ProcMacroDef;
 
+pub use hir_expand::builtin_fn_macro::find_builtin_macro;
+
 /// Contains the results of (early) name resolution.
 ///
 /// A `DefMap` stores the module tree and the definitions that are in scope in every module after
@@ -105,6 +107,8 @@ pub struct DefMap {
     ///
     /// (the primary purpose is to resolve derive helpers and fetch a proc-macros name)
     exported_proc_macros: FxHashMap<MacroDefId, ProcMacroDef>,
+    /// Side table storing the modules of macro definitions.
+    pub macro_modules: FxHashMap<MacroDefId, (LocalModuleId, Name)>,
 
     edition: Edition,
     diagnostics: Vec<DefDiagnostic>,
@@ -262,6 +266,7 @@ impl DefMap {
             edition,
             extern_prelude: FxHashMap::default(),
             exported_proc_macros: FxHashMap::default(),
+            macro_modules: FxHashMap::default(),
             prelude: None,
             root,
             modules,
@@ -281,6 +286,9 @@ impl DefMap {
     }
     pub fn exported_proc_macros(&self) -> impl Iterator<Item = (MacroDefId, Name)> + '_ {
         self.exported_proc_macros.iter().map(|(id, def)| (*id, def.name.clone()))
+    }
+    pub fn macro_def_module(&self, mac: MacroDefId) -> Option<LocalModuleId> {
+        self.macro_modules.get(&mac).map(|(a, _)| *a)
     }
     pub fn root(&self) -> LocalModuleId {
         self.root
@@ -434,6 +442,7 @@ impl DefMap {
         let Self {
             _c: _,
             exported_proc_macros,
+            macro_modules,
             extern_prelude,
             diagnostics,
             modules,
@@ -444,6 +453,7 @@ impl DefMap {
             root: _,
         } = self;
 
+        macro_modules.shrink_to_fit();
         extern_prelude.shrink_to_fit();
         exported_proc_macros.shrink_to_fit();
         diagnostics.shrink_to_fit();
