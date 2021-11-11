@@ -1619,13 +1619,10 @@ pub struct MacroDef {
 }
 
 impl MacroDef {
-    /// FIXME: right now, this just returns the root module of the crate that
-    /// defines this macro. The reasons for this is that macros are expanded
-    /// early, in `hir_expand`, where modules simply do not exist yet.
     pub fn module(self, db: &dyn HirDatabase) -> Option<Module> {
         let krate = self.id.krate;
         let def_map = db.crate_def_map(krate);
-        let module_id = def_map.root();
+        let module_id = def_map.macro_def_module(self.id)?;
         Some(Module { id: def_map.module_id(module_id) })
     }
 

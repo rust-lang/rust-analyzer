@@ -636,6 +636,7 @@ impl DefCollector<'_> {
     fn define_legacy_macro(&mut self, module_id: LocalModuleId, name: Name, mac: MacroDefId) {
         // Always shadowing
         self.def_map.modules[module_id].scope.define_legacy_macro(name, mac);
+        self.def_map.macro_modules.insert(mac, module_id);
     }
 
     /// Define a macro 2.0 macro
@@ -648,6 +649,7 @@ impl DefCollector<'_> {
         macro_: MacroDefId,
         vis: &RawVisibility,
     ) {
+        self.def_map.macro_modules.insert(macro_, module_id);
         let vis =
             self.def_map.resolve_visibility(self.db, module_id, vis).unwrap_or(Visibility::Public);
         self.update(module_id, &[(Some(name), PerNs::macros(macro_, vis))], vis, ImportType::Named);
@@ -658,6 +660,7 @@ impl DefCollector<'_> {
     /// A proc macro is similar to normal macro scope, but it would not visible in legacy textual scoped.
     /// And unconditionally exported.
     fn define_proc_macro(&mut self, name: Name, macro_: MacroDefId) {
+        self.def_map.macro_modules.insert(macro_, self.def_map.root);
         self.update(
             self.def_map.root,
             &[(Some(name), PerNs::macros(macro_, Visibility::Public))],
