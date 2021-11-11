@@ -183,7 +183,7 @@ fn collect_import_map(db: &dyn DefDatabase, krate: CrateId) -> ImportMap {
                 let import_info =
                     ImportInfo { path, container: module, is_trait_assoc_item: false };
 
-                if let Some(ModuleDefId::TraitId(tr)) = item.as_module_def_id() {
+                if let ModuleDefId::TraitId(tr) = item.as_module_def_id() {
                     import_map.collect_trait_assoc_items(
                         db,
                         tr,
@@ -209,7 +209,7 @@ fn collect_import_map(db: &dyn DefDatabase, krate: CrateId) -> ImportMap {
                 // If we've just added a path to a module, descend into it. We might traverse
                 // modules multiple times, but only if the new path to it is shorter than the
                 // first (else we `continue` above).
-                if let Some(ModuleDefId::ModuleId(mod_id)) = item.as_module_def_id() {
+                if let ModuleDefId::ModuleId(mod_id) = item.as_module_def_id() {
                     worklist.push((mod_id, mk_path()));
                 }
             }
@@ -258,6 +258,7 @@ fn fst_path(path: &ImportPath) -> String {
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub enum ImportKind {
     Module,
+    Macro,
     Function,
     Adt,
     EnumVariant,
@@ -431,10 +432,7 @@ pub fn search_dependencies<'a>(
             .iter()
             .copied()
             .take_while(|item| common_importables_path_fst == fst_path(&import_map.map[item].path))
-            .filter(|&item| match item_import_kind(item) {
-                Some(import_kind) => !query.exclude_import_kinds.contains(&import_kind),
-                None => true,
-            })
+            .filter(|&item| !query.exclude_import_kinds.contains(&item_import_kind(item)))
             .filter(|item| {
                 !query.case_sensitive // we've already checked the common importables path case-insensitively
                         || query.import_matches(&import_map.map[item], false)
@@ -449,8 +447,8 @@ pub fn search_dependencies<'a>(
     res
 }
 
-fn item_import_kind(item: ItemInNs) -> Option<ImportKind> {
-    Some(match item.as_module_def_id()? {
+fn item_import_kind(item: ItemInNs) -> ImportKind {
+    match item.as_module_def_id() {
         ModuleDefId::ModuleId(_) => ImportKind::Module,
         ModuleDefId::FunctionId(_) => ImportKind::Function,
         ModuleDefId::AdtId(_) => ImportKind::Adt,
@@ -460,7 +458,8 @@ fn item_import_kind(item: ItemInNs) -> Option<ImportKind> {
         ModuleDefId::TraitId(_) => ImportKind::Trait,
         ModuleDefId::TypeAliasId(_) => ImportKind::TypeAlias,
         ModuleDefId::BuiltinType(_) => ImportKind::BuiltinType,
-    })
+        ModuleDefId::MacroDefId(_) => ImportKind::Macro,
+    }
 }
 
 #[cfg(test)]
@@ -530,7 +529,7 @@ mod tests {
         };
 
         let trait_ = assoc_to_trait(db, dependency)?;
-        if let ModuleDefId::TraitId(tr) = trait_.as_module_def_id()? {
+        if let ModuleDefId::TraitId(tr) = trait_.as_module_def_id() {
             let trait_data = db.trait_data(tr);
             let assoc_item_name =
                 trait_data.items.iter().find_map(|(assoc_item_name, assoc_item_id)| {

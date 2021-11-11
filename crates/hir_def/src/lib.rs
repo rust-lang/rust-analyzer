@@ -333,6 +333,7 @@ pub enum ModuleDefId {
     TraitId(TraitId),
     TypeAliasId(TypeAliasId),
     BuiltinType(BuiltinType),
+    MacroDefId(MacroDefId),
 }
 impl_from!(
     ModuleId,
@@ -343,7 +344,8 @@ impl_from!(
     StaticId,
     TraitId,
     TypeAliasId,
-    BuiltinType
+    BuiltinType,
+    MacroDefId
     for ModuleDefId
 );
 
@@ -597,9 +599,9 @@ impl ModuleDefId {
     /// Returns the module containing `self` (or `self`, if `self` is itself a module).
     ///
     /// Returns `None` if `self` refers to a primitive type.
-    pub fn module(&self, db: &dyn db::DefDatabase) -> Option<ModuleId> {
+    pub fn module(self, db: &dyn db::DefDatabase) -> Option<ModuleId> {
         Some(match self {
-            ModuleDefId::ModuleId(id) => *id,
+            ModuleDefId::ModuleId(id) => id,
             ModuleDefId::FunctionId(id) => id.lookup(db).module(db),
             ModuleDefId::AdtId(id) => id.module(db),
             ModuleDefId::EnumVariantId(id) => id.parent.lookup(db).container,
@@ -607,6 +609,7 @@ impl ModuleDefId {
             ModuleDefId::StaticId(id) => id.lookup(db).container,
             ModuleDefId::TraitId(id) => id.lookup(db).container,
             ModuleDefId::TypeAliasId(id) => id.lookup(db).module(db),
+            ModuleDefId::MacroDefId(id) => db.crate_def_map(id.krate).macro_def_module(id)?,
             ModuleDefId::BuiltinType(_) => return None,
         })
     }

@@ -172,7 +172,7 @@ fn find_path_inner(
 
     // Recursive case:
     // - if the item is an enum variant, refer to it via the enum
-    if let Some(ModuleDefId::EnumVariantId(variant)) = item.as_module_def_id() {
+    if let ModuleDefId::EnumVariantId(variant) = item.as_module_def_id() {
         if let Some(mut path) = find_path(db, ItemInNs::Types(variant.parent.into()), from) {
             let data = db.enum_data(variant.parent);
             path.push_segment(data.variants[variant.local_id].name.clone());
@@ -252,7 +252,7 @@ fn find_path_inner(
 
     // If the item is declared inside a block expression, don't use a prefix, as we don't handle
     // that correctly (FIXME).
-    if let Some(item_module) = item.as_module_def_id().and_then(|did| did.module(db)) {
+    if let Some(item_module) = item.as_module_def_id().module(db) {
         if item_module.def_map(db).block_id().is_some() && prefixed.is_some() {
             cov_mark::hit!(prefixed_in_block_expression);
             prefixed = Some(PrefixKind::Plain);
@@ -347,10 +347,8 @@ fn find_local_import_locations(
                     Visibility::Module(private_to) => private_to.local_id == module.local_id,
                     Visibility::Public => false,
                 };
-                let is_original_def = match item.as_module_def_id() {
-                    Some(module_def_id) => data.scope.declarations().any(|it| it == module_def_id),
-                    None => false,
-                };
+                let module_def_id = item.as_module_def_id();
+                let is_original_def = data.scope.declarations().any(|it| it == module_def_id);
 
                 // Ignore private imports. these could be used if we are
                 // in a submodule of this module, but that's usually not

@@ -167,7 +167,7 @@ fn render_resolution_(
             let item = render_variant(ctx, import_to_add, Some(local_name), *var, None);
             return Some(item);
         }
-        hir::ScopeDef::MacroDef(mac) => {
+        hir::ScopeDef::ModuleDef(MacroDef(mac)) => {
             let item = render_macro(ctx, import_to_add, local_name, *mac);
             return item;
         }
@@ -273,8 +273,8 @@ fn scope_def_docs(db: &RootDatabase, resolution: &hir::ScopeDef) -> Option<hir::
 
 fn scope_def_is_deprecated(ctx: &RenderContext<'_>, resolution: &hir::ScopeDef) -> bool {
     match resolution {
+        // FIXME: deprecated check for module def in general
         hir::ScopeDef::ModuleDef(it) => ctx.is_deprecated_assoc_item(*it),
-        hir::ScopeDef::MacroDef(it) => ctx.is_deprecated(*it),
         hir::ScopeDef::GenericParam(it) => ctx.is_deprecated(*it),
         hir::ScopeDef::AdtSelfType(it) => ctx.is_deprecated(*it),
         _ => false,

@@ -41,7 +41,6 @@ pub enum PathResolution {
     /// A const parameter
     ConstParam(ConstParam),
     SelfType(Impl),
-    Macro(MacroDef),
     AssocItem(AssocItem),
 }
 
@@ -58,14 +57,13 @@ impl PathResolution {
                 | ModuleDef::Function(_)
                 | ModuleDef::Module(_)
                 | ModuleDef::Static(_)
-                | ModuleDef::Trait(_),
+                | ModuleDef::Trait(_)
+                | ModuleDef::MacroDef(_),
             ) => None,
             PathResolution::Def(ModuleDef::TypeAlias(alias)) => {
                 Some(TypeNs::TypeAliasId((*alias).into()))
             }
-            PathResolution::Local(_) | PathResolution::Macro(_) | PathResolution::ConstParam(_) => {
-                None
-            }
+            PathResolution::Local(_) | PathResolution::ConstParam(_) => None,
             PathResolution::TypeParam(param) => Some(TypeNs::GenericParam((*param).into())),
             PathResolution::SelfType(impl_def) => Some(TypeNs::SelfType((*impl_def).into())),
             PathResolution::AssocItem(AssocItem::Const(_) | AssocItem::Function(_)) => None,
@@ -1171,7 +1169,6 @@ impl<'a> SemanticsScope<'a> {
             for entry in entries {
                 let def = match entry {
                     resolver::ScopeDef::ModuleDef(it) => ScopeDef::ModuleDef(it.into()),
-                    resolver::ScopeDef::MacroDef(it) => ScopeDef::MacroDef(it.into()),
                     resolver::ScopeDef::Unknown => ScopeDef::Unknown,
                     resolver::ScopeDef::ImplSelfType(it) => ScopeDef::ImplSelfType(it.into()),
                     resolver::ScopeDef::AdtSelfType(it) => ScopeDef::AdtSelfType(it.into()),

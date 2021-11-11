@@ -31,7 +31,7 @@ pub(crate) fn complete_qualified_path(acc: &mut Completions, ctx: &CompletionCon
         Some(ImmediateLocation::ItemList | ImmediateLocation::Trait | ImmediateLocation::Impl) => {
             if let hir::PathResolution::Def(hir::ModuleDef::Module(module)) = resolution {
                 for (name, def) in module.scope(ctx.db, context_module) {
-                    if let hir::ScopeDef::MacroDef(macro_def) = def {
+                    if let hir::ScopeDef::ModuleDef(hir::ModuleDef::MacroDef(macro_def)) = def {
                         if macro_def.is_fn_like() {
                             acc.add_macro(ctx, Some(name.clone()), macro_def);
                         }
@@ -109,7 +109,7 @@ pub(crate) fn complete_qualified_path(acc: &mut Completions, ctx: &CompletionCon
 
                 let add_resolution = match def {
                     // Don't suggest attribute macros and derives.
-                    hir::ScopeDef::MacroDef(mac) => mac.is_fn_like(),
+                    hir::ScopeDef::ModuleDef(hir::ModuleDef::MacroDef(mac)) => mac.is_fn_like(),
                     // no values in type places
                     hir::ScopeDef::ModuleDef(
                         hir::ModuleDef::Function(_)
@@ -195,6 +195,7 @@ pub(crate) fn complete_qualified_path(acc: &mut Completions, ctx: &CompletionCon
                 add_assoc_item(acc, ctx, item);
             }
         }
+        hir::PathResolution::Def(hir::ModuleDef::MacroDef(mac)) => acc.add_macro(ctx, None, mac),
         hir::PathResolution::TypeParam(_) | hir::PathResolution::SelfType(_) => {
             if let Some(krate) = ctx.krate {
                 let ty = match resolution {
@@ -223,7 +224,6 @@ pub(crate) fn complete_qualified_path(acc: &mut Completions, ctx: &CompletionCon
                 });
             }
         }
-        hir::PathResolution::Macro(mac) => acc.add_macro(ctx, None, mac),
         _ => {}
     }
 }

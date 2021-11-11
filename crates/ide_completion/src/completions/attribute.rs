@@ -99,7 +99,7 @@ fn complete_new_attribute(acc: &mut Completions, ctx: &CompletionContext, attrib
 
     // FIXME: write a test for this when we can
     ctx.scope.process_all_names(&mut |name, scope_def| {
-        if let hir::ScopeDef::MacroDef(mac) = scope_def {
+        if let hir::ScopeDef::ModuleDef(hir::ModuleDef::MacroDef(mac)) = scope_def {
             if mac.kind() == hir::MacroKind::Attr {
                 let mut item = CompletionItem::new(
                     CompletionItemKind::Attribute,

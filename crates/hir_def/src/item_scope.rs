@@ -379,6 +379,7 @@ impl PerNs {
             ModuleDefId::TraitId(_) => PerNs::types(def, v),
             ModuleDefId::TypeAliasId(_) => PerNs::types(def, v),
             ModuleDefId::BuiltinType(_) => PerNs::types(def, v),
+            ModuleDefId::MacroDefId(def) => PerNs::macros(def, v),
         }
     }
 }
@@ -391,10 +392,10 @@ pub enum ItemInNs {
 }
 
 impl ItemInNs {
-    pub fn as_module_def_id(self) -> Option<ModuleDefId> {
+    pub fn as_module_def_id(self) -> ModuleDefId {
         match self {
-            ItemInNs::Types(id) | ItemInNs::Values(id) => Some(id),
-            ItemInNs::Macros(_) => None,
+            ItemInNs::Types(id) | ItemInNs::Values(id) => id,
+            ItemInNs::Macros(id) => ModuleDefId::MacroDefId(id),
         }
     }
 

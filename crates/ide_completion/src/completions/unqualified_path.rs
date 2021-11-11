@@ -30,7 +30,7 @@ pub(crate) fn complete_unqualified_path(acc: &mut Completions, ctx: &CompletionC
         Some(ImmediateLocation::ItemList | ImmediateLocation::Trait | ImmediateLocation::Impl) => {
             // only show macros in {Assoc}ItemList
             ctx.process_all_names(&mut |name, res| {
-                if let hir::ScopeDef::MacroDef(mac) = res {
+                if let hir::ScopeDef::ModuleDef(hir::ModuleDef::MacroDef(mac)) = res {
                     if mac.is_fn_like() {
                         acc.add_macro(ctx, Some(name.clone()), mac);
                     }
@@ -44,7 +44,7 @@ pub(crate) fn complete_unqualified_path(acc: &mut Completions, ctx: &CompletionC
         Some(ImmediateLocation::TypeBound) => {
             ctx.process_all_names(&mut |name, res| {
                 let add_resolution = match res {
-                    ScopeDef::MacroDef(mac) => mac.is_fn_like(),
+                    ScopeDef::ModuleDef(hir::ModuleDef::MacroDef(mac)) => mac.is_fn_like(),
                     ScopeDef::ModuleDef(hir::ModuleDef::Trait(_) | hir::ModuleDef::Module(_)) => {
                         true
                     }
@@ -93,7 +93,7 @@ pub(crate) fn complete_unqualified_path(acc: &mut Completions, ctx: &CompletionC
                 !ctx.previous_token_is(syntax::T![impl]) && !ctx.previous_token_is(syntax::T![for])
             }
             // Don't suggest attribute macros and derives.
-            ScopeDef::MacroDef(mac) => mac.is_fn_like(),
+            ScopeDef::ModuleDef(hir::ModuleDef::MacroDef(mac)) => mac.is_fn_like(),
             // no values in type places
             ScopeDef::ModuleDef(
                 hir::ModuleDef::Function(_)

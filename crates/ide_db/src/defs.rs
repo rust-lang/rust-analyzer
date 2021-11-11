@@ -563,7 +563,6 @@ impl From<PathResolution> for Definition {
             }
             PathResolution::Local(local) => Definition::Local(local),
             PathResolution::TypeParam(par) => Definition::GenericParam(par.into()),
-            PathResolution::Macro(def) => Definition::Macro(def),
             PathResolution::SelfType(impl_def) => Definition::SelfType(impl_def),
             PathResolution::ConstParam(par) => Definition::GenericParam(par.into()),
         }
@@ -582,6 +581,7 @@ impl From<ModuleDef> for Definition {
             ModuleDef::Trait(it) => Definition::Trait(it),
             ModuleDef::TypeAlias(it) => Definition::TypeAlias(it),
             ModuleDef::BuiltinType(it) => Definition::BuiltinType(it),
+            ModuleDef::MacroDef(it) => Definition::Macro(it),
         }
     }
 }
@@ -598,7 +598,12 @@ impl From<Definition> for Option<ItemInNs> {
             Definition::Trait(it) => ModuleDef::Trait(it),
             Definition::TypeAlias(it) => ModuleDef::TypeAlias(it),
             Definition::BuiltinType(it) => ModuleDef::BuiltinType(it),
-            _ => return None,
+            Definition::Macro(mac) => ModuleDef::MacroDef(mac),
+            Definition::Field(_)
+            | Definition::SelfType(_)
+            | Definition::Local(_)
+            | Definition::GenericParam(_)
+            | Definition::Label(_) => return None,
         };
         Some(ItemInNs::from(item))
     }

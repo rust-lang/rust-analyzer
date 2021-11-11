@@ -226,6 +226,7 @@ impl TryToNav for hir::ModuleDef {
             hir::ModuleDef::Static(it) => it.try_to_nav(db),
             hir::ModuleDef::Trait(it) => it.try_to_nav(db),
             hir::ModuleDef::TypeAlias(it) => it.try_to_nav(db),
+            hir::ModuleDef::MacroDef(it) => it.try_to_nav(db),
             hir::ModuleDef::BuiltinType(_) => None,
         }
     }

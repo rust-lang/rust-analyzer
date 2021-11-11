@@ -116,7 +116,7 @@ impl FamousDefs<'_, '_> {
 
     fn find_macro(&self, path: &str) -> Option<MacroDef> {
         match self.find_def(path)? {
-            hir::ScopeDef::MacroDef(it) => Some(it),
+            hir::ScopeDef::ModuleDef(hir::ModuleDef::MacroDef(it)) => Some(it),
             _ => None,
         }
     }

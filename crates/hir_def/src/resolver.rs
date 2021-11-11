@@ -479,7 +479,6 @@ impl Resolver {
 #[derive(Debug, PartialEq, Eq)]
 pub enum ScopeDef {
     ModuleDef(ModuleDefId),
-    MacroDef(MacroDefId),
     Unknown,
     ImplSelfType(ImplId),
     AdtSelfType(AdtId),
@@ -503,7 +502,7 @@ impl Scope {
                     acc.add_per_ns(name, def);
                 });
                 m.def_map[m.module_id].scope.legacy_macros().for_each(|(name, mac)| {
-                    acc.add(name, ScopeDef::MacroDef(mac));
+                    acc.add(name, ScopeDef::ModuleDef(ModuleDefId::MacroDefId(mac)));
                 });
                 m.def_map.extern_prelude().for_each(|(name, &def)| {
                     acc.add(name, ScopeDef::ModuleDef(def));
@@ -633,6 +632,7 @@ impl ModuleItemMap {
                     ModuleDefId::BuiltinType(it) => TypeNs::BuiltinType(it),
 
                     ModuleDefId::ModuleId(_)
+                    | ModuleDefId::MacroDefId(_)
                     | ModuleDefId::FunctionId(_)
                     | ModuleDefId::EnumVariantId(_)
                     | ModuleDefId::ConstId(_)
@@ -664,6 +664,7 @@ fn to_value_ns(per_ns: PerNs) -> Option<ValueNs> {
         ModuleDefId::StaticId(it) => ValueNs::StaticId(it),
 
         ModuleDefId::AdtId(AdtId::EnumId(_) | AdtId::UnionId(_))
+        | ModuleDefId::MacroDefId(_)
         | ModuleDefId::TraitId(_)
         | ModuleDefId::TypeAliasId(_)
         | ModuleDefId::BuiltinType(_)
@@ -683,6 +684,7 @@ fn to_type_ns(per_ns: PerNs) -> Option<TypeNs> {
         ModuleDefId::TraitId(it) => TypeNs::TraitId(it),
 
         ModuleDefId::FunctionId(_)
+        | ModuleDefId::MacroDefId(_)
         | ModuleDefId::ConstId(_)
         | ModuleDefId::StaticId(_)
         | ModuleDefId::ModuleId(_) => return None,
@@ -703,14 +705,14 @@ impl ScopeNames {
         }
     }
     fn add_per_ns(&mut self, name: &Name, def: PerNs) {
-        if let Some(ty) = &def.types {
-            self.add(name, ScopeDef::ModuleDef(ty.0))
+        if let Some((ty, _)) = &def.types {
+            self.add(name, ScopeDef::ModuleDef(*ty))
         }
-        if let Some(val) = &def.values {
-            self.add(name, ScopeDef::ModuleDef(val.0))
+        if let Some((val, _)) = &def.values {
+            self.add(name, ScopeDef::ModuleDef(*val))
         }
-        if let Some(mac) = &def.macros {
-            self.add(name, ScopeDef::MacroDef(mac.0))
+        if let Some((mac, _)) = &def.macros {
+            self.add(name, ScopeDef::ModuleDef(ModuleDefId::MacroDefId(*mac)))
         }
         if def.is_none() {
             self.add(name, ScopeDef::Unknown)

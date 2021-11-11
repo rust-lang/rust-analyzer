@@ -260,6 +260,7 @@ pub enum ModuleDef {
     Trait(Trait),
     TypeAlias(TypeAlias),
     BuiltinType(BuiltinType),
+    MacroDef(MacroDef),
 }
 impl_from!(
     Module,
@@ -295,6 +296,7 @@ impl ModuleDef {
             ModuleDef::Static(it) => Some(it.module(db)),
             ModuleDef::Trait(it) => Some(it.module(db)),
             ModuleDef::TypeAlias(it) => Some(it.module(db)),
+            ModuleDef::MacroDef(it) => it.module(db),
             ModuleDef::BuiltinType(_) => None,
         }
     }
@@ -326,6 +328,7 @@ impl ModuleDef {
             ModuleDef::TypeAlias(it) => it.name(db),
             ModuleDef::Static(it) => it.name(db),
             ModuleDef::BuiltinType(it) => it.name(),
+            ModuleDef::MacroDef(it) => it.name(db)?,
         };
         Some(name)
     }
@@ -374,6 +377,7 @@ impl ModuleDef {
             ModuleDef::Static(it) => Some(it.into()),
 
             ModuleDef::Module(_)
+            | ModuleDef::MacroDef(_)
             | ModuleDef::Adt(_)
             | ModuleDef::Variant(_)
             | ModuleDef::Trait(_)
@@ -392,6 +396,7 @@ impl ModuleDef {
             ModuleDef::Static(it) => it.attrs(db),
             ModuleDef::Trait(it) => it.attrs(db),
             ModuleDef::TypeAlias(it) => it.attrs(db),
+            ModuleDef::MacroDef(it) => it.attrs(db),
             ModuleDef::BuiltinType(_) => return None,
         })
     }
@@ -408,6 +413,8 @@ impl HasVisibility for ModuleDef {
             ModuleDef::Trait(it) => it.visibility(db),
             ModuleDef::TypeAlias(it) => it.visibility(db),
             ModuleDef::Variant(it) => it.visibility(db),
+            // FIXME
+            ModuleDef::MacroDef(_) => Visibility::Public,
             ModuleDef::BuiltinType(_) => Visibility::Public,
         }
     }
@@ -1622,8 +1629,8 @@ impl MacroDef {
     pub fn module(self, db: &dyn HirDatabase) -> Option<Module> {
         let krate = self.id.krate;
         let def_map = db.crate_def_map(krate);
-        let module_id = def_map.macro_def_module(self.id)?;
-        Some(Module { id: def_map.module_id(module_id) })
+        let id = def_map.macro_def_module(self.id)?;
+        Some(Module { id })
     }
 
     /// XXX: this parses the file
@@ -2917,7 +2924,6 @@ impl Callable {
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum ScopeDef {
     ModuleDef(ModuleDef),
-    MacroDef(MacroDef),
     GenericParam(GenericParam),
     ImplSelfType(Impl),
     AdtSelfType(Adt),
@@ -2948,7 +2954,7 @@ impl ScopeDef {
         };
 
         if let Some(macro_def_id) = def.take_macros() {
-            items.push(ScopeDef::MacroDef(macro_def_id.into()));
+            items.push(ScopeDef::ModuleDef(ModuleDef::MacroDef(macro_def_id.into())));
         }
 
         if items.is_empty() {
@@ -2961,7 +2967,6 @@ impl ScopeDef {
     pub fn attrs(&self, db: &dyn HirDatabase) -> Option<AttrsWithOwner> {
         match self {
             ScopeDef::ModuleDef(it) => it.attrs(db),
-            ScopeDef::MacroDef(it) => Some(it.attrs(db)),
             ScopeDef::GenericParam(it) => Some(it.attrs(db)),
             ScopeDef::ImplSelfType(_)
             | ScopeDef::AdtSelfType(_)
@@ -2974,7 +2979,6 @@ impl ScopeDef {
     pub fn krate(&self, db: &dyn HirDatabase) -> Option<Crate> {
         match self {
             ScopeDef::ModuleDef(it) => it.module(db).map(|m| m.krate()),
-            ScopeDef::MacroDef(it) => it.module(db).map(|m| m.krate()),
             ScopeDef::GenericParam(it) => Some(it.module(db).krate()),
             ScopeDef::ImplSelfType(_) => None,
             ScopeDef::AdtSelfType(it) => Some(it.module(db).krate()),
@@ -2988,9 +2992,9 @@ impl ScopeDef {
 impl From<ItemInNs> for ScopeDef {
     fn from(item: ItemInNs) -> Self {
         match item {
-            ItemInNs::Types(id) => ScopeDef::ModuleDef(id),
-            ItemInNs::Values(id) => ScopeDef::ModuleDef(id),
-            ItemInNs::Macros(id) => ScopeDef::MacroDef(id),
+            ItemInNs::Types(it) => ScopeDef::ModuleDef(it),
+            ItemInNs::Values(it) => ScopeDef::ModuleDef(it),
+            ItemInNs::Macros(it) => ScopeDef::ModuleDef(ModuleDef::MacroDef(it)),
         }
     }
 }

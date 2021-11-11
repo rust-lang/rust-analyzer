@@ -73,7 +73,7 @@ pub(super) fn complete_derive(
 fn get_derives_in_scope(ctx: &CompletionContext) -> Vec<(hir::Name, MacroDef)> {
     let mut result = Vec::default();
     ctx.process_all_names(&mut |name, scope_def| {
-        if let hir::ScopeDef::MacroDef(mac) = scope_def {
+        if let hir::ScopeDef::ModuleDef(hir::ModuleDef::MacroDef(mac)) = scope_def {
             if mac.kind() == hir::MacroKind::Derive {
                 result.push((name, mac));
             }

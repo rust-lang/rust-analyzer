@@ -597,7 +597,7 @@ fn resolve_hir_path_(
     let macros = || {
         resolver
             .resolve_path_as_macro(db.upcast(), path.mod_path())
-            .map(|def| PathResolution::Macro(def.into()))
+            .map(|def| PathResolution::Def(ModuleDef::MacroDef(def.into())))
     };
 
     if prefer_value_ns { values().or_else(types) } else { types().or_else(values) }

@@ -285,8 +285,8 @@ impl DefMap {
     pub fn exported_proc_macros(&self) -> impl Iterator<Item = (MacroDefId, Name)> + '_ {
         self.exported_proc_macros.iter().map(|(id, def)| (*id, def.name.clone()))
     }
-    pub fn macro_def_module(&self, mac: MacroDefId) -> Option<LocalModuleId> {
-        self.macro_modules.get(&mac).copied()
+    pub fn macro_def_module(&self, mac: MacroDefId) -> Option<ModuleId> {
+        self.macro_modules.get(&mac).map(|&module| self.module_id(module))
     }
     pub fn root(&self) -> LocalModuleId {
         self.root

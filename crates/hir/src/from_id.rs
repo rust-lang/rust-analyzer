@@ -111,6 +111,7 @@ impl From<ModuleDefId> for ModuleDef {
             ModuleDefId::TraitId(it) => ModuleDef::Trait(it.into()),
             ModuleDefId::TypeAliasId(it) => ModuleDef::TypeAlias(it.into()),
             ModuleDefId::BuiltinType(it) => ModuleDef::BuiltinType(it.into()),
+            ModuleDefId::MacroDefId(it) => ModuleDef::MacroDef(it.into()),
         }
     }
 }
@@ -127,6 +128,7 @@ impl From<ModuleDef> for ModuleDefId {
             ModuleDef::Trait(it) => ModuleDefId::TraitId(it.into()),
             ModuleDef::TypeAlias(it) => ModuleDefId::TypeAliasId(it.into()),
             ModuleDef::BuiltinType(it) => ModuleDefId::BuiltinType(it.into()),
+            ModuleDef::MacroDef(it) => ModuleDefId::MacroDefId(it.into()),
         }
     }
 }

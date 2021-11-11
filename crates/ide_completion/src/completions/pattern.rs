@@ -36,13 +36,13 @@ pub(crate) fn complete_pattern(acc: &mut Completions, ctx: &CompletionContext) {
                     acc.add_variant_pat(ctx, *variant, Some(name.clone()));
                     true
                 }
+                hir::ModuleDef::MacroDef(mac) => mac.is_fn_like(),
                 hir::ModuleDef::Adt(hir::Adt::Enum(..))
                 | hir::ModuleDef::Variant(..)
                 | hir::ModuleDef::Const(..)
                 | hir::ModuleDef::Module(..) => refutable,
                 _ => false,
             },
-            hir::ScopeDef::MacroDef(mac) => mac.is_fn_like(),
             hir::ScopeDef::ImplSelfType(impl_) => match impl_.self_ty(ctx.db).as_adt() {
                 Some(hir::Adt::Struct(strukt)) => {
                     acc.add_struct_pat(ctx, strukt, Some(name.clone()));
