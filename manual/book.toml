@@ -3,7 +3,7 @@ authors = ["The rust-analyzer developers"]
 language = "en"
 multilingual = false
 src = "src"
-title = "rust-analyzer manual"
+title = "The Rust Analyzer Book"
 
 [rust]
 edition = "2021"
