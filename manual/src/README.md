@@ -1,1 +1,1 @@
-# Development
+# The Official Rust Analyzer Book
