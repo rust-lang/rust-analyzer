@@ -1,0 +1,1 @@
+# Kate Text Editor
