@@ -29,3 +29,6 @@ use-boolean-and = true
 
 [ouput.html.redirect]
 "/manual.html" = "/index.html"
+
+[output.html.fold]
+enable = true
