@@ -1,5 +1,5 @@
 use either::Either;
-use hir::{known, Callable, HasVisibility, HirDisplay, Semantics, TypeInfo};
+use hir::{known, Callable, CallableKind, HasVisibility, HirDisplay, Semantics, TypeInfo};
 use ide_db::RootDatabase;
 use ide_db::{base_db::FileRange, helpers::FamousDefs};
 use itertools::Itertools;
@@ -374,7 +374,7 @@ fn should_not_display_type_hint(
     for node in bind_pat.syntax().ancestors() {
         match_ast! {
             match node {
-                ast::LetStmt(it) => return it.ty().is_some(),
+                ast::LetStmt(it) => return is_unambigious_type(sema, it),
                 ast::Param(it) => return it.ty().is_some(),
                 ast::MatchArm(_it) => return pat_is_enum_variant(db, bind_pat, pat_ty),
                 ast::IfExpr(it) => {
@@ -399,6 +399,43 @@ fn should_not_display_type_hint(
         }
     }
     false
+}
+
+fn is_unambigious_type(sema: &Semantics<RootDatabase>, let_stmt: ast::LetStmt) -> bool {
+    let default = let_stmt.ty().is_some();
+    let initializer = let_stmt.initializer();
+    let initializer =
+        if let Some(initializer) = initializer { initializer } else { return default };
+    let (callable, _arg_list) = if let Some(callable) = get_callable(sema, &initializer) {
+        callable
+    } else {
+        return default;
+    };
+    match callable.kind() {
+        CallableKind::TupleEnumVariant(_) => true,
+        CallableKind::TupleStruct(_) => {
+            if let ast::Expr::CallExpr(call) = initializer {
+                if let Some(ast::Expr::PathExpr(path_expr)) = call.expr() {
+                    if let Some(path) = path_expr.path() {
+                        if let Some(args) = path.segments().find_map(|s| s.generic_arg_list()) {
+                            return args
+                                .generic_args()
+                                .filter_map(|a| match a {
+                                    ast::GenericArg::TypeArg(type_arg) => type_arg.ty(),
+                                    ast::GenericArg::AssocTypeArg(assoc_type_arg) => {
+                                        assoc_type_arg.ty()
+                                    }
+                                    _ => None,
+                                })
+                                .all(|ty| !matches!(ty, ast::Type::InferType(_)));
+                        }
+                    }
+                }
+            }
+            default
+        }
+        _ => default,
+    }
 }
 
 fn should_hide_param_name_hint(
@@ -922,6 +959,29 @@ fn main() {
     }
 
     #[test]
+    fn hide_type_hints_tuple_generics() {
+        check_types(
+            r#"
+struct Struct<T, U>(T, U);
+
+enum Enum {
+    Variant(u32)
+}
+
+fn main() {
+    let foo = Struct::<u32, u32>(0, 0);
+    let foo = Enum::Variant(0);
+    let foo = Struct(1, 2);
+      //^^^ Struct<u32, u32>
+    bar(foo);
+}
+
+fn bar(foo: Struct<u32, u32>) {}
+"#,
+        )
+    }
+
+    #[test]
     fn type_hints_bindings_after_at() {
         check_types(
             r#"
@@ -1154,7 +1214,6 @@ struct Test { a: Option<u32>, b: u8 }
 
 fn main() {
     let test = Some(Test { a: Some(3), b: 1 });
-      //^^^^ Option<Test>
     if let None = &test {};
     if let test = &test {};
          //^^^^ &Option<Test>
@@ -1184,7 +1243,6 @@ struct Test { a: Option<u32>, b: u8 }
 
 fn main() {
     let test = Some(Test { a: Some(3), b: 1 });
-      //^^^^ Option<Test>
     while let Some(Test { a: Some(x),  b: y }) = &test {};
                                 //^ &u32  ^ &u8
 }"#,
