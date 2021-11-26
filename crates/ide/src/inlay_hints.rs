@@ -374,7 +374,7 @@ fn should_not_display_type_hint(
     for node in bind_pat.syntax().ancestors() {
         match_ast! {
             match node {
-                ast::LetStmt(it) => return is_unambigious_type(sema, it),
+                ast::LetStmt(it) => return is_unambigious_type(sema, it).is_some(),
                 ast::Param(it) => return it.ty().is_some(),
                 ast::MatchArm(_it) => return pat_is_enum_variant(db, bind_pat, pat_ty),
                 ast::IfExpr(it) => {
@@ -401,40 +401,32 @@ fn should_not_display_type_hint(
     false
 }
 
-fn is_unambigious_type(sema: &Semantics<RootDatabase>, let_stmt: ast::LetStmt) -> bool {
-    let default = let_stmt.ty().is_some();
-    let initializer = let_stmt.initializer();
-    let initializer =
-        if let Some(initializer) = initializer { initializer } else { return default };
-    let (callable, _arg_list) = if let Some(callable) = get_callable(sema, &initializer) {
-        callable
-    } else {
-        return default;
-    };
+fn is_unambigious_type(sema: &Semantics<RootDatabase>, let_stmt: ast::LetStmt) -> Option<()> {
+    if let_stmt.ty().is_some() {
+        return Some(());
+    }
+    let initializer = let_stmt.initializer()?;
+    let (callable, _arg_list) = get_callable(sema, &initializer)?;
     match callable.kind() {
-        CallableKind::TupleEnumVariant(_) => true,
+        CallableKind::TupleEnumVariant(_) => Some(()),
         CallableKind::TupleStruct(_) => {
             if let ast::Expr::CallExpr(call) = initializer {
-                if let Some(ast::Expr::PathExpr(path_expr)) = call.expr() {
-                    if let Some(path) = path_expr.path() {
-                        if let Some(args) = path.segments().find_map(|s| s.generic_arg_list()) {
-                            return args
-                                .generic_args()
-                                .filter_map(|a| match a {
-                                    ast::GenericArg::TypeArg(type_arg) => type_arg.ty(),
-                                    ast::GenericArg::AssocTypeArg(assoc_type_arg) => {
-                                        assoc_type_arg.ty()
-                                    }
-                                    _ => None,
-                                })
-                                .all(|ty| !matches!(ty, ast::Type::InferType(_)));
-                        }
-                    }
+                if let ast::Expr::PathExpr(path_expr) = call.expr()? {
+                    let args = path_expr.path()?.segments().find_map(|s| s.generic_arg_list())?;
+                    let unambigious = args
+                        .generic_args()
+                        .filter_map(|a| match a {
+                            ast::GenericArg::TypeArg(type_arg) => type_arg.ty(),
+                            ast::GenericArg::AssocTypeArg(assoc_type_arg) => assoc_type_arg.ty(),
+                            _ => None,
+                        })
+                        .all(|ty| !matches!(ty, ast::Type::InferType(_)));
+                    return if unambigious { Some(()) } else { None };
                 }
             }
-            default
+            None
         }
-        _ => default,
+        _ => None,
     }
 }
 
