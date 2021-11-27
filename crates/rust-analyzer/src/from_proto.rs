@@ -58,7 +58,7 @@ pub(crate) fn file_position(
 
 pub(crate) fn file_range(
     snap: &GlobalStateSnapshot,
-    text_document_identifier: lsp_types::TextDocumentIdentifier,
+    text_document_identifier: &lsp_types::TextDocumentIdentifier,
     range: lsp_types::Range,
 ) -> Result<FileRange> {
     let file_id = file_id(snap, &text_document_identifier.uri)?;

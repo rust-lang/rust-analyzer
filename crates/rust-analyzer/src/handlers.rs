@@ -912,7 +912,7 @@ pub(crate) fn handle_hover(
         PositionOrRange::Range(range) => range,
     };
 
-    let file_range = from_proto::file_range(&snap, params.text_document, range)?;
+    let file_range = from_proto::file_range(&snap, &params.text_document, range)?;
     let info = match snap.analysis.hover(&snap.config.hover(), file_range)? {
         None => return Ok(None),
         Some(info) => info,
@@ -1047,7 +1047,7 @@ pub(crate) fn handle_code_action(
 
     let line_index =
         snap.file_line_index(from_proto::file_id(&snap, &params.text_document.uri)?)?;
-    let frange = from_proto::file_range(&snap, params.text_document.clone(), params.range)?;
+    let frange = from_proto::file_range(&snap, &params.text_document, params.range)?;
 
     let mut assists_config = snap.config.assist();
     assists_config.allowed = params
@@ -1261,7 +1261,7 @@ pub(crate) fn handle_ssr(
     let selections = params
         .selections
         .iter()
-        .map(|range| from_proto::file_range(&snap, params.position.text_document.clone(), *range))
+        .map(|range| from_proto::file_range(&snap, &params.position.text_document, *range))
         .collect::<Result<Vec<_>, _>>()?;
     let position = from_proto::file_position(&snap, params.position)?;
     let source_change = snap.analysis.structural_search_replace(
@@ -1350,7 +1350,7 @@ pub(crate) fn handle_call_hierarchy_incoming(
     let item = params.item;
 
     let doc = TextDocumentIdentifier::new(item.uri);
-    let frange = from_proto::file_range(&snap, doc, item.selection_range)?;
+    let frange = from_proto::file_range(&snap, &doc, item.selection_range)?;
     let fpos = FilePosition { file_id: frange.file_id, offset: frange.range.start() };
 
     let call_items = match snap.analysis.incoming_calls(fpos)? {
@@ -1385,7 +1385,7 @@ pub(crate) fn handle_call_hierarchy_outgoing(
     let item = params.item;
 
     let doc = TextDocumentIdentifier::new(item.uri);
-    let frange = from_proto::file_range(&snap, doc, item.selection_range)?;
+    let frange = from_proto::file_range(&snap, &doc, item.selection_range)?;
     let fpos = FilePosition { file_id: frange.file_id, offset: frange.range.start() };
 
     let call_items = match snap.analysis.outgoing_calls(fpos)? {
@@ -1470,7 +1470,7 @@ pub(crate) fn handle_semantic_tokens_range(
 ) -> Result<Option<SemanticTokensRangeResult>> {
     let _p = profile::span("handle_semantic_tokens_range");
 
-    let frange = from_proto::file_range(&snap, params.text_document, params.range)?;
+    let frange = from_proto::file_range(&snap, &params.text_document, params.range)?;
     let text = snap.analysis.file_text(frange.file_id)?;
     let line_index = snap.file_line_index(frange.file_id)?;
 
@@ -1517,7 +1517,7 @@ pub(crate) fn handle_move_item(
 ) -> Result<Vec<lsp_ext::SnippetTextEdit>> {
     let _p = profile::span("handle_move_item");
     let file_id = from_proto::file_id(&snap, &params.text_document.uri)?;
-    let range = from_proto::file_range(&snap, params.text_document, params.range)?;
+    let range = from_proto::file_range(&snap, &params.text_document, params.range)?;
 
     let direction = match params.direction {
         lsp_ext::MoveItemDirection::Up => ide::Direction::Up,
@@ -1699,23 +1699,7 @@ fn run_rustfmt(
         RustfmtConfig::Rustfmt { extra_args, enable_range_formatting } => {
             let mut cmd = process::Command::new(toolchain::rustfmt());
             cmd.args(extra_args);
-            // try to chdir to the file so we can respect `rustfmt.toml`
-            // FIXME: use `rustfmt --config-path` once
-            // https://github.com/rust-lang/rustfmt/issues/4660 gets fixed
-            match text_document.uri.to_file_path() {
-                Ok(mut path) => {
-                    // pop off file name
-                    if path.pop() && path.is_dir() {
-                        cmd.current_dir(path);
-                    }
-                }
-                Err(_) => {
-                    tracing::error!(
-                        "Unable to get file path for {}, rustfmt.toml might be ignored",
-                        text_document.uri
-                    );
-                }
-            }
+
             if let Some(&crate_id) = crate_ids.first() {
                 // Assume all crates are in the same edition
                 let edition = snap.analysis.crate_edition(crate_id)?;
@@ -1736,7 +1720,7 @@ fn run_rustfmt(
                     .into());
                 }
 
-                let frange = from_proto::file_range(snap, text_document, range)?;
+                let frange = from_proto::file_range(snap, &text_document, range)?;
                 let start_line = line_index.index.line_col(frange.range.start()).line;
                 let end_line = line_index.index.line_col(frange.range.end()).line;
 
@@ -1759,6 +1743,24 @@ fn run_rustfmt(
             cmd
         }
     };
+
+    // try to chdir to the file so we can respect `rustfmt.toml`
+    // FIXME: use `rustfmt --config-path` once
+    // https://github.com/rust-lang/rustfmt/issues/4660 gets fixed
+    match text_document.uri.to_file_path() {
+        Ok(mut path) => {
+            // pop off file name
+            if path.pop() && path.is_dir() {
+                rustfmt.current_dir(path);
+            }
+        }
+        Err(_) => {
+            tracing::error!(
+                "Unable to get file path for {}, rustfmt.toml might be ignored",
+                text_document.uri
+            );
+        }
+    }
 
     let mut rustfmt = rustfmt
         .stdin(Stdio::piped())
