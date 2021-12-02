@@ -59,10 +59,13 @@ pub(crate) fn complete_record_literal(
     }
 
     if let hir::Adt::Struct(strukt) = ctx.expected_type.as_ref()?.as_adt()? {
-        let module =
-            if let Some(module) = ctx.scope.module() { module } else { strukt.module(ctx.db) };
-
-        let path = module.find_use_path(ctx.db, hir::ModuleDef::from(strukt));
+        let path = if ctx.path_qual().is_none() {
+            ctx.scope
+                .module()
+                .and_then(|module| module.find_use_path(ctx.db, hir::ModuleDef::from(strukt)))
+        } else {
+            None
+        };
 
         acc.add_struct_literal(ctx, strukt, path, None);
     }
@@ -112,6 +115,35 @@ mod submod {
 
 fn f() -> submod::Struct {
     Stru$0
+}
+            "#,
+            r#"
+mod submod {
+    pub struct Struct {
+        pub a: u64,
+    }
+}
+
+fn f() -> submod::Struct {
+    submod::Struct { a: ${1:()} }$0
+}
+            "#,
+        )
+    }
+
+    #[test]
+    fn literal_struct_completion_given_qualified_path() {
+        check_edit(
+            "Struct {…}",
+            r#"
+mod submod {
+    pub struct Struct {
+        pub a: u64,
+    }
+}
+
+fn f() -> submod::Struct {
+    submod::Stru$0
 }
             "#,
             r#"
