@@ -313,6 +313,29 @@ impl InferenceResult {
             _ => None,
         })
     }
+    fn shrink_to_fit(&mut self) {
+        let InferenceResult {
+            method_resolutions,
+            field_resolutions,
+            variant_resolutions,
+            assoc_resolutions,
+            diagnostics,
+            type_of_expr: _,
+            type_of_pat: _,
+            type_mismatches,
+            standard_types: _,
+            pat_adjustments,
+            expr_adjustments,
+        } = self;
+        method_resolutions.shrink_to_fit();
+        field_resolutions.shrink_to_fit();
+        variant_resolutions.shrink_to_fit();
+        assoc_resolutions.shrink_to_fit();
+        diagnostics.shrink_to_fit();
+        type_mismatches.shrink_to_fit();
+        pat_adjustments.shrink_to_fit();
+        expr_adjustments.shrink_to_fit();
+    }
 }
 
 impl Index<ExprId> for InferenceResult {
@@ -419,6 +442,7 @@ impl<'a> InferenceContext<'a> {
         for adjustment in result.pat_adjustments.values_mut().flatten() {
             adjustment.target = self.table.resolve_completely(adjustment.target.clone());
         }
+        result.shrink_to_fit();
         result
     }
 
