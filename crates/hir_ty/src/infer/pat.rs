@@ -291,16 +291,19 @@ fn is_non_ref_pat(body: &hir_def::body::Body, pat: PatId) -> bool {
         | Pat::Record { .. }
         | Pat::Range { .. }
         | Pat::Slice { .. } => true,
-        Pat::Or(pats) => pats.iter().all(|p| is_non_ref_pat(body, *p)),
+        Pat::Or(pats) => pats.iter().all(|&p| is_non_ref_pat(body, p)),
         // FIXME: ConstBlock/Path/Lit might actually evaluate to ref, but inference is unimplemented.
         Pat::Path(..) => true,
         Pat::ConstBlock(..) => true,
         Pat::Lit(expr) => !matches!(body[*expr], Expr::Literal(Literal::String(..))),
-        Pat::Bind {
+        &Pat::Bind {
             mode: BindingAnnotation::Mutable | BindingAnnotation::Unannotated,
-            subpat: Some(subpat),
+            subpat,
             ..
-        } => is_non_ref_pat(body, *subpat),
+        } => match subpat {
+            Some(subpat) => is_non_ref_pat(body, subpat),
+            None => true,
+        },
         Pat::Wild | Pat::Bind { .. } | Pat::Ref { .. } | Pat::Box { .. } | Pat::Missing => false,
     }
 }
