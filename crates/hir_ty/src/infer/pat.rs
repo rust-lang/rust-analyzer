@@ -134,15 +134,10 @@ impl<'a> InferenceContext<'a> {
                     .intern(&Interner)
             }
             Pat::Or(pats) => {
-                if let Some((first_pat, rest)) = pats.split_first() {
-                    let ty = self.infer_pat(*first_pat, &expected, default_bm);
-                    for pat in rest {
-                        self.infer_pat(*pat, &expected, default_bm);
-                    }
-                    ty
-                } else {
-                    self.err_ty()
+                for &pat in pats.iter() {
+                    self.infer_pat(pat, &expected, default_bm);
                 }
+                expected.clone()
             }
             Pat::Ref { pat, mutability } => {
                 let mutability = lower_to_chalk_mutability(*mutability);

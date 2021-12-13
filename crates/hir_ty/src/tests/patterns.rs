@@ -175,6 +175,31 @@ fn infer_range_pattern() {
 }
 
 #[test]
+fn match_ergonomics_with_binding_modes_interaction() {
+    check_infer_with_mismatches(
+        r"
+enum E{ A, B }
+fn foo() {
+    match &E::A {
+        b @ (x @ E::A | x) => {}
+    }
+}",
+        expect![[r#"
+            24..84 '{     ...   } }': ()
+            30..82 'match ...     }': ()
+            36..41 '&E::A': &E
+            37..41 'E::A': E
+            52..70 'b @ (x...A | x)': &E
+            57..65 'x @ E::A': &E
+            57..69 'x @ E::A | x': &E
+            61..65 'E::A': E
+            68..69 'x': &E
+            74..76 '{}': ()
+        "#]],
+    );
+}
+
+#[test]
 fn infer_pattern_match_ergonomics() {
     check_infer(
         r#"
@@ -861,9 +886,9 @@ fn main() {
             42..51 'true | ()': bool
             49..51 '()': ()
             57..59 '{}': ()
-            68..80 '(() | true,)': ((),)
+            68..80 '(() | true,)': (bool,)
             69..71 '()': ()
-            69..78 '() | true': ()
+            69..78 '() | true': bool
             74..78 'true': bool
             74..78 'true': bool
             84..86 '{}': ()
@@ -872,19 +897,15 @@ fn main() {
             96..102 '_ | ()': bool
             100..102 '()': ()
             108..110 '{}': ()
-            119..128 '(() | _,)': ((),)
+            119..128 '(() | _,)': (bool,)
             120..122 '()': ()
-            120..126 '() | _': ()
+            120..126 '() | _': bool
             125..126 '_': bool
             132..134 '{}': ()
             49..51: expected bool, got ()
-            68..80: expected (bool,), got ((),)
             69..71: expected bool, got ()
-            69..78: expected bool, got ()
             100..102: expected bool, got ()
-            119..128: expected (bool,), got ((),)
             120..122: expected bool, got ()
-            120..126: expected bool, got ()
         "#]],
     );
 }
