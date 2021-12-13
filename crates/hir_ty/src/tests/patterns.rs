@@ -205,7 +205,6 @@ fn infer_pattern_match_ergonomics() {
 
 #[test]
 fn infer_pattern_match_ergonomics_ref() {
-    cov_mark::check!(match_ergonomics_ref);
     check_infer(
         r#"
         fn test() {

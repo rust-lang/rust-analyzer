@@ -4,6 +4,7 @@ use std::{iter::repeat, sync::Arc};
 
 use chalk_ir::Mutability;
 use hir_def::{
+    body::Body,
     expr::{BindingAnnotation, Expr, Literal, Pat, PatId, RecordFieldPat},
     path::Path,
 };
@@ -16,6 +17,13 @@ use crate::{
     lower::lower_to_chalk_mutability,
     static_lifetime, Interner, Substitution, Ty, TyBuilder, TyExt, TyKind,
 };
+
+#[derive(Debug, Copy, Clone)]
+enum AdjustMode {
+    Pass,
+    Reset,
+    Peel,
+}
 
 impl<'a> InferenceContext<'a> {
     fn infer_tuple_struct_pat(
@@ -92,44 +100,12 @@ impl<'a> InferenceContext<'a> {
         ty
     }
 
-    pub(super) fn infer_pat(
-        &mut self,
-        pat: PatId,
-        expected: &Ty,
-        mut default_bm: BindingMode,
-    ) -> Ty {
+    pub(super) fn infer_pat(&mut self, pat: PatId, expected: &Ty, default_bm: BindingMode) -> Ty {
         let body = Arc::clone(&self.body); // avoid borrow checker problem
-        let mut expected = self.resolve_ty_shallow(expected);
+        let expected = self.resolve_ty_shallow(expected);
 
-        if is_non_ref_pat(&body, pat) {
-            let mut pat_adjustments = Vec::new();
-            while let Some((inner, _lifetime, mutability)) = expected.as_reference() {
-                pat_adjustments.push(Adjustment {
-                    target: expected.clone(),
-                    kind: Adjust::Borrow(AutoBorrow::Ref(mutability)),
-                });
-                expected = self.resolve_ty_shallow(inner);
-                default_bm = match default_bm {
-                    BindingMode::Move => BindingMode::Ref(mutability),
-                    BindingMode::Ref(Mutability::Not) => BindingMode::Ref(Mutability::Not),
-                    BindingMode::Ref(Mutability::Mut) => BindingMode::Ref(mutability),
-                }
-            }
-
-            if !pat_adjustments.is_empty() {
-                pat_adjustments.shrink_to_fit();
-                self.result.pat_adjustments.insert(pat, pat_adjustments);
-            }
-        } else if let Pat::Ref { .. } = &body[pat] {
-            cov_mark::hit!(match_ergonomics_ref);
-            // When you encounter a `&pat` pattern, reset to Move.
-            // This is so that `w` is by value: `let (_, &w) = &(1, &2);`
-            default_bm = BindingMode::Move;
-        }
-
-        // Lose mutability.
-        let default_bm = default_bm;
-        let expected = expected;
+        let adjust_mode = self.adjust_mode(&body, pat);
+        let (expected, default_bm) = self.binding_mode(pat, expected, default_bm, adjust_mode);
 
         let ty = match &body[pat] {
             Pat::Tuple { args, ellipsis } => {
@@ -199,24 +175,24 @@ impl<'a> InferenceContext<'a> {
                 self.infer_path(&resolver, path, pat.into()).unwrap_or_else(|| self.err_ty())
             }
             Pat::Bind { mode, name: _, subpat } => {
-                let mode = if mode == &BindingAnnotation::Unannotated {
-                    default_bm
-                } else {
-                    BindingMode::convert(*mode)
+                let mode = match *mode {
+                    BindingAnnotation::Unannotated => default_bm,
+                    mode => BindingMode::convert(mode),
                 };
                 let inner_ty = match subpat {
                     Some(subpat) => self.infer_pat(*subpat, &expected, default_bm),
-                    None => expected,
+                    None => expected.clone(),
                 };
                 let inner_ty = self.insert_type_vars_shallow(inner_ty);
 
                 let bound_ty = match mode {
                     BindingMode::Ref(mutability) => {
-                        TyKind::Ref(mutability, static_lifetime(), inner_ty.clone())
+                        TyKind::Ref(mutability, static_lifetime(), expected.clone())
                             .intern(&Interner)
                     }
-                    BindingMode::Move => inner_ty.clone(),
+                    BindingMode::Move => expected.clone(),
                 };
+                let bound_ty = self.insert_type_vars_shallow(bound_ty);
                 self.write_pat_ty(pat, bound_ty);
                 return inner_ty;
             }
@@ -282,25 +258,102 @@ impl<'a> InferenceContext<'a> {
         self.write_pat_ty(pat, ty.clone());
         ty
     }
-}
 
-fn is_non_ref_pat(body: &hir_def::body::Body, pat: PatId) -> bool {
-    match &body[pat] {
-        Pat::Tuple { .. }
-        | Pat::TupleStruct { .. }
-        | Pat::Record { .. }
-        | Pat::Range { .. }
-        | Pat::Slice { .. } => true,
-        Pat::Or(pats) => pats.iter().all(|p| is_non_ref_pat(body, *p)),
-        // FIXME: ConstBlock/Path/Lit might actually evaluate to ref, but inference is unimplemented.
-        Pat::Path(..) => true,
-        Pat::ConstBlock(..) => true,
-        Pat::Lit(expr) => !matches!(body[*expr], Expr::Literal(Literal::String(..))),
-        Pat::Bind {
-            mode: BindingAnnotation::Mutable | BindingAnnotation::Unannotated,
-            subpat: Some(subpat),
-            ..
-        } => is_non_ref_pat(body, *subpat),
-        Pat::Wild | Pat::Bind { .. } | Pat::Ref { .. } | Pat::Box { .. } | Pat::Missing => false,
+    fn adjust_mode(&self, body: &Body, pat: PatId) -> AdjustMode {
+        // When we perform destructuring assignment, we disable default match bindings, which are
+        // unintuitive in this context.
+        // if !pat.default_binding_modes {
+        //     return AdjustMode::Reset;
+        // }
+        match body[pat] {
+            // Type checking these product-like types successfully always require
+            // that the expected type be of those types and not reference types.
+            Pat::Record { .. }
+            | Pat::TupleStruct { .. }
+            | Pat::Tuple { .. }
+            | Pat::Box { .. }
+            | Pat::Range { .. }
+            | Pat::Slice { .. } => AdjustMode::Peel,
+            // String and byte-string literals result in types `&str` and `&[u8]` respectively.
+            // All other literals result in non-reference types.
+            Pat::Lit(expr)
+                if matches!(
+                    body[expr],
+                    Expr::Literal(Literal::String(..) | Literal::ByteString(..))
+                )
+             => {
+                AdjustMode::Pass
+            }
+            Pat::Lit(_) => AdjustMode::Peel,
+            // FIXME: ConstBlock/Path might actually evaluate to ref, but inference is unimplemented.
+            Pat::Path(..) => AdjustMode::Peel,
+            Pat::ConstBlock(..) => AdjustMode::Peel,
+            // When encountering a `& mut? pat` pattern, reset to "by value".
+            // This is so that `x` and `y` here are by value, as they appear to be:
+            //
+            // ```
+            // match &(&22, &44) {
+            //   (&x, &y) => ...
+            // }
+            // ```
+            //
+            // See issue #46688.
+            Pat::Ref { .. } => AdjustMode::Reset,
+            // A `_` pattern works with any expected type, so there's no need to do anything.
+            Pat::Wild
+            // Bindings also work with whatever the expected type is,
+            // and moreover if we peel references off, that will give us the wrong binding type.
+            // Also, we can have a subpattern `binding @ pat`.
+            // Each side of the `@` should be treated independently (like with OR-patterns).
+            | Pat::Bind { .. }
+            // An OR-pattern just propagates to each individual alternative.
+            // This is maximally flexible, allowing e.g., `Some(mut x) | &Some(mut x)`.
+            // In that example, `Some(mut x)` results in `Peel` whereas `&Some(mut x)` in `Reset`.
+            | Pat::Or(_) | Pat::Missing => AdjustMode::Pass,
+        }
+    }
+
+    fn binding_mode(
+        &mut self,
+        pat: PatId,
+        expected: Ty,
+        default_bm: BindingMode,
+        adjust_mode: AdjustMode,
+    ) -> (Ty, BindingMode) {
+        match adjust_mode {
+            AdjustMode::Pass => (expected, default_bm),
+            AdjustMode::Reset => (expected, BindingMode::default()),
+            AdjustMode::Peel => self.peel_off_references(pat, expected, default_bm),
+        }
+    }
+
+    /// Peel off as many immediately nested `& mut?` from the expected type as possible
+    /// and return the new expected type and binding default binding mode.
+    /// The adjustments vector, if non-empty is stored in a table.
+    fn peel_off_references<'ty>(
+        &mut self,
+        pat: PatId,
+        mut expected: Ty,
+        mut default_bm: BindingMode,
+    ) -> (Ty, BindingMode) {
+        let mut pat_adjustments = Vec::new();
+        while let Some((inner, _lifetime, mutability)) = expected.as_reference() {
+            pat_adjustments.push(Adjustment {
+                target: expected.clone(),
+                kind: Adjust::Borrow(AutoBorrow::Ref(mutability)),
+            });
+            expected = self.resolve_ty_shallow(inner);
+            default_bm = BindingMode::Ref(match default_bm {
+                BindingMode::Move | BindingMode::Ref(Mutability::Mut) => mutability,
+                BindingMode::Ref(Mutability::Not) => Mutability::Not,
+            })
+        }
+
+        if !pat_adjustments.is_empty() {
+            pat_adjustments.shrink_to_fit();
+            self.result.pat_adjustments.insert(pat, pat_adjustments);
+        }
+
+        (expected, default_bm)
     }
 }
