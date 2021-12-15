@@ -38,6 +38,7 @@ mod handlers {
     pub(crate) mod missing_unsafe;
     pub(crate) mod no_such_field;
     pub(crate) mod remove_this_semicolon;
+    pub(crate) mod remove_trailing_return;
     pub(crate) mod replace_filter_map_next_with_find_map;
     pub(crate) mod unimplemented_builtin_macro;
     pub(crate) mod unresolved_extern_crate;
@@ -204,6 +205,8 @@ pub fn diagnostics(
                 Some(it) => it,
                 None => continue,
             }
+
+            AnyDiagnostic::RemoveTrailingReturn(d) => handlers::remove_trailing_return::remove_trailing_return(&ctx, &d),
         };
         res.push(d)
     }

@@ -35,6 +35,7 @@ use std::{iter, ops::ControlFlow, sync::Arc};
 
 use arrayvec::ArrayVec;
 use base_db::{CrateDisplayName, CrateId, CrateOrigin, Edition, FileId};
+use diagnostics::RemoveTrailingReturn;
 use either::Either;
 use hir_def::{
     adt::{ReprKind, VariantData},
@@ -1232,6 +1233,16 @@ impl DefWithBody {
                         );
                     }
                 }
+
+                BodyValidationDiagnostic::RemoveTrailingReturn { return_expr } => {
+                    if let Ok(expr) = source_map.expr_syntax(return_expr) {
+                        acc.push(
+                            RemoveTrailingReturn { file: expr.file_id, return_expr: expr.value }
+                                .into(),
+                        );
+                    }
+                }
+
                 BodyValidationDiagnostic::MismatchedArgCount { call_expr, expected, found } => {
                     match source_map.expr_syntax(call_expr) {
                         Ok(source_ptr) => acc.push(

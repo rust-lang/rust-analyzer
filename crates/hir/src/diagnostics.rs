@@ -49,6 +49,7 @@ diagnostics![
     UnresolvedMacroCall,
     UnresolvedModule,
     UnresolvedProcMacro,
+    RemoveTrailingReturn,
 ];
 
 #[derive(Debug)]
@@ -174,3 +175,9 @@ pub struct AddReferenceHere {
 }
 
 pub use hir_ty::diagnostics::IncorrectCase;
+
+#[derive(Debug)]
+pub struct RemoveTrailingReturn {
+    pub file: HirFileId,
+    pub return_expr: AstPtr<ast::Expr>,
+}

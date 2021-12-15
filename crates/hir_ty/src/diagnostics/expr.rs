@@ -55,6 +55,9 @@ pub enum BodyValidationDiagnostic {
         arg_expr: ExprId,
         mutability: Mutability,
     },
+    RemoveTrailingReturn {
+        return_expr: ExprId,
+    },
 }
 
 impl BodyValidationDiagnostic {
@@ -80,6 +83,7 @@ impl ExprValidator {
 
     fn validate_body(&mut self, db: &dyn HirDatabase) {
         self.check_for_filter_map_next(db);
+        self.check_for_trailing_return(db);
 
         let body = db.body(self.owner);
 
@@ -139,6 +143,30 @@ impl ExprValidator {
                 diagnostics
                     .push(BodyValidationDiagnostic::AddReferenceHere { arg_expr, mutability });
             });
+    }
+
+    fn check_for_trailing_return(&mut self, db: &dyn HirDatabase) {
+        // todo: handle inner functions and lambdas.
+        if !matches!(self.owner, DefWithBodyId::FunctionId(_)) {
+            return;
+        }
+
+        let body = db.body(self.owner);
+
+        let return_expr = match &body.exprs[body.body_expr] {
+            Expr::Block { statements, tail, .. } => tail
+                .or_else(|| match statements.last()? {
+                    Statement::Expr { expr, .. } => Some(*expr),
+                    _ => None,
+                })
+                .filter(|expr| matches!(body.exprs[*expr], Expr::Return { .. })),
+            Expr::Return { .. } => Some(body.body_expr),
+            _ => return,
+        };
+
+        if let Some(return_expr) = return_expr {
+            self.diagnostics.push(BodyValidationDiagnostic::RemoveTrailingReturn { return_expr })
+        }
     }
 
     fn check_for_filter_map_next(&mut self, db: &dyn HirDatabase) {
