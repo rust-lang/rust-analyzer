@@ -8,6 +8,9 @@ use text_edit::TextEdit;
 
 use crate::{fix, Diagnostic, DiagnosticsContext, Severity};
 
+// Diagnostic: remove-trailing-return
+//
+// This diagnostic is triggered when there is a redundant `return` at the end of a function.
 pub(crate) fn remove_trailing_return(
     ctx: &DiagnosticsContext<'_>,
     d: &RemoveTrailingReturn,
@@ -142,12 +145,12 @@ fn foo() -> i8 {
         check_fix(
             r#"
 fn foo() {
-    return$0
+    return$0/*ensure tidy is happy*/
 }
 "#,
             r#"
 fn foo() {
-    
+    /*ensure tidy is happy*/
 }
 "#,
         );
