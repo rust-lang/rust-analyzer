@@ -1,9 +1,6 @@
-use hir::db::AstDatabase;
-use hir::diagnostics::RemoveTrailingReturn;
-use hir::InFile;
-use ide_db::assists::Assist;
-use ide_db::source_change::SourceChange;
-use syntax::{ast, AstNode, NodeOrToken, TextRange, T};
+use hir::{db::AstDatabase, diagnostics::RemoveTrailingReturn, InFile};
+use ide_db::{assists::Assist, source_change::SourceChange};
+use syntax::{ast, AstNode};
 use text_edit::TextEdit;
 
 use crate::{fix, Diagnostic, DiagnosticsContext, Severity};
@@ -31,15 +28,9 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &RemoveTrailingReturn) -> Option<Vec<A
 
     let return_expr = ast::ReturnExpr::cast(return_expr.syntax().clone())?;
 
-    let semi = match return_expr.syntax().next_sibling_or_token() {
-        Some(NodeOrToken::Token(token)) if token.kind() == T![;] => Some(token),
-        _ => None,
-    };
-
-    let range_to_replace = match semi {
-        Some(semi) => {
-            TextRange::new(return_expr.syntax().text_range().start(), semi.text_range().end())
-        }
+    let stmt = return_expr.syntax().parent().and_then(ast::ExprStmt::cast);
+    let range_to_replace = match stmt {
+        Some(stmt) => stmt.syntax().text_range(),
         None => return_expr.syntax().text_range(),
     };
 

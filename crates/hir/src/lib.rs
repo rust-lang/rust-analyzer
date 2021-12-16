@@ -35,7 +35,6 @@ use std::{iter, ops::ControlFlow, sync::Arc};
 
 use arrayvec::ArrayVec;
 use base_db::{CrateDisplayName, CrateId, CrateOrigin, Edition, FileId};
-use diagnostics::RemoveTrailingReturn;
 use either::Either;
 use hir_def::{
     adt::{ReprKind, VariantData},
@@ -82,9 +81,9 @@ pub use crate::{
         AddReferenceHere, AnyDiagnostic, BreakOutsideOfLoop, InactiveCode, IncorrectCase,
         InvalidDeriveTarget, MacroError, MalformedDerive, MismatchedArgCount, MissingFields,
         MissingMatchArms, MissingOkOrSomeInTailExpr, MissingUnsafe, NoSuchField,
-        RemoveThisSemicolon, ReplaceFilterMapNextWithFindMap, UnimplementedBuiltinMacro,
-        UnresolvedExternCrate, UnresolvedImport, UnresolvedMacroCall, UnresolvedModule,
-        UnresolvedProcMacro,
+        RemoveThisSemicolon, RemoveTrailingReturn, ReplaceFilterMapNextWithFindMap,
+        UnimplementedBuiltinMacro, UnresolvedExternCrate, UnresolvedImport, UnresolvedMacroCall,
+        UnresolvedModule, UnresolvedProcMacro,
     },
     has_source::HasSource,
     semantics::{PathResolution, Semantics, SemanticsScope, TypeInfo},
