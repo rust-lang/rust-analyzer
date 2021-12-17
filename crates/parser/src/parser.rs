@@ -3,12 +3,14 @@
 use std::cell::Cell;
 
 use drop_bomb::DropBomb;
+use limit::Limit;
 
 use crate::{
     event::Event,
+    tokens::Tokens,
     ParseError,
     SyntaxKind::{self, EOF, ERROR, TOMBSTONE},
-    TokenSet, TokenSource, T,
+    TokenSet, T,
 };
 
 /// `Parser` struct provides the low-level API for
@@ -21,14 +23,17 @@ use crate::{
 /// "start expression, consume number literal,
 /// finish expression". See `Event` docs for more.
 pub(crate) struct Parser<'t> {
-    token_source: &'t mut dyn TokenSource,
+    tokens: &'t Tokens,
+    pos: usize,
     events: Vec<Event>,
     steps: Cell<u32>,
 }
 
+static PARSER_STEP_LIMIT: Limit = Limit::new(15_000_000);
+
 impl<'t> Parser<'t> {
-    pub(super) fn new(token_source: &'t mut dyn TokenSource) -> Parser<'t> {
-        Parser { token_source, events: Vec::new(), steps: Cell::new(0) }
+    pub(super) fn new(tokens: &'t Tokens) -> Parser<'t> {
+        Parser { tokens, pos: 0, events: Vec::new(), steps: Cell::new(0) }
     }
 
     pub(crate) fn finish(self) -> Vec<Event> {
@@ -48,10 +53,10 @@ impl<'t> Parser<'t> {
         assert!(n <= 3);
 
         let steps = self.steps.get();
-        assert!(steps <= 10_000_000, "the parser seems stuck");
+        assert!(PARSER_STEP_LIMIT.check(steps as usize).is_ok(), "the parser seems stuck");
         self.steps.set(steps + 1);
 
-        self.token_source.lookahead_nth(n).kind
+        self.tokens.kind(self.pos + n)
     }
 
     /// Checks if the current token is `kind`.
@@ -87,7 +92,7 @@ impl<'t> Parser<'t> {
             T![<<=] => self.at_composite3(n, T![<], T![<], T![=]),
             T![>>=] => self.at_composite3(n, T![>], T![>], T![=]),
 
-            _ => self.token_source.lookahead_nth(n).kind == kind,
+            _ => self.tokens.kind(self.pos + n) == kind,
         }
     }
 
@@ -126,25 +131,17 @@ impl<'t> Parser<'t> {
     }
 
     fn at_composite2(&self, n: usize, k1: SyntaxKind, k2: SyntaxKind) -> bool {
-        let t1 = self.token_source.lookahead_nth(n);
-        if t1.kind != k1 || !t1.is_jointed_to_next {
-            return false;
-        }
-        let t2 = self.token_source.lookahead_nth(n + 1);
-        t2.kind == k2
+        self.tokens.kind(self.pos + n) == k1
+            && self.tokens.kind(self.pos + n + 1) == k2
+            && self.tokens.is_joint(self.pos + n)
     }
 
     fn at_composite3(&self, n: usize, k1: SyntaxKind, k2: SyntaxKind, k3: SyntaxKind) -> bool {
-        let t1 = self.token_source.lookahead_nth(n);
-        if t1.kind != k1 || !t1.is_jointed_to_next {
-            return false;
-        }
-        let t2 = self.token_source.lookahead_nth(n + 1);
-        if t2.kind != k2 || !t2.is_jointed_to_next {
-            return false;
-        }
-        let t3 = self.token_source.lookahead_nth(n + 2);
-        t3.kind == k3
+        self.tokens.kind(self.pos + n) == k1
+            && self.tokens.kind(self.pos + n + 1) == k2
+            && self.tokens.kind(self.pos + n + 2) == k3
+            && self.tokens.is_joint(self.pos + n)
+            && self.tokens.is_joint(self.pos + n + 1)
     }
 
     /// Checks if the current token is in `kinds`.
@@ -153,8 +150,8 @@ impl<'t> Parser<'t> {
     }
 
     /// Checks if the current token is contextual keyword with text `t`.
-    pub(crate) fn at_contextual_kw(&self, kw: &str) -> bool {
-        self.token_source.is_keyword(kw)
+    pub(crate) fn at_contextual_kw(&self, kw: SyntaxKind) -> bool {
+        self.tokens.contextual_kind(self.pos) == kw
     }
 
     /// Starts a new node in the syntax tree. All nodes and tokens
@@ -240,10 +237,7 @@ impl<'t> Parser<'t> {
     }
 
     fn do_bump(&mut self, kind: SyntaxKind, n_raw_tokens: u8) {
-        for _ in 0..n_raw_tokens {
-            self.token_source.bump();
-        }
-
+        self.pos += n_raw_tokens as usize;
         self.push_event(Event::Token { kind, n_raw_tokens });
     }
 

@@ -3,10 +3,7 @@
 use std::{collections::hash_map::Entry, mem, sync::Arc};
 
 use hir_expand::{ast_id_map::AstIdMap, hygiene::Hygiene, name::known, HirFileId};
-use syntax::{
-    ast::{self, HasModuleItem},
-    SyntaxNode, WalkEvent,
-};
+use syntax::ast::{self, HasModuleItem};
 
 use crate::{
     generics::{GenericParams, TypeParamData, TypeParamProvenance},
@@ -42,7 +39,7 @@ impl<'a> Ctx<'a> {
 
     pub(super) fn lower_module_items(mut self, item_owner: &dyn HasModuleItem) -> ItemTree {
         self.tree.top_level =
-            item_owner.items().flat_map(|item| self.lower_mod_item(&item, false)).collect();
+            item_owner.items().flat_map(|item| self.lower_mod_item(&item)).collect();
         self.tree
     }
 
@@ -62,26 +59,27 @@ impl<'a> Ctx<'a> {
                 },
                 _ => None,
             })
-            .flat_map(|item| self.lower_mod_item(&item, false))
+            .flat_map(|item| self.lower_mod_item(&item))
             .collect();
 
-        // Non-items need to have their inner items collected.
-        for stmt in stmts.statements() {
-            match stmt {
-                ast::Stmt::ExprStmt(_) | ast::Stmt::LetStmt(_) => {
-                    self.collect_inner_items(stmt.syntax())
-                }
-                _ => {}
-            }
-        }
-        if let Some(expr) = stmts.expr() {
-            self.collect_inner_items(expr.syntax());
-        }
         self.tree
     }
 
-    pub(super) fn lower_inner_items(mut self, within: &SyntaxNode) -> ItemTree {
-        self.collect_inner_items(within);
+    pub(super) fn lower_block(mut self, block: &ast::BlockExpr) -> ItemTree {
+        self.tree.top_level = block
+            .statements()
+            .filter_map(|stmt| match stmt {
+                ast::Stmt::Item(item) => self.lower_mod_item(&item),
+                // Macro calls can be both items and expressions. The syntax library always treats
+                // them as expressions here, so we undo that.
+                ast::Stmt::ExprStmt(es) => match es.expr()? {
+                    ast::Expr::MacroCall(call) => self.lower_mod_item(&call.into()),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect();
+
         self.tree
     }
 
@@ -89,36 +87,7 @@ impl<'a> Ctx<'a> {
         self.tree.data_mut()
     }
 
-    fn lower_mod_item(&mut self, item: &ast::Item, inner: bool) -> Option<ModItem> {
-        // Collect inner items for 1-to-1-lowered items.
-        match item {
-            ast::Item::Struct(_)
-            | ast::Item::Union(_)
-            | ast::Item::Enum(_)
-            | ast::Item::Fn(_)
-            | ast::Item::TypeAlias(_)
-            | ast::Item::Const(_)
-            | ast::Item::Static(_) => {
-                // Skip this if we're already collecting inner items. We'll descend into all nodes
-                // already.
-                if !inner {
-                    self.collect_inner_items(item.syntax());
-                }
-            }
-
-            // These are handled in their respective `lower_X` method (since we can't just blindly
-            // walk them).
-            ast::Item::Trait(_) | ast::Item::Impl(_) | ast::Item::ExternBlock(_) => {}
-
-            // These don't have inner items.
-            ast::Item::Module(_)
-            | ast::Item::ExternCrate(_)
-            | ast::Item::Use(_)
-            | ast::Item::MacroCall(_)
-            | ast::Item::MacroRules(_)
-            | ast::Item::MacroDef(_) => {}
-        };
-
+    fn lower_mod_item(&mut self, item: &ast::Item) -> Option<ModItem> {
         let attrs = RawAttrs::new(self.db, item, &self.hygiene);
         let item: ModItem = match item {
             ast::Item::Struct(ast) => self.lower_struct(ast)?.into(),
@@ -153,47 +122,6 @@ impl<'a> Ctx<'a> {
                 entry.insert(attrs);
             }
         }
-    }
-
-    fn collect_inner_items(&mut self, container: &SyntaxNode) {
-        let forced_vis = self.forced_visibility.take();
-
-        let mut block_stack = Vec::new();
-
-        // if container itself is block, add it to the stack
-        if let Some(block) = ast::BlockExpr::cast(container.clone()) {
-            block_stack.push(self.source_ast_id_map.ast_id(&block));
-        }
-
-        for event in container.preorder().skip(1) {
-            match event {
-                WalkEvent::Enter(node) => {
-                    match_ast! {
-                        match node {
-                            ast::BlockExpr(block) => {
-                                block_stack.push(self.source_ast_id_map.ast_id(&block));
-                            },
-                            ast::Item(item) => {
-                                // FIXME: This triggers for macro calls in expression/pattern/type position
-                                let mod_item = self.lower_mod_item(&item, true);
-                                let current_block = block_stack.last();
-                                if let (Some(mod_item), Some(block)) = (mod_item, current_block) {
-                                        self.data().inner_items.entry(*block).or_default().push(mod_item);
-                                }
-                            },
-                            _ => {}
-                        }
-                    }
-                }
-                WalkEvent::Leave(node) => {
-                    if ast::BlockExpr::cast(node).is_some() {
-                        block_stack.pop();
-                    }
-                }
-            }
-        }
-
-        self.forced_visibility = forced_vis;
     }
 
     fn lower_assoc_item(&mut self, item: &ast::AssocItem) -> Option<AssocItem> {
@@ -432,7 +360,6 @@ impl<'a> Ctx<'a> {
             generic_params,
             type_ref,
             ast_id,
-            is_extern: false,
         };
         Some(id(self.data().type_aliases.alloc(res)))
     }
@@ -443,17 +370,12 @@ impl<'a> Ctx<'a> {
         let visibility = self.lower_visibility(static_);
         let mutable = static_.mut_token().is_some();
         let ast_id = self.source_ast_id_map.ast_id(static_);
-        let res = Static { name, visibility, mutable, type_ref, ast_id, is_extern: false };
+        let res = Static { name, visibility, mutable, type_ref, ast_id };
         Some(id(self.data().statics.alloc(res)))
     }
 
     fn lower_const(&mut self, konst: &ast::Const) -> FileItemTreeId<Const> {
-        let mut name = konst.name().map(|it| it.as_name());
-        if name.as_ref().map_or(false, |n| n.to_smol_str().starts_with("_DERIVE_")) {
-            // FIXME: this is a hack to treat consts generated by synstructure as unnamed
-            // remove this some time in the future
-            name = None;
-        }
+        let name = konst.name().map(|it| it.as_name());
         let type_ref = self.lower_type_ref_opt(konst.ty());
         let visibility = self.lower_visibility(konst);
         let ast_id = self.source_ast_id_map.ast_id(konst);
@@ -470,9 +392,7 @@ impl<'a> Ctx<'a> {
             ModKind::Inline {
                 items: module
                     .item_list()
-                    .map(|list| {
-                        list.items().flat_map(|item| self.lower_mod_item(&item, false)).collect()
-                    })
+                    .map(|list| list.items().flat_map(|item| self.lower_mod_item(&item)).collect())
                     .unwrap_or_else(|| {
                         cov_mark::hit!(name_res_works_for_broken_modules);
                         Box::new([]) as Box<[_]>
@@ -487,8 +407,7 @@ impl<'a> Ctx<'a> {
     fn lower_trait(&mut self, trait_def: &ast::Trait) -> Option<FileItemTreeId<Trait>> {
         let name = trait_def.name()?.as_name();
         let visibility = self.lower_visibility(trait_def);
-        let generic_params =
-            self.lower_generic_params_and_inner_items(GenericsOwner::Trait(trait_def), trait_def);
+        let generic_params = self.lower_generic_params(GenericsOwner::Trait(trait_def), trait_def);
         let is_auto = trait_def.auto_token().is_some();
         let is_unsafe = trait_def.unsafe_token().is_some();
         let items = trait_def.assoc_item_list().map(|list| {
@@ -497,7 +416,6 @@ impl<'a> Ctx<'a> {
                 list.assoc_items()
                     .filter_map(|item| {
                         let attrs = RawAttrs::new(db, &item, &this.hygiene);
-                        this.collect_inner_items(item.syntax());
                         this.lower_assoc_item(&item).map(|item| {
                             this.add_attrs(ModItem::from(item).into(), attrs);
                             item
@@ -520,8 +438,7 @@ impl<'a> Ctx<'a> {
     }
 
     fn lower_impl(&mut self, impl_def: &ast::Impl) -> Option<FileItemTreeId<Impl>> {
-        let generic_params =
-            self.lower_generic_params_and_inner_items(GenericsOwner::Impl, impl_def);
+        let generic_params = self.lower_generic_params(GenericsOwner::Impl, impl_def);
         // FIXME: If trait lowering fails, due to a non PathType for example, we treat this impl
         // as if it was an non-trait impl. Ideally we want to create a unique missing ref that only
         // equals itself.
@@ -535,7 +452,6 @@ impl<'a> Ctx<'a> {
             .into_iter()
             .flat_map(|it| it.assoc_items())
             .filter_map(|item| {
-                self.collect_inner_items(item.syntax());
                 let assoc = self.lower_assoc_item(&item)?;
                 let attrs = RawAttrs::new(self.db, &item, &self.hygiene);
                 self.add_attrs(ModItem::from(assoc).into(), attrs);
@@ -603,28 +519,23 @@ impl<'a> Ctx<'a> {
         let children: Box<[_]> = block.extern_item_list().map_or(Box::new([]), |list| {
             list.extern_items()
                 .filter_map(|item| {
-                    self.collect_inner_items(item.syntax());
+                    // Note: All items in an `extern` block need to be lowered as if they're outside of one
+                    // (in other words, the knowledge that they're in an extern block must not be used).
+                    // This is because an extern block can contain macros whose ItemTree's top-level items
+                    // should be considered to be in an extern block too.
                     let attrs = RawAttrs::new(self.db, &item, &self.hygiene);
                     let id: ModItem = match item {
                         ast::ExternItem::Fn(ast) => {
                             let func_id = self.lower_function(&ast)?;
                             let func = &mut self.data().functions[func_id.index];
                             if is_intrinsic_fn_unsafe(&func.name) {
+                                // FIXME: this breaks in macros
                                 func.flags.bits |= FnFlags::IS_UNSAFE;
                             }
-                            func.flags.bits |= FnFlags::IS_IN_EXTERN_BLOCK;
                             func_id.into()
                         }
-                        ast::ExternItem::Static(ast) => {
-                            let statik = self.lower_static(&ast)?;
-                            self.data().statics[statik.index].is_extern = true;
-                            statik.into()
-                        }
-                        ast::ExternItem::TypeAlias(ty) => {
-                            let foreign_ty = self.lower_type_alias(&ty)?;
-                            self.data().type_aliases[foreign_ty.index].is_extern = true;
-                            foreign_ty.into()
-                        }
+                        ast::ExternItem::Static(ast) => self.lower_static(&ast)?.into(),
+                        ast::ExternItem::TypeAlias(ty) => self.lower_type_alias(&ty)?.into(),
                         ast::ExternItem::MacroCall(call) => {
                             // FIXME: we need some way of tracking that the macro call is in an
                             // extern block
@@ -639,23 +550,6 @@ impl<'a> Ctx<'a> {
 
         let res = ExternBlock { abi, ast_id, children };
         id(self.data().extern_blocks.alloc(res))
-    }
-
-    /// Lowers generics defined on `node` and collects inner items defined within.
-    fn lower_generic_params_and_inner_items(
-        &mut self,
-        owner: GenericsOwner<'_>,
-        node: &dyn ast::HasGenericParams,
-    ) -> Interned<GenericParams> {
-        // Generics are part of item headers and may contain inner items we need to collect.
-        if let Some(params) = node.generic_param_list() {
-            self.collect_inner_items(params.syntax());
-        }
-        if let Some(clause) = node.where_clause() {
-            self.collect_inner_items(clause.syntax());
-        }
-
-        self.lower_generic_params(owner, node)
     }
 
     fn lower_generic_params(
@@ -790,11 +684,11 @@ enum GenericsOwner<'a> {
 
 /// Returns `true` if the given intrinsic is unsafe to call, or false otherwise.
 fn is_intrinsic_fn_unsafe(name: &Name) -> bool {
-    // Should be kept in sync with https://github.com/rust-lang/rust/blob/0cd0709f19d316c4796fa71c5f52c8612a5f3771/compiler/rustc_typeck/src/check/intrinsic.rs#L72-L105
+    // Should be kept in sync with https://github.com/rust-lang/rust/blob/532d2b14c05f9bc20b2d27cbb5f4550d28343a36/compiler/rustc_typeck/src/check/intrinsic.rs#L72-L106
     ![
-        known::abort,
         known::add_with_overflow,
         known::bitreverse,
+        known::black_box,
         known::bswap,
         known::caller_location,
         known::ctlz,

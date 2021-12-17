@@ -12,7 +12,10 @@ use hir_ty::{
     },
     Interner, TraitRefExt, WhereClause,
 };
-use syntax::ast::{self, HasName};
+use syntax::{
+    ast::{self, HasName},
+    SmolStr,
+};
 
 use crate::{
     Adt, Const, ConstParam, Enum, Field, Function, GenericParam, HasCrate, HasVisibility,
@@ -247,7 +250,8 @@ impl HirDisplay for TypeParam {
             bounds.iter().cloned().map(|b| b.substitute(&Interner, &substs)).collect();
         let krate = self.id.parent.krate(f.db).id;
         let sized_trait =
-            f.db.lang_item(krate, "sized".into()).and_then(|lang_item| lang_item.as_trait());
+            f.db.lang_item(krate, SmolStr::new_inline("sized"))
+                .and_then(|lang_item| lang_item.as_trait());
         let has_only_sized_bound = predicates.iter().all(move |pred| match pred.skip_binders() {
             WhereClause::Implemented(it) => Some(it.hir_trait_id()) == sized_trait,
             _ => false,
@@ -325,7 +329,21 @@ fn write_generic_params(def: GenericDefId, f: &mut HirFormatter) -> Result<(), H
 
 fn write_where_clause(def: GenericDefId, f: &mut HirFormatter) -> Result<(), HirDisplayError> {
     let params = f.db.generic_params(def);
-    if params.where_predicates.is_empty() {
+
+    // unnamed type targets are displayed inline with the argument itself, e.g. `f: impl Y`.
+    let is_unnamed_type_target = |target: &WherePredicateTypeTarget| match target {
+        WherePredicateTypeTarget::TypeRef(_) => false,
+        WherePredicateTypeTarget::TypeParam(id) => params.types[*id].name.is_none(),
+    };
+
+    let has_displayable_predicate = params
+        .where_predicates
+        .iter()
+        .any(|pred| {
+            !matches!(pred, WherePredicate::TypeBound { target, .. } if is_unnamed_type_target(target))
+        });
+
+    if !has_displayable_predicate {
         return Ok(());
     }
 
@@ -348,6 +366,7 @@ fn write_where_clause(def: GenericDefId, f: &mut HirFormatter) -> Result<(), Hir
         };
 
         match pred {
+            WherePredicate::TypeBound { target, .. } if is_unnamed_type_target(target) => {}
             WherePredicate::TypeBound { target, bound } => {
                 if matches!(prev_pred, Some(WherePredicate::TypeBound { target: target_, .. }) if target_ == target)
                 {

@@ -370,7 +370,7 @@ impl GlobalState {
                                     Ok(file_id) => self.diagnostics.add_check_diagnostic(
                                         file_id,
                                         diag.diagnostic,
-                                        diag.fixes,
+                                        diag.fix,
                                     ),
                                     Err(err) => {
                                         tracing::error!(
@@ -407,16 +407,7 @@ impl GlobalState {
                             // the title, or the editor complains. Note that this is a user-facing string.
                             let title = if self.flycheck.len() == 1 {
                                 match self.config.flycheck() {
-                                    Some(flycheck::FlycheckConfig::CargoCommand {
-                                        command,
-                                        ..
-                                    }) => {
-                                        format!("cargo {}", command)
-                                    }
-                                    Some(flycheck::FlycheckConfig::CustomCommand {
-                                        command,
-                                        ..
-                                    }) => command,
+                                    Some(config) => format!("{}", config),
                                     None => "cargo check".to_string(),
                                 }
                             } else {
@@ -442,7 +433,9 @@ impl GlobalState {
                 for flycheck in &self.flycheck {
                     flycheck.update();
                 }
-                self.prime_caches_queue.request_op();
+                if self.config.prefill_caches() {
+                    self.prime_caches_queue.request_op();
+                }
             }
 
             if !was_quiescent || state_changed {
@@ -574,6 +567,7 @@ impl GlobalState {
                 Ok(())
             })?
             .on_sync_mut::<lsp_ext::MemoryUsage>(handlers::handle_memory_usage)?
+            .on_sync_mut::<lsp_ext::ShuffleCrateGraph>(handlers::handle_shuffle_crate_graph)?
             .on_sync::<lsp_ext::JoinLines>(handlers::handle_join_lines)?
             .on_sync::<lsp_ext::OnEnter>(handlers::handle_on_enter)?
             .on_sync::<lsp_types::request::SelectionRangeRequest>(handlers::handle_selection_range)?

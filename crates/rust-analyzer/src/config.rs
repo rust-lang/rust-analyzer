@@ -58,6 +58,9 @@ config_data! {
         /// Whether to allow import insertion to merge new imports into single path glob imports like `use std::fmt::*;`.
         assist_allowMergingIntoGlobImports: bool           = "true",
 
+        /// Warm up caches on project load.
+        cache_warmup: bool = "true",
+
         /// Show function name and docs in parameter hints.
         callInfo_full: bool                                = "true",
 
@@ -113,7 +116,48 @@ config_data! {
         /// Whether to add parenthesis when completing functions.
         completion_addCallParenthesis: bool      = "true",
         /// Custom completion snippets.
-        completion_snippets: FxHashMap<String, SnippetDef> = "{}",
+        // NOTE: Keep this list in sync with the feature docs of user snippets.
+        completion_snippets: FxHashMap<String, SnippetDef> = r#"{
+            "Arc::new": {
+                "postfix": "arc",
+                "body": "Arc::new(${receiver})",
+                "requires": "std::sync::Arc",
+                "description": "Put the expression into an `Arc`",
+                "scope": "expr"
+            },
+            "Rc::new": {
+                "postfix": "rc",
+                "body": "Rc::new(${receiver})",
+                "requires": "std::rc::Rc",
+                "description": "Put the expression into an `Rc`",
+                "scope": "expr"
+            },
+            "Box::pin": {
+                "postfix": "pinbox",
+                "body": "Box::pin(${receiver})",
+                "requires": "std::boxed::Box",
+                "description": "Put the expression into a pinned `Box`",
+                "scope": "expr"
+            },
+            "Ok": {
+                "postfix": "ok",
+                "body": "Ok(${receiver})",
+                "description": "Wrap the expression in a `Result::Ok`",
+                "scope": "expr"
+            },
+            "Err": {
+                "postfix": "err",
+                "body": "Err(${receiver})",
+                "description": "Wrap the expression in a `Result::Err`",
+                "scope": "expr"
+            },
+            "Some": {
+                "postfix": "some",
+                "body": "Some(${receiver})",
+                "description": "Wrap the expression in an `Option::Some`",
+                "scope": "expr"
+            }
+        }"#,
         /// Whether to show postfix snippets like `dbg`, `if`, `not`, etc.
         completion_postfix_enable: bool          = "true",
         /// Toggles the additional completions that automatically add imports when completed.
@@ -543,6 +587,10 @@ impl Config {
             self.caps.workspace.as_ref()?.did_change_watched_files.as_ref()?.dynamic_registration?,
             false
         )
+    }
+
+    pub fn prefill_caches(&self) -> bool {
+        self.data.cache_warmup
     }
 
     pub fn location_link(&self) -> bool {

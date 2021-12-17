@@ -34,24 +34,20 @@ mod display;
 use std::{iter, ops::ControlFlow, sync::Arc};
 
 use arrayvec::ArrayVec;
-use base_db::{CrateDisplayName, CrateId, Edition, FileId};
+use base_db::{CrateDisplayName, CrateId, CrateOrigin, Edition, FileId};
 use either::Either;
 use hir_def::{
     adt::{ReprKind, VariantData},
     body::{BodyDiagnostic, SyntheticSyntax},
     expr::{BindingAnnotation, LabelId, Pat, PatId},
-    item_tree::ItemTreeNode,
     lang_item::LangItemTarget,
     nameres,
     per_ns::PerNs,
     resolver::{HasResolver, Resolver},
-    src::HasSource as _,
-    AdtId, AssocContainerId, AssocItemId, AssocItemLoc, AttrDefId, ConstId, ConstParamId,
-    DefWithBodyId, EnumId, FunctionId, GenericDefId, HasModule, ImplId, LifetimeParamId,
-    LocalEnumVariantId, LocalFieldId, Lookup, ModuleId, StaticId, StructId, TraitId, TypeAliasId,
-    TypeParamId, UnionId,
+    AttrDefId, ConstId, ConstParamId, EnumId, FunctionId, GenericDefId, HasModule, LifetimeParamId,
+    LocalEnumVariantId, LocalFieldId, StaticId, StructId, TypeAliasId, TypeParamId, UnionId,
 };
-use hir_expand::{name::name, MacroCallKind, MacroDefId, MacroDefKind};
+use hir_expand::{name::name, MacroCallKind, MacroDefKind};
 use hir_ty::{
     autoderef,
     consteval::ConstExt,
@@ -83,10 +79,11 @@ pub use crate::{
     attrs::{HasAttrs, Namespace},
     diagnostics::{
         AddReferenceHere, AnyDiagnostic, BreakOutsideOfLoop, InactiveCode, IncorrectCase,
-        MacroError, MismatchedArgCount, MissingFields, MissingMatchArms, MissingOkOrSomeInTailExpr,
-        MissingUnsafe, NoSuchField, RemoveThisSemicolon, ReplaceFilterMapNextWithFindMap,
-        UnimplementedBuiltinMacro, UnresolvedExternCrate, UnresolvedImport, UnresolvedMacroCall,
-        UnresolvedModule, UnresolvedProcMacro,
+        InvalidDeriveTarget, MacroError, MalformedDerive, MismatchedArgCount, MissingFields,
+        MissingMatchArms, MissingOkOrSomeInTailExpr, MissingUnsafe, NoSuchField,
+        RemoveThisSemicolon, ReplaceFilterMapNextWithFindMap, UnimplementedBuiltinMacro,
+        UnresolvedExternCrate, UnresolvedImport, UnresolvedMacroCall, UnresolvedModule,
+        UnresolvedProcMacro,
     },
     has_source::HasSource,
     semantics::{PathResolution, Semantics, SemanticsScope, TypeInfo},
@@ -106,16 +103,31 @@ pub use {
     hir_def::{
         adt::StructKind,
         attr::{Attr, Attrs, AttrsWithOwner, Documentation},
+        builtin_attr::AttributeTemplate,
         find_path::PrefixKind,
         import_map,
-        nameres::ModuleSource,
+        item_scope::ItemScope,
+        item_tree::ItemTreeNode,
+        nameres::{DefMap, ModuleData, ModuleOrigin, ModuleSource},
         path::{ModPath, PathKind},
+        src::HasSource as DefHasSource, // xx: I don't like this shadowing of HasSource... :(
         type_ref::{Mutability, TypeRef},
         visibility::Visibility,
+        AdtId,
+        AssocItemId,
+        AssocItemLoc,
+        DefWithBodyId,
+        ImplId,
+        ItemContainerId,
+        ItemLoc,
+        Lookup,
+        ModuleDefId,
+        ModuleId,
+        TraitId,
     },
     hir_expand::{
         name::{known, Name},
-        ExpandResult, HirFileId, InFile, MacroFile, Origin,
+        ExpandResult, HirFileId, InFile, MacroDefId, MacroFile, Origin,
     },
     hir_ty::display::HirDisplay,
 };
@@ -143,6 +155,10 @@ pub struct CrateDependency {
 }
 
 impl Crate {
+    pub fn origin(self, db: &dyn HirDatabase) -> CrateOrigin {
+        db.crate_graph()[self.id].origin.clone()
+    }
+
     pub fn dependencies(self, db: &dyn HirDatabase) -> Vec<CrateDependency> {
         db.crate_graph()[self.id]
             .dependencies
@@ -358,7 +374,7 @@ impl ModuleDef {
                 def.diagnostics(db, &mut acc);
             }
             None => {
-                for diag in hir_ty::diagnostics::validate_module_item(db, module.id.krate(), id) {
+                for diag in hir_ty::diagnostics::incorrect_case(db, module.id.krate(), id) {
                     acc.push(diag.into())
                 }
             }
@@ -653,6 +669,36 @@ impl Module {
                         }
                         .into(),
                     );
+                }
+                DefDiagnosticKind::InvalidDeriveTarget { ast, id } => {
+                    let node = ast.to_node(db.upcast());
+                    let derive = node.attrs().nth(*id as usize);
+                    match derive {
+                        Some(derive) => {
+                            acc.push(
+                                InvalidDeriveTarget {
+                                    node: ast.with_value(SyntaxNodePtr::from(AstPtr::new(&derive))),
+                                }
+                                .into(),
+                            );
+                        }
+                        None => stdx::never!("derive diagnostic on item without derive attribute"),
+                    }
+                }
+                DefDiagnosticKind::MalformedDerive { ast, id } => {
+                    let node = ast.to_node(db.upcast());
+                    let derive = node.attrs().nth(*id as usize);
+                    match derive {
+                        Some(derive) => {
+                            acc.push(
+                                MalformedDerive {
+                                    node: ast.with_value(SyntaxNodePtr::from(AstPtr::new(&derive))),
+                                }
+                                .into(),
+                            );
+                        }
+                        None => stdx::never!("derive diagnostic on item without derive attribute"),
+                    }
                 }
             }
         }
@@ -1251,7 +1297,7 @@ impl DefWithBody {
             DefWithBody::Static(it) => it.into(),
             DefWithBody::Const(it) => it.into(),
         };
-        for diag in hir_ty::diagnostics::validate_module_item(db, krate, def.into()) {
+        for diag in hir_ty::diagnostics::incorrect_case(db, krate, def.into()) {
             acc.push(diag.into())
         }
     }
@@ -1457,6 +1503,10 @@ impl Const {
         db.const_data(self.id).name.clone()
     }
 
+    pub fn value(self, db: &dyn HirDatabase) -> Option<ast::Expr> {
+        self.source(db)?.value.body()
+    }
+
     pub fn ty(self, db: &dyn HirDatabase) -> Type {
         let data = db.const_data(self.id);
         let resolver = self.id.resolver(db.upcast());
@@ -1493,10 +1543,14 @@ impl Static {
         db.static_data(self.id).mutable
     }
 
+    pub fn value(self, db: &dyn HirDatabase) -> Option<ast::Expr> {
+        self.source(db)?.value.body()
+    }
+
     pub fn ty(self, db: &dyn HirDatabase) -> Type {
         let data = db.static_data(self.id);
         let resolver = self.id.resolver(db.upcast());
-        let krate = self.id.lookup(db.upcast()).container.krate();
+        let krate = self.id.lookup(db.upcast()).container.module(db.upcast()).krate();
         let ctx = hir_ty::TyLoweringContext::new(db, &resolver);
         let ty = ctx.lower_ty(&data.type_ref);
         Type::new_with_resolver_inner(db, krate, &resolver, ty)
@@ -1662,6 +1716,10 @@ impl MacroDef {
             MacroKind::Attr | MacroKind::Derive => false,
         }
     }
+
+    pub fn is_attr(&self) -> bool {
+        matches!(self.kind(), MacroKind::Attr)
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
@@ -1762,8 +1820,8 @@ where
     AST: ItemTreeNode,
 {
     match id.lookup(db.upcast()).container {
-        AssocContainerId::TraitId(_) | AssocContainerId::ImplId(_) => Some(ctor(DEF::from(id))),
-        AssocContainerId::ModuleId(_) => None,
+        ItemContainerId::TraitId(_) | ItemContainerId::ImplId(_) => Some(ctor(DEF::from(id))),
+        ItemContainerId::ModuleId(_) | ItemContainerId::ExternBlockId(_) => None,
     }
 }
 
@@ -1789,9 +1847,11 @@ impl AssocItem {
             AssocItem::TypeAlias(it) => it.id.lookup(db.upcast()).container,
         };
         match container {
-            AssocContainerId::TraitId(id) => AssocItemContainer::Trait(id.into()),
-            AssocContainerId::ImplId(id) => AssocItemContainer::Impl(id.into()),
-            AssocContainerId::ModuleId(_) => panic!("invalid AssocItem"),
+            ItemContainerId::TraitId(id) => AssocItemContainer::Trait(id.into()),
+            ItemContainerId::ImplId(id) => AssocItemContainer::Impl(id.into()),
+            ItemContainerId::ModuleId(_) | ItemContainerId::ExternBlockId(_) => {
+                panic!("invalid AssocItem")
+            }
         }
     }
 
@@ -1967,6 +2027,40 @@ impl Local {
         src.map(|ast| {
             ast.map_left(|it| it.cast().unwrap().to_node(&root)).map_right(|it| it.to_node(&root))
         })
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct BuiltinAttr(usize);
+
+impl BuiltinAttr {
+    pub(crate) fn by_name(name: &str) -> Option<Self> {
+        // FIXME: def maps registered attrs?
+        hir_def::builtin_attr::find_builtin_attr_idx(name).map(Self)
+    }
+
+    pub fn name(&self, _: &dyn HirDatabase) -> &str {
+        // FIXME: Return a `Name` here
+        hir_def::builtin_attr::INERT_ATTRIBUTES[self.0].name
+    }
+
+    pub fn template(&self, _: &dyn HirDatabase) -> AttributeTemplate {
+        hir_def::builtin_attr::INERT_ATTRIBUTES[self.0].template
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ToolModule(usize);
+
+impl ToolModule {
+    pub(crate) fn by_name(name: &str) -> Option<Self> {
+        // FIXME: def maps registered tools
+        hir_def::builtin_attr::TOOL_MODULES.iter().position(|&tool| tool == name).map(Self)
+    }
+
+    pub fn name(&self, _: &dyn HirDatabase) -> &str {
+        // FIXME: Return a `Name` here
+        hir_def::builtin_attr::TOOL_MODULES[self.0]
     }
 }
 
@@ -2333,7 +2427,7 @@ impl Type {
         let krate = self.krate;
 
         let std_future_trait =
-            db.lang_item(krate, "future_trait".into()).and_then(|it| it.as_trait());
+            db.lang_item(krate, SmolStr::new_inline("future_trait")).and_then(|it| it.as_trait());
         let std_future_trait = match std_future_trait {
             Some(it) => it,
             None => return false,
@@ -2422,7 +2516,7 @@ impl Type {
     }
 
     pub fn is_copy(&self, db: &dyn HirDatabase) -> bool {
-        let lang_item = db.lang_item(self.krate, SmolStr::new("copy"));
+        let lang_item = db.lang_item(self.krate, SmolStr::new_inline("copy"));
         let copy_trait = match lang_item {
             Some(LangItemTarget::TraitId(it)) => it,
             _ => return false,
@@ -2529,13 +2623,15 @@ impl Type {
     }
 
     pub fn autoderef<'a>(&'a self, db: &'a dyn HirDatabase) -> impl Iterator<Item = Type> + 'a {
+        self.autoderef_(db).map(move |ty| self.derived(ty))
+    }
+
+    pub fn autoderef_<'a>(&'a self, db: &'a dyn HirDatabase) -> impl Iterator<Item = Ty> + 'a {
         // There should be no inference vars in types passed here
         let canonical = hir_ty::replace_errors_with_variables(&self.ty);
         let environment = self.env.env.clone();
         let ty = InEnvironment { goal: canonical, environment };
-        autoderef(db, Some(self.krate), ty)
-            .map(|canonical| canonical.value)
-            .map(move |ty| self.derived(ty))
+        autoderef(db, Some(self.krate), ty).map(|canonical| canonical.value)
     }
 
     // This would be nicer if it just returned an iterator, but that runs into
@@ -2714,22 +2810,32 @@ impl Type {
         db: &'a dyn HirDatabase,
     ) -> impl Iterator<Item = Trait> + 'a {
         let _p = profile::span("applicable_inherent_traits");
-        self.autoderef(db)
-            .filter_map(|derefed_type| derefed_type.ty.dyn_trait())
+        self.autoderef_(db)
+            .filter_map(|ty| ty.dyn_trait())
             .flat_map(move |dyn_trait_id| hir_ty::all_super_traits(db.upcast(), dyn_trait_id))
             .map(Trait::from)
     }
 
-    pub fn as_impl_traits(&self, db: &dyn HirDatabase) -> Option<Vec<Trait>> {
+    pub fn env_traits<'a>(&'a self, db: &'a dyn HirDatabase) -> impl Iterator<Item = Trait> + 'a {
+        let _p = profile::span("env_traits");
+        self.autoderef_(db)
+            .filter(|ty| matches!(ty.kind(&Interner), TyKind::Placeholder(_)))
+            .flat_map(|ty| {
+                self.env
+                    .traits_in_scope_from_clauses(ty)
+                    .flat_map(|t| hir_ty::all_super_traits(db.upcast(), t))
+            })
+            .map(Trait::from)
+    }
+
+    pub fn as_impl_traits(&self, db: &dyn HirDatabase) -> Option<impl Iterator<Item = Trait>> {
         self.ty.impl_trait_bounds(db).map(|it| {
-            it.into_iter()
-                .filter_map(|pred| match pred.skip_binders() {
-                    hir_ty::WhereClause::Implemented(trait_ref) => {
-                        Some(Trait::from(trait_ref.hir_trait_id()))
-                    }
-                    _ => None,
-                })
-                .collect()
+            it.into_iter().filter_map(|pred| match pred.skip_binders() {
+                hir_ty::WhereClause::Implemented(trait_ref) => {
+                    Some(Trait::from(trait_ref.hir_trait_id()))
+                }
+                _ => None,
+            })
         })
     }
 

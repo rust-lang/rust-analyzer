@@ -8,8 +8,9 @@ use arrayvec::ArrayVec;
 use base_db::{CrateId, Edition};
 use chalk_ir::{cast::Cast, Mutability, UniverseIndex};
 use hir_def::{
-    lang_item::LangItemTarget, nameres::DefMap, AssocContainerId, AssocItemId, BlockId, FunctionId,
-    GenericDefId, HasModule, ImplId, Lookup, ModuleId, TraitId,
+    item_scope::ItemScope, lang_item::LangItemTarget, nameres::DefMap, AssocItemId, BlockId,
+    ConstId, FunctionId, GenericDefId, HasModule, ImplId, ItemContainerId, Lookup, ModuleDefId,
+    ModuleId, TraitId,
 };
 use hir_expand::name::Name;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -141,6 +142,7 @@ impl TraitImpls {
 
         let crate_def_map = db.crate_def_map(krate);
         impls.collect_def_map(db, &crate_def_map);
+        impls.shrink_to_fit();
 
         Arc::new(impls)
     }
@@ -154,8 +156,30 @@ impl TraitImpls {
 
         let block_def_map = db.block_def_map(block)?;
         impls.collect_def_map(db, &block_def_map);
+        impls.shrink_to_fit();
 
         Some(Arc::new(impls))
+    }
+
+    pub(crate) fn trait_impls_in_deps_query(db: &dyn HirDatabase, krate: CrateId) -> Arc<Self> {
+        let _p = profile::span("trait_impls_in_deps_query");
+        let crate_graph = db.crate_graph();
+        let mut res = Self { map: FxHashMap::default() };
+
+        for krate in crate_graph.transitive_deps(krate) {
+            res.merge(&db.trait_impls_in_crate(krate));
+        }
+        res.shrink_to_fit();
+
+        Arc::new(res)
+    }
+
+    fn shrink_to_fit(&mut self) {
+        self.map.shrink_to_fit();
+        self.map.values_mut().for_each(|map| {
+            map.shrink_to_fit();
+            map.values_mut().for_each(Vec::shrink_to_fit);
+        });
     }
 
     fn collect_def_map(&mut self, db: &dyn HirDatabase, def_map: &DefMap) {
@@ -177,25 +201,13 @@ impl TraitImpls {
 
             // To better support custom derives, collect impls in all unnamed const items.
             // const _: () = { ... };
-            for konst in module_data.scope.unnamed_consts() {
+            for konst in collect_unnamed_consts(db, &module_data.scope) {
                 let body = db.body(konst.into());
                 for (_, block_def_map) in body.blocks(db.upcast()) {
                     self.collect_def_map(db, &block_def_map);
                 }
             }
         }
-    }
-
-    pub(crate) fn trait_impls_in_deps_query(db: &dyn HirDatabase, krate: CrateId) -> Arc<Self> {
-        let _p = profile::span("trait_impls_in_deps_query");
-        let crate_graph = db.crate_graph();
-        let mut res = Self { map: FxHashMap::default() };
-
-        for krate in crate_graph.transitive_deps(krate) {
-            res.merge(&db.trait_impls_in_crate(krate));
-        }
-
-        Arc::new(res)
     }
 
     fn merge(&mut self, other: &Self) {
@@ -263,6 +275,7 @@ impl InherentImpls {
 
         let crate_def_map = db.crate_def_map(krate);
         impls.collect_def_map(db, &crate_def_map);
+        impls.shrink_to_fit();
 
         return Arc::new(impls);
     }
@@ -274,9 +287,15 @@ impl InherentImpls {
         let mut impls = Self { map: FxHashMap::default() };
         if let Some(block_def_map) = db.block_def_map(block) {
             impls.collect_def_map(db, &block_def_map);
+            impls.shrink_to_fit();
             return Some(Arc::new(impls));
         }
         return None;
+    }
+
+    fn shrink_to_fit(&mut self) {
+        self.map.values_mut().for_each(Vec::shrink_to_fit);
+        self.map.shrink_to_fit();
     }
 
     fn collect_def_map(&mut self, db: &dyn HirDatabase, def_map: &DefMap) {
@@ -297,7 +316,7 @@ impl InherentImpls {
 
             // To better support custom derives, collect impls in all unnamed const items.
             // const _: () = { ... };
-            for konst in module_data.scope.unnamed_consts() {
+            for konst in collect_unnamed_consts(db, &module_data.scope) {
                 let body = db.body(konst.into());
                 for (_, block_def_map) in body.blocks(db.upcast()) {
                     self.collect_def_map(db, &block_def_map);
@@ -316,6 +335,34 @@ impl InherentImpls {
     pub fn all_impls(&self) -> impl Iterator<Item = ImplId> + '_ {
         self.map.values().flat_map(|v| v.iter().copied())
     }
+}
+
+fn collect_unnamed_consts<'a>(
+    db: &'a dyn HirDatabase,
+    scope: &'a ItemScope,
+) -> impl Iterator<Item = ConstId> + 'a {
+    let unnamed_consts = scope.unnamed_consts();
+
+    // FIXME: Also treat consts named `_DERIVE_*` as unnamed, since synstructure generates those.
+    // Should be removed once synstructure stops doing that.
+    let synstructure_hack_consts = scope.values().filter_map(|(item, _)| match item {
+        ModuleDefId::ConstId(id) => {
+            let loc = id.lookup(db.upcast());
+            let item_tree = loc.id.item_tree(db.upcast());
+            if item_tree[loc.id.value]
+                .name
+                .as_ref()
+                .map_or(false, |n| n.to_smol_str().starts_with("_DERIVE_"))
+            {
+                Some(id)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    });
+
+    unnamed_consts.chain(synstructure_hack_consts)
 }
 
 pub fn def_crates(
@@ -494,9 +541,10 @@ pub fn iterate_method_candidates_dyn(
             // types*.
 
             let deref_chain = autoderef_method_receiver(db, krate, ty);
-            for i in 0..deref_chain.len() {
+            let mut deref_chains = stdx::slice_tails(&deref_chain);
+            deref_chains.try_for_each(|deref_chain| {
                 iterate_method_candidates_with_autoref(
-                    &deref_chain[i..],
+                    deref_chain,
                     db,
                     env.clone(),
                     krate,
@@ -504,9 +552,8 @@ pub fn iterate_method_candidates_dyn(
                     visible_from_module,
                     name,
                     callback,
-                )?;
-            }
-            ControlFlow::Continue(())
+                )
+            })
         }
         LookupMode::Path => {
             // No autoderef for path lookups
@@ -669,15 +716,14 @@ fn iterate_trait_method_candidates(
     // if ty is `dyn Trait`, the trait doesn't need to be in scope
     let inherent_trait =
         self_ty.value.dyn_trait().into_iter().flat_map(|t| all_super_traits(db.upcast(), t));
-    let env_traits = match self_ty.value.kind(&Interner) {
-        TyKind::Placeholder(_) => {
-            // if we have `T: Trait` in the param env, the trait doesn't need to be in scope
-            env.traits_in_scope_from_clauses(&self_ty.value)
+    let env_traits = matches!(self_ty.value.kind(&Interner), TyKind::Placeholder(_))
+        // if we have `T: Trait` in the param env, the trait doesn't need to be in scope
+        .then(|| {
+            env.traits_in_scope_from_clauses(self_ty.value.clone())
                 .flat_map(|t| all_super_traits(db.upcast(), t))
-                .collect()
-        }
-        _ => Vec::new(),
-    };
+        })
+        .into_iter()
+        .flatten();
     let traits = inherent_trait.chain(env_traits).chain(traits_in_scope.iter().copied());
 
     'traits: for t in traits {
@@ -700,10 +746,10 @@ fn iterate_trait_method_candidates(
         // trait, but if we find out it doesn't, we'll skip the rest of the
         // iteration
         let mut known_implemented = false;
-        for (_name, item) in data.items.iter() {
+        for &(_, item) in data.items.iter() {
             // Don't pass a `visible_from_module` down to `is_valid_candidate`,
             // since only inherent methods should be included into visibility checking.
-            if !is_valid_candidate(db, env.clone(), name, receiver_ty, *item, self_ty, None) {
+            if !is_valid_candidate(db, env.clone(), name, receiver_ty, item, self_ty, None) {
                 continue;
             }
             if !known_implemented {
@@ -714,7 +760,7 @@ fn iterate_trait_method_candidates(
             }
             known_implemented = true;
             // FIXME: we shouldn't be ignoring the binders here
-            callback(self_ty, *item)?
+            callback(self_ty, item)?
         }
     }
     ControlFlow::Continue(())
@@ -727,18 +773,14 @@ fn filter_inherent_impls_for_self_ty<'i>(
     // inherent methods on arrays are fingerprinted as [T; {unknown}], so we must also consider them when
     // resolving a method call on an array with a known len
     let array_impls = {
-        if let TyKind::Array(parameters, array_len) = self_ty.kind(&Interner) {
-            if !array_len.is_unknown() {
+        match self_ty.kind(&Interner) {
+            TyKind::Array(parameters, array_len) if !array_len.is_unknown() => {
                 let unknown_array_len_ty =
-                    TyKind::Array(parameters.clone(), consteval::usize_const(None))
-                        .intern(&Interner);
+                    TyKind::Array(parameters.clone(), consteval::usize_const(None));
 
-                Some(impls.for_self_ty(&unknown_array_len_ty))
-            } else {
-                None
+                Some(impls.for_self_ty(&unknown_array_len_ty.intern(&Interner)))
             }
-        } else {
-            None
+            _ => None,
         }
     }
     .into_iter()
@@ -979,18 +1021,19 @@ fn transform_receiver_ty(
     self_ty: &Canonical<Ty>,
 ) -> Option<Ty> {
     let substs = match function_id.lookup(db.upcast()).container {
-        AssocContainerId::TraitId(_) => TyBuilder::subst_for_def(db, function_id)
+        ItemContainerId::TraitId(_) => TyBuilder::subst_for_def(db, function_id)
             .push(self_ty.value.clone())
             .fill_with_unknown()
             .build(),
-        AssocContainerId::ImplId(impl_id) => {
+        ItemContainerId::ImplId(impl_id) => {
             let impl_substs = inherent_impl_substs(db, env, impl_id, self_ty)?;
             TyBuilder::subst_for_def(db, function_id)
                 .use_parent_substs(&impl_substs)
                 .fill_with_unknown()
                 .build()
         }
-        AssocContainerId::ModuleId(_) => unreachable!(),
+        // No receiver
+        ItemContainerId::ModuleId(_) | ItemContainerId::ExternBlockId(_) => unreachable!(),
     };
     let sig = db.callable_item_signature(function_id.into());
     Some(sig.map(|s| s.params()[0].clone()).substitute(&Interner, &substs))

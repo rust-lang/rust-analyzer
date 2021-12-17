@@ -1,11 +1,10 @@
 use either::Either;
 use hir::{known, Callable, HasVisibility, HirDisplay, Semantics, TypeInfo};
-use ide_db::RootDatabase;
-use ide_db::{base_db::FileRange, helpers::FamousDefs};
+use ide_db::{base_db::FileRange, helpers::FamousDefs, RootDatabase};
 use itertools::Itertools;
 use stdx::to_lower_snake_case;
 use syntax::{
-    ast::{self, AstNode, HasArgList, HasName},
+    ast::{self, AstNode, HasArgList, HasName, UnaryOp},
     match_ast, Direction, NodeOrToken, SmolStr, SyntaxKind, TextRange, T,
 };
 
@@ -421,6 +420,10 @@ fn should_hide_param_name_hint(
         return true;
     }
 
+    if matches!(argument, ast::Expr::PrefixExpr(prefix) if prefix.op_kind() == Some(UnaryOp::Not)) {
+        return false;
+    }
+
     let fn_name = match callable.kind() {
         hir::CallableKind::Function(it) => Some(it.name(sema.db).to_smol_str()),
         _ => None,
@@ -441,15 +444,25 @@ fn is_argument_similar_to_param_name(argument: &ast::Expr, param_name: &str) -> 
         None => return false,
     };
 
+    // std is honestly too panic happy...
+    let str_split_at = |str: &str, at| str.is_char_boundary(at).then(|| argument.split_at(at));
+
     let param_name = param_name.trim_start_matches('_');
     let argument = argument.trim_start_matches('_');
-    if argument.strip_prefix(param_name).map_or(false, |s| s.starts_with('_')) {
-        return true;
+
+    match str_split_at(argument, param_name.len()) {
+        Some((prefix, rest)) if prefix.eq_ignore_ascii_case(param_name) => {
+            return rest.is_empty() || rest.starts_with('_');
+        }
+        _ => (),
     }
-    if argument.strip_suffix(param_name).map_or(false, |s| s.ends_with('_')) {
-        return true;
+    match argument.len().checked_sub(param_name.len()).and_then(|at| str_split_at(argument, at)) {
+        Some((rest, suffix)) if param_name.eq_ignore_ascii_case(suffix) => {
+            return rest.is_empty() || rest.ends_with('_');
+        }
+        _ => (),
     }
-    argument == param_name
+    false
 }
 
 /// Hide the parameter name of a unary function if it is a `_` - prefixed suffix of the function's name, or equal.
@@ -464,9 +477,13 @@ fn is_param_name_suffix_of_fn_name(
     match (callable.n_params(), fn_name) {
         (1, Some(function)) => {
             function == param_name
-                || (function.len() > param_name.len()
-                    && function.ends_with(param_name)
-                    && function[..function.len() - param_name.len()].ends_with('_'))
+                || function
+                    .len()
+                    .checked_sub(param_name.len())
+                    .and_then(|at| function.is_char_boundary(at).then(|| function.split_at(at)))
+                    .map_or(false, |(prefix, suffix)| {
+                        suffix.eq_ignore_ascii_case(param_name) && prefix.ends_with('_')
+                    })
         }
         _ => false,
     }
@@ -852,6 +869,10 @@ enum CompletionKind {
 fn non_ident_pat((a, b): (u32, u32)) {}
 
 fn main() {
+    const PARAM: u32 = 0;
+    foo(PARAM);
+    foo(!PARAM);
+     // ^^^^^^ param
     check("");
 
     map(0);
@@ -1426,14 +1447,14 @@ fn main() {
                    //^^^^^^^^^ i32
 
     let multiply =
-      //^^^^^^^^ |…| -> i32
+      //^^^^^^^^ |i32, i32| -> i32
       | a,     b| a * b
       //^ i32  ^ i32
     ;
 
     let _: i32 = multiply(1, 2);
     let multiply_ref = &multiply;
-      //^^^^^^^^^^^^ &|…| -> i32
+      //^^^^^^^^^^^^ &|i32, i32| -> i32
 
     let return_42 = || 42;
       //^^^^^^^^^ || -> i32

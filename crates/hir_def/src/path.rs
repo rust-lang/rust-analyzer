@@ -22,7 +22,7 @@ pub struct ModPath {
     segments: Vec<Name>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PathKind {
     Plain,
     /// `self::` is `Super(0)`
@@ -119,7 +119,7 @@ pub struct Path {
     type_anchor: Option<Interned<TypeRef>>,
     mod_path: Interned<ModPath>,
     /// Invariant: the same len as `self.mod_path.segments`
-    generic_args: Vec<Option<Interned<GenericArgs>>>,
+    generic_args: Box<[Option<Interned<GenericArgs>>]>,
 }
 
 /// Generic arguments to a path segment (e.g. the `i32` in `Option<i32>`). This
@@ -135,6 +135,9 @@ pub struct GenericArgs {
     pub has_self_type: bool,
     /// Associated type bindings like in `Iterator<Item = T>`.
     pub bindings: Vec<AssociatedTypeBinding>,
+    /// Whether these generic args were desugared from `Trait(Arg) -> Output`
+    /// parenthesis notation typically used for the `Fn` traits.
+    pub desugared_from_fn: bool,
 }
 
 /// An associated type binding like in `Iterator<Item = T>`.
@@ -168,9 +171,9 @@ impl Path {
     /// Converts a known mod path to `Path`.
     pub fn from_known_path(
         path: ModPath,
-        generic_args: Vec<Option<Interned<GenericArgs>>>,
+        generic_args: impl Into<Box<[Option<Interned<GenericArgs>>]>>,
     ) -> Path {
-        Path { type_anchor: None, mod_path: Interned::new(path), generic_args }
+        Path { type_anchor: None, mod_path: Interned::new(path), generic_args: generic_args.into() }
     }
 
     pub fn kind(&self) -> &PathKind {
@@ -184,7 +187,7 @@ impl Path {
     pub fn segments(&self) -> PathSegments<'_> {
         PathSegments {
             segments: self.mod_path.segments.as_slice(),
-            generic_args: self.generic_args.as_slice(),
+            generic_args: &self.generic_args,
         }
     }
 
@@ -202,14 +205,14 @@ impl Path {
                 self.mod_path.kind.clone(),
                 self.mod_path.segments[..self.mod_path.segments.len() - 1].iter().cloned(),
             )),
-            generic_args: self.generic_args[..self.generic_args.len() - 1].to_vec(),
+            generic_args: self.generic_args[..self.generic_args.len() - 1].to_vec().into(),
         };
         Some(res)
     }
 
     pub fn is_self_type(&self) -> bool {
         self.type_anchor.is_none()
-            && self.generic_args == [None]
+            && *self.generic_args == [None]
             && self.mod_path.as_ident() == Some(&name!(Self))
     }
 }
@@ -269,7 +272,12 @@ impl GenericArgs {
     }
 
     pub(crate) fn empty() -> GenericArgs {
-        GenericArgs { args: Vec::new(), has_self_type: false, bindings: Vec::new() }
+        GenericArgs {
+            args: Vec::new(),
+            has_self_type: false,
+            bindings: Vec::new(),
+            desugared_from_fn: false,
+        }
     }
 }
 
@@ -278,7 +286,7 @@ impl From<Name> for Path {
         Path {
             type_anchor: None,
             mod_path: Interned::new(ModPath::from_segments(PathKind::Plain, iter::once(name))),
-            generic_args: vec![None],
+            generic_args: Box::new([None]),
         }
     }
 }

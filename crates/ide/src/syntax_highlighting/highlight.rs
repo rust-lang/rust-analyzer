@@ -133,7 +133,7 @@ fn token(
                 _ if parent_matches::<ast::RangeExpr>(&token) => HlOperator::Other.into(),
                 _ if parent_matches::<ast::RangePat>(&token) => HlOperator::Other.into(),
                 _ if parent_matches::<ast::RestPat>(&token) => HlOperator::Other.into(),
-                _ if parent_matches::<ast::Attr>(&token) => HlTag::Attribute.into(),
+                _ if parent_matches::<ast::Attr>(&token) => HlTag::AttributeBracket.into(),
                 kind => match kind {
                     T!['['] | T![']'] => HlPunct::Bracket,
                     T!['{'] | T!['}'] => HlPunct::Brace,
@@ -200,7 +200,7 @@ fn node(
                 return None;
             },
             ast::Attr(__) => {
-                HlTag::Attribute.into()
+                HlTag::AttributeBracket.into()
             },
             // Highlight definitions depending on the "type" of the definition.
             ast::Name(name) => {
@@ -208,22 +208,14 @@ fn node(
             },
             // Highlight references like the definitions they resolve to
             ast::NameRef(name_ref) => {
-                if node.ancestors().any(|it| it.kind() == ATTR) {
-
-                    // FIXME: We highlight paths in attributes slightly differently to work around this module
-                    // currently not knowing about tool attributes and rustc builtin attributes as
-                    // we do not want to resolve those to functions that may be defined in scope.
-                    highlight_name_ref_in_attr(sema, name_ref)
-                } else {
-                    highlight_name_ref(
-                        sema,
-                        krate,
-                        bindings_shadow_count,
-                        &mut binding_hash,
-                        syntactic_name_ref_highlighting,
-                        name_ref,
-                    )
-                }
+                highlight_name_ref(
+                    sema,
+                    krate,
+                    bindings_shadow_count,
+                    &mut binding_hash,
+                    syntactic_name_ref_highlighting,
+                    name_ref,
+                )
             },
             ast::Lifetime(lifetime) => {
                 match NameClass::classify_lifetime(sema, &lifetime) {
@@ -243,28 +235,6 @@ fn node(
     Some((highlight, binding_hash))
 }
 
-fn highlight_name_ref_in_attr(sema: &Semantics<RootDatabase>, name_ref: ast::NameRef) -> Highlight {
-    match NameRefClass::classify(sema, &name_ref) {
-        Some(name_class) => match name_class {
-            NameRefClass::Definition(Definition::Module(_))
-                if name_ref
-                    .syntax()
-                    .ancestors()
-                    .find_map(ast::Path::cast)
-                    .map_or(false, |it| it.parent_path().is_some()) =>
-            {
-                HlTag::Symbol(SymbolKind::Module)
-            }
-            NameRefClass::Definition(Definition::Macro(m)) if m.kind() == hir::MacroKind::Attr => {
-                HlTag::Symbol(SymbolKind::Macro)
-            }
-            _ => HlTag::BuiltinAttr,
-        },
-        None => HlTag::BuiltinAttr,
-    }
-    .into()
-}
-
 fn highlight_name_ref(
     sema: &Semantics<RootDatabase>,
     krate: Option<hir::Crate>,
@@ -274,67 +244,78 @@ fn highlight_name_ref(
     name_ref: ast::NameRef,
 ) -> Highlight {
     let db = sema.db;
-    highlight_method_call_by_name_ref(sema, krate, &name_ref).unwrap_or_else(|| {
-        let name_class = match NameRefClass::classify(sema, &name_ref) {
-            Some(name_kind) => name_kind,
-            None => {
-                return if syntactic_name_ref_highlighting {
-                    highlight_name_ref_by_syntax(name_ref, sema, krate)
-                } else {
-                    HlTag::UnresolvedReference.into()
+    if let Some(res) = highlight_method_call_by_name_ref(sema, krate, &name_ref) {
+        return res;
+    }
+
+    let name_class = match NameRefClass::classify(sema, &name_ref) {
+        Some(name_kind) => name_kind,
+        None if syntactic_name_ref_highlighting => {
+            return highlight_name_ref_by_syntax(name_ref, sema, krate)
+        }
+        // FIXME: Workaround for https://github.com/rust-analyzer/rust-analyzer/issues/10708
+        //
+        // Some popular proc macros (namely async_trait) will rewrite `self` in such a way that it no
+        // longer resolves via NameRefClass. If we can't be resolved, but we know we're a self token,
+        // within a function with a self param, pretend to still be `self`, rather than
+        // an unresolved reference.
+        None if name_ref.self_token().is_some() && is_in_fn_with_self_param(&name_ref) => {
+            return SymbolKind::SelfParam.into()
+        }
+        // FIXME: This is required for helper attributes used by proc-macros, as those do not map down
+        // to anything when used.
+        // We can fix this for derive attributes since derive helpers are recorded, but not for
+        // general attributes.
+        None if name_ref.syntax().ancestors().any(|it| it.kind() == ATTR) => {
+            return HlTag::Symbol(SymbolKind::Attribute).into();
+        }
+        None => return HlTag::UnresolvedReference.into(),
+    };
+    let mut h = match name_class {
+        NameRefClass::Definition(def) => {
+            if let Definition::Local(local) = &def {
+                if let Some(name) = local.name(db) {
+                    let shadow_count = bindings_shadow_count.entry(name.clone()).or_default();
+                    *binding_hash = Some(calc_binding_hash(&name, *shadow_count))
                 }
-            }
-        };
-        let mut h = match name_class {
-            NameRefClass::Definition(def) => {
-                if let Definition::Local(local) = &def {
-                    if let Some(name) = local.name(db) {
-                        let shadow_count = bindings_shadow_count.entry(name.clone()).or_default();
-                        *binding_hash = Some(calc_binding_hash(&name, *shadow_count))
-                    }
-                };
+            };
 
-                let mut h = highlight_def(sema, krate, def);
+            let mut h = highlight_def(sema, krate, def);
 
-                match def {
-                    Definition::Local(local)
-                        if is_consumed_lvalue(name_ref.syntax(), &local, db) =>
+            match def {
+                Definition::Local(local) if is_consumed_lvalue(name_ref.syntax(), &local, db) => {
+                    h |= HlMod::Consuming;
+                }
+                Definition::Trait(trait_) if trait_.is_unsafe(db) => {
+                    if ast::Impl::for_trait_name_ref(&name_ref)
+                        .map_or(false, |impl_| impl_.unsafe_token().is_some())
                     {
-                        h |= HlMod::Consuming;
+                        h |= HlMod::Unsafe;
                     }
-                    Definition::Trait(trait_) if trait_.is_unsafe(db) => {
-                        if ast::Impl::for_trait_name_ref(&name_ref)
-                            .map_or(false, |impl_| impl_.unsafe_token().is_some())
-                        {
-                            h |= HlMod::Unsafe;
-                        }
-                    }
-                    Definition::Field(field) => {
-                        if let Some(parent) = name_ref.syntax().parent() {
-                            if matches!(parent.kind(), FIELD_EXPR | RECORD_PAT_FIELD) {
-                                if let hir::VariantDef::Union(_) = field.parent_def(db) {
-                                    h |= HlMod::Unsafe;
-                                }
+                }
+                Definition::Field(field) => {
+                    if let Some(parent) = name_ref.syntax().parent() {
+                        if matches!(parent.kind(), FIELD_EXPR | RECORD_PAT_FIELD) {
+                            if let hir::VariantDef::Union(_) = field.parent_def(db) {
+                                h |= HlMod::Unsafe;
                             }
                         }
                     }
-                    _ => (),
                 }
+                _ => (),
+            }
 
-                h
-            }
-            NameRefClass::FieldShorthand { .. } => SymbolKind::Field.into(),
-        };
-        if h.tag == HlTag::Symbol(SymbolKind::Module) {
-            if name_ref.self_token().is_some() {
-                return SymbolKind::SelfParam.into();
-            }
-            if name_ref.crate_token().is_some() || name_ref.super_token().is_some() {
-                h.tag = HlTag::Keyword;
-            }
+            h
         }
-        h
-    })
+        NameRefClass::FieldShorthand { .. } => SymbolKind::Field.into(),
+    };
+    if name_ref.self_token().is_some() {
+        h.tag = HlTag::Symbol(SymbolKind::SelfParam);
+    }
+    if name_ref.crate_token().is_some() || name_ref.super_token().is_some() {
+        h.tag = HlTag::Keyword;
+    }
+    h
 }
 
 fn highlight_name(
@@ -394,7 +375,7 @@ fn highlight_def(
 ) -> Highlight {
     let db = sema.db;
     let mut h = match def {
-        Definition::Macro(_) => Highlight::new(HlTag::Symbol(SymbolKind::Macro)),
+        Definition::Macro(m) => Highlight::new(HlTag::Symbol(m.kind().into())),
         Definition::Field(_) => Highlight::new(HlTag::Symbol(SymbolKind::Field)),
         Definition::Module(module) => {
             let mut h = Highlight::new(HlTag::Symbol(SymbolKind::Module));
@@ -532,6 +513,8 @@ fn highlight_def(
             h
         }
         Definition::Label(_) => Highlight::new(HlTag::Symbol(SymbolKind::Label)),
+        Definition::BuiltinAttr(_) => Highlight::new(HlTag::Symbol(SymbolKind::BuiltinAttr)),
+        Definition::ToolModule(_) => Highlight::new(HlTag::Symbol(SymbolKind::ToolModule)),
     };
 
     let famous_defs = FamousDefs(sema, krate);
@@ -750,4 +733,12 @@ fn is_child_of_impl(token: &SyntaxToken) -> bool {
         Some(e) => e.kind() == IMPL,
         _ => false,
     }
+}
+
+fn is_in_fn_with_self_param<N: AstNode>(node: &N) -> bool {
+    node.syntax()
+        .ancestors()
+        .find_map(ast::Fn::cast)
+        .and_then(|s| s.param_list()?.self_param())
+        .is_some()
 }

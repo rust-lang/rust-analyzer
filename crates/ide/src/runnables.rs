@@ -19,10 +19,7 @@ use syntax::{
     SmolStr, SyntaxNode,
 };
 
-use crate::{
-    display::{ToNav, TryToNav},
-    references, FileId, NavigationTarget,
-};
+use crate::{references, FileId, NavigationTarget, ToNav, TryToNav};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Runnable {
@@ -1440,7 +1437,6 @@ gen2!();
                                 0,
                             ),
                             full_range: 228..236,
-                            focus_range: 228..236,
                             name: "tests2",
                             kind: Module,
                             description: "mod tests2",
@@ -1525,7 +1521,6 @@ foo!();
                                 0,
                             ),
                             full_range: 210..217,
-                            focus_range: 210..217,
                             name: "foo_tests",
                             kind: Module,
                             description: "mod foo_tests",

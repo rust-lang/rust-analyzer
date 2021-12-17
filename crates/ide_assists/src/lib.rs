@@ -136,6 +136,7 @@ mod handlers {
     mod generate_default_from_new;
     mod generate_deref;
     mod generate_derive;
+    mod generate_documentation_template;
     mod generate_enum_is_method;
     mod generate_enum_projection_method;
     mod generate_from_impl_for_enum;
@@ -158,6 +159,7 @@ mod handlers {
     mod move_module_to_file;
     mod move_to_mod_rs;
     mod move_from_mod_rs;
+    mod number_representation;
     mod promote_local_to_const;
     mod pull_assignment_up;
     mod qualify_path;
@@ -216,9 +218,8 @@ mod handlers {
             generate_constant::generate_constant,
             generate_default_from_enum_variant::generate_default_from_enum_variant,
             generate_default_from_new::generate_default_from_new,
-            generate_delegate_methods::generate_delegate_methods,
-            generate_deref::generate_deref,
             generate_derive::generate_derive,
+            generate_documentation_template::generate_documentation_template,
             generate_enum_is_method::generate_enum_is_method,
             generate_enum_projection_method::generate_enum_as_method,
             generate_enum_projection_method::generate_enum_try_into_method,
@@ -241,6 +242,7 @@ mod handlers {
             move_module_to_file::move_module_to_file,
             move_to_mod_rs::move_to_mod_rs,
             move_from_mod_rs::move_from_mod_rs,
+            number_representation::reformat_number_literal,
             pull_assignment_up::pull_assignment_up,
             promote_local_to_const::promote_local_to_const,
             qualify_path::qualify_path,
@@ -285,6 +287,8 @@ mod handlers {
             generate_getter::generate_getter,
             generate_getter::generate_getter_mut,
             generate_setter::generate_setter,
+            generate_delegate_methods::generate_delegate_methods,
+            generate_deref::generate_deref,
             // Are you sure you want to add new assist here, and not to the
             // sorted list above?
         ]

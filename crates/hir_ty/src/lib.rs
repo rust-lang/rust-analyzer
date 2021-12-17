@@ -35,7 +35,7 @@ use std::sync::Arc;
 use chalk_ir::{
     fold::{Fold, Shift},
     interner::HasInterner,
-    UintTy,
+    NoSolution, UintTy,
 };
 use hir_def::{
     expr::ExprId,
@@ -175,6 +175,7 @@ pub fn make_canonical<T: HasInterner<Interner = Interner>>(
 pub struct CallableSig {
     params_and_return: Arc<[Ty]>,
     is_varargs: bool,
+    legacy_const_generics_indices: Arc<[u32]>,
 }
 
 has_interner!(CallableSig);
@@ -185,7 +186,11 @@ pub type PolyFnSig = Binders<CallableSig>;
 impl CallableSig {
     pub fn from_params_and_return(mut params: Vec<Ty>, ret: Ty, is_varargs: bool) -> CallableSig {
         params.push(ret);
-        CallableSig { params_and_return: params.into(), is_varargs }
+        CallableSig {
+            params_and_return: params.into(),
+            is_varargs,
+            legacy_const_generics_indices: Arc::new([]),
+        }
     }
 
     pub fn from_fn_ptr(fn_ptr: &FnPointer) -> CallableSig {
@@ -202,7 +207,12 @@ impl CallableSig {
                 .map(|arg| arg.assert_ty_ref(&Interner).clone())
                 .collect(),
             is_varargs: fn_ptr.sig.variadic,
+            legacy_const_generics_indices: Arc::new([]),
         }
+    }
+
+    pub fn set_legacy_const_generics_indices(&mut self, indices: &[u32]) {
+        self.legacy_const_generics_indices = indices.into();
     }
 
     pub fn to_fn_ptr(&self) -> FnPointer {
@@ -228,17 +238,21 @@ impl CallableSig {
 impl Fold<Interner> for CallableSig {
     type Result = CallableSig;
 
-    fn fold_with<'i>(
+    fn fold_with<'i, E>(
         self,
-        folder: &mut dyn chalk_ir::fold::Folder<'i, Interner>,
+        folder: &mut dyn chalk_ir::fold::Folder<'i, Interner, Error = E>,
         outer_binder: DebruijnIndex,
-    ) -> chalk_ir::Fallible<Self::Result>
+    ) -> Result<Self::Result, E>
     where
         Interner: 'i,
     {
         let vec = self.params_and_return.to_vec();
         let folded = vec.fold_with(folder, outer_binder)?;
-        Ok(CallableSig { params_and_return: folded.into(), is_varargs: self.is_varargs })
+        Ok(CallableSig {
+            params_and_return: folded.into(),
+            is_varargs: self.is_varargs,
+            legacy_const_generics_indices: self.legacy_const_generics_indices,
+        })
     }
 }
 
@@ -282,7 +296,9 @@ pub(crate) fn fold_free_vars<T: HasInterner<Interner = Interner> + Fold<Interner
     use chalk_ir::{fold::Folder, Fallible};
     struct FreeVarFolder<F>(F);
     impl<'i, F: FnMut(BoundVar, DebruijnIndex) -> Ty + 'i> Folder<'i, Interner> for FreeVarFolder<F> {
-        fn as_dyn(&mut self) -> &mut dyn Folder<'i, Interner> {
+        type Error = NoSolution;
+
+        fn as_dyn(&mut self) -> &mut dyn Folder<'i, Interner, Error = Self::Error> {
             self
         }
 
@@ -312,7 +328,9 @@ pub(crate) fn fold_tys<T: HasInterner<Interner = Interner> + Fold<Interner>>(
     };
     struct TyFolder<F>(F);
     impl<'i, F: FnMut(Ty, DebruijnIndex) -> Ty + 'i> Folder<'i, Interner> for TyFolder<F> {
-        fn as_dyn(&mut self) -> &mut dyn Folder<'i, Interner> {
+        type Error = NoSolution;
+
+        fn as_dyn(&mut self) -> &mut dyn Folder<'i, Interner, Error = Self::Error> {
             self
         }
 
@@ -338,13 +356,15 @@ where
 {
     use chalk_ir::{
         fold::{Folder, SuperFold},
-        Fallible, NoSolution,
+        Fallible,
     };
     struct ErrorReplacer {
         vars: usize,
     }
     impl<'i> Folder<'i, Interner> for ErrorReplacer {
-        fn as_dyn(&mut self) -> &mut dyn Folder<'i, Interner> {
+        type Error = NoSolution;
+
+        fn as_dyn(&mut self) -> &mut dyn Folder<'i, Interner, Error = Self::Error> {
             self
         }
 

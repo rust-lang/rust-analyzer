@@ -1,13 +1,14 @@
 //! See [`import_on_the_fly`].
+use hir::ItemInNs;
 use ide_db::helpers::{
-    import_assets::{ImportAssets, ImportCandidate},
+    import_assets::{ImportAssets, ImportCandidate, LocatedImport},
     insert_use::ImportScope,
 };
 use itertools::Itertools;
 use syntax::{AstNode, SyntaxNode, T};
 
 use crate::{
-    context::CompletionContext,
+    context::{CompletionContext, PathKind},
     render::{render_resolution_with_import, RenderContext},
     ImportEdit,
 };
@@ -109,12 +110,17 @@ pub(crate) fn import_on_the_fly(acc: &mut Completions, ctx: &CompletionContext) 
     if !ctx.config.enable_imports_on_the_fly {
         return None;
     }
-    if ctx.in_use_tree()
+    if matches!(ctx.path_kind(), Some(PathKind::Vis { .. } | PathKind::Use))
         || ctx.is_path_disallowed()
         || ctx.expects_item()
         || ctx.expects_assoc_item()
         || ctx.expects_variant()
     {
+        return None;
+    }
+    // FIXME: This should be encoded in a different way
+    if ctx.pattern_ctx.is_none() && ctx.path_context.is_none() && !ctx.has_dot_receiver() {
+        // completion inside `ast::Name` of a item declaration
         return None;
     }
     let potential_import_name = {
@@ -135,10 +141,46 @@ pub(crate) fn import_on_the_fly(acc: &mut Completions, ctx: &CompletionContext) 
         &ctx.sema,
     )?;
 
+    let ns_filter = |import: &LocatedImport| {
+        let kind = match ctx.path_kind() {
+            Some(kind) => kind,
+            None => {
+                return match import.original_item {
+                    ItemInNs::Macros(mac) => mac.is_fn_like(),
+                    _ => true,
+                }
+            }
+        };
+        match (kind, import.original_item) {
+            // Aren't handled in flyimport
+            (PathKind::Vis { .. } | PathKind::Use, _) => false,
+            // modules are always fair game
+            (_, ItemInNs::Types(hir::ModuleDef::Module(_))) => true,
+            // and so are macros(except for attributes)
+            (
+                PathKind::Expr | PathKind::Type | PathKind::Mac | PathKind::Pat,
+                ItemInNs::Macros(mac),
+            ) => mac.is_fn_like(),
+            (PathKind::Mac, _) => true,
+
+            (PathKind::Expr, ItemInNs::Types(_) | ItemInNs::Values(_)) => true,
+
+            (PathKind::Pat, ItemInNs::Types(_)) => true,
+            (PathKind::Pat, ItemInNs::Values(def)) => matches!(def, hir::ModuleDef::Const(_)),
+
+            (PathKind::Type, ItemInNs::Types(_)) => true,
+            (PathKind::Type, ItemInNs::Values(_)) => false,
+
+            (PathKind::Attr, ItemInNs::Macros(mac)) => mac.is_attr(),
+            (PathKind::Attr, _) => false,
+        }
+    };
+
     acc.add_all(
         import_assets
             .search_for_imports(&ctx.sema, ctx.config.insert_use.prefix_kind)
             .into_iter()
+            .filter(ns_filter)
             .filter(|import| {
                 !ctx.is_item_hidden(&import.item_to_import)
                     && !ctx.is_item_hidden(&import.original_item)
@@ -185,22 +227,18 @@ fn import_assets(ctx: &CompletionContext, fuzzy_name: String) -> Option<ImportAs
         )
     } else {
         let fuzzy_name_length = fuzzy_name.len();
-        let assets_for_path = ImportAssets::for_fuzzy_path(
+        let mut assets_for_path = ImportAssets::for_fuzzy_path(
             current_module,
             ctx.path_qual().cloned(),
             fuzzy_name,
             &ctx.sema,
             ctx.token.parent()?,
         )?;
-
-        if matches!(assets_for_path.import_candidate(), ImportCandidate::Path(_))
-            && fuzzy_name_length < 2
-        {
-            cov_mark::hit!(ignore_short_input_for_path);
-            None
-        } else {
-            Some(assets_for_path)
+        if fuzzy_name_length < 3 {
+            cov_mark::hit!(flyimport_exact_on_short_path);
+            assets_for_path.path_fuzzy_name_to_exact(false);
         }
+        Some(assets_for_path)
     }
 }
 

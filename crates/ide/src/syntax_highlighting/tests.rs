@@ -16,6 +16,7 @@ fn test_highlighting() {
 use inner::{self as inner_mod};
 mod inner {}
 
+#[allow()]
 #[proc_macros::identity]
 pub mod ops {
     #[lang = "fn_once"]
@@ -59,6 +60,7 @@ impl Foo {
     }
 }
 
+use self::FooCopy::{self as BarCopy};
 #[derive(Copy)]
 struct FooCopy {
     x: u32,
@@ -237,6 +239,15 @@ impl Bool {
     }
 }
 const USAGE_OF_BOOL:bool = Bool::True.to_primitive();
+
+trait Baz {
+    type Qux;
+}
+
+fn baz<T>(t: T)
+where
+    T: Baz,
+    <T as Baz>::Qux: Bar {}
 
 //- /foo.rs crate:foo
 pub struct Person {

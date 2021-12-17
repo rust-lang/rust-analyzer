@@ -2,19 +2,21 @@
 //!
 //! This module uses a bit of static metadata to provide completions
 //! for built-in attributes.
+//! Non-built-in attribute (excluding derives attributes) completions are done in [`super::unqualified_path`].
 
-use hir::HasAttrs;
-use ide_db::helpers::generated_lints::{CLIPPY_LINTS, DEFAULT_LINTS, FEATURES, RUSTDOC_LINTS};
+use ide_db::{
+    helpers::{
+        generated_lints::{CLIPPY_LINTS, DEFAULT_LINTS, FEATURES, RUSTDOC_LINTS},
+        parse_tt_as_comma_sep_paths,
+    },
+    SymbolKind,
+};
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use rustc_hash::FxHashMap;
 use syntax::{algo::non_trivia_sibling, ast, AstNode, Direction, SyntaxKind, T};
 
-use crate::{
-    context::CompletionContext,
-    item::{CompletionItem, CompletionItemKind},
-    Completions,
-};
+use crate::{context::CompletionContext, item::CompletionItem, Completions};
 
 mod cfg;
 mod derive;
@@ -28,14 +30,12 @@ pub(crate) fn complete_attribute(acc: &mut Completions, ctx: &CompletionContext)
         None => None,
     };
     match (name_ref, attribute.token_tree()) {
-        (Some(path), Some(token_tree)) => match path.text().as_str() {
-            "repr" => repr::complete_repr(acc, ctx, token_tree),
-            "derive" => derive::complete_derive(acc, ctx, &parse_comma_sep_paths(token_tree)?),
-            "feature" => {
-                lint::complete_lint(acc, ctx, &parse_comma_sep_paths(token_tree)?, FEATURES)
-            }
+        (Some(path), Some(tt)) if tt.l_paren_token().is_some() => match path.text().as_str() {
+            "repr" => repr::complete_repr(acc, ctx, tt),
+            "derive" => derive::complete_derive(acc, ctx, &parse_tt_as_comma_sep_paths(tt)?),
+            "feature" => lint::complete_lint(acc, ctx, &parse_tt_as_comma_sep_paths(tt)?, FEATURES),
             "allow" | "warn" | "deny" | "forbid" => {
-                let existing_lints = parse_comma_sep_paths(token_tree)?;
+                let existing_lints = parse_tt_as_comma_sep_paths(tt)?;
                 lint::complete_lint(acc, ctx, &existing_lints, DEFAULT_LINTS);
                 lint::complete_lint(acc, ctx, &existing_lints, CLIPPY_LINTS);
                 lint::complete_lint(acc, ctx, &existing_lints, RUSTDOC_LINTS);
@@ -45,8 +45,8 @@ pub(crate) fn complete_attribute(acc: &mut Completions, ctx: &CompletionContext)
             }
             _ => (),
         },
-        (None, Some(_)) => (),
-        _ => complete_new_attribute(acc, ctx, attribute),
+        (_, Some(_)) => (),
+        (_, None) => complete_new_attribute(acc, ctx, attribute),
     }
     Some(())
 }
@@ -68,11 +68,8 @@ fn complete_new_attribute(acc: &mut Completions, ctx: &CompletionContext, attrib
     });
 
     let add_completion = |attr_completion: &AttrCompletion| {
-        let mut item = CompletionItem::new(
-            CompletionItemKind::Attribute,
-            ctx.source_range(),
-            attr_completion.label,
-        );
+        let mut item =
+            CompletionItem::new(SymbolKind::Attribute, ctx.source_range(), attr_completion.label);
 
         if let Some(lookup) = attr_completion.lookup {
             item.lookup_by(lookup);
@@ -96,23 +93,6 @@ fn complete_new_attribute(acc: &mut Completions, ctx: &CompletionContext, attrib
         None if is_inner => ATTRIBUTES.iter().for_each(add_completion),
         None => ATTRIBUTES.iter().filter(|compl| !compl.prefer_inner).for_each(add_completion),
     }
-
-    // FIXME: write a test for this when we can
-    ctx.scope.process_all_names(&mut |name, scope_def| {
-        if let hir::ScopeDef::MacroDef(mac) = scope_def {
-            if mac.kind() == hir::MacroKind::Attr {
-                let mut item = CompletionItem::new(
-                    CompletionItemKind::Attribute,
-                    ctx.source_range(),
-                    name.to_smol_str(),
-                );
-                if let Some(docs) = mac.docs(ctx.sema.db) {
-                    item.documentation(docs);
-                }
-                item.add_to(acc);
-            }
-        }
-    });
 }
 
 struct AttrCompletion {
@@ -306,23 +286,6 @@ const ATTRIBUTES: &[AttrCompletion] = &[
     )
     .prefer_inner(),
 ];
-
-fn parse_comma_sep_paths(input: ast::TokenTree) -> Option<Vec<ast::Path>> {
-    let r_paren = input.r_paren_token()?;
-    let tokens = input
-        .syntax()
-        .children_with_tokens()
-        .skip(1)
-        .take_while(|it| it.as_token() != Some(&r_paren));
-    let input_expressions = tokens.into_iter().group_by(|tok| tok.kind() == T![,]);
-    Some(
-        input_expressions
-            .into_iter()
-            .filter_map(|(is_sep, group)| (!is_sep).then(|| group))
-            .filter_map(|mut tokens| ast::Path::parse(&tokens.join("")).ok())
-            .collect::<Vec<ast::Path>>(),
-    )
-}
 
 fn parse_comma_sep_expr(input: ast::TokenTree) -> Option<Vec<ast::Expr>> {
     let r_paren = input.r_paren_token()?;

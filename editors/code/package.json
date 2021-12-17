@@ -21,7 +21,7 @@
         "Programming Languages"
     ],
     "engines": {
-        "vscode": "^1.57.0"
+        "vscode": "^1.62.0"
     },
     "enableProposedApi": true,
     "scripts": {
@@ -32,33 +32,28 @@
         "watch": "npm run build-base -- --sourcemap --watch",
         "lint": "tsfmt --verify && eslint -c .eslintrc.js --ext ts ./src ./tests",
         "fix": " tsfmt -r       && eslint -c .eslintrc.js --ext ts ./src ./tests --fix",
-        "pretest": "tsc --noEmit && npm run build",
+        "pretest": "tsc && npm run build",
         "test": "node ./out/tests/runTests.js"
     },
     "dependencies": {
         "https-proxy-agent": "^5.0.0",
-        "node-fetch": "^2.6.1",
+        "node-fetch": "^3.0.3",
         "vscode-languageclient": "8.0.0-next.2",
-        "d3": "^7.1.0",
+        "d3": "^7.2.0",
         "d3-graphviz": "^4.0.0"
     },
     "devDependencies": {
-        "@types/glob": "^7.1.4",
-        "@types/mocha": "^8.2.3",
         "@types/node": "~14.17.5",
-        "@types/node-fetch": "^2.5.11",
-        "@types/vscode": "^1.57.0",
-        "@typescript-eslint/eslint-plugin": "^4.28.2",
-        "@typescript-eslint/parser": "^4.28.2",
-        "esbuild": "^0.12.19",
-        "eslint": "^7.30.0",
-        "glob": "^7.1.6",
-        "mocha": "^9.0.2",
+        "@types/vscode": "~1.62.0",
+        "@typescript-eslint/eslint-plugin": "^5.5.0",
+        "@typescript-eslint/parser": "^5.5.0",
+        "@vscode/test-electron": "^1.6.2",
+        "esbuild": "^0.14.1",
+        "eslint": "^8.3.0",
         "tslib": "^2.3.0",
-        "typescript": "^4.3.5",
+        "typescript": "^4.5.2",
         "typescript-formatter": "^7.2.2",
-        "vsce": "^1.95.1",
-        "vscode-test": "^1.5.1"
+        "vsce": "^2.5.1"
     },
     "activationEvents": [
         "onLanguage:rust",
@@ -174,6 +169,11 @@
             {
                 "command": "rust-analyzer.memoryUsage",
                 "title": "Memory Usage (Clears Database)",
+                "category": "Rust Analyzer"
+            },
+            {
+                "command": "rust-analyzer.shuffleCrateGraph",
+                "title": "Shuffle Crate Graph",
                 "category": "Rust Analyzer"
             },
             {
@@ -445,6 +445,11 @@
                     "default": true,
                     "type": "boolean"
                 },
+                "rust-analyzer.cache.warmup": {
+                    "markdownDescription": "Warm up caches on project load.",
+                    "default": true,
+                    "type": "boolean"
+                },
                 "rust-analyzer.callInfo.full": {
                     "markdownDescription": "Show function name and docs in parameter hints.",
                     "default": true,
@@ -587,7 +592,47 @@
                 },
                 "rust-analyzer.completion.snippets": {
                     "markdownDescription": "Custom completion snippets.",
-                    "default": {},
+                    "default": {
+                        "Arc::new": {
+                            "postfix": "arc",
+                            "body": "Arc::new(${receiver})",
+                            "requires": "std::sync::Arc",
+                            "description": "Put the expression into an `Arc`",
+                            "scope": "expr"
+                        },
+                        "Rc::new": {
+                            "postfix": "rc",
+                            "body": "Rc::new(${receiver})",
+                            "requires": "std::rc::Rc",
+                            "description": "Put the expression into an `Rc`",
+                            "scope": "expr"
+                        },
+                        "Box::pin": {
+                            "postfix": "pinbox",
+                            "body": "Box::pin(${receiver})",
+                            "requires": "std::boxed::Box",
+                            "description": "Put the expression into a pinned `Box`",
+                            "scope": "expr"
+                        },
+                        "Ok": {
+                            "postfix": "ok",
+                            "body": "Ok(${receiver})",
+                            "description": "Wrap the expression in a `Result::Ok`",
+                            "scope": "expr"
+                        },
+                        "Err": {
+                            "postfix": "err",
+                            "body": "Err(${receiver})",
+                            "description": "Wrap the expression in a `Result::Err`",
+                            "scope": "expr"
+                        },
+                        "Some": {
+                            "postfix": "some",
+                            "body": "Some(${receiver})",
+                            "description": "Wrap the expression in an `Option::Some`",
+                            "scope": "expr"
+                        }
+                    },
                     "type": "object"
                 },
                 "rust-analyzer.completion.postfix.enable": {
@@ -1112,8 +1157,28 @@
         ],
         "semanticTokenTypes": [
             {
+                "id": "angle",
+                "description": "Style for < or >",
+                "superType": "punctuation"
+            },
+            {
+                "id": "arithmetic",
+                "description": "Style for arithmetic operators",
+                "superType": "operator"
+            },
+            {
                 "id": "attribute",
                 "description": "Style for attributes"
+            },
+            {
+                "id": "attributeBracket",
+                "description": "Style for attribute invocation brackets, that is the `#[` and `]` tokens",
+                "superType": "punctuation"
+            },
+            {
+                "id": "bitwise",
+                "description": "Style for bitwise operators",
+                "superType": "operator"
             },
             {
                 "id": "boolean",
@@ -1121,18 +1186,103 @@
                 "superType": "keyword"
             },
             {
+                "id": "brace",
+                "description": "Style for { or }",
+                "superType": "punctuation"
+            },
+            {
+                "id": "bracket",
+                "description": "Style for [ or ]",
+                "superType": "punctuation"
+            },
+            {
+                "id": "builtinAttribute",
+                "description": "Style for builtin attributes",
+                "superType": "attribute"
+            },
+            {
                 "id": "builtinType",
                 "description": "Style for builtin types",
                 "superType": "type"
+            },
+            {
+                "id": "char",
+                "description": "Style for character literals",
+                "superType": "type"
+            },
+            {
+                "id": "colon",
+                "description": "Style for :",
+                "superType": "punctuation"
+            },
+            {
+                "id": "comma",
+                "description": "Style for ,",
+                "superType": "punctuation"
+            },
+            {
+                "id": "comparison",
+                "description": "Style for comparison operators",
+                "superType": "operator"
+            },
+            {
+                "id": "constParameter",
+                "description": "Style for const generics"
+            },
+            {
+                "id": "derive",
+                "description": "Style for derives",
+                "superType": "attribute"
+            },
+            {
+                "id": "dot",
+                "description": "Style for .",
+                "superType": "punctuation"
+            },
+            {
+                "id": "escapeSequence",
+                "description": "Style for char escapes in strings"
+            },
+            {
+                "id": "formatSpecifier",
+                "description": "Style for {} placeholders in format strings"
+            },
+            {
+                "id": "label",
+                "description": "Style for labels"
             },
             {
                 "id": "lifetime",
                 "description": "Style for lifetimes"
             },
             {
+                "id": "logical",
+                "description": "Style for logic operators",
+                "superType": "operator"
+            },
+            {
+                "id": "operator",
+                "description": "Style for operators",
+                "superType": "punctuation"
+            },
+            {
+                "id": "parenthesis",
+                "description": "Style for ( or )",
+                "superType": "punctuation"
+            },
+            {
+                "id": "punctuation",
+                "description": "Style for generic punctuation"
+            },
+            {
                 "id": "selfKeyword",
                 "description": "Style for the self keyword",
                 "superType": "keyword"
+            },
+            {
+                "id": "semicolon",
+                "description": "Style for ;",
+                "superType": "punctuation"
             },
             {
                 "id": "typeAlias",
@@ -1147,54 +1297,6 @@
             {
                 "id": "unresolvedReference",
                 "description": "Style for names which can not be resolved due to compilation errors"
-            },
-            {
-                "id": "formatSpecifier",
-                "description": "Style for {} placeholders in format strings"
-            },
-            {
-                "id": "punctuation",
-                "description": "generic punctuation"
-            },
-            {
-                "id": "parenthesis",
-                "description": "( or )",
-                "superType": "punctuation"
-            },
-            {
-                "id": "bracket",
-                "description": "[ or ]",
-                "superType": "punctuation"
-            },
-            {
-                "id": "brace",
-                "description": "{ or }",
-                "superType": "punctuation"
-            },
-            {
-                "id": "angle",
-                "description": "< or >",
-                "superType": "punctuation"
-            },
-            {
-                "id": "comma",
-                "description": ",",
-                "superType": "punctuation"
-            },
-            {
-                "id": "colon",
-                "description": ":",
-                "superType": "punctuation"
-            },
-            {
-                "id": "semicolon",
-                "description": ";",
-                "superType": "punctuation"
-            },
-            {
-                "id": "dot",
-                "description": ".",
-                "superType": "punctuation"
             }
         ],
         "semanticTokenModifiers": [
@@ -1207,12 +1309,12 @@
                 "description": "Style for elements within attributes"
             },
             {
-                "id": "constant",
-                "description": "Style for compile-time constants"
-            },
-            {
                 "id": "callable",
                 "description": "Style for locals whose types implements one of the `Fn*` traits"
+            },
+            {
+                "id": "constant",
+                "description": "Style for compile-time constants"
             },
             {
                 "id": "consuming",
@@ -1223,8 +1325,8 @@
                 "description": "Style for control-flow related tokens, this includes the `?` operator"
             },
             {
-                "id": "definition",
-                "description": "Style for mutable bindings"
+                "id": "crateRoot",
+                "description": "Style for names resolving to a crate root"
             },
             {
                 "id": "injected",
@@ -1266,26 +1368,26 @@
                     "attribute": [
                         "meta.attribute.rust"
                     ],
-                    "function.attribute": [
-                        "entity.name.function.attribute.rust"
-                    ],
                     "boolean": [
                         "constant.language.boolean.rust"
                     ],
                     "builtinType": [
                         "support.type.primitive.rust"
                     ],
-                    "lifetime": [
-                        "storage.modifier.lifetime.rust"
+                    "constParameter": [
+                        "constant.other.caps.rust"
                     ],
-                    "typeAlias": [
-                        "entity.name.type.typeAlias.rust"
+                    "enum": [
+                        "entity.name.type.enum.rust"
                     ],
-                    "union": [
-                        "entity.name.type.union.rust"
+                    "formatSpecifier": [
+                        "punctuation.section.embedded.rust"
                     ],
-                    "struct": [
-                        "entity.name.type.struct.rust"
+                    "function": [
+                        "entity.name.function.rust"
+                    ],
+                    "interface": [
+                        "entity.name.type.trait.rust"
                     ],
                     "keyword": [
                         "keyword.other.rust"
@@ -1293,11 +1395,26 @@
                     "keyword.controlFlow": [
                         "keyword.control.rust"
                     ],
+                    "lifetime": [
+                        "storage.modifier.lifetime.rust"
+                    ],
+                    "method": [
+                        "entity.name.function.rust"
+                    ],
+                    "struct": [
+                        "entity.name.type.struct.rust"
+                    ],
+                    "typeAlias": [
+                        "entity.name.type.declaration.rust"
+                    ],
+                    "union": [
+                        "entity.name.type.union.rust"
+                    ],
+                    "variable": [
+                        "variable.other.rust"
+                    ],
                     "variable.constant": [
                         "variable.other.constant.rust"
-                    ],
-                    "formatSpecifier": [
-                        "punctuation.section.embedded.rust"
                     ],
                     "*.mutable": [
                         "markup.underline"

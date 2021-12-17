@@ -1,6 +1,8 @@
 //! Logic for rendering the different hover messages
+use std::fmt::Display;
+
 use either::Either;
-use hir::{AsAssocItem, HasAttrs, HasSource, HirDisplay, Semantics, TypeInfo};
+use hir::{AsAssocItem, AttributeTemplate, HasAttrs, HasSource, HirDisplay, Semantics, TypeInfo};
 use ide_db::{
     base_db::SourceDatabase,
     defs::Definition,
@@ -352,8 +354,8 @@ pub(super) fn definition(
         Definition::Function(it) => label_and_docs(db, it),
         Definition::Adt(it) => label_and_docs(db, it),
         Definition::Variant(it) => label_and_docs(db, it),
-        Definition::Const(it) => label_and_docs(db, it),
-        Definition::Static(it) => label_and_docs(db, it),
+        Definition::Const(it) => label_value_and_docs(db, it, |it| it.value(db)),
+        Definition::Static(it) => label_value_and_docs(db, it, |it| it.value(db)),
         Definition::Trait(it) => label_and_docs(db, it),
         Definition::TypeAlias(it) => label_and_docs(db, it),
         Definition::BuiltinType(it) => {
@@ -367,9 +369,30 @@ pub(super) fn definition(
         }
         Definition::GenericParam(it) => label_and_docs(db, it),
         Definition::Label(it) => return Some(Markup::fenced_block(&it.name(db))),
+        // FIXME: We should be able to show more info about these
+        Definition::BuiltinAttr(it) => return render_builtin_attr(db, it),
+        Definition::ToolModule(it) => return Some(Markup::fenced_block(&it.name(db))),
     };
 
     markup(docs.filter(|_| config.documentation.is_some()).map(Into::into), label, mod_path)
+}
+
+fn render_builtin_attr(db: &RootDatabase, attr: hir::BuiltinAttr) -> Option<Markup> {
+    let name = attr.name(db);
+    let desc = format!("#[{}]", name);
+
+    let AttributeTemplate { word, list, name_value_str } = attr.template(db);
+    let mut docs = "Valid forms are:".to_owned();
+    if word {
+        format_to!(docs, "\n - #\\[{}]", name);
+    }
+    if let Some(list) = list {
+        format_to!(docs, "\n - #\\[{}({})]", name, list);
+    }
+    if let Some(name_value_str) = name_value_str {
+        format_to!(docs, "\n - #\\[{} = {}]", name, name_value_str);
+    }
+    markup(Some(docs.replace('*', "\\*")), desc, None)
 }
 
 fn label_and_docs<D>(db: &RootDatabase, def: D) -> (String, Option<hir::Documentation>)
@@ -377,6 +400,25 @@ where
     D: HasAttrs + HirDisplay,
 {
     let label = def.display(db).to_string();
+    let docs = def.attrs(db).docs();
+    (label, docs)
+}
+
+fn label_value_and_docs<D, E, V>(
+    db: &RootDatabase,
+    def: D,
+    value_extractor: E,
+) -> (String, Option<hir::Documentation>)
+where
+    D: HasAttrs + HirDisplay,
+    E: Fn(&D) -> Option<V>,
+    V: Display,
+{
+    let label = if let Some(value) = (value_extractor)(&def) {
+        format!("{} = {}", def.display(db), value)
+    } else {
+        def.display(db).to_string()
+    };
     let docs = def.attrs(db).docs();
     (label, docs)
 }
@@ -423,7 +465,7 @@ fn find_std_module(famous_defs: &FamousDefs, name: &str) -> Option<hir::Module> 
 
 fn local(db: &RootDatabase, it: hir::Local) -> Option<Markup> {
     let ty = it.ty(db);
-    let ty = ty.display(db);
+    let ty = ty.display_truncated(db, None);
     let is_mut = if it.is_mut(db) { "mut " } else { "" };
     let desc = match it.source(db).value {
         Either::Left(ident) => {

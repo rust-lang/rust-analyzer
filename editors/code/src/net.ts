@@ -9,6 +9,8 @@ import * as zlib from "zlib";
 import * as util from "util";
 import * as path from "path";
 import { log, assert } from "./util";
+import * as https from "https";
+import { ProxySettings } from "./config";
 
 const pipeline = util.promisify(stream.pipeline);
 
@@ -16,10 +18,18 @@ const GITHUB_API_ENDPOINT_URL = "https://api.github.com";
 const OWNER = "rust-analyzer";
 const REPO = "rust-analyzer";
 
+function makeHttpAgent(proxy: string | null | undefined, options?: https.AgentOptions) {
+    if (proxy) {
+        return new HttpsProxyAgent({ ...options, ...new URL(proxy) });
+    } else {
+        return new https.Agent(options);
+    }
+}
+
 export async function fetchRelease(
     releaseTag: string,
     githubToken: string | null | undefined,
-    httpProxy: string | null | undefined,
+    proxySettings: ProxySettings,
 ): Promise<GithubRelease> {
 
     const apiEndpointPath = `/repos/${OWNER}/${REPO}/releases/tags/${releaseTag}`;
@@ -34,12 +44,15 @@ export async function fetchRelease(
     }
 
     const response = await (() => {
-        if (httpProxy) {
-            log.debug(`Fetching release metadata via proxy: ${httpProxy}`);
-            return fetch(requestUrl, { headers: headers, agent: new HttpsProxyAgent(httpProxy) });
+        if (proxySettings.proxy) {
+            log.debug(`Fetching release metadata via proxy: ${proxySettings.proxy}`);
         }
-
-        return fetch(requestUrl, { headers: headers });
+        const options: any = {};
+        if (proxySettings.strictSSL) {
+            options["rejectUnauthorized"] = false;
+        }
+        const agent = makeHttpAgent(proxySettings.proxy, options);
+        return fetch(requestUrl, { headers: headers, agent: agent });
     })();
 
     if (!response.ok) {
@@ -59,8 +72,8 @@ export async function fetchRelease(
         );
     }
 
-    // We skip runtime type checks for simplicity (here we cast from `any` to `GithubRelease`)
-    const release: GithubRelease = await response.json();
+    // We skip runtime type checks for simplicity (here we cast from `unknown` to `GithubRelease`)
+    const release = await response.json() as GithubRelease;
     return release;
 }
 
@@ -83,7 +96,7 @@ interface DownloadOpts {
     dest: vscode.Uri;
     mode?: number;
     gunzip?: boolean;
-    httpProxy?: string;
+    proxySettings: ProxySettings;
 }
 
 export async function download(opts: DownloadOpts) {
@@ -103,7 +116,7 @@ export async function download(opts: DownloadOpts) {
         },
         async (progress, _cancellationToken) => {
             let lastPercentage = 0;
-            await downloadFile(opts.url, tempFilePath, opts.mode, !!opts.gunzip, opts.httpProxy, (readBytes, totalBytes) => {
+            await downloadFile(opts.url, tempFilePath, opts.mode, !!opts.gunzip, opts.proxySettings, (readBytes, totalBytes) => {
                 const newPercentage = Math.round((readBytes / totalBytes) * 100);
                 if (newPercentage !== lastPercentage) {
                     progress.report({
@@ -167,18 +180,21 @@ async function downloadFile(
     destFilePath: vscode.Uri,
     mode: number | undefined,
     gunzip: boolean,
-    httpProxy: string | null | undefined,
+    proxySettings: ProxySettings,
     onProgress: (readBytes: number, totalBytes: number) => void
 ): Promise<void> {
     const urlString = url.toString();
 
     const res = await (() => {
-        if (httpProxy) {
-            log.debug(`Downloading ${urlString} via proxy: ${httpProxy}`);
-            return fetch(urlString, { agent: new HttpsProxyAgent(httpProxy) });
+        if (proxySettings.proxy) {
+            log.debug(`Downloading ${urlString} via proxy: ${proxySettings.proxy}`);
         }
-
-        return fetch(urlString);
+        const options: any = {};
+        if (proxySettings.strictSSL) {
+            options["rejectUnauthorized"] = false;
+        }
+        const agent = makeHttpAgent(proxySettings.proxy, options);
+        return fetch(urlString, { agent: agent });
     })();
 
     if (!res.ok) {
@@ -186,6 +202,12 @@ async function downloadFile(
         log.error({ body: await res.text(), headers: res.headers });
 
         throw new Error(`Got response ${res.status} when trying to download a file.`);
+    }
+
+    if (!res.body) {
+        log.error("Empty body while downloading file from", urlString);
+        log.error({ headers: res.headers });
+        throw new Error(`Got empty body when trying to download a file.`);
     }
 
     const totalBytes = Number(res.headers.get('content-length'));

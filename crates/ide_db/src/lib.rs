@@ -13,12 +13,12 @@ pub mod items_locator;
 pub mod source_change;
 pub mod ty_filter;
 pub mod traits;
-pub mod call_info;
 pub mod helpers;
 pub mod path_transform;
 
 pub mod search;
 pub mod rename;
+pub mod active_parameter;
 
 use std::{fmt, mem::ManuallyDrop, sync::Arc};
 
@@ -145,8 +145,11 @@ fn line_index(db: &dyn LineIndexDatabase, file_id: FileId) -> Arc<LineIndex> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum SymbolKind {
+    Attribute,
+    BuiltinAttr,
     Const,
     ConstParam,
+    Derive,
     Enum,
     Field,
     Function,
@@ -159,12 +162,25 @@ pub enum SymbolKind {
     SelfParam,
     Static,
     Struct,
+    ToolModule,
     Trait,
     TypeAlias,
     TypeParam,
     Union,
     ValueParam,
     Variant,
+}
+
+impl From<hir::MacroKind> for SymbolKind {
+    fn from(it: hir::MacroKind) -> Self {
+        match it {
+            hir::MacroKind::Declarative | hir::MacroKind::BuiltIn | hir::MacroKind::ProcMacro => {
+                SymbolKind::Macro
+            }
+            hir::MacroKind::Derive => SymbolKind::Derive,
+            hir::MacroKind::Attr => SymbolKind::Attribute,
+        }
+    }
 }
 
 #[cfg(test)]

@@ -96,25 +96,29 @@ fn main() {
 
 #[test]
 fn short_paths_are_ignored() {
-    cov_mark::check!(ignore_short_input_for_path);
+    cov_mark::check!(flyimport_exact_on_short_path);
 
     check(
         r#"
 //- /lib.rs crate:dep
-pub struct FirstStruct;
+pub struct Bar;
+pub struct Rcar;
+pub struct Rc;
 pub mod some_module {
-    pub struct SecondStruct;
-    pub struct ThirdStruct;
+    pub struct Bar;
+    pub struct Rcar;
+    pub struct Rc;
 }
 
 //- /main.rs crate:main deps:dep
-use dep::{FirstStruct, some_module::SecondStruct};
-
 fn main() {
-    t$0
+    rc$0
 }
 "#,
-        expect![[r#""#]],
+        expect![[r#"
+            st Rc (use dep::Rc)
+            st Rc (use dep::some_module::Rc)
+        "#]],
     );
 }
 
@@ -772,7 +776,7 @@ mod foo {
 }
 
 fn main() {
-    TE$0
+    TES$0
 }"#,
         expect![[r#"
         ct TEST_CONST (use foo::TEST_CONST)
@@ -789,7 +793,7 @@ mod foo {
 }
 
 fn main() {
-    te$0
+    tes$0
 }"#,
         expect![[r#"
         ct TEST_CONST (use foo::TEST_CONST)
@@ -846,7 +850,7 @@ struct Foo {
     some_field: i32,
 }
 fn main() {
-    let _ = Foo { some_field: so$0 };
+    let _ = Foo { some_field: som$0 };
 }
 "#,
         expect![[r#"
@@ -922,6 +926,44 @@ mod bar {
     }
 }
             "#,
+        expect![[r#""#]],
+    );
+    check(
+        r#"
+mod baz {
+    pub trait DefDatabase {
+        fn method1(&self);
+    }
+    pub trait HirDatabase: DefDatabase {
+        fn method2(&self);
+    }
+}
+
+mod bar {
+    fn test(db: &impl crate::baz::HirDatabase) {
+        db.metho$0
+    }
+}
+"#,
+        expect![[r#""#]],
+    );
+    check(
+        r#"
+mod baz {
+    pub trait DefDatabase {
+        fn method1(&self);
+    }
+    pub trait HirDatabase: DefDatabase {
+        fn method2(&self);
+    }
+}
+
+mod bar {
+    fn test<T: crate::baz::HirDatabase>(db: T) {
+        db.metho$0
+    }
+}
+"#,
         expect![[r#""#]],
     );
 }
@@ -1001,6 +1043,19 @@ fn function() {
 }
 
 #[test]
+fn flyimport_item_name() {
+    check(
+        r#"
+mod module {
+    pub struct Struct;
+}
+struct Str$0
+    "#,
+        expect![[r#""#]],
+    );
+}
+
+#[test]
 fn flyimport_rename() {
     check(
         r#"
@@ -1042,4 +1097,32 @@ enum Foo {
             st Barbara (use foo::Barbara)
         "#]],
     )
+}
+
+#[test]
+fn flyimport_attribute() {
+    check(
+        r#"
+//- proc_macros:identity
+#[ide$0]
+struct Foo;
+"#,
+        expect![[r#"
+            at identity (use proc_macros::identity) pub macro identity
+        "#]],
+    );
+    check_edit(
+        "identity",
+        r#"
+//- proc_macros:identity
+#[ide$0]
+struct Foo;
+"#,
+        r#"
+use proc_macros::identity;
+
+#[identity]
+struct Foo;
+"#,
+    );
 }

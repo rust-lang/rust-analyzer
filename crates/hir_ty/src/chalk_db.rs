@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use cov_mark::hit;
+use syntax::SmolStr;
 use tracing::debug;
 
 use chalk_ir::{cast::Cast, fold::shift::Shift, CanonicalVarKinds};
@@ -11,7 +12,7 @@ use chalk_solve::rust_ir::{self, OpaqueTyDatumBound, WellKnownTrait};
 use base_db::CrateId;
 use hir_def::{
     lang_item::{lang_attr, LangItemTarget},
-    AssocContainerId, AssocItemId, GenericDefId, HasModule, Lookup, ModuleId, TypeAliasId,
+    AssocItemId, GenericDefId, HasModule, ItemContainerId, Lookup, ModuleId, TypeAliasId,
 };
 use hir_expand::name::name;
 
@@ -213,7 +214,7 @@ impl<'a> chalk_solve::RustIrDatabase<Interner> for ChalkContext<'a> {
             crate::ImplTraitId::AsyncBlockTypeImplTrait(..) => {
                 if let Some((future_trait, future_output)) = self
                     .db
-                    .lang_item(self.krate, "future_trait".into())
+                    .lang_item(self.krate, SmolStr::new_inline("future_trait"))
                     .and_then(|item| item.as_trait())
                     .and_then(|trait_| {
                         let alias =
@@ -396,7 +397,7 @@ pub(crate) fn associated_ty_data_query(
     debug!("associated_ty_data {:?}", id);
     let type_alias: TypeAliasId = from_assoc_type_id(id);
     let trait_ = match type_alias.lookup(db.upcast()).container {
-        AssocContainerId::TraitId(t) => t,
+        ItemContainerId::TraitId(t) => t,
         _ => panic!("associated type not in trait"),
     };
 
@@ -419,7 +420,7 @@ pub(crate) fn associated_ty_data_query(
     if !ctx.unsized_types.borrow().contains(&self_ty) {
         let sized_trait = resolver
             .krate()
-            .and_then(|krate| db.lang_item(krate, "sized".into()))
+            .and_then(|krate| db.lang_item(krate, SmolStr::new_inline("sized")))
             .and_then(|lang_item| lang_item.as_trait().map(to_chalk_trait_id));
         let sized_bound = sized_trait.into_iter().map(|sized_trait| {
             let trait_bound =
@@ -634,7 +635,7 @@ fn type_alias_associated_ty_value(
 ) -> Arc<AssociatedTyValue> {
     let type_alias_data = db.type_alias_data(type_alias);
     let impl_id = match type_alias.lookup(db.upcast()).container {
-        AssocContainerId::ImplId(it) => it,
+        ItemContainerId::ImplId(it) => it,
         _ => panic!("assoc ty value should be in impl"),
     };
 

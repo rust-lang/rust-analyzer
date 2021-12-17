@@ -5,11 +5,12 @@ use std::mem;
 use either::Either;
 use hir::{InFile, Semantics};
 use ide_db::{
-    call_info::ActiveParameter, defs::Definition, helpers::rust_doc::is_rust_fence, SymbolKind,
+    active_parameter::ActiveParameter, defs::Definition, helpers::rust_doc::is_rust_fence,
+    SymbolKind,
 };
 use syntax::{
     ast::{self, AstNode, IsString},
-    AstToken, NodeOrToken, SyntaxNode, SyntaxToken, TextRange, TextSize,
+    AstToken, NodeOrToken, SyntaxNode, TextRange, TextSize,
 };
 
 use crate::{
@@ -21,10 +22,10 @@ use crate::{
 pub(super) fn ra_fixture(
     hl: &mut Highlights,
     sema: &Semantics<RootDatabase>,
-    literal: ast::String,
-    expanded: SyntaxToken,
+    literal: &ast::String,
+    expanded: &ast::String,
 ) -> Option<()> {
-    let active_parameter = ActiveParameter::at_token(sema, expanded)?;
+    let active_parameter = ActiveParameter::at_token(sema, expanded.syntax().clone())?;
     if !active_parameter.ident().map_or(false, |name| name.text().starts_with("ra_fixture")) {
         return None;
     }
@@ -262,6 +263,8 @@ fn module_def_to_hl_tag(def: Definition) -> HlTag {
             hir::GenericParam::ConstParam(_) => SymbolKind::ConstParam,
         },
         Definition::Label(_) => SymbolKind::Label,
+        Definition::BuiltinAttr(_) => SymbolKind::BuiltinAttr,
+        Definition::ToolModule(_) => SymbolKind::ToolModule,
     };
     HlTag::Symbol(symbol)
 }

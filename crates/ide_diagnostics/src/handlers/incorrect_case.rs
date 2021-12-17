@@ -332,6 +332,15 @@ fn main() {
         check_diagnostics(
             r#"
 #![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
+
+struct S {
+    fooBar: bool,
+}
+
+enum E {
+    fooBar,
+}
 
 mod F {
     fn CheckItWorksWithCrateAttr(BAD_NAME_HI: u8) {}
@@ -392,6 +401,24 @@ fn qualify() {
 extern {
     fn NonSnakeCaseName(SOME_VAR: u8) -> u8;
     pub static SomeStatic: u8 = 10;
+}
+            "#,
+        );
+    }
+
+    #[test]
+    fn ignores_extern_items_from_macro() {
+        check_diagnostics(
+            r#"
+macro_rules! m {
+    () => {
+        fn NonSnakeCaseName(SOME_VAR: u8) -> u8;
+        pub static SomeStatic: u8 = 10;
+    }
+}
+
+extern {
+    m!();
 }
             "#,
         );

@@ -433,7 +433,7 @@ fn main() { Foo::Fo$0 }
                         kind: SymbolKind(
                             Variant,
                         ),
-                        detail: "{ x: i32, y: i32 }",
+                        detail: "{x: i32, y: i32}",
                     },
                 ]
             "#]],
@@ -1437,9 +1437,6 @@ fn main() {
                 sn refm []
                 sn match []
                 sn box []
-                sn ok []
-                sn err []
-                sn some []
                 sn dbg []
                 sn dbgr []
                 sn call []

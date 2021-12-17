@@ -6,7 +6,8 @@ use std::{collections::VecDeque, fmt, fs, process::Command};
 
 use anyhow::{format_err, Context, Result};
 use base_db::{
-    CrateDisplayName, CrateGraph, CrateId, CrateName, Dependency, Edition, Env, FileId, ProcMacro,
+    CrateDisplayName, CrateGraph, CrateId, CrateName, CrateOrigin, Dependency, Edition, Env,
+    FileId, ProcMacro,
 };
 use cfg::{CfgDiff, CfgOptions};
 use paths::{AbsPath, AbsPathBuf};
@@ -473,6 +474,11 @@ fn project_json_to_crate_graph(
                     cfg_options,
                     env,
                     proc_macro.unwrap_or_default(),
+                    if krate.display_name.is_some() {
+                        CrateOrigin::CratesIo { repo: krate.repository.clone() }
+                    } else {
+                        CrateOrigin::Unknown
+                    },
                 ),
             )
         })
@@ -589,6 +595,9 @@ fn cargo_to_crate_graph(
 
         // Set deps to the core, std and to the lib target of the current package
         for (from, kind) in pkg_crates.get(&pkg).into_iter().flatten() {
+            // Add sysroot deps first so that a lib target named `core` etc. can overwrite them.
+            public_deps.add(*from, &mut crate_graph);
+
             if let Some((to, name)) = lib_tgt.clone() {
                 if to != *from && *kind != TargetKind::BuildScript {
                     // (build script can not depend on its library target)
@@ -600,7 +609,6 @@ fn cargo_to_crate_graph(
                     add_dep(&mut crate_graph, *from, name, to);
                 }
             }
-            public_deps.add(*from, &mut crate_graph);
         }
     }
 
@@ -681,6 +689,7 @@ fn detached_files_to_crate_graph(
             cfg_options.clone(),
             Env::default(),
             Vec::new(),
+            CrateOrigin::Unknown,
         );
 
         public_deps.add(detached_file_crate, &mut crate_graph);
@@ -821,7 +830,6 @@ fn add_target_crate_root(
             .iter()
             .map(|feat| CfgFlag::KeyValue { key: "feature".into(), value: feat.0.into() }),
     );
-
     crate_graph.add_crate_root(
         file_id,
         edition,
@@ -831,6 +839,7 @@ fn add_target_crate_root(
         potential_cfg_options,
         env,
         proc_macro,
+        CrateOrigin::CratesIo { repo: pkg.repository.clone() },
     )
 }
 
@@ -874,6 +883,7 @@ fn sysroot_to_crate_graph(
                 cfg_options.clone(),
                 env,
                 proc_macro,
+                CrateOrigin::Lang,
             );
             Some((krate, crate_id))
         })

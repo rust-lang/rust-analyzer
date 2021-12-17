@@ -8,7 +8,6 @@ use std::iter;
 use base_db::{CrateId, Edition, FileId, ProcMacroId};
 use cfg::{CfgExpr, CfgOptions};
 use hir_expand::{
-    ast_id_map::FileAstId,
     builtin_attr_macro::find_builtin_attr,
     builtin_derive_macro::find_builtin_derive,
     builtin_fn_macro::find_builtin_macro,
@@ -45,20 +44,16 @@ use crate::{
     path::{ImportAlias, ModPath, PathKind},
     per_ns::PerNs,
     visibility::{RawVisibility, Visibility},
-    AdtId, AstId, AstIdWithPath, ConstLoc, EnumLoc, EnumVariantId, FunctionLoc, ImplLoc, Intern,
-    LocalModuleId, ModuleDefId, StaticLoc, StructLoc, TraitLoc, TypeAliasLoc, UnionLoc,
-    UnresolvedMacro,
+    AdtId, AstId, AstIdWithPath, ConstLoc, EnumLoc, EnumVariantId, ExternBlockLoc, FunctionLoc,
+    ImplLoc, Intern, ItemContainerId, LocalModuleId, ModuleDefId, StaticLoc, StructLoc, TraitLoc,
+    TypeAliasLoc, UnionLoc, UnresolvedMacro,
 };
 
 static GLOB_RECURSION_LIMIT: Limit = Limit::new(100);
 static EXPANSION_DEPTH_LIMIT: Limit = Limit::new(128);
 static FIXED_POINT_LIMIT: Limit = Limit::new(8192);
 
-pub(super) fn collect_defs(
-    db: &dyn DefDatabase,
-    mut def_map: DefMap,
-    block: Option<AstId<ast::BlockExpr>>,
-) -> DefMap {
+pub(super) fn collect_defs(db: &dyn DefDatabase, mut def_map: DefMap, tree_id: TreeId) -> DefMap {
     let crate_graph = db.crate_graph();
 
     let mut deps = FxHashMap::default();
@@ -70,7 +65,7 @@ pub(super) fn collect_defs(
 
         deps.insert(dep.as_name(), dep_root.into());
 
-        if dep.is_prelude() && block.is_none() {
+        if dep.is_prelude() && !tree_id.is_block() {
             def_map.extern_prelude.insert(dep.as_name(), dep_root.into());
         }
     }
@@ -105,9 +100,10 @@ pub(super) fn collect_defs(
         registered_attrs: Default::default(),
         registered_tools: Default::default(),
     };
-    match block {
-        Some(block) => collector.seed_with_inner(block),
-        None => collector.seed_with_top_level(),
+    if tree_id.is_block() {
+        collector.seed_with_inner(tree_id);
+    } else {
+        collector.seed_with_top_level();
     }
     collector.collect();
     let mut def_map = collector.finish();
@@ -217,20 +213,14 @@ struct MacroDirective {
     module_id: LocalModuleId,
     depth: usize,
     kind: MacroDirectiveKind,
+    container: ItemContainerId,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum MacroDirectiveKind {
     FnLike { ast_id: AstIdWithPath<ast::MacroCall>, expand_to: ExpandTo },
     Derive { ast_id: AstIdWithPath<ast::Item>, derive_attr: AttrId },
-    Attr { ast_id: AstIdWithPath<ast::Item>, attr: Attr, mod_item: ModItem },
-}
-
-struct DefData<'a> {
-    id: ModuleDefId,
-    name: &'a Name,
-    visibility: &'a RawVisibility,
-    has_constructor: bool,
+    Attr { ast_id: AstIdWithPath<ast::Item>, attr: Attr, mod_item: ModItem, tree: TreeId },
 }
 
 /// Walks the tree of module recursively
@@ -317,12 +307,12 @@ impl DefCollector<'_> {
                 item_tree: &item_tree,
                 mod_dir: ModDir::root(),
             }
-            .collect(item_tree.top_level_items());
+            .collect_in_top_module(item_tree.top_level_items());
         }
     }
 
-    fn seed_with_inner(&mut self, block: AstId<ast::BlockExpr>) {
-        let item_tree = self.db.file_item_tree(block.file_id);
+    fn seed_with_inner(&mut self, tree_id: TreeId) {
+        let item_tree = tree_id.item_tree(self.db);
         let module_id = self.def_map.root;
 
         let is_cfg_enabled = item_tree
@@ -334,12 +324,11 @@ impl DefCollector<'_> {
                 def_collector: self,
                 macro_depth: 0,
                 module_id,
-                // FIXME: populate block once we have per-block ItemTrees
-                tree_id: TreeId::new(block.file_id, None),
+                tree_id,
                 item_tree: &item_tree,
                 mod_dir: ModDir::root(),
             }
-            .collect(item_tree.inner_items_of_block(block.value));
+            .collect_in_top_module(item_tree.top_level_items());
         }
     }
 
@@ -432,21 +421,20 @@ impl DefCollector<'_> {
 
         let mut unresolved_macros = std::mem::take(&mut self.unresolved_macros);
         let pos = unresolved_macros.iter().position(|directive| {
-            if let MacroDirectiveKind::Attr { ast_id, mod_item, attr } = &directive.kind {
+            if let MacroDirectiveKind::Attr { ast_id, mod_item, attr, tree } = &directive.kind {
                 self.skip_attrs.insert(ast_id.ast_id.with_value(*mod_item), attr.id);
 
-                let file_id = ast_id.ast_id.file_id;
-                let item_tree = self.db.file_item_tree(file_id);
+                let item_tree = tree.item_tree(self.db);
                 let mod_dir = self.mod_dirs[&directive.module_id].clone();
                 ModCollector {
                     def_collector: self,
                     macro_depth: directive.depth,
                     module_id: directive.module_id,
-                    tree_id: TreeId::new(file_id, None),
+                    tree_id: *tree,
                     item_tree: &item_tree,
                     mod_dir,
                 }
-                .collect(&[*mod_item]);
+                .collect(&[*mod_item], directive.container);
                 true
             } else {
                 false
@@ -607,6 +595,7 @@ impl DefCollector<'_> {
     ) {
         // Textual scoping
         self.define_legacy_macro(module_id, name.clone(), macro_);
+        self.def_map.modules[module_id].scope.declare_macro(macro_);
 
         // Module scoping
         // In Rust, `#[macro_export]` macros are unconditionally visible at the
@@ -645,6 +634,7 @@ impl DefCollector<'_> {
     ) {
         let vis =
             self.def_map.resolve_visibility(self.db, module_id, vis).unwrap_or(Visibility::Public);
+        self.def_map.modules[module_id].scope.declare_macro(macro_);
         self.update(module_id, &[(Some(name), PerNs::macros(macro_, vis))], vis, ImportType::Named);
     }
 
@@ -653,6 +643,7 @@ impl DefCollector<'_> {
     /// A proc macro is similar to normal macro scope, but it would not visible in legacy textual scoped.
     /// And unconditionally exported.
     fn define_proc_macro(&mut self, name: Name, macro_: MacroDefId) {
+        self.def_map.modules[self.def_map.root].scope.declare_macro(macro_);
         self.update(
             self.def_map.root,
             &[(Some(name), PerNs::macros(macro_, Visibility::Public))],
@@ -1062,13 +1053,15 @@ impl DefCollector<'_> {
                         &resolver,
                         &mut |_err| (),
                     );
-                    match call_id {
-                        Ok(Ok(call_id)) => {
-                            resolved.push((directive.module_id, call_id, directive.depth));
-                            res = ReachedFixedPoint::No;
-                            return false;
-                        }
-                        Err(UnresolvedMacro { .. }) | Ok(Err(_)) => {}
+                    if let Ok(Ok(call_id)) = call_id {
+                        resolved.push((
+                            directive.module_id,
+                            call_id,
+                            directive.depth,
+                            directive.container,
+                        ));
+                        res = ReachedFixedPoint::No;
+                        return false;
                     }
                 }
                 MacroDirectiveKind::Derive { ast_id, derive_attr } => {
@@ -1079,78 +1072,82 @@ impl DefCollector<'_> {
                         self.def_map.krate,
                         &resolver,
                     );
-                    match call_id {
-                        Ok(call_id) => {
-                            self.def_map.modules[directive.module_id].scope.add_derive_macro_invoc(
-                                ast_id.ast_id,
-                                call_id,
-                                *derive_attr,
-                            );
+                    if let Ok(call_id) = call_id {
+                        self.def_map.modules[directive.module_id].scope.add_derive_macro_invoc(
+                            ast_id.ast_id,
+                            call_id,
+                            *derive_attr,
+                        );
 
-                            resolved.push((directive.module_id, call_id, directive.depth));
-                            res = ReachedFixedPoint::No;
-                            return false;
-                        }
-                        Err(UnresolvedMacro { .. }) => {}
+                        resolved.push((
+                            directive.module_id,
+                            call_id,
+                            directive.depth,
+                            directive.container,
+                        ));
+                        res = ReachedFixedPoint::No;
+                        return false;
                     }
                 }
-                MacroDirectiveKind::Attr { ast_id, mod_item, attr } => {
-                    let file_id = ast_id.ast_id.file_id;
-                    let mut recollect_without = |collector: &mut Self, item_tree| {
+                MacroDirectiveKind::Attr { ast_id: file_ast_id, mod_item, attr, tree } => {
+                    let &AstIdWithPath { ast_id, ref path } = file_ast_id;
+                    let file_id = ast_id.file_id;
+
+                    let mut recollect_without = |collector: &mut Self| {
                         // Remove the original directive since we resolved it.
                         let mod_dir = collector.mod_dirs[&directive.module_id].clone();
                         collector.skip_attrs.insert(InFile::new(file_id, *mod_item), attr.id);
+
+                        let item_tree = tree.item_tree(self.db);
                         ModCollector {
                             def_collector: collector,
                             macro_depth: directive.depth,
                             module_id: directive.module_id,
-                            tree_id: TreeId::new(file_id, None),
-                            item_tree,
+                            tree_id: *tree,
+                            item_tree: &item_tree,
                             mod_dir,
                         }
-                        .collect(&[*mod_item]);
+                        .collect(&[*mod_item], directive.container);
                         res = ReachedFixedPoint::No;
                         false
                     };
 
-                    if let Some(ident) = ast_id.path.as_ident() {
-                        if let Some(helpers) = self.derive_helpers_in_scope.get(&ast_id.ast_id) {
+                    if let Some(ident) = path.as_ident() {
+                        if let Some(helpers) = self.derive_helpers_in_scope.get(&ast_id) {
                             if helpers.contains(ident) {
                                 cov_mark::hit!(resolved_derive_helper);
                                 // Resolved to derive helper. Collect the item's attributes again,
                                 // starting after the derive helper.
-                                let item_tree = self.db.file_item_tree(file_id);
-                                return recollect_without(self, &item_tree);
+                                return recollect_without(self);
                             }
                         }
                     }
 
-                    let def = resolver(ast_id.path.clone()).filter(MacroDefId::is_attribute);
+                    let def = resolver(path.clone()).filter(MacroDefId::is_attribute);
                     if matches!(
                         def,
                         Some(MacroDefId {  kind:MacroDefKind::BuiltInAttr(expander, _),.. })
                         if expander.is_derive()
                     ) {
                         // Resolved to `#[derive]`
-                        let file_id = ast_id.ast_id.file_id;
-                        let item_tree = self.db.file_item_tree(file_id);
 
-                        let ast_id: FileAstId<ast::Item> = match *mod_item {
-                            ModItem::Struct(it) => item_tree[it].ast_id.upcast(),
-                            ModItem::Union(it) => item_tree[it].ast_id.upcast(),
-                            ModItem::Enum(it) => item_tree[it].ast_id.upcast(),
+                        match mod_item {
+                            ModItem::Struct(_) | ModItem::Union(_) | ModItem::Enum(_) => (),
                             _ => {
-                                // Cannot use derive on this item.
-                                // FIXME: diagnose
-                                res = ReachedFixedPoint::No;
-                                return false;
+                                let diag = DefDiagnostic::invalid_derive_target(
+                                    directive.module_id,
+                                    ast_id,
+                                    attr.id,
+                                );
+                                self.def_map.diagnostics.push(diag);
+                                return recollect_without(self);
                             }
-                        };
+                        }
 
                         match attr.parse_derive() {
                             Some(derive_macros) => {
                                 for path in derive_macros {
-                                    let ast_id = AstIdWithPath::new(file_id, ast_id, path);
+                                    let ast_id = AstIdWithPath::new(file_id, ast_id.value, path);
                                     self.unresolved_macros.push(MacroDirective {
                                         module_id: directive.module_id,
                                         depth: directive.depth + 1,
@@ -1158,16 +1155,21 @@ impl DefCollector<'_> {
                                             ast_id,
                                             derive_attr: attr.id,
                                         },
+                                        container: directive.container,
                                     });
                                 }
                             }
                             None => {
-                                // FIXME: diagnose
-                                tracing::debug!("malformed derive: {:?}", attr);
+                                let diag = DefDiagnostic::malformed_derive(
+                                    directive.module_id,
+                                    ast_id,
+                                    attr.id,
+                                );
+                                self.def_map.diagnostics.push(diag);
                             }
                         }
 
-                        return recollect_without(self, &item_tree);
+                        return recollect_without(self);
                     }
 
                     if !self.db.enable_proc_attr_macros() {
@@ -1175,7 +1177,8 @@ impl DefCollector<'_> {
                     }
 
                     // Not resolved to a derive helper or the derive attribute, so try to resolve as a normal attribute.
-                    match attr_macro_as_call_id(ast_id, attr, self.db, self.def_map.krate, def) {
+                    match attr_macro_as_call_id(file_ast_id, attr, self.db, self.def_map.krate, def)
+                    {
                         Ok(call_id) => {
                             let loc: MacroCallLoc = self.db.lookup_intern_macro_call(call_id);
 
@@ -1186,8 +1189,7 @@ impl DefCollector<'_> {
                                 MacroDefKind::BuiltInAttr(expander, _)
                                 if expander.is_test() || expander.is_bench()
                             ) {
-                                let item_tree = self.db.file_item_tree(file_id);
-                                return recollect_without(self, &item_tree);
+                                return recollect_without(self);
                             }
 
                             if let MacroDefKind::ProcMacro(exp, ..) = loc.def.kind {
@@ -1201,17 +1203,20 @@ impl DefCollector<'_> {
                                         ),
                                     );
 
-                                    let file_id = ast_id.ast_id.file_id;
-                                    let item_tree = self.db.file_item_tree(file_id);
-                                    return recollect_without(self, &item_tree);
+                                    return recollect_without(self);
                                 }
                             }
 
                             self.def_map.modules[directive.module_id]
                                 .scope
-                                .add_attr_macro_invoc(ast_id.ast_id, call_id);
+                                .add_attr_macro_invoc(ast_id, call_id);
 
-                            resolved.push((directive.module_id, call_id, directive.depth));
+                            resolved.push((
+                                directive.module_id,
+                                call_id,
+                                directive.depth,
+                                directive.container,
+                            ));
                             res = ReachedFixedPoint::No;
                             return false;
                         }
@@ -1225,8 +1230,8 @@ impl DefCollector<'_> {
         // Attribute resolution can add unresolved macro invocations, so concatenate the lists.
         self.unresolved_macros.extend(macros);
 
-        for (module_id, macro_call_id, depth) in resolved {
-            self.collect_macro_expansion(module_id, macro_call_id, depth);
+        for (module_id, macro_call_id, depth, container) in resolved {
+            self.collect_macro_expansion(module_id, macro_call_id, depth, container);
         }
 
         res
@@ -1237,6 +1242,7 @@ impl DefCollector<'_> {
         module_id: LocalModuleId,
         macro_call_id: MacroCallId,
         depth: usize,
+        container: ItemContainerId,
     ) {
         if EXPANSION_DEPTH_LIMIT.check(depth).is_err() {
             cov_mark::hit!(macro_expansion_overflow);
@@ -1288,7 +1294,7 @@ impl DefCollector<'_> {
             item_tree: &item_tree,
             mod_dir,
         }
-        .collect(item_tree.top_level_items());
+        .collect(item_tree.top_level_items(), container);
     }
 
     fn finish(mut self) -> DefMap {
@@ -1353,19 +1359,18 @@ impl DefCollector<'_> {
         }
 
         for directive in &self.unresolved_imports {
-            if let ImportSource::Import { id: import, use_tree } = &directive.import.source {
-                if let (Some(krate), PathKind::Plain | PathKind::Abs) =
-                    (directive.import.path.segments().first(), &directive.import.path.kind)
-                {
-                    if diagnosed_extern_crates.contains(krate) {
-                        continue;
-                    }
+            if let ImportSource::Import { id: import, use_tree } = directive.import.source {
+                if matches!(
+                    (directive.import.path.segments().first(), &directive.import.path.kind),
+                    (Some(krate), PathKind::Plain | PathKind::Abs) if diagnosed_extern_crates.contains(krate)
+                ) {
+                    continue;
                 }
 
                 self.def_map.diagnostics.push(DefDiagnostic::unresolved_import(
                     directive.module_id,
-                    *import,
-                    *use_tree,
+                    import,
+                    use_tree,
                 ));
             }
         }
@@ -1385,7 +1390,19 @@ struct ModCollector<'a, 'b> {
 }
 
 impl ModCollector<'_, '_> {
-    fn collect(&mut self, items: &[ModItem]) {
+    fn collect_in_top_module(&mut self, items: &[ModItem]) {
+        let module = self.def_collector.def_map.module_id(self.module_id);
+        self.collect(items, module.into())
+    }
+
+    fn collect(&mut self, items: &[ModItem], container: ItemContainerId) {
+        struct DefData<'a> {
+            id: ModuleDefId,
+            name: &'a Name,
+            visibility: &'a RawVisibility,
+            has_constructor: bool,
+        }
+
         let krate = self.def_collector.def_map.krate;
 
         // Note: don't assert that inserted value is fresh: it's simply not true
@@ -1403,18 +1420,18 @@ impl ModCollector<'_, '_> {
         // This should be processed eagerly instead of deferred to resolving.
         // `#[macro_use] extern crate` is hoisted to imports macros before collecting
         // any other items.
-        for item in items {
-            let attrs = self.item_tree.attrs(self.def_collector.db, krate, (*item).into());
+        for &item in items {
+            let attrs = self.item_tree.attrs(self.def_collector.db, krate, item.into());
             if attrs.cfg().map_or(true, |cfg| self.is_cfg_enabled(&cfg)) {
                 if let ModItem::ExternCrate(id) = item {
-                    let import = self.item_tree[*id].clone();
+                    let import = &self.item_tree[id];
                     let attrs = self.item_tree.attrs(
                         self.def_collector.db,
                         krate,
-                        ModItem::from(*id).into(),
+                        ModItem::from(id).into(),
                     );
                     if attrs.by_key("macro_use").exists() {
-                        self.def_collector.import_macros_from_extern_crate(self.module_id, &import);
+                        self.def_collector.import_macros_from_extern_crate(self.module_id, import);
                     }
                 }
             }
@@ -1429,7 +1446,7 @@ impl ModCollector<'_, '_> {
                 }
             }
 
-            if let Err(()) = self.resolve_attributes(&attrs, item) {
+            if let Err(()) = self.resolve_attributes(&attrs, item, container) {
                 // Do not process the item. It has at least one non-builtin attribute, so the
                 // fixed-point algorithm is required to resolve the rest of them.
                 continue;
@@ -1468,8 +1485,17 @@ impl ModCollector<'_, '_> {
                         status: PartialResolvedImport::Unresolved,
                     })
                 }
-                ModItem::ExternBlock(block) => self.collect(&self.item_tree[block].children),
-                ModItem::MacroCall(mac) => self.collect_macro_call(&self.item_tree[mac]),
+                ModItem::ExternBlock(block) => self.collect(
+                    &self.item_tree[block].children,
+                    ItemContainerId::ExternBlockId(
+                        ExternBlockLoc {
+                            container: module,
+                            id: ItemTreeId::new(self.tree_id, block),
+                        }
+                        .intern(self.def_collector.db),
+                    ),
+                ),
+                ModItem::MacroCall(mac) => self.collect_macro_call(&self.item_tree[mac], container),
                 ModItem::MacroRules(id) => self.collect_macro_rules(id),
                 ModItem::MacroDef(id) => self.collect_macro_def(id),
                 ModItem::Impl(imp) => {
@@ -1486,12 +1512,9 @@ impl ModCollector<'_, '_> {
                     self.collect_proc_macro_def(&func.name, ast_id, &attrs);
 
                     def = Some(DefData {
-                        id: FunctionLoc {
-                            container: module.into(),
-                            id: ItemTreeId::new(self.tree_id, id),
-                        }
-                        .intern(self.def_collector.db)
-                        .into(),
+                        id: FunctionLoc { container, id: ItemTreeId::new(self.tree_id, id) }
+                            .intern(self.def_collector.db)
+                            .into(),
                         name: &func.name,
                         visibility: &self.item_tree[func.visibility],
                         has_constructor: false,
@@ -1535,11 +1558,8 @@ impl ModCollector<'_, '_> {
                 }
                 ModItem::Const(id) => {
                     let it = &self.item_tree[id];
-                    let const_id = ConstLoc {
-                        container: module.into(),
-                        id: ItemTreeId::new(self.tree_id, id),
-                    }
-                    .intern(self.def_collector.db);
+                    let const_id = ConstLoc { container, id: ItemTreeId::new(self.tree_id, id) }
+                        .intern(self.def_collector.db);
 
                     match &it.name {
                         Some(name) => {
@@ -1562,7 +1582,7 @@ impl ModCollector<'_, '_> {
                     let it = &self.item_tree[id];
 
                     def = Some(DefData {
-                        id: StaticLoc { container: module, id: ItemTreeId::new(self.tree_id, id) }
+                        id: StaticLoc { container, id: ItemTreeId::new(self.tree_id, id) }
                             .intern(self.def_collector.db)
                             .into(),
                         name: &it.name,
@@ -1586,12 +1606,9 @@ impl ModCollector<'_, '_> {
                     let it = &self.item_tree[id];
 
                     def = Some(DefData {
-                        id: TypeAliasLoc {
-                            container: module.into(),
-                            id: ItemTreeId::new(self.tree_id, id),
-                        }
-                        .intern(self.def_collector.db)
-                        .into(),
+                        id: TypeAliasLoc { container, id: ItemTreeId::new(self.tree_id, id) }
+                            .intern(self.def_collector.db)
+                            .into(),
                         name: &it.name,
                         visibility: &self.item_tree[it.visibility],
                         has_constructor: false,
@@ -1639,7 +1656,7 @@ impl ModCollector<'_, '_> {
                         item_tree: self.item_tree,
                         mod_dir,
                     }
-                    .collect(&*items);
+                    .collect_in_top_module(&*items);
                     if is_macro_use {
                         self.import_all_legacy_macros(module_id);
                     }
@@ -1656,9 +1673,7 @@ impl ModCollector<'_, '_> {
                         let is_enabled = item_tree
                             .top_level_attrs(db, self.def_collector.def_map.krate)
                             .cfg()
-                            .map_or(true, |cfg| {
-                                self.def_collector.cfg_options.check(&cfg) != Some(false)
-                            });
+                            .map_or(true, |cfg| self.is_cfg_enabled(&cfg));
                         if is_enabled {
                             let module_id = self.push_child_module(
                                 module.name.clone(),
@@ -1674,13 +1689,13 @@ impl ModCollector<'_, '_> {
                                 item_tree: &item_tree,
                                 mod_dir,
                             }
-                            .collect(item_tree.top_level_items());
-                            if is_macro_use
+                            .collect_in_top_module(item_tree.top_level_items());
+                            let is_macro_use = is_macro_use
                                 || item_tree
                                     .top_level_attrs(db, self.def_collector.def_map.krate)
                                     .by_key("macro_use")
-                                    .exists()
-                            {
+                                    .exists();
+                            if is_macro_use {
                                 self.import_all_legacy_macros(module_id);
                             }
                         }
@@ -1714,14 +1729,17 @@ impl ModCollector<'_, '_> {
                 ModuleOrigin::File { declaration, definition, is_mod_rs }
             }
         };
+
         let res = modules.alloc(ModuleData::new(origin, vis));
         modules[res].parent = Some(self.module_id);
         for (name, mac) in modules[self.module_id].scope.collect_legacy_macros() {
             modules[res].scope.define_legacy_macro(name, mac)
         }
         modules[self.module_id].children.insert(name.clone(), res);
+
         let module = self.def_collector.def_map.module_id(res);
-        let def: ModuleDefId = module.into();
+        let def = ModuleDefId::from(module);
+
         self.def_collector.def_map.modules[self.module_id].scope.declare(def);
         self.def_collector.update(
             self.module_id,
@@ -1739,7 +1757,12 @@ impl ModCollector<'_, '_> {
     ///
     /// If `ignore_up_to` is `Some`, attributes preceding and including that attribute will be
     /// assumed to be resolved already.
-    fn resolve_attributes(&mut self, attrs: &Attrs, mod_item: ModItem) -> Result<(), ()> {
+    fn resolve_attributes(
+        &mut self,
+        attrs: &Attrs,
+        mod_item: ModItem,
+        container: ItemContainerId,
+    ) -> Result<(), ()> {
         let mut ignore_up_to =
             self.def_collector.skip_attrs.get(&InFile::new(self.file_id(), mod_item)).copied();
         let iter = attrs
@@ -1776,7 +1799,13 @@ impl ModCollector<'_, '_> {
             self.def_collector.unresolved_macros.push(MacroDirective {
                 module_id: self.module_id,
                 depth: self.macro_depth + 1,
-                kind: MacroDirectiveKind::Attr { ast_id, attr: attr.clone(), mod_item },
+                kind: MacroDirectiveKind::Attr {
+                    ast_id,
+                    attr: attr.clone(),
+                    mod_item,
+                    tree: self.tree_id,
+                },
+                container,
             });
 
             return Err(());
@@ -1786,30 +1815,33 @@ impl ModCollector<'_, '_> {
     }
 
     fn is_builtin_or_registered_attr(&self, path: &ModPath) -> bool {
-        if path.kind == PathKind::Plain {
-            if let Some(tool_module) = path.segments().first() {
-                let tool_module = tool_module.to_smol_str();
-                let is_tool = builtin_attr::TOOL_MODULES
-                    .iter()
-                    .copied()
-                    .chain(self.def_collector.registered_tools.iter().map(SmolStr::as_str))
-                    .any(|m| tool_module == *m);
-                if is_tool {
-                    return true;
-                }
+        if path.kind != PathKind::Plain {
+            return false;
+        }
+
+        let segments = path.segments();
+
+        if let Some(name) = segments.first() {
+            let name = name.to_smol_str();
+            let pred = |n: &_| *n == name;
+
+            let registered = self.def_collector.registered_tools.iter().map(SmolStr::as_str);
+            let is_tool = builtin_attr::TOOL_MODULES.iter().copied().chain(registered).any(pred);
+            // FIXME: tool modules can be shadowed by actual modules
+            if is_tool {
+                return true;
             }
 
-            if let Some(name) = path.as_ident() {
-                let name = name.to_smol_str();
+            if segments.len() == 1 {
+                let registered = self.def_collector.registered_attrs.iter().map(SmolStr::as_str);
                 let is_inert = builtin_attr::INERT_ATTRIBUTES
                     .iter()
-                    .copied()
-                    .chain(self.def_collector.registered_attrs.iter().map(SmolStr::as_str))
-                    .any(|attr| name == *attr);
+                    .map(|it| it.name)
+                    .chain(registered)
+                    .any(pred);
                 return is_inert;
             }
         }
-
         false
     }
 
@@ -1831,7 +1863,7 @@ impl ModCollector<'_, '_> {
 
         let is_export = export_attr.exists();
         let is_local_inner = if is_export {
-            export_attr.tt_values().map(|it| &it.token_trees).flatten().any(|it| match it {
+            export_attr.tt_values().flat_map(|it| &it.token_trees).any(|it| match it {
                 tt::TokenTree::Leaf(tt::Leaf::Ident(ident)) => {
                     ident.text.contains("local_inner_macros")
                 }
@@ -1852,12 +1884,14 @@ impl ModCollector<'_, '_> {
                     &name
                 }
                 None => {
-                    match attrs.by_key("rustc_builtin_macro").tt_values().next().and_then(|tt| {
-                        match tt.token_trees.first() {
-                            Some(tt::TokenTree::Leaf(tt::Leaf::Ident(name))) => Some(name),
-                            _ => None,
-                        }
-                    }) {
+                    let explicit_name =
+                        attrs.by_key("rustc_builtin_macro").tt_values().next().and_then(|tt| {
+                            match tt.token_trees.first() {
+                                Some(tt::TokenTree::Leaf(tt::Leaf::Ident(name))) => Some(name),
+                                _ => None,
+                            }
+                        });
+                    match explicit_name {
                         Some(ident) => {
                             name = ident.as_name();
                             &name
@@ -1946,8 +1980,8 @@ impl ModCollector<'_, '_> {
         );
     }
 
-    fn collect_macro_call(&mut self, mac: &MacroCall) {
-        let ast_id = AstIdWithPath::new(self.file_id(), mac.ast_id, (*mac.path).clone());
+    fn collect_macro_call(&mut self, mac: &MacroCall, container: ItemContainerId) {
+        let ast_id = AstIdWithPath::new(self.file_id(), mac.ast_id, ModPath::clone(&mac.path));
 
         // Case 1: try to resolve in legacy scope and expand macro_rules
         let mut error = None;
@@ -1976,6 +2010,7 @@ impl ModCollector<'_, '_> {
                     self.module_id,
                     macro_call_id,
                     self.macro_depth + 1,
+                    container,
                 );
 
                 if let Some(err) = error {
@@ -2006,6 +2041,7 @@ impl ModCollector<'_, '_> {
             module_id: self.module_id,
             depth: self.macro_depth + 1,
             kind: MacroDirectiveKind::FnLike { ast_id, expand_to: mac.expand_to },
+            container,
         });
     }
 

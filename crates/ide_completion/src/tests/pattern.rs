@@ -130,18 +130,24 @@ fn foo() {
 fn irrefutable() {
     check(
         r#"
+enum SingleVariantEnum {
+    Variant
+}
+use SingleVariantEnum::Variant;
 fn foo() {
    let a$0
 }
 "#,
         expect![[r##"
             kw mut
-            bn Record    Record { field$1 }$0
+            bn Record            Record { field$1 }$0
             st Record
-            bn Tuple     Tuple($1)$0
+            bn Tuple             Tuple($1)$0
             st Tuple
+            ev Variant
+            en SingleVariantEnum
             st Unit
-            ma makro!(…) #[macro_export] macro_rules! makro
+            ma makro!(…)         #[macro_export] macro_rules! makro
         "##]],
     );
 }
@@ -286,11 +292,11 @@ fn func() {
 "#,
         expect![[r#"
             ev TupleV(…)   (u32)
-            ev RecordV     { field: u32 }
+            ev RecordV     {field: u32}
             ev UnitV       ()
-            ct ASSOC_CONST const ASSOC_CONST: () = ();
+            ct ASSOC_CONST const ASSOC_CONST: ();
             fn assoc_fn()  fn()
-            ta AssocType   type AssocType = ();
+            ta AssocType   type AssocType;
         "#]],
     );
 }

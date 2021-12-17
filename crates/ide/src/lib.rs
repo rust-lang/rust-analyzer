@@ -20,10 +20,11 @@ mod fixture;
 
 mod markup;
 mod prime_caches;
-mod display;
+mod navigation_target;
 
 mod annotations;
 mod call_hierarchy;
+mod call_info;
 mod doc_links;
 mod highlight_related;
 mod expand_macro;
@@ -40,6 +41,7 @@ mod inlay_hints;
 mod join_lines;
 mod markdown_remove;
 mod matching_brace;
+mod moniker;
 mod move_item;
 mod parent_module;
 mod references;
@@ -54,6 +56,7 @@ mod typing;
 mod view_crate_graph;
 mod view_hir;
 mod view_item_tree;
+mod shuffle_crate_graph;
 
 use std::sync::Arc;
 
@@ -68,12 +71,12 @@ use ide_db::{
 };
 use syntax::SourceFile;
 
-use crate::display::ToNav;
+use crate::navigation_target::{ToNav, TryToNav};
 
 pub use crate::{
     annotations::{Annotation, AnnotationConfig, AnnotationKind},
     call_hierarchy::CallItem,
-    display::navigation_target::NavigationTarget,
+    call_info::CallInfo,
     expand_macro::ExpandedMacro,
     file_structure::{StructureNode, StructureNodeKind},
     folding_ranges::{Fold, FoldKind},
@@ -82,7 +85,9 @@ pub use crate::{
     inlay_hints::{InlayHint, InlayHintsConfig, InlayKind},
     join_lines::JoinLinesConfig,
     markup::Markup,
+    moniker::{MonikerKind, MonikerResult, PackageInformation},
     move_item::Direction,
+    navigation_target::NavigationTarget,
     prime_caches::PrimeCachesProgress,
     references::ReferenceSearchResult,
     rename::RenameError,
@@ -106,7 +111,6 @@ pub use ide_db::{
         Cancelled, Change, CrateGraph, CrateId, Edition, FileId, FilePosition, FileRange,
         SourceRoot, SourceRootId,
     },
-    call_info::CallInfo,
     label::Label,
     line_index::{LineCol, LineColUtf16, LineIndex},
     search::{ReferenceCategory, SearchScope},
@@ -174,6 +178,10 @@ impl AnalysisHost {
     pub fn raw_database_mut(&mut self) -> &mut RootDatabase {
         &mut self.db
     }
+
+    pub fn shuffle_crate_graph(&mut self) {
+        shuffle_crate_graph::shuffle_crate_graph(&mut self.db);
+    }
 }
 
 impl Default for AnalysisHost {
@@ -223,6 +231,7 @@ impl Analysis {
             cfg_options.clone(),
             cfg_options,
             Env::default(),
+            Default::default(),
             Default::default(),
         );
         change.change_file(file_id, Some(Arc::new(text)));
@@ -363,8 +372,8 @@ impl Analysis {
     pub fn symbol_search(&self, query: Query) -> Cancellable<Vec<NavigationTarget>> {
         self.with_db(|db| {
             symbol_index::world_symbols(db, query)
-                .into_iter()
-                .map(|s| s.to_nav(db))
+                .into_iter() // xx: should we make this a par iter?
+                .filter_map(|s| s.try_to_nav(db))
                 .collect::<Vec<_>>()
         })
     }
@@ -424,6 +433,14 @@ impl Analysis {
         self.with_db(|db| hover::hover(db, range, config))
     }
 
+    /// Returns moniker of symbol at position.
+    pub fn moniker(
+        &self,
+        position: FilePosition,
+    ) -> Cancellable<Option<RangeInfo<Vec<moniker::MonikerResult>>>> {
+        self.with_db(|db| moniker::moniker(db, position))
+    }
+
     /// Return URL(s) for the documentation of the symbol under the cursor.
     pub fn external_docs(
         &self,
@@ -434,7 +451,7 @@ impl Analysis {
 
     /// Computes parameter information for the given call expression.
     pub fn call_info(&self, position: FilePosition) -> Cancellable<Option<CallInfo>> {
-        self.with_db(|db| ide_db::call_info::call_info(db, position))
+        self.with_db(|db| call_info::call_info(db, position))
     }
 
     /// Computes call hierarchy candidates for the given file position.
@@ -536,24 +553,6 @@ impl Analysis {
         Ok(self
             .with_db(|db| ide_completion::resolve_completion_edits(db, config, position, imports))?
             .unwrap_or_default())
-    }
-
-    /// Computes assists (aka code actions aka intentions) for the given
-    /// position. If `resolve == false`, computes enough info to show the
-    /// lightbulb list in the editor, but doesn't compute actual edits, to
-    /// improve performance.
-    pub fn assists(
-        &self,
-        config: &AssistConfig,
-        resolve: AssistResolveStrategy,
-        frange: FileRange,
-    ) -> Cancellable<Vec<Assist>> {
-        self.with_db(|db| {
-            let ssr_assists = ssr::ssr_assists(db, &resolve, frange);
-            let mut acc = ide_assists::assists(db, config, resolve, frange);
-            acc.extend(ssr_assists.into_iter());
-            acc
-        })
     }
 
     /// Computes the set of diagnostics for the given file.

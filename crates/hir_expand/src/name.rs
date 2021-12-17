@@ -272,6 +272,7 @@ pub mod known {
         // Safe intrinsics
         abort,
         add_with_overflow,
+        black_box,
         bitreverse,
         bswap,
         caller_location,
@@ -333,6 +334,13 @@ pub mod known {
         gt,
         le,
         lt,
+        // lang items
+        not,
+        neg,
+        future_trait,
+        owned_box,
+        index,
+        partial_ord
     );
 
     // self/Self cannot be used as an identifier

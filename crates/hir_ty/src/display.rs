@@ -16,10 +16,11 @@ use hir_def::{
     path::{Path, PathKind},
     type_ref::{TraitBoundModifier, TypeBound, TypeRef},
     visibility::Visibility,
-    AssocContainerId, HasModule, Lookup, ModuleId, TraitId,
+    HasModule, ItemContainerId, Lookup, ModuleId, TraitId,
 };
 use hir_expand::{hygiene::Hygiene, name::Name};
 use itertools::Itertools;
+use syntax::SmolStr;
 
 use crate::{
     const_from_placeholder_idx,
@@ -576,7 +577,7 @@ impl HirDisplay for Ty {
             TyKind::AssociatedType(assoc_type_id, parameters) => {
                 let type_alias = from_assoc_type_id(*assoc_type_id);
                 let trait_ = match type_alias.lookup(f.db.upcast()).container {
-                    AssocContainerId::TraitId(it) => it,
+                    ItemContainerId::TraitId(it) => it,
                     _ => panic!("not an associated type"),
                 };
                 let trait_ = f.db.trait_data(trait_);
@@ -639,7 +640,7 @@ impl HirDisplay for Ty {
                 if let Some(sig) = sig {
                     if sig.params().is_empty() {
                         write!(f, "||")?;
-                    } else if f.omit_verbose_types() {
+                    } else if f.should_truncate() {
                         write!(f, "|{}|", TYPE_HINT_TRUNCATION)?;
                     } else {
                         write!(f, "|")?;
@@ -774,8 +775,9 @@ impl SizedByDefault {
         match self {
             Self::NotSized => false,
             Self::Sized { anchor } => {
-                let sized_trait =
-                    db.lang_item(anchor, "sized".into()).and_then(|lang_item| lang_item.as_trait());
+                let sized_trait = db
+                    .lang_item(anchor, SmolStr::new_inline("sized"))
+                    .and_then(|lang_item| lang_item.as_trait());
                 Some(trait_) == sized_trait
             }
         }
@@ -1162,6 +1164,29 @@ impl HirDisplay for Path {
             if let Some(generic_args) = segment.args_and_bindings {
                 // We should be in type context, so format as `Foo<Bar>` instead of `Foo::<Bar>`.
                 // Do we actually format expressions?
+                if generic_args.desugared_from_fn {
+                    // First argument will be a tuple, which already includes the parentheses.
+                    // If the tuple only contains 1 item, write it manually to avoid the trailing `,`.
+                    if let hir_def::path::GenericArg::Type(TypeRef::Tuple(v)) =
+                        &generic_args.args[0]
+                    {
+                        if v.len() == 1 {
+                            write!(f, "(")?;
+                            v[0].hir_fmt(f)?;
+                            write!(f, ")")?;
+                        } else {
+                            generic_args.args[0].hir_fmt(f)?;
+                        }
+                    }
+                    if let Some(ret) = &generic_args.bindings[0].type_ref {
+                        if !matches!(ret, TypeRef::Tuple(v) if v.is_empty()) {
+                            write!(f, " -> ")?;
+                            ret.hir_fmt(f)?;
+                        }
+                    }
+                    return Ok(());
+                }
+
                 write!(f, "<")?;
                 let mut first = true;
                 for arg in &generic_args.args {

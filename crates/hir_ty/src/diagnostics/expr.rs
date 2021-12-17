@@ -202,19 +202,16 @@ impl ExprValidator {
         }
 
         let is_method_call = matches!(expr, Expr::MethodCall { .. });
-        let (sig, args) = match expr {
+        let (sig, mut arg_count) = match expr {
             Expr::Call { callee, args } => {
                 let callee = &self.infer.type_of_expr[*callee];
                 let sig = match callee.callable_sig(db) {
                     Some(sig) => sig,
                     None => return,
                 };
-                (sig, args.clone())
+                (sig, args.len())
             }
             Expr::MethodCall { receiver, args, .. } => {
-                let mut args = args.clone();
-                args.insert(0, *receiver);
-
                 let receiver = &self.infer.type_of_expr[*receiver];
                 if receiver.strip_references().is_unknown() {
                     // if the receiver is of unknown type, it's very likely we
@@ -229,7 +226,7 @@ impl ExprValidator {
                 };
                 let sig = db.callable_item_signature(callee.into()).substitute(&Interner, &subst);
 
-                (sig, args)
+                (sig, args.len() + 1)
             }
             _ => return,
         };
@@ -238,21 +235,33 @@ impl ExprValidator {
             return;
         }
 
-        let params = sig.params();
+        if sig.legacy_const_generics_indices.is_empty() {
+            let mut param_count = sig.params().len();
 
-        let mut param_count = params.len();
-        let mut arg_count = args.len();
-
-        if arg_count != param_count {
-            if is_method_call {
-                param_count -= 1;
-                arg_count -= 1;
+            if arg_count != param_count {
+                if is_method_call {
+                    param_count -= 1;
+                    arg_count -= 1;
+                }
+                self.diagnostics.push(BodyValidationDiagnostic::MismatchedArgCount {
+                    call_expr: call_id,
+                    expected: param_count,
+                    found: arg_count,
+                });
             }
-            self.diagnostics.push(BodyValidationDiagnostic::MismatchedArgCount {
-                call_expr: call_id,
-                expected: param_count,
-                found: arg_count,
-            });
+        } else {
+            // With `#[rustc_legacy_const_generics]` there are basically two parameter counts that
+            // are allowed.
+            let count_non_legacy = sig.params().len();
+            let count_legacy = sig.params().len() + sig.legacy_const_generics_indices.len();
+            if arg_count != count_non_legacy && arg_count != count_legacy {
+                self.diagnostics.push(BodyValidationDiagnostic::MismatchedArgCount {
+                    call_expr: call_id,
+                    // Since most users will use the legacy way to call them, report against that.
+                    expected: count_legacy,
+                    found: arg_count,
+                });
+            }
         }
     }
 

@@ -19,8 +19,8 @@ use hir_def::{
     path::{GenericArg, Path, PathSegment, PathSegments},
     resolver::{HasResolver, Resolver, TypeNs},
     type_ref::{TraitBoundModifier, TraitRef as HirTraitRef, TypeBound, TypeRef},
-    AdtId, AssocContainerId, AssocItemId, ConstId, ConstParamId, EnumId, EnumVariantId, FunctionId,
-    GenericDefId, HasModule, ImplId, LocalFieldId, Lookup, StaticId, StructId, TraitId,
+    AdtId, AssocItemId, ConstId, ConstParamId, EnumId, EnumVariantId, FunctionId, GenericDefId,
+    HasModule, ImplId, ItemContainerId, LocalFieldId, Lookup, StaticId, StructId, TraitId,
     TypeAliasId, TypeParamId, UnionId, VariantId,
 };
 use hir_expand::{name::Name, ExpandResult};
@@ -28,7 +28,7 @@ use la_arena::ArenaMap;
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 use stdx::impl_from;
-use syntax::ast;
+use syntax::{ast, SmolStr};
 
 use crate::all_super_traits;
 use crate::{
@@ -96,9 +96,9 @@ impl<'a> TyLoweringContext<'a> {
         debruijn: DebruijnIndex,
         f: impl FnOnce(&TyLoweringContext) -> T,
     ) -> T {
-        let opaque_ty_data_vec = self.opaque_type_data.replace(Vec::new());
-        let expander = self.expander.replace(None);
-        let unsized_types = self.unsized_types.replace(Default::default());
+        let opaque_ty_data_vec = self.opaque_type_data.take();
+        let expander = self.expander.take();
+        let unsized_types = self.unsized_types.take();
         let new_ctx = Self {
             in_binders: debruijn,
             impl_trait_counter: Cell::new(self.impl_trait_counter.get()),
@@ -615,7 +615,7 @@ impl<'a> TyLoweringContext<'a> {
                 // `Option::None::<T>` are both allowed (though the former is
                 // preferred). See also `def_ids_for_path_segments` in rustc.
                 let len = path.segments().len();
-                let penultimate = if len >= 2 { path.segments().get(len - 2) } else { None };
+                let penultimate = len.checked_sub(2).and_then(|idx| path.segments().get(idx));
                 let segment = match penultimate {
                     Some(segment) if segment.args_and_bindings.is_some() => segment,
                     _ => last,
@@ -797,7 +797,7 @@ impl<'a> TyLoweringContext<'a> {
                 let sized_trait = self
                     .resolver
                     .krate()
-                    .and_then(|krate| self.db.lang_item(krate, "sized".into()))
+                    .and_then(|krate| self.db.lang_item(krate, SmolStr::new_inline("sized")))
                     .and_then(|lang_item| lang_item.as_trait());
                 // Don't lower associated type bindings as the only possible relaxed trait bound
                 // `?Sized` has no of them.
@@ -841,8 +841,8 @@ impl<'a> TyLoweringContext<'a> {
         };
         last_segment
             .into_iter()
-            .flat_map(|segment| segment.args_and_bindings.into_iter())
-            .flat_map(|args_and_bindings| args_and_bindings.bindings.iter())
+            .filter_map(|segment| segment.args_and_bindings)
+            .flat_map(|args_and_bindings| &args_and_bindings.bindings)
             .flat_map(move |binding| {
                 let found = associated_type_by_name_including_super_traits(
                     self.db,
@@ -850,14 +850,14 @@ impl<'a> TyLoweringContext<'a> {
                     &binding.name,
                 );
                 let (super_trait_ref, associated_ty) = match found {
-                    None => return SmallVec::<[QuantifiedWhereClause; 1]>::new(),
+                    None => return SmallVec::new(),
                     Some(t) => t,
                 };
                 let projection_ty = ProjectionTy {
                     associated_ty_id: to_assoc_type_id(associated_ty),
                     substitution: super_trait_ref.substitution,
                 };
-                let mut preds = SmallVec::with_capacity(
+                let mut preds: SmallVec<[_; 1]> = SmallVec::with_capacity(
                     binding.type_ref.as_ref().map_or(0, |_| 1) + binding.bounds.len(),
                 );
                 if let Some(type_ref) = &binding.type_ref {
@@ -895,7 +895,7 @@ impl<'a> TyLoweringContext<'a> {
                 let krate = func.lookup(ctx.db.upcast()).module(ctx.db.upcast()).krate();
                 let sized_trait = ctx
                     .db
-                    .lang_item(krate, "sized".into())
+                    .lang_item(krate, SmolStr::new_inline("sized"))
                     .and_then(|lang_item| lang_item.as_trait().map(to_chalk_trait_id));
                 let sized_clause = sized_trait.map(|trait_id| {
                     let clause = WhereClause::Implemented(TraitRef {
@@ -1125,7 +1125,7 @@ pub(crate) fn trait_environment_query(
         }
     }
 
-    let container: Option<AssocContainerId> = match def {
+    let container: Option<ItemContainerId> = match def {
         // FIXME: is there a function for this?
         GenericDefId::FunctionId(f) => Some(f.lookup(db.upcast()).container),
         GenericDefId::AdtId(_) => None,
@@ -1135,7 +1135,7 @@ pub(crate) fn trait_environment_query(
         GenericDefId::EnumVariantId(_) => None,
         GenericDefId::ConstId(c) => Some(c.lookup(db.upcast()).container),
     };
-    if let Some(AssocContainerId::TraitId(trait_id)) = container {
+    if let Some(ItemContainerId::TraitId(trait_id)) = container {
         // add `Self: Trait<T1, T2, ...>` to the environment in trait
         // function default implementations (and speculative code
         // inside consts or type aliases)
@@ -1200,7 +1200,7 @@ fn implicitly_sized_clauses<'a>(
     let generic_args = &substitution.as_slice(&Interner)[is_trait_def as usize..];
     let sized_trait = resolver
         .krate()
-        .and_then(|krate| db.lang_item(krate, "sized".into()))
+        .and_then(|krate| db.lang_item(krate, SmolStr::new_inline("sized")))
         .and_then(|lang_item| lang_item.as_trait().map(to_chalk_trait_id));
 
     sized_trait.into_iter().flat_map(move |sized_trait| {
@@ -1286,7 +1286,11 @@ fn fn_sig_for_fn(db: &dyn HirDatabase, def: FunctionId) -> PolyFnSig {
         .with_type_param_mode(TypeParamLoweringMode::Variable);
     let ret = ctx_ret.lower_ty(&data.ret_type);
     let generics = generics(db.upcast(), def.into());
-    make_binders(&generics, CallableSig::from_params_and_return(params, ret, data.is_varargs()))
+    let mut sig = CallableSig::from_params_and_return(params, ret, data.is_varargs());
+    if !data.legacy_const_generics_indices.is_empty() {
+        sig.set_legacy_const_generics_indices(&data.legacy_const_generics_indices);
+    }
+    make_binders(&generics, sig)
 }
 
 /// Build the declared type of a function. This should not need to look at the

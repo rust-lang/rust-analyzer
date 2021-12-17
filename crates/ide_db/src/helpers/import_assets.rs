@@ -68,17 +68,23 @@ pub struct FirstSegmentUnresolved {
 /// A name that will be used during item lookups.
 #[derive(Debug, Clone)]
 pub enum NameToImport {
-    /// Requires items with names that exactly match the given string, case-sensitive.
-    Exact(String),
+    /// Requires items with names that exactly match the given string, bool indicatse case-sensitivity.
+    Exact(String, bool),
     /// Requires items with names that case-insensitively contain all letters from the string,
     /// in the same order, but not necessary adjacent.
     Fuzzy(String),
 }
 
 impl NameToImport {
+    pub fn exact_case_sensitive(s: String) -> NameToImport {
+        NameToImport::Exact(s, true)
+    }
+}
+
+impl NameToImport {
     pub fn text(&self) -> &str {
         match self {
-            NameToImport::Exact(text) => text.as_str(),
+            NameToImport::Exact(text, _) => text.as_str(),
             NameToImport::Fuzzy(text) => text.as_str(),
         }
     }
@@ -140,7 +146,7 @@ impl ImportAssets {
         if let Some(_) = path.qualifier() {
             return None;
         }
-        let name = NameToImport::Exact(path.segment()?.name_ref()?.to_string());
+        let name = NameToImport::exact_case_sensitive(path.segment()?.name_ref()?.to_string());
         let candidate_node = attr.syntax().clone();
         Some(Self {
             import_candidate: ImportCandidate::Path(PathImportCandidate { qualifier: None, name }),
@@ -230,6 +236,18 @@ impl ImportAssets {
         self.search_for(sema, None)
     }
 
+    pub fn path_fuzzy_name_to_exact(&mut self, case_sensitive: bool) {
+        if let ImportCandidate::Path(PathImportCandidate { name: to_import, .. }) =
+            &mut self.import_candidate
+        {
+            let name = match to_import {
+                NameToImport::Fuzzy(name) => std::mem::take(name),
+                _ => return,
+            };
+            *to_import = NameToImport::Exact(name, case_sensitive);
+        }
+    }
+
     fn search_for(
         &self,
         sema: &Semantics<RootDatabase>,
@@ -262,7 +280,7 @@ impl ImportAssets {
         .into_iter()
         .filter(|import| import.import_path.len() > 1)
         .filter(|import| !scope_definitions.contains(&ScopeDef::from(import.item_to_import)))
-        .sorted_by_key(|import| import.import_path.clone())
+        .sorted_by(|a, b| a.import_path.cmp(&b.import_path))
         .collect()
     }
 
@@ -291,9 +309,9 @@ fn path_applicable_imports(
                 current_crate,
                 path_candidate.name.clone(),
                 // FIXME: we could look up assoc items by the input and propose those in completion,
-                // but that requries more preparation first:
+                // but that requires more preparation first:
                 // * store non-trait assoc items in import_map to fully enable this lookup
-                // * ensure that does not degrade the performance (bencmark it)
+                // * ensure that does not degrade the performance (benchmark it)
                 // * write more logic to check for corresponding trait presence requirement (we're unable to flyimport multiple item right now)
                 // * improve the associated completion item matching and/or scoring to ensure no noisy completions appear
                 //
@@ -454,8 +472,10 @@ fn trait_applicable_items(
 
     let db = sema.db;
 
-    let related_dyn_traits =
-        trait_candidate.receiver_ty.applicable_inherent_traits(db).collect::<FxHashSet<_>>();
+    let inherent_traits = trait_candidate.receiver_ty.applicable_inherent_traits(db);
+    let env_traits = trait_candidate.receiver_ty.env_traits(db);
+    let related_traits = inherent_traits.chain(env_traits).collect::<FxHashSet<_>>();
+
     let mut required_assoc_items = FxHashSet::default();
     let trait_candidates = items_locator::items_with_name(
         sema,
@@ -467,7 +487,7 @@ fn trait_applicable_items(
     .filter_map(|input| item_as_assoc(db, input))
     .filter_map(|assoc| {
         let assoc_item_trait = assoc.containing_trait(db)?;
-        if related_dyn_traits.contains(&assoc_item_trait) {
+        if related_traits.contains(&assoc_item_trait) {
             None
         } else {
             required_assoc_items.insert(assoc);
@@ -561,7 +581,9 @@ impl ImportCandidate {
             Some(_) => None,
             None => Some(Self::TraitMethod(TraitImportCandidate {
                 receiver_ty: sema.type_of_expr(&method_call.receiver()?)?.adjusted(),
-                assoc_item_name: NameToImport::Exact(method_call.name_ref()?.to_string()),
+                assoc_item_name: NameToImport::exact_case_sensitive(
+                    method_call.name_ref()?.to_string(),
+                ),
             })),
         }
     }
@@ -573,7 +595,7 @@ impl ImportCandidate {
         path_import_candidate(
             sema,
             path.qualifier(),
-            NameToImport::Exact(path.segment()?.name_ref()?.to_string()),
+            NameToImport::exact_case_sensitive(path.segment()?.name_ref()?.to_string()),
         )
     }
 
@@ -587,7 +609,7 @@ impl ImportCandidate {
         }
         Some(ImportCandidate::Path(PathImportCandidate {
             qualifier: None,
-            name: NameToImport::Exact(name.to_string()),
+            name: NameToImport::exact_case_sensitive(name.to_string()),
         }))
     }
 

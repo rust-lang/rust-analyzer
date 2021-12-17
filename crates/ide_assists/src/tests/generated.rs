@@ -840,6 +840,36 @@ struct Point {
 }
 
 #[test]
+fn doctest_generate_documentation_template() {
+    check_doc_test(
+        "generate_documentation_template",
+        r#####"
+pub fn my_$0func(a: i32, b: i32) -> Result<(), std::io::Error> {
+    unimplemented!()
+}
+"#####,
+        r#####"
+/// .
+///
+/// # Examples
+///
+/// ```
+/// use test::my_func;
+///
+/// assert_eq!(my_func(a, b), );
+/// ```
+///
+/// # Errors
+///
+/// This function will return an error if .
+pub fn my_func(a: i32, b: i32) -> Result<(), std::io::Error> {
+    unimplemented!()
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_generate_enum_as_method() {
     check_doc_test(
         "generate_enum_as_method",
@@ -1573,6 +1603,19 @@ fn main() {
     let map = std::collections::HashMap::new();
 }
 pub mod std { pub mod collections { pub struct HashMap { } } }
+"#####,
+    )
+}
+
+#[test]
+fn doctest_reformat_number_literal() {
+    check_doc_test(
+        "reformat_number_literal",
+        r#####"
+const _: i32 = 1012345$0;
+"#####,
+        r#####"
+const _: i32 = 1_012_345;
 "#####,
     )
 }

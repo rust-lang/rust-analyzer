@@ -11,9 +11,9 @@ use syntax::{ast, Parse, SourceFile, TextRange, TextSize};
 pub use crate::{
     change::Change,
     input::{
-        CrateData, CrateDisplayName, CrateGraph, CrateId, CrateName, Dependency, Edition, Env,
-        ProcMacro, ProcMacroExpander, ProcMacroExpansionError, ProcMacroId, ProcMacroKind,
-        SourceRoot, SourceRootId,
+        CrateData, CrateDisplayName, CrateGraph, CrateId, CrateName, CrateOrigin, Dependency,
+        Edition, Env, ProcMacro, ProcMacroExpander, ProcMacroExpansionError, ProcMacroId,
+        ProcMacroKind, SourceRoot, SourceRootId,
     },
 };
 pub use salsa::{self, Cancelled};
@@ -102,7 +102,7 @@ fn source_root_crates(db: &dyn SourceDatabaseExt, id: SourceRootId) -> Arc<FxHas
             let root_file = graph[krate].root_file_id;
             db.file_source_root(root_file) == id
         })
-        .collect::<FxHashSet<_>>();
+        .collect();
     Arc::new(res)
 }
 

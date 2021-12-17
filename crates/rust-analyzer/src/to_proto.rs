@@ -50,8 +50,11 @@ pub(crate) fn symbol_kind(symbol_kind: SymbolKind) -> lsp_types::SymbolKind {
         SymbolKind::Enum => lsp_types::SymbolKind::ENUM,
         SymbolKind::Variant => lsp_types::SymbolKind::ENUM_MEMBER,
         SymbolKind::Trait => lsp_types::SymbolKind::INTERFACE,
-        SymbolKind::Macro => lsp_types::SymbolKind::FUNCTION,
-        SymbolKind::Module => lsp_types::SymbolKind::MODULE,
+        SymbolKind::Macro
+        | SymbolKind::BuiltinAttr
+        | SymbolKind::Attribute
+        | SymbolKind::Derive => lsp_types::SymbolKind::FUNCTION,
+        SymbolKind::Module | SymbolKind::ToolModule => lsp_types::SymbolKind::MODULE,
         SymbolKind::TypeAlias | SymbolKind::TypeParam => lsp_types::SymbolKind::TYPE_PARAMETER,
         SymbolKind::Field => lsp_types::SymbolKind::FIELD,
         SymbolKind::Static => lsp_types::SymbolKind::CONSTANT,
@@ -100,7 +103,6 @@ pub(crate) fn completion_item_kind(
     completion_item_kind: CompletionItemKind,
 ) -> lsp_types::CompletionItemKind {
     match completion_item_kind {
-        CompletionItemKind::Attribute => lsp_types::CompletionItemKind::ENUM_MEMBER,
         CompletionItemKind::Binding => lsp_types::CompletionItemKind::VARIABLE,
         CompletionItemKind::BuiltinType => lsp_types::CompletionItemKind::STRUCT,
         CompletionItemKind::Keyword => lsp_types::CompletionItemKind::KEYWORD,
@@ -108,8 +110,10 @@ pub(crate) fn completion_item_kind(
         CompletionItemKind::Snippet => lsp_types::CompletionItemKind::SNIPPET,
         CompletionItemKind::UnresolvedReference => lsp_types::CompletionItemKind::REFERENCE,
         CompletionItemKind::SymbolKind(symbol) => match symbol {
+            SymbolKind::Attribute => lsp_types::CompletionItemKind::FUNCTION,
             SymbolKind::Const => lsp_types::CompletionItemKind::CONSTANT,
             SymbolKind::ConstParam => lsp_types::CompletionItemKind::TYPE_PARAMETER,
+            SymbolKind::Derive => lsp_types::CompletionItemKind::FUNCTION,
             SymbolKind::Enum => lsp_types::CompletionItemKind::ENUM,
             SymbolKind::Field => lsp_types::CompletionItemKind::FIELD,
             SymbolKind::Function => lsp_types::CompletionItemKind::FUNCTION,
@@ -117,7 +121,7 @@ pub(crate) fn completion_item_kind(
             SymbolKind::Label => lsp_types::CompletionItemKind::VARIABLE,
             SymbolKind::LifetimeParam => lsp_types::CompletionItemKind::TYPE_PARAMETER,
             SymbolKind::Local => lsp_types::CompletionItemKind::VARIABLE,
-            SymbolKind::Macro => lsp_types::CompletionItemKind::METHOD,
+            SymbolKind::Macro => lsp_types::CompletionItemKind::FUNCTION,
             SymbolKind::Module => lsp_types::CompletionItemKind::MODULE,
             SymbolKind::SelfParam => lsp_types::CompletionItemKind::VALUE,
             SymbolKind::Static => lsp_types::CompletionItemKind::VALUE,
@@ -128,6 +132,8 @@ pub(crate) fn completion_item_kind(
             SymbolKind::Union => lsp_types::CompletionItemKind::STRUCT,
             SymbolKind::ValueParam => lsp_types::CompletionItemKind::VALUE,
             SymbolKind::Variant => lsp_types::CompletionItemKind::ENUM_MEMBER,
+            SymbolKind::BuiltinAttr => lsp_types::CompletionItemKind::FUNCTION,
+            SymbolKind::ToolModule => lsp_types::CompletionItemKind::MODULE,
         },
     }
 }
@@ -466,6 +472,8 @@ fn semantic_token_type_and_modifiers(
     let mut mods = semantic_tokens::ModifierSet::default();
     let type_ = match highlight.tag {
         HlTag::Symbol(symbol) => match symbol {
+            SymbolKind::Attribute => semantic_tokens::ATTRIBUTE,
+            SymbolKind::Derive => semantic_tokens::DERIVE,
             SymbolKind::Module => lsp_types::SemanticTokenType::NAMESPACE,
             SymbolKind::Impl => semantic_tokens::TYPE_ALIAS,
             SymbolKind::Field => lsp_types::SemanticTokenType::PROPERTY,
@@ -499,10 +507,11 @@ fn semantic_token_type_and_modifiers(
             SymbolKind::TypeAlias => semantic_tokens::TYPE_ALIAS,
             SymbolKind::Trait => lsp_types::SemanticTokenType::INTERFACE,
             SymbolKind::Macro => lsp_types::SemanticTokenType::MACRO,
+            SymbolKind::BuiltinAttr => semantic_tokens::BUILTIN_ATTRIBUTE,
+            SymbolKind::ToolModule => semantic_tokens::TOOL_MODULE,
         },
-        HlTag::Attribute => semantic_tokens::ATTRIBUTE,
+        HlTag::AttributeBracket => semantic_tokens::ATTRIBUTE_BRACKET,
         HlTag::BoolLiteral => semantic_tokens::BOOLEAN,
-        HlTag::BuiltinAttr => semantic_tokens::BUILTIN_ATTRIBUTE,
         HlTag::BuiltinType => semantic_tokens::BUILTIN_TYPE,
         HlTag::ByteLiteral | HlTag::NumericLiteral => lsp_types::SemanticTokenType::NUMBER,
         HlTag::CharLiteral => semantic_tokens::CHAR,

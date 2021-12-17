@@ -362,6 +362,7 @@ impl AttrsWithOwner {
                     RawAttrs::from_attrs_owner(db, src.with_value(&src.value[it.local_id]))
                 }
             },
+            AttrDefId::ExternBlockId(it) => attrs_from_item_tree(it.lookup(db).id, db),
         };
 
         let attrs = raw_attrs.filter(db, def.krate(db));
@@ -443,6 +444,7 @@ impl AttrsWithOwner {
                     .child_source(db)
                     .map(|source| ast::AnyHasAttrs::new(source[id.local_id].clone())),
             },
+            AttrDefId::ExternBlockId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
         };
 
         AttrSourceMap::new(owner.as_ref().map(|node| node as &dyn HasAttrs))
@@ -723,34 +725,32 @@ impl Attr {
     /// to derive macros.
     ///
     /// Returns `None` when the attribute does not have a well-formed `#[derive]` attribute input.
-    pub(crate) fn parse_derive(&self) -> Option<impl Iterator<Item = ModPath>> {
-        if let Some(AttrInput::TokenTree(args, _)) = self.input.as_deref() {
-            if args.delimiter_kind() != Some(DelimiterKind::Parenthesis) {
-                return None;
-            }
-            let mut counter = 0;
-            let paths = args
-                .token_trees
-                .iter()
-                .group_by(move |tt| {
-                    if let tt::TokenTree::Leaf(tt::Leaf::Punct(Punct { char: ',', .. })) = tt {
-                        counter += 1;
-                    }
-                    counter
-                })
-                .into_iter()
-                .map(|(_, tts)| {
-                    let segments = tts.filter_map(|tt| match tt {
-                        tt::TokenTree::Leaf(tt::Leaf::Ident(id)) => Some(id.as_name()),
-                        _ => None,
-                    });
-                    ModPath::from_segments(PathKind::Plain, segments)
-                })
-                .collect::<Vec<_>>();
+    pub(crate) fn parse_derive(&self) -> Option<impl Iterator<Item = ModPath> + '_> {
+        let args = match self.input.as_deref() {
+            Some(AttrInput::TokenTree(args, _)) => args,
+            _ => return None,
+        };
 
-            return Some(paths.into_iter());
+        if args.delimiter_kind() != Some(DelimiterKind::Parenthesis) {
+            return None;
         }
-        None
+        let paths = args
+            .token_trees
+            .iter()
+            .group_by(|tt| {
+                matches!(tt, tt::TokenTree::Leaf(tt::Leaf::Punct(Punct { char: ',', .. })))
+            })
+            .into_iter()
+            .map(|(_, tts)| {
+                let segments = tts.filter_map(|tt| match tt {
+                    tt::TokenTree::Leaf(tt::Leaf::Ident(id)) => Some(id.as_name()),
+                    _ => None,
+                });
+                ModPath::from_segments(PathKind::Plain, segments)
+            })
+            .collect::<Vec<_>>();
+
+        return Some(paths.into_iter());
     }
 
     pub fn string_value(&self) -> Option<&SmolStr> {

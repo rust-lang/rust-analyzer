@@ -27,6 +27,11 @@ impl flags::Release {
             .run()?;
 
         let website_root = project_root().join("../rust-analyzer.github.io");
+        {
+            let _dir = pushd(&website_root)?;
+            cmd!("git switch src").run()?;
+            cmd!("git pull").run()?;
+        }
         let changelog_dir = website_root.join("./thisweek/_posts");
 
         let today = date_iso()?;
@@ -76,7 +81,7 @@ impl flags::Promote {
         cmd!("git add src/tools/rust-analyzer").run()?;
         cmd!("git commit -m':arrow_up: rust-analyzer'").run()?;
         if !self.dry_run {
-            cmd!("git push -u").run()?;
+            cmd!("git push -u origin {branch}").run()?;
             cmd!("xdg-open https://github.com/matklad/rust/pull/new/{branch}?body=r%3F%20%40ghost")
                 .run()?;
         }

@@ -41,6 +41,7 @@ define_semantic_token_types![
     (ANGLE, "angle"),
     (ARITHMETIC, "arithmetic"),
     (ATTRIBUTE, "attribute"),
+    (ATTRIBUTE_BRACKET, "attributeBracket"),
     (BITWISE, "bitwise"),
     (BOOLEAN, "boolean"),
     (BRACE, "brace"),
@@ -52,6 +53,7 @@ define_semantic_token_types![
     (COMMA, "comma"),
     (COMPARISON, "comparison"),
     (CONST_PARAMETER, "constParameter"),
+    (DERIVE, "derive"),
     (DOT, "dot"),
     (ESCAPE_SEQUENCE, "escapeSequence"),
     (FORMAT_SPECIFIER, "formatSpecifier"),
@@ -65,6 +67,7 @@ define_semantic_token_types![
     (SELF_KEYWORD, "selfKeyword"),
     (SEMICOLON, "semicolon"),
     (TYPE_ALIAS, "typeAlias"),
+    (TOOL_MODULE, "toolModule"),
     (UNION, "union"),
     (UNRESOLVED_REFERENCE, "unresolvedReference"),
 ];

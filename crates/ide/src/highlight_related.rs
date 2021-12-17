@@ -10,11 +10,11 @@ use rustc_hash::FxHashSet;
 use syntax::{
     ast::{self, HasLoopBody},
     match_ast, AstNode,
-    SyntaxKind::IDENT,
+    SyntaxKind::{IDENT, INT_NUMBER},
     SyntaxNode, SyntaxToken, TextRange, T,
 };
 
-use crate::{display::TryToNav, references, NavigationTarget};
+use crate::{references, NavigationTarget, TryToNav};
 
 #[derive(PartialEq, Eq, Hash)]
 pub struct HighlightedRange {
@@ -54,10 +54,9 @@ pub(crate) fn highlight_related(
         T![?] => 4, // prefer `?` when the cursor is sandwiched like in `await$0?`
         T![->] => 3,
         kind if kind.is_keyword() => 2,
-        IDENT => 1,
+        IDENT | INT_NUMBER => 1,
         _ => 0,
     })?;
-
     match token.kind() {
         T![?] if config.exit_points && token.parent().and_then(ast::TryExpr::cast).is_some() => {
             highlight_exit_points(sema, token)
@@ -79,7 +78,7 @@ fn highlight_references(
     token: SyntaxToken,
     file_id: FileId,
 ) -> Option<Vec<HighlightedRange>> {
-    let defs = find_defs(sema, token.clone());
+    let defs = find_defs(sema, token);
     let usages = defs
         .iter()
         .filter_map(|&d| {
@@ -344,6 +343,22 @@ mod tests {
         expected.sort_by_key(|(range, _)| range.start());
 
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_hl_tuple_fields() {
+        check(
+            r#"
+struct Tuple(u32, u32);
+
+fn foo(t: Tuple) {
+    t.0$0;
+   // ^ read
+    t.0;
+   // ^ read
+}
+"#,
+        );
     }
 
     #[test]

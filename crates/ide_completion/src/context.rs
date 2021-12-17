@@ -3,8 +3,8 @@
 use base_db::SourceDatabaseExt;
 use hir::{Local, Name, ScopeDef, Semantics, SemanticsScope, Type, TypeInfo};
 use ide_db::{
+    active_parameter::ActiveParameter,
     base_db::{FilePosition, SourceDatabase},
-    call_info::ActiveParameter,
     RootDatabase,
 };
 use syntax::{
@@ -30,20 +30,28 @@ pub(crate) enum PatternRefutability {
     Irrefutable,
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub(super) enum PathKind {
     Expr,
     Type,
+    Attr,
+    Mac,
+    Pat,
+    Vis { has_in_token: bool },
+    Use,
 }
 
 #[derive(Debug)]
 pub(crate) struct PathCompletionContext {
     /// If this is a call with () already there
-    call_kind: Option<CallKind>,
+    has_call_parens: bool,
     /// A single-indent path, like `foo`. `::foo` should not be considered a trivial path.
     pub(super) is_trivial_path: bool,
     /// If not a trivial path, the prefix (qualifier).
     pub(super) qualifier: Option<ast::Path>,
+    #[allow(dead_code)]
+    /// If not a trivial path, the suffix (parent).
+    pub(super) parent: Option<ast::Path>,
     /// Whether the qualifier comes from a use tree parent or not
     pub(super) use_tree_parent: bool,
     pub(super) kind: Option<PathKind>,
@@ -67,13 +75,6 @@ pub(super) enum LifetimeContext {
     Lifetime,
     LabelRef,
     LabelDef,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(crate) enum CallKind {
-    Pat,
-    Mac,
-    Expr,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -205,13 +206,6 @@ impl<'a> CompletionContext<'a> {
         )
     }
 
-    pub(crate) fn in_use_tree(&self) -> bool {
-        matches!(
-            self.completion_location,
-            Some(ImmediateLocation::Use | ImmediateLocation::UseTree)
-        )
-    }
-
     pub(crate) fn has_impl_or_trait_prev_sibling(&self) -> bool {
         matches!(
             self.prev_sibling,
@@ -232,8 +226,7 @@ impl<'a> CompletionContext<'a> {
     }
 
     pub(crate) fn is_path_disallowed(&self) -> bool {
-        self.attribute_under_caret.is_some()
-            || self.previous_token_is(T![unsafe])
+        self.previous_token_is(T![unsafe])
             || matches!(
                 self.prev_sibling,
                 Some(ImmediatePrevSibling::Attribute | ImmediatePrevSibling::Visibility)
@@ -241,8 +234,7 @@ impl<'a> CompletionContext<'a> {
             || matches!(
                 self.completion_location,
                 Some(
-                    ImmediateLocation::Attribute(_)
-                        | ImmediateLocation::ModDeclaration(_)
+                    ImmediateLocation::ModDeclaration(_)
                         | ImmediateLocation::RecordPat(_)
                         | ImmediateLocation::RecordExpr(_)
                         | ImmediateLocation::Rename
@@ -258,8 +250,8 @@ impl<'a> CompletionContext<'a> {
         matches!(self.path_context, Some(PathCompletionContext { kind: Some(PathKind::Type), .. }))
     }
 
-    pub(crate) fn path_call_kind(&self) -> Option<CallKind> {
-        self.path_context.as_ref().and_then(|it| it.call_kind)
+    pub(crate) fn path_is_call(&self) -> bool {
+        self.path_context.as_ref().map_or(false, |it| it.has_call_parens)
     }
 
     pub(crate) fn is_trivial_path(&self) -> bool {
@@ -272,6 +264,10 @@ impl<'a> CompletionContext<'a> {
 
     pub(crate) fn path_qual(&self) -> Option<&ast::Path> {
         self.path_context.as_ref().and_then(|it| it.qualifier.as_ref())
+    }
+
+    pub(crate) fn path_kind(&self) -> Option<PathKind> {
+        self.path_context.as_ref().and_then(|it| it.kind)
     }
 
     /// Checks if an item is visible and not `doc(hidden)` at the completion site.
@@ -521,7 +517,7 @@ impl<'a> CompletionContext<'a> {
 
                         (ty, name)
                     },
-                    ast::ArgList(_it) => {
+                    ast::ArgList(_) => {
                         cov_mark::hit!(expected_type_fn_param);
                         ActiveParameter::at_token(
                             &self.sema,
@@ -565,11 +561,21 @@ impl<'a> CompletionContext<'a> {
                         })().unwrap_or((None, None))
                     },
                     ast::RecordExprField(it) => {
-                        cov_mark::hit!(expected_type_struct_field_with_leading_char);
-                        (
-                            it.expr().as_ref().and_then(|e| self.sema.type_of_expr(e)).map(TypeInfo::original),
-                            it.field_name().map(NameOrNameRef::NameRef),
-                        )
+                        if let Some(expr) = it.expr() {
+                            cov_mark::hit!(expected_type_struct_field_with_leading_char);
+                            (
+                                self.sema.type_of_expr(&expr).map(TypeInfo::original),
+                                it.field_name().map(NameOrNameRef::NameRef),
+                            )
+                        } else {
+                            cov_mark::hit!(expected_type_struct_field_followed_by_comma);
+                            let ty = self.sema.resolve_record_field(&it)
+                                .map(|(_, _, ty)| ty);
+                            (
+                                ty,
+                                it.field_name().map(NameOrNameRef::NameRef),
+                            )
+                        }
                     },
                     ast::MatchExpr(it) => {
                         cov_mark::hit!(expected_type_match_arm_without_leading_char);
@@ -602,9 +608,9 @@ impl<'a> CompletionContext<'a> {
                             .map(|c| (Some(c.return_type()), None))
                             .unwrap_or((None, None))
                     },
-                    ast::ParamList(__) => (None, None),
-                    ast::Stmt(__) => (None, None),
-                    ast::Item(__) => (None, None),
+                    ast::ParamList(_) => (None, None),
+                    ast::Stmt(_) => (None, None),
+                    ast::Item(_) => (None, None),
                     _ => {
                         match node.parent() {
                             Some(n) => {
@@ -670,7 +676,12 @@ impl<'a> CompletionContext<'a> {
                     Self::classify_lifetime(&self.sema, original_file, lifetime, offset);
             }
             ast::NameLike::NameRef(name_ref) => {
-                self.path_context = Self::classify_name_ref(&self.sema, original_file, name_ref);
+                if let Some((path_ctx, pat_ctx)) =
+                    Self::classify_name_ref(&self.sema, original_file, name_ref)
+                {
+                    self.path_context = Some(path_ctx);
+                    self.pattern_ctx = pat_ctx;
+                }
             }
             ast::NameLike::Name(name) => {
                 self.pattern_ctx = Self::classify_name(&self.sema, name);
@@ -691,10 +702,10 @@ impl<'a> CompletionContext<'a> {
 
         Some(match_ast! {
             match parent {
-                ast::LifetimeParam(_it) => LifetimeContext::LifetimeParam(sema.find_node_at_offset_with_macros(original_file, offset)),
-                ast::BreakExpr(_it) => LifetimeContext::LabelRef,
-                ast::ContinueExpr(_it) => LifetimeContext::LabelRef,
-                ast::Label(_it) => LifetimeContext::LabelDef,
+                ast::LifetimeParam(_) => LifetimeContext::LifetimeParam(sema.find_node_at_offset_with_macros(original_file, offset)),
+                ast::BreakExpr(_) => LifetimeContext::LabelRef,
+                ast::ContinueExpr(_) => LifetimeContext::LabelRef,
+                ast::Label(_) => LifetimeContext::LabelDef,
                 _ => LifetimeContext::Lifetime,
             }
         })
@@ -713,82 +724,61 @@ impl<'a> CompletionContext<'a> {
         if !bind_pat.is_simple_ident() {
             return None;
         }
-        let mut is_param = None;
-        let (refutability, has_type_ascription) = bind_pat
-            .syntax()
-            .ancestors()
-            .skip_while(|it| ast::Pat::can_cast(it.kind()))
-            .next()
-            .map_or((PatternRefutability::Irrefutable, false), |node| {
-                let refutability = match_ast! {
-                    match node {
-                        ast::LetStmt(let_) => return (PatternRefutability::Irrefutable, let_.ty().is_some()),
-                        ast::Param(param) => {
-                            let is_closure_param = param
-                                .syntax()
-                                .ancestors()
-                                .nth(2)
-                                .and_then(ast::ClosureExpr::cast)
-                                .is_some();
-                            is_param = Some(if is_closure_param {
-                                ParamKind::Closure
-                            } else {
-                                ParamKind::Function
-                            });
-                            return (PatternRefutability::Irrefutable, param.ty().is_some())
-                        },
-                        ast::MatchArm(__) => PatternRefutability::Refutable,
-                        ast::Condition(__) => PatternRefutability::Refutable,
-                        ast::ForExpr(__) => PatternRefutability::Irrefutable,
-                        _ => PatternRefutability::Irrefutable,
-                    }
-                };
-                (refutability, false)
-            });
-        Some(PatternContext { refutability, is_param, has_type_ascription })
+        Some(pattern_context_for(bind_pat.into()))
     }
 
     fn classify_name_ref(
         _sema: &Semantics<RootDatabase>,
         original_file: &SyntaxNode,
         name_ref: ast::NameRef,
-    ) -> Option<PathCompletionContext> {
+    ) -> Option<(PathCompletionContext, Option<PatternContext>)> {
         let parent = name_ref.syntax().parent()?;
         let segment = ast::PathSegment::cast(parent)?;
+        let path = segment.parent_path();
 
         let mut path_ctx = PathCompletionContext {
-            call_kind: None,
+            has_call_parens: false,
             is_trivial_path: false,
             qualifier: None,
+            parent: None,
             has_type_args: false,
             can_be_stmt: false,
             in_loop_body: false,
             use_tree_parent: false,
             kind: None,
         };
+        let mut pat_ctx = None;
         path_ctx.in_loop_body = is_in_loop_body(name_ref.syntax());
-        let path = segment.parent_path();
 
-        if let Some(p) = path.syntax().parent() {
-            path_ctx.call_kind = match_ast! {
-                match p {
-                    ast::PathExpr(it) => it.syntax().parent().and_then(ast::CallExpr::cast).map(|_| CallKind::Expr),
-                    ast::MacroCall(it) => it.excl_token().and(Some(CallKind::Mac)),
-                    ast::TupleStructPat(_it) => Some(CallKind::Pat),
-                    _ => None
-                }
-            };
-        }
-
-        if let Some(parent) = path.syntax().parent() {
-            path_ctx.kind = match_ast! {
-                match parent {
-                    ast::PathType(_it) => Some(PathKind::Type),
-                    ast::PathExpr(_it) => Some(PathKind::Expr),
+        path_ctx.kind  = path.syntax().ancestors().find_map(|it| {
+            match_ast! {
+                match it {
+                    ast::PathType(_) => Some(PathKind::Type),
+                    ast::PathExpr(it) => {
+                        path_ctx.has_call_parens = it.syntax().parent().map_or(false, |it| ast::CallExpr::can_cast(it.kind()));
+                        Some(PathKind::Expr)
+                    },
+                    ast::TupleStructPat(it) => {
+                        path_ctx.has_call_parens = true;
+                        pat_ctx = Some(pattern_context_for(it.into()));
+                        Some(PathKind::Pat)
+                    },
+                    ast::RecordPat(it) => {
+                        pat_ctx = Some(pattern_context_for(it.into()));
+                        Some(PathKind::Pat)
+                    },
+                    ast::PathPat(it) => {
+                        pat_ctx = Some(pattern_context_for(it.into()));
+                        Some(PathKind::Pat)
+                    },
+                    ast::MacroCall(it) => it.excl_token().and(Some(PathKind::Mac)),
+                    ast::Meta(_) => Some(PathKind::Attr),
+                    ast::Visibility(it) => Some(PathKind::Vis { has_in_token: it.in_token().is_some() }),
+                    ast::UseTree(_) => Some(PathKind::Use),
                     _ => None,
                 }
-            };
-        }
+            }
+        });
         path_ctx.has_type_args = segment.generic_arg_list().is_some();
 
         if let Some((path, use_tree_parent)) = path_or_use_tree_qualifier(&path) {
@@ -802,12 +792,12 @@ impl<'a> CompletionContext<'a> {
                     )
                 })
                 .map(|it| it.parent_path());
-            return Some(path_ctx);
+            return Some((path_ctx, pat_ctx));
         }
 
         if let Some(segment) = path.segment() {
             if segment.coloncolon_token().is_some() {
-                return Some(path_ctx);
+                return Some((path_ctx, pat_ctx));
             }
         }
 
@@ -831,10 +821,46 @@ impl<'a> CompletionContext<'a> {
                 None
             })
             .unwrap_or(false);
-        Some(path_ctx)
+        Some((path_ctx, pat_ctx))
     }
 }
 
+fn pattern_context_for(pat: ast::Pat) -> PatternContext {
+    let mut is_param = None;
+    let (refutability, has_type_ascription) =
+    pat
+        .syntax()
+        .ancestors()
+        .skip_while(|it| ast::Pat::can_cast(it.kind()))
+        .next()
+        .map_or((PatternRefutability::Irrefutable, false), |node| {
+            let refutability = match_ast! {
+                match node {
+                    ast::LetStmt(let_) => return (PatternRefutability::Irrefutable, let_.ty().is_some()),
+                    ast::Param(param) => {
+                        let is_closure_param = param
+                            .syntax()
+                            .ancestors()
+                            .nth(2)
+                            .and_then(ast::ClosureExpr::cast)
+                            .is_some();
+                        is_param = Some(if is_closure_param {
+                            ParamKind::Closure
+                        } else {
+                            ParamKind::Function
+                        });
+                        return (PatternRefutability::Irrefutable, param.ty().is_some())
+                    },
+                    ast::MatchArm(_) => PatternRefutability::Refutable,
+                    ast::Condition(_) => PatternRefutability::Refutable,
+                    ast::ForExpr(_) => PatternRefutability::Irrefutable,
+                    _ => PatternRefutability::Irrefutable,
+                }
+            };
+            (refutability, false)
+        });
+    PatternContext { refutability, is_param, has_type_ascription }
+}
 fn find_node_with_range<N: AstNode>(syntax: &SyntaxNode, range: TextRange) -> Option<N> {
     syntax.covering_element(range).ancestors().find_map(N::cast)
 }
@@ -986,6 +1012,20 @@ fn bar(x: &u32) {}
 struct Foo { a: u32 }
 fn foo() {
     Foo { a: $0 };
+}
+"#,
+            expect![[r#"ty: u32, name: a"#]],
+        )
+    }
+
+    #[test]
+    fn expected_type_struct_field_followed_by_comma() {
+        cov_mark::check!(expected_type_struct_field_followed_by_comma);
+        check_expected_type_and_name(
+            r#"
+struct Foo { a: u32 }
+fn foo() {
+    Foo { a: $0, };
 }
 "#,
             expect![[r#"ty: u32, name: a"#]],

@@ -4,8 +4,9 @@ use chalk_ir::{FloatTy, IntTy, Mutability, Scalar, UintTy};
 use hir_def::{
     builtin_type::{BuiltinFloat, BuiltinInt, BuiltinType, BuiltinUint},
     type_ref::Rawness,
-    AssocContainerId, FunctionId, GenericDefId, HasModule, Lookup, TraitId,
+    FunctionId, GenericDefId, HasModule, ItemContainerId, Lookup, TraitId,
 };
+use syntax::SmolStr;
 
 use crate::{
     db::HirDatabase, from_assoc_type_id, from_chalk_trait_id, from_foreign_def_id,
@@ -187,7 +188,7 @@ impl TyExt for Ty {
                     ImplTraitId::AsyncBlockTypeImplTrait(def, _expr) => {
                         let krate = def.module(db.upcast()).krate();
                         if let Some(future_trait) = db
-                            .lang_item(krate, "future_trait".into())
+                            .lang_item(krate, SmolStr::new_inline("future_trait"))
                             .and_then(|item| item.as_trait())
                         {
                             // This is only used by type walking.
@@ -268,7 +269,7 @@ impl TyExt for Ty {
         match self.kind(&Interner) {
             TyKind::AssociatedType(id, ..) => {
                 match from_assoc_type_id(*id).lookup(db.upcast()).container {
-                    AssocContainerId::TraitId(trait_id) => Some(trait_id),
+                    ItemContainerId::TraitId(trait_id) => Some(trait_id),
                     _ => None,
                 }
             }
@@ -277,7 +278,7 @@ impl TyExt for Ty {
                     .lookup(db.upcast())
                     .container
                 {
-                    AssocContainerId::TraitId(trait_id) => Some(trait_id),
+                    ItemContainerId::TraitId(trait_id) => Some(trait_id),
                     _ => None,
                 }
             }
@@ -331,7 +332,7 @@ impl ProjectionTyExt for ProjectionTy {
 
     fn trait_(&self, db: &dyn HirDatabase) -> TraitId {
         match from_assoc_type_id(self.associated_ty_id).lookup(db.upcast()).container {
-            AssocContainerId::TraitId(it) => it,
+            ItemContainerId::TraitId(it) => it,
             _ => panic!("projection ty without parent trait"),
         }
     }

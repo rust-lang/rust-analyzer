@@ -11,19 +11,17 @@ use ide_db::{
     base_db::FileRange,
     defs::Definition,
     helpers::{pick_best_token, FamousDefs},
-    RootDatabase,
+    FxIndexSet, RootDatabase,
 };
 use itertools::Itertools;
 use syntax::{ast, match_ast, AstNode, SyntaxKind::*, SyntaxNode, SyntaxToken, T};
 
 use crate::{
-    display::TryToNav,
     doc_links::token_as_doc_comment,
     markup::Markup,
     runnables::{runnable_fn, runnable_mod},
-    FileId, FilePosition, NavigationTarget, RangeInfo, Runnable,
+    FileId, FilePosition, NavigationTarget, RangeInfo, Runnable, TryToNav,
 };
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HoverConfig {
     pub links_in_hover: bool,
@@ -69,7 +67,7 @@ impl HoverAction {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct HoverGotoTypeData {
     pub mod_path: String,
     pub nav: NavigationTarget,
@@ -96,10 +94,11 @@ pub(crate) fn hover(
     let sema = &hir::Semantics::new(db);
     let file = sema.parse(file_id).syntax().clone();
 
-    if !range.is_empty() {
+    let offset = if !range.is_empty() {
         return hover_ranged(&file, range, sema, config);
-    }
-    let offset = range.start();
+    } else {
+        range.start()
+    };
 
     let original_token = pick_best_token(file.token_at_offset(offset), |kind| match kind {
         IDENT | INT_NUMBER | LIFETIME_IDENT | T![self] | T![super] | T![crate] => 3,
@@ -136,11 +135,12 @@ pub(crate) fn hover(
         .flatten()
         .unique_by(|&(def, _)| def)
         .filter_map(|(def, node)| hover_for_definition(sema, file_id, def, &node, config))
-        .reduce(|mut acc, HoverResult { markup, actions }| {
+        .reduce(|mut acc: HoverResult, HoverResult { markup, actions }| {
             acc.actions.extend(actions);
             acc.markup = Markup::from(format!("{}\n---\n{}", acc.markup, markup));
             acc
         });
+
     if result.is_none() {
         // fallbacks, show keywords or types
         if let Some(res) = render::keyword(sema, config, &original_token) {
@@ -152,7 +152,10 @@ pub(crate) fn hover(
             return res;
         }
     }
-    result.map(|res| RangeInfo::new(original_token.text_range(), res))
+    result.map(|mut res: HoverResult| {
+        res.actions = dedupe_or_merge_hover_actions(res.actions);
+        RangeInfo::new(original_token.text_range(), res)
+    })
 }
 
 pub(crate) fn hover_for_definition(
@@ -314,6 +317,7 @@ fn goto_type_action_for_def(db: &RootDatabase, def: Definition) -> Option<HoverA
             Definition::Local(it) => it.ty(db),
             Definition::GenericParam(hir::GenericParam::ConstParam(it)) => it.ty(db),
             Definition::Field(field) => field.ty(db),
+            Definition::Function(function) => function.ret_type(db),
             _ => return None,
         };
 
@@ -334,9 +338,49 @@ fn walk_and_push_ty(
         } else if let Some(trait_) = t.as_dyn_trait() {
             push_new_def(trait_.into());
         } else if let Some(traits) = t.as_impl_traits(db) {
-            traits.into_iter().for_each(|it| push_new_def(it.into()));
+            traits.for_each(|it| push_new_def(it.into()));
         } else if let Some(trait_) = t.as_associated_type_parent_trait(db) {
             push_new_def(trait_.into());
         }
     });
+}
+
+fn dedupe_or_merge_hover_actions(actions: Vec<HoverAction>) -> Vec<HoverAction> {
+    let mut deduped_actions = Vec::with_capacity(actions.len());
+    let mut go_to_type_targets = FxIndexSet::default();
+
+    let mut seen_implementation = false;
+    let mut seen_reference = false;
+    let mut seen_runnable = false;
+    for action in actions {
+        match action {
+            HoverAction::GoToType(targets) => {
+                go_to_type_targets.extend(targets);
+            }
+            HoverAction::Implementation(..) => {
+                if !seen_implementation {
+                    seen_implementation = true;
+                    deduped_actions.push(action);
+                }
+            }
+            HoverAction::Reference(..) => {
+                if !seen_reference {
+                    seen_reference = true;
+                    deduped_actions.push(action);
+                }
+            }
+            HoverAction::Runnable(..) => {
+                if !seen_runnable {
+                    seen_runnable = true;
+                    deduped_actions.push(action);
+                }
+            }
+        };
+    }
+
+    if !go_to_type_targets.is_empty() {
+        deduped_actions.push(HoverAction::GoToType(go_to_type_targets.into_iter().collect()));
+    }
+
+    deduped_actions
 }

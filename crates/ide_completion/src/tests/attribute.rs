@@ -9,12 +9,12 @@ fn check(ra_fixture: &str, expect: Expect) {
 }
 
 #[test]
-fn doesnt_complete_items() {
+fn proc_macros() {
     check(
         r#"
-struct Foo;
+//- proc_macros: identity
 #[$0]
-use self as this;
+struct Foo;
 "#,
         expect![[r#"
             at allow(…)
@@ -29,19 +29,29 @@ use self as this;
             at doc(alias = "…")
             at must_use
             at no_mangle
+            at derive(…)
+            at repr(…)
+            at non_exhaustive
+            kw self
+            kw super
+            kw crate
+            md proc_macros
         "#]],
     )
 }
 
 #[test]
-fn doesnt_complete_qualified() {
+fn proc_macros_qualified() {
     check(
         r#"
+//- proc_macros: identity
+#[proc_macros::$0]
 struct Foo;
-#[foo::$0]
-use self as this;
 "#,
-        expect![[r#""#]],
+        expect![[r#"
+            at input_replace pub macro input_replace
+            at identity      pub macro identity
+        "#]],
     )
 }
 
@@ -61,6 +71,9 @@ fn with_existing_attr() {
             at deny(…)
             at forbid(…)
             at warn(…)
+            kw self
+            kw super
+            kw crate
         "#]],
     )
 }
@@ -90,6 +103,9 @@ fn attr_on_source_file() {
             at recursion_limit = "…"
             at type_length_limit = …
             at windows_subsystem = "…"
+            kw self
+            kw super
+            kw crate
         "#]],
     );
 }
@@ -113,6 +129,9 @@ fn attr_on_module() {
             at no_mangle
             at macro_use
             at path = "…"
+            kw self
+            kw super
+            kw crate
         "#]],
     );
     check(
@@ -131,6 +150,9 @@ fn attr_on_module() {
             at must_use
             at no_mangle
             at no_implicit_prelude
+            kw self
+            kw super
+            kw crate
         "#]],
     );
 }
@@ -154,6 +176,9 @@ fn attr_on_macro_rules() {
             at no_mangle
             at macro_export
             at macro_use
+            kw self
+            kw super
+            kw crate
         "#]],
     );
 }
@@ -175,6 +200,9 @@ fn attr_on_macro_def() {
             at doc(alias = "…")
             at must_use
             at no_mangle
+            kw self
+            kw super
+            kw crate
         "#]],
     );
 }
@@ -197,6 +225,9 @@ fn attr_on_extern_crate() {
             at must_use
             at no_mangle
             at macro_use
+            kw self
+            kw super
+            kw crate
         "#]],
     );
 }
@@ -218,6 +249,9 @@ fn attr_on_use() {
             at doc(alias = "…")
             at must_use
             at no_mangle
+            kw self
+            kw super
+            kw crate
         "#]],
     );
 }
@@ -239,6 +273,9 @@ fn attr_on_type_alias() {
             at doc(alias = "…")
             at must_use
             at no_mangle
+            kw self
+            kw super
+            kw crate
         "#]],
     );
 }
@@ -246,7 +283,11 @@ fn attr_on_type_alias() {
 #[test]
 fn attr_on_struct() {
     check(
-        r#"#[$0] struct Foo;"#,
+        r#"
+//- minicore:derive
+#[$0]
+struct Foo;
+"#,
         expect![[r#"
             at allow(…)
             at cfg(…)
@@ -263,6 +304,11 @@ fn attr_on_struct() {
             at derive(…)
             at repr(…)
             at non_exhaustive
+            kw self
+            kw super
+            kw crate
+            md core
+            at derive           pub macro derive
         "#]],
     );
 }
@@ -287,6 +333,9 @@ fn attr_on_enum() {
             at derive(…)
             at repr(…)
             at non_exhaustive
+            kw self
+            kw super
+            kw crate
         "#]],
     );
 }
@@ -308,6 +357,9 @@ fn attr_on_const() {
             at doc(alias = "…")
             at must_use
             at no_mangle
+            kw self
+            kw super
+            kw crate
         "#]],
     );
 }
@@ -334,6 +386,9 @@ fn attr_on_static() {
             at link_section = "…"
             at global_allocator
             at used
+            kw self
+            kw super
+            kw crate
         "#]],
     );
 }
@@ -356,6 +411,9 @@ fn attr_on_trait() {
             at must_use
             at no_mangle
             at must_use
+            kw self
+            kw super
+            kw crate
         "#]],
     );
 }
@@ -378,6 +436,9 @@ fn attr_on_impl() {
             at must_use
             at no_mangle
             at automatically_derived
+            kw self
+            kw super
+            kw crate
         "#]],
     );
     check(
@@ -395,6 +456,9 @@ fn attr_on_impl() {
             at doc(alias = "…")
             at must_use
             at no_mangle
+            kw self
+            kw super
+            kw crate
         "#]],
     );
 }
@@ -417,6 +481,9 @@ fn attr_on_extern_block() {
             at must_use
             at no_mangle
             at link
+            kw self
+            kw super
+            kw crate
         "#]],
     );
     check(
@@ -435,6 +502,9 @@ fn attr_on_extern_block() {
             at must_use
             at no_mangle
             at link
+            kw self
+            kw super
+            kw crate
         "#]],
     );
 }
@@ -451,6 +521,9 @@ fn attr_on_variant() {
             at forbid(…)
             at warn(…)
             at non_exhaustive
+            kw self
+            kw super
+            kw crate
         "#]],
     );
 }
@@ -487,6 +560,9 @@ fn attr_on_fn() {
             at target_feature = "…"
             at test
             at track_caller
+            kw self
+            kw super
+            kw crate
         "#]],
     );
 }
@@ -503,6 +579,9 @@ fn attr_on_expr() {
             at deny(…)
             at forbid(…)
             at warn(…)
+            kw self
+            kw super
+            kw crate
         "#]],
     );
 }
@@ -548,6 +627,9 @@ fn attr_in_source_file_end() {
             at track_caller
             at used
             at warn(…)
+            kw self
+            kw super
+            kw crate
         "#]],
     );
 }
@@ -560,9 +642,9 @@ mod cfg {
         check(
             r#"#[cfg(target_endian = $0"#,
             expect![[r#"
-            at little
-            at big
-"#]],
+                ba little
+                ba big
+            "#]],
         );
     }
 }
@@ -594,13 +676,13 @@ mod derive {
 #[derive($0)] struct Test;
 "#,
             expect![[r#"
-                at Default
-                at Clone, Copy
-                at PartialEq
-                at PartialEq, Eq
-                at PartialEq, Eq, PartialOrd, Ord
-                at Clone
-                at PartialEq, PartialOrd
+                de Default
+                de Clone, Copy
+                de PartialEq
+                de PartialEq, Eq
+                de PartialEq, Eq, PartialOrd, Ord
+                de Clone
+                de PartialEq, PartialOrd
             "#]],
         );
     }
@@ -613,12 +695,12 @@ mod derive {
 #[derive(serde::Serialize, PartialEq, $0)] struct Test;
 "#,
             expect![[r#"
-                at Default
-                at Clone, Copy
-                at Eq
-                at Eq, PartialOrd, Ord
-                at Clone
-                at PartialOrd
+                de Default
+                de Clone, Copy
+                de Eq
+                de Eq, PartialOrd, Ord
+                de Clone
+                de PartialOrd
             "#]],
         )
     }
@@ -631,12 +713,12 @@ mod derive {
 #[derive($0 serde::Serialize, PartialEq)] struct Test;
 "#,
             expect![[r#"
-                at Default
-                at Clone, Copy
-                at Eq
-                at Eq, PartialOrd, Ord
-                at Clone
-                at PartialOrd
+                de Default
+                de Clone, Copy
+                de Eq
+                de Eq, PartialOrd, Ord
+                de Clone
+                de PartialOrd
             "#]],
         )
     }
@@ -649,7 +731,7 @@ mod derive {
 #[derive(der$0)] struct Test;
 "#,
             expect![[r#"
-                at DeriveIdentity (use proc_macros::DeriveIdentity)
+                de DeriveIdentity (use proc_macros::DeriveIdentity)
             "#]],
         );
         check_derive(
@@ -659,7 +741,7 @@ use proc_macros::DeriveIdentity;
 #[derive(der$0)] struct Test;
 "#,
             expect![[r#"
-                at DeriveIdentity
+                de DeriveIdentity
             "#]],
         );
     }
@@ -755,6 +837,20 @@ mod lint {
             r#"#[allow(rustdoc::bare_urls)] struct Test;"#,
         );
     }
+
+    #[test]
+    fn lint_unclosed() {
+        check_edit(
+            "deprecated",
+            r#"#[allow(dep$0 struct Test;"#,
+            r#"#[allow(deprecated struct Test;"#,
+        );
+        check_edit(
+            "bare_urls",
+            r#"#[allow(rustdoc::$0 struct Test;"#,
+            r#"#[allow(rustdoc::bare_urls struct Test;"#,
+        );
+    }
 }
 
 mod repr {
@@ -775,23 +871,23 @@ mod repr {
         check_repr(
             r#"#[repr($0)] struct Test;"#,
             expect![[r#"
-            at align($0)
-            at packed
-            at transparent
-            at C
-            at u8
-            at u16
-            at u32
-            at u64
-            at u128
-            at usize
-            at i8
-            at i16
-            at i32
-            at i64
-            at i28
-            at isize
-        "#]],
+                ba align($0)
+                ba packed
+                ba transparent
+                ba C
+                ba u8
+                ba u16
+                ba u32
+                ba u64
+                ba u128
+                ba usize
+                ba i8
+                ba i16
+                ba i32
+                ba i64
+                ba i28
+                ba isize
+            "#]],
         );
     }
 
@@ -805,21 +901,21 @@ mod repr {
         check_repr(
             r#"#[repr(align(1), $0)] struct Test;"#,
             expect![[r#"
-            at transparent
-            at C
-            at u8
-            at u16
-            at u32
-            at u64
-            at u128
-            at usize
-            at i8
-            at i16
-            at i32
-            at i64
-            at i28
-            at isize
-        "#]],
+                ba transparent
+                ba C
+                ba u8
+                ba u16
+                ba u32
+                ba u64
+                ba u128
+                ba usize
+                ba i8
+                ba i16
+                ba i32
+                ba i64
+                ba i28
+                ba isize
+            "#]],
         );
     }
 
@@ -828,21 +924,21 @@ mod repr {
         check_repr(
             r#"#[repr(packed, $0)] struct Test;"#,
             expect![[r#"
-            at transparent
-            at C
-            at u8
-            at u16
-            at u32
-            at u64
-            at u128
-            at usize
-            at i8
-            at i16
-            at i32
-            at i64
-            at i28
-            at isize
-        "#]],
+                ba transparent
+                ba C
+                ba u8
+                ba u16
+                ba u32
+                ba u64
+                ba u128
+                ba usize
+                ba i8
+                ba i16
+                ba i32
+                ba i64
+                ba i28
+                ba isize
+            "#]],
         );
     }
 
@@ -851,21 +947,21 @@ mod repr {
         check_repr(
             r#"#[repr(C, $0)] struct Test;"#,
             expect![[r#"
-            at align($0)
-            at packed
-            at u8
-            at u16
-            at u32
-            at u64
-            at u128
-            at usize
-            at i8
-            at i16
-            at i32
-            at i64
-            at i28
-            at isize
-        "#]],
+                ba align($0)
+                ba packed
+                ba u8
+                ba u16
+                ba u32
+                ba u64
+                ba u128
+                ba usize
+                ba i8
+                ba i16
+                ba i32
+                ba i64
+                ba i28
+                ba isize
+            "#]],
         );
     }
 
@@ -874,10 +970,10 @@ mod repr {
         check_repr(
             r#"#[repr(usize, $0)] struct Test;"#,
             expect![[r#"
-            at align($0)
-            at packed
-            at C
-        "#]],
+                ba align($0)
+                ba packed
+                ba C
+            "#]],
         );
     }
 }
