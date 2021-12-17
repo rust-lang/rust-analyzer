@@ -48,6 +48,7 @@ impl fmt::Display for FlycheckConfig {
 /// The spawned thread is shut down when this struct is dropped.
 #[derive(Debug)]
 pub struct FlycheckHandle {
+    id: usize,
     // XXX: drop order is significant
     sender: Sender<Restart>,
     _thread: jod_thread::JoinHandle,
@@ -66,12 +67,17 @@ impl FlycheckHandle {
             .name("Flycheck".to_owned())
             .spawn(move || actor.run(receiver))
             .expect("failed to spawn thread");
-        FlycheckHandle { sender, _thread: thread }
+        FlycheckHandle { id, sender, _thread: thread }
     }
 
     /// Schedule a re-start of the cargo check worker.
     pub fn update(&self) {
         self.sender.send(Restart).unwrap();
+    }
+
+    /// Returns the ID of the corresponding workspace
+    pub fn id(&self) -> usize {
+        self.id
     }
 }
 

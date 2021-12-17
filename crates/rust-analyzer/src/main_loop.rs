@@ -11,6 +11,7 @@ use crossbeam_channel::{select, Receiver};
 use ide_db::base_db::{SourceDatabaseExt, VfsPath};
 use lsp_server::{Connection, Notification, Request};
 use lsp_types::notification::Notification as _;
+use project_model::ProjectWorkspace;
 use vfs::{ChangeKind, FileId};
 
 use crate::{
@@ -698,10 +699,20 @@ impl GlobalState {
                 Ok(())
             })?
             .on::<lsp_types::notification::DidSaveTextDocument>(|this, params| {
-                for flycheck in &this.flycheck {
-                    flycheck.update();
-                }
                 if let Ok(abs_path) = from_proto::abs_path(&params.text_document.uri) {
+                    for flycheck in &this.flycheck {
+                        let id = flycheck.id();
+                        let root = match &this.workspaces[id] {
+                            ProjectWorkspace::Cargo { cargo, .. } => cargo.workspace_root(),
+                            ProjectWorkspace::Json { project, .. } => project.path(),
+                            // DetachedFiles workspaces are never flychecked
+                            ProjectWorkspace::DetachedFiles { .. } => unreachable!(),
+                        };
+                        if abs_path.starts_with(root) {
+                            flycheck.update();
+                            // FIXME: break here? the file should only belong to one workspace
+                        }
+                    }
                     if reload::should_refresh_for_change(&abs_path, ChangeKind::Modify) {
                         this.fetch_workspaces_queue.request_op();
                     }
