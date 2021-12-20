@@ -106,10 +106,6 @@ jobs:
       - if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: rm -rf editors/code/server
 
-      - if: matrix.target == 'x86_64-unknown-linux-gnu'
-        run: npx vsce package -o ../../dist/rust-analyzer.vsix
-        working-directory: editors/code
-
       - name: Run analysis-stats on rust-analyzer
         if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: target/${{ matrix.target }}/release/rust-analyzer analysis-stats .
