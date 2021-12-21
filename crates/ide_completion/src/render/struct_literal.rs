@@ -10,7 +10,6 @@ use crate::{render::RenderContext, CompletionItem, CompletionItemKind};
 pub(crate) fn render_struct_literal(
     ctx: RenderContext<'_>,
     strukt: hir::Struct,
-    path: Option<hir::ModPath>,
     local_name: Option<Name>,
 ) -> Option<CompletionItem> {
     let _p = profile::span("render_struct_literal");
@@ -24,8 +23,7 @@ pub(crate) fn render_struct_literal(
     }
 
     let name = local_name.unwrap_or_else(|| strukt.name(ctx.db())).to_smol_str();
-
-    let literal = render_literal(&ctx, path, &name, strukt.kind(ctx.db()), &visible_fields)?;
+    let literal = render_literal(&ctx, &name, strukt.kind(ctx.db()), &visible_fields)?;
 
     Some(build_completion(ctx, name, literal, strukt))
 }
@@ -51,27 +49,13 @@ fn build_completion(
 
 fn render_literal(
     ctx: &RenderContext<'_>,
-    path: Option<hir::ModPath>,
     name: &str,
     kind: StructKind,
     fields: &[hir::Field],
 ) -> Option<String> {
-    let path_string;
-
-    let qualified_name = if let Some(path) = path {
-        path_string = path.to_string();
-        &path_string
-    } else {
-        name
-    };
-
     let mut literal = match kind {
-        StructKind::Tuple if ctx.snippet_cap().is_some() => {
-            render_tuple_as_literal(fields, qualified_name)
-        }
-        StructKind::Record => {
-            render_record_as_literal(ctx.db(), ctx.snippet_cap(), fields, qualified_name)
-        }
+        StructKind::Tuple if ctx.snippet_cap().is_some() => render_tuple_as_literal(fields, name),
+        StructKind::Record => render_record_as_literal(ctx.db(), ctx.snippet_cap(), fields, name),
         _ => return None,
     };
 

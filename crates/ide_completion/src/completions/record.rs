@@ -59,15 +59,7 @@ pub(crate) fn complete_record_literal(
     }
 
     if let hir::Adt::Struct(strukt) = ctx.expected_type.as_ref()?.as_adt()? {
-        let path = if ctx.path_qual().is_none() {
-            ctx.scope
-                .module()
-                .and_then(|module| module.find_use_path(ctx.db, hir::ModuleDef::from(strukt)))
-        } else {
-            None
-        };
-
-        acc.add_struct_literal(ctx, strukt, path, None);
+        acc.add_struct_literal(ctx, strukt, None);
     }
 
     Some(())
@@ -97,64 +89,6 @@ fn create_foo(foo_desc: &FooDesc) -> () { () }
 
 fn baz() {
     let foo = create_foo(&FooDesc { bar: ${1:()} }$0);
-}
-            "#,
-        )
-    }
-
-    #[test]
-    fn literal_struct_completion_from_sub_modules() {
-        check_edit(
-            "Struct {…}",
-            r#"
-mod submod {
-    pub struct Struct {
-        pub a: u64,
-    }
-}
-
-fn f() -> submod::Struct {
-    Stru$0
-}
-            "#,
-            r#"
-mod submod {
-    pub struct Struct {
-        pub a: u64,
-    }
-}
-
-fn f() -> submod::Struct {
-    submod::Struct { a: ${1:()} }$0
-}
-            "#,
-        )
-    }
-
-    #[test]
-    fn literal_struct_completion_given_qualified_path() {
-        check_edit(
-            "Struct {…}",
-            r#"
-mod submod {
-    pub struct Struct {
-        pub a: u64,
-    }
-}
-
-fn f() -> submod::Struct {
-    submod::Stru$0
-}
-            "#,
-            r#"
-mod submod {
-    pub struct Struct {
-        pub a: u64,
-    }
-}
-
-fn f() -> submod::Struct {
-    submod::Struct { a: ${1:()} }$0
 }
             "#,
         )
