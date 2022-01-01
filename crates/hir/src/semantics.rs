@@ -10,7 +10,7 @@ use hir_def::{
     resolver::{self, HasResolver, Resolver, TypeNs},
     AsMacroCall, FunctionId, TraitId, VariantId,
 };
-use hir_expand::{name::AsName, ExpansionInfo, MacroCallId, MacroCallLoc};
+use hir_expand::{name::AsName, ExpansionInfo, MacroCallId};
 use hir_ty::{associated_type_shorthand_candidates, Interner};
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -24,7 +24,7 @@ use syntax::{
 use crate::{
     db::HirDatabase,
     semantics::source_to_def::{ChildContainer, SourceToDefCache, SourceToDefCtx},
-    source_analyzer::{resolve_hir_path, resolve_hir_path_as_macro, SourceAnalyzer},
+    source_analyzer::{resolve_hir_path, SourceAnalyzer},
     Access, AssocItem, BuiltinAttr, Callable, ConstParam, Crate, Field, Function, HasSource,
     HirFileId, Impl, InFile, Label, LifetimeParam, Local, MacroDef, Module, ModuleDef, Name, Path,
     ScopeDef, ToolModule, Trait, Type, TypeAlias, TypeParam, VariantDef,
@@ -160,7 +160,7 @@ impl<'db, DB: HirDatabase> Semantics<'db, DB> {
         self.imp.expand_attr_macro(item)
     }
 
-    pub fn resolve_derive_macro(&self, derive: &ast::Attr) -> Option<Vec<MacroDef>> {
+    pub fn resolve_derive_macro(&self, derive: &ast::Attr) -> Option<Vec<Option<MacroDef>>> {
         self.imp.resolve_derive_macro(derive)
     }
 
@@ -447,14 +447,11 @@ impl<'db> SemanticsImpl<'db> {
         Some(node)
     }
 
-    fn resolve_derive_macro(&self, attr: &ast::Attr) -> Option<Vec<MacroDef>> {
+    fn resolve_derive_macro(&self, attr: &ast::Attr) -> Option<Vec<Option<MacroDef>>> {
         let res = self
             .derive_macro_calls(attr)?
-            .iter()
-            .map(|&call| {
-                let loc: MacroCallLoc = self.db.lookup_intern_macro_call(call);
-                MacroDef { id: loc.def }
-            })
+            .into_iter()
+            .map(|call| Some(MacroDef { id: self.db.lookup_intern_macro_call(call?).def }))
             .collect();
         Some(res)
     }
@@ -462,9 +459,9 @@ impl<'db> SemanticsImpl<'db> {
     fn expand_derive_macro(&self, attr: &ast::Attr) -> Option<Vec<SyntaxNode>> {
         let res: Vec<_> = self
             .derive_macro_calls(attr)?
-            .iter()
-            .map(|call| call.as_file())
-            .flat_map(|file_id| {
+            .into_iter()
+            .flat_map(|call| {
+                let file_id = call?.as_file();
                 let node = self.db.parse_or_expand(file_id)?;
                 self.cache(node.clone(), file_id);
                 Some(node)
@@ -473,7 +470,7 @@ impl<'db> SemanticsImpl<'db> {
         Some(res)
     }
 
-    fn derive_macro_calls(&self, attr: &ast::Attr) -> Option<Vec<MacroCallId>> {
+    fn derive_macro_calls(&self, attr: &ast::Attr) -> Option<Vec<Option<MacroCallId>>> {
         let item = attr.syntax().parent().and_then(ast::Item::cast)?;
         let file_id = self.find_file(item.syntax()).file_id;
         let item = InFile::new(file_id, &item);
@@ -1232,15 +1229,5 @@ impl<'a> SemanticsScope<'a> {
         let ctx = body::LowerCtx::new(self.db.upcast(), self.file_id);
         let path = Path::from_src(path.clone(), &ctx)?;
         resolve_hir_path(self.db, &self.resolver, &path)
-    }
-
-    /// Resolve a path as-if it was written at the given scope. This is
-    /// necessary a heuristic, as it doesn't take hygiene into account.
-    // FIXME: This special casing solely exists for attributes for now
-    // ideally we should have a path resolution infra that properly knows about overlapping namespaces
-    pub fn speculative_resolve_as_mac(&self, path: &ast::Path) -> Option<MacroDef> {
-        let ctx = body::LowerCtx::new(self.db.upcast(), self.file_id);
-        let path = Path::from_src(path.clone(), &ctx)?;
-        resolve_hir_path_as_macro(self.db, &self.resolver, &path)
     }
 }

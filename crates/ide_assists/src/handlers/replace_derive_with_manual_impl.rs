@@ -57,7 +57,7 @@ pub(crate) fn replace_derive_with_manual_impl(
     }
 
     let ident = args.syntax().token_at_offset(ctx.offset()).find_map(ast::Ident::cast)?;
-    let trait_path = get_path_at_cursor_in_tt(&ident)?;
+    let (trait_path, _) = get_path_at_cursor_in_tt(&ident)?;
     let adt = attr.syntax().parent().and_then(ast::Adt::cast)?;
 
     let current_module = ctx.sema.scope(adt.syntax()).module()?;

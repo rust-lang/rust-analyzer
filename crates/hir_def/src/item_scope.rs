@@ -64,7 +64,7 @@ pub struct ItemScope {
     // be all resolved to the last one defined if shadowing happens.
     legacy_macros: FxHashMap<Name, MacroDefId>,
     attr_macros: FxHashMap<AstId<ast::Item>, MacroCallId>,
-    derive_macros: FxHashMap<AstId<ast::Item>, SmallVec<[(AttrId, MacroCallId); 1]>>,
+    derive_macros: FxHashMap<AstId<ast::Item>, SmallVec<[(AttrId, Option<MacroCallId>); 1]>>,
 }
 
 pub(crate) static BUILTIN_SCOPE: Lazy<FxHashMap<Name, PerNs>> = Lazy::new(|| {
@@ -199,18 +199,23 @@ impl ItemScope {
         self.attr_macros.iter().map(|(k, v)| (*k, *v))
     }
 
-    pub(crate) fn add_derive_macro_invoc(
+    pub(crate) fn set_derive_macro_invoc(
         &mut self,
         item: AstId<ast::Item>,
         call: MacroCallId,
         attr_id: AttrId,
+        idx: usize,
     ) {
-        self.derive_macros.entry(item).or_default().push((attr_id, call));
+        let calls = self.derive_macros.entry(item).or_default();
+        if calls.len() < idx {
+            calls.resize(idx + 1, (attr_id, None));
+        }
+        calls.insert(idx, (attr_id, Some(call)));
     }
 
     pub(crate) fn derive_macro_invocs(
         &self,
-    ) -> impl Iterator<Item = (AstId<ast::Item>, &[(AttrId, MacroCallId)])> + '_ {
+    ) -> impl Iterator<Item = (AstId<ast::Item>, &[(AttrId, Option<MacroCallId>)])> + '_ {
         self.derive_macros.iter().map(|(k, v)| (*k, v.as_ref()))
     }
 

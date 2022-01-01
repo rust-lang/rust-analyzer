@@ -51,27 +51,35 @@ pub fn get_path_in_derive_attr(
     if PathResolution::Macro(derive) != resolved_attr {
         return None;
     }
-    get_path_at_cursor_in_tt(cursor)
+    get_path_at_cursor_in_tt(cursor).map(|(path, _)| path)
 }
 
 /// Parses the path the identifier is part of inside a token tree.
-pub fn get_path_at_cursor_in_tt(cursor: &ast::Ident) -> Option<ast::Path> {
+///
+/// Returns the parsed path and whether the path is a qualifier or not.
+pub fn get_path_at_cursor_in_tt(cursor: &ast::Ident) -> Option<(ast::Path, bool)> {
     let cursor = cursor.syntax();
     let first = cursor
         .siblings_with_tokens(Direction::Prev)
         .filter_map(SyntaxElement::into_token)
         .take_while(|tok| tok.kind() != T!['('] && tok.kind() != T![,])
         .last()?;
-    let path_tokens = first
-        .siblings_with_tokens(Direction::Next)
-        .filter_map(SyntaxElement::into_token)
-        .take_while(|tok| tok != cursor);
+
+    let path_tokens =
+        || first.siblings_with_tokens(Direction::Next).filter_map(SyntaxElement::into_token);
+
+    // FIXME: incomplete heuristic?
+    let is_qualifier =
+        cursor.kind() == T![:] || path_tokens().next().map_or(false, |it| it.kind() == T![:]);
+
+    let path_tokens = path_tokens().take_while(|tok| tok != cursor);
 
     syntax::hacks::parse_expr_from_str(&path_tokens.chain(iter::once(cursor.clone())).join(""))
         .and_then(|expr| match expr {
             ast::Expr::PathExpr(it) => it.path(),
             _ => None,
         })
+        .zip(Some(is_qualifier))
 }
 
 /// Parses and resolves the path at the cursor position in the given attribute, if it is a derive.
@@ -81,16 +89,28 @@ pub fn try_resolve_derive_input(
     attr: &ast::Attr,
     cursor: &ast::Ident,
 ) -> Option<PathResolution> {
-    let path = get_path_in_derive_attr(sema, attr, cursor)?;
-    let scope = sema.scope(attr.syntax());
-    // FIXME: This double resolve shouldn't be necessary
-    // It's only here so we prefer macros over other namespaces
-    match scope.speculative_resolve_as_mac(&path) {
-        Some(mac) if mac.kind() == hir::MacroKind::Derive => Some(PathResolution::Macro(mac)),
-        Some(_) => return None,
-        None => scope
+    let derives = sema.resolve_derive_macro(attr)?;
+
+    let tt = attr.token_tree()?;
+    if !tt.syntax().text_range().contains_range(cursor.syntax().text_range()) {
+        return None;
+    }
+    let (path, is_qualifier) = get_path_at_cursor_in_tt(cursor)?;
+
+    if is_qualifier {
+        sema.scope(attr.syntax())
             .speculative_resolve(&path)
-            .filter(|res| matches!(res, PathResolution::Def(ModuleDef::Module(_)))),
+            .filter(|res| matches!(res, PathResolution::Def(ModuleDef::Module(_))))
+    } else {
+        let cursor = cursor.syntax();
+        let idx = tt
+            .syntax()
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .take_while(|tok| tok != cursor)
+            .filter(|t| t.kind() == T![,])
+            .count();
+        derives.get(idx)?.map(PathResolution::Macro)
     }
 }
 
