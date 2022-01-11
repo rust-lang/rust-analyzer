@@ -8,6 +8,7 @@ mod highlight;
 mod analysis_stats;
 mod diagnostics;
 mod ssr;
+#[cfg(feature = "lsif")]
 mod lsif;
 
 mod progress_report;

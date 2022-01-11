@@ -45,7 +45,7 @@ tracing-tree = "0.2"
 always-assert = "0.1"
 
 stdx = { path = "../stdx", version = "0.0.0" }
-flycheck = { path = "../flycheck", version = "0.0.0" }
+flycheck = { path = "../flycheck", version = "0.0.0", optional = true }
 ide = { path = "../ide", version = "0.0.0" }
 ide_db = { path = "../ide_db", version = "0.0.0" }
 profile = { path = "../profile", version = "0.0.0" }
@@ -54,7 +54,7 @@ syntax = { path = "../syntax", version = "0.0.0" }
 vfs = { path = "../vfs", version = "0.0.0" }
 vfs-notify = { path = "../vfs-notify", version = "0.0.0" }
 cfg = { path = "../cfg", version = "0.0.0" }
-toolchain = { path = "../toolchain", version = "0.0.0" }
+toolchain = { path = "../toolchain", version = "0.0.0", optional = true }
 tt = { path = "../tt", version = "0.0.0" }
 proc_macro_api = { path = "../proc_macro_api", version = "0.0.0" }
 
@@ -63,7 +63,7 @@ ide_ssr = { path = "../ide_ssr", version = "0.0.0" }
 hir = { path = "../hir", version = "0.0.0" }
 hir_def = { path = "../hir_def", version = "0.0.0" }
 hir_ty = { path = "../hir_ty", version = "0.0.0" }
-proc_macro_srv = { path = "../proc_macro_srv", version = "0.0.0" }
+proc_macro_srv = { path = "../proc_macro_srv", version = "0.0.0", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.8"
@@ -81,5 +81,7 @@ sourcegen = { path = "../sourcegen" }
 mbe = { path = "../mbe" }
 
 [features]
+default = ["flycheck", "proc_macro_srv", "toolchain", "lsif"]
+lsif = []
 jemalloc = ["jemallocator", "profile/jemalloc"]
 force-always-assert = ["always-assert/force"]

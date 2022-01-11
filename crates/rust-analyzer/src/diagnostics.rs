@@ -1,13 +1,16 @@
 //! Book keeping for keeping diagnostics easily in sync with the client.
+
+#[cfg(feature = "flycheck")]
 pub(crate) mod to_proto;
 
-use std::{mem, sync::Arc};
+#[cfg(feature = "flycheck")]
+use std::sync::Arc;
 
 use ide::FileId;
 use rustc_hash::{FxHashMap, FxHashSet};
+use std::mem;
 
-use crate::lsp_ext;
-
+#[cfg(feature = "flycheck")]
 pub(crate) type CheckFixes = Arc<FxHashMap<FileId, Vec<Fix>>>;
 
 #[derive(Debug, Default, Clone)]
@@ -22,24 +25,29 @@ pub(crate) struct DiagnosticCollection {
     // FIXME: should be FxHashMap<FileId, Vec<ra_id::Diagnostic>>
     pub(crate) native: FxHashMap<FileId, Vec<lsp_types::Diagnostic>>,
     // FIXME: should be Vec<flycheck::Diagnostic>
+    #[cfg(feature = "flycheck")]
     pub(crate) check: FxHashMap<FileId, Vec<lsp_types::Diagnostic>>,
+    #[cfg(feature = "flycheck")]
     pub(crate) check_fixes: CheckFixes,
     changes: FxHashSet<FileId>,
 }
 
 #[derive(Debug, Clone)]
+#[cfg(feature = "flycheck")]
 pub(crate) struct Fix {
     // Fixes may be triggerable from multiple ranges.
     pub(crate) ranges: Vec<lsp_types::Range>,
-    pub(crate) action: lsp_ext::CodeAction,
+    pub(crate) action: crate::lsp_ext::CodeAction,
 }
 
 impl DiagnosticCollection {
+    #[cfg(feature = "flycheck")]
     pub(crate) fn clear_check(&mut self) {
         Arc::make_mut(&mut self.check_fixes).clear();
         self.changes.extend(self.check.drain().map(|(key, _value)| key))
     }
 
+    #[cfg(feature = "flycheck")]
     pub(crate) fn add_check_diagnostic(
         &mut self,
         file_id: FileId,
@@ -83,9 +91,10 @@ impl DiagnosticCollection {
         &self,
         file_id: FileId,
     ) -> impl Iterator<Item = &lsp_types::Diagnostic> {
-        let native = self.native.get(&file_id).into_iter().flatten();
-        let check = self.check.get(&file_id).into_iter().flatten();
-        native.chain(check)
+        let iter = self.native.get(&file_id).into_iter().flatten();
+        #[cfg(feature = "flycheck")]
+        let iter = iter.chain(self.check.get(&file_id).into_iter().flatten());
+        iter
     }
 
     pub(crate) fn take_changes(&mut self) -> Option<FxHashSet<FileId>> {

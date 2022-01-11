@@ -9,6 +9,7 @@
 
 use std::{ffi::OsString, iter, path::PathBuf};
 
+#[cfg(feature = "flycheck")]
 use flycheck::FlycheckConfig;
 use ide::{
     AssistConfig, CompletionConfig, DiagnosticsConfig, ExprFillDefaultMode, HighlightRelatedConfig,
@@ -797,6 +798,8 @@ impl Config {
             },
         }
     }
+
+    #[cfg(feature = "flycheck")]
     pub fn flycheck(&self) -> Option<FlycheckConfig> {
         if !self.data.checkOnSave_enable {
             return None;
@@ -1139,6 +1142,7 @@ macro_rules! _config_data {
     }) => {
         #[allow(non_snake_case)]
         #[derive(Debug, Clone)]
+        #[cfg_attr(not(feature = "flycheck"), allow(dead_code))]
         struct $name { $($field: $ty,)* }
         impl $name {
             fn from_json(mut json: serde_json::Value, error_sink: &mut Vec<(String, serde_json::Error)>) -> $name {

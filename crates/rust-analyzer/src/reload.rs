@@ -1,6 +1,7 @@
 //! Project loading & configuration updates
 use std::{mem, sync::Arc};
 
+#[cfg(feature = "flycheck")]
 use flycheck::{FlycheckConfig, FlycheckHandle};
 use hir::db::DefDatabase;
 use ide::Change;
@@ -50,10 +51,12 @@ impl GlobalState {
         }
         if self.config.linked_projects() != old_config.linked_projects() {
             self.fetch_workspaces_queue.request_op()
-        } else if self.config.flycheck() != old_config.flycheck() {
-            self.reload_flycheck();
+        } else {
+            #[cfg(feature = "flycheck")]
+            if self.config.flycheck() != old_config.flycheck() {
+                self.reload_flycheck();
+            }
         }
-
         // Apply experimental feature flags.
         self.analysis_host
             .raw_database_mut()
@@ -344,6 +347,7 @@ impl GlobalState {
 
         self.analysis_host.apply_change(change);
         self.process_changes();
+        #[cfg(feature = "flycheck")]
         self.reload_flycheck();
         tracing::info!("did switch workspaces");
     }
@@ -390,6 +394,7 @@ impl GlobalState {
         }
     }
 
+    #[cfg(feature = "flycheck")]
     fn reload_flycheck(&mut self) {
         let _p = profile::span("GlobalState::reload_flycheck");
         let config = match self.config.flycheck() {

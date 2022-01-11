@@ -33,6 +33,7 @@ mod line_index;
 mod lsp_utils;
 mod thread_pool;
 mod mem_docs;
+#[cfg(feature = "toolchain")]
 mod diff;
 mod op_queue;
 pub mod lsp_ext;

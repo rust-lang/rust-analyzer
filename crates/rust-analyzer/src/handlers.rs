@@ -2,12 +2,11 @@
 //! Protocol. The majority of requests are fulfilled by calling into the
 //! `ide` crate.
 
-use std::{
-    io::Write as _,
-    process::{self, Stdio},
-};
-
+#[cfg(feature = "toolchain")]
 use anyhow::Context;
+#[cfg(feature = "toolchain")]
+use std::io::Write;
+
 use ide::{
     AnnotationConfig, AssistKind, AssistResolveStrategy, FileId, FilePosition, FileRange,
     HoverAction, HoverGotoTypeData, Query, RangeInfo, Runnable, RunnableKind, SingleResolve,
@@ -26,18 +25,14 @@ use lsp_types::{
     TextDocumentIdentifier, Url, WorkspaceEdit,
 };
 use project_model::{ManifestPath, ProjectWorkspace, TargetKind};
-use serde_json::json;
 use stdx::{format_to, never};
 use syntax::{algo, ast, AstNode, TextRange, TextSize, T};
 use vfs::AbsPathBuf;
 
 use crate::{
     cargo_target_spec::CargoTargetSpec,
-    config::RustfmtConfig,
-    diff::diff,
     from_proto,
     global_state::{GlobalState, GlobalStateSnapshot},
-    line_index::LineEndings,
     lsp_ext::{
         self, InlayHint, InlayHintsParams, PositionOrRange, ViewCrateGraphParams,
         WorkspaceSymbolParams,
@@ -1049,6 +1044,7 @@ pub(crate) fn handle_code_action(
         return Ok(None);
     }
 
+    #[cfg(feature = "flycheck")]
     let line_index =
         snap.file_line_index(from_proto::file_id(&snap, &params.text_document.uri)?)?;
     let frange = from_proto::file_range(&snap, params.text_document.clone(), params.range)?;
@@ -1082,6 +1078,7 @@ pub(crate) fn handle_code_action(
     }
 
     // Fixes from `cargo check`.
+    #[cfg(feature = "flycheck")]
     for fix in snap.check_fixes.get(&frange.file_id).into_iter().flatten() {
         // FIXME: this mapping is awkward and shouldn't exist. Refactor
         // `snap.check_fixes` to not convert to LSP prematurely.
@@ -1693,11 +1690,29 @@ fn should_skip_target(runnable: &Runnable, cargo_spec: Option<&CargoTargetSpec>)
     }
 }
 
+#[cfg(not(feature = "toolchain"))]
+fn run_rustfmt(
+    _snap: &GlobalStateSnapshot,
+    _text_document: TextDocumentIdentifier,
+    _range: Option<lsp_types::Range>,
+) -> Result<Option<Vec<lsp_types::TextEdit>>> {
+    Err(LspError::new(
+        ErrorCode::InvalidRequest as i32,
+        String::from("Toolchain is disabled so there is no rustfmt"),
+    )
+    .into())
+}
+
+#[cfg(feature = "toolchain")]
 fn run_rustfmt(
     snap: &GlobalStateSnapshot,
     text_document: TextDocumentIdentifier,
     range: Option<lsp_types::Range>,
 ) -> Result<Option<Vec<lsp_types::TextEdit>>> {
+    use crate::{config::RustfmtConfig, diff::diff, line_index::LineEndings};
+    use serde_json::json;
+    use std::process::{self, Stdio};
+
     let file_id = from_proto::file_id(snap, &text_document.uri)?;
     let file = snap.analysis.file_text(file_id)?;
     let crate_ids = snap.analysis.crate_for(file_id)?;

@@ -14,11 +14,14 @@ use lsp_server::{Connection, Notification, Request};
 use lsp_types::notification::Notification as _;
 use vfs::{ChangeKind, FileId};
 
+#[cfg(feature = "flycheck")]
+use crate::global_state::url_to_file_id;
+
 use crate::{
     config::Config,
     dispatch::{NotificationDispatcher, RequestDispatcher},
     from_proto,
-    global_state::{file_id_to_url, url_to_file_id, GlobalState},
+    global_state::{file_id_to_url, GlobalState},
     handlers, lsp_ext,
     lsp_utils::{apply_document_changes, is_cancelled, notification_is, Progress},
     mem_docs::DocumentData,
@@ -55,6 +58,7 @@ enum Event {
     Lsp(lsp_server::Message),
     Task(Task),
     Vfs(vfs::loader::Message),
+    #[cfg(feature = "flycheck")]
     Flycheck(flycheck::Message),
 }
 
@@ -101,6 +105,7 @@ impl fmt::Debug for Event {
             Event::Lsp(it) => fmt::Debug::fmt(it, f),
             Event::Task(it) => fmt::Debug::fmt(it, f),
             Event::Vfs(it) => fmt::Debug::fmt(it, f),
+            #[cfg(feature = "flycheck")]
             Event::Flycheck(it) => fmt::Debug::fmt(it, f),
         }
     }
@@ -171,6 +176,7 @@ impl GlobalState {
     }
 
     fn next_event(&self, inbox: &Receiver<lsp_server::Message>) -> Option<Event> {
+        #[cfg(feature = "flycheck")]
         select! {
             recv(inbox) -> msg =>
                 msg.ok().map(Event::Lsp),
@@ -183,6 +189,17 @@ impl GlobalState {
 
             recv(self.flycheck_receiver) -> task =>
                 Some(Event::Flycheck(task.unwrap())),
+        }
+        #[cfg(not(feature = "flycheck"))]
+        select! {
+            recv(inbox) -> msg =>
+                msg.ok().map(Event::Lsp),
+
+            recv(self.task_pool.receiver) -> task =>
+                Some(Event::Task(task.unwrap())),
+
+            recv(self.loader.receiver) -> task =>
+                Some(Event::Vfs(task.unwrap())),
         }
     }
 
@@ -355,6 +372,7 @@ impl GlobalState {
                     }
                 }
             }
+            #[cfg(feature = "flycheck")]
             Event::Flycheck(mut task) => {
                 let _p = profile::span("GlobalState::handle_event/flycheck");
                 loop {
@@ -431,6 +449,7 @@ impl GlobalState {
 
         if self.is_quiescent() {
             if !was_quiescent {
+                #[cfg(feature = "flycheck")]
                 for flycheck in &self.flycheck {
                     flycheck.update();
                 }
@@ -699,6 +718,7 @@ impl GlobalState {
                 Ok(())
             })?
             .on::<lsp_types::notification::DidSaveTextDocument>(|this, params| {
+                #[cfg(feature = "flycheck")]
                 for flycheck in &this.flycheck {
                     flycheck.update();
                 }

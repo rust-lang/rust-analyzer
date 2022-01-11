@@ -79,6 +79,7 @@ fn try_main() -> Result<()> {
             }
             run_server()?
         }
+        #[cfg(feature = "proc_macro_srv")]
         flags::RustAnalyzerCmd::ProcMacro(flags::ProcMacro) => proc_macro_srv::cli::run()?,
         flags::RustAnalyzerCmd::Parse(cmd) => cmd.run()?,
         flags::RustAnalyzerCmd::Symbols(cmd) => cmd.run()?,
@@ -87,6 +88,7 @@ fn try_main() -> Result<()> {
         flags::RustAnalyzerCmd::Diagnostics(cmd) => cmd.run()?,
         flags::RustAnalyzerCmd::Ssr(cmd) => cmd.run()?,
         flags::RustAnalyzerCmd::Search(cmd) => cmd.run()?,
+        #[cfg(feature = "lsif")]
         flags::RustAnalyzerCmd::Lsif(cmd) => cmd.run()?,
     }
     Ok(())

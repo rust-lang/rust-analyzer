@@ -6,6 +6,7 @@
 use std::{sync::Arc, time::Instant};
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
+#[cfg(feature = "flycheck")]
 use flycheck::FlycheckHandle;
 use ide::{Analysis, AnalysisHost, Cancellable, Change, FileId};
 use ide_db::base_db::{CrateId, FileLoader, SourceDatabase};
@@ -16,9 +17,12 @@ use project_model::{CargoWorkspace, ProjectWorkspace, Target, WorkspaceBuildScri
 use rustc_hash::FxHashMap;
 use vfs::AnchoredPathBuf;
 
+#[cfg(feature = "flycheck")]
+use crate::diagnostics::CheckFixes;
+
 use crate::{
     config::Config,
-    diagnostics::{CheckFixes, DiagnosticCollection},
+    diagnostics::DiagnosticCollection,
     from_proto,
     line_index::{LineEndings, LineIndex},
     lsp_ext,
@@ -63,8 +67,11 @@ pub(crate) struct GlobalState {
     pub(crate) source_root_config: SourceRootConfig,
     pub(crate) proc_macro_client: Option<ProcMacroServer>,
 
+    #[cfg(feature = "flycheck")]
     pub(crate) flycheck: Vec<FlycheckHandle>,
+    #[cfg(feature = "flycheck")]
     pub(crate) flycheck_sender: Sender<flycheck::Message>,
+    #[cfg(feature = "flycheck")]
     pub(crate) flycheck_receiver: Receiver<flycheck::Message>,
 
     pub(crate) vfs: Arc<RwLock<(vfs::Vfs, FxHashMap<FileId, LineEndings>)>>,
@@ -110,6 +117,7 @@ pub(crate) struct GlobalState {
 pub(crate) struct GlobalStateSnapshot {
     pub(crate) config: Arc<Config>,
     pub(crate) analysis: Analysis,
+    #[cfg(feature = "flycheck")]
     pub(crate) check_fixes: CheckFixes,
     mem_docs: MemDocs,
     pub(crate) semantic_tokens_cache: Arc<Mutex<FxHashMap<Url, SemanticTokens>>>,
@@ -136,6 +144,7 @@ impl GlobalState {
         };
 
         let analysis_host = AnalysisHost::new(config.lru_capacity());
+        #[cfg(feature = "flycheck")]
         let (flycheck_sender, flycheck_receiver) = unbounded();
         let mut this = GlobalState {
             sender,
@@ -153,8 +162,11 @@ impl GlobalState {
             source_root_config: SourceRootConfig::default(),
             proc_macro_client: None,
 
+            #[cfg(feature = "flycheck")]
             flycheck: Vec::new(),
+            #[cfg(feature = "flycheck")]
             flycheck_sender,
+            #[cfg(feature = "flycheck")]
             flycheck_receiver,
 
             vfs: Arc::new(RwLock::new((vfs::Vfs::default(), FxHashMap::default()))),
@@ -241,6 +253,7 @@ impl GlobalState {
             workspaces: Arc::clone(&self.workspaces),
             analysis: self.analysis_host.analysis(),
             vfs: Arc::clone(&self.vfs),
+            #[cfg(feature = "flycheck")]
             check_fixes: Arc::clone(&self.diagnostics.check_fixes),
             mem_docs: self.mem_docs.clone(),
             semantic_tokens_cache: Arc::clone(&self.semantic_tokens_cache),
