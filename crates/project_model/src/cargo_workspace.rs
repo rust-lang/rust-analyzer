@@ -484,11 +484,13 @@ fn cargo_config_build_target(cargo_toml: &ManifestPath) -> Option<String> {
         .env("RUSTC_BOOTSTRAP", "1");
     // if successful we receive `build.target = "target-triple"`
     tracing::debug!("Discovering cargo config target by {:?}", cargo_config);
-    match utf8_stdout(cargo_config) {
+    let r = match utf8_stdout(cargo_config) {
         Ok(stdout) => stdout
             .strip_prefix("build.target = \"")
             .and_then(|stdout| stdout.strip_suffix('"'))
             .map(ToOwned::to_owned),
         Err(_) => None,
-    }
+    };
+    eprintln!("cargo_config_build_target for {:?} yields a target of {:?}", cargo_toml, r);
+    r
 }

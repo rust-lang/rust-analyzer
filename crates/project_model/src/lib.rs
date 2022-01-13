@@ -89,10 +89,15 @@ impl ProjectManifest {
             .map(|paths| paths.into_iter().map(ProjectManifest::CargoToml).collect());
 
         fn find_cargo_toml(path: &AbsPath) -> io::Result<Vec<ManifestPath>> {
-            match find_in_parent_dirs(path, "Cargo.toml") {
-                Some(it) => Ok(vec![it]),
-                None => Ok(find_cargo_toml_in_child_dir(read_dir(path)?)),
+            let target_file_name = "Cargo.toml";
+            let mut manifests = find_in_child_dir(read_dir(path)?, target_file_name);
+            if let Some(parent_manifest) = find_in_parent_dirs(path, target_file_name) {
+                // It is important that the parent is appended as we wish for
+                // the children to be matched first later on.
+                manifests.push(parent_manifest);
             }
+            eprintln!("DISCOVERED: {:?}", manifests);
+            Ok(manifests)
         }
 
         fn find_in_parent_dirs(path: &AbsPath, target_file_name: &str) -> Option<ManifestPath> {
@@ -117,11 +122,11 @@ impl ProjectManifest {
             None
         }
 
-        fn find_cargo_toml_in_child_dir(entities: ReadDir) -> Vec<ManifestPath> {
+        fn find_in_child_dir(entities: ReadDir, target_file_name: &str) -> Vec<ManifestPath> {
             // Only one level down to avoid cycles the easy way and stop a runaway scan with large projects
             entities
                 .filter_map(Result::ok)
-                .map(|it| it.path().join("Cargo.toml"))
+                .map(|it| it.path().join(target_file_name))
                 .filter(|it| it.exists())
                 .map(AbsPathBuf::assert)
                 .filter_map(|it| it.try_into().ok())
