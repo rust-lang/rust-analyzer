@@ -11,7 +11,7 @@ mod render;
 mod tests;
 mod snippet;
 
-use base_db::{FileId, FileLoader, SourceDatabase};
+use base_db::{FileId, SourceDatabase};
 use completions::flyimport::position_for_import;
 use ide_db::{
     base_db::FilePosition,
@@ -23,8 +23,8 @@ use ide_db::{
     items_locator, RootDatabase,
 };
 use rustc_hash::FxHashMap;
-use std::sync::{Mutex, RwLock};
-use syntax::{algo, SourceFile};
+use std::sync::Mutex;
+use syntax::algo;
 use text_edit::{Indel, TextEdit};
 
 use crate::{completions::Completions, context::CompletionContext};
