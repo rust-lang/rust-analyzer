@@ -69,18 +69,17 @@ impl ProjectManifest {
     }
 
     pub fn discover_single(path: &AbsPath) -> Result<ProjectManifest> {
-        let mut candidates = ProjectManifest::discover(path)?;
-        let res = match candidates.pop() {
+        let candidates = ProjectManifest::discover(path)?;
+        let res = match candidates.last() {
             None => bail!("no projects"),
-            Some(it) => it,
+            Some(it) => it.clone(),
         };
-
-        if !candidates.is_empty() {
-            bail!("more than one project")
-        }
         Ok(res)
     }
 
+    /// Discover project manifests. The outer most manifest is guaranteed to be
+    /// returned as the last element. Inner manifests are those discovered
+    /// immediately below the given path.
     pub fn discover(path: &AbsPath) -> io::Result<Vec<ProjectManifest>> {
         if let Some(project_json) = find_in_parent_dirs(path, "rust-project.json") {
             return Ok(vec![ProjectManifest::ProjectJson(project_json)]);
