@@ -141,7 +141,7 @@ impl ProjectManifest {
             .collect::<FxHashSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
-        res.sort();
+        res.sort_by(|a, b| b.cmp(a));
         res
     }
 }
