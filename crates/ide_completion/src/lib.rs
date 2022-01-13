@@ -11,7 +11,7 @@ mod render;
 mod tests;
 mod snippet;
 
-use base_db::{FileId, FileLoader, SourceDatabase};
+use base_db::{FileId, SourceDatabase};
 use completions::flyimport::position_for_import;
 use ide_db::{
     base_db::FilePosition,
