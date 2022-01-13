@@ -17,6 +17,7 @@ use ide_db::{
     imports::insert_use::{ImportGranularity, InsertUseConfig},
     SnippetCap,
 };
+use mbe::Origin::Def;
 use project_model::CargoConfig;
 use test_utils::project_root;
 use vfs::{AbsPathBuf, VfsPath};
@@ -149,7 +150,7 @@ fn integrated_completion_benchmark() {
         };
         let position =
             FilePosition { file_id, offset: TextSize::try_from(completion_offset).unwrap() };
-        analysis.completions(&config, position).unwrap();
+        analysis.completions(&Default::default(), &config, position).unwrap();
     }
 
     let completion_offset = {
@@ -187,7 +188,7 @@ fn integrated_completion_benchmark() {
         };
         let position =
             FilePosition { file_id, offset: TextSize::try_from(completion_offset).unwrap() };
-        analysis.completions(&config, position).unwrap();
+        analysis.completions(&Default::default(), &config, position).unwrap();
     }
 }
 

@@ -40,7 +40,7 @@ use base_db::CrateId;
 
 /// `SourceAnalyzer` is a convenience wrapper which exposes HIR API in terms of
 /// original source files. It should not be used inside the HIR itself.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct SourceAnalyzer {
     pub(crate) file_id: HirFileId,
     pub(crate) resolver: Resolver,

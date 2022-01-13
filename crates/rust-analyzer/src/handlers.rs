@@ -803,10 +803,11 @@ pub(crate) fn handle_completion(
     }
 
     let completion_config = &snap.config.completion();
-    let items = match snap.analysis.completions(completion_config, position)? {
-        None => return Ok(None),
-        Some(items) => items,
-    };
+    let items =
+        match snap.analysis.completions(&snap.completion_cache, completion_config, position)? {
+            None => return Ok(None),
+            Some(items) => items,
+        };
     let line_index = snap.file_line_index(position.file_id)?;
 
     let items =

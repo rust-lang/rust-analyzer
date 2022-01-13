@@ -167,7 +167,7 @@ pub(crate) fn check_edit_with_config(
     let ra_fixture_after = trim_indent(ra_fixture_after);
     let (db, position) = position(ra_fixture_before);
     let completions: Vec<CompletionItem> =
-        crate::completions(&db, &config, position).unwrap().into();
+        crate::completions(&db, &Default::default(), &config, position).unwrap().into();
     let (completion,) = completions
         .iter()
         .filter(|it| it.lookup() == what)
@@ -209,14 +209,15 @@ pub(crate) fn check_pattern_is_not_applicable(code: &str, check: fn(SyntaxElemen
 
 pub(crate) fn get_all_items(config: CompletionConfig, code: &str) -> Vec<CompletionItem> {
     let (db, position) = position(code);
-    crate::completions(&db, &config, position).map_or_else(Vec::default, Into::into)
+    crate::completions(&db, &Default::default(), &config, position)
+        .map_or_else(Vec::default, Into::into)
 }
 
 fn check_no_completion(ra_fixture: &str) {
     let (db, position) = position(ra_fixture);
 
     assert!(
-        crate::completions(&db, &TEST_CONFIG, position).is_none(),
+        crate::completions(&db, &Default::default(), &TEST_CONFIG, position).is_none(),
         "Completions were generated, but weren't expected"
     );
 }

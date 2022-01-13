@@ -11,6 +11,7 @@ mod render;
 mod tests;
 mod snippet;
 
+use base_db::{FileId, FileLoader, SourceDatabase};
 use completions::flyimport::position_for_import;
 use ide_db::{
     base_db::FilePosition,
@@ -21,8 +22,10 @@ use ide_db::{
     },
     items_locator, RootDatabase,
 };
-use syntax::algo;
-use text_edit::TextEdit;
+use rustc_hash::FxHashMap;
+use std::sync::{Mutex, RwLock};
+use syntax::{algo, SourceFile};
+use text_edit::{Indel, TextEdit};
 
 use crate::{completions::Completions, context::CompletionContext};
 
@@ -139,9 +142,28 @@ pub use crate::{
 /// analysis.
 pub fn completions(
     db: &RootDatabase,
+    cache: &CompletionCache,
     config: &CompletionConfig,
     position: FilePosition,
-) -> Option<Completions> {
+) -> Option<Vec<CompletionItem>> {
+    let processed_file_data = {
+        let parse = db.parse(position.file_id);
+        let token = parse.syntax_node().token_at_offset(position.offset).left_biased();
+
+        if let Some(token) = token {
+            let edit = Indel::delete(token.text_range());
+            parse.reparse(&edit).tree()
+        } else {
+            parse.tree()
+        }
+    };
+
+    let cache_key = (position.file_id, processed_file_data.to_string());
+
+    if let Some(cached) = cache.coarse_cache.lock().unwrap().get(&cache_key) {
+        return Some(cached.buf.clone());
+    }
+
     let ctx = CompletionContext::new(db, position, config)?;
 
     if ctx.no_completion_required() {
@@ -174,7 +196,28 @@ pub fn completions(
     completions::use_::complete_use_tree(&mut acc, &ctx);
     completions::vis::complete_vis(&mut acc, &ctx);
 
-    Some(acc)
+    cache.coarse_cache.lock().unwrap().insert(cache_key, acc.clone());
+
+    Some(acc.buf)
+}
+
+#[derive(Default)]
+pub struct CompletionCache {
+    coarse_cache: Mutex<FxHashMap<(FileId, String), Completions>>,
+}
+
+impl CompletionCache {
+    pub fn filter_coarse_cache(&self, f: FileId) {
+        let new = self
+            .coarse_cache
+            .lock()
+            .unwrap()
+            .clone()
+            .into_iter()
+            .filter(|&((id, _), _)| id == f)
+            .collect();
+        *self.coarse_cache.lock().unwrap() = new;
+    }
 }
 
 /// Resolves additional completion data at the position given.

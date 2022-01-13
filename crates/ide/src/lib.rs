@@ -101,6 +101,7 @@ pub use hir::{Documentation, Semantics};
 pub use ide_assists::{
     Assist, AssistConfig, AssistId, AssistKind, AssistResolveStrategy, SingleResolve,
 };
+pub use ide_completion::CompletionCache;
 pub use ide_completion::{
     CompletionConfig, CompletionItem, CompletionItemKind, CompletionRelevance, ImportEdit, Snippet,
     SnippetScope,
@@ -537,10 +538,11 @@ impl Analysis {
     /// Computes completions at the given position.
     pub fn completions(
         &self,
+        cache: &CompletionCache,
         config: &CompletionConfig,
         position: FilePosition,
     ) -> Cancellable<Option<Vec<CompletionItem>>> {
-        self.with_db(|db| ide_completion::completions(db, config, position).map(Into::into))
+        self.with_db(|db| ide_completion::completions(db, cache, config, position).map(Into::into))
     }
 
     /// Resolves additional completion data at the position given.

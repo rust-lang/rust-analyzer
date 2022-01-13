@@ -7,7 +7,7 @@ use std::{sync::Arc, time::Instant};
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use flycheck::FlycheckHandle;
-use ide::{Analysis, AnalysisHost, Cancellable, Change, FileId};
+use ide::{Analysis, AnalysisHost, Cancellable, Change, CompletionCache, FileId};
 use ide_db::base_db::{CrateId, FileLoader, SourceDatabase};
 use lsp_types::{SemanticTokens, Url};
 use parking_lot::{Mutex, RwLock};
@@ -62,6 +62,7 @@ pub(crate) struct GlobalState {
     pub(crate) last_reported_status: Option<lsp_ext::ServerStatusParams>,
     pub(crate) source_root_config: SourceRootConfig,
     pub(crate) proc_macro_client: Option<ProcMacroServer>,
+    pub(crate) completion_cache: Arc<CompletionCache>,
 
     pub(crate) flycheck: Vec<FlycheckHandle>,
     pub(crate) flycheck_sender: Sender<flycheck::Message>,
@@ -115,6 +116,7 @@ pub(crate) struct GlobalStateSnapshot {
     pub(crate) semantic_tokens_cache: Arc<Mutex<FxHashMap<Url, SemanticTokens>>>,
     vfs: Arc<RwLock<(vfs::Vfs, FxHashMap<FileId, LineEndings>)>>,
     pub(crate) workspaces: Arc<Vec<ProjectWorkspace>>,
+    pub(crate) completion_cache: Arc<CompletionCache>,
 }
 
 impl std::panic::UnwindSafe for GlobalStateSnapshot {}
@@ -152,6 +154,7 @@ impl GlobalState {
             last_reported_status: None,
             source_root_config: SourceRootConfig::default(),
             proc_macro_client: None,
+            completion_cache: Arc::new(Default::default()),
 
             flycheck: Vec::new(),
             flycheck_sender,
@@ -244,6 +247,7 @@ impl GlobalState {
             check_fixes: Arc::clone(&self.diagnostics.check_fixes),
             mem_docs: self.mem_docs.clone(),
             semantic_tokens_cache: Arc::clone(&self.semantic_tokens_cache),
+            completion_cache: Arc::clone(&self.completion_cache),
         }
     }
 

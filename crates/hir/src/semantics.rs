@@ -120,6 +120,7 @@ pub struct SemanticsImpl<'db> {
     cache: RefCell<FxHashMap<SyntaxNode, HirFileId>>,
     // MacroCall to its expansion's HirFileId cache
     macro_call_cache: RefCell<FxHashMap<InFile<ast::MacroCall>, HirFileId>>,
+    analyze_impl_cache: RefCell<FxHashMap<(SyntaxNode, Option<TextSize>, bool), SourceAnalyzer>>,
 }
 
 impl<DB> fmt::Debug for Semantics<'_, DB> {
@@ -413,6 +414,7 @@ impl<'db> SemanticsImpl<'db> {
             cache: Default::default(),
             expansion_info_cache: Default::default(),
             macro_call_cache: Default::default(),
+            analyze_impl_cache: Default::default(),
         }
     }
 
@@ -998,19 +1000,26 @@ impl<'db> SemanticsImpl<'db> {
         infer_body: bool,
     ) -> SourceAnalyzer {
         let _p = profile::span("Semantics::analyze_impl");
-        let node = self.find_file(node);
 
-        let container = match self.with_ctx(|ctx| ctx.find_container(node)) {
+        if let Some(result) =
+            self.analyze_impl_cache.borrow().get(&(node.clone(), offset, infer_body))
+        {
+            return result.clone();
+        }
+
+        let node_file = self.find_file(node);
+
+        let container = match self.with_ctx(|ctx| ctx.find_container(node_file)) {
             Some(it) => it,
-            None => return SourceAnalyzer::new_for_resolver(Resolver::default(), node),
+            None => return SourceAnalyzer::new_for_resolver(Resolver::default(), node_file),
         };
 
         let resolver = match container {
             ChildContainer::DefWithBodyId(def) => {
                 return if infer_body {
-                    SourceAnalyzer::new_for_body(self.db, def, node, offset)
+                    SourceAnalyzer::new_for_body(self.db, def, node_file, offset)
                 } else {
-                    SourceAnalyzer::new_for_body_no_infer(self.db, def, node, offset)
+                    SourceAnalyzer::new_for_body_no_infer(self.db, def, node_file, offset)
                 }
             }
             ChildContainer::TraitId(it) => it.resolver(self.db.upcast()),
@@ -1021,7 +1030,11 @@ impl<'db> SemanticsImpl<'db> {
             ChildContainer::TypeAliasId(it) => it.resolver(self.db.upcast()),
             ChildContainer::GenericDefId(it) => it.resolver(self.db.upcast()),
         };
-        SourceAnalyzer::new_for_resolver(resolver, node)
+
+        let result = SourceAnalyzer::new_for_resolver(resolver, node_file);
+        let mut cache = self.analyze_impl_cache.borrow_mut();
+        cache.insert((node.clone(), offset, infer_body), result.clone());
+        result
     }
 
     fn cache(&self, root_node: SyntaxNode, file_id: HirFileId) {

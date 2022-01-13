@@ -57,9 +57,9 @@ fn module_or_fn_macro(def: ScopeDef) -> Option<ScopeDef> {
 }
 
 /// Represents an in-progress set of completions being built.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Completions {
-    buf: Vec<CompletionItem>,
+    pub buf: Vec<CompletionItem>,
 }
 
 impl From<Completions> for Vec<CompletionItem> {

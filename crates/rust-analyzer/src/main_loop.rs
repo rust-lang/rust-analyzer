@@ -694,6 +694,9 @@ impl GlobalState {
                     let mut text = String::from_utf8(vfs.file_contents(file_id).to_vec()).unwrap();
                     apply_document_changes(&mut text, params.content_changes);
 
+                    // FIXME: make this less bad
+                    this.completion_cache.filter_coarse_cache(file_id);
+
                     vfs.set_file_contents(path, Some(text.into_bytes()));
                 }
                 Ok(())
