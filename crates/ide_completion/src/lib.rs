@@ -24,8 +24,8 @@ use ide_db::{
 };
 use rustc_hash::FxHashMap;
 use std::sync::Mutex;
-use syntax::algo;
-use text_edit::{Indel, TextEdit};
+use syntax::{algo, SyntaxToken, TextRange};
+use text_edit::{Indel, TextEdit, TextSize};
 
 use crate::{completions::Completions, context::CompletionContext};
 
@@ -144,14 +144,22 @@ pub fn completions(
     db: &RootDatabase,
     cache: &CompletionCache,
     config: &CompletionConfig,
-    position: FilePosition,
+    mut position: FilePosition,
 ) -> Option<Vec<CompletionItem>> {
+    let mut target_token = None;
+
     let processed_file_data = {
         let parse = db.parse(position.file_id);
-        let token = parse.syntax_node().token_at_offset(position.offset).left_biased();
+        let token = parse
+            .syntax_node()
+            .token_at_offset(position.offset)
+            .left_biased()
+            .filter(|x| !x.kind().is_punct());
 
         if let Some(token) = token {
             let edit = Indel::delete(token.text_range());
+            position.offset = position.offset - token.text_range().len();
+            target_token = Some(token);
             parse.reparse(&edit).tree()
         } else {
             parse.tree()
@@ -161,7 +169,7 @@ pub fn completions(
     let cache_key = (position.file_id, processed_file_data.to_string());
 
     if let Some(cached) = cache.coarse_cache.lock().unwrap().get(&cache_key) {
-        return Some(cached.buf.clone());
+        return Some(postprocess_completions(cached.buf.iter().cloned(), target_token));
     }
 
     let ctx = CompletionContext::new(db, position, config)?;
@@ -198,7 +206,26 @@ pub fn completions(
 
     cache.coarse_cache.lock().unwrap().insert(cache_key, acc.clone());
 
-    Some(acc.buf)
+    Some(postprocess_completions(acc.buf.iter().cloned(), target_token))
+}
+
+fn postprocess_completions(
+    result: impl Iterator<Item = CompletionItem>,
+    target_token: Option<SyntaxToken>,
+) -> Vec<CompletionItem> {
+    result
+        .map(|mut x| {
+            if let Some(removed) = target_token.clone() {
+                if x.text_edit().indels.len() == 1 {
+                    let orig = x.text_edit().indels[0].clone();
+                    x.text_edit_mut().indels[0] =
+                        Indel::replace(orig.delete.cover(removed.text_range()), orig.insert);
+                }
+                x.source_range = removed.text_range();
+            }
+            x
+        })
+        .collect()
 }
 
 #[derive(Default)]

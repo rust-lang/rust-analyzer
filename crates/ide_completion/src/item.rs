@@ -31,7 +31,7 @@ pub struct CompletionItem {
     /// `source_range` must contain the completion offset. `insert_text` should
     /// start with what `source_range` points to, or VSCode will filter out the
     /// completion silently.
-    source_range: TextRange,
+    pub source_range: TextRange,
     /// What happens when user selects this item.
     ///
     /// Typically, replaces `source_range` with new identifier.
@@ -318,6 +318,11 @@ impl CompletionItem {
     pub fn text_edit(&self) -> &TextEdit {
         &self.text_edit
     }
+    
+    pub fn text_edit_mut(&mut self) -> &mut TextEdit {
+        &mut self.text_edit
+    }
+    
     /// Whether `text_edit` is a snippet (contains `$0` markers).
     pub fn is_snippet(&self) -> bool {
         self.is_snippet
