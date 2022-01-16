@@ -83,6 +83,8 @@ config_data! {
         cargo_useRustcWrapperForBuildScripts: bool = "true",
         /// Do not activate the `default` feature.
         cargo_noDefaultFeatures: bool    = "false",
+        /// Send progress notifications during project load.
+        cargo_reportLoadingProgress: bool = "true",
         /// Compilation target (target triple).
         cargo_target: Option<String>     = "null",
         /// Internal config for debugging, disables loading of sysroot crates.
@@ -777,6 +779,7 @@ impl Config {
             all_features: self.data.cargo_allFeatures,
             features: self.data.cargo_features.clone(),
             target: self.data.cargo_target.clone(),
+            report_loading_progress: self.data.cargo_reportLoadingProgress,
             no_sysroot: self.data.cargo_noSysroot,
             rustc_source,
             unset_test_crates: UnsetTestCrates::Only(self.data.cargo_unsetTest.clone()),

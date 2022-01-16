@@ -75,6 +75,11 @@ avoid compiling unnecessary things.
 --
 Do not activate the `default` feature.
 --
+[[rust-analyzer.cargo.reportLoadingProgress]]rust-analyzer.cargo.reportLoadingProgress (default: `true`)::
++
+--
+Send progress notifications during project load.
+--
 [[rust-analyzer.cargo.target]]rust-analyzer.cargo.target (default: `null`)::
 +
 --

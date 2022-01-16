@@ -340,12 +340,14 @@ impl GlobalState {
                                 assert_eq!(n_done, n_total);
                                 Progress::End
                             };
-                            self.report_progress(
-                                "Roots Scanned",
-                                state,
-                                Some(format!("{}/{}", n_done, n_total)),
-                                Some(Progress::fraction(n_done, n_total)),
-                            )
+                            if self.config.cargo().report_loading_progress {
+                                self.report_progress(
+                                    "Roots Scanned",
+                                    state,
+                                    Some(format!("{}/{}", n_done, n_total)),
+                                    Some(Progress::fraction(n_done, n_total)),
+                                )
+                            }
                         }
                     }
                     // Coalesce many VFS event into a single loop turn

@@ -85,6 +85,9 @@ pub struct CargoConfig {
     /// rustc target
     pub target: Option<String>,
 
+    /// Send progress notifications during project load.
+    pub report_loading_progress: bool,
+
     /// Don't load sysroot crates (`std`, `core` & friends). Might be useful
     /// when debugging isolated issues.
     pub no_sysroot: bool,

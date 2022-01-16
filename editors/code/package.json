@@ -491,6 +491,11 @@
                     "default": false,
                     "type": "boolean"
                 },
+                "rust-analyzer.cargo.reportLoadingProgress": {
+                    "markdownDescription": "Send progress notifications during project load.",
+                    "default": true,
+                    "type": "boolean"
+                },
                 "rust-analyzer.cargo.target": {
                     "markdownDescription": "Compilation target (target triple).",
                     "default": null,
