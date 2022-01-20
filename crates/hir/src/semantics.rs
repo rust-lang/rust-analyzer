@@ -120,7 +120,6 @@ pub struct SemanticsImpl<'db> {
     cache: RefCell<FxHashMap<SyntaxNode, HirFileId>>,
     // MacroCall to its expansion's HirFileId cache
     macro_call_cache: RefCell<FxHashMap<InFile<ast::MacroCall>, HirFileId>>,
-    analyze_impl_cache: RefCell<FxHashMap<(SyntaxNode, Option<TextSize>, bool), SourceAnalyzer>>,
 }
 
 impl<DB> fmt::Debug for Semantics<'_, DB> {
@@ -414,7 +413,6 @@ impl<'db> SemanticsImpl<'db> {
             cache: Default::default(),
             expansion_info_cache: Default::default(),
             macro_call_cache: Default::default(),
-            analyze_impl_cache: Default::default(),
         }
     }
 
@@ -1001,12 +999,6 @@ impl<'db> SemanticsImpl<'db> {
     ) -> SourceAnalyzer {
         let _p = profile::span("Semantics::analyze_impl");
 
-        if let Some(result) =
-            self.analyze_impl_cache.borrow().get(&(node.clone(), offset, infer_body))
-        {
-            return result.clone();
-        }
-
         let node_file = self.find_file(node);
 
         let container = match self.with_ctx(|ctx| ctx.find_container(node_file)) {
@@ -1032,8 +1024,6 @@ impl<'db> SemanticsImpl<'db> {
         };
 
         let result = SourceAnalyzer::new_for_resolver(resolver, node_file);
-        let mut cache = self.analyze_impl_cache.borrow_mut();
-        cache.insert((node.clone(), offset, infer_body), result.clone());
         result
     }
 
