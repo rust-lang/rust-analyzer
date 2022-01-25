@@ -206,20 +206,44 @@ pub struct FunctionId(salsa::InternId);
 type FunctionLoc = AssocItemLoc<Function>;
 impl_intern!(FunctionId, FunctionLoc, intern_function, lookup_intern_function);
 
+impl FunctionId {
+    pub fn machine_name(&self) -> String {
+        format!("_ra_f{}", self.0.as_usize())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct StructId(salsa::InternId);
 type StructLoc = ItemLoc<Struct>;
 impl_intern!(StructId, StructLoc, intern_struct, lookup_intern_struct);
+
+impl StructId {
+    pub fn machine_name(&self) -> String {
+        format!("_ra_S{}", self.0.as_usize())
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct UnionId(salsa::InternId);
 pub type UnionLoc = ItemLoc<Union>;
 impl_intern!(UnionId, UnionLoc, intern_union, lookup_intern_union);
 
+impl UnionId {
+    pub fn machine_name(&self) -> String {
+        format!("_ra_U{}", self.0.as_usize())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct EnumId(salsa::InternId);
 pub type EnumLoc = ItemLoc<Enum>;
 impl_intern!(EnumId, EnumLoc, intern_enum, lookup_intern_enum);
+
+impl EnumId {
+    pub fn machine_name(&self) -> String {
+        format!("_ra_E{}", self.0.as_usize())
+    }
+}
 
 // FIXME: rename to `VariantId`, only enums can ave variants
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -252,6 +276,12 @@ impl_intern!(StaticId, StaticLoc, intern_static, lookup_intern_static);
 pub struct TraitId(salsa::InternId);
 pub type TraitLoc = ItemLoc<Trait>;
 impl_intern!(TraitId, TraitLoc, intern_trait, lookup_intern_trait);
+
+impl TraitId {
+    pub fn machine_name(&self) -> String {
+        format!("_ra_T{}", self.0.as_usize())
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TypeAliasId(salsa::InternId);
@@ -317,6 +347,16 @@ pub enum AdtId {
     EnumId(EnumId),
 }
 impl_from!(StructId, UnionId, EnumId for AdtId);
+
+impl AdtId {
+    pub fn machine_name(&self) -> String {
+        match self {
+            AdtId::StructId(x) => x.machine_name(),
+            AdtId::UnionId(x) => x.machine_name(),
+            AdtId::EnumId(x) => x.machine_name(),
+        }
+    }
+}
 
 /// A generic param
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

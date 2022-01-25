@@ -21,6 +21,7 @@
 
 mod semantics;
 mod source_analyzer;
+pub mod dependencies;
 
 mod from_id;
 mod attrs;

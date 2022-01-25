@@ -14,6 +14,7 @@ use hir_def::{
     intern::{Internable, Interned},
     item_scope::ItemInNs,
     path::{Path, PathKind},
+    resolver::Resolver,
     type_ref::{TraitBoundModifier, TypeBound, TypeRef},
     visibility::Visibility,
     HasModule, ItemContainerId, Lookup, ModuleId, TraitId,
@@ -38,11 +39,12 @@ use crate::{
 pub struct HirFormatter<'a> {
     pub db: &'a dyn HirDatabase,
     fmt: &'a mut dyn fmt::Write,
+    pub resolver: &'a mut Option<Resolver>,
     buf: String,
     curr_size: usize,
     pub(crate) max_size: Option<usize>,
     omit_verbose_types: bool,
-    display_target: DisplayTarget,
+    pub display_target: DisplayTarget,
 }
 
 pub trait HirDisplay {
@@ -111,11 +113,37 @@ pub trait HirDisplay {
         match self.hir_fmt(&mut HirFormatter {
             db,
             fmt: &mut result,
+            resolver: &mut None,
             buf: String::with_capacity(20),
             curr_size: 0,
             max_size: None,
             omit_verbose_types: false,
             display_target: DisplayTarget::SourceCode { module_id },
+        }) {
+            Ok(()) => {}
+            Err(HirDisplayError::FmtError) => panic!("Writing to String can't fail!"),
+            Err(HirDisplayError::DisplaySourceCodeError(e)) => return Err(e),
+        };
+        Ok(result)
+    }
+
+    /// Returns a String representation of `self` that can be inserted into the given module.
+    /// Use this when generating code (e.g. assists)
+    fn display_machine_source_code<'a>(
+        &'a self,
+        db: &'a dyn HirDatabase,
+        resolver: &'a mut Option<Resolver>,
+    ) -> Result<String, DisplaySourceCodeError> {
+        let mut result = String::new();
+        match self.hir_fmt(&mut HirFormatter {
+            db,
+            fmt: &mut result,
+            resolver,
+            buf: String::with_capacity(20),
+            curr_size: 0,
+            max_size: None,
+            omit_verbose_types: false,
+            display_target: DisplayTarget::ForMachine,
         }) {
             Ok(()) => {}
             Err(HirDisplayError::FmtError) => panic!("Writing to String can't fail!"),
@@ -185,7 +213,7 @@ impl<'a> HirFormatter<'a> {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum DisplayTarget {
     /// Display types for inlays, doc popups, autocompletion, etc...
     /// Showing `{unknown}` or not qualifying paths is fine here.
@@ -196,6 +224,9 @@ pub enum DisplayTarget {
     SourceCode { module_id: ModuleId },
     /// Only for test purpose to keep real types
     Test,
+    /// Use machine readable, unique names. Useful when no human wants to see
+    /// the results and you don't want to fight with each corner case of names.
+    ForMachine,
 }
 
 impl DisplayTarget {
@@ -212,6 +243,7 @@ pub enum DisplaySourceCodeError {
     PathNotFound,
     UnknownType,
     Closure,
+    MultipleGenericSet,
 }
 
 pub enum HirDisplayError {
@@ -242,6 +274,7 @@ where
         match self.t.hir_fmt(&mut HirFormatter {
             db: self.db,
             fmt: f,
+            resolver: &mut None,
             buf: String::with_capacity(20),
             curr_size: 0,
             max_size: self.max_size,
@@ -518,6 +551,9 @@ impl HirDisplay for Ty {
                             hir_def::AdtId::EnumId(it) => f.db.enum_data(it).name.clone(),
                         };
                         write!(f, "{}", name)?;
+                    }
+                    DisplayTarget::ForMachine => {
+                        write!(f, "{}", def_id.machine_name())?;
                     }
                     DisplayTarget::SourceCode { module_id } => {
                         if let Some(path) = find_path::find_path(
@@ -1159,6 +1195,39 @@ impl HirDisplay for TypeBound {
 
 impl HirDisplay for Path {
     fn hir_fmt(&self, f: &mut HirFormatter) -> Result<(), HirDisplayError> {
+        if f.display_target == DisplayTarget::ForMachine {
+            if let Some(resolver) = f.resolver {
+                if let Some(n) =
+                    resolver.resolve_path_in_type_ns_fully(f.db.upcast(), self.mod_path())
+                {
+                    match n {
+                        hir_def::resolver::TypeNs::AdtId(x) => {
+                            write!(f, "{}", x.machine_name())?;
+                            let mut args = None;
+                            for segment in self.segments().iter() {
+                                if segment.args_and_bindings.is_some() {
+                                    if args.is_some() {
+                                        // This is invalid rust already, but we have just
+                                        // one segment and can't represent it to give
+                                        // error from rustc. We should not emit
+                                        // code in order to prevent non sence errors.
+                                        return Err(HirDisplayError::DisplaySourceCodeError(
+                                            DisplaySourceCodeError::MultipleGenericSet,
+                                        ));
+                                    }
+                                    args = segment.args_and_bindings;
+                                }
+                            }
+                            if let Some(args) = args {
+                                format_generics(args, f)?;
+                            }
+                            return Ok(());
+                        }
+                        _ => (),
+                    }
+                }
+            }
+        }
         match (self.type_anchor(), self.kind()) {
             (Some(anchor), _) => {
                 write!(f, "<")?;
@@ -1186,68 +1255,73 @@ impl HirDisplay for Path {
             }
             write!(f, "{}", segment.name)?;
             if let Some(generic_args) = segment.args_and_bindings {
-                // We should be in type context, so format as `Foo<Bar>` instead of `Foo::<Bar>`.
-                // Do we actually format expressions?
-                if generic_args.desugared_from_fn {
-                    // First argument will be a tuple, which already includes the parentheses.
-                    // If the tuple only contains 1 item, write it manually to avoid the trailing `,`.
-                    if let hir_def::path::GenericArg::Type(TypeRef::Tuple(v)) =
-                        &generic_args.args[0]
-                    {
-                        if v.len() == 1 {
-                            write!(f, "(")?;
-                            v[0].hir_fmt(f)?;
-                            write!(f, ")")?;
-                        } else {
-                            generic_args.args[0].hir_fmt(f)?;
-                        }
-                    }
-                    if let Some(ret) = &generic_args.bindings[0].type_ref {
-                        if !matches!(ret, TypeRef::Tuple(v) if v.is_empty()) {
-                            write!(f, " -> ")?;
-                            ret.hir_fmt(f)?;
-                        }
-                    }
-                    return Ok(());
-                }
-
-                write!(f, "<")?;
-                let mut first = true;
-                for arg in &generic_args.args {
-                    if first {
-                        first = false;
-                        if generic_args.has_self_type {
-                            // FIXME: Convert to `<Ty as Trait>` form.
-                            write!(f, "Self = ")?;
-                        }
-                    } else {
-                        write!(f, ", ")?;
-                    }
-                    arg.hir_fmt(f)?;
-                }
-                for binding in &generic_args.bindings {
-                    if first {
-                        first = false;
-                    } else {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{}", binding.name)?;
-                    match &binding.type_ref {
-                        Some(ty) => {
-                            write!(f, " = ")?;
-                            ty.hir_fmt(f)?
-                        }
-                        None => {
-                            write!(f, ": ")?;
-                            f.write_joined(&binding.bounds, " + ")?;
-                        }
-                    }
-                }
-                write!(f, ">")?;
+                format_generics(generic_args, f)?;
             }
         }
         Ok(())
     }
+}
+
+fn format_generics(
+    generic_args: &hir_def::path::GenericArgs,
+    f: &mut HirFormatter,
+) -> Result<(), HirDisplayError> {
+    // We should be in type context, so format as `Foo<Bar>` instead of `Foo::<Bar>`.
+    // Do we actually format expressions?
+    if generic_args.desugared_from_fn {
+        // First argument will be a tuple, which already includes the parentheses.
+        // If the tuple only contains 1 item, write it manually to avoid the trailing `,`.
+        if let hir_def::path::GenericArg::Type(TypeRef::Tuple(v)) = &generic_args.args[0] {
+            if v.len() == 1 {
+                write!(f, "(")?;
+                v[0].hir_fmt(f)?;
+                write!(f, ")")?;
+            } else {
+                generic_args.args[0].hir_fmt(f)?;
+            }
+        }
+        if let Some(ret) = &generic_args.bindings[0].type_ref {
+            if !matches!(ret, TypeRef::Tuple(v) if v.is_empty()) {
+                write!(f, " -> ")?;
+                ret.hir_fmt(f)?;
+            }
+        }
+        return Ok(());
+    }
+    write!(f, "<")?;
+    let mut first = true;
+    for arg in &generic_args.args {
+        if first {
+            first = false;
+            if generic_args.has_self_type {
+                // FIXME: Convert to `<Ty as Trait>` form.
+                write!(f, "Self = ")?;
+            }
+        } else {
+            write!(f, ", ")?;
+        }
+        arg.hir_fmt(f)?;
+    }
+    for binding in &generic_args.bindings {
+        if first {
+            first = false;
+        } else {
+            write!(f, ", ")?;
+        }
+        write!(f, "{}", binding.name)?;
+        match &binding.type_ref {
+            Some(ty) => {
+                write!(f, " = ")?;
+                ty.hir_fmt(f)?
+            }
+            None => {
+                write!(f, ": ")?;
+                f.write_joined(&binding.bounds, " + ")?;
+            }
+        }
+    }
+    write!(f, ">")?;
+    Ok(())
 }
 
 impl HirDisplay for hir_def::path::GenericArg {

@@ -1,14 +1,16 @@
 //! HirDisplay implementations for various hir types.
+use std::mem::replace;
+
 use hir_def::{
     adt::VariantData,
     generics::{TypeParamProvenance, WherePredicate, WherePredicateTypeTarget},
     type_ref::{TypeBound, TypeRef},
-    AdtId, GenericDefId,
+    AdtId, GenericDefId, resolver::HasResolver, Lookup,
 };
 use hir_ty::{
     display::{
         write_bounds_like_dyn_trait_with_prefix, write_visibility, HirDisplay, HirDisplayError,
-        HirFormatter, SizedByDefault,
+        HirFormatter, SizedByDefault, DisplayTarget,
     },
     Interner, TraitRefExt, WhereClause,
 };
@@ -22,6 +24,7 @@ use crate::{
 
 impl HirDisplay for Function {
     fn hir_fmt(&self, f: &mut HirFormatter) -> Result<(), HirDisplayError> {
+        let prev_resolver = replace(f.resolver, Some(self.id.resolver(f.db.upcast())));
         let data = f.db.function_data(self.id);
         write_visibility(self.module(f.db).id, self.visibility(f.db), f)?;
         if data.is_default() {
@@ -40,7 +43,23 @@ impl HirDisplay for Function {
             // FIXME: String escape?
             write!(f, "extern \"{}\" ", &**abi)?;
         }
-        write!(f, "fn {}", data.name)?;
+        write!(f, "fn ")?;
+        match f.display_target {
+            DisplayTarget::ForMachine => {
+                let loc = self.id.lookup(f.db.upcast());
+                match loc.container {
+                    hir_def::ItemContainerId::ExternBlockId(_)
+                    | hir_def::ItemContainerId::ModuleId(_) => {
+                        write!(f, "{}", self.id.machine_name())?;        
+                    },
+                    hir_def::ItemContainerId::ImplId(_)
+                    | hir_def::ItemContainerId::TraitId(_) => {
+                        write!(f, "{}", data.name)?;       
+                    },
+                }
+            }
+            _ => write!(f, "{}", data.name)?,
+        }
 
         write_generic_params(GenericDefId::FunctionId(self.id), f)?;
 
@@ -116,7 +135,7 @@ impl HirDisplay for Function {
         }
 
         write_where_clause(GenericDefId::FunctionId(self.id), f)?;
-
+        *f.resolver = prev_resolver;
         Ok(())
     }
 }
@@ -135,7 +154,10 @@ impl HirDisplay for Struct {
     fn hir_fmt(&self, f: &mut HirFormatter) -> Result<(), HirDisplayError> {
         write_visibility(self.module(f.db).id, self.visibility(f.db), f)?;
         write!(f, "struct ")?;
-        write!(f, "{}", self.name(f.db))?;
+        match f.display_target {
+            DisplayTarget::ForMachine => write!(f, "{}", self.id.machine_name())?,
+            _ => write!(f, "{}", self.name(f.db))?,
+        }
         let def_id = GenericDefId::AdtId(AdtId::StructId(self.id));
         write_generic_params(def_id, f)?;
         write_where_clause(def_id, f)?;
@@ -147,7 +169,10 @@ impl HirDisplay for Enum {
     fn hir_fmt(&self, f: &mut HirFormatter) -> Result<(), HirDisplayError> {
         write_visibility(self.module(f.db).id, self.visibility(f.db), f)?;
         write!(f, "enum ")?;
-        write!(f, "{}", self.name(f.db))?;
+        match f.display_target {
+            DisplayTarget::ForMachine => write!(f, "{}", self.id.machine_name())?,
+            _ => write!(f, "{}", self.name(f.db))?,
+        }
         let def_id = GenericDefId::AdtId(AdtId::EnumId(self.id));
         write_generic_params(def_id, f)?;
         write_where_clause(def_id, f)?;
@@ -159,7 +184,10 @@ impl HirDisplay for Union {
     fn hir_fmt(&self, f: &mut HirFormatter) -> Result<(), HirDisplayError> {
         write_visibility(self.module(f.db).id, self.visibility(f.db), f)?;
         write!(f, "union ")?;
-        write!(f, "{}", self.name(f.db))?;
+        match f.display_target {
+            DisplayTarget::ForMachine => write!(f, "{}", self.id.machine_name())?,
+            _ => write!(f, "{}", self.name(f.db))?,
+        }
         let def_id = GenericDefId::AdtId(AdtId::UnionId(self.id));
         write_generic_params(def_id, f)?;
         write_where_clause(def_id, f)?;
@@ -451,7 +479,11 @@ impl HirDisplay for Trait {
         if data.is_auto {
             write!(f, "auto ")?;
         }
-        write!(f, "trait {}", data.name)?;
+        write!(f, "trait ")?;
+        match f.display_target {
+            DisplayTarget::ForMachine => write!(f, "{}", self.id.machine_name())?,
+            _ => write!(f, "{}", data.name)?,
+        }
         let def_id = GenericDefId::TraitId(self.id);
         write_generic_params(def_id, f)?;
         write_where_clause(def_id, f)?;

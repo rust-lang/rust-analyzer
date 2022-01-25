@@ -57,6 +57,7 @@ mod view_crate_graph;
 mod view_hir;
 mod view_item_tree;
 mod shuffle_crate_graph;
+mod dependencies;
 
 use std::sync::Arc;
 
