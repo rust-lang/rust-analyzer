@@ -298,6 +298,34 @@ fn main() {
 }
 
 #[test]
+fn doctest_convert_if_to_filter() {
+    check_doc_test(
+        "convert_if_to_filter",
+        r#####"
+//- minicore: iterators
+use core::iter;
+fn main() {
+    let it = core::iter::repeat(92);
+    it.for_each$0(|x| {
+        if x > 4 {
+            println!("{}", x);
+        };
+    });
+}
+"#####,
+        r#####"
+use core::iter;
+fn main() {
+    let it = core::iter::repeat(92);
+    it.filter(|&x| x > 4).for_each(|x| {
+        println!("{}", x);
+    });
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_convert_integer_literal() {
     check_doc_test(
         "convert_integer_literal",

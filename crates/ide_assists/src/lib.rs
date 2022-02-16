@@ -151,6 +151,7 @@ mod handlers {
     mod inline_call;
     mod inline_local_variable;
     mod introduce_named_lifetime;
+    mod lambdify_for_each;
     mod invert_if;
     mod merge_imports;
     mod merge_match_arms;
@@ -234,6 +235,7 @@ mod handlers {
             introduce_named_generic::introduce_named_generic,
             introduce_named_lifetime::introduce_named_lifetime,
             invert_if::invert_if,
+            lambdify_for_each::convert_if_to_filter,
             merge_imports::merge_imports,
             merge_match_arms::merge_match_arms,
             move_bounds::move_bounds_to_where_clause,
