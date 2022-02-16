@@ -1,10 +1,10 @@
-use ide_db::helpers::FamousDefs;
 use stdx::format_to;
 use syntax::{
     SyntaxKind,
     ast::{self, edit_in_place::Indent, HasArgList, Pat, Expr},
     AstNode,
 };
+use ide_db::helpers::node_ext::walk_pat;
 
 use crate::{AssistContext, AssistId, AssistKind, Assists};
 
@@ -41,7 +41,7 @@ pub(crate) fn convert_if_to_filter(acc: &mut Assists, ctx: &AssistContext) -> Op
         _ => return None,
     };
 
-    let (method, receiver) = validate_method_call_expr(ctx, method)?;
+    let (method, receiver) = validate_method_call_expr(method)?;
 
     let param_list = closure.param_list()?;
     let param = param_list.params().next()?.pat()?;
@@ -77,11 +77,6 @@ pub(crate) fn convert_if_to_filter(acc: &mut Assists, ctx: &AssistContext) -> Op
     let condition = if_expr.condition()?; // ... with a condition...
     continue_iff(if_expr.else_branch().is_none()); // ... and no else branch...
     let then_branch = if_expr.then_branch()?; // ... and a then branch
-    // ... and the pattern in the for loop is an ident pattern
-    let ident_pat = match param {
-        Pat::IdentPat(ref ident_pat) => ident_pat.clone(),
-        _ => return None,
-    };
 
     acc.add(
         AssistId("convert_if_to_filter", AssistKind::RefactorRewrite),
@@ -91,9 +86,17 @@ pub(crate) fn convert_if_to_filter(acc: &mut Assists, ctx: &AssistContext) -> Op
             let indent = method.indent_level();
             
             let mut buf = String::new();
-            // Remove unnecessary `mut` in the pattern if used in a filter
-            let pat_filter = ident_pat.clone_for_update();
-            if let Some(mut_token) = pat_filter.mut_token() {
+            // Recursively remove unnecessary `mut`s in the parameter
+            let pat_filter = param.clone_for_update();
+            let mut to_be_removed = vec![];
+            walk_pat(&pat_filter, &mut |cb|
+                if let Pat::IdentPat(ident) = cb {
+                    if let Some(mut_token) = ident.mut_token() {
+                        to_be_removed.push(mut_token);
+                    }
+                }
+            );
+            for mut_token in to_be_removed.into_iter() {
                 if let Some(ws) = mut_token.next_token().filter(|it| it.kind() == SyntaxKind::WHITESPACE) {
                     ws.detach();
                 }
@@ -113,7 +116,6 @@ pub(crate) fn convert_if_to_filter(acc: &mut Assists, ctx: &AssistContext) -> Op
 }
 
 fn validate_method_call_expr(
-    ctx: &AssistContext,
     expr: ast::MethodCallExpr,
 ) -> Option<(ast::Expr, ast::Expr)> {
     let name_ref = expr.name_ref()?;
@@ -143,17 +145,17 @@ mod tests {
             convert_if_to_filter,
             r#"
 fn main() {
-    let it = core::iter::repeat(92);
-    it.for_each$0(|mut i| {
-        if (i*i)%3 == 2 {
+    let it = core::iter::repeat((92,42));
+    it.for_each$0(|(mut i,mut j)| {
+        if (i*j)%3 == 2 {
             i *= 2;
         };
     });
 }"#,
             r#"
 fn main() {
-    let it = core::iter::repeat(92);
-    it.filter(|&i| (i*i)%3 == 2).for_each(|mut i| {
+    let it = core::iter::repeat((92,42));
+    it.filter(|&(i,j)| (i*j)%3 == 2).for_each(|(mut i,mut j)| {
         i *= 2;
     });
 }"#,
