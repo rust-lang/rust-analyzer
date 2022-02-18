@@ -998,20 +998,19 @@ impl<'db> SemanticsImpl<'db> {
         infer_body: bool,
     ) -> SourceAnalyzer {
         let _p = profile::span("Semantics::analyze_impl");
+        let node = self.find_file(node);
 
-        let node_file = self.find_file(node);
-
-        let container = match self.with_ctx(|ctx| ctx.find_container(node_file)) {
+        let container = match self.with_ctx(|ctx| ctx.find_container(node)) {
             Some(it) => it,
-            None => return SourceAnalyzer::new_for_resolver(Resolver::default(), node_file),
+            None => return SourceAnalyzer::new_for_resolver(Resolver::default(), node),
         };
 
         let resolver = match container {
             ChildContainer::DefWithBodyId(def) => {
                 return if infer_body {
-                    SourceAnalyzer::new_for_body(self.db, def, node_file, offset)
+                    SourceAnalyzer::new_for_body(self.db, def, node, offset)
                 } else {
-                    SourceAnalyzer::new_for_body_no_infer(self.db, def, node_file, offset)
+                    SourceAnalyzer::new_for_body_no_infer(self.db, def, node, offset)
                 }
             }
             ChildContainer::TraitId(it) => it.resolver(self.db.upcast()),
@@ -1022,9 +1021,7 @@ impl<'db> SemanticsImpl<'db> {
             ChildContainer::TypeAliasId(it) => it.resolver(self.db.upcast()),
             ChildContainer::GenericDefId(it) => it.resolver(self.db.upcast()),
         };
-
-        let result = SourceAnalyzer::new_for_resolver(resolver, node_file);
-        result
+        SourceAnalyzer::new_for_resolver(resolver, node)
     }
 
     fn cache(&self, root_node: SyntaxNode, file_id: HirFileId) {
