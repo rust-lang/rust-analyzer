@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import * as ra from './lsp_ext';
 
 import { Ctx, Disposable } from './ctx';
-import { sendRequestWithRetry, isRustDocument, RustDocument, RustEditor, sleep } from './util';
+import { sendRequestWithRetry, isRustDocument, RustDocument, RustEditor, sleep, isRustEditor } from './util';
 
 interface InlayHintStyle {
     decorationType: vscode.TextEditorDecorationType;
@@ -112,6 +112,12 @@ class HintsUpdater implements Disposable {
             this.disposables
         );
 
+        vscode.window.onDidChangeTextEditorSelection(
+            this.onDidChangeTextEditorSelection,
+            this,
+            this.disposables
+        );
+
         // Set up initial cache shape
         ctx.visibleRustEditors.forEach(editor => this.sourceFiles.set(
             editor.document.uri.toString(),
@@ -130,6 +136,27 @@ class HintsUpdater implements Disposable {
         this.sourceFiles.forEach(file => file.inlaysRequest?.cancel());
         this.ctx.visibleRustEditors.forEach(editor => this.renderDecorations(editor, { param: [], type: [], chaining: [] }));
         this.disposables.forEach(d => d.dispose());
+    }
+
+    onDidChangeTextEditorSelection({ textEditor, selections }: vscode.TextEditorSelectionChangeEvent) {
+        if (!this.ctx.config.inlayHints.hideWhenSelected) return;
+        if (selections.length == 0 || !isRustEditor(textEditor)) return;
+
+        const uri = textEditor.document.uri.toString();
+        const file = this.sourceFiles.get(uri);
+        if (!file) return;
+
+        const toRender: InlaysDecorations = Object.assign({}, file.cachedDecorations);
+
+        selections.forEach(selection => {
+            if (selection.isEmpty) return;
+
+            toRender.chaining = toRender.chaining.filter(dec => !selection.contains(dec.range));
+            toRender.type = toRender.type.filter(dec => !selection.contains(dec.range));
+            toRender.param = toRender.param.filter(dec => !selection.contains(dec.range));
+        })
+
+        this.renderDecorations(textEditor as RustEditor, toRender);
     }
 
     onDidChangeTextDocument({ contentChanges, document }: vscode.TextDocumentChangeEvent) {

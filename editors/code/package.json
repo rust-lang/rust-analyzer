@@ -790,6 +790,11 @@
                     "default": true,
                     "type": "boolean"
                 },
+                "rust-analyzer.inlayHints.hideWhenSelected": {
+                    "markdownDescription": "Whether to hide inlay hints when selected.",
+                    "default": false,
+                    "type": "boolean"
+                },
                 "rust-analyzer.inlayHints.hideNamedConstructorHints": {
                     "markdownDescription": "Whether to hide inlay hints for constructors.",
                     "default": false,
