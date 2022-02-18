@@ -49,10 +49,6 @@ pub enum ImportScope {
     Block(ast::StmtList),
 }
 
-// FIXME: VERY DANGEROUS HACK
-// Please think of something less bad than this.
-unsafe impl Send for ImportScope {}
-
 impl ImportScope {
     // FIXME: Remove this?
     #[cfg(test)]

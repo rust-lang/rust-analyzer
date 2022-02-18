@@ -187,10 +187,10 @@ fn import_edits(
         };
         let path =
             ctx.module?.find_use_path_prefixed(ctx.db, item, ctx.config.insert_use.prefix_kind)?;
-        Some((path.len() > 1).then(|| ImportEdit {
-            import: LocatedImport::new(path.clone(), item, item, None),
-            scope: import_scope.clone(),
-        }))
+        Some(
+            (path.len() > 1)
+                .then(|| ImportEdit { import: LocatedImport::new(path.clone(), item, item, None) }),
+        )
     };
     let mut res = Vec::with_capacity(requires.len());
     for import in requires {

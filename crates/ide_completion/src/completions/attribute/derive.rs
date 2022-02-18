@@ -110,7 +110,7 @@ fn flyimport_derive(acc: &mut Completions, ctx: &CompletionContext) -> Option<()
                     ctx.source_range(),
                     mac.name(ctx.db)?.to_smol_str(),
                 );
-                item.add_import(ImportEdit { import, scope: import_scope.clone() });
+                item.add_import(ImportEdit { import });
                 if let Some(docs) = mac.docs(ctx.db) {
                     item.documentation(docs);
                 }

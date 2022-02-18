@@ -318,11 +318,11 @@ impl CompletionItem {
     pub fn text_edit(&self) -> &TextEdit {
         &self.text_edit
     }
-    
+
     pub fn text_edit_mut(&mut self) -> &mut TextEdit {
         &mut self.text_edit
     }
-    
+
     /// Whether `text_edit` is a snippet (contains `$0` markers).
     pub fn is_snippet(&self) -> bool {
         self.is_snippet
@@ -376,23 +376,6 @@ impl CompletionItem {
 #[derive(Debug, Clone)]
 pub struct ImportEdit {
     pub import: LocatedImport,
-    pub scope: ImportScope,
-}
-
-impl ImportEdit {
-    /// Attempts to insert the import to the given scope, producing a text edit.
-    /// May return no edit in edge cases, such as scope already containing the import.
-    pub fn to_text_edit(&self, cfg: InsertUseConfig) -> Option<TextEdit> {
-        let _p = profile::span("ImportEdit::to_text_edit");
-
-        let new_ast = self.scope.clone_for_update();
-        insert_use::insert_use(&new_ast, mod_path_to_ast(&self.import.import_path), &cfg);
-        let mut import_insert = TextEdit::builder();
-        algo::diff(self.scope.as_syntax_node(), new_ast.as_syntax_node())
-            .into_text_edit(&mut import_insert);
-
-        Some(import_insert.finish())
-    }
 }
 
 /// A helper to make `CompletionItem`s.
