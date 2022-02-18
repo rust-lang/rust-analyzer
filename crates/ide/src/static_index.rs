@@ -108,6 +108,7 @@ impl StaticIndex<'_> {
                     type_hints: true,
                     parameter_hints: true,
                     chaining_hints: true,
+                    hide_when_selected: false,
                     hide_named_constructor_hints: false,
                     max_length: Some(25),
                 },

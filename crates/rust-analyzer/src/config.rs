@@ -849,6 +849,7 @@ impl Config {
             type_hints: self.data.inlayHints_typeHints,
             parameter_hints: self.data.inlayHints_parameterHints,
             chaining_hints: self.data.inlayHints_chainingHints,
+            hide_when_selected: self.data.inlayHints_hideWhenSelected,
             hide_named_constructor_hints: self.data.inlayHints_hideNamedConstructorHints,
             max_length: self.data.inlayHints_maxLength,
         }
