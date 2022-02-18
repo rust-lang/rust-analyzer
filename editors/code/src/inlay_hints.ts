@@ -140,7 +140,7 @@ class HintsUpdater implements Disposable {
 
     onDidChangeTextEditorSelection({ textEditor, selections }: vscode.TextEditorSelectionChangeEvent) {
         if (!this.ctx.config.inlayHints.hideWhenSelected) return;
-        if (selections.length == 0 || !isRustEditor(textEditor)) return;
+        if (selections.length === 0 || !isRustEditor(textEditor)) return;
 
         const uri = textEditor.document.uri.toString();
         const file = this.sourceFiles.get(uri);
@@ -154,9 +154,9 @@ class HintsUpdater implements Disposable {
             toRender.chaining = toRender.chaining.filter(dec => !selection.contains(dec.range));
             toRender.type = toRender.type.filter(dec => !selection.contains(dec.range));
             toRender.param = toRender.param.filter(dec => !selection.contains(dec.range));
-        })
+        });
 
-        this.renderDecorations(textEditor as RustEditor, toRender);
+        this.renderDecorations(textEditor, toRender);
     }
 
     onDidChangeTextDocument({ contentChanges, document }: vscode.TextDocumentChangeEvent) {
