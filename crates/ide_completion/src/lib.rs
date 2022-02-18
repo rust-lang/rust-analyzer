@@ -24,7 +24,7 @@ use ide_db::{
 };
 use rustc_hash::FxHashMap;
 use std::sync::Mutex;
-use syntax::{algo, SyntaxToken};
+use syntax::{algo, SyntaxKind, SyntaxToken};
 use text_edit::{Indel, TextEdit};
 
 use crate::{completions::Completions, context::CompletionContext};
@@ -150,11 +150,19 @@ pub fn completions(
 
     let processed_file_data = {
         let parse = db.parse(position.file_id);
-        let token = parse
-            .syntax_node()
-            .token_at_offset(position.offset)
-            .left_biased()
-            .filter(|x| !x.kind().is_punct());
+
+        let token =
+            parse.syntax_node().token_at_offset(position.offset).left_biased().filter(|x| {
+                if x.kind().is_keyword() || x.kind().is_punct() {
+                    return false;
+                }
+
+                if x.kind() != SyntaxKind::IDENT {
+                    return false;
+                }
+
+                true
+            });
 
         if let Some(token) = token {
             let edit = Indel::delete(token.text_range());
