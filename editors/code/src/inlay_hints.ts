@@ -139,24 +139,13 @@ class HintsUpdater implements Disposable {
     }
 
     onDidChangeTextEditorSelection({ textEditor, selections }: vscode.TextEditorSelectionChangeEvent) {
-        if (!this.ctx.config.inlayHints.hideWhenSelected) return;
         if (selections.length === 0 || !isRustEditor(textEditor)) return;
 
         const uri = textEditor.document.uri.toString();
         const file = this.sourceFiles.get(uri);
-        if (!file) return;
+        if (!file || !file.cachedDecorations) return;
 
-        const toRender: InlaysDecorations = Object.assign({}, file.cachedDecorations);
-
-        selections.forEach(selection => {
-            if (selection.isEmpty) return;
-
-            toRender.chaining = toRender.chaining.filter(dec => !selection.contains(dec.range));
-            toRender.type = toRender.type.filter(dec => !selection.contains(dec.range));
-            toRender.param = toRender.param.filter(dec => !selection.contains(dec.range));
-        });
-
-        this.renderDecorations(textEditor, toRender);
+        this.renderDecorations(textEditor, file.cachedDecorations);
     }
 
     onDidChangeTextDocument({ contentChanges, document }: vscode.TextDocumentChangeEvent) {
@@ -227,9 +216,24 @@ class HintsUpdater implements Disposable {
             editor.setDecorations(paramHints.decorationType, []);
             editor.setDecorations(chainingHints.decorationType, []);
         }
-        editor.setDecorations(typeHints.decorationType, decorations.type);
-        editor.setDecorations(paramHints.decorationType, decorations.param);
-        editor.setDecorations(chainingHints.decorationType, decorations.chaining);
+
+        let type = decorations.type;
+        let param = decorations.param;
+        let chaining = decorations.chaining;
+
+        if (this.ctx.config.inlayHints.hideWhenSelected) {
+            const predicate = (dec: vscode.DecorationOptions): boolean => {
+                return !editor.selections.some(sel => sel.contains(dec.range));
+            };
+
+            type = type.filter(predicate);
+            param = param.filter(predicate);
+            chaining = chaining.filter(predicate);
+        }
+
+        editor.setDecorations(typeHints.decorationType, type);
+        editor.setDecorations(paramHints.decorationType, param);
+        editor.setDecorations(chainingHints.decorationType, chaining);
     }
 
     private hintsToDecorations(hints: ra.InlayHint[]): InlaysDecorations {
