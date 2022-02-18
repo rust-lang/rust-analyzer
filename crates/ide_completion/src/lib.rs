@@ -24,8 +24,8 @@ use ide_db::{
 };
 use rustc_hash::FxHashMap;
 use std::sync::Mutex;
-use syntax::{algo, SyntaxToken, TextRange};
-use text_edit::{Indel, TextEdit, TextSize};
+use syntax::{algo, SyntaxToken};
+use text_edit::{Indel, TextEdit};
 
 use crate::{completions::Completions, context::CompletionContext};
 

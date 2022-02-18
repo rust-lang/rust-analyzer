@@ -2,7 +2,6 @@
 use hir::ItemInNs;
 use ide_db::imports::{
     import_assets::{ImportAssets, ImportCandidate, LocatedImport},
-    insert_use::ImportScope,
 };
 use itertools::Itertools;
 use syntax::{AstNode, SyntaxNode, T};
