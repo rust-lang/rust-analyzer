@@ -19,7 +19,7 @@ miniz_oxide.opt-level = 3
 [profile.release]
 incremental = true
 # Set this to 1 or 2 to get more useful backtraces in debugger.
-debug = 2
+debug = 0
 
 [patch.'crates-io']
 # rowan = { path = "../rowan" }
