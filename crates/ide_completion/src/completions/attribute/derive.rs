@@ -90,7 +90,6 @@ fn flyimport_derive(acc: &mut Completions, ctx: &CompletionContext) -> Option<()
         &ctx.sema,
         parent.clone(),
     )?;
-    let import_scope = ImportScope::find_insert_use_container(&parent, &ctx.sema)?;
     acc.add_all(
         import_assets
             .search_for_imports(&ctx.sema, ctx.config.insert_use.prefix_kind)

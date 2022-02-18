@@ -13,7 +13,7 @@ use ide_db::{
 };
 use smallvec::SmallVec;
 use stdx::{impl_from, never};
-use syntax::{algo, SmolStr, TextRange};
+use syntax::{SmolStr, TextRange};
 use text_edit::TextEdit;
 
 /// `CompletionItem` describes a single completion variant in the editor pop-up.

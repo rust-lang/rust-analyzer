@@ -156,12 +156,8 @@ impl Snippet {
     }
 
     /// Returns [`None`] if the required items do not resolve.
-    pub(crate) fn imports(
-        &self,
-        ctx: &CompletionContext,
-        import_scope: &ImportScope,
-    ) -> Option<Vec<ImportEdit>> {
-        import_edits(ctx, import_scope, &self.requires)
+    pub(crate) fn imports(&self, ctx: &CompletionContext) -> Option<Vec<ImportEdit>> {
+        import_edits(ctx, &self.requires)
     }
 
     pub fn snippet(&self) -> String {
@@ -173,11 +169,7 @@ impl Snippet {
     }
 }
 
-fn import_edits(
-    ctx: &CompletionContext,
-    import_scope: &ImportScope,
-    requires: &[GreenNode],
-) -> Option<Vec<ImportEdit>> {
+fn import_edits(ctx: &CompletionContext, requires: &[GreenNode]) -> Option<Vec<ImportEdit>> {
     let resolve = |import: &GreenNode| {
         let path = ast::Path::cast(SyntaxNode::new_root(import.clone()))?;
         let item = match ctx.scope.speculative_resolve(&path)? {
