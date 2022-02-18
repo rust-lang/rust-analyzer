@@ -249,6 +249,8 @@ config_data! {
         inlayHints_parameterHints: bool             = "true",
         /// Whether to show inlay type hints for variables.
         inlayHints_typeHints: bool                  = "true",
+        /// Whether to hide inlay hints when selected.
+        inlayHints_hideWhenSelected: bool           = "false",
         /// Whether to hide inlay hints for constructors.
         inlayHints_hideNamedConstructorHints: bool  = "false",
 
