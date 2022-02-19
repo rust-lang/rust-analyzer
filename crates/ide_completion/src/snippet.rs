@@ -60,6 +60,13 @@ use std::ops::Deref;
 // [source,json]
 // ----
 // {
+//     "Println": {
+//         "postfix": "print",
+//         "body": "println!(\"{}\", ${receiver});",
+//         "requires": "std::fmt::Display",
+//         "description": "Wraps the current variable in a println macro",
+//         "scope": "expr"
+//     },
 //     "Arc::new": {
 //         "postfix": "arc",
 //         "body": "Arc::new(${receiver})",

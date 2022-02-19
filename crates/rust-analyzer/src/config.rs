@@ -120,6 +120,13 @@ config_data! {
         /// Custom completion snippets.
         // NOTE: Keep this list in sync with the feature docs of user snippets.
         completion_snippets: FxHashMap<String, SnippetDef> = r#"{
+            "Println": {
+                "postfix": "print",
+                "body": "println!(\"{}\", ${receiver});",
+                "requires": "std::fmt::Display",
+                "description": "Wraps the current expression in a println macro",
+                "scope": "expr"
+            },
             "Arc::new": {
                 "postfix": "arc",
                 "body": "Arc::new(${receiver})",

@@ -152,6 +152,13 @@ Whether to add parenthesis when completing functions.
 Default:
 ----
 {
+            "Println": {
+                "postfix": "print",
+                "body": "println!(\"{}\", ${receiver});",
+                "requires": "std::fmt::Display",
+                "description": "Wraps the current expression in a println macro",
+                "scope": "expr"
+            },
             "Arc::new": {
                 "postfix": "arc",
                 "body": "Arc::new(${receiver})",
