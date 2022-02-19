@@ -250,6 +250,7 @@ pub struct CompletionCache {
 
 impl CompletionCache {
     pub fn filter_coarse_cache(&self, f: FileId) {
+        let _p = profile::span("filter_coarse_cache");
         let new = self
             .coarse_cache
             .lock()
