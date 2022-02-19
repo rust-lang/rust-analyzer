@@ -161,6 +161,13 @@ pub fn completions(
                     return false;
                 }
 
+                if let Some(prev) = x.prev_token() {
+                    let kind = prev.kind();
+                    if kind != SyntaxKind::COLON2 && kind != SyntaxKind::DOT {
+                        return false;
+                    }
+                }
+
                 true
             });
 
