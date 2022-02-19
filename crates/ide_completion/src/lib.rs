@@ -157,13 +157,12 @@ pub fn completions(
                     return false;
                 }
 
-                if x.kind() != SyntaxKind::IDENT {
+                if x.kind() != SyntaxKind::IDENT && x.kind() != SyntaxKind::INT_NUMBER {
                     return false;
                 }
 
                 if let Some(prev) = x.prev_token() {
-                    let kind = prev.kind();
-                    if kind != SyntaxKind::COLON2 && kind != SyntaxKind::DOT {
+                    if !prev.kind().is_punct() {
                         return false;
                     }
                 }
@@ -228,6 +227,7 @@ fn postprocess_completions(
     result: impl Iterator<Item = CompletionItem>,
     target_token: Option<SyntaxToken>,
 ) -> Vec<CompletionItem> {
+    let _p = profile::span("postprocess_completions");
     result
         .map(|mut x| {
             if let Some(removed) = target_token.clone() {
