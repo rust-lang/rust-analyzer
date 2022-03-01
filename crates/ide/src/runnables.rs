@@ -415,8 +415,14 @@ fn module_def_doctest(db: &RootDatabase, def: Definition) -> Option<Runnable> {
         if let Some(assoc_item) = def.as_assoc_item(db) {
             if let hir::AssocItemContainer::Impl(imp) = assoc_item.container(db) {
                 let ty = imp.self_ty(db);
-                if let Some(adt) = ty.as_adt() {
-                    let name = adt.name(db);
+                let maybe_name = match ty.as_adt() {
+                    Some(adt) => Some(adt.name(db)),
+                    None => match ty.as_builtin() {
+                        Some(builtin) => Some(builtin.name()),
+                        None => None,
+                    },
+                };
+                if let Some(name) = maybe_name {
                     let mut ty_args = ty.type_arguments().peekable();
                     format_to!(path, "{}", name);
                     if ty_args.peek().is_some() {
