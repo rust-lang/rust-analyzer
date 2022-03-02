@@ -1039,6 +1039,11 @@
                 "configuration": "language-configuration.json"
             }
         ],
+        "breakpoints": [
+            {
+                "language": "rust"
+            }
+        ],
         "grammars": [
             {
                 "language": "ra_syntax_tree",
