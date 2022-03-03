@@ -262,7 +262,6 @@ impl ImportAssets {
             }
         }
         .into_iter()
-        .filter(|import| import.import_path.len() > 1)
         .filter(|import| !scope_definitions.contains(&ScopeDef::from(import.item_to_import)))
         .sorted_by(|a, b| a.import_path.cmp(&b.import_path))
         .collect()
