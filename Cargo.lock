@@ -1411,7 +1411,6 @@ dependencies = [
  "tikv-jemallocator",
  "toolchain",
  "tracing",
- "tracing-log",
  "tracing-subscriber",
  "tracing-tree",
  "tt",

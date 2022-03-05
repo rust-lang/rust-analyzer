@@ -41,7 +41,6 @@ tracing-subscriber = { version = "0.3", default-features = false, features = [
     "fmt",
     "tracing-log",
 ] }
-tracing-log = "0.1.2"
 tracing-tree = "0.2"
 always-assert = "0.1"
 
