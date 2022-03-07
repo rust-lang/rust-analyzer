@@ -360,7 +360,7 @@ pub struct Config {
     pub discovered_projects: Option<Vec<ProjectManifest>>,
     pub root_path: AbsPathBuf,
     snippets: Vec<Snippet>,
-    host: Option<String>,
+    host: String,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -491,6 +491,10 @@ pub struct ClientCommandsConfig {
 
 impl Config {
     pub fn new(root_path: AbsPathBuf, caps: ClientCapabilities) -> Self {
+        let cmd = Command::new(toolchain::rustc()).arg("-vV").output().unwrap();
+        let stdout = String::from_utf8_lossy(&cmd.stdout);
+        let host_line = stdout.lines().into_iter().find(|line| line.starts_with("host:")).unwrap();
+        let host: String = host_line.split_whitespace().nth(1).unwrap().into();
         Config {
             caps,
             data: ConfigData::default(),
@@ -498,7 +502,7 @@ impl Config {
             discovered_projects: None,
             root_path,
             snippets: Default::default(),
-            host: None,
+            host,
         }
     }
     pub fn update(
@@ -547,20 +551,6 @@ impl Config {
 
     pub fn json_schema() -> serde_json::Value {
         ConfigData::json_schema()
-    }
-
-    fn get_host() -> String {
-        if let Some(host) = self.host {
-            host
-        } else {
-            // host is None
-            let cmd = Command::new(toolchain::rustc()).arg("-vV").output().unwrap();
-            let stdout = String::from_utf8_lossy(&cmd.stdout);
-            let host_line =
-                stdout.lines().into_iter().find(|line| line.starts_with("host:")).unwrap();
-            let host = host_line.split_whitespace().nth(1).unwrap();
-            self.host = Some(host.to_string())
-        }
     }
 }
 
@@ -810,9 +800,7 @@ impl Config {
             Some(args) if !args.is_empty() => {
                 let mut args = args.clone();
                 let mut command = args.remove(0);
-                if command.contains("$TARGET_TRIPLE") {
-                    command.replace("$TARGET_TRIPLE", self.get_host());
-                }
+                command = command.replace("$TARGET_TRIPLE", &self.host);
                 RustfmtConfig::CustomCommand { command, args }
             }
             Some(_) | None => RustfmtConfig::Rustfmt {
@@ -829,9 +817,8 @@ impl Config {
             Some(args) if !args.is_empty() => {
                 let mut args = args.clone();
                 let mut command = args.remove(0);
-                if command.contains("$TARGET_TRIPLE") {
-                    command.replace("$TARGET_TRIPLE", self.get_host());
-                }
+                command = command.replace("$TARGET_TRIPLE", &self.host);
+
                 FlycheckConfig::CustomCommand { command, args }
             }
             Some(_) | None => FlycheckConfig::CargoCommand {
