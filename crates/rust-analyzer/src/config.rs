@@ -7,7 +7,7 @@
 //! configure the server itself, feature flags are passed into analysis, and
 //! tweak things like automatic insertion of `()` in completions.
 
-use std::{ffi::OsString, iter, path::PathBuf};
+use std::{ffi::OsString, iter, path::PathBuf, process::Command};
 
 use flycheck::FlycheckConfig;
 use ide::{
@@ -360,6 +360,7 @@ pub struct Config {
     pub discovered_projects: Option<Vec<ProjectManifest>>,
     pub root_path: AbsPathBuf,
     snippets: Vec<Snippet>,
+    host: Option<String>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -497,6 +498,7 @@ impl Config {
             discovered_projects: None,
             root_path,
             snippets: Default::default(),
+            host: None,
         }
     }
     pub fn update(
@@ -545,6 +547,20 @@ impl Config {
 
     pub fn json_schema() -> serde_json::Value {
         ConfigData::json_schema()
+    }
+
+    fn get_host() -> String {
+        if let Some(host) = self.host {
+            host
+        } else {
+            // host is None
+            let cmd = Command::new(toolchain::rustc()).arg("-vV").output().unwrap();
+            let stdout = String::from_utf8_lossy(&cmd.stdout);
+            let host_line =
+                stdout.lines().into_iter().find(|line| line.starts_with("host:")).unwrap();
+            let host = host_line.split_whitespace().nth(1).unwrap();
+            self.host = Some(host.to_string())
+        }
     }
 }
 
@@ -793,7 +809,10 @@ impl Config {
         match &self.data.rustfmt_overrideCommand {
             Some(args) if !args.is_empty() => {
                 let mut args = args.clone();
-                let command = args.remove(0);
+                let mut command = args.remove(0);
+                if command.contains("$TARGET_TRIPLE") {
+                    command.replace("$TARGET_TRIPLE", self.get_host());
+                }
                 RustfmtConfig::CustomCommand { command, args }
             }
             Some(_) | None => RustfmtConfig::Rustfmt {
@@ -809,7 +828,10 @@ impl Config {
         let flycheck_config = match &self.data.checkOnSave_overrideCommand {
             Some(args) if !args.is_empty() => {
                 let mut args = args.clone();
-                let command = args.remove(0);
+                let mut command = args.remove(0);
+                if command.contains("$TARGET_TRIPLE") {
+                    command.replace("$TARGET_TRIPLE", self.get_host());
+                }
                 FlycheckConfig::CustomCommand { command, args }
             }
             Some(_) | None => FlycheckConfig::CargoCommand {
