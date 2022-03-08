@@ -2,15 +2,16 @@ use hir::Semantics;
 use ide_db::{
     base_db::{FileId, FilePosition},
     defs::{Definition, IdentClass},
-    helpers::{for_each_break_expr, for_each_tail_expr, node_ext::walk_expr, pick_best_token},
+    helpers::pick_best_token,
     search::{FileReference, ReferenceCategory, SearchScope},
+    syntax_helpers::node_ext::{for_each_break_and_continue_expr, for_each_tail_expr, walk_expr},
     RootDatabase,
 };
 use rustc_hash::FxHashSet;
 use syntax::{
     ast::{self, HasLoopBody},
     match_ast, AstNode,
-    SyntaxKind::{IDENT, INT_NUMBER},
+    SyntaxKind::{self, IDENT, INT_NUMBER},
     SyntaxNode, SyntaxToken, TextRange, T,
 };
 
@@ -66,7 +67,9 @@ pub(crate) fn highlight_related(
         T![for] if config.break_points && token.parent().and_then(ast::ForExpr::cast).is_some() => {
             highlight_break_points(token)
         }
-        T![break] | T![loop] | T![while] if config.break_points => highlight_break_points(token),
+        T![break] | T![loop] | T![while] | T![continue] if config.break_points => {
+            highlight_break_points(token)
+        }
         _ if config.references => highlight_references(sema, &syntax, token, file_id),
         _ => None,
     }
@@ -94,24 +97,37 @@ fn highlight_references(
             range,
             category: access,
         });
+    let mut res = FxHashSet::default();
 
-    let declarations = defs.iter().flat_map(|def| {
-        match def {
-            &Definition::Module(module) => {
+    let mut def_to_hl_range = |def| {
+        let hl_range = match def {
+            Definition::Module(module) => {
                 Some(NavigationTarget::from_module_to_decl(sema.db, module))
             }
             def => def.try_to_nav(sema.db),
         }
         .filter(|decl| decl.file_id == file_id)
-        .and_then(|decl| {
-            let range = decl.focus_range?;
+        .and_then(|decl| decl.focus_range)
+        .map(|range| {
             let category =
                 references::decl_mutability(&def, node, range).then(|| ReferenceCategory::Write);
-            Some(HighlightedRange { range, category })
-        })
-    });
+            HighlightedRange { range, category }
+        });
+        if let Some(hl_range) = hl_range {
+            res.insert(hl_range);
+        }
+    };
+    for &def in &defs {
+        match def {
+            Definition::Local(local) => local
+                .associated_locals(sema.db)
+                .iter()
+                .for_each(|&local| def_to_hl_range(Definition::Local(local))),
+            def => def_to_hl_range(def),
+        }
+    }
 
-    let res: FxHashSet<_> = declarations.chain(usages).collect();
+    res.extend(usages);
     if res.is_empty() {
         None
     } else {
@@ -187,6 +203,7 @@ fn highlight_exit_points(
 
 fn highlight_break_points(token: SyntaxToken) -> Option<Vec<HighlightedRange>> {
     fn hl(
+        cursor_token_kind: SyntaxKind,
         token: Option<SyntaxToken>,
         label: Option<ast::Label>,
         body: Option<ast::StmtList>,
@@ -197,11 +214,23 @@ fn highlight_break_points(token: SyntaxToken) -> Option<Vec<HighlightedRange>> {
             label.as_ref().map(|it| it.syntax().text_range()),
         );
         highlights.extend(range.map(|range| HighlightedRange { category: None, range }));
-        for_each_break_expr(label, body, &mut |break_| {
-            let range = cover_range(
-                break_.break_token().map(|it| it.text_range()),
-                break_.lifetime().map(|it| it.syntax().text_range()),
-            );
+        for_each_break_and_continue_expr(label, body, &mut |expr| {
+            let range: Option<TextRange> = match (cursor_token_kind, expr) {
+                (T![for] | T![while] | T![loop] | T![break], ast::Expr::BreakExpr(break_)) => {
+                    cover_range(
+                        break_.break_token().map(|it| it.text_range()),
+                        break_.lifetime().map(|it| it.syntax().text_range()),
+                    )
+                }
+                (
+                    T![for] | T![while] | T![loop] | T![continue],
+                    ast::Expr::ContinueExpr(continue_),
+                ) => cover_range(
+                    continue_.continue_token().map(|it| it.text_range()),
+                    continue_.lifetime().map(|it| it.syntax().text_range()),
+                ),
+                _ => None,
+            };
             highlights.extend(range.map(|range| HighlightedRange { category: None, range }));
         });
         Some(highlights)
@@ -210,6 +239,7 @@ fn highlight_break_points(token: SyntaxToken) -> Option<Vec<HighlightedRange>> {
     let lbl = match_ast! {
         match parent {
             ast::BreakExpr(b) => b.lifetime(),
+            ast::ContinueExpr(c) => c.lifetime(),
             ast::LoopExpr(l) => l.label().and_then(|it| it.lifetime()),
             ast::ForExpr(f) => f.label().and_then(|it| it.lifetime()),
             ast::WhileExpr(w) => w.label().and_then(|it| it.lifetime()),
@@ -224,19 +254,29 @@ fn highlight_break_points(token: SyntaxToken) -> Option<Vec<HighlightedRange>> {
         }
         None => true,
     };
+    let token_kind = token.kind();
     for anc in token.ancestors().flat_map(ast::Expr::cast) {
         return match anc {
-            ast::Expr::LoopExpr(l) if label_matches(l.label()) => {
-                hl(l.loop_token(), l.label(), l.loop_body().and_then(|it| it.stmt_list()))
-            }
-            ast::Expr::ForExpr(f) if label_matches(f.label()) => {
-                hl(f.for_token(), f.label(), f.loop_body().and_then(|it| it.stmt_list()))
-            }
-            ast::Expr::WhileExpr(w) if label_matches(w.label()) => {
-                hl(w.while_token(), w.label(), w.loop_body().and_then(|it| it.stmt_list()))
-            }
+            ast::Expr::LoopExpr(l) if label_matches(l.label()) => hl(
+                token_kind,
+                l.loop_token(),
+                l.label(),
+                l.loop_body().and_then(|it| it.stmt_list()),
+            ),
+            ast::Expr::ForExpr(f) if label_matches(f.label()) => hl(
+                token_kind,
+                f.for_token(),
+                f.label(),
+                f.loop_body().and_then(|it| it.stmt_list()),
+            ),
+            ast::Expr::WhileExpr(w) if label_matches(w.label()) => hl(
+                token_kind,
+                w.while_token(),
+                w.label(),
+                w.loop_body().and_then(|it| it.stmt_list()),
+            ),
             ast::Expr::BlockExpr(e) if e.label().is_some() && label_matches(e.label()) => {
-                hl(None, e.label(), e.stmt_list())
+                hl(token_kind, None, e.label(), e.stmt_list())
             }
             _ => continue,
         };
@@ -304,6 +344,7 @@ mod tests {
 
     use super::*;
 
+    #[track_caller]
     fn check(ra_fixture: &str) {
         let config = HighlightRelatedConfig {
             break_points: true,
@@ -315,6 +356,7 @@ mod tests {
         check_with_config(ra_fixture, config);
     }
 
+    #[track_caller]
     fn check_with_config(ra_fixture: &str, config: HighlightRelatedConfig) {
         let (analysis, pos, annotations) = fixture::annotations(ra_fixture);
 
@@ -805,6 +847,115 @@ fn foo() {
     }
 
     #[test]
+    fn test_hl_break_for_but_not_continue() {
+        check(
+            r#"
+fn foo() {
+    'outer: for _ in () {
+ // ^^^^^^^^^^^
+        break;
+     // ^^^^^
+        continue;
+        'inner: for _ in () {
+            break;
+            continue;
+            'innermost: for _ in () {
+                continue 'outer;
+                break 'outer;
+             // ^^^^^^^^^^^^
+                continue 'inner;
+                break 'inner;
+            }
+            break$0 'outer;
+         // ^^^^^^^^^^^^
+            continue 'outer;
+            break;
+            continue;
+        }
+        break;
+     // ^^^^^
+        continue;
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn test_hl_continue_for_but_not_break() {
+        check(
+            r#"
+fn foo() {
+    'outer: for _ in () {
+ // ^^^^^^^^^^^
+        break;
+        continue;
+     // ^^^^^^^^
+        'inner: for _ in () {
+            break;
+            continue;
+            'innermost: for _ in () {
+                continue 'outer;
+             // ^^^^^^^^^^^^^^^
+                break 'outer;
+                continue 'inner;
+                break 'inner;
+            }
+            break 'outer;
+            continue$0 'outer;
+         // ^^^^^^^^^^^^^^^
+            break;
+            continue;
+        }
+        break;
+        continue;
+     // ^^^^^^^^
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn test_hl_break_and_continue() {
+        check(
+            r#"
+fn foo() {
+    'outer: fo$0r _ in () {
+ // ^^^^^^^^^^^
+        break;
+     // ^^^^^
+        continue;
+     // ^^^^^^^^
+        'inner: for _ in () {
+            break;
+            continue;
+            'innermost: for _ in () {
+                continue 'outer;
+             // ^^^^^^^^^^^^^^^
+                break 'outer;
+             // ^^^^^^^^^^^^
+                continue 'inner;
+                break 'inner;
+            }
+            break 'outer;
+         // ^^^^^^^^^^^^
+            continue 'outer;
+         // ^^^^^^^^^^^^^^^
+            break;
+            continue;
+        }
+        break;
+     // ^^^^^
+        continue;
+     // ^^^^^^^^
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
     fn test_hl_break_while() {
         check(
             r#"
@@ -916,13 +1067,15 @@ fn function(field: u32) {
             yield_points: true,
         };
 
-        let ra_fixture = r#"
+        check_with_config(
+            r#"
 fn foo() {
     let x$0 = 5;
     let y = x * 2;
-}"#;
-
-        check_with_config(ra_fixture, config);
+}
+"#,
+            config,
+        );
     }
 
     #[test]
@@ -934,7 +1087,8 @@ fn foo() {
             yield_points: true,
         };
 
-        let ra_fixture = r#"
+        check_with_config(
+            r#"
 fn foo() {
     let x$0 = 5;
     let y = x * 2;
@@ -942,11 +1096,13 @@ fn foo() {
     loop {
         break;
     }
-}"#;
+}
+"#,
+            config.clone(),
+        );
 
-        check_with_config(ra_fixture, config.clone());
-
-        let ra_fixture = r#"
+        check_with_config(
+            r#"
 fn foo() {
     let x = 5;
     let y = x * 2;
@@ -956,9 +1112,10 @@ fn foo() {
         break;
 //      ^^^^^
     }
-}"#;
-
-        check_with_config(ra_fixture, config);
+}
+"#,
+            config,
+        );
     }
 
     #[test]
@@ -970,17 +1127,20 @@ fn foo() {
             yield_points: true,
         };
 
-        let ra_fixture = r#"
+        check_with_config(
+            r#"
 async fn foo() {
     let x$0 = 5;
     let y = x * 2;
 
     0.await;
-}"#;
+}
+"#,
+            config.clone(),
+        );
 
-        check_with_config(ra_fixture, config.clone());
-
-        let ra_fixture = r#"
+        check_with_config(
+            r#"
     async fn foo() {
 //  ^^^^^
         let x = 5;
@@ -988,9 +1148,10 @@ async fn foo() {
 
         0.await$0;
 //        ^^^^^
-}"#;
-
-        check_with_config(ra_fixture, config);
+}
+"#,
+            config,
+        );
     }
 
     #[test]
@@ -1002,7 +1163,8 @@ async fn foo() {
             yield_points: true,
         };
 
-        let ra_fixture = r#"
+        check_with_config(
+            r#"
 fn foo() -> i32 {
     let x$0 = 5;
     let y = x * 2;
@@ -1012,11 +1174,13 @@ fn foo() -> i32 {
     }
 
     0?
-}"#;
+}
+"#,
+            config.clone(),
+        );
 
-        check_with_config(ra_fixture, config.clone());
-
-        let ra_fixture = r#"
+        check_with_config(
+            r#"
 fn foo() ->$0 i32 {
     let x = 5;
     let y = x * 2;
@@ -1028,9 +1192,9 @@ fn foo() ->$0 i32 {
 
     0?
 //   ^
-"#;
-
-        check_with_config(ra_fixture, config);
+"#,
+            config,
+        );
     }
 
     #[test]
@@ -1042,14 +1206,16 @@ fn foo() ->$0 i32 {
             yield_points: true,
         };
 
-        let ra_fixture = r#"
+        check_with_config(
+            r#"
 fn foo() {
     loop {
         break$0;
     }
-}"#;
-
-        check_with_config(ra_fixture, config);
+}
+"#,
+            config,
+        );
     }
 
     #[test]
@@ -1061,12 +1227,14 @@ fn foo() {
             yield_points: false,
         };
 
-        let ra_fixture = r#"
+        check_with_config(
+            r#"
 async$0 fn foo() {
     0.await;
-}"#;
-
-        check_with_config(ra_fixture, config);
+}
+"#,
+            config,
+        );
     }
 
     #[test]
@@ -1078,15 +1246,68 @@ async$0 fn foo() {
             yield_points: true,
         };
 
-        let ra_fixture = r#"
+        check_with_config(
+            r#"
 fn foo() ->$0 i32 {
     if true {
         return -1;
     }
 
     42
-}"#;
+}"#,
+            config,
+        );
+    }
 
-        check_with_config(ra_fixture, config);
+    #[test]
+    fn test_hl_multi_local() {
+        check(
+            r#"
+fn foo((
+    foo$0
+  //^^^
+    | foo
+    //^^^
+    | foo
+    //^^^
+): ()) {
+    foo;
+  //^^^read
+    let foo;
+}
+"#,
+        );
+        check(
+            r#"
+fn foo((
+    foo
+  //^^^
+    | foo$0
+    //^^^
+    | foo
+    //^^^
+): ()) {
+    foo;
+  //^^^read
+    let foo;
+}
+"#,
+        );
+        check(
+            r#"
+fn foo((
+    foo
+  //^^^
+    | foo
+    //^^^
+    | foo
+    //^^^
+): ()) {
+    foo$0;
+  //^^^read
+    let foo;
+}
+"#,
+        );
     }
 }

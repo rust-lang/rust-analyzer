@@ -5,13 +5,11 @@ use either::Either;
 use hir::{HirDisplay, InFile, Local, ModuleDef, Semantics, TypeInfo};
 use ide_db::{
     defs::{Definition, NameRefClass},
-    helpers::{
-        insert_use::{insert_use, ImportScope},
-        mod_path_to_ast,
-        node_ext::{preorder_expr, walk_expr, walk_pat, walk_patterns_in_expr},
-        FamousDefs,
-    },
+    famous_defs::FamousDefs,
+    helpers::mod_path_to_ast,
+    imports::insert_use::{insert_use, ImportScope},
     search::{FileReference, ReferenceCategory, SearchScope},
+    syntax_helpers::node_ext::{preorder_expr, walk_expr, walk_pat, walk_patterns_in_expr},
     FxIndexSet, RootDatabase,
 };
 use itertools::Itertools;
@@ -393,7 +391,7 @@ impl Param {
     }
 
     fn to_param(&self, ctx: &AssistContext, module: hir::Module) -> ast::Param {
-        let var = self.var.name(ctx.db()).unwrap().to_string();
+        let var = self.var.name(ctx.db()).to_string();
         let var_name = make::name(&var);
         let pat = match self.kind() {
             ParamKind::MutValue => make::ident_pat(false, true, var_name),
@@ -1144,12 +1142,12 @@ fn make_call(ctx: &AssistContext, fun: &Function, indent: IndentLevel) -> String
     match fun.outliving_locals.as_slice() {
         [] => {}
         [var] => {
-            format_to!(buf, "let {}{} = ", mut_modifier(var), var.local.name(ctx.db()).unwrap())
+            format_to!(buf, "let {}{} = ", mut_modifier(var), var.local.name(ctx.db()))
         }
         vars => {
             buf.push_str("let (");
             let bindings = vars.iter().format_with(", ", |local, f| {
-                f(&format_args!("{}{}", mut_modifier(local), local.local.name(ctx.db()).unwrap()))
+                f(&format_args!("{}{}", mut_modifier(local), local.local.name(ctx.db())))
             });
             format_to!(buf, "{}", bindings);
             buf.push_str(") = ");
@@ -1219,28 +1217,26 @@ impl FlowHandler {
                 let stmt = make::expr_stmt(action);
                 let block = make::block_expr(iter::once(stmt.into()), None);
                 let controlflow_break_path = make::path_from_text("ControlFlow::Break");
-                let condition = make::condition(
+                let condition = make::expr_let(
+                    make::tuple_struct_pat(
+                        controlflow_break_path,
+                        iter::once(make::wildcard_pat().into()),
+                    )
+                    .into(),
                     call_expr,
-                    Some(
-                        make::tuple_struct_pat(
-                            controlflow_break_path,
-                            iter::once(make::wildcard_pat().into()),
-                        )
-                        .into(),
-                    ),
                 );
-                make::expr_if(condition, block, None)
+                make::expr_if(condition.into(), block, None)
             }
             FlowHandler::IfOption { action } => {
                 let path = make::ext::ident_path("Some");
                 let value_pat = make::ext::simple_ident_pat(make::name("value"));
                 let pattern = make::tuple_struct_pat(path, iter::once(value_pat.into()));
-                let cond = make::condition(call_expr, Some(pattern.into()));
+                let cond = make::expr_let(pattern.into(), call_expr);
                 let value = make::expr_path(make::ext::ident_path("value"));
                 let action_expr = action.make_result_handler(Some(value));
                 let action_stmt = make::expr_stmt(action_expr);
                 let then = make::block_expr(iter::once(action_stmt.into()), None);
-                make::expr_if(cond, then, None)
+                make::expr_if(cond.into(), then, None)
             }
             FlowHandler::MatchOption { none } => {
                 let some_name = "value";
@@ -1290,7 +1286,7 @@ impl FlowHandler {
 }
 
 fn path_expr_from_local(ctx: &AssistContext, var: Local) -> ast::Expr {
-    let name = var.name(ctx.db()).unwrap().to_string();
+    let name = var.name(ctx.db()).to_string();
     make::expr_path(make::ext::ident_path(&name))
 }
 

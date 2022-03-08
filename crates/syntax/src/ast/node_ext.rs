@@ -34,6 +34,10 @@ impl ast::NameRef {
     pub fn as_tuple_field(&self) -> Option<usize> {
         self.text().parse().ok()
     }
+
+    pub fn token_kind(&self) -> SyntaxKind {
+        self.syntax().first_token().map_or(SyntaxKind::ERROR, |it| it.kind())
+    }
 }
 
 fn text_of_first_token(node: &SyntaxNode) -> TokenText<'_> {
@@ -183,6 +187,7 @@ impl ast::Attr {
 pub enum PathSegmentKind {
     Name(ast::NameRef),
     Type { type_ref: Option<ast::Type>, trait_ref: Option<ast::PathType> },
+    SelfTypeKw,
     SelfKw,
     SuperKw,
     CrateKw,
@@ -204,16 +209,21 @@ impl ast::PathSegment {
         self.name_ref().and_then(|it| it.self_token())
     }
 
+    pub fn self_type_token(&self) -> Option<SyntaxToken> {
+        self.name_ref().and_then(|it| it.Self_token())
+    }
+
     pub fn super_token(&self) -> Option<SyntaxToken> {
         self.name_ref().and_then(|it| it.super_token())
     }
 
     pub fn kind(&self) -> Option<PathSegmentKind> {
         let res = if let Some(name_ref) = self.name_ref() {
-            match name_ref.syntax().first_token().map(|it| it.kind()) {
-                Some(T![self]) => PathSegmentKind::SelfKw,
-                Some(T![super]) => PathSegmentKind::SuperKw,
-                Some(T![crate]) => PathSegmentKind::CrateKw,
+            match name_ref.token_kind() {
+                T![Self] => PathSegmentKind::SelfTypeKw,
+                T![self] => PathSegmentKind::SelfKw,
+                T![super] => PathSegmentKind::SuperKw,
+                T![crate] => PathSegmentKind::CrateKw,
                 _ => PathSegmentKind::Name(name_ref),
             }
         } else {
@@ -528,12 +538,6 @@ impl ast::Item {
     }
 }
 
-impl ast::Condition {
-    pub fn is_pattern_cond(&self) -> bool {
-        self.let_token().is_some()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FieldKind {
     Name(ast::NameRef),
@@ -644,6 +648,21 @@ impl ast::TypeBound {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum TypeOrConstParam {
+    Type(ast::TypeParam),
+    Const(ast::ConstParam),
+}
+
+impl TypeOrConstParam {
+    pub fn name(&self) -> Option<ast::Name> {
+        match self {
+            TypeOrConstParam::Type(x) => x.name(),
+            TypeOrConstParam::Const(x) => x.name(),
+        }
+    }
+}
+
 pub enum VisibilityKind {
     In(ast::Path),
     PubCrate,
@@ -711,6 +730,15 @@ impl ast::RangePat {
 }
 
 impl ast::TokenTree {
+    pub fn token_trees_and_tokens(
+        &self,
+    ) -> impl Iterator<Item = NodeOrToken<ast::TokenTree, SyntaxToken>> {
+        self.syntax().children_with_tokens().filter_map(|not| match not {
+            NodeOrToken::Node(node) => ast::TokenTree::cast(node).map(NodeOrToken::Node),
+            NodeOrToken::Token(t) => Some(NodeOrToken::Token(t)),
+        })
+    }
+
     pub fn left_delimiter_token(&self) -> Option<SyntaxToken> {
         self.syntax()
             .first_child_or_token()?
@@ -743,21 +771,25 @@ impl ast::GenericParamList {
             ast::GenericParam::TypeParam(_) | ast::GenericParam::ConstParam(_) => None,
         })
     }
-    pub fn type_params(&self) -> impl Iterator<Item = ast::TypeParam> {
+    pub fn type_or_const_params(&self) -> impl Iterator<Item = ast::TypeOrConstParam> {
         self.generic_params().filter_map(|param| match param {
-            ast::GenericParam::TypeParam(it) => Some(it),
-            ast::GenericParam::LifetimeParam(_) | ast::GenericParam::ConstParam(_) => None,
-        })
-    }
-    pub fn const_params(&self) -> impl Iterator<Item = ast::ConstParam> {
-        self.generic_params().filter_map(|param| match param {
-            ast::GenericParam::ConstParam(it) => Some(it),
-            ast::GenericParam::TypeParam(_) | ast::GenericParam::LifetimeParam(_) => None,
+            ast::GenericParam::TypeParam(it) => Some(ast::TypeOrConstParam::Type(it)),
+            ast::GenericParam::LifetimeParam(_) => None,
+            ast::GenericParam::ConstParam(it) => Some(ast::TypeOrConstParam::Const(it)),
         })
     }
 }
 
 impl ast::HasLoopBody for ast::ForExpr {
+    fn loop_body(&self) -> Option<ast::BlockExpr> {
+        let mut exprs = support::children(self.syntax());
+        let first = exprs.next();
+        let second = exprs.next();
+        second.or(first)
+    }
+}
+
+impl ast::HasLoopBody for ast::WhileExpr {
     fn loop_body(&self) -> Option<ast::BlockExpr> {
         let mut exprs = support::children(self.syntax());
         let first = exprs.next();

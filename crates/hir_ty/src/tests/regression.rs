@@ -1245,3 +1245,56 @@ fn test() {
         "#]],
     );
 }
+
+#[test]
+fn while_loop_block_expr_iterable() {
+    check_infer(
+        r#"
+fn test() {
+    while { true } {
+        let y = 0;
+    }
+}
+        "#,
+        expect![[r#"
+            10..59 '{     ...   } }': ()
+            16..57 'while ...     }': ()
+            22..30 '{ true }': bool
+            24..28 'true': bool
+            31..57 '{     ...     }': ()
+            45..46 'y': i32
+            49..50 '0': i32
+        "#]],
+    );
+}
+
+#[test]
+fn bug_11242() {
+    // FIXME: wrong, should be u32
+    check_types(
+        r#"
+fn foo<A, B>()
+where
+    A: IntoIterator<Item = u32>,
+    B: IntoIterator<Item = usize>,
+{
+    let _x: <A as IntoIterator>::Item;
+     // ^^ {unknown}
+}
+
+pub trait Iterator {
+    type Item;
+}
+
+pub trait IntoIterator {
+    type Item;
+    type IntoIter: Iterator<Item = Self::Item>;
+}
+
+impl<I: Iterator> IntoIterator for I {
+    type Item = I::Item;
+    type IntoIter = I;
+}
+"#,
+    );
+}

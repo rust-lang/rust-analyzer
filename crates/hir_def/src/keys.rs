@@ -9,8 +9,8 @@ use syntax::{ast, AstNode, AstPtr};
 use crate::{
     attr::AttrId,
     dyn_map::{DynMap, Policy},
-    ConstId, ConstParamId, EnumId, EnumVariantId, FieldId, FunctionId, ImplId, LifetimeParamId,
-    StaticId, StructId, TraitId, TypeAliasId, TypeParamId, UnionId,
+    ConstId, EnumId, EnumVariantId, FieldId, FunctionId, ImplId, LifetimeParamId, StaticId,
+    StructId, TraitId, TypeAliasId, TypeOrConstParamId, UnionId,
 };
 
 pub type Key<K, V> = crate::dyn_map::Key<K, V, AstPtrPolicy<K, V>>;
@@ -28,13 +28,14 @@ pub const ENUM: Key<ast::Enum, EnumId> = Key::new();
 pub const VARIANT: Key<ast::Variant, EnumVariantId> = Key::new();
 pub const TUPLE_FIELD: Key<ast::TupleField, FieldId> = Key::new();
 pub const RECORD_FIELD: Key<ast::RecordField, FieldId> = Key::new();
-pub const TYPE_PARAM: Key<ast::TypeParam, TypeParamId> = Key::new();
+pub const TYPE_PARAM: Key<ast::TypeParam, TypeOrConstParamId> = Key::new();
+pub const CONST_PARAM: Key<ast::ConstParam, TypeOrConstParamId> = Key::new();
 pub const LIFETIME_PARAM: Key<ast::LifetimeParam, LifetimeParamId> = Key::new();
-pub const CONST_PARAM: Key<ast::ConstParam, ConstParamId> = Key::new();
 
 pub const MACRO: Key<ast::Macro, MacroDefId> = Key::new();
 pub const ATTR_MACRO_CALL: Key<ast::Item, MacroCallId> = Key::new();
-pub const DERIVE_MACRO_CALL: Key<ast::Attr, (AttrId, Box<[Option<MacroCallId>]>)> = Key::new();
+pub const DERIVE_MACRO_CALL: Key<ast::Attr, (AttrId, MacroCallId, Box<[Option<MacroCallId>]>)> =
+    Key::new();
 
 /// XXX: AST Nodes and SyntaxNodes have identity equality semantics: nodes are
 /// equal if they point to exactly the same object.
@@ -59,5 +60,8 @@ impl<AST: AstNode + 'static, ID: 'static> Policy for AstPtrPolicy<AST, ID> {
     fn get<'a>(map: &'a DynMap, key: &AST) -> Option<&'a ID> {
         let key = AstPtr::new(key);
         map.map.get::<FxHashMap<AstPtr<AST>, ID>>()?.get(&key)
+    }
+    fn is_empty(map: &DynMap) -> bool {
+        map.map.get::<FxHashMap<AstPtr<AST>, ID>>().map_or(true, |it| it.is_empty())
     }
 }

@@ -1,14 +1,18 @@
 //! Builtin macro
-use crate::{
-    db::AstDatabase, name, quote, AstId, CrateId, MacroCallId, MacroCallLoc, MacroDefId,
-    MacroDefKind,
-};
 
 use base_db::{AnchoredPath, Edition, FileId};
 use cfg::CfgExpr;
 use either::Either;
-use mbe::{parse_exprs_with_sep, parse_to_token_tree, ExpandResult};
-use syntax::ast::{self, AstToken};
+use mbe::{parse_exprs_with_sep, parse_to_token_tree};
+use syntax::{
+    ast::{self, AstToken},
+    SmolStr,
+};
+
+use crate::{
+    db::AstDatabase, name, quote, AstId, CrateId, ExpandError, ExpandResult, MacroCallId,
+    MacroCallLoc, MacroDefId, MacroDefKind,
+};
 
 macro_rules! register_builtin {
     ( LAZY: $(($name:ident, $kind: ident) => $expand:ident),* , EAGER: $(($e_name:ident, $e_kind: ident) => $e_expand:ident),*  ) => {
@@ -113,6 +117,7 @@ register_builtin! {
     (cfg, Cfg) => cfg_expand,
     (core_panic, CorePanic) => panic_expand,
     (std_panic, StdPanic) => panic_expand,
+    (unreachable, Unreachable) => unreachable_expand,
     (log_syntax, LogSyntax) => log_syntax_expand,
     (trace_macros, TraceMacros) => trace_macros_expand,
 
@@ -120,12 +125,16 @@ register_builtin! {
     (compile_error, CompileError) => compile_error_expand,
     (concat, Concat) => concat_expand,
     (concat_idents, ConcatIdents) => concat_idents_expand,
+    (concat_bytes, ConcatBytes) => concat_bytes_expand,
     (include, Include) => include_expand,
     (include_bytes, IncludeBytes) => include_bytes_expand,
     (include_str, IncludeStr) => include_str_expand,
     (env, Env) => env_expand,
     (option_env, OptionEnv) => option_env_expand
 }
+
+const DOLLAR_CRATE: tt::Ident =
+    tt::Ident { text: SmolStr::new_inline("$crate"), id: tt::TokenId::unspecified() };
 
 fn module_path_expand(
     _db: &dyn AstDatabase,
@@ -199,7 +208,6 @@ fn assert_expand(
     _id: MacroCallId,
     tt: &tt::Subtree,
 ) -> ExpandResult<tt::Subtree> {
-    let krate = tt::Ident { text: "$crate".into(), id: tt::TokenId::unspecified() };
     let args = parse_exprs_with_sep(tt, ',');
     let expanded = match &*args {
         [cond, panic_args @ ..] => {
@@ -215,7 +223,7 @@ fn assert_expand(
             let panic_args = itertools::Itertools::intersperse(panic_args.iter().cloned(), comma);
             quote! {{
                 if !#cond {
-                    #krate::panic!(##panic_args);
+                    #DOLLAR_CRATE::panic!(##panic_args);
                 }
             }}
         }
@@ -257,7 +265,7 @@ fn format_args_expand(
     let mut args = parse_exprs_with_sep(tt, ',');
 
     if args.is_empty() {
-        return ExpandResult::only_err(mbe::ExpandError::NoMatchingRule);
+        return ExpandResult::only_err(mbe::ExpandError::NoMatchingRule.into());
     }
     for arg in &mut args {
         // Remove `key =`.
@@ -290,15 +298,13 @@ fn asm_expand(
     // We expand all assembly snippets to `format_args!` invocations to get format syntax
     // highlighting for them.
 
-    let krate = tt::Ident { text: "$crate".into(), id: tt::TokenId::unspecified() };
-
     let mut literals = Vec::new();
     for tt in tt.token_trees.chunks(2) {
         match tt {
             [tt::TokenTree::Leaf(tt::Leaf::Literal(lit))]
             | [tt::TokenTree::Leaf(tt::Leaf::Literal(lit)), tt::TokenTree::Leaf(tt::Leaf::Punct(tt::Punct { char: ',', id: _, spacing: _ }))] =>
             {
-                let krate = krate.clone();
+                let krate = DOLLAR_CRATE.clone();
                 literals.push(quote!(#krate::format_args!(#lit);));
             }
             _ => break,
@@ -340,11 +346,28 @@ fn panic_expand(
 ) -> ExpandResult<tt::Subtree> {
     let loc: MacroCallLoc = db.lookup_intern_macro_call(id);
     // Expand to a macro call `$crate::panic::panic_{edition}`
-    let krate = tt::Ident { text: "$crate".into(), id: tt::TokenId::unspecified() };
-    let mut call = if db.crate_graph()[loc.krate].edition == Edition::Edition2021 {
-        quote!(#krate::panic::panic_2021!)
+    let mut call = if db.crate_graph()[loc.krate].edition >= Edition::Edition2021 {
+        quote!(#DOLLAR_CRATE::panic::panic_2021!)
     } else {
-        quote!(#krate::panic::panic_2015!)
+        quote!(#DOLLAR_CRATE::panic::panic_2015!)
+    };
+
+    // Pass the original arguments
+    call.token_trees.push(tt::TokenTree::Subtree(tt.clone()));
+    ExpandResult::ok(call)
+}
+
+fn unreachable_expand(
+    db: &dyn AstDatabase,
+    id: MacroCallId,
+    tt: &tt::Subtree,
+) -> ExpandResult<tt::Subtree> {
+    let loc: MacroCallLoc = db.lookup_intern_macro_call(id);
+    // Expand to a macro call `$crate::panic::unreachable_{edition}`
+    let mut call = if db.crate_graph()[loc.krate].edition >= Edition::Edition2021 {
+        quote!(#DOLLAR_CRATE::panic::unreachable_2021!)
+    } else {
+        quote!(#DOLLAR_CRATE::panic::unreachable_2015!)
     };
 
     // Pass the original arguments
@@ -358,6 +381,12 @@ fn unquote_str(lit: &tt::Literal) -> Option<String> {
     token.value().map(|it| it.into_owned())
 }
 
+fn unquote_byte_string(lit: &tt::Literal) -> Option<Vec<u8>> {
+    let lit = ast::make::tokens::literal(&lit.to_string());
+    let token = ast::ByteString::cast(lit)?;
+    token.value().map(|it| it.into_owned())
+}
+
 fn compile_error_expand(
     _db: &dyn AstDatabase,
     _id: MacroCallId,
@@ -368,12 +397,12 @@ fn compile_error_expand(
             let text = it.text.as_str();
             if text.starts_with('"') && text.ends_with('"') {
                 // FIXME: does not handle raw strings
-                mbe::ExpandError::Other(text[1..text.len() - 1].into())
+                ExpandError::Other(text[1..text.len() - 1].into())
             } else {
-                mbe::ExpandError::BindingError("`compile_error!` argument must be a string".into())
+                ExpandError::Other("`compile_error!` argument must be a string".into())
             }
         }
-        _ => mbe::ExpandError::BindingError("`compile_error!` argument must be a string".into()),
+        _ => ExpandError::Other("`compile_error!` argument must be a string".into()),
     };
 
     ExpandResult { value: ExpandedEager::new(quote! {}), err: Some(err) }
@@ -414,11 +443,79 @@ fn concat_expand(
             }
             tt::TokenTree::Leaf(tt::Leaf::Punct(punct)) if i % 2 == 1 && punct.char == ',' => (),
             _ => {
-                err.get_or_insert(mbe::ExpandError::UnexpectedToken);
+                err.get_or_insert(mbe::ExpandError::UnexpectedToken.into());
             }
         }
     }
     ExpandResult { value: ExpandedEager::new(quote!(#text)), err }
+}
+
+fn concat_bytes_expand(
+    _db: &dyn AstDatabase,
+    _arg_id: MacroCallId,
+    tt: &tt::Subtree,
+) -> ExpandResult<ExpandedEager> {
+    let mut bytes = Vec::new();
+    let mut err = None;
+    for (i, t) in tt.token_trees.iter().enumerate() {
+        match t {
+            tt::TokenTree::Leaf(tt::Leaf::Literal(lit)) => {
+                let token = ast::make::tokens::literal(&lit.to_string());
+                match token.kind() {
+                    syntax::SyntaxKind::BYTE => bytes.push(token.text().to_string()),
+                    syntax::SyntaxKind::BYTE_STRING => {
+                        let components = unquote_byte_string(lit).unwrap_or_else(|| Vec::new());
+                        components.into_iter().for_each(|x| bytes.push(x.to_string()));
+                    }
+                    _ => {
+                        err.get_or_insert(mbe::ExpandError::UnexpectedToken.into());
+                        break;
+                    }
+                }
+            }
+            tt::TokenTree::Leaf(tt::Leaf::Punct(punct)) if i % 2 == 1 && punct.char == ',' => (),
+            tt::TokenTree::Subtree(tree)
+                if tree.delimiter_kind() == Some(tt::DelimiterKind::Bracket) =>
+            {
+                if let Err(e) = concat_bytes_expand_subtree(tree, &mut bytes) {
+                    err.get_or_insert(e);
+                    break;
+                }
+            }
+            _ => {
+                err.get_or_insert(mbe::ExpandError::UnexpectedToken.into());
+                break;
+            }
+        }
+    }
+    let ident = tt::Ident { text: bytes.join(", ").into(), id: tt::TokenId::unspecified() };
+    ExpandResult { value: ExpandedEager::new(quote!([#ident])), err }
+}
+
+fn concat_bytes_expand_subtree(
+    tree: &tt::Subtree,
+    bytes: &mut Vec<String>,
+) -> Result<(), ExpandError> {
+    for (ti, tt) in tree.token_trees.iter().enumerate() {
+        match tt {
+            tt::TokenTree::Leaf(tt::Leaf::Literal(lit)) => {
+                let lit = ast::make::tokens::literal(&lit.to_string());
+                match lit.kind() {
+                    syntax::SyntaxKind::BYTE | syntax::SyntaxKind::INT_NUMBER => {
+                        bytes.push(lit.text().to_string())
+                    }
+                    _ => {
+                        return Err(mbe::ExpandError::UnexpectedToken.into());
+                    }
+                }
+            }
+            tt::TokenTree::Leaf(tt::Leaf::Punct(punct)) if ti % 2 == 1 && punct.char == ',' => (),
+            _ => {
+                return Err(mbe::ExpandError::UnexpectedToken.into());
+            }
+        }
+    }
+    Ok(())
 }
 
 fn concat_idents_expand(
@@ -435,7 +532,7 @@ fn concat_idents_expand(
             }
             tt::TokenTree::Leaf(tt::Leaf::Punct(punct)) if i % 2 == 1 && punct.char == ',' => (),
             _ => {
-                err.get_or_insert(mbe::ExpandError::UnexpectedToken);
+                err.get_or_insert(mbe::ExpandError::UnexpectedToken.into());
             }
         }
     }
@@ -448,28 +545,28 @@ fn relative_file(
     call_id: MacroCallId,
     path_str: &str,
     allow_recursion: bool,
-) -> Result<FileId, mbe::ExpandError> {
+) -> Result<FileId, ExpandError> {
     let call_site = call_id.as_file().original_file(db);
     let path = AnchoredPath { anchor: call_site, path: path_str };
-    let res = db.resolve_path(path).ok_or_else(|| {
-        mbe::ExpandError::Other(format!("failed to load file `{path_str}`").into())
-    })?;
+    let res = db
+        .resolve_path(path)
+        .ok_or_else(|| ExpandError::Other(format!("failed to load file `{path_str}`").into()))?;
     // Prevent include itself
     if res == call_site && !allow_recursion {
-        Err(mbe::ExpandError::Other(format!("recursive inclusion of `{path_str}`").into()))
+        Err(ExpandError::Other(format!("recursive inclusion of `{path_str}`").into()))
     } else {
         Ok(res)
     }
 }
 
-fn parse_string(tt: &tt::Subtree) -> Result<String, mbe::ExpandError> {
+fn parse_string(tt: &tt::Subtree) -> Result<String, ExpandError> {
     tt.token_trees
         .get(0)
         .and_then(|tt| match tt {
             tt::TokenTree::Leaf(tt::Leaf::Literal(it)) => unquote_str(it),
             _ => None,
         })
-        .ok_or(mbe::ExpandError::ConversionError)
+        .ok_or(mbe::ExpandError::ConversionError.into())
 }
 
 fn include_expand(
@@ -561,7 +658,7 @@ fn env_expand(
         // The only variable rust-analyzer ever sets is `OUT_DIR`, so only diagnose that to avoid
         // unnecessary diagnostics for eg. `CARGO_PKG_NAME`.
         if key == "OUT_DIR" {
-            err = Some(mbe::ExpandError::Other(
+            err = Some(ExpandError::Other(
                 r#"`OUT_DIR` not set, enable "run build scripts" to fix"#.into(),
             ));
         }

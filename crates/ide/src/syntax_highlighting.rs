@@ -118,6 +118,7 @@ pub struct HlRange {
 // parameter:: Emitted for non-self function parameters.
 // property:: Emitted for struct and union fields.
 // selfKeyword:: Emitted for the self function parameter and self path-specifier.
+// selfTypeKeyword:: Emitted for the Self type parameter.
 // toolModule:: Emitted for tool modules.
 // typeParameter:: Emitted for type parameters.
 // unresolvedReference:: Emitted for unresolved references, names that rust-analyzer can't find the definition of.
@@ -183,7 +184,8 @@ pub(crate) fn highlight(
     traverse(
         &mut hl,
         &sema,
-        InFile::new(file_id.into(), &root),
+        file_id,
+        &root,
         sema.scope(&root).krate(),
         range_to_highlight,
         syntactic_name_ref_highlighting,
@@ -194,22 +196,25 @@ pub(crate) fn highlight(
 fn traverse(
     hl: &mut Highlights,
     sema: &Semantics<RootDatabase>,
-    root: InFile<&SyntaxNode>,
+    file_id: FileId,
+    root: &SyntaxNode,
     krate: Option<hir::Crate>,
     range_to_highlight: TextRange,
     syntactic_name_ref_highlighting: bool,
 ) {
+    let is_unlinked = sema.to_module_def(file_id).is_none();
     let mut bindings_shadow_count: FxHashMap<Name, u32> = FxHashMap::default();
 
     let mut current_macro_call: Option<ast::MacroCall> = None;
     let mut current_attr_call = None;
+    let mut current_derive_call = None;
     let mut current_macro: Option<ast::Macro> = None;
     let mut macro_highlighter = MacroHighlighter::default();
     let mut inside_attribute = false;
 
     // Walk all nodes, keeping track of whether we are inside a macro or not.
     // If in macro, expand it first and highlight the expanded code.
-    for event in root.value.preorder_with_tokens() {
+    for event in root.preorder_with_tokens() {
         let range = match &event {
             WalkEvent::Enter(it) | WalkEvent::Leave(it) => it.text_range(),
         };
@@ -236,7 +241,28 @@ fn traverse(
                     current_macro = Some(mac.into());
                     continue;
                 }
-                Some(item) if sema.is_attr_macro_call(&item) => current_attr_call = Some(item),
+                Some(item) => {
+                    if matches!(node.kind(), FN | CONST | STATIC) {
+                        bindings_shadow_count.clear();
+                    }
+
+                    if sema.is_attr_macro_call(&item) {
+                        current_attr_call = Some(item);
+                    } else if current_attr_call.is_none() {
+                        let adt = match item {
+                            ast::Item::Enum(it) => Some(ast::Adt::Enum(it)),
+                            ast::Item::Struct(it) => Some(ast::Adt::Struct(it)),
+                            ast::Item::Union(it) => Some(ast::Adt::Union(it)),
+                            _ => None,
+                        };
+                        match adt {
+                            Some(adt) if sema.is_derive_annotated(&adt) => {
+                                current_derive_call = Some(ast::Item::from(adt));
+                            }
+                            _ => (),
+                        }
+                    }
+                }
                 None if ast::Attr::can_cast(node.kind()) => inside_attribute = true,
                 _ => (),
             },
@@ -256,7 +282,10 @@ fn traverse(
                     macro_highlighter = MacroHighlighter::default();
                 }
                 Some(item) if current_attr_call.as_ref().map_or(false, |it| *it == item) => {
-                    current_attr_call = None
+                    current_attr_call = None;
+                }
+                Some(item) if current_derive_call.as_ref().map_or(false, |it| *it == item) => {
+                    current_derive_call = None;
                 }
                 None if ast::Attr::can_cast(node.kind()) => inside_attribute = false,
                 _ => (),
@@ -269,7 +298,9 @@ fn traverse(
             WalkEvent::Enter(it) => it,
             WalkEvent::Leave(NodeOrToken::Token(_)) => continue,
             WalkEvent::Leave(NodeOrToken::Node(node)) => {
-                inject::doc_comment(hl, sema, root.with_value(&node));
+                // Doc comment highlighting injection, we do this when leaving the node
+                // so that we overwrite the highlighting of the doc comment itself.
+                inject::doc_comment(hl, sema, InFile::new(file_id.into(), &node));
                 continue;
             }
         };
@@ -280,54 +311,68 @@ fn traverse(
             }
         }
 
-        // only attempt to descend if we are inside a macro call or attribute
-        // as calling `descend_into_macros_single` gets rather expensive if done for every single token
-        // additionally, do not descend into comments, descending maps down to doc attributes which get
-        // tagged as string literals.
-        let descend_token = (current_macro_call.is_some() || current_attr_call.is_some())
-            && element.kind() != COMMENT;
-        let element_to_highlight = if descend_token {
-            let token = match &element {
-                NodeOrToken::Node(_) => continue,
-                NodeOrToken::Token(tok) => tok.clone(),
-            };
-            let in_mcall_outside_tt = current_macro_call.is_some()
-                && token.parent().as_ref().map(SyntaxNode::kind) != Some(TOKEN_TREE);
-            let token = match in_mcall_outside_tt {
-                // not in the macros token tree, don't attempt to descend
-                true => token,
-                false => sema.descend_into_macros_single(token),
-            };
-            match token.parent() {
-                Some(parent) => {
-                    // Names and NameRefs have special semantics, use them instead of the tokens
-                    // as otherwise we won't ever visit them
-                    match (token.kind(), parent.kind()) {
-                        (T![ident], NAME | NAME_REF) => parent.into(),
-                        (T![self] | T![super] | T![crate], NAME_REF) => parent.into(),
-                        (INT_NUMBER, NAME_REF) => parent.into(),
-                        _ => token.into(),
+        let element = match element.clone() {
+            NodeOrToken::Node(n) => match ast::NameLike::cast(n) {
+                Some(n) => NodeOrToken::Node(n),
+                None => continue,
+            },
+            NodeOrToken::Token(t) => NodeOrToken::Token(t),
+        };
+        let token = element.as_token().cloned();
+
+        // Descending tokens into macros is expensive even if no descending occurs, so make sure
+        // that we actually are in a position where descending is possible.
+        let in_macro = current_macro_call.is_some()
+            || current_derive_call.is_some()
+            || current_attr_call.is_some();
+        let descended_element = if in_macro {
+            // Attempt to descend tokens into macro-calls.
+            match element {
+                NodeOrToken::Token(token) if token.kind() != COMMENT => {
+                    // For function-like macro calls and derive attributes, only attempt to descend if
+                    // we are inside their token-trees.
+                    let in_tt = current_attr_call.is_some()
+                        || token.parent().as_ref().map(SyntaxNode::kind) == Some(TOKEN_TREE);
+
+                    if in_tt {
+                        let token = sema.descend_into_macros_single(token);
+                        match token.parent().and_then(ast::NameLike::cast) {
+                            // Remap the token into the wrapping single token nodes
+                            // FIXME: if the node doesn't resolve, we also won't do token based highlighting!
+                            Some(parent) => match (token.kind(), parent.syntax().kind()) {
+                                (T![self] | T![ident], NAME | NAME_REF) => {
+                                    NodeOrToken::Node(parent)
+                                }
+                                (T![self] | T![super] | T![crate] | T![Self], NAME_REF) => {
+                                    NodeOrToken::Node(parent)
+                                }
+                                (INT_NUMBER, NAME_REF) => NodeOrToken::Node(parent),
+                                (LIFETIME_IDENT, LIFETIME) => NodeOrToken::Node(parent),
+                                _ => NodeOrToken::Token(token),
+                            },
+                            None => NodeOrToken::Token(token),
+                        }
+                    } else {
+                        NodeOrToken::Token(token)
                     }
                 }
-                None => token.into(),
+                e => e,
             }
         } else {
-            element.clone()
+            element
         };
 
         // FIXME: do proper macro def highlighting https://github.com/rust-analyzer/rust-analyzer/issues/6232
         // Skip metavariables from being highlighted to prevent keyword highlighting in them
-        if macro_highlighter.highlight(&element_to_highlight).is_some() {
+        if descended_element.as_token().and_then(|t| macro_highlighter.highlight(t)).is_some() {
             continue;
         }
 
         // string highlight injections, note this does not use the descended element as proc-macros
         // can rewrite string literals which invalidates our indices
-        if let (Some(token), Some(token_to_highlight)) =
-            (element.into_token(), element_to_highlight.as_token())
-        {
+        if let (Some(token), Some(descended_token)) = (token, descended_element.as_token()) {
             let string = ast::String::cast(token);
-            let string_to_highlight = ast::String::cast(token_to_highlight.clone());
+            let string_to_highlight = ast::String::cast(descended_token.clone());
             if let Some((string, expanded_string)) = string.zip(string_to_highlight) {
                 if string.is_raw() {
                     if inject::ra_fixture(hl, sema, &string, &expanded_string).is_some() {
@@ -352,18 +397,22 @@ fn traverse(
             }
         }
 
-        // do the normal highlighting
-        let element = match element_to_highlight {
-            NodeOrToken::Node(node) => highlight::node(
+        let element = match descended_element {
+            NodeOrToken::Node(name_like) => highlight::name_like(
                 sema,
                 krate,
                 &mut bindings_shadow_count,
                 syntactic_name_ref_highlighting,
-                node,
+                name_like,
             ),
-            NodeOrToken::Token(token) => highlight::token(sema, krate, token).zip(Some(None)),
+            NodeOrToken::Token(token) => highlight::token(sema, token).zip(Some(None)),
         };
         if let Some((mut highlight, binding_hash)) = element {
+            if is_unlinked && highlight.tag == HlTag::UnresolvedReference {
+                // do not emit unresolved references if the file is unlinked
+                // let the editor do its highlighting for these tokens instead
+                continue;
+            }
             if inside_attribute {
                 highlight |= HlMod::Attribute
             }

@@ -13,8 +13,8 @@
 use std::sync::Arc;
 
 use ide::{Change, CompletionConfig, FilePosition, TextSize};
-use ide_db::helpers::{
-    insert_use::{ImportGranularity, InsertUseConfig},
+use ide_db::{
+    imports::insert_use::{ImportGranularity, InsertUseConfig},
     SnippetCap,
 };
 use project_model::CargoConfig;
@@ -134,6 +134,7 @@ fn integrated_completion_benchmark() {
             enable_postfix_completions: true,
             enable_imports_on_the_fly: true,
             enable_self_on_the_fly: true,
+            enable_private_editable: true,
             add_call_parenthesis: true,
             add_call_argument_snippets: true,
             snippet_cap: SnippetCap::new(true),
@@ -171,6 +172,7 @@ fn integrated_completion_benchmark() {
             enable_postfix_completions: true,
             enable_imports_on_the_fly: true,
             enable_self_on_the_fly: true,
+            enable_private_editable: true,
             add_call_parenthesis: true,
             add_call_argument_snippets: true,
             snippet_cap: SnippetCap::new(true),

@@ -6,9 +6,7 @@ use itertools::Itertools;
 
 pub(crate) use gen_trait_fn_body::gen_trait_fn_body;
 use hir::{db::HirDatabase, HirDisplay, Semantics};
-use ide_db::{
-    helpers::FamousDefs, helpers::SnippetCap, path_transform::PathTransform, RootDatabase,
-};
+use ide_db::{famous_defs::FamousDefs, path_transform::PathTransform, RootDatabase, SnippetCap};
 use stdx::format_to;
 use syntax::{
     ast::{
@@ -435,7 +433,11 @@ fn generate_impl_text_inner(adt: &ast::Adt, trait_text: Option<&str>, code: &str
     buf.push_str("impl");
     if let Some(generic_params) = &generic_params {
         let lifetimes = generic_params.lifetime_params().map(|lt| format!("{}", lt.syntax()));
-        let type_params = generic_params.type_params().map(|type_param| {
+        let toc_params = generic_params.type_or_const_params().map(|toc_param| {
+            let type_param = match toc_param {
+                ast::TypeOrConstParam::Type(x) => x,
+                ast::TypeOrConstParam::Const(x) => return x.syntax().to_string(),
+            };
             let mut buf = String::new();
             if let Some(it) = type_param.name() {
                 format_to!(buf, "{}", it.syntax());
@@ -448,8 +450,7 @@ fn generate_impl_text_inner(adt: &ast::Adt, trait_text: Option<&str>, code: &str
             }
             buf
         });
-        let const_params = generic_params.const_params().map(|t| t.syntax().to_string());
-        let generics = lifetimes.chain(type_params).chain(const_params).format(", ");
+        let generics = lifetimes.chain(toc_params).format(", ");
         format_to!(buf, "<{}>", generics);
     }
     buf.push(' ');
@@ -463,15 +464,11 @@ fn generate_impl_text_inner(adt: &ast::Adt, trait_text: Option<&str>, code: &str
             .lifetime_params()
             .filter_map(|it| it.lifetime())
             .map(|it| SmolStr::from(it.text()));
-        let type_params = generic_params
-            .type_params()
+        let toc_params = generic_params
+            .type_or_const_params()
             .filter_map(|it| it.name())
             .map(|it| SmolStr::from(it.text()));
-        let const_params = generic_params
-            .const_params()
-            .filter_map(|it| it.name())
-            .map(|it| SmolStr::from(it.text()));
-        format_to!(buf, "<{}>", lifetime_params.chain(type_params).chain(const_params).format(", "))
+        format_to!(buf, "<{}>", lifetime_params.chain(toc_params).format(", "))
     }
 
     match adt.where_clause() {

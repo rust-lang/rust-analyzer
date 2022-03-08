@@ -4,12 +4,12 @@ use std::fmt;
 
 use hir::{Documentation, Mutability};
 use ide_db::{
-    helpers::{
+    helpers::mod_path_to_ast,
+    imports::{
         import_assets::LocatedImport,
         insert_use::{self, ImportScope, InsertUseConfig},
-        mod_path_to_ast, SnippetCap,
     },
-    SymbolKind,
+    SnippetCap, SymbolKind,
 };
 use smallvec::SmallVec;
 use stdx::{impl_from, never};
@@ -260,6 +260,7 @@ impl CompletionItemKind {
                 SymbolKind::Macro => "ma",
                 SymbolKind::Module => "md",
                 SymbolKind::SelfParam => "sp",
+                SymbolKind::SelfType => "sy",
                 SymbolKind::Static => "sc",
                 SymbolKind::Struct => "st",
                 SymbolKind::ToolModule => "tm",

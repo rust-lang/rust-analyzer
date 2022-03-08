@@ -46,7 +46,7 @@ use crate::{
 pub use unify::could_unify;
 pub(crate) use unify::unify;
 
-mod unify;
+pub(crate) mod unify;
 mod path;
 mod expr;
 mod pat;
@@ -228,7 +228,7 @@ pub enum Adjust {
 /// The target type is `U` in both cases, with the region and mutability
 /// being those shared by both the receiver and the returned reference.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct OverloadedDeref(Mutability);
+pub struct OverloadedDeref(pub Mutability);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AutoBorrow {
@@ -453,10 +453,6 @@ impl<'a> InferenceContext<'a> {
 
     fn write_method_resolution(&mut self, expr: ExprId, func: FunctionId, subst: Substitution) {
         self.result.method_resolutions.insert(expr, (func, subst));
-    }
-
-    fn write_field_resolution(&mut self, expr: ExprId, field: FieldId) {
-        self.result.field_resolutions.insert(expr, field);
     }
 
     fn write_variant_resolution(&mut self, id: ExprOrPatId, variant: VariantId) {

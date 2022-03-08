@@ -6,10 +6,8 @@ use hir::{AsAssocItem, AttributeTemplate, HasAttrs, HasSource, HirDisplay, Seman
 use ide_db::{
     base_db::SourceDatabase,
     defs::Definition,
-    helpers::{
-        generated_lints::{CLIPPY_LINTS, DEFAULT_LINTS, FEATURES},
-        FamousDefs,
-    },
+    famous_defs::FamousDefs,
+    generated::lints::{CLIPPY_LINTS, DEFAULT_LINTS, FEATURES},
     RootDatabase,
 };
 use itertools::Itertools;
@@ -18,7 +16,7 @@ use syntax::{
     algo, ast,
     display::{fn_as_proc_macro_label, macro_label},
     match_ast, AstNode, Direction,
-    SyntaxKind::{CONDITION, LET_STMT},
+    SyntaxKind::{LET_EXPR, LET_STMT},
     SyntaxToken, T,
 };
 
@@ -480,11 +478,11 @@ fn local(db: &RootDatabase, it: hir::Local) -> Option<Markup> {
     let is_mut = if it.is_mut(db) { "mut " } else { "" };
     let desc = match it.source(db).value {
         Either::Left(ident) => {
-            let name = it.name(db).unwrap();
+            let name = it.name(db);
             let let_kw = if ident
                 .syntax()
                 .parent()
-                .map_or(false, |p| p.kind() == LET_STMT || p.kind() == CONDITION)
+                .map_or(false, |p| p.kind() == LET_STMT || p.kind() == LET_EXPR)
             {
                 "let "
             } else {
@@ -545,7 +543,6 @@ fn keyword_hints(
                 },
             }
         }
-
         T![fn] => {
             let module = match ast::FnPtrType::cast(parent) {
                 // treat fn keyword inside function pointer type as primitive
@@ -554,7 +551,7 @@ fn keyword_hints(
             };
             KeywordHint::new(token.text().to_string(), module)
         }
-
+        T![Self] => KeywordHint::new(token.text().to_string(), "self_upper_keyword".into()),
         _ => KeywordHint::new(token.text().to_string(), format!("{}_keyword", token.text())),
     }
 }

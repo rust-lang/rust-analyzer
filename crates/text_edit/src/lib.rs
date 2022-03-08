@@ -4,6 +4,8 @@
 //! so `TextEdit` is the ultimate representation of the work done by
 //! rust-analyzer.
 
+use itertools::Itertools;
+use std::cmp::max;
 pub use text_size::{TextRange, TextSize};
 
 /// `InsertDelete` -- a single "atomic" change to text
@@ -90,41 +92,35 @@ impl TextEdit {
             _ => (),
         }
 
-        let mut total_len = TextSize::of(&*text);
+        let text_size = TextSize::of(&*text);
+        let mut total_len = text_size;
+        let mut max_total_len = text_size.clone();
         for indel in &self.indels {
             total_len += TextSize::of(&indel.insert);
-            total_len -= indel.delete.end() - indel.delete.start();
+            total_len -= indel.delete.len();
+            max_total_len = max(max_total_len, total_len);
         }
-        let mut buf = String::with_capacity(total_len.into());
-        let mut prev = 0;
-        for indel in &self.indels {
-            let start: usize = indel.delete.start().into();
-            let end: usize = indel.delete.end().into();
-            if start > prev {
-                buf.push_str(&text[prev..start]);
-            }
-            buf.push_str(&indel.insert);
-            prev = end;
-        }
-        buf.push_str(&text[prev..text.len()]);
-        assert_eq!(TextSize::of(&buf), total_len);
 
-        // FIXME: figure out a way to mutate the text in-place or reuse the
-        // memory in some other way
-        *text = buf;
+        if let Some(additional) = max_total_len.checked_sub(text_size.into()) {
+            text.reserve(additional.into());
+        }
+
+        for indel in self.indels.iter().rev() {
+            indel.apply(text);
+        }
+
+        assert_eq!(TextSize::of(&*text), total_len);
     }
 
     pub fn union(&mut self, other: TextEdit) -> Result<(), TextEdit> {
-        // FIXME: can be done without allocating intermediate vector
-        let mut all = self.iter().chain(other.iter()).collect::<Vec<_>>();
-        if !check_disjoint_and_sort(&mut all) {
+        let iter_merge =
+            self.iter().merge_by(other.iter(), |l, r| l.delete.start() <= r.delete.start());
+        if !check_disjoint(&mut iter_merge.clone()) {
             return Err(other);
         }
 
-        self.indels.extend(other.indels);
-        check_disjoint_and_sort(&mut self.indels);
         // Only dedup deletions and replacements, keep all insertions
-        self.indels.dedup_by(|a, b| a == b && !a.delete.is_empty());
+        self.indels = iter_merge.dedup_by(|a, b| a == b && !a.delete.is_empty()).cloned().collect();
         Ok(())
     }
 
@@ -194,12 +190,73 @@ impl TextEditBuilder {
 fn assert_disjoint_or_equal(indels: &mut [Indel]) {
     assert!(check_disjoint_and_sort(indels));
 }
-// FIXME: Remove the impl Bound here, it shouldn't be needed
-fn check_disjoint_and_sort(indels: &mut [impl std::borrow::Borrow<Indel>]) -> bool {
-    indels.sort_by_key(|indel| (indel.borrow().delete.start(), indel.borrow().delete.end()));
-    indels.iter().zip(indels.iter().skip(1)).all(|(l, r)| {
-        let l = l.borrow();
-        let r = r.borrow();
-        l.delete.end() <= r.delete.start() || l == r
-    })
+
+fn check_disjoint_and_sort(indels: &mut [Indel]) -> bool {
+    indels.sort_by_key(|indel| (indel.delete.start(), indel.delete.end()));
+    check_disjoint(&mut indels.iter())
+}
+
+fn check_disjoint<'a, I>(indels: &mut I) -> bool
+where
+    I: std::iter::Iterator<Item = &'a Indel> + Clone,
+{
+    indels.clone().zip(indels.skip(1)).all(|(l, r)| l.delete.end() <= r.delete.start() || l == r)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TextEdit, TextEditBuilder, TextRange};
+
+    fn range(start: u32, end: u32) -> TextRange {
+        TextRange::new(start.into(), end.into())
+    }
+
+    #[test]
+    fn test_apply() {
+        let mut text = "_11h1_2222_xx3333_4444_6666".to_string();
+        let mut builder = TextEditBuilder::default();
+        builder.replace(range(3, 4), "1".to_string());
+        builder.delete(range(11, 13));
+        builder.insert(22.into(), "_5555".to_string());
+
+        let text_edit = builder.finish();
+        text_edit.apply(&mut text);
+
+        assert_eq!(text, "_1111_2222_3333_4444_5555_6666")
+    }
+
+    #[test]
+    fn test_union() {
+        let mut edit1 = TextEdit::delete(range(7, 11));
+        let mut builder = TextEditBuilder::default();
+        builder.delete(range(1, 5));
+        builder.delete(range(13, 17));
+
+        let edit2 = builder.finish();
+        assert!(edit1.union(edit2).is_ok());
+        assert_eq!(edit1.indels.len(), 3);
+    }
+
+    #[test]
+    fn test_union_with_duplicates() {
+        let mut builder1 = TextEditBuilder::default();
+        builder1.delete(range(7, 11));
+        builder1.delete(range(13, 17));
+
+        let mut builder2 = TextEditBuilder::default();
+        builder2.delete(range(1, 5));
+        builder2.delete(range(13, 17));
+
+        let mut edit1 = builder1.finish();
+        let edit2 = builder2.finish();
+        assert!(edit1.union(edit2).is_ok());
+        assert_eq!(edit1.indels.len(), 3);
+    }
+
+    #[test]
+    fn test_union_panics() {
+        let mut edit1 = TextEdit::delete(range(7, 11));
+        let edit2 = TextEdit::delete(range(9, 13));
+        assert!(edit1.union(edit2).is_err());
+    }
 }

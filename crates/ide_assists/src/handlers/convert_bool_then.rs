@@ -1,9 +1,8 @@
 use hir::{known, AsAssocItem, Semantics};
 use ide_db::{
-    helpers::{
-        for_each_tail_expr,
-        node_ext::{block_as_lone_tail, preorder_expr},
-        FamousDefs,
+    famous_defs::FamousDefs,
+    syntax_helpers::node_ext::{
+        block_as_lone_tail, for_each_tail_expr, is_pattern_cond, preorder_expr,
     },
     RootDatabase,
 };
@@ -45,8 +44,7 @@ pub(crate) fn convert_if_to_bool_then(acc: &mut Assists, ctx: &AssistContext) ->
         return None;
     }
 
-    let cond = expr.condition().filter(|cond| !cond.is_pattern_cond())?;
-    let cond = cond.expr()?;
+    let cond = expr.condition().filter(|cond| !is_pattern_cond(cond.clone()))?;
     let then = expr.then_branch()?;
     let else_ = match expr.else_branch()? {
         ast::ElseBranch::Block(b) => b,
@@ -209,7 +207,7 @@ pub(crate) fn convert_bool_then_to_if(acc: &mut Assists, ctx: &AssistContext) ->
                 _ => receiver,
             };
             let if_expr = make::expr_if(
-                make::condition(cond, None),
+                cond,
                 closure_body.reset_indent(),
                 Some(ast::ElseBranch::Block(make::block_expr(None, Some(none_path)))),
             )

@@ -233,6 +233,7 @@ pub mod known {
         column,
         compile_error,
         concat_idents,
+        concat_bytes,
         concat,
         const_format_args,
         core_panic,
@@ -252,6 +253,7 @@ pub mod known {
         std_panic,
         stringify,
         trace_macros,
+        unreachable,
         // Builtin derives
         Copy,
         Clone,

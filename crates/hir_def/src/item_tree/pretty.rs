@@ -6,7 +6,7 @@ use itertools::Itertools;
 
 use crate::{
     attr::RawAttrs,
-    generics::{WherePredicate, WherePredicateTypeTarget},
+    generics::{TypeOrConstParamData, WherePredicate, WherePredicateTypeTarget},
     path::GenericArg,
     type_ref::TraitBoundModifier,
     visibility::RawVisibility,
@@ -493,14 +493,14 @@ impl<'a> Printer<'a> {
                 w!(self, "]");
             }
             TypeRef::Fn(args_and_ret, varargs) => {
-                let (ret, args) =
+                let ((_, return_type), args) =
                     args_and_ret.split_last().expect("TypeRef::Fn is missing return type");
                 w!(self, "fn(");
-                for (i, arg) in args.iter().enumerate() {
+                for (i, (_, typeref)) in args.iter().enumerate() {
                     if i != 0 {
                         w!(self, ", ");
                     }
-                    self.print_type_ref(arg);
+                    self.print_type_ref(&typeref);
                 }
                 if *varargs {
                     if !args.is_empty() {
@@ -509,7 +509,7 @@ impl<'a> Printer<'a> {
                     w!(self, "...");
                 }
                 w!(self, ") -> ");
-                self.print_type_ref(ret);
+                self.print_type_ref(&return_type);
             }
             TypeRef::Macro(_ast_id) => {
                 w!(self, "<macro>");
@@ -626,7 +626,7 @@ impl<'a> Printer<'a> {
     }
 
     fn print_generic_params(&mut self, params: &GenericParams) {
-        if params.types.is_empty() && params.lifetimes.is_empty() && params.consts.is_empty() {
+        if params.types.is_empty() && params.lifetimes.is_empty() {
             return;
         }
 
@@ -639,23 +639,21 @@ impl<'a> Printer<'a> {
             first = false;
             w!(self, "{}", lt.name);
         }
-        for (idx, ty) in params.types.iter() {
+        for (idx, x) in params.types.iter() {
             if !first {
                 w!(self, ", ");
             }
             first = false;
-            match &ty.name {
-                Some(name) => w!(self, "{}", name),
-                None => w!(self, "_anon_{}", idx.into_raw()),
+            match x {
+                TypeOrConstParamData::TypeParamData(ty) => match &ty.name {
+                    Some(name) => w!(self, "{}", name),
+                    None => w!(self, "_anon_{}", idx.into_raw()),
+                },
+                TypeOrConstParamData::ConstParamData(konst) => {
+                    w!(self, "const {}: ", konst.name);
+                    self.print_type_ref(&konst.ty);
+                }
             }
-        }
-        for (_, konst) in params.consts.iter() {
-            if !first {
-                w!(self, ", ");
-            }
-            first = false;
-            w!(self, "const {}: ", konst.name);
-            self.print_type_ref(&konst.ty);
         }
         w!(self, ">");
     }
@@ -702,10 +700,12 @@ impl<'a> Printer<'a> {
 
                 match target {
                     WherePredicateTypeTarget::TypeRef(ty) => this.print_type_ref(ty),
-                    WherePredicateTypeTarget::TypeParam(id) => match &params.types[*id].name {
-                        Some(name) => w!(this, "{}", name),
-                        None => w!(this, "_anon_{}", id.into_raw()),
-                    },
+                    WherePredicateTypeTarget::TypeOrConstParam(id) => {
+                        match &params.types[*id].name() {
+                            Some(name) => w!(this, "{}", name),
+                            None => w!(this, "_anon_{}", id.into_raw()),
+                        }
+                    }
                 }
                 w!(this, ": ");
                 this.print_type_bounds(std::slice::from_ref(bound));

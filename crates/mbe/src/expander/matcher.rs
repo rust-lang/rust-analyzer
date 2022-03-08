@@ -599,7 +599,7 @@ fn match_loop(pattern: &MetaTemplate, src: &tt::Subtree) -> Match {
                 src = it;
                 res.unmatched_tts += src.len();
             }
-            res.add_err(ExpandError::binding_error("leftover tokens"));
+            res.add_err(ExpandError::LeftoverTokens);
 
             if let Some(error_reover_item) = error_recover_item {
                 res.bindings = bindings_builder.build(&error_reover_item);
@@ -658,7 +658,7 @@ fn match_loop(pattern: &MetaTemplate, src: &tt::Subtree) -> Match {
 fn match_leaf(lhs: &tt::Leaf, src: &mut TtIter) -> Result<(), ExpandError> {
     let rhs = src
         .expect_leaf()
-        .map_err(|()| ExpandError::BindingError(format!("expected leaf: `{lhs}`").into()))?;
+        .map_err(|()| ExpandError::binding_error(format!("expected leaf: `{lhs}`")))?;
     match (lhs, rhs) {
         (
             tt::Leaf::Punct(tt::Punct { char: lhs, .. }),
@@ -690,9 +690,19 @@ fn match_meta_var(kind: &str, input: &mut TtIter) -> ExpandResult<Option<Fragmen
         "item" => parser::PrefixEntryPoint::Item,
         "vis" => parser::PrefixEntryPoint::Vis,
         "expr" => {
+            // `expr` should not match underscores.
+            // HACK: Macro expansion should not be done using "rollback and try another alternative".
+            // rustc [explicitly checks the next token][0].
+            // [0]: https://github.com/rust-lang/rust/blob/f0c4da499/compiler/rustc_expand/src/mbe/macro_parser.rs#L576
+            match input.peek_n(0) {
+                Some(tt::TokenTree::Leaf(tt::Leaf::Ident(it))) if it.text == "_" => {
+                    return ExpandResult::only_err(ExpandError::NoMatchingRule)
+                }
+                _ => {}
+            };
             return input
                 .expect_fragment(parser::PrefixEntryPoint::Expr)
-                .map(|tt| tt.map(Fragment::Expr))
+                .map(|tt| tt.map(Fragment::Expr));
         }
         _ => {
             let tt_result = match kind {

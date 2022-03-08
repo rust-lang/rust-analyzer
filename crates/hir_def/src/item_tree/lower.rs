@@ -582,11 +582,14 @@ impl<'a> Ctx<'a> {
             }
             GenericsOwner::Trait(trait_def) => {
                 // traits get the Self type as an implicit first type parameter
-                generics.types.alloc(TypeParamData {
-                    name: Some(name![Self]),
-                    default: None,
-                    provenance: TypeParamProvenance::TraitSelf,
-                });
+                generics.types.alloc(
+                    TypeParamData {
+                        name: Some(name![Self]),
+                        default: None,
+                        provenance: TypeParamProvenance::TraitSelf,
+                    }
+                    .into(),
+                );
                 // add super traits as bounds on Self
                 // i.e., trait Foo: Bar is equivalent to trait Foo where Self: Bar
                 let self_param = TypeRef::Path(name![Self].into());
@@ -702,6 +705,7 @@ enum GenericsOwner<'a> {
 fn is_intrinsic_fn_unsafe(name: &Name) -> bool {
     // Should be kept in sync with https://github.com/rust-lang/rust/blob/532d2b14c05f9bc20b2d27cbb5f4550d28343a36/compiler/rustc_typeck/src/check/intrinsic.rs#L72-L106
     ![
+        known::abort,
         known::add_with_overflow,
         known::bitreverse,
         known::black_box,

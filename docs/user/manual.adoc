@@ -40,6 +40,20 @@ To add the sources manually, run the following command:
 $ rustup component add rust-src
 ```
 
+=== Toolchain
+
+Only the latest stable standard library source is officially supported for use with rust-analyzer.
+If you are using an older toolchain or have an override set, rust-analyzer may fail to understand the Rust source.
+You will either need to update your toolchain or use an older version of rust-analyzer that is compatible with your toolchain.
+
+If you are using an override in your project, you can still force rust-analyzer to use the stable toolchain via the environment variable `RUSTUP_TOOLCHAIN`.
+For example, with VS Code or coc-rust-analyzer:
+
+[source,json]
+----
+{ "rust-analyzer.server.extraEnv": { "RUSTUP_TOOLCHAIN": "stable" } }
+----
+
 === VS Code
 
 This is the best supported editor at the moment.
@@ -86,8 +100,7 @@ It will ask your permission to download the matching language server version bin
 ===== Nightly
 
 We ship nightly releases for VS Code.
-You can opt in to these by switching to the pre-release version in the Code extension page or settings.
-To help us out with testing the newest code and follow the bleeding edge of our `master`, please use the following config:
+To help us out by testing the newest code, you can enable pre-release versions in the Code extension page.
 
 ==== Manual installation
 
@@ -240,7 +253,6 @@ The are several LSP client implementations for vim or neovim:
    * same configurations as VSCode extension, `rust-analyzer.server.path`, `rust-analyzer.cargo.features` etc.
    * same commands too, `rust-analyzer.analyzerStatus`, `rust-analyzer.ssr` etc.
    * inlay hints for variables and method chaining, _Neovim Only_
-   * semantic highlighting is not implemented yet
 
 Note: for code actions, use `coc-codeaction-cursor` and `coc-codeaction-selected`; `coc-codeaction` and `coc-codeaction-line` are unlikely to be useful.
 
@@ -362,22 +374,19 @@ if executable('rust-analyzer')
 endif
 ----
 
-=== Sublime Text 3
+=== Sublime Text
 
-Prerequisites: You have installed the <<rust-analyzer-language-server-binary,`rust-analyzer` binary>>.
+==== Sublime Text 4:
+* Follow the instructions in link:https://github.com/sublimelsp/LSP-rust-analyzer[LSP-rust-analyzer].
 
-You also need the `LSP` package.
-To install it:
+NOTE: Install link:https://packagecontrol.io/packages/LSP-file-watcher-chokidar[LSP-file-watcher-chokidar] to enable file watching (`workspace/didChangeWatchedFiles`).
 
-1. If you've never installed a Sublime Text package, install Package Control:
-   * Open the command palette (Win/Linux: `ctrl+shift+p`, Mac: `cmd+shift+p`)
-   * Type `Install Package Control`, press enter
-2. In the command palette, run `Package control: Install package`, and in the list that pops up, type `LSP` and press enter.
+==== Sublime Text 3:
+* Install the <<rust-analyzer-language-server-binary,`rust-analyzer` binary>>.
+* Install the link:https://packagecontrol.io/packages/LSP[LSP package].
+* From the command palette, run `LSP: Enable Language Server Globally` and select `rust-analyzer`.
 
-Finally, with your Rust project open, in the command palette, run `LSP: Enable Language Server In Project` or `LSP: Enable Language Server Globally`, then select `rust-analyzer` in the list that pops up to enable the rust-analyzer LSP.
-The latter means that rust-analyzer is enabled by default in Rust projects.
-
-If it worked, you should see "rust-analyzer, Line X, Column Y" on the left side of the bottom bar, and after waiting a bit, functionality like tooltips on hovering over variables should become available.
+If it worked, you should see "rust-analyzer, Line X, Column Y" on the left side of the status bar, and after waiting a bit, functionalities like tooltips on hovering over variables should become available.
 
 If you get an error saying `No such file or directory: 'rust-analyzer'`, see the <<rust-analyzer-language-server-binary,`rust-analyzer` binary>> section on installing the language server binary.
 
@@ -427,10 +436,44 @@ Then click on apply, and restart the LSP server for your rust project.
 
 https://gitlab.com/cppit/jucipp[juCi++] has built-in support for the language server protocol, and since version 1.7.0 offers installation of both Rust and rust-analyzer when opening a Rust file.
 
+=== Kakoune
+
+https://kakoune.org/[Kakoune] supports LSP with the help of https://github.com/kak-lsp/kak-lsp[`kak-lsp`].
+Follow the https://github.com/kak-lsp/kak-lsp#installation[instructions] to install `kak-lsp`.
+To configure `kak-lsp`, refer to the https://github.com/kak-lsp/kak-lsp#configuring-kak-lsp[configuration section] which is basically about copying the https://github.com/kak-lsp/kak-lsp/blob/master/kak-lsp.toml[configuration file] in the right place (latest versions should use `rust-analyzer` by default).
+
+Finally, you need to configure Kakoune to talk to `kak-lsp` (see https://github.com/kak-lsp/kak-lsp#usage[Usage section]).
+A basic configuration will only get you LSP but you can also activate inlay diagnostics and auto-formatting on save.
+The following might help you get all of this.
+
+[source,txt]
+----
+eval %sh{kak-lsp --kakoune -s $kak_session}  # Not needed if you load it with plug.kak.
+hook global WinSetOption filetype=rust %{
+    # Enable LSP
+    lsp-enable-window
+
+    # Auto-formatting on save
+    hook window BufWritePre .* lsp-formatting-sync
+
+    # Configure inlay hints (only on save)
+    hook window -group rust-inlay-hints BufWritePost .* rust-analyzer-inlay-hints
+    hook -once -always window WinSetOption filetype=.* %{
+        remove-hooks window rust-inlay-hints
+    }
+}
+----
+
+=== Helix
+
+https://docs.helix-editor.com/[Helix] supports LSP by default.
+However, it won't install `rust-analyzer` automatically.
+You can follow instructions for installing <<rust-analyzer-language-server-binary,`rust-analyzer` binary>>.
+
 == Troubleshooting
 
 Start with looking at the rust-analyzer version.
-Try **Rust Analyzer: Show RA Version** in VS Code and `rust-analyzer --version` in the command line.
+Try **Rust Analyzer: Show RA Version** in VS Code (using **Command Palette** feature typically activated by Ctrl+Shift+P) or `rust-analyzer --version` in the command line.
 If the date is more than a week ago, it's better to update rust-analyzer version.
 
 The next thing to check would be panic messages in rust-analyzer's log.

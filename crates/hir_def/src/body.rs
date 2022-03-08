@@ -97,9 +97,9 @@ impl Expander {
     ) -> Result<ExpandResult<Option<(Mark, T)>>, UnresolvedMacro> {
         if self.recursion_limit(db).check(self.recursion_limit + 1).is_err() {
             cov_mark::hit!(your_stack_belongs_to_me);
-            return Ok(ExpandResult::str_err(
+            return Ok(ExpandResult::only_err(ExpandError::Other(
                 "reached recursion limit during macro expansion".into(),
-            ));
+            )));
         }
 
         let macro_call = InFile::new(self.current_file_id, &macro_call);
@@ -151,7 +151,7 @@ impl Expander {
                 }
 
                 return ExpandResult::only_err(err.unwrap_or_else(|| {
-                    mbe::ExpandError::Other("failed to parse macro invocation".into())
+                    ExpandError::Other("failed to parse macro invocation".into())
                 }));
             }
         };
@@ -241,6 +241,7 @@ pub struct Mark {
 pub struct Body {
     pub exprs: Arena<Expr>,
     pub pats: Arena<Pat>,
+    pub or_pats: FxHashMap<PatId, Arc<[PatId]>>,
     pub labels: Arena<Label>,
     /// The patterns for the function's parameters. While the parameter types are
     /// part of the function signature, the patterns are not (they don't change
@@ -352,7 +353,19 @@ impl Body {
     ) -> impl Iterator<Item = (BlockId, Arc<DefMap>)> + '_ {
         self.block_scopes
             .iter()
-            .map(move |block| (*block, db.block_def_map(*block).expect("block ID without DefMap")))
+            .map(move |&block| (block, db.block_def_map(block).expect("block ID without DefMap")))
+    }
+
+    pub fn pattern_representative(&self, pat: PatId) -> PatId {
+        self.or_pats.get(&pat).and_then(|pats| pats.first().copied()).unwrap_or(pat)
+    }
+
+    /// Retrieves all ident patterns this pattern shares the ident with.
+    pub fn ident_patterns_for<'slf>(&'slf self, pat: &'slf PatId) -> &'slf [PatId] {
+        match self.or_pats.get(pat) {
+            Some(pats) => &**pats,
+            None => std::slice::from_ref(pat),
+        }
     }
 
     fn new(
@@ -365,8 +378,9 @@ impl Body {
     }
 
     fn shrink_to_fit(&mut self) {
-        let Self { _c: _, body_expr: _, block_scopes, exprs, labels, params, pats } = self;
+        let Self { _c: _, body_expr: _, block_scopes, or_pats, exprs, labels, params, pats } = self;
         block_scopes.shrink_to_fit();
+        or_pats.shrink_to_fit();
         exprs.shrink_to_fit();
         labels.shrink_to_fit();
         params.shrink_to_fit();

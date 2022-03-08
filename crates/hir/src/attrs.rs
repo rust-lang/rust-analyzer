@@ -139,9 +139,9 @@ fn resolve_doc_path(
         AttrDefId::ImplId(it) => it.resolver(db.upcast()),
         AttrDefId::ExternBlockId(it) => it.resolver(db.upcast()),
         AttrDefId::GenericParamId(it) => match it {
-            GenericParamId::TypeParamId(it) => it.parent,
+            GenericParamId::TypeParamId(it) => it.parent(),
+            GenericParamId::ConstParamId(it) => it.parent(),
             GenericParamId::LifetimeParamId(it) => it.parent,
-            GenericParamId::ConstParamId(it) => it.parent,
         }
         .resolver(db.upcast()),
         // FIXME
@@ -149,6 +149,7 @@ fn resolve_doc_path(
     };
 
     let modpath = {
+        // FIXME: this is not how we should get a mod path here
         let ast_path = ast::SourceFile::parse(&format!("type T = {};", link))
             .syntax_node()
             .descendants()

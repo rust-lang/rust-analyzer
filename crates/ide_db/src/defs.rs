@@ -14,7 +14,7 @@ use hir::{
 use stdx::impl_from;
 use syntax::{
     ast::{self, AstNode},
-    match_ast, AstToken, SyntaxKind, SyntaxNode, SyntaxToken,
+    match_ast, SyntaxKind, SyntaxNode, SyntaxToken,
 };
 
 use crate::RootDatabase;
@@ -106,7 +106,7 @@ impl Definition {
             Definition::TypeAlias(it) => it.name(db),
             Definition::BuiltinType(it) => it.name(),
             Definition::SelfType(_) => return None,
-            Definition::Local(it) => it.name(db)?,
+            Definition::Local(it) => it.name(db),
             Definition::GenericParam(it) => it.name(db),
             Definition::Label(it) => it.name(db),
             Definition::BuiltinAttr(_) => return None, // FIXME
@@ -116,6 +116,7 @@ impl Definition {
     }
 }
 
+#[derive(Debug)]
 pub enum IdentClass {
     NameClass(NameClass),
     NameRefClass(NameRefClass),
@@ -142,17 +143,16 @@ impl IdentClass {
         token: &SyntaxToken,
     ) -> Option<IdentClass> {
         let parent = token.parent()?;
-        // resolve derives if possible
-        if let Some(ident) = ast::Ident::cast(token.clone()) {
-            let attr = ast::TokenTree::cast(parent.clone())
-                .and_then(|tt| tt.parent_meta())
-                .and_then(|meta| meta.parent_attr());
-            if let Some(attr) = attr {
-                return NameRefClass::classify_derive(sema, &attr, &ident)
-                    .map(IdentClass::NameRefClass);
-            }
-        }
         Self::classify_node(sema, &parent)
+    }
+
+    pub fn classify_lifetime(
+        sema: &Semantics<RootDatabase>,
+        lifetime: &ast::Lifetime,
+    ) -> Option<IdentClass> {
+        NameRefClass::classify_lifetime(sema, &lifetime)
+            .map(IdentClass::NameRefClass)
+            .or_else(|| NameClass::classify_lifetime(sema, &lifetime).map(IdentClass::NameClass))
     }
 
     pub fn definitions(self) -> ArrayVec<Definition, 2> {
@@ -216,8 +216,23 @@ impl NameClass {
 
         let parent = name.syntax().parent()?;
 
-        let def = if let Some(item) = ast::Item::cast(parent.clone()) {
-            match item {
+        let definition = match_ast! {
+            match parent {
+                ast::Item(it) => classify_item(sema, it)?,
+                ast::IdentPat(it) => return classify_ident_pat(sema, it),
+                ast::Rename(it) => classify_rename(sema, it)?,
+                ast::SelfParam(it) => Definition::Local(sema.to_def(&it)?),
+                ast::RecordField(it) => Definition::Field(sema.to_def(&it)?),
+                ast::Variant(it) => Definition::Variant(sema.to_def(&it)?),
+                ast::TypeParam(it) => Definition::GenericParam(sema.to_def(&it)?.into()),
+                ast::ConstParam(it) => Definition::GenericParam(sema.to_def(&it)?.into()),
+                _ => return None,
+            }
+        };
+        return Some(NameClass::Definition(definition));
+
+        fn classify_item(sema: &Semantics<RootDatabase>, item: ast::Item) -> Option<Definition> {
+            let definition = match item {
                 ast::Item::MacroRules(it) => {
                     Definition::Macro(sema.to_def(&ast::Macro::MacroRules(it))?)
                 }
@@ -225,7 +240,12 @@ impl NameClass {
                     Definition::Macro(sema.to_def(&ast::Macro::MacroDef(it))?)
                 }
                 ast::Item::Const(it) => Definition::Const(sema.to_def(&it)?),
-                ast::Item::Fn(it) => Definition::Function(sema.to_def(&it)?),
+                ast::Item::Fn(it) => {
+                    let def = sema.to_def(&it)?;
+                    def.as_proc_macro(sema.db)
+                        .map(Definition::Macro)
+                        .unwrap_or(Definition::Function(def))
+                }
                 ast::Item::Module(it) => Definition::Module(sema.to_def(&it)?),
                 ast::Item::Static(it) => Definition::Static(sema.to_def(&it)?),
                 ast::Item::Trait(it) => Definition::Trait(sema.to_def(&it)?),
@@ -234,14 +254,20 @@ impl NameClass {
                 ast::Item::Struct(it) => Definition::Adt(hir::Adt::Struct(sema.to_def(&it)?)),
                 ast::Item::Union(it) => Definition::Adt(hir::Adt::Union(sema.to_def(&it)?)),
                 _ => return None,
-            }
-        } else if let Some(it) = ast::IdentPat::cast(parent.clone()) {
-            if let Some(def) = sema.resolve_bind_pat_to_const(&it) {
+            };
+            Some(definition)
+        }
+
+        fn classify_ident_pat(
+            sema: &Semantics<RootDatabase>,
+            ident_pat: ast::IdentPat,
+        ) -> Option<NameClass> {
+            if let Some(def) = sema.resolve_bind_pat_to_const(&ident_pat) {
                 return Some(NameClass::ConstReference(Definition::from(def)));
             }
 
-            let local = sema.to_def(&it)?;
-            let pat_parent = it.syntax().parent();
+            let local = sema.to_def(&ident_pat)?;
+            let pat_parent = ident_pat.syntax().parent();
             if let Some(record_pat_field) = pat_parent.and_then(ast::RecordPatField::cast) {
                 if record_pat_field.name_ref().is_none() {
                     if let Some(field) = sema.resolve_record_pat_field(&record_pat_field) {
@@ -252,57 +278,23 @@ impl NameClass {
                     }
                 }
             }
+            Some(NameClass::Definition(Definition::Local(local)))
+        }
 
-            Definition::Local(local)
-        } else if let Some(it) = ast::Rename::cast(parent.clone()) {
-            if let Some(use_tree) = it.syntax().parent().and_then(ast::UseTree::cast) {
+        fn classify_rename(
+            sema: &Semantics<RootDatabase>,
+            rename: ast::Rename,
+        ) -> Option<Definition> {
+            if let Some(use_tree) = rename.syntax().parent().and_then(ast::UseTree::cast) {
                 let path = use_tree.path()?;
-                let path_segment = path.segment()?;
-                let name_ref = path_segment.name_ref()?;
-                let name_ref = if name_ref.self_token().is_some() {
-                    use_tree
-                        .syntax()
-                        .parent()
-                        .as_ref()
-                        // Skip over UseTreeList
-                        .and_then(|it| {
-                            let use_tree = it.parent().and_then(ast::UseTree::cast)?;
-                            let path = use_tree.path()?;
-                            let path_segment = path.segment()?;
-                            path_segment.name_ref()
-                        })
-                        .unwrap_or(name_ref)
-                } else {
-                    name_ref
-                };
-                let name_ref_class = NameRefClass::classify(sema, &name_ref)?;
-
-                match name_ref_class {
-                    NameRefClass::Definition(def) => def,
-                    NameRefClass::FieldShorthand { local_ref: _, field_ref } => {
-                        Definition::Field(field_ref)
-                    }
-                }
+                sema.resolve_path(&path).map(Definition::from)
             } else {
-                let extern_crate = it.syntax().parent().and_then(ast::ExternCrate::cast)?;
+                let extern_crate = rename.syntax().parent().and_then(ast::ExternCrate::cast)?;
                 let krate = sema.resolve_extern_crate(&extern_crate)?;
                 let root_module = krate.root_module(sema.db);
-                Definition::Module(root_module)
+                Some(Definition::Module(root_module))
             }
-        } else {
-            match_ast! {
-                match parent {
-                    ast::SelfParam(it) => Definition::Local(sema.to_def(&it)?),
-                    ast::RecordField(it) => Definition::Field(sema.to_def(&it)?),
-                    ast::Variant(it) => Definition::Variant(sema.to_def(&it)?),
-                    ast::TypeParam(it) => Definition::GenericParam(sema.to_def(&it)?.into()),
-                    ast::ConstParam(it) => Definition::GenericParam(sema.to_def(&it)?.into()),
-                    _ => return None,
-                }
-            }
-        };
-
-        Some(NameClass::Definition(def))
+        }
     }
 
     pub fn classify_lifetime(
@@ -312,19 +304,14 @@ impl NameClass {
         let _p = profile::span("classify_lifetime").detail(|| lifetime.to_string());
         let parent = lifetime.syntax().parent()?;
 
-        match_ast! {
-            match parent {
-                ast::LifetimeParam(it) => {
-                    let def = sema.to_def(&it)?;
-                    Some(NameClass::Definition(Definition::GenericParam(def.into())))
-                },
-                ast::Label(it) => {
-                    let def = sema.to_def(&it)?;
-                    Some(NameClass::Definition(Definition::Label(def)))
-                },
-                _ => None,
-            }
+        if let Some(it) = ast::LifetimeParam::cast(parent.clone()) {
+            sema.to_def(&it).map(Into::into).map(Definition::GenericParam)
+        } else if let Some(it) = ast::Label::cast(parent.clone()) {
+            sema.to_def(&it).map(Definition::Label)
+        } else {
+            None
         }
+        .map(NameClass::Definition)
     }
 }
 
@@ -456,14 +443,6 @@ impl NameRefClass {
             _ => None,
         }
     }
-
-    pub fn classify_derive(
-        sema: &Semantics<RootDatabase>,
-        attr: &ast::Attr,
-        ident: &ast::Ident,
-    ) -> Option<NameRefClass> {
-        sema.resolve_derive_ident(&attr, &ident).map(Definition::from).map(NameRefClass::Definition)
-    }
 }
 
 impl_from!(
@@ -513,9 +492,9 @@ impl From<PathResolution> for Definition {
             }
             PathResolution::Local(local) => Definition::Local(local),
             PathResolution::TypeParam(par) => Definition::GenericParam(par.into()),
+            PathResolution::ConstParam(par) => Definition::GenericParam(par.into()),
             PathResolution::Macro(def) => Definition::Macro(def),
             PathResolution::SelfType(impl_def) => Definition::SelfType(impl_def),
-            PathResolution::ConstParam(par) => Definition::GenericParam(par.into()),
             PathResolution::BuiltinAttr(attr) => Definition::BuiltinAttr(attr),
             PathResolution::ToolModule(tool) => Definition::ToolModule(tool),
         }

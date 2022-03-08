@@ -4,7 +4,7 @@
 //! module, and we use to statically check that we only produce snippet
 //! completions if we are allowed to.
 
-use ide_db::helpers::{insert_use::InsertUseConfig, SnippetCap};
+use ide_db::{imports::insert_use::InsertUseConfig, SnippetCap};
 
 use crate::snippet::Snippet;
 
@@ -13,6 +13,7 @@ pub struct CompletionConfig {
     pub enable_postfix_completions: bool,
     pub enable_imports_on_the_fly: bool,
     pub enable_self_on_the_fly: bool,
+    pub enable_private_editable: bool,
     pub add_call_parenthesis: bool,
     pub add_call_argument_snippets: bool,
     pub snippet_cap: Option<SnippetCap>,

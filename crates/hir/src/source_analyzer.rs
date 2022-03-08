@@ -34,7 +34,7 @@ use syntax::{
 use crate::{
     db::HirDatabase, semantics::PathResolution, Adt, BuiltinAttr, BuiltinType, Const, Field,
     Function, Local, MacroDef, ModuleDef, Static, Struct, ToolModule, Trait, Type, TypeAlias,
-    TypeParam, Variant,
+    Variant,
 };
 use base_db::CrateId;
 
@@ -371,10 +371,10 @@ impl SourceAnalyzer {
                 return builtin.map(PathResolution::BuiltinAttr);
             }
             return match resolve_hir_path_as_macro(db, &self.resolver, &hir_path) {
-                res @ Some(m) if m.is_attr() => res.map(PathResolution::Macro),
+                Some(m) => Some(PathResolution::Macro(m)),
                 // this labels any path that starts with a tool module as the tool itself, this is technically wrong
                 // but there is no benefit in differentiating these two cases for the time being
-                _ => path.first_segment().and_then(|it| it.name_ref()).and_then(|name_ref| {
+                None => path.first_segment().and_then(|it| it.name_ref()).and_then(|name_ref| {
                     match self.resolver.krate() {
                         Some(krate) => ToolModule::by_name(db, krate.into(), &name_ref.text()),
                         None => ToolModule::builtin(&name_ref.text()),
@@ -609,7 +609,7 @@ fn resolve_hir_path_(
 
         let res = match ty {
             TypeNs::SelfType(it) => PathResolution::SelfType(it.into()),
-            TypeNs::GenericParam(id) => PathResolution::TypeParam(TypeParam { id }),
+            TypeNs::GenericParam(id) => PathResolution::TypeParam(id.into()),
             TypeNs::AdtSelfType(it) | TypeNs::AdtId(it) => {
                 PathResolution::Def(Adt::from(it).into())
             }
@@ -650,7 +650,7 @@ fn resolve_hir_path_(
                 ValueNs::StructId(it) => PathResolution::Def(Struct::from(it).into()),
                 ValueNs::EnumVariantId(it) => PathResolution::Def(Variant::from(it).into()),
                 ValueNs::ImplSelf(impl_id) => PathResolution::SelfType(impl_id.into()),
-                ValueNs::GenericParam(it) => PathResolution::ConstParam(it.into()),
+                ValueNs::GenericParam(id) => PathResolution::ConstParam(id.into()),
             };
             Some(res)
         })
@@ -703,7 +703,7 @@ fn resolve_hir_path_qualifier(
 
     resolver.resolve_path_in_type_ns_fully(db.upcast(), path.mod_path()).map(|ty| match ty {
         TypeNs::SelfType(it) => PathResolution::SelfType(it.into()),
-        TypeNs::GenericParam(id) => PathResolution::TypeParam(TypeParam { id }),
+        TypeNs::GenericParam(id) => PathResolution::TypeParam(id.into()),
         TypeNs::AdtSelfType(it) | TypeNs::AdtId(it) => PathResolution::Def(Adt::from(it).into()),
         TypeNs::EnumVariantId(it) => PathResolution::Def(Variant::from(it).into()),
         TypeNs::TypeAliasId(it) => PathResolution::Def(TypeAlias::from(it).into()),

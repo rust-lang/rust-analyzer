@@ -2,8 +2,8 @@
 
 use hir::{AsAssocItem, HasVisibility, Semantics};
 use ide_db::{
-    defs::{Definition, NameClass, NameRefClass},
-    helpers::FamousDefs,
+    defs::{Definition, IdentClass, NameClass, NameRefClass},
+    famous_defs::FamousDefs,
     RootDatabase, SymbolKind,
 };
 use rustc_hash::FxHashMap;
@@ -18,11 +18,7 @@ use crate::{
     Highlight, HlMod, HlTag,
 };
 
-pub(super) fn token(
-    sema: &Semantics<RootDatabase>,
-    krate: Option<hir::Crate>,
-    token: SyntaxToken,
-) -> Option<Highlight> {
+pub(super) fn token(sema: &Semantics<RootDatabase>, token: SyntaxToken) -> Option<Highlight> {
     if let Some(comment) = ast::Comment::cast(token.clone()) {
         let h = HlTag::Comment;
         return Some(match comment.kind().doc {
@@ -39,17 +35,10 @@ pub(super) fn token(
         INT_NUMBER | FLOAT_NUMBER => HlTag::NumericLiteral.into(),
         BYTE => HlTag::ByteLiteral.into(),
         CHAR => HlTag::CharLiteral.into(),
-        IDENT => {
-            let tt = ast::TokenTree::cast(token.parent()?)?;
-            let ident = ast::Ident::cast(token)?;
+        IDENT if token.parent().and_then(ast::TokenTree::cast).is_some() => {
             // from this point on we are inside a token tree, this only happens for identifiers
             // that were not mapped down into macro invocations
-            (|| {
-                let attr = tt.parent_meta()?.parent_attr()?;
-                let res = sema.resolve_derive_ident(&attr, &ident)?;
-                Some(highlight_def(sema, krate, Definition::from(res)))
-            })()
-            .unwrap_or_else(|| HlTag::None.into())
+            HlTag::None.into()
         }
         p if p.is_punct() => punctuation(sema, token, p),
         k if k.is_keyword() => keyword(sema, token, k)?,
@@ -58,52 +47,36 @@ pub(super) fn token(
     Some(highlight)
 }
 
-pub(super) fn node(
+pub(super) fn name_like(
     sema: &Semantics<RootDatabase>,
     krate: Option<hir::Crate>,
     bindings_shadow_count: &mut FxHashMap<hir::Name, u32>,
     syntactic_name_ref_highlighting: bool,
-    node: SyntaxNode,
+    name_like: ast::NameLike,
 ) -> Option<(Highlight, Option<u64>)> {
     let mut binding_hash = None;
-    let highlight = match_ast! {
-        match node {
-            ast::NameRef(name_ref) => {
-                highlight_name_ref(
-                    sema,
-                    krate,
-                    bindings_shadow_count,
-                    &mut binding_hash,
-                    syntactic_name_ref_highlighting,
-                    name_ref,
-                )
-            },
-            ast::Name(name) => {
-                highlight_name(sema, bindings_shadow_count, &mut binding_hash, krate, name)
-            },
-            ast::Lifetime(lifetime) => {
-                match NameClass::classify_lifetime(sema, &lifetime) {
-                    Some(NameClass::Definition(def)) => {
-                        highlight_def(sema, krate, def) | HlMod::Definition
-                    }
-                    None => match NameRefClass::classify_lifetime(sema, &lifetime) {
-                        Some(NameRefClass::Definition(def)) => highlight_def(sema, krate, def),
-                        _ => SymbolKind::LifetimeParam.into(),
-                    },
-                    _ => Highlight::from(SymbolKind::LifetimeParam) | HlMod::Definition,
-                }
-            },
-            ast::Fn(_) => {
-                bindings_shadow_count.clear();
-                return None;
-            },
-            _ => {
-                if [FN, CONST, STATIC].contains(&node.kind()) {
-                    bindings_shadow_count.clear();
-                }
-                return None
-            },
+    let highlight = match name_like {
+        ast::NameLike::NameRef(name_ref) => highlight_name_ref(
+            sema,
+            krate,
+            bindings_shadow_count,
+            &mut binding_hash,
+            syntactic_name_ref_highlighting,
+            name_ref,
+        ),
+        ast::NameLike::Name(name) => {
+            highlight_name(sema, bindings_shadow_count, &mut binding_hash, krate, name)
         }
+        ast::NameLike::Lifetime(lifetime) => match IdentClass::classify_lifetime(sema, &lifetime) {
+            Some(IdentClass::NameClass(NameClass::Definition(def))) => {
+                highlight_def(sema, krate, def) | HlMod::Definition
+            }
+            Some(IdentClass::NameRefClass(NameRefClass::Definition(def))) => {
+                highlight_def(sema, krate, def)
+            }
+            // FIXME: Fallback for 'static and '_, as we do not resolve these yet
+            _ => SymbolKind::LifetimeParam.into(),
+        },
     };
     Some((highlight, binding_hash))
 }
@@ -150,12 +123,12 @@ fn punctuation(sema: &Semantics<RootDatabase>, token: SyntaxToken, kind: SyntaxK
             }
             .into()
         }
-        (T![+] | T![-] | T![*] | T![/], BIN_EXPR) => HlOperator::Arithmetic.into(),
-        (T![+=] | T![-=] | T![*=] | T![/=], BIN_EXPR) => {
+        (T![+] | T![-] | T![*] | T![/] | T![%], BIN_EXPR) => HlOperator::Arithmetic.into(),
+        (T![+=] | T![-=] | T![*=] | T![/=] | T![%=], BIN_EXPR) => {
             Highlight::from(HlOperator::Arithmetic) | HlMod::Mutable
         }
-        (T![|] | T![&] | T![!] | T![^], BIN_EXPR) => HlOperator::Bitwise.into(),
-        (T![|=] | T![&=] | T![^=], BIN_EXPR) => {
+        (T![|] | T![&] | T![!] | T![^] | T![>>] | T![<<], BIN_EXPR) => HlOperator::Bitwise.into(),
+        (T![|=] | T![&=] | T![^=] | T![>>=] | T![<<=], BIN_EXPR) => {
             Highlight::from(HlOperator::Bitwise) | HlMod::Mutable
         }
         (T![&&] | T![||], BIN_EXPR) => HlOperator::Logical.into(),
@@ -203,9 +176,11 @@ fn keyword(
         T![true] | T![false] => HlTag::BoolLiteral.into(),
         // crate is handled just as a token if it's in an `extern crate`
         T![crate] if parent_matches::<ast::ExternCrate>(&token) => h,
-        // self, crate and super are handled as either a Name or NameRef already, unless they
+        // self, crate, super and `Self` are handled as either a Name or NameRef already, unless they
         // are inside unmapped token trees
-        T![self] | T![crate] | T![super] if parent_matches::<ast::NameRef>(&token) => return None,
+        T![self] | T![crate] | T![super] | T![Self] if parent_matches::<ast::NameRef>(&token) => {
+            return None
+        }
         T![self] if parent_matches::<ast::Name>(&token) => return None,
         T![ref] => match token.parent().and_then(ast::IdentPat::cast) {
             Some(ident) if sema.is_unsafe_ident_pat(&ident) => h | HlMod::Unsafe,
@@ -246,10 +221,9 @@ fn highlight_name_ref(
     let mut h = match name_class {
         NameRefClass::Definition(def) => {
             if let Definition::Local(local) = &def {
-                if let Some(name) = local.name(db) {
-                    let shadow_count = bindings_shadow_count.entry(name.clone()).or_default();
-                    *binding_hash = Some(calc_binding_hash(&name, *shadow_count))
-                }
+                let name = local.name(db);
+                let shadow_count = bindings_shadow_count.entry(name.clone()).or_default();
+                *binding_hash = Some(calc_binding_hash(&name, *shadow_count))
             };
 
             let mut h = highlight_def(sema, krate, def);
@@ -281,12 +255,13 @@ fn highlight_name_ref(
         }
         NameRefClass::FieldShorthand { .. } => SymbolKind::Field.into(),
     };
-    if name_ref.self_token().is_some() {
-        h.tag = HlTag::Symbol(SymbolKind::SelfParam);
-    }
-    if name_ref.crate_token().is_some() || name_ref.super_token().is_some() {
-        h.tag = HlTag::Keyword;
-    }
+
+    h.tag = match name_ref.token_kind() {
+        T![Self] => HlTag::Symbol(SymbolKind::SelfType),
+        T![self] => HlTag::Symbol(SymbolKind::SelfParam),
+        T![super] | T![crate] => HlTag::Keyword,
+        _ => h.tag,
+    };
     h
 }
 
@@ -299,11 +274,10 @@ fn highlight_name(
 ) -> Highlight {
     let name_kind = NameClass::classify(sema, &name);
     if let Some(NameClass::Definition(Definition::Local(local))) = &name_kind {
-        if let Some(name) = local.name(sema.db) {
-            let shadow_count = bindings_shadow_count.entry(name.clone()).or_default();
-            *shadow_count += 1;
-            *binding_hash = Some(calc_binding_hash(&name, *shadow_count))
-        }
+        let name = local.name(sema.db);
+        let shadow_count = bindings_shadow_count.entry(name.clone()).or_default();
+        *shadow_count += 1;
+        *binding_hash = Some(calc_binding_hash(&name, *shadow_count))
     };
     match name_kind {
         Some(NameClass::Definition(def)) => {
