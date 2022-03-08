@@ -84,7 +84,10 @@ impl GlobalState {
             status.message = Some("Workspace reload required".to_string())
         }
 
-        if let Some(error) = self.fetch_workspace_error() {
+        if self.fetch_workspaces_queue.op_in_progress() {
+            status.health = lsp_ext::Health::Ok;
+            status.message = Some("Workspace reloading".to_string())
+        } else if let Some(error) = self.fetch_workspace_error() {
             status.health = lsp_ext::Health::Error;
             status.message = Some(error)
         }
