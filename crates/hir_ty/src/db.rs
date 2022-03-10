@@ -13,6 +13,7 @@ use la_arena::ArenaMap;
 use crate::{
     chalk_db,
     method_resolution::{InherentImpls, TraitImpls},
+    traits::ChalkCache,
     Binders, CallableDefId, FnDefId, ImplTraitId, InferenceResult, Interner, PolyFnSig,
     QuantifiedWhereClause, ReturnTypeImplTraits, TraitRef, Ty, TyDefId, ValueTyDefId,
 };
@@ -159,6 +160,9 @@ pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> {
         krate: CrateId,
         env: chalk_ir::Environment<Interner>,
     ) -> chalk_ir::ProgramClauses<Interner>;
+
+    #[salsa::invoke(crate::traits::chalk_cache)]
+    fn chalk_cache(&self) -> ChalkCache;
 }
 
 fn infer_wait(db: &dyn HirDatabase, def: DefWithBodyId) -> Arc<InferenceResult> {
