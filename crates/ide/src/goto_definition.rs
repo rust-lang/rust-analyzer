@@ -1453,4 +1453,31 @@ foo!(bar$0);
 "#,
         );
     }
+    #[test]
+    fn goto_def_for_overloaded_operators() {
+        check(
+            r#"
+pub mod core {
+    pub mod ops {
+        #[lang = "add"]
+        pub trait Add<Rhs = Self> {
+            type Output;
+            fn add(self, rhs: Rhs) -> Self::Output;
+            //^^^
+        }
+    }
+}
+
+struct Foo;
+impl core::ops::Add<Foo> for Foo {
+    type Output = usize;
+    fn add(self, _rhs: Foo) -> usize {
+        1
+    }
+}
+
+let a = Foo $0+ Foo;
+"#
+        )
+    }
 }
