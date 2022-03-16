@@ -12,6 +12,8 @@ use crate::{
     TextSize,
 };
 
+use tree_edit_distance::{Edit, Node, Tree};
+
 /// Returns ancestors of the node at the offset, sorted by length. This should
 /// do the right thing at an edge, e.g. when searching for expressions at `{
 /// $0foo }` we will get the name reference instead of the whole block, which
@@ -157,96 +159,194 @@ pub fn diff(from: &SyntaxNode, to: &SyntaxNode) -> TreeDiff {
         deletions: Vec::new(),
     };
     let (from, to) = (from.clone().into(), to.clone().into());
-
-    if !syntax_element_eq(&from, &to) {
-        go(&mut diff, from, to);
+    let f = tree_node(&from);
+    let t = tree_node(&to);
+    let (edits, _) = tree_edit_distance::diff(&f, &t);
+    match &edits[..] {
+        [Edit::Insert, Edit::Remove] | [Edit::Remove, Edit::Insert] => {
+            cov_mark::hit!(diff_node_token_replace);
+            diff.replacements.insert(from.clone(), to.clone());
+        }
+        [Edit::Replace(edits)] => {
+            let edits = generate_edit(&edits);
+            generate_diff(&mut diff, &edits, from.clone().into_node(), to.clone().into_node());
+        }
+        _ => {}
     }
     return diff;
 
-    fn syntax_element_eq(lhs: &SyntaxElement, rhs: &SyntaxElement) -> bool {
-        lhs.kind() == rhs.kind()
-            && lhs.text_range().len() == rhs.text_range().len()
-            && match (&lhs, &rhs) {
-                (NodeOrToken::Node(lhs), NodeOrToken::Node(rhs)) => {
-                    lhs == rhs || lhs.text() == rhs.text()
-                }
-                (NodeOrToken::Token(lhs), NodeOrToken::Token(rhs)) => lhs.text() == rhs.text(),
-                _ => false,
-            }
+    #[derive(Debug)]
+    struct TreeNode(SyntaxElement, Vec<TreeNode>);
+
+    enum TreeNodeKind {
+        Node(SyntaxNode),
+        Token(SyntaxToken),
     }
 
-    // FIXME: this is horribly inefficient. I bet there's a cool algorithm to diff trees properly.
-    fn go(diff: &mut TreeDiff, lhs: SyntaxElement, rhs: SyntaxElement) {
-        let (lhs, rhs) = match lhs.as_node().zip(rhs.as_node()) {
-            Some((lhs, rhs)) => (lhs, rhs),
-            _ => {
-                cov_mark::hit!(diff_node_token_replace);
-                diff.replacements.insert(lhs, rhs);
-                return;
+    use std::mem::discriminant;
+
+    impl PartialEq for TreeNodeKind {
+        fn eq(&self, other: &Self) -> bool {
+            match (self, other) {
+                (Self::Node(l0), Self::Node(r0)) => {
+                    discriminant(&l0.kind()) == discriminant(&r0.kind())
+                }
+                (Self::Token(l0), Self::Token(r0)) => l0.to_string() == r0.to_string(),
+                _ => false,
             }
-        };
+        }
+    }
+    impl<'n> Node<'n> for TreeNode {
+        type Kind = TreeNodeKind;
+        fn kind(&'n self) -> Self::Kind {
+            match &self.0 {
+                NodeOrToken::Node(n) => TreeNodeKind::Node(n.clone()),
+                NodeOrToken::Token(o) => TreeNodeKind::Token(o.clone()),
+            }
+        }
 
-        let mut look_ahead_scratch = Vec::default();
+        type Weight = u32;
+        fn weight(&'n self) -> Self::Weight {
+            1
+        }
+    }
 
-        let mut rhs_children = rhs.children_with_tokens();
-        let mut lhs_children = lhs.children_with_tokens();
-        let mut last_lhs = None;
-        loop {
-            let lhs_child = lhs_children.next();
-            match (lhs_child.clone(), rhs_children.next()) {
-                (None, None) => break,
-                (None, Some(element)) => {
-                    let insert_pos = match last_lhs.clone() {
-                        Some(prev) => {
-                            cov_mark::hit!(diff_insert);
-                            TreeDiffInsertPos::After(prev)
-                        }
-                        // first iteration, insert into out parent as the first child
-                        None => {
-                            cov_mark::hit!(diff_insert_as_first_child);
-                            TreeDiffInsertPos::AsFirstChild(lhs.clone().into())
-                        }
-                    };
-                    diff.insertions.entry(insert_pos).or_insert_with(Vec::new).push(element);
-                }
-                (Some(element), None) => {
-                    cov_mark::hit!(diff_delete);
-                    diff.deletions.push(element);
-                }
-                (Some(ref lhs_ele), Some(ref rhs_ele)) if syntax_element_eq(lhs_ele, rhs_ele) => {}
-                (Some(lhs_ele), Some(rhs_ele)) => {
-                    // nodes differ, look for lhs_ele in rhs, if its found we can mark everything up
-                    // until that element as insertions. This is important to keep the diff minimal
-                    // in regards to insertions that have been actually done, this is important for
-                    // use insertions as we do not want to replace the entire module node.
-                    look_ahead_scratch.push(rhs_ele.clone());
-                    let mut rhs_children_clone = rhs_children.clone();
-                    let mut insert = false;
-                    for rhs_child in &mut rhs_children_clone {
-                        if syntax_element_eq(&lhs_ele, &rhs_child) {
-                            cov_mark::hit!(diff_insertions);
-                            insert = true;
-                            break;
-                        }
-                        look_ahead_scratch.push(rhs_child);
-                    }
-                    let drain = look_ahead_scratch.drain(..);
-                    if insert {
-                        let insert_pos = if let Some(prev) = last_lhs.clone().filter(|_| insert) {
-                            TreeDiffInsertPos::After(prev)
-                        } else {
-                            cov_mark::hit!(insert_first_child);
-                            TreeDiffInsertPos::AsFirstChild(lhs.clone().into())
-                        };
+    impl<'t> Tree<'t> for TreeNode {
+        type Children = Box<dyn Iterator<Item = &'t Self> + 't>;
+        fn children(&'t self) -> Self::Children {
+            Box::new(self.1.iter())
+        }
+    }
 
-                        diff.insertions.entry(insert_pos).or_insert_with(Vec::new).extend(drain);
-                        rhs_children = rhs_children_clone;
+    fn tree_node(elt: &SyntaxElement) -> TreeNode {
+        let mut vec = Vec::new();
+
+        if let Some(elt) = elt.as_node() {
+            for i in elt.children_with_tokens() {
+                vec.push(tree_node(&i));
+            }
+        }
+
+        TreeNode(elt.clone(), vec)
+    }
+}
+
+#[derive(Debug, Clone)]
+enum LDiff {
+    Same,
+    InsertFirst(usize),
+    Insert(usize),
+    Remove,
+    Replace(Vec<LDiff>),
+    RemoveInsert,
+}
+
+fn generate_edit(edits: &[Edit]) -> Vec<LDiff> {
+    let ret = edits
+        .iter()
+        .map(|n| match n {
+            Edit::Insert => LDiff::Insert(1),
+            Edit::Remove => LDiff::Remove,
+            Edit::Replace(ledits) => {
+                let ledits = generate_edit(ledits);
+                if ledits.is_empty() {
+                    LDiff::Same
+                } else {
+                    if ledits.iter().all(|e| match e {
+                        LDiff::Same => true,
+                        _ => false,
+                    }) {
+                        LDiff::Same
                     } else {
-                        go(diff, lhs_ele, rhs_ele);
+                        LDiff::Replace(ledits)
                     }
                 }
             }
-            last_lhs = lhs_child.or(last_lhs);
+        })
+        .coalesce(|a, b| match (&a, &b) {
+            (LDiff::Remove, LDiff::Insert(_)) => Ok(LDiff::RemoveInsert),
+            _ => Err((a, b)),
+        })
+        .group_by(|e| match e {
+            LDiff::Insert(_) => true,
+            _ => false,
+        })
+        .into_iter()
+        .flat_map(|(is_insert, group)| {
+            if is_insert {
+                vec![LDiff::Insert(group.count())]
+            } else {
+                group.into_iter().collect_vec()
+            }
+        })
+        .enumerate()
+        // insert first
+        .map(|(i, d)| match (i, d) {
+            (0, LDiff::Insert(i)) => LDiff::InsertFirst(i),
+            (_, a) => a,
+        })
+        .collect_vec();
+    return ret;
+}
+
+fn generate_diff(
+    diff: &mut TreeDiff,
+    edits: &Vec<LDiff>,
+    left: Option<SyntaxNode>,
+    right: Option<SyntaxNode>,
+) {
+    let mut it_l = left.iter().flat_map(|f| f.children_with_tokens().into_iter());
+    let mut current_left = None;
+    //  .unwrap_or(Box::new(vec![].into_iter()));
+    let mut it_r = right.iter().flat_map(|f| f.children_with_tokens().into_iter());
+    for edit in edits.iter() {
+        match edit {
+            LDiff::RemoveInsert => {
+                cov_mark::hit!(diff_node_token_replace);
+                diff.replacements.insert(it_l.next().unwrap(), it_r.next().unwrap());
+            }
+            LDiff::Insert(i) => {
+                if *i == 1 {
+                    cov_mark::hit!(diff_insert);
+                } else {
+                    cov_mark::hit!(diff_insertions);
+                }
+                let pos = TreeDiffInsertPos::After(current_left.clone().unwrap());
+                let vec = diff.insertions.entry(pos).or_insert_with(Vec::new);
+                for _ in 0..*i {
+                    vec.push(it_r.next().unwrap());
+                }
+            }
+            LDiff::InsertFirst(i) => {
+                if *i == 1 {
+                    cov_mark::hit!(diff_insert_as_first_child);
+                } else {
+                    cov_mark::hit!(insert_first_child);
+                }
+                let pos = TreeDiffInsertPos::AsFirstChild(NodeOrToken::Node(left.clone().unwrap()));
+                let vec = diff.insertions.entry(pos).or_insert_with(Vec::new);
+                for _ in 0..*i {
+                    vec.push(it_r.next().unwrap());
+                }
+            }
+            LDiff::Remove => {
+                cov_mark::hit!(diff_delete);
+                current_left = it_l.next();
+                diff.deletions.push(current_left.clone().unwrap());
+            }
+            LDiff::Replace(edits) => {
+                current_left = it_l.next();
+                generate_diff(
+                    diff,
+                    &edits,
+                    current_left.clone().map(|f| f.into_node()).flatten(),
+                    it_r.next().clone().map(|f| f.into_node()).flatten(),
+                );
+            }
+            LDiff::Same => {
+                current_left = it_l.next();
+                it_r.next();
+            }
         }
     }
 }
@@ -273,13 +373,11 @@ mod tests {
 
                 replacements:
 
-                Line 0: Token(USE_KW@0..3 "use") -> ident
+                Line 0: Node(USE@0..9) -> ident
 
                 deletions:
 
-                Line 1: " "
-                Line 1: node
-                Line 1: ;
+
             "#]],
         );
     }
@@ -309,7 +407,7 @@ mod tests {
 
     #[test]
     fn insert_last() {
-        cov_mark::check!(diff_insert);
+        cov_mark::check!(diff_insertions);
         check_diff(
             r#"
 use foo;
@@ -349,9 +447,9 @@ use baz;"#,
             expect![[r#"
                 insertions:
 
-                Line 2: After(Token(WHITESPACE@9..10 "\n"))
-                -> use bar;
+                Line 1: After(Node(USE@1..9))
                 -> "\n"
+                -> use bar;
 
                 replacements:
 
@@ -377,9 +475,9 @@ use baz;"#,
             expect![[r#"
                 insertions:
 
-                Line 0: After(Token(WHITESPACE@0..1 "\n"))
-                -> use foo;
+                Line 0: AsFirstChild(Node(SOURCE_FILE@0..18))
                 -> "\n"
+                -> use foo;
 
                 replacements:
 
@@ -448,7 +546,7 @@ use baz;"#,
 
     #[test]
     fn delete_middle() {
-        cov_mark::check!(diff_insertions);
+        cov_mark::check!(diff_delete);
         check_diff(
             r#"
 use expect_test::{expect, Expect};
@@ -464,9 +562,7 @@ use crate::AstNode;
             expect![[r#"
                 insertions:
 
-                Line 1: After(Node(USE@1..35))
-                -> "\n\n"
-                -> use crate::AstNode;
+
 
                 replacements:
 
@@ -474,10 +570,8 @@ use crate::AstNode;
 
                 deletions:
 
+                Line 2: "\n"
                 Line 2: use text_edit::TextEdit;
-                Line 3: "\n\n"
-                Line 4: use crate::AstNode;
-                Line 5: "\n"
             "#]],
         )
     }
@@ -500,14 +594,12 @@ use crate::AstNode;
 
                 replacements:
 
-                Line 2: Token(IDENT@5..14 "text_edit") -> crate
-                Line 2: Token(IDENT@16..24 "TextEdit") -> AstNode
-                Line 2: Token(WHITESPACE@25..27 "\n\n") -> "\n"
+
 
                 deletions:
 
-                Line 3: use crate::AstNode;
-                Line 4: "\n"
+                Line 1: use text_edit::TextEdit;
+                Line 2: "\n\n"
             "#]],
         )
     }
@@ -530,33 +622,39 @@ use std::ops::{self, RangeInclusive};
             expect![[r#"
                 insertions:
 
-                Line 2: After(Node(PATH_SEGMENT@5..8))
-                -> ::
-                -> fmt
-                Line 6: After(Token(WHITESPACE@86..87 "\n"))
+                Line 0: AsFirstChild(Node(SOURCE_FILE@0..87))
+                -> "\n"
+                -> use std::fmt;
+                -> "\n"
                 -> use std::hash::BuildHasherDefault;
-                -> "\n"
-                -> use std::ops::{self, RangeInclusive};
-                -> "\n"
+                Line 2: AsFirstChild(Node(PATH@5..8))
+                -> std
+                -> ::
 
                 replacements:
 
-                Line 2: Token(IDENT@5..8 "std") -> std
+                Line 2: Token(IDENT@5..8 "std") -> ops
+                Line 3: Token(IDENT@16..19 "fmt") -> self
+                Line 3: Token(WHITESPACE@20..25 "\n    ") -> " "
+                Line 4: Token(IDENT@31..49 "BuildHasherDefault") -> RangeInclusive
 
                 deletions:
 
-                Line 2: ::
-                Line 2: {
-                    fmt,
-                    hash::BuildHasherDefault,
-                    ops::{self, RangeInclusive},
-                }
+                Line 2: "\n    "
+                Line 4: hash
+                Line 4: ::
+                Line 4: ,
+                Line 4: "\n    "
+                Line 5: ops::{self, RangeInclusive}
+                Line 5: ,
+                Line 5: "\n"
             "#]],
         )
     }
 
     #[test]
     fn early_return_assist() {
+        cov_mark::check!(diff_insert);
         check_diff(
             r#"
 fn main() {
@@ -577,31 +675,24 @@ fn main() {
             expect![[r#"
                 insertions:
 
-                Line 3: After(Node(BLOCK_EXPR@40..63))
-                -> " "
-                -> match Err(92) {
+                Line 2: After(Token(L_CURLY@11..12 "{"))
+                -> "\n    "
+                -> let x = match Err(92) {
                         Ok(it) => it,
                         _ => return,
-                    }
-                -> ;
-                Line 3: After(Node(IF_EXPR@17..63))
-                -> "\n    "
+                    };
+                Line 2: After(Token(WHITESPACE@12..17 "\n    "))
                 -> foo(x);
 
                 replacements:
 
-                Line 3: Token(IF_KW@17..19 "if") -> let
-                Line 3: Token(LET_KW@20..23 "let") -> x
-                Line 3: Node(BLOCK_EXPR@40..63) -> =
+
 
                 deletions:
 
-                Line 3: " "
-                Line 3: Ok(x)
-                Line 3: " "
-                Line 3: =
-                Line 3: " "
-                Line 3: Err(92)
+                Line 3: if let Ok(x) = Err(92) {
+                        foo(x);
+                    }
             "#]],
         )
     }
