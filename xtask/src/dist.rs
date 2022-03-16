@@ -17,7 +17,7 @@ impl flags::Dist {
         let project_root = project_root();
         let target = Target::get(&project_root);
         let dist = project_root.join("dist");
-        sh.remove_path(&dist)?;
+        let _ = sh.remove_path(&dist);
         sh.create_dir(&dist)?;
 
         let release_channel = if stable { "stable" } else { "nightly" };
