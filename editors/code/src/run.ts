@@ -7,7 +7,21 @@ import { Ctx } from './ctx';
 import { makeDebugConfig } from './debug';
 import { Config, RunnableEnvCfg } from './config';
 
-const quickPickButtons = [{ iconPath: new vscode.ThemeIcon("save"), tooltip: "Save as a launch.json configurtation." }];
+const enableRelease = "Enable --release.";
+const disableRelease = "Disable --release.";
+
+function quickPickButtons(ctx: Ctx, activeRunnable?: string) {
+    const toggleRelease = ctx.runnableRelease ?
+        { iconPath: new vscode.ThemeIcon("star-full"), tooltip: disableRelease } :
+        { iconPath: new vscode.ThemeIcon("star"), tooltip: enableRelease };
+    const saveConfig = { iconPath: new vscode.ThemeIcon("save"), tooltip: "Save as a launch.json configurtation." };
+
+    const res = [toggleRelease];
+    if (!(activeRunnable ?? "").startsWith('cargo')) {
+        res.push(saveConfig);
+    }
+    return [toggleRelease, saveConfig];
+}
 
 export async function selectRunnable(ctx: Ctx, prevRunnable?: RunnableQuickPick, debuggeeOnly = false, showButtons: boolean = true): Promise<RunnableQuickPick | undefined> {
     const editor = ctx.activeRustEditor;
@@ -60,23 +74,29 @@ export async function selectRunnable(ctx: Ctx, prevRunnable?: RunnableQuickPick,
         quickPick.items = items;
         quickPick.title = "Select Runnable";
         if (showButtons) {
-            quickPick.buttons = quickPickButtons;
+            quickPick.buttons = quickPickButtons(ctx, quickPick.value);
         }
         disposables.push(
             quickPick.onDidHide(() => close()),
             quickPick.onDidAccept(() => close(quickPick.selectedItems[0])),
-            quickPick.onDidTriggerButton(async (_button) => {
-                await makeDebugConfig(ctx, quickPick.activeItems[0].runnable);
-                close();
+            quickPick.onDidTriggerButton(async (button) => {
+                switch (button.tooltip) {
+                    case enableRelease:
+                    case disableRelease:
+                        ctx.runnableRelease = !ctx.runnableRelease;
+                        if (showButtons) {
+                            quickPick.buttons = quickPickButtons(ctx, quickPick.value);
+                        }
+                        break;
+                    default:
+                        await makeDebugConfig(ctx, quickPick.activeItems[0].runnable);
+                        close();
+                        break;
+                }
             }),
-            quickPick.onDidChangeActive((active) => {
-                if (showButtons && active.length > 0) {
-                    if (active[0].label.startsWith('cargo')) {
-                        // save button makes no sense for `cargo test` or `cargo check`
-                        quickPick.buttons = [];
-                    } else if (quickPick.buttons.length === 0) {
-                        quickPick.buttons = quickPickButtons;
-                    }
+            quickPick.onDidChangeActive((_active) => {
+                if (showButtons) {
+                    quickPick.buttons = quickPickButtons(ctx, quickPick.value);
                 }
             }),
             quickPick
@@ -120,7 +140,7 @@ export function prepareEnv(runnable: ra.Runnable, runnableEnvCfg: RunnableEnvCfg
     return env;
 }
 
-export async function createTask(runnable: ra.Runnable, config: Config): Promise<vscode.Task> {
+export async function createTask(runnable: ra.Runnable, config: Config, release: boolean): Promise<vscode.Task> {
     if (runnable.kind !== "cargo") {
         // rust-analyzer supports only one kind, "cargo"
         // do not use tasks.TASK_TYPE here, these are completely different meanings.
@@ -128,7 +148,7 @@ export async function createTask(runnable: ra.Runnable, config: Config): Promise
         throw `Unexpected runnable kind: ${runnable.kind}`;
     }
 
-    const args = createArgs(runnable);
+    const args = createArgs(runnable, release);
 
     const definition: tasks.CargoTaskDefinition = {
         type: tasks.TASK_TYPE,
@@ -151,8 +171,11 @@ export async function createTask(runnable: ra.Runnable, config: Config): Promise
     return cargoTask;
 }
 
-export function createArgs(runnable: ra.Runnable): string[] {
+export function createArgs(runnable: ra.Runnable, release: boolean): string[] {
     const args = [...runnable.args.cargoArgs]; // should be a copy!
+    if (release) {
+        args.push("--release");
+    }
     if (runnable.args.cargoExtraArgs) {
         args.push(...runnable.args.cargoExtraArgs); // Append user-specified cargo options.
     }

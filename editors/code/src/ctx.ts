@@ -23,6 +23,7 @@ export class Ctx {
         readonly client: lc.LanguageClient,
         readonly serverPath: string,
         readonly statusBar: vscode.StatusBarItem,
+        public runnableRelease: boolean = false,
     ) {
 
     }

@@ -705,7 +705,7 @@ export function run(ctx: Ctx): Cmd {
 
         item.detail = 'rerun';
         prevRunnable = item;
-        const task = await createTask(item.runnable, ctx.config);
+        const task = await createTask(item.runnable, ctx.config, ctx.runnableRelease);
         return await vscode.tasks.executeTask(task);
     };
 }
@@ -745,7 +745,7 @@ export function runSingle(ctx: Ctx): Cmd {
         const editor = ctx.activeRustEditor;
         if (!editor) return;
 
-        const task = await createTask(runnable, ctx.config);
+        const task = await createTask(runnable, ctx.config, ctx.runnableRelease);
         task.group = vscode.TaskGroup.Build;
         task.presentationOptions = {
             reveal: vscode.TaskRevealKind.Always,
