@@ -1,6 +1,6 @@
 //! Collection of assorted algorithms for syntax trees.
 
-use std::hash::BuildHasherDefault;
+use std::{hash::BuildHasherDefault, mem::Discriminant};
 
 use indexmap::IndexMap;
 use itertools::Itertools;
@@ -176,33 +176,29 @@ pub fn diff(from: &SyntaxNode, to: &SyntaxNode) -> TreeDiff {
     return diff;
 
     #[derive(Debug)]
-    struct TreeNode(SyntaxElement, Vec<TreeNode>);
+    struct TreeNode(TreeNodeKind, Vec<TreeNode>);
 
+    #[derive(Debug)]
     enum TreeNodeKind {
-        Node(SyntaxNode),
-        Token(SyntaxToken),
+        Node(Discriminant<SyntaxKind>),
+        Token(String),
     }
 
     use std::mem::discriminant;
 
-    impl PartialEq for TreeNodeKind {
+    impl<'n> PartialEq for TreeNodeKind {
         fn eq(&self, other: &Self) -> bool {
             match (self, other) {
-                (Self::Node(l0), Self::Node(r0)) => {
-                    discriminant(&l0.kind()) == discriminant(&r0.kind())
-                }
-                (Self::Token(l0), Self::Token(r0)) => l0.to_string() == r0.to_string(),
+                (Self::Node(l0), Self::Node(r0)) => l0 == r0,
+                (Self::Token(l0), Self::Token(r0)) => l0 == r0,
                 _ => false,
             }
         }
     }
     impl<'n> Node<'n> for TreeNode {
-        type Kind = TreeNodeKind;
+        type Kind = &'n TreeNodeKind;
         fn kind(&'n self) -> Self::Kind {
-            match &self.0 {
-                NodeOrToken::Node(n) => TreeNodeKind::Node(n.clone()),
-                NodeOrToken::Token(o) => TreeNodeKind::Token(o.clone()),
-            }
+            &self.0
         }
 
         type Weight = u32;
@@ -212,22 +208,21 @@ pub fn diff(from: &SyntaxNode, to: &SyntaxNode) -> TreeDiff {
     }
 
     impl<'t> Tree<'t> for TreeNode {
-        type Children = Box<dyn Iterator<Item = &'t Self> + 't>;
+        type Children = std::slice::Iter<'t, TreeNode>;
         fn children(&'t self) -> Self::Children {
-            Box::new(self.1.iter())
+            self.1.iter()
         }
     }
 
     fn tree_node(elt: &SyntaxElement) -> TreeNode {
-        let mut vec = Vec::new();
-
-        if let Some(elt) = elt.as_node() {
-            for i in elt.children_with_tokens() {
-                vec.push(tree_node(&i));
-            }
+        if let Some(node) = elt.as_node() {
+            TreeNode(
+                TreeNodeKind::Node(discriminant(&node.kind())),
+                node.children_with_tokens().map(|c| tree_node(&c)).collect::<Vec<_>>(),
+            )
+        } else {
+            TreeNode(TreeNodeKind::Token(elt.to_string()), vec![])
         }
-
-        TreeNode(elt.clone(), vec)
     }
 }
 
@@ -312,7 +307,7 @@ fn generate_diff(
                     cov_mark::hit!(diff_insertions);
                 }
                 let pos = TreeDiffInsertPos::After(current_left.clone().unwrap());
-                let vec = diff.insertions.entry(pos).or_insert_with(Vec::new);
+                let vec = diff.insertions.entry(pos).or_insert_with(|| Vec::with_capacity(*i));
                 for _ in 0..*i {
                     vec.push(it_r.next().unwrap());
                 }
@@ -324,7 +319,7 @@ fn generate_diff(
                     cov_mark::hit!(insert_first_child);
                 }
                 let pos = TreeDiffInsertPos::AsFirstChild(NodeOrToken::Node(left.clone().unwrap()));
-                let vec = diff.insertions.entry(pos).or_insert_with(Vec::new);
+                let vec = diff.insertions.entry(pos).or_insert_with(|| Vec::with_capacity(*i));
                 for _ in 0..*i {
                     vec.push(it_r.next().unwrap());
                 }
