@@ -162,17 +162,13 @@ pub fn diff(from: &SyntaxNode, to: &SyntaxNode) -> TreeDiff {
     let f = tree_node(&from);
     let t = tree_node(&to);
     let (edits, _) = tree_edit_distance::diff(&f, &t);
-    match &edits[..] {
-        [Edit::Insert, Edit::Remove] | [Edit::Remove, Edit::Insert] => {
-            cov_mark::hit!(diff_node_token_replace);
-            diff.replacements.insert(from.clone(), to.clone());
-        }
-        [Edit::Replace(edits)] => {
-            let edits = generate_edit(&edits);
-            generate_diff(&mut diff, &edits, from.clone().into_node(), to.clone().into_node());
-        }
-        _ => {}
-    }
+    generate_diff(
+        &mut diff,
+        generate_edits(&edits),
+        None,
+        Some(from.clone()).into_iter(),
+        Some(to.clone()).into_iter(),
+    );
     return diff;
 
     #[derive(Debug)]
@@ -224,128 +220,130 @@ pub fn diff(from: &SyntaxNode, to: &SyntaxNode) -> TreeDiff {
             TreeNode(TreeNodeKind::Token(elt.to_string()), vec![])
         }
     }
-}
 
-#[derive(Debug, Clone)]
-enum LDiff {
-    Same,
-    InsertFirst(usize),
-    Insert(usize),
-    Remove,
-    Replace(Vec<LDiff>),
-    RemoveInsert,
-}
+    #[derive(Debug, Clone)]
+    enum TreeEdit {
+        Same,
+        InsertFirst(usize),
+        Insert(usize),
+        Remove,
+        Replace(Vec<TreeEdit>),
+        RemoveInsert,
+    }
 
-fn generate_edit(edits: &[Edit]) -> Vec<LDiff> {
-    let ret = edits
-        .iter()
-        .map(|n| match n {
-            Edit::Insert => LDiff::Insert(1),
-            Edit::Remove => LDiff::Remove,
-            Edit::Replace(ledits) => {
-                let ledits = generate_edit(ledits);
-                if ledits.is_empty() {
-                    LDiff::Same
-                } else {
-                    if ledits.iter().all(|e| match e {
-                        LDiff::Same => true,
-                        _ => false,
-                    }) {
-                        LDiff::Same
+    fn generate_edits(edits: &[Edit]) -> Vec<TreeEdit> {
+        let ret = edits
+            .iter()
+            .map(|n| match n {
+                Edit::Insert => TreeEdit::Insert(1),
+                Edit::Remove => TreeEdit::Remove,
+                Edit::Replace(ledits) => {
+                    let ledits = generate_edits(ledits);
+                    if ledits.is_empty() {
+                        TreeEdit::Same
                     } else {
-                        LDiff::Replace(ledits)
+                        if ledits.iter().all(|e| match e {
+                            TreeEdit::Same => true,
+                            _ => false,
+                        }) {
+                            TreeEdit::Same
+                        } else {
+                            TreeEdit::Replace(ledits)
+                        }
                     }
                 }
-            }
-        })
-        .coalesce(|a, b| match (&a, &b) {
-            (LDiff::Remove, LDiff::Insert(_)) => Ok(LDiff::RemoveInsert),
-            _ => Err((a, b)),
-        })
-        .group_by(|e| match e {
-            LDiff::Insert(_) => true,
-            _ => false,
-        })
-        .into_iter()
-        .flat_map(|(is_insert, group)| {
-            if is_insert {
-                vec![LDiff::Insert(group.count())]
-            } else {
-                group.into_iter().collect_vec()
-            }
-        })
-        .enumerate()
-        // insert first
-        .map(|(i, d)| match (i, d) {
-            (0, LDiff::Insert(i)) => LDiff::InsertFirst(i),
-            (_, a) => a,
-        })
-        .collect_vec();
-    return ret;
-}
+            })
+            .coalesce(|a, b| match (&a, &b) {
+                (TreeEdit::Remove, TreeEdit::Insert(_)) => Ok(TreeEdit::RemoveInsert),
+                (TreeEdit::Insert(_), TreeEdit::Remove) => Ok(TreeEdit::RemoveInsert),
+                _ => Err((a, b)),
+            })
+            .group_by(|e| match e {
+                TreeEdit::Insert(_) => true,
+                _ => false,
+            })
+            .into_iter()
+            .flat_map(|(is_insert, group)| {
+                if is_insert {
+                    vec![TreeEdit::Insert(group.count())]
+                } else {
+                    group.into_iter().collect_vec()
+                }
+            })
+            .enumerate()
+            // insert first
+            .map(|(i, d)| match (i, d) {
+                (0, TreeEdit::Insert(i)) => TreeEdit::InsertFirst(i),
+                (_, a) => a,
+            })
+            .collect_vec();
+        return ret;
+    }
 
-fn generate_diff(
-    diff: &mut TreeDiff,
-    edits: &Vec<LDiff>,
-    left: Option<SyntaxNode>,
-    right: Option<SyntaxNode>,
-) {
-    let mut it_l = left.iter().flat_map(|f| f.children_with_tokens().into_iter());
-    let mut current_left = None;
-    //  .unwrap_or(Box::new(vec![].into_iter()));
-    let mut it_r = right.iter().flat_map(|f| f.children_with_tokens().into_iter());
-    for edit in edits.iter() {
-        match edit {
-            LDiff::RemoveInsert => {
-                cov_mark::hit!(diff_node_token_replace);
-                diff.replacements.insert(it_l.next().unwrap(), it_r.next().unwrap());
-            }
-            LDiff::Insert(i) => {
-                if *i == 1 {
+    fn generate_diff(
+        diff: &mut TreeDiff,
+        edits: Vec<TreeEdit>,
+        left_parent: Option<SyntaxNode>,
+        mut left_childs: impl Iterator<Item = SyntaxElement>,
+        mut right_childs: impl Iterator<Item = SyntaxElement>,
+    ) {
+        let mut current_left: Option<SyntaxElement> = None;
+
+        for edit in edits.into_iter() {
+            match edit {
+                TreeEdit::RemoveInsert => {
+                    cov_mark::hit!(diff_replace);
+                    current_left = left_childs.next();
+                    diff.replacements
+                        .insert(current_left.clone().unwrap(), right_childs.next().unwrap());
+                }
+                TreeEdit::Insert(i) => {
                     cov_mark::hit!(diff_insert);
-                } else {
-                    cov_mark::hit!(diff_insertions);
+                    let pos = TreeDiffInsertPos::After(current_left.clone().unwrap());
+                    diff.insertions.insert(
+                        pos,
+                        (0..i).into_iter().map(|_| right_childs.next()).flatten().collect_vec(),
+                    );
                 }
-                let pos = TreeDiffInsertPos::After(current_left.clone().unwrap());
-                let vec = diff.insertions.entry(pos).or_insert_with(|| Vec::with_capacity(*i));
-                for _ in 0..*i {
-                    vec.push(it_r.next().unwrap());
+                TreeEdit::InsertFirst(i) => {
+                    cov_mark::hit!(diff_insert_first);
+                    let pos = TreeDiffInsertPos::AsFirstChild(NodeOrToken::Node(
+                        left_parent.clone().unwrap(),
+                    ));
+                    diff.insertions.insert(
+                        pos,
+                        (0..i).into_iter().map(|_| right_childs.next()).flatten().collect_vec(),
+                    );
                 }
-            }
-            LDiff::InsertFirst(i) => {
-                if *i == 1 {
-                    cov_mark::hit!(diff_insert_as_first_child);
-                } else {
-                    cov_mark::hit!(insert_first_child);
+                TreeEdit::Remove => {
+                    cov_mark::hit!(diff_delete);
+                    current_left = left_childs.next();
+                    diff.deletions.push(current_left.clone().unwrap());
                 }
-                let pos = TreeDiffInsertPos::AsFirstChild(NodeOrToken::Node(left.clone().unwrap()));
-                let vec = diff.insertions.entry(pos).or_insert_with(|| Vec::with_capacity(*i));
-                for _ in 0..*i {
-                    vec.push(it_r.next().unwrap());
+                TreeEdit::Replace(edits) => {
+                    current_left = left_childs.next();
+                    let left_parent = current_left.clone().map(|f| f.into_node()).flatten();
+                    generate_diff(
+                        diff,
+                        edits,
+                        left_parent.clone(),
+                        left_parent.clone().map(|f| f.children_with_tokens()).unwrap(),
+                        right_childs
+                            .next()
+                            .map(|f| f.into_node())
+                            .flatten()
+                            .map(|f| f.children_with_tokens())
+                            .unwrap(),
+                    );
                 }
-            }
-            LDiff::Remove => {
-                cov_mark::hit!(diff_delete);
-                current_left = it_l.next();
-                diff.deletions.push(current_left.clone().unwrap());
-            }
-            LDiff::Replace(edits) => {
-                current_left = it_l.next();
-                generate_diff(
-                    diff,
-                    &edits,
-                    current_left.clone().map(|f| f.into_node()).flatten(),
-                    it_r.next().clone().map(|f| f.into_node()).flatten(),
-                );
-            }
-            LDiff::Same => {
-                current_left = it_l.next();
-                it_r.next();
+                TreeEdit::Same => {
+                    current_left = left_childs.next();
+                    right_childs.next();
+                }
             }
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     use expect_test::{expect, Expect};
@@ -357,7 +355,7 @@ mod tests {
 
     #[test]
     fn replace_node_token() {
-        cov_mark::check!(diff_node_token_replace);
+        cov_mark::check!(diff_replace);
         check_diff(
             r#"use node;"#,
             r#"ident"#,
@@ -379,7 +377,7 @@ mod tests {
 
     #[test]
     fn replace_parent() {
-        cov_mark::check!(diff_insert_as_first_child);
+        cov_mark::check!(diff_insert_first);
         check_diff(
             r#""#,
             r#"use foo::bar;"#,
@@ -402,7 +400,7 @@ mod tests {
 
     #[test]
     fn insert_last() {
-        cov_mark::check!(diff_insertions);
+        cov_mark::check!(diff_insert);
         check_diff(
             r#"
 use foo;
@@ -487,7 +485,7 @@ use baz;"#,
 
     #[test]
     fn first_child_insertion() {
-        cov_mark::check!(insert_first_child);
+        cov_mark::check!(diff_insert_first);
         check_diff(
             r#"fn main() {
         stdi
@@ -676,18 +674,14 @@ fn main() {
                         Ok(it) => it,
                         _ => return,
                     };
-                Line 2: After(Token(WHITESPACE@12..17 "\n    "))
-                -> foo(x);
 
                 replacements:
 
-
+                Line 3: Node(IF_EXPR@17..63) -> foo(x);
 
                 deletions:
 
-                Line 3: if let Ok(x) = Err(92) {
-                        foo(x);
-                    }
+
             "#]],
         )
     }
