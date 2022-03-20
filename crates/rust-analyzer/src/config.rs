@@ -800,7 +800,7 @@ impl Config {
             Some(args) if !args.is_empty() => {
                 let mut args = args.clone();
                 let mut command = args.remove(0);
-                command = command.replace("$TARGET_TRIPLE", &self.host);
+                command = command.replace("${targetTriple}", &self.host);
                 RustfmtConfig::CustomCommand { command, args }
             }
             Some(_) | None => RustfmtConfig::Rustfmt {
@@ -817,7 +817,7 @@ impl Config {
             Some(args) if !args.is_empty() => {
                 let mut args = args.clone();
                 let mut command = args.remove(0);
-                command = command.replace("$TARGET_TRIPLE", &self.host);
+                command = command.replace("${targetTriple}", &self.host);
 
                 FlycheckConfig::CustomCommand { command, args }
             }
