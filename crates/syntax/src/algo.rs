@@ -1,5 +1,7 @@
 //! Collection of assorted algorithms for syntax trees.
 
+mod tree_diff;
+
 use std::hash::BuildHasherDefault;
 
 use indexmap::IndexMap;
