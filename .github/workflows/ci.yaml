@@ -3,9 +3,9 @@ on:
   pull_request:
   push:
     branches:
-    - master
-    - staging
-    - trying
+      - master
+      - staging
+      - trying
 
 env:
   CARGO_INCREMENTAL: 0
@@ -17,7 +17,6 @@ env:
 
 jobs:
   rust:
-    if: github.repository == 'rust-analyzer/rust-analyzer'
     name: Rust
     runs-on: ${{ matrix.os }}
     env:
@@ -29,40 +28,39 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
-      with:
-        ref: ${{ github.event.pull_request.head.sha }}
-        fetch-depth: 20
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 20
 
-    # We need to disable the existing toolchain to avoid updating rust-docs
-    # which takes a long time. The fastest way to do this is to rename the
-    # existing folder, as deleting it takes about as much time as not doing
-    # anything and just updating rust-docs.
-    - name: Rename existing rust toolchain (Windows)
-      if: matrix.os == 'windows-latest'
-      run: Rename-Item C:\Users\runneradmin\.rustup\toolchains\stable-x86_64-pc-windows-msvc C:\Users\runneradmin\.rustup\toolchains\stable-x86_64-pc-windows-msvc.old
+      # We need to disable the existing toolchain to avoid updating rust-docs
+      # which takes a long time. The fastest way to do this is to rename the
+      # existing folder, as deleting it takes about as much time as not doing
+      # anything and just updating rust-docs.
+      - name: Rename existing rust toolchain (Windows)
+        if: matrix.os == 'windows-latest'
+        run: Rename-Item C:\Users\runneradmin\.rustup\toolchains\stable-x86_64-pc-windows-msvc C:\Users\runneradmin\.rustup\toolchains\stable-x86_64-pc-windows-msvc.old
 
-    - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        profile: minimal
-        override: true
-        components: rustfmt, rust-src
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+          components: rustfmt, rust-src
 
-    - name: Cache Dependencies
-      uses: Swatinem/rust-cache@ce325b60658c1b38465c06cc965b79baf32c1e72
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@ce325b60658c1b38465c06cc965b79baf32c1e72
 
-    - name: Compile
-      run: cargo test --no-run --locked
+      - name: Compile
+        run: cargo test --no-run --locked
 
-    - name: Test
-      run: cargo test -- --nocapture --quiet
+      - name: Test
+        run: cargo test -- --nocapture --quiet
 
   # Weird targets to catch non-portable code
   rust-cross:
-    if: github.repository == 'rust-analyzer/rust-analyzer'
     name: Rust Cross
     runs-on: ubuntu-latest
 
@@ -73,33 +71,32 @@ jobs:
       targets_ide: "wasm32-unknown-unknown"
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-    - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        profile: minimal
-        override: true
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
 
-    - name: Install Rust targets
-      run: rustup target add ${{ env.targets }} ${{ env.targets_ide }}
+      - name: Install Rust targets
+        run: rustup target add ${{ env.targets }} ${{ env.targets_ide }}
 
-    - name: Cache Dependencies
-      uses: Swatinem/rust-cache@ce325b60658c1b38465c06cc965b79baf32c1e72
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@ce325b60658c1b38465c06cc965b79baf32c1e72
 
-    - name: Check
-      run: |
-        for target in ${{ env.targets }}; do
-          cargo check --target=$target --all-targets
-        done
-        for target in ${{ env.targets_ide }}; do
-          cargo check -p ide --target=$target --all-targets
-        done
+      - name: Check
+        run: |
+          for target in ${{ env.targets }}; do
+            cargo check --target=$target --all-targets
+          done
+          for target in ${{ env.targets_ide }}; do
+            cargo check -p ide --target=$target --all-targets
+          done
 
   typescript:
-    if: github.repository == 'rust-analyzer/rust-analyzer'
     name: TypeScript
     strategy:
       fail-fast: false
@@ -109,44 +106,44 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-    - name: Install Nodejs
-      uses: actions/setup-node@v1
-      with:
-        node-version: 14.x
+      - name: Install Nodejs
+        uses: actions/setup-node@v1
+        with:
+          node-version: 14.x
 
-    - name: Install xvfb
-      if: matrix.os == 'ubuntu-latest'
-      run: sudo apt-get install -y xvfb
+      - name: Install xvfb
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get install -y xvfb
 
-    - run: npm ci
-      working-directory: ./editors/code
+      - run: npm ci
+        working-directory: ./editors/code
 
-#    - run: npm audit || { sleep 10 && npm audit; } || { sleep 30 && npm audit; }
-#      if: runner.os == 'Linux'
-#      working-directory: ./editors/code
+      #    - run: npm audit || { sleep 10 && npm audit; } || { sleep 30 && npm audit; }
+      #      if: runner.os == 'Linux'
+      #      working-directory: ./editors/code
 
-    - run: npm run lint
-      working-directory: ./editors/code
+      - run: npm run lint
+        working-directory: ./editors/code
 
-    - name: Run VS Code tests (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      env:
-        VSCODE_CLI: 1
-      run: xvfb-run npm test
-      working-directory: ./editors/code
+      - name: Run VS Code tests (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          VSCODE_CLI: 1
+        run: xvfb-run npm test
+        working-directory: ./editors/code
 
-    - name: Run VS Code tests (Windows)
-      if: matrix.os == 'windows-latest'
-      env:
-        VSCODE_CLI: 1
-      run: npm test
-      working-directory: ./editors/code
+      - name: Run VS Code tests (Windows)
+        if: matrix.os == 'windows-latest'
+        env:
+          VSCODE_CLI: 1
+        run: npm test
+        working-directory: ./editors/code
 
-    - run: npm run pretest
-      working-directory: ./editors/code
+      - run: npm run pretest
+        working-directory: ./editors/code
 
-    - run: npm run package --scripts-prepend-node-path
-      working-directory: ./editors/code
+      - run: npm run package --scripts-prepend-node-path
+        working-directory: ./editors/code
