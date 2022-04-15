@@ -1740,4 +1740,18 @@ fn foo(value: usize) ${0:-> _} {
 ",
         )
     }
+
+    #[test]
+    fn not_applicable_for_enum_variant() {
+        check_assist_not_applicable(
+            generate_function,
+            r"
+enum Foo {}
+
+fn main() {
+    Foo::Bar$0(true)
+}
+",
+        );
+    }
 }
