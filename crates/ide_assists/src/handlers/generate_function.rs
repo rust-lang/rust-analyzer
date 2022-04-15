@@ -73,6 +73,10 @@ fn gen_fn(acc: &mut Assists, ctx: &AssistContext) -> Option<()> {
                 get_fn_target(ctx, &target_module, call.clone())?
             }
             Some(hir::PathResolution::Def(hir::ModuleDef::Adt(adt))) => {
+                if let hir::Adt::Enum(_) = adt {
+                    return None;
+                }
+
                 let current_module = ctx.sema.scope(call.syntax())?.module();
                 let module = adt.module(ctx.sema.db);
                 target_module = if current_module == module { None } else { Some(module) };
