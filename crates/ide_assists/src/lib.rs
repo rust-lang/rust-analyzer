@@ -105,6 +105,7 @@ mod handlers {
     pub(crate) type Handler = fn(&mut Assists, &AssistContext) -> Option<()>;
 
     mod add_explicit_type;
+    mod add_interpolation;
     mod add_lifetime_to_type;
     mod add_missing_impl_members;
     mod add_turbo_fish;
@@ -192,8 +193,9 @@ mod handlers {
         &[
             // These are alphabetic for the foolish consistency
             add_explicit_type::add_explicit_type,
-            add_missing_match_arms::add_missing_match_arms,
+            add_interpolation::add_interpolation,
             add_lifetime_to_type::add_lifetime_to_type,
+            add_missing_match_arms::add_missing_match_arms,
             add_return_type::add_return_type,
             add_turbo_fish::add_turbo_fish,
             apply_demorgan::apply_demorgan,

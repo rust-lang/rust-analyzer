@@ -103,6 +103,23 @@ impl Trait<u32> for () {
 }
 
 #[test]
+fn doctest_add_interpolation() {
+    check_doc_test(
+        "add_interpolation",
+        r#####"
+fn m() {
+    let x = "Hello, $0";
+}
+"#####,
+        r#####"
+fn m() {
+    let x = &format!("Hello, {}", $0);
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_add_lifetime_to_type() {
     check_doc_test(
         "add_lifetime_to_type",
