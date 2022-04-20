@@ -231,6 +231,30 @@ pub(crate) fn frobnicate() {}
 }
 
 #[test]
+fn doctest_convert_all_call() {
+    check_doc_test(
+        "convert_all_call",
+        r#####"
+//- minicore: iterators
+use core::iter;
+fn main() {
+    let it = core::iter::repeat(92);
+    let mut val: usize = 0;
+    it.for_each$0(|x| val &= x > 0);
+}
+"#####,
+        r#####"
+use core::iter;
+fn main() {
+    let it = core::iter::repeat(92);
+    let mut val: usize = 0;
+    val &= it.all(|&x| x > 0);
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_convert_bool_then_to_if() {
     check_doc_test(
         "convert_bool_then_to_if",
@@ -387,6 +411,30 @@ fn main() {
     for (x, y) in iter {
         println!("x: {}, y: {}", x, y);
     }
+}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_convert_sum_call() {
+    check_doc_test(
+        "convert_sum_call",
+        r#####"
+//- minicore: iterators
+use core::iter;
+fn main() {
+    let it = core::iter::repeat(92);
+    let mut val: usize = 0;
+    it.for_each$0(|x| val += x);
+}
+"#####,
+        r#####"
+use core::iter;
+fn main() {
+    let it = core::iter::repeat(92);
+    let mut val: usize = 0;
+    val += it.sum::<usize>();
 }
 "#####,
     )

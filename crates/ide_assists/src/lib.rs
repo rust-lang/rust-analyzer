@@ -236,6 +236,8 @@ mod handlers {
             introduce_named_lifetime::introduce_named_lifetime,
             invert_if::invert_if,
             lambdify_for_each::convert_if_to_filter,
+            lambdify_for_each::convert_sum_call,
+            lambdify_for_each::convert_all_call,
             merge_imports::merge_imports,
             merge_match_arms::merge_match_arms,
             move_bounds::move_bounds_to_where_clause,

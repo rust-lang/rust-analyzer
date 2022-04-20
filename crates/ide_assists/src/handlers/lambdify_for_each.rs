@@ -1,7 +1,8 @@
 use stdx::format_to;
+use hir::HirDisplay;
 use syntax::{
     SyntaxKind,
-    ast::{self, edit_in_place::Indent, HasArgList, Pat, Expr},
+    ast::{self, edit_in_place::Indent, HasArgList, Pat, Expr, BinaryOp, ArithOp},
     AstNode,
 };
 use ide_db::helpers::node_ext::walk_pat;
@@ -115,6 +116,181 @@ pub(crate) fn convert_if_to_filter(acc: &mut Assists, ctx: &AssistContext) -> Op
     )
 }
 
+// Assist: convert_sum_call
+//
+// Converts a sum into a sum().
+// ```
+// # //- minicore: iterators
+// # use core::iter;
+// fn main() {
+//     let it = core::iter::repeat(92);
+//     let mut val: usize = 0;
+//     it.for_each$0(|x| val += x);
+// }
+// ```
+// ->
+// ```
+// # use core::iter;
+// fn main() {
+//     let it = core::iter::repeat(92);
+//     let mut val: usize = 0;
+//     val += it.sum::<usize>();
+// }
+// ```
+pub(crate) fn convert_sum_call(acc: &mut Assists, ctx: &AssistContext) -> Option<()> {
+    let method = ctx.find_node_at_offset::<ast::MethodCallExpr>()?;
+
+    let closure = match method.arg_list()?.args().next()? {
+        ast::Expr::ClosureExpr(expr) => expr,
+        _ => return None,
+    };
+
+    let (method, receiver) = validate_method_call_expr(ctx, method)?;
+
+    let param_list = closure.param_list()?;
+    let param = param_list.params().next()?.pat()?;
+    let body = closure.body()?;
+
+    let range = method.syntax().text_range();
+    let module = ctx.sema.scope(param.syntax()).module()?;
+
+    let binexpr = match body.clone() {
+        Expr::BinExpr(expr) => expr,
+        Expr::BlockExpr(block) => {
+            let mut stmts = block.statements();
+            let fst_stmt = stmts.next()?;
+            continue_iff(stmts.next().is_none())?; // Only one statement
+            // First statement is an expression...
+            let expr_stmt = match fst_stmt {
+                ast::Stmt::ExprStmt(expr_stmt) => expr_stmt,
+                _ => return None,
+            };
+
+            // ...and even a binary expr...
+            let expr = expr_stmt.expr()?;
+            let my_bin_expr = match expr {
+                ast::Expr::BinExpr(my_bin_expr) => my_bin_expr,
+                _ => return None,
+            };
+            my_bin_expr
+        },
+        _ => return None,
+    };
+    let op = match binexpr.op_kind()? {
+        BinaryOp::Assignment { op } => op?,
+        _ => return None,
+    };
+    match op {
+        ArithOp::Add => (),
+        _ => return None,
+    }
+    continue_iff(format!("{}", binexpr.rhs()?) == format!("{}", param))?;
+    let sum = binexpr.lhs()?;
+
+    let ty = ctx.sema.type_of_pat(&param)?.adjusted();
+
+    // Fully unresolved or unnameable types can't be annotated
+    if (ty.contains_unknown() && ty.type_arguments().count() == 0) || ty.is_closure() {
+        return None;
+    }
+
+    let inferred_type = ty.display_source_code(ctx.db(), module.into()).ok()?;
+
+    acc.add(
+        AssistId("convert_sum_call", AssistKind::RefactorRewrite),
+        "Replace this sum in disguise with a `sum()` call",
+        range,
+        |builder| {
+            let mut buf = String::new();
+            format_to!(buf, "{} += {}.sum::<{}>()", sum, receiver, inferred_type);
+            builder.replace(range, buf)
+        },
+    )
+}
+
+// Assist: convert_all_call
+//
+// Replace with an all() call when possible.
+// ```
+// # //- minicore: iterators
+// # use core::iter;
+// fn main() {
+//     let it = core::iter::repeat(92);
+//     let mut val: usize = 0;
+//     it.for_each$0(|x| val &= x > 0);
+// }
+// ```
+// ->
+// ```
+// # use core::iter;
+// fn main() {
+//     let it = core::iter::repeat(92);
+//     let mut val: usize = 0;
+//     val &= it.all(|&x| x > 0);
+// }
+// ```
+pub(crate) fn convert_all_call(acc: &mut Assists, ctx: &AssistContext) -> Option<()> {
+    let method = ctx.find_node_at_offset::<ast::MethodCallExpr>()?;
+
+    let closure = match method.arg_list()?.args().next()? {
+        ast::Expr::ClosureExpr(expr) => expr,
+        _ => return None,
+    };
+
+    let (method, receiver) = validate_method_call_expr(ctx, method)?;
+
+    let param_list = closure.param_list()?;
+    let param = param_list.params().next()?.pat()?;
+    let body = closure.body()?;
+
+    let range = method.syntax().text_range();
+
+    let binexpr = match body.clone() {
+        Expr::BinExpr(expr) => expr,
+        Expr::BlockExpr(block) => {
+            let mut stmts = block.statements();
+            let fst_stmt = stmts.next()?;
+            continue_iff(stmts.next().is_none())?; // Only one statement
+            // First statement is an expression...
+            let expr_stmt = match fst_stmt {
+                ast::Stmt::ExprStmt(expr_stmt) => expr_stmt,
+                _ => return None,
+            };
+
+            // ...and even a binary expr...
+            let expr = expr_stmt.expr()?;
+            let my_bin_expr = match expr {
+                ast::Expr::BinExpr(my_bin_expr) => my_bin_expr,
+                _ => return None,
+            };
+            my_bin_expr
+        },
+        _ => return None,
+    };
+    let op = match binexpr.op_kind()? {
+        BinaryOp::Assignment { op } => op?,
+        _ => return None,
+    };
+    match op {
+        ArithOp::BitAnd => (),
+        _ => return None,
+    }
+    let rhs = binexpr.rhs()?;
+    let sum = binexpr.lhs()?;
+
+    acc.add(
+        AssistId("convert_all_call", AssistKind::RefactorRewrite),
+        "Replace this with a `all()` call",
+        range,
+        |builder| {
+            let mut buf = String::new();
+            format_to!(buf, "{} &= {}.all(|&{param}| {})", sum, receiver, rhs);
+            builder.replace(range, buf)
+        },
+    )
+}
+
+
 fn validate_method_call_expr(
     ctx: &AssistContext,
     expr: ast::MethodCallExpr,
@@ -152,7 +328,7 @@ mod tests {
             r#"
 fn main() {
     let it = core::iter::repeat((92,42));
-    it.for_each$0(|(mut i,mut j)| {
+    it.for_each$0(|(mut i,j)| {
         if (i*j)%3 == 2 {
             i *= 2;
         };
@@ -161,9 +337,51 @@ fn main() {
             r#"
 fn main() {
     let it = core::iter::repeat((92,42));
-    it.filter(|&(i,j)| (i*j)%3 == 2).for_each(|(mut i,mut j)| {
+    it.filter(|&(i,j)| (i*j)%3 == 2).for_each(|(mut i,j)| {
         i *= 2;
     });
+}"#,
+        )
+    }
+
+    #[test]
+    fn add_sum_call() {
+        check_assist(
+            convert_sum_call,
+            r#"
+fn main() {
+    let it = core::iter::repeat(92);
+    let mut a: usize = 0;
+    it.for_each$0(|x| {
+        a += x;
+    });
+}"#,
+            r#"
+fn main() {
+    let it = core::iter::repeat(92);
+    let mut a: usize = 0;
+    a += it.sum::<usize>();
+}"#,
+        )
+    }
+
+    #[test]
+    fn add_all_call() {
+        check_assist(
+            convert_all_call,
+            r#"
+fn main() {
+    let it = core::iter::repeat(92);
+    let mut a = true;
+    it.for_each$0(|x| {
+        a &= x > 0;
+    });
+}"#,
+            r#"
+fn main() {
+    let it = core::iter::repeat(92);
+    let mut a = true;
+    a &= it.all(|&x| x > 0);
 }"#,
         )
     }
