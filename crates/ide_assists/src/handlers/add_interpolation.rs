@@ -1,4 +1,4 @@
-use std::iter::zip;
+use std::ops::ControlFlow;
 
 use ide_db::{
     assists::{AssistId, AssistKind},
@@ -7,7 +7,7 @@ use ide_db::{
 use itertools::Itertools;
 use syntax::{
     ast::{self, IsString},
-    AstNode, AstToken, SyntaxKind, SyntaxNode, SyntaxToken, TextRange, T,
+    AstNode, AstToken, SyntaxToken, TextRange, TextSize, T,
 };
 
 use crate::assist_context::{AssistContext, Assists};
@@ -157,7 +157,7 @@ fn first_named_argument(token_tree: ast::TokenTree) -> Option<SyntaxToken> {
     for not in token_tree.token_trees_and_tokens() {
         if let Some(token) = not.into_token() {
             match (token.kind(), name_state) {
-                (SyntaxKind::IDENT, NameState::Identifier) => {
+                (syntax::SyntaxKind::IDENT, NameState::Identifier) => {
                     name_candiate = Some(token);
                     name_state = NameState::Equal;
                 }
@@ -187,58 +187,45 @@ fn get_insert_arg_idx(string_ast: &ast::String, offset: syntax::TextSize) -> Opt
     let string_token = string_ast.syntax();
     let string_start = string_token.text_range().start();
 
-    let mut start = Vec::new();
-    let mut end = Vec::new();
-    let mut has_error = false;
+    let mut format_arg_end = TextSize::from(0);
+    let mut arg_idx = 0usize;
 
-    let mut ignore_current = false;
+    let mut visit_format_spec = |text_range: TextRange, format_spec| {
+        match format_spec {
+            FormatSpecifier::Open => {
+                let format_arg_start = string_start + text_range.start();
+                if format_arg_end <= offset && offset <= format_arg_start {
+                    return ControlFlow::Break(Some(arg_idx));
+                }
+                arg_idx += 1;
+            }
+            FormatSpecifier::Identifier => arg_idx = arg_idx.saturating_sub(1), // skip named arguments and captured identifiers
+            FormatSpecifier::Close => format_arg_end = string_start + text_range.end(),
+            _ => {}
+        }
 
-    lex_format_specifiers(&string_ast, &mut |text_range, format_spec| match format_spec {
-        FormatSpecifier::Open => {
-            if start.len() != end.len() {
-                has_error = true;
-            }
-            start.push(string_start + text_range.end());
-        }
-        FormatSpecifier::Identifier => {
-            ignore_current = true;
-        }
-        FormatSpecifier::Close => {
-            end.push(string_start + text_range.end());
-            if start.len() != end.len() {
-                has_error = true;
-            }
+        ControlFlow::Continue(())
+    };
 
-            if ignore_current {
-                ignore_current = true;
-                start.pop();
-                end.pop();
-            }
+    let mut result = None;
+    lex_format_specifiers(&string_ast, &mut |text_range, format_spec| {
+        if result.is_some() {
+            return;
         }
-        _ => {}
+
+        if let ControlFlow::Break(arg_idx) = visit_format_spec(text_range, format_spec) {
+            result = Some(arg_idx);
+        }
     });
-    if start.len() != end.len() {
-        has_error = true;
-    }
-    if has_error {
-        return None;
-    }
 
-    let mut arg_idx = 0;
-    for (idx, (start, end)) in zip(start, end).enumerate() {
-        if TextRange::new(start, end).contains(offset) {
-            return None;
-        }
-
-        if start < offset {
-            arg_idx = idx + 1;
-            break;
-        }
+    if result.is_none() && format_arg_end <= offset {
+        Some(arg_idx)
+    } else {
+        result.flatten()
     }
-    Some(arg_idx)
 }
 
-fn match_to_string(string_ast: &ast::String) -> Option<SyntaxNode> {
+fn match_to_string(string_ast: &ast::String) -> Option<syntax::SyntaxNode> {
     let parent = string_ast
         .syntax()
         .ancestors()
