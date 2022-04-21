@@ -107,13 +107,13 @@ fn doctest_add_interpolation() {
     check_doc_test(
         "add_interpolation",
         r#####"
-fn m() {
-    let x = "Hello, $0";
+fn get(map: HashMap<i32, i32>, key: i32) -> i32 {
+    map.get(&key).expect("Invalid key: $0")
 }
 "#####,
         r#####"
-fn m() {
-    let x = &format!("Hello, {}", $0);
+fn get(map: HashMap<i32, i32>, key: i32) -> i32 {
+    map.get(&key).expect(&format!("Invalid key: {}", $0))
 }
 "#####,
     )

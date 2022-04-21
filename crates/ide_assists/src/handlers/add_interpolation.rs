@@ -17,14 +17,14 @@ use crate::assist_context::{AssistContext, Assists};
 // Adds interpolations in a string literal.
 //
 // ```
-// fn m() {
-//     let x = "Hello, $0";
+// fn get(map: HashMap<i32, i32>, key: i32) -> i32 {
+//     map.get(&key).expect("Invalid key: $0")
 // }
 // ```
 // ->
 // ```
-// fn m() {
-//     let x = &format!("Hello, {}", $0);
+// fn get(map: HashMap<i32, i32>, key: i32) -> i32 {
+//     map.get(&key).expect(&format!("Invalid key: {}", $0))
 // }
 // ```
 pub(crate) fn add_interpolation(acc: &mut Assists, ctx: &AssistContext) -> Option<()> {
