@@ -13,7 +13,7 @@ IMPORTANT: the master copy of this document lives in the https://github.com/rust
 At its core, rust-analyzer is a *library* for semantic analysis of Rust code as it changes over time.
 This manual focuses on a specific usage of the library -- running it as part of a server that implements the
 https://microsoft.github.io/language-server-protocol/[Language Server Protocol] (LSP).
-The LSP allows various code editors, like VS Code, Emacs or Vim, to implement semantic features like completion or goto definition by talking to an external language server process.
+The LSP allows various code editors, like helix, VS Code, Emacs or Vim, to implement semantic features like completion or goto definition by talking to an external language server process.
 
 [TIP]
 ====
