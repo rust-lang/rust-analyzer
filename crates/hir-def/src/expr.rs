@@ -375,7 +375,7 @@ pub enum Pat {
     Tuple { args: Box<[PatId]>, ellipsis: Option<usize> },
     Or(Box<[PatId]>),
     Record { path: Option<Box<Path>>, args: Box<[RecordFieldPat]>, ellipsis: bool },
-    Range { start: ExprId, end: ExprId },
+    Range { start: Option<PatId>, end: Option<PatId> },
     Slice { prefix: Box<[PatId]>, slice: Option<PatId>, suffix: Box<[PatId]> },
     Path(Box<Path>),
     Lit(ExprId),

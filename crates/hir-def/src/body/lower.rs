@@ -905,8 +905,11 @@ impl ExprCollector<'_> {
                 }
                 None => Pat::Missing,
             },
-            // FIXME: implement
-            ast::Pat::RangePat(_) => Pat::Missing,
+            ast::Pat::RangePat(pat) => {
+                let start = pat.start().map(|pat| self.collect_pat(pat));
+                let end = pat.end().map(|pat| self.collect_pat(pat));
+                Pat::Range { start, end }
+            }
         };
         let ptr = AstPtr::new(&pat);
         self.alloc_pat(pattern, Either::Left(ptr))

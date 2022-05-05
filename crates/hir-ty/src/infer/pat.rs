@@ -258,8 +258,11 @@ impl<'a> InferenceContext<'a> {
             }
             Pat::Wild => expected.clone(),
             Pat::Range { start, end } => {
-                let start_ty = self.infer_expr(*start, &Expectation::has_type(expected.clone()));
-                self.infer_expr(*end, &Expectation::has_type(start_ty))
+                let start_ty = start.map(|pat| self.infer_pat(pat, &expected, default_bm));
+                let end_ty = end.as_ref().map(|&pat| {
+                    self.infer_pat(pat, start_ty.as_ref().unwrap_or(&expected), default_bm)
+                });
+                end_ty.unwrap_or_else(|| expected.clone())
             }
             Pat::Lit(expr) => self.infer_expr(*expr, &Expectation::has_type(expected.clone())),
             Pat::Box { inner } => match self.resolve_boxed_box() {
