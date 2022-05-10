@@ -71,7 +71,9 @@ Compilation target override (target triple).
 [[rust-analyzer.cargo.unsetTest]]rust-analyzer.cargo.unsetTest (default: `["core"]`)::
 +
 --
-Unsets `#[cfg(test)]` for the specified crates.
+List of crates for which `--cfg=test` should not be used.
+
+Set this to `"all"` to never use `--cfg=test`. By default, `--cfg=test` is always used.
 --
 [[rust-analyzer.checkOnSave.allTargets]]rust-analyzer.checkOnSave.allTargets (default: `true`)::
 +

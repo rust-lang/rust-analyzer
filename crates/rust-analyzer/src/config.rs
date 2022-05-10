@@ -86,15 +86,17 @@ config_data! {
         /// List of features to activate.
         ///
         /// Set this to `"all"` to pass `--all-features` to cargo.
-        cargo_features: CargoFeatures      = "[]",
+        cargo_features: CargoFeatures    = "[]",
         /// Whether to pass `--no-default-features` to cargo.
         cargo_noDefaultFeatures: bool    = "false",
         /// Internal config for debugging, disables loading of sysroot crates.
         cargo_noSysroot: bool            = "false",
         /// Compilation target override (target triple).
         cargo_target: Option<String>     = "null",
-        /// Unsets `#[cfg(test)]` for the specified crates.
-        cargo_unsetTest: Vec<String>   = "[\"core\"]",
+        /// List of crates for which `--cfg=test` should not be used.
+        ///
+        /// Set this to `"all"` to never use `--cfg=test`. By default, `--cfg=test` is always used.
+        cargo_unsetTest: CargoUnsetTest  = "[\"core\"]",
 
         /// Check all targets and tests (`--all-targets`).
         checkOnSave_allTargets: bool                     = "true",
@@ -919,7 +921,10 @@ impl Config {
             target: self.data.cargo_target.clone(),
             no_sysroot: self.data.cargo_noSysroot,
             rustc_source,
-            unset_test_crates: UnsetTestCrates::Only(self.data.cargo_unsetTest.clone()),
+            unset_test_crates: match &self.data.cargo_unsetTest {
+                CargoUnsetTest::All => UnsetTestCrates::All,
+                CargoUnsetTest::Listed(crates) => UnsetTestCrates::Only(crates.clone()),
+            },
             wrap_rustc_in_build_scripts: self.data.cargo_buildScripts_useRustcWrapper,
             run_build_script_command: self.data.cargo_buildScripts_overrideCommand.clone(),
         }
@@ -1413,6 +1418,14 @@ enum CargoFeatures {
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(untagged)]
+enum CargoUnsetTest {
+    #[serde(deserialize_with = "de_unit_v::all")]
+    All,
+    Listed(Vec<String>),
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(untagged)]
 enum LifetimeElisionDef {
     #[serde(deserialize_with = "true_or_always")]
     Always,
@@ -1754,6 +1767,23 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
                     "items": { "type": "string" }
                 },
                 { "type": "null" }
+            ],
+        },
+        "CargoUnsetTest" => set! {
+            "anyOf": [
+                {
+                    "type": "string",
+                    "enum": [
+                        "all"
+                    ],
+                    "enumDescriptions": [
+                        "All crates are analyzed without `--cfg=test`",
+                    ]
+                },
+                {
+                    "type": "array",
+                    "items": { "type": "string" }
+                }
             ],
         },
         "CallableCompletionDef" => set! {
