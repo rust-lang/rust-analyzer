@@ -32,40 +32,40 @@ pub(super) fn patch_json_for_outdated_configs(json: &mut Value) {
         assist.importGranularity -> imports.granularity.group;
         assist.importMergeBehavior -> imports.granularity.group;
         assist.importMergeBehaviour -> imports.granularity.group;
-        assist.importGroup -> imports.group.enable;
+        assist.importGroup -> imports.group.enabled;
         assist.importPrefix -> imports.prefix;
-        cache.warmup -> primeCaches.enable;
-        cargo.loadOutDirsFromCheck -> cargo.buildScripts.enable;
-        cargo.runBuildScripts -> cargo.buildScripts.enable;
+        cache.warmup -> primeCaches.enabled;
+        cargo.loadOutDirsFromCheck -> cargo.buildScripts.enabled;
+        cargo.runBuildScripts -> cargo.buildScripts.enabled;
         cargo.runBuildScriptsCommand -> cargo.buildScripts.overrideCommand;
         cargo.useRustcWrapperForBuildScripts -> cargo.buildScripts.useRustcWrapper;
-        diagnostics.enableExperimental -> diagnostics.experimental.enable;
-        experimental.procAttrMacros -> procMacro.attributes.enable;
-        highlighting.strings -> semanticHighlighting.strings.enable;
-        highlightRelated.breakPoints -> semanticHighlighting.breakPoints.enable;
-        highlightRelated.exitPoints -> semanticHighlighting.exitPoints.enable;
-        highlightRelated.yieldPoints -> semanticHighlighting.yieldPoints.enable;
-        highlightRelated.references -> semanticHighlighting.references.enable;
-        hover.documentation -> hover.documentation.enable;
-        hover.linksInHover -> hover.links.enable;
-        hoverActions.linksInHover -> hover.links.enable;
-        hoverActions.debug -> hoverActions.debug.enable;
-        hoverActions.enable -> hoverActions.enable.enable;
-        hoverActions.gotoTypeDef -> hoverActions.gotoTypeDef.enable;
-        hoverActions.implementations -> hoverActions.implementations.enable;
-        hoverActions.references -> hoverActions.references.enable;
-        hoverActions.run -> hoverActions.run.enable;
-        inlayHints.chainingHints -> inlayHints.chainingHints.enable;
-        inlayHints.closureReturnTypeHints -> inlayHints.closureReturnTypeHints.enable;
+        diagnostics.enableExperimental -> diagnostics.experimental.enabled;
+        experimental.procAttrMacros -> procMacro.attributes.enabled;
+        highlighting.strings -> semanticHighlighting.strings.enabled;
+        highlightRelated.breakPoints -> semanticHighlighting.breakPoints.enabled;
+        highlightRelated.exitPoints -> semanticHighlighting.exitPoints.enabled;
+        highlightRelated.yieldPoints -> semanticHighlighting.yieldPoints.enabled;
+        highlightRelated.references -> semanticHighlighting.references.enabled;
+        hover.documentation -> hover.documentation.enabled;
+        hover.linksInHover -> hover.links.enabled;
+        hoverActions.linksInHover -> hover.links.enabled;
+        hoverActions.debug -> hoverActions.debug.enabled;
+        hoverActions.enable -> hoverActions.enable.enabled;
+        hoverActions.gotoTypeDef -> hoverActions.gotoTypeDef.enabled;
+        hoverActions.implementations -> hoverActions.implementations.enabled;
+        hoverActions.references -> hoverActions.references.enabled;
+        hoverActions.run -> hoverActions.run.enabled;
+        inlayHints.chainingHints -> inlayHints.chainingHints.enabled;
+        inlayHints.closureReturnTypeHints -> inlayHints.closureReturnTypeHints.enabled;
         inlayHints.hideNamedConstructorHints -> inlayHints.typeHints.hideNamedConstructorHints;
-        inlayHints.parameterHints -> inlayHints.parameterHints.enable;
-        inlayHints.reborrowHints -> inlayHints.reborrowHints.enable;
-        inlayHints.typeHints -> inlayHints.typeHints.enable;
+        inlayHints.parameterHints -> inlayHints.parameterHints.enabled;
+        inlayHints.reborrowHints -> inlayHints.reborrowHints.enabled;
+        inlayHints.typeHints -> inlayHints.typeHints.enabled;
         lruCapacity -> lru.capacity;
         runnables.cargoExtraArgs -> runnables.extraArgs ;
         runnables.overrideCargo -> runnables.command ;
         rustcSource -> rustc.source;
-        rustfmt.enableRangeFormatting -> rustfmt.rangeFormatting.enable;
+        rustfmt.enableRangeFormatting -> rustfmt.rangeFormatting.enabled;
     }
 
     // completion.snippets -> completion.snippets.custom;
@@ -88,11 +88,11 @@ pub(super) fn patch_json_for_outdated_configs(json: &mut Value) {
     if let Some(Value::Bool(b)) = copy.pointer("/callInfo/full") {
         let sig_info = match b {
             true => json!({ "signatureInfo": {
-                "documentation": {"enable": true}},
+                "documentation": {"enabled": true}},
                 "detail": "full"
             }),
             false => json!({ "signatureInfo": {
-                "documentation": {"enable": false}},
+                "documentation": {"enabled": false}},
                 "detail": "parameters"
             }),
         };

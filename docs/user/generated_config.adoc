@@ -9,7 +9,7 @@ Placeholder expression to use for missing expressions in assists.
 Automatically refresh project info via `cargo metadata` on
 `Cargo.toml` or `.cargo/config.toml` changes.
 --
-[[rust-analyzer.cargo.buildScripts.enable]]rust-analyzer.cargo.buildScripts.enable (default: `true`)::
+[[rust-analyzer.cargo.buildScripts.enabled]]rust-analyzer.cargo.buildScripts.enabled (default: `true`)::
 +
 --
 Run build scripts (`build.rs`) for more precise code analysis.
@@ -73,7 +73,7 @@ Check all targets and tests (`--all-targets`).
 --
 Cargo command to use for `cargo check`.
 --
-[[rust-analyzer.checkOnSave.enable]]rust-analyzer.checkOnSave.enable (default: `true`)::
+[[rust-analyzer.checkOnSave.enabled]]rust-analyzer.checkOnSave.enabled (default: `true`)::
 +
 --
 Run specified `cargo check` command for diagnostics on save.
@@ -117,13 +117,13 @@ cargo check --workspace --message-format=json --all-targets
 Check for a specific target. Defaults to
 `#rust-analyzer.cargo.target#`.
 --
-[[rust-analyzer.completion.autoimport.enable]]rust-analyzer.completion.autoimport.enable (default: `true`)::
+[[rust-analyzer.completion.autoimport.enabled]]rust-analyzer.completion.autoimport.enabled (default: `true`)::
 +
 --
 Toggles the additional completions that automatically add imports when completed.
 Note that your client must specify the `additionalTextEdits` LSP client capability to truly have this feature enabled.
 --
-[[rust-analyzer.completion.autoself.enable]]rust-analyzer.completion.autoself.enable (default: `true`)::
+[[rust-analyzer.completion.autoself.enabled]]rust-analyzer.completion.autoself.enabled (default: `true`)::
 +
 --
 Toggles the additional completions that automatically show method calls and field accesses
@@ -134,12 +134,12 @@ with `self` prefixed to them when inside a method.
 --
 Whether to add parenthesis and argument snippets when completing function.
 --
-[[rust-analyzer.completion.postfix.enable]]rust-analyzer.completion.postfix.enable (default: `true`)::
+[[rust-analyzer.completion.postfix.enabled]]rust-analyzer.completion.postfix.enabled (default: `true`)::
 +
 --
 Whether to show postfix snippets like `dbg`, `if`, `not`, etc.
 --
-[[rust-analyzer.completion.privateEditable.enable]]rust-analyzer.completion.privateEditable.enable (default: `false`)::
+[[rust-analyzer.completion.privateEditable.enabled]]rust-analyzer.completion.privateEditable.enabled (default: `false`)::
 +
 --
 Enables completions of private items and fields that are defined in the current workspace even if they are not visible at the current position.
@@ -199,12 +199,12 @@ Custom completion snippets.
 --
 List of rust-analyzer diagnostics to disable.
 --
-[[rust-analyzer.diagnostics.enable]]rust-analyzer.diagnostics.enable (default: `true`)::
+[[rust-analyzer.diagnostics.enabled]]rust-analyzer.diagnostics.enabled (default: `true`)::
 +
 --
 Whether to show native rust-analyzer diagnostics.
 --
-[[rust-analyzer.diagnostics.experimental.enable]]rust-analyzer.diagnostics.experimental.enable (default: `false`)::
+[[rust-analyzer.diagnostics.experimental.enabled]]rust-analyzer.diagnostics.experimental.enabled (default: `false`)::
 +
 --
 Whether to show experimental rust-analyzer diagnostics that might
@@ -244,67 +244,67 @@ also need to add the folders to Code's `files.watcherExclude`.
 --
 Controls file watching implementation.
 --
-[[rust-analyzer.highlightRelated.breakPoints.enable]]rust-analyzer.highlightRelated.breakPoints.enable (default: `true`)::
+[[rust-analyzer.highlightRelated.breakPoints.enabled]]rust-analyzer.highlightRelated.breakPoints.enabled (default: `true`)::
 +
 --
 Enables highlighting of related references while the cursor is on `break`, `loop`, `while`, or `for` keywords.
 --
-[[rust-analyzer.highlightRelated.exitPoints.enable]]rust-analyzer.highlightRelated.exitPoints.enable (default: `true`)::
+[[rust-analyzer.highlightRelated.exitPoints.enabled]]rust-analyzer.highlightRelated.exitPoints.enabled (default: `true`)::
 +
 --
 Enables highlighting of all exit points while the cursor is on any `return`, `?`, `fn`, or return type arrow (`->`).
 --
-[[rust-analyzer.highlightRelated.references.enable]]rust-analyzer.highlightRelated.references.enable (default: `true`)::
+[[rust-analyzer.highlightRelated.references.enabled]]rust-analyzer.highlightRelated.references.enabled (default: `true`)::
 +
 --
 Enables highlighting of related references while the cursor is on any identifier.
 --
-[[rust-analyzer.highlightRelated.yieldPoints.enable]]rust-analyzer.highlightRelated.yieldPoints.enable (default: `true`)::
+[[rust-analyzer.highlightRelated.yieldPoints.enabled]]rust-analyzer.highlightRelated.yieldPoints.enabled (default: `true`)::
 +
 --
 Enables highlighting of all break points for a loop or block context while the cursor is on any `async` or `await` keywords.
 --
-[[rust-analyzer.hover.actions.debug.enable]]rust-analyzer.hover.actions.debug.enable (default: `true`)::
+[[rust-analyzer.hover.actions.debug.enabled]]rust-analyzer.hover.actions.debug.enabled (default: `true`)::
 +
 --
 Whether to show `Debug` action. Only applies when
 `#rust-analyzer.hoverActions.enable#` is set.
 --
-[[rust-analyzer.hover.actions.enable]]rust-analyzer.hover.actions.enable (default: `true`)::
+[[rust-analyzer.hover.actions.enabled]]rust-analyzer.hover.actions.enabled (default: `true`)::
 +
 --
 Whether to show HoverActions in Rust files.
 --
-[[rust-analyzer.hover.actions.gotoTypeDef.enable]]rust-analyzer.hover.actions.gotoTypeDef.enable (default: `true`)::
+[[rust-analyzer.hover.actions.gotoTypeDef.enabled]]rust-analyzer.hover.actions.gotoTypeDef.enabled (default: `true`)::
 +
 --
 Whether to show `Go to Type Definition` action. Only applies when
 `#rust-analyzer.hoverActions.enable#` is set.
 --
-[[rust-analyzer.hover.actions.implementations.enable]]rust-analyzer.hover.actions.implementations.enable (default: `true`)::
+[[rust-analyzer.hover.actions.implementations.enabled]]rust-analyzer.hover.actions.implementations.enabled (default: `true`)::
 +
 --
 Whether to show `Implementations` action. Only applies when
 `#rust-analyzer.hoverActions.enable#` is set.
 --
-[[rust-analyzer.hover.actions.references.enable]]rust-analyzer.hover.actions.references.enable (default: `false`)::
+[[rust-analyzer.hover.actions.references.enabled]]rust-analyzer.hover.actions.references.enabled (default: `false`)::
 +
 --
 Whether to show `References` action. Only applies when
 `#rust-analyzer.hoverActions.enable#` is set.
 --
-[[rust-analyzer.hover.actions.run.enable]]rust-analyzer.hover.actions.run.enable (default: `true`)::
+[[rust-analyzer.hover.actions.run.enabled]]rust-analyzer.hover.actions.run.enabled (default: `true`)::
 +
 --
 Whether to show `Run` action. Only applies when
 `#rust-analyzer.hoverActions.enable#` is set.
 --
-[[rust-analyzer.hover.documentation.enable]]rust-analyzer.hover.documentation.enable (default: `true`)::
+[[rust-analyzer.hover.documentation.enabled]]rust-analyzer.hover.documentation.enabled (default: `true`)::
 +
 --
 Whether to show documentation on hover.
 --
-[[rust-analyzer.hover.links.enable]]rust-analyzer.hover.links.enable (default: `true`)::
+[[rust-analyzer.hover.links.enabled]]rust-analyzer.hover.links.enabled (default: `true`)::
 +
 --
 Use markdown syntax for links in hover.
@@ -319,7 +319,7 @@ Whether to enforce the import granularity setting for all files. If set to false
 --
 How imports should be grouped into use statements.
 --
-[[rust-analyzer.imports.group.enable]]rust-analyzer.imports.group.enable (default: `true`)::
+[[rust-analyzer.imports.group.enabled]]rust-analyzer.imports.group.enabled (default: `true`)::
 +
 --
 Group inserted imports by the https://rust-analyzer.github.io/manual.html#auto-import[following order]. Groups are separated by newlines.
@@ -334,17 +334,17 @@ Whether to allow import insertion to merge new imports into single path glob imp
 --
 The path structure for newly inserted paths to use.
 --
-[[rust-analyzer.inlayHints.chainingHints.enable]]rust-analyzer.inlayHints.chainingHints.enable (default: `true`)::
+[[rust-analyzer.inlayHints.chainingHints.enabled]]rust-analyzer.inlayHints.chainingHints.enabled (default: `true`)::
 +
 --
 Whether to show inlay type hints for method chains.
 --
-[[rust-analyzer.inlayHints.closureReturnTypeHints.enable]]rust-analyzer.inlayHints.closureReturnTypeHints.enable (default: `false`)::
+[[rust-analyzer.inlayHints.closureReturnTypeHints.enabled]]rust-analyzer.inlayHints.closureReturnTypeHints.enabled (default: `false`)::
 +
 --
 Whether to show inlay type hints for return types of closures with blocks.
 --
-[[rust-analyzer.inlayHints.lifetimeElisionHints.enable]]rust-analyzer.inlayHints.lifetimeElisionHints.enable (default: `"never"`)::
+[[rust-analyzer.inlayHints.lifetimeElisionHints.enabled]]rust-analyzer.inlayHints.lifetimeElisionHints.enabled (default: `"never"`)::
 +
 --
 Whether to show inlay type hints for elided lifetimes in function signatures.
@@ -359,13 +359,13 @@ Whether to prefer using parameter names as the name for elided lifetime hints if
 --
 Maximum length for inlay hints. Set to null to have an unlimited length.
 --
-[[rust-analyzer.inlayHints.parameterHints.enable]]rust-analyzer.inlayHints.parameterHints.enable (default: `true`)::
+[[rust-analyzer.inlayHints.parameterHints.enabled]]rust-analyzer.inlayHints.parameterHints.enabled (default: `true`)::
 +
 --
 Whether to show function parameter name inlay hints at the call
 site.
 --
-[[rust-analyzer.inlayHints.reborrowHints.enable]]rust-analyzer.inlayHints.reborrowHints.enable (default: `false`)::
+[[rust-analyzer.inlayHints.reborrowHints.enabled]]rust-analyzer.inlayHints.reborrowHints.enabled (default: `false`)::
 +
 --
 Whether to show inlay type hints for compiler inserted reborrows.
@@ -375,7 +375,7 @@ Whether to show inlay type hints for compiler inserted reborrows.
 --
 Whether to render leading colons for type hints, and trailing colons for parameter hints.
 --
-[[rust-analyzer.inlayHints.typeHints.enable]]rust-analyzer.inlayHints.typeHints.enable (default: `true`)::
+[[rust-analyzer.inlayHints.typeHints.enabled]]rust-analyzer.inlayHints.typeHints.enabled (default: `true`)::
 +
 --
 Whether to show inlay type hints for variables.
@@ -405,13 +405,13 @@ Join lines removes trailing commas.
 --
 Join lines unwraps trivial blocks.
 --
-[[rust-analyzer.lens.debug.enable]]rust-analyzer.lens.debug.enable (default: `true`)::
+[[rust-analyzer.lens.debug.enabled]]rust-analyzer.lens.debug.enabled (default: `true`)::
 +
 --
 Whether to show `Debug` lens. Only applies when
 `#rust-analyzer.lens.enable#` is set.
 --
-[[rust-analyzer.lens.enable]]rust-analyzer.lens.enable (default: `true`)::
+[[rust-analyzer.lens.enabled]]rust-analyzer.lens.enabled (default: `true`)::
 +
 --
 Whether to show CodeLens in Rust files.
@@ -422,37 +422,37 @@ Whether to show CodeLens in Rust files.
 Internal config: use custom client-side commands even when the
 client doesn't set the corresponding capability.
 --
-[[rust-analyzer.lens.implementations.enable]]rust-analyzer.lens.implementations.enable (default: `true`)::
+[[rust-analyzer.lens.implementations.enabled]]rust-analyzer.lens.implementations.enabled (default: `true`)::
 +
 --
 Whether to show `Implementations` lens. Only applies when
 `#rust-analyzer.lens.enable#` is set.
 --
-[[rust-analyzer.lens.references.adt.enable]]rust-analyzer.lens.references.adt.enable (default: `false`)::
+[[rust-analyzer.lens.references.adt.enabled]]rust-analyzer.lens.references.adt.enabled (default: `false`)::
 +
 --
 Whether to show `References` lens for Struct, Enum, and Union.
 Only applies when `#rust-analyzer.lens.enable#` is set.
 --
-[[rust-analyzer.lens.references.enumVariant.enable]]rust-analyzer.lens.references.enumVariant.enable (default: `false`)::
+[[rust-analyzer.lens.references.enumVariant.enabled]]rust-analyzer.lens.references.enumVariant.enabled (default: `false`)::
 +
 --
 Whether to show `References` lens for Enum Variants.
 Only applies when `#rust-analyzer.lens.enable#` is set.
 --
-[[rust-analyzer.lens.references.method.enable]]rust-analyzer.lens.references.method.enable (default: `false`)::
+[[rust-analyzer.lens.references.method.enabled]]rust-analyzer.lens.references.method.enabled (default: `false`)::
 +
 --
 Whether to show `Method References` lens. Only applies when
 `#rust-analyzer.lens.enable#` is set.
 --
-[[rust-analyzer.lens.references.trait.enable]]rust-analyzer.lens.references.trait.enable (default: `false`)::
+[[rust-analyzer.lens.references.trait.enabled]]rust-analyzer.lens.references.trait.enabled (default: `false`)::
 +
 --
 Whether to show `References` lens for Trait.
 Only applies when `#rust-analyzer.lens.enable#` is set.
 --
-[[rust-analyzer.lens.run.enable]]rust-analyzer.lens.run.enable (default: `true`)::
+[[rust-analyzer.lens.run.enabled]]rust-analyzer.lens.run.enabled (default: `true`)::
 +
 --
 Whether to show `Run` lens. Only applies when
@@ -477,7 +477,7 @@ Number of syntax trees rust-analyzer keeps in memory. Defaults to 128.
 --
 Whether to show `can't find Cargo.toml` error message.
 --
-[[rust-analyzer.primeCaches.enable]]rust-analyzer.primeCaches.enable (default: `true`)::
+[[rust-analyzer.primeCaches.enabled]]rust-analyzer.primeCaches.enabled (default: `true`)::
 +
 --
 Warm up caches on project load.
@@ -487,12 +487,12 @@ Warm up caches on project load.
 --
 How many worker threads to to handle priming caches. The default `0` means to pick automatically.
 --
-[[rust-analyzer.procMacro.attributes.enable]]rust-analyzer.procMacro.attributes.enable (default: `true`)::
+[[rust-analyzer.procMacro.attributes.enabled]]rust-analyzer.procMacro.attributes.enabled (default: `true`)::
 +
 --
 Expand attribute macros. Requires `#rust-analyzer.procMacro.enable#` to be set.
 --
-[[rust-analyzer.procMacro.enable]]rust-analyzer.procMacro.enable (default: `true`)::
+[[rust-analyzer.procMacro.enabled]]rust-analyzer.procMacro.enabled (default: `true`)::
 +
 --
 Enable support for procedural macros, implies `#rust-analyzer.cargo.buildScripts.enable#`.
@@ -544,14 +544,14 @@ Additional arguments to `rustfmt`.
 Advanced option, fully override the command rust-analyzer uses for
 formatting.
 --
-[[rust-analyzer.rustfmt.rangeFormatting.enable]]rust-analyzer.rustfmt.rangeFormatting.enable (default: `false`)::
+[[rust-analyzer.rustfmt.rangeFormatting.enabled]]rust-analyzer.rustfmt.rangeFormatting.enabled (default: `false`)::
 +
 --
 Enables the use of rustfmt's unstable range formatting command for the
 `textDocument/rangeFormatting` request. The rustfmt option is unstable and only
 available on a nightly build.
 --
-[[rust-analyzer.semanticHighlighting.strings.enable]]rust-analyzer.semanticHighlighting.strings.enable (default: `true`)::
+[[rust-analyzer.semanticHighlighting.strings.enabled]]rust-analyzer.semanticHighlighting.strings.enabled (default: `true`)::
 +
 --
 Use semantic tokens for strings.
@@ -565,7 +565,7 @@ their contents.
 --
 Show full signature of the callable. Only shows parameters if disabled.
 --
-[[rust-analyzer.signatureInfo.documentation.enable]]rust-analyzer.signatureInfo.documentation.enable (default: `true`)::
+[[rust-analyzer.signatureInfo.documentation.enabled]]rust-analyzer.signatureInfo.documentation.enabled (default: `true`)::
 +
 --
 Show documentation.
