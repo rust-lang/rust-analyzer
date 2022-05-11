@@ -34,7 +34,7 @@ pub(super) fn patch_json_for_outdated_configs(json: &mut Value) {
         assist.importMergeBehaviour -> imports.granularity.group;
         assist.importGroup -> imports.group.enabled;
         assist.importPrefix -> imports.prefix;
-        cache.warmup -> primeCaches.enabled;
+        cache.warmup -> cachePriming.enabled;
         cargo.loadOutDirsFromCheck -> cargo.buildScripts.enabled;
         cargo.runBuildScripts -> cargo.buildScripts.enabled;
         cargo.runBuildScriptsCommand -> cargo.buildScripts.overrideCommand;
