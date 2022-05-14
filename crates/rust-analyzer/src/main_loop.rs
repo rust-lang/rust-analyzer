@@ -154,6 +154,16 @@ impl GlobalState {
             self.fetch_workspaces(cause);
         }
 
+        // handle our startup tasks, such as `cargo metadata`, before
+        // responding to LSP requests
+        while !self.is_quiescent() {
+            if let Some(event) = self.next_non_lsp_event() {
+                self.handle_event(event)?
+            } else {
+                break;
+            }
+        }
+
         while let Some(event) = self.next_event(&inbox) {
             if let Event::Lsp(lsp_server::Message::Notification(not)) = &event {
                 if not.method == lsp_types::notification::Exit::METHOD {
@@ -164,6 +174,19 @@ impl GlobalState {
         }
 
         Err("client exited without proper shutdown sequence".into())
+    }
+
+    fn next_non_lsp_event(&self) -> Option<Event> {
+        select! {
+            recv(self.task_pool.receiver) -> task =>
+                Some(Event::Task(task.unwrap())),
+
+            recv(self.loader.receiver) -> task =>
+                Some(Event::Vfs(task.unwrap())),
+
+            recv(self.flycheck_receiver) -> task =>
+                Some(Event::Flycheck(task.unwrap())),
+        }
     }
 
     fn next_event(&self, inbox: &Receiver<lsp_server::Message>) -> Option<Event> {
