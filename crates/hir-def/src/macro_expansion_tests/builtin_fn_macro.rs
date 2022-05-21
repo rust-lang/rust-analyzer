@@ -208,6 +208,38 @@ fn main() {
 }
 
 #[test]
+fn test_format_args_expand_with_captured_variables() {
+    check(
+        r#"
+#[rustc_builtin_macro]
+macro_rules! format_args {
+    ($fmt:expr) => ({ /* compiler built-in */ });
+    ($fmt:expr, $($args:tt)*) => ({ /* compiler built-in */ })
+}
+
+fn main() {
+    let a = "foo";
+    format_args!("{a}");
+}
+"#,
+        expect![[r##"
+#[rustc_builtin_macro]
+macro_rules! format_args {
+    ($fmt:expr) => ({ /* compiler built-in */ });
+    ($fmt:expr, $($args:tt)*) => ({ /* compiler built-in */ })
+}
+
+fn main() {
+    let a = "foo";
+    unsafe {
+        std::fmt::Arguments::new_v1(&[], &[std::fmt::ArgumentV1::new(&(a), std::fmt::Display::fmt), ])
+    };
+}
+"##]],
+    );
+}
+
+#[test]
 fn test_format_args_expand_with_comma_exprs() {
     check(
         r#"

@@ -8,6 +8,7 @@ use syntax::{
     ast::{self, AstToken},
     SmolStr,
 };
+use tt::{Ident, Leaf, Literal, TokenTree};
 
 use crate::{db::AstDatabase, name, quote, ExpandError, ExpandResult, MacroCallId, MacroCallLoc};
 
@@ -256,8 +257,18 @@ fn format_args_expand(
             arg.token_trees.drain(..2);
         }
     }
-    let _format_string = args.remove(0);
-    let arg_tts = args.into_iter().flat_map(|arg| {
+
+    let format_string = args.remove(0);
+
+    let captured_args = if let Some(tt::TokenTree::Leaf(tt::Leaf::Literal(literal))) =
+        format_string.token_trees.get(0)
+    {
+        parse_format_string(&literal)
+    } else {
+        Vec::new()
+    };
+
+    let arg_tts = captured_args.into_iter().chain(args.into_iter()).flat_map(|arg| {
         quote! { std::fmt::ArgumentV1::new(&(#arg), std::fmt::Display::fmt), }
     }.token_trees);
     let expanded = quote! {
@@ -270,6 +281,48 @@ fn format_args_expand(
         }
     };
     ExpandResult::ok(expanded)
+}
+
+fn parse_format_string(literal: &Literal) -> Vec<tt::Subtree> {
+    enum State {
+        Searching,
+        Capturing,
+    }
+
+    // FIXME: This will need a lot better parsing, which partially seems to exist in
+    // crates/ide-db/src/syntax_helpers/format_string.rs
+    //
+    // This will merly extract perfectly formed `format("{foo} {bar}")` identifiers `foo` and `bar`
+    let mut extracted = Vec::new();
+    let mut state = State::Searching;
+    let mut buffer = String::new();
+    for current in literal.text.chars() {
+        match (current, &state) {
+            ('{', State::Searching) => {
+                state = State::Capturing;
+            }
+            ('}', State::Capturing) => {
+                state = State::Searching;
+                if buffer.is_empty() {
+                    continue;
+                }
+                extracted.push(tt::Subtree {
+                    delimiter: None,
+                    token_trees: vec![TokenTree::Leaf(Leaf::Ident(Ident {
+                        text: buffer.into(),
+                        id: literal.id, // FIXME: No idea what the adequate value is here?
+                    }))],
+                });
+                buffer = String::new();
+            }
+            (ch, State::Capturing) if ch.is_ascii_alphanumeric() => {
+                buffer.push(current);
+            }
+            _ => {}
+        }
+    }
+
+    extracted
 }
 
 fn asm_expand(
@@ -673,3 +726,6 @@ fn option_env_expand(
 
     ExpandResult::ok(ExpandedEager::new(expanded))
 }
+
+#[cfg(test)]
+mod tests {}
