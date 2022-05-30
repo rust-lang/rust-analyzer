@@ -631,7 +631,7 @@ impl Config {
             ) {
                 Some(snippet) => self.snippets.push(snippet),
                 None => errors.push((
-                    format!("snippet {name} is invalid"),
+                    format!("snippet {} is invalid", name),
                     <serde_json::Error as serde::de::Error>::custom(
                         "snippet path is invalid or triggers are missing",
                     ),
