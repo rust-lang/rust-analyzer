@@ -147,7 +147,7 @@ pub(crate) fn convert_let_else_to_match(acc: &mut Assists, ctx: &AssistContext) 
             // remove the mut from the pattern
             for (b, ismut) in binders.iter() {
                 if *ismut {
-                    pat_no_mut = pat_no_mut.replace(&format!("mut {b}"), &b.to_string());
+                    pat_no_mut = pat_no_mut.replace(&format!("mut {}", b), &b.to_string());
                 }
             }
 
@@ -158,17 +158,17 @@ pub(crate) fn convert_let_else_to_match(acc: &mut Assists, ctx: &AssistContext) 
             };
             let replace = if binders.is_empty() {
                 format!(
-                    "match {init_expr} {{
-{indent1}{pat_no_mut} => {binders_str}
-{indent1}_ => {branch2}
-{indent}}}"
+                    "match {} {{
+{}{} => {}
+{}_ => {}
+{}}}", init_expr, indent1, pat_no_mut, binders_str, indent1, branch2, indent
                 )
             } else {
                 format!(
-                    "let {binders_str_mut} = match {init_expr} {{
-{indent1}{pat_no_mut} => {binders_str},
-{indent1}_ => {branch2}
-{indent}}};"
+                    "let {} = match {} {{
+{}{} => {},
+{}_ => {}
+{}}};", binders_str_mut, init_expr, indent1, pat_no_mut, binders_str, indent1, branch2, indent
                 )
             };
             edit.replace(target, replace);
