@@ -424,7 +424,7 @@ fn get_doc_base_url(db: &RootDatabase, def: Definition) -> Option<Url> {
             | LangCrateOrigin::Std
             | LangCrateOrigin::Test),
         ) => {
-            format!("https://doc.rust-lang.org/nightly/{origin}")
+            format!("https://doc.rust-lang.org/nightly/{}", origin)
         }
         _ => {
             krate.get_html_root_url(db).or_else(|| {

@@ -157,7 +157,7 @@ pub(crate) fn def_to_moniker(
                         LangCrateOrigin::Other => {
                             "https://github.com/rust-lang/rust/library/".into()
                         }
-                        lang => format!("https://github.com/rust-lang/rust/library/{lang}",),
+                        lang => format!("https://github.com/rust-lang/rust/library/{}", lang),
                     },
                 ),
             };
