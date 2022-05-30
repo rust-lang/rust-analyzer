@@ -412,7 +412,7 @@ fn fn_lifetime_fn_hints(
                 Some(it) if config.param_names_for_lifetime_elision_hints => {
                     if let Some(c) = used_names.get_mut(it.text().as_str()) {
                         *c += 1;
-                        SmolStr::from(format!("'{text}{c}", text = it.text().as_str()))
+                        SmolStr::from(format!("'{text}{c}", text = it.text().as_str(), c=c))
                     } else {
                         used_names.insert(it.text().as_str().into(), 0);
                         SmolStr::from_iter(["\'", it.text().as_str()])
