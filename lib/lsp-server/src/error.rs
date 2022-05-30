@@ -29,7 +29,7 @@ impl fmt::Display for ExtractError<Request> {
                 write!(f, "Method mismatch for request '{}'", req.method)
             }
             ExtractError::JsonError { method, error } => {
-                write!(f, "Invalid request\nMethod: {method}\n error: {error}",)
+                write!(f, "Invalid request\nMethod: {}\n error: {}", method, error)
             }
         }
     }
@@ -43,7 +43,7 @@ impl fmt::Display for ExtractError<Notification> {
                 write!(f, "Method mismatch for notification '{}'", req.method)
             }
             ExtractError::JsonError { method, error } => {
-                write!(f, "Invalid notification\nMethod: {method}\n error: {error}")
+                write!(f, "Invalid notification\nMethod: {}\n error: {}", method, error)
             }
         }
     }
