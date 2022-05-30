@@ -29,7 +29,7 @@ pub(crate) fn get(cargo_toml: Option<&ManifestPath>, target: Option<&str>) -> Ve
             );
             res.extend(rustc_cfgs.lines().filter_map(|it| it.parse().ok()));
         }
-        Err(e) => tracing::error!("failed to get rustc cfgs: {e:?}"),
+        Err(e) => tracing::error!("failed to get rustc cfgs: {:?}", e),
     }
 
     res
@@ -47,7 +47,7 @@ fn get_rust_cfgs(cargo_toml: Option<&ManifestPath>, target: Option<&str>) -> Res
         }
         match utf8_stdout(cargo_config) {
             Ok(it) => return Ok(it),
-            Err(e) => tracing::debug!("{e:?}: falling back to querying rustc for cfgs"),
+            Err(e) => tracing::debug!("{:?}: falling back to querying rustc for cfgs", e),
         }
     }
     // using unstable cargo features failed, fall back to using plain rustc
