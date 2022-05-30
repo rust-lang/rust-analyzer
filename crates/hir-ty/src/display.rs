@@ -1226,7 +1226,7 @@ impl HirDisplay for Path {
                     .as_ref()
                     .map(|name| name.canonical_name())
                     .unwrap_or("$crate");
-                write!(f, "{name}")?
+                write!(f, "{}", name)?
             }
         }
 
