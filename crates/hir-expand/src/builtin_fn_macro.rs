@@ -532,10 +532,10 @@ fn relative_file(
     let path = AnchoredPath { anchor: call_site, path: path_str };
     let res = db
         .resolve_path(path)
-        .ok_or_else(|| ExpandError::Other(format!("failed to load file `{path_str}`").into()))?;
+        .ok_or_else(|| ExpandError::Other(format!("failed to load file `{}`", path_str).into()))?;
     // Prevent include itself
     if res == call_site && !allow_recursion {
-        Err(ExpandError::Other(format!("recursive inclusion of `{path_str}`").into()))
+        Err(ExpandError::Other(format!("recursive inclusion of `{}`", path_str).into()))
     } else {
         Ok(res)
     }

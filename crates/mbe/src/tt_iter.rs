@@ -106,7 +106,7 @@ impl<'a> TtIter<'a> {
         }
 
         let err = if error || !cursor.is_root() {
-            Some(ExpandError::binding_error(format!("expected {entry_point:?}")))
+            Some(ExpandError::binding_error(format!("expected {:?}", entry_point)))
         } else {
             None
         };

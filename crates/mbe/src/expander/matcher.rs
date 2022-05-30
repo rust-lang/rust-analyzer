@@ -658,7 +658,7 @@ fn match_loop(pattern: &MetaTemplate, src: &tt::Subtree) -> Match {
 fn match_leaf(lhs: &tt::Leaf, src: &mut TtIter) -> Result<(), ExpandError> {
     let rhs = src
         .expect_leaf()
-        .map_err(|()| ExpandError::binding_error(format!("expected leaf: `{lhs}`")))?;
+        .map_err(|()| ExpandError::binding_error(format!("expected leaf: `{}`", lhs)))?;
     match (lhs, rhs) {
         (
             tt::Leaf::Punct(tt::Punct { char: lhs, .. }),
