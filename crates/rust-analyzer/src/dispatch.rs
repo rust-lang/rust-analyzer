@@ -1,7 +1,6 @@
 //! See [RequestDispatcher].
 use std::{fmt, panic, thread};
 
-use lsp_server::ExtractError;
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
@@ -235,10 +234,7 @@ impl<'a> NotificationDispatcher<'a> {
         };
         let params = match not.extract::<N::Params>(N::METHOD) {
             Ok(it) => it,
-            Err(ExtractError::JsonError { method, error }) => {
-                panic!("Invalid request\nMethod: {method}\n error: {error}",)
-            }
-            Err(ExtractError::MethodMismatch(not)) => {
+            Err(not) => {
                 self.not = Some(not);
                 return Ok(self);
             }
