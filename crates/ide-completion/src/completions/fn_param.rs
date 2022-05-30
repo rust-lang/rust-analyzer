@@ -46,7 +46,7 @@ pub(crate) fn complete_fn_param(acc: &mut Completions, ctx: &CompletionContext) 
         ParamKind::Closure(closure) => {
             let stmt_list = closure.syntax().ancestors().find_map(ast::StmtList::cast)?;
             params_from_stmt_list_scope(ctx, stmt_list, |name, ty| {
-                add_new_item_to_acc(&format!("{name}: {ty}"));
+                add_new_item_to_acc(&format!("{}: {}", name, ty));
             });
         }
     }
@@ -95,7 +95,7 @@ fn fill_fn_params(
 
     if let Some(stmt_list) = function.syntax().parent().and_then(ast::StmtList::cast) {
         params_from_stmt_list_scope(ctx, stmt_list, |name, ty| {
-            file_params.entry(format!("{name}: {ty}")).or_insert(name.to_string());
+            file_params.entry(format!("{}: {}", name, ty)).or_insert(name.to_string());
         });
     }
     remove_duplicated(&mut file_params, param_list.params());
