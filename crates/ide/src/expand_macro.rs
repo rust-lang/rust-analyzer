@@ -168,7 +168,7 @@ fn _format(
         SyntaxKind::MACRO_TYPE => ("type __ =", ";"),
         _ => ("", ""),
     };
-    let expansion = format!("{prefix}{expansion}{suffix}");
+    let expansion = format!("{}{}{}", prefix, expansion, suffix);
 
     let &crate_id = db.relevant_crates(file_id).iter().next()?;
     let edition = db.crate_graph()[crate_id].edition;
