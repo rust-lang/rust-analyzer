@@ -5,8 +5,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use anyhow::Result;
 use flate2::{write::GzEncoder, Compression};
-use xshell::{cmd, Shell};
+use xshell::{cmd, cp, mkdir_p, pushd, pushenv, read_file, rm_rf, write_file};
 
 use crate::{date_iso, flags, project_root};
 
@@ -15,17 +16,18 @@ const VERSION_NIGHTLY: &str = "0.4";
 const VERSION_DEV: &str = "0.5"; // keep this one in sync with `package.json`
 
 impl flags::Dist {
-    pub(crate) fn run(self, sh: &Shell) -> anyhow::Result<()> {
-        let stable = sh.var("GITHUB_REF").unwrap_or_default().as_str() == "refs/heads/release";
+    pub(crate) fn run(self) -> Result<()> {
+        let stable =
+            std::env::var("GITHUB_REF").unwrap_or_default().as_str() == "refs/heads/release";
 
         let project_root = project_root();
         let target = Target::get(&project_root);
         let dist = project_root.join("dist");
-        sh.remove_path(&dist)?;
-        sh.create_dir(&dist)?;
+        rm_rf(&dist)?;
+        mkdir_p(&dist)?;
 
         let release_channel = if stable { "stable" } else { "nightly" };
-        dist_server(sh, release_channel, &target)?;
+        dist_server(release_channel, &target)?;
 
         if let Some(patch_version) = self.client_patch_version {
             let version = if stable {
@@ -34,29 +36,24 @@ impl flags::Dist {
                 // A hack to make VS Code prefer nightly over stable.
                 format!("{}.{}", VERSION_NIGHTLY, patch_version)
             };
-            let release_tag = if stable { date_iso(sh)? } else { "nightly".to_string() };
-            dist_client(sh, &version, &release_tag, &target)?;
+            let release_tag = if stable { date_iso()? } else { "nightly".to_string() };
+            dist_client(&version, &release_tag, &target)?;
         }
         Ok(())
     }
 }
 
-fn dist_client(
-    sh: &Shell,
-    version: &str,
-    release_tag: &str,
-    target: &Target,
-) -> anyhow::Result<()> {
+fn dist_client(version: &str, release_tag: &str, target: &Target) -> Result<()> {
     let bundle_path = Path::new("editors").join("code").join("server");
-    sh.create_dir(&bundle_path)?;
-    sh.copy_file(&target.server_path, &bundle_path)?;
+    mkdir_p(&bundle_path)?;
+    cp(&target.server_path, &bundle_path)?;
     if let Some(symbols_path) = &target.symbols_path {
-        sh.copy_file(symbols_path, &bundle_path)?;
+        cp(symbols_path, &bundle_path)?;
     }
 
-    let _d = sh.push_dir("./editors/code");
+    let _d = pushd("./editors/code")?;
 
-    let mut patch = Patch::new(sh, "./package.json")?;
+    let mut patch = Patch::new("./package.json")?;
     patch
         .replace(
             &format!(r#""version": "{}.0-dev""#, VERSION_DEV),
@@ -66,26 +63,26 @@ fn dist_client(
         .replace(r#""$generated-start": {},"#, "")
         .replace(",\n                \"$generated-end\": {}", "")
         .replace(r#""enabledApiProposals": [],"#, r#""#);
-    patch.commit(sh)?;
+    patch.commit()?;
 
     Ok(())
 }
 
-fn dist_server(sh: &Shell, release_channel: &str, target: &Target) -> anyhow::Result<()> {
-    let _e = sh.push_env("RUST_ANALYZER_CHANNEL", release_channel);
-    let _e = sh.push_env("CARGO_PROFILE_RELEASE_LTO", "thin");
+fn dist_server(release_channel: &str, target: &Target) -> Result<()> {
+    let _e = pushenv("RUST_ANALYZER_CHANNEL", release_channel);
+    let _e = pushenv("CARGO_PROFILE_RELEASE_LTO", "thin");
 
     // Uncomment to enable debug info for releases. Note that:
     //   * debug info is split on windows and macs, so it does nothing for those platforms,
     //   * on Linux, this blows up the binary size from 8MB to 43MB, which is unreasonable.
-    // let _e = sh.push_env("CARGO_PROFILE_RELEASE_DEBUG", "1");
+    // let _e = pushenv("CARGO_PROFILE_RELEASE_DEBUG", "1");
 
     if target.name.contains("-linux-") {
         env::set_var("CC", "clang");
     }
 
     let target_name = &target.name;
-    cmd!(sh, "cargo build --manifest-path ./crates/rust-analyzer/Cargo.toml --bin rust-analyzer --target {target_name} --release").run()?;
+    cmd!("cargo build --manifest-path ./crates/rust-analyzer/Cargo.toml --bin rust-analyzer --target {target_name} --release").run()?;
 
     let dst = Path::new("dist").join(&target.artifact_name);
     gzip(&target.server_path, &dst.with_extension("gz"))?;
@@ -93,7 +90,7 @@ fn dist_server(sh: &Shell, release_channel: &str, target: &Target) -> anyhow::Re
     Ok(())
 }
 
-fn gzip(src_path: &Path, dest_path: &Path) -> anyhow::Result<()> {
+fn gzip(src_path: &Path, dest_path: &Path) -> Result<()> {
     let mut encoder = GzEncoder::new(File::create(dest_path)?, Compression::best());
     let mut input = io::BufReader::new(File::open(src_path)?);
     io::copy(&mut input, &mut encoder)?;
@@ -143,9 +140,9 @@ struct Patch {
 }
 
 impl Patch {
-    fn new(sh: &Shell, path: impl Into<PathBuf>) -> anyhow::Result<Patch> {
+    fn new(path: impl Into<PathBuf>) -> Result<Patch> {
         let path = path.into();
-        let contents = sh.read_file(&path)?;
+        let contents = read_file(&path)?;
         Ok(Patch { path, original_contents: contents.clone(), contents })
     }
 
@@ -155,8 +152,8 @@ impl Patch {
         self
     }
 
-    fn commit(&self, sh: &Shell) -> anyhow::Result<()> {
-        sh.write_file(&self.path, &self.contents)?;
+    fn commit(&self) -> Result<()> {
+        write_file(&self.path, &self.contents)?;
         Ok(())
     }
 }

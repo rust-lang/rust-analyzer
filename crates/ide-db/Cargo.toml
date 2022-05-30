@@ -35,5 +35,5 @@ limit = { path = "../limit", version = "0.0.0" }
 [dev-dependencies]
 test-utils = { path = "../test-utils" }
 sourcegen = { path = "../sourcegen" }
-xshell = "0.2.1"
+xshell = "0.1"
 expect-test = "1.2.2"
