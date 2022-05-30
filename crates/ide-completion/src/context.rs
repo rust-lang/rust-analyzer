@@ -893,7 +893,9 @@ impl<'a> CompletionContext<'a> {
                 it.syntax().text_range().end() == syntax_element.text_range().end()
             });
 
-        (self.expected_type, self.expected_name) = self.expected_type_and_name();
+        let (expected_type, expected_name) = self.expected_type_and_name();
+        self.expected_type = expected_type;
+        self.expected_name = expected_name;
 
         // Overwrite the path kind for derives
         if let Some((original_file, file_with_fake_ident, offset, origin_attr)) = derive_ctx {
