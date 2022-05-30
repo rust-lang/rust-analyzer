@@ -214,7 +214,7 @@ fn introduction_builder(ast_func: &ast::Fn, ctx: &AssistContext) -> Option<Strin
                 } else {
                     ""
                 };
-                Some(format!("Returns{reference} the {what} of this [`{}`].", linkable_self_ty?))
+                Some(format!("Returns{} the {} of this [`{}`].", reference, what, linkable_self_ty?))
             }
             _ => None,
         };
@@ -228,7 +228,7 @@ fn introduction_builder(ast_func: &ast::Fn, ctx: &AssistContext) -> Option<Strin
             if what == "len" {
                 what = "length".into()
             };
-            Some(format!("Sets the {what} of this [`{}`].", linkable_self_ty?))
+            Some(format!("Sets the {} of this [`{}`].", what, linkable_self_ty?))
         };
 
         if let Some(intro) = intro_for_new() {
