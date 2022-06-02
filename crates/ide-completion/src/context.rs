@@ -130,8 +130,8 @@ impl PathCompletionCtx {
 pub(crate) struct PathQualifierCtx {
     pub(crate) path: ast::Path,
     pub(crate) resolution: Option<PathResolution>,
-    /// Whether this path consists solely of `super` segments
-    pub(crate) is_super_chain: bool,
+    /// How many `super` segments are present in the path
+    pub(crate) super_chain_len: usize,
     /// Whether the qualifier comes from a use tree parent or not
     pub(crate) use_tree_parent: bool,
     /// <_>
@@ -291,6 +291,12 @@ pub(crate) struct CompletionContext<'a> {
     pub(super) existing_derives: FxHashSet<hir::Macro>,
 
     pub(super) locals: FxHashMap<Name, Local>,
+
+    // - crate-root
+    //  - mod foo
+    //   - mod bar
+    // Here depth will be 2: {[bar<->foo], [foo<->crate-root]}
+    pub(super) depth_from_crate_root: usize,
 }
 
 impl<'a> CompletionContext<'a> {
@@ -490,6 +496,20 @@ impl<'a> CompletionContext<'a> {
             }
         });
 
+        let mut mod_ = module;
+        let mut depth = 0;
+        loop {
+            match mod_.parent(db) {
+                Some(mod_parent) => {
+                    mod_ = mod_parent;
+                    depth += 1;
+                }
+                None => {
+                    break;
+                }
+            }
+        }
+
         let mut ctx = CompletionContext {
             sema,
             scope,
@@ -513,6 +533,7 @@ impl<'a> CompletionContext<'a> {
             qualifier_ctx: Default::default(),
             existing_derives: Default::default(),
             locals,
+            depth_from_crate_root: depth,
         };
         ctx.expand_and_fill(
             original_file.syntax().clone(),
@@ -1285,8 +1306,9 @@ impl<'a> CompletionContext<'a> {
                 .map(|it| it.parent_path());
             path_ctx.qualifier = path.map(|path| {
                 let res = sema.resolve_path(&path);
-                let is_super_chain = iter::successors(Some(path.clone()), |p| p.qualifier())
-                    .all(|p| p.segment().and_then(|s| s.super_token()).is_some());
+                let super_chain_len = iter::successors(Some(path.clone()), |p| p.qualifier())
+                    .filter_map(|p| p.segment().and_then(|s| s.super_token()))
+                    .count();
 
                 // `<_>::$0`
                 let is_infer_qualifier = path.qualifier().is_none()
@@ -1301,7 +1323,7 @@ impl<'a> CompletionContext<'a> {
                 PathQualifierCtx {
                     path,
                     resolution: res,
-                    is_super_chain,
+                    super_chain_len,
                     use_tree_parent,
                     is_infer_qualifier,
                 }

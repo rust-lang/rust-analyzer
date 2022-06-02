@@ -114,10 +114,8 @@ fn pattern_path_completion(
     PathCompletionCtx { qualifier, is_absolute_path, .. }: &PathCompletionCtx,
 ) {
     match qualifier {
-        Some(PathQualifierCtx { resolution, is_super_chain, .. }) => {
-            if *is_super_chain {
-                acc.add_keyword(ctx, "super::");
-            }
+        Some(PathQualifierCtx { resolution, super_chain_len, .. }) => {
+            acc.add_super_kw_acc_to_mod_depth(super_chain_len, ctx);
 
             let resolution = match resolution {
                 Some(it) => it,

@@ -103,11 +103,29 @@ impl Completions {
     }
 
     pub(crate) fn add_nameref_keywords_with_colon(&mut self, ctx: &CompletionContext) {
-        ["self::", "super::", "crate::"].into_iter().for_each(|kw| self.add_keyword(ctx, kw));
+        ["self::", "crate::"].into_iter().for_each(|kw| self.add_keyword(ctx, kw));
+
+        if ctx.depth_from_crate_root > 0 {
+            self.add_keyword(ctx, "super::");
+        }
     }
 
     pub(crate) fn add_nameref_keywords(&mut self, ctx: &CompletionContext) {
-        ["self", "super", "crate"].into_iter().for_each(|kw| self.add_keyword(ctx, kw));
+        ["self", "crate"].into_iter().for_each(|kw| self.add_keyword(ctx, kw));
+
+        if ctx.depth_from_crate_root > 0 {
+            self.add_keyword(ctx, "super");
+        }
+    }
+
+    pub(crate) fn add_super_kw_acc_to_mod_depth(
+        &mut self,
+        super_chain_len: &usize,
+        ctx: &CompletionContext,
+    ) {
+        if *super_chain_len > 0 && *super_chain_len < ctx.depth_from_crate_root {
+            self.add_keyword(ctx, "super::");
+        }
     }
 
     pub(crate) fn add_keyword_snippet(&mut self, ctx: &CompletionContext, kw: &str, snippet: &str) {

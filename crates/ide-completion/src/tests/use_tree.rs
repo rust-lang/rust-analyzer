@@ -26,7 +26,6 @@ mod foo {}
             md other_crate
             kw crate::
             kw self::
-            kw super::
         "#]],
     );
 }
@@ -203,7 +202,6 @@ struct Bar;
             md bar
             md foo
             st Bar
-            kw super::
         "#]],
     );
 }
@@ -273,7 +271,37 @@ pub use $0;
             md bar
             kw crate::
             kw self::
+        "#]],
+    );
+}
+
+#[test]
+fn pub_suggest_use_tree_super_acc_to_depth_in_tree() {
+    // https://github.com/rust-lang/rust-analyzer/issues/12439
+    // Check discussion in https://github.com/rust-lang/rust-analyzer/pull/12447
+    check(
+        r#"
+mod foo {
+    mod bar {
+        pub use super::$0;
+    }
+}
+"#,
+        expect![[r#"
+            md bar
             kw super::
+        "#]],
+    );
+    check(
+        r#"
+mod foo {
+    mod bar {
+        pub use super::super::$0;
+    }
+}
+"#,
+        expect![[r#"
+            md foo
         "#]],
     );
 }
@@ -290,7 +318,6 @@ use {$0};
             md bar
             kw crate::
             kw self::
-            kw super::
         "#]],
     );
 }

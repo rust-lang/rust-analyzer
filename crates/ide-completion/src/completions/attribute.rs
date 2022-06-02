@@ -83,10 +83,8 @@ pub(crate) fn complete_attribute(acc: &mut Completions, ctx: &CompletionContext)
     };
 
     match qualifier {
-        Some(PathQualifierCtx { resolution, is_super_chain, .. }) => {
-            if *is_super_chain {
-                acc.add_keyword(ctx, "super::");
-            }
+        Some(PathQualifierCtx { resolution, super_chain_len, .. }) => {
+            acc.add_super_kw_acc_to_mod_depth(super_chain_len, ctx);
 
             let module = match resolution {
                 Some(hir::PathResolution::Def(hir::ModuleDef::Module(it))) => it,

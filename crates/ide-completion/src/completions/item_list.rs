@@ -50,7 +50,7 @@ pub(crate) fn complete_item_list(acc: &mut Completions, ctx: &CompletionContext)
     }
 
     match path_qualifier {
-        Some(PathQualifierCtx { resolution, is_super_chain, .. }) => {
+        Some(PathQualifierCtx { resolution, super_chain_len, .. }) => {
             if let Some(hir::PathResolution::Def(hir::ModuleDef::Module(module))) = resolution {
                 for (name, def) in module.scope(ctx.db, Some(ctx.module)) {
                     if let Some(def) = module_or_fn_macro(ctx.db, def) {
@@ -59,9 +59,7 @@ pub(crate) fn complete_item_list(acc: &mut Completions, ctx: &CompletionContext)
                 }
             }
 
-            if *is_super_chain {
-                acc.add_keyword(ctx, "super::");
-            }
+            acc.add_super_kw_acc_to_mod_depth(super_chain_len, ctx);
         }
         None if is_absolute_path => acc.add_crate_roots(ctx),
         None if ctx.qualifier_ctx.none() => {

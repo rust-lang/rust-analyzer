@@ -19,7 +19,7 @@ pub(crate) fn complete_vis_path(acc: &mut Completions, ctx: &CompletionContext) 
     };
 
     match qualifier {
-        Some(PathQualifierCtx { resolution, is_super_chain, .. }) => {
+        Some(PathQualifierCtx { resolution, super_chain_len, .. }) => {
             // Try completing next child module of the path that is still a parent of the current module
             if let Some(hir::PathResolution::Def(hir::ModuleDef::Module(module))) = resolution {
                 let next_towards_current = ctx
@@ -36,9 +36,7 @@ pub(crate) fn complete_vis_path(acc: &mut Completions, ctx: &CompletionContext) 
                 }
             }
 
-            if *is_super_chain {
-                acc.add_keyword(ctx, "super::");
-            }
+            acc.add_super_kw_acc_to_mod_depth(super_chain_len, ctx);
         }
         None if !is_absolute_path => {
             if !has_in_token {

@@ -22,10 +22,8 @@ pub(crate) fn complete_use_tree(acc: &mut Completions, ctx: &CompletionContext) 
     };
 
     match qualifier {
-        Some(PathQualifierCtx { path, resolution, is_super_chain, use_tree_parent, .. }) => {
-            if *is_super_chain {
-                acc.add_keyword(ctx, "super::");
-            }
+        Some(PathQualifierCtx { path, resolution, super_chain_len, use_tree_parent, .. }) => {
+            acc.add_super_kw_acc_to_mod_depth(super_chain_len, ctx);
             // only show `self` in a new use-tree when the qualifier doesn't end in self
             let not_preceded_by_self = *use_tree_parent
                 && !matches!(

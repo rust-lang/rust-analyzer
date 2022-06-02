@@ -174,7 +174,6 @@ fn main() {
             bt u32
             kw crate::
             kw self::
-            kw super::
         "#]],
     );
     check(

@@ -402,7 +402,6 @@ fn foo() {
             bt u32
             kw crate::
             kw self::
-            kw super::
         "#]],
     );
     check_empty(
@@ -420,7 +419,6 @@ fn foo() {
             bt u32
             kw crate::
             kw self::
-            kw super::
         "#]],
     );
     check_empty(
