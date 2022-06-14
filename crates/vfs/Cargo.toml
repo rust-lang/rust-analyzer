@@ -13,5 +13,5 @@ doctest = false
 rustc-hash = "1.1.0"
 fst = "0.4.7"
 
-paths = { path = "../paths", version = "0.0.0" }
+paths = { path = "../../lib/paths", version = "0.1.0" }
 indexmap = "1.9.1"
