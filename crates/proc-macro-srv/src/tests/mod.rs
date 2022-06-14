@@ -160,7 +160,7 @@ fn list_test_macros() {
 
 #[test]
 fn test_version_check() {
-    let path = AbsPathBuf::assert(fixtures::proc_macro_test_dylib_path());
+    let path = AbsPathBuf::try_from(fixtures::proc_macro_test_dylib_path()).unwrap();
     let info = proc_macro_api::read_dylib_info(&path).unwrap();
     assert!(info.version.1 >= 50);
 }

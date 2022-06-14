@@ -147,7 +147,8 @@ impl WorkspaceBuildScripts {
                         let out_dir = message.out_dir.into_os_string();
                         if !out_dir.is_empty() {
                             let data = outputs[package].get_or_insert_with(Default::default);
-                            data.out_dir = Some(AbsPathBuf::assert(PathBuf::from(out_dir)));
+                            data.out_dir =
+                                Some(AbsPathBuf::try_from(PathBuf::from(out_dir)).unwrap());
                             data.cfgs = cfgs;
                         }
                         if !message.env.is_empty() {
@@ -168,7 +169,8 @@ impl WorkspaceBuildScripts {
                             if let Some(filename) =
                                 message.filenames.iter().find(|name| is_dylib(name))
                             {
-                                let filename = AbsPathBuf::assert(PathBuf::from(&filename));
+                                let filename =
+                                    AbsPathBuf::try_from(PathBuf::from(&filename)).unwrap();
                                 outputs[package]
                                     .get_or_insert_with(Default::default)
                                     .proc_macro_dylib_path = Some(filename);

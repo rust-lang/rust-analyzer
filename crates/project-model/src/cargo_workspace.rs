@@ -336,7 +336,10 @@ impl CargoWorkspace {
                 id: id.repr.clone(),
                 name: name.clone(),
                 version: version.clone(),
-                manifest: AbsPathBuf::assert(PathBuf::from(&manifest_path)).try_into().unwrap(),
+                manifest: AbsPathBuf::try_from(PathBuf::from(&manifest_path))
+                    .unwrap()
+                    .try_into()
+                    .unwrap(),
                 targets: Vec::new(),
                 is_local,
                 is_member,
@@ -354,7 +357,7 @@ impl CargoWorkspace {
                 let tgt = targets.alloc(TargetData {
                     package: pkg,
                     name: meta_tgt.name.clone(),
-                    root: AbsPathBuf::assert(PathBuf::from(&meta_tgt.src_path)),
+                    root: AbsPathBuf::try_from(PathBuf::from(&meta_tgt.src_path)).unwrap(),
                     kind: TargetKind::new(meta_tgt.kind.as_slice()),
                     is_proc_macro,
                     required_features: meta_tgt.required_features.clone(),
@@ -397,7 +400,7 @@ impl CargoWorkspace {
         }
 
         let workspace_root =
-            AbsPathBuf::assert(PathBuf::from(meta.workspace_root.into_os_string()));
+            AbsPathBuf::try_from(PathBuf::from(meta.workspace_root.into_os_string())).unwrap();
 
         CargoWorkspace { packages, targets, workspace_root }
     }

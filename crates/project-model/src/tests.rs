@@ -77,7 +77,7 @@ fn get_fake_sysroot() -> Sysroot {
     let sysroot_path = get_test_path("fake-sysroot");
     // there's no `libexec/` directory with a `proc-macro-srv` binary in that
     // fake sysroot, so we give them both the same path:
-    let sysroot_dir = AbsPathBuf::assert(sysroot_path);
+    let sysroot_dir = AbsPathBuf::try_from(sysroot_path).unwrap();
     let sysroot_src_dir = sysroot_dir.clone();
     Sysroot::load(sysroot_dir, sysroot_src_dir).unwrap()
 }
@@ -86,7 +86,7 @@ fn rooted_project_json(data: ProjectJsonData) -> ProjectJson {
     let mut root = "$ROOT$".to_string();
     replace_root(&mut root, true);
     let path = Path::new(&root);
-    let base = AbsPath::assert(path);
+    let base = <&AbsPath>::try_from(path).unwrap();
     ProjectJson::new(base, data)
 }
 

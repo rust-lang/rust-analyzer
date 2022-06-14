@@ -28,7 +28,7 @@ impl VfsPath {
     /// Create a path from string. Input should be a string representation of
     /// an absolute path inside filesystem
     pub fn new_real_path(path: String) -> VfsPath {
-        VfsPath::from(AbsPathBuf::assert(path.into()))
+        VfsPath::from(AbsPathBuf::try_from(path).unwrap())
     }
 
     /// Returns the `AbsPath` representation of `self` if `self` is on the file system.

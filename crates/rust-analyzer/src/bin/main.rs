@@ -168,7 +168,7 @@ fn run_server() -> Result<()> {
         Some(it) => it,
         None => {
             let cwd = env::current_dir()?;
-            AbsPathBuf::assert(cwd)
+            AbsPathBuf::try_from(cwd).unwrap()
         }
     };
 

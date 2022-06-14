@@ -29,7 +29,7 @@ pub fn load_workspace_at(
     load_config: &LoadCargoConfig,
     progress: &dyn Fn(String),
 ) -> Result<(AnalysisHost, vfs::Vfs, Option<ProcMacroServer>)> {
-    let root = AbsPathBuf::assert(std::env::current_dir()?.join(root));
+    let root = AbsPathBuf::try_from(std::env::current_dir()?.join(root)).unwrap();
     let root = ProjectManifest::discover_single(&root)?;
     let mut workspace = ProjectWorkspace::load(root, cargo_config, progress)?;
 
@@ -59,7 +59,7 @@ pub fn load_workspace(
     };
 
     let proc_macro_client = if load_config.with_proc_macro {
-        let path = AbsPathBuf::assert(std::env::current_exe()?);
+        let path = AbsPathBuf::try_from(std::env::current_exe()?).unwrap();
         Ok(ProcMacroServer::spawn(path, &["proc-macro"]).unwrap())
     } else {
         Err("proc macro server not started".to_owned())

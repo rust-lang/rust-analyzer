@@ -183,7 +183,7 @@ impl NotifyActor {
                             if !entry.file_type().is_dir() {
                                 return true;
                             }
-                            let path = AbsPath::assert(entry.path());
+                            let path = <&AbsPath>::try_from(entry.path()).unwrap();
                             root == path
                                 || dirs.exclude.iter().chain(&dirs.include).all(|it| it != path)
                         });
@@ -191,7 +191,7 @@ impl NotifyActor {
                     let files = walkdir.filter_map(|it| it.ok()).filter_map(|entry| {
                         let is_dir = entry.file_type().is_dir();
                         let is_file = entry.file_type().is_file();
-                        let abs_path = AbsPathBuf::assert(entry.into_path());
+                        let abs_path = AbsPathBuf::try_from(entry.into_path()).unwrap();
                         if is_dir && watch {
                             self.watch(abs_path.clone());
                         }

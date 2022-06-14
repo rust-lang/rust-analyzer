@@ -6,9 +6,14 @@
 use std::{
     borrow::Borrow,
     ffi::OsStr,
-    ops,
+    io, ops,
     path::{Component, Path, PathBuf},
 };
+
+/// Returns an [`AbsPathBuf`] of the current directory joined with the `path`.
+pub fn to_abs_path(path: &Path) -> io::Result<AbsPathBuf> {
+    Ok(std::env::current_dir()?.join(path).try_into().unwrap())
+}
 
 /// Wrapper around an absolute [`PathBuf`].
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
@@ -48,16 +53,24 @@ impl Borrow<AbsPath> for AbsPathBuf {
 impl TryFrom<PathBuf> for AbsPathBuf {
     type Error = PathBuf;
     fn try_from(path_buf: PathBuf) -> Result<AbsPathBuf, PathBuf> {
-        if !path_buf.is_absolute() {
-            return Err(path_buf);
+        if path_buf.is_absolute() {
+            Ok(AbsPathBuf(path_buf))
+        } else {
+            Err(path_buf)
         }
-        Ok(AbsPathBuf(path_buf))
     }
 }
 
 impl TryFrom<&str> for AbsPathBuf {
     type Error = PathBuf;
     fn try_from(path: &str) -> Result<AbsPathBuf, PathBuf> {
+        AbsPathBuf::try_from(PathBuf::from(path))
+    }
+}
+
+impl TryFrom<String> for AbsPathBuf {
+    type Error = PathBuf;
+    fn try_from(path: String) -> Result<AbsPathBuf, PathBuf> {
         AbsPathBuf::try_from(PathBuf::from(path))
     }
 }
@@ -69,24 +82,15 @@ impl PartialEq<AbsPath> for AbsPathBuf {
 }
 
 impl AbsPathBuf {
-    /// Wrap the given absolute path in `AbsPathBuf`
+    /// Coerces to an [`AbsPath`] slice.
     ///
-    /// # Panics
-    ///
-    /// Panics if `path` is not absolute.
-    pub fn assert(path: PathBuf) -> AbsPathBuf {
-        AbsPathBuf::try_from(path)
-            .unwrap_or_else(|path| panic!("expected absolute path, got {}", path.display()))
-    }
-
-    /// Coerces to an `AbsPath` slice.
-    ///
-    /// Equivalent of [`PathBuf::as_path`] for `AbsPathBuf`.
+    /// Equivalent of [`PathBuf::as_path`].
     pub fn as_path(&self) -> &AbsPath {
-        AbsPath::assert(self.0.as_path())
+        // SAFETY: `AbsPathBuf` always contains an absolute path
+        unsafe { AbsPath::new_unchecked(self.0.as_path()) }
     }
 
-    /// Equivalent of [`PathBuf::pop`] for `AbsPathBuf`.
+    /// Equivalent of [`PathBuf::pop`].
     ///
     /// Note that this won't remove the root component, so `self` will still be
     /// absolute.
@@ -109,27 +113,24 @@ impl AsRef<Path> for AbsPath {
 impl<'a> TryFrom<&'a Path> for &'a AbsPath {
     type Error = &'a Path;
     fn try_from(path: &'a Path) -> Result<&'a AbsPath, &'a Path> {
-        if !path.is_absolute() {
-            return Err(path);
+        if path.is_absolute() {
+            // SAFETY: just checked is absolute
+            Ok(unsafe { AbsPath::new_unchecked(path) })
+        } else {
+            Err(path)
         }
-        Ok(AbsPath::assert(path))
     }
 }
 
 impl AbsPath {
-    /// Wrap the given absolute path in `AbsPath`
-    ///
-    /// # Panics
-    ///
-    /// Panics if `path` is not absolute.
-    pub fn assert(path: &Path) -> &AbsPath {
-        assert!(path.is_absolute());
-        unsafe { &*(path as *const Path as *const AbsPath) }
+    unsafe fn new_unchecked(path: &Path) -> &AbsPath {
+        &*(path as *const Path as *const AbsPath)
     }
 
     /// Equivalent of [`Path::parent`] for `AbsPath`.
     pub fn parent(&self) -> Option<&AbsPath> {
-        self.0.parent().map(AbsPath::assert)
+        // SAFETY: the parent of an absolute path will be absolute
+        self.0.parent().map(|x| unsafe { AbsPath::new_unchecked(x) })
     }
 
     /// Equivalent of [`Path::join`] for `AbsPath`.
@@ -138,6 +139,7 @@ impl AbsPath {
     }
 
     /// Normalize the given path:
+    ///
     /// - Removes repeated separators: `/a//b` becomes `/a/b`
     /// - Removes occurrences of `.` and resolves `..`.
     /// - Removes trailing slashes: `/a/b/` becomes `/a/b`.
@@ -150,7 +152,7 @@ impl AbsPath {
     /// assert_eq!(normalized, AbsPathBuf::assert("/b/c".into()));
     /// ```
     pub fn normalize(&self) -> AbsPathBuf {
-        AbsPathBuf(normalize_path(&self.0))
+        AbsPathBuf::try_from(normalize_path(&self.0)).unwrap()
     }
 
     /// Equivalent of [`Path::to_path_buf`] for `AbsPath`.
@@ -162,11 +164,19 @@ impl AbsPath {
     ///
     /// Returns a relative path.
     pub fn strip_prefix(&self, base: &AbsPath) -> Option<&RelPath> {
-        self.0.strip_prefix(base).ok().map(RelPath::new_unchecked)
+        self.0.strip_prefix(base).ok().map(|x| {
+            // SAFETY: if the prefix was stripped, the prefix must have been
+            // absolute
+            unsafe { RelPath::new_unchecked(x) }
+        })
     }
+
+    /// Returns whether `self` starts with `base`.
     pub fn starts_with(&self, base: &AbsPath) -> bool {
         self.0.starts_with(&base.0)
     }
+
+    /// Returns whether `self` starts with `suffix`.
     pub fn ends_with(&self, suffix: &RelPath) -> bool {
         self.0.ends_with(&suffix.0)
     }
@@ -181,24 +191,29 @@ impl AbsPath {
     // For `AbsPath`, we want to make sure that this is a POD type, and that all
     // IO goes via `fs`. That way, it becomes easier to mock IO when we need it.
 
+    /// Delegate for [`Path::file_name`].
     pub fn file_name(&self) -> Option<&OsStr> {
         self.0.file_name()
     }
+
+    /// Delegate for [`Path::extension`].
     pub fn extension(&self) -> Option<&OsStr> {
         self.0.extension()
     }
+
+    /// Delegate for [`Path::file_stem`].
     pub fn file_stem(&self) -> Option<&OsStr> {
         self.0.file_stem()
     }
+
+    /// Delegate for [`Path::as_os_str`].
     pub fn as_os_str(&self) -> &OsStr {
         self.0.as_os_str()
     }
+
+    /// Delegate for [`Path::display`].
     pub fn display(&self) -> std::path::Display<'_> {
         self.0.display()
-    }
-    #[deprecated(note = "use std::fs::metadata().is_ok() instead")]
-    pub fn exists(&self) -> bool {
-        self.0.exists()
     }
     // endregion:delegate-methods
 }
@@ -248,7 +263,8 @@ impl RelPathBuf {
     ///
     /// Equivalent of [`PathBuf::as_path`] for `RelPathBuf`.
     pub fn as_path(&self) -> &RelPath {
-        RelPath::new_unchecked(self.0.as_path())
+        // SAFETY: `RelPathBuf` always contains relative paths
+        unsafe { RelPath::new_unchecked(self.0.as_path()) }
     }
 }
 
@@ -265,8 +281,8 @@ impl AsRef<Path> for RelPath {
 
 impl RelPath {
     /// Creates a new `RelPath` from `path`, without checking if it is relative.
-    pub fn new_unchecked(path: &Path) -> &RelPath {
-        unsafe { &*(path as *const Path as *const RelPath) }
+    unsafe fn new_unchecked(path: &Path) -> &RelPath {
+        &*(path as *const Path as *const RelPath)
     }
 }
 

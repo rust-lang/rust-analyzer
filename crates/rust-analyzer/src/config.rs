@@ -609,7 +609,7 @@ impl Config {
         self.detached_files =
             get_field::<Vec<PathBuf>>(&mut json, &mut errors, "detachedFiles", None, "[]")
                 .into_iter()
-                .map(AbsPathBuf::assert)
+                .map(|x| AbsPathBuf::try_from(x).unwrap())
                 .collect();
         patch_old_style::patch_json_for_outdated_configs(&mut json);
         self.data = ConfigData::from_json(json, &mut errors);
@@ -902,7 +902,7 @@ impl Config {
         }
         let path = match &self.data.procMacro_server {
             Some(it) => self.root_path.join(it),
-            None => AbsPathBuf::assert(std::env::current_exe().ok()?),
+            None => AbsPathBuf::try_from(std::env::current_exe().ok()?).unwrap(),
         };
         Some((path, vec!["proc-macro".into()]))
     }

@@ -89,7 +89,7 @@ impl<'a> Project<'a> {
             fs::write(path.as_path(), entry.text.as_bytes()).unwrap();
         }
 
-        let tmp_dir_path = AbsPathBuf::assert(tmp_dir.path().to_path_buf());
+        let tmp_dir_path = AbsPathBuf::try_from(tmp_dir.path().to_path_buf()).unwrap();
         let mut roots =
             self.roots.into_iter().map(|root| tmp_dir_path.join(root)).collect::<Vec<_>>();
         if roots.is_empty() {

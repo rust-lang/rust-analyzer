@@ -149,7 +149,7 @@ fn discover_sysroot_dir(current_dir: &AbsPath) -> Result<AbsPathBuf> {
     rustc.current_dir(current_dir).args(&["--print", "sysroot"]);
     tracing::debug!("Discovering sysroot by {:?}", rustc);
     let stdout = utf8_stdout(rustc)?;
-    Ok(AbsPathBuf::assert(PathBuf::from(stdout)))
+    Ok(AbsPathBuf::try_from(PathBuf::from(stdout)).unwrap())
 }
 
 fn discover_sysroot_src_dir(
