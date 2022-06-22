@@ -263,7 +263,20 @@ fn format_args_expand(
     let captured_args = if let Some(tt::TokenTree::Leaf(tt::Leaf::Literal(literal))) =
         format_string.token_trees.get(0)
     {
-        parse_format_string(&literal)
+        {
+            lex_format_specifiers(&literal.text.to_string())
+                .iter()
+                .map(|text| {
+                    tt::Subtree {
+                        delimiter: None,
+                        token_trees: vec![TokenTree::Leaf(Leaf::Ident(Ident {
+                            text: "".into(), // FIXME
+                            id: literal.id, // FIXME: No idea what the adequate value is here?
+                        }))],
+                    }
+                })
+                .collect()
+        }
     } else {
         Vec::new()
     };
@@ -283,46 +296,194 @@ fn format_args_expand(
     ExpandResult::ok(expanded)
 }
 
-fn parse_format_string(literal: &Literal) -> Vec<tt::Subtree> {
-    enum State {
-        Searching,
-        Capturing,
+// Items pulled out of the format string
+pub enum Item {
+    Inline(String),
+    Named(String),
+    Location(usize),
+}
+
+pub fn lex_format_specifiers(string: &String) -> Vec<Item> {
+    let mut identifiers = Vec::new();
+    let mut chars = string.chars().peekable();
+
+    while let Some(first_char) = chars.next() {
+        if let '{' = first_char {
+            // Format specifier, see syntax at https://doc.rust-lang.org/std/fmt/index.html#syntax
+            if let Some('{') = chars.peek() {
+                // Escaped format specifier, `{{`
+                chars.next();
+                continue;
+            }
+
+            // check for integer/identifier
+            let int_char = chars.peek().copied().unwrap_or_default();
+            match int_char {
+                // integer
+                '0'..='9' => {}
+                // identifier
+                c if c == '_' || c.is_alphabetic() => read_identifier(&mut chars, &mut identifiers),
+                _ => {}
+            }
+
+            if let Some(':') = chars.peek() {
+                chars.next();
+
+                // check for fill/align
+                let mut cloned = chars.clone().take(2);
+                let first = cloned.next().unwrap_or_default();
+                let second = cloned.next().unwrap_or_default();
+                match second {
+                    '<' | '^' | '>' => {
+                        // alignment specifier, first char specifies fillment
+                        chars.next();
+                        chars.next();
+                    }
+                    _ => {
+                        if let '<' | '^' | '>' = first {
+                            chars.next();
+                        }
+                    }
+                }
+
+                // check for sign
+                match chars.peek().copied().unwrap_or_default() {
+                    '+' | '-' => {
+                        chars.next();
+                    }
+                    _ => {}
+                }
+
+                // check for `#`
+                if let Some('#') = chars.peek() {
+                    chars.next();
+                }
+
+                // check for `0`
+                let mut cloned = chars.clone().take(2);
+                let first = cloned.next();
+                let second = cloned.next();
+
+                if first == Some('0') && second != Some('$') {
+                    chars.next();
+                }
+
+                // width
+                match chars.peek().copied().unwrap_or_default() {
+                    '0'..='9' => {
+                        read_integer(&mut chars);
+                        if let Some('$') = chars.peek() {
+                            chars.next();
+                        }
+                    }
+                    c if c == '_' || c.is_alphabetic() => {
+                        read_identifier(&mut chars, &mut identifiers);
+
+                        if chars.peek() == Some(&'?') {
+                            chars.next();
+                        }
+
+                        // can be either width (indicated by dollar sign, or type in which case
+                        // the next sign has to be `}`)
+                        let next = chars.peek();
+
+                        match next {
+                            Some('$') => chars.next(),
+                            Some('}') => {
+                                chars.next();
+                                continue;
+                            }
+                            _ => continue,
+                        };
+                    }
+                    _ => {}
+                }
+
+                // precision
+                if let Some('.') = chars.peek() {
+                    chars.next();
+
+                    match chars.peek().copied().unwrap_or_default() {
+                        '*' => {
+                            chars.next();
+                        }
+                        '0'..='9' => {
+                            read_integer(&mut chars);
+                            if let Some('$') = chars.peek() {
+                                chars.next();
+                            }
+                        }
+                        c if c == '_' || c.is_alphabetic() => {
+                            read_identifier(&mut chars, &mut identifiers);
+                            if chars.peek() != Some(&'$') {
+                                continue;
+                            }
+                            chars.next();
+                        }
+                        _ => {
+                            continue;
+                        }
+                    }
+                }
+
+                // type
+                match chars.peek().copied().unwrap_or_default() {
+                    '?' => {
+                        chars.next();
+                    }
+                    c if c == '_' || c.is_alphabetic() => {
+                        read_identifier(&mut chars, &mut identifiers);
+
+                        if chars.peek() == Some(&'?') {
+                            chars.next();
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            if let Some('}') = chars.peek() {
+                chars.next();
+            }
+            continue;
+        };
     }
 
-    // FIXME: This will need a lot better parsing, which partially seems to exist in
-    // crates/ide-db/src/syntax_helpers/format_string.rs
-    //
-    // This will merly extract perfectly formed `format("{foo} {bar}")` identifiers `foo` and `bar`
-    let mut extracted = Vec::new();
-    let mut state = State::Searching;
-    let mut buffer = String::new();
-    for current in literal.text.chars() {
-        match (current, &state) {
-            ('{', State::Searching) => {
-                state = State::Capturing;
-            }
-            ('}', State::Capturing) => {
-                state = State::Searching;
-                if buffer.is_empty() {
-                    continue;
-                }
-                extracted.push(tt::Subtree {
-                    delimiter: None,
-                    token_trees: vec![TokenTree::Leaf(Leaf::Ident(Ident {
-                        text: buffer.into(),
-                        id: literal.id, // FIXME: No idea what the adequate value is here?
-                    }))],
-                });
-                buffer = String::new();
-            }
-            (ch, State::Capturing) if ch.is_ascii_alphanumeric() => {
-                buffer.push(current);
-            }
-            _ => {}
+    identifiers
+}
+
+fn read_integer<I>(chars: &mut std::iter::Peekable<I>)
+where
+    I: Iterator<Item = char>,
+{
+    let c = chars.next().unwrap();
+    assert!(c.is_ascii_digit());
+    while let Some(&next_char) = chars.peek() {
+        if next_char.is_ascii_digit() {
+            chars.next();
+        } else {
+            break;
         }
     }
+}
 
-    extracted
+fn read_identifier<I>(chars: &mut std::iter::Peekable<I>, identifiers: &mut Vec<Item>)
+where
+    I: Iterator<Item = char>,
+{
+    let c = chars.next().unwrap();
+    assert!(c.is_alphabetic() || c == '_');
+    let mut buffer = String::new();
+    buffer.push(c);
+    while let Some(&next_char) = chars.peek() {
+        if next_char == '_' || next_char.is_ascii_digit() || next_char.is_alphabetic() {
+            buffer.push(next_char);
+            chars.next();
+        } else {
+            break;
+        }
+    }
+    identifiers.push(Item::Inline(buffer));
 }
 
 fn asm_expand(
@@ -728,4 +889,10 @@ fn option_env_expand(
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+
+    #[test]
+    fn it() {
+        assert!(false)
+    }
+}
