@@ -332,7 +332,7 @@ const ATTRIBUTES: &[AttrCompletion] = &[
     attr(
         r#"target_feature(enable = "…")"#,
         Some("target_feature"),
-        Some(r#"target_feature = "${0:feature}""#),
+        Some(r#[target_feature(enable = "...")]#),
     ),
     attr("test", None, None),
     attr("track_caller", None, None),
