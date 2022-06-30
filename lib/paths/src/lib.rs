@@ -134,7 +134,7 @@ impl AbsPath {
     }
 
     /// Equivalent of [`Path::join`] for `AbsPath`.
-    pub fn join(&self, path: impl AsRef<Path>) -> AbsPathBuf {
+    pub fn join<P: AsRef<Path>>(&self, path: P) -> AbsPathBuf {
         self.as_ref().join(path).try_into().unwrap()
     }
 
