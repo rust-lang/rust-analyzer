@@ -157,8 +157,9 @@ fn discover_sysroot_src_dir(
     current_dir: &AbsPath,
 ) -> Result<AbsPathBuf> {
     if let Ok(path) = env::var("RUST_SRC_PATH") {
-        let path = AbsPathBuf::try_from(path.as_str())
-            .map_err(|path| format_err!("RUST_SRC_PATH must be absolute: {}", path.display()))?;
+        let path = AbsPathBuf::try_from(path.as_str()).map_err(|path| {
+            format_err!("RUST_SRC_PATH must be absolute: {}", path.into_inner().display())
+        })?;
         let core = path.join("core");
         if fs::metadata(&core).is_ok() {
             tracing::debug!("Discovered sysroot by RUST_SRC_PATH: {}", path.display());

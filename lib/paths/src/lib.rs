@@ -6,7 +6,7 @@
 use std::{
     borrow::Borrow,
     ffi::OsStr,
-    io, ops,
+    fmt, io, ops,
     path::{Component, Path, PathBuf},
 };
 
@@ -51,26 +51,45 @@ impl Borrow<AbsPath> for AbsPathBuf {
 }
 
 impl TryFrom<PathBuf> for AbsPathBuf {
-    type Error = PathBuf;
-    fn try_from(path_buf: PathBuf) -> Result<AbsPathBuf, PathBuf> {
+    type Error = NotAbsPathBuf;
+    fn try_from(path_buf: PathBuf) -> Result<AbsPathBuf, NotAbsPathBuf> {
         if path_buf.is_absolute() {
             Ok(AbsPathBuf(path_buf))
         } else {
-            Err(path_buf)
+            Err(NotAbsPathBuf(path_buf))
         }
     }
 }
 
+/// The error returned by `impl TryFrom<PathBuf> for AbsPathBuf` and others.
+#[derive(Debug)]
+pub struct NotAbsPathBuf(PathBuf);
+
+impl NotAbsPathBuf {
+    /// Returns the `PathBuf` that could not be converted.
+    pub fn into_inner(self) -> PathBuf {
+        self.0
+    }
+}
+
+impl fmt::Display for NotAbsPathBuf {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} is not an absolute path", self.0.display())
+    }
+}
+
+impl std::error::Error for NotAbsPathBuf {}
+
 impl TryFrom<&str> for AbsPathBuf {
-    type Error = PathBuf;
-    fn try_from(path: &str) -> Result<AbsPathBuf, PathBuf> {
+    type Error = NotAbsPathBuf;
+    fn try_from(path: &str) -> Result<AbsPathBuf, NotAbsPathBuf> {
         AbsPathBuf::try_from(PathBuf::from(path))
     }
 }
 
 impl TryFrom<String> for AbsPathBuf {
-    type Error = PathBuf;
-    fn try_from(path: String) -> Result<AbsPathBuf, PathBuf> {
+    type Error = NotAbsPathBuf;
+    fn try_from(path: String) -> Result<AbsPathBuf, NotAbsPathBuf> {
         AbsPathBuf::try_from(PathBuf::from(path))
     }
 }
@@ -111,16 +130,35 @@ impl AsRef<Path> for AbsPath {
 }
 
 impl<'a> TryFrom<&'a Path> for &'a AbsPath {
-    type Error = &'a Path;
-    fn try_from(path: &'a Path) -> Result<&'a AbsPath, &'a Path> {
+    type Error = NotAbsPath<'a>;
+    fn try_from(path: &'a Path) -> Result<&'a AbsPath, NotAbsPath<'a>> {
         if path.is_absolute() {
             // SAFETY: just checked is absolute
             Ok(unsafe { AbsPath::new_unchecked(path) })
         } else {
-            Err(path)
+            Err(NotAbsPath(path))
         }
     }
 }
+
+/// The error returned by `impl TryFrom<&Path> for &AbsPath` and others.
+#[derive(Debug)]
+pub struct NotAbsPath<'a>(&'a Path);
+
+impl<'a> NotAbsPath<'a> {
+    /// Returns the `Path` that could not be converted.
+    pub fn into_inner(self) -> &'a Path {
+        self.0
+    }
+}
+
+impl<'a> fmt::Display for NotAbsPath<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} is not an absolute path", self.0.display())
+    }
+}
+
+impl<'a> std::error::Error for NotAbsPath<'a> {}
 
 impl AbsPath {
     unsafe fn new_unchecked(path: &Path) -> &AbsPath {
@@ -242,18 +280,38 @@ impl AsRef<Path> for RelPathBuf {
 }
 
 impl TryFrom<PathBuf> for RelPathBuf {
-    type Error = PathBuf;
-    fn try_from(path_buf: PathBuf) -> Result<RelPathBuf, PathBuf> {
-        if !path_buf.is_relative() {
-            return Err(path_buf);
+    type Error = NotRelPathBuf;
+    fn try_from(path_buf: PathBuf) -> Result<RelPathBuf, NotRelPathBuf> {
+        if path_buf.is_relative() {
+            Ok(RelPathBuf(path_buf))
+        } else {
+            Err(NotRelPathBuf(path_buf))
         }
-        Ok(RelPathBuf(path_buf))
     }
 }
 
+/// The error returned by `impl TryFrom<PathBuf> for RelPathBuf` and others.
+#[derive(Debug)]
+pub struct NotRelPathBuf(PathBuf);
+
+impl NotRelPathBuf {
+    /// Returns the `PathBuf` that could not be converted.
+    pub fn into_inner(self) -> PathBuf {
+        self.0
+    }
+}
+
+impl fmt::Display for NotRelPathBuf {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} is not an relative path", self.0.display())
+    }
+}
+
+impl std::error::Error for NotRelPathBuf {}
+
 impl TryFrom<&str> for RelPathBuf {
-    type Error = PathBuf;
-    fn try_from(path: &str) -> Result<RelPathBuf, PathBuf> {
+    type Error = NotRelPathBuf;
+    fn try_from(path: &str) -> Result<RelPathBuf, NotRelPathBuf> {
         RelPathBuf::try_from(PathBuf::from(path))
     }
 }
