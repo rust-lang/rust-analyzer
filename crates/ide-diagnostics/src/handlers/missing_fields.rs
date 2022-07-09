@@ -91,11 +91,19 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::MissingFields) -> Option<Vec<Ass
                 }
             });
 
+            let fill_todo = |ty: &Type| {
+                let module = ctx.sema.to_module_def(d.file.original_file(ctx.sema.db))?;
+                let display = ty.display_source_code(ctx.sema.db, module.into()).ok()?;
+                Some(make::ext::expr_todo_msg(&format!("provide {}", display)))
+            };
+
             let generate_fill_expr = |ty: &Type| match ctx.config.expr_fill_default {
-                crate::ExprFillDefaultMode::Todo => make::ext::expr_todo(),
-                crate::ExprFillDefaultMode::Default => {
-                    get_default_constructor(ctx, d, ty).unwrap_or_else(|| make::ext::expr_todo())
+                crate::ExprFillDefaultMode::Todo => {
+                    fill_todo(ty).unwrap_or_else(make::ext::expr_todo)
                 }
+                crate::ExprFillDefaultMode::Default => get_default_constructor(ctx, d, ty)
+                    .or_else(|| fill_todo(ty))
+                    .unwrap_or_else(make::ext::expr_todo),
             };
 
             let old_field_list = field_list_parent.record_expr_field_list()?;
@@ -516,8 +524,8 @@ struct S { a: (), b: () }
 
 fn f() {
     S {
-        a: todo!(),
-        b: todo!(),
+        a: todo!("provide ()"),
+        b: todo!("provide ()"),
     };
 }
 "#,
@@ -610,6 +618,28 @@ fn f() {
 }
 "#,
         );
+    }
+
+    #[test]
+    fn test_fill_struct_fields_ty_hint() {
+        check_fix(
+            r#"
+struct A;
+struct S { a: A }
+
+fn f() {
+    S {$0}
+}
+"#,
+            r#"
+struct A;
+struct S { a: A }
+
+fn f() {
+    S { a: todo!("provide A") }
+}
+"#,
+        )
     }
 
     #[test]
