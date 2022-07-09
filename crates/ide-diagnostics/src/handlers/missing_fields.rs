@@ -92,18 +92,22 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::MissingFields) -> Option<Vec<Ass
             });
 
             let fill_todo = |ty: &Type| {
-                let module = ctx.sema.to_module_def(d.file.original_file(ctx.sema.db))?;
-                let display = ty.display_source_code(ctx.sema.db, module.into()).ok()?;
-                Some(make::ext::expr_todo_msg(&format!("provide {}", display)))
+                if ctx.config.expr_fill_type_hints {
+                    ctx.sema
+                        .to_module_def(d.file.original_file(ctx.sema.db))
+                        .and_then(|module| ty.display_source_code(ctx.sema.db, module.into()).ok())
+                        .map(|display| make::ext::expr_todo_msg(&format!("provide {}", display)))
+                        .unwrap_or_else(make::ext::expr_todo)
+                } else {
+                    make::ext::expr_todo()
+                }
             };
 
             let generate_fill_expr = |ty: &Type| match ctx.config.expr_fill_default {
-                crate::ExprFillDefaultMode::Todo => {
-                    fill_todo(ty).unwrap_or_else(make::ext::expr_todo)
+                crate::ExprFillDefaultMode::Todo => fill_todo(ty),
+                crate::ExprFillDefaultMode::Default => {
+                    get_default_constructor(ctx, d, ty).unwrap_or_else(|| fill_todo(ty))
                 }
-                crate::ExprFillDefaultMode::Default => get_default_constructor(ctx, d, ty)
-                    .or_else(|| fill_todo(ty))
-                    .unwrap_or_else(make::ext::expr_todo),
             };
 
             let old_field_list = field_list_parent.record_expr_field_list()?;

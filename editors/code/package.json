@@ -394,6 +394,11 @@
                         "Fill missing expressions with reasonable defaults, `new` or `default` constructors."
                     ]
                 },
+                "rust-analyzer.assist.expressionFillTypeHints.enable": {
+                    "markdownDescription": "Specify type of missing expression inside generated todo macro invocation.",
+                    "default": true,
+                    "type": "boolean"
+                },
                 "rust-analyzer.cachePriming.enable": {
                     "markdownDescription": "Warm up caches on project load.",
                     "default": true,

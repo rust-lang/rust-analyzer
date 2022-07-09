@@ -144,6 +144,7 @@ pub struct DiagnosticsConfig {
     pub disable_experimental: bool,
     pub disabled: FxHashSet<String>,
     pub expr_fill_default: ExprFillDefaultMode,
+    pub expr_fill_type_hints: bool,
 }
 
 struct DiagnosticsContext<'a> {

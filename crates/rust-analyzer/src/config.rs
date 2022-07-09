@@ -56,6 +56,8 @@ config_data! {
     struct ConfigData {
         /// Placeholder expression to use for missing expressions in assists.
         assist_expressionFillDefault: ExprFillDefaultDef              = "\"todo\"",
+        /// Specify type of missing expression inside generated todo macro invocation.
+        assist_expressionFillTypeHints_enable: bool = "true",
 
         /// Warm up caches on project load.
         cachePriming_enable: bool = "true",
@@ -867,6 +869,7 @@ impl Config {
                 ExprFillDefaultDef::Todo => ExprFillDefaultMode::Todo,
                 ExprFillDefaultDef::Default => ExprFillDefaultMode::Default,
             },
+            expr_fill_type_hints: self.data.assist_expressionFillTypeHints_enable,
         }
     }
 

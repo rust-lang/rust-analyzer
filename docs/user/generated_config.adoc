@@ -3,6 +3,11 @@
 --
 Placeholder expression to use for missing expressions in assists.
 --
+[[rust-analyzer.assist.expressionFillTypeHints.enable]]rust-analyzer.assist.expressionFillTypeHints.enable (default: `true`)::
++
+--
+Specify type of missing expression inside generated todo macro invocation.
+--
 [[rust-analyzer.cachePriming.enable]]rust-analyzer.cachePriming.enable (default: `true`)::
 +
 --
