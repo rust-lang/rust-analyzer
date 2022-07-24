@@ -396,7 +396,7 @@
                 },
                 "rust-analyzer.assist.expressionFillTypeHints.enable": {
                     "markdownDescription": "Specify type of missing expression inside generated todo macro invocation.",
-                    "default": true,
+                    "default": false,
                     "type": "boolean"
                 },
                 "rust-analyzer.cachePriming.enable": {

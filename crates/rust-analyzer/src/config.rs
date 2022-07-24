@@ -57,7 +57,7 @@ config_data! {
         /// Placeholder expression to use for missing expressions in assists.
         assist_expressionFillDefault: ExprFillDefaultDef              = "\"todo\"",
         /// Specify type of missing expression inside generated todo macro invocation.
-        assist_expressionFillTypeHints_enable: bool = "true",
+        assist_expressionFillTypeHints_enable: bool = "false",
 
         /// Warm up caches on project load.
         cachePriming_enable: bool = "true",
