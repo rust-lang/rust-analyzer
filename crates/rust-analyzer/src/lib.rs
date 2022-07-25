@@ -8,7 +8,8 @@
 //!
 //! The `cli` submodule implements some batch-processing analysis, primarily as
 //! a debugging aid.
-#![recursion_limit = "512"]
+
+#![warn(rust_2018_idioms, unused_lifetimes, semicolon_in_expressions_from_macros)]
 
 pub mod cli;
 
@@ -17,26 +18,28 @@ macro_rules! eprintln {
     ($($tt:tt)*) => { stdx::eprintln!($($tt)*) };
 }
 
-mod global_state;
-mod reload;
-mod main_loop;
-mod dispatch;
-mod handlers;
 mod caps;
 mod cargo_target_spec;
-mod to_proto;
-mod from_proto;
-mod semantic_tokens;
-mod markdown;
 mod diagnostics;
+mod diff;
+mod dispatch;
+mod from_proto;
+mod global_state;
+mod handlers;
 mod line_index;
 mod lsp_utils;
-mod thread_pool;
+mod main_loop;
+mod markdown;
 mod mem_docs;
-mod diff;
 mod op_queue;
-pub mod lsp_ext;
+mod reload;
+mod semantic_tokens;
+mod task_pool;
+mod to_proto;
+mod version;
+
 pub mod config;
+pub mod lsp_ext;
 
 #[cfg(test)]
 mod integrated_benchmarks;
@@ -45,12 +48,12 @@ use std::fmt;
 
 use serde::de::DeserializeOwned;
 
-pub use crate::{caps::server_capabilities, main_loop::main_loop};
+pub use crate::{caps::server_capabilities, main_loop::main_loop, version::version};
 
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-pub fn from_json<T: DeserializeOwned>(what: &'static str, json: serde_json::Value) -> Result<T> {
+pub fn from_json<T: DeserializeOwned>(what: &'static str, json: &serde_json::Value) -> Result<T> {
     let res = serde_json::from_value(json.clone())
         .map_err(|e| format!("Failed to deserialize {}: {}; {}", what, e, json))?;
     Ok(res)
@@ -69,7 +72,7 @@ impl LspError {
 }
 
 impl fmt::Display for LspError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Language Server request failed with {}. ({})", self.code, self.message)
     }
 }

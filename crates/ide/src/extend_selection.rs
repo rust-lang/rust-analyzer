@@ -33,7 +33,7 @@ pub(crate) fn extend_selection(db: &RootDatabase, frange: FileRange) -> TextRang
 }
 
 fn try_extend_selection(
-    sema: &Semantics<RootDatabase>,
+    sema: &Semantics<'_, RootDatabase>,
     root: &SyntaxNode,
     frange: FileRange,
 ) -> Option<TextRange> {
@@ -120,7 +120,7 @@ fn try_extend_selection(
 }
 
 fn extend_tokens_from_range(
-    sema: &Semantics<RootDatabase>,
+    sema: &Semantics<'_, RootDatabase>,
     macro_call: ast::MacroCall,
     original_range: TextRange,
 ) -> Option<TextRange> {
@@ -246,7 +246,7 @@ fn pick_best(l: SyntaxToken, r: SyntaxToken) -> SyntaxToken {
     fn priority(n: &SyntaxToken) -> usize {
         match n.kind() {
             WHITESPACE => 0,
-            IDENT | T![self] | T![super] | T![crate] | LIFETIME_IDENT => 2,
+            IDENT | T![self] | T![super] | T![crate] | T![Self] | LIFETIME_IDENT => 2,
             _ => 1,
         }
     }
@@ -283,7 +283,7 @@ fn extend_list_item(node: &SyntaxNode) -> Option<TextRange> {
         let final_node = delimiter_node
             .next_sibling_or_token()
             .and_then(|it| it.into_token())
-            .filter(|node| is_single_line_ws(node))
+            .filter(is_single_line_ws)
             .unwrap_or(delimiter_node);
 
         return Some(TextRange::new(node.text_range().start(), final_node.text_range().end()));

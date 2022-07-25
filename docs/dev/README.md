@@ -13,7 +13,7 @@ To learn more about how rust-analyzer works, see [./architecture.md](./architect
 It also explains the high-level layout of the source code.
 Do skim through that document.
 
-We also publish rustdoc docs to pages: https://rust-analyzer.github.io/rust-analyzer/ide/.
+We also publish rustdoc docs to pages: https://rust-lang.github.io/rust-analyzer/ide/.
 Note though, that the internal documentation is very incomplete.
 
 Various organizational and process issues are discussed in this document.
@@ -28,26 +28,26 @@ https://rust-lang.zulipchat.com/#narrow/stream/185405-t-compiler.2Frust-analyzer
 
 # Issue Labels
 
-* [good-first-issue](https://github.com/rust-analyzer/rust-analyzer/labels/good%20first%20issue)
+* [good-first-issue](https://github.com/rust-lang/rust-analyzer/labels/good%20first%20issue)
   are good issues to get into the project.
-* [E-has-instructions](https://github.com/rust-analyzer/rust-analyzer/issues?q=is%3Aopen+is%3Aissue+label%3AE-has-instructions)
+* [E-has-instructions](https://github.com/rust-lang/rust-analyzer/issues?q=is%3Aopen+is%3Aissue+label%3AE-has-instructions)
   issues have links to the code in question and tests.
-* [Broken Window](https://github.com/rust-analyzer/rust-analyzer/issues?q=is:issue+is:open+label:%22Broken+Window%22)
+* [Broken Window](https://github.com/rust-lang/rust-analyzer/issues?q=is:issue+is:open+label:%22Broken+Window%22)
   are issues which are not necessarily critical by themselves, but which should be fixed ASAP regardless, to avoid accumulation of technical debt.
-* [E-easy](https://github.com/rust-analyzer/rust-analyzer/issues?q=is%3Aopen+is%3Aissue+label%3AE-easy),
-  [E-medium](https://github.com/rust-analyzer/rust-analyzer/issues?q=is%3Aopen+is%3Aissue+label%3AE-medium),
-  [E-hard](https://github.com/rust-analyzer/rust-analyzer/issues?q=is%3Aopen+is%3Aissue+label%3AE-hard),
-  [E-unknown](https://github.com/rust-analyzer/rust-analyzer/issues?q=is%3Aopen+is%3Aissue+label%3AE-unknown),
+* [E-easy](https://github.com/rust-lang/rust-analyzer/issues?q=is%3Aopen+is%3Aissue+label%3AE-easy),
+  [E-medium](https://github.com/rust-lang/rust-analyzer/issues?q=is%3Aopen+is%3Aissue+label%3AE-medium),
+  [E-hard](https://github.com/rust-lang/rust-analyzer/issues?q=is%3Aopen+is%3Aissue+label%3AE-hard),
+  [E-unknown](https://github.com/rust-lang/rust-analyzer/issues?q=is%3Aopen+is%3Aissue+label%3AE-unknown),
   labels are *estimates* for how hard would be to write a fix. Each triaged issue should have one of these labels.
-* [S-actionable](https://github.com/rust-analyzer/rust-analyzer/issues?q=is%3Aopen+is%3Aissue+label%3AS-actionable) and
-  [S-unactionable](https://github.com/rust-analyzer/rust-analyzer/issues?q=is%3Aopen+is%3Aissue+label%3AS-unactionable)
+* [S-actionable](https://github.com/rust-lang/rust-analyzer/issues?q=is%3Aopen+is%3Aissue+label%3AS-actionable) and
+  [S-unactionable](https://github.com/rust-lang/rust-analyzer/issues?q=is%3Aopen+is%3Aissue+label%3AS-unactionable)
   specify if there are concrete steps to resolve or advance an issue. Roughly, actionable issues need only work to be fixed,
   while unactionable ones are blocked either on user feedback (providing a reproducible example), or on larger architectural
   work or decisions. This classification is descriptive, not prescriptive, and might be wrong: Any unactionable issue might have a simple fix that we missed.
   Each triaged issue should have one of these labels.
-* [fun](https://github.com/rust-analyzer/rust-analyzer/issues?q=is%3Aopen+is%3Aissue+label%3Afun)
+* [fun](https://github.com/rust-lang/rust-analyzer/issues?q=is%3Aopen+is%3Aissue+label%3Afun)
   is for cool, but probably hard stuff.
-* [Design](https://github.com/rust-analyzer/rust-analyzer/issues?q=is%3Aopen+is%3Aissue+label%Design)
+* [Design](https://github.com/rust-lang/rust-analyzer/issues?q=is%3Aopen+is%3Aissue+label%Design)
   is for moderate/large scale architecture discussion.
   Also a kind of fun.
   These issues should generally include a link to a Zulip discussion thread.
@@ -66,7 +66,7 @@ If `cargo test` passes locally, that's a good sign that CI will be green as well
 The only exception is that some long-running tests are skipped locally by default.
 Use `env RUN_SLOW_TESTS=1 cargo test` to run the full suite.
 
-We use bors-ng to enforce the [not rocket science](https://graydon2.dreamwidth.org/1597.html) rule.
+We use bors to enforce the [not rocket science](https://graydon2.dreamwidth.org/1597.html) rule.
 
 ## Launching rust-analyzer
 
@@ -119,11 +119,11 @@ npm run lint
 ```
 ## How to ...
 
-* ... add an assist? [#7535](https://github.com/rust-analyzer/rust-analyzer/pull/7535)
-* ... add a new protocol extension? [#4569](https://github.com/rust-analyzer/rust-analyzer/pull/4569)
-* ... add a new configuration option? [#7451](https://github.com/rust-analyzer/rust-analyzer/pull/7451)
-* ... add a new completion? [#6964](https://github.com/rust-analyzer/rust-analyzer/pull/6964)
-* ... allow new syntax in the parser? [#7338](https://github.com/rust-analyzer/rust-analyzer/pull/7338)
+* ... add an assist? [#7535](https://github.com/rust-lang/rust-analyzer/pull/7535)
+* ... add a new protocol extension? [#4569](https://github.com/rust-lang/rust-analyzer/pull/4569)
+* ... add a new configuration option? [#7451](https://github.com/rust-lang/rust-analyzer/pull/7451)
+* ... add a new completion? [#6964](https://github.com/rust-lang/rust-analyzer/pull/6964)
+* ... allow new syntax in the parser? [#7338](https://github.com/rust-lang/rust-analyzer/pull/7338)
 
 ## Logging
 

@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) fn opt_generic_arg_list(p: &mut Parser, colon_colon_required: bool) {
+pub(super) fn opt_generic_arg_list(p: &mut Parser<'_>, colon_colon_required: bool) {
     let m;
     if p.at(T![::]) && p.nth(2) == T![<] {
         m = p.start();
@@ -25,7 +25,7 @@ pub(super) fn opt_generic_arg_list(p: &mut Parser, colon_colon_required: bool) {
 
 // test generic_arg
 // type T = S<i32>;
-fn generic_arg(p: &mut Parser) {
+fn generic_arg(p: &mut Parser<'_>) {
     match p.current() {
         LIFETIME_IDENT => lifetime_arg(p),
         T!['{'] | T![true] | T![false] | T![-] => const_arg(p),
@@ -40,11 +40,19 @@ fn generic_arg(p: &mut Parser) {
             name_ref(p);
             opt_generic_arg_list(p, false);
             match p.current() {
-                // test assoc_type_eq
-                // type T = StreamingIterator<Item<'a> = &'a T>;
                 T![=] => {
                     p.bump_any();
-                    types::type_(p);
+                    if types::TYPE_FIRST.contains(p.current()) {
+                        // test assoc_type_eq
+                        // type T = StreamingIterator<Item<'a> = &'a T>;
+                        types::type_(p);
+                    } else {
+                        // test assoc_const_eq
+                        // fn foo<F: Foo<N=3>>() {}
+                        // const TEST: usize = 3;
+                        // fn bar<F: Foo<N={TEST}>>() {}
+                        const_arg(p);
+                    }
                     m.complete(p, ASSOC_TYPE_ARG);
                 }
                 // test assoc_type_bound
@@ -66,34 +74,30 @@ fn generic_arg(p: &mut Parser) {
 
 // test lifetime_arg
 // type T = S<'static>;
-fn lifetime_arg(p: &mut Parser) {
+fn lifetime_arg(p: &mut Parser<'_>) {
     let m = p.start();
     lifetime(p);
     m.complete(p, LIFETIME_ARG);
 }
 
-// test const_arg
-// type T = S<92>;
-pub(super) fn const_arg(p: &mut Parser) {
-    let m = p.start();
+pub(super) fn const_arg_expr(p: &mut Parser<'_>) {
+    // The tests in here are really for `const_arg`, which wraps the content
+    // CONST_ARG.
     match p.current() {
         // test const_arg_block
         // type T = S<{90 + 2}>;
         T!['{'] => {
             expressions::block_expr(p);
-            m.complete(p, CONST_ARG);
         }
         // test const_arg_literal
         // type T = S<"hello", 0xdeadbeef>;
         k if k.is_literal() => {
             expressions::literal(p);
-            m.complete(p, CONST_ARG);
         }
         // test const_arg_bool_literal
         // type T = S<true>;
         T![true] | T![false] => {
             expressions::literal(p);
-            m.complete(p, CONST_ARG);
         }
         // test const_arg_negative_number
         // type T = S<-92>;
@@ -102,20 +106,25 @@ pub(super) fn const_arg(p: &mut Parser) {
             p.bump(T![-]);
             expressions::literal(p);
             lm.complete(p, PREFIX_EXPR);
-            m.complete(p, CONST_ARG);
         }
-        // test const_arg_path
-        // struct S<const N: u32 = u32::MAX>;
         _ => {
+            // This shouldn't be hit by `const_arg`
             let lm = p.start();
             paths::use_path(p);
             lm.complete(p, PATH_EXPR);
-            m.complete(p, CONST_ARG);
         }
     }
 }
 
-fn type_arg(p: &mut Parser) {
+// test const_arg
+// type T = S<92>;
+pub(super) fn const_arg(p: &mut Parser<'_>) {
+    let m = p.start();
+    const_arg_expr(p);
+    m.complete(p, CONST_ARG);
+}
+
+fn type_arg(p: &mut Parser<'_>) {
     let m = p.start();
     types::type_(p);
     m.complete(p, TYPE_ARG);

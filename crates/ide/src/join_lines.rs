@@ -1,5 +1,5 @@
 use ide_assists::utils::extract_trivial_expression;
-use ide_db::helpers::node_ext::expr_as_name_ref;
+use ide_db::syntax_helpers::node_ext::expr_as_name_ref;
 use itertools::Itertools;
 use syntax::{
     ast::{self, AstNode, AstToken, IsString},
@@ -209,7 +209,7 @@ fn remove_newline(
 }
 
 fn join_single_expr_block(edit: &mut TextEditBuilder, token: &SyntaxToken) -> Option<()> {
-    let block_expr = ast::BlockExpr::cast(token.ancestors().nth(1)?)?;
+    let block_expr = ast::BlockExpr::cast(token.parent_ancestors().nth(1)?)?;
     if !block_expr.is_standalone() {
         return None;
     }

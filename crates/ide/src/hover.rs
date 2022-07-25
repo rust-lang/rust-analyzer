@@ -9,8 +9,9 @@ use either::Either;
 use hir::{HasSource, Semantics};
 use ide_db::{
     base_db::FileRange,
-    defs::Definition,
-    helpers::{pick_best_token, FamousDefs},
+    defs::{Definition, IdentClass},
+    famous_defs::FamousDefs,
+    helpers::pick_best_token,
     FxIndexSet, RootDatabase,
 };
 use itertools::Itertools;
@@ -94,14 +95,13 @@ pub(crate) fn hover(
     let sema = &hir::Semantics::new(db);
     let file = sema.parse(file_id).syntax().clone();
 
-    let offset = if !range.is_empty() {
+    if !range.is_empty() {
         return hover_ranged(&file, range, sema, config);
-    } else {
-        range.start()
-    };
+    }
+    let offset = range.start();
 
     let original_token = pick_best_token(file.token_at_offset(offset), |kind| match kind {
-        IDENT | INT_NUMBER | LIFETIME_IDENT | T![self] | T![super] | T![crate] => 3,
+        IDENT | INT_NUMBER | LIFETIME_IDENT | T![self] | T![super] | T![crate] | T![Self] => 3,
         T!['('] | T![')'] => 2,
         kind if kind.is_trivia() => 0,
         _ => 1,
@@ -115,13 +115,14 @@ pub(crate) fn hover(
         });
     }
 
-    let descended = sema.descend_into_macros(original_token.clone());
+    let descended = sema.descend_into_macros_with_same_text(original_token.clone());
 
     // FIXME: Definition should include known lints and the like instead of having this special case here
-    if let Some(res) = descended.iter().find_map(|token| {
-        let attr = token.ancestors().find_map(ast::Attr::cast)?;
+    let hovered_lint = descended.iter().find_map(|token| {
+        let attr = token.parent_ancestors().find_map(ast::Attr::cast)?;
         render::try_for_lint(&attr, token)
-    }) {
+    });
+    if let Some(res) = hovered_lint {
         return Some(RangeInfo::new(original_token.text_range(), res));
     }
 
@@ -129,8 +130,8 @@ pub(crate) fn hover(
         .iter()
         .filter_map(|token| {
             let node = token.parent()?;
-            let defs = Definition::from_token(sema, token);
-            Some(defs.into_iter().zip(iter::once(node).cycle()))
+            let class = IdentClass::classify_token(sema, token)?;
+            Some(class.definitions().into_iter().zip(iter::once(node).cycle()))
         })
         .flatten()
         .unique_by(|&(def, _)| def)
@@ -143,12 +144,15 @@ pub(crate) fn hover(
 
     if result.is_none() {
         // fallbacks, show keywords or types
-        if let Some(res) = render::keyword(sema, config, &original_token) {
+
+        let res = descended.iter().find_map(|token| render::keyword(sema, config, token));
+        if let Some(res) = res {
             return Some(RangeInfo::new(original_token.text_range(), res));
         }
-        if let res @ Some(_) =
-            descended.iter().find_map(|token| hover_type_fallback(sema, config, token))
-        {
+        let res = descended
+            .iter()
+            .find_map(|token| hover_type_fallback(sema, config, token, &original_token));
+        if let Some(_) = res {
             return res;
         }
     }
@@ -159,45 +163,36 @@ pub(crate) fn hover(
 }
 
 pub(crate) fn hover_for_definition(
-    sema: &Semantics<RootDatabase>,
+    sema: &Semantics<'_, RootDatabase>,
     file_id: FileId,
     definition: Definition,
     node: &SyntaxNode,
     config: &HoverConfig,
 ) -> Option<HoverResult> {
     let famous_defs = match &definition {
-        Definition::BuiltinType(_) => Some(FamousDefs(sema, sema.scope(node).krate())),
+        Definition::BuiltinType(_) => Some(FamousDefs(sema, sema.scope(node)?.krate())),
         _ => None,
     };
-    if let Some(markup) = render::definition(sema.db, definition, famous_defs.as_ref(), config) {
-        let mut res = HoverResult::default();
-        res.markup = render::process_markup(sema.db, definition, &markup, config);
-        if let Some(action) = show_implementations_action(sema.db, definition) {
-            res.actions.push(action);
+    render::definition(sema.db, definition, famous_defs.as_ref(), config).map(|markup| {
+        HoverResult {
+            markup: render::process_markup(sema.db, definition, &markup, config),
+            actions: show_implementations_action(sema.db, definition)
+                .into_iter()
+                .chain(show_fn_references_action(sema.db, definition))
+                .chain(runnable_action(sema, definition, file_id))
+                .chain(goto_type_action_for_def(sema.db, definition))
+                .collect(),
         }
-
-        if let Some(action) = show_fn_references_action(sema.db, definition) {
-            res.actions.push(action);
-        }
-
-        if let Some(action) = runnable_action(sema, definition, file_id) {
-            res.actions.push(action);
-        }
-
-        if let Some(action) = goto_type_action_for_def(sema.db, definition) {
-            res.actions.push(action);
-        }
-        return Some(res);
-    }
-    None
+    })
 }
 
 fn hover_ranged(
     file: &SyntaxNode,
     range: syntax::TextRange,
-    sema: &Semantics<RootDatabase>,
+    sema: &Semantics<'_, RootDatabase>,
     config: &HoverConfig,
 ) -> Option<RangeInfo<HoverResult>> {
+    // FIXME: make this work in attributes
     let expr_or_pat = file.covering_element(range).ancestors().find_map(|it| {
         match_ast! {
             match it {
@@ -227,12 +222,13 @@ fn hover_ranged(
 }
 
 fn hover_type_fallback(
-    sema: &Semantics<RootDatabase>,
+    sema: &Semantics<'_, RootDatabase>,
     config: &HoverConfig,
     token: &SyntaxToken,
+    original_token: &SyntaxToken,
 ) -> Option<RangeInfo<HoverResult>> {
     let node = token
-        .ancestors()
+        .parent_ancestors()
         .take_while(|it| !ast::Item::can_cast(it.kind()))
         .find(|n| ast::Expr::can_cast(n.kind()) || ast::Pat::can_cast(n.kind()))?;
 
@@ -248,7 +244,10 @@ fn hover_type_fallback(
     };
 
     let res = render::type_info(sema, config, &expr_or_pat)?;
-    let range = sema.original_range(&node).range;
+    let range = sema
+        .original_range_opt(&node)
+        .map(|frange| frange.range)
+        .unwrap_or_else(|| original_token.text_range());
     Some(RangeInfo::new(range, res))
 }
 
@@ -282,7 +281,7 @@ fn show_fn_references_action(db: &RootDatabase, def: Definition) -> Option<Hover
 }
 
 fn runnable_action(
-    sema: &hir::Semantics<RootDatabase>,
+    sema: &hir::Semantics<'_, RootDatabase>,
     def: Definition,
     file_id: FileId,
 ) -> Option<HoverAction> {

@@ -302,16 +302,33 @@ impl ast::UseTree {
 
     /// Splits off the given prefix, making it the path component of the use tree,
     /// appending the rest of the path to all UseTreeList items.
+    ///
+    /// # Examples
+    ///
+    /// `prefix$0::suffix` -> `prefix::{suffix}`
+    ///
+    /// `prefix$0` -> `prefix::{self}`
+    ///
+    /// `prefix$0::*` -> `prefix::{*}`
     pub fn split_prefix(&self, prefix: &ast::Path) {
         debug_assert_eq!(self.path(), Some(prefix.top_path()));
         let path = self.path().unwrap();
         if &path == prefix && self.use_tree_list().is_none() {
-            let self_suffix = make::path_unqualified(make::path_segment_self()).clone_for_update();
-            ted::replace(path.syntax(), self_suffix.syntax());
+            if self.star_token().is_some() {
+                // path$0::* -> *
+                self.coloncolon_token().map(ted::remove);
+                ted::remove(prefix.syntax());
+            } else {
+                // path$0 -> self
+                let self_suffix =
+                    make::path_unqualified(make::path_segment_self()).clone_for_update();
+                ted::replace(path.syntax(), self_suffix.syntax());
+            }
         } else if split_path_prefix(prefix).is_none() {
             return;
         }
-
+        // At this point, prefix path is detached; _self_ use tree has suffix path.
+        // Next, transform 'suffix' use tree into 'prefix::{suffix}'
         let subtree = self.clone_subtree().clone_for_update();
         ted::remove_all_iter(self.syntax().children_with_tokens());
         ted::insert(Position::first_child_of(self.syntax()), prefix.syntax());
@@ -546,6 +563,49 @@ impl ast::RecordExprField {
     }
 }
 
+impl ast::RecordPatFieldList {
+    pub fn add_field(&self, field: ast::RecordPatField) {
+        let is_multiline = self.syntax().text().contains_char('\n');
+        let whitespace = if is_multiline {
+            let indent = IndentLevel::from_node(self.syntax()) + 1;
+            make::tokens::whitespace(&format!("\n{}", indent))
+        } else {
+            make::tokens::single_space()
+        };
+
+        if is_multiline {
+            normalize_ws_between_braces(self.syntax());
+        }
+
+        let position = match self.fields().last() {
+            Some(last_field) => {
+                let comma = match last_field
+                    .syntax()
+                    .siblings_with_tokens(Direction::Next)
+                    .filter_map(|it| it.into_token())
+                    .find(|it| it.kind() == T![,])
+                {
+                    Some(it) => it,
+                    None => {
+                        let comma = ast::make::token(T![,]);
+                        ted::insert(Position::after(last_field.syntax()), &comma);
+                        comma
+                    }
+                };
+                Position::after(comma)
+            }
+            None => match self.l_curly_token() {
+                Some(it) => Position::after(it),
+                None => Position::last_child_of(self.syntax()),
+            },
+        };
+
+        ted::insert_all(position, vec![whitespace.into(), field.syntax().clone().into()]);
+        if is_multiline {
+            ted::insert(Position::after(field.syntax()), ast::make::token(T![,]));
+        }
+    }
+}
 impl ast::StmtList {
     pub fn push_front(&self, statement: ast::Stmt) {
         ted::insert(Position::after(self.l_curly_token().unwrap()), statement.syntax());

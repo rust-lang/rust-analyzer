@@ -34,6 +34,10 @@ impl ast::NameRef {
     pub fn as_tuple_field(&self) -> Option<usize> {
         self.text().parse().ok()
     }
+
+    pub fn token_kind(&self) -> SyntaxKind {
+        self.syntax().first_token().map_or(SyntaxKind::ERROR, |it| it.kind())
+    }
 }
 
 fn text_of_first_token(node: &SyntaxNode) -> TokenText<'_> {
@@ -108,7 +112,18 @@ impl HasName for Macro {
 
 impl HasAttrs for Macro {}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+impl From<ast::AssocItem> for ast::Item {
+    fn from(assoc: ast::AssocItem) -> Self {
+        match assoc {
+            ast::AssocItem::Const(it) => ast::Item::Const(it),
+            ast::AssocItem::Fn(it) => ast::Item::Fn(it),
+            ast::AssocItem::MacroCall(it) => ast::Item::MacroCall(it),
+            ast::AssocItem::TypeAlias(it) => ast::Item::TypeAlias(it),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum AttrKind {
     Inner,
     Outer,
@@ -149,14 +164,9 @@ impl ast::Attr {
     }
 
     pub fn kind(&self) -> AttrKind {
-        let first_token = self.syntax().first_token();
-        let first_token_kind = first_token.as_ref().map(SyntaxToken::kind);
-        let second_token_kind =
-            first_token.and_then(|token| token.next_token()).as_ref().map(SyntaxToken::kind);
-
-        match (first_token_kind, second_token_kind) {
-            (Some(T![#]), Some(T![!])) => AttrKind::Inner,
-            _ => AttrKind::Outer,
+        match self.excl_token() {
+            Some(_) => AttrKind::Inner,
+            None => AttrKind::Outer,
         }
     }
 
@@ -177,6 +187,7 @@ impl ast::Attr {
 pub enum PathSegmentKind {
     Name(ast::NameRef),
     Type { type_ref: Option<ast::Type>, trait_ref: Option<ast::PathType> },
+    SelfTypeKw,
     SelfKw,
     SuperKw,
     CrateKw,
@@ -198,16 +209,21 @@ impl ast::PathSegment {
         self.name_ref().and_then(|it| it.self_token())
     }
 
+    pub fn self_type_token(&self) -> Option<SyntaxToken> {
+        self.name_ref().and_then(|it| it.Self_token())
+    }
+
     pub fn super_token(&self) -> Option<SyntaxToken> {
         self.name_ref().and_then(|it| it.super_token())
     }
 
     pub fn kind(&self) -> Option<PathSegmentKind> {
         let res = if let Some(name_ref) = self.name_ref() {
-            match name_ref.syntax().first_token().map(|it| it.kind()) {
-                Some(T![self]) => PathSegmentKind::SelfKw,
-                Some(T![super]) => PathSegmentKind::SuperKw,
-                Some(T![crate]) => PathSegmentKind::CrateKw,
+            match name_ref.token_kind() {
+                T![Self] => PathSegmentKind::SelfTypeKw,
+                T![self] => PathSegmentKind::SelfKw,
+                T![super] => PathSegmentKind::SuperKw,
+                T![crate] => PathSegmentKind::CrateKw,
                 _ => PathSegmentKind::Name(name_ref),
             }
         } else {
@@ -410,6 +426,19 @@ impl NameLike {
             _ => None,
         }
     }
+    pub fn as_lifetime(&self) -> Option<&ast::Lifetime> {
+        match self {
+            NameLike::Lifetime(lifetime) => Some(lifetime),
+            _ => None,
+        }
+    }
+    pub fn text(&self) -> TokenText<'_> {
+        match self {
+            NameLike::NameRef(name_ref) => name_ref.text(),
+            NameLike::Name(name) => name.text(),
+            NameLike::Lifetime(lifetime) => lifetime.text(),
+        }
+    }
 }
 
 impl ast::AstNode for NameLike {
@@ -434,13 +463,10 @@ impl ast::AstNode for NameLike {
     }
 }
 
-mod __ {
-    use super::{
-        ast::{Lifetime, Name, NameRef},
-        NameLike,
-    };
+const _: () = {
+    use ast::{Lifetime, Name, NameRef};
     stdx::impl_from!(NameRef, Name, Lifetime for NameLike);
-}
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum NameOrNameRef {
@@ -484,6 +510,10 @@ impl ast::RecordPatField {
         }
     }
 
+    pub fn parent_record_pat(&self) -> ast::RecordPat {
+        self.syntax().ancestors().find_map(ast::RecordPat::cast).unwrap()
+    }
+
     /// Deals with field init shorthand
     pub fn field_name(&self) -> Option<NameOrNameRef> {
         if let Some(name_ref) = self.name_ref() {
@@ -522,12 +552,6 @@ impl ast::Variant {
 impl ast::Item {
     pub fn generic_param_list(&self) -> Option<ast::GenericParamList> {
         ast::AnyHasGenericParams::cast(self.syntax().clone())?.generic_param_list()
-    }
-}
-
-impl ast::Condition {
-    pub fn is_pattern_cond(&self) -> bool {
-        self.let_token().is_some()
     }
 }
 
@@ -641,6 +665,21 @@ impl ast::TypeBound {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum TypeOrConstParam {
+    Type(ast::TypeParam),
+    Const(ast::ConstParam),
+}
+
+impl TypeOrConstParam {
+    pub fn name(&self) -> Option<ast::Name> {
+        match self {
+            TypeOrConstParam::Type(x) => x.name(),
+            TypeOrConstParam::Const(x) => x.name(),
+        }
+    }
+}
+
 pub enum VisibilityKind {
     In(ast::Path),
     PubCrate,
@@ -708,6 +747,15 @@ impl ast::RangePat {
 }
 
 impl ast::TokenTree {
+    pub fn token_trees_and_tokens(
+        &self,
+    ) -> impl Iterator<Item = NodeOrToken<ast::TokenTree, SyntaxToken>> {
+        self.syntax().children_with_tokens().filter_map(|not| match not {
+            NodeOrToken::Node(node) => ast::TokenTree::cast(node).map(NodeOrToken::Node),
+            NodeOrToken::Token(t) => Some(NodeOrToken::Token(t)),
+        })
+    }
+
     pub fn left_delimiter_token(&self) -> Option<SyntaxToken> {
         self.syntax()
             .first_child_or_token()?
@@ -733,6 +781,15 @@ impl ast::Meta {
     }
 }
 
+impl ast::GenericArgList {
+    pub fn lifetime_args(&self) -> impl Iterator<Item = ast::LifetimeArg> {
+        self.generic_args().filter_map(|arg| match arg {
+            ast::GenericArg::LifetimeArg(it) => Some(it),
+            _ => None,
+        })
+    }
+}
+
 impl ast::GenericParamList {
     pub fn lifetime_params(&self) -> impl Iterator<Item = ast::LifetimeParam> {
         self.generic_params().filter_map(|param| match param {
@@ -740,16 +797,11 @@ impl ast::GenericParamList {
             ast::GenericParam::TypeParam(_) | ast::GenericParam::ConstParam(_) => None,
         })
     }
-    pub fn type_params(&self) -> impl Iterator<Item = ast::TypeParam> {
+    pub fn type_or_const_params(&self) -> impl Iterator<Item = ast::TypeOrConstParam> {
         self.generic_params().filter_map(|param| match param {
-            ast::GenericParam::TypeParam(it) => Some(it),
-            ast::GenericParam::LifetimeParam(_) | ast::GenericParam::ConstParam(_) => None,
-        })
-    }
-    pub fn const_params(&self) -> impl Iterator<Item = ast::ConstParam> {
-        self.generic_params().filter_map(|param| match param {
-            ast::GenericParam::ConstParam(it) => Some(it),
-            ast::GenericParam::TypeParam(_) | ast::GenericParam::LifetimeParam(_) => None,
+            ast::GenericParam::TypeParam(it) => Some(ast::TypeOrConstParam::Type(it)),
+            ast::GenericParam::LifetimeParam(_) => None,
+            ast::GenericParam::ConstParam(it) => Some(ast::TypeOrConstParam::Const(it)),
         })
     }
 }
@@ -763,21 +815,23 @@ impl ast::HasLoopBody for ast::ForExpr {
     }
 }
 
-impl ast::HasDocComments for ast::SourceFile {}
-impl ast::HasDocComments for ast::Fn {}
-impl ast::HasDocComments for ast::Struct {}
-impl ast::HasDocComments for ast::Union {}
-impl ast::HasDocComments for ast::RecordField {}
-impl ast::HasDocComments for ast::TupleField {}
-impl ast::HasDocComments for ast::Enum {}
-impl ast::HasDocComments for ast::Variant {}
-impl ast::HasDocComments for ast::Trait {}
-impl ast::HasDocComments for ast::Module {}
-impl ast::HasDocComments for ast::Static {}
-impl ast::HasDocComments for ast::Const {}
-impl ast::HasDocComments for ast::TypeAlias {}
-impl ast::HasDocComments for ast::Impl {}
-impl ast::HasDocComments for ast::MacroRules {}
-impl ast::HasDocComments for ast::MacroDef {}
-impl ast::HasDocComments for ast::Macro {}
-impl ast::HasDocComments for ast::Use {}
+impl ast::HasLoopBody for ast::WhileExpr {
+    fn loop_body(&self) -> Option<ast::BlockExpr> {
+        let mut exprs = support::children(self.syntax());
+        let first = exprs.next();
+        let second = exprs.next();
+        second.or(first)
+    }
+}
+
+impl ast::HasAttrs for ast::AnyHasDocComments {}
+
+impl From<ast::Adt> for ast::Item {
+    fn from(it: ast::Adt) -> Self {
+        match it {
+            ast::Adt::Enum(it) => ast::Item::Enum(it),
+            ast::Adt::Struct(it) => ast::Item::Struct(it),
+            ast::Adt::Union(it) => ast::Item::Union(it),
+        }
+    }
+}

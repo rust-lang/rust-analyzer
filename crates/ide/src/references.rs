@@ -14,13 +14,14 @@ use ide_db::{
     base_db::FileId,
     defs::{Definition, NameClass, NameRefClass},
     search::{ReferenceCategory, SearchScope, UsageSearchResult},
-    RootDatabase,
+    FxHashMap, RootDatabase,
 };
-use rustc_hash::FxHashMap;
 use syntax::{
     algo::find_node_at_offset,
     ast::{self, HasName},
-    match_ast, AstNode, SyntaxNode, TextRange, TextSize, T,
+    match_ast, AstNode,
+    SyntaxKind::*,
+    SyntaxNode, TextRange, TextSize, T,
 };
 
 use crate::{FilePosition, NavigationTarget, TryToNav};
@@ -49,7 +50,7 @@ pub struct Declaration {
 //
 // image::https://user-images.githubusercontent.com/48062697/113020670-b7c34f00-917a-11eb-8003-370ac5f2b3cb.gif[]
 pub(crate) fn find_all_refs(
-    sema: &Semantics<RootDatabase>,
+    sema: &Semantics<'_, RootDatabase>,
     position: FilePosition,
     search_scope: Option<SearchScope>,
 ) -> Option<Vec<ReferenceSearchResult>> {
@@ -57,8 +58,6 @@ pub(crate) fn find_all_refs(
     let syntax = sema.parse(position.file_id).syntax().clone();
     let make_searcher = |literal_search: bool| {
         move |def: Definition| {
-            let mut usages =
-                def.usages(sema).set_scope(search_scope.clone()).include_self_refs().all();
             let declaration = match def {
                 Definition::Module(module) => {
                     Some(NavigationTarget::from_module_to_decl(sema.db, module))
@@ -72,6 +71,9 @@ pub(crate) fn find_all_refs(
                     nav,
                 }
             });
+            let mut usages =
+                def.usages(sema).set_scope(search_scope.clone()).include_self_refs().all();
+
             if literal_search {
                 retain_adt_literal_usages(&mut usages, def, sema);
             }
@@ -104,40 +106,56 @@ pub(crate) fn find_all_refs(
         }
         None => {
             let search = make_searcher(false);
-            Some(find_defs(sema, &syntax, position.offset).into_iter().map(search).collect())
+            Some(find_defs(sema, &syntax, position.offset)?.map(search).collect())
         }
     }
 }
 
 pub(crate) fn find_defs<'a>(
-    sema: &'a Semantics<RootDatabase>,
+    sema: &'a Semantics<'_, RootDatabase>,
     syntax: &SyntaxNode,
     offset: TextSize,
-) -> impl Iterator<Item = Definition> + 'a {
-    sema.find_nodes_at_offset_with_descend(syntax, offset).filter_map(move |name_like| {
-        let def = match name_like {
-            ast::NameLike::NameRef(name_ref) => match NameRefClass::classify(sema, &name_ref)? {
-                NameRefClass::Definition(def) => def,
-                NameRefClass::FieldShorthand { local_ref, field_ref: _ } => {
-                    Definition::Local(local_ref)
-                }
-            },
-            ast::NameLike::Name(name) => match NameClass::classify(sema, &name)? {
-                NameClass::Definition(it) | NameClass::ConstReference(it) => it,
-                NameClass::PatFieldShorthand { local_def, field_ref: _ } => {
-                    Definition::Local(local_def)
-                }
-            },
-            ast::NameLike::Lifetime(lifetime) => NameRefClass::classify_lifetime(sema, &lifetime)
-                .and_then(|class| match class {
-                    NameRefClass::Definition(it) => Some(it),
-                    _ => None,
-                })
-                .or_else(|| {
-                    NameClass::classify_lifetime(sema, &lifetime).and_then(NameClass::defined)
-                })?,
-        };
-        Some(def)
+) -> Option<impl Iterator<Item = Definition> + 'a> {
+    let token = syntax.token_at_offset(offset).find(|t| {
+        matches!(
+            t.kind(),
+            IDENT | INT_NUMBER | LIFETIME_IDENT | T![self] | T![super] | T![crate] | T![Self]
+        )
+    });
+    token.map(|token| {
+        sema.descend_into_macros_with_same_text(token)
+            .into_iter()
+            .filter_map(|it| ast::NameLike::cast(it.parent()?))
+            .filter_map(move |name_like| {
+                let def = match name_like {
+                    ast::NameLike::NameRef(name_ref) => {
+                        match NameRefClass::classify(sema, &name_ref)? {
+                            NameRefClass::Definition(def) => def,
+                            NameRefClass::FieldShorthand { local_ref, field_ref: _ } => {
+                                Definition::Local(local_ref)
+                            }
+                        }
+                    }
+                    ast::NameLike::Name(name) => match NameClass::classify(sema, &name)? {
+                        NameClass::Definition(it) | NameClass::ConstReference(it) => it,
+                        NameClass::PatFieldShorthand { local_def, field_ref: _ } => {
+                            Definition::Local(local_def)
+                        }
+                    },
+                    ast::NameLike::Lifetime(lifetime) => {
+                        NameRefClass::classify_lifetime(sema, &lifetime)
+                            .and_then(|class| match class {
+                                NameRefClass::Definition(it) => Some(it),
+                                _ => None,
+                            })
+                            .or_else(|| {
+                                NameClass::classify_lifetime(sema, &lifetime)
+                                    .and_then(NameClass::defined)
+                            })?
+                    }
+                };
+                Some(def)
+            })
     })
 }
 
@@ -160,7 +178,7 @@ pub(crate) fn decl_mutability(def: &Definition, syntax: &SyntaxNode, range: Text
 fn retain_adt_literal_usages(
     usages: &mut UsageSearchResult,
     def: Definition,
-    sema: &Semantics<RootDatabase>,
+    sema: &Semantics<'_, RootDatabase>,
 ) {
     let refs = usages.references.values_mut();
     match def {
@@ -224,7 +242,7 @@ fn name_for_constructor_search(syntax: &SyntaxNode, position: FilePosition) -> O
 }
 
 fn is_enum_lit_name_ref(
-    sema: &Semantics<RootDatabase>,
+    sema: &Semantics<'_, RootDatabase>,
     enum_: hir::Enum,
     name_ref: &ast::NameRef,
 ) -> bool {
@@ -756,7 +774,7 @@ use self$0;
             expect![[r#"
                 Module FileId(0) 0..10
 
-                (no references)
+                FileId(0) 4..8
             "#]],
         );
     }
@@ -1501,17 +1519,118 @@ fn f() {
         check(
             r#"
 //- proc_macros: identity
-
 #[proc_macros::identity]
 fn func$0() {
     func();
 }
 "#,
             expect![[r#"
-                func Function FileId(0) 26..51 29..33
+                func Function FileId(0) 25..50 28..32
 
-                FileId(0) 42..46
+                FileId(0) 41..45
             "#]],
         )
+    }
+
+    #[test]
+    fn attr_assoc_item() {
+        check(
+            r#"
+//- proc_macros: identity
+
+trait Trait {
+    #[proc_macros::identity]
+    fn func() {
+        Self::func$0();
+    }
+}
+"#,
+            expect![[r#"
+                func Function FileId(0) 48..87 51..55
+
+                FileId(0) 74..78
+            "#]],
+        )
+    }
+
+    // FIXME: import is classified as function
+    #[test]
+    fn attr() {
+        check(
+            r#"
+//- proc_macros: identity
+use proc_macros::identity;
+
+#[proc_macros::$0identity]
+fn func() {}
+"#,
+            expect![[r#"
+                identity Attribute FileId(1) 1..107 32..40
+
+                FileId(0) 43..51
+            "#]],
+        );
+        check(
+            r#"
+#![crate_type="proc-macro"]
+#[proc_macro_attribute]
+fn func$0() {}
+"#,
+            expect![[r#"
+                func Attribute FileId(0) 28..64 55..59
+
+                (no references)
+            "#]],
+        );
+    }
+
+    // FIXME: import is classified as function
+    #[test]
+    fn proc_macro() {
+        check(
+            r#"
+//- proc_macros: mirror
+use proc_macros::mirror;
+
+mirror$0! {}
+"#,
+            expect![[r#"
+                mirror Macro FileId(1) 1..77 22..28
+
+                FileId(0) 26..32
+            "#]],
+        )
+    }
+
+    #[test]
+    fn derive() {
+        check(
+            r#"
+//- proc_macros: derive_identity
+//- minicore: derive
+use proc_macros::DeriveIdentity;
+
+#[derive(proc_macros::DeriveIdentity$0)]
+struct Foo;
+"#,
+            expect![[r#"
+                derive_identity Derive FileId(2) 1..107 45..60
+
+                FileId(0) 17..31
+                FileId(0) 56..70
+            "#]],
+        );
+        check(
+            r#"
+#![crate_type="proc-macro"]
+#[proc_macro_derive(Derive, attributes(x))]
+pub fn deri$0ve(_stream: TokenStream) -> TokenStream {}
+"#,
+            expect![[r#"
+                derive Derive FileId(0) 28..125 79..85
+
+                (no references)
+            "#]],
+        );
     }
 }

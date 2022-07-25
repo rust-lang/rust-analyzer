@@ -49,23 +49,79 @@ impl From<ast::IfExpr> for ElseBranch {
 
 impl ast::IfExpr {
     pub fn then_branch(&self) -> Option<ast::BlockExpr> {
-        self.blocks().next()
+        self.children_after_condition().next()
     }
 
     pub fn else_branch(&self) -> Option<ElseBranch> {
-        let res = match self.blocks().nth(1) {
+        let res = match self.children_after_condition().nth(1) {
             Some(block) => ElseBranch::Block(block),
             None => {
-                let elif: ast::IfExpr = support::child(self.syntax())?;
+                let elif = self.children_after_condition().next()?;
                 ElseBranch::IfExpr(elif)
             }
         };
         Some(res)
     }
 
-    pub fn blocks(&self) -> AstChildren<ast::BlockExpr> {
-        support::children(self.syntax())
+    fn children_after_condition<N: AstNode>(&self) -> impl Iterator<Item = N> {
+        self.syntax().children().skip(1).filter_map(N::cast)
     }
+}
+
+#[test]
+fn if_block_condition() {
+    let parse = ast::SourceFile::parse(
+        r#"
+        fn test() {
+            if { true } { "if" }
+            else if { false } { "first elif" }
+            else if true { "second elif" }
+            else if (true) { "third elif" }
+            else { "else" }
+        }
+        "#,
+    );
+    let if_ = parse.tree().syntax().descendants().find_map(ast::IfExpr::cast).unwrap();
+    assert_eq!(if_.then_branch().unwrap().syntax().text(), r#"{ "if" }"#);
+    let elif = match if_.else_branch().unwrap() {
+        ElseBranch::IfExpr(elif) => elif,
+        ElseBranch::Block(_) => panic!("should be `else if`"),
+    };
+    assert_eq!(elif.then_branch().unwrap().syntax().text(), r#"{ "first elif" }"#);
+    let elif = match elif.else_branch().unwrap() {
+        ElseBranch::IfExpr(elif) => elif,
+        ElseBranch::Block(_) => panic!("should be `else if`"),
+    };
+    assert_eq!(elif.then_branch().unwrap().syntax().text(), r#"{ "second elif" }"#);
+    let elif = match elif.else_branch().unwrap() {
+        ElseBranch::IfExpr(elif) => elif,
+        ElseBranch::Block(_) => panic!("should be `else if`"),
+    };
+    assert_eq!(elif.then_branch().unwrap().syntax().text(), r#"{ "third elif" }"#);
+    let else_ = match elif.else_branch().unwrap() {
+        ElseBranch::Block(else_) => else_,
+        ElseBranch::IfExpr(_) => panic!("should be `else`"),
+    };
+    assert_eq!(else_.syntax().text(), r#"{ "else" }"#);
+}
+
+#[test]
+fn if_condition_with_if_inside() {
+    let parse = ast::SourceFile::parse(
+        r#"
+        fn test() {
+            if if true { true } else { false } { "if" }
+            else { "else" }
+        }
+        "#,
+    );
+    let if_ = parse.tree().syntax().descendants().find_map(ast::IfExpr::cast).unwrap();
+    assert_eq!(if_.then_branch().unwrap().syntax().text(), r#"{ "if" }"#);
+    let else_ = match if_.else_branch().unwrap() {
+        ElseBranch::Block(else_) => else_,
+        ElseBranch::IfExpr(_) => panic!("should be `else`"),
+    };
+    assert_eq!(else_.syntax().text(), r#"{ "else" }"#);
 }
 
 impl ast::PrefixExpr {
@@ -217,7 +273,7 @@ impl ast::ArrayExpr {
     }
 
     fn is_repeat(&self) -> bool {
-        self.syntax().children_with_tokens().any(|it| it.kind() == T![;])
+        self.semicolon_token().is_some()
     }
 }
 
@@ -227,8 +283,8 @@ pub enum LiteralKind {
     ByteString(ast::ByteString),
     IntNumber(ast::IntNumber),
     FloatNumber(ast::FloatNumber),
-    Char,
-    Byte,
+    Char(ast::Char),
+    Byte(ast::Byte),
     Bool(bool),
 }
 
@@ -256,12 +312,16 @@ impl ast::Literal {
         if let Some(t) = ast::ByteString::cast(token.clone()) {
             return LiteralKind::ByteString(t);
         }
+        if let Some(t) = ast::Char::cast(token.clone()) {
+            return LiteralKind::Char(t);
+        }
+        if let Some(t) = ast::Byte::cast(token.clone()) {
+            return LiteralKind::Byte(t);
+        }
 
         match token.kind() {
             T![true] => LiteralKind::Bool(true),
             T![false] => LiteralKind::Bool(false),
-            CHAR => LiteralKind::Char,
-            BYTE => LiteralKind::Byte,
             _ => unreachable!(),
         }
     }
@@ -336,10 +396,8 @@ impl AstNode for CallableExpr {
     {
         if let Some(it) = ast::CallExpr::cast(syntax.clone()) {
             Some(Self::Call(it))
-        } else if let Some(it) = ast::MethodCallExpr::cast(syntax) {
-            Some(Self::MethodCall(it))
         } else {
-            None
+            ast::MethodCallExpr::cast(syntax).map(Self::MethodCall)
         }
     }
 

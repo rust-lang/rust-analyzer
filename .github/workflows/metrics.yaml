@@ -12,19 +12,17 @@ env:
 
 jobs:
   metrics:
+    if: github.repository == 'rust-lang/rust-analyzer'
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        profile: minimal
-        override: true
-        components: rust-src
+      run: |
+        rustup update --no-self-update stable
+        rustup component add rustfmt rust-src
 
     - name: Collect metrics
       run: cargo xtask metrics

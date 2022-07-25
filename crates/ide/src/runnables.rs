@@ -9,10 +9,9 @@ use ide_db::{
     defs::Definition,
     helpers::visit_file_defs,
     search::SearchScope,
-    RootDatabase, SymbolKind,
+    FxHashMap, FxHashSet, RootDatabase, SymbolKind,
 };
 use itertools::Itertools;
-use rustc_hash::{FxHashMap, FxHashSet};
 use stdx::{always, format_to};
 use syntax::{
     ast::{self, AstNode, HasAttrs as _},
@@ -36,10 +35,10 @@ pub enum TestId {
 }
 
 impl fmt::Display for TestId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TestId::Name(name) => write!(f, "{}", name),
-            TestId::Path(path) => write!(f, "{}", path),
+            TestId::Name(name) => name.fmt(f),
+            TestId::Path(path) => path.fmt(f),
         }
     }
 }
@@ -157,7 +156,13 @@ pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable> {
             Definition::SelfType(impl_) => runnable_impl(&sema, &impl_),
             _ => None,
         };
-        add_opt(runnable.or_else(|| module_def_doctest(sema.db, def)), Some(def));
+        add_opt(
+            runnable
+                .or_else(|| module_def_doctest(sema.db, def))
+                // #[macro_export] mbe macros are declared in the root, while their definition may reside in a different module
+                .filter(|it| it.nav.file_id == file_id),
+            Some(def),
+        );
         if let Definition::SelfType(impl_) = def {
             impl_.items(db).into_iter().for_each(|assoc| {
                 let runnable = match assoc {
@@ -214,13 +219,17 @@ pub(crate) fn related_tests(
 }
 
 fn find_related_tests(
-    sema: &Semantics<RootDatabase>,
+    sema: &Semantics<'_, RootDatabase>,
     syntax: &SyntaxNode,
     position: FilePosition,
     search_scope: Option<SearchScope>,
     tests: &mut FxHashSet<Runnable>,
 ) {
-    let defs = references::find_defs(sema, syntax, position.offset);
+    // FIXME: why is this using references::find_defs, this should use ide_db::search
+    let defs = match references::find_defs(sema, syntax, position.offset) {
+        Some(defs) => defs,
+        None => return,
+    };
     for def in defs {
         let defs = def
             .usages(sema)
@@ -250,7 +259,7 @@ fn find_related_tests(
 }
 
 fn find_related_tests_in_module(
-    sema: &Semantics<RootDatabase>,
+    sema: &Semantics<'_, RootDatabase>,
     syntax: &SyntaxNode,
     fn_def: &ast::Fn,
     parent_module: &hir::Module,
@@ -273,7 +282,7 @@ fn find_related_tests_in_module(
     find_related_tests(sema, syntax, fn_pos, Some(mod_scope), tests)
 }
 
-fn as_test_runnable(sema: &Semantics<RootDatabase>, fn_def: &ast::Fn) -> Option<Runnable> {
+fn as_test_runnable(sema: &Semantics<'_, RootDatabase>, fn_def: &ast::Fn) -> Option<Runnable> {
     if test_related_attribute(fn_def).is_some() {
         let function = sema.to_def(fn_def)?;
         runnable_fn(sema, function)
@@ -282,7 +291,7 @@ fn as_test_runnable(sema: &Semantics<RootDatabase>, fn_def: &ast::Fn) -> Option<
     }
 }
 
-fn parent_test_module(sema: &Semantics<RootDatabase>, fn_def: &ast::Fn) -> Option<hir::Module> {
+fn parent_test_module(sema: &Semantics<'_, RootDatabase>, fn_def: &ast::Fn) -> Option<hir::Module> {
     fn_def.syntax().ancestors().find_map(|node| {
         let module = ast::Module::cast(node)?;
         let module = sema.to_def(&module)?;
@@ -295,7 +304,10 @@ fn parent_test_module(sema: &Semantics<RootDatabase>, fn_def: &ast::Fn) -> Optio
     })
 }
 
-pub(crate) fn runnable_fn(sema: &Semantics<RootDatabase>, def: hir::Function) -> Option<Runnable> {
+pub(crate) fn runnable_fn(
+    sema: &Semantics<'_, RootDatabase>,
+    def: hir::Function,
+) -> Option<Runnable> {
     let func = def.source(sema.db)?;
     let name = def.name(sema.db).to_smol_str();
 
@@ -331,7 +343,10 @@ pub(crate) fn runnable_fn(sema: &Semantics<RootDatabase>, def: hir::Function) ->
     Some(Runnable { use_name_in_title: false, nav, kind, cfg })
 }
 
-pub(crate) fn runnable_mod(sema: &Semantics<RootDatabase>, def: hir::Module) -> Option<Runnable> {
+pub(crate) fn runnable_mod(
+    sema: &Semantics<'_, RootDatabase>,
+    def: hir::Module,
+) -> Option<Runnable> {
     if !has_test_function_or_multiple_test_submodules(sema, &def) {
         return None;
     }
@@ -344,7 +359,10 @@ pub(crate) fn runnable_mod(sema: &Semantics<RootDatabase>, def: hir::Module) -> 
     Some(Runnable { use_name_in_title: false, nav, kind: RunnableKind::TestMod { path }, cfg })
 }
 
-pub(crate) fn runnable_impl(sema: &Semantics<RootDatabase>, def: &hir::Impl) -> Option<Runnable> {
+pub(crate) fn runnable_impl(
+    sema: &Semantics<'_, RootDatabase>,
+    def: &hir::Impl,
+) -> Option<Runnable> {
     let attrs = def.attrs(sema.db);
     if !has_runnable_doc_test(&attrs) {
         return None;
@@ -366,7 +384,7 @@ pub(crate) fn runnable_impl(sema: &Semantics<RootDatabase>, def: &hir::Impl) -> 
 
 /// Creates a test mod runnable for outline modules at the top of their definition.
 fn runnable_mod_outline_definition(
-    sema: &Semantics<RootDatabase>,
+    sema: &Semantics<'_, RootDatabase>,
     def: hir::Module,
 ) -> Option<Runnable> {
     if !has_test_function_or_multiple_test_submodules(sema, &def) {
@@ -469,7 +487,7 @@ impl TestAttr {
     }
 }
 
-const RUSTDOC_FENCE: &str = "```";
+const RUSTDOC_FENCES: [&str; 2] = ["```", "~~~"];
 const RUSTDOC_CODE_BLOCK_ATTRIBUTES_RUNNABLE: &[&str] =
     &["", "rust", "should_panic", "edition2015", "edition2018", "edition2021"];
 
@@ -478,7 +496,9 @@ fn has_runnable_doc_test(attrs: &hir::Attrs) -> bool {
         let mut in_code_block = false;
 
         for line in String::from(doc).lines() {
-            if let Some(header) = line.strip_prefix(RUSTDOC_FENCE) {
+            if let Some(header) =
+                RUSTDOC_FENCES.into_iter().find_map(|fence| line.strip_prefix(fence))
+            {
                 in_code_block = !in_code_block;
 
                 if in_code_block
@@ -498,7 +518,7 @@ fn has_runnable_doc_test(attrs: &hir::Attrs) -> bool {
 // We could create runnables for modules with number_of_test_submodules > 0,
 // but that bloats the runnables for no real benefit, since all tests can be run by the submodule already
 fn has_test_function_or_multiple_test_submodules(
-    sema: &Semantics<RootDatabase>,
+    sema: &Semantics<'_, RootDatabase>,
     module: &hir::Module,
 ) -> bool {
     let mut number_of_test_submodules = 0;
@@ -539,7 +559,8 @@ mod tests {
         expect: Expect,
     ) {
         let (analysis, position) = fixture::position(ra_fixture);
-        let runnables = analysis.runnables(position.file_id).unwrap();
+        let mut runnables = analysis.runnables(position.file_id).unwrap();
+        runnables.sort_by_key(|it| (it.nav.full_range.start(), it.nav.name.clone()));
         expect.assert_debug_eq(&runnables);
         assert_eq!(
             actions,
@@ -575,9 +596,24 @@ mod not_a_root {
     fn main() {}
 }
 "#,
-            &[Bin, Test, Test, Bench, TestMod],
+            &[TestMod, Bin, Test, Test, Bench],
             expect![[r#"
                 [
+                    Runnable {
+                        use_name_in_title: false,
+                        nav: NavigationTarget {
+                            file_id: FileId(
+                                0,
+                            ),
+                            full_range: 0..137,
+                            name: "",
+                            kind: Module,
+                        },
+                        kind: TestMod {
+                            path: "",
+                        },
+                        cfg: None,
+                    },
                     Runnable {
                         use_name_in_title: false,
                         nav: NavigationTarget {
@@ -649,21 +685,6 @@ mod not_a_root {
                             test_id: Path(
                                 "bench",
                             ),
-                        },
-                        cfg: None,
-                    },
-                    Runnable {
-                        use_name_in_title: false,
-                        nav: NavigationTarget {
-                            file_id: FileId(
-                                0,
-                            ),
-                            full_range: 0..137,
-                            name: "",
-                            kind: Module,
-                        },
-                        kind: TestMod {
-                            path: "",
                         },
                         cfg: None,
                     },
@@ -1060,7 +1081,7 @@ mod root_tests {
     mod nested_tests_4 {}
 }
 "#,
-            &[TestMod, TestMod, TestMod, Test, Test, Test],
+            &[TestMod, TestMod, Test, Test, TestMod, Test],
             expect![[r#"
                 [
                     Runnable {
@@ -1094,23 +1115,6 @@ mod root_tests {
                         },
                         kind: TestMod {
                             path: "root_tests::nested_tests_0::nested_tests_1",
-                        },
-                        cfg: None,
-                    },
-                    Runnable {
-                        use_name_in_title: false,
-                        nav: NavigationTarget {
-                            file_id: FileId(
-                                0,
-                            ),
-                            full_range: 202..286,
-                            focus_range: 206..220,
-                            name: "nested_tests_2",
-                            kind: Module,
-                            description: "mod nested_tests_2",
-                        },
-                        kind: TestMod {
-                            path: "root_tests::nested_tests_0::nested_tests_2",
                         },
                         cfg: None,
                     },
@@ -1162,6 +1166,23 @@ mod root_tests {
                             file_id: FileId(
                                 0,
                             ),
+                            full_range: 202..286,
+                            focus_range: 206..220,
+                            name: "nested_tests_2",
+                            kind: Module,
+                            description: "mod nested_tests_2",
+                        },
+                        kind: TestMod {
+                            path: "root_tests::nested_tests_0::nested_tests_2",
+                        },
+                        cfg: None,
+                    },
+                    Runnable {
+                        use_name_in_title: false,
+                        nav: NavigationTarget {
+                            file_id: FileId(
+                                0,
+                            ),
                             full_range: 235..276,
                             focus_range: 258..271,
                             name: "nested_test_2",
@@ -1192,9 +1213,24 @@ $0
 #[cfg(feature = "foo")]
 fn test_foo1() {}
 "#,
-            &[Test, TestMod],
+            &[TestMod, Test],
             expect![[r#"
                 [
+                    Runnable {
+                        use_name_in_title: false,
+                        nav: NavigationTarget {
+                            file_id: FileId(
+                                0,
+                            ),
+                            full_range: 0..51,
+                            name: "",
+                            kind: Module,
+                        },
+                        kind: TestMod {
+                            path: "",
+                        },
+                        cfg: None,
+                    },
                     Runnable {
                         use_name_in_title: false,
                         nav: NavigationTarget {
@@ -1223,21 +1259,6 @@ fn test_foo1() {}
                             ),
                         ),
                     },
-                    Runnable {
-                        use_name_in_title: false,
-                        nav: NavigationTarget {
-                            file_id: FileId(
-                                0,
-                            ),
-                            full_range: 0..51,
-                            name: "",
-                            kind: Module,
-                        },
-                        kind: TestMod {
-                            path: "",
-                        },
-                        cfg: None,
-                    },
                 ]
             "#]],
         );
@@ -1253,9 +1274,24 @@ $0
 #[cfg(all(feature = "foo", feature = "bar"))]
 fn test_foo1() {}
 "#,
-            &[Test, TestMod],
+            &[TestMod, Test],
             expect![[r#"
                 [
+                    Runnable {
+                        use_name_in_title: false,
+                        nav: NavigationTarget {
+                            file_id: FileId(
+                                0,
+                            ),
+                            full_range: 0..73,
+                            name: "",
+                            kind: Module,
+                        },
+                        kind: TestMod {
+                            path: "",
+                        },
+                        cfg: None,
+                    },
                     Runnable {
                         use_name_in_title: false,
                         nav: NavigationTarget {
@@ -1293,21 +1329,6 @@ fn test_foo1() {}
                                 ],
                             ),
                         ),
-                    },
-                    Runnable {
-                        use_name_in_title: false,
-                        nav: NavigationTarget {
-                            file_id: FileId(
-                                0,
-                            ),
-                            full_range: 0..73,
-                            name: "",
-                            kind: Module,
-                        },
-                        kind: TestMod {
-                            path: "",
-                        },
-                        cfg: None,
                     },
                 ]
             "#]],
@@ -1395,9 +1416,24 @@ mod tests {
 }
 gen2!();
 "#,
-            &[TestMod, TestMod, TestMod, Test, Test],
+            &[TestMod, TestMod, Test, Test, TestMod],
             expect![[r#"
                 [
+                    Runnable {
+                        use_name_in_title: false,
+                        nav: NavigationTarget {
+                            file_id: FileId(
+                                0,
+                            ),
+                            full_range: 0..237,
+                            name: "",
+                            kind: Module,
+                        },
+                        kind: TestMod {
+                            path: "",
+                        },
+                        cfg: None,
+                    },
                     Runnable {
                         use_name_in_title: false,
                         nav: NavigationTarget {
@@ -1421,28 +1457,17 @@ gen2!();
                             file_id: FileId(
                                 0,
                             ),
-                            full_range: 0..237,
-                            name: "",
-                            kind: Module,
+                            full_range: 218..225,
+                            name: "foo_test",
+                            kind: Function,
                         },
-                        kind: TestMod {
-                            path: "",
-                        },
-                        cfg: None,
-                    },
-                    Runnable {
-                        use_name_in_title: true,
-                        nav: NavigationTarget {
-                            file_id: FileId(
-                                0,
+                        kind: Test {
+                            test_id: Path(
+                                "tests::foo_test",
                             ),
-                            full_range: 228..236,
-                            name: "tests2",
-                            kind: Module,
-                            description: "mod tests2",
-                        },
-                        kind: TestMod {
-                            path: "tests2",
+                            attr: TestAttr {
+                                ignore: false,
+                            },
                         },
                         cfg: None,
                     },
@@ -1467,22 +1492,18 @@ gen2!();
                         cfg: None,
                     },
                     Runnable {
-                        use_name_in_title: false,
+                        use_name_in_title: true,
                         nav: NavigationTarget {
                             file_id: FileId(
                                 0,
                             ),
-                            full_range: 218..225,
-                            name: "foo_test",
-                            kind: Function,
+                            full_range: 228..236,
+                            name: "tests2",
+                            kind: Module,
+                            description: "mod tests2",
                         },
-                        kind: Test {
-                            test_id: Path(
-                                "tests::foo_test",
-                            ),
-                            attr: TestAttr {
-                                ignore: false,
-                            },
+                        kind: TestMod {
+                            path: "tests2",
                         },
                         cfg: None,
                     },
@@ -1511,25 +1532,9 @@ macro_rules! foo {
 }
 foo!();
 "#,
-            &[TestMod, Test, Test, Test],
+            &[Test, Test, Test, TestMod],
             expect![[r#"
                 [
-                    Runnable {
-                        use_name_in_title: true,
-                        nav: NavigationTarget {
-                            file_id: FileId(
-                                0,
-                            ),
-                            full_range: 210..217,
-                            name: "foo_tests",
-                            kind: Module,
-                            description: "mod foo_tests",
-                        },
-                        kind: TestMod {
-                            path: "foo_tests",
-                        },
-                        cfg: None,
-                    },
                     Runnable {
                         use_name_in_title: true,
                         nav: NavigationTarget {
@@ -1587,6 +1592,22 @@ foo!();
                             attr: TestAttr {
                                 ignore: false,
                             },
+                        },
+                        cfg: None,
+                    },
+                    Runnable {
+                        use_name_in_title: true,
+                        nav: NavigationTarget {
+                            file_id: FileId(
+                                0,
+                            ),
+                            full_range: 210..217,
+                            name: "foo_tests",
+                            kind: Module,
+                            description: "mod foo_tests",
+                        },
+                        kind: TestMod {
+                            path: "foo_tests",
                         },
                         cfg: None,
                     },
@@ -1666,9 +1687,24 @@ fn t0() {}
 #[test]
 fn t1() {}
 "#,
-            &[Test, Test, TestMod],
+            &[TestMod, Test, Test],
             expect![[r#"
                 [
+                    Runnable {
+                        use_name_in_title: false,
+                        nav: NavigationTarget {
+                            file_id: FileId(
+                                1,
+                            ),
+                            full_range: 0..39,
+                            name: "m",
+                            kind: Module,
+                        },
+                        kind: TestMod {
+                            path: "m",
+                        },
+                        cfg: None,
+                    },
                     Runnable {
                         use_name_in_title: false,
                         nav: NavigationTarget {
@@ -1708,21 +1744,6 @@ fn t1() {}
                             attr: TestAttr {
                                 ignore: false,
                             },
-                        },
-                        cfg: None,
-                    },
-                    Runnable {
-                        use_name_in_title: false,
-                        nav: NavigationTarget {
-                            file_id: FileId(
-                                1,
-                            ),
-                            full_range: 0..39,
-                            name: "m",
-                            kind: Module,
-                        },
-                        kind: TestMod {
-                            path: "m",
                         },
                         cfg: None,
                     },
@@ -2067,6 +2088,70 @@ impl<T, U> Foo<T, U> {
                         kind: DocTest {
                             test_id: Path(
                                 "Foo<T, U>::t",
+                            ),
+                        },
+                        cfg: None,
+                    },
+                ]
+            "#]],
+        );
+    }
+
+    #[test]
+    fn doc_test_macro_export_mbe() {
+        check(
+            r#"
+//- /lib.rs
+$0
+mod foo;
+
+//- /foo.rs
+/// ```
+/// fn foo() {
+/// }
+/// ```
+#[macro_export]
+macro_rules! foo {
+    () => {
+
+    };
+}
+"#,
+            &[],
+            expect![[r#"
+                []
+            "#]],
+        );
+        check(
+            r#"
+//- /lib.rs
+$0
+/// ```
+/// fn foo() {
+/// }
+/// ```
+#[macro_export]
+macro_rules! foo {
+    () => {
+
+    };
+}
+"#,
+            &[DocTest],
+            expect![[r#"
+                [
+                    Runnable {
+                        use_name_in_title: false,
+                        nav: NavigationTarget {
+                            file_id: FileId(
+                                0,
+                            ),
+                            full_range: 1..94,
+                            name: "foo",
+                        },
+                        kind: DocTest {
+                            test_id: Path(
+                                "foo",
                             ),
                         },
                         cfg: None,

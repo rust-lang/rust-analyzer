@@ -10,6 +10,9 @@ use crate::{FilePosition, NavigationTarget, RangeInfo};
 // Feature: Go to Declaration
 //
 // Navigates to the declaration of an identifier.
+//
+// This is currently the same as `Go to Definition` with the exception of outline modules where it
+// will navigate to the `mod name;` item declaration.
 pub(crate) fn goto_declaration(
     db: &RootDatabase,
     position: FilePosition,
@@ -18,7 +21,7 @@ pub(crate) fn goto_declaration(
     let file = sema.parse(position.file_id).syntax().clone();
     let original_token = file
         .token_at_offset(position.offset)
-        .find(|it| matches!(it.kind(), IDENT | T![self] | T![super] | T![crate]))?;
+        .find(|it| matches!(it.kind(), IDENT | T![self] | T![super] | T![crate] | T![Self]))?;
     let range = original_token.text_range();
     let info: Vec<NavigationTarget> = sema
         .descend_into_macros(original_token)

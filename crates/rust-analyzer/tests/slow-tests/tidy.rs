@@ -3,14 +3,19 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use xshell::{cmd, pushd, pushenv, read_file};
+use xshell::Shell;
 
+#[cfg(not(feature = "in-rust-tree"))]
+use xshell::cmd;
+
+#[cfg(not(feature = "in-rust-tree"))]
 #[test]
 fn check_code_formatting() {
-    let _dir = pushd(sourcegen::project_root()).unwrap();
-    let _e = pushenv("RUSTUP_TOOLCHAIN", "stable");
+    let sh = &Shell::new().unwrap();
+    sh.change_dir(sourcegen::project_root());
+    sh.set_var("RUSTUP_TOOLCHAIN", "stable");
 
-    let out = cmd!("rustfmt --version").read().unwrap();
+    let out = cmd!(sh, "rustfmt --version").read().unwrap();
     if !out.contains("stable") {
         panic!(
             "Failed to run rustfmt from toolchain 'stable'. \
@@ -18,25 +23,27 @@ fn check_code_formatting() {
         )
     }
 
-    let res = cmd!("cargo fmt -- --check").run();
+    let res = cmd!(sh, "cargo fmt -- --check").run();
     if res.is_err() {
-        let _ = cmd!("cargo fmt").run();
+        let _ = cmd!(sh, "cargo fmt").run();
     }
     res.unwrap()
 }
 
 #[test]
 fn check_lsp_extensions_docs() {
+    let sh = &Shell::new().unwrap();
+
     let expected_hash = {
-        let lsp_ext_rs =
-            read_file(sourcegen::project_root().join("crates/rust-analyzer/src/lsp_ext.rs"))
-                .unwrap();
+        let lsp_ext_rs = sh
+            .read_file(sourcegen::project_root().join("crates/rust-analyzer/src/lsp_ext.rs"))
+            .unwrap();
         stable_hash(lsp_ext_rs.as_str())
     };
 
     let actual_hash = {
         let lsp_extensions_md =
-            read_file(sourcegen::project_root().join("docs/dev/lsp-extensions.md")).unwrap();
+            sh.read_file(sourcegen::project_root().join("docs/dev/lsp-extensions.md")).unwrap();
         let text = lsp_extensions_md
             .lines()
             .find_map(|line| line.strip_prefix("lsp_ext.rs hash:"))
@@ -62,6 +69,8 @@ Please adjust docs/dev/lsp-extensions.md.
 
 #[test]
 fn files_are_tidy() {
+    let sh = &Shell::new().unwrap();
+
     let files = sourcegen::list_files(&sourcegen::project_root().join("crates"));
 
     let mut tidy_docs = TidyDocs::default();
@@ -70,7 +79,7 @@ fn files_are_tidy() {
         let extension = path.extension().unwrap_or_default().to_str().unwrap_or_default();
         match extension {
             "rs" => {
-                let text = read_file(&path).unwrap();
+                let text = sh.read_file(&path).unwrap();
                 check_todo(&path, &text);
                 check_dbg(&path, &text);
                 check_test_attrs(&path, &text);
@@ -80,7 +89,7 @@ fn files_are_tidy() {
                 tidy_marks.visit(&path, &text);
             }
             "toml" => {
-                let text = read_file(&path).unwrap();
+                let text = sh.read_file(&path).unwrap();
                 check_cargo_toml(&path, text);
             }
             _ => (),
@@ -137,63 +146,14 @@ fn check_cargo_toml(path: &Path, text: String) {
     }
 }
 
-#[test]
-fn check_merge_commits() {
-    let stdout = cmd!("git rev-list --merges --invert-grep --author 'bors\\[bot\\]' HEAD~19..")
-        .read()
-        .unwrap();
-    if !stdout.is_empty() {
-        panic!(
-            "
-Merge commits are not allowed in the history.
-
-When updating a pull-request, please rebase your feature branch
-on top of master by running `git rebase master`. If rebase fails,
-you can re-apply your changes like this:
-
-  # Just look around to see the current state.
-  $ git status
-  $ git log
-
-  # Abort in-progress rebase and merges, if any.
-  $ git rebase --abort
-  $ git merge --abort
-
-  # Make the branch point to the latest commit from master,
-  # while maintaining your local changes uncommited.
-  $ git reset --soft origin/master
-
-  # Commit all changes in a single batch.
-  $ git commit -am'My changes'
-
-  # Verify that everything looks alright.
-  $ git status
-  $ git log
-
-  # Push the changes. We did a rebase, so we need `--force` option.
-  # `--force-with-lease` is a more safe (Rusty) version of `--force`.
-  $ git push --force-with-lease
-
-  # Verify that both local and remote branch point to the same commit.
-  $ git log
-
-And don't fear to mess something up during a rebase -- you can
-always restore the previous state using `git ref-log`:
-
-https://github.blog/2015-06-08-how-to-undo-almost-anything-with-git/#redo-after-undo-local
-"
-        );
-    }
-}
-
 fn deny_clippy(path: &Path, text: &str) {
     let ignore = &[
         // The documentation in string literals may contain anything for its own purposes
-        "ide_db/src/helpers/generated_lints.rs",
+        "ide-db/src/generated/lints.rs",
         // The tests test clippy lint hovers
         "ide/src/hover/tests.rs",
         // The tests test clippy lint completions
-        "ide_completion/src/tests/attribute.rs",
+        "ide-completion/src/tests/attribute.rs",
     ];
     if ignore.iter().any(|p| path.ends_with(p)) {
         return;
@@ -212,15 +172,20 @@ See https://github.com/rust-lang/rust-clippy/issues/5537 for discussion.
     }
 }
 
+#[cfg(not(feature = "in-rust-tree"))]
 #[test]
 fn check_licenses() {
+    let sh = &Shell::new().unwrap();
+
     let expected = "
 0BSD OR MIT OR Apache-2.0
 Apache-2.0
 Apache-2.0 OR BSL-1.0
 Apache-2.0 OR MIT
+Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 Apache-2.0/MIT
 BSD-3-Clause
+BlueOak-1.0.0 OR MIT OR Apache-2.0
 CC0-1.0 OR Artistic-2.0
 ISC
 MIT
@@ -236,7 +201,7 @@ Zlib OR Apache-2.0 OR MIT
     .filter(|it| !it.is_empty())
     .collect::<Vec<_>>();
 
-    let meta = cmd!("cargo metadata --format-version 1").read().unwrap();
+    let meta = cmd!(sh, "cargo metadata --format-version 1").read().unwrap();
     let mut licenses = meta
         .split(|c| c == ',' || c == '{' || c == '}')
         .filter(|it| it.contains(r#""license""#))
@@ -280,11 +245,11 @@ fn check_todo(path: &Path, text: &str) {
         // `ast::make`.
         "ast/make.rs",
         // The documentation in string literals may contain anything for its own purposes
-        "ide_db/src/helpers/generated_lints.rs",
-        "ide_assists/src/utils/gen_trait_fn_body.rs",
-        "ide_assists/src/tests/generated.rs",
+        "ide-db/src/generated/lints.rs",
+        "ide-assists/src/utils/gen_trait_fn_body.rs",
+        "ide-assists/src/tests/generated.rs",
         // The tests for missing fields
-        "ide_diagnostics/src/handlers/missing_fields.rs",
+        "ide-diagnostics/src/handlers/missing_fields.rs",
     ];
     if need_todo.iter().any(|p| path.ends_with(p)) {
         return;
@@ -311,12 +276,12 @@ fn check_dbg(path: &Path, text: &str) {
         // Assists to remove `dbg!()`
         "handlers/remove_dbg.rs",
         // We have .dbg postfix
-        "ide_completion/src/completions/postfix.rs",
-        "ide_completion/src/completions/keyword.rs",
-        "ide_completion/src/tests/proc_macros.rs",
+        "ide-completion/src/completions/postfix.rs",
+        "ide-completion/src/completions/keyword.rs",
+        "ide-completion/src/tests/proc_macros.rs",
         // The documentation in string literals may contain anything for its own purposes
-        "ide_completion/src/lib.rs",
-        "ide_db/src/helpers/generated_lints.rs",
+        "ide-completion/src/lib.rs",
+        "ide-db/src/generated/lints.rs",
         // test for doc test for remove_dbg
         "src/tests/generated.rs",
     ];
@@ -334,7 +299,7 @@ fn check_dbg(path: &Path, text: &str) {
 
 fn check_test_attrs(path: &Path, text: &str) {
     let ignore_rule =
-        "https://github.com/rust-analyzer/rust-analyzer/blob/master/docs/dev/style.md#ignore";
+        "https://github.com/rust-lang/rust-analyzer/blob/master/docs/dev/style.md#ignore";
     let need_ignore: &[&str] = &[
         // This file.
         "slow-tests/tidy.rs",
@@ -342,24 +307,24 @@ fn check_test_attrs(path: &Path, text: &str) {
         "ide/src/runnables.rs",
         // A legit test which needs to be ignored, as it takes too long to run
         // :(
-        "hir_def/src/nameres/collector.rs",
+        "hir-def/src/nameres/collector.rs",
         // Long sourcegen test to generate lint completions.
-        "ide_db/src/tests/sourcegen_lints.rs",
+        "ide-db/src/tests/sourcegen_lints.rs",
         // Obviously needs ignore.
-        "ide_assists/src/handlers/toggle_ignore.rs",
+        "ide-assists/src/handlers/toggle_ignore.rs",
         // See above.
-        "ide_assists/src/tests/generated.rs",
+        "ide-assists/src/tests/generated.rs",
     ];
     if text.contains("#[ignore") && !need_ignore.iter().any(|p| path.ends_with(p)) {
         panic!("\ndon't `#[ignore]` tests, see:\n\n    {}\n\n   {}\n", ignore_rule, path.display(),)
     }
 
     let panic_rule =
-        "https://github.com/rust-analyzer/rust-analyzer/blob/master/docs/dev/style.md#should_panic";
+        "https://github.com/rust-lang/rust-analyzer/blob/master/docs/dev/style.md#should_panic";
     let need_panic: &[&str] = &[
         // This file.
         "slow-tests/tidy.rs",
-        "test_utils/src/fixture.rs",
+        "test-utils/src/fixture.rs",
     ];
     if text.contains("#[should_panic") && !need_panic.iter().any(|p| path.ends_with(p)) {
         panic!(
@@ -461,17 +426,9 @@ struct TidyMarks {
 
 impl TidyMarks {
     fn visit(&mut self, _path: &Path, text: &str) {
-        for line in text.lines() {
-            if let Some(mark) = find_mark(line, "hit") {
-                self.hits.insert(mark.to_string());
-            }
-            if let Some(mark) = find_mark(line, "check") {
-                self.checks.insert(mark.to_string());
-            }
-            if let Some(mark) = find_mark(line, "check_count") {
-                self.checks.insert(mark.to_string());
-            }
-        }
+        find_marks(&mut self.hits, text, "hit");
+        find_marks(&mut self.checks, text, "check");
+        find_marks(&mut self.checks, text, "check_count");
     }
 
     fn finish(self) {
@@ -496,10 +453,21 @@ fn stable_hash(text: &str) -> u64 {
     hasher.finish()
 }
 
-fn find_mark<'a>(text: &'a str, mark: &'static str) -> Option<&'a str> {
-    let idx = text.find(mark)?;
-    let text = text[idx + mark.len()..].strip_prefix("!(")?;
-    let idx = text.find(|c: char| !(c.is_alphanumeric() || c == '_'))?;
-    let text = &text[..idx];
-    Some(text)
+fn find_marks(set: &mut HashSet<String>, text: &str, mark: &str) {
+    let mut text = text;
+    let mut prev_text = "";
+    while text != prev_text {
+        prev_text = text;
+        if let Some(idx) = text.find(mark) {
+            text = &text[idx + mark.len()..];
+            if let Some(stripped_text) = text.strip_prefix("!(") {
+                text = stripped_text.trim_start();
+                if let Some(idx2) = text.find(|c: char| !(c.is_alphanumeric() || c == '_')) {
+                    let mark_text = &text[..idx2];
+                    set.insert(mark_text.to_string());
+                    text = &text[idx2..];
+                }
+            }
+        }
+    }
 }

@@ -1,10 +1,10 @@
-use std::convert::TryInto;
+use std::{convert::TryInto, mem::discriminant};
 
 use crate::{doc_links::token_as_doc_comment, FilePosition, NavigationTarget, RangeInfo, TryToNav};
-use hir::{AsAssocItem, Semantics};
+use hir::{AsAssocItem, AssocItem, Semantics};
 use ide_db::{
     base_db::{AnchoredPath, FileId, FileLoader},
-    defs::Definition,
+    defs::{Definition, IdentClass},
     helpers::pick_best_token,
     RootDatabase,
 };
@@ -14,6 +14,8 @@ use syntax::{ast, AstNode, AstToken, SyntaxKind::*, SyntaxToken, TextRange, T};
 // Feature: Go to Definition
 //
 // Navigates to the definition of an identifier.
+//
+// For outline modules, this will navigate to the source file of the module.
 //
 // |===
 // | Editor  | Shortcut
@@ -30,7 +32,14 @@ pub(crate) fn goto_definition(
     let file = sema.parse(position.file_id).syntax().clone();
     let original_token =
         pick_best_token(file.token_at_offset(position.offset), |kind| match kind {
-            IDENT | INT_NUMBER | LIFETIME_IDENT | T![self] | T![super] | T![crate] | COMMENT => 2,
+            IDENT
+            | INT_NUMBER
+            | LIFETIME_IDENT
+            | T![self]
+            | T![super]
+            | T![crate]
+            | T![Self]
+            | COMMENT => 2,
             kind if kind.is_trivia() => 0,
             _ => 1,
         })?;
@@ -46,20 +55,20 @@ pub(crate) fn goto_definition(
         .filter_map(|token| {
             let parent = token.parent()?;
             if let Some(tt) = ast::TokenTree::cast(parent) {
-                if let x @ Some(_) =
-                    try_lookup_include_path(sema, tt, token.clone(), position.file_id)
+                if let Some(x) = try_lookup_include_path(sema, tt, token.clone(), position.file_id)
                 {
-                    return x;
+                    return Some(vec![x]);
                 }
             }
             Some(
-                Definition::from_token(sema, &token)
+                IdentClass::classify_token(sema, &token)?
+                    .definitions()
                     .into_iter()
                     .flat_map(|def| {
-                        try_find_trait_item_definition(sema.db, &def)
+                        try_filter_trait_item_definition(sema, &def)
                             .unwrap_or_else(|| def_to_nav(sema.db, def))
                     })
-                    .collect::<Vec<_>>(),
+                    .collect(),
             )
         })
         .flatten()
@@ -70,11 +79,11 @@ pub(crate) fn goto_definition(
 }
 
 fn try_lookup_include_path(
-    sema: &Semantics<RootDatabase>,
+    sema: &Semantics<'_, RootDatabase>,
     tt: ast::TokenTree,
     token: SyntaxToken,
     file_id: FileId,
-) -> Option<Vec<NavigationTarget>> {
+) -> Option<NavigationTarget> {
     let token = ast::String::cast(token)?;
     let path = token.value()?.into_owned();
     let macro_call = tt.syntax().parent().and_then(ast::MacroCall::cast)?;
@@ -84,7 +93,7 @@ fn try_lookup_include_path(
     }
     let file_id = sema.db.resolve_path(AnchoredPath { anchor: file_id, path: &path })?;
     let size = sema.db.file_text(file_id).len().try_into().ok()?;
-    Some(vec![NavigationTarget {
+    Some(NavigationTarget {
         file_id,
         full_range: TextRange::new(0.into(), size),
         name: path.into(),
@@ -93,34 +102,39 @@ fn try_lookup_include_path(
         container_name: None,
         description: None,
         docs: None,
-    }])
+    })
 }
-
-/// finds the trait definition of an impl'd item
+/// finds the trait definition of an impl'd item, except function
 /// e.g.
 /// ```rust
-/// trait A { fn a(); }
+/// trait A { type a; }
 /// struct S;
-/// impl A for S { fn a(); } // <-- on this function, will get the location of a() in the trait
+/// impl A for S { type a = i32; } // <-- on this associate type, will get the location of a in the trait
 /// ```
-fn try_find_trait_item_definition(
-    db: &RootDatabase,
+fn try_filter_trait_item_definition(
+    sema: &Semantics<'_, RootDatabase>,
     def: &Definition,
 ) -> Option<Vec<NavigationTarget>> {
-    let name = def.name(db)?;
+    let db = sema.db;
     let assoc = def.as_assoc_item(db)?;
-
-    let imp = match assoc.container(db) {
-        hir::AssocItemContainer::Impl(imp) => imp,
-        _ => return None,
-    };
-
-    let trait_ = imp.trait_(db)?;
-    trait_
-        .items(db)
-        .iter()
-        .find_map(|itm| (itm.name(db)? == name).then(|| itm.try_to_nav(db)).flatten())
-        .map(|it| vec![it])
+    match assoc {
+        AssocItem::Function(..) => None,
+        AssocItem::Const(..) | AssocItem::TypeAlias(..) => {
+            let imp = match assoc.container(db) {
+                hir::AssocItemContainer::Impl(imp) => imp,
+                _ => return None,
+            };
+            let trait_ = imp.trait_(db)?;
+            let name = def.name(db)?;
+            let discri_value = discriminant(&assoc);
+            trait_
+                .items(db)
+                .iter()
+                .filter(|itm| discriminant(*itm) == discri_value)
+                .find_map(|itm| (itm.name(db)? == name).then(|| itm.try_to_nav(db)).flatten())
+                .map(|it| vec![it])
+        }
+    }
 }
 
 fn def_to_nav(db: &RootDatabase, def: Definition) -> Vec<NavigationTarget> {
@@ -163,6 +177,23 @@ mod tests {
         assert!(navs.is_empty(), "didn't expect this to resolve anywhere: {:?}", navs)
     }
 
+    #[test]
+    fn goto_def_if_items_same_name() {
+        check(
+            r#"
+trait Trait {
+    type A;
+    const A: i32;
+        //^
+}
+
+struct T;
+impl Trait for T {
+    type A = i32;
+    const A$0: i32 = -9;
+}"#,
+        );
+    }
     #[test]
     fn goto_def_in_mac_call_in_attr_invoc() {
         check(
@@ -1006,6 +1037,22 @@ fn f() -> impl Iterator<Item$0 = u8> {}
     }
 
     #[test]
+    fn goto_def_for_super_assoc_ty_in_path() {
+        check(
+            r#"
+trait Super {
+    type Item;
+       //^^^^
+}
+
+trait Sub: Super {}
+
+fn f() -> impl Sub<Item$0 = u8> {}
+"#,
+        );
+    }
+
+    #[test]
     fn unknown_assoc_ty() {
         check_unresolved(
             r#"
@@ -1237,6 +1284,7 @@ use mac::fn_macro;
 fn_macro$0!();
 
 //- /mac.rs crate:mac
+#![crate_type="proc-macro"]
 #[proc_macro]
 fn fn_macro() {}
  //^^^^^^^^
@@ -1305,23 +1353,161 @@ fn main() {
 "#,
         );
     }
-
-    #[test]
-    fn goto_def_of_trait_impl_fn() {
-        check(
-            r#"
+    #[cfg(test)]
+    mod goto_impl_of_trait_fn {
+        use super::check;
+        #[test]
+        fn cursor_on_impl() {
+            check(
+                r#"
 trait Twait {
     fn a();
-    // ^
 }
 
 struct Stwuct;
 
 impl Twait for Stwuct {
     fn a$0();
+     //^
+}
+        "#,
+            );
+        }
+        #[test]
+        fn method_call() {
+            check(
+                r#"
+trait Twait {
+    fn a(&self);
+}
+
+struct Stwuct;
+
+impl Twait for Stwuct {
+    fn a(&self){};
+     //^
+}
+fn f() {
+    let s = Stwuct;
+    s.a$0();
+}
+        "#,
+            );
+        }
+        #[test]
+        fn path_call() {
+            check(
+                r#"
+trait Twait {
+    fn a(&self);
+}
+
+struct Stwuct;
+
+impl Twait for Stwuct {
+    fn a(&self){};
+     //^
+}
+fn f() {
+    let s = Stwuct;
+    Stwuct::a$0(&s);
+}
+        "#,
+            );
+        }
+        #[test]
+        fn where_clause_can_work() {
+            check(
+                r#"
+trait G {
+    fn g(&self);
+}
+trait Bound{}
+trait EA{}
+struct Gen<T>(T);
+impl <T:EA> G for Gen<T> {
+    fn g(&self) {
+    }
+}
+impl <T> G for Gen<T>
+where T : Bound
+{
+    fn g(&self){
+     //^
+    }
+}
+struct A;
+impl Bound for A{}
+fn f() {
+    let gen = Gen::<A>(A);
+    gen.g$0();
+}
+                "#,
+            );
+        }
+        #[test]
+        fn wc_case_is_ok() {
+            check(
+                r#"
+trait G {
+    fn g(&self);
+}
+trait BParent{}
+trait Bound: BParent{}
+struct Gen<T>(T);
+impl <T> G for Gen<T>
+where T : Bound
+{
+    fn g(&self){
+     //^
+    }
+}
+struct A;
+impl Bound for A{}
+fn f() {
+    let gen = Gen::<A>(A);
+    gen.g$0();
 }
 "#,
-        );
+            );
+        }
+
+        #[test]
+        fn method_call_defaulted() {
+            check(
+                r#"
+trait Twait {
+    fn a(&self) {}
+     //^
+}
+
+struct Stwuct;
+
+impl Twait for Stwuct {
+}
+fn f() {
+    let s = Stwuct;
+    s.a$0();
+}
+        "#,
+            );
+        }
+
+        #[test]
+        fn method_call_on_generic() {
+            check(
+                r#"
+trait Twait {
+    fn a(&self) {}
+     //^
+}
+
+fn f<T: Twait>(s: T) {
+    s.a$0();
+}
+        "#,
+            );
+        }
     }
 
     #[test]
@@ -1364,10 +1550,21 @@ impl Twait for Stwuct {
     fn goto_def_derive_input() {
         check(
             r#"
+        //- minicore:derive
+        #[rustc_builtin_macro]
+        pub macro Copy {}
+               // ^^^^
+        #[derive(Copy$0)]
+        struct Foo;
+                    "#,
+        );
+        check(
+            r#"
 //- minicore:derive
 #[rustc_builtin_macro]
 pub macro Copy {}
        // ^^^^
+#[cfg_attr(feature = "false", derive)]
 #[derive(Copy$0)]
 struct Foo;
             "#,
@@ -1381,6 +1578,18 @@ mod foo {
            // ^^^^
 }
 #[derive(foo::Copy$0)]
+struct Foo;
+            "#,
+        );
+        check(
+            r#"
+//- minicore:derive
+mod foo {
+ // ^^^
+    #[rustc_builtin_macro]
+    pub macro Copy {}
+}
+#[derive(foo$0::Copy)]
 struct Foo;
             "#,
         );

@@ -120,7 +120,7 @@ pub(crate) fn will_rename_file(
 }
 
 fn find_definitions(
-    sema: &Semantics<RootDatabase>,
+    sema: &Semantics<'_, RootDatabase>,
     syntax: &SyntaxNode,
     position: FilePosition,
 ) -> RenameResult<impl Iterator<Item = (ast::NameLike, Definition)>> {
@@ -201,7 +201,10 @@ fn find_definitions(
     }
 }
 
-fn rename_to_self(sema: &Semantics<RootDatabase>, local: hir::Local) -> RenameResult<SourceChange> {
+fn rename_to_self(
+    sema: &Semantics<'_, RootDatabase>,
+    local: hir::Local,
+) -> RenameResult<SourceChange> {
     if never!(local.is_self(sema.db)) {
         bail!("rename_to_self invoked on self");
     }
@@ -219,8 +222,13 @@ fn rename_to_self(sema: &Semantics<RootDatabase>, local: hir::Local) -> RenameRe
     let first_param = params
         .first()
         .ok_or_else(|| format_err!("Cannot rename local to self unless it is a parameter"))?;
-    if first_param.as_local(sema.db) != local {
-        bail!("Only the first parameter may be renamed to self");
+    match first_param.as_local(sema.db) {
+        Some(plocal) => {
+            if plocal != local {
+                bail!("Only the first parameter may be renamed to self");
+            }
+        }
+        None => bail!("rename_to_self invoked on destructuring parameter"),
     }
 
     let assoc_item = fn_def
@@ -264,7 +272,7 @@ fn rename_to_self(sema: &Semantics<RootDatabase>, local: hir::Local) -> RenameRe
 }
 
 fn rename_self_to_param(
-    sema: &Semantics<RootDatabase>,
+    sema: &Semantics<'_, RootDatabase>,
     local: hir::Local,
     self_param: hir::SelfParam,
     new_name: &str,
@@ -371,6 +379,15 @@ mod tests {
         let (analysis, position) = fixture::position(ra_fixture);
         let source_change =
             analysis.rename(position, new_name).unwrap().expect("Expect returned a RenameError");
+        expect.assert_debug_eq(&source_change)
+    }
+
+    fn check_expect_will_rename_file(new_name: &str, ra_fixture: &str, expect: Expect) {
+        let (analysis, position) = fixture::position(ra_fixture);
+        let source_change = analysis
+            .will_rename_file(position.file_id, new_name)
+            .unwrap()
+            .expect("Expect returned a RenameError");
         expect.assert_debug_eq(&source_change)
     }
 
@@ -963,15 +980,21 @@ mod fo$0o;
                         },
                     },
                     file_system_edits: [
-                        MoveFile {
-                            src: FileId(
+                        MoveDir {
+                            src: AnchoredPathBuf {
+                                anchor: FileId(
+                                    1,
+                                ),
+                                path: "../foo",
+                            },
+                            src_id: FileId(
                                 1,
                             ),
                             dst: AnchoredPathBuf {
                                 anchor: FileId(
                                     1,
                                 ),
-                                path: "../foo2/mod.rs",
+                                path: "../foo2",
                             },
                         },
                     ],
@@ -1106,6 +1129,152 @@ pub mod foo$0;
                 }
             "#]],
         );
+    }
+
+    #[test]
+    fn test_rename_mod_recursive() {
+        check_expect(
+            "foo2",
+            r#"
+//- /lib.rs
+mod foo$0;
+
+//- /foo.rs
+mod bar;
+mod corge;
+
+//- /foo/bar.rs
+mod qux;
+
+//- /foo/bar/qux.rs
+mod quux;
+
+//- /foo/bar/qux/quux/mod.rs
+// empty
+
+//- /foo/corge.rs
+// empty
+"#,
+            expect![[r#"
+                SourceChange {
+                    source_file_edits: {
+                        FileId(
+                            0,
+                        ): TextEdit {
+                            indels: [
+                                Indel {
+                                    insert: "foo2",
+                                    delete: 4..7,
+                                },
+                            ],
+                        },
+                    },
+                    file_system_edits: [
+                        MoveFile {
+                            src: FileId(
+                                1,
+                            ),
+                            dst: AnchoredPathBuf {
+                                anchor: FileId(
+                                    1,
+                                ),
+                                path: "foo2.rs",
+                            },
+                        },
+                        MoveDir {
+                            src: AnchoredPathBuf {
+                                anchor: FileId(
+                                    1,
+                                ),
+                                path: "foo",
+                            },
+                            src_id: FileId(
+                                1,
+                            ),
+                            dst: AnchoredPathBuf {
+                                anchor: FileId(
+                                    1,
+                                ),
+                                path: "foo2",
+                            },
+                        },
+                    ],
+                    is_snippet: false,
+                }
+            "#]],
+        )
+    }
+    #[test]
+    fn test_rename_mod_ref_by_super() {
+        check(
+            "baz",
+            r#"
+        mod $0foo {
+        struct X;
+
+        mod bar {
+            use super::X;
+        }
+    }
+            "#,
+            r#"
+        mod baz {
+        struct X;
+
+        mod bar {
+            use super::X;
+        }
+    }
+            "#,
+        )
+    }
+
+    #[test]
+    fn test_rename_mod_in_macro() {
+        check(
+            "bar",
+            r#"
+//- /foo.rs
+
+//- /lib.rs
+macro_rules! submodule {
+    ($name:ident) => {
+        mod $name;
+    };
+}
+
+submodule!($0foo);
+"#,
+            r#"
+macro_rules! submodule {
+    ($name:ident) => {
+        mod $name;
+    };
+}
+
+submodule!(bar);
+"#,
+        )
+    }
+
+    #[test]
+    fn test_rename_mod_for_crate_root() {
+        check_expect_will_rename_file(
+            "main",
+            r#"
+//- /lib.rs
+use crate::foo as bar;
+fn foo() {}
+mod bar$0;
+"#,
+            expect![[r#"
+                SourceChange {
+                    source_file_edits: {},
+                    file_system_edits: [],
+                    is_snippet: false,
+                }
+                "#]],
+        )
     }
 
     #[test]
@@ -2030,5 +2199,54 @@ fn foo() {
 }
 "#,
         )
+    }
+
+    #[test]
+    fn rename_multi_local() {
+        check(
+            "bar",
+            r#"
+fn foo((foo$0 | foo | foo): ()) {
+    foo;
+    let foo;
+}
+"#,
+            r#"
+fn foo((bar | bar | bar): ()) {
+    bar;
+    let foo;
+}
+"#,
+        );
+        check(
+            "bar",
+            r#"
+fn foo((foo | foo$0 | foo): ()) {
+    foo;
+    let foo;
+}
+"#,
+            r#"
+fn foo((bar | bar | bar): ()) {
+    bar;
+    let foo;
+}
+"#,
+        );
+        check(
+            "bar",
+            r#"
+fn foo((foo | foo | foo): ()) {
+    foo$0;
+    let foo;
+}
+"#,
+            r#"
+fn foo((bar | bar | bar): ()) {
+    bar;
+    let foo;
+}
+"#,
+        );
     }
 }

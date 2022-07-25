@@ -60,13 +60,13 @@ pub fn load_workspace(
 
     let proc_macro_client = if load_config.with_proc_macro {
         let path = AbsPathBuf::assert(std::env::current_exe()?);
-        Some(ProcMacroServer::spawn(path, &["proc-macro"]).unwrap())
+        Ok(ProcMacroServer::spawn(path, &["proc-macro"]).unwrap())
     } else {
-        None
+        Err("proc macro server not started".to_owned())
     };
 
     let crate_graph = ws.to_crate_graph(
-        &mut |path: &AbsPath| load_proc_macro(proc_macro_client.as_ref(), path),
+        &mut |_, path: &AbsPath| load_proc_macro(proc_macro_client.as_ref(), path, &[]),
         &mut |path: &AbsPath| {
             let contents = loader.load_sync(path);
             let path = vfs::VfsPath::from(path.to_path_buf());
@@ -87,9 +87,9 @@ pub fn load_workspace(
         load_crate_graph(crate_graph, project_folders.source_root_config, &mut vfs, &receiver);
 
     if load_config.prefill_caches {
-        host.analysis().prime_caches(|_| {})?;
+        host.analysis().parallel_prime_caches(1, |_| {})?;
     }
-    Ok((host, vfs, proc_macro_client))
+    Ok((host, vfs, proc_macro_client.ok()))
 }
 
 fn load_crate_graph(

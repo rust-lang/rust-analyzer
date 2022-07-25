@@ -26,7 +26,7 @@ use crate::{
     mem_docs::MemDocs,
     op_queue::OpQueue,
     reload::{self, SourceRootConfig},
-    thread_pool::TaskPool,
+    task_pool::TaskPool,
     to_proto::url_from_abs_path,
     Result,
 };
@@ -46,7 +46,7 @@ pub(crate) type ReqQueue = lsp_server::ReqQueue<(String, Instant), ReqHandler>;
 /// snapshot of the file systems, and `analysis_host`, which stores our
 /// incremental salsa database.
 ///
-/// Note that this struct has more than on impl in various modules!
+/// Note that this struct has more than one impl in various modules!
 pub(crate) struct GlobalState {
     sender: Sender<lsp_server::Message>,
     req_queue: ReqQueue,
@@ -61,7 +61,7 @@ pub(crate) struct GlobalState {
     pub(crate) proc_macro_changed: bool,
     pub(crate) last_reported_status: Option<lsp_ext::ServerStatusParams>,
     pub(crate) source_root_config: SourceRootConfig,
-    pub(crate) proc_macro_client: Option<ProcMacroServer>,
+    pub(crate) proc_macro_clients: Vec<Result<ProcMacroServer, String>>,
 
     pub(crate) flycheck: Vec<FlycheckHandle>,
     pub(crate) flycheck_sender: Sender<flycheck::Message>,
@@ -151,7 +151,7 @@ impl GlobalState {
             proc_macro_changed: false,
             last_reported_status: None,
             source_root_config: SourceRootConfig::default(),
-            proc_macro_client: None,
+            proc_macro_clients: vec![],
 
             flycheck: Vec::new(),
             flycheck_sender,
@@ -180,7 +180,7 @@ impl GlobalState {
         // A file was added or deleted
         let mut has_structure_changes = false;
 
-        let change = {
+        let (change, changed_files) = {
             let mut change = Change::new();
             let (vfs, line_endings_map) = &mut *self.vfs.write();
             let changed_files = vfs.take_changes();
@@ -188,20 +188,12 @@ impl GlobalState {
                 return false;
             }
 
-            for file in changed_files {
-                if !file.is_created_or_deleted() {
-                    let crates = self.analysis_host.raw_database().relevant_crates(file.file_id);
-                    let crate_graph = self.analysis_host.raw_database().crate_graph();
-
-                    if crates.iter().any(|&krate| !crate_graph[krate].proc_macro.is_empty()) {
-                        self.proc_macro_changed = true;
-                    }
-                }
-
+            for file in &changed_files {
                 if let Some(path) = vfs.file_path(file.file_id).as_path() {
                     let path = path.to_path_buf();
                     if reload::should_refresh_for_change(&path, file.change_kind) {
-                        self.fetch_workspaces_queue.request_op();
+                        self.fetch_workspaces_queue
+                            .request_op(format!("vfs file change: {}", path.display()));
                     }
                     fs_changes.push((path, file.change_kind));
                     if file.is_created_or_deleted() {
@@ -209,16 +201,17 @@ impl GlobalState {
                     }
                 }
 
+                if !file.exists() {
+                    self.diagnostics.clear_native_for(file.file_id);
+                }
+
                 let text = if file.exists() {
                     let bytes = vfs.file_contents(file.file_id).to_vec();
-                    match String::from_utf8(bytes).ok() {
-                        Some(text) => {
-                            let (text, line_endings) = LineEndings::normalize(text);
-                            line_endings_map.insert(file.file_id, line_endings);
-                            Some(Arc::new(text))
-                        }
-                        None => None,
-                    }
+                    String::from_utf8(bytes).ok().and_then(|text| {
+                        let (text, line_endings) = LineEndings::normalize(text);
+                        line_endings_map.insert(file.file_id, line_endings);
+                        Some(Arc::new(text))
+                    })
                 } else {
                     None
                 };
@@ -228,10 +221,19 @@ impl GlobalState {
                 let roots = self.source_root_config.partition(vfs);
                 change.set_roots(roots);
             }
-            change
+            (change, changed_files)
         };
 
         self.analysis_host.apply_change(change);
+
+        let raw_database = &self.analysis_host.raw_database();
+        self.proc_macro_changed =
+            changed_files.iter().filter(|file| !file.is_created_or_deleted()).any(|file| {
+                let crates = raw_database.relevant_crates(file.file_id);
+                let crate_graph = raw_database.crate_graph();
+
+                crates.iter().any(|&krate| crate_graph[krate].is_proc_macro)
+            });
         true
     }
 
@@ -255,8 +257,13 @@ impl GlobalState {
         let request = self.req_queue.outgoing.register(R::METHOD.to_string(), params, handler);
         self.send(request.into());
     }
+
     pub(crate) fn complete_request(&mut self, response: lsp_server::Response) {
-        let handler = self.req_queue.outgoing.complete(response.id.clone());
+        let handler = self
+            .req_queue
+            .outgoing
+            .complete(response.id.clone())
+            .expect("received response for unknown request");
         handler(self, response)
     }
 
@@ -277,6 +284,7 @@ impl GlobalState {
             .incoming
             .register(request.id.clone(), (request.method.clone(), request_received));
     }
+
     pub(crate) fn respond(&mut self, response: lsp_server::Response) {
         if let Some((method, start)) = self.req_queue.incoming.complete(response.id.clone()) {
             if let Some(err) = &response.error {
@@ -286,10 +294,11 @@ impl GlobalState {
             }
 
             let duration = start.elapsed();
-            tracing::info!("handled {} - ({}) in {:0.2?}", method, response.id, duration);
+            tracing::debug!("handled {} - ({}) in {:0.2?}", method, response.id, duration);
             self.send(response.into());
         }
     }
+
     pub(crate) fn cancel(&mut self, request_id: lsp_server::RequestId) {
         if let Some(response) = self.req_queue.incoming.cancel(request_id) {
             self.send(response.into());
@@ -303,7 +312,7 @@ impl GlobalState {
 
 impl Drop for GlobalState {
     fn drop(&mut self) {
-        self.analysis_host.request_cancellation()
+        self.analysis_host.request_cancellation();
     }
 }
 

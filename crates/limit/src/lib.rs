@@ -1,5 +1,7 @@
 //! limit defines a struct to enforce limits.
 
+#![warn(rust_2018_idioms, unused_lifetimes, semicolon_in_expressions_from_macros)]
+
 use std::sync::atomic::AtomicUsize;
 
 /// Represents a struct used to enforce a numerical limit.
@@ -45,7 +47,7 @@ impl Limit {
                 }
                 if self
                     .max
-                    .compare_exchange(old_max, other, Ordering::Relaxed, Ordering::Relaxed)
+                    .compare_exchange_weak(old_max, other, Ordering::Relaxed, Ordering::Relaxed)
                     .is_ok()
                 {
                     eprintln!("new max: {}", other);

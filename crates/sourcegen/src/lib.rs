@@ -6,12 +6,14 @@
 //!
 //! This crate contains utilities to make this kind of source-gen easy.
 
+#![warn(rust_2018_idioms, unused_lifetimes, semicolon_in_expressions_from_macros)]
+
 use std::{
     fmt, fs, mem,
     path::{Path, PathBuf},
 };
 
-use xshell::{cmd, pushenv};
+use xshell::{cmd, Shell};
 
 pub fn list_rust_files(dir: &Path) -> Vec<PathBuf> {
     let mut res = list_files(dir);
@@ -125,7 +127,7 @@ impl fmt::Display for Location {
         let name = self.file.file_name().unwrap();
         write!(
             f,
-            "https://github.com/rust-analyzer/rust-analyzer/blob/master/{}#L{}[{}]",
+            "https://github.com/rust-lang/rust-analyzer/blob/master/{}#L{}[{}]",
             path,
             self.line,
             name.to_str().unwrap()
@@ -133,8 +135,8 @@ impl fmt::Display for Location {
     }
 }
 
-fn ensure_rustfmt() {
-    let version = cmd!("rustfmt --version").read().unwrap_or_default();
+fn ensure_rustfmt(sh: &Shell) {
+    let version = cmd!(sh, "rustfmt --version").read().unwrap_or_default();
     if !version.contains("stable") {
         panic!(
             "Failed to run rustfmt from toolchain 'stable'. \
@@ -144,10 +146,11 @@ fn ensure_rustfmt() {
 }
 
 pub fn reformat(text: String) -> String {
-    let _e = pushenv("RUSTUP_TOOLCHAIN", "stable");
-    ensure_rustfmt();
+    let sh = Shell::new().unwrap();
+    sh.set_var("RUSTUP_TOOLCHAIN", "stable");
+    ensure_rustfmt(&sh);
     let rustfmt_toml = project_root().join("rustfmt.toml");
-    let mut stdout = cmd!("rustfmt --config-path {rustfmt_toml} --config fn_single_line=true")
+    let mut stdout = cmd!(sh, "rustfmt --config-path {rustfmt_toml} --config fn_single_line=true")
         .stdin(text)
         .read()
         .unwrap();
@@ -195,6 +198,6 @@ fn normalize_newlines(s: &str) -> String {
 pub fn project_root() -> PathBuf {
     let dir = env!("CARGO_MANIFEST_DIR");
     let res = PathBuf::from(dir).parent().unwrap().parent().unwrap().to_owned();
-    assert!(res.join("bors.toml").exists());
+    assert!(res.join("triagebot.toml").exists());
     res
 }

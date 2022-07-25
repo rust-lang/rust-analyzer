@@ -45,23 +45,23 @@ pub(crate) fn status(db: &RootDatabase, file_id: Option<FileId>) -> String {
 
     if let Some(file_id) = file_id {
         format_to!(buf, "\nFile info:\n");
-        let krate = crate::parent_module::crate_for(db, file_id).pop();
-        match krate {
-            Some(krate) => {
-                let crate_graph = db.crate_graph();
-                let display_crate = |krate: CrateId| match &crate_graph[krate].display_name {
-                    Some(it) => format!("{}({:?})", it, krate),
-                    None => format!("{:?}", krate),
-                };
-                format_to!(buf, "Crate: {}\n", display_crate(krate));
-                let deps = crate_graph[krate]
-                    .dependencies
-                    .iter()
-                    .map(|dep| format!("{}={:?}", dep.name, dep.crate_id))
-                    .format(", ");
-                format_to!(buf, "Dependencies: {}\n", deps);
-            }
-            None => format_to!(buf, "Does not belong to any crate"),
+        let crates = crate::parent_module::crate_for(db, file_id);
+        if crates.is_empty() {
+            format_to!(buf, "Does not belong to any crate");
+        }
+        let crate_graph = db.crate_graph();
+        for krate in crates {
+            let display_crate = |krate: CrateId| match &crate_graph[krate].display_name {
+                Some(it) => format!("{}({:?})", it, krate),
+                None => format!("{:?}", krate),
+            };
+            format_to!(buf, "Crate: {}\n", display_crate(krate));
+            let deps = crate_graph[krate]
+                .dependencies
+                .iter()
+                .map(|dep| format!("{}={:?}", dep.name, dep.crate_id))
+                .format(", ");
+            format_to!(buf, "Dependencies: {}\n", deps);
         }
     }
 
@@ -75,7 +75,7 @@ struct FilesStats {
 }
 
 impl fmt::Display for FilesStats {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "{} of files", self.size)
     }
 }
@@ -101,7 +101,7 @@ pub(crate) struct SyntaxTreeStats {
 }
 
 impl fmt::Display for SyntaxTreeStats {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "{} trees, {} preserved", self.total, self.retained)
     }
 }
@@ -143,7 +143,7 @@ struct LibrarySymbolsStats {
 }
 
 impl fmt::Display for LibrarySymbolsStats {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(fmt, "{} of index symbols ({})", self.size, self.total)
     }
 }

@@ -6,16 +6,16 @@ use std::collections::HashMap;
 use hir::{db::HirDatabase, Crate, Module, Semantics};
 use ide_db::{
     base_db::{FileId, FileRange, SourceDatabaseExt},
-    defs::Definition,
-    RootDatabase,
+    defs::{Definition, IdentClass},
+    FxHashSet, RootDatabase,
 };
-use rustc_hash::FxHashSet;
 use syntax::{AstNode, SyntaxKind::*, SyntaxToken, TextRange, T};
 
-use crate::moniker::{crate_for_file, def_to_moniker, MonikerResult};
 use crate::{
-    hover::hover_for_definition, Analysis, Fold, HoverConfig, HoverDocFormat, HoverResult,
-    InlayHint, InlayHintsConfig, TryToNav,
+    hover::hover_for_definition,
+    moniker::{crate_for_file, def_to_moniker, MonikerResult},
+    Analysis, Fold, HoverConfig, HoverDocFormat, HoverResult, InlayHint, InlayHintsConfig,
+    TryToNav,
 };
 
 /// A static representation of fully analyzed source code.
@@ -105,13 +105,22 @@ impl StaticIndex<'_> {
             .analysis
             .inlay_hints(
                 &InlayHintsConfig {
+                    render_colons: true,
                     type_hints: true,
                     parameter_hints: true,
                     chaining_hints: true,
+                    closure_return_type_hints: crate::ClosureReturnTypeHints::WithBlock,
+                    lifetime_elision_hints: crate::LifetimeElisionHints::Never,
+                    reborrow_hints: crate::ReborrowHints::Never,
                     hide_named_constructor_hints: false,
+                    hide_closure_initialization_hints: false,
+                    param_names_for_lifetime_elision_hints: false,
+                    binding_mode_hints: false,
                     max_length: Some(25),
+                    closing_brace_hints_min_lines: Some(25),
                 },
                 file_id,
+                None,
             )
             .unwrap();
         // hovers
@@ -126,7 +135,7 @@ impl StaticIndex<'_> {
         let tokens = tokens.filter(|token| {
             matches!(
                 token.kind(),
-                IDENT | INT_NUMBER | LIFETIME_IDENT | T![self] | T![super] | T![crate]
+                IDENT | INT_NUMBER | LIFETIME_IDENT | T![self] | T![super] | T![crate] | T![Self]
             )
         });
         let mut result = StaticIndexedFile { file_id, inlay_hints, folds, tokens: vec![] };
@@ -164,7 +173,7 @@ impl StaticIndex<'_> {
         self.files.push(result);
     }
 
-    pub fn compute(analysis: &Analysis) -> StaticIndex {
+    pub fn compute(analysis: &Analysis) -> StaticIndex<'_> {
         let db = &*analysis.db;
         let work = all_modules(db).into_iter().filter(|module| {
             let file_id = module.definition_source(db).file_id.original_file(db);
@@ -193,11 +202,11 @@ impl StaticIndex<'_> {
     }
 }
 
-fn get_definition(sema: &Semantics<RootDatabase>, token: SyntaxToken) -> Option<Definition> {
+fn get_definition(sema: &Semantics<'_, RootDatabase>, token: SyntaxToken) -> Option<Definition> {
     for token in sema.descend_into_macros(token) {
-        let def = Definition::from_token(sema, &token);
-        if let [x] = def.as_slice() {
-            return Some(*x);
+        let def = IdentClass::classify_token(sema, &token).map(IdentClass::definitions);
+        if let Some(&[x]) = def.as_deref() {
+            return Some(x);
         } else {
             continue;
         };

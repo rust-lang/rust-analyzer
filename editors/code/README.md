@@ -1,73 +1,52 @@
 # rust-analyzer
 
-Provides support for rust-analyzer: novel LSP server for the Rust programming language.
-
-**Note** the extension may cause conflicts with the official Rust extension. It is recommended to disable the Rust extension when using the rust-analyzer extension.
-
-**Note** the project is in alpha status: it is already useful in practice, but can't be considered stable.
-
-## Sponsor
-
-Work on rust-analyzer is sponsored by
-
-[<img src="https://user-images.githubusercontent.com/1711539/58105231-cf306900-7bee-11e9-83d8-9f1102e59d29.png" alt="Ferrous Systems" width="300">](https://ferrous-systems.com/)
-
-- [Mozilla](https://www.mozilla.org/en-US/)
-- [Embark Studios](https://embark-studios.com/)
-- [freiheit.com](https://www.freiheit.com)
-
-If you want to sponsor:
-
-- [OpenCollective](https://opencollective.com/rust-analyzer/)
-- [Github Sponsors](https://github.com/sponsors/rust-analyzer)
+This extension provides support for the [Rust programming language](https://www.rust-lang.org/).
+It is recommended over and replaces `rust-lang.rust`.
 
 ## Features
 
-- [code completion], [imports insertion]
-- [go to definition], [implementation], [type definition]
-- [find all references], [workspace symbol search], [rename]
+- [code completion] with [imports insertion]
+- go to [definition], [implementation], [type definition]
+- [find all references], [workspace symbol search], [symbol renaming]
 - [types and documentation on hover]
-- [inlay hints]
+- [inlay hints] for types and parameter names
 - [semantic syntax highlighting]
-- a lot of [assist(code actions)]
+- a lot of [assists (code actions)]
 - apply suggestions from errors
-- ... and many more, checkout the [manual] to see them all
+- ... and many more, check out the [manual] to see them all
 
 [code completion]: https://rust-analyzer.github.io/manual.html#magic-completions
-[imports insertion]: https://rust-analyzer.github.io/manual.html#auto-import
-[go to definition]: https://rust-analyzer.github.io/manual.html#go-to-definition
+[imports insertion]: https://rust-analyzer.github.io/manual.html#completion-with-autoimport
+[definition]: https://rust-analyzer.github.io/manual.html#go-to-definition
 [implementation]: https://rust-analyzer.github.io/manual.html#go-to-implementation
 [type definition]: https://rust-analyzer.github.io/manual.html#go-to-type-definition
 [find all references]: https://rust-analyzer.github.io/manual.html#find-all-references
 [workspace symbol search]: https://rust-analyzer.github.io/manual.html#workspace-symbol
-[rename]: https://rust-analyzer.github.io/manual.html#rename
+[symbol renaming]: https://rust-analyzer.github.io/manual.html#rename
 [types and documentation on hover]: https://rust-analyzer.github.io/manual.html#hover
 [inlay hints]: https://rust-analyzer.github.io/manual.html#inlay-hints
 [semantic syntax highlighting]: https://rust-analyzer.github.io/manual.html#semantic-syntax-highlighting
-[assist(code actions)]: https://rust-analyzer.github.io/manual.html#assists-code-actions
-
+[assists (code actions)]: https://rust-analyzer.github.io/manual.html#assists-code-actions
 [manual]: https://rust-analyzer.github.io/manual.html
 
 ## Quick start
 
-1. Install [rustup]
-2. Install the [rust-analyzer extension]
+1. Install [rustup].
+2. Install the [rust-analyzer extension].
 
 [rustup]: https://rustup.rs
-[rust-analyzer extension]: https://marketplace.visualstudio.com/items?itemName=matklad.rust-analyzer
+[rust-analyzer extension]: https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer
 
 ## Configuration
 
-This extension provides configurations through VSCode's configuration settings. All the configurations are under `rust-analyzer.*`.
+This extension provides configurations through VSCode's configuration settings. All configurations are under `rust-analyzer.*`.
 
-See <https://rust-analyzer.github.io/manual.html#vs-code-2> for more information on VSCode specific configurations.
+See [the manual](https://rust-analyzer.github.io/manual.html#vs-code-2) for more information on VSCode specific configurations.
 
 ## Communication
 
-For usage and troubleshooting requests, please use "IDEs and Editors" category of the Rust forum:
-
-<https://users.rust-lang.org/c/ide/14>
+For usage and troubleshooting requests, please use the ["IDEs and Editors" category of the Rust forum](https://users.rust-lang.org/c/ide/14).
 
 ## Documentation
 
-See <https://rust-analyzer.github.io/> for more information.
+See [rust-analyzer.github.io](https://rust-analyzer.github.io/) for more information.

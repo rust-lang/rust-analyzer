@@ -1,10 +1,10 @@
 <!---
-lsp_ext.rs hash: 49ffd619919ed74
+lsp_ext.rs hash: 2a188defec26cc7c
 
 If you need to change the above hash to make the test pass, please check if you
 need to adjust this doc as well and ping this issue:
 
-  https://github.com/rust-analyzer/rust-analyzer/issues/4604
+  https://github.com/rust-lang/rust-analyzer/issues/4604
 
 --->
 
@@ -17,7 +17,7 @@ All capabilities are enabled via the `experimental` field of `ClientCapabilities
 Requests which we hope to upstream live under `experimental/` namespace.
 Requests, which are likely to always remain specific to `rust-analyzer` are under `rust-analyzer/` namespace.
 
-If you want to be notified about the changes to this document, subscribe to [#4604](https://github.com/rust-analyzer/rust-analyzer/issues/4604).
+If you want to be notified about the changes to this document, subscribe to [#4604](https://github.com/rust-lang/rust-analyzer/issues/4604).
 
 ## UTF-8 offsets
 
@@ -47,7 +47,7 @@ If a language client does not know about `rust-analyzer`'s configuration options
 
 **Experimental Client Capability:** `{ "snippetTextEdit": boolean }`
 
-If this capability is set, `WorkspaceEdit`s returned from `codeAction` requests might contain `SnippetTextEdit`s instead of usual `TextEdit`s:
+If this capability is set, `WorkspaceEdit`s returned from `codeAction` requests and `TextEdit`s returned from `textDocument/onTypeFormatting` requests might contain `SnippetTextEdit`s instead of usual `TextEdit`s:
 
 ```typescript
 interface SnippetTextEdit extends TextEdit {
@@ -63,7 +63,7 @@ export interface TextDocumentEdit {
 }
 ```
 
-When applying such code action, the editor should insert snippet, with tab stops and placeholder.
+When applying such code action or text edit, the editor should insert snippet, with tab stops and placeholder.
 At the moment, rust-analyzer guarantees that only a single edit will have `InsertTextFormat.Snippet`.
 
 ### Example
@@ -278,6 +278,8 @@ interface SsrParams {
     textDocument: TextDocumentIdentifier;
     /// Position where SSR was invoked.
     position: Position;
+    /// Current selections. Search/replace will be restricted to these if non-empty.
+    selections: Range[];
 }
 ```
 
@@ -492,6 +494,17 @@ Primarily for debugging, but very useful for all people working on rust-analyzer
 Returns a textual representation of the HIR of the function containing the cursor.
 For debugging or when working on rust-analyzer itself.
 
+## View File Text
+
+**Method:** `rust-analyzer/viewFileText`
+
+**Request:** `TextDocumentIdentifier`
+
+**Response:** `string`
+
+Returns the text of a file as seen by the server.
+This is for debugging file sync problems.
+
 ## View ItemTree
 
 **Method:** `rust-analyzer/viewItemTree`
@@ -558,33 +571,6 @@ interface ExpandedMacro {
 
 Expands macro call at a given position.
 
-## Inlay Hints
-
-**Method:** `rust-analyzer/inlayHints`
-
-This request is sent from client to server to render "inlay hints" -- virtual text inserted into editor to show things like inferred types.
-Generally, the client should re-query inlay hints after every modification.
-Note that we plan to move this request to `experimental/inlayHints`, as it is not really Rust-specific, but the current API is not necessary the right one.
-Upstream issues: https://github.com/microsoft/language-server-protocol/issues/956 , https://github.com/rust-analyzer/rust-analyzer/issues/2797
-
-**Request:**
-
-```typescript
-interface InlayHintsParams {
-    textDocument: TextDocumentIdentifier,
-}
-```
-
-**Response:** `InlayHint[]`
-
-```typescript
-interface InlayHint {
-    kind: "TypeHint" | "ParameterHint" | "ChainingHint",
-    range: Range,
-    label: string,
-}
-```
-
 ## Hover Actions
 
 **Experimental Client Capability:** `{ "hoverActions": boolean }`
@@ -625,7 +611,7 @@ Such actions on the client side are appended to a hover bottom as command links:
 
 ## Open Cargo.toml
 
-**Upstream Issue:** https://github.com/rust-analyzer/rust-analyzer/issues/6462
+**Upstream Issue:** https://github.com/rust-lang/rust-analyzer/issues/6462
 
 **Experimental Server Capability:** `{ "openCargoToml": boolean }`
 
@@ -695,7 +681,7 @@ Triggering a hover inside the selection above will show a result of `i32`.
 
 ## Move Item
 
-**Upstream Issue:** https://github.com/rust-analyzer/rust-analyzer/issues/6823
+**Upstream Issue:** https://github.com/rust-lang/rust-analyzer/issues/6823
 
 This request is sent from client to server to move item under cursor or selection in some direction.
 

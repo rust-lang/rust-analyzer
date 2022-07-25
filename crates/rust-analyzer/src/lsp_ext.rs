@@ -4,8 +4,8 @@ use std::{collections::HashMap, path::PathBuf};
 
 use lsp_types::request::Request;
 use lsp_types::{
-    notification::Notification, CodeActionKind, PartialResultParams, Position, Range,
-    TextDocumentIdentifier, WorkDoneProgressParams,
+    notification::Notification, CodeActionKind, DocumentOnTypeFormattingParams,
+    PartialResultParams, Position, Range, TextDocumentIdentifier, WorkDoneProgressParams,
 };
 use serde::{Deserialize, Serialize};
 
@@ -68,6 +68,14 @@ impl Request for ViewHir {
     type Params = lsp_types::TextDocumentPositionParams;
     type Result = String;
     const METHOD: &'static str = "rust-analyzer/viewHir";
+}
+
+pub enum ViewFileText {}
+
+impl Request for ViewFileText {
+    type Params = lsp_types::TextDocumentIdentifier;
+    type Result = String;
+    const METHOD: &'static str = "rust-analyzer/viewFileText";
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -228,32 +236,11 @@ pub struct TestInfo {
     pub runnable: Runnable,
 }
 
-pub enum InlayHints {}
-
-impl Request for InlayHints {
-    type Params = InlayHintsParams;
-    type Result = Vec<InlayHint>;
-    const METHOD: &'static str = "rust-analyzer/inlayHints";
-}
-
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct InlayHintsParams {
     pub text_document: TextDocumentIdentifier,
-}
-
-#[derive(Debug, PartialEq, Eq, Deserialize, Serialize)]
-pub enum InlayKind {
-    TypeHint,
-    ParameterHint,
-    ChainingHint,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct InlayHint {
-    pub range: Range,
-    pub kind: InlayKind,
-    pub label: String,
+    pub range: Option<lsp_types::Range>,
 }
 
 pub enum Ssr {}
@@ -324,9 +311,8 @@ pub struct CodeAction {
     pub group: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<CodeActionKind>,
-    // We don't handle commands on the client-side
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // pub command: Option<lsp_types::Command>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command: Option<lsp_types::Command>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub edit: Option<SnippetWorkspaceEdit>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -496,6 +482,7 @@ impl Request for WorkspaceSymbol {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkspaceSymbolParams {
     #[serde(flatten)]
     pub partial_result_params: PartialResultParams,
@@ -525,10 +512,29 @@ pub enum WorkspaceSymbolSearchKind {
     AllSymbols,
 }
 
+/// The document on type formatting request is sent from the client to
+/// the server to format parts of the document during typing.  This is
+/// almost same as lsp_types::request::OnTypeFormatting, but the
+/// result has SnippetTextEdit in it instead of TextEdit.
+#[derive(Debug)]
+pub enum OnTypeFormatting {}
+
+impl Request for OnTypeFormatting {
+    type Params = DocumentOnTypeFormattingParams;
+    type Result = Option<Vec<SnippetTextEdit>>;
+    const METHOD: &'static str = "textDocument/onTypeFormatting";
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CompletionResolveData {
     pub position: lsp_types::TextDocumentPositionParams,
     pub imports: Vec<CompletionImport>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InlayHintResolveData {
+    pub text_document: TextDocumentIdentifier,
+    pub position: PositionOrRange,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

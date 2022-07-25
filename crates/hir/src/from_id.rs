@@ -41,10 +41,11 @@ from_id![
     (hir_def::ConstId, crate::Const),
     (hir_def::FunctionId, crate::Function),
     (hir_def::ImplId, crate::Impl),
+    (hir_def::TypeOrConstParamId, crate::TypeOrConstParam),
     (hir_def::TypeParamId, crate::TypeParam),
-    (hir_def::LifetimeParamId, crate::LifetimeParam),
     (hir_def::ConstParamId, crate::ConstParam),
-    (hir_expand::MacroDefId, crate::MacroDef)
+    (hir_def::LifetimeParamId, crate::LifetimeParam),
+    (hir_def::MacroId, crate::Macro)
 ];
 
 impl From<AdtId> for Adt {
@@ -71,8 +72,8 @@ impl From<GenericParamId> for GenericParam {
     fn from(id: GenericParamId) -> Self {
         match id {
             GenericParamId::TypeParamId(it) => GenericParam::TypeParam(it.into()),
-            GenericParamId::LifetimeParamId(it) => GenericParam::LifetimeParam(it.into()),
             GenericParamId::ConstParamId(it) => GenericParam::ConstParam(it.into()),
+            GenericParamId::LifetimeParamId(it) => GenericParam::LifetimeParam(it.into()),
         }
     }
 }
@@ -80,9 +81,9 @@ impl From<GenericParamId> for GenericParam {
 impl From<GenericParam> for GenericParamId {
     fn from(id: GenericParam) -> Self {
         match id {
-            GenericParam::TypeParam(it) => GenericParamId::TypeParamId(it.id),
             GenericParam::LifetimeParam(it) => GenericParamId::LifetimeParamId(it.id),
             GenericParam::ConstParam(it) => GenericParamId::ConstParamId(it.id),
+            GenericParam::TypeParam(it) => GenericParamId::TypeParamId(it.id),
         }
     }
 }
@@ -111,6 +112,7 @@ impl From<ModuleDefId> for ModuleDef {
             ModuleDefId::TraitId(it) => ModuleDef::Trait(it.into()),
             ModuleDefId::TypeAliasId(it) => ModuleDef::TypeAlias(it.into()),
             ModuleDefId::BuiltinType(it) => ModuleDef::BuiltinType(it.into()),
+            ModuleDefId::MacroId(it) => ModuleDef::Macro(it.into()),
         }
     }
 }
@@ -127,6 +129,7 @@ impl From<ModuleDef> for ModuleDefId {
             ModuleDef::Trait(it) => ModuleDefId::TraitId(it.into()),
             ModuleDef::TypeAlias(it) => ModuleDefId::TypeAliasId(it.into()),
             ModuleDef::BuiltinType(it) => ModuleDefId::BuiltinType(it.into()),
+            ModuleDef::Macro(it) => ModuleDefId::MacroId(it.into()),
         }
     }
 }

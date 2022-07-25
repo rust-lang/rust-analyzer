@@ -1,7 +1,6 @@
 //! Utilities for LSP-related boilerplate code.
-use std::{error::Error, ops::Range, sync::Arc};
+use std::{ops::Range, sync::Arc};
 
-use ide_db::base_db::Cancelled;
 use lsp_server::Notification;
 
 use crate::{
@@ -13,10 +12,6 @@ use crate::{
 
 pub(crate) fn invalid_params_error(message: String) -> LspError {
     LspError { code: lsp_server::ErrorCode::InvalidParams as i32, message }
-}
-
-pub(crate) fn is_cancelled(e: &(dyn Error + 'static)) -> bool {
-    e.downcast_ref::<Cancelled>().is_some()
 }
 
 pub(crate) fn notification_is<N: lsp_types::notification::Notification>(
@@ -47,6 +42,26 @@ impl GlobalState {
         )
     }
 
+    /// Sends a notification to the client containing the error `message`.
+    /// If `additional_info` is [`Some`], appends a note to the notification telling to check the logs.
+    /// This will always log `message` + `additional_info` to the server's error log.
+    pub(crate) fn show_and_log_error(&mut self, message: String, additional_info: Option<String>) {
+        let mut message = message;
+        match additional_info {
+            Some(additional_info) => {
+                tracing::error!("{}\n\n{}", &message, &additional_info);
+                if tracing::enabled!(tracing::Level::ERROR) {
+                    message.push_str("\n\nCheck the server logs for additional info.");
+                }
+            }
+            None => tracing::error!("{}", &message),
+        }
+
+        self.send_notification::<lsp_types::notification::ShowMessage>(
+            lsp_types::ShowMessageParams { typ: lsp_types::MessageType::ERROR, message },
+        )
+    }
+
     /// rust-analyzer is resilient -- if it fails, this doesn't usually affect
     /// the user experience. Part of that is that we deliberately hide panics
     /// from the user.
@@ -59,7 +74,7 @@ impl GlobalState {
     /// panicky is a good idea, let's see if we can keep our awesome bleeding
     /// edge users from being upset!
     pub(crate) fn poke_rust_analyzer_developer(&mut self, message: String) {
-        let from_source_build = env!("REV").contains("dev");
+        let from_source_build = option_env!("POKE_RA_DEVS").is_some();
         let profiling_enabled = std::env::var("RA_PROFILE").is_ok();
         if from_source_build || profiling_enabled {
             self.show_message(lsp_types::MessageType::ERROR, message)
@@ -151,8 +166,9 @@ pub(crate) fn apply_document_changes(
                     line_index.index = Arc::new(ide::LineIndex::new(old_text));
                 }
                 index_valid = IndexValid::UpToLineExclusive(range.start.line);
-                let range = from_proto::text_range(&line_index, range);
-                old_text.replace_range(Range::<usize>::from(range), &change.text);
+                if let Ok(range) = from_proto::text_range(&line_index, range) {
+                    old_text.replace_range(Range::<usize>::from(range), &change.text);
+                }
             }
             None => {
                 *old_text = change.text;

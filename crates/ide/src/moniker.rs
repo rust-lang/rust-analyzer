@@ -3,8 +3,8 @@
 
 use hir::{db::DefDatabase, AsAssocItem, AssocItemContainer, Crate, Name, Semantics};
 use ide_db::{
-    base_db::{CrateOrigin, FileId, FileLoader, FilePosition},
-    defs::Definition,
+    base_db::{CrateOrigin, FileId, FileLoader, FilePosition, LangCrateOrigin},
+    defs::{Definition, IdentClass},
     helpers::pick_best_token,
     RootDatabase,
 };
@@ -69,7 +69,14 @@ pub(crate) fn moniker(
     let file = sema.parse(file_id).syntax().clone();
     let current_crate = crate_for_file(db, file_id)?;
     let original_token = pick_best_token(file.token_at_offset(offset), |kind| match kind {
-        IDENT | INT_NUMBER | LIFETIME_IDENT | T![self] | T![super] | T![crate] | COMMENT => 2,
+        IDENT
+        | INT_NUMBER
+        | LIFETIME_IDENT
+        | T![self]
+        | T![super]
+        | T![crate]
+        | T![Self]
+        | COMMENT => 2,
         kind if kind.is_trivia() => 0,
         _ => 1,
     })?;
@@ -82,11 +89,10 @@ pub(crate) fn moniker(
     let navs = sema
         .descend_into_macros(original_token.clone())
         .into_iter()
-        .map(|token| {
-            Definition::from_token(sema, &token)
-                .into_iter()
-                .flat_map(|def| def_to_moniker(sema.db, def, current_crate))
-                .collect::<Vec<_>>()
+        .filter_map(|token| {
+            IdentClass::classify_token(sema, &token).map(IdentClass::definitions).map(|it| {
+                it.into_iter().flat_map(|def| def_to_moniker(sema.db, def, current_crate))
+            })
         })
         .flatten()
         .unique()
@@ -145,11 +151,15 @@ pub(crate) fn def_to_moniker(
             let name = krate.display_name(db)?.to_string();
             let (repo, version) = match krate.origin(db) {
                 CrateOrigin::CratesIo { repo } => (repo?, krate.version(db)?),
-                CrateOrigin::Lang => (
+                CrateOrigin::Lang(lang) => (
                     "https://github.com/rust-lang/rust/".to_string(),
-                    "compiler_version".to_string(),
+                    match lang {
+                        LangCrateOrigin::Other => {
+                            "https://github.com/rust-lang/rust/library/".into()
+                        }
+                        lang => format!("https://github.com/rust-lang/rust/library/{lang}",),
+                    },
                 ),
-                CrateOrigin::Unknown => return None,
             };
             PackageInformation { name, repo, version }
         },

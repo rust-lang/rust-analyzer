@@ -87,21 +87,22 @@
 
 use base_db::FileId;
 use hir_def::{
+    attr::AttrId,
     child_by_source::ChildBySource,
     dyn_map::DynMap,
     expr::{LabelId, PatId},
     keys::{self, Key},
     AdtId, ConstId, ConstParamId, DefWithBodyId, EnumId, EnumVariantId, FieldId, FunctionId,
-    GenericDefId, ImplId, LifetimeParamId, ModuleId, StaticId, StructId, TraitId, TypeAliasId,
-    TypeParamId, UnionId, VariantId,
+    GenericDefId, GenericParamId, ImplId, LifetimeParamId, MacroId, ModuleId, StaticId, StructId,
+    TraitId, TypeAliasId, TypeParamId, UnionId, VariantId,
 };
-use hir_expand::{name::AsName, AstId, HirFileId, MacroCallId, MacroDefId, MacroDefKind};
+use hir_expand::{name::AsName, HirFileId, MacroCallId};
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use stdx::impl_from;
 use syntax::{
     ast::{self, HasName},
-    match_ast, AstNode, SyntaxNode,
+    AstNode, SyntaxNode,
 };
 
 use crate::{db::HirDatabase, InFile};
@@ -133,13 +134,8 @@ impl SourceToDefCtx<'_, '_> {
         let _p = profile::span("module_to_def");
         let parent_declaration = src
             .syntax()
-            .cloned()
             .ancestors_with_macros_skip_attr_item(self.db.upcast())
-            .skip(1)
-            .find_map(|it| {
-                let m = ast::Module::cast(it.value.clone())?;
-                Some(it.with_value(m))
-            });
+            .find_map(|it| it.map(ast::Module::cast).transpose());
 
         let parent_module = match parent_declaration {
             Some(parent_declaration) => self.module_to_def(parent_declaration),
@@ -151,7 +147,7 @@ impl SourceToDefCtx<'_, '_> {
 
         let child_name = src.value.name()?.as_name();
         let def_map = parent_module.def_map(self.db.upcast());
-        let child_id = *def_map[parent_module.local_id].children.get(&child_name)?;
+        let &child_id = def_map[parent_module.local_id].children.get(&child_name)?;
         Some(def_map.module_id(child_id))
     }
 
@@ -217,10 +213,15 @@ impl SourceToDefCtx<'_, '_> {
         src: InFile<ast::IdentPat>,
     ) -> Option<(DefWithBodyId, PatId)> {
         let container = self.find_pat_or_label_container(src.syntax())?;
-        let (_body, source_map) = self.db.body_with_source_map(container);
+        let (body, source_map) = self.db.body_with_source_map(container);
         let src = src.map(ast::Pat::from);
         let pat_id = source_map.node_pat(src.as_ref())?;
-        Some((container, pat_id))
+        // the pattern could resolve to a constant, verify that that is not the case
+        if let crate::Pat::Bind { .. } = body[pat_id] {
+            Some((container, pat_id))
+        } else {
+            None
+        }
     }
     pub(super) fn self_param_to_def(
         &mut self,
@@ -243,16 +244,21 @@ impl SourceToDefCtx<'_, '_> {
 
     pub(super) fn item_to_macro_call(&mut self, src: InFile<ast::Item>) -> Option<MacroCallId> {
         let map = self.dyn_map(src.as_ref())?;
-        map[keys::ATTR_MACRO].get(&src).copied()
+        map[keys::ATTR_MACRO_CALL].get(&src.value).copied()
     }
 
     pub(super) fn attr_to_derive_macro_call(
         &mut self,
-        item: InFile<&ast::Item>,
+        item: InFile<&ast::Adt>,
         src: InFile<ast::Attr>,
-    ) -> Option<&[MacroCallId]> {
+    ) -> Option<(AttrId, MacroCallId, &[Option<MacroCallId>])> {
         let map = self.dyn_map(item)?;
-        map[keys::DERIVE_MACRO].get(&src).map(AsRef::as_ref)
+        map[keys::DERIVE_MACRO_CALL]
+            .get(&src.value)
+            .map(|&(attr_id, call_id, ref ids)| (attr_id, call_id, &**ids))
+    }
+    pub(super) fn has_derives(&mut self, adt: InFile<&ast::Adt>) -> bool {
+        self.dyn_map(adt).as_ref().map_or(false, |map| !map[keys::DERIVE_MACRO_CALL].is_empty())
     }
 
     fn to_def<Ast: AstNode + 'static, ID: Copy + 'static>(
@@ -260,7 +266,7 @@ impl SourceToDefCtx<'_, '_> {
         src: InFile<Ast>,
         key: Key<Ast, ID>,
     ) -> Option<ID> {
-        self.dyn_map(src.as_ref())?[key].get(&src).copied()
+        self.dyn_map(src.as_ref())?[key].get(&src.value).copied()
     }
 
     fn dyn_map<Ast: AstNode + 'static>(&mut self, src: InFile<&Ast>) -> Option<&DynMap> {
@@ -278,7 +284,7 @@ impl SourceToDefCtx<'_, '_> {
     pub(super) fn type_param_to_def(&mut self, src: InFile<ast::TypeParam>) -> Option<TypeParamId> {
         let container: ChildContainer = self.find_generic_param_container(src.syntax())?.into();
         let dyn_map = self.cache_for(container, src.file_id);
-        dyn_map[keys::TYPE_PARAM].get(&src).copied()
+        dyn_map[keys::TYPE_PARAM].get(&src.value).copied().map(|x| TypeParamId::from_unchecked(x))
     }
 
     pub(super) fn lifetime_param_to_def(
@@ -287,7 +293,7 @@ impl SourceToDefCtx<'_, '_> {
     ) -> Option<LifetimeParamId> {
         let container: ChildContainer = self.find_generic_param_container(src.syntax())?.into();
         let dyn_map = self.cache_for(container, src.file_id);
-        dyn_map[keys::LIFETIME_PARAM].get(&src).copied()
+        dyn_map[keys::LIFETIME_PARAM].get(&src.value).copied()
     }
 
     pub(super) fn const_param_to_def(
@@ -296,28 +302,42 @@ impl SourceToDefCtx<'_, '_> {
     ) -> Option<ConstParamId> {
         let container: ChildContainer = self.find_generic_param_container(src.syntax())?.into();
         let dyn_map = self.cache_for(container, src.file_id);
-        dyn_map[keys::CONST_PARAM].get(&src).copied()
+        dyn_map[keys::CONST_PARAM].get(&src.value).copied().map(|x| ConstParamId::from_unchecked(x))
     }
 
-    pub(super) fn macro_to_def(&mut self, src: InFile<ast::Macro>) -> Option<MacroDefId> {
-        let makro = self.dyn_map(src.as_ref()).and_then(|it| it[keys::MACRO].get(&src).copied());
-        if let res @ Some(_) = makro {
-            return res;
+    pub(super) fn generic_param_to_def(
+        &mut self,
+        InFile { file_id, value }: InFile<ast::GenericParam>,
+    ) -> Option<GenericParamId> {
+        match value {
+            ast::GenericParam::ConstParam(it) => {
+                self.const_param_to_def(InFile::new(file_id, it)).map(GenericParamId::ConstParamId)
+            }
+            ast::GenericParam::LifetimeParam(it) => self
+                .lifetime_param_to_def(InFile::new(file_id, it))
+                .map(GenericParamId::LifetimeParamId),
+            ast::GenericParam::TypeParam(it) => {
+                self.type_param_to_def(InFile::new(file_id, it)).map(GenericParamId::TypeParamId)
+            }
         }
+    }
 
-        // Not all macros are recorded in the dyn map, only the ones behaving like items, so fall back
-        // for the non-item like definitions.
-        let file_ast_id = self.db.ast_id_map(src.file_id).ast_id(&src.value);
-        let ast_id = AstId::new(src.file_id, file_ast_id.upcast());
-        let kind = MacroDefKind::Declarative(ast_id);
-        let file_id = src.file_id.original_file(self.db.upcast());
-        let krate = self.file_to_def(file_id).get(0).copied()?.krate();
-        Some(MacroDefId { krate, kind, local_inner: false })
+    pub(super) fn macro_to_def(&mut self, src: InFile<ast::Macro>) -> Option<MacroId> {
+        self.dyn_map(src.as_ref()).and_then(|it| match &src.value {
+            ast::Macro::MacroRules(value) => {
+                it[keys::MACRO_RULES].get(value).copied().map(MacroId::from)
+            }
+            ast::Macro::MacroDef(value) => it[keys::MACRO2].get(value).copied().map(MacroId::from),
+        })
+    }
+
+    pub(super) fn proc_macro_to_def(&mut self, src: InFile<ast::Fn>) -> Option<MacroId> {
+        self.dyn_map(src.as_ref())
+            .and_then(|it| it[keys::PROC_MACRO].get(&src.value).copied().map(MacroId::from))
     }
 
     pub(super) fn find_container(&mut self, src: InFile<&SyntaxNode>) -> Option<ChildContainer> {
-        for container in src.cloned().ancestors_with_macros_skip_attr_item(self.db.upcast()).skip(1)
-        {
+        for container in src.ancestors_with_macros_skip_attr_item(self.db.upcast()) {
             if let Some(res) = self.container_to_def(container) {
                 return Some(res);
             }
@@ -328,71 +348,62 @@ impl SourceToDefCtx<'_, '_> {
     }
 
     fn container_to_def(&mut self, container: InFile<SyntaxNode>) -> Option<ChildContainer> {
-        let cont = match_ast! {
-            match (container.value) {
-                ast::Module(it) => {
-                    let def = self.module_to_def(container.with_value(it))?;
-                    def.into()
-                },
-                ast::Trait(it) => {
-                    let def = self.trait_to_def(container.with_value(it))?;
-                    def.into()
-                },
-                ast::Impl(it) => {
-                    let def = self.impl_to_def(container.with_value(it))?;
-                    def.into()
-                },
-                ast::Fn(it) => {
-                    let def = self.fn_to_def(container.with_value(it))?;
-                    DefWithBodyId::from(def).into()
-                },
-                ast::Struct(it) => {
+        let cont = if let Some(item) = ast::Item::cast(container.value.clone()) {
+            match item {
+                ast::Item::Module(it) => self.module_to_def(container.with_value(it))?.into(),
+                ast::Item::Trait(it) => self.trait_to_def(container.with_value(it))?.into(),
+                ast::Item::Impl(it) => self.impl_to_def(container.with_value(it))?.into(),
+                ast::Item::Enum(it) => self.enum_to_def(container.with_value(it))?.into(),
+                ast::Item::TypeAlias(it) => {
+                    self.type_alias_to_def(container.with_value(it))?.into()
+                }
+                ast::Item::Struct(it) => {
                     let def = self.struct_to_def(container.with_value(it))?;
                     VariantId::from(def).into()
-                },
-                ast::Enum(it) => {
-                    let def = self.enum_to_def(container.with_value(it))?;
-                    def.into()
-                },
-                ast::Union(it) => {
+                }
+                ast::Item::Union(it) => {
                     let def = self.union_to_def(container.with_value(it))?;
                     VariantId::from(def).into()
-                },
-                ast::Static(it) => {
+                }
+                ast::Item::Fn(it) => {
+                    let def = self.fn_to_def(container.with_value(it))?;
+                    DefWithBodyId::from(def).into()
+                }
+                ast::Item::Static(it) => {
                     let def = self.static_to_def(container.with_value(it))?;
                     DefWithBodyId::from(def).into()
-                },
-                ast::Const(it) => {
+                }
+                ast::Item::Const(it) => {
                     let def = self.const_to_def(container.with_value(it))?;
                     DefWithBodyId::from(def).into()
-                },
-                ast::TypeAlias(it) => {
-                    let def = self.type_alias_to_def(container.with_value(it))?;
-                    def.into()
-                },
-                ast::Variant(it) => {
-                    let def = self.enum_variant_to_def(container.with_value(it))?;
-                    VariantId::from(def).into()
-                },
+                }
                 _ => return None,
             }
+        } else {
+            let it = ast::Variant::cast(container.value)?;
+            let def = self.enum_variant_to_def(InFile::new(container.file_id, it))?;
+            VariantId::from(def).into()
         };
         Some(cont)
     }
 
     fn find_generic_param_container(&mut self, src: InFile<&SyntaxNode>) -> Option<GenericDefId> {
-        for container in src.cloned().ancestors_with_macros_skip_attr_item(self.db.upcast()).skip(1)
-        {
-            let res: GenericDefId = match_ast! {
-                match (container.value) {
-                    ast::Fn(it) => self.fn_to_def(container.with_value(it))?.into(),
-                    ast::Struct(it) => self.struct_to_def(container.with_value(it))?.into(),
-                    ast::Enum(it) => self.enum_to_def(container.with_value(it))?.into(),
-                    ast::Trait(it) => self.trait_to_def(container.with_value(it))?.into(),
-                    ast::TypeAlias(it) => self.type_alias_to_def(container.with_value(it))?.into(),
-                    ast::Impl(it) => self.impl_to_def(container.with_value(it))?.into(),
-                    _ => continue,
+        let ancestors = src.ancestors_with_macros_skip_attr_item(self.db.upcast());
+        for InFile { file_id, value } in ancestors {
+            let item = match ast::Item::cast(value) {
+                Some(it) => it,
+                None => continue,
+            };
+            let res: GenericDefId = match item {
+                ast::Item::Fn(it) => self.fn_to_def(InFile::new(file_id, it))?.into(),
+                ast::Item::Struct(it) => self.struct_to_def(InFile::new(file_id, it))?.into(),
+                ast::Item::Enum(it) => self.enum_to_def(InFile::new(file_id, it))?.into(),
+                ast::Item::Trait(it) => self.trait_to_def(InFile::new(file_id, it))?.into(),
+                ast::Item::TypeAlias(it) => {
+                    self.type_alias_to_def(InFile::new(file_id, it))?.into()
                 }
+                ast::Item::Impl(it) => self.impl_to_def(InFile::new(file_id, it))?.into(),
+                _ => continue,
             };
             return Some(res);
         }
@@ -400,15 +411,17 @@ impl SourceToDefCtx<'_, '_> {
     }
 
     fn find_pat_or_label_container(&mut self, src: InFile<&SyntaxNode>) -> Option<DefWithBodyId> {
-        for container in src.cloned().ancestors_with_macros_skip_attr_item(self.db.upcast()).skip(1)
-        {
-            let res: DefWithBodyId = match_ast! {
-                match (container.value) {
-                    ast::Const(it) => self.const_to_def(container.with_value(it))?.into(),
-                    ast::Static(it) => self.static_to_def(container.with_value(it))?.into(),
-                    ast::Fn(it) => self.fn_to_def(container.with_value(it))?.into(),
-                    _ => continue,
-                }
+        let ancestors = src.ancestors_with_macros_skip_attr_item(self.db.upcast());
+        for InFile { file_id, value } in ancestors {
+            let item = match ast::Item::cast(value) {
+                Some(it) => it,
+                None => continue,
+            };
+            let res: DefWithBodyId = match item {
+                ast::Item::Const(it) => self.const_to_def(InFile::new(file_id, it))?.into(),
+                ast::Item::Static(it) => self.static_to_def(InFile::new(file_id, it))?.into(),
+                ast::Item::Fn(it) => self.fn_to_def(InFile::new(file_id, it))?.into(),
+                _ => continue,
             };
             return Some(res);
         }

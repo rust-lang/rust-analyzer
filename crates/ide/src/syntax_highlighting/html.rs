@@ -47,7 +47,7 @@ pub(crate) fn highlight_as_html(db: &RootDatabase, file_id: FileId, rainbow: boo
 
 //FIXME: like, real html escaping
 fn html_escape(text: &str) -> String {
-    text.replace("<", "&lt;").replace(">", "&gt;")
+    text.replace('<', "&lt;").replace('>', "&gt;")
 }
 
 const STYLE: &str = "
@@ -71,6 +71,7 @@ pre                 { color: #DCDCCC; background: #3F3F3F; font-size: 22px; padd
 .operator.unsafe    { color: #BC8383; }
 .mutable.unsafe     { color: #BC8383; text-decoration: underline; }
 .keyword.unsafe     { color: #BC8383; font-weight: bold; }
+.macro.unsafe       { color: #BC8383; }
 .parameter          { color: #94BFF3; }
 .text               { color: #DCDCCC; }
 .type               { color: #7CB8BB; }
@@ -80,6 +81,7 @@ pre                 { color: #DCDCCC; background: #3F3F3F; font-size: 22px; padd
 .numeric_literal    { color: #BFEBBF; }
 .bool_literal       { color: #BFE6EB; }
 .macro              { color: #94BFF3; }
+.derive             { color: #94BFF3; font-style: italic; }
 .module             { color: #AFD8AF; }
 .value_param        { color: #DCDCCC; }
 .variable           { color: #DCDCCC; }

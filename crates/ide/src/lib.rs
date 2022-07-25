@@ -9,6 +9,7 @@
 
 // For proving that RootDatabase is RefUnwindSafe.
 #![recursion_limit = "128"]
+#![warn(rust_2018_idioms, unused_lifetimes, semicolon_in_expressions_from_macros)]
 
 #[allow(unused)]
 macro_rules! eprintln {
@@ -24,7 +25,7 @@ mod navigation_target;
 
 mod annotations;
 mod call_hierarchy;
-mod call_info;
+mod signature_help;
 mod doc_links;
 mod highlight_related;
 mod expand_macro;
@@ -64,10 +65,9 @@ use cfg::CfgOptions;
 use ide_db::{
     base_db::{
         salsa::{self, ParallelDatabase},
-        Env, FileLoader, FileSet, SourceDatabase, VfsPath,
+        CrateOrigin, Env, FileLoader, FileSet, SourceDatabase, VfsPath,
     },
-    symbol_index::{self, FileSymbol},
-    LineIndexDatabase,
+    symbol_index, LineIndexDatabase,
 };
 use syntax::SourceFile;
 
@@ -76,22 +76,25 @@ use crate::navigation_target::{ToNav, TryToNav};
 pub use crate::{
     annotations::{Annotation, AnnotationConfig, AnnotationKind},
     call_hierarchy::CallItem,
-    call_info::CallInfo,
     expand_macro::ExpandedMacro,
     file_structure::{StructureNode, StructureNodeKind},
     folding_ranges::{Fold, FoldKind},
     highlight_related::{HighlightRelatedConfig, HighlightedRange},
     hover::{HoverAction, HoverConfig, HoverDocFormat, HoverGotoTypeData, HoverResult},
-    inlay_hints::{InlayHint, InlayHintsConfig, InlayKind},
+    inlay_hints::{
+        ClosureReturnTypeHints, InlayHint, InlayHintsConfig, InlayKind, InlayTooltip,
+        LifetimeElisionHints, ReborrowHints,
+    },
     join_lines::JoinLinesConfig,
     markup::Markup,
     moniker::{MonikerKind, MonikerResult, PackageInformation},
     move_item::Direction,
     navigation_target::NavigationTarget,
-    prime_caches::PrimeCachesProgress,
+    prime_caches::ParallelPrimeCachesProgress,
     references::ReferenceSearchResult,
     rename::RenameError,
     runnables::{Runnable, RunnableKind, TestId},
+    signature_help::SignatureHelp,
     static_index::{StaticIndex, StaticIndexedFile, TokenId, TokenStaticData},
     syntax_highlighting::{
         tags::{Highlight, HlMod, HlMods, HlOperator, HlPunct, HlTag},
@@ -103,8 +106,8 @@ pub use ide_assists::{
     Assist, AssistConfig, AssistId, AssistKind, AssistResolveStrategy, SingleResolve,
 };
 pub use ide_completion::{
-    CompletionConfig, CompletionItem, CompletionItemKind, CompletionRelevance, ImportEdit, Snippet,
-    SnippetScope,
+    CallableSnippets, CompletionConfig, CompletionItem, CompletionItemKind, CompletionRelevance,
+    Snippet, SnippetScope,
 };
 pub use ide_db::{
     base_db::{
@@ -118,7 +121,7 @@ pub use ide_db::{
     symbol_index::Query,
     RootDatabase, SymbolKind,
 };
-pub use ide_diagnostics::{Diagnostic, DiagnosticsConfig, Severity};
+pub use ide_diagnostics::{Diagnostic, DiagnosticsConfig, ExprFillDefaultMode, Severity};
 pub use ide_ssr::SsrError;
 pub use syntax::{TextRange, TextSize};
 pub use text_edit::{Indel, TextEdit};
@@ -206,7 +209,7 @@ pub struct Analysis {
 // API, the API should in theory be usable as a library, or via a different
 // protocol.
 impl Analysis {
-    // Creates an analysis instance for a single file, without any extenal
+    // Creates an analysis instance for a single file, without any external
     // dependencies, stdlib support or ability to apply changes. See
     // `AnalysisHost` for creating a fully-featured analysis.
     pub fn from_single_file(text: String) -> (Analysis, FileId) {
@@ -231,8 +234,9 @@ impl Analysis {
             cfg_options.clone(),
             cfg_options,
             Env::default(),
-            Default::default(),
-            Default::default(),
+            Ok(Vec::new()),
+            false,
+            CrateOrigin::CratesIo { repo: None },
         );
         change.change_file(file_id, Some(Arc::new(text)));
         change.set_crate_graph(crate_graph);
@@ -245,11 +249,11 @@ impl Analysis {
         self.with_db(|db| status::status(&*db, file_id))
     }
 
-    pub fn prime_caches<F>(&self, cb: F) -> Cancellable<()>
+    pub fn parallel_prime_caches<F>(&self, num_worker_threads: u8, cb: F) -> Cancellable<()>
     where
-        F: Fn(PrimeCachesProgress) + Sync + std::panic::UnwindSafe,
+        F: Fn(ParallelPrimeCachesProgress) + Sync + std::panic::UnwindSafe,
     {
-        self.with_db(move |db| prime_caches::prime_caches(db, &cb))
+        self.with_db(move |db| prime_caches::parallel_prime_caches(db, num_worker_threads, &cb))
     }
 
     /// Gets the text of the source file.
@@ -340,11 +344,16 @@ impl Analysis {
         &self,
         position: FilePosition,
         char_typed: char,
+        autoclose: bool,
     ) -> Cancellable<Option<SourceChange>> {
         // Fast path to not even parse the file.
         if !typing::TRIGGER_CHARS.contains(char_typed) {
             return Ok(None);
         }
+        if char_typed == '<' && !autoclose {
+            return Ok(None);
+        }
+
         self.with_db(|db| typing::on_char_typed(db, position, char_typed))
     }
 
@@ -359,8 +368,9 @@ impl Analysis {
         &self,
         config: &InlayHintsConfig,
         file_id: FileId,
+        range: Option<FileRange>,
     ) -> Cancellable<Vec<InlayHint>> {
-        self.with_db(|db| inlay_hints::inlay_hints(db, file_id, config))
+        self.with_db(|db| inlay_hints::inlay_hints(db, file_id, range, config))
     }
 
     /// Returns the set of folding ranges.
@@ -449,9 +459,9 @@ impl Analysis {
         self.with_db(|db| doc_links::external_docs(db, &position))
     }
 
-    /// Computes parameter information for the given call expression.
-    pub fn call_info(&self, position: FilePosition) -> Cancellable<Option<CallInfo>> {
-        self.with_db(|db| call_info::call_info(db, position))
+    /// Computes parameter information at the given position.
+    pub fn signature_help(&self, position: FilePosition) -> Cancellable<Option<SignatureHelp>> {
+        self.with_db(|db| signature_help::signature_help(db, position))
     }
 
     /// Computes call hierarchy candidates for the given file position.
@@ -539,8 +549,11 @@ impl Analysis {
         &self,
         config: &CompletionConfig,
         position: FilePosition,
+        trigger_character: Option<char>,
     ) -> Cancellable<Option<Vec<CompletionItem>>> {
-        self.with_db(|db| ide_completion::completions(db, config, position).map(Into::into))
+        self.with_db(|db| {
+            ide_completion::completions(db, config, position, trigger_character).map(Into::into)
+        })
     }
 
     /// Resolves additional completion data at the position given.
@@ -634,7 +647,7 @@ impl Analysis {
         self.with_db(|db| {
             let rule: ide_ssr::SsrRule = query.parse()?;
             let mut match_finder =
-                ide_ssr::MatchFinder::in_context(db, resolve_context, selections);
+                ide_ssr::MatchFinder::in_context(db, resolve_context, selections)?;
             match_finder.add_rule(rule)?;
             let edits = if parse_only { Default::default() } else { match_finder.edits() };
             Ok(SourceChange::from(edits))
@@ -672,7 +685,7 @@ impl Analysis {
     /// repeatable read). So what we do is we **cancel** all pending queries
     /// before applying the change.
     ///
-    /// Salsa implements cancelation by unwinding with a special value and
+    /// Salsa implements cancellation by unwinding with a special value and
     /// catching it on the API boundary.
     fn with_db<F, T>(&self, f: F) -> Cancellable<T>
     where

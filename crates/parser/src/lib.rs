@@ -16,90 +16,146 @@
 //! Tests for this crate live in the `syntax` crate.
 //!
 //! [`Parser`]: crate::parser::Parser
+
+#![warn(rust_2018_idioms, unused_lifetimes, semicolon_in_expressions_from_macros)]
 #![allow(rustdoc::private_intra_doc_links)]
 
+mod lexed_str;
 mod token_set;
 mod syntax_kind;
 mod event;
 mod parser;
 mod grammar;
-mod tokens;
+mod input;
+mod output;
+mod shortcuts;
+
+#[cfg(test)]
+mod tests;
 
 pub(crate) use token_set::TokenSet;
 
-pub use crate::{syntax_kind::SyntaxKind, tokens::Tokens};
+pub use crate::{
+    input::Input,
+    lexed_str::LexedStr,
+    output::{Output, Step},
+    shortcuts::StrStep,
+    syntax_kind::SyntaxKind,
+};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ParseError(pub Box<String>);
-
-/// `TreeSink` abstracts details of a particular syntax tree implementation.
-pub trait TreeSink {
-    /// Adds new token to the current branch.
-    fn token(&mut self, kind: SyntaxKind, n_tokens: u8);
-
-    /// Start new branch and make it current.
-    fn start_node(&mut self, kind: SyntaxKind);
-
-    /// Finish current branch and restore previous
-    /// branch as current.
-    fn finish_node(&mut self);
-
-    fn error(&mut self, error: ParseError);
-}
-
-/// rust-analyzer parser allows you to choose one of the possible entry points.
+/// Parse the whole of the input as a given syntactic construct.
 ///
-/// The primary consumer of this API are declarative macros, `$x:expr` matchers
-/// are implemented by calling into the parser with non-standard entry point.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub enum ParserEntryPoint {
+/// This covers two main use-cases:
+///
+///   * Parsing a Rust file.
+///   * Parsing a result of macro expansion.
+///
+/// That is, for something like
+///
+/// ```
+/// quick_check! {
+///    fn prop() {}
+/// }
+/// ```
+///
+/// the input to the macro will be parsed with [`PrefixEntryPoint::Item`], and
+/// the result will be [`TopEntryPoint::MacroItems`].
+///
+/// [`TopEntryPoint::parse`] makes a guarantee that
+///   * all input is consumed
+///   * the result is a valid tree (there's one root node)
+#[derive(Debug)]
+pub enum TopEntryPoint {
     SourceFile,
-    Path,
-    Expr,
-    Statement,
-    StatementOptionalSemi,
-    Type,
+    MacroStmts,
+    MacroItems,
     Pattern,
-    Item,
-    Block,
-    Visibility,
+    Type,
+    Expr,
+    /// Edge case -- macros generally don't expand to attributes, with the
+    /// exception of `cfg_attr` which does!
     MetaItem,
-    Items,
-    Statements,
-    Attr,
 }
 
-/// Parse given tokens into the given sink as a rust file.
-pub fn parse_source_file(tokens: &Tokens, tree_sink: &mut dyn TreeSink) {
-    parse(tokens, tree_sink, ParserEntryPoint::SourceFile);
+impl TopEntryPoint {
+    pub fn parse(&self, input: &Input) -> Output {
+        let entry_point: fn(&'_ mut parser::Parser<'_>) = match self {
+            TopEntryPoint::SourceFile => grammar::entry::top::source_file,
+            TopEntryPoint::MacroStmts => grammar::entry::top::macro_stmts,
+            TopEntryPoint::MacroItems => grammar::entry::top::macro_items,
+            TopEntryPoint::Pattern => grammar::entry::top::pattern,
+            TopEntryPoint::Type => grammar::entry::top::type_,
+            TopEntryPoint::Expr => grammar::entry::top::expr,
+            TopEntryPoint::MetaItem => grammar::entry::top::meta_item,
+        };
+        let mut p = parser::Parser::new(input);
+        entry_point(&mut p);
+        let events = p.finish();
+        let res = event::process(events);
+
+        if cfg!(debug_assertions) {
+            let mut depth = 0;
+            let mut first = true;
+            for step in res.iter() {
+                assert!(depth > 0 || first);
+                first = false;
+                match step {
+                    Step::Enter { .. } => depth += 1,
+                    Step::Exit => depth -= 1,
+                    Step::Token { .. } | Step::Error { .. } => (),
+                }
+            }
+            assert!(!first, "no tree at all");
+        }
+
+        res
+    }
 }
 
-pub fn parse(tokens: &Tokens, tree_sink: &mut dyn TreeSink, entry_point: ParserEntryPoint) {
-    let entry_point: fn(&'_ mut parser::Parser) = match entry_point {
-        ParserEntryPoint::SourceFile => grammar::entry_points::source_file,
-        ParserEntryPoint::Path => grammar::entry_points::path,
-        ParserEntryPoint::Expr => grammar::entry_points::expr,
-        ParserEntryPoint::Type => grammar::entry_points::type_,
-        ParserEntryPoint::Pattern => grammar::entry_points::pattern,
-        ParserEntryPoint::Item => grammar::entry_points::item,
-        ParserEntryPoint::Block => grammar::entry_points::block_expr,
-        ParserEntryPoint::Visibility => grammar::entry_points::visibility,
-        ParserEntryPoint::MetaItem => grammar::entry_points::meta_item,
-        ParserEntryPoint::Statement => grammar::entry_points::stmt,
-        ParserEntryPoint::StatementOptionalSemi => grammar::entry_points::stmt_optional_semi,
-        ParserEntryPoint::Items => grammar::entry_points::macro_items,
-        ParserEntryPoint::Statements => grammar::entry_points::macro_stmts,
-        ParserEntryPoint::Attr => grammar::entry_points::attr,
-    };
+/// Parse a prefix of the input as a given syntactic construct.
+///
+/// This is used by macro-by-example parser to implement things like `$i:item`
+/// and the naming of variants follows the naming of macro fragments.
+///
+/// Note that this is generally non-optional -- the result is intentionally not
+/// `Option<Output>`. The way MBE work, by the time we *try* to parse `$e:expr`
+/// we already commit to expression. In other words, this API by design can't be
+/// used to implement "rollback and try another alternative" logic.
+#[derive(Debug)]
+pub enum PrefixEntryPoint {
+    Vis,
+    Block,
+    Stmt,
+    Pat,
+    Ty,
+    Expr,
+    Path,
+    Item,
+    MetaItem,
+}
 
-    let mut p = parser::Parser::new(tokens);
-    entry_point(&mut p);
-    let events = p.finish();
-    event::process(tree_sink, events);
+impl PrefixEntryPoint {
+    pub fn parse(&self, input: &Input) -> Output {
+        let entry_point: fn(&'_ mut parser::Parser<'_>) = match self {
+            PrefixEntryPoint::Vis => grammar::entry::prefix::vis,
+            PrefixEntryPoint::Block => grammar::entry::prefix::block,
+            PrefixEntryPoint::Stmt => grammar::entry::prefix::stmt,
+            PrefixEntryPoint::Pat => grammar::entry::prefix::pat,
+            PrefixEntryPoint::Ty => grammar::entry::prefix::ty,
+            PrefixEntryPoint::Expr => grammar::entry::prefix::expr,
+            PrefixEntryPoint::Path => grammar::entry::prefix::path,
+            PrefixEntryPoint::Item => grammar::entry::prefix::item,
+            PrefixEntryPoint::MetaItem => grammar::entry::prefix::meta_item,
+        };
+        let mut p = parser::Parser::new(input);
+        entry_point(&mut p);
+        let events = p.finish();
+        event::process(events)
+    }
 }
 
 /// A parsing function for a specific braced-block.
-pub struct Reparser(fn(&mut parser::Parser));
+pub struct Reparser(fn(&mut parser::Parser<'_>));
 
 impl Reparser {
     /// If the node is a braced block, return the corresponding `Reparser`.
@@ -115,11 +171,11 @@ impl Reparser {
     ///
     /// Tokens must start with `{`, end with `}` and form a valid brace
     /// sequence.
-    pub fn parse(self, tokens: &Tokens, tree_sink: &mut dyn TreeSink) {
+    pub fn parse(self, tokens: &Input) -> Output {
         let Reparser(r) = self;
         let mut p = parser::Parser::new(tokens);
         r(&mut p);
         let events = p.finish();
-        event::process(tree_sink, events);
+        event::process(events)
     }
 }

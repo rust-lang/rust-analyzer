@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) fn opt_generic_param_list(p: &mut Parser) {
+pub(super) fn opt_generic_param_list(p: &mut Parser<'_>) {
     if p.at(T![<]) {
         generic_param_list(p);
     }
@@ -8,7 +8,7 @@ pub(super) fn opt_generic_param_list(p: &mut Parser) {
 
 // test generic_param_list
 // fn f<T: Clone>() {}
-fn generic_param_list(p: &mut Parser) {
+fn generic_param_list(p: &mut Parser<'_>) {
     assert!(p.at(T![<]));
     let m = p.start();
     p.bump(T![<]);
@@ -23,7 +23,7 @@ fn generic_param_list(p: &mut Parser) {
     m.complete(p, GENERIC_PARAM_LIST);
 }
 
-fn generic_param(p: &mut Parser) {
+fn generic_param(p: &mut Parser<'_>) {
     let m = p.start();
     // test generic_param_attribute
     // fn foo<#[lt_attr] 'a, #[t_attr] T>() {}
@@ -41,7 +41,7 @@ fn generic_param(p: &mut Parser) {
 
 // test lifetime_param
 // fn f<'a: 'b>() {}
-fn lifetime_param(p: &mut Parser, m: Marker) {
+fn lifetime_param(p: &mut Parser<'_>, m: Marker) {
     assert!(p.at(LIFETIME_IDENT));
     lifetime(p);
     if p.at(T![:]) {
@@ -52,7 +52,7 @@ fn lifetime_param(p: &mut Parser, m: Marker) {
 
 // test type_param
 // fn f<T: Clone>() {}
-fn type_param(p: &mut Parser, m: Marker) {
+fn type_param(p: &mut Parser<'_>, m: Marker) {
     assert!(p.at(IDENT));
     name(p);
     if p.at(T![:]) {
@@ -69,7 +69,7 @@ fn type_param(p: &mut Parser, m: Marker) {
 
 // test const_param
 // struct S<const N: u32>;
-fn const_param(p: &mut Parser, m: Marker) {
+fn const_param(p: &mut Parser<'_>, m: Marker) {
     p.bump(T![const]);
     name(p);
     if p.at(T![:]) {
@@ -79,16 +79,22 @@ fn const_param(p: &mut Parser, m: Marker) {
     }
 
     if p.at(T![=]) {
-        // test const_param_defaults
+        // test const_param_default_literal
         // struct A<const N: i32 = -1>;
         p.bump(T![=]);
-        generic_args::const_arg(p);
+
+        // test const_param_default_expression
+        // struct A<const N: i32 = { 1 }>;
+
+        // test const_param_default_path
+        // struct A<const N: i32 = i32::MAX>;
+        generic_args::const_arg_expr(p);
     }
 
     m.complete(p, CONST_PARAM);
 }
 
-fn lifetime_bounds(p: &mut Parser) {
+fn lifetime_bounds(p: &mut Parser<'_>) {
     assert!(p.at(T![:]));
     p.bump(T![:]);
     while p.at(LIFETIME_IDENT) {
@@ -101,18 +107,18 @@ fn lifetime_bounds(p: &mut Parser) {
 
 // test type_param_bounds
 // struct S<T: 'a + ?Sized + (Copy) + ~const Drop>;
-pub(super) fn bounds(p: &mut Parser) {
+pub(super) fn bounds(p: &mut Parser<'_>) {
     assert!(p.at(T![:]));
     p.bump(T![:]);
     bounds_without_colon(p);
 }
 
-pub(super) fn bounds_without_colon(p: &mut Parser) {
+pub(super) fn bounds_without_colon(p: &mut Parser<'_>) {
     let m = p.start();
     bounds_without_colon_m(p, m);
 }
 
-pub(super) fn bounds_without_colon_m(p: &mut Parser, marker: Marker) -> CompletedMarker {
+pub(super) fn bounds_without_colon_m(p: &mut Parser<'_>, marker: Marker) -> CompletedMarker {
     while type_bound(p) {
         if !p.eat(T![+]) {
             break;
@@ -121,12 +127,18 @@ pub(super) fn bounds_without_colon_m(p: &mut Parser, marker: Marker) -> Complete
     marker.complete(p, TYPE_BOUND_LIST)
 }
 
-fn type_bound(p: &mut Parser) -> bool {
+fn type_bound(p: &mut Parser<'_>) -> bool {
     let m = p.start();
     let has_paren = p.eat(T!['(']);
     match p.current() {
         LIFETIME_IDENT => lifetime(p),
         T![for] => types::for_type(p, false),
+        T![?] if p.nth_at(1, T![for]) => {
+            // test question_for_type_trait_bound
+            // fn f<T>() where T: ?for<> Sized {}
+            p.bump_any();
+            types::for_type(p, false)
+        }
         current => {
             match current {
                 T![?] => p.bump_any(),
@@ -160,7 +172,7 @@ fn type_bound(p: &mut Parser) -> bool {
 //    Iterator::Item: 'a,
 //    <T as Iterator>::Item: 'a
 // {}
-pub(super) fn opt_where_clause(p: &mut Parser) {
+pub(super) fn opt_where_clause(p: &mut Parser<'_>) {
     if !p.at(T![where]) {
         return;
     }
@@ -184,7 +196,7 @@ pub(super) fn opt_where_clause(p: &mut Parser) {
 
     m.complete(p, WHERE_CLAUSE);
 
-    fn is_where_predicate(p: &mut Parser) -> bool {
+    fn is_where_predicate(p: &mut Parser<'_>) -> bool {
         match p.current() {
             LIFETIME_IDENT => true,
             T![impl] => false,
@@ -193,7 +205,7 @@ pub(super) fn opt_where_clause(p: &mut Parser) {
     }
 }
 
-fn where_predicate(p: &mut Parser) {
+fn where_predicate(p: &mut Parser<'_>) {
     let m = p.start();
     match p.current() {
         LIFETIME_IDENT => {

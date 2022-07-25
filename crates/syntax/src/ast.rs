@@ -22,16 +22,13 @@ pub use self::{
     generated::{nodes::*, tokens::*},
     node_ext::{
         AttrKind, FieldKind, Macro, NameLike, NameOrNameRef, PathSegmentKind, SelfParamKind,
-        SlicePatComponents, StructKind, TypeBoundKind, VisibilityKind,
+        SlicePatComponents, StructKind, TypeBoundKind, TypeOrConstParam, VisibilityKind,
     },
     operators::{ArithOp, BinaryOp, CmpOp, LogicOp, Ordering, RangeOp, UnaryOp},
-    token_ext::{
-        CommentKind, CommentPlacement, CommentShape, FormatSpecifier, HasFormatSpecifier, IsString,
-        QuoteOffsets, Radix,
-    },
+    token_ext::{CommentKind, CommentPlacement, CommentShape, IsString, QuoteOffsets, Radix},
     traits::{
-        CommentIter, HasArgList, HasAttrs, HasDocComments, HasGenericParams, HasLoopBody,
-        HasModuleItem, HasName, HasTypeBounds, HasVisibility,
+        AttrDocCommentIter, DocCommentIter, HasArgList, HasAttrs, HasDocComments, HasGenericParams,
+        HasLoopBody, HasModuleItem, HasName, HasTypeBounds, HasVisibility,
     },
 };
 

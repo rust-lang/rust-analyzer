@@ -1,15 +1,16 @@
 //! Advertises the capabilities of the LSP Server.
 use lsp_types::{
     CallHierarchyServerCapability, ClientCapabilities, CodeActionKind, CodeActionOptions,
-    CodeActionProviderCapability, CodeLensOptions, CompletionOptions, DeclarationCapability,
-    DocumentOnTypeFormattingOptions, FileOperationFilter, FileOperationPattern,
-    FileOperationPatternKind, FileOperationRegistrationOptions, FoldingRangeProviderCapability,
-    HoverProviderCapability, ImplementationProviderCapability, OneOf, RenameOptions, SaveOptions,
-    SelectionRangeProviderCapability, SemanticTokensFullOptions, SemanticTokensLegend,
-    SemanticTokensOptions, ServerCapabilities, SignatureHelpOptions, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextDocumentSyncOptions, TypeDefinitionProviderCapability,
-    WorkDoneProgressOptions, WorkspaceFileOperationsServerCapabilities,
-    WorkspaceServerCapabilities,
+    CodeActionProviderCapability, CodeLensOptions, CompletionOptions,
+    CompletionOptionsCompletionItem, DeclarationCapability, DocumentOnTypeFormattingOptions,
+    FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
+    FileOperationRegistrationOptions, FoldingRangeProviderCapability, HoverProviderCapability,
+    ImplementationProviderCapability, InlayHintOptions, InlayHintServerCapabilities, OneOf,
+    RenameOptions, SaveOptions, SelectionRangeProviderCapability, SemanticTokensFullOptions,
+    SemanticTokensLegend, SemanticTokensOptions, ServerCapabilities, SignatureHelpOptions,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    TypeDefinitionProviderCapability, WorkDoneProgressOptions,
+    WorkspaceFileOperationsServerCapabilities, WorkspaceServerCapabilities,
 };
 use serde_json::json;
 
@@ -27,14 +28,19 @@ pub fn server_capabilities(config: &Config) -> ServerCapabilities {
         })),
         hover_provider: Some(HoverProviderCapability::Simple(true)),
         completion_provider: Some(CompletionOptions {
-            resolve_provider: completions_resolve_provider(&config.caps),
-            trigger_characters: Some(vec![":".to_string(), ".".to_string(), "'".to_string()]),
+            resolve_provider: completions_resolve_provider(config.caps()),
+            trigger_characters: Some(vec![
+                ":".to_string(),
+                ".".to_string(),
+                "'".to_string(),
+                "(".to_string(),
+            ]),
             all_commit_characters: None,
-            completion_item: None,
+            completion_item: completion_item(&config),
             work_done_progress_options: WorkDoneProgressOptions { work_done_progress: None },
         }),
         signature_help_provider: Some(SignatureHelpOptions {
-            trigger_characters: Some(vec!["(".to_string(), ",".to_string()]),
+            trigger_characters: Some(vec!["(".to_string(), ",".to_string(), "<".to_string()]),
             retrigger_characters: None,
             work_done_progress_options: WorkDoneProgressOptions { work_done_progress: None },
         }),
@@ -46,7 +52,7 @@ pub fn server_capabilities(config: &Config) -> ServerCapabilities {
         document_highlight_provider: Some(OneOf::Left(true)),
         document_symbol_provider: Some(OneOf::Left(true)),
         workspace_symbol_provider: Some(OneOf::Left(true)),
-        code_action_provider: Some(code_action_capabilities(&config.caps)),
+        code_action_provider: Some(code_action_capabilities(config.caps())),
         code_lens_provider: Some(CodeLensOptions { resolve_provider: Some(true) }),
         document_formatting_provider: Some(OneOf::Left(true)),
         document_range_formatting_provider: match config.rustfmt() {
@@ -55,7 +61,7 @@ pub fn server_capabilities(config: &Config) -> ServerCapabilities {
         },
         document_on_type_formatting_provider: Some(DocumentOnTypeFormattingOptions {
             first_trigger_character: "=".to_string(),
-            more_trigger_character: Some(vec![".".to_string(), ">".to_string(), "{".to_string()]),
+            more_trigger_character: Some(more_trigger_character(&config)),
         }),
         selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
         folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
@@ -112,16 +118,25 @@ pub fn server_capabilities(config: &Config) -> ServerCapabilities {
             .into(),
         ),
         moniker_provider: None,
+        inlay_hint_provider: Some(OneOf::Right(InlayHintServerCapabilities::Options(
+            InlayHintOptions {
+                work_done_progress_options: Default::default(),
+                resolve_provider: Some(true),
+            },
+        ))),
         experimental: Some(json!({
-            "joinLines": true,
-            "openCargoToml": true,
-            "ssr": true,
-            "onEnter": true,
-            "parentModule": true,
+            "externalDocs": true,
             "hoverRange": true,
+            "joinLines": true,
+            "matchingBrace": true,
+            "moveItem": true,
+            "onEnter": true,
+            "openCargoToml": true,
+            "parentModule": true,
             "runnables": {
                 "kinds": [ "cargo" ],
             },
+            "ssr": true,
             "workspaceSymbolScopeKindFiltering": true,
         })),
     }
@@ -155,6 +170,12 @@ pub(crate) fn completion_item_edit_resolve(caps: &ClientCapabilities) -> bool {
     })() == Some(true)
 }
 
+fn completion_item(config: &Config) -> Option<CompletionOptionsCompletionItem> {
+    Some(CompletionOptionsCompletionItem {
+        label_details_support: Some(config.completion_label_details_support()),
+    })
+}
+
 fn code_action_capabilities(client_caps: &ClientCapabilities) -> CodeActionProviderCapability {
     client_caps
         .text_document
@@ -178,4 +199,12 @@ fn code_action_capabilities(client_caps: &ClientCapabilities) -> CodeActionProvi
                 work_done_progress_options: Default::default(),
             })
         })
+}
+
+fn more_trigger_character(config: &Config) -> Vec<String> {
+    let mut res = vec![".".to_string(), ">".to_string(), "{".to_string()];
+    if config.snippet_cap() {
+        res.push("<".to_string());
+    }
+    res
 }

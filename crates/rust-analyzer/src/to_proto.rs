@@ -6,11 +6,11 @@ use std::{
 };
 
 use ide::{
-    Annotation, AnnotationKind, Assist, AssistKind, CallInfo, Cancellable, CompletionItem,
+    Annotation, AnnotationKind, Assist, AssistKind, Cancellable, CompletionItem,
     CompletionItemKind, CompletionRelevance, Documentation, FileId, FileRange, FileSystemEdit,
     Fold, FoldKind, Highlight, HlMod, HlOperator, HlPunct, HlRange, HlTag, Indel, InlayHint,
     InlayKind, Markup, NavigationTarget, ReferenceCategory, RenameError, Runnable, Severity,
-    SourceChange, StructureNodeKind, SymbolKind, TextEdit, TextRange, TextSize,
+    SignatureHelp, SourceChange, StructureNodeKind, SymbolKind, TextEdit, TextRange, TextSize,
 };
 use itertools::Itertools;
 use serde_json::to_value;
@@ -18,7 +18,7 @@ use vfs::AbsPath;
 
 use crate::{
     cargo_target_spec::CargoTargetSpec,
-    config::Config,
+    config::{CallInfoConfig, Config},
     global_state::GlobalStateSnapshot,
     line_index::{LineEndings, LineIndex, OffsetEncoding},
     lsp_ext,
@@ -55,7 +55,9 @@ pub(crate) fn symbol_kind(symbol_kind: SymbolKind) -> lsp_types::SymbolKind {
         | SymbolKind::Attribute
         | SymbolKind::Derive => lsp_types::SymbolKind::FUNCTION,
         SymbolKind::Module | SymbolKind::ToolModule => lsp_types::SymbolKind::MODULE,
-        SymbolKind::TypeAlias | SymbolKind::TypeParam => lsp_types::SymbolKind::TYPE_PARAMETER,
+        SymbolKind::TypeAlias | SymbolKind::TypeParam | SymbolKind::SelfType => {
+            lsp_types::SymbolKind::TYPE_PARAMETER
+        }
         SymbolKind::Field => lsp_types::SymbolKind::FIELD,
         SymbolKind::Static => lsp_types::SymbolKind::CONSTANT,
         SymbolKind::Const => lsp_types::SymbolKind::CONSTANT,
@@ -105,6 +107,7 @@ pub(crate) fn completion_item_kind(
     match completion_item_kind {
         CompletionItemKind::Binding => lsp_types::CompletionItemKind::VARIABLE,
         CompletionItemKind::BuiltinType => lsp_types::CompletionItemKind::STRUCT,
+        CompletionItemKind::InferredType => lsp_types::CompletionItemKind::SNIPPET,
         CompletionItemKind::Keyword => lsp_types::CompletionItemKind::KEYWORD,
         CompletionItemKind::Method => lsp_types::CompletionItemKind::METHOD,
         CompletionItemKind::Snippet => lsp_types::CompletionItemKind::SNIPPET,
@@ -124,6 +127,7 @@ pub(crate) fn completion_item_kind(
             SymbolKind::Macro => lsp_types::CompletionItemKind::FUNCTION,
             SymbolKind::Module => lsp_types::CompletionItemKind::MODULE,
             SymbolKind::SelfParam => lsp_types::CompletionItemKind::VALUE,
+            SymbolKind::SelfType => lsp_types::CompletionItemKind::TYPE_PARAMETER,
             SymbolKind::Static => lsp_types::CompletionItemKind::VALUE,
             SymbolKind::Struct => lsp_types::CompletionItemKind::STRUCT,
             SymbolKind::Trait => lsp_types::CompletionItemKind::INTERFACE,
@@ -220,6 +224,7 @@ fn completion_item(
     max_relevance: u32,
     item: CompletionItem,
 ) {
+    let insert_replace_support = config.insert_replace_support().then(|| tdpp.position);
     let mut additional_text_edits = Vec::new();
 
     // LSP does not allow arbitrary edits in completion, so we have to do a
@@ -229,7 +234,6 @@ fn completion_item(
         let source_range = item.source_range();
         for indel in item.text_edit().iter() {
             if indel.delete.contains_range(source_range) {
-                let insert_replace_support = config.insert_replace_support().then(|| tdpp.position);
                 text_edit = Some(if indel.delete == source_range {
                     self::completion_text_edit(line_index, insert_replace_support, indel.clone())
                 } else {
@@ -250,6 +254,14 @@ fn completion_item(
         text_edit.unwrap()
     };
 
+    let insert_text_format = item.is_snippet().then(|| lsp_types::InsertTextFormat::SNIPPET);
+    let tags = item.deprecated().then(|| vec![lsp_types::CompletionItemTag::DEPRECATED]);
+    let command = if item.trigger_call_info() && config.client_commands().trigger_parameter_hints {
+        Some(command::trigger_parameter_hints())
+    } else {
+        None
+    };
+
     let mut lsp_item = lsp_types::CompletionItem {
         label: item.label().to_string(),
         detail: item.detail().map(|it| it.to_string()),
@@ -259,28 +271,27 @@ fn completion_item(
         additional_text_edits: Some(additional_text_edits),
         documentation: item.documentation().map(documentation),
         deprecated: Some(item.deprecated()),
+        tags,
+        command,
+        insert_text_format,
         ..Default::default()
     };
 
+    if config.completion_label_details_support() {
+        lsp_item.label_details = Some(lsp_types::CompletionItemLabelDetails {
+            detail: None,
+            description: lsp_item.detail.clone(),
+        });
+    }
+
     set_score(&mut lsp_item, max_relevance, item.relevance());
 
-    if item.deprecated() {
-        lsp_item.tags = Some(vec![lsp_types::CompletionItemTag::DEPRECATED])
-    }
-
-    if item.trigger_call_info() && config.client_commands().trigger_parameter_hints {
-        lsp_item.command = Some(command::trigger_parameter_hints());
-    }
-
-    if item.is_snippet() {
-        lsp_item.insert_text_format = Some(lsp_types::InsertTextFormat::SNIPPET);
-    }
     if config.completion().enable_imports_on_the_fly {
         if let imports @ [_, ..] = item.imports_to_add() {
             let imports: Vec<_> = imports
                 .iter()
                 .filter_map(|import_edit| {
-                    let import_path = &import_edit.import.import_path;
+                    let import_path = &import_edit.import_path;
                     let import_name = import_path.segments().last()?;
                     Some(lsp_ext::CompletionImport {
                         full_import_path: import_path.to_string(),
@@ -295,18 +306,17 @@ fn completion_item(
         }
     }
 
-    if let Some((mutability, relevance)) = item.ref_match() {
+    if let Some((mutability, offset, relevance)) = item.ref_match() {
         let mut lsp_item_with_ref = lsp_item.clone();
         set_score(&mut lsp_item_with_ref, max_relevance, relevance);
         lsp_item_with_ref.label =
             format!("&{}{}", mutability.as_keyword_for_ref(), lsp_item_with_ref.label);
-        if let Some(it) = &mut lsp_item_with_ref.text_edit {
-            let new_text = match it {
-                lsp_types::CompletionTextEdit::Edit(it) => &mut it.new_text,
-                lsp_types::CompletionTextEdit::InsertAndReplace(it) => &mut it.new_text,
-            };
-            *new_text = format!("&{}{}", mutability.as_keyword_for_ref(), new_text);
-        }
+        lsp_item_with_ref.additional_text_edits.get_or_insert_with(Default::default).push(
+            self::text_edit(
+                line_index,
+                Indel::insert(offset, format!("&{}", mutability.as_keyword_for_ref())),
+            ),
+        );
 
         acc.push(lsp_item_with_ref);
     };
@@ -333,12 +343,12 @@ fn completion_item(
 }
 
 pub(crate) fn signature_help(
-    call_info: CallInfo,
-    concise: bool,
+    call_info: SignatureHelp,
+    config: CallInfoConfig,
     label_offsets: bool,
 ) -> lsp_types::SignatureHelp {
-    let (label, parameters) = match (concise, label_offsets) {
-        (_, false) => {
+    let (label, parameters) = match (config.params_only, label_offsets) {
+        (concise, false) => {
             let params = call_info
                 .parameter_labels()
                 .map(|label| lsp_types::ParameterInformation {
@@ -354,7 +364,11 @@ pub(crate) fn signature_help(
             let params = call_info
                 .parameter_ranges()
                 .iter()
-                .map(|it| [u32::from(it.start()), u32::from(it.end())])
+                .map(|it| {
+                    let start = call_info.signature[..it.start().into()].chars().count() as u32;
+                    let end = call_info.signature[..it.end().into()].chars().count() as u32;
+                    [start, end]
+                })
                 .map(|label_offsets| lsp_types::ParameterInformation {
                     label: lsp_types::ParameterLabel::LabelOffsets(label_offsets),
                     documentation: None,
@@ -371,9 +385,9 @@ pub(crate) fn signature_help(
                     label.push_str(", ");
                 }
                 first = false;
-                let start = label.len() as u32;
+                let start = label.chars().count() as u32;
                 label.push_str(param);
-                let end = label.len() as u32;
+                let end = label.chars().count() as u32;
                 params.push(lsp_types::ParameterInformation {
                     label: lsp_types::ParameterLabel::LabelOffsets([start, end]),
                     documentation: None,
@@ -384,16 +398,12 @@ pub(crate) fn signature_help(
         }
     };
 
-    let documentation = if concise {
-        None
-    } else {
-        call_info.doc.map(|doc| {
-            lsp_types::Documentation::MarkupContent(lsp_types::MarkupContent {
-                kind: lsp_types::MarkupKind::Markdown,
-                value: doc,
-            })
+    let documentation = call_info.doc.filter(|_| config.docs).map(|doc| {
+        lsp_types::Documentation::MarkupContent(lsp_types::MarkupContent {
+            kind: lsp_types::MarkupKind::Markdown,
+            value: doc,
         })
-    };
+    });
 
     let active_parameter = call_info.active_parameter.map(|it| it as u32);
 
@@ -410,15 +420,92 @@ pub(crate) fn signature_help(
     }
 }
 
-pub(crate) fn inlay_hint(line_index: &LineIndex, inlay_hint: InlayHint) -> lsp_ext::InlayHint {
-    lsp_ext::InlayHint {
-        label: inlay_hint.label.to_string(),
-        range: range(line_index, inlay_hint.range),
-        kind: match inlay_hint.kind {
-            InlayKind::ParameterHint => lsp_ext::InlayKind::ParameterHint,
-            InlayKind::TypeHint => lsp_ext::InlayKind::TypeHint,
-            InlayKind::ChainingHint => lsp_ext::InlayKind::ChainingHint,
+pub(crate) fn inlay_hint(
+    snap: &GlobalStateSnapshot,
+    line_index: &LineIndex,
+    render_colons: bool,
+    inlay_hint: InlayHint,
+) -> lsp_types::InlayHint {
+    lsp_types::InlayHint {
+        position: match inlay_hint.kind {
+            // before annotated thing
+            InlayKind::ParameterHint
+            | InlayKind::ImplicitReborrowHint
+            | InlayKind::BindingModeHint => position(line_index, inlay_hint.range.start()),
+            // after annotated thing
+            InlayKind::ClosureReturnTypeHint
+            | InlayKind::TypeHint
+            | InlayKind::ChainingHint
+            | InlayKind::GenericParamListHint
+            | InlayKind::LifetimeHint
+            | InlayKind::ClosingBraceHint => position(line_index, inlay_hint.range.end()),
         },
+        padding_left: Some(match inlay_hint.kind {
+            InlayKind::TypeHint => !render_colons,
+            InlayKind::ChainingHint | InlayKind::ClosingBraceHint => true,
+            InlayKind::BindingModeHint
+            | InlayKind::ClosureReturnTypeHint
+            | InlayKind::GenericParamListHint
+            | InlayKind::ImplicitReborrowHint
+            | InlayKind::LifetimeHint
+            | InlayKind::ParameterHint => false,
+        }),
+        padding_right: Some(match inlay_hint.kind {
+            InlayKind::ChainingHint
+            | InlayKind::ClosureReturnTypeHint
+            | InlayKind::GenericParamListHint
+            | InlayKind::ImplicitReborrowHint
+            | InlayKind::TypeHint
+            | InlayKind::ClosingBraceHint => false,
+            InlayKind::BindingModeHint => inlay_hint.label != "&",
+            InlayKind::ParameterHint | InlayKind::LifetimeHint => true,
+        }),
+        label: lsp_types::InlayHintLabel::String(match inlay_hint.kind {
+            InlayKind::ParameterHint if render_colons => format!("{}:", inlay_hint.label),
+            InlayKind::TypeHint if render_colons => format!(": {}", inlay_hint.label),
+            InlayKind::ClosureReturnTypeHint => format!(" -> {}", inlay_hint.label),
+            _ => inlay_hint.label.clone(),
+        }),
+        kind: match inlay_hint.kind {
+            InlayKind::ParameterHint => Some(lsp_types::InlayHintKind::PARAMETER),
+            InlayKind::ClosureReturnTypeHint | InlayKind::TypeHint | InlayKind::ChainingHint => {
+                Some(lsp_types::InlayHintKind::TYPE)
+            }
+            InlayKind::BindingModeHint
+            | InlayKind::GenericParamListHint
+            | InlayKind::LifetimeHint
+            | InlayKind::ImplicitReborrowHint
+            | InlayKind::ClosingBraceHint => None,
+        },
+        text_edits: None,
+        data: (|| match inlay_hint.tooltip {
+            Some(ide::InlayTooltip::HoverOffset(file_id, offset)) => {
+                let uri = url(snap, file_id);
+                let line_index = snap.file_line_index(file_id).ok()?;
+
+                let text_document = lsp_types::TextDocumentIdentifier { uri };
+                to_value(lsp_ext::InlayHintResolveData {
+                    text_document,
+                    position: lsp_ext::PositionOrRange::Position(position(&line_index, offset)),
+                })
+                .ok()
+            }
+            Some(ide::InlayTooltip::HoverRanged(file_id, text_range)) => {
+                let uri = url(snap, file_id);
+                let text_document = lsp_types::TextDocumentIdentifier { uri };
+                let line_index = snap.file_line_index(file_id).ok()?;
+                to_value(lsp_ext::InlayHintResolveData {
+                    text_document,
+                    position: lsp_ext::PositionOrRange::Range(range(&line_index, text_range)),
+                })
+                .ok()
+            }
+            _ => None,
+        })(),
+        tooltip: Some(match inlay_hint.tooltip {
+            Some(ide::InlayTooltip::String(s)) => lsp_types::InlayHintTooltip::String(s),
+            _ => lsp_types::InlayHintTooltip::String(inlay_hint.label),
+        }),
     }
 }
 
@@ -483,6 +570,7 @@ fn semantic_token_type_and_modifiers(
             SymbolKind::Label => semantic_tokens::LABEL,
             SymbolKind::ValueParam => lsp_types::SemanticTokenType::PARAMETER,
             SymbolKind::SelfParam => semantic_tokens::SELF_KEYWORD,
+            SymbolKind::SelfType => semantic_tokens::SELF_TYPE_KEYWORD,
             SymbolKind::Local => lsp_types::SemanticTokenType::VARIABLE,
             SymbolKind::Function => {
                 if highlight.mods.contains(HlMod::Associated) {
@@ -539,6 +627,7 @@ fn semantic_token_type_and_modifiers(
             HlPunct::Colon => semantic_tokens::COLON,
             HlPunct::Semi => semantic_tokens::SEMICOLON,
             HlPunct::Other => semantic_tokens::PUNCTUATION,
+            HlPunct::MacroBang => semantic_tokens::MACRO_BANG,
         },
     };
 
@@ -587,7 +676,8 @@ pub(crate) fn folding_range(
         | FoldKind::Statics
         | FoldKind::WhereClause
         | FoldKind::ReturnType
-        | FoldKind::Array => None,
+        | FoldKind::Array
+        | FoldKind::MatchArm => None,
     };
 
     let range = range(line_index, fold.range);
@@ -817,6 +907,20 @@ pub(crate) fn snippet_text_document_ops(
                 rename_file,
             )))
         }
+        FileSystemEdit::MoveDir { src, src_id, dst } => {
+            let old_uri = snap.anchored_path(&src);
+            let new_uri = snap.anchored_path(&dst);
+            let mut rename_file =
+                lsp_types::RenameFile { old_uri, new_uri, options: None, annotation_id: None };
+            if snap.analysis.is_library_file(src_id).ok() == Some(true)
+                && snap.config.change_annotation_support()
+            {
+                rename_file.annotation_id = Some(outside_workspace_annotation_id())
+            }
+            ops.push(lsp_ext::SnippetDocumentChangeOperation::Op(lsp_types::ResourceOp::Rename(
+                rename_file,
+            )))
+        }
     }
     Ok(ops)
 }
@@ -954,7 +1058,13 @@ pub(crate) fn code_action(
         edit: None,
         is_preferred: None,
         data: None,
+        command: None,
     };
+
+    if assist.trigger_signature_help && snap.config.client_commands().trigger_parameter_hints {
+        res.command = Some(command::trigger_parameter_hints());
+    }
+
     match (assist.source_change, resolve_data) {
         (Some(it), _) => res.edit = Some(snippet_workspace_edit(snap, it)?),
         (None, Some((index, code_action_params))) => {
@@ -1037,19 +1147,17 @@ pub(crate) fn code_lens(
                 })
             }
         }
-        AnnotationKind::HasImpls { position: file_position, data } => {
+        AnnotationKind::HasImpls { file_id, data } => {
             if !client_commands_config.show_reference {
                 return Ok(());
             }
-            let line_index = snap.file_line_index(file_position.file_id)?;
+            let line_index = snap.file_line_index(file_id)?;
             let annotation_range = range(&line_index, annotation.range);
-            let url = url(snap, file_position.file_id);
-
-            let position = position(&line_index, file_position.offset);
+            let url = url(snap, file_id);
 
             let id = lsp_types::TextDocumentIdentifier { uri: url.clone() };
 
-            let doc_pos = lsp_types::TextDocumentPositionParams::new(id, position);
+            let doc_pos = lsp_types::TextDocumentPositionParams::new(id, annotation_range.start);
 
             let goto_params = lsp_types::request::GotoImplementationParams {
                 text_document_position_params: doc_pos,
@@ -1072,7 +1180,7 @@ pub(crate) fn code_lens(
                 command::show_references(
                     implementation_title(locations.len()),
                     &url,
-                    position,
+                    annotation_range.start,
                     locations,
                 )
             });
@@ -1083,19 +1191,17 @@ pub(crate) fn code_lens(
                 data: Some(to_value(lsp_ext::CodeLensResolveData::Impls(goto_params)).unwrap()),
             })
         }
-        AnnotationKind::HasReferences { position: file_position, data } => {
+        AnnotationKind::HasReferences { file_id, data } => {
             if !client_commands_config.show_reference {
                 return Ok(());
             }
-            let line_index = snap.file_line_index(file_position.file_id)?;
+            let line_index = snap.file_line_index(file_id)?;
             let annotation_range = range(&line_index, annotation.range);
-            let url = url(snap, file_position.file_id);
-
-            let position = position(&line_index, file_position.offset);
+            let url = url(snap, file_id);
 
             let id = lsp_types::TextDocumentIdentifier { uri: url.clone() };
 
-            let doc_pos = lsp_types::TextDocumentPositionParams::new(id, position);
+            let doc_pos = lsp_types::TextDocumentPositionParams::new(id, annotation_range.start);
 
             let command = data.map(|ranges| {
                 let locations: Vec<lsp_types::Location> =
@@ -1104,7 +1210,7 @@ pub(crate) fn code_lens(
                 command::show_references(
                     reference_title(locations.len()),
                     &url,
-                    position,
+                    annotation_range.start,
                     locations,
                 )
             });

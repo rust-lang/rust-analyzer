@@ -5,14 +5,14 @@ mod tests;
 
 mod intra_doc_links;
 
-use either::Either;
 use pulldown_cmark::{BrokenLink, CowStr, Event, InlineStr, LinkType, Options, Parser, Tag};
-use pulldown_cmark_to_cmark::{cmark_with_options, Options as CMarkOptions};
+use pulldown_cmark_to_cmark::{cmark_resume_with_options, Options as CMarkOptions};
 use stdx::format_to;
 use url::Url;
 
-use hir::{db::HirDatabase, Adt, AsAssocItem, AssocItem, AssocItemContainer, Crate, HasAttrs};
+use hir::{db::HirDatabase, Adt, AsAssocItem, AssocItem, AssocItemContainer, HasAttrs};
 use ide_db::{
+    base_db::{CrateOrigin, LangCrateOrigin, SourceDatabase},
     defs::{Definition, NameClass, NameRefClass},
     helpers::pick_best_token,
     RootDatabase,
@@ -45,23 +45,23 @@ pub(crate) fn rewrite_links(db: &RootDatabase, markdown: &str, definition: Defin
         // and valid URLs so we choose to be too eager to try to resolve what might be
         // a URL.
         if target.contains("://") {
-            (target.to_string(), title.to_string())
+            (Some(LinkType::Inline), target.to_string(), title.to_string())
         } else {
             // Two possibilities:
             // * path-based links: `../../module/struct.MyStruct.html`
             // * module-based links (AKA intra-doc links): `super::super::module::MyStruct`
-            if let Some(rewritten) = rewrite_intra_doc_link(db, definition, target, title) {
-                return rewritten;
+            if let Some((target, title)) = rewrite_intra_doc_link(db, definition, target, title) {
+                return (None, target, title);
             }
             if let Some(target) = rewrite_url_link(db, definition, target) {
-                return (target, title.to_string());
+                return (Some(LinkType::Inline), target, title.to_string());
             }
 
-            (target.to_string(), title.to_string())
+            (None, target.to_string(), title.to_string())
         }
     });
     let mut out = String::new();
-    cmark_with_options(
+    cmark_resume_with_options(
         doc,
         &mut out,
         None,
@@ -75,7 +75,7 @@ pub(crate) fn rewrite_links(db: &RootDatabase, markdown: &str, definition: Defin
 pub(crate) fn remove_links(markdown: &str) -> String {
     let mut drop_link = false;
 
-    let mut cb = |_: BrokenLink| {
+    let mut cb = |_: BrokenLink<'_>| {
         let empty = InlineStr::try_from("").unwrap();
         Some((CowStr::Inlined(empty), CowStr::Inlined(empty)))
     };
@@ -97,7 +97,7 @@ pub(crate) fn remove_links(markdown: &str) -> String {
     });
 
     let mut out = String::new();
-    cmark_with_options(
+    cmark_resume_with_options(
         doc,
         &mut out,
         None,
@@ -173,7 +173,7 @@ pub(crate) fn resolve_doc_path_for_def(
     link: &str,
     ns: Option<hir::Namespace>,
 ) -> Option<Definition> {
-    let def = match def {
+    match def {
         Definition::Module(it) => it.resolve_doc_path(db, link, ns),
         Definition::Function(it) => it.resolve_doc_path(db, link, ns),
         Definition::Adt(it) => it.resolve_doc_path(db, link, ns),
@@ -191,15 +191,12 @@ pub(crate) fn resolve_doc_path_for_def(
         | Definition::Local(_)
         | Definition::GenericParam(_)
         | Definition::Label(_) => None,
-    }?;
-    match def {
-        Either::Left(def) => Some(Definition::from(def)),
-        Either::Right(def) => Some(Definition::Macro(def)),
     }
+    .map(Definition::from)
 }
 
 pub(crate) fn doc_attributes(
-    sema: &Semantics<RootDatabase>,
+    sema: &Semantics<'_, RootDatabase>,
     node: &SyntaxNode,
 ) -> Option<(hir::AttrsWithOwner, Definition)> {
     match_ast! {
@@ -234,7 +231,7 @@ pub(crate) fn token_as_doc_comment(doc_token: &SyntaxToken) -> Option<DocComment
     (match_ast! {
         match doc_token {
             ast::Comment(comment) => TextSize::try_from(comment.prefix().len()).ok(),
-            ast::String(string) => doc_token.ancestors().find_map(ast::Attr::cast)
+            ast::String(string) => doc_token.parent_ancestors().find_map(ast::Attr::cast)
                 .filter(|attr| attr.simple_name().as_deref() == Some("doc")).and_then(|_| string.open_quote_text_range().map(|it| it.len())),
             _ => None,
         }
@@ -244,7 +241,7 @@ pub(crate) fn token_as_doc_comment(doc_token: &SyntaxToken) -> Option<DocComment
 impl DocCommentToken {
     pub(crate) fn get_definition_with_descend_at<T>(
         self,
-        sema: &Semantics<RootDatabase>,
+        sema: &Semantics<'_, RootDatabase>,
         offset: TextSize,
         // Definition, CommentOwner, range of intra doc link in original file
         mut cb: impl FnMut(Definition, SyntaxNode, TextRange) -> Option<T>,
@@ -258,7 +255,7 @@ impl DocCommentToken {
             let (node, descended_prefix_len) = match_ast! {
                 match t {
                     ast::Comment(comment) => (t.parent()?, TextSize::try_from(comment.prefix().len()).ok()?),
-                    ast::String(string) => (t.ancestors().skip_while(|n| n.kind() != ATTR).nth(1)?, string.open_quote_text_range()?.len()),
+                    ast::String(string) => (t.parent_ancestors().skip_while(|n| n.kind() != ATTR).nth(1)?, string.open_quote_text_range()?.len()),
                     _ => return None,
                 }
             };
@@ -282,13 +279,8 @@ impl DocCommentToken {
     }
 }
 
-fn broken_link_clone_cb<'a, 'b>(link: BrokenLink<'a>) -> Option<(CowStr<'b>, CowStr<'b>)> {
-    // These allocations are actually unnecessary but the lifetimes on BrokenLinkCallback are wrong
-    // this is fixed in the repo but not on the crates.io release yet
-    Some((
-        /*url*/ link.reference.to_owned().into(),
-        /*title*/ link.reference.to_owned().into(),
-    ))
+fn broken_link_clone_cb<'a>(link: BrokenLink<'a>) -> Option<(CowStr<'a>, CowStr<'a>)> {
+    Some((/*url*/ link.reference.clone(), /*title*/ link.reference))
 }
 
 // FIXME:
@@ -301,8 +293,7 @@ fn broken_link_clone_cb<'a, 'b>(link: BrokenLink<'a>) -> Option<(CowStr<'b>, Cow
 fn get_doc_link(db: &RootDatabase, def: Definition) -> Option<String> {
     let (target, file, frag) = filename_and_frag_for_def(db, def)?;
 
-    let krate = crate_of_def(db, target)?;
-    let mut url = get_doc_base_url(db, &krate)?;
+    let mut url = get_doc_base_url(db, target)?;
 
     if let Some(path) = mod_path_of_def(db, target) {
         url = url.join(&path).ok()?;
@@ -323,8 +314,7 @@ fn rewrite_intra_doc_link(
     let (link, ns) = parse_intra_doc_link(target);
 
     let resolved = resolve_doc_path_for_def(db, def, link, ns)?;
-    let krate = crate_of_def(db, resolved)?;
-    let mut url = get_doc_base_url(db, &krate)?;
+    let mut url = get_doc_base_url(db, resolved)?;
 
     let (_, file, frag) = filename_and_frag_for_def(db, resolved)?;
     if let Some(path) = mod_path_of_def(db, resolved) {
@@ -343,8 +333,7 @@ fn rewrite_url_link(db: &RootDatabase, def: Definition, target: &str) -> Option<
         return None;
     }
 
-    let krate = crate_of_def(db, def)?;
-    let mut url = get_doc_base_url(db, &krate)?;
+    let mut url = get_doc_base_url(db, def)?;
     let (def, file, frag) = filename_and_frag_for_def(db, def)?;
 
     if let Some(path) = mod_path_of_def(db, def) {
@@ -354,15 +343,6 @@ fn rewrite_url_link(db: &RootDatabase, def: Definition, target: &str) -> Option<
     url = url.join(&file).ok()?;
     url.set_fragment(frag.as_deref());
     url.join(target).ok().map(Into::into)
-}
-
-fn crate_of_def(db: &RootDatabase, def: Definition) -> Option<Crate> {
-    let krate = match def {
-        // Definition::module gives back the parent module, we don't want that as it fails for root modules
-        Definition::Module(module) => module.krate(),
-        def => def.module(db)?.krate(),
-    };
-    Some(krate)
 }
 
 fn mod_path_of_def(db: &RootDatabase, def: Definition) -> Option<String> {
@@ -376,52 +356,80 @@ fn mod_path_of_def(db: &RootDatabase, def: Definition) -> Option<String> {
 /// Rewrites a markdown document, applying 'callback' to each link.
 fn map_links<'e>(
     events: impl Iterator<Item = Event<'e>>,
-    callback: impl Fn(&str, &str) -> (String, String),
+    callback: impl Fn(&str, &str) -> (Option<LinkType>, String, String),
 ) -> impl Iterator<Item = Event<'e>> {
     let mut in_link = false;
-    let mut link_target: Option<CowStr> = None;
+    // holds the origin link target on start event and the rewritten one on end event
+    let mut end_link_target: Option<CowStr<'_>> = None;
+    // normally link's type is determined by the type of link tag in the end event,
+    // however in some cases we want to change the link type, for example,
+    // `Shortcut` type parsed from Start/End tags doesn't make sense for url links
+    let mut end_link_type: Option<LinkType> = None;
 
     events.map(move |evt| match evt {
-        Event::Start(Tag::Link(_, ref target, _)) => {
+        Event::Start(Tag::Link(link_type, ref target, _)) => {
             in_link = true;
-            link_target = Some(target.clone());
+            end_link_target = Some(target.clone());
+            end_link_type = Some(link_type);
             evt
         }
         Event::End(Tag::Link(link_type, target, _)) => {
             in_link = false;
             Event::End(Tag::Link(
-                link_type,
-                link_target.take().unwrap_or(target),
+                end_link_type.unwrap_or(link_type),
+                end_link_target.take().unwrap_or(target),
                 CowStr::Borrowed(""),
             ))
         }
         Event::Text(s) if in_link => {
-            let (link_target_s, link_name) = callback(&link_target.take().unwrap(), &s);
-            link_target = Some(CowStr::Boxed(link_target_s.into()));
+            let (link_type, link_target_s, link_name) =
+                callback(&end_link_target.take().unwrap(), &s);
+            end_link_target = Some(CowStr::Boxed(link_target_s.into()));
+            if !matches!(end_link_type, Some(LinkType::Autolink)) {
+                end_link_type = link_type;
+            }
             Event::Text(CowStr::Boxed(link_name.into()))
         }
         Event::Code(s) if in_link => {
-            let (link_target_s, link_name) = callback(&link_target.take().unwrap(), &s);
-            link_target = Some(CowStr::Boxed(link_target_s.into()));
+            let (link_type, link_target_s, link_name) =
+                callback(&end_link_target.take().unwrap(), &s);
+            end_link_target = Some(CowStr::Boxed(link_target_s.into()));
+            if !matches!(end_link_type, Some(LinkType::Autolink)) {
+                end_link_type = link_type;
+            }
             Event::Code(CowStr::Boxed(link_name.into()))
         }
         _ => evt,
     })
 }
 
-/// Get the root URL for the documentation of a crate.
+/// Get the root URL for the documentation of a definition.
 ///
 /// ```ignore
 /// https://doc.rust-lang.org/std/iter/trait.Iterator.html#tymethod.next
 /// ^^^^^^^^^^^^^^^^^^^^^^^^^^
 /// ```
-fn get_doc_base_url(db: &RootDatabase, krate: &Crate) -> Option<Url> {
+fn get_doc_base_url(db: &RootDatabase, def: Definition) -> Option<Url> {
+    // special case base url of `BuiltinType` to core
+    // https://github.com/rust-lang/rust-analyzer/issues/12250
+    if let Definition::BuiltinType(..) = def {
+        return Url::parse("https://doc.rust-lang.org/nightly/core/").ok();
+    };
+
+    let krate = def.krate(db)?;
     let display_name = krate.display_name(db)?;
-    let base = match &**display_name.crate_name() {
+
+    let base = match db.crate_graph()[krate.into()].origin {
         // std and co do not specify `html_root_url` any longer so we gotta handwrite this ourself.
         // FIXME: Use the toolchains channel instead of nightly
-        name @ ("core" | "std" | "alloc" | "proc_macro" | "test") => {
-            format!("https://doc.rust-lang.org/nightly/{}", name)
+        CrateOrigin::Lang(
+            origin @ (LangCrateOrigin::Alloc
+            | LangCrateOrigin::Core
+            | LangCrateOrigin::ProcMacro
+            | LangCrateOrigin::Std
+            | LangCrateOrigin::Test),
+        ) => {
+            format!("https://doc.rust-lang.org/nightly/{origin}")
         }
         _ => {
             krate.get_html_root_url(db).or_else(|| {
@@ -469,7 +477,13 @@ fn filename_and_frag_for_def(
             Adt::Union(u) => format!("union.{}.html", u.name(db)),
         },
         Definition::Module(m) => match m.name(db) {
-            Some(name) => format!("{}/index.html", name),
+            // `#[doc(keyword = "...")]` is internal used only by rust compiler
+            Some(name) => match m.attrs(db).by_key("doc").find_string_value_in_tt("keyword") {
+                Some(kw) => {
+                    format!("keyword.{}.html", kw.trim_matches('"'))
+                }
+                None => format!("{}/index.html", name),
+            },
             None => String::from("index.html"),
         },
         Definition::Trait(t) => format!("trait.{}.html", t.name(db)),
@@ -481,7 +495,7 @@ fn filename_and_frag_for_def(
         }
         Definition::Const(c) => format!("const.{}.html", c.name(db)?),
         Definition::Static(s) => format!("static.{}.html", s.name(db)),
-        Definition::Macro(mac) => format!("macro.{}.html", mac.name(db)?),
+        Definition::Macro(mac) => format!("macro.{}.html", mac.name(db)),
         Definition::Field(field) => {
             let def = match field.parent_def(db) {
                 hir::VariantDef::Struct(it) => Definition::Adt(it.into()),

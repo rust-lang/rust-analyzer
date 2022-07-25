@@ -26,7 +26,7 @@ pub(crate) struct Project<'a> {
 }
 
 impl<'a> Project<'a> {
-    pub(crate) fn with_fixture(fixture: &str) -> Project {
+    pub(crate) fn with_fixture(fixture: &str) -> Project<'_> {
         Project {
             fixture,
             tmp_dir: None,
@@ -36,7 +36,9 @@ impl<'a> Project<'a> {
                     // Loading standard library is costly, let's ignore it by default
                     "noSysroot": true,
                     // Can't use test binary as rustc wrapper.
-                    "useRustcWrapperForBuildScripts": false,
+                    "buildScripts": {
+                        "useRustcWrapper": false
+                    },
                 }
             }),
         }
@@ -101,6 +103,14 @@ impl<'a> Project<'a> {
         let mut config = Config::new(
             tmp_dir_path,
             lsp_types::ClientCapabilities {
+                workspace: Some(lsp_types::WorkspaceClientCapabilities {
+                    did_change_watched_files: Some(
+                        lsp_types::DidChangeWatchedFilesClientCapabilities {
+                            dynamic_registration: Some(true),
+                        },
+                    ),
+                    ..Default::default()
+                }),
                 text_document: Some(lsp_types::TextDocumentClientCapabilities {
                     definition: Some(lsp_types::GotoCapability {
                         link_support: Some(true),
@@ -129,7 +139,7 @@ impl<'a> Project<'a> {
             },
         );
         config.discovered_projects = Some(discovered_projects);
-        config.update(self.config);
+        config.update(self.config).expect("invalid config");
 
         Server::new(tmp_dir, config)
     }
@@ -350,7 +360,7 @@ fn find_mismatch<'a>(expected: &'a Value, actual: &'a Value) -> Option<(&'a Valu
             let l = sorted_values(l);
             let r = sorted_values(r);
 
-            l.into_iter().zip(r).filter_map(|(l, r)| find_mismatch(l, r)).next()
+            l.into_iter().zip(r).find_map(|(l, r)| find_mismatch(l, r))
         }
         (Value::Null, Value::Null) => None,
         // magic string literal "{...}" acts as wildcard for any sub-JSON
@@ -366,8 +376,8 @@ fn lines_match(expected: &str, actual: &str) -> bool {
     // Let's not deal with / vs \ (windows...)
     // First replace backslash-escaped backslashes with forward slashes
     // which can occur in, for example, JSON output
-    let expected = expected.replace(r"\\", "/").replace(r"\", "/");
-    let mut actual: &str = &actual.replace(r"\\", "/").replace(r"\", "/");
+    let expected = expected.replace(r"\\", "/").replace('\\', "/");
+    let mut actual: &str = &actual.replace(r"\\", "/").replace('\\', "/");
     for (i, part) in expected.split("[..]").enumerate() {
         match actual.find(part) {
             Some(j) => {

@@ -1,82 +1,46 @@
 //! Lexing, bridging to parser (which does the actual parsing) and
 //! incremental reparsing.
 
-pub(crate) mod lexer;
-mod text_tree_sink;
 mod reparsing;
 
-use parser::SyntaxKind;
-use text_tree_sink::TextTreeSink;
+use rowan::TextRange;
 
-use crate::{syntax_node::GreenNode, AstNode, SyntaxError, SyntaxNode};
+use crate::{syntax_node::GreenNode, SyntaxError, SyntaxTreeBuilder};
 
-pub(crate) use crate::parsing::{lexer::*, reparsing::incremental_reparse};
+pub(crate) use crate::parsing::reparsing::incremental_reparse;
 
 pub(crate) fn parse_text(text: &str) -> (GreenNode, Vec<SyntaxError>) {
-    let (lexer_tokens, lexer_errors) = tokenize(text);
-    let parser_tokens = to_parser_tokens(text, &lexer_tokens);
-
-    let mut tree_sink = TextTreeSink::new(text, &lexer_tokens);
-
-    parser::parse_source_file(&parser_tokens, &mut tree_sink);
-
-    let (tree, mut parser_errors) = tree_sink.finish();
-    parser_errors.extend(lexer_errors);
-
-    (tree, parser_errors)
+    let lexed = parser::LexedStr::new(text);
+    let parser_input = lexed.to_input();
+    let parser_output = parser::TopEntryPoint::SourceFile.parse(&parser_input);
+    let (node, errors, _eof) = build_tree(lexed, parser_output);
+    (node, errors)
 }
 
-/// Returns `text` parsed as a `T` provided there are no parse errors.
-pub(crate) fn parse_text_as<T: AstNode>(
-    text: &str,
-    entry_point: parser::ParserEntryPoint,
-) -> Result<T, ()> {
-    let (lexer_tokens, lexer_errors) = tokenize(text);
-    if !lexer_errors.is_empty() {
-        return Err(());
-    }
+pub(crate) fn build_tree(
+    lexed: parser::LexedStr<'_>,
+    parser_output: parser::Output,
+) -> (GreenNode, Vec<SyntaxError>, bool) {
+    let mut builder = SyntaxTreeBuilder::default();
 
-    let parser_tokens = to_parser_tokens(text, &lexer_tokens);
-
-    let mut tree_sink = TextTreeSink::new(text, &lexer_tokens);
-
-    // TextTreeSink assumes that there's at least some root node to which it can attach errors and
-    // tokens. We arbitrarily give it a SourceFile.
-    use parser::TreeSink;
-    tree_sink.start_node(SyntaxKind::SOURCE_FILE);
-    parser::parse(&parser_tokens, &mut tree_sink, entry_point);
-    tree_sink.finish_node();
-
-    let (tree, parser_errors, eof) = tree_sink.finish_eof();
-    if !parser_errors.is_empty() || !eof {
-        return Err(());
-    }
-
-    SyntaxNode::new_root(tree).first_child().and_then(T::cast).ok_or(())
-}
-
-pub(crate) fn to_parser_tokens(text: &str, lexer_tokens: &[lexer::Token]) -> ::parser::Tokens {
-    let mut off = 0;
-    let mut res = parser::Tokens::default();
-    let mut was_joint = false;
-    for t in lexer_tokens {
-        if t.kind.is_trivia() {
-            was_joint = false;
-        } else {
-            if t.kind == SyntaxKind::IDENT {
-                let token_text = &text[off..][..usize::from(t.len)];
-                let contextual_kw =
-                    SyntaxKind::from_contextual_keyword(token_text).unwrap_or(SyntaxKind::IDENT);
-                res.push_ident(contextual_kw);
-            } else {
-                if was_joint {
-                    res.was_joint();
-                }
-                res.push(t.kind);
-            }
-            was_joint = true;
+    let is_eof = lexed.intersperse_trivia(&parser_output, &mut |step| match step {
+        parser::StrStep::Token { kind, text } => builder.token(kind, text),
+        parser::StrStep::Enter { kind } => builder.start_node(kind),
+        parser::StrStep::Exit => builder.finish_node(),
+        parser::StrStep::Error { msg, pos } => {
+            builder.error(msg.to_string(), pos.try_into().unwrap())
         }
-        off += usize::from(t.len);
+    });
+
+    let (node, mut errors) = builder.finish_raw();
+    for (i, err) in lexed.errors() {
+        let text_range = lexed.text_range(i);
+        let text_range = TextRange::new(
+            text_range.start.try_into().unwrap(),
+            text_range.end.try_into().unwrap(),
+        );
+        errors.push(SyntaxError::new(err, text_range))
     }
-    res
+
+    (node, errors, is_eof)
 }

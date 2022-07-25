@@ -5,21 +5,21 @@ use super::*;
 // fn b(x: i32) {}
 // fn c(x: i32, ) {}
 // fn d(x: i32, y: ()) {}
-pub(super) fn param_list_fn_def(p: &mut Parser) {
+pub(super) fn param_list_fn_def(p: &mut Parser<'_>) {
     list_(p, Flavor::FnDef);
 }
 
 // test param_list_opt_patterns
 // fn foo<F: FnMut(&mut Foo<'a>)>(){}
-pub(super) fn param_list_fn_trait(p: &mut Parser) {
+pub(super) fn param_list_fn_trait(p: &mut Parser<'_>) {
     list_(p, Flavor::FnTrait);
 }
 
-pub(super) fn param_list_fn_ptr(p: &mut Parser) {
+pub(super) fn param_list_fn_ptr(p: &mut Parser<'_>) {
     list_(p, Flavor::FnPointer);
 }
 
-pub(super) fn param_list_closure(p: &mut Parser) {
+pub(super) fn param_list_closure(p: &mut Parser<'_>) {
     list_(p, Flavor::Closure);
 }
 
@@ -31,7 +31,7 @@ enum Flavor {
     Closure,
 }
 
-fn list_(p: &mut Parser, flavor: Flavor) {
+fn list_(p: &mut Parser<'_>, flavor: Flavor) {
     use Flavor::*;
 
     let (bra, ket) = match flavor {
@@ -71,12 +71,9 @@ fn list_(p: &mut Parser, flavor: Flavor) {
             m.abandon(p);
             break;
         }
-        let param = param(p, m, flavor);
+        param(p, m, flavor);
         if !p.at(ket) {
             p.expect(T![,]);
-        }
-        if let Variadic(true) = param {
-            break;
         }
     }
 
@@ -90,27 +87,24 @@ fn list_(p: &mut Parser, flavor: Flavor) {
 
 const PARAM_FIRST: TokenSet = patterns::PATTERN_FIRST.union(types::TYPE_FIRST);
 
-struct Variadic(bool);
-
-fn param(p: &mut Parser, m: Marker, flavor: Flavor) -> Variadic {
-    let mut res = Variadic(false);
+fn param(p: &mut Parser<'_>, m: Marker, flavor: Flavor) {
     match flavor {
         // test param_list_vararg
-        // extern "C" { fn printf(format: *const i8, ...) -> i32; }
-        Flavor::FnDef | Flavor::FnPointer if p.eat(T![...]) => res = Variadic(true),
+        // extern "C" { fn printf(format: *const i8, ..., _: u8) -> i32; }
+        Flavor::FnDef | Flavor::FnPointer if p.eat(T![...]) => {}
 
         // test fn_def_param
-        // fn foo((x, y): (i32, i32)) {}
+        // fn foo(..., (x, y): (i32, i32)) {}
         Flavor::FnDef => {
             patterns::pattern(p);
-            if variadic_param(p) {
-                res = Variadic(true);
-            } else if p.at(T![:]) {
-                types::ascription(p);
-            } else {
-                // test_err missing_fn_param_type
-                // fn f(x y: i32, z, t: i32) {}
-                p.error("missing type for function parameter");
+            if !variadic_param(p) {
+                if p.at(T![:]) {
+                    types::ascription(p);
+                } else {
+                    // test_err missing_fn_param_type
+                    // fn f(x y: i32, z, t: i32) {}
+                    p.error("missing type for function parameter");
+                }
             }
         }
         // test value_parameters_no_patterns
@@ -127,12 +121,12 @@ fn param(p: &mut Parser, m: Marker, flavor: Flavor) -> Variadic {
         Flavor::FnPointer => {
             if (p.at(IDENT) || p.at(UNDERSCORE)) && p.nth(1) == T![:] && !p.nth_at(1, T![::]) {
                 patterns::pattern_single(p);
-                if variadic_param(p) {
-                    res = Variadic(true);
-                } else if p.at(T![:]) {
-                    types::ascription(p);
-                } else {
-                    p.error("missing type for function parameter");
+                if !variadic_param(p) {
+                    if p.at(T![:]) {
+                        types::ascription(p);
+                    } else {
+                        p.error("missing type for function parameter");
+                    }
                 }
             } else {
                 types::type_(p);
@@ -150,10 +144,9 @@ fn param(p: &mut Parser, m: Marker, flavor: Flavor) -> Variadic {
         }
     }
     m.complete(p, PARAM);
-    res
 }
 
-fn variadic_param(p: &mut Parser) -> bool {
+fn variadic_param(p: &mut Parser<'_>) -> bool {
     if p.at(T![:]) && p.nth_at(1, T![...]) {
         p.bump(T![:]);
         p.bump(T![...]);
@@ -171,7 +164,7 @@ fn variadic_param(p: &mut Parser) -> bool {
 //     fn d(&'a mut self, x: i32) {}
 //     fn e(mut self) {}
 // }
-fn opt_self_param(p: &mut Parser, m: Marker) -> Result<(), Marker> {
+fn opt_self_param(p: &mut Parser<'_>, m: Marker) -> Result<(), Marker> {
     if p.at(T![self]) || p.at(T![mut]) && p.nth(1) == T![self] {
         p.eat(T![mut]);
         self_as_name(p);
@@ -209,7 +202,7 @@ fn opt_self_param(p: &mut Parser, m: Marker) -> Result<(), Marker> {
     Ok(())
 }
 
-fn self_as_name(p: &mut Parser) {
+fn self_as_name(p: &mut Parser<'_>) {
     let m = p.start();
     p.bump(T![self]);
     m.complete(p, NAME);

@@ -1,7 +1,10 @@
 //! Defines token tags we use for syntax highlighting.
 //! A tag is not unlike a CSS class.
 
-use std::{fmt, ops};
+use std::{
+    fmt::{self, Write},
+    ops,
+};
 
 use ide_db::SymbolKind;
 
@@ -102,6 +105,8 @@ pub enum HlPunct {
     Colon,
     /// ;
     Semi,
+    /// ! (only for macro calls)
+    MacroBang,
     ///
     Other,
 }
@@ -139,6 +144,7 @@ impl HlTag {
                 SymbolKind::Macro => "macro",
                 SymbolKind::Module => "module",
                 SymbolKind::SelfParam => "self_keyword",
+                SymbolKind::SelfType => "self_type_keyword",
                 SymbolKind::Static => "static",
                 SymbolKind::Struct => "struct",
                 SymbolKind::ToolModule => "tool_module",
@@ -167,6 +173,7 @@ impl HlTag {
                 HlPunct::Dot => "dot",
                 HlPunct::Colon => "colon",
                 HlPunct::Semi => "semicolon",
+                HlPunct::MacroBang => "macro_bang",
                 HlPunct::Other => "punctuation",
             },
             HlTag::NumericLiteral => "numeric_literal",
@@ -250,9 +257,10 @@ impl fmt::Display for HlMod {
 
 impl fmt::Display for Highlight {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.tag)?;
+        self.tag.fmt(f)?;
         for modifier in self.mods.iter() {
-            write!(f, ".{}", modifier)?
+            f.write_char('.')?;
+            modifier.fmt(f)?;
         }
         Ok(())
     }

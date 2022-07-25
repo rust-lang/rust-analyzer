@@ -5,30 +5,47 @@ use super::*;
 pub(crate) use self::atom::{block_expr, match_arm_list};
 pub(super) use self::atom::{literal, LITERAL_FIRST};
 
-pub(super) enum StmtWithSemi {
-    Yes,
-    No,
+#[derive(PartialEq, Eq)]
+pub(super) enum Semicolon {
+    Required,
     Optional,
+    Forbidden,
 }
 
 const EXPR_FIRST: TokenSet = LHS_FIRST;
 
-pub(super) fn expr(p: &mut Parser) -> bool {
+pub(super) fn expr(p: &mut Parser<'_>) -> bool {
     let r = Restrictions { forbid_structs: false, prefer_stmt: false };
     expr_bp(p, None, r, 1).is_some()
 }
 
-pub(super) fn expr_stmt(p: &mut Parser, m: Option<Marker>) -> Option<(CompletedMarker, BlockLike)> {
+pub(super) fn expr_stmt(
+    p: &mut Parser<'_>,
+    m: Option<Marker>,
+) -> Option<(CompletedMarker, BlockLike)> {
     let r = Restrictions { forbid_structs: false, prefer_stmt: true };
     expr_bp(p, m, r, 1)
 }
 
-fn expr_no_struct(p: &mut Parser) {
+fn expr_no_struct(p: &mut Parser<'_>) {
     let r = Restrictions { forbid_structs: true, prefer_stmt: false };
     expr_bp(p, None, r, 1);
 }
 
-pub(super) fn stmt(p: &mut Parser, with_semi: StmtWithSemi, prefer_expr: bool) {
+/// Parses the expression in `let pattern = expression`.
+/// It needs to be parsed with lower precedence than `&&`, so that
+/// `if let true = true && false` is parsed as `if (let true = true) && (true)`
+/// and not `if let true = (true && true)`.
+fn expr_let(p: &mut Parser<'_>) {
+    let r = Restrictions { forbid_structs: true, prefer_stmt: false };
+    expr_bp(p, None, r, 5);
+}
+
+pub(super) fn stmt(p: &mut Parser<'_>, semicolon: Semicolon) {
+    if p.eat(T![;]) {
+        return;
+    }
+
     let m = p.start();
     // test attr_on_expr_stmt
     // fn foo() {
@@ -40,7 +57,7 @@ pub(super) fn stmt(p: &mut Parser, with_semi: StmtWithSemi, prefer_expr: bool) {
     attributes::outer_attrs(p);
 
     if p.at(T![let]) {
-        let_stmt(p, m, with_semi);
+        let_stmt(p, m, semicolon);
         return;
     }
 
@@ -52,7 +69,7 @@ pub(super) fn stmt(p: &mut Parser, with_semi: StmtWithSemi, prefer_expr: bool) {
     };
 
     if let Some((cm, blocklike)) = expr_stmt(p, Some(m)) {
-        if !(p.at(T!['}']) || (prefer_expr && p.at(EOF))) {
+        if !(p.at(T!['}']) || (semicolon != Semicolon::Required && p.at(EOF))) {
             // test no_semi_after_block
             // fn foo() {
             //     if true {}
@@ -68,27 +85,26 @@ pub(super) fn stmt(p: &mut Parser, with_semi: StmtWithSemi, prefer_expr: bool) {
             //     test!{}
             // }
             let m = cm.precede(p);
-            match with_semi {
-                StmtWithSemi::No => (),
-                StmtWithSemi::Optional => {
-                    p.eat(T![;]);
-                }
-                StmtWithSemi::Yes => {
+            match semicolon {
+                Semicolon::Required => {
                     if blocklike.is_block() {
                         p.eat(T![;]);
                     } else {
                         p.expect(T![;]);
                     }
                 }
+                Semicolon::Optional => {
+                    p.eat(T![;]);
+                }
+                Semicolon::Forbidden => (),
             }
-
             m.complete(p, EXPR_STMT);
         }
     }
 
     // test let_stmt
     // fn f() { let x: i32 = 92; }
-    fn let_stmt(p: &mut Parser, m: Marker, with_semi: StmtWithSemi) {
+    fn let_stmt(p: &mut Parser<'_>, m: Marker, with_semi: Semicolon) {
         p.bump(T![let]);
         patterns::pattern(p);
         if p.at(T![:]) {
@@ -113,11 +129,11 @@ pub(super) fn stmt(p: &mut Parser, with_semi: StmtWithSemi, prefer_expr: bool) {
         }
 
         match with_semi {
-            StmtWithSemi::No => (),
-            StmtWithSemi::Optional => {
+            Semicolon::Forbidden => (),
+            Semicolon::Optional => {
                 p.eat(T![;]);
             }
-            StmtWithSemi::Yes => {
+            Semicolon::Required => {
                 p.expect(T![;]);
             }
         }
@@ -125,7 +141,7 @@ pub(super) fn stmt(p: &mut Parser, with_semi: StmtWithSemi, prefer_expr: bool) {
     }
 }
 
-pub(super) fn expr_block_contents(p: &mut Parser) {
+pub(super) fn expr_block_contents(p: &mut Parser<'_>) {
     attributes::inner_attrs(p);
 
     while !p.at(EOF) && !p.at(T!['}']) {
@@ -143,13 +159,7 @@ pub(super) fn expr_block_contents(p: &mut Parser) {
         //     fn f() {};
         //     struct S {};
         // }
-
-        if p.at(T![;]) {
-            p.bump(T![;]);
-            continue;
-        }
-
-        stmt(p, StmtWithSemi::Yes, false);
+        stmt(p, Semicolon::Required);
     }
 }
 
@@ -163,7 +173,7 @@ struct Restrictions {
 ///
 /// See <https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html>
 #[rustfmt::skip]
-fn current_op(p: &Parser) -> (u8, SyntaxKind) {
+fn current_op(p: &Parser<'_>) -> (u8, SyntaxKind) {
     const NOT_AN_OP: (u8, SyntaxKind) = (0, T![@]);
     match p.current() {
         T![|] if p.at(T![||])  => (3,  T![||]),
@@ -187,6 +197,7 @@ fn current_op(p: &Parser) -> (u8, SyntaxKind) {
         T![%] if p.at(T![%=])  => (1,  T![%=]),
         T![%]                  => (11, T![%]),
         T![&] if p.at(T![&=])  => (1,  T![&=]),
+        // If you update this, remember to update `expr_let()` too.
         T![&] if p.at(T![&&])  => (4,  T![&&]),
         T![&]                  => (8,  T![&]),
         T![/] if p.at(T![/=])  => (1,  T![/=]),
@@ -206,7 +217,7 @@ fn current_op(p: &Parser) -> (u8, SyntaxKind) {
 
 // Parses expression with binding power of at least bp.
 fn expr_bp(
-    p: &mut Parser,
+    p: &mut Parser<'_>,
     m: Option<Marker>,
     mut r: Restrictions,
     bp: u8,
@@ -279,7 +290,7 @@ fn expr_bp(
 const LHS_FIRST: TokenSet =
     atom::ATOM_EXPR_FIRST.union(TokenSet::new(&[T![&], T![*], T![!], T![.], T![-]]));
 
-fn lhs(p: &mut Parser, r: Restrictions) -> Option<(CompletedMarker, BlockLike)> {
+fn lhs(p: &mut Parser<'_>, r: Restrictions) -> Option<(CompletedMarker, BlockLike)> {
     let m;
     let kind = match p.current() {
         // test ref_expr
@@ -348,7 +359,7 @@ fn lhs(p: &mut Parser, r: Restrictions) -> Option<(CompletedMarker, BlockLike)> 
 }
 
 fn postfix_expr(
-    p: &mut Parser,
+    p: &mut Parser<'_>,
     mut lhs: CompletedMarker,
     // Calls are disallowed if the type is a block and we prefer statements because the call cannot be disambiguated from a tuple
     // E.g. `while true {break}();` is parsed as
@@ -384,7 +395,7 @@ fn postfix_expr(
     return (lhs, block_like);
 
     fn postfix_dot_expr(
-        p: &mut Parser,
+        p: &mut Parser<'_>,
         lhs: CompletedMarker,
     ) -> Result<CompletedMarker, CompletedMarker> {
         assert!(p.at(T![.]));
@@ -420,7 +431,7 @@ fn postfix_expr(
 //     let _ = f(<Foo>::func());
 //     f(<Foo as Trait>::func());
 // }
-fn call_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
+fn call_expr(p: &mut Parser<'_>, lhs: CompletedMarker) -> CompletedMarker {
     assert!(p.at(T!['(']));
     let m = lhs.precede(p);
     arg_list(p);
@@ -431,7 +442,7 @@ fn call_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
 // fn foo() {
 //     x[1][2];
 // }
-fn index_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
+fn index_expr(p: &mut Parser<'_>, lhs: CompletedMarker) -> CompletedMarker {
     assert!(p.at(T!['[']));
     let m = lhs.precede(p);
     p.bump(T!['[']);
@@ -445,7 +456,7 @@ fn index_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
 //     x.foo();
 //     y.bar::<T>(1, 2,);
 // }
-fn method_call_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
+fn method_call_expr(p: &mut Parser<'_>, lhs: CompletedMarker) -> CompletedMarker {
     assert!(p.at(T![.]) && p.nth(1) == IDENT && (p.nth(2) == T!['('] || p.nth_at(2, T![::])));
     let m = lhs.precede(p);
     p.bump_any();
@@ -463,14 +474,7 @@ fn method_call_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
 //     x.0.bar;
 //     x.0();
 // }
-
-// test_err bad_tuple_index_expr
-// fn foo() {
-//     x.0.;
-//     x.1i32;
-//     x.0x01;
-// }
-fn field_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
+fn field_expr(p: &mut Parser<'_>, lhs: CompletedMarker) -> CompletedMarker {
     assert!(p.at(T![.]));
     let m = lhs.precede(p);
     p.bump(T![.]);
@@ -489,7 +493,7 @@ fn field_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
 // fn foo() {
 //     x?;
 // }
-fn try_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
+fn try_expr(p: &mut Parser<'_>, lhs: CompletedMarker) -> CompletedMarker {
     assert!(p.at(T![?]));
     let m = lhs.precede(p);
     p.bump(T![?]);
@@ -503,7 +507,7 @@ fn try_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
 //     79 as i16 - 1;
 //     0x36 as u8 <= 0x37;
 // }
-fn cast_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
+fn cast_expr(p: &mut Parser<'_>, lhs: CompletedMarker) -> CompletedMarker {
     assert!(p.at(T![as]));
     let m = lhs.precede(p);
     p.bump(T![as]);
@@ -513,7 +517,7 @@ fn cast_expr(p: &mut Parser, lhs: CompletedMarker) -> CompletedMarker {
     m.complete(p, CAST_EXPR)
 }
 
-fn arg_list(p: &mut Parser) {
+fn arg_list(p: &mut Parser<'_>) {
     assert!(p.at(T!['(']));
     let m = p.start();
     p.bump(T!['(']);
@@ -540,7 +544,7 @@ fn arg_list(p: &mut Parser) {
 //     let _ = ::a::<b>;
 //     let _ = format!();
 // }
-fn path_expr(p: &mut Parser, r: Restrictions) -> (CompletedMarker, BlockLike) {
+fn path_expr(p: &mut Parser<'_>, r: Restrictions) -> (CompletedMarker, BlockLike) {
     assert!(paths::is_path_start(p));
     let m = p.start();
     paths::expr_path(p);
@@ -551,7 +555,7 @@ fn path_expr(p: &mut Parser, r: Restrictions) -> (CompletedMarker, BlockLike) {
         }
         T![!] if !p.at(T![!=]) => {
             let block_like = items::macro_call_after_excl(p);
-            (m.complete(p, MACRO_CALL), block_like)
+            (m.complete(p, MACRO_CALL).precede(p).complete(p, MACRO_EXPR), block_like)
         }
         _ => (m.complete(p, PATH_EXPR), BlockLike::NotBlock),
     }
@@ -564,7 +568,7 @@ fn path_expr(p: &mut Parser, r: Restrictions) -> (CompletedMarker, BlockLike) {
 //     S { x, y: 32, ..Default::default() };
 //     TupleStruct { 0: 1 };
 // }
-pub(crate) fn record_expr_field_list(p: &mut Parser) {
+pub(crate) fn record_expr_field_list(p: &mut Parser<'_>) {
     assert!(p.at(T!['{']));
     let m = p.start();
     p.bump(T!['{']);
@@ -592,7 +596,16 @@ pub(crate) fn record_expr_field_list(p: &mut Parser) {
             T![.] if p.at(T![..]) => {
                 m.abandon(p);
                 p.bump(T![..]);
-                expr(p);
+
+                // test destructuring_assignment_struct_rest_pattern
+                // fn foo() {
+                //     S { .. } = S {};
+                // }
+
+                // We permit `.. }` on the left-hand side of a destructuring assignment.
+                if !p.at(T!['}']) {
+                    expr(p);
+                }
             }
             T!['{'] => {
                 error_block(p, "expected a field");

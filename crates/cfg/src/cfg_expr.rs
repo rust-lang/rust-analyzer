@@ -43,7 +43,7 @@ impl CfgAtom {
 impl fmt::Display for CfgAtom {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CfgAtom::Flag(name) => write!(f, "{}", name),
+            CfgAtom::Flag(name) => name.fmt(f),
             CfgAtom::KeyValue { key, value } => write!(f, "{} = {:?}", key, value),
         }
     }
@@ -85,7 +85,7 @@ impl CfgExpr {
     }
 }
 
-fn next_cfg_expr(it: &mut SliceIter<tt::TokenTree>) -> Option<CfgExpr> {
+fn next_cfg_expr(it: &mut SliceIter<'_, tt::TokenTree>) -> Option<CfgExpr> {
     let name = match it.next() {
         None => return None,
         Some(tt::TokenTree::Leaf(tt::Leaf::Ident(ident))) => ident.text.clone(),

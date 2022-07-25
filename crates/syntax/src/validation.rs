@@ -11,7 +11,7 @@ use rustc_lexer::unescape::{
 
 use crate::{
     algo,
-    ast::{self, HasVisibility},
+    ast::{self, HasAttrs, HasVisibility},
     match_ast, AstNode, SyntaxError,
     SyntaxKind::{CONST, FN, INT_NUMBER, TYPE_ALIAS},
     SyntaxNode, SyntaxToken, TextSize, T,
@@ -38,6 +38,7 @@ pub(crate) fn validate(root: &SyntaxNode) -> Vec<SyntaxError> {
                 ast::PtrType(it) => validate_trait_object_ptr_ty(it, &mut errors),
                 ast::FnPtrType(it) => validate_trait_object_fn_ptr_ret_ty(it, &mut errors),
                 ast::MacroRules(it) => validate_macro_rules(it, &mut errors),
+                ast::LetExpr(it) => validate_let_expr(it, &mut errors),
                 _ => (),
             }
         }
@@ -113,7 +114,7 @@ fn rustc_unescape_error_to_string(err: unescape::EscapeError) -> &'static str {
 }
 
 fn validate_literal(literal: ast::Literal, acc: &mut Vec<SyntaxError>) {
-    // FIXME: move this function to outer scope (https://github.com/rust-analyzer/rust-analyzer/pull/2834#discussion_r366196658)
+    // FIXME: move this function to outer scope (https://github.com/rust-lang/rust-analyzer/pull/2834#discussion_r366196658)
     fn unquote(text: &str, prefix_len: usize, end_delimiter: char) -> Option<&str> {
         text.rfind(end_delimiter).and_then(|end| text.get(prefix_len..end))
     }
@@ -121,7 +122,7 @@ fn validate_literal(literal: ast::Literal, acc: &mut Vec<SyntaxError>) {
     let token = literal.token();
     let text = token.text();
 
-    // FIXME: lift this lambda refactor to `fn` (https://github.com/rust-analyzer/rust-analyzer/pull/2834#discussion_r366199205)
+    // FIXME: lift this lambda refactor to `fn` (https://github.com/rust-lang/rust-analyzer/pull/2834#discussion_r366199205)
     let mut push_err = |prefix_len, (off, err): (usize, unescape::EscapeError)| {
         let off = token.text_range().start() + TextSize::try_from(off + prefix_len).unwrap();
         acc.push(SyntaxError::new_at_offset(rustc_unescape_error_to_string(err), off));
@@ -150,12 +151,12 @@ fn validate_literal(literal: ast::Literal, acc: &mut Vec<SyntaxError>) {
                 }
             }
         }
-        ast::LiteralKind::Char => {
+        ast::LiteralKind::Char(_) => {
             if let Some(Err(e)) = unquote(text, 1, '\'').map(unescape_char) {
                 push_err(1, e);
             }
         }
-        ast::LiteralKind::Byte => {
+        ast::LiteralKind::Byte(_) => {
             if let Some(Err(e)) = unquote(text, 2, '\'').map(unescape_byte) {
                 push_err(2, e);
             }
@@ -230,7 +231,9 @@ fn validate_visibility(vis: ast::Visibility, errors: &mut Vec<SyntaxError>) {
         Some(it) => it,
         None => return,
     };
-    if impl_def.trait_().is_some() {
+    // FIXME: disable validation if there's an attribute, since some proc macros use this syntax.
+    // ideally the validation would run only on the fully expanded code, then this wouldn't be necessary.
+    if impl_def.trait_().is_some() && impl_def.attrs().next().is_none() {
         errors.push(SyntaxError::new("Unnecessary visibility qualifier", vis.syntax.text_range()));
     }
 }
@@ -342,4 +345,34 @@ fn validate_const(const_: ast::Const, errors: &mut Vec<SyntaxError>) {
     {
         errors.push(SyntaxError::new("const globals cannot be mutable", mut_token.text_range()));
     }
+}
+
+fn validate_let_expr(let_: ast::LetExpr, errors: &mut Vec<SyntaxError>) {
+    let mut token = let_.syntax().clone();
+    loop {
+        token = match token.parent() {
+            Some(it) => it,
+            None => break,
+        };
+
+        if ast::ParenExpr::can_cast(token.kind()) {
+            continue;
+        } else if let Some(it) = ast::BinExpr::cast(token.clone()) {
+            if it.op_kind() == Some(ast::BinaryOp::LogicOp(ast::LogicOp::And)) {
+                continue;
+            }
+        } else if ast::IfExpr::can_cast(token.kind())
+            || ast::WhileExpr::can_cast(token.kind())
+            || ast::MatchGuard::can_cast(token.kind())
+        {
+            // It must be part of the condition since the expressions are inside a block.
+            return;
+        }
+
+        break;
+    }
+    errors.push(SyntaxError::new(
+        "`let` expressions are not supported here",
+        let_.syntax().text_range(),
+    ));
 }

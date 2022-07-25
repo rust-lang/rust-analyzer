@@ -3,13 +3,14 @@
 //!
 //! This probably isn't the best way to do this -- ideally, diagnistics should
 //! be expressed in terms of hir types themselves.
+use base_db::CrateId;
 use cfg::{CfgExpr, CfgOptions};
 use either::Either;
-use hir_def::{path::ModPath, type_ref::Mutability};
+use hir_def::path::ModPath;
 use hir_expand::{name::Name, HirFileId, InFile};
 use syntax::{ast, AstPtr, SyntaxNodePtr, TextRange};
 
-use crate::Type;
+use crate::{MacroKind, Type};
 
 macro_rules! diagnostics {
     ($($diag:ident,)*) => {
@@ -28,7 +29,6 @@ macro_rules! diagnostics {
 }
 
 diagnostics![
-    AddReferenceHere,
     BreakOutsideOfLoop,
     InactiveCode,
     IncorrectCase,
@@ -38,11 +38,10 @@ diagnostics![
     MismatchedArgCount,
     MissingFields,
     MissingMatchArms,
-    MissingOkOrSomeInTailExpr,
     MissingUnsafe,
     NoSuchField,
-    RemoveThisSemicolon,
     ReplaceFilterMapNextWithFindMap,
+    TypeMismatch,
     UnimplementedBuiltinMacro,
     UnresolvedExternCrate,
     UnresolvedImport,
@@ -54,7 +53,7 @@ diagnostics![
 #[derive(Debug)]
 pub struct UnresolvedModule {
     pub decl: InFile<AstPtr<ast::Module>>,
-    pub candidate: String,
+    pub candidates: Box<[String]>,
 }
 
 #[derive(Debug)]
@@ -69,8 +68,10 @@ pub struct UnresolvedImport {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct UnresolvedMacroCall {
-    pub macro_call: InFile<AstPtr<ast::MacroCall>>,
+    pub macro_call: InFile<SyntaxNodePtr>,
+    pub precise_location: Option<TextRange>,
     pub path: ModPath,
+    pub is_bang: bool,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -87,11 +88,15 @@ pub struct UnresolvedProcMacro {
     /// to use instead.
     pub precise_location: Option<TextRange>,
     pub macro_name: Option<String>,
+    pub kind: MacroKind,
+    /// The crate id of the proc-macro this macro belongs to, or `None` if the proc-macro can't be found.
+    pub krate: CrateId,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct MacroError {
     pub node: InFile<SyntaxNodePtr>,
+    pub precise_location: Option<TextRange>,
     pub message: String,
 }
 
@@ -148,29 +153,18 @@ pub struct MismatchedArgCount {
 }
 
 #[derive(Debug)]
-pub struct RemoveThisSemicolon {
-    pub expr: InFile<AstPtr<ast::Expr>>,
-}
-
-#[derive(Debug)]
-pub struct MissingOkOrSomeInTailExpr {
-    pub expr: InFile<AstPtr<ast::Expr>>,
-    // `Some` or `Ok` depending on whether the return type is Result or Option
-    pub required: String,
-    pub expected: Type,
-}
-
-#[derive(Debug)]
 pub struct MissingMatchArms {
     pub file: HirFileId,
     pub match_expr: AstPtr<ast::Expr>,
-    pub arms: AstPtr<ast::MatchArmList>,
+    pub uncovered_patterns: String,
 }
 
 #[derive(Debug)]
-pub struct AddReferenceHere {
+pub struct TypeMismatch {
+    // FIXME: add mismatches in patterns as well
     pub expr: InFile<AstPtr<ast::Expr>>,
-    pub mutability: Mutability,
+    pub expected: Type,
+    pub actual: Type,
 }
 
 pub use hir_ty::diagnostics::IncorrectCase;

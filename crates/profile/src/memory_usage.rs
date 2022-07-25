@@ -11,8 +11,8 @@ pub struct MemoryUsage {
 }
 
 impl fmt::Display for MemoryUsage {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "{}", self.allocated)
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.allocated.fmt(f)
     }
 }
 
@@ -97,7 +97,7 @@ impl Bytes {
 }
 
 impl fmt::Display for Bytes {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let bytes = self.0;
         let mut value = bytes;
         let mut suffix = "b";

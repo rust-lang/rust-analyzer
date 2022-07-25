@@ -17,6 +17,7 @@ env:
   RUSTUP_MAX_RETRIES: 10
   FETCH_DEPTH: 0 # pull in the tags for the version string
   MACOSX_DEPLOYMENT_TARGET: 10.15
+  CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
 
 jobs:
   dist:
@@ -25,59 +26,42 @@ jobs:
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            code-target: win32-x64
           - os: windows-latest
             target: aarch64-pc-windows-msvc
-          - os: ubuntu-20.04
+            code-target: win32-arm64
+          - os: ubuntu-18.04
             target: x86_64-unknown-linux-gnu
-          - os: ubuntu-20.04
+            code-target: linux-x64
+          - os: ubuntu-18.04
             target: aarch64-unknown-linux-gnu
-            cross_linker: aarch64-linux-gnu-gcc
+            code-target: linux-arm64
           - os: macos-11
             target: x86_64-apple-darwin
+            code-target: darwin-x64
           - os: macos-11
             target: aarch64-apple-darwin
+            code-target: darwin-arm64
 
     name: dist (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
 
     env:
       RA_TARGET: ${{ matrix.target }}
-      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: ${{ matrix.cross_linker }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: ${{ env.FETCH_DEPTH }}
 
-      # We need to disable the existing toolchain to avoid updating rust-docs
-      # which takes a long time. The fastest way to do this is to rename the
-      # existing folder, as deleting it takes about as much time as not doing
-      # anything and just updating rust-docs.
-      - name: Rename existing Rust toolchain
-        if: matrix.os == 'windows-latest'
-        run: Rename-Item C:\Users\runneradmin\.rustup\toolchains\stable-x86_64-pc-windows-msvc C:\Users\runneradmin\.rustup\toolchains\stable-x86_64-pc-windows-msvc.old
-
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: ${{ matrix.target }}
-          profile: minimal
-          override: true
-
-      - name: Install Rust library source
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: ${{ matrix.target }}
-          profile: minimal
-          override: true
-          components: rust-src
+        run: |
+          rustup update --no-self-update stable
+          rustup target add ${{ matrix.target }}
+          rustup component add rust-src
 
       - name: Install Node.js
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
         uses: actions/setup-node@v1
         with:
           node-version: 14.x
@@ -90,13 +74,32 @@ jobs:
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: sudo apt-get install gcc-aarch64-linux-gnu
 
-      - name: Dist (generic)
-        if: matrix.target != 'x86_64-unknown-linux-gnu'
-        run: cargo xtask dist
+      - name: Dist
+        run: cargo xtask dist --client-patch-version ${{ github.run_number }}
 
-      - name: Dist (Linux)
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        run: cargo xtask dist --client-patch-version $GITHUB_RUN_NUMBER
+      - run: npm ci
+        working-directory: editors/code
+
+      - name: Package Extension (release)
+        if: github.ref == 'refs/heads/release'
+        run: npx vsce package -o "../../dist/rust-analyzer-${{ matrix.code-target }}.vsix" --target ${{ matrix.code-target }}
+        working-directory: editors/code
+
+      - name: Package Extension (nightly)
+        if: github.ref != 'refs/heads/release'
+        run: npx vsce package -o "../../dist/rust-analyzer-${{ matrix.code-target }}.vsix" --target ${{ matrix.code-target }} --pre-release
+        working-directory: editors/code
+
+      - if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: rm -rf editors/code/server
+
+      - if: matrix.target == 'x86_64-unknown-linux-gnu' && github.ref == 'refs/heads/release'
+        run: npx vsce package -o ../../dist/rust-analyzer-no-server.vsix
+        working-directory: editors/code
+
+      - if: matrix.target == 'x86_64-unknown-linux-gnu' && github.ref != 'refs/heads/release'
+        run: npx vsce package -o ../../dist/rust-analyzer-no-server.vsix --pre-release
+        working-directory: editors/code
 
       - name: Run analysis-stats on rust-analyzer
         if: matrix.target == 'x86_64-unknown-linux-gnu'
@@ -126,15 +129,30 @@ jobs:
 
     steps:
       - name: Install dependencies
-        run: apk add --no-cache git clang lld musl-dev
+        run: apk add --no-cache git clang lld musl-dev nodejs npm
 
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: ${{ env.FETCH_DEPTH }}
 
       - name: Dist
-        run: cargo xtask dist
+        run: cargo xtask dist --client-patch-version ${{ github.run_number }}
+
+      - run: npm ci
+        working-directory: editors/code
+
+      - name: Package Extension (release)
+        if: github.ref == 'refs/heads/release'
+        run: npx vsce package -o "../../dist/rust-analyzer-alpine-x64.vsix" --target alpine-x64
+        working-directory: editors/code
+
+      - name: Package Extension (nightly)
+        if: github.ref != 'refs/heads/release'
+        run: npx vsce package -o "../../dist/rust-analyzer-alpine-x64.vsix" --target alpine-x64 --pre-release
+        working-directory: editors/code
+
+      - run: rm -rf editors/code/server
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v1
@@ -159,7 +177,7 @@ jobs:
       - run: 'echo "TAG: $TAG"'
 
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: ${{ env.FETCH_DEPTH }}
 
@@ -203,11 +221,29 @@ jobs:
           name: ${{ env.TAG }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - run: rm dist/rust-analyzer-no-server.vsix
+
       - run: npm ci
         working-directory: ./editors/code
 
-      - name: Publish Extension
-        if: github.ref == 'refs/heads/release'
+      - name: Publish Extension (Code Marketplace, release)
+        if: github.ref == 'refs/heads/release' && (github.repository == 'rust-analyzer/rust-analyzer' || github.repository == 'rust-lang/rust-analyzer')
         working-directory: ./editors/code
         # token from https://dev.azure.com/rust-analyzer/
-        run: npx vsce publish --pat ${{ secrets.MARKETPLACE_TOKEN }} --packagePath ../../dist/rust-analyzer.vsix
+        run: npx vsce publish --pat ${{ secrets.MARKETPLACE_TOKEN }} --packagePath ../../dist/rust-analyzer-*.vsix
+
+      - name: Publish Extension (OpenVSX, release)
+        if: github.ref == 'refs/heads/release' && (github.repository == 'rust-analyzer/rust-analyzer' || github.repository == 'rust-lang/rust-analyzer')
+        working-directory: ./editors/code
+        # token from https://dev.azure.com/rust-analyzer/
+        run: npx ovsx publish --pat ${{ secrets.OPENVSX_TOKEN }} --packagePath ../../dist/rust-analyzer-*.vsix
+
+      - name: Publish Extension (Code Marketplace, nightly)
+        if: github.ref != 'refs/heads/release' && (github.repository == 'rust-analyzer/rust-analyzer' || github.repository == 'rust-lang/rust-analyzer')
+        working-directory: ./editors/code
+        run: npx vsce publish --pat ${{ secrets.MARKETPLACE_TOKEN }} --packagePath ../../dist/rust-analyzer-*.vsix --pre-release
+
+      - name: Publish Extension (OpenVSX, nightly)
+        if: github.ref != 'refs/heads/release' && (github.repository == 'rust-analyzer/rust-analyzer' || github.repository == 'rust-lang/rust-analyzer')
+        working-directory: ./editors/code
+        run: npx ovsx publish --pat ${{ secrets.OPENVSX_TOKEN }} --packagePath ../../dist/rust-analyzer-*.vsix --pre-release

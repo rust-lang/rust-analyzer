@@ -19,6 +19,7 @@ pre                 { color: #DCDCCC; background: #3F3F3F; font-size: 22px; padd
 .operator.unsafe    { color: #BC8383; }
 .mutable.unsafe     { color: #BC8383; text-decoration: underline; }
 .keyword.unsafe     { color: #BC8383; font-weight: bold; }
+.macro.unsafe       { color: #BC8383; }
 .parameter          { color: #94BFF3; }
 .text               { color: #DCDCCC; }
 .type               { color: #7CB8BB; }
@@ -28,6 +29,7 @@ pre                 { color: #DCDCCC; background: #3F3F3F; font-size: 22px; padd
 .numeric_literal    { color: #BFEBBF; }
 .bool_literal       { color: #BFE6EB; }
 .macro              { color: #94BFF3; }
+.derive             { color: #94BFF3; font-style: italic; }
 .module             { color: #AFD8AF; }
 .value_param        { color: #DCDCCC; }
 .variable           { color: #DCDCCC; }
@@ -41,5 +43,5 @@ pre                 { color: #DCDCCC; background: #3F3F3F; font-size: 22px; padd
 .unresolved_reference { color: #FC5555; text-decoration: wavy underline; }
 </style>
 <pre><code><span class="keyword">extern</span> <span class="keyword">crate</span> <span class="module crate_root default_library library">std</span><span class="semicolon">;</span>
-<span class="keyword">extern</span> <span class="keyword">crate</span> <span class="module crate_root default_library library">alloc</span> <span class="keyword">as</span> <span class="module crate_root default_library declaration library">abc</span><span class="semicolon">;</span>
+<span class="keyword">extern</span> <span class="keyword">crate</span> <span class="module crate_root library">alloc</span> <span class="keyword">as</span> <span class="module crate_root declaration library">abc</span><span class="semicolon">;</span>
 </code></pre>

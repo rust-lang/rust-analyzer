@@ -1,6 +1,9 @@
 //! Driver for rust-analyzer.
 //!
 //! Based on cli flags, either spawns an LSP server, or runs a batch analysis
+
+#![warn(rust_2018_idioms, unused_lifetimes, semicolon_in_expressions_from_macros)]
+
 mod logger;
 mod rustc_wrapper;
 
@@ -70,16 +73,18 @@ fn try_main() -> Result<()> {
                 return Ok(());
             }
             if cmd.version {
-                println!("rust-analyzer {}", env!("REV"));
+                println!("rust-analyzer {}", rust_analyzer::version());
                 return Ok(());
             }
             if cmd.help {
                 println!("{}", flags::RustAnalyzer::HELP);
                 return Ok(());
             }
-            run_server()?
+            with_extra_thread("LspServer", run_server)?;
         }
-        flags::RustAnalyzerCmd::ProcMacro(flags::ProcMacro) => proc_macro_srv::cli::run()?,
+        flags::RustAnalyzerCmd::ProcMacro(flags::ProcMacro) => {
+            with_extra_thread("MacroExpander", || proc_macro_srv::cli::run().map_err(Into::into))?;
+        }
         flags::RustAnalyzerCmd::Parse(cmd) => cmd.run()?,
         flags::RustAnalyzerCmd::Symbols(cmd) => cmd.run()?,
         flags::RustAnalyzerCmd::Highlight(cmd) => cmd.run()?,
@@ -93,6 +98,18 @@ fn try_main() -> Result<()> {
 }
 
 fn setup_logging(log_file: Option<&Path>) -> Result<()> {
+    if cfg!(windows) {
+        // This is required so that windows finds our pdb that is placed right beside the exe.
+        // By default it doesn't look at the folder the exe resides in, only in the current working
+        // directory which we set to the project workspace.
+        // https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/general-environment-variables
+        // https://docs.microsoft.com/en-us/windows/win32/api/dbghelp/nf-dbghelp-syminitialize
+        if let Ok(path) = env::current_exe() {
+            if let Some(path) = path.parent() {
+                env::set_var("_NT_SYMBOL_PATH", path);
+            }
+        }
+    }
     if env::var("RUST_BACKTRACE").is_err() {
         env::set_var("RUST_BACKTRACE", "short");
     }
@@ -107,22 +124,41 @@ fn setup_logging(log_file: Option<&Path>) -> Result<()> {
         None => None,
     };
     let filter = env::var("RA_LOG").ok();
-    logger::Logger::new(log_file, filter.as_deref()).install()?;
+    // deliberately enable all `error` logs if the user has not set RA_LOG, as there is usually useful
+    // information in there for debugging
+    logger::Logger::new(log_file, filter.as_deref().or(Some("error"))).install()?;
 
     profile::init();
 
     Ok(())
 }
 
+const STACK_SIZE: usize = 1024 * 1024 * 8;
+
+/// Parts of rust-analyzer can use a lot of stack space, and some operating systems only give us
+/// 1 MB by default (eg. Windows), so this spawns a new thread with hopefully sufficient stack
+/// space.
+fn with_extra_thread(
+    thread_name: impl Into<String>,
+    f: impl FnOnce() -> Result<()> + Send + 'static,
+) -> Result<()> {
+    let handle =
+        std::thread::Builder::new().name(thread_name.into()).stack_size(STACK_SIZE).spawn(f)?;
+    match handle.join() {
+        Ok(res) => res,
+        Err(panic) => std::panic::resume_unwind(panic),
+    }
+}
+
 fn run_server() -> Result<()> {
-    tracing::info!("server version {} will start", env!("REV"));
+    tracing::info!("server version {} will start", rust_analyzer::version());
 
     let (connection, io_threads) = Connection::stdio();
 
     let (initialize_id, initialize_params) = connection.initialize_start()?;
     tracing::info!("InitializeParams: {}", initialize_params);
     let initialize_params =
-        from_json::<lsp_types::InitializeParams>("InitializeParams", initialize_params)?;
+        from_json::<lsp_types::InitializeParams>("InitializeParams", &initialize_params)?;
 
     let root_path = match initialize_params
         .root_uri
@@ -138,7 +174,17 @@ fn run_server() -> Result<()> {
 
     let mut config = Config::new(root_path, initialize_params.capabilities);
     if let Some(json) = initialize_params.initialization_options {
-        config.update(json);
+        if let Err(e) = config.update(json) {
+            use lsp_types::{
+                notification::{Notification, ShowMessage},
+                MessageType, ShowMessageParams,
+            };
+            let not = lsp_server::Notification::new(
+                ShowMessage::METHOD.to_string(),
+                ShowMessageParams { typ: MessageType::WARNING, message: e.to_string() },
+            );
+            connection.sender.send(lsp_server::Message::Notification(not)).unwrap();
+        }
     }
 
     let server_capabilities = rust_analyzer::server_capabilities(&config);
@@ -147,9 +193,13 @@ fn run_server() -> Result<()> {
         capabilities: server_capabilities,
         server_info: Some(lsp_types::ServerInfo {
             name: String::from("rust-analyzer"),
-            version: Some(String::from(env!("REV"))),
+            version: Some(rust_analyzer::version().to_string()),
         }),
-        offset_encoding: if supports_utf8(&config.caps) { Some("utf-8".to_string()) } else { None },
+        offset_encoding: if supports_utf8(config.caps()) {
+            Some("utf-8".to_string())
+        } else {
+            None
+        },
     };
 
     let initialize_result = serde_json::to_value(initialize_result).unwrap();
@@ -171,7 +221,7 @@ fn run_server() -> Result<()> {
                     .collect::<Vec<_>>()
             })
             .filter(|workspaces| !workspaces.is_empty())
-            .unwrap_or_else(|| vec![config.root_path.clone()]);
+            .unwrap_or_else(|| vec![config.root_path().clone()]);
 
         let discovered = ProjectManifest::discover_all(&workspace_roots);
         tracing::info!("discovered projects: {:?}", discovered);

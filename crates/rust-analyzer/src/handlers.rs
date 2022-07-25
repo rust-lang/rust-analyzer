@@ -14,17 +14,16 @@ use ide::{
     SourceChange, TextEdit,
 };
 use ide_db::SymbolKind;
-use itertools::Itertools;
 use lsp_server::ErrorCode;
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
     CodeLens, CompletionItem, Diagnostic, DiagnosticTag, DocumentFormattingParams, FoldingRange,
-    FoldingRangeParams, HoverContents, Location, LocationLink, NumberOrString, Position,
-    PrepareRenameResponse, Range, RenameParams, SemanticTokensDeltaParams,
-    SemanticTokensFullDeltaResult, SemanticTokensParams, SemanticTokensRangeParams,
-    SemanticTokensRangeResult, SemanticTokensResult, SymbolInformation, SymbolTag,
-    TextDocumentIdentifier, Url, WorkspaceEdit,
+    FoldingRangeParams, HoverContents, InlayHint, InlayHintParams, Location, LocationLink,
+    NumberOrString, Position, PrepareRenameResponse, Range, RenameParams,
+    SemanticTokensDeltaParams, SemanticTokensFullDeltaResult, SemanticTokensParams,
+    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult, SymbolInformation,
+    SymbolTag, TextDocumentIdentifier, Url, WorkspaceEdit,
 };
 use project_model::{ManifestPath, ProjectWorkspace, TargetKind};
 use serde_json::json;
@@ -34,18 +33,23 @@ use vfs::AbsPathBuf;
 
 use crate::{
     cargo_target_spec::CargoTargetSpec,
-    config::RustfmtConfig,
+    config::{RustfmtConfig, WorkspaceSymbolConfig},
     diff::diff,
     from_proto,
     global_state::{GlobalState, GlobalStateSnapshot},
     line_index::LineEndings,
-    lsp_ext::{
-        self, InlayHint, InlayHintsParams, PositionOrRange, ViewCrateGraphParams,
-        WorkspaceSymbolParams,
-    },
+    lsp_ext::{self, PositionOrRange, ViewCrateGraphParams, WorkspaceSymbolParams},
     lsp_utils::{all_edits_are_disjoint, invalid_params_error},
     to_proto, LspError, Result,
 };
+
+pub(crate) fn handle_workspace_reload(state: &mut GlobalState, _: ()) -> Result<()> {
+    state.proc_macro_clients.clear();
+    state.proc_macro_changed = false;
+    state.fetch_workspaces_queue.request_op("reload workspace request".to_string());
+    state.fetch_build_data_queue.request_op("reload workspace request".to_string());
+    Ok(())
+}
 
 pub(crate) fn handle_analyzer_status(
     snap: GlobalStateSnapshot,
@@ -109,7 +113,7 @@ pub(crate) fn handle_syntax_tree(
     let _p = profile::span("handle_syntax_tree");
     let id = from_proto::file_id(&snap, &params.text_document.uri)?;
     let line_index = snap.file_line_index(id)?;
-    let text_range = params.range.map(|r| from_proto::text_range(&line_index, r));
+    let text_range = params.range.and_then(|r| from_proto::text_range(&line_index, r).ok());
     let res = snap.analysis.syntax_tree(id, text_range)?;
     Ok(res)
 }
@@ -122,6 +126,14 @@ pub(crate) fn handle_view_hir(
     let position = from_proto::file_position(&snap, params)?;
     let res = snap.analysis.view_hir(position)?;
     Ok(res)
+}
+
+pub(crate) fn handle_view_file_text(
+    snap: GlobalStateSnapshot,
+    params: lsp_types::TextDocumentIdentifier,
+) -> Result<String> {
+    let file_id = from_proto::file_id(&snap, &params.uri)?;
+    Ok(snap.analysis.file_text(file_id)?.to_string())
 }
 
 pub(crate) fn handle_view_item_tree(
@@ -150,7 +162,7 @@ pub(crate) fn handle_expand_macro(
     let _p = profile::span("handle_expand_macro");
     let file_id = from_proto::file_id(&snap, &params.text_document.uri)?;
     let line_index = snap.file_line_index(file_id)?;
-    let offset = from_proto::offset(&line_index, params.position);
+    let offset = from_proto::offset(&line_index, params.position)?;
 
     let res = snap.analysis.expand_macro(FilePosition { file_id, offset })?;
     Ok(res.map(|it| lsp_ext::ExpandedMacro { name: it.name, expansion: it.expansion }))
@@ -167,7 +179,7 @@ pub(crate) fn handle_selection_range(
         .positions
         .into_iter()
         .map(|position| {
-            let offset = from_proto::offset(&line_index, position);
+            let offset = from_proto::offset(&line_index, position)?;
             let mut ranges = Vec::new();
             {
                 let mut range = TextRange::new(offset, offset);
@@ -206,19 +218,20 @@ pub(crate) fn handle_matching_brace(
     let _p = profile::span("handle_matching_brace");
     let file_id = from_proto::file_id(&snap, &params.text_document.uri)?;
     let line_index = snap.file_line_index(file_id)?;
-    let res = params
+    params
         .positions
         .into_iter()
         .map(|position| {
             let offset = from_proto::offset(&line_index, position);
-            let offset = match snap.analysis.matching_brace(FilePosition { file_id, offset }) {
-                Ok(Some(matching_brace_offset)) => matching_brace_offset,
-                Err(_) | Ok(None) => offset,
-            };
-            to_proto::position(&line_index, offset)
+            offset.map(|offset| {
+                let offset = match snap.analysis.matching_brace(FilePosition { file_id, offset }) {
+                    Ok(Some(matching_brace_offset)) => matching_brace_offset,
+                    Err(_) | Ok(None) => offset,
+                };
+                to_proto::position(&line_index, offset)
+            })
         })
-        .collect();
-    Ok(res)
+        .collect()
 }
 
 pub(crate) fn handle_join_lines(
@@ -233,7 +246,7 @@ pub(crate) fn handle_join_lines(
 
     let mut res = TextEdit::default();
     for range in params.ranges {
-        let range = from_proto::text_range(&line_index, range);
+        let range = from_proto::text_range(&line_index, range)?;
         let edit = snap.analysis.join_lines(&config, FileRange { file_id, range })?;
         match res.union(edit) {
             Ok(()) => (),
@@ -264,7 +277,7 @@ pub(crate) fn handle_on_enter(
 pub(crate) fn handle_on_type_formatting(
     snap: GlobalStateSnapshot,
     params: lsp_types::DocumentOnTypeFormattingParams,
-) -> Result<Option<Vec<lsp_types::TextEdit>>> {
+) -> Result<Option<Vec<lsp_ext::SnippetTextEdit>>> {
     let _p = profile::span("handle_on_type_formatting");
     let mut position = from_proto::file_position(&snap, params.text_document_position)?;
     let line_index = snap.file_line_index(position.file_id)?;
@@ -275,9 +288,7 @@ pub(crate) fn handle_on_type_formatting(
     let char_typed = params.ch.chars().next().unwrap_or('\0');
 
     let text = snap.analysis.file_text(position.file_id)?;
-    if !text[usize::from(position.offset)..].starts_with(char_typed) {
-        // Add `always!` here once VS Code bug is fixed:
-        //   https://github.com/rust-analyzer/rust-analyzer/issues/10002
+    if stdx::never!(!text[usize::from(position.offset)..].starts_with(char_typed)) {
         return Ok(None);
     }
 
@@ -289,16 +300,17 @@ pub(crate) fn handle_on_type_formatting(
         return Ok(None);
     }
 
-    let edit = snap.analysis.on_char_typed(position, char_typed)?;
+    let edit =
+        snap.analysis.on_char_typed(position, char_typed, snap.config.typing_autoclose_angle())?;
     let edit = match edit {
         Some(it) => it,
         None => return Ok(None),
     };
 
     // This should be a single-file edit
-    let (_, edit) = edit.source_file_edits.into_iter().next().unwrap();
+    let (_, text_edit) = edit.source_file_edits.into_iter().next().unwrap();
 
-    let change = to_proto::text_edit_vec(&line_index, edit);
+    let change = to_proto::snippet_text_edit_vec(&line_index, edit.is_snippet, text_edit);
     Ok(Some(change))
 }
 
@@ -397,7 +409,9 @@ pub(crate) fn handle_workspace_symbol(
 ) -> Result<Option<Vec<SymbolInformation>>> {
     let _p = profile::span("handle_workspace_symbol");
 
-    let (all_symbols, libs) = decide_search_scope_and_kind(&params, &snap);
+    let config = snap.config.workspace_symbol();
+    let (all_symbols, libs) = decide_search_scope_and_kind(&params, &config);
+    let limit = config.search_limit;
 
     let query = {
         let query: String = params.query.chars().filter(|&c| c != '#' && c != '*').collect();
@@ -408,13 +422,13 @@ pub(crate) fn handle_workspace_symbol(
         if libs {
             q.libs();
         }
-        q.limit(128);
+        q.limit(limit);
         q
     };
     let mut res = exec_query(&snap, query)?;
     if res.is_empty() && !all_symbols {
         let mut query = Query::new(params.query);
-        query.limit(128);
+        query.limit(limit);
         res = exec_query(&snap, query)?;
     }
 
@@ -422,13 +436,11 @@ pub(crate) fn handle_workspace_symbol(
 
     fn decide_search_scope_and_kind(
         params: &WorkspaceSymbolParams,
-        snap: &GlobalStateSnapshot,
+        config: &WorkspaceSymbolConfig,
     ) -> (bool, bool) {
         // Support old-style parsing of markers in the query.
         let mut all_symbols = params.query.contains('#');
         let mut libs = params.query.contains('*');
-
-        let config = snap.config.workspace_symbol();
 
         // If no explicit marker was set, check request params. If that's also empty
         // use global config.
@@ -534,7 +546,7 @@ pub(crate) fn handle_will_rename_files(
     let mut source_change = source_changes.next().unwrap_or_default();
     source_change.file_system_edits.clear();
     // no collect here because we want to merge text edits on same file ids
-    source_change.extend(source_changes.map(|it| it.source_file_edits).flatten());
+    source_change.extend(source_changes.flat_map(|it| it.source_file_edits));
     if source_change.source_file_edits.is_empty() {
         Ok(None)
     } else {
@@ -676,7 +688,7 @@ pub(crate) fn handle_runnables(
     let _p = profile::span("handle_runnables");
     let file_id = from_proto::file_id(&snap, &params.text_document.uri)?;
     let line_index = snap.file_line_index(file_id)?;
-    let offset = params.position.map(|it| from_proto::offset(&line_index, it));
+    let offset = params.position.and_then(|it| from_proto::offset(&line_index, it).ok());
     let cargo_spec = CargoTargetSpec::for_file(&snap, file_id)?;
 
     let expect_test = match offset {
@@ -785,27 +797,27 @@ pub(crate) fn handle_completion(
     let _p = profile::span("handle_completion");
     let text_document_position = params.text_document_position.clone();
     let position = from_proto::file_position(&snap, params.text_document_position)?;
-    let completion_triggered_after_single_colon = {
-        let mut res = false;
-        if let Some(ctx) = params.context {
-            if ctx.trigger_character.as_deref() == Some(":") {
-                let source_file = snap.analysis.parse(position.file_id)?;
-                let left_token =
-                    source_file.syntax().token_at_offset(position.offset).left_biased();
-                match left_token {
-                    Some(left_token) => res = left_token.kind() == T![:],
-                    None => res = true,
-                }
-            }
+    let completion_trigger_character =
+        params.context.and_then(|ctx| ctx.trigger_character).and_then(|s| s.chars().next());
+
+    if Some(':') == completion_trigger_character {
+        let source_file = snap.analysis.parse(position.file_id)?;
+        let left_token = source_file.syntax().token_at_offset(position.offset).left_biased();
+        let completion_triggered_after_single_colon = match left_token {
+            Some(left_token) => left_token.kind() == T![:],
+            None => true,
+        };
+        if completion_triggered_after_single_colon {
+            return Ok(None);
         }
-        res
-    };
-    if completion_triggered_after_single_colon {
-        return Ok(None);
     }
 
     let completion_config = &snap.config.completion();
-    let items = match snap.analysis.completions(completion_config, position)? {
+    let items = match snap.analysis.completions(
+        completion_config,
+        position,
+        completion_trigger_character,
+    )? {
         None => return Ok(None),
         Some(items) => items,
     };
@@ -840,7 +852,7 @@ pub(crate) fn handle_completion_resolve(
 
     let file_id = from_proto::file_id(&snap, &resolve_data.position.text_document.uri)?;
     let line_index = snap.file_line_index(file_id)?;
-    let offset = from_proto::offset(&line_index, resolve_data.position.position);
+    let offset = from_proto::offset(&line_index, resolve_data.position.position)?;
 
     let additional_edits = snap
         .analysis
@@ -854,7 +866,7 @@ pub(crate) fn handle_completion_resolve(
         )?
         .into_iter()
         .flat_map(|edit| edit.into_iter().map(|indel| to_proto::text_edit(&line_index, indel)))
-        .collect_vec();
+        .collect::<Vec<_>>();
 
     if !all_edits_are_disjoint(&original_completion, &additional_edits) {
         return Err(LspError::new(
@@ -897,13 +909,12 @@ pub(crate) fn handle_signature_help(
 ) -> Result<Option<lsp_types::SignatureHelp>> {
     let _p = profile::span("handle_signature_help");
     let position = from_proto::file_position(&snap, params.text_document_position_params)?;
-    let call_info = match snap.analysis.call_info(position)? {
+    let help = match snap.analysis.signature_help(position)? {
         Some(it) => it,
         None => return Ok(None),
     };
-    let concise = !snap.config.call_info_full();
-    let res =
-        to_proto::signature_help(call_info, concise, snap.config.signature_help_label_offsets());
+    let config = snap.config.call_info();
+    let res = to_proto::signature_help(help, config, snap.config.signature_help_label_offsets());
     Ok(Some(res))
 }
 
@@ -1090,7 +1101,7 @@ pub(crate) fn handle_code_action(
             .ranges
             .iter()
             .copied()
-            .map(|range| from_proto::text_range(&line_index, range))
+            .filter_map(|range| from_proto::text_range(&line_index, range).ok())
             .any(|fix_range| fix_range.intersect(frange.range).is_some());
         if intersect_fix_range {
             res.push(fix.action.clone());
@@ -1112,7 +1123,7 @@ pub(crate) fn handle_code_action_resolve(
 
     let file_id = from_proto::file_id(&snap, &params.code_action_params.text_document.uri)?;
     let line_index = snap.file_line_index(file_id)?;
-    let range = from_proto::text_range(&line_index, params.code_action_params.range);
+    let range = from_proto::text_range(&line_index, params.code_action_params.range)?;
     let frange = FileRange { file_id, range };
 
     let mut assists_config = snap.config.assist();
@@ -1158,13 +1169,14 @@ pub(crate) fn handle_code_action_resolve(
         ))
         .into());
     }
-    let edit = to_proto::code_action(&snap, assist.clone(), None)?.edit;
-    code_action.edit = edit;
+    let ca = to_proto::code_action(&snap, assist.clone(), None)?;
+    code_action.edit = ca.edit;
+    code_action.command = ca.command;
     Ok(code_action)
 }
 
 fn parse_action_id(action_id: &str) -> Result<(usize, SingleResolve), String> {
-    let id_parts = action_id.split(':').collect_vec();
+    let id_parts = action_id.split(':').collect::<Vec<_>>();
     match id_parts.as_slice() {
         [assist_id_string, assist_kind_string, index_string] => {
             let assist_kind: AssistKind = assist_kind_string.parse()?;
@@ -1205,7 +1217,7 @@ pub(crate) fn handle_code_lens(
                 .unwrap_or(false),
             annotate_runnables: lens_config.runnable(),
             annotate_impls: lens_config.implementations,
-            annotate_references: lens_config.refs,
+            annotate_references: lens_config.refs_adt,
             annotate_method_references: lens_config.method_refs,
             annotate_enum_variant_references: lens_config.enum_variant_refs,
         },
@@ -1306,7 +1318,8 @@ pub(crate) fn publish_diagnostics(
                 .unwrap(),
             }),
             source: Some("rust-analyzer".to_string()),
-            message: d.message,
+            // https://github.com/rust-lang/rust-analyzer/issues/11404
+            message: if !d.message.is_empty() { d.message } else { " ".to_string() },
             related_information: None,
             tags: if d.unused { Some(vec![DiagnosticTag::UNNECESSARY]) } else { None },
             data: None,
@@ -1317,17 +1330,63 @@ pub(crate) fn publish_diagnostics(
 
 pub(crate) fn handle_inlay_hints(
     snap: GlobalStateSnapshot,
-    params: InlayHintsParams,
-) -> Result<Vec<InlayHint>> {
+    params: InlayHintParams,
+) -> Result<Option<Vec<InlayHint>>> {
     let _p = profile::span("handle_inlay_hints");
-    let file_id = from_proto::file_id(&snap, &params.text_document.uri)?;
+    let document_uri = &params.text_document.uri;
+    let file_id = from_proto::file_id(&snap, document_uri)?;
     let line_index = snap.file_line_index(file_id)?;
-    Ok(snap
-        .analysis
-        .inlay_hints(&snap.config.inlay_hints(), file_id)?
-        .into_iter()
-        .map(|it| to_proto::inlay_hint(&line_index, it))
-        .collect())
+    let range = from_proto::file_range(
+        &snap,
+        TextDocumentIdentifier::new(document_uri.to_owned()),
+        params.range,
+    )?;
+    let inlay_hints_config = snap.config.inlay_hints();
+    Ok(Some(
+        snap.analysis
+            .inlay_hints(&inlay_hints_config, file_id, Some(range))?
+            .into_iter()
+            .map(|it| {
+                to_proto::inlay_hint(&snap, &line_index, inlay_hints_config.render_colons, it)
+            })
+            .collect(),
+    ))
+}
+
+pub(crate) fn handle_inlay_hints_resolve(
+    snap: GlobalStateSnapshot,
+    mut hint: InlayHint,
+) -> Result<InlayHint> {
+    let _p = profile::span("handle_inlay_hints_resolve");
+    let data = match hint.data.take() {
+        Some(it) => it,
+        None => return Ok(hint),
+    };
+
+    let resolve_data: lsp_ext::InlayHintResolveData = serde_json::from_value(data)?;
+
+    let file_range = from_proto::file_range(
+        &snap,
+        resolve_data.text_document,
+        match resolve_data.position {
+            PositionOrRange::Position(pos) => Range::new(pos, pos),
+            PositionOrRange::Range(range) => range,
+        },
+    )?;
+    let info = match snap.analysis.hover(&snap.config.hover(), file_range)? {
+        None => return Ok(hint),
+        Some(info) => info,
+    };
+
+    let markup_kind =
+        snap.config.hover().documentation.map_or(ide::HoverDocFormat::Markdown, |kind| kind);
+
+    // FIXME: hover actions?
+    hint.tooltip = Some(lsp_types::InlayHintTooltip::MarkupContent(to_proto::markup_content(
+        info.info.markup,
+        markup_kind,
+    )));
+    Ok(hint)
 }
 
 pub(crate) fn handle_call_hierarchy_prepare(
@@ -1740,7 +1799,7 @@ fn run_rustfmt(
                         String::from(
                             "rustfmt range formatting is unstable. \
                             Opt-in by using a nightly build of rustfmt and setting \
-                            `rustfmt.enableRangeFormatting` to true in your LSP configuration",
+                            `rustfmt.rangeFormatting.enable` to true in your LSP configuration",
                         ),
                     )
                     .into());

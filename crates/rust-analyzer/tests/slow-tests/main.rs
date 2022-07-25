@@ -8,10 +8,13 @@
 //! specific JSON shapes here -- there's little value in such tests, as we can't
 //! be sure without a real client anyway.
 
+#![warn(rust_2018_idioms, unused_lifetimes, semicolon_in_expressions_from_macros)]
+
+#[cfg(not(feature = "in-rust-tree"))]
 mod sourcegen;
-mod tidy;
-mod testdir;
 mod support;
+mod testdir;
+mod tidy;
 
 use std::{collections::HashMap, path::PathBuf, time::Instant};
 
@@ -20,7 +23,7 @@ use lsp_types::{
     notification::DidOpenTextDocument,
     request::{
         CodeActionRequest, Completion, Formatting, GotoTypeDefinition, HoverRequest,
-        WillRenameFiles,
+        WillRenameFiles, WorkspaceSymbol,
     },
     CodeActionContext, CodeActionParams, CompletionParams, DidOpenTextDocumentParams,
     DocumentFormattingParams, FileRename, FormattingOptions, GotoDefinitionParams, HoverParams,
@@ -463,24 +466,38 @@ fn main() {}
             partial_result_params: PartialResultParams::default(),
             work_done_progress_params: WorkDoneProgressParams::default(),
         },
-        json!([{
-            "edit": {
-              "documentChanges": [
-                {
-                  "kind": "create",
-                  "uri": "file:///[..]/src/bar.rs"
+        json!([
+            {
+                "title": "Create module at `bar.rs`",
+                "kind": "quickfix",
+                "edit": {
+                "documentChanges": [
+                    {
+                    "kind": "create",
+                    "uri": "file://[..]/src/bar.rs"
+                    }
+                ]
                 }
-              ]
             },
-            "kind": "quickfix",
-            "title": "Create module"
-        }]),
+            {
+                "title": "Create module at `bar/mod.rs`",
+                "kind": "quickfix",
+                "edit": {
+                "documentChanges": [
+                    {
+                    "kind": "create",
+                    "uri": "file://[..]src/bar/mod.rs"
+                    }
+                ]
+                }
+            }
+        ]),
     );
 
     server.request::<CodeActionRequest>(
         CodeActionParams {
             text_document: server.doc_id("src/lib.rs"),
-            range: Range::new(Position::new(2, 4), Position::new(2, 7)),
+            range: Range::new(Position::new(2, 8), Position::new(2, 8)),
             context: CodeActionContext::default(),
             partial_result_params: PartialResultParams::default(),
             work_done_progress_params: WorkDoneProgressParams::default(),
@@ -492,7 +509,7 @@ fn main() {}
 #[test]
 fn test_missing_module_code_action_in_json_project() {
     if skip_slow_tests() {
-        return;
+        // return;
     }
 
     let tmp_dir = TestDir::new();
@@ -519,7 +536,7 @@ mod bar;
 
 fn main() {{}}
 "#,
-        PROJECT = project.to_string(),
+        PROJECT = project,
     );
 
     let server =
@@ -533,24 +550,38 @@ fn main() {{}}
             partial_result_params: PartialResultParams::default(),
             work_done_progress_params: WorkDoneProgressParams::default(),
         },
-        json!([{
-            "edit": {
-              "documentChanges": [
-                {
-                  "kind": "create",
-                  "uri": "file://[..]/src/bar.rs"
+        json!([
+            {
+                "title": "Create module at `bar.rs`",
+                "kind": "quickfix",
+                "edit": {
+                "documentChanges": [
+                    {
+                    "kind": "create",
+                    "uri": "file://[..]/src/bar.rs"
+                    }
+                ]
                 }
-              ]
             },
-            "kind": "quickfix",
-            "title": "Create module"
-        }]),
+            {
+                "title": "Create module at `bar/mod.rs`",
+                "kind": "quickfix",
+                "edit": {
+                "documentChanges": [
+                    {
+                    "kind": "create",
+                    "uri": "file://[..]src/bar/mod.rs"
+                    }
+                ]
+                }
+            }
+        ]),
     );
 
     server.request::<CodeActionRequest>(
         CodeActionParams {
             text_document: server.doc_id("src/lib.rs"),
-            range: Range::new(Position::new(2, 4), Position::new(2, 7)),
+            range: Range::new(Position::new(2, 8), Position::new(2, 8)),
             context: CodeActionContext::default(),
             partial_result_params: PartialResultParams::default(),
             work_done_progress_params: WorkDoneProgressParams::default(),
@@ -657,7 +688,7 @@ version = \"0.0.0\"
 #[test]
 fn out_dirs_check() {
     if skip_slow_tests() {
-        return;
+        // return;
     }
 
     let server = Project::with_fixture(
@@ -709,7 +740,9 @@ fn main() {
     )
     .with_config(serde_json::json!({
         "cargo": {
-            "loadOutDirsFromCheck": true,
+            "buildScripts": {
+                "enable": true
+            },
             "noSysroot": true,
         }
     }))
@@ -862,7 +895,9 @@ pub fn foo(_input: TokenStream) -> TokenStream {
     )
     .with_config(serde_json::json!({
         "cargo": {
-            "loadOutDirsFromCheck": true,
+            "buildScripts": {
+                "enable": true
+            },
             "noSysroot": true,
         },
         "procMacro": {
@@ -887,7 +922,7 @@ pub fn foo(_input: TokenStream) -> TokenStream {
     expect![[r#"
 
         ```rust
-        foo::Bar
+        foo::Foo
         ```
 
         ```rust
@@ -944,7 +979,7 @@ fn main() {}
           "documentChanges": [
             {
               "textDocument": {
-                "uri": format!("file://{}", tmp_dir_path.join("src").join("lib.rs").to_str().unwrap().to_string().replace("C:\\", "/c:/").replace("\\", "/")),
+                "uri": format!("file://{}", tmp_dir_path.join("src").join("lib.rs").to_str().unwrap().to_string().replace("C:\\", "/c:/").replace('\\', "/")),
                 "version": null
               },
               "edits": [
@@ -1001,7 +1036,7 @@ fn main() {}
           "documentChanges": [
             {
               "textDocument": {
-                "uri": format!("file://{}", tmp_dir_path.join("src").join("lib.rs").to_str().unwrap().to_string().replace("C:\\", "/c:/").replace("\\", "/")),
+                "uri": format!("file://{}", tmp_dir_path.join("src").join("lib.rs").to_str().unwrap().to_string().replace("C:\\", "/c:/").replace('\\', "/")),
                 "version": null
               },
               "edits": [
@@ -1023,4 +1058,42 @@ fn main() {}
           ]
         }),
     );
+}
+
+#[test]
+fn test_exclude_config_works() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let server = Project::with_fixture(
+        r#"
+//- /foo/Cargo.toml
+[package]
+name = "foo"
+version = "0.0.0"
+
+//- /foo/src/lib.rs
+pub fn foo() {}
+
+//- /bar/Cargo.toml
+[package]
+name = "bar"
+version = "0.0.0"
+
+//- /bar/src/lib.rs
+pub fn bar() {}
+"#,
+    )
+    .root("foo")
+    .root("bar")
+    .with_config(json!({
+       "files": {
+           "excludeDirs": ["foo", "bar"]
+        }
+    }))
+    .server()
+    .wait_until_workspace_is_loaded();
+
+    server.request::<WorkspaceSymbol>(Default::default(), json!([]));
 }

@@ -19,6 +19,7 @@ pre                 { color: #DCDCCC; background: #3F3F3F; font-size: 22px; padd
 .operator.unsafe    { color: #BC8383; }
 .mutable.unsafe     { color: #BC8383; text-decoration: underline; }
 .keyword.unsafe     { color: #BC8383; font-weight: bold; }
+.macro.unsafe       { color: #BC8383; }
 .parameter          { color: #94BFF3; }
 .text               { color: #DCDCCC; }
 .type               { color: #7CB8BB; }
@@ -28,6 +29,7 @@ pre                 { color: #DCDCCC; background: #3F3F3F; font-size: 22px; padd
 .numeric_literal    { color: #BFEBBF; }
 .bool_literal       { color: #BFE6EB; }
 .macro              { color: #94BFF3; }
+.derive             { color: #94BFF3; font-style: italic; }
 .module             { color: #AFD8AF; }
 .value_param        { color: #DCDCCC; }
 .variable           { color: #DCDCCC; }
@@ -44,10 +46,17 @@ pre                 { color: #DCDCCC; background: #3F3F3F; font-size: 22px; padd
 
 <span class="keyword">fn</span> <span class="function declaration">main</span><span class="parenthesis">(</span><span class="parenthesis">)</span> <span class="brace">{</span>
     <span class="function">fixture</span><span class="parenthesis">(</span><span class="string_literal">r#"</span>
-        <span class="keyword">trait</span> <span class="trait declaration">Foo</span> <span class="brace">{</span>
-            <span class="keyword">fn</span> <span class="function associated declaration static trait">foo</span><span class="parenthesis">(</span><span class="parenthesis">)</span> <span class="brace">{</span>
-                <span class="macro">println!</span><span class="parenthesis">(</span><span class="string_literal">"2 + 2 = {}"</span><span class="comma">,</span> <span class="numeric_literal">4</span><span class="parenthesis">)</span><span class="semicolon">;</span>
-            <span class="brace">}</span>
-        <span class="brace">}</span><span class="string_literal">"#</span>
+<span class="keyword">trait</span> <span class="trait declaration">Foo</span> <span class="brace">{</span>
+    <span class="keyword">fn</span> <span class="function associated declaration static trait">foo</span><span class="parenthesis">(</span><span class="parenthesis">)</span> <span class="brace">{</span>
+        <span class="unresolved_reference">println</span><span class="macro_bang">!</span><span class="parenthesis">(</span><span class="string_literal">"2 + 2 = {}"</span><span class="comma">,</span> <span class="numeric_literal">4</span><span class="parenthesis">)</span><span class="semicolon">;</span>
+    <span class="brace">}</span>
+<span class="brace">}</span><span class="string_literal">"#</span>
+    <span class="parenthesis">)</span><span class="semicolon">;</span>
+    <span class="function">fixture</span><span class="parenthesis">(</span><span class="string_literal">r"</span>
+<span class="keyword">fn</span> <span class="function declaration">foo</span><span class="parenthesis">(</span><span class="parenthesis">)</span> <span class="brace">{</span>
+    <span class="function">foo</span><span class="parenthesis">(</span><span class="keyword">$0</span><span class="brace">{</span>
+        <span class="numeric_literal">92</span>
+    <span class="brace">}</span><span class="keyword">$0</span><span class="parenthesis">)</span>
+<span class="brace">}</span><span class="string_literal">"</span>
     <span class="parenthesis">)</span><span class="semicolon">;</span>
 <span class="brace">}</span></code></pre>

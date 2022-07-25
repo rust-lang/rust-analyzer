@@ -11,7 +11,7 @@ use std::{
 use itertools::Itertools;
 use proc_macro2::{Punct, Spacing};
 use quote::{format_ident, quote};
-use ungrammar::{rust_grammar, Grammar, Rule};
+use ungrammar::{Grammar, Rule};
 
 use crate::tests::ast_src::{
     AstEnumSrc, AstNodeSrc, AstSrc, Cardinality, Field, KindsSrc, KINDS_SRC,
@@ -24,7 +24,8 @@ fn sourcegen_ast() {
         sourcegen::project_root().join("crates/parser/src/syntax_kind/generated.rs");
     sourcegen::ensure_file_contents(syntax_kinds_file.as_path(), &syntax_kinds);
 
-    let grammar = rust_grammar();
+    let grammar =
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/rust.ungram")).parse().unwrap();
     let ast = lower(&grammar);
 
     let ast_tokens = generate_tokens(&ast);
@@ -85,8 +86,9 @@ fn generate_nodes(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
                 .traits
                 .iter()
                 .filter(|trait_name| {
-                    // For loops have two expressions so this might collide, therefor manual impl it
-                    node.name != "ForExpr" || trait_name.as_str() != "HasLoopBody"
+                    // Loops have two expressions so this might collide, therefor manual impl it
+                    node.name != "ForExpr" && node.name != "WhileExpr"
+                        || trait_name.as_str() != "HasLoopBody"
                 })
                 .map(|trait_name| {
                     let trait_name = format_ident!("{}", trait_name);
@@ -296,6 +298,7 @@ fn generate_nodes(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
     }
 
     let ast = quote! {
+        #![allow(non_snake_case)]
         use crate::{
             SyntaxNode, SyntaxToken, SyntaxKind::{self, *},
             ast::{self, AstNode, AstChildren, support},
@@ -355,21 +358,24 @@ fn generate_syntax_kinds(grammar: KindsSrc<'_>) -> String {
     let punctuation =
         grammar.punct.iter().map(|(_token, name)| format_ident!("{}", name)).collect::<Vec<_>>();
 
-    let full_keywords_values = &grammar.keywords;
-    let full_keywords =
-        full_keywords_values.iter().map(|kw| format_ident!("{}_KW", to_upper_snake_case(kw)));
+    let x = |&name| match name {
+        "Self" => format_ident!("SELF_TYPE_KW"),
+        name => format_ident!("{}_KW", to_upper_snake_case(name)),
+    };
+    let full_keywords_values = grammar.keywords;
+    let full_keywords = full_keywords_values.iter().map(x);
 
     let contextual_keywords_values = &grammar.contextual_keywords;
-    let contextual_keywords =
-        contextual_keywords_values.iter().map(|kw| format_ident!("{}_KW", to_upper_snake_case(kw)));
+    let contextual_keywords = contextual_keywords_values.iter().map(x);
 
-    let all_keywords_values =
-        grammar.keywords.iter().chain(grammar.contextual_keywords.iter()).collect::<Vec<_>>();
-    let all_keywords_idents = all_keywords_values.iter().map(|kw| format_ident!("{}", kw));
-    let all_keywords = all_keywords_values
+    let all_keywords_values = grammar
+        .keywords
         .iter()
-        .map(|name| format_ident!("{}_KW", to_upper_snake_case(name)))
+        .chain(grammar.contextual_keywords.iter())
+        .copied()
         .collect::<Vec<_>>();
+    let all_keywords_idents = all_keywords_values.iter().map(|kw| format_ident!("{}", kw));
+    let all_keywords = all_keywords_values.iter().map(x).collect::<Vec<_>>();
 
     let literals =
         grammar.literals.iter().map(|name| format_ident!("{}", name)).collect::<Vec<_>>();
@@ -579,7 +585,7 @@ impl Field {
 
 fn lower(grammar: &Grammar) -> AstSrc {
     let mut res = AstSrc {
-        tokens: "Whitespace Comment String ByteString IntNumber FloatNumber Ident"
+        tokens: "Whitespace Comment String ByteString IntNumber FloatNumber Char Byte Ident"
             .split_ascii_whitespace()
             .map(|it| it.to_string())
             .collect::<Vec<_>>(),
@@ -775,6 +781,35 @@ fn extract_struct_traits(ast: &mut AstSrc) {
     for node in &mut ast.nodes {
         for (name, methods) in traits {
             extract_struct_trait(node, name, methods);
+        }
+    }
+
+    let nodes_with_doc_comments = [
+        "SourceFile",
+        "Fn",
+        "Struct",
+        "Union",
+        "RecordField",
+        "TupleField",
+        "Enum",
+        "Variant",
+        "Trait",
+        "Module",
+        "Static",
+        "Const",
+        "TypeAlias",
+        "Impl",
+        "ExternBlock",
+        "ExternCrate",
+        "MacroCall",
+        "MacroRules",
+        "MacroDef",
+        "Use",
+    ];
+
+    for node in &mut ast.nodes {
+        if nodes_with_doc_comments.contains(&&*node.name) {
+            node.traits.push("HasDocComments".into());
         }
     }
 }
