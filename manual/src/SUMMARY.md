@@ -6,6 +6,7 @@
 ---
 
 - [Installation](installation/README.md)
+    - [Toolchain](installation/toolchain.md)
     - [VS Code](installation/vscode.md)
     - [Language Server Binary](installation/server_binary.md)
     - [Emacs](installation/emacs.md)
