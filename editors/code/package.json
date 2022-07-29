@@ -1,6 +1,6 @@
 {
     "name": "rust-analyzer",
-    "displayName": "rust-analyzer",
+    "displayName": "Rust Analyzer",
     "description": "Rust language support for Visual Studio Code",
     "private": true,
     "icon": "icon.png",
