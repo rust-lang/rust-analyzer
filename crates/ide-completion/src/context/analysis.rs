@@ -592,7 +592,7 @@ impl<'a> CompletionContext<'a> {
             has_call_parens: false,
             has_macro_bang: false,
             qualified: Qualified::No,
-            parent: path.parent_path(),
+            parent: None,
             path: path.clone(),
             kind: PathKind::Item { kind: ItemListKind::SourceFile },
             has_type_args: false,
@@ -827,92 +827,125 @@ impl<'a> CompletionContext<'a> {
             PathKind::Type { location: location.unwrap_or(TypeLocation::Other) }
         };
 
+        let mut kind_macro_call = |it: ast::MacroCall| {
+            path_ctx.has_macro_bang = it.excl_token().is_some();
+            let parent = it.syntax().parent()?;
+            // Any path in an item list will be treated as a macro call by the parser
+            let kind = match_ast! {
+                match parent {
+                    ast::MacroExpr(expr) => make_path_kind_expr(expr.into()),
+                    ast::MacroPat(it) => PathKind::Pat { pat_ctx: pattern_context_for(sema, original_file, it.into())},
+                    ast::MacroType(ty) => make_path_kind_type(ty.into()),
+                    ast::ItemList(_) => PathKind::Item { kind: ItemListKind::Module },
+                    ast::AssocItemList(_) => PathKind::Item { kind: match parent.parent() {
+                        Some(it) => match_ast! {
+                            match it {
+                                ast::Trait(_) => ItemListKind::Trait,
+                                ast::Impl(it) => if it.trait_().is_some() {
+                                    ItemListKind::TraitImpl(find_node_in_file_compensated(sema, original_file, &it))
+                                } else {
+                                    ItemListKind::Impl
+                                },
+                                _ => return None
+                            }
+                        },
+                        None => return None,
+                    } },
+                    ast::ExternItemList(_) => PathKind::Item { kind: ItemListKind::ExternBlock },
+                    ast::SourceFile(_) => PathKind::Item { kind: ItemListKind::SourceFile },
+                    _ => return None,
+                }
+            };
+            Some(kind)
+        };
+        let make_path_kind_attr = |meta: ast::Meta| {
+            let attr = meta.parent_attr()?;
+            let kind = attr.kind();
+            let attached = attr.syntax().parent()?;
+            let is_trailing_outer_attr = kind != AttrKind::Inner
+                && non_trivia_sibling(attr.syntax().clone().into(), syntax::Direction::Next)
+                    .is_none();
+            let annotated_item_kind =
+                if is_trailing_outer_attr { None } else { Some(attached.kind()) };
+            Some(PathKind::Attr { attr_ctx: AttrCtx { kind, annotated_item_kind } })
+        };
+
         // Infer the path kind
         let parent = path.syntax().parent()?;
         let kind = match_ast! {
-                match parent {
-                    ast::PathType(it) => make_path_kind_type(it.into()),
-                    ast::PathExpr(it) => {
-                        if let Some(p) = it.syntax().parent() {
-                            if ast::ExprStmt::can_cast(p.kind()) {
-                                if let Some(kind) = inbetween_body_and_decl_check(p) {
-                                    return Some(make_res(NameRefKind::Keyword(kind)));
-                                }
+            match parent {
+                ast::PathType(it) => make_path_kind_type(it.into()),
+                ast::PathExpr(it) => {
+                    if let Some(p) = it.syntax().parent() {
+                        if ast::ExprStmt::can_cast(p.kind()) {
+                            if let Some(kind) = inbetween_body_and_decl_check(p) {
+                                return Some(make_res(NameRefKind::Keyword(kind)));
                             }
                         }
+                    }
 
-                        path_ctx.has_call_parens = it.syntax().parent().map_or(false, |it| ast::CallExpr::can_cast(it.kind()));
+                    path_ctx.has_call_parens = it.syntax().parent().map_or(false, |it| ast::CallExpr::can_cast(it.kind()));
 
-                        make_path_kind_expr(it.into())
-                    },
-                    ast::TupleStructPat(it) => {
-                        path_ctx.has_call_parens = true;
-                        PathKind::Pat { pat_ctx: pattern_context_for(sema, original_file, it.into())}
-                    },
-                    ast::RecordPat(it) => {
-                        path_ctx.has_call_parens = true;
-                        PathKind::Pat { pat_ctx: pattern_context_for(sema, original_file, it.into())}
-                    },
-                    ast::PathPat(it) => {
-                        PathKind::Pat { pat_ctx: pattern_context_for(sema, original_file, it.into())}
-                    },
-                    ast::MacroCall(it) => {
-                        // A macro call in this position is usually a result of parsing recovery, so check that
-                        if let Some(kind) = inbetween_body_and_decl_check(it.syntax().clone()) {
-                            return Some(make_res(NameRefKind::Keyword(kind)));
+                    make_path_kind_expr(it.into())
+                },
+                ast::TupleStructPat(it) => {
+                    path_ctx.has_call_parens = true;
+                    PathKind::Pat { pat_ctx: pattern_context_for(sema, original_file, it.into()) }
+                },
+                ast::RecordPat(it) => {
+                    path_ctx.has_call_parens = true;
+                    PathKind::Pat { pat_ctx: pattern_context_for(sema, original_file, it.into()) }
+                },
+                ast::PathPat(it) => {
+                    PathKind::Pat { pat_ctx: pattern_context_for(sema, original_file, it.into())}
+                },
+                ast::MacroCall(it) => {
+                    // A macro call in this position is usually a result of parsing recovery, so check that
+                    if let Some(kind) = inbetween_body_and_decl_check(it.syntax().clone()) {
+                        return Some(make_res(NameRefKind::Keyword(kind)));
+                    }
+
+                    kind_macro_call(it)?
+                },
+                ast::Meta(meta) => make_path_kind_attr(meta)?,
+                ast::Visibility(it) => PathKind::Vis { has_in_token: it.in_token().is_some() },
+                ast::UseTree(_) => PathKind::Use,
+                // completing inside a qualifier
+                ast::Path(parent) => {
+                    path_ctx.parent = Some(parent.clone());
+                    let parent = iter::successors(Some(parent), |it| it.parent_path()).last()?.syntax().parent()?;
+                    match_ast! {
+                        match parent {
+                            ast::PathType(it) => make_path_kind_type(it.into()),
+                            ast::PathExpr(it) => {
+                                path_ctx.has_call_parens = it.syntax().parent().map_or(false, |it| ast::CallExpr::can_cast(it.kind()));
+
+                                make_path_kind_expr(it.into())
+                            },
+                            ast::TupleStructPat(it) => {
+                                path_ctx.has_call_parens = true;
+                                PathKind::Pat { pat_ctx: pattern_context_for(sema, original_file, it.into()) }
+                            },
+                            ast::RecordPat(it) => {
+                                path_ctx.has_call_parens = true;
+                                PathKind::Pat { pat_ctx: pattern_context_for(sema, original_file, it.into()) }
+                            },
+                            ast::PathPat(it) => {
+                                PathKind::Pat { pat_ctx: pattern_context_for(sema, original_file, it.into())}
+                            },
+                            ast::MacroCall(it) => {
+                                kind_macro_call(it)?
+                            },
+                            ast::Meta(meta) => make_path_kind_attr(meta)?,
+                            ast::Visibility(it) => PathKind::Vis { has_in_token: it.in_token().is_some() },
+                            ast::UseTree(_) => PathKind::Use,
+                            ast::RecordExpr(it) => make_path_kind_expr(it.into()),
+                            _ => return None,
                         }
-
-                        path_ctx.has_macro_bang = it.excl_token().is_some();
-                        let parent = it.syntax().parent()?;
-                        // Any path in an item list will be treated as a macro call by the parser
-                        match_ast! {
-                            match parent {
-                                ast::MacroExpr(expr) => make_path_kind_expr(expr.into()),
-                                ast::MacroPat(it) => PathKind::Pat { pat_ctx: pattern_context_for(sema, original_file, it.into())},
-                                ast::MacroType(ty) => make_path_kind_type(ty.into()),
-                                ast::ItemList(_) => PathKind::Item { kind: ItemListKind::Module },
-                                ast::AssocItemList(_) => PathKind::Item { kind: match parent.parent() {
-                                    Some(it) => match_ast! {
-                                        match it {
-                                            ast::Trait(_) => ItemListKind::Trait,
-                                            ast::Impl(it) => if it.trait_().is_some() {
-                                                ItemListKind::TraitImpl(find_node_in_file_compensated(sema, original_file, &it))
-                                            } else {
-                                                ItemListKind::Impl
-                                            },
-                                            _ => return None
-                                        }
-                                    },
-                                    None => return None,
-                                } },
-                                ast::ExternItemList(_) => PathKind::Item { kind: ItemListKind::ExternBlock },
-                                ast::SourceFile(_) => PathKind::Item { kind: ItemListKind::SourceFile },
-                                _ => return None,
-                            }
-                        }
-                    },
-                    ast::Meta(meta) => {
-                        let attr = meta.parent_attr()?;
-                        let kind = attr.kind();
-                        let attached = attr.syntax().parent()?;
-                        let is_trailing_outer_attr = kind != AttrKind::Inner
-                            && non_trivia_sibling(attr.syntax().clone().into(), syntax::Direction::Next).is_none();
-                        let annotated_item_kind = if is_trailing_outer_attr {
-                            None
-                        } else {
-                            Some(attached.kind())
-                        };
-                        PathKind::Attr {
-                            attr_ctx: AttrCtx {
-                                kind,
-                                annotated_item_kind,
-                            }
-                        }
-                    },
-                    ast::Visibility(it) => PathKind::Vis { has_in_token: it.in_token().is_some() },
-                    ast::UseTree(_) => PathKind::Use,
-                    _ => return None,
-
+                    }
+                },
+                ast::RecordExpr(it) => make_path_kind_expr(it.into()),
+                _ => return None,
             }
         };
 
@@ -920,49 +953,53 @@ impl<'a> CompletionContext<'a> {
         path_ctx.has_type_args = segment.generic_arg_list().is_some();
 
         // calculate the qualifier context
-        if let Some((path, use_tree_parent)) = path_or_use_tree_qualifier(&path) {
+        if let Some((qualifier, use_tree_parent)) = path_or_use_tree_qualifier(&path) {
             path_ctx.use_tree_parent = use_tree_parent;
             if !use_tree_parent && segment.coloncolon_token().is_some() {
                 path_ctx.qualified = Qualified::Absolute;
             } else {
-                let path = path
+                let qualifier = qualifier
                     .segment()
                     .and_then(|it| find_node_in_file(original_file, &it))
                     .map(|it| it.parent_path());
-                if let Some(path) = path {
-                    // `<_>::$0`
-                    let is_infer_qualifier = path.qualifier().is_none()
-                        && matches!(
-                            path.segment().and_then(|it| it.kind()),
-                            Some(ast::PathSegmentKind::Type {
-                                type_ref: Some(ast::Type::InferType(_)),
-                                trait_ref: None,
-                            })
-                        );
+                if let Some(qualifier) = qualifier {
+                    let type_anchor = match qualifier.segment().and_then(|it| it.kind()) {
+                        Some(ast::PathSegmentKind::Type {
+                            type_ref: Some(type_ref),
+                            trait_ref,
+                        }) if qualifier.qualifier().is_none() => Some((type_ref, trait_ref)),
+                        _ => None,
+                    };
 
-                    path_ctx.qualified = if is_infer_qualifier {
-                        Qualified::Infer
+                    path_ctx.qualified = if let Some((ty, trait_ref)) = type_anchor {
+                        let ty = match ty {
+                            ast::Type::InferType(_) => None,
+                            ty => sema.resolve_type(&ty),
+                        };
+                        let trait_ = trait_ref.and_then(|it| sema.resolve_trait(&it.path()?));
+                        Qualified::TypeAnchor { ty, trait_ }
                     } else {
-                        let res = sema.resolve_path(&path);
+                        let res = sema.resolve_path(&qualifier);
 
                         // For understanding how and why super_chain_len is calculated the way it
                         // is check the documentation at it's definition
                         let mut segment_count = 0;
-                        let super_count = iter::successors(Some(path.clone()), |p| p.qualifier())
-                            .take_while(|p| {
-                                p.segment()
-                                    .and_then(|s| {
-                                        segment_count += 1;
-                                        s.super_token()
-                                    })
-                                    .is_some()
-                            })
-                            .count();
+                        let super_count =
+                            iter::successors(Some(qualifier.clone()), |p| p.qualifier())
+                                .take_while(|p| {
+                                    p.segment()
+                                        .and_then(|s| {
+                                            segment_count += 1;
+                                            s.super_token()
+                                        })
+                                        .is_some()
+                                })
+                                .count();
 
                         let super_chain_len =
                             if segment_count > super_count { None } else { Some(super_count) };
 
-                        Qualified::With { path, resolution: res, super_chain_len }
+                        Qualified::With { path: qualifier, resolution: res, super_chain_len }
                     }
                 };
             }
