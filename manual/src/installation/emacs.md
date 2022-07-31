@@ -2,7 +2,7 @@
 
 Note this excellent [guide](https://robert.kra.hn/posts/2021-02-07_rust-with-emacs/) from [@rksm](https://github.com/rksm).
 
-Prerequisites: You have installed the [rust-analyzer binary](server_binary.md). binary>>.
+Prerequisites: You have installed the [rust-analyzer binary](server_binary.md).
 
 Emacs support is maintained as part of the [Emacs-LSP](https://github.com/emacs-lsp/lsp-mode) package in [lsp-rust.el](https://github.com/emacs-lsp/lsp-mode/blob/master/lsp-rust.el).
 
