@@ -1,1 +1,0 @@
-# On Typing Assists
