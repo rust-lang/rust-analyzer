@@ -1,0 +1,30 @@
+name: GitHub Pages
+
+ on:
+   push:
+     branches:
+       - main
+   pull_request:
+
+ jobs:
+   deploy:
+     runs-on: ubuntu-20.04
+     concurrency:
+       group: ${{ github.workflow }}-${{ github.ref }}
+     steps:
+       - uses: actions/checkout@v2
+
+       - name: Setup mdBook
+         uses: peaceiris/actions-mdbook@v1
+         with:
+           # mdbook-version: '0.4.15'
+            mdbook-version: 'latest'
+
+       - run: cd manual && mdbook build
+
+       - name: Deploy
+         uses: peaceiris/actions-gh-pages@v3
+         if: ${{ github.ref == 'refs/heads/main' }}
+         with:
+           github_token: ${{ secrets.GITHUB_TOKEN }}
+           publish_dir: ./manual/
