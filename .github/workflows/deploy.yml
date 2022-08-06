@@ -3,7 +3,7 @@ name: GitHub Pages
  on:
    push:
      branches:
-       - main
+       - rust_analyzer_manual_redo
    pull_request:
 
  jobs:
