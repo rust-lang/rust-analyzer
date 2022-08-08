@@ -2,10 +2,11 @@ name: rust-analyzer mdbook
 
 on:
   workflow_dispatch: 
+    inputs:
+
   push:
     branches:
       - rust_analyzer_manual_redo
-  pull_request:
 
 jobs:
   deploy:
