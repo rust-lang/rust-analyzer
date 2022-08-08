@@ -54,7 +54,7 @@
 //
 // | Editor  | Action Name |
 // |---------------|-----------------------|
-// | VS Code | **Rust Analyzer: Structural Search Replace** |
+// | VS Code | **rust-analyzer: Structural Search Replace** |
 //
 // Also available as an assist, by writing a comment containing the structural
 // search and replace rule. You will only see the assist if the comment can

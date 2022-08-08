@@ -7,7 +7,7 @@ use syntax::{algo::find_node_at_offset, ast, AstNode};
 //
 // | Editor  | Action Name |
 // |---------|-------------|
-// | VS Code | **Rust Analyzer: View Hir** |
+// | VS Code | **rust-analyzer: View Hir** |
 //
 // ![View Hir](https://user-images.githubusercontent.com/48062697/113065588-068bdb80-91b1-11eb-9a78-0b4ef1e972fb.gif)
 pub(crate) fn view_hir(db: &RootDatabase, position: FilePosition) -> String {
