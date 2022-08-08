@@ -12,6 +12,7 @@ already have `cargo` installed, so the easiest option is to simply:
 
 ```shell
 cargo install mdbook
+cargo install mdbook-toc
 ```
 
 See the mdbook [installation](https://github.com/rust-lang/mdBook#installation)
