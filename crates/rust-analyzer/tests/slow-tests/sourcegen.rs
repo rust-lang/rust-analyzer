@@ -10,6 +10,8 @@ fn sourcegen_feature_docs() {
         "
 <!-- Generated file, do not edit by hand, see `sourcegen_feature_docs`. -->
 
+# Features
+
 <!-- toc -->
 
 {}
