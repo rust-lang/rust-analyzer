@@ -1,6 +1,7 @@
 name: rust-analyzer mdbook 
 
 on:
+  workflow_dispatch: 
   push:
     branches:
       - rust_analyzer_manual_redo
