@@ -36,3 +36,4 @@ enable = true
 [preprocessor.toc]
 command = "mdbook-toc"
 renderer = ["html"]
+max-level = 2
