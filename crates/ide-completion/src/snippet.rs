@@ -8,8 +8,7 @@
 //
 // A custom snippet can be defined by adding it to the `rust-analyzer.completion.snippets.custom` object respectively.
 //
-// [source,json]
-// ----
+// ```json
 // {
 //   "rust-analyzer.completion.snippets.custom": {
 //     "thread spawn": {
@@ -25,7 +24,7 @@
 //     }
 //   }
 // }
-// ----
+// ```
 //
 // In the example above:
 //
@@ -55,8 +54,8 @@
 //
 // For the VSCode editor, rust-analyzer also ships with a small set of defaults which can be removed
 // by overwriting the settings object mentioned above, the defaults are:
-// [source,json]
-// ----
+//
+// ```json
 // {
 //     "Arc::new": {
 //         "postfix": "arc",
@@ -98,7 +97,7 @@
 //         "scope": "expr"
 //     }
 // }
-// ----
+// ```
 
 use ide_db::imports::import_assets::LocatedImport;
 use itertools::Itertools;

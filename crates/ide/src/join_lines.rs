@@ -25,13 +25,11 @@ pub struct JoinLinesConfig {
 // https://user-images.githubusercontent.com/1711539/124515923-4504e800-dde9-11eb-8d58-d97945a1a785.gif[this gif]
 // for the cases handled specially by joined lines.
 //
-// |===
-// | Editor  | Action Name
+// | Editor  | Action Name |
+// |---------|-------------|
+// | VS Code | **Rust Analyzer: Join lines** |
 //
-// | VS Code | **Rust Analyzer: Join lines**
-// |===
-//
-// image::https://user-images.githubusercontent.com/48062697/113020661-b6922200-917a-11eb-87c4-b75acc028f11.gif[]
+// ![Join Lines](https://user-images.githubusercontent.com/48062697/113020661-b6922200-917a-11eb-87c4-b75acc028f11.gif)
 pub(crate) fn join_lines(
     config: &JoinLinesConfig,
     file: &SourceFile,

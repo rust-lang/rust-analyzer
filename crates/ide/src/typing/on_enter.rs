@@ -17,10 +17,10 @@ use text_edit::TextEdit;
 //
 // rust-analyzer can override kbd:[Enter] key to make it smarter:
 //
-// - kbd:[Enter] inside triple-slash comments automatically inserts `///`
-// - kbd:[Enter] in the middle or after a trailing space in `//` inserts `//`
-// - kbd:[Enter] inside `//!` doc comments automatically inserts `//!`
-// - kbd:[Enter] after `{` indents contents and closing `}` of single-line block
+// - <kbd>Enter</kbd> inside triple-slash comments automatically inserts `///`
+// - <kbd>Enter</kbd> in the middle or after a trailing space in `//` inserts `//`
+// - <kbd>Enter</kbd> inside `//!` doc comments automatically inserts `//!`
+// - <kbd>Enter</kbd> after `{` indents contents and closing `}` of single-line block
 //
 // This action needs to be assigned to shortcut explicitly.
 //
@@ -28,29 +28,29 @@ use text_edit::TextEdit;
 // Similarly, if rust-analyzer crashes or stops responding, `Enter` might not work.
 // In that case, you can still press `Shift-Enter` to insert a newline.
 //
-// VS Code::
+// #### VS Code
 //
 // Add the following to `keybindings.json`:
-// [source,json]
-// ----
+//
+// ```json
 // {
 //   "key": "Enter",
 //   "command": "rust-analyzer.onEnter",
 //   "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == rust"
 // }
-// ----
+// ```
 //
 // When using the Vim plugin:
-// [source,json]
-// ----
+//
+// ```json
 // {
 //   "key": "Enter",
 //   "command": "rust-analyzer.onEnter",
 //   "when": "editorTextFocus && !suggestWidgetVisible && editorLangId == rust && vim.mode == 'Insert'"
 // }
-// ----
+// ```
 //
-// image::https://user-images.githubusercontent.com/48062697/113065578-04c21800-91b1-11eb-82b8-22b8c481e645.gif[]
+// ![On Enter](https://user-images.githubusercontent.com/48062697/113065578-04c21800-91b1-11eb-82b8-22b8c481e645.gif)
 pub(crate) fn on_enter(db: &RootDatabase, position: FilePosition) -> Option<TextEdit> {
     let parse = db.parse(position.file_id);
     let file = parse.tree();

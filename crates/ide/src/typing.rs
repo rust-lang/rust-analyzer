@@ -50,16 +50,16 @@ struct ExtendedTextEdit {
 // - typing `{` in front of an expression inserts a closing `}` after the expression
 // - typing `{` in a use item adds a closing `}` in the right place
 //
-// VS Code::
+// #### VS Code
 //
 // Add the following to `settings.json`:
-// [source,json]
-// ----
-// "editor.formatOnType": true,
-// ----
 //
-// image::https://user-images.githubusercontent.com/48062697/113166163-69758500-923a-11eb-81ee-eb33ec380399.gif[]
-// image::https://user-images.githubusercontent.com/48062697/113171066-105c2000-923f-11eb-87ab-f4a263346567.gif[]
+// ```json
+// "editor.formatOnType": true,
+// ```
+//
+// ![On Typing Assists 1](https://user-images.githubusercontent.com/48062697/113166163-69758500-923a-11eb-81ee-eb33ec380399.gif)
+// ![On Typing Assists 2](https://user-images.githubusercontent.com/48062697/113171066-105c2000-923f-11eb-87ab-f4a263346567.gif)
 pub(crate) fn on_char_typed(
     db: &RootDatabase,
     position: FilePosition,
