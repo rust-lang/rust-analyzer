@@ -55,7 +55,7 @@ r#####"
             "sourcegen_assists_docs",
             assists.into_iter().map(|it| it.to_string()).collect::<Vec<_>>().join("\n\n"),
         );
-        let dst = project_root().join("docs/user/generated_assists.adoc");
+        let dst = project_root().join("manual/src/generated/assists.md");
         fs::write(dst, contents).unwrap();
     }
 }
@@ -142,8 +142,9 @@ impl fmt::Display for Assist {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let _ = writeln!(
             f,
-            "[discrete]\n=== `{}`
-**Source:** {}",
+            //             "[discrete]\n=== `{}`
+            // **Source:** {}",
+            "## `{}`\n\n**Source:** {}",
             self.id, self.location,
         );
 
@@ -155,12 +156,14 @@ impl fmt::Display for Assist {
                 "
 {}
 
-.Before
-```rust
+#### Before
+
+```rust,noplayground
 {}```
 
-.After
-```rust
+#### After
+
+```rust,noplayground
 {}```",
                 section.doc,
                 hide_hash_comments(&before),

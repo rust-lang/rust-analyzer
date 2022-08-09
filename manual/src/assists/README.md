@@ -4,4 +4,6 @@ Assists, or code actions, are small local refactorings, available in a particula
 They are usually triggered by a shortcut or by clicking a light bulb icon in the editor.
 Cursor position or selection is signified by `┃` character.
 
-TODO: add generated here
+<!-- toc -->
+
+{{#include ../generated/assists.md}}
