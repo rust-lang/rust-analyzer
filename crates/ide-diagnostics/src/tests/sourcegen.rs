@@ -10,7 +10,7 @@ fn sourcegen_diagnostic_docs() {
     let contents =
         diagnostics.into_iter().map(|it| it.to_string()).collect::<Vec<_>>().join("\n\n");
     let contents = sourcegen::add_preamble("sourcegen_diagnostic_docs", contents);
-    let dst = project_root().join("docs/user/generated_diagnostic.adoc");
+    let dst = project_root().join("manual/src/generated/diagnostics.md");
     fs::write(&dst, &contents).unwrap();
 }
 
@@ -68,6 +68,6 @@ fn is_valid_diagnostic_name(diagnostic: &str) -> Result<(), String> {
 
 impl fmt::Display for Diagnostic {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "=== {}\n**Source:** {}\n{}", self.id, self.location, self.doc)
+        writeln!(f, "## {}\n**Source:** {}\n{}", self.id, self.location, self.doc)
     }
 }
