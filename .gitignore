@@ -7,9 +7,7 @@ crates/*/target
 *.log
 *.iml
 .vscode/settings.json
-generated/assists.md
-generated/features.md
-generated/diagnostic.md
+manual/src/generated/*
 generated_assists.adoc
 generated_features.adoc
 generated_diagnostic.adoc
