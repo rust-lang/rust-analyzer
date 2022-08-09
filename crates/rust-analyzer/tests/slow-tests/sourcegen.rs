@@ -10,16 +10,12 @@ fn sourcegen_feature_docs() {
         "
 <!-- Generated file, do not edit by hand, see `sourcegen_feature_docs`. -->
 
-# Features
-
-<!-- toc -->
-
 {}
 
 ",
         contents.trim()
     );
-    let dst = sourcegen::project_root().join("manual/src/generated_features.md");
+    let dst = sourcegen::project_root().join("manual/src/generated/features.md");
     fs::write(&dst, &contents).unwrap();
 }
 
