@@ -6,4 +6,3 @@ Some of these diagnostics don't respect `\#[allow]` or `\#[deny]` attributes yet
 <!-- toc -->
 
 {{#include ../generated/diagnostics.md}}
-
