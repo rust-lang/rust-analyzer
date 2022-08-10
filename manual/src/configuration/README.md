@@ -33,4 +33,6 @@ Logs should show both the JSON that `rust-analyzer` sees as well as the updated 
 
 This is the list of config options `rust-analyzer` supports:
 
-TODO: include config stuff here
+<!-- toc -->
+
+{{#include ../generated/config.md}}

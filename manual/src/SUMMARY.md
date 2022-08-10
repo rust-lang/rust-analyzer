@@ -19,7 +19,7 @@
     - [Kakoune](installation/kakoune.md)
     - [Helix](installation/helix.md)
 - [Troubleshooting](troubleshooting.md)
-- [Configuration](configuration.md)
+- [Configuration](configuration/README.md)
 - [Non-Cargo Based Projects](non_cargo_based_projects.md)
 - [Security](security.md)
 - [Privacy](privacy.md)

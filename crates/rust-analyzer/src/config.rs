@@ -1974,7 +1974,7 @@ mod tests {
 
     #[test]
     fn generate_config_documentation() {
-        let docs_path = project_root().join("docs/user/generated_config.adoc");
+        let docs_path = project_root().join("manual/src/generated/config.md");
         let expected = ConfigData::manual();
         ensure_file_contents(&docs_path, &expected);
     }
