@@ -1,5 +1,7 @@
 # The Official Rust Analyzer Book
 
+![rust-analyzer](https://raw.githubusercontent.com/rust-analyzer/rust-analyzer/master/assets/logo-wide.svg)
+
 At its core, rust-analyzer is a *library* for semantic analysis of Rust code as it changes over time.
 This manual focuses on a specific usage of the library -- running it as part of a server that implements the
 [Language Server Protocol (LSP)](https://microsoft.github.io/language-server-protocol/).
