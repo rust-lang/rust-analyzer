@@ -34,7 +34,7 @@
     - [Style](contributing/style.md)
     - [Syntax](contributing/syntax.md)
     - [Debugging](contributing/debugging.md)
-    - [LSP Extensions](contributing/lsp_extensions.md)
+    - [LSP Extensions](contributing/lsp-extensions.md)
 ---
 
 [Sponsors](sponsors.md)
