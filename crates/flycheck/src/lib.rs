@@ -5,6 +5,7 @@
 #![warn(rust_2018_idioms, unused_lifetimes, semicolon_in_expressions_from_macros)]
 
 use std::{
+    ffi::OsString,
     fmt, io,
     process::{ChildStderr, ChildStdout, Command, Stdio},
     time::Duration,
@@ -77,8 +78,8 @@ impl FlycheckHandle {
     }
 
     /// Schedule a re-start of the cargo check worker.
-    pub fn update(&self) {
-        self.sender.send(Restart).unwrap();
+    pub fn update(&self, path: Option<AbsPathBuf>) {
+        self.sender.send(Restart(path)).unwrap();
     }
 
     pub fn id(&self) -> usize {
@@ -122,7 +123,7 @@ pub enum Progress {
     DidCancel,
 }
 
-struct Restart;
+struct Restart(Option<AbsPathBuf>);
 
 struct FlycheckActor {
     id: usize,
@@ -164,25 +165,31 @@ impl FlycheckActor {
     fn run(mut self, inbox: Receiver<Restart>) {
         while let Some(event) = self.next_event(&inbox) {
             match event {
-                Event::Restart(Restart) => {
+                Event::Restart(Restart(path)) => {
                     // Cancel the previously spawned process
                     self.cancel_check_process();
-                    while let Ok(Restart) = inbox.recv_timeout(Duration::from_millis(50)) {}
+                    let mut changed_path = path;
+                    while let Ok(Restart(path)) = inbox.recv_timeout(Duration::from_millis(50)) {
+                        // TODO: this usually means the user saved multiple files, so fall back to
+                        // a full workspace check. maybe the threshold should be 3 saves instead of
+                        // 2 if rustfmt on save causes the file to be written to disk twice?
+                        changed_path = path
+                    }
 
-                    let command = self.check_command();
+                    let command = self.check_command(&changed_path);
                     tracing::debug!(?command, "will restart flycheck");
                     match CargoHandle::spawn(command) {
                         Ok(cargo_handle) => {
                             tracing::debug!(
-                                command = ?self.check_command(),
-                                "did  restart flycheck"
+                                command = ?self.check_command(&changed_path),
+                                "did restart flycheck"
                             );
                             self.cargo_handle = Some(cargo_handle);
                             self.progress(Progress::DidStart);
                         }
                         Err(error) => {
                             tracing::error!(
-                                command = ?self.check_command(),
+                                command = ?self.check_command(&changed_path),
                                 %error, "failed to restart flycheck"
                             );
                         }
@@ -193,12 +200,13 @@ impl FlycheckActor {
 
                     // Watcher finished
                     let cargo_handle = self.cargo_handle.take().unwrap();
+                    let err = format!(
+                        "Flycheck failed to run the following command: {:?}",
+                        cargo_handle.command
+                    );
                     let res = cargo_handle.join();
                     if res.is_err() {
-                        tracing::error!(
-                            "Flycheck failed to run the following command: {:?}",
-                            self.check_command()
-                        );
+                        tracing::error!(err);
                     }
                     self.progress(Progress::DidFinish(res));
                 }
@@ -228,7 +236,23 @@ impl FlycheckActor {
         }
     }
 
-    fn check_command(&self) -> Command {
+    fn substitute_args(&self, args: &[String], changed_path: &Option<AbsPathBuf>) -> Vec<OsString> {
+        let mut result = Vec::new();
+        for arg in args {
+            if arg == "$changed_file" {
+                if let Some(path) = changed_path {
+                    result.push(path.as_os_str().to_os_string())
+                } else {
+                    // TODO: remove substitutions entirely? or replace with "ALL" or something?
+                }
+            } else {
+                result.push(arg.into())
+            }
+        }
+        result
+    }
+
+    fn check_command(&self, changed_path: &Option<AbsPathBuf>) -> Command {
         let mut cmd = match &self.config {
             FlycheckConfig::CargoCommand {
                 command,
@@ -267,7 +291,7 @@ impl FlycheckActor {
             }
             FlycheckConfig::CustomCommand { command, args } => {
                 let mut cmd = Command::new(command);
-                cmd.args(args);
+                cmd.args(self.substitute_args(args, changed_path));
                 cmd
             }
         };
@@ -285,6 +309,7 @@ struct CargoHandle {
     /// The handle to the actual cargo process. As we cannot cancel directly from with
     /// a read syscall dropping and therefor terminating the process is our best option.
     child: JodChild,
+    command: Command,
     thread: jod_thread::JoinHandle<io::Result<(bool, String)>>,
     receiver: Receiver<CargoMessage>,
 }
@@ -292,7 +317,7 @@ struct CargoHandle {
 impl CargoHandle {
     fn spawn(mut command: Command) -> std::io::Result<CargoHandle> {
         command.stdout(Stdio::piped()).stderr(Stdio::piped()).stdin(Stdio::null());
-        let mut child = JodChild::spawn(command)?;
+        let mut child = JodChild::spawn(&mut command)?;
 
         let stdout = child.stdout.take().unwrap();
         let stderr = child.stderr.take().unwrap();
@@ -303,7 +328,7 @@ impl CargoHandle {
             .name("CargoHandle".to_owned())
             .spawn(move || actor.run())
             .expect("failed to spawn thread");
-        Ok(CargoHandle { child, thread, receiver })
+        Ok(CargoHandle { child, command, thread, receiver })
     }
 
     fn cancel(mut self) {

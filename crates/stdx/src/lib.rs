@@ -162,7 +162,7 @@ impl Drop for JodChild {
 }
 
 impl JodChild {
-    pub fn spawn(mut command: Command) -> sio::Result<Self> {
+    pub fn spawn(command: &mut Command) -> sio::Result<Self> {
         command.spawn().map(Self)
     }
 

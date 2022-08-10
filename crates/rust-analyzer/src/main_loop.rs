@@ -452,7 +452,9 @@ impl GlobalState {
                 && !self.fetch_build_data_queue.op_requested()
             {
                 for flycheck in &self.flycheck {
-                    flycheck.update();
+                    // TODO: why do we do workspace wide checks here? is this only triggered upon
+                    // initial load?
+                    flycheck.update(None);
                 }
                 if self.config.prefill_caches() {
                     self.prime_caches_queue.request_op("became quiescent".to_string());
@@ -794,7 +796,7 @@ impl GlobalState {
                             for (id, _) in workspace_ids.clone() {
                                 if id == flycheck.id() {
                                     updated = true;
-                                    flycheck.update();
+                                    flycheck.update(vfs_path.as_path().map(ToOwned::to_owned));
                                     continue;
                                 }
                             }
@@ -806,10 +808,10 @@ impl GlobalState {
                                 .request_op(format!("DidSaveTextDocument {}", abs_path.display()));
                         }
                     }
-                }
-                if !updated {
-                    for flycheck in &this.flycheck {
-                        flycheck.update();
+                    if !updated {
+                        for flycheck in &this.flycheck {
+                            flycheck.update(vfs_path.as_path().map(ToOwned::to_owned));
+                        }
                     }
                 }
                 Ok(())
