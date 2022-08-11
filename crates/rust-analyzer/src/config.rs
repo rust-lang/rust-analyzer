@@ -80,9 +80,6 @@ config_data! {
         /// ```
         /// .
         cargo_buildScripts_overrideCommand: Option<Vec<String>> = "null",
-        /// Use `RUSTC_WRAPPER=rust-analyzer` when running build scripts to
-        /// avoid checking unnecessary things.
-        cargo_buildScripts_useRustcWrapper: bool = "true",
         /// List of features to activate.
         ///
         /// Set this to `"all"` to pass `--all-features` to cargo.
@@ -960,7 +957,6 @@ impl Config {
             no_sysroot: self.data.cargo_noSysroot,
             rustc_source,
             unset_test_crates: UnsetTestCrates::Only(self.data.cargo_unsetTest.clone()),
-            wrap_rustc_in_build_scripts: self.data.cargo_buildScripts_useRustcWrapper,
             run_build_script_command: self.data.cargo_buildScripts_overrideCommand.clone(),
         }
     }

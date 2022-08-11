@@ -95,8 +95,6 @@ pub struct CargoConfig {
     /// crates to disable `#[cfg(test)]` on
     pub unset_test_crates: UnsetTestCrates,
 
-    pub wrap_rustc_in_build_scripts: bool,
-
     pub run_build_script_command: Option<Vec<String>>,
 }
 

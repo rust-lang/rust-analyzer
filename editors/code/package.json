@@ -432,11 +432,6 @@
                         "type": "string"
                     }
                 },
-                "rust-analyzer.cargo.buildScripts.useRustcWrapper": {
-                    "markdownDescription": "Use `RUSTC_WRAPPER=rust-analyzer` when running build scripts to\navoid checking unnecessary things.",
-                    "default": true,
-                    "type": "boolean"
-                },
                 "rust-analyzer.cargo.features": {
                     "markdownDescription": "List of features to activate.\n\nSet this to `\"all\"` to pass `--all-features` to cargo.",
                     "default": [],

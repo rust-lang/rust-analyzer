@@ -40,12 +40,6 @@ cargo check --quiet --workspace --message-format=json --all-targets
 ```
 .
 --
-[[rust-analyzer.cargo.buildScripts.useRustcWrapper]]rust-analyzer.cargo.buildScripts.useRustcWrapper (default: `true`)::
-+
---
-Use `RUSTC_WRAPPER=rust-analyzer` when running build scripts to
-avoid checking unnecessary things.
---
 [[rust-analyzer.cargo.features]]rust-analyzer.cargo.features (default: `[]`)::
 +
 --

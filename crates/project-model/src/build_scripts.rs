@@ -82,15 +82,16 @@ impl WorkspaceBuildScripts {
     ) -> io::Result<WorkspaceBuildScripts> {
         const RUST_1_62: Version = Version::new(1, 62, 0);
 
-        match Self::run_(Self::build_command(config), config, workspace, progress) {
+        match Self::run_(Self::build_command(config), workspace, progress) {
             Ok(WorkspaceBuildScripts { error: Some(error), .. })
                 if toolchain.as_ref().map_or(false, |it| *it >= RUST_1_62) =>
             {
+                tracing::info!("running build scripts failed, retrying with --keep-going flag");
                 // building build scripts failed, attempt to build with --keep-going so
                 // that we potentially get more build data
                 let mut cmd = Self::build_command(config);
                 cmd.args(&["-Z", "unstable-options", "--keep-going"]).env("RUSTC_BOOTSTRAP", "1");
-                let mut res = Self::run_(cmd, config, workspace, progress)?;
+                let mut res = Self::run_(cmd, workspace, progress)?;
                 res.error = Some(error);
                 Ok(res)
             }
@@ -100,19 +101,9 @@ impl WorkspaceBuildScripts {
 
     fn run_(
         mut cmd: Command,
-        config: &CargoConfig,
         workspace: &CargoWorkspace,
         progress: &dyn Fn(String),
     ) -> io::Result<WorkspaceBuildScripts> {
-        if config.wrap_rustc_in_build_scripts {
-            // Setup RUSTC_WRAPPER to point to `rust-analyzer` binary itself. We use
-            // that to compile only proc macros and build scripts during the initial
-            // `cargo check`.
-            let myself = std::env::current_exe()?;
-            cmd.env("RUSTC_WRAPPER", myself);
-            cmd.env("RA_RUSTC_WRAPPER", "1");
-        }
-
         cmd.current_dir(workspace.workspace_root());
 
         let mut res = WorkspaceBuildScripts::default();
