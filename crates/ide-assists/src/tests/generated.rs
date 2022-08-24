@@ -299,6 +299,30 @@ fn main() {
 }
 
 #[test]
+fn doctest_convert_for_loop_with_while_let() {
+    check_doc_test(
+        "convert_for_loop_with_while_let",
+        r#####"
+fn main() {
+    let x = vec![1, 2, 3];
+    for$0 v in x {
+        let y = v * 2;
+    }
+}
+"#####,
+        r#####"
+fn main() {
+    let x = vec![1, 2, 3];
+    let mut x = x.into_iter();
+    while let Some(v) = x.next() {
+        let y = v * 2;
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_convert_if_to_bool_then() {
     check_doc_test(
         "convert_if_to_bool_then",

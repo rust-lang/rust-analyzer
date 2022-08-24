@@ -11,7 +11,8 @@ use syntax::{
         self,
         edit::{self, AstNodeEdit},
         edit_in_place::{AttrsOwnerEdit, Removable},
-        make, HasArgList, HasAttrs, HasGenericParams, HasName, HasTypeBounds, Whitespace,
+        make, HasArgList, HasAttrs, HasGenericParams, HasLoopBody, HasName, HasTypeBounds,
+        Whitespace,
     },
     ted, AstNode, AstToken, Direction, SourceFile,
     SyntaxKind::*,
@@ -704,4 +705,18 @@ pub(crate) fn convert_param_list_to_arg_list(list: ast::ParamList) -> ast::ArgLi
         }
     }
     make::arg_list(args)
+}
+
+pub(crate) fn detect_for_loop(
+    ctx: &AssistContext<'_>,
+) -> Option<(ast::ForExpr, ast::Expr, ast::Pat, ast::BlockExpr)> {
+    let for_loop = ctx.find_node_at_offset::<ast::ForExpr>()?;
+    let iterable = for_loop.iterable()?;
+    let pat = for_loop.pat()?;
+    let body = for_loop.loop_body()?;
+    if body.syntax().text_range().start() < ctx.offset() {
+        cov_mark::hit!(not_available_in_body);
+        return None;
+    }
+    Some((for_loop, iterable, pat, body))
 }
