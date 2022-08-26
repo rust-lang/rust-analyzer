@@ -117,7 +117,7 @@ If you are running an unsupported platform, you can install `rust-analyzer-no-se
 Copy the server anywhere, then add the path to your settings.json, for example:
 [source,json]
 ----
-{ "rust-analyzer.server.path": "~/.local/bin/rust-analyzer-linux" }
+{ "rust-analyzer.serverPath": "~/.local/bin/rust-analyzer-linux" }
 ----
 
 ==== Building From Source
