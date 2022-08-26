@@ -67,8 +67,15 @@ impl Builder {
 }
 
 impl Completions {
+    // Maximum amount of completion items returned to the IDE (except for keywords)
+    const MAX_ITEM_COUNT: usize = 2048;
+
+    fn over_capacity(&self) -> bool {
+        self.buf.len() >= Completions::MAX_ITEM_COUNT
+    }
+
     fn add(&mut self, item: CompletionItem) {
-        self.buf.push(item)
+        self.buf.push(item);
     }
 
     fn add_opt(&mut self, item: Option<CompletionItem>) {
@@ -82,7 +89,11 @@ impl Completions {
         I: IntoIterator,
         I::Item: Into<CompletionItem>,
     {
-        items.into_iter().for_each(|item| self.add(item.into()))
+        items.into_iter().for_each(|item| {
+            if !self.over_capacity() {
+                self.add(item.into())
+            }
+        })
     }
 
     pub(crate) fn add_keyword(&mut self, ctx: &CompletionContext<'_>, keyword: &'static str) {
@@ -164,9 +175,14 @@ impl Completions {
         ctx: &CompletionContext<'_>,
         path_ctx: &PathCompletionCtx,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         ctx.process_all_names(&mut |name, res| match res {
             ScopeDef::ModuleDef(hir::ModuleDef::Module(m)) if m.is_crate_root(ctx.db) => {
-                self.add_module(ctx, path_ctx, m, name);
+                if !self.over_capacity() {
+                    self.add_module(ctx, path_ctx, m, name);
+                }
             }
             _ => (),
         });
@@ -179,6 +195,9 @@ impl Completions {
         local_name: hir::Name,
         resolution: hir::ScopeDef,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         let is_private_editable = match ctx.def_is_visible(&resolution) {
             Visible::Yes => false,
             Visible::Editable => true,
@@ -202,6 +221,9 @@ impl Completions {
         local_name: hir::Name,
         resolution: hir::ScopeDef,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         let is_private_editable = match ctx.def_is_visible(&resolution) {
             Visible::Yes => false,
             Visible::Editable => true,
@@ -224,6 +246,9 @@ impl Completions {
         path_ctx: &PathCompletionCtx,
         e: hir::Enum,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         e.variants(ctx.db)
             .into_iter()
             .for_each(|variant| self.add_enum_variant(ctx, path_ctx, variant, None));
@@ -251,6 +276,9 @@ impl Completions {
         mac: hir::Macro,
         local_name: hir::Name,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         let is_private_editable = match ctx.is_visible(&mac) {
             Visible::Yes => false,
             Visible::Editable => true,
@@ -274,6 +302,9 @@ impl Completions {
         func: hir::Function,
         local_name: Option<hir::Name>,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         let is_private_editable = match ctx.is_visible(&func) {
             Visible::Yes => false,
             Visible::Editable => true,
@@ -298,6 +329,9 @@ impl Completions {
         receiver: Option<hir::Name>,
         local_name: Option<hir::Name>,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         let is_private_editable = match ctx.is_visible(&func) {
             Visible::Yes => false,
             Visible::Editable => true,
@@ -322,6 +356,9 @@ impl Completions {
         func: hir::Function,
         import: LocatedImport,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         let is_private_editable = match ctx.is_visible(&func) {
             Visible::Yes => false,
             Visible::Editable => true,
@@ -342,6 +379,9 @@ impl Completions {
     }
 
     pub(crate) fn add_const(&mut self, ctx: &CompletionContext<'_>, konst: hir::Const) {
+        if self.over_capacity() {
+            return;
+        }
         let is_private_editable = match ctx.is_visible(&konst) {
             Visible::Yes => false,
             Visible::Editable => true,
@@ -358,6 +398,9 @@ impl Completions {
         ctx: &CompletionContext<'_>,
         type_alias: hir::TypeAlias,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         let is_private_editable = match ctx.is_visible(&type_alias) {
             Visible::Yes => false,
             Visible::Editable => true,
@@ -374,6 +417,9 @@ impl Completions {
         ctx: &CompletionContext<'_>,
         type_alias: hir::TypeAlias,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         self.add_opt(render_type_alias_with_eq(RenderContext::new(ctx), type_alias));
     }
 
@@ -384,6 +430,9 @@ impl Completions {
         variant: hir::Variant,
         path: hir::ModPath,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         if let Some(builder) =
             render_variant_lit(RenderContext::new(ctx), path_ctx, None, variant, Some(path))
         {
@@ -398,6 +447,9 @@ impl Completions {
         variant: hir::Variant,
         local_name: Option<hir::Name>,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         if let PathCompletionCtx { kind: PathKind::Pat { pat_ctx }, .. } = path_ctx {
             cov_mark::hit!(enum_variant_pattern_path);
             self.add_variant_pat(ctx, pat_ctx, Some(path_ctx), variant, local_name);
@@ -419,6 +471,9 @@ impl Completions {
         field: hir::Field,
         ty: &hir::Type,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         let is_private_editable = match ctx.is_visible(&field) {
             Visible::Yes => false,
             Visible::Editable => true,
@@ -442,6 +497,9 @@ impl Completions {
         path: Option<hir::ModPath>,
         local_name: Option<hir::Name>,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         if let Some(builder) =
             render_struct_literal(RenderContext::new(ctx), path_ctx, strukt, path, local_name)
         {
@@ -456,6 +514,9 @@ impl Completions {
         path: Option<hir::ModPath>,
         local_name: Option<hir::Name>,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         let item = render_union_literal(RenderContext::new(ctx), un, path, local_name);
         self.add_opt(item);
     }
@@ -467,16 +528,25 @@ impl Completions {
         field: usize,
         ty: &hir::Type,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         let item = render_tuple_field(RenderContext::new(ctx), receiver, field, ty);
         self.add(item);
     }
 
     pub(crate) fn add_lifetime(&mut self, ctx: &CompletionContext<'_>, name: hir::Name) {
+        if self.over_capacity() {
+            return;
+        }
         CompletionItem::new(SymbolKind::LifetimeParam, ctx.source_range(), name.to_smol_str())
             .add_to(self)
     }
 
     pub(crate) fn add_label(&mut self, ctx: &CompletionContext<'_>, name: hir::Name) {
+        if self.over_capacity() {
+            return;
+        }
         CompletionItem::new(SymbolKind::Label, ctx.source_range(), name.to_smol_str()).add_to(self)
     }
 
@@ -488,6 +558,9 @@ impl Completions {
         variant: hir::Variant,
         local_name: Option<hir::Name>,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         self.add_opt(render_variant_pat(
             RenderContext::new(ctx),
             pattern_ctx,
@@ -505,6 +578,9 @@ impl Completions {
         variant: hir::Variant,
         path: hir::ModPath,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         let path = Some(&path);
         self.add_opt(render_variant_pat(
             RenderContext::new(ctx),
@@ -523,6 +599,9 @@ impl Completions {
         strukt: hir::Struct,
         local_name: Option<hir::Name>,
     ) {
+        if self.over_capacity() {
+            return;
+        }
         self.add_opt(render_struct_pat(RenderContext::new(ctx), pattern_ctx, strukt, local_name));
     }
 }
