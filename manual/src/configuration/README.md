@@ -2,10 +2,10 @@
 
 **Source:** [config.rs](https://github.com/rust-lang/rust-analyzer/blob/master/crates/rust-analyzer/src/config.rs)
 
-The <<_installation,Installation>> section contains details on configuration for some of the editors.
+The [installation](../installation/README.md) section contains details on configuration for some of the editors.
 In general `rust-analyzer` is configured via LSP messages, which means that it's up to the editor to decide on the exact format and location of configuration files.
 
-Some clients, such as <<vs-code,VS Code>> or <<coc-rust-analyzer,COC plugin in Vim>> provide `rust-analyzer` specific configuration UIs. Others may require you to know a bit more about the interaction with `rust-analyzer`.
+Some clients, such as [vs-code](../installation/vscode.md) or [coc-rust-analyzer](../installation/vim_neovim.md) provide `rust-analyzer` specific configuration UIs. Others may require you to know a bit more about the interaction with `rust-analyzer`.
 
 For the later category, it might help to know that the initial configuration is specified as a value of the `initializationOptions` field of the [`InitializeParams` message, in the LSP protocol](https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize).
 The spec says that the field type is `any?`, but `rust-analyzer` is looking for a JSON object that is constructed using settings from the list below.
