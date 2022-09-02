@@ -3925,3 +3925,35 @@ fn g(t: &(dyn T + Send)) {
         "#,
     );
 }
+
+#[test]
+fn block_scope_traits_in_scope() {
+    check_infer(
+        r#"
+mod module {
+    pub trait Trait {
+        fn func(self);
+    }
+
+    impl Trait for () {}
+}
+
+fn func() {
+    use module::Trait as _;
+    const CONST: () = ();
+    {
+        use self as make_block_scope;
+        CONST.func();
+    };
+}
+        "#,
+        expect![[r#"
+            51..55 'self': Self
+            103..233 '{     ...  }; }': ()
+            163..230 '{     ...     }': ()
+            211..216 'CONST': ()
+            211..223 'CONST.func()': ()
+            155..157 '()': ()
+        "#]],
+    );
+}

@@ -1,14 +1,16 @@
 //! Name resolution façade.
-use std::{hash::BuildHasherDefault, sync::Arc};
+use std::{hash::BuildHasherDefault, iter, sync::Arc};
 
+use arrayvec::ArrayVec;
 use base_db::CrateId;
+use either::Either;
 use hir_expand::name::{name, Name};
 use indexmap::IndexMap;
 use rustc_hash::FxHashSet;
-use smallvec::{smallvec, SmallVec};
+use smallvec::SmallVec;
 
 use crate::{
-    body::scope::{ExprScopes, ScopeId},
+    body::scope::{ExprScopes, ScopeEntry, ScopeId},
     builtin_type::BuiltinType,
     db::DefDatabase,
     expr::{ExprId, LabelId, PatId},
@@ -27,12 +29,14 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct Resolver {
-    /// The stack of scopes, where the inner-most scope is the last item.
-    ///
-    /// When using, you generally want to process the scopes in reverse order,
-    /// there's `scopes` *method* for that.
-    scopes: Vec<Scope>,
+    /// This is the module scope of this resolver. It is always the outermost scope.
     module_scope: ModuleItemMap,
+    self_scope: Option<Either<ImplId, AdtId>>,
+    generics_scope: ArrayVec<(GenericDefId, Interned<GenericParams>), 2>,
+    /// The inner most block scope if there is one and its position in the `expression_scopes`.
+    block_scope: Option<ModuleItemMap>,
+    /// The expression scopes, iterate these in reverse order.
+    expression_scopes: Vec<ExprScope>,
 }
 
 #[derive(Debug, Clone)]
@@ -48,18 +52,10 @@ struct ExprScope {
     scope_id: ScopeId,
 }
 
-#[derive(Debug, Clone)]
-enum Scope {
-    /// All the items and imported names of a module
-    BlockScope(ModuleItemMap),
-    /// Brings the generic parameters of an item into scope
-    GenericParams { def: GenericDefId, params: Interned<GenericParams> },
-    /// Brings `Self` in `impl` block into scope
-    ImplDefScope(ImplId),
-    /// Brings `Self` in enum, struct and union definitions into scope
-    AdtScope(AdtId),
-    /// Local bindings
-    ExprScope(ExprScope),
+impl ExprScope {
+    fn find_by_name(&self, name: &Name) -> Option<&ScopeEntry> {
+        self.expr_scopes.entries(self.scope_id).iter().find(|entry| entry.name() == name)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -167,31 +163,31 @@ impl Resolver {
             return self.module_scope.resolve_path_in_type_ns(db, path);
         }
 
+        if let Some(block_scope) = &self.block_scope {
+            if let res @ Some(_) = block_scope.resolve_path_in_type_ns_blocks(db, path) {
+                return res;
+            }
+        }
+
         let remaining_idx = || if path.segments().len() == 1 { None } else { Some(1) };
 
-        for scope in self.scopes() {
-            match scope {
-                Scope::ExprScope(_) => continue,
-                Scope::GenericParams { params, def } => {
-                    if let Some(id) = params.find_type_by_name(first_name, *def) {
-                        return Some((TypeNs::GenericParam(id), remaining_idx()));
-                    }
-                }
-                &Scope::ImplDefScope(impl_) => {
-                    if first_name == &name![Self] {
-                        return Some((TypeNs::SelfType(impl_), remaining_idx()));
-                    }
-                }
-                &Scope::AdtScope(adt) => {
-                    if first_name == &name![Self] {
-                        return Some((TypeNs::AdtSelfType(adt), remaining_idx()));
-                    }
-                }
-                Scope::BlockScope(m) => {
-                    if let Some(res) = m.resolve_path_in_type_ns(db, path) {
-                        return Some(res);
-                    }
-                }
+        let type_param = self
+            .generics_scopes()
+            .find_map(|(def, params)| params.find_type_by_name(first_name, *def));
+
+        if let Some(id) = type_param {
+            return Some((TypeNs::GenericParam(id), remaining_idx()));
+        }
+
+        if let Some(id) = self.self_scope {
+            if first_name == &name![Self] {
+                return Some((
+                    match id {
+                        Either::Left(id) => TypeNs::SelfType(id),
+                        Either::Right(id) => TypeNs::AdtSelfType(id),
+                    },
+                    remaining_idx(),
+                ));
             }
         }
         self.module_scope.resolve_path_in_type_ns(db, path)
@@ -228,63 +224,62 @@ impl Resolver {
         db: &dyn DefDatabase,
         path: &ModPath,
     ) -> Option<ResolveValueResult> {
+        static SELF: Name = name![self];
+        let first_name = if path.is_self() { &SELF } else { path.segments().first()? };
         let n_segments = path.segments().len();
-        let tmp = name![self];
-        let first_name = if path.is_self() { &tmp } else { path.segments().first()? };
         let skip_to_mod = path.kind != PathKind::Plain && !path.is_self();
         if skip_to_mod {
             return self.module_scope.resolve_path_in_value_ns(db, path);
         }
 
-        for scope in self.scopes() {
-            match scope {
-                Scope::ExprScope(_) if n_segments > 1 => continue,
-                Scope::ExprScope(scope) => {
-                    let entry = scope
-                        .expr_scopes
-                        .entries(scope.scope_id)
-                        .iter()
-                        .find(|entry| entry.name() == first_name);
+        if n_segments <= 1 {
+            if let Some(e) = self.expr_scopes().find_map(|scope| scope.find_by_name(first_name)) {
+                return Some(ResolveValueResult::ValueNs(ValueNs::LocalBinding(e.pat())));
+            }
+        }
 
-                    if let Some(e) = entry {
-                        return Some(ResolveValueResult::ValueNs(ValueNs::LocalBinding(e.pat())));
-                    }
-                }
-                Scope::GenericParams { params, def } if n_segments > 1 => {
-                    if let Some(id) = params.find_type_by_name(first_name, *def) {
-                        let ty = TypeNs::GenericParam(id);
-                        return Some(ResolveValueResult::Partial(ty, 1));
-                    }
-                }
-                Scope::GenericParams { .. } if n_segments != 1 => continue,
-                Scope::GenericParams { params, def } => {
-                    if let Some(id) = params.find_const_by_name(first_name, *def) {
-                        let val = ValueNs::GenericParam(id);
-                        return Some(ResolveValueResult::ValueNs(val));
-                    }
-                }
+        if let Some(block_scope) = &self.block_scope {
+            if let res @ Some(_) = block_scope.resolve_path_in_value_ns_blocks(db, path) {
+                return res;
+            }
+        }
 
-                &Scope::ImplDefScope(impl_) => {
-                    if first_name == &name![Self] {
-                        return Some(if n_segments > 1 {
-                            ResolveValueResult::Partial(TypeNs::SelfType(impl_), 1)
-                        } else {
-                            ResolveValueResult::ValueNs(ValueNs::ImplSelf(impl_))
-                        });
-                    }
-                }
-                // bare `Self` doesn't work in the value namespace in a struct/enum definition
-                Scope::AdtScope(_) if n_segments == 1 => continue,
-                Scope::AdtScope(adt) => {
-                    if first_name == &name![Self] {
-                        let ty = TypeNs::AdtSelfType(*adt);
-                        return Some(ResolveValueResult::Partial(ty, 1));
-                    }
-                }
+        match n_segments {
+            0 | 1 => {
+                let const_param = self
+                    .generics_scopes()
+                    .find_map(|(def, params)| params.find_const_by_name(first_name, *def));
 
-                Scope::BlockScope(m) => {
-                    if let Some(def) = m.resolve_path_in_value_ns(db, path) {
-                        return Some(def);
+                if let Some(id) = const_param {
+                    let val = ValueNs::GenericParam(id);
+                    return Some(ResolveValueResult::ValueNs(val));
+                }
+            }
+            _ => {
+                let type_param = self
+                    .generics_scopes()
+                    .find_map(|(def, params)| params.find_type_by_name(first_name, *def));
+
+                if let Some(id) = type_param {
+                    let ty = TypeNs::GenericParam(id);
+                    return Some(ResolveValueResult::Partial(ty, 1));
+                }
+            }
+        }
+
+        if let Some(id) = self.self_scope {
+            if first_name == &name![Self] {
+                match id {
+                    Either::Left(id) if n_segments > 1 => {
+                        return Some(ResolveValueResult::Partial(TypeNs::SelfType(id), 1))
+                    }
+                    Either::Left(id) => {
+                        return Some(ResolveValueResult::ValueNs(ValueNs::ImplSelf(id)))
+                    }
+                    // bare `Self` doesn't work in the value namespace in a struct/enum definition
+                    Either::Right(_) if n_segments <= 1 => (),
+                    Either::Right(id) => {
+                        return Some(ResolveValueResult::Partial(TypeNs::AdtSelfType(id), 1))
                     }
                 }
             }
@@ -364,9 +359,66 @@ impl Resolver {
         &self,
         db: &dyn DefDatabase,
     ) -> FxIndexMap<Name, SmallVec<[ScopeDef; 1]>> {
-        let mut res = ScopeNames::default();
-        for scope in self.scopes() {
-            scope.process_names(&mut res, db);
+        let mut acc = ScopeNames::default();
+
+        for scope in self.expr_scopes() {
+            if let Some((label, name)) = scope.expr_scopes.label(scope.scope_id) {
+                acc.add(&name, ScopeDef::Label(label))
+            }
+            scope.expr_scopes.entries(scope.scope_id).iter().for_each(|e| {
+                acc.add_local(e.name(), e.pat());
+            });
+        }
+
+        if let Some(m) = &self.block_scope {
+            m.with_ancestors(db, |def_map, module_id| {
+                def_map[module_id].scope.entries().for_each(|(name, def)| {
+                    acc.add_per_ns(name, def);
+                });
+                def_map[module_id].scope.legacy_macros().for_each(|(name, macs)| {
+                    macs.iter().for_each(|&mac| {
+                        acc.add(
+                            name,
+                            ScopeDef::ModuleDef(ModuleDefId::MacroId(MacroId::from(mac))),
+                        );
+                    })
+                });
+            })
+        }
+
+        self.generics_scopes().for_each(|(parent, params)| {
+            let parent = *parent;
+            for (local_id, param) in params.type_or_consts.iter() {
+                if let Some(name) = &param.name() {
+                    let id = TypeOrConstParamId { parent, local_id };
+                    let data = &db.generic_params(parent).type_or_consts[local_id];
+                    acc.add(
+                        name,
+                        ScopeDef::GenericParam(match data {
+                            TypeOrConstParamData::TypeParamData(_) => {
+                                GenericParamId::TypeParamId(TypeParamId::from_unchecked(id))
+                            }
+                            TypeOrConstParamData::ConstParamData(_) => {
+                                GenericParamId::ConstParamId(ConstParamId::from_unchecked(id))
+                            }
+                        }),
+                    );
+                }
+            }
+            for (local_id, param) in params.lifetimes.iter() {
+                let id = LifetimeParamId { parent, local_id };
+                acc.add(&param.name, ScopeDef::GenericParam(id.into()))
+            }
+        });
+
+        match self.self_scope {
+            Some(Either::Left(id)) => {
+                acc.add(&name![Self], ScopeDef::ImplSelfType(id));
+            }
+            Some(Either::Right(id)) => {
+                acc.add(&name![Self], ScopeDef::AdtSelfType(id));
+            }
+            None => (),
         }
         let ModuleItemMap { ref def_map, module_id } = self.module_scope;
         // FIXME: should we provide `self` here?
@@ -377,44 +429,44 @@ impl Resolver {
         //     }),
         // );
         def_map[module_id].scope.entries().for_each(|(name, def)| {
-            res.add_per_ns(name, def);
+            acc.add_per_ns(name, def);
         });
         def_map[module_id].scope.legacy_macros().for_each(|(name, macs)| {
             macs.iter().for_each(|&mac| {
-                res.add(name, ScopeDef::ModuleDef(ModuleDefId::MacroId(MacroId::from(mac))));
+                acc.add(name, ScopeDef::ModuleDef(ModuleDefId::MacroId(MacroId::from(mac))));
             })
         });
         def_map.extern_prelude().for_each(|(name, &def)| {
-            res.add(name, ScopeDef::ModuleDef(ModuleDefId::ModuleId(def)));
+            acc.add(name, ScopeDef::ModuleDef(ModuleDefId::ModuleId(def)));
         });
         BUILTIN_SCOPE.iter().for_each(|(name, &def)| {
-            res.add_per_ns(name, def);
+            acc.add_per_ns(name, def);
         });
         if let Some(prelude) = def_map.prelude() {
             let prelude_def_map = prelude.def_map(db);
             for (name, def) in prelude_def_map[prelude.local_id].scope.entries() {
-                res.add_per_ns(name, def)
+                acc.add_per_ns(name, def)
             }
         }
-        res.map
+        acc.map
     }
 
     pub fn traits_in_scope(&self, db: &dyn DefDatabase) -> FxHashSet<TraitId> {
         let mut traits = FxHashSet::default();
 
-        for scope in self.scopes() {
-            match scope {
-                Scope::BlockScope(m) => traits.extend(m.def_map[m.module_id].scope.traits()),
-                &Scope::ImplDefScope(impl_) => {
-                    if let Some(target_trait) = &db.impl_data(impl_).target_trait {
-                        if let Some(TypeNs::TraitId(trait_)) =
-                            self.resolve_path_in_type_ns_fully(db, target_trait.path.mod_path())
-                        {
-                            traits.insert(trait_);
-                        }
-                    }
+        if let Some(m) = &self.block_scope {
+            m.with_ancestors(db, |def_map, module_id| {
+                traits.extend(def_map[module_id].scope.traits())
+            })
+        }
+
+        if let Some(Either::Left(impl_)) = self.self_scope {
+            if let Some(target_trait) = &db.impl_data(impl_).target_trait {
+                if let Some(TypeNs::TraitId(trait_)) =
+                    self.resolve_path_in_type_ns_fully(db, target_trait.path.mod_path())
+                {
+                    traits.insert(trait_);
                 }
-                _ => (),
             }
         }
 
@@ -444,32 +496,67 @@ impl Resolver {
     pub fn where_predicates_in_scope(
         &self,
     ) -> impl Iterator<Item = &crate::generics::WherePredicate> {
-        self.scopes()
-            .filter_map(|scope| match scope {
-                Scope::GenericParams { params, .. } => Some(params),
-                _ => None,
-            })
-            .flat_map(|params| params.where_predicates.iter())
+        self.generics_scopes().flat_map(|(_, params)| params.where_predicates.iter())
     }
 
     pub fn generic_def(&self) -> Option<GenericDefId> {
-        self.scopes().find_map(|scope| match scope {
-            Scope::GenericParams { def, .. } => Some(*def),
-            _ => None,
-        })
+        self.generics_scopes().next().map(|&(def, _)| def)
     }
 
     pub fn body_owner(&self) -> Option<DefWithBodyId> {
-        self.scopes().find_map(|scope| match scope {
-            Scope::ExprScope(it) => Some(it.owner),
-            _ => None,
-        })
+        self.expr_scopes().next().map(|it| it.owner)
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ScopeDef {
+    ModuleDef(ModuleDefId),
+    Unknown,
+    ImplSelfType(ImplId),
+    AdtSelfType(AdtId),
+    GenericParam(GenericParamId),
+    Local(PatId),
+    Label(LabelId),
+}
+
+// needs arbitrary_self_types to be a method... or maybe move to the def?
+pub fn resolver_for_expr(db: &dyn DefDatabase, owner: DefWithBodyId, expr_id: ExprId) -> Resolver {
+    let scopes = db.expr_scopes(owner);
+    resolver_for_scope(db, owner, scopes.scope_for(expr_id))
+}
+
+pub fn resolver_for_scope(
+    db: &dyn DefDatabase,
+    owner: DefWithBodyId,
+    scope_id: Option<ScopeId>,
+) -> Resolver {
+    let mut r = owner.resolver(db);
+    let scopes = db.expr_scopes(owner);
+    let scope_chain = scopes.scope_chain(scope_id).collect::<Vec<_>>();
+    r.expression_scopes.reserve(scope_chain.len());
+
+    for scope in scope_chain.into_iter() {
+        if r.block_scope.is_none() {
+            if let Some(block) = scopes.block(scope) {
+                if let Some(def_map) = db.block_def_map(block) {
+                    let root = def_map.root();
+                    r.block_scope = Some(ModuleItemMap { def_map, module_id: root });
+                }
+            }
+        }
+
+        r = r.push_expr_scope(owner, Arc::clone(&scopes), scope);
+    }
+    r
+}
+
 impl Resolver {
-    fn scopes(&self) -> impl Iterator<Item = &Scope> {
-        self.scopes.iter().rev()
+    fn expr_scopes(&self) -> impl Iterator<Item = &ExprScope> {
+        self.expression_scopes.iter()
+    }
+
+    fn generics_scopes(&self) -> impl Iterator<Item = &(GenericDefId, Interned<GenericParams>)> {
+        self.generics_scope.iter().rev()
     }
 
     fn resolve_module_path(
@@ -488,142 +575,24 @@ impl Resolver {
 
     /// The innermost block scope that contains items or the module scope that contains this resolver.
     fn item_scope(&self) -> (&DefMap, LocalModuleId) {
-        self.scopes()
-            .find_map(|scope| match scope {
-                Scope::BlockScope(m) => Some((&*m.def_map, m.module_id)),
-                _ => None,
-            })
-            .unwrap_or((&self.module_scope.def_map, self.module_scope.module_id))
+        let scope = self.block_scope.as_ref().unwrap_or(&self.module_scope);
+        (&scope.def_map, scope.module_id)
     }
-}
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum ScopeDef {
-    ModuleDef(ModuleDefId),
-    Unknown,
-    ImplSelfType(ImplId),
-    AdtSelfType(AdtId),
-    GenericParam(GenericParamId),
-    Local(PatId),
-    Label(LabelId),
-}
-
-impl Scope {
-    fn process_names(&self, acc: &mut ScopeNames, db: &dyn DefDatabase) {
-        match self {
-            Scope::BlockScope(m) => {
-                m.def_map[m.module_id].scope.entries().for_each(|(name, def)| {
-                    acc.add_per_ns(name, def);
-                });
-                m.def_map[m.module_id].scope.legacy_macros().for_each(|(name, macs)| {
-                    macs.iter().for_each(|&mac| {
-                        acc.add(
-                            name,
-                            ScopeDef::ModuleDef(ModuleDefId::MacroId(MacroId::from(mac))),
-                        );
-                    })
-                });
-            }
-            Scope::GenericParams { params, def: parent } => {
-                let parent = *parent;
-                for (local_id, param) in params.type_or_consts.iter() {
-                    if let Some(name) = &param.name() {
-                        let id = TypeOrConstParamId { parent, local_id };
-                        let data = &db.generic_params(parent).type_or_consts[local_id];
-                        acc.add(
-                            name,
-                            ScopeDef::GenericParam(match data {
-                                TypeOrConstParamData::TypeParamData(_) => {
-                                    GenericParamId::TypeParamId(TypeParamId::from_unchecked(id))
-                                }
-                                TypeOrConstParamData::ConstParamData(_) => {
-                                    GenericParamId::ConstParamId(ConstParamId::from_unchecked(id))
-                                }
-                            }),
-                        );
-                    }
-                }
-                for (local_id, param) in params.lifetimes.iter() {
-                    let id = LifetimeParamId { parent, local_id };
-                    acc.add(&param.name, ScopeDef::GenericParam(id.into()))
-                }
-            }
-            Scope::ImplDefScope(i) => {
-                acc.add(&name![Self], ScopeDef::ImplSelfType(*i));
-            }
-            Scope::AdtScope(i) => {
-                acc.add(&name![Self], ScopeDef::AdtSelfType(*i));
-            }
-            Scope::ExprScope(scope) => {
-                if let Some((label, name)) = scope.expr_scopes.label(scope.scope_id) {
-                    acc.add(&name, ScopeDef::Label(label))
-                }
-                scope.expr_scopes.entries(scope.scope_id).iter().for_each(|e| {
-                    acc.add_local(e.name(), e.pat());
-                });
-            }
-        }
-    }
-}
-
-// needs arbitrary_self_types to be a method... or maybe move to the def?
-pub fn resolver_for_expr(db: &dyn DefDatabase, owner: DefWithBodyId, expr_id: ExprId) -> Resolver {
-    let scopes = db.expr_scopes(owner);
-    resolver_for_scope(db, owner, scopes.scope_for(expr_id))
-}
-
-pub fn resolver_for_scope(
-    db: &dyn DefDatabase,
-    owner: DefWithBodyId,
-    scope_id: Option<ScopeId>,
-) -> Resolver {
-    let mut r = owner.resolver(db);
-    let scopes = db.expr_scopes(owner);
-    let scope_chain = scopes.scope_chain(scope_id).collect::<Vec<_>>();
-    r.scopes.reserve(scope_chain.len());
-
-    for scope in scope_chain.into_iter().rev() {
-        if let Some(block) = scopes.block(scope) {
-            if let Some(def_map) = db.block_def_map(block) {
-                let root = def_map.root();
-                r = r.push_block_scope(def_map, root);
-                // FIXME: This adds as many module scopes as there are blocks, but resolving in each
-                // already traverses all parents, so this is O(n²). I think we could only store the
-                // innermost module scope instead?
-            }
-        }
-
-        r = r.push_expr_scope(owner, Arc::clone(&scopes), scope);
-    }
-    r
-}
-
-impl Resolver {
-    fn push_scope(mut self, scope: Scope) -> Resolver {
-        self.scopes.push(scope);
+    fn push_generic_params_scope(mut self, db: &dyn DefDatabase, def: GenericDefId) -> Resolver {
+        let params = db.generic_params(def);
+        self.generics_scope.push((def, params));
         self
     }
 
-    fn push_generic_params_scope(self, db: &dyn DefDatabase, def: GenericDefId) -> Resolver {
-        let params = db.generic_params(def);
-        self.push_scope(Scope::GenericParams { def, params })
-    }
-
-    fn push_impl_def_scope(self, impl_def: ImplId) -> Resolver {
-        self.push_scope(Scope::ImplDefScope(impl_def))
-    }
-
-    fn push_block_scope(self, def_map: Arc<DefMap>, module_id: LocalModuleId) -> Resolver {
-        self.push_scope(Scope::BlockScope(ModuleItemMap { def_map, module_id }))
-    }
-
     fn push_expr_scope(
-        self,
+        mut self,
         owner: DefWithBodyId,
         expr_scopes: Arc<ExprScopes>,
         scope_id: ScopeId,
     ) -> Resolver {
-        self.push_scope(Scope::ExprScope(ExprScope { owner, expr_scopes, scope_id }))
+        self.expression_scopes.push(ExprScope { owner, expr_scopes, scope_id });
+        self
     }
 }
 
@@ -635,6 +604,56 @@ impl ModuleItemMap {
     ) -> Option<ResolveValueResult> {
         let (module_def, idx) =
             self.def_map.resolve_path_locally(db, self.module_id, path, BuiltinShadowMode::Other);
+        Self::filter_value_res(idx, module_def)
+    }
+
+    fn resolve_path_in_value_ns_blocks(
+        &self,
+        db: &dyn DefDatabase,
+        path: &ModPath,
+    ) -> Option<ResolveValueResult> {
+        self.def_map.with_ancestor_maps(db, self.module_id, &mut |def_map, module_id| {
+            let (module_def, idx) =
+                def_map.resolve_path_locally(db, module_id, path, BuiltinShadowMode::Other);
+            Self::filter_value_res(idx, module_def)
+        })
+    }
+
+    fn resolve_path_in_type_ns(
+        &self,
+        db: &dyn DefDatabase,
+        path: &ModPath,
+    ) -> Option<(TypeNs, Option<usize>)> {
+        let (module_def, idx) =
+            self.def_map.resolve_path_locally(db, self.module_id, path, BuiltinShadowMode::Other);
+        let res = to_type_ns(module_def)?;
+        Some((res, idx))
+    }
+
+    fn resolve_path_in_type_ns_blocks(
+        &self,
+        db: &dyn DefDatabase,
+        path: &ModPath,
+    ) -> Option<(TypeNs, Option<usize>)> {
+        self.def_map.with_ancestor_maps(db, self.module_id, &mut |def_map, module_id| {
+            let (module_def, idx) =
+                def_map.resolve_path_locally(db, module_id, path, BuiltinShadowMode::Other);
+            let res = to_type_ns(module_def)?;
+            Some((res, idx))
+        })
+    }
+
+    fn with_ancestors(&self, db: &dyn DefDatabase, mut f: impl FnMut(&DefMap, LocalModuleId)) {
+        self.def_map.with_ancestor_maps(db, self.module_id, &mut |def_map, module_id| {
+            f(def_map, module_id);
+            match def_map.block_id() {
+                Some(_) => None,
+                None => Some(()),
+            }
+        });
+    }
+
+    fn filter_value_res(idx: Option<usize>, module_def: PerNs) -> Option<ResolveValueResult> {
         match idx {
             None => {
                 let value = to_value_ns(module_def)?;
@@ -657,17 +676,6 @@ impl ModuleItemMap {
                 Some(ResolveValueResult::Partial(ty, idx))
             }
         }
-    }
-
-    fn resolve_path_in_type_ns(
-        &self,
-        db: &dyn DefDatabase,
-        path: &ModPath,
-    ) -> Option<(TypeNs, Option<usize>)> {
-        let (module_def, idx) =
-            self.def_map.resolve_path_locally(db, self.module_id, path, BuiltinShadowMode::Other);
-        let res = to_type_ns(module_def)?;
-        Some((res, idx))
     }
 }
 
@@ -757,22 +765,30 @@ pub trait HasResolver: Copy {
 
 impl HasResolver for ModuleId {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
-        let mut def_map = self.def_map(db);
-        let mut modules: SmallVec<[_; 1]> = smallvec![];
-        let mut module_id = self.local_id;
-        while let Some(parent) = def_map.parent() {
-            modules.push((def_map, module_id));
-            def_map = parent.def_map(db);
-            module_id = parent.local_id;
-        }
-        let mut resolver = Resolver {
-            scopes: Vec::with_capacity(modules.len()),
-            module_scope: ModuleItemMap { def_map, module_id },
+        let def_map = self.def_map(db);
+
+        // Fetch the top level def map of this block def map
+        let non_block_map =
+            iter::successors(def_map.parent().map(|m| (def_map.clone(), m)), |(_, parent)| {
+                let parent_def_map = parent.def_map(db);
+                let grand_parent = parent_def_map.parent()?;
+                Some((parent_def_map, grand_parent))
+            })
+            .last();
+        let (def_map, module_id, block_scope) = if let Some((_, m)) = non_block_map {
+            // found a non-block DefMap, so `self` is a currently a block DefMap
+            (m.def_map(db), m.local_id, Some(ModuleItemMap { def_map, module_id: self.local_id }))
+        } else {
+            (def_map, self.local_id, None)
         };
-        for (def_map, module) in modules.into_iter().rev() {
-            resolver = resolver.push_block_scope(def_map, module);
+
+        Resolver {
+            module_scope: ModuleItemMap { def_map, module_id },
+            self_scope: None,
+            generics_scope: ArrayVec::new(),
+            block_scope,
+            expression_scopes: Vec::new(),
         }
-        resolver
     }
 }
 
@@ -785,10 +801,9 @@ impl HasResolver for TraitId {
 impl<T: Into<AdtId> + Copy> HasResolver for T {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
         let def = self.into();
-        def.module(db)
-            .resolver(db)
-            .push_generic_params_scope(db, def.into())
-            .push_scope(Scope::AdtScope(def))
+        let mut resolver = def.module(db).resolver(db).push_generic_params_scope(db, def.into());
+        resolver.self_scope = Some(Either::Right(def));
+        resolver
     }
 }
 
@@ -818,11 +833,10 @@ impl HasResolver for TypeAliasId {
 
 impl HasResolver for ImplId {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
-        self.lookup(db)
-            .container
-            .resolver(db)
-            .push_generic_params_scope(db, self.into())
-            .push_impl_def_scope(self)
+        let mut resolver =
+            self.lookup(db).container.resolver(db).push_generic_params_scope(db, self.into());
+        resolver.self_scope = Some(Either::Left(self));
+        resolver
     }
 }
 
