@@ -10,7 +10,7 @@ use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 
 use crate::{
-    body::scope::{ExprScopes, ScopeEntry, ScopeId},
+    body::scope::{ExprScopes, ScopeId},
     builtin_type::BuiltinType,
     db::DefDatabase,
     expr::{ExprId, LabelId, PatId},
@@ -36,26 +36,13 @@ pub struct Resolver {
     /// The inner most block scope if there is one and its position in the `expression_scopes`.
     block_scope: Option<ModuleItemMap>,
     /// The expression scopes, iterate these in reverse order.
-    expression_scopes: Vec<ExprScope>,
+    expression_scopes: Option<(Vec<ScopeId>, Arc<ExprScopes>, DefWithBodyId)>,
 }
 
 #[derive(Debug, Clone)]
 struct ModuleItemMap {
     def_map: Arc<DefMap>,
     module_id: LocalModuleId,
-}
-
-#[derive(Debug, Clone)]
-struct ExprScope {
-    owner: DefWithBodyId,
-    expr_scopes: Arc<ExprScopes>,
-    scope_id: ScopeId,
-}
-
-impl ExprScope {
-    fn find_by_name(&self, name: &Name) -> Option<&ScopeEntry> {
-        self.expr_scopes.entries(self.scope_id).iter().find(|entry| entry.name() == name)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -233,8 +220,13 @@ impl Resolver {
         }
 
         if n_segments <= 1 {
-            if let Some(e) = self.expr_scopes().find_map(|scope| scope.find_by_name(first_name)) {
-                return Some(ResolveValueResult::ValueNs(ValueNs::LocalBinding(e.pat())));
+            if let Some((mut scopes, expr_scopes)) = self.expr_scopes() {
+                let scope_entry = scopes.find_map(|scope| {
+                    expr_scopes.entries(scope).iter().find(|entry| entry.name() == first_name)
+                });
+                if let Some(e) = scope_entry {
+                    return Some(ResolveValueResult::ValueNs(ValueNs::LocalBinding(e.pat())));
+                }
             }
         }
 
@@ -361,13 +353,15 @@ impl Resolver {
     ) -> FxIndexMap<Name, SmallVec<[ScopeDef; 1]>> {
         let mut acc = ScopeNames::default();
 
-        for scope in self.expr_scopes() {
-            if let Some((label, name)) = scope.expr_scopes.label(scope.scope_id) {
-                acc.add(&name, ScopeDef::Label(label))
+        if let Some((scopes, expr_scopes)) = self.expr_scopes() {
+            for scope in scopes {
+                if let Some((label, name)) = expr_scopes.label(scope) {
+                    acc.add(&name, ScopeDef::Label(label))
+                }
+                expr_scopes.entries(scope).iter().for_each(|e| {
+                    acc.add_local(e.name(), e.pat());
+                });
             }
-            scope.expr_scopes.entries(scope.scope_id).iter().for_each(|e| {
-                acc.add_local(e.name(), e.pat());
-            });
         }
 
         if let Some(m) = &self.block_scope {
@@ -504,7 +498,7 @@ impl Resolver {
     }
 
     pub fn body_owner(&self) -> Option<DefWithBodyId> {
-        self.expr_scopes().next().map(|it| it.owner)
+        self.expression_scopes.as_ref().map(|&(.., id)| id)
     }
 }
 
@@ -532,27 +526,32 @@ pub fn resolver_for_scope(
 ) -> Resolver {
     let mut r = owner.resolver(db);
     let scopes = db.expr_scopes(owner);
-    let scope_chain = scopes.scope_chain(scope_id).collect::<Vec<_>>();
-    r.expression_scopes.reserve(scope_chain.len());
-
-    for scope in scope_chain.into_iter() {
-        if r.block_scope.is_none() {
-            if let Some(block) = scopes.block(scope) {
-                if let Some(def_map) = db.block_def_map(block) {
-                    let root = def_map.root();
-                    r.block_scope = Some(ModuleItemMap { def_map, module_id: root });
+    r.expression_scopes = Some((
+        scopes
+            .scope_chain(scope_id)
+            .inspect(|&scope_id| {
+                // record innermost block scope
+                if r.block_scope.is_none() {
+                    if let Some(block) = scopes.block(scope_id) {
+                        if let Some(def_map) = db.block_def_map(block) {
+                            let root = def_map.root();
+                            r.block_scope = Some(ModuleItemMap { def_map, module_id: root });
+                        }
+                    }
                 }
-            }
-        }
-
-        r = r.push_expr_scope(owner, Arc::clone(&scopes), scope);
-    }
+            })
+            .collect(),
+        scopes,
+        owner,
+    ));
     r
 }
 
 impl Resolver {
-    fn expr_scopes(&self) -> impl Iterator<Item = &ExprScope> {
-        self.expression_scopes.iter()
+    fn expr_scopes(&self) -> Option<(impl Iterator<Item = ScopeId> + '_, &ExprScopes)> {
+        self.expression_scopes
+            .as_ref()
+            .map(|(scopes, expr_scopes, _)| (scopes.iter().copied(), &**expr_scopes))
     }
 
     fn generics_scopes(&self) -> impl Iterator<Item = &(GenericDefId, Interned<GenericParams>)> {
@@ -582,16 +581,6 @@ impl Resolver {
     fn push_generic_params_scope(mut self, db: &dyn DefDatabase, def: GenericDefId) -> Resolver {
         let params = db.generic_params(def);
         self.generics_scope.push((def, params));
-        self
-    }
-
-    fn push_expr_scope(
-        mut self,
-        owner: DefWithBodyId,
-        expr_scopes: Arc<ExprScopes>,
-        scope_id: ScopeId,
-    ) -> Resolver {
-        self.expression_scopes.push(ExprScope { owner, expr_scopes, scope_id });
         self
     }
 }
@@ -787,7 +776,7 @@ impl HasResolver for ModuleId {
             self_scope: None,
             generics_scope: ArrayVec::new(),
             block_scope,
-            expression_scopes: Vec::new(),
+            expression_scopes: None,
         }
     }
 }
