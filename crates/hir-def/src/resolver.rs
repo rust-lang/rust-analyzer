@@ -1,5 +1,5 @@
 //! Name resolution façade.
-use std::{hash::BuildHasherDefault, iter, sync::Arc};
+use std::{hash::BuildHasherDefault, iter, mem, sync::Arc};
 
 use arrayvec::ArrayVec;
 use base_db::CrateId;
@@ -81,6 +81,16 @@ pub enum ValueNs {
 }
 
 impl Resolver {
+    pub fn clone_no_expr(&self) -> Resolver {
+        Resolver {
+            module_scope: self.module_scope.clone(),
+            self_scope: self.self_scope,
+            generics_scope: self.generics_scope.clone(),
+            block_scope: self.block_scope.clone(),
+            expression_scopes: None,
+        }
+    }
+
     /// Resolve known trait from std, like `std::futures::Future`
     pub fn resolve_known_trait(&self, db: &dyn DefDatabase, path: &ModPath) -> Option<TraitId> {
         let res = self.resolve_module_path(db, path, BuiltinShadowMode::Other).take_types()?;
@@ -519,6 +529,49 @@ pub fn resolver_for_expr(db: &dyn DefDatabase, owner: DefWithBodyId, expr_id: Ex
     resolver_for_scope(db, owner, scopes.scope_for(expr_id))
 }
 
+pub struct ResolverExprBackup {
+    block_scope: Option<ModuleItemMap>,
+    expression_scopes: Option<(Vec<ScopeId>, Arc<ExprScopes>, DefWithBodyId)>,
+}
+
+impl ResolverExprBackup {
+    pub fn apply(self, r: &mut Resolver) {
+        r.block_scope = self.block_scope;
+        r.expression_scopes = self.expression_scopes;
+    }
+}
+
+pub fn replace_expr_for_resolver(
+    db: &dyn DefDatabase,
+    r: &mut Resolver,
+    owner: DefWithBodyId,
+    expr_id: ExprId,
+) -> ResolverExprBackup {
+    debug_assert!(r.expression_scopes.as_ref().map_or(true, |&(.., ow)| ow == owner));
+    let scopes = db.expr_scopes(owner);
+    let scope_id = scopes.scope_for(expr_id);
+
+    let old_block = mem::take(&mut r.block_scope);
+    let old_expr = mem::take(&mut r.expression_scopes);
+    let mut collect: Vec<_> = scopes
+        .scope_chain(scope_id)
+        .inspect(|&scope_id| {
+            // record innermost block scope
+            if r.block_scope.is_none() {
+                if let Some(block) = scopes.block(scope_id) {
+                    if let Some(def_map) = db.block_def_map(block) {
+                        let root = def_map.root();
+                        r.block_scope = Some(ModuleItemMap { def_map, module_id: root });
+                    }
+                }
+            }
+        })
+        .collect();
+    collect.reverse();
+    r.expression_scopes = Some((collect, scopes, owner));
+    ResolverExprBackup { block_scope: old_block, expression_scopes: old_expr }
+}
+
 pub fn resolver_for_scope(
     db: &dyn DefDatabase,
     owner: DefWithBodyId,
@@ -526,24 +579,22 @@ pub fn resolver_for_scope(
 ) -> Resolver {
     let mut r = owner.resolver(db);
     let scopes = db.expr_scopes(owner);
-    r.expression_scopes = Some((
-        scopes
-            .scope_chain(scope_id)
-            .inspect(|&scope_id| {
-                // record innermost block scope
-                if r.block_scope.is_none() {
-                    if let Some(block) = scopes.block(scope_id) {
-                        if let Some(def_map) = db.block_def_map(block) {
-                            let root = def_map.root();
-                            r.block_scope = Some(ModuleItemMap { def_map, module_id: root });
-                        }
+    let mut collect: Vec<_> = scopes
+        .scope_chain(scope_id)
+        .inspect(|&scope_id| {
+            // record innermost block scope
+            if r.block_scope.is_none() {
+                if let Some(block) = scopes.block(scope_id) {
+                    if let Some(def_map) = db.block_def_map(block) {
+                        let root = def_map.root();
+                        r.block_scope = Some(ModuleItemMap { def_map, module_id: root });
                     }
                 }
-            })
-            .collect(),
-        scopes,
-        owner,
-    ));
+            }
+        })
+        .collect();
+    collect.reverse();
+    r.expression_scopes = Some((collect, scopes, owner));
     r
 }
 
@@ -551,7 +602,7 @@ impl Resolver {
     fn expr_scopes(&self) -> Option<(impl Iterator<Item = ScopeId> + '_, &ExprScopes)> {
         self.expression_scopes
             .as_ref()
-            .map(|(scopes, expr_scopes, _)| (scopes.iter().copied(), &**expr_scopes))
+            .map(|(scopes, expr_scopes, _)| (scopes.iter().rev().copied(), &**expr_scopes))
     }
 
     fn generics_scopes(&self) -> impl Iterator<Item = &(GenericDefId, Interned<GenericParams>)> {

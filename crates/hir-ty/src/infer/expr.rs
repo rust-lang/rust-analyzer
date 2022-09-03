@@ -13,7 +13,7 @@ use hir_def::{
     expr::{ArithOp, Array, BinaryOp, CmpOp, Expr, ExprId, LabelId, Literal, Statement, UnaryOp},
     generics::TypeOrConstParamData,
     path::{GenericArg, GenericArgs},
-    resolver::resolver_for_expr,
+    resolver::replace_expr_for_resolver,
     ConstParamId, FieldId, ItemContainerId, Lookup,
 };
 use hir_expand::name::Name;
@@ -113,9 +113,11 @@ impl<'a> InferenceContext<'a> {
                 TyKind::Scalar(Scalar::Bool).intern(Interner)
             }
             Expr::Block { statements, tail, label, id: _ } => {
-                let old_resolver = mem::replace(
+                let resolver_backup = replace_expr_for_resolver(
+                    self.db.upcast(),
                     &mut self.resolver,
-                    resolver_for_expr(self.db.upcast(), self.owner, tgt_expr),
+                    self.owner,
+                    tgt_expr,
                 );
                 let ty = match label {
                     Some(_) => {
@@ -137,7 +139,7 @@ impl<'a> InferenceContext<'a> {
                     }
                     None => self.infer_block(tgt_expr, statements, *tail, expected),
                 };
-                self.resolver = old_resolver;
+                resolver_backup.apply(&mut self.resolver);
                 ty
             }
             Expr::Unsafe { body } => self.infer_expr(*body, expected),
@@ -369,7 +371,8 @@ impl<'a> InferenceContext<'a> {
             }
             Expr::Path(p) => {
                 // FIXME this could be more efficient...
-                let resolver = resolver_for_expr(self.db.upcast(), self.owner, tgt_expr);
+                let mut resolver = self.resolver.clone_no_expr();
+                replace_expr_for_resolver(self.db.upcast(), &mut resolver, self.owner, tgt_expr);
                 self.infer_path(&resolver, p, tgt_expr.into()).unwrap_or_else(|| self.err_ty())
             }
             Expr::Continue { label } => {
