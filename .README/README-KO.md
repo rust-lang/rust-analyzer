@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Quin0019/rust-analyzer/blob/master/README.md">en</a>
+  <a href="https://github.com/rust-lang/rust-analyzer/blob/master/README.md">en</a>
   <a href="#">ko</a>
 </p>
 
@@ -18,18 +18,19 @@ https://rust-analyzer.github.io/manual.html#installation
 
 ## 설명
 
-If you want to **contribute** to rust-analyzer or are just curious about how
-things work under the hood, check the [./docs/dev](./docs/dev) folder.
+Rust에 **기여**하는 방법이 궁금하다면 [.docs/dev](.docs/dev)폴더 확인.
 
 If you want to **use** rust-analyzer's language server with your editor of
 choice, check [the manual](https://rust-analyzer.github.io/manual.html) folder.
 It also contains some tips & tricks to help you be more productive when using rust-analyzer.
 
+
+
 ## Security and Privacy
 
 See the corresponding sections of [the manual](https://rust-analyzer.github.io/manual.html#security).
 
-## Communication
+## 커뮤니케이션
 
 For usage and troubleshooting requests, please use "IDEs and Editors" category of the Rust forum:
 
