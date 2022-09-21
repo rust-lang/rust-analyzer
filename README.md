@@ -4,9 +4,7 @@
     alt="rust-analyzer logo">
 </p>
 
-<p align="center">
-[ko](https://github.com/Quin0019/rust-analyzer/blob/master/.README/README-KO.md)
-</p>
+<p align="center" href="https://github.com/Quin0019/rust-analyzer/blob/master/.README/README-KO.md">ko</p>
 
 rust-analyzer is a modular compiler frontend for the Rust language.
 It is a part of a larger rls-2.0 effort to create excellent IDE support for Rust.
