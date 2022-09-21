@@ -18,7 +18,7 @@ https://rust-analyzer.github.io/manual.html#installation
 
 ## 설명
 
-Rust에 **기여**하는 방법이 궁금하다면 [.docs/dev](.docs/dev)폴더 확인.
+Rust에 **기여하는 방법**이 궁금하다면 [.docs/dev](.docs/dev)폴더 확인.
 
 If you want to **use** rust-analyzer's language server with your editor of
 choice, check [the manual](https://rust-analyzer.github.io/manual.html) folder.
