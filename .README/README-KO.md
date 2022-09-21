@@ -9,14 +9,14 @@
   <a href="#">ko</a>
 </p>
 
-rust-analyzer is a modular compiler frontend for the Rust language.
-It is a part of a larger rls-2.0 effort to create excellent IDE support for Rust.
+러스트 분석기는 러스트 언어를 위한 모듈형 컴파일러 프론트엔드이다.
+이는 Rust에 대한 우수한 IDE 지원을 만들기 위한 rls-2.0 노력의 일환이다.
 
-## Quick Start
+## 빠른 시작
 
 https://rust-analyzer.github.io/manual.html#installation
 
-## Documentation
+## 설명
 
 If you want to **contribute** to rust-analyzer or are just curious about how
 things work under the hood, check the [./docs/dev](./docs/dev) folder.
