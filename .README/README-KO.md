@@ -43,7 +43,6 @@ https://rust-lang.zulipchat.com/#narrow/stream/185405-t-compiler.2Frust-analyzer
 
 ## License
 
-rust-analyzer is primarily distributed under the terms of both the MIT
-license and the Apache License (Version 2.0).
+rust-analyzer은 MIT 라이선스 및 Apache 라이선스(버전 2.0)를 참조하십시오
 
-See LICENSE-APACHE and LICENSE-MIT for details.
+자세한 내용은 LICENSE-APSCHE와 LICENSE-MIT를 참고하시오.
