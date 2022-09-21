@@ -33,3 +33,17 @@ https://users.rust-lang.org/c/ide/14
 
 개발 및 구현에 대한 질문은 Zulip에서 rust-analyzer 작업 그룹에 가입하세요:
 https://rust-lang.zulipchat.com/#narrow/stream/185405-t-compiler.2Frust-analyzer
+
+## Quick Links
+
+* Website: https://rust-analyzer.github.io/
+* Metrics: https://rust-analyzer.github.io/metrics/
+* API docs: https://rust-lang.github.io/rust-analyzer/ide/
+* Changelog: https://rust-analyzer.github.io/thisweek
+
+## License
+
+rust-analyzer is primarily distributed under the terms of both the MIT
+license and the Apache License (Version 2.0).
+
+See LICENSE-APACHE and LICENSE-MIT for details.
