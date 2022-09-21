@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="#">en</a>
-  <a href="https://github.com/Quin0019/rust-analyzer/blob/master/.README/README-KO.md">ko</a>
+  <a href=".README/README-KO.md">ko</a>
 </p>
 
 rust-analyzer is a modular compiler frontend for the Rust language.
