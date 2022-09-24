@@ -1219,6 +1219,40 @@ fn main() {
 }
 
 #[test]
+fn dyn_trait_method_priority() {
+    check_types(
+        r#"
+//- minicore: from
+trait Trait {
+    fn into(&self) -> usize { 0 }
+}
+
+fn foo(a: &dyn Trait) {
+    let _ = a.into();
+      //^usize
+}
+        "#,
+    );
+}
+
+#[test]
+fn trait_method_priority_for_placeholder_type() {
+    check_types(
+        r#"
+//- minicore: from
+trait Trait {
+    fn into(&self) -> usize { 0 }
+}
+
+fn foo<T: Trait>(a: &T) {
+    let _ = a.into();
+      //^usize
+}
+        "#,
+    );
+}
+
+#[test]
 fn autoderef_visibility_field() {
     check(
         r#"
@@ -1789,4 +1823,47 @@ impl u16 {
 }
         "#,
     )
+}
+
+#[test]
+fn with_impl_bounds() {
+    check_types(
+        r#"
+trait Trait {}
+struct Foo<T>(T);
+impl Trait for isize {}
+
+impl<T: Trait> Foo<T> {
+  fn foo() -> isize { 0 }
+  fn bar(&self) -> isize { 0 }
+}
+
+impl Foo<()> {
+  fn foo() {}
+  fn bar(&self) {}
+}
+
+fn f() {
+  let _ = Foo::<isize>::foo();
+    //^isize
+  let _ = Foo(0isize).bar();
+    //^isize
+  let _ = Foo::<()>::foo();
+    //^()
+  let _ = Foo(()).bar();
+    //^()
+  let _ = Foo::<usize>::foo();
+    //^{unknown}
+  let _ = Foo(0usize).bar();
+    //^{unknown}
+}
+
+fn g<T: Trait>(a: T) {
+    let _ = Foo::<T>::foo();
+      //^isize
+    let _ = Foo(a).bar();
+      //^isize
+}
+        "#,
+    );
 }

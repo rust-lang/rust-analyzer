@@ -1,4 +1,4 @@
-use std::{convert::TryInto, mem::discriminant};
+use std::mem::discriminant;
 
 use crate::{doc_links::token_as_doc_comment, FilePosition, NavigationTarget, RangeInfo, TryToNav};
 use hir::{AsAssocItem, AssocItem, Semantics};
@@ -1657,6 +1657,40 @@ impl core::future::Future for MyFut {
 
 fn f() {
     MyFut.await$0;
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn goto_await_into_future_poll() {
+        check(
+            r#"
+//- minicore: future
+
+struct Futurable;
+
+impl core::future::IntoFuture for Futurable {
+    type IntoFuture = MyFut;
+}
+
+struct MyFut;
+
+impl core::future::Future for MyFut {
+    type Output = ();
+
+    fn poll(
+     //^^^^
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>
+    ) -> std::task::Poll<Self::Output>
+    {
+        ()
+    }
+}
+
+fn f() {
+    Futurable.await$0;
 }
 "#,
         );

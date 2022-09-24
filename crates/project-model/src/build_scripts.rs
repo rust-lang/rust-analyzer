@@ -12,9 +12,10 @@ use cargo_metadata::{camino::Utf8Path, Message};
 use la_arena::ArenaMap;
 use paths::AbsPathBuf;
 use rustc_hash::FxHashMap;
+use semver::Version;
 use serde::Deserialize;
 
-use crate::{cfg_flag::CfgFlag, CargoConfig, CargoWorkspace, Package};
+use crate::{cfg_flag::CfgFlag, CargoConfig, CargoFeatures, CargoWorkspace, Package};
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct WorkspaceBuildScripts {
@@ -42,11 +43,12 @@ impl WorkspaceBuildScripts {
         if let Some([program, args @ ..]) = config.run_build_script_command.as_deref() {
             let mut cmd = Command::new(program);
             cmd.args(args);
+            cmd.envs(&config.extra_env);
             return cmd;
         }
 
         let mut cmd = Command::new(toolchain::cargo());
-
+        cmd.envs(&config.extra_env);
         cmd.args(&["check", "--quiet", "--workspace", "--message-format=json"]);
 
         // --all-targets includes tests, benches and examples in addition to the
@@ -58,15 +60,18 @@ impl WorkspaceBuildScripts {
             cmd.args(&["--target", target]);
         }
 
-        if config.all_features {
-            cmd.arg("--all-features");
-        } else {
-            if config.no_default_features {
-                cmd.arg("--no-default-features");
+        match &config.features {
+            CargoFeatures::All => {
+                cmd.arg("--all-features");
             }
-            if !config.features.is_empty() {
-                cmd.arg("--features");
-                cmd.arg(config.features.join(" "));
+            CargoFeatures::Selected { features, no_default_features } => {
+                if *no_default_features {
+                    cmd.arg("--no-default-features");
+                }
+                if !features.is_empty() {
+                    cmd.arg("--features");
+                    cmd.arg(features.join(" "));
+                }
             }
         }
 
@@ -77,9 +82,32 @@ impl WorkspaceBuildScripts {
         config: &CargoConfig,
         workspace: &CargoWorkspace,
         progress: &dyn Fn(String),
+        toolchain: &Option<Version>,
     ) -> io::Result<WorkspaceBuildScripts> {
-        let mut cmd = Self::build_command(config);
+        const RUST_1_62: Version = Version::new(1, 62, 0);
 
+        match Self::run_(Self::build_command(config), config, workspace, progress) {
+            Ok(WorkspaceBuildScripts { error: Some(error), .. })
+                if toolchain.as_ref().map_or(false, |it| *it >= RUST_1_62) =>
+            {
+                // building build scripts failed, attempt to build with --keep-going so
+                // that we potentially get more build data
+                let mut cmd = Self::build_command(config);
+                cmd.args(&["-Z", "unstable-options", "--keep-going"]).env("RUSTC_BOOTSTRAP", "1");
+                let mut res = Self::run_(cmd, config, workspace, progress)?;
+                res.error = Some(error);
+                Ok(res)
+            }
+            res => res,
+        }
+    }
+
+    fn run_(
+        mut cmd: Command,
+        config: &CargoConfig,
+        workspace: &CargoWorkspace,
+        progress: &dyn Fn(String),
+    ) -> io::Result<WorkspaceBuildScripts> {
         if config.wrap_rustc_in_build_scripts {
             // Setup RUSTC_WRAPPER to point to `rust-analyzer` binary itself. We use
             // that to compile only proc macros and build scripts during the initial

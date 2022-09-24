@@ -19,6 +19,7 @@ use std::sync::Arc;
 use chalk_ir::{cast::Cast, ConstValue, DebruijnIndex, Mutability, Safety, Scalar, TypeFlags};
 use hir_def::{
     body::Body,
+    builtin_type::BuiltinType,
     data::{ConstData, StaticData},
     expr::{BindingAnnotation, ExprId, PatId},
     lang_item::LangItemTarget,
@@ -67,6 +68,12 @@ pub(crate) fn infer_query(db: &dyn HirDatabase, def: DefWithBodyId) -> Arc<Infer
         DefWithBodyId::ConstId(c) => ctx.collect_const(&db.const_data(c)),
         DefWithBodyId::FunctionId(f) => ctx.collect_fn(f),
         DefWithBodyId::StaticId(s) => ctx.collect_static(&db.static_data(s)),
+        DefWithBodyId::VariantId(v) => {
+            ctx.return_ty = TyBuilder::builtin(match db.enum_data(v.parent).variant_body_type() {
+                Either::Left(builtin) => BuiltinType::Int(builtin),
+                Either::Right(builtin) => BuiltinType::Uint(builtin),
+            });
+        }
     }
 
     ctx.infer_body();
@@ -182,7 +189,7 @@ pub(crate) type InferResult<T> = Result<InferOk<T>, TypeError>;
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum InferenceDiagnostic {
     NoSuchField { expr: ExprId },
-    BreakOutsideOfLoop { expr: ExprId },
+    BreakOutsideOfLoop { expr: ExprId, is_break: bool },
     MismatchedArgCount { call_expr: ExprId, expected: usize, found: usize },
 }
 
@@ -418,18 +425,45 @@ pub(crate) struct InferenceContext<'a> {
 
 #[derive(Clone, Debug)]
 struct BreakableContext {
+    /// Whether this context contains at least one break expression.
     may_break: bool,
+    /// The coercion target of the context.
     coerce: CoerceMany,
+    /// The optional label of the context.
     label: Option<name::Name>,
+    kind: BreakableKind,
+}
+
+#[derive(Clone, Debug)]
+enum BreakableKind {
+    Block,
+    Loop,
+    /// A border is something like an async block, closure etc. Anything that prevents
+    /// breaking/continuing through
+    Border,
 }
 
 fn find_breakable<'c>(
     ctxs: &'c mut [BreakableContext],
     label: Option<&name::Name>,
 ) -> Option<&'c mut BreakableContext> {
+    let mut ctxs = ctxs
+        .iter_mut()
+        .rev()
+        .take_while(|it| matches!(it.kind, BreakableKind::Block | BreakableKind::Loop));
     match label {
-        Some(_) => ctxs.iter_mut().rev().find(|ctx| ctx.label.as_ref() == label),
-        None => ctxs.last_mut(),
+        Some(_) => ctxs.find(|ctx| ctx.label.as_ref() == label),
+        None => ctxs.find(|ctx| matches!(ctx.kind, BreakableKind::Loop)),
+    }
+}
+
+fn find_continuable<'c>(
+    ctxs: &'c mut [BreakableContext],
+    label: Option<&name::Name>,
+) -> Option<&'c mut BreakableContext> {
+    match label {
+        Some(_) => find_breakable(ctxs, label).filter(|it| matches!(it.kind, BreakableKind::Loop)),
+        None => find_breakable(ctxs, label),
     }
 }
 
@@ -646,10 +680,6 @@ impl<'a> InferenceContext<'a> {
         )
     }
 
-    fn resolve_obligations_as_possible(&mut self) {
-        self.table.resolve_obligations_as_possible();
-    }
-
     fn push_obligation(&mut self, o: DomainGoal) {
         self.table.register_obligation(o.cast(Interner));
     }
@@ -669,7 +699,6 @@ impl<'a> InferenceContext<'a> {
     }
 
     fn resolve_ty_shallow(&mut self, ty: &Ty) -> Ty {
-        self.resolve_obligations_as_possible();
         self.table.resolve_ty_shallow(ty)
     }
 
@@ -734,6 +763,7 @@ impl<'a> InferenceContext<'a> {
                         let ty = self.insert_type_vars(ty.substitute(Interner, &substs));
                         return (ty, Some(strukt.into()));
                     }
+                    ValueNs::ImplSelf(impl_id) => (TypeNs::SelfType(impl_id), None),
                     _ => return (self.err_ty(), None),
                 },
                 Some(ResolveValueResult::Partial(typens, unresolved)) => (typens, Some(unresolved)),
@@ -875,7 +905,10 @@ impl<'a> InferenceContext<'a> {
     }
 
     fn resolve_future_future_output(&self) -> Option<TypeAliasId> {
-        let trait_ = self.resolve_lang_item(name![future_trait])?.as_trait()?;
+        let trait_ = self
+            .resolver
+            .resolve_known_trait(self.db.upcast(), &path![core::future::IntoFuture])
+            .or_else(|| self.resolve_lang_item(name![future_trait])?.as_trait())?;
         self.db.trait_data(trait_).associated_type_by_name(&name![Output])
     }
 

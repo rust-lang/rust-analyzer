@@ -9,8 +9,9 @@ use ide::{
     Annotation, AnnotationKind, Assist, AssistKind, Cancellable, CompletionItem,
     CompletionItemKind, CompletionRelevance, Documentation, FileId, FileRange, FileSystemEdit,
     Fold, FoldKind, Highlight, HlMod, HlOperator, HlPunct, HlRange, HlTag, Indel, InlayHint,
-    InlayKind, Markup, NavigationTarget, ReferenceCategory, RenameError, Runnable, Severity,
-    SignatureHelp, SourceChange, StructureNodeKind, SymbolKind, TextEdit, TextRange, TextSize,
+    InlayHintLabel, InlayKind, Markup, NavigationTarget, ReferenceCategory, RenameError, Runnable,
+    Severity, SignatureHelp, SourceChange, StructureNodeKind, SymbolKind, TextEdit, TextRange,
+    TextSize,
 };
 use itertools::Itertools;
 use serde_json::to_value;
@@ -82,10 +83,11 @@ pub(crate) fn structure_node_kind(kind: StructureNodeKind) -> lsp_types::SymbolK
 
 pub(crate) fn document_highlight_kind(
     category: ReferenceCategory,
-) -> lsp_types::DocumentHighlightKind {
+) -> Option<lsp_types::DocumentHighlightKind> {
     match category {
-        ReferenceCategory::Read => lsp_types::DocumentHighlightKind::READ,
-        ReferenceCategory::Write => lsp_types::DocumentHighlightKind::WRITE,
+        ReferenceCategory::Read => Some(lsp_types::DocumentHighlightKind::READ),
+        ReferenceCategory::Write => Some(lsp_types::DocumentHighlightKind::WRITE),
+        ReferenceCategory::Import => None,
     }
 }
 
@@ -426,9 +428,16 @@ pub(crate) fn inlay_hint(
     snap: &GlobalStateSnapshot,
     line_index: &LineIndex,
     render_colons: bool,
-    inlay_hint: InlayHint,
-) -> lsp_types::InlayHint {
-    lsp_types::InlayHint {
+    mut inlay_hint: InlayHint,
+) -> Result<lsp_types::InlayHint> {
+    match inlay_hint.kind {
+        InlayKind::ParameterHint if render_colons => inlay_hint.label.append_str(":"),
+        InlayKind::TypeHint if render_colons => inlay_hint.label.prepend_str(": "),
+        InlayKind::ClosureReturnTypeHint => inlay_hint.label.prepend_str(" -> "),
+        _ => {}
+    }
+
+    Ok(lsp_types::InlayHint {
         position: match inlay_hint.kind {
             // before annotated thing
             InlayKind::ParameterHint
@@ -459,14 +468,8 @@ pub(crate) fn inlay_hint(
             | InlayKind::ImplicitReborrowHint
             | InlayKind::TypeHint
             | InlayKind::ClosingBraceHint => false,
-            InlayKind::BindingModeHint => inlay_hint.label != "&",
+            InlayKind::BindingModeHint => inlay_hint.label.as_simple_str() != Some("&"),
             InlayKind::ParameterHint | InlayKind::LifetimeHint => true,
-        }),
-        label: lsp_types::InlayHintLabel::String(match inlay_hint.kind {
-            InlayKind::ParameterHint if render_colons => format!("{}:", inlay_hint.label),
-            InlayKind::TypeHint if render_colons => format!(": {}", inlay_hint.label),
-            InlayKind::ClosureReturnTypeHint => format!(" -> {}", inlay_hint.label),
-            _ => inlay_hint.label.clone(),
         }),
         kind: match inlay_hint.kind {
             InlayKind::ParameterHint => Some(lsp_types::InlayHintKind::PARAMETER),
@@ -506,9 +509,36 @@ pub(crate) fn inlay_hint(
         })(),
         tooltip: Some(match inlay_hint.tooltip {
             Some(ide::InlayTooltip::String(s)) => lsp_types::InlayHintTooltip::String(s),
-            _ => lsp_types::InlayHintTooltip::String(inlay_hint.label),
+            _ => lsp_types::InlayHintTooltip::String(inlay_hint.label.to_string()),
         }),
-    }
+        label: inlay_hint_label(snap, inlay_hint.label)?,
+    })
+}
+
+fn inlay_hint_label(
+    snap: &GlobalStateSnapshot,
+    label: InlayHintLabel,
+) -> Result<lsp_types::InlayHintLabel> {
+    Ok(match label.as_simple_str() {
+        Some(s) => lsp_types::InlayHintLabel::String(s.into()),
+        None => lsp_types::InlayHintLabel::LabelParts(
+            label
+                .parts
+                .into_iter()
+                .map(|part| {
+                    Ok(lsp_types::InlayHintLabelPart {
+                        value: part.text,
+                        tooltip: None,
+                        location: part
+                            .linked_location
+                            .map(|range| location(snap, range))
+                            .transpose()?,
+                        command: None,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?,
+        ),
+    })
 }
 
 static TOKEN_RESULT_COUNTER: AtomicU32 = AtomicU32::new(1);
@@ -517,7 +547,6 @@ pub(crate) fn semantic_tokens(
     text: &str,
     line_index: &LineIndex,
     highlights: Vec<HlRange>,
-    highlight_strings: bool,
 ) -> lsp_types::SemanticTokens {
     let id = TOKEN_RESULT_COUNTER.fetch_add(1, Ordering::SeqCst).to_string();
     let mut builder = semantic_tokens::SemanticTokensBuilder::new(id);
@@ -526,10 +555,8 @@ pub(crate) fn semantic_tokens(
         if highlight_range.highlight.is_empty() {
             continue;
         }
+
         let (ty, mods) = semantic_token_type_and_modifiers(highlight_range.highlight);
-        if !highlight_strings && ty == lsp_types::SemanticTokenType::STRING {
-            continue;
-        }
         let token_index = semantic_tokens::type_index(ty);
         let modifier_bitset = mods.0;
 
@@ -561,55 +588,55 @@ fn semantic_token_type_and_modifiers(
     let mut mods = semantic_tokens::ModifierSet::default();
     let type_ = match highlight.tag {
         HlTag::Symbol(symbol) => match symbol {
-            SymbolKind::Attribute => semantic_tokens::ATTRIBUTE,
+            SymbolKind::Attribute => semantic_tokens::DECORATOR,
             SymbolKind::Derive => semantic_tokens::DERIVE,
             SymbolKind::DeriveHelper => semantic_tokens::DERIVE_HELPER,
-            SymbolKind::Module => lsp_types::SemanticTokenType::NAMESPACE,
+            SymbolKind::Module => semantic_tokens::NAMESPACE,
             SymbolKind::Impl => semantic_tokens::TYPE_ALIAS,
-            SymbolKind::Field => lsp_types::SemanticTokenType::PROPERTY,
-            SymbolKind::TypeParam => lsp_types::SemanticTokenType::TYPE_PARAMETER,
+            SymbolKind::Field => semantic_tokens::PROPERTY,
+            SymbolKind::TypeParam => semantic_tokens::TYPE_PARAMETER,
             SymbolKind::ConstParam => semantic_tokens::CONST_PARAMETER,
             SymbolKind::LifetimeParam => semantic_tokens::LIFETIME,
             SymbolKind::Label => semantic_tokens::LABEL,
-            SymbolKind::ValueParam => lsp_types::SemanticTokenType::PARAMETER,
+            SymbolKind::ValueParam => semantic_tokens::PARAMETER,
             SymbolKind::SelfParam => semantic_tokens::SELF_KEYWORD,
             SymbolKind::SelfType => semantic_tokens::SELF_TYPE_KEYWORD,
-            SymbolKind::Local => lsp_types::SemanticTokenType::VARIABLE,
+            SymbolKind::Local => semantic_tokens::VARIABLE,
             SymbolKind::Function => {
                 if highlight.mods.contains(HlMod::Associated) {
-                    lsp_types::SemanticTokenType::METHOD
+                    semantic_tokens::METHOD
                 } else {
-                    lsp_types::SemanticTokenType::FUNCTION
+                    semantic_tokens::FUNCTION
                 }
             }
             SymbolKind::Const => {
                 mods |= semantic_tokens::CONSTANT;
-                mods |= lsp_types::SemanticTokenModifier::STATIC;
-                lsp_types::SemanticTokenType::VARIABLE
+                mods |= semantic_tokens::STATIC;
+                semantic_tokens::VARIABLE
             }
             SymbolKind::Static => {
-                mods |= lsp_types::SemanticTokenModifier::STATIC;
-                lsp_types::SemanticTokenType::VARIABLE
+                mods |= semantic_tokens::STATIC;
+                semantic_tokens::VARIABLE
             }
-            SymbolKind::Struct => lsp_types::SemanticTokenType::STRUCT,
-            SymbolKind::Enum => lsp_types::SemanticTokenType::ENUM,
-            SymbolKind::Variant => lsp_types::SemanticTokenType::ENUM_MEMBER,
+            SymbolKind::Struct => semantic_tokens::STRUCT,
+            SymbolKind::Enum => semantic_tokens::ENUM,
+            SymbolKind::Variant => semantic_tokens::ENUM_MEMBER,
             SymbolKind::Union => semantic_tokens::UNION,
             SymbolKind::TypeAlias => semantic_tokens::TYPE_ALIAS,
-            SymbolKind::Trait => lsp_types::SemanticTokenType::INTERFACE,
-            SymbolKind::Macro => lsp_types::SemanticTokenType::MACRO,
+            SymbolKind::Trait => semantic_tokens::INTERFACE,
+            SymbolKind::Macro => semantic_tokens::MACRO,
             SymbolKind::BuiltinAttr => semantic_tokens::BUILTIN_ATTRIBUTE,
             SymbolKind::ToolModule => semantic_tokens::TOOL_MODULE,
         },
         HlTag::AttributeBracket => semantic_tokens::ATTRIBUTE_BRACKET,
         HlTag::BoolLiteral => semantic_tokens::BOOLEAN,
         HlTag::BuiltinType => semantic_tokens::BUILTIN_TYPE,
-        HlTag::ByteLiteral | HlTag::NumericLiteral => lsp_types::SemanticTokenType::NUMBER,
+        HlTag::ByteLiteral | HlTag::NumericLiteral => semantic_tokens::NUMBER,
         HlTag::CharLiteral => semantic_tokens::CHAR,
-        HlTag::Comment => lsp_types::SemanticTokenType::COMMENT,
+        HlTag::Comment => semantic_tokens::COMMENT,
         HlTag::EscapeSequence => semantic_tokens::ESCAPE_SEQUENCE,
         HlTag::FormatSpecifier => semantic_tokens::FORMAT_SPECIFIER,
-        HlTag::Keyword => lsp_types::SemanticTokenType::KEYWORD,
+        HlTag::Keyword => semantic_tokens::KEYWORD,
         HlTag::None => semantic_tokens::GENERIC,
         HlTag::Operator(op) => match op {
             HlOperator::Bitwise => semantic_tokens::BITWISE,
@@ -618,7 +645,7 @@ fn semantic_token_type_and_modifiers(
             HlOperator::Comparison => semantic_tokens::COMPARISON,
             HlOperator::Other => semantic_tokens::OPERATOR,
         },
-        HlTag::StringLiteral => lsp_types::SemanticTokenType::STRING,
+        HlTag::StringLiteral => semantic_tokens::STRING,
         HlTag::UnresolvedReference => semantic_tokens::UNRESOLVED_REFERENCE,
         HlTag::Punctuation(punct) => match punct {
             HlPunct::Bracket => semantic_tokens::BRACKET,
@@ -643,16 +670,16 @@ fn semantic_token_type_and_modifiers(
             HlMod::Consuming => semantic_tokens::CONSUMING,
             HlMod::ControlFlow => semantic_tokens::CONTROL_FLOW,
             HlMod::CrateRoot => semantic_tokens::CRATE_ROOT,
-            HlMod::DefaultLibrary => lsp_types::SemanticTokenModifier::DEFAULT_LIBRARY,
-            HlMod::Definition => lsp_types::SemanticTokenModifier::DECLARATION,
-            HlMod::Documentation => lsp_types::SemanticTokenModifier::DOCUMENTATION,
+            HlMod::DefaultLibrary => semantic_tokens::DEFAULT_LIBRARY,
+            HlMod::Definition => semantic_tokens::DECLARATION,
+            HlMod::Documentation => semantic_tokens::DOCUMENTATION,
             HlMod::Injected => semantic_tokens::INJECTED,
             HlMod::IntraDocLink => semantic_tokens::INTRA_DOC_LINK,
             HlMod::Library => semantic_tokens::LIBRARY,
             HlMod::Mutable => semantic_tokens::MUTABLE,
             HlMod::Public => semantic_tokens::PUBLIC,
             HlMod::Reference => semantic_tokens::REFERENCE,
-            HlMod::Static => lsp_types::SemanticTokenModifier::STATIC,
+            HlMod::Static => semantic_tokens::STATIC,
             HlMod::Trait => semantic_tokens::TRAIT_MODIFIER,
             HlMod::Unsafe => semantic_tokens::UNSAFE,
         };
@@ -1386,7 +1413,7 @@ fn main() {
     #[test]
     #[cfg(target_os = "windows")]
     fn test_lowercase_drive_letter() {
-        use std::{convert::TryInto, path::Path};
+        use std::path::Path;
 
         let url = url_from_abs_path(Path::new("C:\\Test").try_into().unwrap());
         assert_eq!(url.to_string(), "file:///c:/Test");

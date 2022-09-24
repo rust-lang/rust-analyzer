@@ -20,12 +20,15 @@
 mod dylib;
 mod abis;
 
+pub mod cli;
+
 use std::{
     collections::{hash_map::Entry, HashMap},
     env,
     ffi::OsString,
     fs,
     path::{Path, PathBuf},
+    thread,
     time::SystemTime,
 };
 
@@ -65,18 +68,16 @@ impl ProcMacroSrv {
 
         let macro_body = task.macro_body.to_subtree();
         let attributes = task.attributes.map(|it| it.to_subtree());
-        // FIXME: replace this with std's scoped threads once they stabilize
-        // (then remove dependency on crossbeam)
-        let result = crossbeam::scope(|s| {
-            let res = match s
-                .builder()
+        let result = thread::scope(|s| {
+            let thread = thread::Builder::new()
                 .stack_size(EXPANDER_STACK_SIZE)
                 .name(task.macro_name.clone())
-                .spawn(|_| {
+                .spawn_scoped(s, || {
                     expander
                         .expand(&task.macro_name, &macro_body, attributes.as_ref())
                         .map(|it| FlatTree::new(&it))
-                }) {
+                });
+            let res = match thread {
                 Ok(handle) => handle.join(),
                 Err(e) => std::panic::resume_unwind(Box::new(e)),
             };
@@ -86,10 +87,6 @@ impl ProcMacroSrv {
                 Err(e) => std::panic::resume_unwind(e),
             }
         });
-        let result = match result {
-            Ok(result) => result,
-            Err(e) => std::panic::resume_unwind(e),
-        };
 
         prev_env.rollback();
 
@@ -154,7 +151,10 @@ impl EnvSnapshot {
     }
 }
 
-pub mod cli;
+#[cfg(all(feature = "sysroot-abi", test))]
+mod tests;
 
 #[cfg(test)]
-mod tests;
+pub fn proc_macro_test_dylib_path() -> std::path::PathBuf {
+    proc_macro_test::PROC_MACRO_TEST_LOCATION.into()
+}

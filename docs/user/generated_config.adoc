@@ -46,6 +46,12 @@ cargo check --quiet --workspace --message-format=json --all-targets
 Use `RUSTC_WRAPPER=rust-analyzer` when running build scripts to
 avoid checking unnecessary things.
 --
+[[rust-analyzer.cargo.extraEnv]]rust-analyzer.cargo.extraEnv (default: `{}`)::
++
+--
+Extra environment variables that will be set when running cargo, rustc
+or other commands within the workspace. Useful for setting RUSTFLAGS.
+--
 [[rust-analyzer.cargo.features]]rust-analyzer.cargo.features (default: `[]`)::
 +
 --
@@ -93,6 +99,12 @@ Run specified `cargo check` command for diagnostics on save.
 --
 Extra arguments for `cargo check`.
 --
+[[rust-analyzer.checkOnSave.extraEnv]]rust-analyzer.checkOnSave.extraEnv (default: `{}`)::
++
+--
+Extra environment variables that will be set when running `cargo check`.
+Extends `#rust-analyzer.cargo.extraEnv#`.
+--
 [[rust-analyzer.checkOnSave.features]]rust-analyzer.checkOnSave.features (default: `null`)::
 +
 --
@@ -117,6 +129,10 @@ should therefor include `--message-format=json` or a similar option.
 If you're changing this because you're using some tool wrapping
 Cargo, you might also want to change
 `#rust-analyzer.cargo.buildScripts.overrideCommand#`.
+
+If there are multiple linked projects, this command is invoked for
+each of them, with the working directory being the project root
+(i.e., the folder containing the `Cargo.toml`).
 
 An example command would be:
 
@@ -318,6 +334,12 @@ Whether to show `Run` action. Only applies when
 --
 Whether to show documentation on hover.
 --
+[[rust-analyzer.hover.documentation.keywords.enable]]rust-analyzer.hover.documentation.keywords.enable (default: `true`)::
++
+--
+Whether to show keyword hover popups. Only applies when
+`#rust-analyzer.hover.documentation.enable#` is set.
+--
 [[rust-analyzer.hover.links.enable]]rust-analyzer.hover.links.enable (default: `true`)::
 +
 --
@@ -342,6 +364,11 @@ Group inserted imports by the https://rust-analyzer.github.io/manual.html#auto-i
 +
 --
 Whether to allow import insertion to merge new imports into single path glob imports like `use std::fmt::*;`.
+--
+[[rust-analyzer.imports.prefer.no.std]]rust-analyzer.imports.prefer.no.std (default: `false`)::
++
+--
+Prefer to unconditionally use imports of the core and alloc crate, over the std crate.
 --
 [[rust-analyzer.imports.prefix]]rust-analyzer.imports.prefix (default: `"plain"`)::
 +
@@ -464,6 +491,11 @@ client doesn't set the corresponding capability.
 Whether to show `Implementations` lens. Only applies when
 `#rust-analyzer.lens.enable#` is set.
 --
+[[rust-analyzer.lens.location]]rust-analyzer.lens.location (default: `"above_name"`)::
++
+--
+Where to render annotations.
+--
 [[rust-analyzer.lens.references.adt.enable]]rust-analyzer.lens.references.adt.enable (default: `false`)::
 +
 --
@@ -536,6 +568,11 @@ This config takes a map of crate names with the exported proc-macro names to ign
 Internal config, path to proc-macro server executable (typically,
 this is rust-analyzer itself, but we override this in tests).
 --
+[[rust-analyzer.references.excludeImports]]rust-analyzer.references.excludeImports (default: `false`)::
++
+--
+Exclude imports from find-all-references.
+--
 [[rust-analyzer.runnables.command]]rust-analyzer.runnables.command (default: `null`)::
 +
 --
@@ -576,6 +613,52 @@ formatting.
 Enables the use of rustfmt's unstable range formatting command for the
 `textDocument/rangeFormatting` request. The rustfmt option is unstable and only
 available on a nightly build.
+--
+[[rust-analyzer.semanticHighlighting.doc.comment.inject.enable]]rust-analyzer.semanticHighlighting.doc.comment.inject.enable (default: `true`)::
++
+--
+Inject additional highlighting into doc comments.
+
+When enabled, rust-analyzer will highlight rust source in doc comments as well as intra
+doc links.
+--
+[[rust-analyzer.semanticHighlighting.operator.enable]]rust-analyzer.semanticHighlighting.operator.enable (default: `true`)::
++
+--
+Use semantic tokens for operators.
+
+When disabled, rust-analyzer will emit semantic tokens only for operator tokens when
+they are tagged with modifiers.
+--
+[[rust-analyzer.semanticHighlighting.operator.specialization.enable]]rust-analyzer.semanticHighlighting.operator.specialization.enable (default: `false`)::
++
+--
+Use specialized semantic tokens for operators.
+
+When enabled, rust-analyzer will emit special token types for operator tokens instead
+of the generic `operator` token type.
+--
+[[rust-analyzer.semanticHighlighting.punctuation.enable]]rust-analyzer.semanticHighlighting.punctuation.enable (default: `false`)::
++
+--
+Use semantic tokens for punctuations.
+
+When disabled, rust-analyzer will emit semantic tokens only for punctuation tokens when
+they are tagged with modifiers or have a special role.
+--
+[[rust-analyzer.semanticHighlighting.punctuation.separate.macro.bang]]rust-analyzer.semanticHighlighting.punctuation.separate.macro.bang (default: `false`)::
++
+--
+When enabled, rust-analyzer will emit a punctuation semantic token for the `!` of macro
+calls.
+--
+[[rust-analyzer.semanticHighlighting.punctuation.specialization.enable]]rust-analyzer.semanticHighlighting.punctuation.specialization.enable (default: `false`)::
++
+--
+Use specialized semantic tokens for punctuations.
+
+When enabled, rust-analyzer will emit special token types for punctuation tokens instead
+of the generic `punctuation` token type.
 --
 [[rust-analyzer.semanticHighlighting.strings.enable]]rust-analyzer.semanticHighlighting.strings.enable (default: `true`)::
 +

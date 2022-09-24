@@ -467,7 +467,7 @@ fn foo() {
 fn completes_enum_variant_pat() {
     cov_mark::check!(enum_variant_pattern_path);
     check_edit(
-        "RecordVariant {…}",
+        "RecordVariant{}",
         r#"
 enum Enum {
     RecordVariant { field: u32 }
@@ -711,6 +711,33 @@ impl Ty {
             bn Ty(…)   Ty($1): Ty$0
             kw mut
             kw ref
+        "#]],
+    );
+}
+
+#[test]
+fn through_alias() {
+    check_empty(
+        r#"
+enum Enum<T> {
+    Unit,
+    Tuple(T),
+}
+
+type EnumAlias<T> = Enum<T>;
+
+fn f(x: EnumAlias<u8>) {
+    match x {
+        EnumAlias::$0 => (),
+        _ => (),
+    }
+
+}
+
+"#,
+        expect![[r#"
+            bn Tuple(…) Tuple($1)$0
+            bn Unit     Unit$0
         "#]],
     );
 }

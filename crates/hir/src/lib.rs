@@ -39,7 +39,7 @@ use arrayvec::ArrayVec;
 use base_db::{CrateDisplayName, CrateId, CrateOrigin, Edition, FileId, ProcMacroKind};
 use either::Either;
 use hir_def::{
-    adt::{ReprKind, VariantData},
+    adt::{ReprData, VariantData},
     body::{BodyDiagnostic, SyntheticSyntax},
     expr::{BindingAnnotation, LabelId, Pat, PatId},
     generics::{TypeOrConstParamData, TypeParamProvenance},
@@ -50,7 +50,7 @@ use hir_def::{
     resolver::{HasResolver, Resolver},
     src::HasSource as _,
     AdtId, AssocItemId, AssocItemLoc, AttrDefId, ConstId, ConstParamId, DefWithBodyId, EnumId,
-    FunctionId, GenericDefId, HasModule, ImplId, ItemContainerId, LifetimeParamId,
+    EnumVariantId, FunctionId, GenericDefId, HasModule, ImplId, ItemContainerId, LifetimeParamId,
     LocalEnumVariantId, LocalFieldId, Lookup, MacroExpander, MacroId, ModuleId, StaticId, StructId,
     TraitId, TypeAliasId, TypeOrConstParamId, TypeParamId, UnionId,
 };
@@ -63,18 +63,17 @@ use hir_ty::{
     primitive::UintTy,
     subst_prefix,
     traits::FnTrait,
-    AliasEq, AliasTy, BoundVar, CallableDefId, CallableSig, Canonical, CanonicalVarKinds, Cast,
-    ClosureId, DebruijnIndex, GenericArgData, InEnvironment, Interner, ParamKind,
-    QuantifiedWhereClause, Scalar, Solution, Substitution, TraitEnvironment, TraitRefExt, Ty,
-    TyBuilder, TyDefId, TyExt, TyKind, TyVariableKind, WhereClause,
+    AliasTy, CallableDefId, CallableSig, Canonical, CanonicalVarKinds, Cast, ClosureId,
+    GenericArgData, Interner, ParamKind, QuantifiedWhereClause, Scalar, Substitution,
+    TraitEnvironment, TraitRefExt, Ty, TyBuilder, TyDefId, TyExt, TyKind, WhereClause,
 };
 use itertools::Itertools;
 use nameres::diagnostics::DefDiagnosticKind;
 use once_cell::unsync::Lazy;
 use rustc_hash::FxHashSet;
-use stdx::{format_to, impl_from, never};
+use stdx::{impl_from, never};
 use syntax::{
-    ast::{self, HasAttrs as _, HasDocComments, HasName},
+    ast::{self, Expr, HasAttrs as _, HasDocComments, HasName},
     AstNode, AstPtr, SmolStr, SyntaxNodePtr, TextRange, T,
 };
 
@@ -349,7 +348,10 @@ impl ModuleDef {
             ModuleDef::Module(it) => it.id.into(),
             ModuleDef::Const(it) => it.id.into(),
             ModuleDef::Static(it) => it.id.into(),
-            _ => return Vec::new(),
+            ModuleDef::Variant(it) => {
+                EnumVariantId { parent: it.parent.into(), local_id: it.id }.into()
+            }
+            ModuleDef::BuiltinType(_) | ModuleDef::Macro(_) => return Vec::new(),
         };
 
         let module = match self.module(db) {
@@ -378,10 +380,10 @@ impl ModuleDef {
             ModuleDef::Function(it) => Some(it.into()),
             ModuleDef::Const(it) => Some(it.into()),
             ModuleDef::Static(it) => Some(it.into()),
+            ModuleDef::Variant(it) => Some(it.into()),
 
             ModuleDef::Module(_)
             | ModuleDef::Adt(_)
-            | ModuleDef::Variant(_)
             | ModuleDef::Trait(_)
             | ModuleDef::TypeAlias(_)
             | ModuleDef::Macro(_)
@@ -511,6 +513,7 @@ impl Module {
             .collect()
     }
 
+    /// Fills `acc` with the module's diagnostics.
     pub fn diagnostics(self, db: &dyn HirDatabase, acc: &mut Vec<AnyDiagnostic>) {
         let _p = profile::span("Module::diagnostics").detail(|| {
             format!("{:?}", self.name(db).map_or("<unknown>".into(), |name| name.to_string()))
@@ -531,11 +534,27 @@ impl Module {
                         m.diagnostics(db, acc)
                     }
                 }
+                ModuleDef::Trait(t) => {
+                    for diag in db.trait_data_with_diagnostics(t.id).1.iter() {
+                        emit_def_diagnostic(db, acc, diag);
+                    }
+                    acc.extend(decl.diagnostics(db))
+                }
+                ModuleDef::Adt(Adt::Enum(e)) => {
+                    for v in e.variants(db) {
+                        acc.extend(ModuleDef::Variant(v).diagnostics(db));
+                    }
+                    acc.extend(decl.diagnostics(db))
+                }
                 _ => acc.extend(decl.diagnostics(db)),
             }
         }
 
         for impl_def in self.impl_defs(db) {
+            for diag in db.impl_data_with_diagnostics(impl_def.id).1.iter() {
+                emit_def_diagnostic(db, acc, diag);
+            }
+
             for item in impl_def.items(db) {
                 let def: DefWithBody = match item {
                     AssocItem::Function(it) => it.into(),
@@ -571,8 +590,13 @@ impl Module {
 
     /// Finds a path that can be used to refer to the given item from within
     /// this module, if possible.
-    pub fn find_use_path(self, db: &dyn DefDatabase, item: impl Into<ItemInNs>) -> Option<ModPath> {
-        hir_def::find_path::find_path(db, item.into().into(), self.into())
+    pub fn find_use_path(
+        self,
+        db: &dyn DefDatabase,
+        item: impl Into<ItemInNs>,
+        prefer_no_std: bool,
+    ) -> Option<ModPath> {
+        hir_def::find_path::find_path(db, item.into().into(), self.into(), prefer_no_std)
     }
 
     /// Finds a path that can be used to refer to the given item from within
@@ -582,8 +606,15 @@ impl Module {
         db: &dyn DefDatabase,
         item: impl Into<ItemInNs>,
         prefix_kind: PrefixKind,
+        prefer_no_std: bool,
     ) -> Option<ModPath> {
-        hir_def::find_path::find_path_prefixed(db, item.into().into(), self.into(), prefix_kind)
+        hir_def::find_path::find_path_prefixed(
+            db,
+            item.into().into(),
+            self.into(),
+            prefix_kind,
+            prefer_no_std,
+        )
     }
 }
 
@@ -852,7 +883,7 @@ impl Struct {
         Type::from_def(db, self.id)
     }
 
-    pub fn repr(self, db: &dyn HirDatabase) -> Option<ReprKind> {
+    pub fn repr(self, db: &dyn HirDatabase) -> Option<ReprData> {
         db.struct_data(self.id).repr.clone()
     }
 
@@ -930,11 +961,32 @@ impl Enum {
     pub fn ty(self, db: &dyn HirDatabase) -> Type {
         Type::from_def(db, self.id)
     }
+
+    /// The type of the enum variant bodies.
+    pub fn variant_body_ty(self, db: &dyn HirDatabase) -> Type {
+        Type::new_for_crate(
+            self.id.lookup(db.upcast()).container.krate(),
+            TyBuilder::builtin(match db.enum_data(self.id).variant_body_type() {
+                Either::Left(builtin) => hir_def::builtin_type::BuiltinType::Int(builtin),
+                Either::Right(builtin) => hir_def::builtin_type::BuiltinType::Uint(builtin),
+            }),
+        )
+    }
+
+    pub fn is_data_carrying(self, db: &dyn HirDatabase) -> bool {
+        self.variants(db).iter().any(|v| !matches!(v.kind(db), StructKind::Unit))
+    }
 }
 
 impl HasVisibility for Enum {
     fn visibility(&self, db: &dyn HirDatabase) -> Visibility {
         db.enum_data(self.id).visibility.resolve(db.upcast(), &self.id.resolver(db.upcast()))
+    }
+}
+
+impl From<&Variant> for DefWithBodyId {
+    fn from(&v: &Variant) -> Self {
+        DefWithBodyId::VariantId(v.into())
     }
 }
 
@@ -971,6 +1023,14 @@ impl Variant {
 
     pub(crate) fn variant_data(self, db: &dyn HirDatabase) -> Arc<VariantData> {
         db.enum_data(self.parent.id).variants[self.id].variant_data.clone()
+    }
+
+    pub fn value(self, db: &dyn HirDatabase) -> Option<Expr> {
+        self.source(db)?.value.expr()
+    }
+
+    pub fn eval(self, db: &dyn HirDatabase) -> Result<ComputedExpr, ConstEvalError> {
+        db.const_eval_variant(self.into())
     }
 }
 
@@ -1107,8 +1167,9 @@ pub enum DefWithBody {
     Function(Function),
     Static(Static),
     Const(Const),
+    Variant(Variant),
 }
-impl_from!(Function, Const, Static for DefWithBody);
+impl_from!(Function, Const, Static, Variant for DefWithBody);
 
 impl DefWithBody {
     pub fn module(self, db: &dyn HirDatabase) -> Module {
@@ -1116,6 +1177,7 @@ impl DefWithBody {
             DefWithBody::Const(c) => c.module(db),
             DefWithBody::Function(f) => f.module(db),
             DefWithBody::Static(s) => s.module(db),
+            DefWithBody::Variant(v) => v.module(db),
         }
     }
 
@@ -1124,6 +1186,7 @@ impl DefWithBody {
             DefWithBody::Function(f) => Some(f.name(db)),
             DefWithBody::Static(s) => Some(s.name(db)),
             DefWithBody::Const(c) => c.name(db),
+            DefWithBody::Variant(v) => Some(v.name(db)),
         }
     }
 
@@ -1133,7 +1196,23 @@ impl DefWithBody {
             DefWithBody::Function(it) => it.ret_type(db),
             DefWithBody::Static(it) => it.ty(db),
             DefWithBody::Const(it) => it.ty(db),
+            DefWithBody::Variant(it) => it.parent.variant_body_ty(db),
         }
+    }
+
+    fn id(&self) -> DefWithBodyId {
+        match self {
+            DefWithBody::Function(it) => it.id.into(),
+            DefWithBody::Static(it) => it.id.into(),
+            DefWithBody::Const(it) => it.id.into(),
+            DefWithBody::Variant(it) => it.into(),
+        }
+    }
+
+    /// A textual representation of the HIR of this def's body for debugging purposes.
+    pub fn debug_hir(self, db: &dyn HirDatabase) -> String {
+        let body = db.body(self.id());
+        body.pretty_print(db.upcast(), self.id())
     }
 
     pub fn diagnostics(self, db: &dyn HirDatabase, acc: &mut Vec<AnyDiagnostic>) {
@@ -1191,11 +1270,11 @@ impl DefWithBody {
                     let field = source_map.field_syntax(*expr);
                     acc.push(NoSuchField { field }.into())
                 }
-                hir_ty::InferenceDiagnostic::BreakOutsideOfLoop { expr } => {
+                &hir_ty::InferenceDiagnostic::BreakOutsideOfLoop { expr, is_break } => {
                     let expr = source_map
-                        .expr_syntax(*expr)
+                        .expr_syntax(expr)
                         .expect("break outside of loop in synthetic syntax");
-                    acc.push(BreakOutsideOfLoop { expr }.into())
+                    acc.push(BreakOutsideOfLoop { expr, is_break }.into())
                 }
                 hir_ty::InferenceDiagnostic::MismatchedArgCount { call_expr, expected, found } => {
                     match source_map.expr_syntax(*call_expr) {
@@ -1343,6 +1422,7 @@ impl DefWithBody {
             DefWithBody::Function(it) => it.into(),
             DefWithBody::Static(it) => it.into(),
             DefWithBody::Const(it) => it.into(),
+            DefWithBody::Variant(it) => it.into(),
         };
         for diag in hir_ty::diagnostics::incorrect_case(db, krate, def.into()) {
             acc.push(diag.into())
@@ -1469,19 +1549,6 @@ impl Function {
         let loc = self.id.lookup(db.upcast());
         let def_map = db.crate_def_map(loc.krate(db).into());
         def_map.fn_as_proc_macro(self.id).map(|id| Macro { id: id.into() })
-    }
-
-    /// A textual representation of the HIR of this function for debugging purposes.
-    pub fn debug_hir(self, db: &dyn HirDatabase) -> String {
-        let body = db.body(self.id.into());
-
-        let mut result = String::new();
-        format_to!(result, "HIR expressions in the body of `{}`:\n", self.name(db));
-        for (id, expr) in body.exprs.iter() {
-            format_to!(result, "{:?}: {:?}\n", id, expr);
-        }
-
-        result
     }
 }
 
@@ -2777,20 +2844,32 @@ impl Type {
         self.ty.is_unknown()
     }
 
-    /// Checks that particular type `ty` implements `std::future::Future`.
+    /// Checks that particular type `ty` implements `std::future::IntoFuture` or
+    /// `std::future::Future`.
     /// This function is used in `.await` syntax completion.
-    pub fn impls_future(&self, db: &dyn HirDatabase) -> bool {
-        let std_future_trait = db
-            .lang_item(self.env.krate, SmolStr::new_inline("future_trait"))
-            .and_then(|it| it.as_trait());
-        let std_future_trait = match std_future_trait {
+    pub fn impls_into_future(&self, db: &dyn HirDatabase) -> bool {
+        let trait_ = db
+            .lang_item(self.env.krate, SmolStr::new_inline("into_future"))
+            .and_then(|it| {
+                let into_future_fn = it.as_function()?;
+                let assoc_item = as_assoc_item(db, AssocItem::Function, into_future_fn)?;
+                let into_future_trait = assoc_item.containing_trait_or_trait_impl(db)?;
+                Some(into_future_trait.id)
+            })
+            .or_else(|| {
+                let future_trait =
+                    db.lang_item(self.env.krate, SmolStr::new_inline("future_trait"))?;
+                future_trait.as_trait()
+            });
+
+        let trait_ = match trait_ {
             Some(it) => it,
             None => return false,
         };
 
         let canonical_ty =
             Canonical { value: self.ty.clone(), binders: CanonicalVarKinds::empty(Interner) };
-        method_resolution::implements_trait(&canonical_ty, db, self.env.clone(), std_future_trait)
+        method_resolution::implements_trait(&canonical_ty, db, self.env.clone(), trait_)
     }
 
     /// Checks that particular type `ty` implements `std::ops::FnOnce`.
@@ -2856,27 +2935,12 @@ impl Type {
                 }
             })
             .build();
-        let goal = hir_ty::make_canonical(
-            InEnvironment::new(
-                &self.env.env,
-                AliasEq {
-                    alias: AliasTy::Projection(projection),
-                    ty: TyKind::BoundVar(BoundVar::new(DebruijnIndex::INNERMOST, 0))
-                        .intern(Interner),
-                }
-                .cast(Interner),
-            ),
-            [TyVariableKind::General].into_iter(),
-        );
 
-        match db.trait_solve(self.env.krate, goal)? {
-            Solution::Unique(s) => s
-                .value
-                .subst
-                .as_slice(Interner)
-                .first()
-                .map(|ty| self.derived(ty.assert_ty_ref(Interner).clone())),
-            Solution::Ambig(_) => None,
+        let ty = db.normalize_projection(projection, self.env.clone());
+        if ty.is_unknown() {
+            None
+        } else {
+            Some(self.derived(ty))
         }
     }
 
@@ -2920,7 +2984,7 @@ impl Type {
 
         let adt = adt_id.into();
         match adt {
-            Adt::Struct(s) => matches!(s.repr(db), Some(ReprKind::Packed)),
+            Adt::Struct(s) => matches!(s.repr(db), Some(ReprData { packed: true, .. })),
             _ => false,
         }
     }

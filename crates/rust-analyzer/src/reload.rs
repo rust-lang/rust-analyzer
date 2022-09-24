@@ -143,6 +143,7 @@ impl GlobalState {
                             project_model::ProjectWorkspace::load_inline(
                                 it.clone(),
                                 cargo_config.target.as_deref(),
+                                &cargo_config.extra_env,
                             )
                         }
                     })
@@ -219,6 +220,7 @@ impl GlobalState {
                     cfg_overrides,
 
                     build_scripts: _,
+                    toolchain: _,
                 } => Some((cargo, sysroot, rustc, rustc_cfg, cfg_overrides)),
                 _ => None,
             };
@@ -313,7 +315,9 @@ impl GlobalState {
                         let mut args = args.clone();
                         let mut path = path.clone();
 
-                        if let ProjectWorkspace::Cargo { sysroot, .. } = ws {
+                        if let ProjectWorkspace::Cargo { sysroot, .. }
+                        | ProjectWorkspace::Json { sysroot, .. } = ws
+                        {
                             tracing::debug!("Found a cargo workspace...");
                             if let Some(sysroot) = sysroot.as_ref() {
                                 tracing::debug!("Found a cargo workspace with a sysroot...");
@@ -346,8 +350,8 @@ impl GlobalState {
                             error
                         })
                     })
-                    .collect();
-            }
+                    .collect()
+            };
         }
 
         let watch = match files_config.watcher {
@@ -395,7 +399,11 @@ impl GlobalState {
                         dummy_replacements.get(crate_name).map(|v| &**v).unwrap_or_default(),
                     )
                 };
-                crate_graph.extend(ws.to_crate_graph(&mut load_proc_macro, &mut load));
+                crate_graph.extend(ws.to_crate_graph(
+                    &mut load_proc_macro,
+                    &mut load,
+                    &self.config.cargo().extra_env,
+                ));
             }
             crate_graph
         };

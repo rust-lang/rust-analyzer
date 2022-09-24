@@ -12,8 +12,8 @@ use std::{ffi::OsString, fmt, iter, path::PathBuf};
 use flycheck::FlycheckConfig;
 use ide::{
     AssistConfig, CallableSnippets, CompletionConfig, DiagnosticsConfig, ExprFillDefaultMode,
-    HighlightRelatedConfig, HoverConfig, HoverDocFormat, InlayHintsConfig, JoinLinesConfig,
-    Snippet, SnippetScope,
+    HighlightConfig, HighlightRelatedConfig, HoverConfig, HoverDocFormat, InlayHintsConfig,
+    JoinLinesConfig, Snippet, SnippetScope,
 };
 use ide_db::{
     imports::insert_use::{ImportGranularity, InsertUseConfig, PrefixKind},
@@ -22,7 +22,8 @@ use ide_db::{
 use itertools::Itertools;
 use lsp_types::{ClientCapabilities, MarkupKind};
 use project_model::{
-    CargoConfig, ProjectJson, ProjectJsonData, ProjectManifest, RustcSource, UnsetTestCrates,
+    CargoConfig, CargoFeatures, ProjectJson, ProjectJsonData, ProjectManifest, RustcSource,
+    UnsetTestCrates,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{de::DeserializeOwned, Deserialize};
@@ -45,7 +46,8 @@ mod patch_old_style;
 //  - foo_command = overrides the subcommand, foo_overrideCommand allows full overwriting, extra args only applies for foo_command
 
 // Defines the server-side configuration of the rust-analyzer. We generate
-// *parts* of VS Code's `package.json` config from this.
+// *parts* of VS Code's `package.json` config from this. Run `cargo test` to
+// re-generate that file.
 //
 // However, editor specific config, which the server doesn't know about, should
 // be specified directly in `package.json`.
@@ -83,10 +85,13 @@ config_data! {
         /// Use `RUSTC_WRAPPER=rust-analyzer` when running build scripts to
         /// avoid checking unnecessary things.
         cargo_buildScripts_useRustcWrapper: bool = "true",
+        /// Extra environment variables that will be set when running cargo, rustc
+        /// or other commands within the workspace. Useful for setting RUSTFLAGS.
+        cargo_extraEnv: FxHashMap<String, String> = "{}",
         /// List of features to activate.
         ///
         /// Set this to `"all"` to pass `--all-features` to cargo.
-        cargo_features: CargoFeatures      = "[]",
+        cargo_features: CargoFeaturesDef      = "[]",
         /// Whether to pass `--no-default-features` to cargo.
         cargo_noDefaultFeatures: bool    = "false",
         /// Internal config for debugging, disables loading of sysroot crates.
@@ -104,11 +109,14 @@ config_data! {
         checkOnSave_enable: bool                         = "true",
         /// Extra arguments for `cargo check`.
         checkOnSave_extraArgs: Vec<String>               = "[]",
+        /// Extra environment variables that will be set when running `cargo check`.
+        /// Extends `#rust-analyzer.cargo.extraEnv#`.
+        checkOnSave_extraEnv: FxHashMap<String, String> = "{}",
         /// List of features to activate. Defaults to
         /// `#rust-analyzer.cargo.features#`.
         ///
         /// Set to `"all"` to pass `--all-features` to Cargo.
-        checkOnSave_features: Option<CargoFeatures>      = "null",
+        checkOnSave_features: Option<CargoFeaturesDef>      = "null",
         /// Whether to pass `--no-default-features` to Cargo. Defaults to
         /// `#rust-analyzer.cargo.noDefaultFeatures#`.
         checkOnSave_noDefaultFeatures: Option<bool>      = "null",
@@ -119,6 +127,10 @@ config_data! {
         /// If you're changing this because you're using some tool wrapping
         /// Cargo, you might also want to change
         /// `#rust-analyzer.cargo.buildScripts.overrideCommand#`.
+        ///
+        /// If there are multiple linked projects, this command is invoked for
+        /// each of them, with the working directory being the project root
+        /// (i.e., the folder containing the `Cargo.toml`).
         ///
         /// An example command would be:
         ///
@@ -214,7 +226,6 @@ config_data! {
         files_excludeDirs: Vec<PathBuf> = "[]",
         /// Controls file watching implementation.
         files_watcher: FilesWatcherDef = "\"client\"",
-
         /// Enables highlighting of related references while the cursor is on `break`, `loop`, `while`, or `for` keywords.
         highlightRelated_breakPoints_enable: bool = "true",
         /// Enables highlighting of all exit points while the cursor is on any `return`, `?`, `fn`, or return type arrow (`->`).
@@ -243,7 +254,10 @@ config_data! {
         hover_actions_run_enable: bool             = "true",
 
         /// Whether to show documentation on hover.
-        hover_documentation_enable: bool       = "true",
+        hover_documentation_enable: bool           = "true",
+        /// Whether to show keyword hover popups. Only applies when
+        /// `#rust-analyzer.hover.documentation.enable#` is set.
+        hover_documentation_keywords_enable: bool  = "true",
         /// Use markdown syntax for links in hover.
         hover_links_enable: bool = "true",
 
@@ -255,6 +269,8 @@ config_data! {
         imports_group_enable: bool                           = "true",
         /// Whether to allow import insertion to merge new imports into single path glob imports like `use std::fmt::*;`.
         imports_merge_glob: bool           = "true",
+        /// Prefer to unconditionally use imports of the core and alloc crate, over the std crate.
+        imports_prefer_no_std: bool                     = "false",
         /// The path structure for newly inserted paths to use.
         imports_prefix: ImportPrefixDef               = "\"plain\"",
 
@@ -299,6 +315,7 @@ config_data! {
         /// Join lines unwraps trivial blocks.
         joinLines_unwrapTrivialBlock: bool = "true",
 
+
         /// Whether to show `Debug` lens. Only applies when
         /// `#rust-analyzer.lens.enable#` is set.
         lens_debug_enable: bool            = "true",
@@ -310,6 +327,8 @@ config_data! {
         /// Whether to show `Implementations` lens. Only applies when
         /// `#rust-analyzer.lens.enable#` is set.
         lens_implementations_enable: bool  = "true",
+        /// Where to render annotations.
+        lens_location: AnnotationLocation = "\"above_name\"",
         /// Whether to show `References` lens for Struct, Enum, and Union.
         /// Only applies when `#rust-analyzer.lens.enable#` is set.
         lens_references_adt_enable: bool = "false",
@@ -351,6 +370,9 @@ config_data! {
         /// this is rust-analyzer itself, but we override this in tests).
         procMacro_server: Option<PathBuf>          = "null",
 
+        /// Exclude imports from find-all-references.
+        references_excludeImports: bool = "false",
+
         /// Command to be executed instead of 'cargo' for runnables.
         runnables_command: Option<String> = "null",
         /// Additional arguments to be passed to cargo for runnables such as
@@ -377,6 +399,34 @@ config_data! {
         /// available on a nightly build.
         rustfmt_rangeFormatting_enable: bool = "false",
 
+        /// Inject additional highlighting into doc comments.
+        ///
+        /// When enabled, rust-analyzer will highlight rust source in doc comments as well as intra
+        /// doc links.
+        semanticHighlighting_doc_comment_inject_enable: bool = "true",
+        /// Use semantic tokens for operators.
+        ///
+        /// When disabled, rust-analyzer will emit semantic tokens only for operator tokens when
+        /// they are tagged with modifiers.
+        semanticHighlighting_operator_enable: bool = "true",
+        /// Use specialized semantic tokens for operators.
+        ///
+        /// When enabled, rust-analyzer will emit special token types for operator tokens instead
+        /// of the generic `operator` token type.
+        semanticHighlighting_operator_specialization_enable: bool = "false",
+        /// Use semantic tokens for punctuations.
+        ///
+        /// When disabled, rust-analyzer will emit semantic tokens only for punctuation tokens when
+        /// they are tagged with modifiers or have a special role.
+        semanticHighlighting_punctuation_enable: bool = "false",
+        /// When enabled, rust-analyzer will emit a punctuation semantic token for the `!` of macro
+        /// calls.
+        semanticHighlighting_punctuation_separate_macro_bang: bool = "false",
+        /// Use specialized semantic tokens for punctuations.
+        ///
+        /// When enabled, rust-analyzer will emit special token types for punctuation tokens instead
+        /// of the generic `punctuation` token type.
+        semanticHighlighting_punctuation_specialization_enable: bool = "false",
         /// Use semantic tokens for strings.
         ///
         /// In some editors (e.g. vscode) semantic tokens override other highlighting grammars.
@@ -458,6 +508,25 @@ pub struct LensConfig {
     pub refs_adt: bool,   // for Struct, Enum, Union and Trait
     pub refs_trait: bool, // for Struct, Enum, Union and Trait
     pub enum_variant_refs: bool,
+
+    // annotations
+    pub location: AnnotationLocation,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AnnotationLocation {
+    AboveName,
+    AboveWholeItem,
+}
+
+impl From<AnnotationLocation> for ide::AnnotationLocation {
+    fn from(location: AnnotationLocation) -> Self {
+        match location {
+            AnnotationLocation::AboveName => ide::AnnotationLocation::AboveName,
+            AnnotationLocation::AboveWholeItem => ide::AnnotationLocation::AboveWholeItem,
+        }
+    }
 }
 
 impl LensConfig {
@@ -881,6 +950,8 @@ impl Config {
                 ExprFillDefaultDef::Todo => ExprFillDefaultMode::Todo,
                 ExprFillDefaultDef::Default => ExprFillDefaultMode::Default,
             },
+            insert_use: self.insert_use_config(),
+            prefer_no_std: self.data.imports_prefer_no_std,
         }
     }
 
@@ -890,6 +961,16 @@ impl Config {
             warnings_as_info: self.data.diagnostics_warningsAsInfo.clone(),
             warnings_as_hint: self.data.diagnostics_warningsAsHint.clone(),
         }
+    }
+
+    pub fn extra_env(&self) -> &FxHashMap<String, String> {
+        &self.data.cargo_extraEnv
+    }
+
+    pub fn check_on_save_extra_env(&self) -> FxHashMap<String, String> {
+        let mut extra_env = self.data.cargo_extraEnv.clone();
+        extra_env.extend(self.data.checkOnSave_extraEnv.clone());
+        extra_env
     }
 
     pub fn lru_capacity(&self) -> Option<usize> {
@@ -949,11 +1030,12 @@ impl Config {
         });
 
         CargoConfig {
-            no_default_features: self.data.cargo_noDefaultFeatures,
-            all_features: matches!(self.data.cargo_features, CargoFeatures::All),
             features: match &self.data.cargo_features {
-                CargoFeatures::All => vec![],
-                CargoFeatures::Listed(it) => it.clone(),
+                CargoFeaturesDef::All => CargoFeatures::All,
+                CargoFeaturesDef::Selected(features) => CargoFeatures::Selected {
+                    features: features.clone(),
+                    no_default_features: self.data.cargo_noDefaultFeatures,
+                },
             },
             target: self.data.cargo_target.clone(),
             no_sysroot: self.data.cargo_noSysroot,
@@ -961,6 +1043,7 @@ impl Config {
             unset_test_crates: UnsetTestCrates::Only(self.data.cargo_unsetTest.clone()),
             wrap_rustc_in_build_scripts: self.data.cargo_buildScripts_useRustcWrapper,
             run_build_script_command: self.data.cargo_buildScripts_overrideCommand.clone(),
+            extra_env: self.data.cargo_extraEnv.clone(),
         }
     }
 
@@ -986,7 +1069,11 @@ impl Config {
             Some(args) if !args.is_empty() => {
                 let mut args = args.clone();
                 let command = args.remove(0);
-                FlycheckConfig::CustomCommand { command, args }
+                FlycheckConfig::CustomCommand {
+                    command,
+                    args,
+                    extra_env: self.check_on_save_extra_env(),
+                }
             }
             Some(_) | None => FlycheckConfig::CargoCommand {
                 command: self.data.checkOnSave_command.clone(),
@@ -1002,7 +1089,7 @@ impl Config {
                     .unwrap_or(self.data.cargo_noDefaultFeatures),
                 all_features: matches!(
                     self.data.checkOnSave_features.as_ref().unwrap_or(&self.data.cargo_features),
-                    CargoFeatures::All
+                    CargoFeaturesDef::All
                 ),
                 features: match self
                     .data
@@ -1010,10 +1097,11 @@ impl Config {
                     .clone()
                     .unwrap_or_else(|| self.data.cargo_features.clone())
                 {
-                    CargoFeatures::All => vec![],
-                    CargoFeatures::Listed(it) => it,
+                    CargoFeaturesDef::All => vec![],
+                    CargoFeaturesDef::Selected(it) => it,
                 },
                 extra_args: self.data.checkOnSave_extraArgs.clone(),
+                extra_env: self.check_on_save_extra_env(),
             },
         };
         Some(flycheck_config)
@@ -1096,6 +1184,7 @@ impl Config {
                 CallableCompletionDef::None => None,
             },
             insert_use: self.insert_use_config(),
+            prefer_no_std: self.data.imports_prefer_no_std,
             snippet_cap: SnippetCap::new(try_or_def!(
                 self.caps
                     .text_document
@@ -1110,6 +1199,10 @@ impl Config {
         }
     }
 
+    pub fn find_all_refs_exclude_imports(&self) -> bool {
+        self.data.references_excludeImports
+    }
+
     pub fn snippet_cap(&self) -> bool {
         self.experimental("snippetTextEdit")
     }
@@ -1119,6 +1212,7 @@ impl Config {
             snippet_cap: SnippetCap::new(self.experimental("snippetTextEdit")),
             allowed: None,
             insert_use: self.insert_use_config(),
+            prefer_no_std: self.data.imports_prefer_no_std,
         }
     }
 
@@ -1148,6 +1242,7 @@ impl Config {
             refs_trait: self.data.lens_enable && self.data.lens_references_trait_enable,
             enum_variant_refs: self.data.lens_enable
                 && self.data.lens_references_enumVariant_enable,
+            location: self.data.lens_location,
         }
     }
 
@@ -1162,8 +1257,19 @@ impl Config {
         }
     }
 
-    pub fn highlighting_strings(&self) -> bool {
-        self.data.semanticHighlighting_strings_enable
+    pub fn highlighting_config(&self) -> HighlightConfig {
+        HighlightConfig {
+            strings: self.data.semanticHighlighting_strings_enable,
+            punctuation: self.data.semanticHighlighting_punctuation_enable,
+            specialize_punctuation: self
+                .data
+                .semanticHighlighting_punctuation_specialization_enable,
+            macro_bang: self.data.semanticHighlighting_punctuation_separate_macro_bang,
+            operator: self.data.semanticHighlighting_operator_enable,
+            specialize_operator: self.data.semanticHighlighting_operator_specialization_enable,
+            inject_doc_comment: self.data.semanticHighlighting_doc_comment_inject_enable,
+            syntactic_name_ref_highlighting: false,
+        }
     }
 
     pub fn hover(&self) -> HoverConfig {
@@ -1186,6 +1292,7 @@ impl Config {
                     HoverDocFormat::PlainText
                 }
             }),
+            keywords: self.data.hover_documentation_keywords_enable,
         }
     }
 
@@ -1460,10 +1567,10 @@ enum CallableCompletionDef {
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(untagged)]
-enum CargoFeatures {
+enum CargoFeaturesDef {
     #[serde(deserialize_with = "de_unit_v::all")]
     All,
-    Listed(Vec<String>),
+    Selected(Vec<String>),
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -1808,7 +1915,7 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
                 "Only show mutable reborrow hints."
             ]
         },
-        "CargoFeatures" => set! {
+        "CargoFeaturesDef" => set! {
             "anyOf": [
                 {
                     "type": "string",
@@ -1825,7 +1932,7 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
                 }
             ],
         },
-        "Option<CargoFeatures>" => set! {
+        "Option<CargoFeaturesDef>" => set! {
             "anyOf": [
                 {
                     "type": "string",
@@ -1870,6 +1977,14 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
             "enumDescriptions": [
                 "Use the client (editor) to watch files for changes",
                 "Use server-side file watching",
+            ],
+        },
+        "AnnotationLocation" => set! {
+            "type": "string",
+            "enum": ["above_name", "above_whole_item"],
+            "enumDescriptions": [
+                "Render annotations above the name of the item.",
+                "Render annotations above the whole item, including documentation comments and attributes."
             ],
         },
         _ => panic!("missing entry for {}: {}", ty, default),

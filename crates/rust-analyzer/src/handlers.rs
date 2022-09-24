@@ -10,8 +10,8 @@ use std::{
 use anyhow::Context;
 use ide::{
     AnnotationConfig, AssistKind, AssistResolveStrategy, FileId, FilePosition, FileRange,
-    HoverAction, HoverGotoTypeData, Query, RangeInfo, Runnable, RunnableKind, SingleResolve,
-    SourceChange, TextEdit,
+    HoverAction, HoverGotoTypeData, Query, RangeInfo, ReferenceCategory, Runnable, RunnableKind,
+    SingleResolve, SourceChange, TextEdit,
 };
 use ide_db::SymbolKind;
 use lsp_server::ErrorCode;
@@ -48,6 +48,12 @@ pub(crate) fn handle_workspace_reload(state: &mut GlobalState, _: ()) -> Result<
     state.proc_macro_changed = false;
     state.fetch_workspaces_queue.request_op("reload workspace request".to_string());
     state.fetch_build_data_queue.request_op("reload workspace request".to_string());
+    Ok(())
+}
+
+pub(crate) fn handle_cancel_flycheck(state: &mut GlobalState, _: ()) -> Result<()> {
+    let _p = profile::span("handle_stop_flycheck");
+    state.flycheck.iter().for_each(|flycheck| flycheck.cancel());
     Ok(())
 }
 
@@ -703,10 +709,8 @@ pub(crate) fn handle_runnables(
 
     let mut res = Vec::new();
     for runnable in snap.analysis.runnables(file_id)? {
-        if let Some(offset) = offset {
-            if !runnable.nav.full_range.contains_inclusive(offset) {
-                continue;
-            }
+        if should_skip_for_offset(&runnable, offset) {
+            continue;
         }
         if should_skip_target(&runnable, cargo_spec.as_ref()) {
             continue;
@@ -770,6 +774,14 @@ pub(crate) fn handle_runnables(
         }
     }
     Ok(res)
+}
+
+fn should_skip_for_offset(runnable: &Runnable, offset: Option<TextSize>) -> bool {
+    match offset {
+        None => false,
+        _ if matches!(&runnable.kind, RunnableKind::TestMod { .. }) => false,
+        Some(offset) => !runnable.nav.full_range.contains_inclusive(offset),
+    }
 }
 
 pub(crate) fn handle_related_tests(
@@ -1000,6 +1012,8 @@ pub(crate) fn handle_references(
     let _p = profile::span("handle_references");
     let position = from_proto::file_position(&snap, params.text_document_position)?;
 
+    let exclude_imports = snap.config.find_all_refs_exclude_imports();
+
     let refs = match snap.analysis.find_all_refs(position, None)? {
         None => return Ok(None),
         Some(refs) => refs,
@@ -1020,7 +1034,11 @@ pub(crate) fn handle_references(
             refs.references
                 .into_iter()
                 .flat_map(|(file_id, refs)| {
-                    refs.into_iter().map(move |(range, _)| FileRange { file_id, range })
+                    refs.into_iter()
+                        .filter(|&(_, category)| {
+                            !exclude_imports || category != Some(ReferenceCategory::Import)
+                        })
+                        .map(move |(range, _)| FileRange { file_id, range })
                 })
                 .chain(decl)
         })
@@ -1222,6 +1240,7 @@ pub(crate) fn handle_code_lens(
             annotate_references: lens_config.refs_adt,
             annotate_method_references: lens_config.method_refs,
             annotate_enum_variant_references: lens_config.enum_variant_refs,
+            location: lens_config.location.into(),
         },
         file_id,
     )?;
@@ -1271,7 +1290,7 @@ pub(crate) fn handle_document_highlight(
         .into_iter()
         .map(|ide::HighlightedRange { range, category }| lsp_types::DocumentHighlight {
             range: to_proto::range(&line_index, range),
-            kind: category.map(to_proto::document_highlight_kind),
+            kind: category.and_then(to_proto::document_highlight_kind),
         })
         .collect();
     Ok(Some(res))
@@ -1320,8 +1339,7 @@ pub(crate) fn publish_diagnostics(
                 .unwrap(),
             }),
             source: Some("rust-analyzer".to_string()),
-            // https://github.com/rust-lang/rust-analyzer/issues/11404
-            message: if !d.message.is_empty() { d.message } else { " ".to_string() },
+            message: d.message,
             related_information: None,
             tags: if d.unused { Some(vec![DiagnosticTag::UNNECESSARY]) } else { None },
             data: None,
@@ -1351,7 +1369,7 @@ pub(crate) fn handle_inlay_hints(
             .map(|it| {
                 to_proto::inlay_hint(&snap, &line_index, inlay_hints_config.render_colons, it)
             })
-            .collect(),
+            .collect::<Result<Vec<_>>>()?,
     ))
 }
 
@@ -1493,10 +1511,12 @@ pub(crate) fn handle_semantic_tokens_full(
     let text = snap.analysis.file_text(file_id)?;
     let line_index = snap.file_line_index(file_id)?;
 
-    let highlights = snap.analysis.highlight(file_id)?;
-    let highlight_strings = snap.config.highlighting_strings();
-    let semantic_tokens =
-        to_proto::semantic_tokens(&text, &line_index, highlights, highlight_strings);
+    let mut highlight_config = snap.config.highlighting_config();
+    // Avoid flashing a bunch of unresolved references when the proc-macro servers haven't been spawned yet.
+    highlight_config.syntactic_name_ref_highlighting = !snap.proc_macros_loaded;
+
+    let highlights = snap.analysis.highlight(highlight_config, file_id)?;
+    let semantic_tokens = to_proto::semantic_tokens(&text, &line_index, highlights);
 
     // Unconditionally cache the tokens
     snap.semantic_tokens_cache.lock().insert(params.text_document.uri, semantic_tokens.clone());
@@ -1514,10 +1534,12 @@ pub(crate) fn handle_semantic_tokens_full_delta(
     let text = snap.analysis.file_text(file_id)?;
     let line_index = snap.file_line_index(file_id)?;
 
-    let highlights = snap.analysis.highlight(file_id)?;
-    let highlight_strings = snap.config.highlighting_strings();
-    let semantic_tokens =
-        to_proto::semantic_tokens(&text, &line_index, highlights, highlight_strings);
+    let mut highlight_config = snap.config.highlighting_config();
+    // Avoid flashing a bunch of unresolved references when the proc-macro servers haven't been spawned yet.
+    highlight_config.syntactic_name_ref_highlighting = !snap.proc_macros_loaded;
+
+    let highlights = snap.analysis.highlight(highlight_config, file_id)?;
+    let semantic_tokens = to_proto::semantic_tokens(&text, &line_index, highlights);
 
     let mut cache = snap.semantic_tokens_cache.lock();
     let cached_tokens = cache.entry(params.text_document.uri).or_default();
@@ -1545,10 +1567,8 @@ pub(crate) fn handle_semantic_tokens_range(
     let text = snap.analysis.file_text(frange.file_id)?;
     let line_index = snap.file_line_index(frange.file_id)?;
 
-    let highlights = snap.analysis.highlight_range(frange)?;
-    let highlight_strings = snap.config.highlighting_strings();
-    let semantic_tokens =
-        to_proto::semantic_tokens(&text, &line_index, highlights, highlight_strings);
+    let highlights = snap.analysis.highlight_range(snap.config.highlighting_config(), frange)?;
+    let semantic_tokens = to_proto::semantic_tokens(&text, &line_index, highlights);
     Ok(Some(semantic_tokens.into()))
 }
 
@@ -1766,9 +1786,10 @@ fn run_rustfmt(
 
     let line_index = snap.file_line_index(file_id)?;
 
-    let mut rustfmt = match snap.config.rustfmt() {
+    let mut command = match snap.config.rustfmt() {
         RustfmtConfig::Rustfmt { extra_args, enable_range_formatting } => {
             let mut cmd = process::Command::new(toolchain::rustfmt());
+            cmd.envs(snap.config.extra_env());
             cmd.args(extra_args);
             // try to chdir to the file so we can respect `rustfmt.toml`
             // FIXME: use `rustfmt --config-path` once
@@ -1826,17 +1847,18 @@ fn run_rustfmt(
         }
         RustfmtConfig::CustomCommand { command, args } => {
             let mut cmd = process::Command::new(command);
+            cmd.envs(snap.config.extra_env());
             cmd.args(args);
             cmd
         }
     };
 
-    let mut rustfmt = rustfmt
+    let mut rustfmt = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .context(format!("Failed to spawn {:?}", rustfmt))?;
+        .context(format!("Failed to spawn {:?}", command))?;
 
     rustfmt.stdin.as_mut().unwrap().write_all(file.as_bytes())?;
 
@@ -1855,7 +1877,11 @@ fn run_rustfmt(
                 // formatting because otherwise an error is surfaced to the user on top of the
                 // syntax error diagnostics they're already receiving. This is especially jarring
                 // if they have format on save enabled.
-                tracing::info!("rustfmt exited with status 1, assuming parse error and ignoring");
+                tracing::warn!(
+                    ?command,
+                    %captured_stderr,
+                    "rustfmt exited with status 1"
+                );
                 Ok(None)
             }
             _ => {

@@ -551,7 +551,11 @@ fn enum_variants_with_paths(
     }
 
     for variant in variants {
-        if let Some(path) = ctx.module.find_use_path(ctx.db, hir::ModuleDef::from(variant)) {
+        if let Some(path) = ctx.module.find_use_path(
+            ctx.db,
+            hir::ModuleDef::from(variant),
+            ctx.config.prefer_no_std,
+        ) {
             // Variants with trivial paths are already added by the existing completion logic,
             // so we should avoid adding these twice
             if path.segments().len() > 1 {
@@ -617,7 +621,6 @@ pub(super) fn complete_name_ref(
 
                     dot::complete_undotted_self(acc, ctx, path_ctx, expr_ctx);
                     item_list::complete_item_list_in_expr(acc, ctx, path_ctx, expr_ctx);
-                    record::complete_record_expr_func_update(acc, ctx, path_ctx, expr_ctx);
                     snippet::complete_expr_snippet(acc, ctx, path_ctx, expr_ctx);
                 }
                 PathKind::Type { location } => {

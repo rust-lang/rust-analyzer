@@ -7,13 +7,14 @@ use ide_db::{
     imports::insert_use::remove_path_if_in_use_stmt,
     path_transform::PathTransform,
     search::{FileReference, SearchScope},
+    source_change::SourceChangeBuilder,
     syntax_helpers::{insert_whitespace_into_node::insert_ws_into, node_ext::expr_as_name_ref},
     RootDatabase,
 };
 use itertools::{izip, Itertools};
 use syntax::{
     ast::{self, edit_in_place::Indent, HasArgList, PathExpr},
-    ted, AstNode,
+    ted, AstNode, NodeOrToken, SyntaxKind,
 };
 
 use crate::{
@@ -100,18 +101,7 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
                 builder.edit_file(file_id);
                 let count = refs.len();
                 // The collects are required as we are otherwise iterating while mutating 🙅‍♀️🙅‍♂️
-                let (name_refs, name_refs_use): (Vec<_>, Vec<_>) = refs
-                    .into_iter()
-                    .filter_map(|file_ref| match file_ref.name {
-                        ast::NameLike::NameRef(name_ref) => Some(name_ref),
-                        _ => None,
-                    })
-                    .partition_map(|name_ref| {
-                        match name_ref.syntax().ancestors().find_map(ast::UseTree::cast) {
-                            Some(use_tree) => Either::Right(builder.make_mut(use_tree)),
-                            None => Either::Left(name_ref),
-                        }
-                    });
+                let (name_refs, name_refs_use) = split_refs_and_uses(builder, refs, Some);
                 let call_infos: Vec<_> = name_refs
                     .into_iter()
                     .filter_map(CallInfo::from_name_ref)
@@ -130,11 +120,7 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
                     .count();
                 if replaced + name_refs_use.len() == count {
                     // we replaced all usages in this file, so we can remove the imports
-                    name_refs_use.into_iter().for_each(|use_tree| {
-                        if let Some(path) = use_tree.path() {
-                            remove_path_if_in_use_stmt(&path);
-                        }
-                    })
+                    name_refs_use.iter().for_each(remove_path_if_in_use_stmt);
                 } else {
                     remove_def = false;
                 }
@@ -151,6 +137,23 @@ pub(crate) fn inline_into_callers(acc: &mut Assists, ctx: &AssistContext<'_>) ->
             }
         },
     )
+}
+
+pub(super) fn split_refs_and_uses<T: ast::AstNode>(
+    builder: &mut SourceChangeBuilder,
+    iter: impl IntoIterator<Item = FileReference>,
+    mut map_ref: impl FnMut(ast::NameRef) -> Option<T>,
+) -> (Vec<T>, Vec<ast::Path>) {
+    iter.into_iter()
+        .filter_map(|file_ref| match file_ref.name {
+            ast::NameLike::NameRef(name_ref) => Some(name_ref),
+            _ => None,
+        })
+        .filter_map(|name_ref| match name_ref.syntax().ancestors().find_map(ast::UseTree::cast) {
+            Some(use_tree) => builder.make_mut(use_tree).path().map(Either::Right),
+            None => map_ref(name_ref).map(Either::Left),
+        })
+        .partition_map(|either| either)
 }
 
 // Assist: inline_call
@@ -311,6 +314,17 @@ fn inline(
     } else {
         fn_body.clone_for_update()
     };
+    if let Some(imp) = body.syntax().ancestors().find_map(ast::Impl::cast) {
+        if !node.syntax().ancestors().any(|anc| &anc == imp.syntax()) {
+            if let Some(t) = imp.self_ty() {
+                body.syntax()
+                    .descendants_with_tokens()
+                    .filter_map(NodeOrToken::into_token)
+                    .filter(|tok| tok.kind() == SyntaxKind::SELF_TYPE_KW)
+                    .for_each(|tok| ted::replace(tok, t.syntax()));
+            }
+        }
+    }
     let usages_for_locals = |local| {
         Definition::Local(local)
             .usages(sema)
@@ -345,6 +359,7 @@ fn inline(
             }
         })
         .collect();
+
     if function.self_param(sema.db).is_some() {
         let this = || make::name_ref("this").syntax().clone_for_update();
         if let Some(self_local) = params[0].2.as_local(sema.db) {
@@ -1186,6 +1201,56 @@ fn bar() -> u32 {
     {
       let x = 0;
       x
+    }
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn inline_call_with_self_type() {
+        check_assist(
+            inline_call,
+            r#"
+struct A(u32);
+impl A {
+    fn f() -> Self { Self(114514) }
+}
+fn main() {
+    A::f$0();
+}
+"#,
+            r#"
+struct A(u32);
+impl A {
+    fn f() -> Self { Self(114514) }
+}
+fn main() {
+    A(114514);
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn inline_call_with_self_type_but_within_same_impl() {
+        check_assist(
+            inline_call,
+            r#"
+struct A(u32);
+impl A {
+    fn f() -> Self { Self(1919810) }
+    fn main() {
+        Self::f$0();
+    }
+}
+"#,
+            r#"
+struct A(u32);
+impl A {
+    fn f() -> Self { Self(1919810) }
+    fn main() {
+        Self(1919810);
     }
 }
 "#,

@@ -10,7 +10,7 @@ use syntax::{
 };
 
 use crate::{
-    assist_context::{AssistBuilder, AssistContext, Assists},
+    assist_context::{AssistContext, Assists, SourceChangeBuilder},
     utils::{
         add_trait_assoc_items_to_impl, filter_assoc_items, gen_trait_fn_body,
         generate_trait_impl_text, render_snippet, Cursor, DefaultMethods,
@@ -85,7 +85,7 @@ pub(crate) fn replace_derive_with_manual_impl(
     })
     .flat_map(|trait_| {
         current_module
-            .find_use_path(ctx.sema.db, hir::ModuleDef::Trait(trait_))
+            .find_use_path(ctx.sema.db, hir::ModuleDef::Trait(trait_), ctx.config.prefer_no_std)
             .as_ref()
             .map(mod_path_to_ast)
             .zip(Some(trait_))
@@ -224,7 +224,7 @@ fn impl_def_from_trait(
 }
 
 fn update_attribute(
-    builder: &mut AssistBuilder,
+    builder: &mut SourceChangeBuilder,
     old_derives: &[ast::Path],
     old_tree: &ast::TokenTree,
     old_trait_path: &ast::Path,

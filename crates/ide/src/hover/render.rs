@@ -2,12 +2,13 @@
 use std::fmt::Display;
 
 use either::Either;
-use hir::{AsAssocItem, AttributeTemplate, HasAttrs, HirDisplay, Semantics, TypeInfo};
+use hir::{AsAssocItem, AttributeTemplate, HasAttrs, HasSource, HirDisplay, Semantics, TypeInfo};
 use ide_db::{
     base_db::SourceDatabase,
     defs::Definition,
     famous_defs::FamousDefs,
     generated::lints::{CLIPPY_LINTS, DEFAULT_LINTS, FEATURES},
+    syntax_helpers::insert_whitespace_into_node,
     RootDatabase,
 };
 use itertools::Itertools;
@@ -230,7 +231,7 @@ pub(super) fn keyword(
     config: &HoverConfig,
     token: &SyntaxToken,
 ) -> Option<HoverResult> {
-    if !token.kind().is_keyword() || !config.documentation.is_some() {
+    if !token.kind().is_keyword() || !config.documentation.is_some() || !config.keywords {
         return None;
     }
     let parent = token.parent()?;
@@ -345,15 +346,38 @@ pub(super) fn definition(
         Definition::Module(it) => label_and_docs(db, it),
         Definition::Function(it) => label_and_docs(db, it),
         Definition::Adt(it) => label_and_docs(db, it),
-        Definition::Variant(it) => label_and_docs(db, it),
+        Definition::Variant(it) => label_value_and_docs(db, it, |&it| {
+            if !it.parent_enum(db).is_data_carrying(db) {
+                match it.eval(db) {
+                    Ok(x) => Some(format!("{}", x)),
+                    Err(_) => it.value(db).map(|x| format!("{:?}", x)),
+                }
+            } else {
+                None
+            }
+        }),
         Definition::Const(it) => label_value_and_docs(db, it, |it| {
             let body = it.eval(db);
             match body {
                 Ok(x) => Some(format!("{}", x)),
-                Err(_) => it.value(db).map(|x| format!("{}", x)),
+                Err(_) => {
+                    let source = it.source(db)?;
+                    let mut body = source.value.body()?.syntax().clone();
+                    if source.file_id.is_macro() {
+                        body = insert_whitespace_into_node::insert_ws_into(body);
+                    }
+                    Some(body.to_string())
+                }
             }
         }),
-        Definition::Static(it) => label_value_and_docs(db, it, |it| it.value(db)),
+        Definition::Static(it) => label_value_and_docs(db, it, |it| {
+            let source = it.source(db)?;
+            let mut body = source.value.body()?.syntax().clone();
+            if source.file_id.is_macro() {
+                body = insert_whitespace_into_node::insert_ws_into(body);
+            }
+            Some(body.to_string())
+        }),
         Definition::Trait(it) => label_and_docs(db, it),
         Definition::TypeAlias(it) => label_and_docs(db, it),
         Definition::BuiltinType(it) => {

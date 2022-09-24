@@ -207,11 +207,6 @@
                 "category": "rust-analyzer"
             },
             {
-                "command": "rust-analyzer.toggleInlayHints",
-                "title": "Toggle inlay hints",
-                "category": "rust-analyzer"
-            },
-            {
                 "command": "rust-analyzer.openDocs",
                 "title": "Open docs under cursor",
                 "category": "rust-analyzer"
@@ -234,6 +229,11 @@
             {
                 "command": "rust-analyzer.moveItemDown",
                 "title": "Move item down",
+                "category": "rust-analyzer"
+            },
+            {
+                "command": "rust-analyzer.cancelFlycheck",
+                "title": "Cancel running flychecks",
                 "category": "rust-analyzer"
             }
         ],
@@ -437,6 +437,11 @@
                     "default": true,
                     "type": "boolean"
                 },
+                "rust-analyzer.cargo.extraEnv": {
+                    "markdownDescription": "Extra environment variables that will be set when running cargo, rustc\nor other commands within the workspace. Useful for setting RUSTFLAGS.",
+                    "default": {},
+                    "type": "object"
+                },
                 "rust-analyzer.cargo.features": {
                     "markdownDescription": "List of features to activate.\n\nSet this to `\"all\"` to pass `--all-features` to cargo.",
                     "default": [],
@@ -509,6 +514,11 @@
                         "type": "string"
                     }
                 },
+                "rust-analyzer.checkOnSave.extraEnv": {
+                    "markdownDescription": "Extra environment variables that will be set when running `cargo check`.\nExtends `#rust-analyzer.cargo.extraEnv#`.",
+                    "default": {},
+                    "type": "object"
+                },
                 "rust-analyzer.checkOnSave.features": {
                     "markdownDescription": "List of features to activate. Defaults to\n`#rust-analyzer.cargo.features#`.\n\nSet to `\"all\"` to pass `--all-features` to Cargo.",
                     "default": null,
@@ -542,7 +552,7 @@
                     ]
                 },
                 "rust-analyzer.checkOnSave.overrideCommand": {
-                    "markdownDescription": "Override the command rust-analyzer uses instead of `cargo check` for\ndiagnostics on save. The command is required to output json and\nshould therefor include `--message-format=json` or a similar option.\n\nIf you're changing this because you're using some tool wrapping\nCargo, you might also want to change\n`#rust-analyzer.cargo.buildScripts.overrideCommand#`.\n\nAn example command would be:\n\n```bash\ncargo check --workspace --message-format=json --all-targets\n```\n.",
+                    "markdownDescription": "Override the command rust-analyzer uses instead of `cargo check` for\ndiagnostics on save. The command is required to output json and\nshould therefor include `--message-format=json` or a similar option.\n\nIf you're changing this because you're using some tool wrapping\nCargo, you might also want to change\n`#rust-analyzer.cargo.buildScripts.overrideCommand#`.\n\nIf there are multiple linked projects, this command is invoked for\neach of them, with the working directory being the project root\n(i.e., the folder containing the `Cargo.toml`).\n\nAn example command would be:\n\n```bash\ncargo check --workspace --message-format=json --all-targets\n```\n.",
                     "default": null,
                     "type": [
                         "null",
@@ -756,6 +766,11 @@
                     "default": true,
                     "type": "boolean"
                 },
+                "rust-analyzer.hover.documentation.keywords.enable": {
+                    "markdownDescription": "Whether to show keyword hover popups. Only applies when\n`#rust-analyzer.hover.documentation.enable#` is set.",
+                    "default": true,
+                    "type": "boolean"
+                },
                 "rust-analyzer.hover.links.enable": {
                     "markdownDescription": "Use markdown syntax for links in hover.",
                     "default": true,
@@ -791,6 +806,11 @@
                 "rust-analyzer.imports.merge.glob": {
                     "markdownDescription": "Whether to allow import insertion to merge new imports into single path glob imports like `use std::fmt::*;`.",
                     "default": true,
+                    "type": "boolean"
+                },
+                "rust-analyzer.imports.prefer.no.std": {
+                    "markdownDescription": "Prefer to unconditionally use imports of the core and alloc crate, over the std crate.",
+                    "default": false,
                     "type": "boolean"
                 },
                 "rust-analyzer.imports.prefix": {
@@ -953,6 +973,19 @@
                     "default": true,
                     "type": "boolean"
                 },
+                "rust-analyzer.lens.location": {
+                    "markdownDescription": "Where to render annotations.",
+                    "default": "above_name",
+                    "type": "string",
+                    "enum": [
+                        "above_name",
+                        "above_whole_item"
+                    ],
+                    "enumDescriptions": [
+                        "Render annotations above the name of the item.",
+                        "Render annotations above the whole item, including documentation comments and attributes."
+                    ]
+                },
                 "rust-analyzer.lens.references.adt.enable": {
                     "markdownDescription": "Whether to show `References` lens for Struct, Enum, and Union.\nOnly applies when `#rust-analyzer.lens.enable#` is set.",
                     "default": false,
@@ -1026,6 +1059,11 @@
                         "string"
                     ]
                 },
+                "rust-analyzer.references.excludeImports": {
+                    "markdownDescription": "Exclude imports from find-all-references.",
+                    "default": false,
+                    "type": "boolean"
+                },
                 "rust-analyzer.runnables.command": {
                     "markdownDescription": "Command to be executed instead of 'cargo' for runnables.",
                     "default": null,
@@ -1071,6 +1109,36 @@
                 },
                 "rust-analyzer.rustfmt.rangeFormatting.enable": {
                     "markdownDescription": "Enables the use of rustfmt's unstable range formatting command for the\n`textDocument/rangeFormatting` request. The rustfmt option is unstable and only\navailable on a nightly build.",
+                    "default": false,
+                    "type": "boolean"
+                },
+                "rust-analyzer.semanticHighlighting.doc.comment.inject.enable": {
+                    "markdownDescription": "Inject additional highlighting into doc comments.\n\nWhen enabled, rust-analyzer will highlight rust source in doc comments as well as intra\ndoc links.",
+                    "default": true,
+                    "type": "boolean"
+                },
+                "rust-analyzer.semanticHighlighting.operator.enable": {
+                    "markdownDescription": "Use semantic tokens for operators.\n\nWhen disabled, rust-analyzer will emit semantic tokens only for operator tokens when\nthey are tagged with modifiers.",
+                    "default": true,
+                    "type": "boolean"
+                },
+                "rust-analyzer.semanticHighlighting.operator.specialization.enable": {
+                    "markdownDescription": "Use specialized semantic tokens for operators.\n\nWhen enabled, rust-analyzer will emit special token types for operator tokens instead\nof the generic `operator` token type.",
+                    "default": false,
+                    "type": "boolean"
+                },
+                "rust-analyzer.semanticHighlighting.punctuation.enable": {
+                    "markdownDescription": "Use semantic tokens for punctuations.\n\nWhen disabled, rust-analyzer will emit semantic tokens only for punctuation tokens when\nthey are tagged with modifiers or have a special role.",
+                    "default": false,
+                    "type": "boolean"
+                },
+                "rust-analyzer.semanticHighlighting.punctuation.separate.macro.bang": {
+                    "markdownDescription": "When enabled, rust-analyzer will emit a punctuation semantic token for the `!` of macro\ncalls.",
+                    "default": false,
+                    "type": "boolean"
+                },
+                "rust-analyzer.semanticHighlighting.punctuation.specialization.enable": {
+                    "markdownDescription": "Use specialized semantic tokens for punctuations.\n\nWhen enabled, rust-analyzer will emit special token types for punctuation tokens instead\nof the generic `punctuation` token type.",
                     "default": false,
                     "type": "boolean"
                 },
@@ -1591,10 +1659,6 @@
                 },
                 {
                     "command": "rust-analyzer.serverVersion",
-                    "when": "inRustProject"
-                },
-                {
-                    "command": "rust-analyzer.toggleInlayHints",
                     "when": "inRustProject"
                 },
                 {

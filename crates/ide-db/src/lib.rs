@@ -38,6 +38,7 @@ pub mod syntax_helpers {
     pub mod node_ext;
     pub mod insert_whitespace_into_node;
     pub mod format_string;
+    pub mod format_string_exprs;
 
     pub use parser::LexedStr;
 }
@@ -52,6 +53,7 @@ use hir::{
     db::{AstDatabase, DefDatabase, HirDatabase},
     symbols::FileSymbolKind,
 };
+use stdx::hash::NoHashHashSet;
 
 use crate::{line_index::LineIndex, symbol_index::SymbolsDatabase};
 pub use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
@@ -118,7 +120,7 @@ impl FileLoader for RootDatabase {
     fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId> {
         FileLoaderDelegate(self).resolve_path(path)
     }
-    fn relevant_crates(&self, file_id: FileId) -> Arc<FxHashSet<CrateId>> {
+    fn relevant_crates(&self, file_id: FileId) -> Arc<NoHashHashSet<CrateId>> {
         FileLoaderDelegate(self).relevant_crates(file_id)
     }
 }

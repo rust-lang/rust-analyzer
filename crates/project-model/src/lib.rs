@@ -3,7 +3,7 @@
 //!
 //! Pure model is represented by the [`base_db::CrateGraph`] from another crate.
 //!
-//! In this crate, we are conserned with "real world" project models.
+//! In this crate, we are concerned with "real world" project models.
 //!
 //! Specifically, here we have a representation for a Cargo project
 //! ([`CargoWorkspace`]) and for manually specified layout ([`ProjectJson`]).
@@ -42,8 +42,8 @@ use rustc_hash::FxHashSet;
 pub use crate::{
     build_scripts::WorkspaceBuildScripts,
     cargo_workspace::{
-        CargoConfig, CargoWorkspace, Package, PackageData, PackageDependency, RustcSource, Target,
-        TargetData, TargetKind, UnsetTestCrates,
+        CargoConfig, CargoFeatures, CargoWorkspace, Package, PackageData, PackageDependency,
+        RustcSource, Target, TargetData, TargetKind, UnsetTestCrates,
     },
     manifest_path::ManifestPath,
     project_json::{ProjectJson, ProjectJsonData},

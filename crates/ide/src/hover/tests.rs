@@ -8,7 +8,11 @@ fn check_hover_no_result(ra_fixture: &str) {
     let (analysis, position) = fixture::position(ra_fixture);
     let hover = analysis
         .hover(
-            &HoverConfig { links_in_hover: true, documentation: Some(HoverDocFormat::Markdown) },
+            &HoverConfig {
+                links_in_hover: true,
+                documentation: Some(HoverDocFormat::Markdown),
+                keywords: true,
+            },
             FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
         )
         .unwrap();
@@ -20,7 +24,11 @@ fn check(ra_fixture: &str, expect: Expect) {
     let (analysis, position) = fixture::position(ra_fixture);
     let hover = analysis
         .hover(
-            &HoverConfig { links_in_hover: true, documentation: Some(HoverDocFormat::Markdown) },
+            &HoverConfig {
+                links_in_hover: true,
+                documentation: Some(HoverDocFormat::Markdown),
+                keywords: true,
+            },
             FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
         )
         .unwrap()
@@ -37,7 +45,11 @@ fn check_hover_no_links(ra_fixture: &str, expect: Expect) {
     let (analysis, position) = fixture::position(ra_fixture);
     let hover = analysis
         .hover(
-            &HoverConfig { links_in_hover: false, documentation: Some(HoverDocFormat::Markdown) },
+            &HoverConfig {
+                links_in_hover: false,
+                documentation: Some(HoverDocFormat::Markdown),
+                keywords: true,
+            },
             FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
         )
         .unwrap()
@@ -54,7 +66,11 @@ fn check_hover_no_markdown(ra_fixture: &str, expect: Expect) {
     let (analysis, position) = fixture::position(ra_fixture);
     let hover = analysis
         .hover(
-            &HoverConfig { links_in_hover: true, documentation: Some(HoverDocFormat::PlainText) },
+            &HoverConfig {
+                links_in_hover: true,
+                documentation: Some(HoverDocFormat::PlainText),
+                keywords: true,
+            },
             FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
         )
         .unwrap()
@@ -71,7 +87,11 @@ fn check_actions(ra_fixture: &str, expect: Expect) {
     let (analysis, file_id, position) = fixture::range_or_position(ra_fixture);
     let hover = analysis
         .hover(
-            &HoverConfig { links_in_hover: true, documentation: Some(HoverDocFormat::Markdown) },
+            &HoverConfig {
+                links_in_hover: true,
+                documentation: Some(HoverDocFormat::Markdown),
+                keywords: true,
+            },
             FileRange { file_id, range: position.range_or_empty() },
         )
         .unwrap()
@@ -83,7 +103,11 @@ fn check_hover_range(ra_fixture: &str, expect: Expect) {
     let (analysis, range) = fixture::range(ra_fixture);
     let hover = analysis
         .hover(
-            &HoverConfig { links_in_hover: false, documentation: Some(HoverDocFormat::Markdown) },
+            &HoverConfig {
+                links_in_hover: false,
+                documentation: Some(HoverDocFormat::Markdown),
+                keywords: true,
+            },
             range,
         )
         .unwrap()
@@ -95,7 +119,11 @@ fn check_hover_range_no_results(ra_fixture: &str) {
     let (analysis, range) = fixture::range(ra_fixture);
     let hover = analysis
         .hover(
-            &HoverConfig { links_in_hover: false, documentation: Some(HoverDocFormat::Markdown) },
+            &HoverConfig {
+                links_in_hover: false,
+                documentation: Some(HoverDocFormat::Markdown),
+                keywords: true,
+            },
             range,
         )
         .unwrap();
@@ -670,6 +698,7 @@ fn hover_enum_variant() {
     check(
         r#"
 enum Option<T> {
+    Some(T)
     /// The None variant
     Non$0e
 }
@@ -3500,6 +3529,112 @@ impl<const LEN: usize> Foo<LEN$0> {}
 }
 
 #[test]
+fn hover_const_eval_variant() {
+    // show hex for <10
+    check(
+        r#"
+#[repr(u8)]
+enum E {
+    /// This is a doc
+    A$0 = 1 << 3,
+}
+"#,
+        expect![[r#"
+            *A*
+
+            ```rust
+            test::E
+            ```
+
+            ```rust
+            A = 8
+            ```
+
+            ---
+
+            This is a doc
+        "#]],
+    );
+    // show hex for >10
+    check(
+        r#"
+#[repr(u8)]
+enum E {
+    /// This is a doc
+    A$0 = (1 << 3) + (1 << 2),
+}
+"#,
+        expect![[r#"
+            *A*
+
+            ```rust
+            test::E
+            ```
+
+            ```rust
+            A = 12 (0xC)
+            ```
+
+            ---
+
+            This is a doc
+        "#]],
+    );
+    // enums in const eval
+    check(
+        r#"
+#[repr(u8)]
+enum E {
+    A = 1,
+    /// This is a doc
+    B$0 = E::A as u8 + 1,
+}
+"#,
+        expect![[r#"
+            *B*
+
+            ```rust
+            test::E
+            ```
+
+            ```rust
+            B = 2
+            ```
+
+            ---
+
+            This is a doc
+        "#]],
+    );
+    // unspecified variant should increment by one
+    check(
+        r#"
+#[repr(u8)]
+enum E {
+    A = 4,
+    /// This is a doc
+    B$0,
+}
+"#,
+        expect![[r#"
+            *B*
+
+            ```rust
+            test::E
+            ```
+
+            ```rust
+            B = 5
+            ```
+
+            ---
+
+            This is a doc
+        "#]],
+    );
+}
+
+#[test]
 fn hover_const_eval() {
     // show hex for <10
     check(
@@ -3788,6 +3923,35 @@ fn foo() {
 
             ```rust
             const FOO: usize = 3
+            ```
+
+            ---
+
+            This is a doc
+        "#]],
+    );
+    check(
+        r#"
+enum E {
+    /// This is a doc
+    A = 3,
+}
+fn foo(e: E) {
+    match e {
+        E::A$0 => (),
+        _ => ()
+    }
+}
+"#,
+        expect![[r#"
+            *A*
+
+            ```rust
+            test::E
+            ```
+
+            ```rust
+            A = 3
             ```
 
             ---
@@ -5081,6 +5245,64 @@ fn f() {
 
             ```rust
             fn deref(&self) -> &Self::Target
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn static_const_macro_expanded_body() {
+    check(
+        r#"
+macro_rules! m {
+    () => {
+        pub const V: i8 = {
+            let e = 123;
+            f(e) // Prevent const eval from evaluating this constant, we want to print the body's code.
+        };
+    };
+}
+m!();
+fn main() { $0V; }
+"#,
+        expect![[r#"
+            *V*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            pub const V: i8 = {
+              let e = 123;
+              f(e)
+            }
+            ```
+        "#]],
+    );
+    check(
+        r#"
+macro_rules! m {
+    () => {
+        pub static V: i8 = {
+            let e = 123;
+        };
+    };
+}
+m!();
+fn main() { $0V; }
+"#,
+        expect![[r#"
+            *V*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            pub static V: i8 = {
+              let e = 123;
+            }
             ```
         "#]],
     );

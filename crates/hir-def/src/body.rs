@@ -4,6 +4,7 @@ mod lower;
 #[cfg(test)]
 mod tests;
 pub mod scope;
+mod pretty;
 
 use std::{ops::Index, sync::Arc};
 
@@ -26,7 +27,7 @@ use crate::{
     macro_id_to_def_id,
     nameres::DefMap,
     path::{ModPath, Path},
-    src::HasSource,
+    src::{HasChildSource, HasSource},
     AsMacroCall, BlockId, DefWithBodyId, HasModule, LocalModuleId, Lookup, MacroId, ModuleId,
     UnresolvedMacro,
 };
@@ -249,6 +250,10 @@ pub type PatSource = InFile<PatPtr>;
 
 pub type LabelPtr = AstPtr<ast::Label>;
 pub type LabelSource = InFile<LabelPtr>;
+
+pub type FieldPtr = AstPtr<ast::RecordExprField>;
+pub type FieldSource = InFile<FieldPtr>;
+
 /// An item body together with the mapping from syntax nodes to HIR expression
 /// IDs. This is needed to go from e.g. a position in a file to the HIR
 /// expression containing it; but for type inference etc., we want to operate on
@@ -263,18 +268,18 @@ pub type LabelSource = InFile<LabelPtr>;
 #[derive(Default, Debug, Eq, PartialEq)]
 pub struct BodySourceMap {
     expr_map: FxHashMap<ExprSource, ExprId>,
-    expr_map_back: ArenaMap<ExprId, Result<ExprSource, SyntheticSyntax>>,
+    expr_map_back: ArenaMap<ExprId, ExprSource>,
 
     pat_map: FxHashMap<PatSource, PatId>,
-    pat_map_back: ArenaMap<PatId, Result<PatSource, SyntheticSyntax>>,
+    pat_map_back: ArenaMap<PatId, PatSource>,
 
     label_map: FxHashMap<LabelSource, LabelId>,
     label_map_back: ArenaMap<LabelId, LabelSource>,
 
     /// We don't create explicit nodes for record fields (`S { record_field: 92 }`).
     /// Instead, we use id of expression (`92`) to identify the field.
-    field_map: FxHashMap<InFile<AstPtr<ast::RecordExprField>>, ExprId>,
-    field_map_back: FxHashMap<ExprId, InFile<AstPtr<ast::RecordExprField>>>,
+    field_map: FxHashMap<FieldSource, ExprId>,
+    field_map_back: FxHashMap<ExprId, FieldSource>,
 
     expansions: FxHashMap<InFile<AstPtr<ast::MacroCall>>, HirFileId>,
 
@@ -319,6 +324,12 @@ impl Body {
                 let src = s.source(db);
                 (src.file_id, s.module(db), src.value.body())
             }
+            DefWithBodyId::VariantId(v) => {
+                let e = v.parent.lookup(db);
+                let src = v.parent.child_source(db);
+                let variant = &src.value[v.local_id];
+                (src.file_id, e.container, variant.expr())
+            }
         };
         let expander = Expander::new(db, file_id, module);
         let (mut body, source_map) = Body::new(db, expander, params, body);
@@ -350,6 +361,10 @@ impl Body {
             Some(pats) => &**pats,
             None => std::slice::from_ref(pat),
         }
+    }
+
+    pub fn pretty_print(&self, db: &dyn DefDatabase, owner: DefWithBodyId) -> String {
+        pretty::print_body_hir(db, self, owner)
     }
 
     fn new(
@@ -415,7 +430,7 @@ impl Index<LabelId> for Body {
 // Perhaps `expr_syntax` and `expr_id`?
 impl BodySourceMap {
     pub fn expr_syntax(&self, expr: ExprId) -> Result<ExprSource, SyntheticSyntax> {
-        self.expr_map_back[expr].clone()
+        self.expr_map_back.get(expr).cloned().ok_or(SyntheticSyntax)
     }
 
     pub fn node_expr(&self, node: InFile<&ast::Expr>) -> Option<ExprId> {
@@ -429,7 +444,7 @@ impl BodySourceMap {
     }
 
     pub fn pat_syntax(&self, pat: PatId) -> Result<PatSource, SyntheticSyntax> {
-        self.pat_map_back[pat].clone()
+        self.pat_map_back.get(pat).cloned().ok_or(SyntheticSyntax)
     }
 
     pub fn node_pat(&self, node: InFile<&ast::Pat>) -> Option<PatId> {
@@ -451,9 +466,10 @@ impl BodySourceMap {
         self.label_map.get(&src).cloned()
     }
 
-    pub fn field_syntax(&self, expr: ExprId) -> InFile<AstPtr<ast::RecordExprField>> {
+    pub fn field_syntax(&self, expr: ExprId) -> FieldSource {
         self.field_map_back[&expr].clone()
     }
+
     pub fn node_field(&self, node: InFile<&ast::RecordExprField>) -> Option<ExprId> {
         let src = node.map(AstPtr::new);
         self.field_map.get(&src).cloned()

@@ -1,9 +1,12 @@
 // Some ideas for future improvements:
 // - Support replacing aliases which are used in expressions, e.g. `A::new()`.
-// - "inline_alias_to_users" assist #10881.
 // - Remove unused aliases if there are no longer any users, see inline_call.rs.
 
 use hir::{HasSource, PathResolution};
+use ide_db::{
+    defs::Definition, imports::insert_use::ast_to_remove_for_path_in_use_stmt,
+    search::FileReference,
+};
 use itertools::Itertools;
 use std::collections::HashMap;
 use syntax::{
@@ -15,6 +18,89 @@ use crate::{
     assist_context::{AssistContext, Assists},
     AssistId, AssistKind,
 };
+
+use super::inline_call::split_refs_and_uses;
+
+// Assist: inline_type_alias_uses
+//
+// Inline a type alias into all of its uses where possible.
+//
+// ```
+// type $0A = i32;
+// fn id(x: A) -> A {
+//     x
+// };
+// fn foo() {
+//     let _: A = 3;
+// }
+// ```
+// ->
+// ```
+//
+// fn id(x: i32) -> i32 {
+//     x
+// };
+// fn foo() {
+//     let _: i32 = 3;
+// }
+pub(crate) fn inline_type_alias_uses(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+    let name = ctx.find_node_at_offset::<ast::Name>()?;
+    let ast_alias = name.syntax().parent().and_then(ast::TypeAlias::cast)?;
+
+    let hir_alias = ctx.sema.to_def(&ast_alias)?;
+    let concrete_type = ast_alias.ty()?;
+
+    let usages = Definition::TypeAlias(hir_alias).usages(&ctx.sema);
+    if !usages.at_least_one() {
+        return None;
+    }
+
+    // until this is ok
+
+    acc.add(
+        AssistId("inline_type_alias_uses", AssistKind::RefactorInline),
+        "Inline type alias into all uses",
+        name.syntax().text_range(),
+        |builder| {
+            let usages = usages.all();
+            let mut definition_deleted = false;
+
+            let mut inline_refs_for_file = |file_id, refs: Vec<FileReference>| {
+                builder.edit_file(file_id);
+
+                let (path_types, path_type_uses) =
+                    split_refs_and_uses(builder, refs, |path_type| {
+                        path_type.syntax().ancestors().nth(3).and_then(ast::PathType::cast)
+                    });
+
+                path_type_uses
+                    .iter()
+                    .flat_map(ast_to_remove_for_path_in_use_stmt)
+                    .for_each(|x| builder.delete(x.syntax().text_range()));
+                for (target, replacement) in path_types.into_iter().filter_map(|path_type| {
+                    let replacement = inline(&ast_alias, &path_type)?.to_text(&concrete_type);
+                    let target = path_type.syntax().text_range();
+                    Some((target, replacement))
+                }) {
+                    builder.replace(target, replacement);
+                }
+
+                if file_id == ctx.file_id() {
+                    builder.delete(ast_alias.syntax().text_range());
+                    definition_deleted = true;
+                }
+            };
+
+            for (file_id, refs) in usages.into_iter() {
+                inline_refs_for_file(file_id, refs);
+            }
+            if !definition_deleted {
+                builder.edit_file(ctx.file_id());
+                builder.delete(ast_alias.syntax().text_range());
+            }
+        },
+    )
+}
 
 // Assist: inline_type_alias
 //
@@ -36,11 +122,6 @@ use crate::{
 // }
 // ```
 pub(crate) fn inline_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
-    enum Replacement {
-        Generic { lifetime_map: LifetimeMap, const_and_type_map: ConstAndTypeMap },
-        Plain,
-    }
-
     let alias_instance = ctx.find_node_at_offset::<ast::PathType>()?;
     let concrete_type;
     let replacement;
@@ -59,23 +140,7 @@ pub(crate) fn inline_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
         _ => {
             let alias = get_type_alias(&ctx, &alias_instance)?;
             concrete_type = alias.ty()?;
-
-            replacement = if let Some(alias_generics) = alias.generic_param_list() {
-                if alias_generics.generic_params().next().is_none() {
-                    cov_mark::hit!(no_generics_params);
-                    return None;
-                }
-
-                let instance_args =
-                    alias_instance.syntax().descendants().find_map(ast::GenericArgList::cast);
-
-                Replacement::Generic {
-                    lifetime_map: LifetimeMap::new(&instance_args, &alias_generics)?,
-                    const_and_type_map: ConstAndTypeMap::new(&instance_args, &alias_generics)?,
-                }
-            } else {
-                Replacement::Plain
-            };
+            replacement = inline(&alias, &alias_instance)?;
         }
     }
 
@@ -85,17 +150,43 @@ pub(crate) fn inline_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
         AssistId("inline_type_alias", AssistKind::RefactorInline),
         "Inline type alias",
         target,
-        |builder| {
-            let replacement_text = match replacement {
-                Replacement::Generic { lifetime_map, const_and_type_map } => {
-                    create_replacement(&lifetime_map, &const_and_type_map, &concrete_type)
-                }
-                Replacement::Plain => concrete_type.to_string(),
-            };
-
-            builder.replace(target, replacement_text);
-        },
+        |builder| builder.replace(target, replacement.to_text(&concrete_type)),
     )
+}
+
+impl Replacement {
+    fn to_text(&self, concrete_type: &ast::Type) -> String {
+        match self {
+            Replacement::Generic { lifetime_map, const_and_type_map } => {
+                create_replacement(&lifetime_map, &const_and_type_map, &concrete_type)
+            }
+            Replacement::Plain => concrete_type.to_string(),
+        }
+    }
+}
+
+enum Replacement {
+    Generic { lifetime_map: LifetimeMap, const_and_type_map: ConstAndTypeMap },
+    Plain,
+}
+
+fn inline(alias_def: &ast::TypeAlias, alias_instance: &ast::PathType) -> Option<Replacement> {
+    let repl = if let Some(alias_generics) = alias_def.generic_param_list() {
+        if alias_generics.generic_params().next().is_none() {
+            cov_mark::hit!(no_generics_params);
+            return None;
+        }
+        let instance_args =
+            alias_instance.syntax().descendants().find_map(ast::GenericArgList::cast);
+
+        Replacement::Generic {
+            lifetime_map: LifetimeMap::new(&instance_args, &alias_generics)?,
+            const_and_type_map: ConstAndTypeMap::new(&instance_args, &alias_generics)?,
+        }
+    } else {
+        Replacement::Plain
+    };
+    Some(repl)
 }
 
 struct LifetimeMap(HashMap<String, ast::Lifetime>);
@@ -834,5 +925,96 @@ trait Tr {
 }
 "#,
         );
+    }
+
+    mod inline_type_alias_uses {
+        use crate::{handlers::inline_type_alias::inline_type_alias_uses, tests::check_assist};
+
+        #[test]
+        fn inline_uses() {
+            check_assist(
+                inline_type_alias_uses,
+                r#"
+type $0A = u32;
+
+fn foo() {
+    let _: A = 3;
+    let _: A = 4;
+}
+"#,
+                r#"
+
+
+fn foo() {
+    let _: u32 = 3;
+    let _: u32 = 4;
+}
+"#,
+            );
+        }
+
+        #[test]
+        fn inline_uses_across_files() {
+            check_assist(
+                inline_type_alias_uses,
+                r#"
+//- /lib.rs
+mod foo;
+type $0T<E> = Vec<E>;
+fn f() -> T<&str> {
+    vec!["hello"]
+}
+
+//- /foo.rs
+use super::T;
+fn foo() {
+    let _: T<i8> = Vec::new();
+}
+"#,
+                r#"
+//- /lib.rs
+mod foo;
+
+fn f() -> Vec<&str> {
+    vec!["hello"]
+}
+
+//- /foo.rs
+
+fn foo() {
+    let _: Vec<i8> = Vec::new();
+}
+"#,
+            );
+        }
+
+        #[test]
+        fn inline_uses_across_files_2() {
+            check_assist(
+                inline_type_alias_uses,
+                r#"
+//- /lib.rs
+mod foo;
+type $0I = i32;
+
+//- /foo.rs
+use super::I;
+fn foo() {
+    let _: I = 0;
+}
+"#,
+                r#"
+//- /lib.rs
+mod foo;
+
+
+//- /foo.rs
+
+fn foo() {
+    let _: i32 = 0;
+}
+"#,
+            );
+        }
     }
 }
