@@ -2001,21 +2001,9 @@ fn manual(fields: &[(&'static str, &'static str, &[&str], &str)]) -> String {
             let name = format!("rust-analyzer.{}", field.replace('_', "."));
             let doc = doc_comment_to_string(*doc);
             if default.contains('\n') {
-                format!(
-                    r#"[[{}]]{}::
-+
---
-Default:
-----
-{}
-----
-{}
---
-"#,
-                    name, name, default, doc
-                )
+                format!("**{}**\n\n default:\n```\n{}\n```\n\n{}\n\n", name, default, doc)
             } else {
-                format!("[[{}]]{} (default: `{}`)::\n+\n--\n{}--\n", name, name, default, doc)
+                format!("**{}** (default: `{}`)\n\n{}\n\n", name, default, doc)
             }
         })
         .collect::<String>()
