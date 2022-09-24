@@ -55,7 +55,7 @@ r#####"
             "sourcegen_assists_docs",
             assists.into_iter().map(|it| it.to_string()).collect::<Vec<_>>().join("\n\n"),
         );
-        let dst = project_root().join("docs/user/generated_assists.adoc");
+        let dst = project_root().join("docs/manual/src/generated_assists.md");
         fs::write(dst, contents).unwrap();
     }
 }

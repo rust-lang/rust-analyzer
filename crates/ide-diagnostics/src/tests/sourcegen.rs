@@ -10,7 +10,7 @@ fn sourcegen_diagnostic_docs() {
     let contents =
         diagnostics.into_iter().map(|it| it.to_string()).collect::<Vec<_>>().join("\n\n");
     let contents = sourcegen::add_preamble("sourcegen_diagnostic_docs", contents);
-    let dst = project_root().join("docs/user/generated_diagnostic.adoc");
+    let dst = project_root().join("docs/manual/src/generated_diagnostics.md");
     fs::write(&dst, &contents).unwrap();
 }
 
