@@ -2,20 +2,33 @@
 //!
 //! Files which do not belong to any explicitly configured `FileSet` belong to
 //! the default `FileSet`.
-use std::fmt;
+use std::{
+    fmt,
+    panic::{RefUnwindSafe, UnwindSafe},
+    sync::Arc,
+};
 
 use fst::{IntoStreamer, Streamer};
 use rustc_hash::FxHashMap;
 use stdx::hash::NoHashHashMap;
 
-use crate::{AnchoredPath, FileId, Vfs, VfsPath};
+use crate::{loader::Handle, AnchoredPath, FileId, Vfs, VfsPath};
 
 /// A set of [`VfsPath`]s identified by [`FileId`]s.
-#[derive(Default, Clone, Eq, PartialEq)]
+#[derive(Default, Clone)]
 pub struct FileSet {
     files: FxHashMap<VfsPath, FileId>,
     paths: NoHashHashMap<FileId, VfsPath>,
+    handle: Option<Arc<dyn Handle + Sync + Send + UnwindSafe + RefUnwindSafe>>,
 }
+
+impl PartialEq for FileSet {
+    fn eq(&self, other: &Self) -> bool {
+        self.files == other.files && self.paths == other.paths
+    }
+}
+
+impl Eq for FileSet {}
 
 impl FileSet {
     /// Returns the number of stored paths.
@@ -31,7 +44,15 @@ impl FileSet {
         let mut base = self.paths[&path.anchor].clone();
         base.pop();
         let path = base.join(path.path)?;
-        self.files.get(&path).copied()
+        let answer = self.files.get(&path);
+        if answer.is_none() {
+            if let Some(handle) = &self.handle {
+                if let Some(x) = path.as_path() {
+                    handle.subscribe(x.to_owned());
+                }
+            }
+        }
+        answer.copied()
     }
 
     /// Get the id corresponding to `path` if it exists in the set.
@@ -110,7 +131,9 @@ impl FileSetConfig {
     /// Creates a new [`FileSet`] for every set of prefixes in `self`.
     pub fn partition(&self, vfs: &Vfs) -> Vec<FileSet> {
         let mut scratch_space = Vec::new();
-        let mut res = vec![FileSet::default(); self.len()];
+        let mut file_set = FileSet::default();
+        file_set.handle = vfs.handle.clone();
+        let mut res = vec![file_set; self.len()];
         for (file_id, path) in vfs.iter() {
             let root = self.classify(path, &mut scratch_space);
             res[root].insert(file_id, path.clone());

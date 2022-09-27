@@ -9,7 +9,10 @@
 
 #![warn(rust_2018_idioms, unused_lifetimes, semicolon_in_expressions_from_macros)]
 
-use std::fs;
+use std::{
+    fs,
+    panic::{RefUnwindSafe, UnwindSafe},
+};
 
 use crossbeam_channel::{never, select, unbounded, Receiver, Sender};
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
@@ -24,10 +27,14 @@ pub struct NotifyHandle {
     _thread: jod_thread::JoinHandle,
 }
 
+impl UnwindSafe for NotifyHandle {}
+impl RefUnwindSafe for NotifyHandle {}
+
 #[derive(Debug)]
 enum Message {
     Config(loader::Config),
     Invalidate(AbsPathBuf),
+    Subscribe(AbsPathBuf),
 }
 
 impl loader::Handle for NotifyHandle {
@@ -41,15 +48,19 @@ impl loader::Handle for NotifyHandle {
         NotifyHandle { sender, _thread: thread }
     }
 
-    fn set_config(&mut self, config: loader::Config) {
+    fn set_config(&self, config: loader::Config) {
         self.sender.send(Message::Config(config)).unwrap();
     }
 
-    fn invalidate(&mut self, path: AbsPathBuf) {
+    fn subscribe(&self, path: AbsPathBuf) {
+        self.sender.send(Message::Subscribe(path)).unwrap();
+    }
+
+    fn invalidate(&self, path: AbsPathBuf) {
         self.sender.send(Message::Invalidate(path)).unwrap();
     }
 
-    fn load_sync(&mut self, path: &AbsPath) -> Option<Vec<u8>> {
+    fn load_sync(&self, path: &AbsPath) -> Option<Vec<u8>> {
         read(path)
     }
 }
@@ -125,6 +136,12 @@ impl NotifyActor {
                         let contents = read(path.as_path());
                         let files = vec![(path, contents)];
                         self.send(loader::Message::Loaded { files });
+                    }
+                    Message::Subscribe(path) => {
+                        let contents = read(path.as_path());
+                        let files = vec![(path.clone(), contents)];
+                        self.send(loader::Message::Loaded { files });
+                        self.watched_entries.push(loader::Entry::Files(vec![path]));
                     }
                 },
                 Event::NotifyEvent(event) => {

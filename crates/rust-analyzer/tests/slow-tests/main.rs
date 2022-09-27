@@ -16,7 +16,12 @@ mod support;
 mod testdir;
 mod tidy;
 
-use std::{collections::HashMap, path::PathBuf, time::Instant};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    thread::sleep,
+    time::{Duration, Instant},
+};
 
 use lsp_types::{
     notification::DidOpenTextDocument,
@@ -682,6 +687,87 @@ version = \"0.0.0\"
             }
         }]),
     );
+}
+
+#[test]
+fn include_non_rs_file() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let server = Project::with_fixture(
+        r###"
+//- /Cargo.toml
+[package]
+name = "foo"
+version = "0.0.0"
+
+//- /src/hello.non_rs
+fn hello_world() -> &'static str {
+    "hello world"
+}
+//- /src/some_bytes.txt
+12345
+//- /src/main.rs
+#[rustc_builtin_macro] macro_rules! include {}
+#[rustc_builtin_macro] macro_rules! include_bytes {}
+#[rustc_builtin_macro] macro_rules! include_str {}
+
+include!("hello.non_rs");
+
+fn main() {
+    let my_source = include_bytes!("main.rs");
+    let some_bytes = include_bytes!("some_bytes.txt");
+    let some_str = hello_world();
+    let some_other_bytes = include_bytes!("non_existent.txt");
+    const SOME_STRING: &str = include_str!("some_bytes.txt");
+}
+"###,
+    )
+    .with_config(serde_json::json!({
+        "cargo": {
+            "buildScripts": {
+                "enable": true
+            },
+            "noSysroot": true,
+        }
+    }))
+    .server()
+    .wait_until_workspace_is_loaded();
+
+    let checker = |line, hover: &str| {
+        let params = HoverParams {
+            text_document_position_params: TextDocumentPositionParams::new(
+                server.doc_id("src/main.rs"),
+                Position::new(line, 10),
+            ),
+            work_done_progress_params: Default::default(),
+        };
+
+        // This hover request will trigger the macro expanding, which will ask
+        // the handle to watch the missing file. Answer of the actual hover request
+        // might become ready before the file is being read. By sending a warmup
+        // request we make sure that this race condition won't make problem for
+        // this test.
+        //
+        // In practice this is not a problem because other things like inlayHint will
+        // trigger macro expansion.
+        server.send_request::<HoverRequest>(params.clone());
+        sleep(Duration::from_millis(1));
+
+        let res = server.send_request::<HoverRequest>(params);
+        let res = res.to_string();
+        assert!(
+            res.contains(hover),
+            "{hover} not found in hover of line {line}.\nHover text is:\n{res}"
+        );
+    };
+
+    checker(7, "&[u8; 454]");
+    checker(8, "&[u8; 6]");
+    checker(9, "&str");
+    checker(10, "&[u8; _]");
+    checker(11, r#"\"12345\\n\""#);
 }
 
 #[test]

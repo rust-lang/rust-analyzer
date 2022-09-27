@@ -582,19 +582,28 @@ fn include_expand(
 }
 
 fn include_bytes_expand(
-    _db: &dyn AstDatabase,
-    _arg_id: MacroCallId,
+    db: &dyn AstDatabase,
+    arg_id: MacroCallId,
     tt: &tt::Subtree,
 ) -> ExpandResult<ExpandedEager> {
-    if let Err(e) = parse_string(tt) {
-        return ExpandResult::only_err(e);
-    }
+    let path = match parse_string(tt) {
+        Ok(it) => it,
+        Err(e) => return ExpandResult::only_err(e),
+    };
 
-    // FIXME: actually read the file here if the user asked for macro expansion
+    let file_id = match relative_file(db, arg_id, &path, true) {
+        Ok(file_id) => file_id,
+        Err(_) => {
+            return ExpandResult::ok(ExpandedEager::new(quote!(&[0u8; _])));
+        }
+    };
+
+    let text = db.file_text(file_id);
+
     let res = tt::Subtree {
         delimiter: None,
         token_trees: vec![tt::TokenTree::Leaf(tt::Leaf::Literal(tt::Literal {
-            text: r#"b"""#.into(),
+            text: format!("b{text:?}").into(),
             id: tt::TokenId::unspecified(),
         }))],
     };
@@ -611,10 +620,6 @@ fn include_str_expand(
         Err(e) => return ExpandResult::only_err(e),
     };
 
-    // FIXME: we're not able to read excluded files (which is most of them because
-    // it's unusual to `include_str!` a Rust file), but we can return an empty string.
-    // Ideally, we'd be able to offer a precise expansion if the user asks for macro
-    // expansion.
     let file_id = match relative_file(db, arg_id, &path, true) {
         Ok(file_id) => file_id,
         Err(_) => {

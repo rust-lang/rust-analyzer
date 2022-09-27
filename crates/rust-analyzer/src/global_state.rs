@@ -52,7 +52,7 @@ pub(crate) struct GlobalState {
     sender: Sender<lsp_server::Message>,
     req_queue: ReqQueue,
     pub(crate) task_pool: Handle<TaskPool<Task>, Receiver<Task>>,
-    pub(crate) loader: Handle<Box<dyn vfs::loader::Handle>, Receiver<vfs::loader::Message>>,
+    pub(crate) loader: Handle<Arc<dyn vfs::loader::Handle>, Receiver<vfs::loader::Message>>,
     pub(crate) config: Arc<Config>,
     pub(crate) analysis_host: AnalysisHost,
     pub(crate) diagnostics: DiagnosticCollection,
@@ -123,11 +123,15 @@ impl std::panic::UnwindSafe for GlobalStateSnapshot {}
 
 impl GlobalState {
     pub(crate) fn new(sender: Sender<lsp_server::Message>, config: Config) -> GlobalState {
+        let vfs = Arc::new(RwLock::new((vfs::Vfs::default(), NoHashHashMap::default())));
         let loader = {
             let (sender, receiver) = unbounded::<vfs::loader::Message>();
             let handle: vfs_notify::NotifyHandle =
                 vfs::loader::Handle::spawn(Box::new(move |msg| sender.send(msg).unwrap()));
-            let handle = Box::new(handle) as Box<dyn vfs::loader::Handle>;
+            let (vfs, _) = &mut *vfs.write();
+            let handle = Arc::new(handle);
+            vfs.handle = Some(handle.clone());
+            let handle = handle as Arc<dyn vfs::loader::Handle>;
             Handle { handle, receiver }
         };
 
@@ -159,7 +163,7 @@ impl GlobalState {
             flycheck_sender,
             flycheck_receiver,
 
-            vfs: Arc::new(RwLock::new((vfs::Vfs::default(), NoHashHashMap::default()))),
+            vfs,
             vfs_config_version: 0,
             vfs_progress_config_version: 0,
             vfs_progress_n_total: 0,

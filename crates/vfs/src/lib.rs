@@ -46,7 +46,11 @@ pub mod loader;
 mod path_interner;
 mod vfs_path;
 
-use std::{fmt, mem};
+use std::{
+    fmt, mem,
+    panic::{RefUnwindSafe, UnwindSafe},
+    sync::Arc,
+};
 
 use crate::path_interner::PathInterner;
 
@@ -54,6 +58,7 @@ pub use crate::{
     anchored_path::{AnchoredPath, AnchoredPathBuf},
     vfs_path::VfsPath,
 };
+use loader::Handle;
 pub use paths::{AbsPath, AbsPathBuf};
 
 /// Handle to a file in [`Vfs`]
@@ -77,6 +82,7 @@ pub struct Vfs {
     interner: PathInterner,
     data: Vec<Option<Vec<u8>>>,
     changes: Vec<ChangedFile>,
+    pub handle: Option<Arc<dyn Handle + Sync + Send + UnwindSafe + RefUnwindSafe>>,
 }
 
 /// Changed file in the [`Vfs`].

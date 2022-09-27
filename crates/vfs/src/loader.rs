@@ -64,14 +64,17 @@ pub trait Handle: fmt::Debug {
         Self: Sized;
 
     /// Set this handle's configuration.
-    fn set_config(&mut self, config: Config);
+    fn set_config(&self, config: Config);
 
     /// The file's content at `path` has been modified, and should be reloaded.
-    fn invalidate(&mut self, path: AbsPathBuf);
+    fn invalidate(&self, path: AbsPathBuf);
 
     /// Load the content of the given file, returning [`None`] if it does not
     /// exists.
-    fn load_sync(&mut self, path: &AbsPath) -> Option<Vec<u8>>;
+    fn load_sync(&self, path: &AbsPath) -> Option<Vec<u8>>;
+
+    /// Add a file to watch list
+    fn subscribe(&self, path: AbsPathBuf);
 }
 
 impl Entry {

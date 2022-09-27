@@ -105,6 +105,7 @@ macro_rules! __quote {
     ( < ) => {$crate::__quote!(@PUNCT '<')};
     ( > ) => {$crate::__quote!(@PUNCT '>')};
     ( ! ) => {$crate::__quote!(@PUNCT '!')};
+    ( _ ) => {$crate::__quote!(@PUNCT '_')};
 
     ( $first:tt $($tail:tt)+ ) => {
         {
@@ -188,6 +189,7 @@ macro_rules! impl_to_to_tokentrees {
 }
 
 impl_to_to_tokentrees! {
+    u8 => self { tt::Literal{text: format!("{self}u8").into(), id: tt::TokenId::unspecified()} };
     u32 => self { tt::Literal{text: self.to_string().into(), id: tt::TokenId::unspecified()} };
     usize => self { tt::Literal{text: self.to_string().into(), id: tt::TokenId::unspecified()} };
     i32 => self { tt::Literal{text: self.to_string().into(), id: tt::TokenId::unspecified()} };
