@@ -7,12 +7,12 @@ crates/*/target
 *.log
 *.iml
 .vscode/settings.json
-generated_assists.adoc
-generated_features.adoc
-generated_diagnostic.adoc
+generated_assists.md
+generated_features.md
+generated_diagnostic.md
+generated_config.md
 .DS_Store
 /out/
 /dump.lsif
 .envrc
 docs/manual/book/
-docs/manual/src/generated_*
