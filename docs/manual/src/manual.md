@@ -875,7 +875,7 @@ can be turned off using the `rust-analyzer.diagnostics.enable`,
 `rust-analyzer.diagnostics.experimental.enable` or
 `rust-analyzer.diagnostics.disabled` settings.
 
-{{#include generated_diagnostics.md}}
+{{#include generated_diagnostics.md:2:}}
 
 # Editor Features
 

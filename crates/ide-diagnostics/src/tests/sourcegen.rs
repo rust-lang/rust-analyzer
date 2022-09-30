@@ -68,6 +68,6 @@ fn is_valid_diagnostic_name(diagnostic: &str) -> Result<(), String> {
 
 impl fmt::Display for Diagnostic {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "=== {}\n**Source:** {}\n{}", self.id, self.location, self.doc)
+        writeln!(f, "## {}\n**Source:** {}\n{}", self.id, self.location, self.doc)
     }
 }
