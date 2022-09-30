@@ -113,12 +113,11 @@ impl Runnable {
 // location**. Super useful for repeatedly running just a single test. Do bind this
 // to a shortcut!
 //
-// |===
-// | Editor  | Action Name
+// | Editor  | Action Name |
+// |---------|----------|
+// | VS Code | **rust-analyzer: Run** |
 //
-// | VS Code | **rust-analyzer: Run**
-// |===
-// image::https://user-images.githubusercontent.com/48062697/113065583-055aae80-91b1-11eb-958f-d67efcaf6a2f.gif[]
+// ![Run](https://user-images.githubusercontent.com/48062697/113065583-055aae80-91b1-11eb-958f-d67efcaf6a2f.gif)
 pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable> {
     let sema = Semantics::new(db);
 
@@ -199,11 +198,9 @@ pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable> {
 //  - Right-click on the selected item. The context menu opens.
 //  - Select **Peek related tests**
 //
-// |===
-// | Editor  | Action Name
-//
-// | VS Code | **rust-analyzer: Peek related tests**
-// |===
+// | Editor  | Action Name |
+// |---------|----------|
+// | VS Code | **rust-analyzer: Peek related tests** |
 pub(crate) fn related_tests(
     db: &RootDatabase,
     position: FilePosition,

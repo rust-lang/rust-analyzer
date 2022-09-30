@@ -9,11 +9,9 @@ use ide_db::{
 //
 // Randomizes all crate IDs in the crate graph, for debugging.
 //
-// |===
-// | Editor  | Action Name
-//
-// | VS Code | **rust-analyzer: Shuffle Crate Graph**
-// |===
+// | Editor  | Action Name |
+// |---------|-------------|
+// | VS Code | **rust-analyzer: Shuffle Crate Graph** |
 pub(crate) fn shuffle_crate_graph(db: &mut RootDatabase) {
     let crate_graph = db.crate_graph();
 

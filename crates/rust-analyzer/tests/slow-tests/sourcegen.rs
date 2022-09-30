@@ -8,7 +8,7 @@ fn sourcegen_feature_docs() {
     let contents = features.into_iter().map(|it| it.to_string()).collect::<Vec<_>>().join("\n\n");
     let contents = format!(
         "
-// Generated file, do not edit by hand, see `sourcegen_feature_docs`.
+<!-- Generated file, do not edit by hand, see `sourcegen_feature_docs`. -->
 {}
 ",
         contents.trim()
@@ -75,6 +75,6 @@ fn is_valid_feature_name(feature: &str) -> Result<(), String> {
 
 impl fmt::Display for Feature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "=== {}\n**Source:** {}\n{}", self.id, self.location, self.doc)
+        writeln!(f, "## {}\n**Source:** {}\n{}", self.id, self.location, self.doc)
     }
 }

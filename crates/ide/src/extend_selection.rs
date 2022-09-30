@@ -19,13 +19,11 @@ use crate::FileRange;
 //
 // This is a standard LSP feature and not a protocol extension.
 //
-// |===
-// | Editor  | Shortcut
+// | Editor  | Shortcut |
+// |--------|-------------|
+// | VS Code | <kbd>Alt+Shift+→</kbd>, <kbd>Alt+Shift+←</kbd> |
 //
-// | VS Code | kbd:[Alt+Shift+→], kbd:[Alt+Shift+←]
-// |===
-//
-// image::https://user-images.githubusercontent.com/48062697/113020651-b42fc800-917a-11eb-8a4f-cf1a07859fac.gif[]
+// ![Expand and Shrink Selection](https://user-images.githubusercontent.com/48062697/113020651-b42fc800-917a-11eb-8a4f-cf1a07859fac.gif)
 pub(crate) fn extend_selection(db: &RootDatabase, frange: FileRange) -> TextRange {
     let sema = Semantics::new(db);
     let src = sema.parse(frange.file_id);

@@ -14,11 +14,9 @@ use stdx::hash::NoHashHashSet;
 //
 // Only workspace crates are included, no crates.io dependencies or sysroot crates.
 //
-// |===
-// | Editor  | Action Name
-//
-// | VS Code | **rust-analyzer: View Crate Graph**
-// |===
+// | Editor  | Action Name |
+// |---------|-------------|
+// | VS Code | **rust-analyzer: View Crate Graph** |
 pub(crate) fn view_crate_graph(db: &RootDatabase, full: bool) -> Result<String, String> {
     let crate_graph = db.crate_graph();
     let crates_to_render = crate_graph

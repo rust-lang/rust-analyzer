@@ -173,11 +173,9 @@ impl<DB> std::ops::Deref for Snap<DB> {
 // the filtering via the `rust-analyzer.workspace.symbol.search.scope` and
 // `rust-analyzer.workspace.symbol.search.kind` settings.
 //
-// |===
-// | Editor  | Shortcut
-//
-// | VS Code | kbd:[Ctrl+T]
-// |===
+// | Editor  | Shortcut |
+// |---------|----------|
+// | VS Code | <kbd>Ctrl+T</kbd> |
 pub fn world_symbols(db: &RootDatabase, query: Query) -> Vec<FileSymbol> {
     let _p = profile::span("world_symbols").detail(|| query.query.clone());
 
