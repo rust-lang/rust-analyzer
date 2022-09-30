@@ -9,7 +9,7 @@ crates/*/target
 .vscode/settings.json
 generated_assists.md
 generated_features.md
-generated_diagnostic.md
+generated_diagnostics.md
 generated_config.md
 .DS_Store
 /out/
