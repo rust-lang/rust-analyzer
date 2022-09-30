@@ -142,7 +142,7 @@ impl fmt::Display for Assist {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let _ = writeln!(
             f,
-            "[discrete]\n=== `{}`
+            "### `{}`\n\n
 **Source:** {}",
             self.id, self.location,
         );
@@ -155,11 +155,13 @@ impl fmt::Display for Assist {
                 "
 {}
 
-.Before
+#### Before
+
 ```rust
 {}```
 
-.After
+#### After
+
 ```rust
 {}```",
                 section.doc,
