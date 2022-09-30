@@ -10,7 +10,7 @@ talking to an external language server process.
 <div class="tip">
 
 To improve this document, send a pull request:  
-[https://github.com/rust-analyzer/…​/manual.adoc](https://github.com/rust-lang/rust-analyzer/blob/master/docs/user/manual.adoc)
+[https://github.com/rust-analyzer/…​/manual.adoc](https://github.com/rust-lang/rust-analyzer/blob/master/docs/manual/src/README.md)
 
 The manual is written in [AsciiDoc](https://asciidoc.org) and includes
 some extra files which are generated from the source code. Run

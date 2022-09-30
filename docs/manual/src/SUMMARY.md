@@ -1,3 +1,3 @@
 # Summary
 
-- [The rust-analyzer Manual](./manual.md)
+- [The rust-analyzer Manual](./README.md)
