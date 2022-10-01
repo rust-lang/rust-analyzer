@@ -1,5 +1,6 @@
 # Guide to rust-analyzer
 
+
 ## About the guide
 
 This guide describes the current state of rust-analyzer as of 2019-01-20 (git
@@ -9,6 +10,8 @@ for Rust. There is a video version of this guide as well:
 https://youtu.be/ANKBNiSWyfc.
 
 [guide-2019-01]: https://github.com/rust-lang/rust-analyzer/tree/guide-2019-01
+
+<!-- toc -->
 
 ## The big picture
 

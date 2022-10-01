@@ -19,6 +19,8 @@ Requests, which are likely to always remain specific to `rust-analyzer` are unde
 
 If you want to be notified about the changes to this document, subscribe to [#4604](https://github.com/rust-lang/rust-analyzer/issues/4604).
 
+<!-- toc -->
+
 ## UTF-8 offsets
 
 rust-analyzer supports clangd's extension for opting into UTF-8 as the coordinate space for offsets (by default, LSP uses UTF-16 offsets).

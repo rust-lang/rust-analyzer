@@ -1,3 +1,5 @@
+# Style
+
 Our approach to "clean code" is two-fold:
 
 * We generally don't block PRs on style changes.
@@ -9,7 +11,7 @@ Sending small cleanup PRs (like renaming a single local variable) is encouraged.
 When reviewing pull requests prefer extending this document to leaving
 non-reusable comments on the pull request itself.
 
-# General
+<!-- toc -->
 
 ## Scale of Changes
 

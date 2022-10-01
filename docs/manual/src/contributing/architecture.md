@@ -8,18 +8,19 @@ It goes deeper than what is covered in this document, but will take some time to
 
 See also these implementation-related blog posts:
 
-* https://rust-analyzer.github.io/blog/2019/11/13/find-usages.html
-* https://rust-analyzer.github.io/blog/2020/07/20/three-architectures-for-responsive-ide.html
-* https://rust-analyzer.github.io/blog/2020/09/16/challeging-LR-parsing.html
-* https://rust-analyzer.github.io/blog/2020/09/28/how-to-make-a-light-bulb.html
-* https://rust-analyzer.github.io/blog/2020/10/24/introducing-ungrammar.html
+* <https://rust-analyzer.github.io/blog/2019/11/13/find-usages.html>
+* <https://rust-analyzer.github.io/blog/2020/07/20/three-architectures-for-responsive-ide.html>
+* <https://rust-analyzer.github.io/blog/2020/09/16/challeging-LR-parsing.html>
+* <https://rust-analyzer.github.io/blog/2020/09/28/how-to-make-a-light-bulb.html>
+* <https://rust-analyzer.github.io/blog/2020/10/24/introducing-ungrammar.html>
 
 For older, by now mostly outdated stuff, see the [guide](./guide.md) and [another playlist](https://www.youtube.com/playlist?list=PL85XCvVPmGQho7MZkdW-wtPtuJcFpzycE).
 
+<!-- toc -->
 
 ## Bird's Eye View
 
-![](https://user-images.githubusercontent.com/4789492/107129398-0ab70f00-687a-11eb-9bfc-d4eb023aec06.png)
+![Bird's Eye View](https://user-images.githubusercontent.com/4789492/107129398-0ab70f00-687a-11eb-9bfc-d4eb023aec06.png)
 
 On the highest level, rust-analyzer is a thing which accepts input source code from the client and produces a structured semantic model of the code.
 
@@ -93,9 +94,9 @@ For example, you can extract the set of names defined in a file (for typo correc
 Rust syntax tree structure and parser.
 See [RFC](https://github.com/rust-lang/rfcs/pull/2256) and [./syntax.md](./syntax.md) for some design notes.
 
-- [rowan](https://github.com/rust-analyzer/rowan) library is used for constructing syntax trees.
-- `ast` provides a type safe API on top of the raw `rowan` tree.
-- `ungrammar` description of the grammar, which is used to generate `syntax_kinds` and `ast` modules, using `cargo test -p xtask` command.
+* [rowan](https://github.com/rust-analyzer/rowan) library is used for constructing syntax trees.
+* `ast` provides a type safe API on top of the raw `rowan` tree.
+* `ungrammar` description of the grammar, which is used to generate `syntax_kinds` and `ast` modules, using `cargo test -p xtask` command.
 
 Tests for ra_syntax are mostly data-driven.
 `test_data/parser` contains subdirectories with a bunch of `.rs` (test vectors) and `.txt` files with corresponding syntax trees.
@@ -118,8 +119,8 @@ See [#93](https://github.com/rust-lang/rust-analyzer/pull/93) for an example PR 
 
 **Architecture Invariant:** `syntax` crate is completely independent from the rest of rust-analyzer. It knows nothing about salsa or LSP.
 This is important because it is possible to make useful tooling using only the syntax tree.
-Without semantic information, you don't need to be able to _build_ code, which makes the tooling more robust.
-See also https://web.stanford.edu/~mlfbrown/paper.pdf.
+Without semantic information, you don't need to be able to *build* code, which makes the tooling more robust.
+See also <https://web.stanford.edu/~mlfbrown/paper.pdf>.
 You can view the `syntax` crate as an entry point to rust-analyzer.
 `syntax` crate is an **API Boundary**.
 
@@ -186,15 +187,15 @@ If you think about "using rust-analyzer as a library", `hir` crate is most likel
 It wraps ECS-style internal API into a more OO-flavored API (with an extra `db` argument for each call).
 
 **Architecture Invariant:** `hir` provides a static, fully resolved view of the code.
-While internal `hir_*` crates _compute_ things, `hir`, from the outside, looks like an inert data structure.
+While internal `hir_*` crates *compute* things, `hir`, from the outside, looks like an inert data structure.
 
 `hir` also handles the delicate task of going from syntax to the corresponding `hir`.
 Remember that the mapping here is one-to-many.
 See `Semantics` type and `source_to_def` module.
 
 Note in particular a curious recursive structure in `source_to_def`.
-We first resolve the parent _syntax_ node to the parent _hir_ element.
-Then we ask the _hir_ parent what _syntax_ children does it have.
+We first resolve the parent *syntax* node to the parent *hir* element.
+Then we ask the *hir* parent what *syntax* children does it have.
 Then we look for our node in the set of children.
 
 This is the heart of many IDE features, like goto definition, which start with figuring out the hir node at the cursor.
@@ -221,9 +222,9 @@ Internally, `ide` is split across several crates. `ide_assists`, `ide_completion
 `ide_db` implements common IDE functionality (notably, reference search is implemented here).
 The `ide` contains a public API/façade, as well as implementation for a plethora of smaller features.
 
-**Architecture Invariant:** `ide` crate strives to provide a _perfect_ API.
+**Architecture Invariant:** `ide` crate strives to provide a *perfect* API.
 Although at the moment it has only one consumer, the LSP server, LSP *does not* influence its API design.
-Instead, we keep in mind a hypothetical _ideal_ client -- an IDE tailored specifically for rust, every nook and cranny of which is packed with Rust-specific goodies.
+Instead, we keep in mind a hypothetical *ideal* client -- an IDE tailored specifically for rust, every nook and cranny of which is packed with Rust-specific goodies.
 
 ### `crates/rust-analyzer`
 
@@ -425,7 +426,6 @@ There's no additional checks in CI, formatting and tidy tests are run with `carg
 
 **Architecture Invariant:** tests do not depend on any kind of external resources, they are perfectly reproducible.
 
-
 ### Performance Testing
 
 TBA, take a look at the `metrics` xtask and `#[test] fn benchmark_xxx()` functions.
@@ -471,7 +471,6 @@ It is enabled with `RA_PROFILE='*>50'` env var (log all (`*`) actions which take
 ```
 
 This is cheap enough to enable in production.
-
 
 Similarly, we save live object counting (`RA_COUNT=1`).
 It is not cheap enough to enable in prod, and this is a bug which should be fixed.

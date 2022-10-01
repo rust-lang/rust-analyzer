@@ -11,7 +11,7 @@ it automatically.
 
 To add the sources manually, run the following command:
 
-``` bash
+```bash
 $ rustup component add rust-src
 ```
 
