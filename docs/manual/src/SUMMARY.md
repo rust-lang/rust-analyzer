@@ -11,3 +11,11 @@
   - [Assists](assists.md)
   - [Diagnostics](diagnostics.md)
   - [Editor Features](editor_features.md)
+- [Contributing](contributing/README.md)
+  - [Guide](contributing/guide.md)
+  - [Architecture](contributing/architecture.md)
+  - [Debugging](contributing/debugging.md)
+  - [LSP Extensions](contributing/lsp-extensions.md)
+  - [Syntax](contributing/syntax.md)
+  - [Style](contributing/style.md)
+  
