@@ -1,5 +1,7 @@
 # Summary
 
+# rust-analyzer
+
 - [Introduction](README.md)
 - [Installation](installation.md)
 - [Troubleshooting](troubleshooting.md)
