@@ -32,6 +32,7 @@ pub enum FlycheckConfig {
         features: Vec<String>,
         extra_args: Vec<String>,
         extra_env: FxHashMap<String, String>,
+        single_crate: Option<AbsPathBuf>,
     },
     CustomCommand {
         command: String,
@@ -250,7 +251,7 @@ impl FlycheckActor {
     }
 
     fn check_command(&self) -> Command {
-        let mut cmd = match &self.config {
+        match &self.config {
             FlycheckConfig::CargoCommand {
                 command,
                 target_triple,
@@ -260,12 +261,26 @@ impl FlycheckActor {
                 extra_args,
                 features,
                 extra_env,
+                single_crate,
             } => {
                 let mut cmd = Command::new(toolchain::cargo());
                 cmd.arg(command);
                 cmd.current_dir(&self.workspace_root);
-                cmd.args(&["--workspace", "--message-format=json", "--manifest-path"])
-                    .arg(self.workspace_root.join("Cargo.toml").as_os_str());
+                cmd.args(&["--message-format=json"]);
+
+                // If we check single crates, then check just that crate's cargo.toml
+                //
+                // Else, check the entire workspace
+                if let Some(single) = single_crate.as_ref() {
+                    cmd.arg("--manifest-path");
+                    cmd.arg(single.join("Cargo.toml").as_os_str());
+                    cmd.current_dir(single);
+                } else {
+                    cmd.arg("--workspace");
+                    cmd.arg("--manifest-path");
+                    cmd.arg(self.workspace_root.join("Cargo.toml").as_os_str());
+                    cmd.current_dir(&self.workspace_root);
+                }
 
                 if let Some(target) = target_triple {
                     cmd.args(&["--target", target.as_str()]);
@@ -292,11 +307,10 @@ impl FlycheckActor {
                 let mut cmd = Command::new(command);
                 cmd.args(args);
                 cmd.envs(extra_env);
+                cmd.current_dir(&self.workspace_root);
                 cmd
             }
-        };
-        cmd.current_dir(&self.workspace_root);
-        cmd
+        }
     }
 
     fn send(&self, check_task: Message) {

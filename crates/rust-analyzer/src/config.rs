@@ -455,6 +455,9 @@ config_data! {
         workspace_symbol_search_limit: usize = "128",
         /// Workspace symbol search scope.
         workspace_symbol_search_scope: WorkspaceSymbolSearchScopeDef = "\"workspace\"",
+
+        /// Only check the current crate
+        checkSingleCrate_enable: bool = "false",
     }
 }
 
@@ -1116,9 +1119,17 @@ impl Config {
                 },
                 extra_args: self.data.checkOnSave_extraArgs.clone(),
                 extra_env: self.check_on_save_extra_env(),
+                single_crate: self.get_crate_for_check(),
             },
         };
         Some(flycheck_config)
+    }
+
+    fn get_crate_for_check(&self) -> Option<AbsPathBuf> {
+        match self.data.checkSingleCrate_enable {
+            true => Some(self.root_path().clone()),
+            false => None,
+        }
     }
 
     pub fn runnables(&self) -> RunnablesConfig {
