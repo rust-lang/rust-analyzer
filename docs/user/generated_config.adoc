@@ -152,6 +152,20 @@ cargo check --workspace --message-format=json --all-targets
 Check for a specific target. Defaults to
 `#rust-analyzer.cargo.target#`.
 --
+[[rust-analyzer.checkSingleCrate.enable]]rust-analyzer.checkSingleCrate.enable (default: `false`)::
++
+--
+Only check the currently opened crate of a workspace.
+
+Lets Rust analyzer perform less work by only checking the currently
+opened crate when a crate of a workspace is opened alone. This
+means you won't receive diagnostics about the entire workspace, but
+can significantly improve performance when single crates are modified
+as part of a much larger workspace.
+
+ Defaults to
+`#rust-analyzer.cargo.target#`.
+--
 [[rust-analyzer.completion.autoimport.enable]]rust-analyzer.completion.autoimport.enable (default: `true`)::
 +
 --

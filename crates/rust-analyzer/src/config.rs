@@ -148,6 +148,18 @@ config_data! {
         /// `#rust-analyzer.cargo.target#`.
         checkOnSave_target: Option<String>               = "null",
 
+        /// Only check the currently opened crate of a workspace.
+        ///
+        /// Lets Rust analyzer perform less work by only checking the currently
+        /// opened crate when a crate of a workspace is opened alone. This
+        /// means you won't receive diagnostics about the entire workspace, but
+        /// can significantly improve performance when single crates are modified
+        /// as part of a much larger workspace.
+        ///
+        ///  Defaults to
+        /// `#rust-analyzer.cargo.target#`.
+        checkSingleCrate_enable: bool = "false",
+
         /// Toggles the additional completions that automatically add imports when completed.
         /// Note that your client must specify the `additionalTextEdits` LSP client capability to truly have this feature enabled.
         completion_autoimport_enable: bool       = "true",
@@ -455,9 +467,6 @@ config_data! {
         workspace_symbol_search_limit: usize = "128",
         /// Workspace symbol search scope.
         workspace_symbol_search_scope: WorkspaceSymbolSearchScopeDef = "\"workspace\"",
-
-        /// Only check the current crate
-        checkSingleCrate_enable: bool = "false",
     }
 }
 

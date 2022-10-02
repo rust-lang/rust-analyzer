@@ -573,6 +573,11 @@
                         "string"
                     ]
                 },
+                "rust-analyzer.checkSingleCrate.enable": {
+                    "markdownDescription": "Only check the currently opened crate of a workspace.\n\nLets Rust analyzer perform less work by only checking the currently\nopened crate when a crate of a workspace is opened alone. This\nmeans you won't receive diagnostics about the entire workspace, but\ncan significantly improve performance when single crates are modified\nas part of a much larger workspace.\n\n Defaults to\n`#rust-analyzer.cargo.target#`.",
+                    "default": false,
+                    "type": "boolean"
+                },
                 "rust-analyzer.completion.autoimport.enable": {
                     "markdownDescription": "Toggles the additional completions that automatically add imports when completed.\nNote that your client must specify the `additionalTextEdits` LSP client capability to truly have this feature enabled.",
                     "default": true,
