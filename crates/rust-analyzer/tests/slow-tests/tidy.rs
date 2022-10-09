@@ -41,8 +41,11 @@ fn check_lsp_extensions_docs() {
     };
 
     let actual_hash = {
-        let lsp_extensions_md =
-            sh.read_file(sourcegen::project_root().join("docs/dev/lsp-extensions.md")).unwrap();
+        let lsp_extensions_md = sh
+            .read_file(
+                sourcegen::project_root().join("docs/manual/src/contributing/lsp-extensions.md"),
+            )
+            .unwrap();
         let text = lsp_extensions_md
             .lines()
             .find_map(|line| line.strip_prefix("lsp_ext.rs hash:"))
