@@ -133,9 +133,11 @@ impl NotifyActor {
                         }
                     }
                     Message::Invalidate(path) => {
-                        let contents = read(path.as_path());
-                        let files = vec![(path, contents)];
-                        self.send(loader::Message::Loaded { files });
+                        if self.watched_entries.iter().any(|entry| entry.contains_file(&path)) {
+                            let contents = read(path.as_path());
+                            let files = vec![(path, contents)];
+                            self.send(loader::Message::Loaded { files });
+                        }
                     }
                     Message::Subscribe(path) => {
                         let contents = read(path.as_path());
