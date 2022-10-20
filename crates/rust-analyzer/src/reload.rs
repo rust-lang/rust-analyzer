@@ -547,7 +547,7 @@ impl ProjectFolders {
 
 #[derive(Default, Debug)]
 pub(crate) struct SourceRootConfig {
-    pub(crate) fsc: FileSetConfig,
+    pub(crate) fsc: Arc<FileSetConfig>,
     pub(crate) local_filesets: Vec<usize>,
 }
 
@@ -555,6 +555,7 @@ impl SourceRootConfig {
     pub(crate) fn partition(&self, vfs: &vfs::Vfs) -> Vec<SourceRoot> {
         let _p = profile::span("SourceRootConfig::partition");
         self.fsc
+            .clone()
             .partition(vfs)
             .into_iter()
             .enumerate()

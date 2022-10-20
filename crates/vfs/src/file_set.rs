@@ -17,6 +17,8 @@ use crate::{loader::Handle, AnchoredPath, FileId, Vfs, VfsPath};
 /// A set of [`VfsPath`]s identified by [`FileId`]s.
 #[derive(Default, Clone)]
 pub struct FileSet {
+    config: Arc<FileSetConfig>,
+    my_index: usize,
     files: FxHashMap<VfsPath, FileId>,
     paths: NoHashHashMap<FileId, VfsPath>,
     handle: Option<Arc<dyn Handle + Sync + Send + UnwindSafe + RefUnwindSafe>>,
@@ -46,9 +48,11 @@ impl FileSet {
         let path = base.join(path.path)?;
         let answer = self.files.get(&path);
         if answer.is_none() {
-            if let Some(handle) = &self.handle {
-                if let Some(x) = path.as_path() {
-                    handle.subscribe(x.to_owned());
+            if self.config.classify(&path, &mut vec![]) == self.my_index {
+                if let Some(handle) = &self.handle {
+                    if let Some(x) = path.as_path() {
+                        handle.subscribe(x.to_owned());
+                    }
                 }
             }
         }
@@ -116,7 +120,7 @@ pub struct FileSetConfig {
 
 impl Default for FileSetConfig {
     fn default() -> Self {
-        FileSetConfig::builder().build()
+        Arc::try_unwrap(FileSetConfig::builder().build()).unwrap()
     }
 }
 
@@ -129,11 +133,15 @@ impl FileSetConfig {
     /// Partition `vfs` into `FileSet`s.
     ///
     /// Creates a new [`FileSet`] for every set of prefixes in `self`.
-    pub fn partition(&self, vfs: &Vfs) -> Vec<FileSet> {
+    pub fn partition(self: Arc<Self>, vfs: &Vfs) -> Vec<FileSet> {
         let mut scratch_space = Vec::new();
         let mut file_set = FileSet::default();
         file_set.handle = vfs.handle.clone();
+        file_set.config = self.clone();
         let mut res = vec![file_set; self.len()];
+        for (i, f) in res.iter_mut().enumerate() {
+            f.my_index = i
+        }
         for (file_id, path) in vfs.iter() {
             let root = self.classify(path, &mut scratch_space);
             res[root].insert(file_id, path.clone());
@@ -185,7 +193,7 @@ impl FileSetConfigBuilder {
     }
 
     /// Build the `FileSetConfig`.
-    pub fn build(self) -> FileSetConfig {
+    pub fn build(self) -> Arc<FileSetConfig> {
         let n_file_sets = self.roots.len() + 1;
         let map = {
             let mut entries = Vec::new();
@@ -200,7 +208,7 @@ impl FileSetConfigBuilder {
             entries.dedup_by(|(a, _), (b, _)| a == b);
             fst::Map::from_iter(entries).unwrap()
         };
-        FileSetConfig { n_file_sets, map }
+        Arc::new(FileSetConfig { n_file_sets, map })
     }
 }
 
