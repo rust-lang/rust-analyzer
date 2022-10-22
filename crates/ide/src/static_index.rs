@@ -13,7 +13,7 @@ use syntax::{AstNode, SyntaxKind::*, SyntaxToken, TextRange, T};
 
 use crate::{
     hover::hover_for_definition,
-    moniker::{crate_for_file, def_to_moniker, MonikerResult},
+    moniker::{def_to_moniker, MonikerResult},
     Analysis, Fold, HoverConfig, HoverDocFormat, HoverResult, InlayHint, InlayHintsConfig,
     TryToNav,
 };
@@ -99,7 +99,7 @@ fn all_modules(db: &dyn HirDatabase) -> Vec<Module> {
 
 impl StaticIndex<'_> {
     fn add_file(&mut self, file_id: FileId) {
-        let current_crate = crate_for_file(self.db, file_id);
+        let current_crate = self.db.crate_for_file(file_id).map(|crate_id| crate_id.into());
         let folds = self.analysis.folding_ranges(file_id).unwrap();
         let inlay_hints = self
             .analysis

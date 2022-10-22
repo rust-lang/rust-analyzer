@@ -150,6 +150,18 @@ impl RootDatabase {
         hir::db::ParseMacroExpansionQuery.in_db_mut(self).set_lru_capacity(lru_capacity);
         hir::db::MacroExpandQuery.in_db_mut(self).set_lru_capacity(lru_capacity);
     }
+
+    pub fn crate_for_file(&self, file_id: FileId) -> Option<CrateId> {
+        for &krate in self.relevant_crates(file_id).iter() {
+            let crate_def_map = self.crate_def_map(krate);
+            for (_, data) in crate_def_map.modules() {
+                if data.origin.file_id() == Some(file_id) {
+                    return Some(krate);
+                }
+            }
+        }
+        None
+    }
 }
 
 impl salsa::ParallelDatabase for RootDatabase {
