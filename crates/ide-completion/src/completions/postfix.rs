@@ -172,6 +172,9 @@ pub(crate) fn complete_postfix(
         }
     }
 
+    postfix_snippet("okr", "Ok(&expr)", &format!("Ok({})", receiver_text)).add_to(acc);
+    postfix_snippet("somer", "Some(&expr)", &format!("Some({})", receiver_text)).add_to(acc);
+    postfix_snippet("errr", "Err(&expr)", &format!("Err({})", receiver_text)).add_to(acc);
     postfix_snippet("box", "Box::new(expr)", &format!("Box::new({})", receiver_text)).add_to(acc);
     postfix_snippet("dbg", "dbg!(expr)", &format!("dbg!({})", receiver_text)).add_to(acc); // fixme
     postfix_snippet("dbgr", "dbg!(&expr)", &format!("dbg!(&{})", receiver_text)).add_to(acc);
@@ -316,13 +319,16 @@ fn main() {
                 sn call  function(expr)
                 sn dbg   dbg!(expr)
                 sn dbgr  dbg!(&expr)
+                sn errr  Err(&expr)
                 sn if    if expr {}
                 sn let   let
                 sn letm  let mut
                 sn match match expr {}
                 sn not   !expr
+                sn okr   Ok(&expr)
                 sn ref   &expr
                 sn refm  &mut expr
+                sn somer Some(&expr)
                 sn while while expr {}
             "#]],
         );
@@ -346,11 +352,14 @@ fn main() {
                 sn call  function(expr)
                 sn dbg   dbg!(expr)
                 sn dbgr  dbg!(&expr)
+                sn errr  Err(&expr)
                 sn if    if expr {}
                 sn match match expr {}
                 sn not   !expr
+                sn okr   Ok(&expr)
                 sn ref   &expr
                 sn refm  &mut expr
+                sn somer Some(&expr)
                 sn while while expr {}
             "#]],
         );
@@ -370,11 +379,14 @@ fn main() {
                 sn call  function(expr)
                 sn dbg   dbg!(expr)
                 sn dbgr  dbg!(&expr)
+                sn errr  Err(&expr)
                 sn let   let
                 sn letm  let mut
                 sn match match expr {}
+                sn okr   Ok(&expr)
                 sn ref   &expr
                 sn refm  &mut expr
+                sn somer Some(&expr)
             "#]],
         )
     }
@@ -393,13 +405,16 @@ fn main() {
                 sn call  function(expr)
                 sn dbg   dbg!(expr)
                 sn dbgr  dbg!(&expr)
+                sn errr  Err(&expr)
                 sn if    if expr {}
                 sn let   let
                 sn letm  let mut
                 sn match match expr {}
                 sn not   !expr
+                sn okr   Ok(&expr)
                 sn ref   &expr
                 sn refm  &mut expr
+                sn somer Some(&expr)
                 sn while while expr {}
             "#]],
         );
@@ -480,6 +495,15 @@ fn main() {
     fn postfix_completion_for_references() {
         check_edit("dbg", r#"fn main() { &&42.$0 }"#, r#"fn main() { dbg!(&&42) }"#);
         check_edit("refm", r#"fn main() { &&42.$0 }"#, r#"fn main() { &&&mut 42 }"#);
+
+        check_edit("okr", r#"fn main() { 42.$0 }"#, r#"fn main() { Ok(42) }"#);
+        check_edit("somer", r#"fn main() { 42.$0 }"#, r#"fn main() { Some(42) }"#);
+        check_edit("errr", r#"fn main() { 42.$0 }"#, r#"fn main() { Err(42) }"#);
+
+        check_edit("okr", r#"fn main() { &42.$0 }"#, r#"fn main() { Ok(&42) }"#);
+        check_edit("somer", r#"fn main() { &42.$0 }"#, r#"fn main() { Some(&42) }"#);
+        check_edit("errr", r#"fn main() { &42.$0 }"#, r#"fn main() { Err(&42) }"#);
+
         check_edit(
             "ifl",
             r#"

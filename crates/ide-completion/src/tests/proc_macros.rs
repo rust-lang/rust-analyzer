@@ -29,11 +29,14 @@ fn main() {
             sn call  function(expr)
             sn dbg   dbg!(expr)
             sn dbgr  dbg!(&expr)
+            sn errr  Err(&expr)
             sn let   let
             sn letm  let mut
             sn match match expr {}
+            sn okr   Ok(&expr)
             sn ref   &expr
             sn refm  &mut expr
+            sn somer Some(&expr)
         "#]],
     )
 }
@@ -59,11 +62,14 @@ fn main() {
             sn call  function(expr)
             sn dbg   dbg!(expr)
             sn dbgr  dbg!(&expr)
+            sn errr  Err(&expr)
             sn let   let
             sn letm  let mut
             sn match match expr {}
+            sn okr   Ok(&expr)
             sn ref   &expr
             sn refm  &mut expr
+            sn somer Some(&expr)
         "#]],
     )
 }
@@ -91,11 +97,14 @@ fn main() {}
             sn call  function(expr)
             sn dbg   dbg!(expr)
             sn dbgr  dbg!(&expr)
+            sn errr  Err(&expr)
             sn let   let
             sn letm  let mut
             sn match match expr {}
+            sn okr   Ok(&expr)
             sn ref   &expr
             sn refm  &mut expr
+            sn somer Some(&expr)
         "#]],
     )
 }
@@ -123,11 +132,14 @@ fn main() {}
             sn call  function(expr)
             sn dbg   dbg!(expr)
             sn dbgr  dbg!(&expr)
+            sn errr  Err(&expr)
             sn let   let
             sn letm  let mut
             sn match match expr {}
+            sn okr   Ok(&expr)
             sn ref   &expr
             sn refm  &mut expr
+            sn somer Some(&expr)
         "#]],
     )
 }
