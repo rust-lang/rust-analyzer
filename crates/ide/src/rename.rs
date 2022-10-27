@@ -262,7 +262,7 @@ fn rename_to_self(
     let usages = def.usages(sema).all();
     let mut source_change = SourceChange::default();
     source_change.extend(usages.iter().map(|(&file_id, references)| {
-        (file_id, source_edit_from_references(references, def, "self"))
+        (file_id, source_edit_from_references(sema, references, def, "self"))
     }));
     source_change.insert_source_edit(
         file_id.original_file(sema.db),
@@ -298,7 +298,7 @@ fn rename_self_to_param(
     let mut source_change = SourceChange::default();
     source_change.insert_source_edit(file_id.original_file(sema.db), edit);
     source_change.extend(usages.iter().map(|(&file_id, references)| {
-        (file_id, source_edit_from_references(references, def, new_name))
+        (file_id, source_edit_from_references(sema, references, def, new_name))
     }));
     Ok(source_change)
 }

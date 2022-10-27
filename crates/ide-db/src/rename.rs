@@ -246,7 +246,7 @@ fn rename_mod(
     let def = Definition::Module(module);
     let usages = def.usages(sema).all();
     let ref_edits = usages.iter().map(|(&file_id, references)| {
-        (file_id, source_edit_from_references(references, def, new_name))
+        (file_id, source_edit_from_references(sema, references, def, new_name))
     });
     source_change.extend(ref_edits);
 
@@ -291,7 +291,7 @@ fn rename_reference(
     }
     let mut source_change = SourceChange::default();
     source_change.extend(usages.iter().map(|(&file_id, references)| {
-        (file_id, source_edit_from_references(references, def, new_name))
+        (file_id, source_edit_from_references(sema, references, def, new_name))
     }));
 
     let mut insert_def_edit = |def| {
@@ -310,6 +310,7 @@ fn rename_reference(
 }
 
 pub fn source_edit_from_references(
+    sema: &Semantics<'_, RootDatabase>,
     references: &[FileReference],
     def: Definition,
     new_name: &str,
@@ -325,6 +326,14 @@ pub fn source_edit_from_references(
             continue;
         }
         let has_emitted_edit = match name {
+            // if the name differs from the definitions name it has to be an alias
+            ast::NameLike::NameRef(name_ref)
+                if def
+                    .name(sema.db)
+                    .map_or(false, |it| it.to_smol_str() != name_ref.text().as_str()) =>
+            {
+                continue
+            }
             // if the ranges differ then the node is inside a macro call, we can't really attempt
             // to make special rewrites like shorthand syntax and such, so just rename the node in
             // the macro input
