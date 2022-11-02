@@ -81,8 +81,10 @@ config_data! {
         /// is set.
         cargo_buildScripts_invocationLocation: InvocationLocation = "\"workspace\"",
         /// Specifies the invocation strategy to use when running the build scripts command.
-        /// If `per_workspace` is set, the command will be executed for each workspace.
-        /// If `once` is set, the command will be executed once.
+        /// - `per_workspace`: Executes the command for each workspace separately.
+        ///   Allows the use of the `$manifest_path` substitution variable in the override command
+        ///   which will be replaced by the path of the workspace's Cargo.toml.
+        /// - `once`: Executes the command once.
         /// This config only has an effect when `#rust-analyzer.cargo.buildScripts.overrideCommand#`
         /// is set.
         cargo_buildScripts_invocationStrategy: InvocationStrategy = "\"per_workspace\"",
@@ -164,8 +166,10 @@ config_data! {
         /// is set.
         check_invocationLocation | checkOnSave_invocationLocation: InvocationLocation = "\"workspace\"",
         /// Specifies the invocation strategy to use when running the check command.
-        /// If `per_workspace` is set, the command will be executed for each workspace.
-        /// If `once` is set, the command will be executed once.
+        /// - `per_workspace`: Executes the command for each workspace separately.
+        ///   Allows the use of the `$manifest_path` substitution variable in the override command
+        ///   which will be replaced by the path of the workspace's Cargo.toml or rust-project.json.
+        /// - `once`: Executes the command once.
         /// This config only has an effect when `#rust-analyzer.cargo.check.overrideCommand#`
         /// is set.
         check_invocationStrategy | checkOnSave_invocationStrategy: InvocationStrategy = "\"per_workspace\"",

@@ -231,6 +231,9 @@ impl AbsPath {
     pub fn exists(&self) -> bool {
         self.0.exists()
     }
+    pub fn with_extension<S: AsRef<OsStr>>(&self, extension: S) -> AbsPathBuf {
+        AbsPathBuf::try_from(self.0.with_extension(extension)).unwrap()
+    }
     // endregion:delegate-methods
 }
 

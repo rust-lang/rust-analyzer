@@ -89,8 +89,9 @@ impl FlycheckHandle {
         sender: Box<dyn Fn(Message) + Send>,
         config: FlycheckConfig,
         workspace_root: AbsPathBuf,
+        project_file: AbsPathBuf,
     ) -> FlycheckHandle {
-        let actor = FlycheckActor::new(id, sender, config, workspace_root);
+        let actor = FlycheckActor::new(id, sender, config, workspace_root, project_file);
         let (sender, receiver) = unbounded::<StateChange>();
         let thread = stdx::thread::Builder::new(stdx::thread::ThreadIntent::Worker)
             .name("Flycheck".to_owned())
@@ -100,8 +101,8 @@ impl FlycheckHandle {
     }
 
     /// Schedule a re-start of the cargo check worker.
-    pub fn restart(&self) {
-        self.sender.send(StateChange::Restart).unwrap();
+    pub fn restart(&self, saved_file: Option<AbsPathBuf>) {
+        self.sender.send(StateChange::Restart { saved_file }).unwrap();
     }
 
     /// Stop this cargo check worker.
@@ -152,7 +153,7 @@ pub enum Progress {
 }
 
 enum StateChange {
-    Restart,
+    Restart { saved_file: Option<AbsPathBuf> },
     Cancel,
 }
 
@@ -165,6 +166,8 @@ struct FlycheckActor {
     /// Either the workspace root of the workspace we are flychecking,
     /// or the project root of the project.
     root: AbsPathBuf,
+    /// The Cargo.toml or rust-project.json file of the project.
+    project_file: AbsPathBuf,
     /// CargoHandle exists to wrap around the communication needed to be able to
     /// run `cargo check` without blocking. Currently the Rust standard library
     /// doesn't provide a way to read sub-process output without blocking, so we
@@ -184,9 +187,17 @@ impl FlycheckActor {
         sender: Box<dyn Fn(Message) + Send>,
         config: FlycheckConfig,
         workspace_root: AbsPathBuf,
+        project_file: AbsPathBuf,
     ) -> FlycheckActor {
         tracing::info!(%id, ?workspace_root, "Spawning flycheck");
-        FlycheckActor { id, sender, config, root: workspace_root, command_handle: None }
+        FlycheckActor {
+            id,
+            sender,
+            config,
+            root: workspace_root,
+            project_file,
+            command_handle: None,
+        }
     }
 
     fn report_progress(&self, progress: Progress) {
@@ -212,7 +223,7 @@ impl FlycheckActor {
                     tracing::debug!(flycheck_id = self.id, "flycheck cancelled");
                     self.cancel_check_process();
                 }
-                Event::RequestStateChange(StateChange::Restart) => {
+                Event::RequestStateChange(StateChange::Restart { saved_file }) => {
                     // Cancel the previously spawned process
                     self.cancel_check_process();
                     while let Ok(restart) = inbox.recv_timeout(Duration::from_millis(50)) {
@@ -222,7 +233,7 @@ impl FlycheckActor {
                         }
                     }
 
-                    let command = self.check_command();
+                    let command = self.check_command(saved_file);
                     let formatted_command = format!("{:?}", command);
 
                     tracing::debug!(?command, "will restart flycheck");
@@ -296,8 +307,10 @@ impl FlycheckActor {
         }
     }
 
-    fn check_command(&self) -> Command {
-        let (mut cmd, args) = match &self.config {
+    fn check_command(&self, _saved_file: Option<AbsPathBuf>) -> Command {
+        // FIXME: Figure out the story for exposing the saved file to the custom flycheck command
+        // as it can be absent
+        match &self.config {
             FlycheckConfig::CargoCommand {
                 command,
                 target_triples,
@@ -312,7 +325,7 @@ impl FlycheckActor {
                 let mut cmd = Command::new(toolchain::cargo());
                 cmd.arg(command);
                 cmd.current_dir(&self.root);
-                cmd.arg("--workspace");
+                cmd.args(&["--workspace", "--manifest-path"]).arg(self.project_file.as_os_str());
 
                 cmd.arg(if *ansi_color_output {
                     "--message-format=json-diagnostic-rendered-ansi"
@@ -341,7 +354,8 @@ impl FlycheckActor {
                     }
                 }
                 cmd.envs(extra_env);
-                (cmd, extra_args)
+                cmd.args(extra_args);
+                cmd
             }
             FlycheckConfig::CustomCommand {
                 command,
@@ -352,30 +366,24 @@ impl FlycheckActor {
             } => {
                 let mut cmd = Command::new(command);
                 cmd.envs(extra_env);
+                args.iter().for_each(|arg| {
+                    match invocation_strategy {
+                        InvocationStrategy::Once => cmd.arg(arg),
+                        InvocationStrategy::PerWorkspace => cmd.arg(arg.replace(
+                            "$manifest_path",
+                            &self.project_file.as_os_str().to_string_lossy(),
+                        )),
+                    };
+                });
 
                 match invocation_location {
-                    InvocationLocation::Workspace => {
-                        match invocation_strategy {
-                            InvocationStrategy::Once => {
-                                cmd.current_dir(&self.root);
-                            }
-                            InvocationStrategy::PerWorkspace => {
-                                // FIXME: cmd.current_dir(&affected_workspace);
-                                cmd.current_dir(&self.root);
-                            }
-                        }
-                    }
-                    InvocationLocation::Root(root) => {
-                        cmd.current_dir(root);
-                    }
-                }
+                    InvocationLocation::Workspace => cmd.current_dir(&self.root),
+                    InvocationLocation::Root(root) => cmd.current_dir(root),
+                };
 
-                (cmd, args)
+                cmd
             }
-        };
-
-        cmd.args(args);
-        cmd
+        }
     }
 
     fn send(&self, check_task: Message) {

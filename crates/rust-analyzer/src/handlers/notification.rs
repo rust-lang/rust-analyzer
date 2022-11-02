@@ -10,7 +10,7 @@ use lsp_types::{
     DidOpenTextDocumentParams, DidSaveTextDocumentParams, WorkDoneProgressCancelParams,
 };
 use triomphe::Arc;
-use vfs::{AbsPathBuf, ChangeKind, VfsPath};
+use vfs::{AbsPath, AbsPathBuf, ChangeKind, VfsPath};
 
 use crate::{
     config::Config,
@@ -132,7 +132,8 @@ pub(crate) fn handle_did_save_text_document(
 ) -> anyhow::Result<()> {
     if let Ok(vfs_path) = from_proto::vfs_path(&params.text_document.uri) {
         // Re-fetch workspaces if a workspace related file has changed
-        if let Some(abs_path) = vfs_path.as_path() {
+        let abs_path = vfs_path.as_path();
+        if let Some(abs_path) = abs_path {
             if reload::should_refresh_for_change(abs_path, ChangeKind::Modify) {
                 state
                     .fetch_workspaces_queue
@@ -140,13 +141,13 @@ pub(crate) fn handle_did_save_text_document(
             }
         }
 
-        if !state.config.check_on_save() || run_flycheck(state, vfs_path) {
+        if !state.config.check_on_save() || run_flycheck(state, &vfs_path, abs_path) {
             return Ok(());
         }
     } else if state.config.check_on_save() {
         // No specific flycheck was triggered, so let's trigger all of them.
         for flycheck in state.flycheck.iter() {
-            flycheck.restart();
+            flycheck.restart(None);
         }
     }
     Ok(())
@@ -232,10 +233,11 @@ pub(crate) fn handle_did_change_watched_files(
     Ok(())
 }
 
-fn run_flycheck(state: &mut GlobalState, vfs_path: VfsPath) -> bool {
+fn run_flycheck(state: &mut GlobalState, vfs_path: &VfsPath, abs_path: Option<&AbsPath>) -> bool {
     let _p = profile::span("run_flycheck");
 
-    let file_id = state.vfs.read().0.file_id(&vfs_path);
+    let file_id = state.vfs.read().0.file_id(vfs_path);
+    let abs_path = abs_path.map(AbsPath::to_owned);
     if let Some(file_id) = file_id {
         let world = state.snapshot();
         let mut updated = false;
@@ -287,7 +289,7 @@ fn run_flycheck(state: &mut GlobalState, vfs_path: VfsPath) -> bool {
                 for (id, _) in workspace_ids.clone() {
                     if id == flycheck.id() {
                         updated = true;
-                        flycheck.restart();
+                        flycheck.restart(abs_path.clone());
                         continue;
                     }
                 }
@@ -295,7 +297,7 @@ fn run_flycheck(state: &mut GlobalState, vfs_path: VfsPath) -> bool {
             // No specific flycheck was triggered, so let's trigger all of them.
             if !updated {
                 for flycheck in world.flycheck.iter() {
-                    flycheck.restart();
+                    flycheck.restart(abs_path.clone());
                 }
             }
             Ok(())
@@ -330,14 +332,14 @@ pub(crate) fn handle_run_flycheck(
     let _p = profile::span("handle_run_flycheck");
     if let Some(text_document) = params.text_document {
         if let Ok(vfs_path) = from_proto::vfs_path(&text_document.uri) {
-            if run_flycheck(state, vfs_path) {
+            if run_flycheck(state, &vfs_path, vfs_path.as_path()) {
                 return Ok(());
             }
         }
     }
     // No specific flycheck was triggered, so let's trigger all of them.
     for flycheck in state.flycheck.iter() {
-        flycheck.restart();
+        flycheck.restart(None);
     }
     Ok(())
 }

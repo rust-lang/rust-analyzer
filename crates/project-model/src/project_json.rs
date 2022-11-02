@@ -65,6 +65,7 @@ pub struct ProjectJson {
     pub(crate) sysroot: Option<AbsPathBuf>,
     /// e.g. `path/to/sysroot/lib/rustlib/src/rust`
     pub(crate) sysroot_src: Option<AbsPathBuf>,
+    /// the folder containing `rust-project.json`)
     project_root: AbsPathBuf,
     crates: Vec<Crate>,
 }

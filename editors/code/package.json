@@ -544,7 +544,7 @@
                     ]
                 },
                 "rust-analyzer.cargo.buildScripts.invocationStrategy": {
-                    "markdownDescription": "Specifies the invocation strategy to use when running the build scripts command.\nIf `per_workspace` is set, the command will be executed for each workspace.\nIf `once` is set, the command will be executed once.\nThis config only has an effect when `#rust-analyzer.cargo.buildScripts.overrideCommand#`\nis set.",
+                    "markdownDescription": "Specifies the invocation strategy to use when running the build scripts command.\n- `per_workspace`: Executes the command for each workspace separately.\n    Allows the use of the `$manifest_path` substitution variable in the override command\n    which will be replaced by the path of the workspace's Cargo.toml.\n- `once`: Executes the command once.\nThis config only has an effect when `#rust-analyzer.cargo.buildScripts.overrideCommand#`\nis set.",
                     "default": "per_workspace",
                     "type": "string",
                     "enum": [
@@ -725,7 +725,7 @@
                     ]
                 },
                 "rust-analyzer.check.invocationStrategy": {
-                    "markdownDescription": "Specifies the invocation strategy to use when running the check command.\nIf `per_workspace` is set, the command will be executed for each workspace.\nIf `once` is set, the command will be executed once.\nThis config only has an effect when `#rust-analyzer.cargo.check.overrideCommand#`\nis set.",
+                    "markdownDescription": "Specifies the invocation strategy to use when running the check command.\n- `per_workspace`: Executes the command for each workspace separately.\n    Allows the use of the `$manifest_path` substitution variable in the override command\n    which will be replaced by the path of the workspace's Cargo.toml or rust-project.json.\n- `once`: Executes the command once.\nThis config only has an effect when `#rust-analyzer.cargo.check.overrideCommand#`\nis set.",
                     "default": "per_workspace",
                     "type": "string",
                     "enum": [

@@ -60,11 +60,21 @@ impl WorkspaceBuildScripts {
     fn build_command(
         config: &CargoConfig,
         allowed_features: &FxHashSet<String>,
+        manifest_path: Option<AbsPathBuf>,
     ) -> io::Result<Command> {
         let mut cmd = match config.run_build_script_command.as_deref() {
             Some([program, args @ ..]) => {
                 let mut cmd = Command::new(program);
-                cmd.args(args);
+                for arg in args {
+                    if let Some(manifest_path) = &manifest_path {
+                        cmd.arg(arg.replace(
+                            "$manifest_path",
+                            &manifest_path.as_os_str().to_string_lossy(),
+                        ));
+                    } else {
+                        cmd.arg(arg);
+                    }
+                }
                 cmd
             }
             _ => {
@@ -139,7 +149,11 @@ impl WorkspaceBuildScripts {
         let allowed_features = workspace.workspace_features();
 
         match Self::run_per_ws(
-            Self::build_command(config, &allowed_features)?,
+            Self::build_command(
+                config,
+                &allowed_features,
+                Some(workspace.workspace_root().join("Cargo.toml")),
+            )?,
             workspace,
             current_dir,
             progress,
@@ -149,8 +163,12 @@ impl WorkspaceBuildScripts {
             {
                 // building build scripts failed, attempt to build with --keep-going so
                 // that we potentially get more build data
-                let mut cmd = Self::build_command(config, &allowed_features)?;
-                cmd.args(["-Z", "unstable-options", "--keep-going"]).env("RUSTC_BOOTSTRAP", "1");
+                let mut cmd = Self::build_command(
+                    config,
+                    &allowed_features,
+                    Some(workspace.workspace_root().join("Cargo.toml")),
+                )?;
+                cmd.args(&["-Z", "unstable-options", "--keep-going"]).env("RUSTC_BOOTSTRAP", "1");
                 let mut res = Self::run_per_ws(cmd, workspace, current_dir, progress)?;
                 res.error = Some(error);
                 Ok(res)
@@ -177,7 +195,7 @@ impl WorkspaceBuildScripts {
                 ))
             }
         };
-        let cmd = Self::build_command(config, &Default::default())?;
+        let cmd = Self::build_command(config, &Default::default(), None)?;
         // NB: Cargo.toml could have been modified between `cargo metadata` and
         // `cargo check`. We shouldn't assume that package ids we see here are
         // exactly those from `config`.

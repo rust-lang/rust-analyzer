@@ -590,30 +590,39 @@ impl GlobalState {
                 Box::new(move |msg| sender.send(msg).unwrap()),
                 config,
                 self.config.root_path().clone(),
+                self.config.root_path().clone(),
             )],
             flycheck::InvocationStrategy::PerWorkspace => {
                 self.workspaces
                     .iter()
                     .enumerate()
                     .filter_map(|(id, w)| match w {
-                        ProjectWorkspace::Cargo { cargo, .. } => Some((id, cargo.workspace_root())),
+                        ProjectWorkspace::Cargo { cargo, .. } => {
+                            Some((id, cargo.workspace_root(), true))
+                        }
                         ProjectWorkspace::Json { project, .. } => {
                             // Enable flychecks for json projects if a custom flycheck command was supplied
                             // in the workspace configuration.
                             match config {
-                                FlycheckConfig::CustomCommand { .. } => Some((id, project.path())),
+                                FlycheckConfig::CustomCommand { .. } => {
+                                    Some((id, project.path(), false))
+                                }
                                 _ => None,
                             }
                         }
                         ProjectWorkspace::DetachedFiles { .. } => None,
                     })
-                    .map(|(id, root)| {
+                    .map(|(id, root, cargo_project)| {
                         let sender = sender.clone();
                         FlycheckHandle::spawn(
                             id,
                             Box::new(move |msg| sender.send(msg).unwrap()),
                             config.clone(),
                             root.to_path_buf(),
+                            match cargo_project {
+                                true => root.join("Cargo.toml"),
+                                false => root.join("rust-project.json"),
+                            },
                         )
                     })
                     .collect()
