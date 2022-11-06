@@ -1318,6 +1318,14 @@ fn make_call(ctx: &AssistContext<'_>, fun: &Function, indent: IndentLevel) -> St
     } else if fun.ret_ty.is_unit() && (!fun.outliving_locals.is_empty() || !expr.is_block_like()) {
         buf.push(';');
     }
+
+    // The replacement text should be interpreted as-is, as it is expected to be
+    // a normal Rust expression. We escape '\' and '$' so they don't get
+    // treated as snippet-specific constructs.
+    //
+    // Note that we don't need to escape the other characters that can be escaped,
+    // because they wouldn't be treated as snippet-specific constructs without '$'.
+    buf.replace('\\', "\\\\").replace('$', "\\$");
     buf
 }
 
@@ -5319,6 +5327,26 @@ impl <T, U> Struct<T, U> where T: Into<i32> + Copy, U: Debug {
 
 fn $0fun_name<T, V>(t: T, v: V) -> i32 where T: Into<i32> + Copy, V: Into<i32> {
     t.into() + v.into()
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn test_escapes() {
+        check_assist(
+            extract_function,
+            r#"
+fn foo() {
+    let v = $0"\\ $1"$0;
+}"#,
+            r#"
+fn foo(){
+    fun_name();
+}
+
+fn $0fun_name() {
+    let v = "\\ $1";
 }
 "#,
         );

@@ -130,6 +130,14 @@ pub(crate) fn extract_variable(acc: &mut Assists, ctx: &AssistContext<'_>) -> Op
                 buf.push_str(text);
             }
 
+            // The replacement text should be interpreted as-is, as it is expected to be
+            // a normal Rust expression. We escape '\' and '$' so they don't get
+            // treated as snippet-specific constructs.
+            //
+            // Note that we don't need to escape the other characters that can be escaped,
+            // because they wouldn't be treated as snippet-specific constructs without '$'.
+            buf.replace('\\', "\\\\").replace('$', "\\$");
+
             edit.replace(expr_range, var_name.clone());
             let offset = anchor.syntax().text_range().start();
             match ctx.config.snippet_cap {
@@ -1273,6 +1281,22 @@ fn foo() {
 fn foo() {
     let mut $0var_name = 0;
     let v = &mut var_name;
+}"#,
+        );
+    }
+
+    #[test]
+    fn test_extract_var_escapes() {
+        check_assist(
+            extract_variable,
+            r#"
+fn foo() {
+    let v = $0"\\ $1"$0;
+}"#,
+            r#"
+fn foo() {
+    let $0var_name = "\\ $1";
+    let v = var_name;
 }"#,
         );
     }
