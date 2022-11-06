@@ -5341,13 +5341,12 @@ fn foo() {
 }"#,
             r#"
 fn foo(){
-    fun_name();
+    let v = fun_name();
 }
 
-fn $0fun_name() {
-    let v = "\\ $1";
-}
-"#,
+fn $0fun_name() -> &str {
+    "\\\\ \$1"
+}"#,
         );
     }
 }

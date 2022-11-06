@@ -1295,7 +1295,7 @@ fn foo() {
 }"#,
             r#"
 fn foo() {
-    let $0var_name = "\\ $1";
+    let $0var_name = &"\\\\ \$1";
     let v = var_name;
 }"#,
         );
