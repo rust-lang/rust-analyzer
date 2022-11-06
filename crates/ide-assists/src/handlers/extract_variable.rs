@@ -136,7 +136,7 @@ pub(crate) fn extract_variable(acc: &mut Assists, ctx: &AssistContext<'_>) -> Op
             //
             // Note that we don't need to escape the other characters that can be escaped,
             // because they wouldn't be treated as snippet-specific constructs without '$'.
-            buf.replace('\\', "\\\\").replace('$', "\\$");
+            buf = buf.replace('\\', "\\\\").replace('$', "\\$");
 
             edit.replace(expr_range, var_name.clone());
             let offset = anchor.syntax().text_range().start();

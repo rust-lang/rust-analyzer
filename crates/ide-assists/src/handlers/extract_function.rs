@@ -1325,8 +1325,7 @@ fn make_call(ctx: &AssistContext<'_>, fun: &Function, indent: IndentLevel) -> St
     //
     // Note that we don't need to escape the other characters that can be escaped,
     // because they wouldn't be treated as snippet-specific constructs without '$'.
-    buf.replace('\\', "\\\\").replace('$', "\\$");
-    buf
+    buf.replace('\\', "\\\\").replace('$', "\\$")
 }
 
 enum FlowHandler {
