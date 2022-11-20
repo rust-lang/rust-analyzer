@@ -382,7 +382,7 @@ fn import_name(ctx: &CompletionContext<'_>) -> String {
     }
 }
 
-pub static MINIMUM_FUZZY_NAME_LENGTH: Lazy<usize> = {
+static MINIMUM_FUZZY_NAME_LENGTH: Lazy<usize> = {
     Lazy::new(|| env::var("RA_MINIMUM_FUZZY_NAME_LENGTH").map(|x| x.parse().unwrap()).unwrap_or(3))
 };
 
