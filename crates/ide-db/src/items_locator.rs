@@ -2,6 +2,8 @@
 //! by its name and a few criteria.
 //! The main reason for this module to exist is the fact that project's items and dependencies' items
 //! are located in different caches, with different APIs.
+use std::env;
+
 use either::Either;
 use hir::{
     import_map::{self, ImportKind},
@@ -9,6 +11,7 @@ use hir::{
     AsAssocItem, Crate, ItemInNs, Semantics,
 };
 use limit::Limit;
+use once_cell::sync::Lazy;
 use syntax::{ast, AstNode, SyntaxKind::NAME};
 
 use crate::{
@@ -18,7 +21,13 @@ use crate::{
 };
 
 /// A value to use, when uncertain which limit to pick.
-pub static DEFAULT_QUERY_SEARCH_LIMIT: Limit = Limit::new(40);
+pub static DEFAULT_QUERY_SEARCH_LIMIT: Lazy<Limit> = {
+    Lazy::new(|| {
+        Limit::new(
+            env::var("RA_DEFAULT_QUERY_SEARCH_LIMIT").map(|x| x.parse().unwrap()).unwrap_or(40),
+        )
+    })
+};
 
 /// Three possible ways to search for the name in associated and/or other items.
 #[derive(Debug, Clone, Copy)]

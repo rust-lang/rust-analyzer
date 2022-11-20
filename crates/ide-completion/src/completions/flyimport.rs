@@ -1,10 +1,13 @@
 //! See [`import_on_the_fly`].
+use std::env;
+
 use hir::{ItemInNs, ModuleDef};
 use ide_db::imports::{
     import_assets::{ImportAssets, LocatedImport},
     insert_use::ImportScope,
 };
 use itertools::Itertools;
+use once_cell::sync::Lazy;
 use syntax::{
     ast::{self},
     AstNode, SyntaxNode, T,
@@ -379,6 +382,10 @@ fn import_name(ctx: &CompletionContext<'_>) -> String {
     }
 }
 
+pub static MINIMUM_FUZZY_NAME_LENGTH: Lazy<usize> = {
+    Lazy::new(|| env::var("RA_MINIMUM_FUZZY_NAME_LENGTH").map(|x| x.parse().unwrap()).unwrap_or(3))
+};
+
 fn import_assets_for_path(
     ctx: &CompletionContext<'_>,
     potential_import_name: &str,
@@ -392,7 +399,7 @@ fn import_assets_for_path(
         &ctx.sema,
         ctx.token.parent()?,
     )?;
-    if fuzzy_name_length < 3 {
+    if fuzzy_name_length < *MINIMUM_FUZZY_NAME_LENGTH {
         cov_mark::hit!(flyimport_exact_on_short_path);
         assets_for_path.path_fuzzy_name_to_exact(false);
     }
