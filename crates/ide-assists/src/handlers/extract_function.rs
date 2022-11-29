@@ -5747,4 +5747,46 @@ fn $0fun_name() -> Option<()> {
 "#,
         );
     }
+
+    #[test]
+    fn non_tail_expr_with_comment_of_tail_expr_loop() {
+        check_assist(
+            extract_function,
+            r#"
+pub fn f() {
+    loop {
+        $0// A comment
+        if true {
+            continue;
+        }$0
+
+        if false {
+            break;
+        }
+    }
+}
+"#,
+            r#"
+pub fn f() {
+    loop {
+        if let ControlFlow::Break(_) = fun_name() {
+            continue;
+        }
+
+        if false {
+            break;
+        }
+    }
+}
+
+fn $0fun_name() -> ControlFlow<()> {
+    // A comment
+    if true {
+        return ControlFlow::Break(());
+    }
+    ControlFlow::Continue(())
+}
+"#,
+        );
+    }
 }
