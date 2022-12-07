@@ -2,7 +2,7 @@
 //! the type of each expression and pattern.
 //!
 //! For type inference, compare the implementations in rustc (the various
-//! check_* methods in librustc_typeck/check/mod.rs are a good entry point) and
+//! check_* methods in rustc_hir_analysis/check/mod.rs are a good entry point) and
 //! IntelliJ-Rust (org.rust.lang.core.types.infer). Our entry point for
 //! inference here is the `infer` function, which infers the types of all
 //! expressions in a given function.
@@ -19,10 +19,11 @@ use std::sync::Arc;
 use chalk_ir::{cast::Cast, ConstValue, DebruijnIndex, Mutability, Safety, Scalar, TypeFlags};
 use hir_def::{
     body::Body,
-    builtin_type::BuiltinType,
+    builtin_type::{BuiltinInt, BuiltinType, BuiltinUint},
     data::{ConstData, StaticData},
     expr::{BindingAnnotation, ExprId, PatId},
     lang_item::LangItemTarget,
+    layout::Integer,
     path::{path, Path},
     resolver::{HasResolver, ResolveValueResult, Resolver, TypeNs, ValueNs},
     type_ref::TypeRef,
@@ -70,8 +71,26 @@ pub(crate) fn infer_query(db: &dyn HirDatabase, def: DefWithBodyId) -> Arc<Infer
         DefWithBodyId::StaticId(s) => ctx.collect_static(&db.static_data(s)),
         DefWithBodyId::VariantId(v) => {
             ctx.return_ty = TyBuilder::builtin(match db.enum_data(v.parent).variant_body_type() {
-                Either::Left(builtin) => BuiltinType::Int(builtin),
-                Either::Right(builtin) => BuiltinType::Uint(builtin),
+                hir_def::layout::IntegerType::Pointer(signed) => match signed {
+                    true => BuiltinType::Int(BuiltinInt::Isize),
+                    false => BuiltinType::Uint(BuiltinUint::Usize),
+                },
+                hir_def::layout::IntegerType::Fixed(size, signed) => match signed {
+                    true => BuiltinType::Int(match size {
+                        Integer::I8 => BuiltinInt::I8,
+                        Integer::I16 => BuiltinInt::I16,
+                        Integer::I32 => BuiltinInt::I32,
+                        Integer::I64 => BuiltinInt::I64,
+                        Integer::I128 => BuiltinInt::I128,
+                    }),
+                    false => BuiltinType::Uint(match size {
+                        Integer::I8 => BuiltinUint::U8,
+                        Integer::I16 => BuiltinUint::U16,
+                        Integer::I32 => BuiltinUint::U32,
+                        Integer::I64 => BuiltinUint::U64,
+                        Integer::I128 => BuiltinUint::U128,
+                    }),
+                },
             });
         }
     }
@@ -537,8 +556,20 @@ impl<'a> InferenceContext<'a> {
         let data = self.db.function_data(func);
         let ctx = crate::lower::TyLoweringContext::new(self.db, &self.resolver)
             .with_impl_trait_mode(ImplTraitLoweringMode::Param);
-        let param_tys =
+        let mut param_tys =
             data.params.iter().map(|(_, type_ref)| ctx.lower_ty(type_ref)).collect::<Vec<_>>();
+        // Check if function contains a va_list, if it does then we append it to the parameter types
+        // that are collected from the function data
+        if data.is_varargs() {
+            let va_list_ty = match self.resolve_va_list() {
+                Some(va_list) => TyBuilder::adt(self.db, va_list)
+                    .fill_with_defaults(self.db, || self.table.new_type_var())
+                    .build(),
+                None => self.err_ty(),
+            };
+
+            param_tys.push(va_list_ty)
+        }
         for (ty, pat) in param_tys.into_iter().zip(self.body.params.iter()) {
             let ty = self.insert_type_vars(ty);
             let ty = self.normalize_associated_types_in(ty);
@@ -982,6 +1013,11 @@ impl<'a> InferenceContext<'a> {
     fn resolve_ops_index_output(&self) -> Option<TypeAliasId> {
         let trait_ = self.resolve_ops_index()?;
         self.db.trait_data(trait_).associated_type_by_name(&name![Output])
+    }
+
+    fn resolve_va_list(&self) -> Option<AdtId> {
+        let struct_ = self.resolve_lang_item(name![va_list])?.as_struct()?;
+        Some(struct_.into())
     }
 }
 

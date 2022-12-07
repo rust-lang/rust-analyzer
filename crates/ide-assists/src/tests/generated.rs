@@ -1249,8 +1249,8 @@ fn doctest_generate_impl() {
     check_doc_test(
         "generate_impl",
         r#####"
-struct Ctx<T: Clone> {
-    data: T,$0
+struct Ctx$0<T: Clone> {
+    data: T,
 }
 "#####,
         r#####"
@@ -1336,6 +1336,27 @@ impl Person {
     fn set_name(&mut self, name: String) {
         self.name = name;
     }
+}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_generate_trait_impl() {
+    check_doc_test(
+        "generate_trait_impl",
+        r#####"
+struct $0Ctx<T: Clone> {
+    data: T,
+}
+"#####,
+        r#####"
+struct Ctx<T: Clone> {
+    data: T,
+}
+
+impl<T: Clone> $0 for Ctx<T> {
+
 }
 "#####,
     )
@@ -1648,6 +1669,35 @@ fn apply<T, U, $0F: FnOnce(T) -> U>(f: F, x: T) -> U {
         r#####"
 fn apply<T, U, F>(f: F, x: T) -> U where F: FnOnce(T) -> U {
     f(x)
+}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_move_const_to_impl() {
+    check_doc_test(
+        "move_const_to_impl",
+        r#####"
+struct S;
+impl S {
+    fn foo() -> usize {
+        /// The answer.
+        const C$0: usize = 42;
+
+        C * C
+    }
+}
+"#####,
+        r#####"
+struct S;
+impl S {
+    /// The answer.
+    const C: usize = 42;
+
+    fn foo() -> usize {
+        Self::C * Self::C
+    }
 }
 "#####,
     )
