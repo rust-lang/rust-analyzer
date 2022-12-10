@@ -950,6 +950,11 @@ impl<'a> InferenceContext<'a> {
         self.resolve_output_on(self.resolve_lang_trait(LangItem::Try)?)
     }
 
+    fn resolve_ops_try_err(&self) -> Option<TypeAliasId> {
+        let trait_ =  self.resolve_lang_trait(LangItem::Try)?;
+        self.db.trait_data(trait_).associated_type_by_name(&name![Residual])
+    }
+
     fn resolve_ops_neg_output(&self) -> Option<TypeAliasId> {
         self.resolve_output_on(self.resolve_lang_trait(LangItem::Neg)?)
     }

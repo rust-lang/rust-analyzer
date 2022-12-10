@@ -945,6 +945,91 @@ fn clone_iter<T>(s: Iter<T>) {
 }
 
 #[test]
+fn issue_12247() {
+    check_infer(
+        r#"
+//- minicore: result, try
+fn aa() -> Result<i32, E3> {
+    let a : Result<i32, E1> = Err(E1);
+    let b = a.mapE()?;
+}
+struct E1;
+struct E2;
+struct E3;
+
+impl From<E1> for E2 {
+    fn from(value: E1) -> Self {
+        E2
+    }
+}
+
+impl From<E1> for E3 {
+    fn from(value: E1) -> Self {
+        E3
+    }
+}
+trait MapErr<T, E> {
+    fn mapE(self) -> Result<T, E>;
+}
+
+impl <T, ET> MapErr<T, E2> for Result<T, ET>
+where
+    ET: Into<E2>,
+{
+    fn mapE(self) -> Result<T, E2> {
+        self.map_err(|e| e.into())
+    }
+}
+
+impl <T, ET> MapErr<T, E3> for Result<T, ET>
+where
+    ET: Into<E3>,
+{
+    fn mapE(self) -> Result<T, E3> {
+        self.map_err(|e| e.into())
+    }
+}
+        "#, expect![
+            r#"
+27..92 '{     ...()?; }': Result<i32, E3>
+37..38 'a': Result<i32, E1>
+59..62 'Err': Err<i32, E1>(E1) -> Result<i32, E1>
+59..66 'Err(E1)': Result<i32, E1>
+63..65 'E1': E1
+76..77 'b': Try::Output<Result<i32, E3>>
+80..81 'a': Result<i32, E1>
+80..88 'a.mapE()': Result<i32, E3>
+80..89 'a.mapE()?': Try::Output<Result<i32, E3>>
+162..167 'value': E1
+181..199 '{     ...     }': E2
+191..193 'E2': E2
+238..243 'value': E1
+257..275 '{     ...     }': E3
+267..269 'E3': E3
+311..315 'self': Self
+420..424 'self': Result<T, ET>
+443..485 '{     ...     }': Result<T, E2>
+453..457 'self': Result<T, ET>
+453..479 'self.m...nto())': Result<T, E2>
+466..478 '|e| e.into()': |{unknown}| -> {unknown}
+467..468 'e': {unknown}
+470..471 'e': {unknown}
+470..478 'e.into()': {unknown}
+572..576 'self': Result<T, ET>
+595..637 '{     ...     }': Result<T, E3>
+605..609 'self': Result<T, ET>
+605..631 'self.m...nto())': Result<T, E3>
+618..630 '|e| e.into()': |{unknown}| -> {unknown}
+619..620 'e': {unknown}
+622..623 'e': {unknown}
+622..630 'e.into()': {unknown}
+"#
+        ]
+    )
+}
+
+
+#[test]
 fn issue_8686() {
     check_infer(
         r#"
