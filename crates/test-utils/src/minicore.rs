@@ -545,6 +545,22 @@ pub mod result {
         #[lang = "Err"]
         Err(E),
     }
+
+    impl<T, E> const crate::ops::Try for Result<T, E> {
+        type Output = T;
+        type Residual = Result<convert::Infallible, E>;
+        #[inline]
+        fn from_output(output: Self::Output) -> Self {
+            Ok(output)
+        }
+        #[inline]
+        fn branch(self) -> ControlFlow<Self::Residual, Self::Output> {
+            match self {
+                Ok(v) => ControlFlow::Continue(v),
+                Err(e) => ControlFlow::Break(Err(e)),
+            }
+        }
+    }
 }
 // endregion:result
 
