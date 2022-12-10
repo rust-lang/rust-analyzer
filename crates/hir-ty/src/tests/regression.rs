@@ -989,7 +989,8 @@ where
         self.map_err(|e| e.into())
     }
 }
-        "#, expect![
+        "#,
+        expect![
             r#"
 27..92 '{     ...()?; }': Result<i32, E3>
 37..38 'a': Result<i32, E1>
@@ -1024,10 +1025,9 @@ where
 622..623 'e': {unknown}
 622..630 'e.into()': {unknown}
 "#
-        ]
+        ],
     )
 }
-
 
 #[test]
 fn issue_8686() {
