@@ -648,6 +648,20 @@ fn adjustment_hints(
     }
 
     let parent = expr.syntax().parent().and_then(ast::Expr::cast);
+
+    // If this is a tail expression in the let-else, suppress the hints
+    if let Some(stmt_list) = expr.syntax().parent().and_then(ast::StmtList::cast) {
+        if let Some(block) = stmt_list.syntax().parent().and_then(ast::BlockExpr::cast) {
+            if block.syntax().parent().and_then(ast::LetElse::cast).is_some() {
+                if let Some(tail) = block.tail_expr() {
+                    if &tail == expr {
+                        return None;
+                    }
+                }
+            }
+        }
+    }
+
     let descended = sema.descend_node_into_attributes(expr.clone()).pop();
     let desc_expr = descended.as_ref().unwrap_or(expr);
     let adjustments = sema.expr_adjustments(desc_expr).filter(|it| !it.is_empty())?;
@@ -3114,6 +3128,9 @@ fn main() {
                                        //^^^^^^^<unsize>
                                        //^^^^^^^&mut $
                                        //^^^^^^^*
+
+    // Check that let-else doesn't produce <never-to-any>
+    let () = () else { return };
 }
 
 #[derive(Copy, Clone)]
