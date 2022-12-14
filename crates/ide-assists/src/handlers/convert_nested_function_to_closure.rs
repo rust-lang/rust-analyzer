@@ -13,7 +13,7 @@ use crate::assist_context::{AssistContext, Assists};
 //
 // ```
 // fn main() {
-//     fn foo(label: &str, $0number: u64) {
+//     fn fo$0o(label: &str, number: u64) {
 //         println!("{}: {}", label, number);
 //     }
 //
@@ -34,7 +34,8 @@ pub(crate) fn convert_nested_function_to_closure(
     acc: &mut Assists,
     ctx: &AssistContext<'_>,
 ) -> Option<()> {
-    let function = ctx.find_node_at_offset::<ast::Fn>()?;
+    let name = ctx.find_node_at_offset::<ast::Name>()?;
+    let function = name.syntax().parent().and_then(ast::Fn::cast)?;
     if !is_nested_function(&function) {
         return None;
     }
@@ -91,7 +92,7 @@ mod tests {
             convert_nested_function_to_closure,
             r#"
 fn main() {
-    $0fn foo(a: u64, b: u64) -> u64 {
+    fn $0foo(a: u64, b: u64) -> u64 {
         2 * (a + b)
     }
 
@@ -116,7 +117,7 @@ fn main() {
             convert_nested_function_to_closure,
             r#"
 fn main() {
-    $0fn foo(a: u64, b: u64) -> u64 {
+    fn foo$0(a: u64, b: u64) -> u64 {
         2 * (a + b)
     };
 
@@ -141,6 +142,22 @@ fn main() {
             convert_nested_function_to_closure,
             r#"
 fn ma$0in() {}
+            "#,
+        );
+    }
+
+    #[test]
+    fn convert_nested_function_to_closure_does_not_work_when_cursor_off_name() {
+        check_assist_not_applicable(
+            convert_nested_function_to_closure,
+            r#"
+fn main() {
+    fn foo(a: u64, $0b: u64) -> u64 {
+        2 * (a + b)
+    };
+
+    _ = foo(3, 4);
+}
             "#,
         );
     }

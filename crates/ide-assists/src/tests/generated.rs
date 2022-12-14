@@ -454,7 +454,7 @@ fn doctest_convert_nested_function_to_closure() {
         "convert_nested_function_to_closure",
         r#####"
 fn main() {
-    fn foo(label: &str, $0number: u64) {
+    fn fo$0o(label: &str, number: u64) {
         println!("{}: {}", label, number);
     }
 
