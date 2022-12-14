@@ -1,7 +1,4 @@
-use hir::Semantics;
 use ide_db::assists::{AssistId, AssistKind};
-use ide_db::base_db::FileId;
-use ide_db::RootDatabase;
 use syntax::ast::{self, HasName};
 use syntax::{AstNode, SyntaxKind};
 
@@ -44,7 +41,7 @@ pub(crate) fn convert_nested_function_to_closure(
     let body = function.body()?;
     let name = function.name()?;
     let params = function.param_list()?;
-    let has_semicolon = has_semicolon(&function, ctx.file_id(), &ctx.sema);
+    let has_semicolon = has_semicolon(&function);
 
     acc.add(
         AssistId("convert_nested_function_to_closure", AssistKind::RefactorRewrite),
@@ -74,10 +71,12 @@ fn is_nested_function(function: &ast::Fn) -> bool {
 }
 
 /// Returns whether the given nested function has a trailing semicolon.
-fn has_semicolon(function: &ast::Fn, file_id: FileId, sema: &Semantics<'_, RootDatabase>) -> bool {
-    let source = sema.parse(file_id).syntax().text();
-    let offset = function.syntax().text_range().end();
-    source.char_at(offset) == Some(';')
+fn has_semicolon(function: &ast::Fn) -> bool {
+    function
+        .syntax()
+        .next_sibling_or_token()
+        .map(|t| t.kind() == SyntaxKind::SEMICOLON)
+        .unwrap_or(false)
 }
 
 #[cfg(test)]
