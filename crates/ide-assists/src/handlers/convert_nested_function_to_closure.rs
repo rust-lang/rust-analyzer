@@ -1,5 +1,5 @@
 use ide_db::assists::{AssistId, AssistKind};
-use syntax::ast::{self, HasName};
+use syntax::ast::{self, HasGenericParams, HasName};
 use syntax::{AstNode, SyntaxKind};
 
 use crate::assist_context::{AssistContext, Assists};
@@ -33,7 +33,8 @@ pub(crate) fn convert_nested_function_to_closure(
 ) -> Option<()> {
     let name = ctx.find_node_at_offset::<ast::Name>()?;
     let function = name.syntax().parent().and_then(ast::Fn::cast)?;
-    if !is_nested_function(&function) {
+
+    if !is_nested_function(&function) || is_generic(&function) {
         return None;
     }
 
@@ -68,6 +69,11 @@ fn is_nested_function(function: &ast::Fn) -> bool {
         .parent()
         .map(|p| p.ancestors().any(|a| a.kind() == SyntaxKind::FN))
         .unwrap_or(false)
+}
+
+/// Returns whether the given nested function has generic parameters.
+fn is_generic(function: &ast::Fn) -> bool {
+    function.generic_param_list().is_some()
 }
 
 /// Returns whether the given nested function has a trailing semicolon.
@@ -156,6 +162,22 @@ fn main() {
     };
 
     _ = foo(3, 4);
+}
+            "#,
+        );
+    }
+
+    #[test]
+    fn convert_nested_function_to_closure_does_not_work_if_function_has_generic_params() {
+        check_assist_not_applicable(
+            convert_nested_function_to_closure,
+            r#"
+fn main() {
+    fn fo$0o<S: Into<String>>(s: S) -> String {
+        s.into()
+    };
+
+    _ = foo("hello");
 }
             "#,
         );
