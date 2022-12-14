@@ -419,6 +419,8 @@ pub mod known {
         shr,
         sub_assign,
         sub,
+        unsafe_cell,
+        va_list
     );
 
     // self/Self cannot be used as an identifier

@@ -9,9 +9,9 @@ use std::{
 
 use anyhow::Context;
 use ide::{
-    AnnotationConfig, AssistKind, AssistResolveStrategy, FileId, FilePosition, FileRange,
-    HoverAction, HoverGotoTypeData, Query, RangeInfo, ReferenceCategory, Runnable, RunnableKind,
-    SingleResolve, SourceChange, TextEdit,
+    AnnotationConfig, AssistKind, AssistResolveStrategy, Cancellable, FileId, FilePosition,
+    FileRange, HoverAction, HoverGotoTypeData, Query, RangeInfo, ReferenceCategory, Runnable,
+    RunnableKind, SingleResolve, SourceChange, TextEdit,
 };
 use ide_db::SymbolKind;
 use lsp_server::ErrorCode;
@@ -28,7 +28,8 @@ use lsp_types::{
 use project_model::{ManifestPath, ProjectWorkspace, TargetKind};
 use serde_json::json;
 use stdx::{format_to, never};
-use syntax::{algo, ast, AstNode, TextRange, TextSize, T};
+use syntax::{algo, ast, AstNode, TextRange, TextSize};
+use tracing::error;
 use vfs::AbsPathBuf;
 
 use crate::{
@@ -556,7 +557,7 @@ pub(crate) fn handle_will_rename_files(
     if source_change.source_file_edits.is_empty() {
         Ok(None)
     } else {
-        to_proto::workspace_edit(&snap, source_change).map(Some)
+        Ok(Some(to_proto::workspace_edit(&snap, source_change)?))
     }
 }
 
@@ -811,18 +812,6 @@ pub(crate) fn handle_completion(
     let position = from_proto::file_position(&snap, params.text_document_position)?;
     let completion_trigger_character =
         params.context.and_then(|ctx| ctx.trigger_character).and_then(|s| s.chars().next());
-
-    if Some(':') == completion_trigger_character {
-        let source_file = snap.analysis.parse(position.file_id)?;
-        let left_token = source_file.syntax().token_at_offset(position.offset).left_biased();
-        let completion_triggered_after_single_colon = match left_token {
-            Some(left_token) => left_token.kind() == T![:],
-            None => true,
-        };
-        if completion_triggered_after_single_colon {
-            return Ok(None);
-        }
-    }
 
     let completion_config = &snap.config.completion();
     let items = match snap.analysis.completions(
@@ -1313,7 +1302,7 @@ pub(crate) fn handle_ssr(
         position,
         selections,
     )??;
-    to_proto::workspace_edit(&snap, source_change)
+    to_proto::workspace_edit(&snap, source_change).map_err(Into::into)
 }
 
 pub(crate) fn publish_diagnostics(
@@ -1354,13 +1343,12 @@ pub(crate) fn handle_inlay_hints(
 ) -> Result<Option<Vec<InlayHint>>> {
     let _p = profile::span("handle_inlay_hints");
     let document_uri = &params.text_document.uri;
-    let file_id = from_proto::file_id(&snap, document_uri)?;
-    let line_index = snap.file_line_index(file_id)?;
-    let range = from_proto::file_range(
+    let FileRange { file_id, range } = from_proto::file_range(
         &snap,
         TextDocumentIdentifier::new(document_uri.to_owned()),
         params.range,
     )?;
+    let line_index = snap.file_line_index(file_id)?;
     let inlay_hints_config = snap.config.inlay_hints();
     Ok(Some(
         snap.analysis
@@ -1369,7 +1357,7 @@ pub(crate) fn handle_inlay_hints(
             .map(|it| {
                 to_proto::inlay_hint(&snap, &line_index, inlay_hints_config.render_colons, it)
             })
-            .collect::<Result<Vec<_>>>()?,
+            .collect::<Cancellable<Vec<_>>>()?,
     ))
 }
 
@@ -1385,9 +1373,26 @@ pub(crate) fn handle_inlay_hints_resolve(
 
     let resolve_data: lsp_ext::InlayHintResolveData = serde_json::from_value(data)?;
 
-    let file_range = from_proto::file_range(
+    match snap.url_file_version(&resolve_data.text_document.uri) {
+        Some(version) if version == resolve_data.text_document.version => {}
+        Some(version) => {
+            error!(
+                "attempted inlayHints/resolve of '{}' at version {} while server version is {}",
+                resolve_data.text_document.uri, resolve_data.text_document.version, version,
+            );
+            return Ok(hint);
+        }
+        None => {
+            error!(
+                "attempted inlayHints/resolve of unknown file '{}' at version {}",
+                resolve_data.text_document.uri, resolve_data.text_document.version,
+            );
+            return Ok(hint);
+        }
+    }
+    let file_range = from_proto::file_range_uri(
         &snap,
-        resolve_data.text_document,
+        &resolve_data.text_document.uri,
         match resolve_data.position {
             PositionOrRange::Position(pos) => Range::new(pos, pos),
             PositionOrRange::Range(range) => range,
@@ -1426,7 +1431,7 @@ pub(crate) fn handle_call_hierarchy_prepare(
         .into_iter()
         .filter(|it| it.kind == Some(SymbolKind::Function))
         .map(|it| to_proto::call_hierarchy_item(&snap, it))
-        .collect::<Result<Vec<_>>>()?;
+        .collect::<Cancellable<Vec<_>>>()?;
 
     Ok(Some(res))
 }

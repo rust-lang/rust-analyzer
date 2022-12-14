@@ -408,6 +408,27 @@ fn main() {
 }
 
 #[test]
+fn doctest_convert_match_to_let_else() {
+    check_doc_test(
+        "convert_match_to_let_else",
+        r#####"
+//- minicore: option
+fn foo(opt: Option<()>) {
+    let val = $0match opt {
+        Some(it) => it,
+        None => return,
+    };
+}
+"#####,
+        r#####"
+fn foo(opt: Option<()>) {
+    let Some(val) = opt else { return };
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_convert_named_struct_to_tuple_struct() {
     check_doc_test(
         "convert_named_struct_to_tuple_struct",
@@ -745,7 +766,7 @@ mod m {
     fn frobnicate() {}
 }
 fn main() {
-    m::frobnicate$0() {}
+    m::frobnicate$0();
 }
 "#####,
         r#####"
@@ -753,7 +774,7 @@ mod m {
     $0pub(crate) fn frobnicate() {}
 }
 fn main() {
-    m::frobnicate() {}
+    m::frobnicate();
 }
 "#####,
     )
@@ -1253,8 +1274,8 @@ fn doctest_generate_impl() {
     check_doc_test(
         "generate_impl",
         r#####"
-struct Ctx<T: Clone> {
-    data: T,$0
+struct Ctx$0<T: Clone> {
+    data: T,
 }
 "#####,
         r#####"
@@ -1340,6 +1361,27 @@ impl Person {
     fn set_name(&mut self, name: String) {
         self.name = name;
     }
+}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_generate_trait_impl() {
+    check_doc_test(
+        "generate_trait_impl",
+        r#####"
+struct $0Ctx<T: Clone> {
+    data: T,
+}
+"#####,
+        r#####"
+struct Ctx<T: Clone> {
+    data: T,
+}
+
+impl<T: Clone> $0 for Ctx<T> {
+
 }
 "#####,
     )
@@ -1658,6 +1700,35 @@ fn apply<T, U, F>(f: F, x: T) -> U where F: FnOnce(T) -> U {
 }
 
 #[test]
+fn doctest_move_const_to_impl() {
+    check_doc_test(
+        "move_const_to_impl",
+        r#####"
+struct S;
+impl S {
+    fn foo() -> usize {
+        /// The answer.
+        const C$0: usize = 42;
+
+        C * C
+    }
+}
+"#####,
+        r#####"
+struct S;
+impl S {
+    /// The answer.
+    const C: usize = 42;
+
+    fn foo() -> usize {
+        Self::C * Self::C
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_move_format_string_arg() {
     check_doc_test(
         "move_format_string_arg",
@@ -1927,6 +1998,23 @@ impl Walrus {
         r#####"
 impl Walrus {
     fn feed(&self, amount: u32) {}
+}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_remove_parentheses() {
+    check_doc_test(
+        "remove_parentheses",
+        r#####"
+fn main() {
+    _ = $0(2) + 2;
+}
+"#####,
+        r#####"
+fn main() {
+    _ = 2 + 2;
 }
 "#####,
     )

@@ -351,15 +351,17 @@ pub fn eval_const(
                         .infer
                         .assoc_resolutions_for_expr(expr_id)
                         .ok_or(ConstEvalError::SemanticError("unresolved assoc item"))?
+                        .0
                     {
                         hir_def::AssocItemId::FunctionId(_) => {
                             Err(ConstEvalError::NotSupported("assoc function"))
                         }
+                        // FIXME use actual impl for trait assoc const
                         hir_def::AssocItemId::ConstId(c) => ctx.db.const_eval(c),
                         hir_def::AssocItemId::TypeAliasId(_) => {
                             Err(ConstEvalError::NotSupported("assoc type alias"))
                         }
-                    }
+                    };
                 }
             };
             match pr {

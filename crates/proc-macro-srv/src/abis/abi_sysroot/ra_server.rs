@@ -37,23 +37,6 @@ pub struct SourceFile {
 type Level = super::proc_macro::Level;
 type LineColumn = super::proc_macro::LineColumn;
 
-/// A structure representing a diagnostic message and associated children
-/// messages.
-#[derive(Clone, Debug)]
-pub struct Diagnostic {
-    level: Level,
-    message: String,
-    spans: Vec<Span>,
-    children: Vec<Diagnostic>,
-}
-
-impl Diagnostic {
-    /// Creates a new diagnostic with the given `level` and `message`.
-    pub fn new<T: Into<String>>(level: Level, message: T) -> Diagnostic {
-        Diagnostic { level, message: message.into(), spans: vec![], children: vec![] }
-    }
-}
-
 pub struct FreeFunctions;
 
 #[derive(Default)]
@@ -65,8 +48,6 @@ impl server::Types for RustAnalyzer {
     type FreeFunctions = FreeFunctions;
     type TokenStream = TokenStream;
     type SourceFile = SourceFile;
-    type MultiSpan = Vec<Span>;
-    type Diagnostic = Diagnostic;
     type Span = Span;
     type Symbol = Symbol;
 }
@@ -89,6 +70,10 @@ impl server::FreeFunctions for RustAnalyzer {
             suffix: None,
             span: tt::TokenId::unspecified(),
         })
+    }
+
+    fn emit_diagnostic(&mut self, _: bridge::Diagnostic<Self::Span>) {
+        // FIXME handle diagnostic
     }
 }
 
@@ -122,8 +107,8 @@ impl server::TokenStream for RustAnalyzer {
             }
 
             bridge::TokenTree::Ident(ident) => {
-                // FIXME: handle raw idents
                 let text = ident.sym.text();
+                let text = if ident.is_raw { tt::SmolStr::from_iter(["r#", &text]) } else { text };
                 let ident: tt::Ident = tt::Ident { text, id: ident.span };
                 let leaf = tt::Leaf::from(ident);
                 let tree = TokenTree::from(leaf);
@@ -197,9 +182,8 @@ impl server::TokenStream for RustAnalyzer {
             .map(|tree| match tree {
                 tt::TokenTree::Leaf(tt::Leaf::Ident(ident)) => {
                     bridge::TokenTree::Ident(bridge::Ident {
-                        sym: Symbol::intern(&ident.text),
-                        // FIXME: handle raw idents
-                        is_raw: false,
+                        sym: Symbol::intern(&ident.text.trim_start_matches("r#")),
+                        is_raw: ident.text.starts_with("r#"),
                         span: ident.id,
                     })
                 }
@@ -282,30 +266,6 @@ impl server::SourceFile for RustAnalyzer {
     }
 }
 
-impl server::Diagnostic for RustAnalyzer {
-    fn new(&mut self, level: Level, msg: &str, spans: Self::MultiSpan) -> Self::Diagnostic {
-        let mut diag = Diagnostic::new(level, msg);
-        diag.spans = spans;
-        diag
-    }
-
-    fn sub(
-        &mut self,
-        _diag: &mut Self::Diagnostic,
-        _level: Level,
-        _msg: &str,
-        _spans: Self::MultiSpan,
-    ) {
-        // FIXME handle diagnostic
-        //
-    }
-
-    fn emit(&mut self, _diag: Self::Diagnostic) {
-        // FIXME handle diagnostic
-        // diag.emit()
-    }
-}
-
 impl server::Span for RustAnalyzer {
     fn debug(&mut self, span: Self::Span) -> String {
         format!("{:?}", span.0)
@@ -369,18 +329,6 @@ impl server::Span for RustAnalyzer {
 
     fn before(&mut self, _self_: Self::Span) -> Self::Span {
         tt::TokenId::unspecified()
-    }
-}
-
-impl server::MultiSpan for RustAnalyzer {
-    fn new(&mut self) -> Self::MultiSpan {
-        // FIXME handle span
-        vec![]
-    }
-
-    fn push(&mut self, other: &mut Self::MultiSpan, span: Self::Span) {
-        //TODP
-        other.push(span)
     }
 }
 

@@ -451,7 +451,7 @@ impl GlobalState {
                     ProjectWorkspaceProgress::Begin => (Progress::Begin, None),
                     ProjectWorkspaceProgress::Report(msg) => (Progress::Report, Some(msg)),
                     ProjectWorkspaceProgress::End(workspaces) => {
-                        self.fetch_workspaces_queue.op_completed(workspaces);
+                        self.fetch_workspaces_queue.op_completed(Some(workspaces));
 
                         let old = Arc::clone(&self.workspaces);
                         self.switch_workspaces("fetched workspace".to_string());
@@ -543,7 +543,10 @@ impl GlobalState {
                             diag.fix,
                         ),
                         Err(err) => {
-                            tracing::error!("File with cargo diagnostic not found in VFS: {}", err);
+                            tracing::error!(
+                                "flycheck {id}: File with cargo diagnostic not found in VFS: {}",
+                                err
+                            );
                         }
                     };
                 }
@@ -604,30 +607,34 @@ impl GlobalState {
 
     /// Handles a request.
     fn on_request(&mut self, req: Request) {
-        if self.shutdown_requested {
-            self.respond(lsp_server::Response::new_err(
-                req.id,
-                lsp_server::ErrorCode::InvalidRequest as i32,
-                "Shutdown already requested.".to_owned(),
-            ));
-            return;
+        let mut dispatcher = RequestDispatcher { req: Some(req), global_state: self };
+        dispatcher.on_sync_mut::<lsp_types::request::Shutdown>(|s, ()| {
+            s.shutdown_requested = true;
+            Ok(())
+        });
+
+        if let RequestDispatcher { req: Some(req), global_state: this } = &mut dispatcher {
+            if this.shutdown_requested {
+                this.respond(lsp_server::Response::new_err(
+                    req.id.clone(),
+                    lsp_server::ErrorCode::InvalidRequest as i32,
+                    "Shutdown already requested.".to_owned(),
+                ));
+                return;
+            }
+
+            // Avoid flashing a bunch of unresolved references during initial load.
+            if this.workspaces.is_empty() && !this.is_quiescent() {
+                this.respond(lsp_server::Response::new_err(
+                    req.id.clone(),
+                    lsp_server::ErrorCode::ContentModified as i32,
+                    "waiting for cargo metadata or cargo check".to_owned(),
+                ));
+                return;
+            }
         }
 
-        // Avoid flashing a bunch of unresolved references during initial load.
-        if self.workspaces.is_empty() && !self.is_quiescent() {
-            self.respond(lsp_server::Response::new_err(
-                req.id,
-                lsp_server::ErrorCode::ContentModified as i32,
-                "waiting for cargo metadata or cargo check".to_owned(),
-            ));
-            return;
-        }
-
-        RequestDispatcher { req: Some(req), global_state: self }
-            .on_sync_mut::<lsp_types::request::Shutdown>(|s, ()| {
-                s.shutdown_requested = true;
-                Ok(())
-            })
+        dispatcher
             .on_sync_mut::<lsp_ext::ReloadWorkspace>(handlers::handle_workspace_reload)
             .on_sync_mut::<lsp_ext::MemoryUsage>(handlers::handle_memory_usage)
             .on_sync_mut::<lsp_ext::ShuffleCrateGraph>(handlers::handle_shuffle_crate_graph)
@@ -752,8 +759,10 @@ impl GlobalState {
 
                     let vfs = &mut this.vfs.write().0;
                     let file_id = vfs.file_id(&path).unwrap();
-                    let mut text = String::from_utf8(vfs.file_contents(file_id).to_vec()).unwrap();
-                    apply_document_changes(&mut text, params.content_changes);
+                    let text = apply_document_changes(
+                        || std::str::from_utf8(vfs.file_contents(file_id)).unwrap().into(),
+                        params.content_changes,
+                    );
 
                     vfs.set_file_contents(path, Some(text.into_bytes()));
                 }

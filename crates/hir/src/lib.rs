@@ -39,12 +39,13 @@ use arrayvec::ArrayVec;
 use base_db::{CrateDisplayName, CrateId, CrateOrigin, Edition, FileId, ProcMacroKind};
 use either::Either;
 use hir_def::{
-    adt::{ReprData, VariantData},
+    adt::VariantData,
     body::{BodyDiagnostic, SyntheticSyntax},
     expr::{BindingAnnotation, LabelId, Pat, PatId},
     generics::{TypeOrConstParamData, TypeParamProvenance},
     item_tree::ItemTreeNode,
     lang_item::LangItemTarget,
+    layout::{Layout, LayoutError, ReprOptions},
     nameres::{self, diagnostics::DefDiagnostic},
     per_ns::PerNs,
     resolver::{HasResolver, Resolver},
@@ -59,6 +60,7 @@ use hir_ty::{
     all_super_traits, autoderef,
     consteval::{unknown_const_as_generic, ComputedExpr, ConstEvalError, ConstExt},
     diagnostics::BodyValidationDiagnostic,
+    layout::layout_of_ty,
     method_resolution::{self, TyFingerprint},
     primitive::UintTy,
     traits::FnTrait,
@@ -117,7 +119,7 @@ pub use {
         name::{known, Name},
         ExpandResult, HirFileId, InFile, MacroFile, Origin,
     },
-    hir_ty::display::HirDisplay,
+    hir_ty::{display::HirDisplay, PointerCast, Safety},
 };
 
 // These are negative re-exports: pub using these names is forbidden, they
@@ -844,6 +846,10 @@ impl Field {
         self.parent.variant_data(db).fields()[self.id].name.clone()
     }
 
+    pub fn index(&self) -> usize {
+        u32::from(self.id.into_raw()) as usize
+    }
+
     /// Returns the type as in the signature of the struct (i.e., with
     /// placeholder types for type parameters). Only use this in the context of
     /// the field definition.
@@ -857,6 +863,10 @@ impl Field {
         let substs = TyBuilder::placeholder_subst(db, generic_def_id);
         let ty = db.field_types(var_id)[self.id].clone().substitute(Interner, &substs);
         Type::new(db, var_id, ty)
+    }
+
+    pub fn layout(&self, db: &dyn HirDatabase) -> Result<Layout, LayoutError> {
+        layout_of_ty(db, &self.ty(db).ty)
     }
 
     pub fn parent_def(&self, _db: &dyn HirDatabase) -> VariantDef {
@@ -900,7 +910,7 @@ impl Struct {
         Type::from_def(db, self.id)
     }
 
-    pub fn repr(self, db: &dyn HirDatabase) -> Option<ReprData> {
+    pub fn repr(self, db: &dyn HirDatabase) -> Option<ReprOptions> {
         db.struct_data(self.id).repr.clone()
     }
 
@@ -984,8 +994,30 @@ impl Enum {
         Type::new_for_crate(
             self.id.lookup(db.upcast()).container.krate(),
             TyBuilder::builtin(match db.enum_data(self.id).variant_body_type() {
-                Either::Left(builtin) => hir_def::builtin_type::BuiltinType::Int(builtin),
-                Either::Right(builtin) => hir_def::builtin_type::BuiltinType::Uint(builtin),
+                hir_def::layout::IntegerType::Pointer(sign) => match sign {
+                    true => hir_def::builtin_type::BuiltinType::Int(
+                        hir_def::builtin_type::BuiltinInt::Isize,
+                    ),
+                    false => hir_def::builtin_type::BuiltinType::Uint(
+                        hir_def::builtin_type::BuiltinUint::Usize,
+                    ),
+                },
+                hir_def::layout::IntegerType::Fixed(i, sign) => match sign {
+                    true => hir_def::builtin_type::BuiltinType::Int(match i {
+                        hir_def::layout::Integer::I8 => hir_def::builtin_type::BuiltinInt::I8,
+                        hir_def::layout::Integer::I16 => hir_def::builtin_type::BuiltinInt::I16,
+                        hir_def::layout::Integer::I32 => hir_def::builtin_type::BuiltinInt::I32,
+                        hir_def::layout::Integer::I64 => hir_def::builtin_type::BuiltinInt::I64,
+                        hir_def::layout::Integer::I128 => hir_def::builtin_type::BuiltinInt::I128,
+                    }),
+                    false => hir_def::builtin_type::BuiltinType::Uint(match i {
+                        hir_def::layout::Integer::I8 => hir_def::builtin_type::BuiltinUint::U8,
+                        hir_def::layout::Integer::I16 => hir_def::builtin_type::BuiltinUint::U16,
+                        hir_def::layout::Integer::I32 => hir_def::builtin_type::BuiltinUint::U32,
+                        hir_def::layout::Integer::I64 => hir_def::builtin_type::BuiltinUint::U64,
+                        hir_def::layout::Integer::I128 => hir_def::builtin_type::BuiltinUint::U128,
+                    }),
+                },
             }),
         )
     }
@@ -1074,6 +1106,13 @@ impl Adt {
             GenericArgData::Ty(x) => x.is_unknown(),
             _ => false,
         })
+    }
+
+    pub fn layout(self, db: &dyn HirDatabase) -> Result<Layout, LayoutError> {
+        if db.generic_params(self.into()).iter().count() != 0 {
+            return Err(LayoutError::HasPlaceholder);
+        }
+        db.layout_of_adt(self.into(), Substitution::empty(Interner))
     }
 
     /// Turns this ADT into a type. Any type parameters of the ADT will be
@@ -2349,12 +2388,14 @@ impl DeriveHelper {
 
     pub fn name(&self, db: &dyn HirDatabase) -> Name {
         match self.derive {
-            MacroId::Macro2Id(_) => None,
+            MacroId::Macro2Id(it) => {
+                db.macro2_data(it).helpers.as_deref().and_then(|it| it.get(self.idx)).cloned()
+            }
             MacroId::MacroRulesId(_) => None,
             MacroId::ProcMacroId(proc_macro) => db
                 .proc_macro_data(proc_macro)
                 .helpers
-                .as_ref()
+                .as_deref()
                 .and_then(|it| it.get(self.idx))
                 .cloned(),
         }
@@ -2995,7 +3036,16 @@ impl Type {
         let callee = match self.ty.kind(Interner) {
             TyKind::Closure(id, _) => Callee::Closure(*id),
             TyKind::Function(_) => Callee::FnPtr,
-            _ => Callee::Def(self.ty.callable_def(db)?),
+            TyKind::FnDef(..) => Callee::Def(self.ty.callable_def(db)?),
+            _ => {
+                let sig = hir_ty::callable_sig_from_fnonce(&self.ty, self.env.clone(), db)?;
+                return Some(Callable {
+                    ty: self.clone(),
+                    sig,
+                    callee: Callee::Other,
+                    is_bound_method: false,
+                });
+            }
         };
 
         let sig = self.ty.callable_sig(db)?;
@@ -3022,7 +3072,7 @@ impl Type {
 
         let adt = adt_id.into();
         match adt {
-            Adt::Struct(s) => matches!(s.repr(db), Some(ReprData { packed: true, .. })),
+            Adt::Struct(s) => s.repr(db).unwrap_or_default().pack.is_some(),
             _ => false,
         }
     }
@@ -3464,6 +3514,7 @@ enum Callee {
     Def(CallableDefId),
     Closure(ClosureId),
     FnPtr,
+    Other,
 }
 
 pub enum CallableKind {
@@ -3472,6 +3523,8 @@ pub enum CallableKind {
     TupleEnumVariant(Variant),
     Closure,
     FnPtr,
+    /// Some other type that implements `FnOnce`.
+    Other,
 }
 
 impl Callable {
@@ -3483,6 +3536,7 @@ impl Callable {
             Def(CallableDefId::EnumVariantId(it)) => CallableKind::TupleEnumVariant(it.into()),
             Closure(_) => CallableKind::Closure,
             FnPtr => CallableKind::FnPtr,
+            Other => CallableKind::Other,
         }
     }
     pub fn receiver_param(&self, db: &dyn HirDatabase) -> Option<ast::SelfParam> {
@@ -3636,6 +3690,28 @@ impl From<ItemInNs> for ScopeDef {
         }
     }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Adjust {
+    /// Go from ! to any type.
+    NeverToAny,
+    /// Dereference once, producing a place.
+    Deref(Option<OverloadedDeref>),
+    /// Take the address and produce either a `&` or `*` pointer.
+    Borrow(AutoBorrow),
+    Pointer(PointerCast),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum AutoBorrow {
+    /// Converts from T to &T.
+    Ref(Mutability),
+    /// Converts from T to *T.
+    RawPtr(Mutability),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct OverloadedDeref(pub Mutability);
 
 pub trait HasVisibility {
     fn visibility(&self, db: &dyn HirDatabase) -> Visibility;

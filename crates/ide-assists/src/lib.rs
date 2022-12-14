@@ -120,6 +120,7 @@ mod handlers {
     mod convert_into_to_from;
     mod convert_iter_for_each_to_for;
     mod convert_let_else_to_match;
+    mod convert_match_to_let_else;
     mod convert_nested_function_to_closure;
     mod convert_tuple_struct_to_named_struct;
     mod convert_named_struct_to_tuple_struct;
@@ -165,6 +166,7 @@ mod handlers {
     mod merge_imports;
     mod merge_match_arms;
     mod move_bounds;
+    mod move_const_to_impl;
     mod move_guard;
     mod move_module_to_file;
     mod move_to_mod_rs;
@@ -178,6 +180,7 @@ mod handlers {
     mod remove_dbg;
     mod remove_mut;
     mod remove_unused_param;
+    mod remove_parentheses;
     mod reorder_fields;
     mod reorder_impl_items;
     mod replace_try_expr_with_match;
@@ -221,6 +224,7 @@ mod handlers {
             convert_iter_for_each_to_for::convert_for_loop_with_for_each,
             convert_let_else_to_match::convert_let_else_to_match,
             convert_named_struct_to_tuple_struct::convert_named_struct_to_tuple_struct,
+            convert_match_to_let_else::convert_match_to_let_else,
             convert_nested_function_to_closure::convert_nested_function_to_closure,
             convert_to_guarded_return::convert_to_guarded_return,
             convert_tuple_struct_to_named_struct::convert_tuple_struct_to_named_struct,
@@ -247,6 +251,7 @@ mod handlers {
             generate_from_impl_for_enum::generate_from_impl_for_enum,
             generate_function::generate_function,
             generate_impl::generate_impl,
+            generate_impl::generate_trait_impl,
             generate_is_empty_from_len::generate_is_empty_from_len,
             generate_new::generate_new,
             inline_call::inline_call,
@@ -260,6 +265,7 @@ mod handlers {
             merge_imports::merge_imports,
             merge_match_arms::merge_match_arms,
             move_bounds::move_bounds_to_where_clause,
+            move_const_to_impl::move_const_to_impl,
             move_format_string_arg::move_format_string_arg,
             move_guard::move_arm_cond_to_match_guard,
             move_guard::move_guard_to_arm_body,
@@ -277,6 +283,7 @@ mod handlers {
             remove_dbg::remove_dbg,
             remove_mut::remove_mut,
             remove_unused_param::remove_unused_param,
+            remove_parentheses::remove_parentheses,
             reorder_fields::reorder_fields,
             reorder_impl_items::reorder_impl_items,
             replace_try_expr_with_match::replace_try_expr_with_match,

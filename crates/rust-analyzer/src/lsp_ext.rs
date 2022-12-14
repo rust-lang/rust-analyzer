@@ -7,6 +7,7 @@ use lsp_types::{
     notification::Notification, CodeActionKind, DocumentOnTypeFormattingParams,
     PartialResultParams, Position, Range, TextDocumentIdentifier, WorkDoneProgressParams,
 };
+use lsp_types::{PositionEncodingKind, VersionedTextDocumentIdentifier};
 use serde::{Deserialize, Serialize};
 
 pub enum AnalyzerStatus {}
@@ -455,7 +456,15 @@ pub(crate) enum CodeLensResolveData {
 }
 
 pub fn supports_utf8(caps: &lsp_types::ClientCapabilities) -> bool {
-    caps.offset_encoding.as_deref().unwrap_or_default().iter().any(|it| it == "utf-8")
+    match &caps.general {
+        Some(general) => general
+            .position_encodings
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .any(|it| it == &PositionEncodingKind::UTF8),
+        _ => false,
+    }
 }
 
 pub enum MoveItem {}
@@ -541,7 +550,7 @@ pub struct CompletionResolveData {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InlayHintResolveData {
-    pub text_document: TextDocumentIdentifier,
+    pub text_document: VersionedTextDocumentIdentifier,
     pub position: PositionOrRange,
 }
 

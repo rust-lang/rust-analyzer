@@ -49,7 +49,7 @@
         "esbuild": "^0.14.48",
         "eslint": "^8.19.0",
         "eslint-config-prettier": "^8.5.0",
-        "ovsx": "^0.5.1",
+        "ovsx": "^0.5.2",
         "prettier": "^2.7.1",
         "tslib": "^2.4.0",
         "typescript": "^4.7.4",
@@ -100,22 +100,32 @@
             {
                 "command": "rust-analyzer.syntaxTree",
                 "title": "Show Syntax Tree",
-                "category": "rust-analyzer"
+                "category": "rust-analyzer (debug command)"
             },
             {
                 "command": "rust-analyzer.viewHir",
                 "title": "View Hir",
-                "category": "rust-analyzer"
+                "category": "rust-analyzer (debug command)"
             },
             {
                 "command": "rust-analyzer.viewFileText",
                 "title": "View File Text (as seen by the server)",
-                "category": "rust-analyzer"
+                "category": "rust-analyzer (debug command)"
             },
             {
                 "command": "rust-analyzer.viewItemTree",
                 "title": "Debug ItemTree",
-                "category": "rust-analyzer"
+                "category": "rust-analyzer (debug command)"
+            },
+            {
+                "command": "rust-analyzer.shuffleCrateGraph",
+                "title": "Shuffle Crate Graph",
+                "category": "rust-analyzer (debug command)"
+            },
+            {
+                "command": "rust-analyzer.memoryUsage",
+                "title": "Memory Usage (Clears Database)",
+                "category": "rust-analyzer (debug command)"
             },
             {
                 "command": "rust-analyzer.viewCrateGraph",
@@ -170,16 +180,6 @@
             {
                 "command": "rust-analyzer.analyzerStatus",
                 "title": "Status",
-                "category": "rust-analyzer"
-            },
-            {
-                "command": "rust-analyzer.memoryUsage",
-                "title": "Memory Usage (Clears Database)",
-                "category": "rust-analyzer"
-            },
-            {
-                "command": "rust-analyzer.shuffleCrateGraph",
-                "title": "Shuffle Crate Graph",
                 "category": "rust-analyzer"
             },
             {
@@ -396,7 +396,17 @@
                     "default": true,
                     "type": "boolean"
                 },
+                "rust-analyzer.diagnostics.previewRustcOutput": {
+                    "markdownDescription": "Whether to show the main part of the rendered rustc output of a diagnostic message.",
+                    "default": false,
+                    "type": "boolean"
+                },
                 "$generated-start": {},
+                "rust-analyzer.assist.emitMustUse": {
+                    "markdownDescription": "Whether to insert #[must_use] when generating `as_` methods\nfor enum variants.",
+                    "default": false,
+                    "type": "boolean"
+                },
                 "rust-analyzer.assist.expressionFillDefault": {
                     "markdownDescription": "Placeholder expression to use for missing expressions in assists.",
                     "default": "todo",
@@ -432,8 +442,21 @@
                     "default": true,
                     "type": "boolean"
                 },
+                "rust-analyzer.cargo.buildScripts.invocationLocation": {
+                    "markdownDescription": "Specifies the working directory for running build scripts.\n- \"workspace\": run build scripts for a workspace in the workspace's root directory.\n    This is incompatible with `#rust-analyzer.cargo.buildScripts.invocationStrategy#` set to `once`.\n- \"root\": run build scripts in the project's root directory.\nThis config only has an effect when `#rust-analyzer.cargo.buildScripts.overrideCommand#`\nis set.",
+                    "default": "workspace",
+                    "type": "string",
+                    "enum": [
+                        "workspace",
+                        "root"
+                    ],
+                    "enumDescriptions": [
+                        "The command will be executed in the corresponding workspace root.",
+                        "The command will be executed in the project root."
+                    ]
+                },
                 "rust-analyzer.cargo.buildScripts.invocationStrategy": {
-                    "markdownDescription": "Specifies the invocation strategy to use when running the build scripts command.\nIf `per_workspace` is set, the command will be executed for each workspace from the\ncorresponding workspace root.\nIf `once` is set, the command will be executed once in the project root.\nThis config only has an effect when `#rust-analyzer.cargo.buildScripts.overrideCommand#`\nis set.",
+                    "markdownDescription": "Specifies the invocation strategy to use when running the build scripts command.\nIf `per_workspace` is set, the command will be executed for each workspace.\nIf `once` is set, the command will be executed once.\nThis config only has an effect when `#rust-analyzer.cargo.buildScripts.overrideCommand#`\nis set.",
                     "default": "per_workspace",
                     "type": "string",
                     "enum": [
@@ -441,8 +464,8 @@
                         "once"
                     ],
                     "enumDescriptions": [
-                        "The command will be executed for each workspace from the corresponding workspace root.",
-                        "The command will be executed once in the project root."
+                        "The command will be executed for each workspace.",
+                        "The command will be executed once."
                     ]
                 },
                 "rust-analyzer.cargo.buildScripts.overrideCommand": {
@@ -570,8 +593,21 @@
                         }
                     ]
                 },
+                "rust-analyzer.checkOnSave.invocationLocation": {
+                    "markdownDescription": "Specifies the working directory for running checks.\n- \"workspace\": run checks for workspaces in the corresponding workspaces' root directories.\n    This falls back to \"root\" if `#rust-analyzer.cargo.checkOnSave.invocationStrategy#` is set to `once`.\n- \"root\": run checks in the project's root directory.\nThis config only has an effect when `#rust-analyzer.cargo.buildScripts.overrideCommand#`\nis set.",
+                    "default": "workspace",
+                    "type": "string",
+                    "enum": [
+                        "workspace",
+                        "root"
+                    ],
+                    "enumDescriptions": [
+                        "The command will be executed in the corresponding workspace root.",
+                        "The command will be executed in the project root."
+                    ]
+                },
                 "rust-analyzer.checkOnSave.invocationStrategy": {
-                    "markdownDescription": "Specifies the invocation strategy to use when running the checkOnSave command.\nIf `per_workspace` is set, the command will be executed for each workspace from the\ncorresponding workspace root.\nIf `once` is set, the command will be executed once in the project root.\nThis config only has an effect when `#rust-analyzer.cargo.buildScripts.overrideCommand#`\nis set.",
+                    "markdownDescription": "Specifies the invocation strategy to use when running the checkOnSave command.\nIf `per_workspace` is set, the command will be executed for each workspace.\nIf `once` is set, the command will be executed once.\nThis config only has an effect when `#rust-analyzer.cargo.buildScripts.overrideCommand#`\nis set.",
                     "default": "per_workspace",
                     "type": "string",
                     "enum": [
@@ -579,8 +615,8 @@
                         "once"
                     ],
                     "enumDescriptions": [
-                        "The command will be executed for each workspace from the corresponding workspace root.",
-                        "The command will be executed once in the project root."
+                        "The command will be executed for each workspace.",
+                        "The command will be executed once."
                     ]
                 },
                 "rust-analyzer.checkOnSave.noDefaultFeatures": {
@@ -592,7 +628,7 @@
                     ]
                 },
                 "rust-analyzer.checkOnSave.overrideCommand": {
-                    "markdownDescription": "Override the command rust-analyzer uses instead of `cargo check` for\ndiagnostics on save. The command is required to output json and\nshould therefor include `--message-format=json` or a similar option.\n\nIf you're changing this because you're using some tool wrapping\nCargo, you might also want to change\n`#rust-analyzer.cargo.buildScripts.overrideCommand#`.\n\nIf there are multiple linked projects, this command is invoked for\neach of them, with the working directory being the project root\n(i.e., the folder containing the `Cargo.toml`).\n\nAn example command would be:\n\n```bash\ncargo check --workspace --message-format=json --all-targets\n```\n.",
+                    "markdownDescription": "Override the command rust-analyzer uses instead of `cargo check` for\ndiagnostics on save. The command is required to output json and\nshould therefore include `--message-format=json` or a similar option.\n\nIf you're changing this because you're using some tool wrapping\nCargo, you might also want to change\n`#rust-analyzer.cargo.buildScripts.overrideCommand#`.\n\nIf there are multiple linked projects, this command is invoked for\neach of them, with the working directory being the project root\n(i.e., the folder containing the `Cargo.toml`).\n\nAn example command would be:\n\n```bash\ncargo check --workspace --message-format=json --all-targets\n```\n.",
                     "default": null,
                     "type": [
                         "null",
@@ -603,11 +639,21 @@
                     }
                 },
                 "rust-analyzer.checkOnSave.target": {
-                    "markdownDescription": "Check for a specific target. Defaults to\n`#rust-analyzer.cargo.target#`.",
+                    "markdownDescription": "Check for specific targets. Defaults to `#rust-analyzer.cargo.target#` if empty.\n\nCan be a single target, e.g. `\"x86_64-unknown-linux-gnu\"` or a list of targets, e.g.\n`[\"aarch64-apple-darwin\", \"x86_64-apple-darwin\"]`.\n\nAliased as `\"checkOnSave.targets\"`.",
                     "default": null,
-                    "type": [
-                        "null",
-                        "string"
+                    "anyOf": [
+                        {
+                            "type": "null"
+                        },
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
                     ]
                 },
                 "rust-analyzer.completion.autoimport.enable": {
@@ -904,6 +950,21 @@
                         "Only show type hints for return types of closures with blocks."
                     ]
                 },
+                "rust-analyzer.inlayHints.expressionAdjustmentHints.enable": {
+                    "markdownDescription": "Whether to show inlay hints for type adjustments.",
+                    "default": "never",
+                    "type": "string",
+                    "enum": [
+                        "always",
+                        "never",
+                        "reborrow"
+                    ],
+                    "enumDescriptions": [
+                        "Always show all adjustment hints.",
+                        "Never show adjustment hints.",
+                        "Only show auto borrow and dereference adjustment hints."
+                    ]
+                },
                 "rust-analyzer.inlayHints.lifetimeElisionHints.enable": {
                     "markdownDescription": "Whether to show inlay type hints for elided lifetimes in function signatures.",
                     "default": "never",
@@ -939,7 +1000,7 @@
                     "type": "boolean"
                 },
                 "rust-analyzer.inlayHints.reborrowHints.enable": {
-                    "markdownDescription": "Whether to show inlay type hints for compiler inserted reborrows.",
+                    "markdownDescription": "Whether to show inlay hints for compiler inserted reborrows.\nThis setting is deprecated in favor of #rust-analyzer.inlayHints.expressionAdjustmentHints.enable#.",
                     "default": "never",
                     "type": "string",
                     "enum": [
@@ -1245,6 +1306,11 @@
                 "$generated-end": {}
             }
         },
+        "configurationDefaults": {
+            "explorer.fileNesting.patterns": {
+                "Cargo.toml": "Cargo.lock"
+            }
+        },
         "problemPatterns": [
             {
                 "name": "rustc",
@@ -1428,6 +1494,11 @@
             {
                 "id": "derive",
                 "description": "Style for derives",
+                "superType": "attribute"
+            },
+            {
+                "id": "deriveHelper",
+                "description": "Style for derive helpers",
                 "superType": "attribute"
             },
             {
@@ -1717,6 +1788,12 @@
                     "group": "navigation@1000"
                 }
             ]
-        }
+        },
+        "jsonValidation": [
+            {
+                "fileMatch": "rust-project.json",
+                "url": "https://json.schemastore.org/rust-project.json"
+            }
+        ]
     }
 }

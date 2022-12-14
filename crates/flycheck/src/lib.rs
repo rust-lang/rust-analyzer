@@ -10,11 +10,12 @@ use std::{
     time::Duration,
 };
 
+use command_group::{CommandGroup, GroupChild};
 use crossbeam_channel::{never, select, unbounded, Receiver, Sender};
 use paths::AbsPathBuf;
 use rustc_hash::FxHashMap;
 use serde::Deserialize;
-use stdx::{process::streaming_output, JodChild};
+use stdx::process::streaming_output;
 
 pub use cargo_metadata::diagnostic::{
     Applicability, Diagnostic, DiagnosticCode, DiagnosticLevel, DiagnosticSpan,
@@ -28,24 +29,31 @@ pub enum InvocationStrategy {
     PerWorkspace,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum InvocationLocation {
+    Root(AbsPathBuf),
+    #[default]
+    Workspace,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FlycheckConfig {
     CargoCommand {
         command: String,
-        target_triple: Option<String>,
+        target_triples: Vec<String>,
         all_targets: bool,
         no_default_features: bool,
         all_features: bool,
         features: Vec<String>,
         extra_args: Vec<String>,
         extra_env: FxHashMap<String, String>,
-        invocation_strategy: InvocationStrategy,
     },
     CustomCommand {
         command: String,
         args: Vec<String>,
         extra_env: FxHashMap<String, String>,
         invocation_strategy: InvocationStrategy,
+        invocation_location: InvocationLocation,
     },
 }
 
@@ -275,23 +283,24 @@ impl FlycheckActor {
     }
 
     fn check_command(&self) -> Command {
-        let (mut cmd, args, invocation_strategy) = match &self.config {
+        let (mut cmd, args) = match &self.config {
             FlycheckConfig::CargoCommand {
                 command,
-                target_triple,
+                target_triples,
                 no_default_features,
                 all_targets,
                 all_features,
                 extra_args,
                 features,
                 extra_env,
-                invocation_strategy,
             } => {
                 let mut cmd = Command::new(toolchain::cargo());
                 cmd.arg(command);
-                cmd.args(&["--workspace", "--message-format=json"]);
+                cmd.current_dir(&self.root);
+                cmd.args(&["--workspace", "--message-format=json", "--manifest-path"])
+                    .arg(self.root.join("Cargo.toml").as_os_str());
 
-                if let Some(target) = target_triple {
+                for target in target_triples {
                     cmd.args(&["--target", target.as_str()]);
                 }
                 if *all_targets {
@@ -309,18 +318,40 @@ impl FlycheckActor {
                     }
                 }
                 cmd.envs(extra_env);
-                (cmd, extra_args, invocation_strategy)
+                (cmd, extra_args)
             }
-            FlycheckConfig::CustomCommand { command, args, extra_env, invocation_strategy } => {
+            FlycheckConfig::CustomCommand {
+                command,
+                args,
+                extra_env,
+                invocation_strategy,
+                invocation_location,
+            } => {
                 let mut cmd = Command::new(command);
                 cmd.envs(extra_env);
-                (cmd, args, invocation_strategy)
+
+                match invocation_location {
+                    InvocationLocation::Workspace => {
+                        match invocation_strategy {
+                            InvocationStrategy::Once => {
+                                cmd.current_dir(&self.root);
+                            }
+                            InvocationStrategy::PerWorkspace => {
+                                // FIXME: cmd.current_dir(&affected_workspace);
+                                cmd.current_dir(&self.root);
+                            }
+                        }
+                    }
+                    InvocationLocation::Root(root) => {
+                        cmd.current_dir(root);
+                    }
+                }
+
+                (cmd, args)
             }
         };
-        match invocation_strategy {
-            InvocationStrategy::PerWorkspace => cmd.current_dir(&self.root),
-            InvocationStrategy::Once => cmd.args(args),
-        };
+
+        cmd.args(args);
         cmd
     }
 
@@ -329,11 +360,20 @@ impl FlycheckActor {
     }
 }
 
+struct JodGroupChild(GroupChild);
+
+impl Drop for JodGroupChild {
+    fn drop(&mut self) {
+        _ = self.0.kill();
+        _ = self.0.wait();
+    }
+}
+
 /// A handle to a cargo process used for fly-checking.
 struct CargoHandle {
     /// The handle to the actual cargo process. As we cannot cancel directly from with
-    /// a read syscall dropping and therefor terminating the process is our best option.
-    child: JodChild,
+    /// a read syscall dropping and therefore terminating the process is our best option.
+    child: JodGroupChild,
     thread: jod_thread::JoinHandle<io::Result<(bool, String)>>,
     receiver: Receiver<CargoMessage>,
 }
@@ -341,10 +381,10 @@ struct CargoHandle {
 impl CargoHandle {
     fn spawn(mut command: Command) -> std::io::Result<CargoHandle> {
         command.stdout(Stdio::piped()).stderr(Stdio::piped()).stdin(Stdio::null());
-        let mut child = JodChild::spawn(command)?;
+        let mut child = command.group_spawn().map(JodGroupChild)?;
 
-        let stdout = child.stdout.take().unwrap();
-        let stderr = child.stderr.take().unwrap();
+        let stdout = child.0.inner().stdout.take().unwrap();
+        let stderr = child.0.inner().stderr.take().unwrap();
 
         let (sender, receiver) = unbounded();
         let actor = CargoActor::new(sender, stdout, stderr);
@@ -356,13 +396,13 @@ impl CargoHandle {
     }
 
     fn cancel(mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        let _ = self.child.0.kill();
+        let _ = self.child.0.wait();
     }
 
     fn join(mut self) -> io::Result<()> {
-        let _ = self.child.kill();
-        let exit_status = self.child.wait()?;
+        let _ = self.child.0.kill();
+        let exit_status = self.child.0.wait()?;
         let (read_at_least_one_message, error) = self.thread.join()?;
         if read_at_least_one_message || exit_status.success() {
             Ok(())
