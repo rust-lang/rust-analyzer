@@ -42,13 +42,13 @@ pub(crate) fn convert_nested_function_to_closure(
     let body = function.body()?;
     let name = function.name()?;
     let params = function.param_list()?;
-    let has_semicolon = has_semicolon(&function);
 
     acc.add(
         AssistId("convert_nested_function_to_closure", AssistKind::RefactorRewrite),
         "Convert nested function to closure",
         target,
         |edit| {
+            let has_semicolon = has_semicolon(&function);
             let params_text = params.syntax().text().to_string();
             let params_text_trimmed =
                 params_text.strip_prefix("(").and_then(|p| p.strip_suffix(")"));
