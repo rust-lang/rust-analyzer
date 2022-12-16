@@ -164,11 +164,10 @@ fn extract_tail(ctx: &AssistContext<'_>) -> Option<(FnType, ast::Expr, InsertOrR
             let ret_range = TextRange::new(rparen_pos, ret_range_end);
             (FnType::Function, tail_expr, ret_range, action)
         };
-    let range = ctx.selection_trimmed();
-    if return_type_range.contains_range(range) {
+    if ctx.cursor_in_range(return_type_range).is_some() {
         cov_mark::hit!(cursor_in_ret_position);
         cov_mark::hit!(cursor_in_ret_position_closure);
-    } else if tail_expr.syntax().text_range().contains_range(range) {
+    } else if ctx.cursor_in_range(tail_expr.syntax().text_range()).is_some() {
         cov_mark::hit!(cursor_on_tail);
         cov_mark::hit!(cursor_on_tail_closure);
     } else {

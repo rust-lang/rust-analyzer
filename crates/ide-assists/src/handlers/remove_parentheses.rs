@@ -20,12 +20,8 @@ use crate::{AssistContext, AssistId, AssistKind, Assists};
 pub(crate) fn remove_parentheses(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     let parens = ctx.find_node_at_offset::<ast::ParenExpr>()?;
 
-    let cursor_in_range =
-        parens.l_paren_token()?.text_range().contains_range(ctx.selection_trimmed())
-            || parens.r_paren_token()?.text_range().contains_range(ctx.selection_trimmed());
-    if !cursor_in_range {
-        return None;
-    }
+    ctx.cursor_in_range(parens.l_paren_token()?.text_range())
+        .or(ctx.cursor_in_range(parens.r_paren_token()?.text_range()))?;
 
     let expr = parens.expr()?;
 

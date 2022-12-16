@@ -53,10 +53,7 @@ pub(crate) fn replace_if_let_with_match(acc: &mut Assists, ctx: &AssistContext<'
         if_expr.syntax().text_range().start(),
         if_expr.then_branch()?.syntax().text_range().start(),
     );
-    let cursor_in_range = available_range.contains_range(ctx.selection_trimmed());
-    if !cursor_in_range {
-        return None;
-    }
+    ctx.cursor_in_range(available_range)?;
     let mut else_block = None;
     let if_exprs = successors(Some(if_expr.clone()), |expr| match expr.else_branch()? {
         ast::ElseBranch::IfExpr(expr) => Some(expr),

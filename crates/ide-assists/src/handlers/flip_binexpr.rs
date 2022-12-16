@@ -23,10 +23,7 @@ pub(crate) fn flip_binexpr(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option
     let rhs = expr.rhs()?.syntax().clone();
     let op_range = expr.op_token()?.text_range();
     // The assist should be applied only if the cursor is on the operator
-    let cursor_in_range = op_range.contains_range(ctx.selection_trimmed());
-    if !cursor_in_range {
-        return None;
-    }
+    ctx.cursor_in_range(op_range)?;
     let action: FlipAction = expr.op_kind()?.into();
     // The assist should not be applied for certain operators
     if let FlipAction::DontFlip = action {

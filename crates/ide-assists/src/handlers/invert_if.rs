@@ -30,10 +30,7 @@ pub(crate) fn invert_if(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()
     let if_keyword = ctx.find_token_syntax_at_offset(T![if])?;
     let expr = ast::IfExpr::cast(if_keyword.parent()?)?;
     let if_range = if_keyword.text_range();
-    let cursor_in_range = if_range.contains_range(ctx.selection_trimmed());
-    if !cursor_in_range {
-        return None;
-    }
+    ctx.cursor_in_range(if_range)?;
 
     let cond = expr.condition()?;
     // This assist should not apply for if-let.

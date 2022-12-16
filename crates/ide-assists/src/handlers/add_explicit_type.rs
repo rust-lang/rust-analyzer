@@ -1,6 +1,9 @@
 use hir::HirDisplay;
 use ide_db::syntax_helpers::node_ext::walk_ty;
-use syntax::ast::{self, AstNode, LetStmt, Param};
+use syntax::{
+    ast::{self, AstNode, LetStmt, Param},
+    TextRange,
+};
 
 use crate::{AssistContext, AssistId, AssistKind, Assists};
 
@@ -21,11 +24,11 @@ use crate::{AssistContext, AssistId, AssistKind, Assists};
 // ```
 pub(crate) fn add_explicit_type(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     let (ascribed_ty, expr, pat) = if let Some(let_stmt) = ctx.find_node_at_offset::<LetStmt>() {
-        let cursor_in_range = {
-            let eq_range = let_stmt.eq_token()?.text_range();
-            ctx.offset() < eq_range.start()
-        };
-        if !cursor_in_range {
+        let range_between_let_and_eq = TextRange::new(
+            let_stmt.let_token()?.text_range().end(),
+            let_stmt.eq_token()?.text_range().start(),
+        );
+        if ctx.cursor_in_range(range_between_let_and_eq).is_none() {
             cov_mark::hit!(add_explicit_type_not_applicable_if_cursor_after_equals);
             return None;
         }

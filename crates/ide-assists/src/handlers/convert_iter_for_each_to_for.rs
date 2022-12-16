@@ -198,7 +198,7 @@ fn validate_method_call_expr(
     expr: ast::MethodCallExpr,
 ) -> Option<(ast::Expr, ast::Expr)> {
     let name_ref = expr.name_ref()?;
-    if !name_ref.syntax().text_range().contains_range(ctx.selection_trimmed()) {
+    if ctx.cursor_in_range(name_ref.syntax().text_range()).is_none() {
         cov_mark::hit!(test_for_each_not_applicable_invalid_cursor_pos);
         return None;
     }

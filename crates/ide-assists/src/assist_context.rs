@@ -126,6 +126,13 @@ impl<'a> AssistContext<'a> {
     pub(crate) fn covering_element(&self) -> SyntaxElement {
         self.source_file.syntax().covering_element(self.selection_trimmed())
     }
+
+    /// Returns `Some(())` if the cursor/selection is in the `range`, returns `None` otherwise.
+    ///
+    /// You can use this as `ctx.cursor_in_range(range)?` in the assist code.
+    pub(crate) fn cursor_in_range(&self, range: TextRange) -> Option<()> {
+        range.contains_range(self.selection_trimmed()).then(|| ())
+    }
 }
 
 pub(crate) struct Assists {
