@@ -3,7 +3,6 @@ import * as vscode from "vscode";
 import * as ra from "../src/lsp_ext";
 import * as Is from "vscode-languageclient/lib/common/utils/is";
 import { assert } from "./util";
-import { WorkspaceEdit } from "vscode";
 import { Config, substituteVSCodeVariables } from "./config";
 import { randomUUID } from "crypto";
 
@@ -228,9 +227,6 @@ export async function createClient(
                                 arguments: [item],
                             };
 
-                            // Set a dummy edit, so that VS Code doesn't try to resolve this.
-                            action.edit = new WorkspaceEdit();
-
                             if (group) {
                                 let entry = groups.get(group);
                                 if (!entry) {
@@ -261,9 +257,6 @@ export async function createClient(
                                         }),
                                     ],
                                 };
-
-                                // Set a dummy edit, so that VS Code doesn't try to resolve this.
-                                action.edit = new WorkspaceEdit();
 
                                 result[index] = action;
                             }
