@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import * as ra from "../src/lsp_ext";
 import * as Is from "vscode-languageclient/lib/common/utils/is";
 import { assert } from "./util";
+import { WorkspaceEdit } from "vscode";
 import { Config, substituteVSCodeVariables } from "./config";
 import { randomUUID } from "crypto";
 
@@ -266,6 +267,16 @@ export async function createClient(
                     (_error) => undefined
                 );
             },
+            resolveCodeAction(
+                codeAction: vscode.CodeAction,
+                token: vscode.CancellationToken,
+                next: lc.ResolveCodeActionSignature
+            ) {
+                // VS Code resolves code actions if they're missing the edit property,
+                // so we set a dummy one and do the actual work when executing the command.
+                codeAction.edit = new WorkspaceEdit();
+                return next(codeAction, token);
+            }
         },
         markdown: {
             supportHtml: true,
