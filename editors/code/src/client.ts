@@ -276,7 +276,7 @@ export async function createClient(
                 // so we set a dummy one and do the actual work when executing the command.
                 codeAction.edit = new WorkspaceEdit();
                 return next(codeAction, token);
-            }
+            },
         },
         markdown: {
             supportHtml: true,
