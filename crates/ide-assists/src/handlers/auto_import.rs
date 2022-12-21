@@ -1247,7 +1247,8 @@ fn foo() {
     }
 
     #[test]
-    fn not_applicable_in_probable_variable_name() {
+    fn not_applicable_in_ident_pat_that_is_probable_variable_name() {
+        cov_mark::check!(import_assist_ident_pat_variable_name_heuristic);
         check_assist_not_applicable(
             auto_import,
             r"
