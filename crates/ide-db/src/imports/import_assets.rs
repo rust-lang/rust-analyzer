@@ -134,6 +134,15 @@ impl ImportAssets {
             return None;
         }
         let name = pat.name()?;
+
+        // The heuristic here is that variable names usually start with lower case, whereas something you might want to
+        // destructure (a struct or enum), of where this assist would probably apply would start with an upper case
+        // letter. So, we should not try to provide an assist for an ident pat whose first letter is not a capital,
+        // as it is probably referring to a variable, and not something we should try and find an import for.
+        if !name.text().starts_with(|c: char| c.is_uppercase()) {
+            return None;
+        }
+
         let candidate_node = pat.syntax().clone();
         Some(Self {
             import_candidate: ImportCandidate::for_name(sema, &name)?,

@@ -1247,6 +1247,24 @@ fn foo() {
     }
 
     #[test]
+    fn not_applicable_in_probable_variable_name() {
+        check_assist_not_applicable(
+            auto_import,
+            r"
+mod bar {
+    pub mod foo {
+        pub fn baz() {}
+    }
+}
+
+fn qux() {
+    let baz$0;
+}
+",
+        );
+    }
+
+    #[test]
     fn works_in_derives() {
         check_assist(
             auto_import,
