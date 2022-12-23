@@ -245,6 +245,7 @@ fn label_of_ty(
     famous_defs @ FamousDefs(sema, _): &FamousDefs<'_, '_>,
     config: &InlayHintsConfig,
     ty: hir::Type,
+    module: hir::Module,
 ) -> Option<InlayHintLabel> {
     fn rec(
         sema: &Semantics<'_, RootDatabase>,
@@ -252,6 +253,7 @@ fn label_of_ty(
         mut max_length: Option<usize>,
         ty: hir::Type,
         label_builder: &mut InlayHintLabelBuilder<'_>,
+        module: hir::Module,
     ) {
         let iter_item_type = hint_iterator(sema, famous_defs, &ty);
         match iter_item_type {
@@ -263,11 +265,14 @@ fn label_of_ty(
                     max_length.map(|len| len.saturating_sub(LABEL_START.len() + LABEL_END.len()));
 
                 label_builder.write_str(LABEL_START).unwrap();
-                rec(sema, famous_defs, max_length, ty, label_builder);
+                rec(sema, famous_defs, max_length, ty, label_builder, module);
                 label_builder.write_str(LABEL_END).unwrap();
             }
+
             None => {
-                let _ = ty.display_truncated(sema.db, max_length).write_to(label_builder);
+                let _ = ty
+                    .display_truncated_at(sema.db, max_length, module.into())
+                    .write_to(label_builder);
             }
         };
     }
@@ -279,7 +284,7 @@ fn label_of_ty(
         location_link_enabled: config.location_links,
         result: InlayHintLabel::default(),
     };
-    rec(sema, famous_defs, config.max_length, ty, &mut label_builder);
+    rec(sema, famous_defs, config.max_length, ty, &mut label_builder, module);
     let r = label_builder.finish();
     Some(r)
 }

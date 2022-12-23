@@ -37,7 +37,7 @@ pub(super) fn hints(
         return None;
     }
 
-    let label = label_of_ty(famous_defs, config, ty)?;
+    let label = label_of_ty(famous_defs, config, ty, sema.scope(pat.syntax()).unwrap().module())?;
 
     if config.hide_named_constructor_hints
         && is_named_constructor(sema, pat, &label.to_string()).is_some()
@@ -388,13 +388,20 @@ fn main(a: SliceIter<'_, Container>) {
             }
             pub trait Foo {
                 type Bar: Default;
+                type Baz: Default;
             }
 
-            pub fn quux<T: Foo>() -> T::Bar {
-                let y = Default::default();
-                  //^ <T as Foo>::Bar
+            pub trait Overlapping {
+                type Baz;
+            }
 
-                y
+            pub fn quux<T: Foo>() -> (T::Bar, T::Baz) {
+                let x = Default::default();
+                  //^ T::Bar
+                let y = Default::default();
+                  //^ <T as Foo>::Baz
+
+                (x, y)
             }
             "#,
         );

@@ -60,7 +60,12 @@ pub(super) fn hints(
             acc.push(InlayHint {
                 range: expr.syntax().text_range(),
                 kind: InlayKind::ChainingHint,
-                label: label_of_ty(famous_defs, config, ty)?,
+                label: label_of_ty(
+                    famous_defs,
+                    config,
+                    ty,
+                    sema.scope(expr.syntax()).unwrap().module(),
+                )?,
                 tooltip: Some(InlayTooltip::HoverRanged(file_id, expr.syntax().text_range())),
             });
         }

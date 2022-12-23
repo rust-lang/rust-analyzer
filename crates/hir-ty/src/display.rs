@@ -16,7 +16,7 @@ use hir_def::{
     path::{Path, PathKind},
     type_ref::{ConstScalar, TraitBoundModifier, TypeBound, TypeRef},
     visibility::Visibility,
-    HasModule, ItemContainerId, Lookup, ModuleDefId, ModuleId, TraitId,
+    AssocItemId, HasModule, ItemContainerId, Lookup, ModuleDefId, ModuleId, TraitId,
 };
 use hir_expand::{hygiene::Hygiene, name::Name};
 use itertools::Itertools;
@@ -105,7 +105,7 @@ pub trait HirDisplay {
             t: self,
             max_size: None,
             omit_verbose_types: false,
-            display_target: DisplayTarget::Diagnostics,
+            display_target: DisplayTarget::Diagnostics { module_id: None },
         }
     }
 
@@ -124,7 +124,27 @@ pub trait HirDisplay {
             t: self,
             max_size,
             omit_verbose_types: true,
-            display_target: DisplayTarget::Diagnostics,
+            display_target: DisplayTarget::Diagnostics { module_id: None },
+        }
+    }
+
+    /// Returns a `Display`able type that is human-readable and tries to be succinct.
+    /// Use this for showing types to the user where space is constrained (e.g. doc popups)
+    fn display_truncated_at<'a>(
+        &'a self,
+        db: &'a dyn HirDatabase,
+        max_size: Option<usize>,
+        module_id: ModuleId,
+    ) -> HirDisplayWrapper<'a, Self>
+    where
+        Self: Sized,
+    {
+        HirDisplayWrapper {
+            db,
+            t: self,
+            max_size,
+            omit_verbose_types: true,
+            display_target: DisplayTarget::Diagnostics { module_id: Some(module_id) },
         }
     }
 
@@ -228,7 +248,7 @@ pub enum DisplayTarget {
     /// Display types for inlays, doc popups, autocompletion, etc...
     /// Showing `{unknown}` or not qualifying paths is fine here.
     /// There's no reason for this to fail.
-    Diagnostics,
+    Diagnostics { module_id: Option<ModuleId> },
     /// Display types for inserting them in source files.
     /// The generated code should compile, so paths need to be qualified.
     SourceCode { module_id: ModuleId },
@@ -323,10 +343,43 @@ impl HirDisplay for ProjectionTy {
             return write!(f, "{TYPE_HINT_TRUNCATION}");
         }
 
+        let assoc_name =
+            f.db.type_alias_data(from_assoc_type_id(self.associated_ty_id)).name.to_string();
         let trait_ref = self.trait_ref(f.db);
-        write!(f, "<")?;
-        fmt_trait_ref(&trait_ref, f, true)?;
-        write!(f, ">::{}", f.db.type_alias_data(from_assoc_type_id(self.associated_ty_id)).name)?;
+
+        let trait_id = self.trait_(f.db);
+
+        let short_form = if let DisplayTarget::Diagnostics { module_id: Some(module) }
+        | DisplayTarget::SourceCode { module_id: module } = f.display_target
+        {
+            trait_ref.substitution.len(Interner) == 1
+                && module.def_map(f.db.upcast())[module.local_id]
+                    .scope
+                    .entries()
+                    .filter_map(|(_name, def)| def.types)
+                    .filter_map(|(module_did, _vis)| match module_did {
+                        ModuleDefId::TraitId(tr) => Some(tr),
+                        _ => None,
+                    })
+                    .filter(|&tr| {
+                        f.db.trait_data(tr).items.iter().any(|(name, item)| {
+                            matches!(item, AssocItemId::TypeAliasId(_))
+                                && name.to_string() == assoc_name
+                        })
+                    })
+                    .eq([trait_id])
+        } else {
+            false
+        };
+
+        if short_form {
+            trait_ref.self_type_parameter(Interner).hir_fmt(f)?;
+            write!(f, "::{assoc_name}")?;
+        } else {
+            write!(f, "<")?;
+            fmt_trait_ref(&trait_ref, f, true)?;
+            write!(f, ">::{assoc_name}")?;
+        }
         let proj_params_count =
             self.substitution.len(Interner) - trait_ref.substitution.len(Interner);
         let proj_params = &self.substitution.as_slice(Interner)[..proj_params_count];
@@ -566,7 +619,7 @@ impl HirDisplay for Ty {
             TyKind::Adt(AdtId(def_id), parameters) => {
                 f.start_location_link((*def_id).into());
                 match f.display_target {
-                    DisplayTarget::Diagnostics | DisplayTarget::Test => {
+                    DisplayTarget::Diagnostics { .. } | DisplayTarget::Test => {
                         let name = match *def_id {
                             hir_def::AdtId::StructId(it) => f.db.struct_data(it).name.clone(),
                             hir_def::AdtId::UnionId(it) => f.db.union_data(it).name.clone(),

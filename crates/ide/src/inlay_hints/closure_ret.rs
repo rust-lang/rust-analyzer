@@ -33,7 +33,7 @@ pub(super) fn hints(
     let param_list = closure.param_list()?;
 
     let closure = sema.descend_node_into_attributes(closure).pop()?;
-    let ty = sema.type_of_expr(&ast::Expr::ClosureExpr(closure))?.adjusted();
+    let ty = sema.type_of_expr(&ast::Expr::ClosureExpr(closure.clone()))?.adjusted();
     let callable = ty.as_callable(sema.db)?;
     let ty = callable.return_type();
     if ty.is_unit() {
@@ -42,7 +42,12 @@ pub(super) fn hints(
     acc.push(InlayHint {
         range: param_list.syntax().text_range(),
         kind: InlayKind::ClosureReturnTypeHint,
-        label: label_of_ty(famous_defs, config, ty)?,
+        label: label_of_ty(
+            famous_defs,
+            config,
+            ty,
+            sema.scope(closure.syntax()).unwrap().module(),
+        )?,
         tooltip: Some(InlayTooltip::HoverRanged(file_id, param_list.syntax().text_range())),
     });
     Some(())
