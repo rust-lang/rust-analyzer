@@ -119,10 +119,17 @@ export async function createClient(
                         ?.rendered;
                     if (rendered) {
                         if (preview) {
-                            const index = rendered.match(/^(note|help):/m)?.index || 0;
+                            const index =
+                                rendered.match(/^  = (note|help):/m)?.index || rendered.length;
                             diag.message = rendered
                                 .substring(0, index)
                                 .replace(/^ -->[^\n]+\n/m, "");
+                        }
+                        let value;
+                        if (typeof diag.code === "string" || typeof diag.code === "number") {
+                            value = diag.code;
+                        } else {
+                            value = diag.code?.value ?? "Click for full compiler diagnostic";
                         }
                         diag.code = {
                             target: vscode.Uri.from({
@@ -131,7 +138,7 @@ export async function createClient(
                                 fragment: uri.toString(),
                                 query: idx.toString(),
                             }),
-                            value: "Click for full compiler diagnostic",
+                            value,
                         };
                     }
                 });
