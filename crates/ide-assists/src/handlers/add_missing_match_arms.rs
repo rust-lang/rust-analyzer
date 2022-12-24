@@ -1137,6 +1137,56 @@ fn main() {
     }
 
     #[test]
+    fn add_missing_match_arms_with_self_in_pattern() {
+        check_assist(
+            add_missing_match_arms,
+            r#"
+pub(crate) enum Foo {A, B, C, D, E, F}
+type Bar = Foo;
+mod Mod {
+    pub(crate) use super::Foo as ModFoo;
+}
+
+impl Foo {
+    fn match_assist(self) {
+        use Foo::*;
+
+        match self$0 {
+            Foo::A => {},
+            Self::B => {},
+            Bar::C => {},
+            Mod::ModFoo::D => {}
+            E => {},
+        }
+    }
+}
+"#,
+            r#"
+pub(crate) enum Foo {A, B, C, D, E, F}
+type Bar = Foo;
+mod Mod {
+    pub(crate) use super::Foo as ModFoo;
+}
+
+impl Foo {
+    fn match_assist(self) {
+        use Foo::*;
+
+        match self {
+            Foo::A => {},
+            Self::B => {},
+            Bar::C => {},
+            Mod::ModFoo::D => {}
+            E => {},
+            $0F => todo!(),
+        }
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
     fn add_missing_match_arms_preserves_comments() {
         check_assist(
             add_missing_match_arms,
