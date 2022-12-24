@@ -52,7 +52,7 @@ impl<'t> Parser<'t> {
         assert!(n <= 3);
 
         let steps = self.steps.get();
-        assert!(PARSER_STEP_LIMIT.check(steps as usize).is_ok(), "the parser seems stuck");
+        assert!(PARSER_STEP_LIMIT.check(steps as usize), "the parser seems stuck");
         self.steps.set(steps + 1);
 
         self.inp.kind(self.pos + n)

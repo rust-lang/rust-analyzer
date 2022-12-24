@@ -57,7 +57,7 @@ impl Iterator for Autoderef<'_, '_> {
             return Some((self.ty.clone(), 0));
         }
 
-        if AUTODEREF_RECURSION_LIMIT.check(self.steps.len() + 1).is_err() {
+        if !AUTODEREF_RECURSION_LIMIT.check(self.steps.len() + 1) {
             return None;
         }
 

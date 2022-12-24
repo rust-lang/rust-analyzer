@@ -451,7 +451,7 @@ fn macro_expand(db: &dyn AstDatabase, id: MacroCallId) -> ExpandResult<Option<Ar
     let ExpandResult { value: mut tt, err } = expander.expand(db, id, &macro_arg.0);
     // Set a hard limit for the expanded tt
     let count = tt.count();
-    if TOKEN_LIMIT.check(count).is_err() {
+    if !TOKEN_LIMIT.check(count) {
         return ExpandResult::only_err(ExpandError::Other(
             format!(
                 "macro invocation exceeds token limit: produced {} tokens, limit is {}",

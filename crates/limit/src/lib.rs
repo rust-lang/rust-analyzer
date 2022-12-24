@@ -41,11 +41,12 @@ impl Limit {
     }
 
     /// Checks whether the given value is below the limit.
-    /// Returns `Ok` when `other` is below `self`, and `Err` otherwise.
+    /// Returns `true` when `other` is below `self`, and `false` otherwise.
+    #[must_use]
     #[inline]
-    pub fn check(&self, other: usize) -> Result<(), ()> {
+    pub fn check(&self, other: usize) -> bool {
         if other > self.upper_bound {
-            Err(())
+            false
         } else {
             #[cfg(feature = "tracking")]
             loop {
@@ -63,7 +64,7 @@ impl Limit {
                 }
             }
 
-            Ok(())
+            true
         }
     }
 }

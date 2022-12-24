@@ -91,7 +91,7 @@ impl Expander {
         db: &dyn DefDatabase,
         macro_call: ast::MacroCall,
     ) -> Result<ExpandResult<Option<(Mark, T)>>, UnresolvedMacro> {
-        if self.recursion_limit(db).check(self.recursion_limit + 1).is_err() {
+        if !self.recursion_limit(db).check(self.recursion_limit + 1) {
             cov_mark::hit!(your_stack_belongs_to_me);
             return Ok(ExpandResult::only_err(ExpandError::Other(
                 "reached recursion limit during macro expansion".into(),

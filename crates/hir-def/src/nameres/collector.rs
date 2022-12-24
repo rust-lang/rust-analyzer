@@ -382,7 +382,7 @@ impl DefCollector<'_> {
                 }
 
                 i += 1;
-                if FIXED_POINT_LIMIT.check(i).is_err() {
+                if !FIXED_POINT_LIMIT.check(i) {
                     tracing::error!("name resolution is stuck");
                     break 'resolve_attr;
                 }
@@ -986,7 +986,7 @@ impl DefCollector<'_> {
         import_type: ImportType,
         depth: usize,
     ) {
-        if GLOB_RECURSION_LIMIT.check(depth).is_err() {
+        if !GLOB_RECURSION_LIMIT.check(depth) {
             // prevent stack overflows (but this shouldn't be possible)
             panic!("infinite recursion in glob imports!");
         }
@@ -1326,7 +1326,7 @@ impl DefCollector<'_> {
         depth: usize,
         container: ItemContainerId,
     ) {
-        if EXPANSION_DEPTH_LIMIT.check(depth).is_err() {
+        if !EXPANSION_DEPTH_LIMIT.check(depth) {
             cov_mark::hit!(macro_expansion_overflow);
             tracing::warn!("macro expansion is too deep");
             return;
