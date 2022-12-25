@@ -33,6 +33,6 @@ impl Markup {
         self.text.as_str()
     }
     pub fn fenced_block(contents: &impl fmt::Display) -> Markup {
-        format!("```rust\n{contents}\n```").into()
+        format!("```rust\n{}\n```", contents).into()
     }
 }

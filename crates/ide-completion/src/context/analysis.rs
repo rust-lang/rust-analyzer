@@ -286,7 +286,7 @@ fn analyze(
         ast::NameLike::NameRef(name_ref) => {
             let parent = name_ref.syntax().parent()?;
             let (nameref_ctx, qualifier_ctx) =
-                classify_name_ref(sema, &original_file, name_ref, parent)?;
+                classify_name_ref(sema, &original_file, name_ref, parent.clone())?;
             qual_ctx = qualifier_ctx;
             CompletionAnalysis::NameRef(nameref_ctx)
         }
@@ -585,7 +585,11 @@ fn classify_name_ref(
                 original_file,
                 &record_field.parent_record_pat(),
             ),
-            ..pattern_context_for(sema, original_file, record_field.parent_record_pat().into())
+            ..pattern_context_for(
+                sema,
+                original_file,
+                record_field.parent_record_pat().clone().into(),
+            )
         });
         return Some(make_res(kind));
     }

@@ -849,7 +849,7 @@ fn main() {
   //^^^^^^^^^^^^^^^^^ RegisterBlock
 }
     "#;
-    let fixture = format!("{fixture}\n//- /foo.rs\n{data}");
+    let fixture = format!("{}\n//- /foo.rs\n{}", fixture, data);
 
     {
         let _b = bench("include macro");

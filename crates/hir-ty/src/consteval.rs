@@ -90,14 +90,14 @@ impl Display for ComputedExpr {
             ComputedExpr::Literal(l) => match l {
                 Literal::Int(x, _) => {
                     if *x >= 10 {
-                        write!(f, "{x} ({x:#X})")
+                        write!(f, "{} ({:#X})", x, x)
                     } else {
                         x.fmt(f)
                     }
                 }
                 Literal::Uint(x, _) => {
                     if *x >= 10 {
-                        write!(f, "{x} ({x:#X})")
+                        write!(f, "{} ({:#X})", x, x)
                     } else {
                         x.fmt(f)
                     }

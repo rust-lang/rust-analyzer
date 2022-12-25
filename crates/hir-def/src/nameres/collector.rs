@@ -1017,7 +1017,7 @@ impl DefCollector<'_> {
                         None => true,
                         Some(old_vis) => {
                             let max_vis = old_vis.max(vis, &self.def_map).unwrap_or_else(|| {
-                                panic!("`Tr as _` imports with unrelated visibilities {old_vis:?} and {vis:?} (trait {tr:?})");
+                                panic!("`Tr as _` imports with unrelated visibilities {:?} and {:?} (trait {:?})", old_vis, vis, tr);
                             });
 
                             if max_vis == old_vis {
@@ -1345,7 +1345,7 @@ impl DefCollector<'_> {
                     // Missing proc macros are non-fatal, so they are handled specially.
                     DefDiagnostic::unresolved_proc_macro(module_id, loc.kind.clone(), loc.def.krate)
                 }
-                _ => DefDiagnostic::macro_error(module_id, loc.kind, err.to_string()),
+                _ => DefDiagnostic::macro_error(module_id, loc.kind.clone(), err.to_string()),
             };
 
             self.def_map.diagnostics.push(diag);

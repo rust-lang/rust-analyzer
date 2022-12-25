@@ -229,8 +229,8 @@ impl GlobalState {
 
                             message = match &report.crates_currently_indexing[..] {
                                 [crate_name] => Some(format!(
-                                    "{}/{} ({crate_name})",
-                                    report.crates_done, report.crates_total
+                                    "{}/{} ({})",
+                                    report.crates_done, report.crates_total, crate_name
                                 )),
                                 [crate_name, rest @ ..] => Some(format!(
                                     "{}/{} ({} + {} more)",
@@ -516,7 +516,7 @@ impl GlobalState {
                 self.report_progress(
                     "Roots Scanned",
                     state,
-                    Some(format!("{n_done}/{n_total}")),
+                    Some(format!("{}/{}", n_done, n_total)),
                     Some(Progress::fraction(n_done, n_total)),
                     None,
                 )
@@ -561,7 +561,10 @@ impl GlobalState {
                     flycheck::Progress::DidCheckCrate(target) => (Progress::Report, Some(target)),
                     flycheck::Progress::DidCancel => (Progress::End, None),
                     flycheck::Progress::DidFailToRestart(err) => {
-                        self.show_and_log_error("cargo check failed".to_string(), Some(err));
+                        self.show_and_log_error(
+                            "cargo check failed".to_string(),
+                            Some(err.to_string()),
+                        );
                         return;
                     }
                     flycheck::Progress::DidFinish(result) => {
@@ -587,7 +590,7 @@ impl GlobalState {
                     state,
                     message,
                     None,
-                    Some(format!("rust-analyzer/flycheck/{id}")),
+                    Some(format!("rust-analyzer/flycheck/{}", id)),
                 );
             }
         }

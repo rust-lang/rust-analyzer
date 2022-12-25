@@ -128,7 +128,7 @@ impl fmt::Display for CrateName {
 impl ops::Deref for CrateName {
     type Target = str;
     fn deref(&self) -> &str {
-        &self.0
+        &*self.0
     }
 }
 
@@ -211,7 +211,7 @@ impl fmt::Display for CrateDisplayName {
 impl ops::Deref for CrateDisplayName {
     type Target = str;
     fn deref(&self) -> &str {
-        &self.crate_name
+        &*self.crate_name
     }
 }
 
@@ -618,8 +618,8 @@ impl CyclicDependenciesError {
 impl fmt::Display for CyclicDependenciesError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let render = |(id, name): &(CrateId, Option<CrateDisplayName>)| match name {
-            Some(it) => format!("{it}({id:?})"),
-            None => format!("{id:?}"),
+            Some(it) => format!("{}({:?})", it, id),
+            None => format!("{:?}", id),
         };
         let path = self.path.iter().rev().map(render).collect::<Vec<String>>().join(" -> ");
         write!(

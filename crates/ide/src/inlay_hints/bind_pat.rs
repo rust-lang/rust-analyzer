@@ -81,7 +81,7 @@ fn should_not_display_type_hint(
 
     if config.hide_closure_initialization_hints {
         if let Some(parent) = bind_pat.syntax().parent() {
-            if let Some(it) = ast::LetStmt::cast(parent) {
+            if let Some(it) = ast::LetStmt::cast(parent.clone()) {
                 if let Some(ast::Expr::ClosureExpr(closure)) = it.initializer() {
                     if closure_has_block_body(&closure) {
                         return true;
@@ -160,7 +160,7 @@ fn is_named_constructor(
     let ctor_name = match qual_seg.kind()? {
         ast::PathSegmentKind::Name(name_ref) => {
             match qual_seg.generic_arg_list().map(|it| it.generic_args()) {
-                Some(generics) => format!("{name_ref}<{}>", generics.format(", ")),
+                Some(generics) => format!("{}<{}>", name_ref, generics.format(", ")),
                 None => name_ref.to_string(),
             }
         }
@@ -463,7 +463,7 @@ fn main() {
         }
         "#;
         let (analysis, file_id) = fixture::file(fixture);
-        let expected = extract_annotations(&analysis.file_text(file_id).unwrap());
+        let expected = extract_annotations(&*analysis.file_text(file_id).unwrap());
         let inlay_hints = analysis
             .inlay_hints(
                 &InlayHintsConfig { type_hints: true, ..DISABLED_CONFIG },
@@ -473,7 +473,7 @@ fn main() {
             .unwrap();
         let actual =
             inlay_hints.into_iter().map(|it| (it.range, it.label.to_string())).collect::<Vec<_>>();
-        assert_eq!(expected, actual, "\nExpected:\n{expected:#?}\n\nActual:\n{actual:#?}");
+        assert_eq!(expected, actual, "\nExpected:\n{:#?}\n\nActual:\n{:#?}", expected, actual);
     }
 
     #[test]

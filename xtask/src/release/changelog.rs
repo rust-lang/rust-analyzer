@@ -25,7 +25,7 @@ pub(crate) fn get_changelog(
         let line = line.trim_start();
         if let Some(pr_num) = parse_pr_number(&line) {
             let accept = "Accept: application/vnd.github.v3+json";
-            let authorization = format!("Authorization: token {token}");
+            let authorization = format!("Authorization: token {}", token);
             let pr_url = "https://api.github.com/repos/rust-lang/rust-analyzer/issues";
 
             // we don't use an HTTPS client or JSON parser to keep the build times low
@@ -57,7 +57,7 @@ pub(crate) fn get_changelog(
                 PrKind::Other => &mut others,
                 PrKind::Skip => continue,
             };
-            writeln!(s, "* pr:{pr_num}[] {}", l.message.as_deref().unwrap_or(&pr_title)).unwrap();
+            writeln!(s, "* pr:{}[] {}", pr_num, l.message.as_deref().unwrap_or(&pr_title)).unwrap();
         }
     }
 
@@ -113,9 +113,11 @@ fn unescape(s: &str) -> String {
 fn parse_pr_number(s: &str) -> Option<u32> {
     const BORS_PREFIX: &str = "Merge #";
     const HOMU_PREFIX: &str = "Auto merge of #";
-    if let Some(s) = s.strip_prefix(BORS_PREFIX) {
+    if s.starts_with(BORS_PREFIX) {
+        let s = &s[BORS_PREFIX.len()..];
         s.parse().ok()
-    } else if let Some(s) = s.strip_prefix(HOMU_PREFIX) {
+    } else if s.starts_with(HOMU_PREFIX) {
+        let s = &s[HOMU_PREFIX.len()..];
         if let Some(space) = s.find(' ') {
             s[..space].parse().ok()
         } else {
