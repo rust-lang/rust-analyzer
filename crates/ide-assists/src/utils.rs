@@ -289,16 +289,22 @@ pub(crate) fn next_prev() -> impl Iterator<Item = Direction> {
 
 pub(crate) fn does_pat_match_variant(pat: &ast::Pat, var: &ast::Pat) -> bool {
     let first_node_text = |pat: &ast::Pat| pat.syntax().first_child().map(|node| node.text());
+    let last_segment_text =
+        |path: &ast::Path| path.segments().last().map(|segment| segment.syntax().text());
+    let normalize_pat = |pat: &ast::Pat| match pat {
+        ast::Pat::PathPat(p) => p.path().and_then(|p| last_segment_text(&p)),
+        ast::Pat::TupleStructPat(p) => p.path().and_then(|p| last_segment_text(&p)),
+        _ => first_node_text(&pat),
+    };
 
     let pat_head = match pat {
         ast::Pat::IdentPat(bind_pat) => match bind_pat.pat() {
-            Some(p) => first_node_text(&p),
+            Some(p) => normalize_pat(&p),
             None => return pat.syntax().text() == var.syntax().text(),
         },
-        pat => first_node_text(pat),
+        _ => normalize_pat(pat),
     };
-
-    let var_head = first_node_text(var);
+    let var_head = normalize_pat(var);
 
     pat_head == var_head
 }
