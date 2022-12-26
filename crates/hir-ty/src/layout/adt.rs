@@ -5,10 +5,10 @@ use std::ops::Bound;
 use hir_def::{
     adt::VariantData,
     layout::{Integer, IntegerExt, Layout, LayoutCalculator, LayoutError, RustcEnumVariantIdx},
-    AdtId, EnumVariantId, LocalEnumVariantId, VariantId,
+    AdtId, EnumVariantId, HasModule, LocalEnumVariantId, VariantId,
 };
 use la_arena::RawIdx;
-use rustc_index::vec::IndexVec;
+use smallvec::SmallVec;
 
 use crate::{db::HirDatabase, lang_items::is_unsafe_cell, layout::field_ty, Substitution};
 
@@ -23,24 +23,24 @@ pub fn layout_of_adt_query(
     def: AdtId,
     subst: Substitution,
 ) -> Result<Layout, LayoutError> {
-    let dl = db.current_target_data_layout();
-    let cx = LayoutCx { db };
+    let cx = LayoutCx { db, krate: def.module(db.upcast()).krate() };
+    let dl = cx.current_data_layout();
     let handle_variant = |def: VariantId, var: &VariantData| {
         var.fields()
             .iter()
-            .map(|(fd, _)| layout_of_ty(db, &field_ty(db, def, fd, &subst)))
+            .map(|(fd, _)| layout_of_ty(db, &field_ty(db, def, fd, &subst), cx.krate))
             .collect::<Result<Vec<_>, _>>()
     };
     let (variants, is_enum, is_union, repr) = match def {
         AdtId::StructId(s) => {
             let data = db.struct_data(s);
-            let mut r = IndexVec::new();
+            let mut r = SmallVec::<[_; 1]>::new();
             r.push(handle_variant(s.into(), &data.variant_data)?);
             (r, false, false, data.repr.unwrap_or_default())
         }
         AdtId::UnionId(id) => {
             let data = db.union_data(id);
-            let mut r = IndexVec::new();
+            let mut r = SmallVec::new();
             r.push(handle_variant(id.into(), &data.variant_data)?);
             (r, false, true, data.repr.unwrap_or_default())
         }
@@ -55,11 +55,12 @@ pub fn layout_of_adt_query(
                         &v.variant_data,
                     )
                 })
-                .collect::<Result<IndexVec<RustcEnumVariantIdx, _>, _>>()?;
+                .collect::<Result<SmallVec<_>, _>>()?;
             (r, true, false, data.repr.unwrap_or_default())
         }
     };
-    let variants = variants.iter().map(|x| x.iter().collect::<Vec<_>>()).collect::<Vec<_>>();
+    let variants =
+        variants.iter().map(|x| x.iter().collect::<Vec<_>>()).collect::<SmallVec<[_; 1]>>();
     let variants = variants.iter().map(|x| x.iter().collect()).collect();
     if is_union {
         cx.layout_of_union(&repr, &variants).ok_or(LayoutError::Unknown)

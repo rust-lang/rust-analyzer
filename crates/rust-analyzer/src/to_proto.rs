@@ -342,7 +342,7 @@ fn completion_item(
         // by the client. Hex format is used because it is easier to
         // visually compare very large values, which the sort text
         // tends to be since it is the opposite of the score.
-        res.sort_text = Some(format!("{:08x}", sort_score));
+        res.sort_text = Some(format!("{sort_score:08x}"));
     }
 }
 
@@ -440,22 +440,24 @@ pub(crate) fn inlay_hint(
     Ok(lsp_types::InlayHint {
         position: match inlay_hint.kind {
             // before annotated thing
-            InlayKind::ParameterHint | InlayKind::AdjustmentHint | InlayKind::BindingModeHint => {
-                position(line_index, inlay_hint.range.start())
-            }
+            InlayKind::OpeningParenthesis
+            | InlayKind::ParameterHint
+            | InlayKind::AdjustmentHint
+            | InlayKind::BindingModeHint => position(line_index, inlay_hint.range.start()),
             // after annotated thing
             InlayKind::ClosureReturnTypeHint
             | InlayKind::TypeHint
             | InlayKind::ChainingHint
             | InlayKind::GenericParamListHint
-            | InlayKind::AdjustmentHintClosingParenthesis
+            | InlayKind::ClosingParenthesis
             | InlayKind::LifetimeHint
             | InlayKind::ClosingBraceHint => position(line_index, inlay_hint.range.end()),
         },
         padding_left: Some(match inlay_hint.kind {
             InlayKind::TypeHint => !render_colons,
             InlayKind::ChainingHint | InlayKind::ClosingBraceHint => true,
-            InlayKind::AdjustmentHintClosingParenthesis
+            InlayKind::ClosingParenthesis
+            | InlayKind::OpeningParenthesis
             | InlayKind::BindingModeHint
             | InlayKind::ClosureReturnTypeHint
             | InlayKind::GenericParamListHint
@@ -464,7 +466,8 @@ pub(crate) fn inlay_hint(
             | InlayKind::ParameterHint => false,
         }),
         padding_right: Some(match inlay_hint.kind {
-            InlayKind::AdjustmentHintClosingParenthesis
+            InlayKind::ClosingParenthesis
+            | InlayKind::OpeningParenthesis
             | InlayKind::ChainingHint
             | InlayKind::ClosureReturnTypeHint
             | InlayKind::GenericParamListHint
@@ -479,7 +482,8 @@ pub(crate) fn inlay_hint(
             InlayKind::ClosureReturnTypeHint | InlayKind::TypeHint | InlayKind::ChainingHint => {
                 Some(lsp_types::InlayHintKind::TYPE)
             }
-            InlayKind::AdjustmentHintClosingParenthesis
+            InlayKind::ClosingParenthesis
+            | InlayKind::OpeningParenthesis
             | InlayKind::BindingModeHint
             | InlayKind::GenericParamListHint
             | InlayKind::LifetimeHint
@@ -1109,7 +1113,7 @@ pub(crate) fn code_action(
         (Some(it), _) => res.edit = Some(snippet_workspace_edit(snap, it)?),
         (None, Some((index, code_action_params))) => {
             res.data = Some(lsp_ext::CodeActionData {
-                id: format!("{}:{}:{}", assist.id.0, assist.id.1.name(), index),
+                id: format!("{}:{}:{index}", assist.id.0, assist.id.1.name()),
                 code_action_params,
             });
         }
@@ -1348,7 +1352,7 @@ pub(crate) fn implementation_title(count: usize) -> String {
     if count == 1 {
         "1 implementation".into()
     } else {
-        format!("{} implementations", count)
+        format!("{count} implementations")
     }
 }
 
@@ -1356,7 +1360,7 @@ pub(crate) fn reference_title(count: usize) -> String {
     if count == 1 {
         "1 reference".into()
     } else {
-        format!("{} references", count)
+        format!("{count} references")
     }
 }
 

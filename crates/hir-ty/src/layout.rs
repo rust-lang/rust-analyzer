@@ -2,9 +2,15 @@
 
 use std::sync::Arc;
 
+use base_db::CrateId;
 use chalk_ir::{AdtId, TyKind};
-pub(self) use hir_def::layout::*;
-use hir_def::LocalFieldId;
+use hir_def::{
+    layout::{
+        Abi, FieldsShape, Integer, Layout, LayoutCalculator, LayoutError, Primitive, ReprOptions,
+        RustcEnumVariantIdx, Scalar, Size, StructKind, TargetDataLayout, Variants, WrappingRange,
+    },
+    LocalFieldId,
+};
 use stdx::never;
 
 use crate::{db::HirDatabase, Interner, Substitution, Ty};
@@ -12,7 +18,7 @@ use crate::{db::HirDatabase, Interner, Substitution, Ty};
 use self::adt::struct_variant_idx;
 pub use self::{
     adt::{layout_of_adt_query, layout_of_adt_recover},
-    target::current_target_data_layout_query,
+    target::target_data_layout_query,
 };
 
 macro_rules! user_error {
@@ -26,6 +32,7 @@ mod target;
 
 struct LayoutCx<'a> {
     db: &'a dyn HirDatabase,
+    krate: CrateId,
 }
 
 impl LayoutCalculator for LayoutCx<'_> {
@@ -36,7 +43,7 @@ impl LayoutCalculator for LayoutCx<'_> {
     }
 
     fn current_data_layout(&self) -> Arc<TargetDataLayout> {
-        self.db.current_target_data_layout()
+        self.db.target_data_layout(self.krate)
     }
 }
 
@@ -48,9 +55,9 @@ fn scalar(dl: &TargetDataLayout, value: Primitive) -> Layout {
     Layout::scalar(dl, scalar_unit(dl, value))
 }
 
-pub fn layout_of_ty(db: &dyn HirDatabase, ty: &Ty) -> Result<Layout, LayoutError> {
-    let dl = &*db.current_target_data_layout();
-    let cx = LayoutCx { db };
+pub fn layout_of_ty(db: &dyn HirDatabase, ty: &Ty, krate: CrateId) -> Result<Layout, LayoutError> {
+    let cx = LayoutCx { db, krate };
+    let dl = &*cx.current_data_layout();
     Ok(match ty.kind(Interner) {
         TyKind::Adt(AdtId(def), subst) => db.layout_of_adt(*def, subst.clone())?,
         TyKind::Scalar(s) => match s {
@@ -79,7 +86,7 @@ pub fn layout_of_ty(db: &dyn HirDatabase, ty: &Ty) -> Result<Layout, LayoutError
                         chalk_ir::IntTy::I64 => Integer::I64,
                         chalk_ir::IntTy::I128 => Integer::I128,
                     },
-                    false,
+                    true,
                 ),
             ),
             chalk_ir::Scalar::Uint(i) => scalar(
@@ -93,7 +100,7 @@ pub fn layout_of_ty(db: &dyn HirDatabase, ty: &Ty) -> Result<Layout, LayoutError
                         chalk_ir::UintTy::U64 => Integer::I64,
                         chalk_ir::UintTy::U128 => Integer::I128,
                     },
-                    true,
+                    false,
                 ),
             ),
             chalk_ir::Scalar::Float(f) => scalar(
@@ -109,7 +116,7 @@ pub fn layout_of_ty(db: &dyn HirDatabase, ty: &Ty) -> Result<Layout, LayoutError
 
             let fields = tys
                 .iter(Interner)
-                .map(|k| layout_of_ty(db, k.assert_ty_ref(Interner)))
+                .map(|k| layout_of_ty(db, k.assert_ty_ref(Interner), krate))
                 .collect::<Result<Vec<_>, _>>()?;
             let fields = fields.iter().collect::<Vec<_>>();
             let fields = fields.iter().collect::<Vec<_>>();
@@ -127,7 +134,7 @@ pub fn layout_of_ty(db: &dyn HirDatabase, ty: &Ty) -> Result<Layout, LayoutError
                 },
                 _ => return Err(LayoutError::HasPlaceholder),
             };
-            let element = layout_of_ty(db, element)?;
+            let element = layout_of_ty(db, element, krate)?;
             let size = element.size.checked_mul(count, dl).ok_or(LayoutError::SizeOverflow)?;
 
             let abi = if count != 0 && matches!(element.abi, Abi::Uninhabited) {
@@ -148,7 +155,7 @@ pub fn layout_of_ty(db: &dyn HirDatabase, ty: &Ty) -> Result<Layout, LayoutError
             }
         }
         TyKind::Slice(element) => {
-            let element = layout_of_ty(db, element)?;
+            let element = layout_of_ty(db, element, krate)?;
             Layout {
                 variants: Variants::Single { index: struct_variant_idx() },
                 fields: FieldsShape::Array { stride: element.size, count: 0 },

@@ -731,7 +731,7 @@ pub(crate) fn handle_runnables(
         Some(spec) => {
             for cmd in ["check", "test"] {
                 res.push(lsp_ext::Runnable {
-                    label: format!("cargo {} -p {} --all-targets", cmd, spec.package),
+                    label: format!("cargo {cmd} -p {} --all-targets", spec.package),
                     location: None,
                     kind: lsp_ext::RunnableKind::Cargo,
                     args: lsp_ext::CargoRunnable {
@@ -903,7 +903,7 @@ pub(crate) fn handle_folding_range(
     let line_folding_only = snap.config.line_folding_only();
     let res = folds
         .into_iter()
-        .map(|it| to_proto::folding_range(&*text, &line_index, line_folding_only, it))
+        .map(|it| to_proto::folding_range(&text, &line_index, line_folding_only, it))
         .collect();
     Ok(Some(res))
 }
@@ -983,7 +983,7 @@ pub(crate) fn handle_rename(
     let position = from_proto::file_position(&snap, params.text_document_position)?;
 
     let mut change =
-        snap.analysis.rename(position, &*params.new_name)?.map_err(to_proto::rename_error)?;
+        snap.analysis.rename(position, &params.new_name)?.map_err(to_proto::rename_error)?;
 
     // this is kind of a hack to prevent double edits from happening when moving files
     // When a module gets renamed by renaming the mod declaration this causes the file to move
@@ -1150,8 +1150,8 @@ pub(crate) fn handle_code_action_resolve(
         Ok(parsed_data) => parsed_data,
         Err(e) => {
             return Err(invalid_params_error(format!(
-                "Failed to parse action id string '{}': {}",
-                params.id, e
+                "Failed to parse action id string '{}': {e}",
+                params.id
             ))
             .into())
         }
@@ -1195,7 +1195,7 @@ fn parse_action_id(action_id: &str) -> Result<(usize, SingleResolve), String> {
             let assist_kind: AssistKind = assist_kind_string.parse()?;
             let index: usize = match index_string.parse() {
                 Ok(index) => index,
-                Err(e) => return Err(format!("Incorrect index string: {}", e)),
+                Err(e) => return Err(format!("Incorrect index string: {e}")),
             };
             Ok((index, SingleResolve { assist_id: assist_id_string.to_string(), assist_kind }))
         }
@@ -1792,14 +1792,15 @@ fn run_rustfmt(
     let file_id = from_proto::file_id(snap, &text_document.uri)?;
     let file = snap.analysis.file_text(file_id)?;
 
-    // find the edition of the package the file belongs to
-    // (if it belongs to multiple we'll just pick the first one and pray)
-    let edition = snap
+    // Determine the edition of the crate the file belongs to (if there's multiple, we pick the
+    // highest edition).
+    let editions = snap
         .analysis
         .relevant_crates_for(file_id)?
         .into_iter()
-        .find_map(|crate_id| snap.cargo_target_for_crate_root(crate_id))
-        .map(|(ws, target)| ws[ws[target].package].edition);
+        .map(|crate_id| snap.analysis.crate_edition(crate_id))
+        .collect::<Result<Vec<_>, _>>()?;
+    let edition = editions.iter().copied().max();
 
     let line_index = snap.file_line_index(file_id)?;
 
@@ -1873,7 +1874,7 @@ fn run_rustfmt(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .context(format!("Failed to spawn {:?}", command))?;
+        .context(format!("Failed to spawn {command:?}"))?;
 
     rustfmt.stdin.as_mut().unwrap().write_all(file.as_bytes())?;
 
@@ -1906,9 +1907,9 @@ fn run_rustfmt(
                     format!(
                         r#"rustfmt exited with:
                            Status: {}
-                           stdout: {}
-                           stderr: {}"#,
-                        output.status, captured_stdout, captured_stderr,
+                           stdout: {captured_stdout}
+                           stderr: {captured_stderr}"#,
+                        output.status,
                     ),
                 )
                 .into())

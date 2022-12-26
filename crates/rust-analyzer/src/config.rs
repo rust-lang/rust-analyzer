@@ -20,7 +20,7 @@ use ide_db::{
     SnippetCap,
 };
 use itertools::Itertools;
-use lsp_types::{ClientCapabilities, MarkupKind};
+use lsp_types::{ClientCapabilities, ClientInfo, MarkupKind};
 use project_model::{
     CargoConfig, CargoFeatures, ProjectJson, ProjectJsonData, ProjectManifest, RustcSource,
     UnsetTestCrates,
@@ -329,10 +329,14 @@ config_data! {
         inlayHints_closureReturnTypeHints_enable: ClosureReturnTypeHintsDef  = "\"never\"",
         /// Whether to show inlay hints for type adjustments.
         inlayHints_expressionAdjustmentHints_enable: AdjustmentHintsDef = "\"never\"",
+        /// Whether to hide inlay hints for type adjustments outside of `unsafe` blocks.
+        inlayHints_expressionAdjustmentHints_hideOutsideUnsafe: bool = "false",
         /// Whether to show inlay type hints for elided lifetimes in function signatures.
         inlayHints_lifetimeElisionHints_enable: LifetimeElisionDef = "\"never\"",
         /// Whether to prefer using parameter names as the name for elided lifetime hints if possible.
         inlayHints_lifetimeElisionHints_useParameterNames: bool    = "false",
+        /// Whether to use location links for parts of type mentioned in inlay hints.
+        inlayHints_locationLinks: bool                             = "true",
         /// Maximum length for inlay hints. Set to null to have an unlimited length.
         inlayHints_maxLength: Option<usize>                        = "25",
         /// Whether to show function parameter name inlay hints at the call
@@ -711,6 +715,19 @@ impl Config {
             discovered_projects: None,
             root_path,
             snippets: Default::default(),
+        }
+    }
+
+    pub fn client_specific_adjustments(&mut self, client_info: &Option<ClientInfo>) {
+        // FIXME: remove this when we drop support for vscode 1.65 and below
+        if let Some(client) = client_info {
+            if client.name.contains("Code") || client.name.contains("Codium") {
+                if let Some(version) = &client.version {
+                    if version.as_str() < "1.76" {
+                        self.data.inlayHints_locationLinks = false;
+                    }
+                }
+            }
         }
     }
 
@@ -1125,11 +1142,8 @@ impl Config {
         }
     }
 
-    pub fn flycheck(&self) -> Option<FlycheckConfig> {
-        if !self.data.checkOnSave_enable {
-            return None;
-        }
-        let flycheck_config = match &self.data.checkOnSave_overrideCommand {
+    pub fn flycheck(&self) -> FlycheckConfig {
+        match &self.data.checkOnSave_overrideCommand {
             Some(args) if !args.is_empty() => {
                 let mut args = args.clone();
                 let command = args.remove(0);
@@ -1183,8 +1197,11 @@ impl Config {
                 extra_args: self.data.checkOnSave_extraArgs.clone(),
                 extra_env: self.check_on_save_extra_env(),
             },
-        };
-        Some(flycheck_config)
+        }
+    }
+
+    pub fn check_on_save(&self) -> bool {
+        self.data.checkOnSave_enable
     }
 
     pub fn runnables(&self) -> RunnablesConfig {
@@ -1196,6 +1213,7 @@ impl Config {
 
     pub fn inlay_hints(&self) -> InlayHintsConfig {
         InlayHintsConfig {
+            location_links: self.data.inlayHints_locationLinks,
             render_colons: self.data.inlayHints_renderColons,
             type_hints: self.data.inlayHints_typeHints_enable,
             parameter_hints: self.data.inlayHints_parameterHints_enable,
@@ -1224,6 +1242,9 @@ impl Config {
                 },
                 AdjustmentHintsDef::Reborrow => ide::AdjustmentHints::ReborrowOnly,
             },
+            adjustment_hints_hide_outside_unsafe: self
+                .data
+                .inlayHints_expressionAdjustmentHints_hideOutsideUnsafe,
             binding_mode_hints: self.data.inlayHints_bindingModeHints_enable,
             param_names_for_lifetime_elision_hints: self
                 .data
@@ -1848,14 +1869,14 @@ fn schema(fields: &[(&'static str, &'static str, &[&str], &str)]) -> serde_json:
         fn key(f: &str) -> &str {
             f.splitn(2, '_').next().unwrap()
         }
-        assert!(key(f1) <= key(f2), "wrong field order: {:?} {:?}", f1, f2);
+        assert!(key(f1) <= key(f2), "wrong field order: {f1:?} {f2:?}");
     }
 
     let map = fields
         .iter()
         .map(|(field, ty, doc, default)| {
             let name = field.replace('_', ".");
-            let name = format!("rust-analyzer.{}", name);
+            let name = format!("rust-analyzer.{name}");
             let props = field_props(field, ty, doc, default);
             (name, props)
         })
@@ -2145,7 +2166,7 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
                 },
             ],
         },
-        _ => panic!("missing entry for {}: {}", ty, default),
+        _ => panic!("missing entry for {ty}: {default}"),
     }
 
     map.into()
@@ -2157,7 +2178,7 @@ fn manual(fields: &[(&'static str, &'static str, &[&str], &str)]) -> String {
         .iter()
         .map(|(field, _ty, doc, default)| {
             let name = format!("rust-analyzer.{}", field.replace('_', "."));
-            let doc = doc_comment_to_string(*doc);
+            let doc = doc_comment_to_string(doc);
             if default.contains('\n') {
                 format!(
                     r#"[[{}]]{}::
@@ -2173,14 +2194,14 @@ Default:
                     name, name, default, doc
                 )
             } else {
-                format!("[[{}]]{} (default: `{}`)::\n+\n--\n{}--\n", name, name, default, doc)
+                format!("[[{name}]]{name} (default: `{default}`)::\n+\n--\n{doc}--\n")
             }
         })
         .collect::<String>()
 }
 
 fn doc_comment_to_string(doc: &[&str]) -> String {
-    doc.iter().map(|it| it.strip_prefix(' ').unwrap_or(it)).map(|it| format!("{}\n", it)).collect()
+    doc.iter().map(|it| it.strip_prefix(' ').unwrap_or(it)).map(|it| format!("{it}\n")).collect()
 }
 
 #[cfg(test)]
@@ -2194,7 +2215,7 @@ mod tests {
     #[test]
     fn generate_package_json_config() {
         let s = Config::json_schema();
-        let schema = format!("{:#}", s);
+        let schema = format!("{s:#}");
         let mut schema = schema
             .trim_start_matches('{')
             .trim_end_matches('}')

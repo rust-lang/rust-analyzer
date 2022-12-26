@@ -37,7 +37,7 @@ fn check(ra_fixture: &str, expect: Expect) {
     let content = analysis.db.file_text(position.file_id);
     let hovered_element = &content[hover.range];
 
-    let actual = format!("*{}*\n{}\n", hovered_element, hover.info.markup);
+    let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
     expect.assert_eq(&actual)
 }
 
@@ -58,7 +58,7 @@ fn check_hover_no_links(ra_fixture: &str, expect: Expect) {
     let content = analysis.db.file_text(position.file_id);
     let hovered_element = &content[hover.range];
 
-    let actual = format!("*{}*\n{}\n", hovered_element, hover.info.markup);
+    let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
     expect.assert_eq(&actual)
 }
 
@@ -79,7 +79,7 @@ fn check_hover_no_markdown(ra_fixture: &str, expect: Expect) {
     let content = analysis.db.file_text(position.file_id);
     let hovered_element = &content[hover.range];
 
-    let actual = format!("*{}*\n{}\n", hovered_element, hover.info.markup);
+    let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
     expect.assert_eq(&actual)
 }
 
@@ -3657,6 +3657,163 @@ enum E {
 
 #[test]
 fn hover_const_eval() {
+    check(
+        r#"
+trait T {
+    const B: bool = false;
+}
+impl T for <()> {
+    /// true
+    const B: bool = true;
+}
+fn main() {
+    <()>::B$0;
+}
+"#,
+        expect![[r#"
+        *B*
+
+        ```rust
+        test
+        ```
+
+        ```rust
+        const B: bool = true
+        ```
+
+        ---
+
+        true
+    "#]],
+    );
+
+    check(
+        r#"
+struct A {
+    i: i32
+};
+
+trait T {
+    const AA: A = A {
+        i: 1
+    };
+}
+impl T for i32 {
+    const AA: A = A {
+        i: 2
+    }
+}
+fn main() {
+    <i32>::AA$0;
+}
+"#,
+        expect![[r#"
+        *AA*
+
+        ```rust
+        test
+        ```
+
+        ```rust
+        const AA: A = A {
+                i: 2
+            }
+        ```
+    "#]],
+    );
+
+    check(
+        r#"
+trait T {
+    /// false
+    const B: bool = false;
+}
+impl T for () {
+    /// true
+    const B: bool = true;
+}
+fn main() {
+    T::B$0;
+}
+"#,
+        expect![[r#"
+            *B*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const B: bool = false
+            ```
+
+            ---
+
+            false
+        "#]],
+    );
+
+    check(
+        r#"
+trait T {
+    /// false
+    const B: bool = false;
+}
+impl T for () {
+}
+fn main() {
+    <()>::B$0;
+}
+"#,
+        expect![[r#"
+            *B*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const B: bool = false
+            ```
+
+            ---
+
+            false
+        "#]],
+    );
+
+    check(
+        r#"
+trait T {
+    /// false
+    const B: bool = false;
+}
+impl T for () {
+    /// true
+    const B: bool = true;
+}
+impl T for i32 {}
+fn main() {
+    <i32>::B$0;
+}
+"#,
+        expect![[r#"
+            *B*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const B: bool = false
+            ```
+
+            ---
+
+            false
+        "#]],
+    );
+
     // show hex for <10
     check(
         r#"
@@ -3918,6 +4075,37 @@ const FOO$0: f64 = 1.0f64;
             ---
 
             This is a doc
+        "#]],
+    );
+}
+
+#[test]
+fn hover_const_eval_in_generic_trait() {
+    // Doesn't compile, but we shouldn't crash.
+    check(
+        r#"
+trait Trait<T> {
+    const FOO: bool = false;
+}
+struct S<T>(T);
+impl<T> Trait<T> for S<T> {
+    const FOO: bool = true;
+}
+
+fn test() {
+    S::FOO$0;
+}
+"#,
+        expect![[r#"
+            *FOO*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const FOO: bool = true
+            ```
         "#]],
     );
 }
@@ -5171,6 +5359,28 @@ enum Enum {
 
             ```rust
             RecordV { field: u32 }
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn hover_record_variant_field() {
+    check(
+        r#"
+enum Enum {
+    RecordV { field$0: u32 }
+}
+"#,
+        expect![[r#"
+            *field*
+
+            ```rust
+            test::RecordV
+            ```
+
+            ```rust
+            field: u32 // size = 4, align = 4
             ```
         "#]],
     );

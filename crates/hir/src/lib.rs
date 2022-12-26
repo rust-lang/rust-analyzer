@@ -74,7 +74,7 @@ use once_cell::unsync::Lazy;
 use rustc_hash::FxHashSet;
 use stdx::{impl_from, never};
 use syntax::{
-    ast::{self, Expr, HasAttrs as _, HasDocComments, HasName},
+    ast::{self, HasAttrs as _, HasDocComments, HasName},
     AstNode, AstPtr, SmolStr, SyntaxNodePtr, TextRange, T,
 };
 
@@ -114,12 +114,20 @@ pub use {
         path::{ModPath, PathKind},
         type_ref::{Mutability, TypeRef},
         visibility::Visibility,
+        // FIXME: This is here since it is input of a method in `HirWrite`
+        // and things outside of hir need to implement that trait. We probably
+        // should move whole `hir_ty::display` to this crate so we will become
+        // able to use `ModuleDef` or `Definition` instead of `ModuleDefId`.
+        ModuleDefId,
     },
     hir_expand::{
         name::{known, Name},
         ExpandResult, HirFileId, InFile, MacroFile, Origin,
     },
-    hir_ty::{display::HirDisplay, PointerCast, Safety},
+    hir_ty::{
+        display::{HirDisplay, HirWrite},
+        PointerCast, Safety,
+    },
 };
 
 // These are negative re-exports: pub using these names is forbidden, they
@@ -805,7 +813,7 @@ fn precise_macro_call_location(
                 .doc_comments_and_attrs()
                 .nth((*invoc_attr_index) as usize)
                 .and_then(Either::left)
-                .unwrap_or_else(|| panic!("cannot find attribute #{}", invoc_attr_index));
+                .unwrap_or_else(|| panic!("cannot find attribute #{invoc_attr_index}"));
 
             (
                 ast_id.with_value(SyntaxNodePtr::from(AstPtr::new(&attr))),
@@ -866,7 +874,7 @@ impl Field {
     }
 
     pub fn layout(&self, db: &dyn HirDatabase) -> Result<Layout, LayoutError> {
-        layout_of_ty(db, &self.ty(db).ty)
+        layout_of_ty(db, &self.ty(db).ty, self.parent.module(db).krate().into())
     }
 
     pub fn parent_def(&self, _db: &dyn HirDatabase) -> VariantDef {
@@ -1074,7 +1082,7 @@ impl Variant {
         db.enum_data(self.parent.id).variants[self.id].variant_data.clone()
     }
 
-    pub fn value(self, db: &dyn HirDatabase) -> Option<Expr> {
+    pub fn value(self, db: &dyn HirDatabase) -> Option<ast::Expr> {
         self.source(db)?.value.expr()
     }
 
@@ -3689,6 +3697,13 @@ impl From<ItemInNs> for ScopeDef {
             ItemInNs::Macros(id) => ScopeDef::ModuleDef(ModuleDef::Macro(id)),
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Adjustment {
+    pub source: Type,
+    pub target: Type,
+    pub kind: Adjust,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

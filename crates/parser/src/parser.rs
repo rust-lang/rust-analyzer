@@ -162,7 +162,7 @@ impl<'t> Parser<'t> {
         Marker::new(pos)
     }
 
-    /// Consume the next token if `kind` matches.
+    /// Consume the next token. Panics if the parser isn't currently at `kind`.
     pub(crate) fn bump(&mut self, kind: SyntaxKind) {
         assert!(self.eat(kind));
     }
@@ -205,7 +205,7 @@ impl<'t> Parser<'t> {
         if self.eat(kind) {
             return true;
         }
-        self.error(format!("expected {:?}", kind));
+        self.error(format!("expected {kind:?}"));
         false
     }
 
@@ -237,6 +237,7 @@ impl<'t> Parser<'t> {
 
     fn do_bump(&mut self, kind: SyntaxKind, n_raw_tokens: u8) {
         self.pos += n_raw_tokens as usize;
+        self.steps.set(0);
         self.push_event(Event::Token { kind, n_raw_tokens });
     }
 

@@ -246,6 +246,16 @@
                 "command": "rust-analyzer.cancelFlycheck",
                 "title": "Cancel running flychecks",
                 "category": "rust-analyzer"
+            },
+            {
+                "command": "rust-analyzer.runFlycheck",
+                "title": "Run flycheck",
+                "category": "rust-analyzer"
+            },
+            {
+                "command": "rust-analyzer.clearFlycheck",
+                "title": "Clear flycheck diagnostics",
+                "category": "rust-analyzer"
             }
         ],
         "keybindings": [
@@ -965,6 +975,11 @@
                         "Only show auto borrow and dereference adjustment hints."
                     ]
                 },
+                "rust-analyzer.inlayHints.expressionAdjustmentHints.hideOutsideUnsafe": {
+                    "markdownDescription": "Whether to hide inlay hints for type adjustments outside of `unsafe` blocks.",
+                    "default": false,
+                    "type": "boolean"
+                },
                 "rust-analyzer.inlayHints.lifetimeElisionHints.enable": {
                     "markdownDescription": "Whether to show inlay type hints for elided lifetimes in function signatures.",
                     "default": "never",
@@ -983,6 +998,11 @@
                 "rust-analyzer.inlayHints.lifetimeElisionHints.useParameterNames": {
                     "markdownDescription": "Whether to prefer using parameter names as the name for elided lifetime hints if possible.",
                     "default": false,
+                    "type": "boolean"
+                },
+                "rust-analyzer.inlayHints.locationLinks": {
+                    "markdownDescription": "Whether to use location links for parts of type mentioned in inlay hints.",
+                    "default": true,
                     "type": "boolean"
                 },
                 "rust-analyzer.inlayHints.maxLength": {
@@ -1788,6 +1808,12 @@
                     "group": "navigation@1000"
                 }
             ]
-        }
+        },
+        "jsonValidation": [
+            {
+                "fileMatch": "rust-project.json",
+                "url": "https://json.schemastore.org/rust-project.json"
+            }
+        ]
     }
 }

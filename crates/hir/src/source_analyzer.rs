@@ -21,8 +21,8 @@ use hir_def::{
     path::{ModPath, Path, PathKind},
     resolver::{resolver_for_scope, Resolver, TypeNs, ValueNs},
     type_ref::Mutability,
-    AsMacroCall, AssocItemId, DefWithBodyId, FieldId, FunctionId, ItemContainerId, LocalFieldId,
-    Lookup, ModuleDefId, TraitId, VariantId,
+    AsMacroCall, AssocItemId, ConstId, DefWithBodyId, FieldId, FunctionId, ItemContainerId,
+    LocalFieldId, Lookup, ModuleDefId, TraitId, VariantId,
 };
 use hir_expand::{
     builtin_fn_macro::BuiltinFnLikeExpander,
@@ -118,7 +118,7 @@ impl SourceAnalyzer {
     fn expr_id(&self, db: &dyn HirDatabase, expr: &ast::Expr) -> Option<ExprId> {
         let src = match expr {
             ast::Expr::MacroExpr(expr) => {
-                self.expand_expr(db, InFile::new(self.file_id, expr.macro_call()?.clone()))?
+                self.expand_expr(db, InFile::new(self.file_id, expr.macro_call()?))?
             }
             _ => InFile::new(self.file_id, expr.clone()),
         };
@@ -482,7 +482,7 @@ impl SourceAnalyzer {
             let infer = self.infer.as_deref()?;
             if let Some(path_expr) = parent().and_then(ast::PathExpr::cast) {
                 let expr_id = self.expr_id(db, &path_expr.into())?;
-                if let Some(assoc) = infer.assoc_resolutions_for_expr(expr_id) {
+                if let Some((assoc, subs)) = infer.assoc_resolutions_for_expr(expr_id) {
                     let assoc = match assoc {
                         AssocItemId::FunctionId(f_in_trait) => {
                             match infer.type_of_expr.get(expr_id) {
@@ -501,7 +501,9 @@ impl SourceAnalyzer {
                                 }
                             }
                         }
-
+                        AssocItemId::ConstId(const_id) => {
+                            self.resolve_impl_const_or_trait_def(db, const_id, subs).into()
+                        }
                         _ => assoc,
                     };
 
@@ -515,7 +517,7 @@ impl SourceAnalyzer {
                 prefer_value_ns = true;
             } else if let Some(path_pat) = parent().and_then(ast::PathPat::cast) {
                 let pat_id = self.pat_id(&path_pat.into())?;
-                if let Some(assoc) = infer.assoc_resolutions_for_pat(pat_id) {
+                if let Some((assoc, _)) = infer.assoc_resolutions_for_pat(pat_id) {
                     return Some(PathResolution::Def(AssocItem::from(assoc).into()));
                 }
                 if let Some(VariantId::EnumVariantId(variant)) =
@@ -792,6 +794,24 @@ impl SourceAnalyzer {
         method_resolution::lookup_impl_method(db, env, func, substs)
     }
 
+    fn resolve_impl_const_or_trait_def(
+        &self,
+        db: &dyn HirDatabase,
+        const_id: ConstId,
+        subs: Substitution,
+    ) -> ConstId {
+        let krate = self.resolver.krate();
+        let owner = match self.resolver.body_owner() {
+            Some(it) => it,
+            None => return const_id,
+        };
+        let env = owner.as_generic_def_id().map_or_else(
+            || Arc::new(hir_ty::TraitEnvironment::empty(krate)),
+            |d| db.trait_environment(d),
+        );
+        method_resolution::lookup_impl_const(db, env, const_id, subs)
+    }
+
     fn lang_trait_fn(
         &self,
         db: &dyn HirDatabase,
@@ -967,7 +987,7 @@ fn resolve_hir_path_(
                         db,
                         def,
                         res.in_type_ns()?,
-                        |name, _, id| (name == unresolved.name).then(|| id),
+                        |name, id| (name == unresolved.name).then(|| id),
                     )
                 })
                 .map(TypeAlias::from)

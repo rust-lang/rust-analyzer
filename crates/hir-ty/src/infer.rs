@@ -349,7 +349,7 @@ pub struct InferenceResult {
     /// For each struct literal or pattern, records the variant it resolves to.
     variant_resolutions: FxHashMap<ExprOrPatId, VariantId>,
     /// For each associated item record what it resolves to
-    assoc_resolutions: FxHashMap<ExprOrPatId, AssocItemId>,
+    assoc_resolutions: FxHashMap<ExprOrPatId, (AssocItemId, Substitution)>,
     pub diagnostics: Vec<InferenceDiagnostic>,
     pub type_of_expr: ArenaMap<ExprId, Ty>,
     /// For each pattern record the type it resolves to.
@@ -379,11 +379,11 @@ impl InferenceResult {
     pub fn variant_resolution_for_pat(&self, id: PatId) -> Option<VariantId> {
         self.variant_resolutions.get(&id.into()).copied()
     }
-    pub fn assoc_resolutions_for_expr(&self, id: ExprId) -> Option<AssocItemId> {
-        self.assoc_resolutions.get(&id.into()).copied()
+    pub fn assoc_resolutions_for_expr(&self, id: ExprId) -> Option<(AssocItemId, Substitution)> {
+        self.assoc_resolutions.get(&id.into()).cloned()
     }
-    pub fn assoc_resolutions_for_pat(&self, id: PatId) -> Option<AssocItemId> {
-        self.assoc_resolutions.get(&id.into()).copied()
+    pub fn assoc_resolutions_for_pat(&self, id: PatId) -> Option<(AssocItemId, Substitution)> {
+        self.assoc_resolutions.get(&id.into()).cloned()
     }
     pub fn type_mismatch_for_expr(&self, expr: ExprId) -> Option<&TypeMismatch> {
         self.type_mismatches.get(&expr.into())
@@ -503,7 +503,7 @@ impl<'a> InferenceContext<'a> {
             result: InferenceResult::default(),
             table: unify::InferenceTable::new(db, trait_env.clone()),
             trait_env,
-            return_ty: TyKind::Error.intern(Interner), // set in collect_fn_signature
+            return_ty: TyKind::Error.intern(Interner), // set in collect_* calls
             resume_yield_tys: None,
             db,
             owner,
@@ -533,6 +533,9 @@ impl<'a> InferenceContext<'a> {
             mismatch.actual = table.resolve_completely(mismatch.actual.clone());
         }
         for (_, subst) in result.method_resolutions.values_mut() {
+            *subst = table.resolve_completely(subst.clone());
+        }
+        for (_, subst) in result.assoc_resolutions.values_mut() {
             *subst = table.resolve_completely(subst.clone());
         }
         for adjustment in result.expr_adjustments.values_mut().flatten() {
@@ -582,14 +585,17 @@ impl<'a> InferenceContext<'a> {
         } else {
             &*data.ret_type
         };
-        let return_ty = self.make_ty_with_mode(return_ty, ImplTraitLoweringMode::Opaque);
-        self.return_ty = return_ty;
 
-        if let Some(rpits) = self.db.return_type_impl_traits(func) {
+        let ctx = crate::lower::TyLoweringContext::new(self.db, &self.resolver)
+            .with_impl_trait_mode(ImplTraitLoweringMode::Opaque);
+        let return_ty = ctx.lower_ty(return_ty);
+        let return_ty = self.insert_type_vars(return_ty);
+
+        let return_ty = if let Some(rpits) = self.db.return_type_impl_traits(func) {
             // RPIT opaque types use substitution of their parent function.
             let fn_placeholders = TyBuilder::placeholder_subst(self.db, func);
-            self.return_ty = fold_tys(
-                self.return_ty.clone(),
+            fold_tys(
+                return_ty,
                 |ty, _| {
                     let opaque_ty_id = match ty.kind(Interner) {
                         TyKind::OpaqueType(opaque_ty_id, _) => *opaque_ty_id,
@@ -610,14 +616,18 @@ impl<'a> InferenceContext<'a> {
                         let (var_predicate, binders) = predicate
                             .substitute(Interner, &var_subst)
                             .into_value_and_skipped_binders();
-                        always!(binders.len(Interner) == 0); // quantified where clauses not yet handled
+                        always!(binders.is_empty(Interner)); // quantified where clauses not yet handled
                         self.push_obligation(var_predicate.cast(Interner));
                     }
                     var
                 },
                 DebruijnIndex::INNERMOST,
-            );
-        }
+            )
+        } else {
+            return_ty
+        };
+
+        self.return_ty = self.normalize_associated_types_in(return_ty);
     }
 
     fn infer_body(&mut self) {
@@ -640,8 +650,8 @@ impl<'a> InferenceContext<'a> {
         self.result.variant_resolutions.insert(id, variant);
     }
 
-    fn write_assoc_resolution(&mut self, id: ExprOrPatId, item: AssocItemId) {
-        self.result.assoc_resolutions.insert(id, item);
+    fn write_assoc_resolution(&mut self, id: ExprOrPatId, item: AssocItemId, subs: Substitution) {
+        self.result.assoc_resolutions.insert(id, (item, subs));
     }
 
     fn write_pat_ty(&mut self, pat: PatId, ty: Ty) {
@@ -652,21 +662,12 @@ impl<'a> InferenceContext<'a> {
         self.result.diagnostics.push(diagnostic);
     }
 
-    fn make_ty_with_mode(
-        &mut self,
-        type_ref: &TypeRef,
-        impl_trait_mode: ImplTraitLoweringMode,
-    ) -> Ty {
+    fn make_ty(&mut self, type_ref: &TypeRef) -> Ty {
         // FIXME use right resolver for block
-        let ctx = crate::lower::TyLoweringContext::new(self.db, &self.resolver)
-            .with_impl_trait_mode(impl_trait_mode);
+        let ctx = crate::lower::TyLoweringContext::new(self.db, &self.resolver);
         let ty = ctx.lower_ty(type_ref);
         let ty = self.insert_type_vars(ty);
         self.normalize_associated_types_in(ty)
-    }
-
-    fn make_ty(&mut self, type_ref: &TypeRef) -> Ty {
-        self.make_ty_with_mode(type_ref, ImplTraitLoweringMode::Disallowed)
     }
 
     fn err_ty(&self) -> Ty {
