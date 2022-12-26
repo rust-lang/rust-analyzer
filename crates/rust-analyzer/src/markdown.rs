@@ -5,19 +5,37 @@ const RUSTDOC_FENCES: [&str; 2] = ["```", "~~~"];
 
 pub(crate) fn format_docs(src: &str) -> String {
     let mut processed_lines = Vec::new();
-    let mut in_code_block = false;
+    let mut in_code_block: Option<usize> = None;
     let mut is_rust = false;
 
     for mut line in src.lines() {
-        if in_code_block && is_rust && code_line_ignored_by_rustdoc(line) {
+        if in_code_block.is_some() && is_rust && code_line_ignored_by_rustdoc(line) {
             continue;
         }
 
-        if let Some(header) = RUSTDOC_FENCES.into_iter().find_map(|fence| line.strip_prefix(fence))
-        {
-            in_code_block ^= true;
+        let stripped = match in_code_block {
+            Some(index) => {
+                let stripped = line.strip_prefix(RUSTDOC_FENCES[index]);
+                if stripped.is_some() {
+                    in_code_block = None;
+                }
+                stripped
+            }
+            None => {
+                let mut header = None;
+                for (index, fence) in RUSTDOC_FENCES.into_iter().enumerate() {
+                    if let Some(stripped) = line.strip_prefix(fence) {
+                        header = Some(stripped);
+                        in_code_block = Some(index);
+                        break;
+                    }
+                }
+                header
+            }
+        };
 
-            if in_code_block {
+        if let Some(header) = stripped {
+            if in_code_block.is_some() {
                 is_rust = is_rust_fence(header);
 
                 if is_rust {
@@ -26,7 +44,7 @@ pub(crate) fn format_docs(src: &str) -> String {
             }
         }
 
-        if in_code_block {
+        if in_code_block.is_some() {
             let trimmed = line.trim_start();
             if trimmed.starts_with("##") {
                 line = &trimmed[1..];
@@ -153,5 +171,27 @@ let s = "foo
 ```"#;
 
         assert_eq!(format_docs(comment), "```rust\nlet s = \"foo\n# bar # baz\";\n```");
+    }
+
+    #[test]
+    fn test_format_docs_rustdoc_fence_in_fence() {
+        let comment = r#"```text
+~~~
+```
+
+~~~text
+```
+~~~"#;
+
+        assert_eq!(
+            format_docs(comment),
+            r#"```text
+~~~
+```
+
+~~~text
+```
+~~~"#
+        );
     }
 }
