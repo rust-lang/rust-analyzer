@@ -290,18 +290,19 @@ impl TypeFoldable<Interner> for CallableSig {
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum ImplTraitId {
     ReturnTypeImplTrait(hir_def::FunctionId, u16),
+    TypeAliasImplTrait(hir_def::TypeAliasId, u16),
     AsyncBlockTypeImplTrait(hir_def::DefWithBodyId, ExprId),
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
-pub struct ReturnTypeImplTraits {
-    pub(crate) impl_traits: Vec<ReturnTypeImplTrait>,
+pub struct ImplTraits {
+    pub(crate) impl_traits: Vec<ImplTrait>,
 }
 
-has_interner!(ReturnTypeImplTraits);
+has_interner!(ImplTraits);
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
-pub(crate) struct ReturnTypeImplTrait {
+pub(crate) struct ImplTrait {
     pub(crate) bounds: Binders<Vec<QuantifiedWhereClause>>,
 }
 

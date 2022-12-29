@@ -944,4 +944,25 @@ fn test(thing: impl Encrypt) {
             "#]],
         )
     }
+
+    #[test]
+    fn completes_trait_methods_for_type_alias_to_impl_trait() {
+        check(
+            r#"
+//- minicore: iterator
+type Output = impl IntoIterator<Item = ()>;
+
+fn foo() -> Output {
+    Some(())
+}
+
+fn main() {
+    foo().$0;
+}
+"#,
+            expect![[r#"
+                me into_iter() (as IntoIterator) fn(self) -> <Self as IntoIterator>::IntoIter
+            "#]],
+        );
+    }
 }

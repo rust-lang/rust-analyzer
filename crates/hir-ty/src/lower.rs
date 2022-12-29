@@ -52,9 +52,9 @@ use crate::{
     utils::Generics,
     utils::{all_super_trait_refs, associated_type_by_name_including_super_traits, generics},
     AliasEq, AliasTy, Binders, BoundVar, CallableSig, Const, DebruijnIndex, DynTy, FnPointer,
-    FnSig, FnSubst, GenericArgData, ImplTraitId, Interner, ParamKind, PolyFnSig, ProjectionTy,
-    QuantifiedWhereClause, QuantifiedWhereClauses, ReturnTypeImplTrait, ReturnTypeImplTraits,
-    Substitution, TraitEnvironment, TraitRef, TraitRefExt, Ty, TyBuilder, TyKind, WhereClause,
+    FnSig, FnSubst, GenericArgData, ImplTrait, ImplTraitId, ImplTraits, Interner, ParamKind,
+    PolyFnSig, ProjectionTy, QuantifiedWhereClause, QuantifiedWhereClauses, Substitution,
+    TraitEnvironment, TraitRef, TraitRefExt, Ty, TyBuilder, TyKind, WhereClause,
 };
 
 #[derive(Debug)]
@@ -77,7 +77,7 @@ pub struct TyLoweringContext<'a> {
     /// we're grouping the mutable data (the counter and this field) together
     /// with the immutable context (the references to the DB and resolver).
     /// Splitting this up would be a possible fix.
-    opaque_type_data: RefCell<Vec<ReturnTypeImplTrait>>,
+    opaque_type_data: RefCell<Vec<ImplTrait>>,
     expander: RefCell<Option<Expander>>,
     /// Tracks types with explicit `?Sized` bounds.
     pub(crate) unsized_types: RefCell<FxHashSet<Ty>>,
@@ -248,16 +248,29 @@ impl<'a> TyLoweringContext<'a> {
                     ImplTraitLoweringMode::Opaque => {
                         let idx = self.impl_trait_counter.get();
                         self.impl_trait_counter.set(idx + 1);
-                        let func = match self.resolver.generic_def() {
-                            Some(GenericDefId::FunctionId(f)) => f,
-                            _ => panic!("opaque impl trait lowering in non-function"),
+
+                        let generic_def = self.resolver.generic_def();
+                        let func_or_alias = match generic_def {
+                            Some(GenericDefId::FunctionId(f)) => Either::Left(f),
+                            Some(GenericDefId::TypeAliasId(ta)) => Either::Right(ta),
+                            _ => panic!(
+                                "opaque impl trait lowering in non-function and non-type-alias"
+                            ),
+                        };
+                        let krate = match func_or_alias {
+                            Either::Left(f) => {
+                                f.lookup(self.db.upcast()).module(self.db.upcast()).krate()
+                            }
+                            Either::Right(ta) => {
+                                ta.lookup(self.db.upcast()).module(self.db.upcast()).krate()
+                            }
                         };
 
                         assert!(idx as usize == self.opaque_type_data.borrow().len());
                         // this dance is to make sure the data is in the right
                         // place even if we encounter more opaque types while
                         // lowering the bounds
-                        self.opaque_type_data.borrow_mut().push(ReturnTypeImplTrait {
+                        self.opaque_type_data.borrow_mut().push(ImplTrait {
                             bounds: crate::make_single_type_binders(Vec::new()),
                         });
                         // We don't want to lower the bounds inside the binders
@@ -271,13 +284,16 @@ impl<'a> TyLoweringContext<'a> {
                         // away instead of two.
                         let actual_opaque_type_data = self
                             .with_debruijn(DebruijnIndex::INNERMOST, |ctx| {
-                                ctx.lower_impl_trait(bounds, func)
+                                ctx.lower_impl_trait(bounds, krate)
                             });
                         self.opaque_type_data.borrow_mut()[idx as usize] = actual_opaque_type_data;
 
-                        let impl_trait_id = ImplTraitId::ReturnTypeImplTrait(func, idx);
+                        let impl_trait_id = match func_or_alias {
+                            Either::Left(f) => ImplTraitId::ReturnTypeImplTrait(f, idx),
+                            Either::Right(ta) => ImplTraitId::TypeAliasImplTrait(ta, idx),
+                        };
                         let opaque_ty_id = self.db.intern_impl_trait_id(impl_trait_id).into();
-                        let generics = generics(self.db.upcast(), func.into());
+                        let generics = generics(self.db.upcast(), generic_def.unwrap());
                         let parameters = generics.bound_vars_subst(self.db, self.in_binders);
                         TyKind::OpaqueType(opaque_ty_id, parameters).intern(Interner)
                     }
@@ -1133,11 +1149,7 @@ impl<'a> TyLoweringContext<'a> {
         }
     }
 
-    fn lower_impl_trait(
-        &self,
-        bounds: &[Interned<TypeBound>],
-        func: FunctionId,
-    ) -> ReturnTypeImplTrait {
+    fn lower_impl_trait(&self, bounds: &[Interned<TypeBound>], krate: CrateId) -> ImplTrait {
         cov_mark::hit!(lower_rpit);
         let self_ty = TyKind::BoundVar(BoundVar::new(DebruijnIndex::INNERMOST, 0)).intern(Interner);
         let predicates = self.with_shifted_in(DebruijnIndex::ONE, |ctx| {
@@ -1147,7 +1159,6 @@ impl<'a> TyLoweringContext<'a> {
                 .collect();
 
             if !ctx.unsized_types.borrow().contains(&self_ty) {
-                let krate = func.lookup(ctx.db.upcast()).module(ctx.db.upcast()).krate();
                 let sized_trait = ctx
                     .db
                     .lang_item(krate, SmolStr::new_inline("sized"))
@@ -1164,7 +1175,7 @@ impl<'a> TyLoweringContext<'a> {
             }
             predicates
         });
-        ReturnTypeImplTrait { bounds: crate::make_single_type_binders(predicates) }
+        ImplTrait { bounds: crate::make_single_type_binders(predicates) }
     }
 }
 
@@ -1686,8 +1697,9 @@ fn type_for_adt(db: &dyn HirDatabase, adt: AdtId) -> Binders<Ty> {
 fn type_for_type_alias(db: &dyn HirDatabase, t: TypeAliasId) -> Binders<Ty> {
     let generics = generics(db.upcast(), t.into());
     let resolver = t.resolver(db.upcast());
-    let ctx =
-        TyLoweringContext::new(db, &resolver).with_type_param_mode(ParamLoweringMode::Variable);
+    let ctx = TyLoweringContext::new(db, &resolver)
+        .with_impl_trait_mode(ImplTraitLoweringMode::Opaque)
+        .with_type_param_mode(ParamLoweringMode::Variable);
     if db.type_alias_data(t).is_extern {
         Binders::empty(Interner, TyKind::Foreign(crate::to_foreign_def_id(t)).intern(Interner))
     } else {
@@ -1847,7 +1859,7 @@ pub(crate) fn impl_trait_query(db: &dyn HirDatabase, impl_id: ImplId) -> Option<
 pub(crate) fn return_type_impl_traits(
     db: &dyn HirDatabase,
     def: hir_def::FunctionId,
-) -> Option<Arc<Binders<ReturnTypeImplTraits>>> {
+) -> Option<Arc<Binders<ImplTraits>>> {
     // FIXME unify with fn_sig_for_fn instead of doing lowering twice, maybe
     let data = db.function_data(def);
     let resolver = def.resolver(db.upcast());
@@ -1856,12 +1868,34 @@ pub(crate) fn return_type_impl_traits(
         .with_type_param_mode(ParamLoweringMode::Variable);
     let _ret = (&ctx_ret).lower_ty(&data.ret_type);
     let generics = generics(db.upcast(), def.into());
-    let return_type_impl_traits =
-        ReturnTypeImplTraits { impl_traits: ctx_ret.opaque_type_data.into_inner() };
+    let return_type_impl_traits = ImplTraits { impl_traits: ctx_ret.opaque_type_data.into_inner() };
     if return_type_impl_traits.impl_traits.is_empty() {
         None
     } else {
         Some(Arc::new(make_binders(db, &generics, return_type_impl_traits)))
+    }
+}
+
+pub(crate) fn type_alias_impl_traits(
+    db: &dyn HirDatabase,
+    def: hir_def::TypeAliasId,
+) -> Option<Arc<Binders<ImplTraits>>> {
+    let data = db.type_alias_data(def);
+    let resolver = def.resolver(db.upcast());
+    let ctx_ret = TyLoweringContext::new(db, &resolver)
+        .with_impl_trait_mode(ImplTraitLoweringMode::Opaque)
+        .with_type_param_mode(ParamLoweringMode::Variable);
+    let type_ref = match &data.type_ref {
+        Some(it) => it,
+        None => return None,
+    };
+    let _ret = (&ctx_ret).lower_ty(type_ref);
+    let generics = generics(db.upcast(), def.into());
+    let type_alias_impl_traits = ImplTraits { impl_traits: ctx_ret.opaque_type_data.into_inner() };
+    if type_alias_impl_traits.impl_traits.is_empty() {
+        None
+    } else {
+        Some(Arc::new(make_binders(db, &generics, type_alias_impl_traits)))
     }
 }
 

@@ -719,6 +719,22 @@ impl HirDisplay for Ty {
                         )?;
                         // FIXME: it would maybe be good to distinguish this from the alias type (when debug printing), and to show the substitution
                     }
+                    ImplTraitId::TypeAliasImplTrait(type_alias, idx) => {
+                        let datas =
+                            f.db.type_alias_impl_traits(type_alias)
+                                .expect("impl trait id without data");
+                        let data = (*datas)
+                            .as_ref()
+                            .map(|rpit| rpit.impl_traits[idx as usize].bounds.clone());
+                        let bounds = data.substitute(Interner, &parameters);
+                        let krate = type_alias.lookup(f.db.upcast()).module(f.db.upcast()).krate();
+                        write_bounds_like_dyn_trait_with_prefix(
+                            "impl",
+                            bounds.skip_binders(),
+                            SizedByDefault::Sized { anchor: krate },
+                            f,
+                        )?;
+                    }
                     ImplTraitId::AsyncBlockTypeImplTrait(..) => {
                         write!(f, "impl Future<Output = ")?;
                         parameters.at(Interner, 0).hir_fmt(f)?;
@@ -821,6 +837,22 @@ impl HirDisplay for Ty {
                             .map(|rpit| rpit.impl_traits[idx as usize].bounds.clone());
                         let bounds = data.substitute(Interner, &opaque_ty.substitution);
                         let krate = func.lookup(f.db.upcast()).module(f.db.upcast()).krate();
+                        write_bounds_like_dyn_trait_with_prefix(
+                            "impl",
+                            bounds.skip_binders(),
+                            SizedByDefault::Sized { anchor: krate },
+                            f,
+                        )?;
+                    }
+                    ImplTraitId::TypeAliasImplTrait(type_alias, idx) => {
+                        let datas =
+                            f.db.type_alias_impl_traits(type_alias)
+                                .expect("impl trait id without data");
+                        let data = (*datas)
+                            .as_ref()
+                            .map(|rpit| rpit.impl_traits[idx as usize].bounds.clone());
+                        let bounds = data.substitute(Interner, &opaque_ty.substitution);
+                        let krate = type_alias.lookup(f.db.upcast()).module(f.db.upcast()).krate();
                         write_bounds_like_dyn_trait_with_prefix(
                             "impl",
                             bounds.skip_binders(),

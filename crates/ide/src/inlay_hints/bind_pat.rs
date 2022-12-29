@@ -910,6 +910,52 @@ fn main() {
     }
 
     #[test]
+    fn type_alias_impl_trait() {
+        check_types(
+            r#"
+//- minicore: iterators, sized
+
+trait Foo {}
+
+// type alias with generic
+type Generic<T> = impl Foo;
+struct Bar<T>(T);
+impl<T> Foo for Bar<T> {}
+fn return_generic<T>(x: T) -> Generic<T> {
+    Bar(x)
+}
+
+// type alias with nested impl traits
+type Nested = impl Iterator<Item = impl Foo>;
+fn return_nested() -> Nested {
+    Some(()).into_iter()
+}
+
+// regular type alias
+type ImplOfFoo = impl Foo;
+fn return_foo() -> ImplOfFoo { loop {} }
+struct Baz(ImplOfFoo);
+
+fn main() {
+    let generic = return_generic(42i32);
+     // ^^^^^^^ impl Foo
+
+    let nested = return_nested();
+     // ^^^^^^ impl Iterator<Item = impl Foo>
+    for x in nested {
+     // ^ impl Foo
+    }
+
+    let foo = return_foo();
+     // ^^^ impl Foo
+    let foo = Baz(foo).0;
+     // ^^^ impl Foo
+}
+"#,
+        );
+    }
+
+    #[test]
     fn skip_closure_type_hints() {
         check_with_config(
             InlayHintsConfig {

@@ -9,7 +9,7 @@ use hir_def::{
     expr::ExprId,
     layout::{Layout, LayoutError, TargetDataLayout},
     AdtId, BlockId, ConstId, ConstParamId, DefWithBodyId, EnumVariantId, FunctionId, GenericDefId,
-    ImplId, LifetimeParamId, LocalFieldId, TypeOrConstParamId, VariantId,
+    ImplId, LifetimeParamId, LocalFieldId, TypeAliasId, TypeOrConstParamId, VariantId,
 };
 use la_arena::ArenaMap;
 use smallvec::SmallVec;
@@ -18,8 +18,8 @@ use crate::{
     chalk_db,
     consteval::{ComputedExpr, ConstEvalError},
     method_resolution::{InherentImpls, TraitImpls, TyFingerprint},
-    Binders, CallableDefId, FnDefId, GenericArg, ImplTraitId, InferenceResult, Interner, PolyFnSig,
-    QuantifiedWhereClause, ReturnTypeImplTraits, Substitution, TraitRef, Ty, TyDefId, ValueTyDefId,
+    Binders, CallableDefId, FnDefId, GenericArg, ImplTraitId, ImplTraits, InferenceResult,
+    Interner, PolyFnSig, QuantifiedWhereClause, Substitution, TraitRef, Ty, TyDefId, ValueTyDefId,
 };
 use hir_expand::name::Name;
 
@@ -71,10 +71,10 @@ pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> {
     fn callable_item_signature(&self, def: CallableDefId) -> PolyFnSig;
 
     #[salsa::invoke(crate::lower::return_type_impl_traits)]
-    fn return_type_impl_traits(
-        &self,
-        def: FunctionId,
-    ) -> Option<Arc<Binders<ReturnTypeImplTraits>>>;
+    fn return_type_impl_traits(&self, def: FunctionId) -> Option<Arc<Binders<ImplTraits>>>;
+
+    #[salsa::invoke(crate::lower::type_alias_impl_traits)]
+    fn type_alias_impl_traits(&self, def: TypeAliasId) -> Option<Arc<Binders<ImplTraits>>>;
 
     #[salsa::invoke(crate::lower::generic_predicates_for_param_query)]
     #[salsa::cycle(crate::lower::generic_predicates_for_param_recover)]

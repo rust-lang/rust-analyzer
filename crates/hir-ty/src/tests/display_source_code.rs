@@ -227,3 +227,24 @@ fn f(a: impl Foo<i8, Assoc<i16> = i32>) {
         "#,
     );
 }
+
+#[test]
+fn type_alias_impl_trait() {
+    check_types_source_code(
+        r#"
+//- minicore: sized
+trait Foo {}
+type Bar = impl Foo;
+struct Baz(Bar);
+fn test(
+    a: Bar,
+    b: Baz,
+) {
+    a;
+  //^ impl Foo
+    b.0;
+  //^^^ impl Foo
+}
+"#,
+    );
+}
