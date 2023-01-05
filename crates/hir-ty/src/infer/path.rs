@@ -14,7 +14,8 @@ use crate::{
     consteval,
     method_resolution::{self, VisibleFromModule},
     utils::generics,
-    Interner, Substitution, TraitRefExt, Ty, TyBuilder, TyExt, TyKind, ValueTyDefId,
+    InferenceDiagnostic, Interner, Substitution, TraitRefExt, Ty, TyBuilder, TyExt, TyKind,
+    ValueTyDefId,
 };
 
 use super::{ExprOrPatId, InferenceContext, TraitRef};
@@ -234,7 +235,8 @@ impl<'a> InferenceContext<'a> {
         let canonical_ty = self.canonicalize(ty.clone());
         let traits_in_scope = self.resolver.traits_in_scope(self.db.upcast());
 
-        method_resolution::iterate_method_candidates(
+        let mut not_visible = None;
+        let res = method_resolution::iterate_method_candidates(
             &canonical_ty.value,
             self.db,
             self.table.trait_env.clone(),
@@ -242,7 +244,7 @@ impl<'a> InferenceContext<'a> {
             VisibleFromModule::Filter(self.resolver.module()),
             Some(name),
             method_resolution::LookupMode::Path,
-            move |_ty, item| {
+            |_ty, item, visible| {
                 let (def, container) = match item {
                     AssocItemId::FunctionId(f) => {
                         (ValueNs::FunctionId(f), f.lookup(self.db.upcast()).container)
@@ -277,10 +279,24 @@ impl<'a> InferenceContext<'a> {
                     }
                 };
 
-                self.write_assoc_resolution(id, item, substs.clone());
-                Some((def, Some(substs)))
+                if visible {
+                    Some((def, item, Some(substs), true))
+                } else {
+                    if not_visible.is_none() {
+                        not_visible = Some((def, item, Some(substs), false));
+                    }
+                    None
+                }
             },
-        )
+        );
+        let res = res.or(not_visible);
+        if let Some((_, item, Some(ref substs), visible)) = res {
+            self.write_assoc_resolution(id, item, substs.clone());
+            if !visible {
+                self.push_diagnostic(InferenceDiagnostic::PrivateAssocItem { id, item })
+            }
+        }
+        res.map(|(def, _, substs, _)| (def, substs))
     }
 
     fn resolve_enum_variant_on_ty(

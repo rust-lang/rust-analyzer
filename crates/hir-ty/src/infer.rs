@@ -21,7 +21,7 @@ use hir_def::{
     body::Body,
     builtin_type::{BuiltinInt, BuiltinType, BuiltinUint},
     data::{ConstData, StaticData},
-    expr::{BindingAnnotation, ExprId, PatId},
+    expr::{BindingAnnotation, ExprId, ExprOrPatId, PatId},
     lang_item::LangItemTarget,
     layout::Integer,
     path::{path, Path},
@@ -34,7 +34,7 @@ use hir_expand::name::{name, Name};
 use itertools::Either;
 use la_arena::ArenaMap;
 use rustc_hash::FxHashMap;
-use stdx::{always, impl_from};
+use stdx::always;
 
 use crate::{
     db::HirDatabase, fold_tys, fold_tys_and_consts, infer::coerce::CoerceMany,
@@ -120,13 +120,6 @@ pub(crate) fn normalize(db: &dyn HirDatabase, owner: DefWithBodyId, ty: Ty) -> T
     table.resolve_completely(ty_with_vars)
 }
 
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-enum ExprOrPatId {
-    ExprId(ExprId),
-    PatId(PatId),
-}
-impl_from!(ExprId, PatId for ExprOrPatId);
-
 /// Binding modes inferred for patterns.
 /// <https://doc.rust-lang.org/reference/patterns.html#binding-modes>
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -208,6 +201,8 @@ pub(crate) type InferResult<T> = Result<InferOk<T>, TypeError>;
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum InferenceDiagnostic {
     NoSuchField { expr: ExprId },
+    PrivateField { expr: ExprId, field: FieldId },
+    PrivateAssocItem { id: ExprOrPatId, item: AssocItemId },
     BreakOutsideOfLoop { expr: ExprId, is_break: bool },
     MismatchedArgCount { call_expr: ExprId, expected: usize, found: usize },
 }
@@ -688,7 +683,7 @@ impl<'a> InferenceContext<'a> {
         }
     }
 
-    /// Replaces Ty::Unknown by a new type var, so we can maybe still infer it.
+    /// Replaces `Ty::Error` by a new type var, so we can maybe still infer it.
     fn insert_type_vars_shallow(&mut self, ty: Ty) -> Ty {
         match ty.kind(Interner) {
             TyKind::Error => self.table.new_type_var(),

@@ -41,7 +41,7 @@ use either::Either;
 use hir_def::{
     adt::VariantData,
     body::{BodyDiagnostic, SyntheticSyntax},
-    expr::{BindingAnnotation, LabelId, Pat, PatId},
+    expr::{BindingAnnotation, ExprOrPatId, LabelId, Pat, PatId},
     generics::{TypeOrConstParamData, TypeParamProvenance},
     item_tree::ItemTreeNode,
     lang_item::LangItemTarget,
@@ -85,9 +85,10 @@ pub use crate::{
     diagnostics::{
         AnyDiagnostic, BreakOutsideOfLoop, InactiveCode, IncorrectCase, InvalidDeriveTarget,
         MacroError, MalformedDerive, MismatchedArgCount, MissingFields, MissingMatchArms,
-        MissingUnsafe, NoSuchField, ReplaceFilterMapNextWithFindMap, TypeMismatch,
-        UnimplementedBuiltinMacro, UnresolvedExternCrate, UnresolvedImport, UnresolvedMacroCall,
-        UnresolvedModule, UnresolvedProcMacro,
+        MissingUnsafe, NoSuchField, PrivateAssocItem, PrivateField,
+        ReplaceFilterMapNextWithFindMap, TypeMismatch, UnimplementedBuiltinMacro,
+        UnresolvedExternCrate, UnresolvedImport, UnresolvedMacroCall, UnresolvedModule,
+        UnresolvedProcMacro,
     },
     has_source::HasSource,
     semantics::{PathResolution, Semantics, SemanticsScope, TypeInfo, VisibleTraits},
@@ -1352,6 +1353,25 @@ impl DefWithBody {
                         ),
                         Err(SyntheticSyntax) => (),
                     }
+                }
+                &hir_ty::InferenceDiagnostic::PrivateField { expr, field } => {
+                    let expr = source_map.expr_syntax(expr).expect("unexpected synthetic");
+                    let field = field.into();
+                    acc.push(PrivateField { expr, field }.into())
+                }
+                &hir_ty::InferenceDiagnostic::PrivateAssocItem { id, item } => {
+                    let expr_or_pat = match id {
+                        ExprOrPatId::ExprId(expr) => source_map
+                            .expr_syntax(expr)
+                            .expect("unexpected synthetic")
+                            .map(Either::Left),
+                        ExprOrPatId::PatId(pat) => source_map
+                            .pat_syntax(pat)
+                            .expect("unexpected synthetic")
+                            .map(Either::Right),
+                    };
+                    let item = item.into();
+                    acc.push(PrivateAssocItem { expr_or_pat, item }.into())
                 }
             }
         }
@@ -3274,7 +3294,7 @@ impl Type {
             with_local_impls.and_then(|b| b.id.containing_block()).into(),
             name,
             method_resolution::LookupMode::MethodCall,
-            &mut |_adj, id| callback(id),
+            &mut |_adj, id, _| callback(id),
         );
     }
 

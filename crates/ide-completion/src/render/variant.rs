@@ -22,6 +22,9 @@ pub(crate) fn render_record_lit(
     fields: &[hir::Field],
     path: &str,
 ) -> RenderedLiteral {
+    if snippet_cap.is_none() {
+        return RenderedLiteral { literal: path.to_string(), detail: path.to_string() };
+    }
     let completions = fields.iter().enumerate().format_with(", ", |(idx, field), f| {
         if snippet_cap.is_some() {
             f(&format_args!("{}: ${{{}:()}}", field.name(db), idx + 1))
@@ -49,7 +52,7 @@ pub(crate) fn render_tuple_lit(
     path: &str,
 ) -> RenderedLiteral {
     if snippet_cap.is_none() {
-        return RenderedLiteral { literal: format!("{path}"), detail: format!("{path}") };
+        return RenderedLiteral { literal: path.to_string(), detail: path.to_string() };
     }
     let completions = fields.iter().enumerate().format_with(", ", |(idx, _), f| {
         if snippet_cap.is_some() {
