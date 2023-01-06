@@ -14,7 +14,7 @@ use syntax::{
     ast::{self, AstNode, HasAttrs, IsString},
     match_ast, AstPtr, AstToken, SmolStr, SyntaxNode, TextRange, TextSize,
 };
-use tt::Subtree;
+use tt::{Subtree, TokenTree};
 
 use crate::{
     db::DefDatabase,
@@ -784,7 +784,7 @@ pub struct AttrId {
     pub(crate) ast_index: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Attr {
     pub(crate) id: AttrId,
     pub(crate) path: Interned<ModPath>,
@@ -797,6 +797,8 @@ pub enum AttrInput {
     Literal(SmolStr),
     /// `#[attr(subtree)]`
     TokenTree(tt::Subtree, mbe::TokenMap),
+    /// `#[cfg_attr(cond, inner)]`
+    CfgAttr(CfgExpr, Box<Attr>),
 }
 
 impl fmt::Display for AttrInput {
@@ -804,6 +806,7 @@ impl fmt::Display for AttrInput {
         match self {
             AttrInput::Literal(lit) => write!(f, " = \"{}\"", lit.escape_debug()),
             AttrInput::TokenTree(subtree, _) => subtree.fmt(f),
+            AttrInput::CfgAttr(_, _) => todo!(),
         }
     }
 }
@@ -824,7 +827,27 @@ impl Attr {
             Some(Interned::new(AttrInput::Literal(value)))
         } else if let Some(tt) = ast.token_tree() {
             let (tree, map) = syntax_node_to_token_tree(tt.syntax());
-            Some(Interned::new(AttrInput::TokenTree(tree, map)))
+            if path.to_string() == "cfg_attr" {
+                let pos = tree
+                    .token_trees
+                    .iter()
+                    .position(|t| {
+                        matches!(t, TokenTree::Leaf(tt::Leaf::Punct(Punct { char: ',', .. })))
+                    })
+                    .unwrap();
+                let (first, last) = tree.token_trees.split_at(pos);
+
+                let tree = Subtree { delimiter: None, token_trees: first.to_owned() };
+                let cfg_expr = CfgExpr::parse(&tree);
+
+                let tree = Subtree { delimiter: None, token_trees: last[1..].to_owned() };
+                Some(Interned::new(AttrInput::CfgAttr(
+                    cfg_expr,
+                    Box::new(Self::from_tt(db, &tree, hygiene, id)?),
+                )))
+            } else {
+                Some(Interned::new(AttrInput::TokenTree(tree, map)))
+            }
         } else {
             None
         };
@@ -853,6 +876,7 @@ impl Attr {
     pub fn string_value(&self) -> Option<&SmolStr> {
         match self.input.as_deref()? {
             AttrInput::Literal(it) => Some(it),
+            AttrInput::CfgAttr(_, b) => b.string_value(),
             _ => None,
         }
     }
@@ -864,6 +888,7 @@ impl Attr {
                 [tt::TokenTree::Leaf(tt::Leaf::Ident(ident))] => Some(ident),
                 _ => None,
             },
+            AttrInput::CfgAttr(_, b) => b.single_ident_value(),
             _ => None,
         }
     }
@@ -872,6 +897,7 @@ impl Attr {
     pub fn token_tree_value(&self) -> Option<&Subtree> {
         match self.input.as_deref()? {
             AttrInput::TokenTree(subtree, _) => Some(subtree),
+            AttrInput::CfgAttr(_, b) => b.token_tree_value(),
             _ => None,
         }
     }
