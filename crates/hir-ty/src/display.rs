@@ -343,8 +343,7 @@ impl HirDisplay for ProjectionTy {
             return write!(f, "{TYPE_HINT_TRUNCATION}");
         }
 
-        let assoc_name =
-            f.db.type_alias_data(from_assoc_type_id(self.associated_ty_id)).name.to_string();
+        let assoc_name = &f.db.type_alias_data(from_assoc_type_id(self.associated_ty_id)).name;
         let trait_ref = self.trait_ref(f.db);
 
         let trait_id = self.trait_(f.db);
@@ -363,8 +362,7 @@ impl HirDisplay for ProjectionTy {
                     })
                     .filter(|&tr| {
                         f.db.trait_data(tr).items.iter().any(|(name, item)| {
-                            matches!(item, AssocItemId::TypeAliasId(_))
-                                && name.to_string() == assoc_name
+                            matches!(item, AssocItemId::TypeAliasId(_)) && name == assoc_name
                         })
                     })
                     .eq([trait_id])
