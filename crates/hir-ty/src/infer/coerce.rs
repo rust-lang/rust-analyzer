@@ -8,7 +8,7 @@
 use std::{iter, sync::Arc};
 
 use chalk_ir::{cast::Cast, BoundVar, Goal, Mutability, TyVariableKind};
-use hir_def::{expr::ExprId, lang_item::LangItemTarget};
+use hir_def::{expr::ExprId, lang_item::LangItemTarget, HasModule, TypeAliasId};
 use stdx::always;
 use syntax::SmolStr;
 
@@ -19,8 +19,8 @@ use crate::{
         Adjust, Adjustment, AutoBorrow, InferOk, InferenceContext, OverloadedDeref, PointerCast,
         TypeError, TypeMismatch,
     },
-    static_lifetime, Canonical, DomainGoal, FnPointer, FnSig, Guidance, InEnvironment, Interner,
-    Solution, Substitution, TraitEnvironment, Ty, TyBuilder, TyExt, TyKind,
+    static_lifetime, Canonical, DomainGoal, FnPointer, FnSig, Guidance, ImplTraitId, InEnvironment,
+    Interner, Solution, Substitution, TraitEnvironment, Ty, TyBuilder, TyExt, TyKind,
 };
 
 use super::unify::InferenceTable;
@@ -171,11 +171,51 @@ impl<'a> InferenceContext<'a> {
     ) -> Result<Ty, TypeError> {
         let from_ty = self.resolve_ty_shallow(from_ty);
         let to_ty = self.resolve_ty_shallow(to_ty);
-        let (adjustments, ty) = self.table.coerce(&from_ty, &to_ty)?;
+        let (adjustments, ty) = self.coerce_inner(&from_ty, &to_ty)?;
         if let Some(expr) = expr {
             self.write_expr_adj(expr, adjustments);
         }
         Ok(ty)
+    }
+
+    fn coerce_inner(
+        &mut self,
+        from_ty: &Ty,
+        to_ty: &Ty,
+    ) -> Result<(Vec<Adjustment>, Ty), TypeError> {
+        match self.table.coerce(&from_ty, &to_ty) {
+            Ok(it) => return Ok(it),
+            Err(err) => {
+                // Don't report errors for TAIT's if they are in defining scopes
+                if let TyKind::OpaqueType(opaque_ty_id, _) = to_ty.kind(Interner) {
+                    if let ImplTraitId::TypeAliasImplTrait(def, _) =
+                        self.db.lookup_intern_impl_trait_id((*opaque_ty_id).into())
+                    {
+                        if self.is_in_defining_scope_for_tait(def) {
+                            return Ok((Vec::new(), to_ty.clone()));
+                        }
+                    }
+                }
+
+                return Err(err);
+            }
+        };
+    }
+
+    // Returns whether we're in the defining scope (i.e same module or sub module) of given TAIT definition.
+    fn is_in_defining_scope_for_tait(&self, def: TypeAliasId) -> bool {
+        let db = self.db.upcast();
+        let ty_alias_module = def.module(db);
+        let mut current_mod = Some(self.resolver.module());
+
+        while let Some(mod_id) = current_mod {
+            if mod_id == ty_alias_module {
+                return true;
+            }
+            current_mod = mod_id.containing_module(db);
+        }
+
+        false
     }
 }
 

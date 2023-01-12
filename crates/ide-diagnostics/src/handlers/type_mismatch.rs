@@ -595,4 +595,27 @@ fn f() -> i32 {
 "#,
         );
     }
+
+    #[test]
+    fn type_alias_impl_trait_no_diagnostic_for_defining_use() {
+        check_diagnostics(
+            r#"
+//- minicore: copy
+mod inner {
+    pub type Opaque = impl Copy;
+    pub fn defining_scope() -> Opaque {
+        let x: Opaque = 0i32;
+        let x: Opaque = true; // FIXME: This should be also an error.
+        x
+    }
+}
+
+fn non_defining_scope() {
+    let _: inner::Opaque = inner::defining_scope();
+    let _: inner::Opaque = true;
+                        // ^^^^ error: expected impl Copy, found bool
+}
+"#,
+        );
+    }
 }
