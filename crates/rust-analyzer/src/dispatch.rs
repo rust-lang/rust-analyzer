@@ -136,8 +136,15 @@ impl<'a> RequestDispatcher<'a> {
         R: lsp_types::request::Request,
         R::Params: DeserializeOwned + fmt::Debug,
     {
+        use serde_json::json;
         let req = match &self.req {
-            Some(req) if req.method == R::METHOD => self.req.take()?,
+            Some(req) if req.method == R::METHOD => {
+                let mut req = self.req.take()?;
+                if req.params == json!({}) {
+                    req.params = json!(());
+                }
+                req
+            }
             _ => return None,
         };
 
