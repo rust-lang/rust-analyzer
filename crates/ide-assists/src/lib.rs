@@ -128,6 +128,7 @@ mod handlers {
     mod convert_while_to_loop;
     mod desugar_doc_comment;
     mod destructure_tuple_binding;
+    mod destructure_struct_binding;
     mod expand_glob_import;
     mod extract_expressions_from_format_string;
     mod extract_function;
@@ -234,6 +235,7 @@ mod handlers {
             convert_while_to_loop::convert_while_to_loop,
             desugar_doc_comment::desugar_doc_comment,
             destructure_tuple_binding::destructure_tuple_binding,
+            destructure_struct_binding::destructure_struct_binding,
             expand_glob_import::expand_glob_import,
             extract_expressions_from_format_string::extract_expressions_from_format_string,
             extract_struct_from_enum_variant::extract_struct_from_enum_variant,
