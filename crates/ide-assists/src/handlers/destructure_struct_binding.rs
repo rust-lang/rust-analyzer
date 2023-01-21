@@ -1,15 +1,32 @@
-use crate::assist_context::{AssistContext, Assists, SourceChangeBuilder};
 use ide_db::{
     assists::{AssistId, AssistKind},
     helpers::mod_path_to_ast,
 };
 use syntax::{ast, AstNode, TextRange};
 
+use crate::assist_context::{AssistContext, Assists, SourceChangeBuilder};
+
 // Assist: destructure_struct_binding
 //
 // Destructure a struct binding in place.
+//
+// ```
+// struct Struct { a: u8, b: u8 }
+//
+// fn main() {
+//     let $0x = Struct { a: 1, b: 2 };
+// }
+// ```
+// ->
+// ```
+// struct Struct { a: u8, b: u8 }
+//
+// fn main() {
+//     let Struct { a: $0_a, b: _b } = Struct { a: 1, b: 2 };
+// }
+// ```
 pub(crate) fn destructure_struct_binding(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
-    let ident_pat = ctx.find_node_at_offset::<ast::IdentPat>()?;
+    let ident_pat: ast::IdentPat = ctx.find_node_at_offset()?;
     let data = collect_data(ident_pat, ctx)?;
 
     acc.add(
@@ -18,96 +35,54 @@ pub(crate) fn destructure_struct_binding(acc: &mut Assists, ctx: &AssistContext<
         data.range,
         |builder| {
             edit_struct_assignment(ctx, builder, &data);
-            // FIXME: add struct usages
+            // FIXME: add struct usages.
         },
     );
     Some(())
 }
 
-fn collect_data(ident_pat: ast::IdentPat, ctx: &AssistContext<'_>) -> Option<StructData> {
-    // if ident_pat.at_token().is_some() {
-    //     // Cannot destructure pattern with sub-pattern:
-    //     // Only IdentPat can have sub-pattern (as in `ident @ subpat`),
-    //     // but not TupleStructPat (`Foo(a,b)`) or RecordPat (`Foo { a: b }`).
-    //     cov_mark::hit!(destructure_struct_subpattern);
-    //     return None;
-    // }
-
-    let ty = ctx.sema.type_of_pat(&ident_pat.clone().into())?.adjusted();
-
-    // let ref_type = if ty.is_mutable_reference() {
-    //     Some(RefType::Mutable)
-    // } else if ty.is_reference() {
-    //     Some(RefType::ReadOnly)
-    // } else {
-    //     None
-    // };
-
-    // might be reference
-    let ty = ty.strip_references();
-
-    let hir::Adt::Struct(struct_) = ty.as_adt()?
-        else { return None };
-
-    let module = ctx.sema.scope(ident_pat.syntax())?.module();
-    let struct_def = hir::ModuleDef::from(struct_);
-    let struct_kind = struct_.kind(ctx.db());
-    let struct_def_path = module.find_use_path(ctx.db(), struct_def, ctx.config.prefer_no_std)?;
-
-    let range = ident_pat.syntax().text_range();
-
-    let fields = struct_.fields(ctx.db());
-
-    Some(StructData { ident_pat, range, struct_kind, struct_def_path, fields })
-}
-
 struct StructData {
     ident_pat: ast::IdentPat,
     range: TextRange,
-    // ref_type: Option<RefType>,
     struct_kind: hir::StructKind,
     struct_def_path: hir::ModPath,
     fields: Vec<hir::Field>,
 }
 
-// enum RefType {
-//     ReadOnly,
-//     Mutable,
-// }
+fn collect_data(ident_pat: ast::IdentPat, ctx: &AssistContext<'_>) -> Option<StructData> {
+    let ty = ctx.sema.type_of_pat(&ident_pat.clone().into())?.adjusted();
+
+    // The type might be a reference.
+    let ty = ty.strip_references();
+
+    // The type is required to be a struct.
+    let strukt = match ty.as_adt()? {
+        hir::Adt::Struct(strukt) => strukt,
+        _ => return None,
+    };
+
+    let module = ctx.sema.scope(ident_pat.syntax())?.module();
+    let struct_def = hir::ModuleDef::from(strukt);
+    let struct_kind = strukt.kind(ctx.db());
+    let struct_def_path = module.find_use_path(ctx.db(), struct_def, ctx.config.prefer_no_std)?;
+
+    let range = ident_pat.syntax().text_range();
+
+    let fields = strukt.fields(ctx.db());
+
+    Some(StructData { ident_pat, range, struct_kind, struct_def_path, fields })
+}
 
 fn edit_struct_assignment(
     ctx: &AssistContext<'_>,
     builder: &mut SourceChangeBuilder,
     data: &StructData,
 ) {
-    let add_cursor = |text: &str| {
-        // place cursor on first item
-        if let Some(first_field) = field_names(ctx, data.struct_kind, &data.fields).get(0) {
-            text.replacen(first_field, &format!("$0{first_field}"), 1)
-        } else {
-            let mut full_replacement = String::from("$0");
-            full_replacement.push_str(text);
-            full_replacement
-        }
-    };
-
-    // let struct_pat = {
-    //     let struct_path = mod_path_to_ast(&data.mod_path);
-    //     let original = &data.ident_pat;
-
-    //     let is_ref = original.ref_token().is_some();
-    //     let is_mut = original.mut_token().is_some();
-    //     let fields = data.field_names.iter().map(|name| {
-    //         ast::Pat::from(ast::make::ident_pat(is_ref, is_mut, ast::make::name(name)))
-    //     });
-    //     ast::make::tuple_struct_pat(struct_path, fields)
-    // };
-
     let struct_path = mod_path_to_ast(&data.struct_def_path);
     let is_ref = data.ident_pat.ref_token().is_some();
     let is_mut = data.ident_pat.mut_token().is_some();
 
-    let field_names = field_names(ctx, data.struct_kind, &data.fields);
+    let field_names = names_of_fields(ctx, data.struct_kind, &data.fields);
     let ident_pats = field_names.iter().map(|field_name| {
         let name = ast::make::name(field_name);
         ast::Pat::from(ast::make::ident_pat(is_ref, is_mut, name))
@@ -124,48 +99,55 @@ fn edit_struct_assignment(
             let field_list = ast::make::record_pat_field_list(fields);
             ast::Pat::RecordPat(ast::make::record_pat_with_fields(struct_path, field_list))
         }
-        // bare identifier pattern, which matches the unit struct that it names
+        // Bare identifier pattern, which matches the unit struct that it names.
         hir::StructKind::Unit => ast::make::path_pat(struct_path),
     };
 
     let text = struct_pat.to_string();
     match ctx.config.snippet_cap {
         Some(cap) => {
-            let snip = add_cursor(&text);
+            let snip = {
+                // place cursor on first item
+                match names_of_fields(ctx, data.struct_kind, &data.fields).get(0) {
+                    Some(first_field) => text.replacen(first_field, &format!("$0{first_field}"), 1),
+                    None => format!("$0{text}"),
+                }
+            };
             builder.replace_snippet(cap, data.range, snip);
         }
         None => builder.replace(data.range, text),
     };
 }
 
-fn field_names(
+fn names_of_fields(
     ctx: &AssistContext<'_>,
     struct_kind: hir::StructKind,
     fields: &Vec<hir::Field>,
 ) -> Vec<String> {
     match struct_kind {
         hir::StructKind::Tuple => {
-            fields.iter().enumerate().map(|(index, _)| generate_tuple_field_name(index)).collect()
+            (0..fields.len())
+                .map(|index| {
+                    // FIXME: detect if generated name already used
+                    format!("_{}", index)
+                })
+                .collect()
         }
         hir::StructKind::Record => {
-            fields.iter().map(|field| generate_record_field_name(field.name(ctx.db()))).collect()
+            fields
+                .iter()
+                .map(|field| {
+                    let field_name = field.name(ctx.db()).to_smol_str();
+                    // FIXME: detect if generated name already used
+                    format!("_{}", field_name)
+                })
+                .collect()
         }
         hir::StructKind::Unit => vec![],
     }
 }
 
-fn generate_tuple_field_name(index: usize) -> String {
-    // FIXME: detect if name already used
-    format!("_{}", index)
-}
-
-fn generate_record_field_name(field_name: hir::Name) -> String {
-    // FIXME: detect if name already used
-    format!("_{}", field_name.to_smol_str())
-}
-
 #[cfg(test)]
-
 mod tests {
     use super::*;
 

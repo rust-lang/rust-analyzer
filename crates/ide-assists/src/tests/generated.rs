@@ -579,6 +579,27 @@ fn main() {
 }
 
 #[test]
+fn doctest_destructure_struct_binding() {
+    check_doc_test(
+        "destructure_struct_binding",
+        r#####"
+struct Struct { a: u8, b: u8 }
+
+fn main() {
+    let $0x = Struct { a: 1, b: 2 };
+}
+"#####,
+        r#####"
+struct Struct { a: u8, b: u8 }
+
+fn main() {
+    let Struct { a: $0_a, b: _b } = Struct { a: 1, b: 2 };
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_destructure_tuple_binding() {
     check_doc_test(
         "destructure_tuple_binding",
