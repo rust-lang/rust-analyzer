@@ -108,15 +108,22 @@ fn edit_struct_assignment(
     let is_mut = data.ident_pat.mut_token().is_some();
 
     let field_names = field_names(ctx, data.struct_kind, &data.fields);
-    let pats = field_names.iter().map(|field_name| {
+    let ident_pats = field_names.iter().map(|field_name| {
         let name = ast::make::name(field_name);
         ast::Pat::from(ast::make::ident_pat(is_ref, is_mut, name))
     });
     let struct_pat: ast::Pat = match data.struct_kind {
         hir::StructKind::Tuple => {
-            ast::Pat::TupleStructPat(ast::make::tuple_struct_pat(struct_path, pats))
+            ast::Pat::TupleStructPat(ast::make::tuple_struct_pat(struct_path, ident_pats))
         }
-        hir::StructKind::Record => ast::Pat::RecordPat(ast::make::record_pat(struct_path, pats)),
+        hir::StructKind::Record => {
+            let fields = ident_pats.zip(&data.fields).map(|(pat, field)| {
+                let field_name = field.name(ctx.db()).to_smol_str();
+                ast::make::record_pat_field(ast::make::name_ref(&field_name), pat)
+            });
+            let field_list = ast::make::record_pat_field_list(fields);
+            ast::Pat::RecordPat(ast::make::record_pat_with_fields(struct_path, field_list))
+        }
         // bare identifier pattern, which matches the unit struct that it names
         hir::StructKind::Unit => ast::make::path_pat(struct_path),
     };
@@ -154,7 +161,7 @@ fn generate_tuple_field_name(index: usize) -> String {
 
 fn generate_record_field_name(field_name: hir::Name) -> String {
     // FIXME: detect if name already used
-    format!("{}", field_name.to_smol_str())
+    format!("_{}", field_name.to_smol_str())
 }
 
 #[cfg(test)]
@@ -222,7 +229,7 @@ fn main() {
 struct Point {x: i32, y: i32};
 
 fn main() {
-    let Point { $0x, y } = Point {x: 1, y: -1};
+    let Point { x: $0_x, y: _y } = Point {x: 1, y: -1};
 }
             "#,
         )
@@ -266,7 +273,7 @@ mod other {
 }
 
 fn main() {
-    let other::Wrapper { $0inner } = other::Wrapper{ inner: false };
+    let other::Wrapper { inner: $0_inner } = other::Wrapper{ inner: false };
 }
             "#,
         )
@@ -283,7 +290,7 @@ fn func($0foo: Foo) {}
             r#"
 struct Foo { bar: (), baz: () };
 
-fn func(Foo { $0bar, baz }: Foo) {}
+fn func(Foo { bar: $0_bar, baz: _baz }: Foo) {}
             "#,
         )
     }
@@ -302,7 +309,7 @@ fn main() {
 struct Foo { bar: () };
 
 fn main() {
-    let &Foo { $0bar } = &Foo { bar: () };
+    let &Foo { bar: $0_bar } = &Foo { bar: () };
 }
             "#,
         )
@@ -323,7 +330,7 @@ fn main() {
 struct Foo { bar: () };
 
 fn main() {
-    let Foo { $0bar } = &Foo { bar: () };
+    let Foo { bar: $0_bar } = &Foo { bar: () };
 }
             "#,
         )
