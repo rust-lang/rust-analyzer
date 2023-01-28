@@ -950,7 +950,7 @@ fn issue_12247() {
         r#"
 //- minicore: result, try
 fn aa() -> Result<(), E3> {
-    let a : Result<i32, E1>;
+    let a: Result<i32, E1> = Err(E1);
     let b = a.mapE()?;
       //^ i32
     Ok(())
@@ -959,22 +959,23 @@ struct E1;
 struct E2;
 struct E3;
 
-impl From<E1> for E2 {
-    fn from(value: E1) -> Self {
+impl Into<E2> for E1 {
+    fn into(self) -> E2 {
         E2
     }
 }
 
-impl From<E1> for E3 {
-    fn from(value: E1) -> Self {
+impl Into<E3> for E1 {
+    fn into(self) -> E3 {
         E3
     }
 }
+
 trait MapErr<T, E> {
     fn mapE(self) -> Result<T, E>;
 }
 
-impl <T, ET> MapErr<T, E2> for Result<T, ET>
+impl<T, ET> MapErr<T, E2> for Result<T, ET>
 where
     ET: Into<E2>,
 {
@@ -983,7 +984,7 @@ where
     }
 }
 
-impl <T, ET> MapErr<T, E3> for Result<T, ET>
+impl<T, ET> MapErr<T, E3> for Result<T, ET>
 where
     ET: Into<E3>,
 {
