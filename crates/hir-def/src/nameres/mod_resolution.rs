@@ -7,7 +7,7 @@ use syntax::SmolStr;
 
 use crate::{db::DefDatabase, HirFileId};
 
-const MOD_DEPTH_LIMIT: Limit = Limit::new(32);
+static MOD_DEPTH_LIMIT: Limit = Limit::new(32);
 
 #[derive(Clone, Debug)]
 pub(super) struct ModDir {
@@ -34,7 +34,7 @@ impl ModDir {
         let path = match attr_path.map(SmolStr::as_str) {
             None => {
                 let mut path = self.dir_path.clone();
-                path.push(&name.to_smol_str());
+                path.push(&name.unescaped().to_smol_str());
                 path
             }
             Some(attr_path) => {

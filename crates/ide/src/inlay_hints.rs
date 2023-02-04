@@ -4,13 +4,16 @@ use std::{
 };
 
 use either::Either;
-use hir::{known, HasVisibility, HirDisplay, HirWrite, ModuleDef, ModuleDefId, Semantics};
+use hir::{
+    known, HasVisibility, HirDisplay, HirDisplayError, HirWrite, ModuleDef, ModuleDefId, Semantics,
+};
 use ide_db::{base_db::FileRange, famous_defs::FamousDefs, RootDatabase};
 use itertools::Itertools;
+use smallvec::{smallvec, SmallVec};
 use stdx::never;
 use syntax::{
     ast::{self, AstNode},
-    match_ast, NodeOrToken, SyntaxNode, TextRange, TextSize,
+    match_ast, NodeOrToken, SyntaxNode, TextRange,
 };
 
 use crate::{navigation_target::TryToNav, FileId};
@@ -28,13 +31,13 @@ mod discriminant;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InlayHintsConfig {
-    pub location_links: bool,
     pub render_colons: bool,
     pub type_hints: bool,
     pub discriminant_hints: DiscriminantHints,
     pub parameter_hints: bool,
     pub chaining_hints: bool,
     pub adjustment_hints: AdjustmentHints,
+    pub adjustment_hints_mode: AdjustmentHintsMode,
     pub adjustment_hints_hide_outside_unsafe: bool,
     pub closure_return_type_hints: ClosureReturnTypeHints,
     pub binding_mode_hints: bool,
@@ -74,74 +77,116 @@ pub enum AdjustmentHints {
     Never,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum AdjustmentHintsMode {
+    Prefix,
+    Postfix,
+    PreferPrefix,
+    PreferPostfix,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum InlayKind {
-    BindingModeHint,
-    ChainingHint,
-    ClosingBraceHint,
-    ClosureReturnTypeHint,
-    GenericParamListHint,
-    AdjustmentHint,
-    LifetimeHint,
-    ParameterHint,
-    TypeHint,
-    DiscriminantHint,
+    BindingMode,
+    Chaining,
+    ClosingBrace,
+    ClosureReturnType,
+    GenericParamList,
+    Adjustment,
+    AdjustmentPostfix,
+    Lifetime,
+    Parameter,
+    Type,
+    Discriminant,
     OpeningParenthesis,
     ClosingParenthesis,
 }
 
 #[derive(Debug)]
 pub struct InlayHint {
+    /// The text range this inlay hint applies to.
     pub range: TextRange,
+    /// The kind of this inlay hint. This is used to determine side and padding of the hint for
+    /// rendering purposes.
     pub kind: InlayKind,
+    /// The actual label to show in the inlay hint.
     pub label: InlayHintLabel,
-    pub tooltip: Option<InlayTooltip>,
+}
+
+impl InlayHint {
+    fn closing_paren(range: TextRange) -> InlayHint {
+        InlayHint { range, kind: InlayKind::ClosingParenthesis, label: InlayHintLabel::from(")") }
+    }
+    fn opening_paren(range: TextRange) -> InlayHint {
+        InlayHint { range, kind: InlayKind::OpeningParenthesis, label: InlayHintLabel::from("(") }
+    }
 }
 
 #[derive(Debug)]
 pub enum InlayTooltip {
     String(String),
-    HoverRanged(FileId, TextRange),
-    HoverOffset(FileId, TextSize),
+    Markdown(String),
 }
 
 #[derive(Default)]
 pub struct InlayHintLabel {
-    pub parts: Vec<InlayHintLabelPart>,
+    pub parts: SmallVec<[InlayHintLabelPart; 1]>,
 }
 
 impl InlayHintLabel {
-    pub fn as_simple_str(&self) -> Option<&str> {
-        match &*self.parts {
-            [part] => part.as_simple_str(),
-            _ => None,
+    pub fn simple(
+        s: impl Into<String>,
+        tooltip: Option<InlayTooltip>,
+        linked_location: Option<FileRange>,
+    ) -> InlayHintLabel {
+        InlayHintLabel {
+            parts: smallvec![InlayHintLabelPart { text: s.into(), linked_location, tooltip }],
         }
     }
 
     pub fn prepend_str(&mut self, s: &str) {
         match &mut *self.parts {
-            [part, ..] if part.as_simple_str().is_some() => part.text = format!("{s}{}", part.text),
-            _ => self.parts.insert(0, InlayHintLabelPart { text: s.into(), linked_location: None }),
+            [InlayHintLabelPart { text, linked_location: None, tooltip: None }, ..] => {
+                text.insert_str(0, s)
+            }
+            _ => self.parts.insert(
+                0,
+                InlayHintLabelPart { text: s.into(), linked_location: None, tooltip: None },
+            ),
         }
     }
 
     pub fn append_str(&mut self, s: &str) {
         match &mut *self.parts {
-            [.., part] if part.as_simple_str().is_some() => part.text.push_str(s),
-            _ => self.parts.push(InlayHintLabelPart { text: s.into(), linked_location: None }),
+            [.., InlayHintLabelPart { text, linked_location: None, tooltip: None }] => {
+                text.push_str(s)
+            }
+            _ => self.parts.push(InlayHintLabelPart {
+                text: s.into(),
+                linked_location: None,
+                tooltip: None,
+            }),
         }
     }
 }
 
 impl From<String> for InlayHintLabel {
     fn from(s: String) -> Self {
-        Self { parts: vec![InlayHintLabelPart { text: s, linked_location: None }] }
+        Self {
+            parts: smallvec![InlayHintLabelPart { text: s, linked_location: None, tooltip: None }],
+        }
     }
 }
 
 impl From<&str> for InlayHintLabel {
     fn from(s: &str) -> Self {
-        Self { parts: vec![InlayHintLabelPart { text: s.into(), linked_location: None }] }
+        Self {
+            parts: smallvec![InlayHintLabelPart {
+                text: s.into(),
+                linked_location: None,
+                tooltip: None
+            }],
+        }
     }
 }
 
@@ -165,25 +210,25 @@ pub struct InlayHintLabelPart {
     /// When setting this, no tooltip must be set on the containing hint, or VS Code will display
     /// them both.
     pub linked_location: Option<FileRange>,
-}
-
-impl InlayHintLabelPart {
-    pub fn as_simple_str(&self) -> Option<&str> {
-        match self {
-            Self { text, linked_location: None } => Some(text),
-            _ => None,
-        }
-    }
+    /// The tooltip to show when hovering over the inlay hint, this may invoke other actions like
+    /// hover requests to show.
+    pub tooltip: Option<InlayTooltip>,
 }
 
 impl fmt::Debug for InlayHintLabelPart {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.as_simple_str() {
-            Some(string) => string.fmt(f),
-            None => f
+        match self {
+            Self { text, linked_location: None, tooltip: None } => text.fmt(f),
+            Self { text, linked_location, tooltip } => f
                 .debug_struct("InlayHintLabelPart")
-                .field("text", &self.text)
-                .field("linked_location", &self.linked_location)
+                .field("text", text)
+                .field("linked_location", linked_location)
+                .field(
+                    "tooltip",
+                    &tooltip.as_ref().map_or("", |it| match it {
+                        InlayTooltip::String(it) | InlayTooltip::Markdown(it) => it,
+                    }),
+                )
                 .finish(),
         }
     }
@@ -194,7 +239,6 @@ struct InlayHintLabelBuilder<'a> {
     db: &'a RootDatabase,
     result: InlayHintLabel,
     last_part: String,
-    location_link_enabled: bool,
     location: Option<FileRange>,
 }
 
@@ -206,9 +250,6 @@ impl fmt::Write for InlayHintLabelBuilder<'_> {
 
 impl HirWrite for InlayHintLabelBuilder<'_> {
     fn start_location_link(&mut self, def: ModuleDefId) {
-        if !self.location_link_enabled {
-            return;
-        }
         if self.location.is_some() {
             never!("location link is already started");
         }
@@ -220,9 +261,6 @@ impl HirWrite for InlayHintLabelBuilder<'_> {
     }
 
     fn end_location_link(&mut self) {
-        if !self.location_link_enabled {
-            return;
-        }
         self.make_new_part();
     }
 }
@@ -232,6 +270,7 @@ impl InlayHintLabelBuilder<'_> {
         self.result.parts.push(InlayHintLabelPart {
             text: take(&mut self.last_part),
             linked_location: self.location.take(),
+            tooltip: None,
         });
     }
 
@@ -252,34 +291,44 @@ fn label_of_ty(
         mut max_length: Option<usize>,
         ty: hir::Type,
         label_builder: &mut InlayHintLabelBuilder<'_>,
-    ) {
-        let iter_item_type = hint_iterator(sema, &famous_defs, &ty);
+    ) -> Result<(), HirDisplayError> {
+        let iter_item_type = hint_iterator(sema, famous_defs, &ty);
         match iter_item_type {
-            Some(ty) => {
-                const LABEL_START: &str = "impl Iterator<Item = ";
+            Some((iter_trait, ty)) => {
+                const LABEL_START: &str = "impl ";
+                const LABEL_ITERATOR: &str = "Iterator";
+                const LABEL_MIDDLE: &str = "<Item = ";
                 const LABEL_END: &str = ">";
 
-                max_length =
-                    max_length.map(|len| len.saturating_sub(LABEL_START.len() + LABEL_END.len()));
+                max_length = max_length.map(|len| {
+                    len.saturating_sub(
+                        LABEL_START.len()
+                            + LABEL_ITERATOR.len()
+                            + LABEL_MIDDLE.len()
+                            + LABEL_END.len(),
+                    )
+                });
 
-                label_builder.write_str(LABEL_START).unwrap();
-                rec(sema, famous_defs, max_length, ty, label_builder);
-                label_builder.write_str(LABEL_END).unwrap();
+                label_builder.write_str(LABEL_START)?;
+                label_builder.start_location_link(ModuleDef::from(iter_trait).into());
+                label_builder.write_str(LABEL_ITERATOR)?;
+                label_builder.end_location_link();
+                label_builder.write_str(LABEL_MIDDLE)?;
+                rec(sema, famous_defs, max_length, ty, label_builder)?;
+                label_builder.write_str(LABEL_END)?;
+                Ok(())
             }
-            None => {
-                let _ = ty.display_truncated(sema.db, max_length).write_to(label_builder);
-            }
-        };
+            None => ty.display_truncated(sema.db, max_length).write_to(label_builder),
+        }
     }
 
     let mut label_builder = InlayHintLabelBuilder {
         db: sema.db,
         last_part: String::new(),
         location: None,
-        location_link_enabled: config.location_links,
         result: InlayHintLabel::default(),
     };
-    rec(sema, &famous_defs, config.max_length, ty, &mut label_builder);
+    let _ = rec(sema, famous_defs, config.max_length, ty, &mut label_builder);
     let r = label_builder.finish();
     Some(r)
 }
@@ -315,7 +364,7 @@ pub(crate) fn inlay_hints(
 
     let mut acc = Vec::new();
 
-    if let Some(scope) = sema.scope(&file) {
+    if let Some(scope) = sema.scope(file) {
         let famous_defs = FamousDefs(&sema, scope.krate());
 
         let hints = |node| hints(&mut acc, &famous_defs, config, file_id, node);
@@ -373,10 +422,8 @@ fn hints(
                 // static type elisions
                 ast::Item::Static(it) => implicit_static::hints(hints, config, Either::Left(it)),
                 ast::Item::Const(it) => implicit_static::hints(hints, config, Either::Right(it)),
+                ast::Item::Enum(it) => discriminant::enum_hints(hints, famous_defs, config, file_id, it),
                 _ => None,
-            },
-            ast::Variant(v) => {
-                discriminant::hints(hints, famous_defs, config, file_id, &v)
             },
             // FIXME: fn-ptr type, dyn fn type, and trait object type elisions
             ast::Type(_) => None,
@@ -385,12 +432,12 @@ fn hints(
     };
 }
 
-/// Checks if the type is an Iterator from std::iter and returns its item type.
+/// Checks if the type is an Iterator from std::iter and returns the iterator trait and the item type of the concrete iterator.
 fn hint_iterator(
     sema: &Semantics<'_, RootDatabase>,
     famous_defs: &FamousDefs<'_, '_>,
     ty: &hir::Type,
-) -> Option<hir::Type> {
+) -> Option<(hir::Trait, hir::Type)> {
     let db = sema.db;
     let strukt = ty.strip_references().as_adt()?;
     let krate = strukt.module(db).krate();
@@ -413,7 +460,7 @@ fn hint_iterator(
             _ => None,
         })?;
         if let Some(ty) = ty.normalize_trait_assoc_type(db, &[], assoc_type_item) {
-            return Some(ty);
+            return Some((iter_trait, ty));
         }
     }
 
@@ -430,14 +477,13 @@ mod tests {
     use itertools::Itertools;
     use test_utils::extract_annotations;
 
-    use crate::inlay_hints::AdjustmentHints;
+    use crate::inlay_hints::{AdjustmentHints, AdjustmentHintsMode};
     use crate::DiscriminantHints;
     use crate::{fixture, inlay_hints::InlayHintsConfig, LifetimeElisionHints};
 
     use super::ClosureReturnTypeHints;
 
     pub(super) const DISABLED_CONFIG: InlayHintsConfig = InlayHintsConfig {
-        location_links: false,
         discriminant_hints: DiscriminantHints::Never,
         render_colons: false,
         type_hints: false,
@@ -446,6 +492,7 @@ mod tests {
         lifetime_elision_hints: LifetimeElisionHints::Never,
         closure_return_type_hints: ClosureReturnTypeHints::Never,
         adjustment_hints: AdjustmentHints::Never,
+        adjustment_hints_mode: AdjustmentHintsMode::Prefix,
         adjustment_hints_hide_outside_unsafe: false,
         binding_mode_hints: false,
         hide_named_constructor_hints: false,
@@ -454,8 +501,6 @@ mod tests {
         max_length: None,
         closing_brace_hints_min_lines: None,
     };
-    pub(super) const DISABLED_CONFIG_WITH_LINKS: InlayHintsConfig =
-        InlayHintsConfig { location_links: true, ..DISABLED_CONFIG };
     pub(super) const TEST_CONFIG: InlayHintsConfig = InlayHintsConfig {
         type_hints: true,
         parameter_hints: true,
@@ -463,7 +508,7 @@ mod tests {
         closure_return_type_hints: ClosureReturnTypeHints::WithBlock,
         binding_mode_hints: true,
         lifetime_elision_hints: LifetimeElisionHints::Always,
-        ..DISABLED_CONFIG_WITH_LINKS
+        ..DISABLED_CONFIG
     };
 
     #[track_caller]

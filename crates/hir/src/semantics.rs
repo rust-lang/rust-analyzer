@@ -795,7 +795,7 @@ impl<'db> SemanticsImpl<'db> {
                 // requeue the tokens we got from mapping our current token down
                 stack.extend(mapped_tokens);
                 // if the length changed we have found a mapping for the token
-                (stack.len() != len).then(|| ())
+                (stack.len() != len).then_some(())
             };
 
         // Remap the next token in the queue into a macro call its in, if it is not being remapped
@@ -1221,7 +1221,7 @@ impl<'db> SemanticsImpl<'db> {
         krate
             .dependencies(self.db)
             .into_iter()
-            .find_map(|dep| (dep.name == name).then(|| dep.krate))
+            .find_map(|dep| (dep.name == name).then_some(dep.krate))
     }
 
     fn resolve_variant(&self, record_lit: ast::RecordExpr) -> Option<VariantId> {
@@ -1252,7 +1252,7 @@ impl<'db> SemanticsImpl<'db> {
 
     fn to_def<T: ToDef>(&self, src: &T) -> Option<T::Def> {
         let src = self.find_file(src.syntax()).with_value(src).cloned();
-        T::to_def(&self, src)
+        T::to_def(self, src)
     }
 
     fn to_module_def(&self, file: FileId) -> impl Iterator<Item = Module> {
@@ -1319,10 +1319,7 @@ impl<'db> SemanticsImpl<'db> {
         let _p = profile::span("Semantics::analyze_impl");
         let node = self.find_file(node);
 
-        let container = match self.with_ctx(|ctx| ctx.find_container(node)) {
-            Some(it) => it,
-            None => return None,
-        };
+        let container = self.with_ctx(|ctx| ctx.find_container(node))?;
 
         let resolver = match container {
             ChildContainer::DefWithBodyId(def) => {
@@ -1472,14 +1469,7 @@ impl<'db> SemanticsImpl<'db> {
     }
 
     fn is_inside_unsafe(&self, expr: &ast::Expr) -> bool {
-        let item_or_variant = |ancestor: SyntaxNode| {
-            if ast::Item::can_cast(ancestor.kind()) {
-                ast::Item::cast(ancestor).map(Either::Left)
-            } else {
-                ast::Variant::cast(ancestor).map(Either::Right)
-            }
-        };
-        let Some(enclosing_item) = expr.syntax().ancestors().find_map(item_or_variant) else { return false };
+        let Some(enclosing_item) = expr.syntax().ancestors().find_map(Either::<ast::Item, ast::Variant>::cast) else { return false };
 
         let def = match &enclosing_item {
             Either::Left(ast::Item::Fn(it)) if it.unsafe_token().is_some() => return true,
@@ -1589,7 +1579,7 @@ fn find_root(node: &SyntaxNode) -> SyntaxNode {
     node.ancestors().last().unwrap()
 }
 
-/// `SemanticScope` encapsulates the notion of a scope (the set of visible
+/// `SemanticsScope` encapsulates the notion of a scope (the set of visible
 /// names) at a particular program point.
 ///
 /// It is a bit tricky, as scopes do not really exist inside the compiler.

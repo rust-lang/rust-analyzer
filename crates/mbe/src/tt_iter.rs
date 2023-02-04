@@ -3,9 +3,8 @@
 
 use smallvec::{smallvec, SmallVec};
 use syntax::SyntaxKind;
-use tt::buffer::TokenBuffer;
 
-use crate::{to_parser_input::to_parser_input, ExpandError, ExpandResult};
+use crate::{to_parser_input::to_parser_input, tt, ExpandError, ExpandResult};
 
 #[derive(Debug, Clone)]
 pub(crate) struct TtIter<'a> {
@@ -114,7 +113,7 @@ impl<'a> TtIter<'a> {
             ('.', '.', Some('.' | '=')) | ('<', '<', Some('=')) | ('>', '>', Some('=')) => {
                 let _ = self.next().unwrap();
                 let _ = self.next().unwrap();
-                Ok(smallvec![first, second.clone(), third.unwrap().clone()])
+                Ok(smallvec![first, *second, *third.unwrap()])
             }
             ('-' | '!' | '*' | '/' | '&' | '%' | '^' | '+' | '<' | '=' | '>' | '|', '=', _)
             | ('-' | '=' | '>', '>', _)
@@ -125,7 +124,7 @@ impl<'a> TtIter<'a> {
             | ('<', '<', _)
             | ('|', '|', _) => {
                 let _ = self.next().unwrap();
-                Ok(smallvec![first, second.clone()])
+                Ok(smallvec![first, *second])
             }
             _ => Ok(smallvec![first]),
         }
@@ -135,7 +134,7 @@ impl<'a> TtIter<'a> {
         &mut self,
         entry_point: parser::PrefixEntryPoint,
     ) -> ExpandResult<Option<tt::TokenTree>> {
-        let buffer = TokenBuffer::from_tokens(self.inner.as_slice());
+        let buffer = tt::buffer::TokenBuffer::from_tokens(self.inner.as_slice());
         let parser_input = to_parser_input(&buffer);
         let tree_traversal = entry_point.parse(&parser_input);
 
@@ -178,7 +177,7 @@ impl<'a> TtIter<'a> {
             1 => Some(res[0].cloned()),
             0 => None,
             _ => Some(tt::TokenTree::Subtree(tt::Subtree {
-                delimiter: None,
+                delimiter: tt::Delimiter::unspecified(),
                 token_trees: res.into_iter().map(|it| it.cloned()).collect(),
             })),
         };

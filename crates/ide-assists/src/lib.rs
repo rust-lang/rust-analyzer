@@ -126,8 +126,10 @@ mod handlers {
     mod convert_to_guarded_return;
     mod convert_two_arm_bool_match_to_matches_macro;
     mod convert_while_to_loop;
+    mod desugar_doc_comment;
     mod destructure_tuple_binding;
     mod expand_glob_import;
+    mod extract_expressions_from_format_string;
     mod extract_function;
     mod extract_module;
     mod extract_struct_from_enum_variant;
@@ -138,7 +140,6 @@ mod handlers {
     mod flip_binexpr;
     mod flip_comma;
     mod flip_trait_bound;
-    mod move_format_string_arg;
     mod generate_constant;
     mod generate_default_from_enum_variant;
     mod generate_default_from_new;
@@ -159,6 +160,7 @@ mod handlers {
     mod add_return_type;
     mod inline_call;
     mod inline_local_variable;
+    mod inline_macro;
     mod inline_type_alias;
     mod introduce_named_lifetime;
     mod invert_if;
@@ -186,6 +188,7 @@ mod handlers {
     mod replace_derive_with_manual_impl;
     mod replace_if_let_with_match;
     mod replace_or_with_or_else;
+    mod replace_arith_op;
     mod introduce_named_generic;
     mod replace_let_with_if_let;
     mod replace_qualified_name_with_use;
@@ -200,6 +203,7 @@ mod handlers {
     mod unnecessary_async;
     mod unwrap_block;
     mod unwrap_result_return_type;
+    mod unqualify_method_call;
     mod wrap_return_type_in_result;
 
     pub(crate) fn all() -> &'static [Handler] {
@@ -228,8 +232,10 @@ mod handlers {
             convert_tuple_struct_to_named_struct::convert_tuple_struct_to_named_struct,
             convert_two_arm_bool_match_to_matches_macro::convert_two_arm_bool_match_to_matches_macro,
             convert_while_to_loop::convert_while_to_loop,
+            desugar_doc_comment::desugar_doc_comment,
             destructure_tuple_binding::destructure_tuple_binding,
             expand_glob_import::expand_glob_import,
+            extract_expressions_from_format_string::extract_expressions_from_format_string,
             extract_struct_from_enum_variant::extract_struct_from_enum_variant,
             extract_type_alias::extract_type_alias,
             fix_visibility::fix_visibility,
@@ -257,6 +263,7 @@ mod handlers {
             inline_local_variable::inline_local_variable,
             inline_type_alias::inline_type_alias,
             inline_type_alias::inline_type_alias_uses,
+            inline_macro::inline_macro,
             introduce_named_generic::introduce_named_generic,
             introduce_named_lifetime::introduce_named_lifetime,
             invert_if::invert_if,
@@ -264,7 +271,6 @@ mod handlers {
             merge_match_arms::merge_match_arms,
             move_bounds::move_bounds_to_where_clause,
             move_const_to_impl::move_const_to_impl,
-            move_format_string_arg::move_format_string_arg,
             move_guard::move_arm_cond_to_match_guard,
             move_guard::move_guard_to_arm_body,
             move_module_to_file::move_module_to_file,
@@ -293,6 +299,9 @@ mod handlers {
             replace_or_with_or_else::replace_or_with_or_else,
             replace_turbofish_with_explicit_type::replace_turbofish_with_explicit_type,
             replace_qualified_name_with_use::replace_qualified_name_with_use,
+            replace_arith_op::replace_arith_with_wrapping,
+            replace_arith_op::replace_arith_with_checked,
+            replace_arith_op::replace_arith_with_saturating,
             sort_items::sort_items,
             split_import::split_import,
             toggle_ignore::toggle_ignore,
@@ -302,6 +311,7 @@ mod handlers {
             unwrap_block::unwrap_block,
             unwrap_result_return_type::unwrap_result_return_type,
             unwrap_tuple::unwrap_tuple,
+            unqualify_method_call::unqualify_method_call,
             wrap_return_type_in_result::wrap_return_type_in_result,
             // These are manually sorted for better priorities. By default,
             // priority is determined by the size of the target range (smaller

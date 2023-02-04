@@ -9,6 +9,7 @@ use hir_expand::{
     name::{AsName, Name},
     ExpandResult, HirFileId, InFile,
 };
+use intern::Interned;
 use la_arena::{Arena, ArenaMap, Idx};
 use once_cell::unsync::Lazy;
 use std::ops::DerefMut;
@@ -20,7 +21,6 @@ use crate::{
     child_by_source::ChildBySource,
     db::DefDatabase,
     dyn_map::DynMap,
-    intern::Interned,
     keys,
     src::{HasChildSource, HasSource},
     type_ref::{LifetimeRef, TypeBound, TypeRef},
@@ -142,8 +142,8 @@ pub enum WherePredicateTypeTarget {
 
 impl GenericParams {
     /// Iterator of type_or_consts field
-    pub fn iter<'a>(
-        &'a self,
+    pub fn iter(
+        &self,
     ) -> impl DoubleEndedIterator<Item = (Idx<TypeOrConstParamData>, &TypeOrConstParamData)> {
         self.type_or_consts.iter()
     }

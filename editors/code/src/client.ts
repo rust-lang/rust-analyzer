@@ -1,8 +1,10 @@
+import * as anser from "anser";
 import * as lc from "vscode-languageclient/node";
 import * as vscode from "vscode";
 import * as ra from "../src/lsp_ext";
 import * as Is from "vscode-languageclient/lib/common/utils/is";
 import { assert } from "./util";
+import * as diagnostics from "./diagnostics";
 import { WorkspaceEdit } from "vscode";
 import { Config, substituteVSCodeVariables } from "./config";
 import { randomUUID } from "crypto";
@@ -100,32 +102,14 @@ export async function createClient(
                     }
                 },
             },
-            async provideInlayHints(document, viewPort, token, next) {
-                const inlays = await next(document, viewPort, token);
-                if (!inlays) {
-                    return inlays;
-                }
-                // U+200C is a zero-width non-joiner to prevent the editor from forming a ligature
-                // between code and hints
-                for (const inlay of inlays) {
-                    if (typeof inlay.label === "string") {
-                        inlay.label = `\u{200c}${inlay.label}\u{200c}`;
-                    } else if (Array.isArray(inlay.label)) {
-                        for (const it of inlay.label) {
-                            it.value = `\u{200c}${it.value}\u{200c}`;
-                        }
-                    }
-                }
-                return inlays;
-            },
             async handleDiagnostics(
                 uri: vscode.Uri,
-                diagnostics: vscode.Diagnostic[],
+                diagnosticList: vscode.Diagnostic[],
                 next: lc.HandleDiagnosticsSignature
             ) {
                 const preview = config.previewRustcOutput;
                 const errorCode = config.useRustcErrorCode;
-                diagnostics.forEach((diag, idx) => {
+                diagnosticList.forEach((diag, idx) => {
                     // Abuse the fact that VSCode leaks the LSP diagnostics data field through the
                     // Diagnostic class, if they ever break this we are out of luck and have to go
                     // back to the worst diagnostics experience ever:)
@@ -138,9 +122,10 @@ export async function createClient(
                         ?.rendered;
                     if (rendered) {
                         if (preview) {
+                            const decolorized = anser.ansiToText(rendered);
                             const index =
-                                rendered.match(/^(note|help):/m)?.index || rendered.length;
-                            diag.message = rendered
+                                decolorized.match(/^(note|help):/m)?.index || rendered.length;
+                            diag.message = decolorized
                                 .substring(0, index)
                                 .replace(/^ -->[^\n]+\n/m, "");
                         }
@@ -154,8 +139,8 @@ export async function createClient(
                         }
                         diag.code = {
                             target: vscode.Uri.from({
-                                scheme: "rust-analyzer-diagnostics-view",
-                                path: "/diagnostic message",
+                                scheme: diagnostics.URI_SCHEME,
+                                path: `/diagnostic message [${idx.toString()}]`,
                                 fragment: uri.toString(),
                                 query: idx.toString(),
                             }),
@@ -163,7 +148,7 @@ export async function createClient(
                         };
                     }
                 });
-                return next(uri, diagnostics);
+                return next(uri, diagnosticList);
             },
             async provideHover(
                 document: vscode.TextDocument,
@@ -187,12 +172,10 @@ export async function createClient(
                     )
                     .then(
                         (result) => {
+                            if (!result) return null;
                             const hover = client.protocol2CodeConverter.asHover(result);
-                            if (hover) {
-                                const actions = (<any>result).actions;
-                                if (actions) {
-                                    hover.contents.push(renderHoverActions(actions));
-                                }
+                            if (!!result.actions) {
+                                hover.contents.push(renderHoverActions(result.actions));
                             }
                             return hover;
                         },
@@ -325,24 +308,27 @@ class ExperimentalFeatures implements lc.StaticFeature {
         return { kind: "static" };
     }
     fillClientCapabilities(capabilities: lc.ClientCapabilities): void {
-        const caps: any = capabilities.experimental ?? {};
-        caps.snippetTextEdit = true;
-        caps.codeActionGroup = true;
-        caps.hoverActions = true;
-        caps.serverStatusNotification = true;
-        caps.commands = {
-            commands: [
-                "rust-analyzer.runSingle",
-                "rust-analyzer.debugSingle",
-                "rust-analyzer.showReferences",
-                "rust-analyzer.gotoLocation",
-                "editor.action.triggerParameterHints",
-            ],
+        capabilities.experimental = {
+            snippetTextEdit: true,
+            codeActionGroup: true,
+            hoverActions: true,
+            serverStatusNotification: true,
+            colorDiagnosticOutput: true,
+            openServerLogs: true,
+            commands: {
+                commands: [
+                    "rust-analyzer.runSingle",
+                    "rust-analyzer.debugSingle",
+                    "rust-analyzer.showReferences",
+                    "rust-analyzer.gotoLocation",
+                    "editor.action.triggerParameterHints",
+                ],
+            },
+            ...capabilities.experimental,
         };
-        capabilities.experimental = caps;
     }
     initialize(
-        _capabilities: lc.ServerCapabilities<any>,
+        _capabilities: lc.ServerCapabilities,
         _documentSelector: lc.DocumentSelector | undefined
     ): void {}
     dispose(): void {}

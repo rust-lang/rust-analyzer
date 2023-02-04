@@ -842,6 +842,7 @@ impl ast::HasAttrs for ClosureExpr {}
 impl ClosureExpr {
     pub fn for_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![for]) }
     pub fn generic_param_list(&self) -> Option<GenericParamList> { support::child(&self.syntax) }
+    pub fn const_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![const]) }
     pub fn static_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![static]) }
     pub fn async_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![async]) }
     pub fn move_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![move]) }
@@ -3921,7 +3922,7 @@ impl AnyHasArgList {
 impl AstNode for AnyHasArgList {
     fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, CALL_EXPR | METHOD_CALL_EXPR) }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
-        Self::can_cast(syntax.kind()).then(|| AnyHasArgList { syntax })
+        Self::can_cast(syntax.kind()).then_some(AnyHasArgList { syntax })
     }
     fn syntax(&self) -> &SyntaxNode { &self.syntax }
 }
@@ -4006,7 +4007,7 @@ impl AstNode for AnyHasAttrs {
         )
     }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
-        Self::can_cast(syntax.kind()).then(|| AnyHasAttrs { syntax })
+        Self::can_cast(syntax.kind()).then_some(AnyHasAttrs { syntax })
     }
     fn syntax(&self) -> &SyntaxNode { &self.syntax }
 }
@@ -4043,7 +4044,7 @@ impl AstNode for AnyHasDocComments {
         )
     }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
-        Self::can_cast(syntax.kind()).then(|| AnyHasDocComments { syntax })
+        Self::can_cast(syntax.kind()).then_some(AnyHasDocComments { syntax })
     }
     fn syntax(&self) -> &SyntaxNode { &self.syntax }
 }
@@ -4058,7 +4059,7 @@ impl AstNode for AnyHasGenericParams {
         matches!(kind, ENUM | FN | IMPL | STRUCT | TRAIT | TYPE_ALIAS | UNION)
     }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
-        Self::can_cast(syntax.kind()).then(|| AnyHasGenericParams { syntax })
+        Self::can_cast(syntax.kind()).then_some(AnyHasGenericParams { syntax })
     }
     fn syntax(&self) -> &SyntaxNode { &self.syntax }
 }
@@ -4071,7 +4072,7 @@ impl AnyHasLoopBody {
 impl AstNode for AnyHasLoopBody {
     fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, FOR_EXPR | LOOP_EXPR | WHILE_EXPR) }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
-        Self::can_cast(syntax.kind()).then(|| AnyHasLoopBody { syntax })
+        Self::can_cast(syntax.kind()).then_some(AnyHasLoopBody { syntax })
     }
     fn syntax(&self) -> &SyntaxNode { &self.syntax }
 }
@@ -4084,7 +4085,7 @@ impl AnyHasModuleItem {
 impl AstNode for AnyHasModuleItem {
     fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, MACRO_ITEMS | SOURCE_FILE | ITEM_LIST) }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
-        Self::can_cast(syntax.kind()).then(|| AnyHasModuleItem { syntax })
+        Self::can_cast(syntax.kind()).then_some(AnyHasModuleItem { syntax })
     }
     fn syntax(&self) -> &SyntaxNode { &self.syntax }
 }
@@ -4119,7 +4120,7 @@ impl AstNode for AnyHasName {
         )
     }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
-        Self::can_cast(syntax.kind()).then(|| AnyHasName { syntax })
+        Self::can_cast(syntax.kind()).then_some(AnyHasName { syntax })
     }
     fn syntax(&self) -> &SyntaxNode { &self.syntax }
 }
@@ -4137,7 +4138,7 @@ impl AstNode for AnyHasTypeBounds {
         )
     }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
-        Self::can_cast(syntax.kind()).then(|| AnyHasTypeBounds { syntax })
+        Self::can_cast(syntax.kind()).then_some(AnyHasTypeBounds { syntax })
     }
     fn syntax(&self) -> &SyntaxNode { &self.syntax }
 }
@@ -4171,7 +4172,7 @@ impl AstNode for AnyHasVisibility {
         )
     }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
-        Self::can_cast(syntax.kind()).then(|| AnyHasVisibility { syntax })
+        Self::can_cast(syntax.kind()).then_some(AnyHasVisibility { syntax })
     }
     fn syntax(&self) -> &SyntaxNode { &self.syntax }
 }

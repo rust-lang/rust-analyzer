@@ -845,11 +845,10 @@ trait Test {{
 struct T;
 
 impl Test for T {{
-    {}
-    {}
+    {hint}
+    {next_sibling}
 }}
-"#,
-                    hint, next_sibling
+"#
                 ),
                 &format!(
                     r#"
@@ -861,17 +860,16 @@ trait Test {{
 struct T;
 
 impl Test for T {{
-    {}
-    {}
+    {completed}
+    {next_sibling}
 }}
-"#,
-                    completed, next_sibling
+"#
                 ),
             )
         };
 
         // Enumerate some possible next siblings.
-        for next_sibling in &[
+        for next_sibling in [
             "",
             "fn other_fn() {}", // `const $0 fn` -> `const fn`
             "type OtherType = i32;",
@@ -905,10 +903,9 @@ struct T;
 impl Foo for T {{
     // Comment
     #[bar]
-    {}
+    {hint}
 }}
-"#,
-                    hint
+"#
                 ),
                 &format!(
                     r#"
@@ -922,10 +919,9 @@ struct T;
 impl Foo for T {{
     // Comment
     #[bar]
-    {}
+    {completed}
 }}
-"#,
-                    completed
+"#
                 ),
             )
         };

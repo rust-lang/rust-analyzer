@@ -13,7 +13,7 @@ use ide_db::{
 };
 use itertools::Itertools;
 use stdx::{always, never};
-use syntax::{ast, AstNode, SyntaxNode};
+use syntax::{ast, AstNode, SyntaxNode, TextRange, TextSize};
 
 use text_edit::TextEdit;
 
@@ -48,7 +48,13 @@ pub(crate) fn prepare_rename(
                 frange.range.contains_inclusive(position.offset)
                     && frange.file_id == position.file_id
             );
-            Ok(frange.range)
+
+            Ok(match name_like {
+                ast::NameLike::Lifetime(_) => {
+                    TextRange::new(frange.range.start() + TextSize::from(1), frange.range.end())
+                }
+                _ => frange.range,
+            })
         })
         .reduce(|acc, cur| match (acc, cur) {
             // ensure all ranges are the same
@@ -364,11 +370,8 @@ mod tests {
             }
             Err(err) => {
                 if ra_fixture_after.starts_with("error:") {
-                    let error_message = ra_fixture_after
-                        .chars()
-                        .into_iter()
-                        .skip("error:".len())
-                        .collect::<String>();
+                    let error_message =
+                        ra_fixture_after.chars().skip("error:".len()).collect::<String>();
                     assert_eq!(error_message.trim(), err.to_string());
                 } else {
                     panic!("Rename to '{new_name}' failed unexpectedly: {err}")
@@ -410,7 +413,7 @@ mod tests {
     #[test]
     fn test_prepare_rename_namelikes() {
         check_prepare(r"fn name$0<'lifetime>() {}", expect![[r#"3..7: name"#]]);
-        check_prepare(r"fn name<'lifetime$0>() {}", expect![[r#"8..17: 'lifetime"#]]);
+        check_prepare(r"fn name<'lifetime$0>() {}", expect![[r#"9..17: lifetime"#]]);
         check_prepare(r"fn name<'lifetime>() { name$0(); }", expect![[r#"23..27: name"#]]);
     }
 
@@ -524,12 +527,16 @@ impl Foo {
 
     #[test]
     fn test_rename_to_invalid_identifier_lifetime2() {
-        cov_mark::check!(rename_not_a_lifetime_ident_ref);
         check(
-            "foo",
+            "_",
             r#"fn main<'a>(_: &'a$0 ()) {}"#,
-            "error: Invalid name `foo`: not a lifetime identifier",
+            r#"error: Invalid name `_`: not a lifetime identifier"#,
         );
+    }
+
+    #[test]
+    fn test_rename_accepts_lifetime_without_apostrophe() {
+        check("foo", r#"fn main<'a>(_: &'a$0 ()) {}"#, r#"fn main<'foo>(_: &'foo ()) {}"#);
     }
 
     #[test]
@@ -1832,6 +1839,31 @@ fn foo<'a>() -> &'a () {
 }
 "#,
         )
+    }
+
+    #[test]
+    fn test_rename_label_new_name_without_apostrophe() {
+        check(
+            "foo",
+            r#"
+fn main() {
+    'outer$0: loop {
+        'inner: loop {
+            break 'outer;
+        }
+    }
+}
+        "#,
+            r#"
+fn main() {
+    'foo: loop {
+        'inner: loop {
+            break 'foo;
+        }
+    }
+}
+        "#,
+        );
     }
 
     #[test]

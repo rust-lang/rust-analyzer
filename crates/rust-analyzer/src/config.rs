@@ -20,7 +20,7 @@ use ide_db::{
     SnippetCap,
 };
 use itertools::Itertools;
-use lsp_types::{ClientCapabilities, ClientInfo, MarkupKind};
+use lsp_types::{ClientCapabilities, MarkupKind};
 use project_model::{
     CargoConfig, CargoFeatures, ProjectJson, ProjectJsonData, ProjectManifest, RustcSource,
     UnsetTestCrates,
@@ -124,22 +124,23 @@ config_data! {
         /// Unsets `#[cfg(test)]` for the specified crates.
         cargo_unsetTest: Vec<String>     = "[\"core\"]",
 
+        /// Run the check command for diagnostics on save.
+        checkOnSave | checkOnSave_enable: bool                         = "true",
+
         /// Check all targets and tests (`--all-targets`).
-        checkOnSave_allTargets: bool                     = "true",
+        check_allTargets | checkOnSave_allTargets: bool                  = "true",
         /// Cargo command to use for `cargo check`.
-        checkOnSave_command: String                      = "\"check\"",
-        /// Run specified `cargo check` command for diagnostics on save.
-        checkOnSave_enable: bool                         = "true",
+        check_command | checkOnSave_command: String                      = "\"check\"",
         /// Extra arguments for `cargo check`.
-        checkOnSave_extraArgs: Vec<String>               = "[]",
+        check_extraArgs | checkOnSave_extraArgs: Vec<String>             = "[]",
         /// Extra environment variables that will be set when running `cargo check`.
         /// Extends `#rust-analyzer.cargo.extraEnv#`.
-        checkOnSave_extraEnv: FxHashMap<String, String> = "{}",
+        check_extraEnv | checkOnSave_extraEnv: FxHashMap<String, String> = "{}",
         /// List of features to activate. Defaults to
         /// `#rust-analyzer.cargo.features#`.
         ///
         /// Set to `"all"` to pass `--all-features` to Cargo.
-        checkOnSave_features: Option<CargoFeaturesDef>      = "null",
+        check_features | checkOnSave_features: Option<CargoFeaturesDef>  = "null",
         /// Specifies the working directory for running checks.
         /// - "workspace": run checks for workspaces in the corresponding workspaces' root directories.
         // FIXME: Ideally we would support this in some way
@@ -147,19 +148,21 @@ config_data! {
         /// - "root": run checks in the project's root directory.
         /// This config only has an effect when `#rust-analyzer.cargo.buildScripts.overrideCommand#`
         /// is set.
-        checkOnSave_invocationLocation: InvocationLocation = "\"workspace\"",
+        check_invocationLocation | checkOnSave_invocationLocation: InvocationLocation = "\"workspace\"",
         /// Specifies the invocation strategy to use when running the checkOnSave command.
         /// If `per_workspace` is set, the command will be executed for each workspace.
         /// If `once` is set, the command will be executed once.
         /// This config only has an effect when `#rust-analyzer.cargo.buildScripts.overrideCommand#`
         /// is set.
-        checkOnSave_invocationStrategy: InvocationStrategy = "\"per_workspace\"",
+        check_invocationStrategy | checkOnSave_invocationStrategy: InvocationStrategy = "\"per_workspace\"",
         /// Whether to pass `--no-default-features` to Cargo. Defaults to
         /// `#rust-analyzer.cargo.noDefaultFeatures#`.
-        checkOnSave_noDefaultFeatures: Option<bool>      = "null",
+        check_noDefaultFeatures | checkOnSave_noDefaultFeatures: Option<bool>         = "null",
         /// Override the command rust-analyzer uses instead of `cargo check` for
         /// diagnostics on save. The command is required to output json and
-        /// should therefore include `--message-format=json` or a similar option.
+        /// should therefore include `--message-format=json` or a similar option
+        /// (if your client supports the `colorDiagnosticOutput` experimental
+        /// capability, you can use `--message-format=json-diagnostic-rendered-ansi`).
         ///
         /// If you're changing this because you're using some tool wrapping
         /// Cargo, you might also want to change
@@ -175,14 +178,14 @@ config_data! {
         /// cargo check --workspace --message-format=json --all-targets
         /// ```
         /// .
-        checkOnSave_overrideCommand: Option<Vec<String>> = "null",
+        check_overrideCommand | checkOnSave_overrideCommand: Option<Vec<String>>             = "null",
         /// Check for specific targets. Defaults to `#rust-analyzer.cargo.target#` if empty.
         ///
         /// Can be a single target, e.g. `"x86_64-unknown-linux-gnu"` or a list of targets, e.g.
         /// `["aarch64-apple-darwin", "x86_64-apple-darwin"]`.
         ///
         /// Aliased as `"checkOnSave.targets"`.
-        checkOnSave_target | checkOnSave_targets: Option<CheckOnSaveTargets>           = "null",
+        check_targets | checkOnSave_targets | checkOnSave_target: Option<CheckOnSaveTargets> = "null",
 
         /// Toggles the additional completions that automatically add imports when completed.
         /// Note that your client must specify the `additionalTextEdits` LSP client capability to truly have this feature enabled.
@@ -333,12 +336,12 @@ config_data! {
         inlayHints_expressionAdjustmentHints_enable: AdjustmentHintsDef = "\"never\"",
         /// Whether to hide inlay hints for type adjustments outside of `unsafe` blocks.
         inlayHints_expressionAdjustmentHints_hideOutsideUnsafe: bool = "false",
+        /// Whether to show inlay hints as postfix ops (`.*` instead of `*`, etc).
+        inlayHints_expressionAdjustmentHints_mode: AdjustmentHintsModeDef = "\"prefix\"",
         /// Whether to show inlay type hints for elided lifetimes in function signatures.
         inlayHints_lifetimeElisionHints_enable: LifetimeElisionDef = "\"never\"",
         /// Whether to prefer using parameter names as the name for elided lifetime hints if possible.
         inlayHints_lifetimeElisionHints_useParameterNames: bool    = "false",
-        /// Whether to use location links for parts of type mentioned in inlay hints.
-        inlayHints_locationLinks: bool                             = "true",
         /// Maximum length for inlay hints. Set to null to have an unlimited length.
         inlayHints_maxLength: Option<usize>                        = "25",
         /// Whether to show function parameter name inlay hints at the call
@@ -408,6 +411,9 @@ config_data! {
 
         /// Whether to show `can't find Cargo.toml` error message.
         notifications_cargoTomlNotFound: bool      = "true",
+
+        /// How many worker threads in the main loop. The default `null` means to pick automatically.
+        numThreads: Option<usize> = "null",
 
         /// Expand attribute macros. Requires `#rust-analyzer.procMacro.enable#` to be set.
         procMacro_attributes_enable: bool = "true",
@@ -720,19 +726,6 @@ impl Config {
         }
     }
 
-    pub fn client_specific_adjustments(&mut self, client_info: &Option<ClientInfo>) {
-        // FIXME: remove this when we drop support for vscode 1.65 and below
-        if let Some(client) = client_info {
-            if client.name.contains("Code") || client.name.contains("Codium") {
-                if let Some(version) = &client.version {
-                    if version.as_str() < "1.76" {
-                        self.data.inlayHints_locationLinks = false;
-                    }
-                }
-            }
-        }
-    }
-
     pub fn update(&mut self, mut json: serde_json::Value) -> Result<(), ConfigUpdateError> {
         tracing::info!("updating config from JSON: {:#}", json);
         if json.is_null() || json.as_object().map_or(false, |it| it.is_empty()) {
@@ -786,9 +779,9 @@ impl Config {
 
     fn validate(&self, error_sink: &mut Vec<(String, serde_json::Error)>) {
         use serde::de::Error;
-        if self.data.checkOnSave_command.is_empty() {
+        if self.data.check_command.is_empty() {
             error_sink.push((
-                "/checkOnSave/command".to_string(),
+                "/check/command".to_string(),
                 serde_json::Error::custom("expected a non-empty string"),
             ));
         }
@@ -996,8 +989,17 @@ impl Config {
         self.experimental("codeActionGroup")
     }
 
+    pub fn open_server_logs(&self) -> bool {
+        self.experimental("openServerLogs")
+    }
+
     pub fn server_status_notification(&self) -> bool {
         self.experimental("serverStatusNotification")
+    }
+
+    /// Whether the client supports colored output for full diagnostics from `checkOnSave`.
+    pub fn color_diagnostic_output(&self) -> bool {
+        self.experimental("colorDiagnosticOutput")
     }
 
     pub fn publish_diagnostics(&self) -> bool {
@@ -1031,9 +1033,9 @@ impl Config {
         &self.data.cargo_extraEnv
     }
 
-    pub fn check_on_save_extra_env(&self) -> FxHashMap<String, String> {
+    pub fn check_extra_env(&self) -> FxHashMap<String, String> {
         let mut extra_env = self.data.cargo_extraEnv.clone();
-        extra_env.extend(self.data.checkOnSave_extraEnv.clone());
+        extra_env.extend(self.data.check_extraEnv.clone());
         extra_env
     }
 
@@ -1145,21 +1147,21 @@ impl Config {
     }
 
     pub fn flycheck(&self) -> FlycheckConfig {
-        match &self.data.checkOnSave_overrideCommand {
+        match &self.data.check_overrideCommand {
             Some(args) if !args.is_empty() => {
                 let mut args = args.clone();
                 let command = args.remove(0);
                 FlycheckConfig::CustomCommand {
                     command,
                     args,
-                    extra_env: self.check_on_save_extra_env(),
-                    invocation_strategy: match self.data.checkOnSave_invocationStrategy {
+                    extra_env: self.check_extra_env(),
+                    invocation_strategy: match self.data.check_invocationStrategy {
                         InvocationStrategy::Once => flycheck::InvocationStrategy::Once,
                         InvocationStrategy::PerWorkspace => {
                             flycheck::InvocationStrategy::PerWorkspace
                         }
                     },
-                    invocation_location: match self.data.checkOnSave_invocationLocation {
+                    invocation_location: match self.data.check_invocationLocation {
                         InvocationLocation::Root => {
                             flycheck::InvocationLocation::Root(self.root_path.clone())
                         }
@@ -1168,42 +1170,43 @@ impl Config {
                 }
             }
             Some(_) | None => FlycheckConfig::CargoCommand {
-                command: self.data.checkOnSave_command.clone(),
+                command: self.data.check_command.clone(),
                 target_triples: self
                     .data
-                    .checkOnSave_target
+                    .check_targets
                     .clone()
                     .and_then(|targets| match &targets.0[..] {
                         [] => None,
                         targets => Some(targets.into()),
                     })
                     .unwrap_or_else(|| self.data.cargo_target.clone().into_iter().collect()),
-                all_targets: self.data.checkOnSave_allTargets,
+                all_targets: self.data.check_allTargets,
                 no_default_features: self
                     .data
-                    .checkOnSave_noDefaultFeatures
+                    .check_noDefaultFeatures
                     .unwrap_or(self.data.cargo_noDefaultFeatures),
                 all_features: matches!(
-                    self.data.checkOnSave_features.as_ref().unwrap_or(&self.data.cargo_features),
+                    self.data.check_features.as_ref().unwrap_or(&self.data.cargo_features),
                     CargoFeaturesDef::All
                 ),
                 features: match self
                     .data
-                    .checkOnSave_features
+                    .check_features
                     .clone()
                     .unwrap_or_else(|| self.data.cargo_features.clone())
                 {
                     CargoFeaturesDef::All => vec![],
                     CargoFeaturesDef::Selected(it) => it,
                 },
-                extra_args: self.data.checkOnSave_extraArgs.clone(),
-                extra_env: self.check_on_save_extra_env(),
+                extra_args: self.data.check_extraArgs.clone(),
+                extra_env: self.check_extra_env(),
+                ansi_color_output: self.color_diagnostic_output(),
             },
         }
     }
 
     pub fn check_on_save(&self) -> bool {
-        self.data.checkOnSave_enable
+        self.data.checkOnSave
     }
 
     pub fn runnables(&self) -> RunnablesConfig {
@@ -1215,7 +1218,6 @@ impl Config {
 
     pub fn inlay_hints(&self) -> InlayHintsConfig {
         InlayHintsConfig {
-            location_links: self.data.inlayHints_locationLinks,
             render_colons: self.data.inlayHints_renderColons,
             type_hints: self.data.inlayHints_typeHints_enable,
             parameter_hints: self.data.inlayHints_parameterHints_enable,
@@ -1248,6 +1250,12 @@ impl Config {
                     ReborrowHintsDef::Never => ide::AdjustmentHints::Never,
                 },
                 AdjustmentHintsDef::Reborrow => ide::AdjustmentHints::ReborrowOnly,
+            },
+            adjustment_hints_mode: match self.data.inlayHints_expressionAdjustmentHints_mode {
+                AdjustmentHintsModeDef::Prefix => ide::AdjustmentHintsMode::Prefix,
+                AdjustmentHintsModeDef::Postfix => ide::AdjustmentHintsMode::Postfix,
+                AdjustmentHintsModeDef::PreferPrefix => ide::AdjustmentHintsMode::PreferPrefix,
+                AdjustmentHintsModeDef::PreferPostfix => ide::AdjustmentHintsMode::PreferPostfix,
             },
             adjustment_hints_hide_outside_unsafe: self
                 .data
@@ -1389,7 +1397,8 @@ impl Config {
     pub fn hover(&self) -> HoverConfig {
         HoverConfig {
             links_in_hover: self.data.hover_links_enable,
-            documentation: self.data.hover_documentation_enable.then(|| {
+            documentation: self.data.hover_documentation_enable,
+            format: {
                 let is_markdown = try_or_def!(self
                     .caps
                     .text_document
@@ -1405,7 +1414,7 @@ impl Config {
                 } else {
                     HoverDocFormat::PlainText
                 }
-            }),
+            },
             keywords: self.data.hover_documentation_keywords_enable,
         }
     }
@@ -1432,6 +1441,10 @@ impl Config {
 
     pub fn code_lens_refresh(&self) -> bool {
         try_or_def!(self.caps.workspace.as_ref()?.code_lens.as_ref()?.refresh_support?)
+    }
+
+    pub fn inlay_hints_refresh(&self) -> bool {
+        try_or_def!(self.caps.workspace.as_ref()?.inlay_hint.as_ref()?.refresh_support?)
     }
 
     pub fn insert_replace_support(&self) -> bool {
@@ -1480,6 +1493,10 @@ impl Config {
             0 => num_cpus::get_physical().try_into().unwrap_or(u8::MAX),
             n => n,
         }
+    }
+
+    pub fn main_loop_num_threads(&self) -> usize {
+        self.data.numThreads.unwrap_or(num_cpus::get_physical().try_into().unwrap_or(1))
     }
 
     pub fn typing_autoclose_angle(&self) -> bool {
@@ -1763,6 +1780,15 @@ enum DiscriminantHintsDef {
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
+enum AdjustmentHintsModeDef {
+    Prefix,
+    Postfix,
+    PreferPrefix,
+    PreferPostfix,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
 enum FilesWatcherDef {
     Client,
     Notify,
@@ -1862,35 +1888,30 @@ fn get_field<T: DeserializeOwned>(
     alias: Option<&'static str>,
     default: &str,
 ) -> T {
-    let default = serde_json::from_str(default).unwrap();
     // XXX: check alias first, to work-around the VS Code where it pre-fills the
     // defaults instead of sending an empty object.
     alias
         .into_iter()
         .chain(iter::once(field))
-        .find_map(move |field| {
+        .filter_map(move |field| {
             let mut pointer = field.replace('_', "/");
             pointer.insert(0, '/');
-            json.pointer_mut(&pointer).and_then(|it| match serde_json::from_value(it.take()) {
-                Ok(it) => Some(it),
-                Err(e) => {
-                    tracing::warn!("Failed to deserialize config field at {}: {:?}", pointer, e);
-                    error_sink.push((pointer, e));
-                    None
-                }
-            })
+            json.pointer_mut(&pointer)
+                .map(|it| serde_json::from_value(it.take()).map_err(|e| (e, pointer)))
         })
-        .unwrap_or(default)
+        .find(Result::is_ok)
+        .and_then(|res| match res {
+            Ok(it) => Some(it),
+            Err((e, pointer)) => {
+                tracing::warn!("Failed to deserialize config field at {}: {:?}", pointer, e);
+                error_sink.push((pointer, e));
+                None
+            }
+        })
+        .unwrap_or_else(|| serde_json::from_str(default).unwrap())
 }
 
 fn schema(fields: &[(&'static str, &'static str, &[&str], &str)]) -> serde_json::Value {
-    for ((f1, ..), (f2, ..)) in fields.iter().zip(&fields[1..]) {
-        fn key(f: &str) -> &str {
-            f.splitn(2, '_').next().unwrap()
-        }
-        assert!(key(f1) <= key(f2), "wrong field order: {f1:?} {f2:?}");
-    }
-
     let map = fields
         .iter()
         .map(|(field, ty, doc, default)| {
@@ -1908,9 +1929,7 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
     let doc = doc.trim_end_matches('\n');
     assert!(
         doc.ends_with('.') && doc.starts_with(char::is_uppercase),
-        "bad docs for {}: {:?}",
-        field,
-        doc
+        "bad docs for {field}: {doc:?}"
     );
     let default = default.parse::<serde_json::Value>().unwrap();
 
@@ -1965,15 +1984,6 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
         "Option<Vec<String>>" => set! {
             "type": ["null", "array"],
             "items": { "type": "string" },
-        },
-        "MergeBehaviorDef" => set! {
-            "type": "string",
-            "enum": ["none", "crate", "module"],
-            "enumDescriptions": [
-                "Do not merge imports at all.",
-                "Merge imports from the same crate into a single `use` statement.",
-                "Merge imports from the same module into a single `use` statement."
-            ],
         },
         "ExprFillDefaultDef" => set! {
             "type": "string",
@@ -2096,6 +2106,21 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
                 "Only show discriminant hints on fieldless enum variants."
             ]
         },
+        "AdjustmentHintsModeDef" => set! {
+            "type": "string",
+            "enum": [
+                "prefix",
+                "postfix",
+                "prefer_prefix",
+                "prefer_postfix",
+            ],
+            "enumDescriptions": [
+                "Always show adjustment hints as prefix (`*expr`).",
+                "Always show adjustment hints as postfix (`expr.*`).",
+                "Show prefix or postfix depending on which uses less parenthesis, prefering prefix.",
+                "Show prefix or postfix depending on which uses less parenthesis, prefering postfix.",
+            ]
+        },
         "CargoFeaturesDef" => set! {
             "anyOf": [
                 {
@@ -2213,17 +2238,16 @@ fn manual(fields: &[(&'static str, &'static str, &[&str], &str)]) -> String {
             let doc = doc_comment_to_string(doc);
             if default.contains('\n') {
                 format!(
-                    r#"[[{}]]{}::
+                    r#"[[{name}]]{name}::
 +
 --
 Default:
 ----
-{}
+{default}
 ----
-{}
+{doc}
 --
-"#,
-                    name, name, default, doc
+"#
                 )
             } else {
                 format!("[[{name}]]{name} (default: `{default}`)::\n+\n--\n{doc}--\n")

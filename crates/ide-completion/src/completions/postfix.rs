@@ -153,8 +153,7 @@ pub(crate) fn complete_postfix(
                     "match",
                     "match expr {}",
                     &format!(
-                        "match {} {{\n    Some(${{1:_}}) => {{$2}},\n    None => {{$0}},\n}}",
-                        receiver_text
+                        "match {receiver_text} {{\n    Some(${{1:_}}) => {{$2}},\n    None => {{$0}},\n}}"
                     ),
                 )
                 .add_to(acc);
@@ -596,12 +595,12 @@ fn main() {
         check_edit(
             "format",
             r#"fn main() { "{some_var:?}".$0 }"#,
-            r#"fn main() { format!("{:?}", some_var) }"#,
+            r#"fn main() { format!("{some_var:?}") }"#,
         );
         check_edit(
             "panic",
             r#"fn main() { "Panic with {a}".$0 }"#,
-            r#"fn main() { panic!("Panic with {}", a) }"#,
+            r#"fn main() { panic!("Panic with {a}") }"#,
         );
         check_edit(
             "println",

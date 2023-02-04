@@ -598,6 +598,21 @@ fn main() {
 }
 
 #[test]
+fn doctest_desugar_doc_comment() {
+    check_doc_test(
+        "desugar_doc_comment",
+        r#####"
+/// Multi-line$0
+/// comment
+"#####,
+        r#####"
+#[doc = r"Multi-line
+comment"]
+"#####,
+    )
+}
+
+#[test]
 fn doctest_expand_glob_import() {
     check_doc_test(
         "expand_glob_import",
@@ -620,6 +635,37 @@ mod foo {
 use foo::{Bar, Baz};
 
 fn qux(bar: Bar, baz: Baz) {}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_extract_expressions_from_format_string() {
+    check_doc_test(
+        "extract_expressions_from_format_string",
+        r#####"
+macro_rules! format_args {
+    ($lit:literal $(tt:tt)*) => { 0 },
+}
+macro_rules! print {
+    ($($arg:tt)*) => (std::io::_print(format_args!($($arg)*)));
+}
+
+fn main() {
+    print!("{var} {x + 1}$0");
+}
+"#####,
+        r#####"
+macro_rules! format_args {
+    ($lit:literal $(tt:tt)*) => { 0 },
+}
+macro_rules! print {
+    ($($arg:tt)*) => (std::io::_print(format_args!($($arg)*)));
+}
+
+fn main() {
+    print!("{var} {}"$0, x + 1);
+}
 "#####,
     )
 }
@@ -1439,6 +1485,39 @@ fn main() {
 }
 
 #[test]
+fn doctest_inline_macro() {
+    check_doc_test(
+        "inline_macro",
+        r#####"
+macro_rules! num {
+    (+$($t:tt)+) => (1 + num!($($t )+));
+    (-$($t:tt)+) => (-1 + num!($($t )+));
+    (+) => (1);
+    (-) => (-1);
+}
+
+fn main() {
+    let number = num$0!(+ + + - + +);
+    println!("{number}");
+}
+"#####,
+        r#####"
+macro_rules! num {
+    (+$($t:tt)+) => (1 + num!($($t )+));
+    (-$($t:tt)+) => (-1 + num!($($t )+));
+    (+) => (1);
+    (-) => (-1);
+}
+
+fn main() {
+    let number = 1+num!(+ + - + +);
+    println!("{number}");
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_inline_type_alias() {
     check_doc_test(
         "inline_type_alias",
@@ -1698,37 +1777,6 @@ impl S {
     fn foo() -> usize {
         Self::C * Self::C
     }
-}
-"#####,
-    )
-}
-
-#[test]
-fn doctest_move_format_string_arg() {
-    check_doc_test(
-        "move_format_string_arg",
-        r#####"
-macro_rules! format_args {
-    ($lit:literal $(tt:tt)*) => { 0 },
-}
-macro_rules! print {
-    ($($arg:tt)*) => (std::io::_print(format_args!($($arg)*)));
-}
-
-fn main() {
-    print!("{x + 1}$0");
-}
-"#####,
-        r#####"
-macro_rules! format_args {
-    ($lit:literal $(tt:tt)*) => { 0 },
-}
-macro_rules! print {
-    ($($arg:tt)*) => (std::io::_print(format_args!($($arg)*)));
-}
-
-fn main() {
-    print!("{}"$0, x + 1);
 }
 "#####,
     )
@@ -2061,6 +2109,57 @@ impl Foo for Bar {
     type A = String;
     const B: u8 = 17;
     fn c() {}
+}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_replace_arith_with_checked() {
+    check_doc_test(
+        "replace_arith_with_checked",
+        r#####"
+fn main() {
+  let x = 1 $0+ 2;
+}
+"#####,
+        r#####"
+fn main() {
+  let x = 1.checked_add(2);
+}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_replace_arith_with_saturating() {
+    check_doc_test(
+        "replace_arith_with_saturating",
+        r#####"
+fn main() {
+  let x = 1 $0+ 2;
+}
+"#####,
+        r#####"
+fn main() {
+  let x = 1.saturating_add(2);
+}
+"#####,
+    )
+}
+
+#[test]
+fn doctest_replace_arith_with_wrapping() {
+    check_doc_test(
+        "replace_arith_with_wrapping",
+        r#####"
+fn main() {
+  let x = 1 $0+ 2;
+}
+"#####,
+        r#####"
+fn main() {
+  let x = 1.wrapping_add(2);
 }
 "#####,
     )
@@ -2478,6 +2577,25 @@ pub async fn bar() { foo().await }
         r#####"
 pub fn foo() {}
 pub async fn bar() { foo() }
+"#####,
+    )
+}
+
+#[test]
+fn doctest_unqualify_method_call() {
+    check_doc_test(
+        "unqualify_method_call",
+        r#####"
+fn main() {
+    std::ops::Add::add$0(1, 2);
+}
+mod std { pub mod ops { pub trait Add { fn add(self, _: Self) {} } impl Add for i32 {} } }
+"#####,
+        r#####"
+fn main() {
+    1.add(2);
+}
+mod std { pub mod ops { pub trait Add { fn add(self, _: Self) {} } impl Add for i32 {} } }
 "#####,
     )
 }

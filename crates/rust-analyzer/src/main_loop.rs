@@ -287,8 +287,10 @@ impl GlobalState {
                 || self.fetch_build_data_queue.op_requested());
 
             if became_quiescent {
-                // Project has loaded properly, kick off initial flycheck
-                self.flycheck.iter().for_each(FlycheckHandle::restart);
+                if self.config.check_on_save() {
+                    // Project has loaded properly, kick off initial flycheck
+                    self.flycheck.iter().for_each(FlycheckHandle::restart);
+                }
                 if self.config.prefill_caches() {
                     self.prime_caches_queue.request_op("became quiescent".to_string());
                 }
@@ -305,12 +307,17 @@ impl GlobalState {
                 if self.config.code_lens_refresh() {
                     self.send_request::<lsp_types::request::CodeLensRefresh>((), |_, _| ());
                 }
+
+                // Refresh inlay hints if the client supports it.
+                if self.config.inlay_hints_refresh() {
+                    self.send_request::<lsp_types::request::InlayHintRefreshRequest>((), |_, _| ());
+                }
             }
 
-            if !was_quiescent || state_changed || memdocs_added_or_removed {
-                if self.config.publish_diagnostics() {
-                    self.update_diagnostics()
-                }
+            if (!was_quiescent || state_changed || memdocs_added_or_removed)
+                && self.config.publish_diagnostics()
+            {
+                self.update_diagnostics()
             }
         }
 
@@ -414,10 +421,7 @@ impl GlobalState {
         let loop_duration = loop_start.elapsed();
         if loop_duration > Duration::from_millis(100) && was_quiescent {
             tracing::warn!("overly long loop turn: {:?}", loop_duration);
-            self.poke_rust_analyzer_developer(format!(
-                "overly long loop turn: {:?}",
-                loop_duration
-            ));
+            self.poke_rust_analyzer_developer(format!("overly long loop turn: {loop_duration:?}"));
         }
         Ok(())
     }
@@ -607,8 +611,8 @@ impl GlobalState {
             Ok(())
         });
 
-        if let RequestDispatcher { req: Some(req), global_state: this } = &mut dispatcher {
-            if this.shutdown_requested {
+        match &mut dispatcher {
+            RequestDispatcher { req: Some(req), global_state: this } if this.shutdown_requested => {
                 this.respond(lsp_server::Response::new_err(
                     req.id.clone(),
                     lsp_server::ErrorCode::InvalidRequest as i32,
@@ -616,16 +620,7 @@ impl GlobalState {
                 ));
                 return;
             }
-
-            // Avoid flashing a bunch of unresolved references during initial load.
-            if this.workspaces.is_empty() && !this.is_quiescent() {
-                this.respond(lsp_server::Response::new_err(
-                    req.id.clone(),
-                    lsp_server::ErrorCode::ContentModified as i32,
-                    "waiting for cargo metadata or cargo check".to_owned(),
-                ));
-                return;
-            }
+            _ => (),
         }
 
         dispatcher
@@ -880,7 +875,7 @@ impl GlobalState {
                 if let Ok(vfs_path) = from_proto::vfs_path(&params.text_document.uri) {
                     // Re-fetch workspaces if a workspace related file has changed
                     if let Some(abs_path) = vfs_path.as_path() {
-                        if reload::should_refresh_for_change(&abs_path, ChangeKind::Modify) {
+                        if reload::should_refresh_for_change(abs_path, ChangeKind::Modify) {
                             this.fetch_workspaces_queue
                                 .request_op(format!("DidSaveTextDocument {}", abs_path.display()));
                         }

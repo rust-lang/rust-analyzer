@@ -53,7 +53,7 @@ pub(crate) fn generate_default_from_new(acc: &mut Assists, ctx: &AssistContext<'
         return None;
     }
 
-    let impl_ = fn_node.syntax().ancestors().into_iter().find_map(ast::Impl::cast)?;
+    let impl_ = fn_node.syntax().ancestors().find_map(ast::Impl::cast)?;
     if is_default_implemented(ctx, &impl_) {
         cov_mark::hit!(default_block_is_already_present);
         cov_mark::hit!(struct_in_module_with_default);
@@ -82,18 +82,18 @@ fn generate_trait_impl_text_from_impl(impl_: &ast::Impl, trait_text: &str, code:
     let generic_params = impl_.generic_param_list().map(|generic_params| {
         let lifetime_params =
             generic_params.lifetime_params().map(ast::GenericParam::LifetimeParam);
-        let ty_or_const_params = generic_params.type_or_const_params().filter_map(|param| {
+        let ty_or_const_params = generic_params.type_or_const_params().map(|param| {
             // remove defaults since they can't be specified in impls
             match param {
                 ast::TypeOrConstParam::Type(param) => {
                     let param = param.clone_for_update();
                     param.remove_default();
-                    Some(ast::GenericParam::TypeParam(param))
+                    ast::GenericParam::TypeParam(param)
                 }
                 ast::TypeOrConstParam::Const(param) => {
                     let param = param.clone_for_update();
                     param.remove_default();
-                    Some(ast::GenericParam::ConstParam(param))
+                    ast::GenericParam::ConstParam(param)
                 }
             }
         });

@@ -23,24 +23,24 @@ use hir_def::{
     generics::{
         TypeOrConstParamData, TypeParamProvenance, WherePredicate, WherePredicateTypeTarget,
     },
-    intern::Interned,
-    lang_item::lang_attr,
+    lang_item::{lang_attr, LangItem},
     path::{GenericArg, ModPath, Path, PathKind, PathSegment, PathSegments},
     resolver::{HasResolver, Resolver, TypeNs},
     type_ref::{
         ConstScalarOrPath, TraitBoundModifier, TraitRef as HirTraitRef, TypeBound, TypeRef,
     },
     AdtId, AssocItemId, ConstId, ConstParamId, EnumId, EnumVariantId, FunctionId, GenericDefId,
-    HasModule, ImplId, ItemContainerId, LocalFieldId, Lookup, StaticId, StructId, TraitId,
-    TypeAliasId, TypeOrConstParamId, TypeParamId, UnionId, VariantId,
+    HasModule, ImplId, ItemContainerId, LocalFieldId, Lookup, ModuleDefId, StaticId, StructId,
+    TraitId, TypeAliasId, TypeOrConstParamId, TypeParamId, UnionId, VariantId,
 };
 use hir_expand::{name::Name, ExpandResult};
+use intern::Interned;
 use itertools::Either;
 use la_arena::ArenaMap;
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 use stdx::{impl_from, never};
-use syntax::{ast, SmolStr};
+use syntax::ast;
 
 use crate::{
     all_super_traits,
@@ -780,7 +780,7 @@ impl<'a> TyLoweringContext<'a> {
                         |_, c, ty| {
                             const_or_path_to_chalk(
                                 self.db,
-                                &self.resolver,
+                                self.resolver,
                                 ty,
                                 c,
                                 self.type_param_mode,
@@ -954,7 +954,7 @@ impl<'a> TyLoweringContext<'a> {
             TypeBound::Path(path, TraitBoundModifier::Maybe) => {
                 let sized_trait = self
                     .db
-                    .lang_item(self.resolver.krate(), SmolStr::new_inline("sized"))
+                    .lang_item(self.resolver.krate(), LangItem::Sized)
                     .and_then(|lang_item| lang_item.as_trait());
                 // Don't lower associated type bindings as the only possible relaxed trait bound
                 // `?Sized` has no of them.
@@ -1150,7 +1150,7 @@ impl<'a> TyLoweringContext<'a> {
                 let krate = func.lookup(ctx.db.upcast()).module(ctx.db.upcast()).krate();
                 let sized_trait = ctx
                     .db
-                    .lang_item(krate, SmolStr::new_inline("sized"))
+                    .lang_item(krate, LangItem::Sized)
                     .and_then(|lang_item| lang_item.as_trait().map(to_chalk_trait_id));
                 let sized_clause = sized_trait.map(|trait_id| {
                     let clause = WhereClause::Implemented(TraitRef {
@@ -1489,7 +1489,7 @@ fn implicitly_sized_clauses<'a>(
     let is_trait_def = matches!(def, GenericDefId::TraitId(..));
     let generic_args = &substitution.as_slice(Interner)[is_trait_def as usize..];
     let sized_trait = db
-        .lang_item(resolver.krate(), SmolStr::new_inline("sized"))
+        .lang_item(resolver.krate(), LangItem::Sized)
         .and_then(|lang_item| lang_item.as_trait().map(to_chalk_trait_id));
 
     sized_trait.into_iter().flat_map(move |sized_trait| {
@@ -1704,6 +1704,15 @@ pub enum CallableDefId {
     EnumVariantId(EnumVariantId),
 }
 impl_from!(FunctionId, StructId, EnumVariantId for CallableDefId);
+impl From<CallableDefId> for ModuleDefId {
+    fn from(def: CallableDefId) -> ModuleDefId {
+        match def {
+            CallableDefId::FunctionId(f) => ModuleDefId::FunctionId(f),
+            CallableDefId::StructId(s) => ModuleDefId::AdtId(AdtId::StructId(s)),
+            CallableDefId::EnumVariantId(e) => ModuleDefId::EnumVariantId(e),
+        }
+    }
+}
 
 impl CallableDefId {
     pub fn krate(self, db: &dyn HirDatabase) -> CrateId {
@@ -1796,8 +1805,7 @@ pub(crate) fn impl_self_ty_query(db: &dyn HirDatabase, impl_id: ImplId) -> Binde
     let impl_data = db.impl_data(impl_id);
     let resolver = impl_id.resolver(db.upcast());
     let _cx = stdx::panic_context::enter(format!(
-        "impl_self_ty_query({:?} -> {:?} -> {:?})",
-        impl_id, impl_loc, impl_data
+        "impl_self_ty_query({impl_id:?} -> {impl_loc:?} -> {impl_data:?})"
     ));
     let generics = generics(db.upcast(), impl_id.into());
     let ctx =
@@ -1834,8 +1842,7 @@ pub(crate) fn impl_trait_query(db: &dyn HirDatabase, impl_id: ImplId) -> Option<
     let impl_data = db.impl_data(impl_id);
     let resolver = impl_id.resolver(db.upcast());
     let _cx = stdx::panic_context::enter(format!(
-        "impl_trait_query({:?} -> {:?} -> {:?})",
-        impl_id, impl_loc, impl_data
+        "impl_trait_query({impl_id:?} -> {impl_loc:?} -> {impl_data:?})"
     ));
     let ctx =
         TyLoweringContext::new(db, &resolver).with_type_param_mode(ParamLoweringMode::Variable);
@@ -1854,7 +1861,7 @@ pub(crate) fn return_type_impl_traits(
     let ctx_ret = TyLoweringContext::new(db, &resolver)
         .with_impl_trait_mode(ImplTraitLoweringMode::Opaque)
         .with_type_param_mode(ParamLoweringMode::Variable);
-    let _ret = (&ctx_ret).lower_ty(&data.ret_type);
+    let _ret = ctx_ret.lower_ty(&data.ret_type);
     let generics = generics(db.upcast(), def.into());
     let return_type_impl_traits =
         ReturnTypeImplTraits { impl_traits: ctx_ret.opaque_type_data.into_inner() };
@@ -1933,7 +1940,7 @@ pub(crate) fn const_or_path_to_chalk(
     debruijn: DebruijnIndex,
 ) -> Const {
     match value {
-        ConstScalarOrPath::Scalar(s) => intern_const_scalar(s.clone(), expected_ty),
+        ConstScalarOrPath::Scalar(s) => intern_const_scalar(*s, expected_ty),
         ConstScalarOrPath::Path(n) => {
             let path = ModPath::from_segments(PathKind::Plain, Some(n.clone()));
             path_to_const(db, resolver, &path, mode, args, debruijn)

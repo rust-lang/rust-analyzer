@@ -12,9 +12,7 @@ use syntax::{
     match_ast,
 };
 
-use crate::{
-    inlay_hints::closure_has_block_body, InlayHint, InlayHintsConfig, InlayKind, InlayTooltip,
-};
+use crate::{inlay_hints::closure_has_block_body, InlayHint, InlayHintsConfig, InlayKind};
 
 use super::label_of_ty;
 
@@ -22,7 +20,7 @@ pub(super) fn hints(
     acc: &mut Vec<InlayHint>,
     famous_defs @ FamousDefs(sema, _): &FamousDefs<'_, '_>,
     config: &InlayHintsConfig,
-    file_id: FileId,
+    _file_id: FileId,
     pat: &ast::IdentPat,
 ) -> Option<()> {
     if !config.type_hints {
@@ -50,12 +48,8 @@ pub(super) fn hints(
             Some(name) => name.syntax().text_range(),
             None => pat.syntax().text_range(),
         },
-        kind: InlayKind::TypeHint,
+        kind: InlayKind::Type,
         label,
-        tooltip: pat
-            .name()
-            .map(|it| it.syntax().text_range())
-            .map(|it| InlayTooltip::HoverRanged(file_id, it)),
     });
 
     Some(())
@@ -167,7 +161,7 @@ fn is_named_constructor(
         ast::PathSegmentKind::Type { type_ref: Some(ty), trait_ref: None } => ty.to_string(),
         _ => return None,
     };
-    (ctor_name == ty_name).then(|| ())
+    (ctor_name == ty_name).then_some(())
 }
 
 fn pat_is_enum_variant(db: &RootDatabase, bind_pat: &ast::IdentPat, pat_ty: &hir::Type) -> bool {
@@ -194,8 +188,7 @@ mod tests {
     use crate::{fixture, inlay_hints::InlayHintsConfig};
 
     use crate::inlay_hints::tests::{
-        check, check_expect, check_with_config, DISABLED_CONFIG, DISABLED_CONFIG_WITH_LINKS,
-        TEST_CONFIG,
+        check, check_expect, check_with_config, DISABLED_CONFIG, TEST_CONFIG,
     };
     use crate::ClosureReturnTypeHints;
 
@@ -291,7 +284,7 @@ fn main() {
     fn iterator_hint_regression_issue_12674() {
         // Ensure we don't crash while solving the projection type of iterators.
         check_expect(
-            InlayHintsConfig { chaining_hints: true, ..DISABLED_CONFIG_WITH_LINKS },
+            InlayHintsConfig { chaining_hints: true, ..DISABLED_CONFIG },
             r#"
 //- minicore: iterators
 struct S<T>(T);
@@ -322,22 +315,40 @@ fn main(a: SliceIter<'_, Container>) {
                 [
                     InlayHint {
                         range: 484..554,
-                        kind: ChainingHint,
+                        kind: Chaining,
                         label: [
-                            "impl Iterator<Item = impl Iterator<Item = &&str>>",
-                        ],
-                        tooltip: Some(
-                            HoverRanged(
-                                FileId(
-                                    0,
+                            "impl ",
+                            InlayHintLabelPart {
+                                text: "Iterator",
+                                linked_location: Some(
+                                    FileRange {
+                                        file_id: FileId(
+                                            1,
+                                        ),
+                                        range: 2611..2619,
+                                    },
                                 ),
-                                484..554,
-                            ),
-                        ),
+                                tooltip: "",
+                            },
+                            "<Item = impl ",
+                            InlayHintLabelPart {
+                                text: "Iterator",
+                                linked_location: Some(
+                                    FileRange {
+                                        file_id: FileId(
+                                            1,
+                                        ),
+                                        range: 2611..2619,
+                                    },
+                                ),
+                                tooltip: "",
+                            },
+                            "<Item = &&str>>",
+                        ],
                     },
                     InlayHint {
                         range: 484..485,
-                        kind: ChainingHint,
+                        kind: Chaining,
                         label: [
                             "",
                             InlayHintLabelPart {
@@ -350,6 +361,7 @@ fn main(a: SliceIter<'_, Container>) {
                                         range: 289..298,
                                     },
                                 ),
+                                tooltip: "",
                             },
                             "<",
                             InlayHintLabelPart {
@@ -362,17 +374,10 @@ fn main(a: SliceIter<'_, Container>) {
                                         range: 238..247,
                                     },
                                 ),
+                                tooltip: "",
                             },
                             ">",
                         ],
-                        tooltip: Some(
-                            HoverRanged(
-                                FileId(
-                                    0,
-                                ),
-                                484..485,
-                            ),
-                        ),
                     },
                 ]
             "#]],

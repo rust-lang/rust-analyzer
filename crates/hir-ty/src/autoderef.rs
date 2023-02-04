@@ -6,9 +6,9 @@
 use std::sync::Arc;
 
 use chalk_ir::cast::Cast;
+use hir_def::lang_item::LangItem;
 use hir_expand::name::name;
 use limit::Limit;
-use syntax::SmolStr;
 
 use crate::{
     db::HirDatabase, infer::unify::InferenceTable, Canonical, Goal, Interner, ProjectionTyExt,
@@ -17,11 +17,13 @@ use crate::{
 
 static AUTODEREF_RECURSION_LIMIT: Limit = Limit::new(10);
 
+#[derive(Debug)]
 pub(crate) enum AutoderefKind {
     Builtin,
     Overloaded,
 }
 
+#[derive(Debug)]
 pub(crate) struct Autoderef<'a, 'db> {
     pub(crate) table: &'a mut InferenceTable<'db>,
     ty: Ty,
@@ -82,11 +84,11 @@ pub(crate) fn autoderef_step(
 }
 
 // FIXME: replace uses of this with Autoderef above
-pub fn autoderef<'a>(
-    db: &'a dyn HirDatabase,
+pub fn autoderef(
+    db: &dyn HirDatabase,
     env: Arc<TraitEnvironment>,
     ty: Canonical<Ty>,
-) -> impl Iterator<Item = Canonical<Ty>> + 'a {
+) -> impl Iterator<Item = Canonical<Ty>> + '_ {
     let mut table = InferenceTable::new(db, env);
     let ty = table.instantiate_canonical(ty);
     let mut autoderef = Autoderef::new(&mut table, ty);
@@ -117,9 +119,8 @@ fn deref_by_trait(table: &mut InferenceTable<'_>, ty: Ty) -> Option<Ty> {
     }
 
     let db = table.db;
-    let deref_trait = db
-        .lang_item(table.trait_env.krate, SmolStr::new_inline("deref"))
-        .and_then(|l| l.as_trait())?;
+    let deref_trait =
+        db.lang_item(table.trait_env.krate, LangItem::Deref).and_then(|l| l.as_trait())?;
     let target = db.trait_data(deref_trait).associated_type_by_name(&name![Target])?;
 
     let projection = {

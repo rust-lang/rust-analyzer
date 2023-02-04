@@ -13,10 +13,10 @@ use syntax::{AstNode, SyntaxKind::*, SyntaxToken, TextRange, T};
 
 use crate::{
     hover::hover_for_definition,
+    inlay_hints::AdjustmentHintsMode,
     moniker::{def_to_moniker, MonikerResult},
     parent_module::crates_for,
-    Analysis, Fold, HoverConfig, HoverDocFormat, HoverResult, InlayHint, InlayHintsConfig,
-    TryToNav,
+    Analysis, Fold, HoverConfig, HoverResult, InlayHint, InlayHintsConfig, TryToNav,
 };
 
 /// A static representation of fully analyzed source code.
@@ -106,7 +106,6 @@ impl StaticIndex<'_> {
             .analysis
             .inlay_hints(
                 &InlayHintsConfig {
-                    location_links: true,
                     render_colons: true,
                     discriminant_hints: crate::DiscriminantHints::Fieldless,
                     type_hints: true,
@@ -115,6 +114,7 @@ impl StaticIndex<'_> {
                     closure_return_type_hints: crate::ClosureReturnTypeHints::WithBlock,
                     lifetime_elision_hints: crate::LifetimeElisionHints::Never,
                     adjustment_hints: crate::AdjustmentHints::Never,
+                    adjustment_hints_mode: AdjustmentHintsMode::Prefix,
                     adjustment_hints_hide_outside_unsafe: false,
                     hide_named_constructor_hints: false,
                     hide_closure_initialization_hints: false,
@@ -136,8 +136,9 @@ impl StaticIndex<'_> {
         });
         let hover_config = HoverConfig {
             links_in_hover: true,
-            documentation: Some(HoverDocFormat::Markdown),
+            documentation: true,
             keywords: true,
+            format: crate::HoverDocFormat::Markdown,
         };
         let tokens = tokens.filter(|token| {
             matches!(
