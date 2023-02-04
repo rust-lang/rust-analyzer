@@ -252,7 +252,6 @@ impl<'a> InferenceTable<'a> {
             }
             _ => {
                 // Otherwise, just use unification rules.
-                eprintln!("just unification rules");
                 self.unify_and(&from_ty, to_ty, identity)
             }
         }

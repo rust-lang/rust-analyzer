@@ -607,10 +607,7 @@ impl<'a> InferenceContext<'a> {
                     let residual = self.resolve_ops_try_err();
                     let expect_err = self.resolve_associated_type(self.return_ty.clone(), residual);
                     let actual_err = self.resolve_associated_type(actual_ret, residual);
-                    match self.table.coerce(&actual_err, &expect_err) {
-                        Err(_) => (),
-                        Ok(_) => (),
-                    }
+                    self.table.unify(&actual_err, &expect_err);
                     let try_output = self.resolve_output_on(trait_);
                     self.resolve_associated_type(inner_ty, try_output)
                 } else {
