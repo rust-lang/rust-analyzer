@@ -4,7 +4,7 @@ use ide_db::{
 };
 use itertools::Itertools;
 use syntax::{
-    ast::{self, Expr},
+    ast::{self, Expr, Impl},
     match_ast, AstNode, TextRange, TextSize,
 };
 
@@ -43,6 +43,10 @@ pub(crate) fn unwrap_result_return_type(acc: &mut Assists, ctx: &AssistContext<'
         FamousDefs(&ctx.sema, ctx.sema.scope(type_ref.syntax())?.krate()).core_result_Result()?;
 
     if !matches!(ty, Some(hir::Adt::Enum(ret_type)) if ret_type == result_enum) {
+        return None;
+    }
+
+    if inside_trait_impl(&ret_type) {
         return None;
     }
 
@@ -118,6 +122,10 @@ pub(crate) fn unwrap_result_return_type(acc: &mut Assists, ctx: &AssistContext<'
     )
 }
 
+fn inside_trait_impl(ret_type: &ast::RetType) -> bool {
+    ret_type.syntax().ancestors().find_map(Impl::cast).and_then(|it| it.for_token()).is_some()
+}
+
 fn tail_cb_impl(acc: &mut Vec<ast::Expr>, e: &ast::Expr) {
     match e {
         Expr::BreakExpr(break_expr) => {
@@ -155,6 +163,25 @@ fn foo() -> Result<i3$02> {
 fn foo() -> i32 {
     let test = "test";
     return 42i32;
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn unwrap_result_return_type_doesnt_trigger_inside_trait_impl() {
+        check_assist_not_applicable(
+            unwrap_result_return_type,
+            r#"
+//- minicore: result
+trait Tr {
+    fn f() -> Result<(), ()>;
+}
+
+impl Tr for () {
+    fn f() -> $0Result<(), ()> {
+        unreachable!()
+    }
 }
 "#,
         );
