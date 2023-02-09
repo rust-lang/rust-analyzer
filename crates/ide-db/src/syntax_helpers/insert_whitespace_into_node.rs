@@ -10,7 +10,7 @@ use syntax::{
 // FIXME: It would also be cool to share logic here and in the mbe tests,
 // which are pretty unreadable at the moment.
 /// Renders a [`SyntaxNode`] with whitespace inserted between tokens that require them.
-pub fn insert_ws_into(syn: SyntaxNode) -> SyntaxNode {
+pub fn insert_ws_into(syn: SyntaxNode, need_newline: bool) -> SyntaxNode {
     let mut indent = 0;
     let mut last: Option<SyntaxKind> = None;
     let mut mods = Vec::new();
@@ -33,10 +33,11 @@ pub fn insert_ws_into(syn: SyntaxNode) -> SyntaxNode {
         let token = match event {
             WalkEvent::Enter(NodeOrToken::Token(token)) => token,
             WalkEvent::Leave(NodeOrToken::Node(node))
-                if matches!(
-                    node.kind(),
-                    ATTR | MATCH_ARM | STRUCT | ENUM | UNION | FN | IMPL | MACRO_RULES
-                ) =>
+                if need_newline
+                    && matches!(
+                        node.kind(),
+                        ATTR | MATCH_ARM | STRUCT | ENUM | UNION | FN | IMPL | MACRO_RULES
+                    ) =>
             {
                 if indent > 0 {
                     mods.push((
@@ -64,23 +65,23 @@ pub fn insert_ws_into(syn: SyntaxNode) -> SyntaxNode {
                 mods.push(do_ws(after, tok));
             }
             L_CURLY if is_next(|it| it != R_CURLY, true) => {
-                indent += 1;
                 if is_last(is_text, false) {
                     mods.push(do_ws(before, tok));
                 }
-
-                mods.push(do_indent(after, tok, indent));
-                mods.push(do_nl(after, tok));
+                if need_newline {
+                    indent += 1;
+                    mods.push(do_indent(after, tok, indent));
+                    mods.push(do_nl(after, tok));
+                }
             }
-            R_CURLY if is_last(|it| it != L_CURLY, true) => {
+            R_CURLY if need_newline && is_last(|it| it != L_CURLY, true) => {
                 indent = indent.saturating_sub(1);
-
                 if indent > 0 {
                     mods.push(do_indent(before, tok, indent));
                 }
                 mods.push(do_nl(before, tok));
             }
-            R_CURLY => {
+            R_CURLY if need_newline => {
                 if indent > 0 {
                     mods.push(do_indent(after, tok, indent));
                 }
@@ -95,7 +96,7 @@ pub fn insert_ws_into(syn: SyntaxNode) -> SyntaxNode {
             AS_KW | DYN_KW | IMPL_KW | CONST_KW => {
                 mods.push(do_ws(after, tok));
             }
-            T![;] if is_next(|it| it != R_CURLY, true) => {
+            T![;] if need_newline && is_next(|it| it != R_CURLY, true) => {
                 if indent > 0 {
                     mods.push(do_indent(after, tok, indent));
                 }

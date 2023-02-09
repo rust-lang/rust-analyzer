@@ -139,7 +139,7 @@ fn expand<T: AstNode>(
 }
 
 fn format(db: &RootDatabase, kind: SyntaxKind, file_id: FileId, expanded: SyntaxNode) -> String {
-    let expansion = insert_ws_into(expanded).to_string();
+    let expansion = insert_ws_into(expanded, true).to_string();
 
     _format(db, kind, file_id, &expansion).unwrap_or(expansion)
 }

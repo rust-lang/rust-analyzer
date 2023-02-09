@@ -135,7 +135,9 @@ fn add_missing_impl_members_inner(
             .into_iter()
             .map(|it| {
                 if ctx.sema.hir_file_for(it.syntax()).is_macro() {
-                    if let Some(it) = ast::AssocItem::cast(insert_ws_into(it.syntax().clone())) {
+                    if let Some(it) =
+                        ast::AssocItem::cast(insert_ws_into(it.syntax().clone(), true))
+                    {
                         return it;
                     }
                 }

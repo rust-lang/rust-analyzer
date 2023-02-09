@@ -202,7 +202,7 @@ fn impl_def_from_trait(
         .into_iter()
         .map(|it| {
             if sema.hir_file_for(it.syntax()).is_macro() {
-                if let Some(it) = ast::AssocItem::cast(insert_ws_into(it.syntax().clone())) {
+                if let Some(it) = ast::AssocItem::cast(insert_ws_into(it.syntax().clone(), true)) {
                     return it;
                 }
             }

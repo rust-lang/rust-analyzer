@@ -425,7 +425,7 @@ pub(super) fn definition(
                     let source = it.source(db)?;
                     let mut body = source.value.body()?.syntax().clone();
                     if source.file_id.is_macro() {
-                        body = insert_whitespace_into_node::insert_ws_into(body);
+                        body = insert_whitespace_into_node::insert_ws_into(body, true);
                     }
                     Some(body.to_string())
                 }
@@ -435,7 +435,7 @@ pub(super) fn definition(
             let source = it.source(db)?;
             let mut body = source.value.body()?.syntax().clone();
             if source.file_id.is_macro() {
-                body = insert_whitespace_into_node::insert_ws_into(body);
+                body = insert_whitespace_into_node::insert_ws_into(body, true);
             }
             Some(body.to_string())
         }),

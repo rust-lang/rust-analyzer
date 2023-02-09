@@ -308,7 +308,7 @@ fn inline(
 ) -> ast::Expr {
     let body = if sema.hir_file_for(fn_body.syntax()).is_macro() {
         cov_mark::hit!(inline_call_defined_in_macro);
-        if let Some(body) = ast::BlockExpr::cast(insert_ws_into(fn_body.syntax().clone())) {
+        if let Some(body) = ast::BlockExpr::cast(insert_ws_into(fn_body.syntax().clone(), true)) {
             body
         } else {
             fn_body.clone_for_update()

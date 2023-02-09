@@ -345,7 +345,7 @@ fn add_const_impl(
 
 fn make_const_compl_syntax(const_: &ast::Const, needs_whitespace: bool) -> String {
     let const_ = if needs_whitespace {
-        insert_whitespace_into_node::insert_ws_into(const_.syntax().clone())
+        insert_whitespace_into_node::insert_ws_into(const_.syntax().clone(), true)
     } else {
         const_.syntax().clone()
     };
@@ -368,7 +368,7 @@ fn make_const_compl_syntax(const_: &ast::Const, needs_whitespace: bool) -> Strin
 
 fn function_declaration(node: &ast::Fn, needs_whitespace: bool) -> String {
     let node = if needs_whitespace {
-        insert_whitespace_into_node::insert_ws_into(node.syntax().clone())
+        insert_whitespace_into_node::insert_ws_into(node.syntax().clone(), true)
     } else {
         node.syntax().clone()
     };
