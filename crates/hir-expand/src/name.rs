@@ -12,24 +12,15 @@ use syntax::{ast, SmolStr, SyntaxKind};
 /// is a raw identifier. Use [`unescaped()`][Name::unescaped] when you need the
 /// name without "r#".
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Name(Repr);
+pub struct Name(SmolStr);
 
 /// Wrapper of `Name` to print the name without "r#" even when it is a raw identifier.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct UnescapedName<'a>(&'a Name);
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-enum Repr {
-    Text(SmolStr),
-    TupleField(usize),
-}
-
 impl fmt::Display for Name {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.0 {
-            Repr::Text(text) => fmt::Display::fmt(&text, f),
-            Repr::TupleField(idx) => fmt::Display::fmt(&idx, f),
-        }
+        fmt::Display::fmt(&self.0, f)
     }
 }
 
@@ -40,13 +31,8 @@ fn is_raw_identifier(name: &str) -> bool {
 
 impl<'a> fmt::Display for UnescapedName<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.0 .0 {
-            Repr::Text(text) => {
-                let text = text.strip_prefix("r#").unwrap_or(text);
-                fmt::Display::fmt(&text, f)
-            }
-            Repr::TupleField(idx) => fmt::Display::fmt(&idx, f),
-        }
+        let text = self.0 .0.strip_prefix("r#").unwrap_or(&self.0 .0);
+        fmt::Display::fmt(&text, f)
     }
 }
 
@@ -54,15 +40,10 @@ impl<'a> UnescapedName<'a> {
     /// Returns the textual representation of this name as a [`SmolStr`]. Prefer using this over
     /// [`ToString::to_string`] if possible as this conversion is cheaper in the general case.
     pub fn to_smol_str(&self) -> SmolStr {
-        match &self.0 .0 {
-            Repr::Text(it) => {
-                if let Some(stripped) = it.strip_prefix("r#") {
-                    SmolStr::new(stripped)
-                } else {
-                    it.clone()
-                }
-            }
-            Repr::TupleField(it) => SmolStr::new(it.to_string()),
+        if let Some(stripped) = self.0 .0.strip_prefix("r#") {
+            SmolStr::new(stripped)
+        } else {
+            self.0 .0.clone()
         }
     }
 }
@@ -72,11 +53,20 @@ impl Name {
     /// Hopefully, this should allow us to integrate hygiene cleaner in the
     /// future, and to switch to interned representation of names.
     const fn new_text(text: SmolStr) -> Name {
-        Name(Repr::Text(text))
+        Name(text)
     }
 
     pub fn new_tuple_field(idx: usize) -> Name {
-        Name(Repr::TupleField(idx))
+        macro_rules! tuple_indices {
+            ($($i:literal),*) => {
+                [$(SmolStr::new_inline(stringify!($i)),)*]
+            };
+        }
+
+        Name(match tuple_indices!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15).get(idx) {
+            Some(name) => name.clone(),
+            None => idx.to_string().into(),
+        })
     }
 
     pub fn new_lifetime(lt: &ast::Lifetime) -> Name {
@@ -119,36 +109,30 @@ impl Name {
 
     /// Returns the tuple index this name represents if it is a tuple field.
     pub fn as_tuple_index(&self) -> Option<usize> {
-        match self.0 {
-            Repr::TupleField(idx) => Some(idx),
-            _ => None,
-        }
+        self.0.parse().ok()
     }
 
     /// Returns the text this name represents if it isn't a tuple field.
     pub fn as_text(&self) -> Option<SmolStr> {
-        match &self.0 {
-            Repr::Text(it) => Some(it.clone()),
-            _ => None,
+        if self.0.starts_with(|c| char::is_ascii_digit(&c)) {
+            return None;
         }
+        Some(self.0.clone())
     }
 
     /// Returns the text this name represents if it isn't a tuple field.
     pub fn as_str(&self) -> Option<&str> {
-        match &self.0 {
-            Repr::Text(it) => Some(it),
-            _ => None,
+        if self.0.starts_with(|c| char::is_ascii_digit(&c)) {
+            return None;
         }
+        Some(&self.0)
     }
 
     /// Returns the textual representation of this name as a [`SmolStr`].
     /// Prefer using this over [`ToString::to_string`] if possible as this conversion is cheaper in
     /// the general case.
     pub fn to_smol_str(&self) -> SmolStr {
-        match &self.0 {
-            Repr::Text(it) => it.clone(),
-            Repr::TupleField(it) => SmolStr::new(it.to_string()),
-        }
+        self.0.clone()
     }
 
     pub fn unescaped(&self) -> UnescapedName<'_> {
@@ -156,10 +140,7 @@ impl Name {
     }
 
     pub fn is_escaped(&self) -> bool {
-        match &self.0 {
-            Repr::Text(it) => it.starts_with("r#"),
-            Repr::TupleField(_) => false,
-        }
+        self.0.starts_with("r#")
     }
 }
 
