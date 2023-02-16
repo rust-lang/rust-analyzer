@@ -915,6 +915,16 @@ fn cargo_to_crate_graph(
                         continue;
                     }
 
+                    if dep.kind == DepKind::Dev
+                        && !matches!(
+                            kind,
+                            TargetKind::Test | TargetKind::Example | TargetKind::Bench
+                        )
+                    {
+                        // Only tests, examples and benchmarks may depend on dev dependencies.
+                        continue;
+                    }
+
                     add_dep(&mut crate_graph, from, name.clone(), to)
                 }
             }
