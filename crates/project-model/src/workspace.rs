@@ -150,13 +150,14 @@ impl ProjectWorkspace {
     ) -> Result<ProjectWorkspace> {
         let res = match manifest {
             ProjectManifest::ProjectJson(project_json) => {
+                let project_json = project_json.canonicalize()?;
                 let file = fs::read_to_string(&project_json).with_context(|| {
                     format!("Failed to read json file {}", project_json.display())
                 })?;
                 let data = serde_json::from_str(&file).with_context(|| {
                     format!("Failed to deserialize json file {}", project_json.display())
                 })?;
-                let project_location = project_json.parent().to_path_buf();
+                let project_location = project_json.parent().unwrap().to_path_buf();
                 let project_json = ProjectJson::new(&project_location, data);
                 ProjectWorkspace::load_inline(
                     project_json,

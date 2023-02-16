@@ -179,6 +179,11 @@ impl AbsPath {
         self.0.ends_with(&suffix.0)
     }
 
+    /// Equivalent of [`Path::canonicalize`] for `AbsPath`.
+    pub fn canonicalize(&self) -> Result<AbsPathBuf, std::io::Error> {
+        Ok(self.as_ref().canonicalize()?.try_into().unwrap())
+    }
+
     // region:delegate-methods
 
     // Note that we deliberately don't implement `Deref<Target = Path>` here.
