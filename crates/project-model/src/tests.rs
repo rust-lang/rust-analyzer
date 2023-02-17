@@ -660,15 +660,6 @@ fn cargo_hello_world_project_model_with_selective_overrides() {
                         dependencies: [
                             Dependency {
                                 crate_id: CrateId(
-                                    0,
-                                ),
-                                name: CrateName(
-                                    "hello_world",
-                                ),
-                                prelude: true,
-                            },
-                            Dependency {
-                                crate_id: CrateId(
                                     5,
                                 ),
                                 name: CrateName(
@@ -1144,15 +1135,6 @@ fn cargo_hello_world_project_model() {
                             },
                         },
                         dependencies: [
-                            Dependency {
-                                crate_id: CrateId(
-                                    0,
-                                ),
-                                name: CrateName(
-                                    "hello_world",
-                                ),
-                                prelude: true,
-                            },
                             Dependency {
                                 crate_id: CrateId(
                                     5,

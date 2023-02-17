@@ -926,8 +926,9 @@ fn cargo_to_crate_graph(
             public_deps.add_to_crate_graph(&mut crate_graph, from);
 
             if let Some((to, name)) = lib_tgt.clone() {
-                if to != from && kind != TargetKind::BuildScript {
-                    // (build script can not depend on its library target)
+                if !matches!(kind, TargetKind::BuildScript | TargetKind::Lib) {
+                    // (build script can not depend on its library target, and library target does
+                    // not depend on itself unless manually specified)
 
                     // For root projects with dashes in their name,
                     // cargo metadata does not do any normalization,
