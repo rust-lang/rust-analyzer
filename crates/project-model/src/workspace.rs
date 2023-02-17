@@ -813,22 +813,9 @@ fn cargo_to_crate_graph(
     let mut has_private = false;
     // Next, create crates for each package, target pair
     for pkg in cargo.packages() {
-        let mut cfg_options = cfg_options.clone();
-
         let overrides = match override_cfg {
             CfgOverrides::Wildcard(cfg_diff) => Some(cfg_diff),
             CfgOverrides::Selective(cfg_overrides) => cfg_overrides.get(&cargo[pkg].name),
-        };
-
-        if let Some(overrides) = overrides {
-            // FIXME: this is sort of a hack to deal with #![cfg(not(test))] vanishing such as seen
-            // in ed25519_dalek (#7243), and libcore (#9203) (although you only hit that one while
-            // working on rust-lang/rust as that's the only time it appears outside sysroot).
-            //
-            // A more ideal solution might be to reanalyze crates based on where the cursor is and
-            // figure out the set of cfgs that would have to apply to make it active.
-
-            cfg_options.apply_diff(overrides.clone());
         };
 
         has_private |= cargo[pkg].metadata.rustc_private;
@@ -885,6 +872,17 @@ fn cargo_to_crate_graph(
                     cfg_options.insert_atom("test".into());
                 }
 
+                if let Some(overrides) = overrides {
+                    // FIXME: this is sort of a hack to deal with #![cfg(not(test))] vanishing such as seen
+                    // in ed25519_dalek (#7243), and libcore (#9203) (although you only hit that one while
+                    // working on rust-lang/rust as that's the only time it appears outside sysroot).
+                    //
+                    // A more ideal solution might be to reanalyze crates based on where the cursor is and
+                    // figure out the set of cfgs that would have to apply to make it active.
+
+                    cfg_options.apply_diff(overrides.clone());
+                };
+
                 let crate_id = add_crate(&cfg_options);
 
                 if cargo[tgt].kind == TargetKind::Lib {
@@ -902,7 +900,21 @@ fn cargo_to_crate_graph(
                         // doesn't resolve dev-dependencies for packages outside the workspace and so
                         // any unit tests that use them won't work properly.
                         cfg_options.insert_atom("test".into());
-                        add_crate(&cfg_options);
+
+                        // Apply the overrides again, in case they disable cfg(test)
+                        if let Some(overrides) = overrides {
+                            cfg_options.apply_diff(overrides.clone());
+                        };
+
+                        let test_cfg = CfgExpr::Atom(cfg::CfgAtom::Flag("test".into()));
+                        // It the overrides disabled cfg(test), there's no reason for this extra version
+                        // of the crate to exist.
+                        if cfg_options
+                            .check(&test_cfg)
+                            .expect("cfg(test) was somehow an invalid cfg")
+                        {
+                            add_crate(&cfg_options);
+                        }
                     }
                 }
             }
