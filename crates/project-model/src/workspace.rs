@@ -9,7 +9,7 @@ use base_db::{
     CrateDisplayName, CrateGraph, CrateId, CrateName, CrateOrigin, Dependency, Edition, Env,
     FileId, LangCrateOrigin, ProcMacroLoadResult, TargetLayoutLoadResult,
 };
-use cfg::{CfgDiff, CfgOptions};
+use cfg::{CfgDiff, CfgExpr, CfgOptions};
 use paths::{AbsPath, AbsPathBuf};
 use rustc_hash::{FxHashMap, FxHashSet};
 use semver::Version;
@@ -820,11 +820,6 @@ fn cargo_to_crate_graph(
             CfgOverrides::Selective(cfg_overrides) => cfg_overrides.get(&cargo[pkg].name),
         };
 
-        // Add test cfg for local crates
-        if cargo[pkg].is_local {
-            cfg_options.insert_atom("test".into());
-        }
-
         if let Some(overrides) = overrides {
             // FIXME: this is sort of a hack to deal with #![cfg(not(test))] vanishing such as seen
             // in ed25519_dalek (#7243), and libcore (#9203) (although you only hit that one while
@@ -849,34 +844,67 @@ fn cargo_to_crate_graph(
             }
 
             if let Some(file_id) = load(&cargo[tgt].root) {
-                let crate_id = add_target_crate_root(
-                    &mut crate_graph,
-                    &cargo[pkg],
-                    build_scripts.get_output(pkg),
-                    cfg_options.clone(),
-                    &mut |path| load_proc_macro(&cargo[tgt].name, path),
-                    file_id,
-                    &cargo[tgt].name,
-                    cargo[tgt].is_proc_macro,
-                    target_layout.clone(),
-                );
-                if cargo[tgt].kind == TargetKind::Lib {
-                    lib_tgt = Some((crate_id, cargo[tgt].name.clone()));
-                    pkg_to_lib_crate.insert(pkg, crate_id);
-                }
-                // Even crates that don't set proc-macro = true are allowed to depend on proc_macro
-                // (just none of the APIs work when called outside of a proc macro).
-                if let Some(proc_macro) = libproc_macro {
-                    add_dep_with_prelude(
+                let mut add_crate = |cfg_options: &CfgOptions| {
+                    let crate_id = add_target_crate_root(
                         &mut crate_graph,
-                        crate_id,
-                        CrateName::new("proc_macro").unwrap(),
-                        proc_macro,
+                        &cargo[pkg],
+                        build_scripts.get_output(pkg),
+                        cfg_options.clone(),
+                        &mut |path| load_proc_macro(&cargo[tgt].name, path),
+                        file_id,
+                        &cargo[tgt].name,
                         cargo[tgt].is_proc_macro,
+                        target_layout.clone(),
                     );
+                    // Even crates that don't set proc-macro = true are allowed to depend on proc_macro
+                    // (just none of the APIs work when called outside of a proc macro).
+                    if let Some(proc_macro) = libproc_macro {
+                        add_dep_with_prelude(
+                            &mut crate_graph,
+                            crate_id,
+                            CrateName::new("proc_macro").unwrap(),
+                            proc_macro,
+                            cargo[tgt].is_proc_macro,
+                        );
+                    }
+                    pkg_crates
+                        .entry(pkg)
+                        .or_insert_with(Vec::new)
+                        .push((crate_id, cargo[tgt].kind));
+                    crate_id
+                };
+
+                let mut cfg_options = cfg_options.clone();
+                // Enable cfg(test) for bin crates in the current workspace so that diagnostics
+                // are provided for tests.
+                // They have to be in the current workspace because tests are allowed to use dev
+                // depedencies, which cargo only resolves for crates in the current workspace.
+                // Lib crates are more complicated because the test version of the crate can
+                // actually depend on the normal version of the crate, which we handle below.
+                if cargo[pkg].is_member && cargo[tgt].kind == TargetKind::Bin {
+                    cfg_options.insert_atom("test".into());
                 }
 
-                pkg_crates.entry(pkg).or_insert_with(Vec::new).push((crate_id, cargo[tgt].kind));
+                let crate_id = add_crate(&cfg_options);
+
+                if cargo[tgt].kind == TargetKind::Lib {
+                    // Mark this as the lib crate for this package.
+                    lib_tgt = Some((crate_id, cargo[tgt].name.clone()));
+                    pkg_to_lib_crate.insert(pkg, crate_id);
+
+                    if cargo[pkg].is_member {
+                        // Create another version of the crate with cfg(test) enabled.
+                        // This, as for bin crates, is so that diagnostics are provided for tests, but
+                        // it needs to be treated as a separate crate because it can actually depend on
+                        // the normal version of the crate when it's specified as a dev dependency.
+                        //
+                        // We only do this if the package is a member of this workspace, because cargo
+                        // doesn't resolve dev-dependencies for packages outside the workspace and so
+                        // any unit tests that use them won't work properly.
+                        cfg_options.insert_atom("test".into());
+                        add_crate(&cfg_options);
+                    }
+                }
             }
         }
 
@@ -915,13 +943,18 @@ fn cargo_to_crate_graph(
                         continue;
                     }
 
-                    if dep.kind == DepKind::Dev
-                        && !matches!(
-                            kind,
-                            TargetKind::Test | TargetKind::Example | TargetKind::Bench
-                        )
-                    {
-                        // Only tests, examples and benchmarks may depend on dev dependencies.
+                    let crate_data = &crate_graph[from];
+                    let test_cfg = CfgExpr::Atom(cfg::CfgAtom::Flag("test".into()));
+                    // Dev dependencies can be used by tests, examples, and benchmarks,
+                    // as well as bin and lib crates when compiling in test mode.
+                    let dev_deps_enabled =
+                        matches!(kind, TargetKind::Test | TargetKind::Example | TargetKind::Bench)
+                            || (matches!(kind, TargetKind::Bin | TargetKind::Lib)
+                                && crate_data
+                                    .cfg_options
+                                    .check(&test_cfg)
+                                    .expect("cfg(test) was somehow an invalid cfg"));
+                    if dep.kind == DepKind::Dev && !dev_deps_enabled {
                         continue;
                     }
 
