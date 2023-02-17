@@ -176,7 +176,7 @@ fn cargo_hello_world_project_model_with_wildcard_overrides() {
                         dependencies: [
                             Dependency {
                                 crate_id: CrateId(
-                                    4,
+                                    5,
                                 ),
                                 name: CrateName(
                                     "libc",
@@ -199,7 +199,7 @@ fn cargo_hello_world_project_model_with_wildcard_overrides() {
                         1,
                     ): CrateData {
                         root_file_id: FileId(
-                            2,
+                            1,
                         ),
                         edition: Edition2018,
                         version: Some(
@@ -216,11 +216,13 @@ fn cargo_hello_world_project_model_with_wildcard_overrides() {
                         cfg_options: CfgOptions(
                             [
                                 "debug_assertions",
+                                "test",
                             ],
                         ),
                         potential_cfg_options: CfgOptions(
                             [
                                 "debug_assertions",
+                                "test",
                             ],
                         ),
                         target_layout: Err(
@@ -257,7 +259,7 @@ fn cargo_hello_world_project_model_with_wildcard_overrides() {
                             },
                             Dependency {
                                 crate_id: CrateId(
-                                    4,
+                                    5,
                                 ),
                                 name: CrateName(
                                     "libc",
@@ -278,6 +280,89 @@ fn cargo_hello_world_project_model_with_wildcard_overrides() {
                     },
                     CrateId(
                         2,
+                    ): CrateData {
+                        root_file_id: FileId(
+                            2,
+                        ),
+                        edition: Edition2018,
+                        version: Some(
+                            "0.1.0",
+                        ),
+                        display_name: Some(
+                            CrateDisplayName {
+                                crate_name: CrateName(
+                                    "hello_world",
+                                ),
+                                canonical_name: "hello-world",
+                            },
+                        ),
+                        cfg_options: CfgOptions(
+                            [
+                                "debug_assertions",
+                                "test",
+                            ],
+                        ),
+                        potential_cfg_options: CfgOptions(
+                            [
+                                "debug_assertions",
+                                "test",
+                            ],
+                        ),
+                        target_layout: Err(
+                            "target_data_layout not loaded",
+                        ),
+                        env: Env {
+                            entries: {
+                                "CARGO_PKG_LICENSE": "",
+                                "CARGO_PKG_VERSION_MAJOR": "0",
+                                "CARGO_MANIFEST_DIR": "$ROOT$hello-world",
+                                "CARGO_PKG_VERSION": "0.1.0",
+                                "CARGO_PKG_AUTHORS": "",
+                                "CARGO_CRATE_NAME": "hello_world",
+                                "CARGO_PKG_LICENSE_FILE": "",
+                                "CARGO_PKG_HOMEPAGE": "",
+                                "CARGO_PKG_DESCRIPTION": "",
+                                "CARGO_PKG_NAME": "hello-world",
+                                "CARGO_PKG_VERSION_PATCH": "0",
+                                "CARGO": "cargo",
+                                "CARGO_PKG_REPOSITORY": "",
+                                "CARGO_PKG_VERSION_MINOR": "1",
+                                "CARGO_PKG_VERSION_PRE": "",
+                            },
+                        },
+                        dependencies: [
+                            Dependency {
+                                crate_id: CrateId(
+                                    0,
+                                ),
+                                name: CrateName(
+                                    "hello_world",
+                                ),
+                                prelude: true,
+                            },
+                            Dependency {
+                                crate_id: CrateId(
+                                    5,
+                                ),
+                                name: CrateName(
+                                    "libc",
+                                ),
+                                prelude: true,
+                            },
+                        ],
+                        proc_macro: Err(
+                            "crate has not (yet) been built",
+                        ),
+                        origin: CratesIo {
+                            repo: None,
+                            name: Some(
+                                "hello-world",
+                            ),
+                        },
+                        is_proc_macro: false,
+                    },
+                    CrateId(
+                        3,
                     ): CrateData {
                         root_file_id: FileId(
                             3,
@@ -338,7 +423,7 @@ fn cargo_hello_world_project_model_with_wildcard_overrides() {
                             },
                             Dependency {
                                 crate_id: CrateId(
-                                    4,
+                                    5,
                                 ),
                                 name: CrateName(
                                     "libc",
@@ -358,7 +443,7 @@ fn cargo_hello_world_project_model_with_wildcard_overrides() {
                         is_proc_macro: false,
                     },
                     CrateId(
-                        3,
+                        4,
                     ): CrateData {
                         root_file_id: FileId(
                             4,
@@ -419,7 +504,7 @@ fn cargo_hello_world_project_model_with_wildcard_overrides() {
                             },
                             Dependency {
                                 crate_id: CrateId(
-                                    4,
+                                    5,
                                 ),
                                 name: CrateName(
                                     "libc",
@@ -439,7 +524,7 @@ fn cargo_hello_world_project_model_with_wildcard_overrides() {
                         is_proc_macro: false,
                     },
                     CrateId(
-                        4,
+                        5,
                     ): CrateData {
                         root_file_id: FileId(
                             5,
@@ -554,6 +639,78 @@ fn cargo_hello_world_project_model_with_selective_overrides() {
                         cfg_options: CfgOptions(
                             [
                                 "debug_assertions",
+                            ],
+                        ),
+                        potential_cfg_options: CfgOptions(
+                            [
+                                "debug_assertions",
+                            ],
+                        ),
+                        target_layout: Err(
+                            "target_data_layout not loaded",
+                        ),
+                        env: Env {
+                            entries: {
+                                "CARGO_PKG_LICENSE": "",
+                                "CARGO_PKG_VERSION_MAJOR": "0",
+                                "CARGO_MANIFEST_DIR": "$ROOT$hello-world",
+                                "CARGO_PKG_VERSION": "0.1.0",
+                                "CARGO_PKG_AUTHORS": "",
+                                "CARGO_CRATE_NAME": "hello_world",
+                                "CARGO_PKG_LICENSE_FILE": "",
+                                "CARGO_PKG_HOMEPAGE": "",
+                                "CARGO_PKG_DESCRIPTION": "",
+                                "CARGO_PKG_NAME": "hello-world",
+                                "CARGO_PKG_VERSION_PATCH": "0",
+                                "CARGO": "cargo",
+                                "CARGO_PKG_REPOSITORY": "",
+                                "CARGO_PKG_VERSION_MINOR": "1",
+                                "CARGO_PKG_VERSION_PRE": "",
+                            },
+                        },
+                        dependencies: [
+                            Dependency {
+                                crate_id: CrateId(
+                                    5,
+                                ),
+                                name: CrateName(
+                                    "libc",
+                                ),
+                                prelude: true,
+                            },
+                        ],
+                        proc_macro: Err(
+                            "crate has not (yet) been built",
+                        ),
+                        origin: CratesIo {
+                            repo: None,
+                            name: Some(
+                                "hello-world",
+                            ),
+                        },
+                        is_proc_macro: false,
+                    },
+                    CrateId(
+                        1,
+                    ): CrateData {
+                        root_file_id: FileId(
+                            1,
+                        ),
+                        edition: Edition2018,
+                        version: Some(
+                            "0.1.0",
+                        ),
+                        display_name: Some(
+                            CrateDisplayName {
+                                crate_name: CrateName(
+                                    "hello_world",
+                                ),
+                                canonical_name: "hello-world",
+                            },
+                        ),
+                        cfg_options: CfgOptions(
+                            [
+                                "debug_assertions",
                                 "test",
                             ],
                         ),
@@ -588,7 +745,16 @@ fn cargo_hello_world_project_model_with_selective_overrides() {
                         dependencies: [
                             Dependency {
                                 crate_id: CrateId(
-                                    4,
+                                    0,
+                                ),
+                                name: CrateName(
+                                    "hello_world",
+                                ),
+                                prelude: true,
+                            },
+                            Dependency {
+                                crate_id: CrateId(
+                                    5,
                                 ),
                                 name: CrateName(
                                     "libc",
@@ -608,7 +774,7 @@ fn cargo_hello_world_project_model_with_selective_overrides() {
                         is_proc_macro: false,
                     },
                     CrateId(
-                        1,
+                        2,
                     ): CrateData {
                         root_file_id: FileId(
                             2,
@@ -671,90 +837,7 @@ fn cargo_hello_world_project_model_with_selective_overrides() {
                             },
                             Dependency {
                                 crate_id: CrateId(
-                                    4,
-                                ),
-                                name: CrateName(
-                                    "libc",
-                                ),
-                                prelude: true,
-                            },
-                        ],
-                        proc_macro: Err(
-                            "crate has not (yet) been built",
-                        ),
-                        origin: CratesIo {
-                            repo: None,
-                            name: Some(
-                                "hello-world",
-                            ),
-                        },
-                        is_proc_macro: false,
-                    },
-                    CrateId(
-                        2,
-                    ): CrateData {
-                        root_file_id: FileId(
-                            3,
-                        ),
-                        edition: Edition2018,
-                        version: Some(
-                            "0.1.0",
-                        ),
-                        display_name: Some(
-                            CrateDisplayName {
-                                crate_name: CrateName(
-                                    "an_example",
-                                ),
-                                canonical_name: "an-example",
-                            },
-                        ),
-                        cfg_options: CfgOptions(
-                            [
-                                "debug_assertions",
-                                "test",
-                            ],
-                        ),
-                        potential_cfg_options: CfgOptions(
-                            [
-                                "debug_assertions",
-                                "test",
-                            ],
-                        ),
-                        target_layout: Err(
-                            "target_data_layout not loaded",
-                        ),
-                        env: Env {
-                            entries: {
-                                "CARGO_PKG_LICENSE": "",
-                                "CARGO_PKG_VERSION_MAJOR": "0",
-                                "CARGO_MANIFEST_DIR": "$ROOT$hello-world",
-                                "CARGO_PKG_VERSION": "0.1.0",
-                                "CARGO_PKG_AUTHORS": "",
-                                "CARGO_CRATE_NAME": "hello_world",
-                                "CARGO_PKG_LICENSE_FILE": "",
-                                "CARGO_PKG_HOMEPAGE": "",
-                                "CARGO_PKG_DESCRIPTION": "",
-                                "CARGO_PKG_NAME": "hello-world",
-                                "CARGO_PKG_VERSION_PATCH": "0",
-                                "CARGO": "cargo",
-                                "CARGO_PKG_REPOSITORY": "",
-                                "CARGO_PKG_VERSION_MINOR": "1",
-                                "CARGO_PKG_VERSION_PRE": "",
-                            },
-                        },
-                        dependencies: [
-                            Dependency {
-                                crate_id: CrateId(
-                                    0,
-                                ),
-                                name: CrateName(
-                                    "hello_world",
-                                ),
-                                prelude: true,
-                            },
-                            Dependency {
-                                crate_id: CrateId(
-                                    4,
+                                    5,
                                 ),
                                 name: CrateName(
                                     "libc",
@@ -777,7 +860,7 @@ fn cargo_hello_world_project_model_with_selective_overrides() {
                         3,
                     ): CrateData {
                         root_file_id: FileId(
-                            4,
+                            3,
                         ),
                         edition: Edition2018,
                         version: Some(
@@ -786,21 +869,19 @@ fn cargo_hello_world_project_model_with_selective_overrides() {
                         display_name: Some(
                             CrateDisplayName {
                                 crate_name: CrateName(
-                                    "it",
+                                    "an_example",
                                 ),
-                                canonical_name: "it",
+                                canonical_name: "an-example",
                             },
                         ),
                         cfg_options: CfgOptions(
                             [
                                 "debug_assertions",
-                                "test",
                             ],
                         ),
                         potential_cfg_options: CfgOptions(
                             [
                                 "debug_assertions",
-                                "test",
                             ],
                         ),
                         target_layout: Err(
@@ -837,7 +918,7 @@ fn cargo_hello_world_project_model_with_selective_overrides() {
                             },
                             Dependency {
                                 crate_id: CrateId(
-                                    4,
+                                    5,
                                 ),
                                 name: CrateName(
                                     "libc",
@@ -858,6 +939,87 @@ fn cargo_hello_world_project_model_with_selective_overrides() {
                     },
                     CrateId(
                         4,
+                    ): CrateData {
+                        root_file_id: FileId(
+                            4,
+                        ),
+                        edition: Edition2018,
+                        version: Some(
+                            "0.1.0",
+                        ),
+                        display_name: Some(
+                            CrateDisplayName {
+                                crate_name: CrateName(
+                                    "it",
+                                ),
+                                canonical_name: "it",
+                            },
+                        ),
+                        cfg_options: CfgOptions(
+                            [
+                                "debug_assertions",
+                            ],
+                        ),
+                        potential_cfg_options: CfgOptions(
+                            [
+                                "debug_assertions",
+                            ],
+                        ),
+                        target_layout: Err(
+                            "target_data_layout not loaded",
+                        ),
+                        env: Env {
+                            entries: {
+                                "CARGO_PKG_LICENSE": "",
+                                "CARGO_PKG_VERSION_MAJOR": "0",
+                                "CARGO_MANIFEST_DIR": "$ROOT$hello-world",
+                                "CARGO_PKG_VERSION": "0.1.0",
+                                "CARGO_PKG_AUTHORS": "",
+                                "CARGO_CRATE_NAME": "hello_world",
+                                "CARGO_PKG_LICENSE_FILE": "",
+                                "CARGO_PKG_HOMEPAGE": "",
+                                "CARGO_PKG_DESCRIPTION": "",
+                                "CARGO_PKG_NAME": "hello-world",
+                                "CARGO_PKG_VERSION_PATCH": "0",
+                                "CARGO": "cargo",
+                                "CARGO_PKG_REPOSITORY": "",
+                                "CARGO_PKG_VERSION_MINOR": "1",
+                                "CARGO_PKG_VERSION_PRE": "",
+                            },
+                        },
+                        dependencies: [
+                            Dependency {
+                                crate_id: CrateId(
+                                    0,
+                                ),
+                                name: CrateName(
+                                    "hello_world",
+                                ),
+                                prelude: true,
+                            },
+                            Dependency {
+                                crate_id: CrateId(
+                                    5,
+                                ),
+                                name: CrateName(
+                                    "libc",
+                                ),
+                                prelude: true,
+                            },
+                        ],
+                        proc_macro: Err(
+                            "crate has not (yet) been built",
+                        ),
+                        origin: CratesIo {
+                            repo: None,
+                            name: Some(
+                                "hello-world",
+                            ),
+                        },
+                        is_proc_macro: false,
+                    },
+                    CrateId(
+                        5,
                     ): CrateData {
                         root_file_id: FileId(
                             5,
@@ -963,6 +1125,78 @@ fn cargo_hello_world_project_model() {
                         cfg_options: CfgOptions(
                             [
                                 "debug_assertions",
+                            ],
+                        ),
+                        potential_cfg_options: CfgOptions(
+                            [
+                                "debug_assertions",
+                            ],
+                        ),
+                        target_layout: Err(
+                            "target_data_layout not loaded",
+                        ),
+                        env: Env {
+                            entries: {
+                                "CARGO_PKG_LICENSE": "",
+                                "CARGO_PKG_VERSION_MAJOR": "0",
+                                "CARGO_MANIFEST_DIR": "$ROOT$hello-world",
+                                "CARGO_PKG_VERSION": "0.1.0",
+                                "CARGO_PKG_AUTHORS": "",
+                                "CARGO_CRATE_NAME": "hello_world",
+                                "CARGO_PKG_LICENSE_FILE": "",
+                                "CARGO_PKG_HOMEPAGE": "",
+                                "CARGO_PKG_DESCRIPTION": "",
+                                "CARGO_PKG_NAME": "hello-world",
+                                "CARGO_PKG_VERSION_PATCH": "0",
+                                "CARGO": "cargo",
+                                "CARGO_PKG_REPOSITORY": "",
+                                "CARGO_PKG_VERSION_MINOR": "1",
+                                "CARGO_PKG_VERSION_PRE": "",
+                            },
+                        },
+                        dependencies: [
+                            Dependency {
+                                crate_id: CrateId(
+                                    5,
+                                ),
+                                name: CrateName(
+                                    "libc",
+                                ),
+                                prelude: true,
+                            },
+                        ],
+                        proc_macro: Err(
+                            "crate has not (yet) been built",
+                        ),
+                        origin: CratesIo {
+                            repo: None,
+                            name: Some(
+                                "hello-world",
+                            ),
+                        },
+                        is_proc_macro: false,
+                    },
+                    CrateId(
+                        1,
+                    ): CrateData {
+                        root_file_id: FileId(
+                            1,
+                        ),
+                        edition: Edition2018,
+                        version: Some(
+                            "0.1.0",
+                        ),
+                        display_name: Some(
+                            CrateDisplayName {
+                                crate_name: CrateName(
+                                    "hello_world",
+                                ),
+                                canonical_name: "hello-world",
+                            },
+                        ),
+                        cfg_options: CfgOptions(
+                            [
+                                "debug_assertions",
                                 "test",
                             ],
                         ),
@@ -997,7 +1231,16 @@ fn cargo_hello_world_project_model() {
                         dependencies: [
                             Dependency {
                                 crate_id: CrateId(
-                                    4,
+                                    0,
+                                ),
+                                name: CrateName(
+                                    "hello_world",
+                                ),
+                                prelude: true,
+                            },
+                            Dependency {
+                                crate_id: CrateId(
+                                    5,
                                 ),
                                 name: CrateName(
                                     "libc",
@@ -1017,7 +1260,7 @@ fn cargo_hello_world_project_model() {
                         is_proc_macro: false,
                     },
                     CrateId(
-                        1,
+                        2,
                     ): CrateData {
                         root_file_id: FileId(
                             2,
@@ -1080,90 +1323,7 @@ fn cargo_hello_world_project_model() {
                             },
                             Dependency {
                                 crate_id: CrateId(
-                                    4,
-                                ),
-                                name: CrateName(
-                                    "libc",
-                                ),
-                                prelude: true,
-                            },
-                        ],
-                        proc_macro: Err(
-                            "crate has not (yet) been built",
-                        ),
-                        origin: CratesIo {
-                            repo: None,
-                            name: Some(
-                                "hello-world",
-                            ),
-                        },
-                        is_proc_macro: false,
-                    },
-                    CrateId(
-                        2,
-                    ): CrateData {
-                        root_file_id: FileId(
-                            3,
-                        ),
-                        edition: Edition2018,
-                        version: Some(
-                            "0.1.0",
-                        ),
-                        display_name: Some(
-                            CrateDisplayName {
-                                crate_name: CrateName(
-                                    "an_example",
-                                ),
-                                canonical_name: "an-example",
-                            },
-                        ),
-                        cfg_options: CfgOptions(
-                            [
-                                "debug_assertions",
-                                "test",
-                            ],
-                        ),
-                        potential_cfg_options: CfgOptions(
-                            [
-                                "debug_assertions",
-                                "test",
-                            ],
-                        ),
-                        target_layout: Err(
-                            "target_data_layout not loaded",
-                        ),
-                        env: Env {
-                            entries: {
-                                "CARGO_PKG_LICENSE": "",
-                                "CARGO_PKG_VERSION_MAJOR": "0",
-                                "CARGO_MANIFEST_DIR": "$ROOT$hello-world",
-                                "CARGO_PKG_VERSION": "0.1.0",
-                                "CARGO_PKG_AUTHORS": "",
-                                "CARGO_CRATE_NAME": "hello_world",
-                                "CARGO_PKG_LICENSE_FILE": "",
-                                "CARGO_PKG_HOMEPAGE": "",
-                                "CARGO_PKG_DESCRIPTION": "",
-                                "CARGO_PKG_NAME": "hello-world",
-                                "CARGO_PKG_VERSION_PATCH": "0",
-                                "CARGO": "cargo",
-                                "CARGO_PKG_REPOSITORY": "",
-                                "CARGO_PKG_VERSION_MINOR": "1",
-                                "CARGO_PKG_VERSION_PRE": "",
-                            },
-                        },
-                        dependencies: [
-                            Dependency {
-                                crate_id: CrateId(
-                                    0,
-                                ),
-                                name: CrateName(
-                                    "hello_world",
-                                ),
-                                prelude: true,
-                            },
-                            Dependency {
-                                crate_id: CrateId(
-                                    4,
+                                    5,
                                 ),
                                 name: CrateName(
                                     "libc",
@@ -1186,7 +1346,7 @@ fn cargo_hello_world_project_model() {
                         3,
                     ): CrateData {
                         root_file_id: FileId(
-                            4,
+                            3,
                         ),
                         edition: Edition2018,
                         version: Some(
@@ -1195,21 +1355,19 @@ fn cargo_hello_world_project_model() {
                         display_name: Some(
                             CrateDisplayName {
                                 crate_name: CrateName(
-                                    "it",
+                                    "an_example",
                                 ),
-                                canonical_name: "it",
+                                canonical_name: "an-example",
                             },
                         ),
                         cfg_options: CfgOptions(
                             [
                                 "debug_assertions",
-                                "test",
                             ],
                         ),
                         potential_cfg_options: CfgOptions(
                             [
                                 "debug_assertions",
-                                "test",
                             ],
                         ),
                         target_layout: Err(
@@ -1246,7 +1404,7 @@ fn cargo_hello_world_project_model() {
                             },
                             Dependency {
                                 crate_id: CrateId(
-                                    4,
+                                    5,
                                 ),
                                 name: CrateName(
                                     "libc",
@@ -1267,6 +1425,87 @@ fn cargo_hello_world_project_model() {
                     },
                     CrateId(
                         4,
+                    ): CrateData {
+                        root_file_id: FileId(
+                            4,
+                        ),
+                        edition: Edition2018,
+                        version: Some(
+                            "0.1.0",
+                        ),
+                        display_name: Some(
+                            CrateDisplayName {
+                                crate_name: CrateName(
+                                    "it",
+                                ),
+                                canonical_name: "it",
+                            },
+                        ),
+                        cfg_options: CfgOptions(
+                            [
+                                "debug_assertions",
+                            ],
+                        ),
+                        potential_cfg_options: CfgOptions(
+                            [
+                                "debug_assertions",
+                            ],
+                        ),
+                        target_layout: Err(
+                            "target_data_layout not loaded",
+                        ),
+                        env: Env {
+                            entries: {
+                                "CARGO_PKG_LICENSE": "",
+                                "CARGO_PKG_VERSION_MAJOR": "0",
+                                "CARGO_MANIFEST_DIR": "$ROOT$hello-world",
+                                "CARGO_PKG_VERSION": "0.1.0",
+                                "CARGO_PKG_AUTHORS": "",
+                                "CARGO_CRATE_NAME": "hello_world",
+                                "CARGO_PKG_LICENSE_FILE": "",
+                                "CARGO_PKG_HOMEPAGE": "",
+                                "CARGO_PKG_DESCRIPTION": "",
+                                "CARGO_PKG_NAME": "hello-world",
+                                "CARGO_PKG_VERSION_PATCH": "0",
+                                "CARGO": "cargo",
+                                "CARGO_PKG_REPOSITORY": "",
+                                "CARGO_PKG_VERSION_MINOR": "1",
+                                "CARGO_PKG_VERSION_PRE": "",
+                            },
+                        },
+                        dependencies: [
+                            Dependency {
+                                crate_id: CrateId(
+                                    0,
+                                ),
+                                name: CrateName(
+                                    "hello_world",
+                                ),
+                                prelude: true,
+                            },
+                            Dependency {
+                                crate_id: CrateId(
+                                    5,
+                                ),
+                                name: CrateName(
+                                    "libc",
+                                ),
+                                prelude: true,
+                            },
+                        ],
+                        proc_macro: Err(
+                            "crate has not (yet) been built",
+                        ),
+                        origin: CratesIo {
+                            repo: None,
+                            name: Some(
+                                "hello-world",
+                            ),
+                        },
+                        is_proc_macro: false,
+                    },
+                    CrateId(
+                        5,
                     ): CrateData {
                         root_file_id: FileId(
                             5,
