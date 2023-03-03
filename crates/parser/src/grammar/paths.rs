@@ -67,12 +67,19 @@ fn path_for_qualifier(
     }
 }
 
+const EXPR_PATH_SEGMENT_RECOVERY_SET: TokenSet =
+    items::ITEM_RECOVERY_SET.union(TokenSet::new(&[T![')'], T![,], T![let]]));
+const TYPE_PATH_SEGMENT_RECOVERY_SET: TokenSet = types::TYPE_RECOVERY_SET;
+
 fn path_segment(p: &mut Parser<'_>, mode: Mode, first: bool) {
     let m = p.start();
     // test qual_paths
     // type X = <A as B>::Output;
     // fn foo() { <usize as Default>::default(); }
     if first && p.eat(T![<]) {
+        // test_err angled_path_without_qual
+        // type X = <()>;
+        // type Y = <A as B>;
         types::type_(p);
         if p.eat(T![as]) {
             if is_use_path_start(p) {
@@ -82,6 +89,9 @@ fn path_segment(p: &mut Parser<'_>, mode: Mode, first: bool) {
             }
         }
         p.expect(T![>]);
+        if !p.at(T![::]) {
+            p.error("expected `::`");
+        }
     } else {
         let empty = if first {
             p.eat(T![::]);
@@ -102,7 +112,12 @@ fn path_segment(p: &mut Parser<'_>, mode: Mode, first: bool) {
                 m.complete(p, NAME_REF);
             }
             _ => {
-                p.err_recover("expected identifier", items::ITEM_RECOVERY_SET);
+                let recover_set = match mode {
+                    Mode::Use => items::ITEM_RECOVERY_SET,
+                    Mode::Type => TYPE_PATH_SEGMENT_RECOVERY_SET,
+                    Mode::Expr => EXPR_PATH_SEGMENT_RECOVERY_SET,
+                };
+                p.err_recover("expected identifier", recover_set);
                 if empty {
                     // test_err empty_segment
                     // use crate::;

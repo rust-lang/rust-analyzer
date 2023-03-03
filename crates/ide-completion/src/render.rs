@@ -367,6 +367,9 @@ fn res_to_kind(resolution: ScopeDef) -> CompletionItemKind {
         ScopeDef::ModuleDef(Const(..)) => CompletionItemKind::SymbolKind(SymbolKind::Const),
         ScopeDef::ModuleDef(Static(..)) => CompletionItemKind::SymbolKind(SymbolKind::Static),
         ScopeDef::ModuleDef(Trait(..)) => CompletionItemKind::SymbolKind(SymbolKind::Trait),
+        ScopeDef::ModuleDef(TraitAlias(..)) => {
+            CompletionItemKind::SymbolKind(SymbolKind::TraitAlias)
+        }
         ScopeDef::ModuleDef(TypeAlias(..)) => CompletionItemKind::SymbolKind(SymbolKind::TypeAlias),
         ScopeDef::ModuleDef(BuiltinType(..)) => CompletionItemKind::BuiltinType,
         ScopeDef::GenericParam(param) => CompletionItemKind::SymbolKind(match param {
@@ -503,18 +506,18 @@ mod tests {
     #[track_caller]
     fn check_relevance_for_kinds(ra_fixture: &str, kinds: &[CompletionItemKind], expect: Expect) {
         let mut actual = get_all_items(TEST_CONFIG, ra_fixture, None);
-        actual.retain(|it| kinds.contains(&it.kind()));
-        actual.sort_by_key(|it| cmp::Reverse(it.relevance().score()));
+        actual.retain(|it| kinds.contains(&it.kind));
+        actual.sort_by_key(|it| cmp::Reverse(it.relevance.score()));
         check_relevance_(actual, expect);
     }
 
     #[track_caller]
     fn check_relevance(ra_fixture: &str, expect: Expect) {
         let mut actual = get_all_items(TEST_CONFIG, ra_fixture, None);
-        actual.retain(|it| it.kind() != CompletionItemKind::Snippet);
-        actual.retain(|it| it.kind() != CompletionItemKind::Keyword);
-        actual.retain(|it| it.kind() != CompletionItemKind::BuiltinType);
-        actual.sort_by_key(|it| cmp::Reverse(it.relevance().score()));
+        actual.retain(|it| it.kind != CompletionItemKind::Snippet);
+        actual.retain(|it| it.kind != CompletionItemKind::Keyword);
+        actual.retain(|it| it.kind != CompletionItemKind::BuiltinType);
+        actual.sort_by_key(|it| cmp::Reverse(it.relevance.score()));
         check_relevance_(actual, expect);
     }
 
@@ -525,12 +528,11 @@ mod tests {
             .flat_map(|it| {
                 let mut items = vec![];
 
-                let tag = it.kind().tag();
-                let relevance = display_relevance(it.relevance());
-                items.push(format!("{tag} {} {relevance}\n", it.label()));
+                let tag = it.kind.tag();
+                let relevance = display_relevance(it.relevance);
+                items.push(format!("{tag} {} {relevance}\n", it.label));
 
-                if let Some((mutability, _offset, relevance)) = it.ref_match() {
-                    let label = format!("&{}{}", mutability.as_keyword_for_ref(), it.label());
+                if let Some((label, _indel, relevance)) = it.ref_match() {
                     let relevance = display_relevance(relevance);
 
                     items.push(format!("{tag} {label} {relevance}\n"));
@@ -587,6 +589,7 @@ fn main() { Foo::Fo$0 }
                         ),
                         lookup: "Foo{}",
                         detail: "Foo { x: i32, y: i32 }",
+                        trigger_call_info: true,
                     },
                 ]
             "#]],
@@ -614,6 +617,7 @@ fn main() { Foo::Fo$0 }
                         ),
                         lookup: "Foo()",
                         detail: "Foo(i32, i32)",
+                        trigger_call_info: true,
                     },
                 ]
             "#]],
@@ -679,6 +683,7 @@ fn main() { Foo::Fo$0 }
                             Variant,
                         ),
                         detail: "Foo",
+                        trigger_call_info: true,
                     },
                 ]
             "#]],
@@ -745,6 +750,7 @@ fn main() { let _: m::Spam = S$0 }
                             postfix_match: None,
                             is_definite: false,
                         },
+                        trigger_call_info: true,
                     },
                     CompletionItem {
                         label: "m::Spam::Foo",
@@ -770,6 +776,7 @@ fn main() { let _: m::Spam = S$0 }
                             postfix_match: None,
                             is_definite: false,
                         },
+                        trigger_call_info: true,
                     },
                 ]
             "#]],
@@ -942,6 +949,7 @@ use self::E::*;
                         documentation: Documentation(
                             "variant docs",
                         ),
+                        trigger_call_info: true,
                     },
                     CompletionItem {
                         label: "E",
@@ -1691,6 +1699,7 @@ fn main() {
                 sn while []
                 sn ref []
                 sn refm []
+                sn unsafe []
                 sn match []
                 sn box []
                 sn dbg []
@@ -1718,6 +1727,7 @@ fn main() {
                 me f() []
                 sn ref []
                 sn refm []
+                sn unsafe []
                 sn match []
                 sn box []
                 sn dbg []

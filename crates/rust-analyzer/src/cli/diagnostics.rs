@@ -1,6 +1,7 @@
 //! Analyze all modules in a project for diagnostics. Exits with a non-zero
 //! status code if any errors are found.
 
+use project_model::{CargoConfig, RustcSource};
 use rustc_hash::FxHashSet;
 
 use hir::{db::HirDatabase, Crate, Module};
@@ -9,15 +10,16 @@ use ide_db::base_db::SourceDatabaseExt;
 
 use crate::cli::{
     flags,
-    load_cargo::{load_workspace_at, LoadCargoConfig},
+    load_cargo::{load_workspace_at, LoadCargoConfig, ProcMacroServerChoice},
 };
 
 impl flags::Diagnostics {
     pub fn run(self) -> anyhow::Result<()> {
-        let cargo_config = Default::default();
+        let mut cargo_config = CargoConfig::default();
+        cargo_config.sysroot = Some(RustcSource::Discover);
         let load_cargo_config = LoadCargoConfig {
             load_out_dirs_from_check: !self.disable_build_scripts,
-            with_proc_macro: !self.disable_proc_macros,
+            with_proc_macro_server: ProcMacroServerChoice::Sysroot,
             prefill_caches: false,
         };
         let (host, _vfs, _proc_macro) =

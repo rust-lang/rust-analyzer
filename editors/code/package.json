@@ -19,6 +19,12 @@
     "categories": [
         "Programming Languages"
     ],
+    "capabilities": {
+        "untrustedWorkspaces": {
+            "supported": false,
+            "description": "rust-analyzer invokes binaries set up by its configuration as well as the Rust toolchain's binaries. A malicious actor could exploit this to run arbitrary code on your machine."
+        }
+    },
     "engines": {
         "vscode": "^1.66.0"
     },
@@ -220,7 +226,7 @@
             },
             {
                 "command": "rust-analyzer.openDocs",
-                "title": "Open docs under cursor",
+                "title": "Open Docs",
                 "category": "rust-analyzer"
             },
             {
@@ -230,7 +236,7 @@
             },
             {
                 "command": "rust-analyzer.peekTests",
-                "title": "Peek related tests",
+                "title": "Peek Related Tests",
                 "category": "rust-analyzer"
             },
             {
@@ -539,6 +545,14 @@
                         "string"
                     ]
                 },
+                "rust-analyzer.cargo.sysrootSrc": {
+                    "markdownDescription": "Relative path to the sysroot library sources. If left unset, this will default to\n`{cargo.sysroot}/lib/rustlib/src/rust/library`.\n\nThis option does not take effect until rust-analyzer is restarted.",
+                    "default": null,
+                    "type": [
+                        "null",
+                        "string"
+                    ]
+                },
                 "rust-analyzer.cargo.target": {
                     "markdownDescription": "Compilation target override (target triple).",
                     "default": null,
@@ -696,6 +710,15 @@
                         "Add call parentheses.",
                         "Do no snippet completions for callables."
                     ]
+                },
+                "rust-analyzer.completion.limit": {
+                    "markdownDescription": "Maximum number of completions to return. If `None`, the limit is infinite.",
+                    "default": null,
+                    "type": [
+                        "null",
+                        "integer"
+                    ],
+                    "minimum": 0
                 },
                 "rust-analyzer.completion.postfix.enable": {
                     "markdownDescription": "Whether to show postfix snippets like `dbg`, `if`, `not`, etc.",
@@ -1087,6 +1110,11 @@
                     "default": false,
                     "type": "boolean"
                 },
+                "rust-analyzer.interpret.tests": {
+                    "markdownDescription": "Enables the experimental support for interpreting tests.",
+                    "default": false,
+                    "type": "boolean"
+                },
                 "rust-analyzer.joinLines.joinAssignments": {
                     "markdownDescription": "Join lines merges consecutive declaration and initialization of an assignment.",
                     "default": true,
@@ -1260,7 +1288,7 @@
                     }
                 },
                 "rust-analyzer.rustfmt.overrideCommand": {
-                    "markdownDescription": "Advanced option, fully override the command rust-analyzer uses for\nformatting.",
+                    "markdownDescription": "Advanced option, fully override the command rust-analyzer uses for\nformatting. This should be the equivalent of `rustfmt` here, and\nnot that of `cargo fmt`. The file contents will be passed on the\nstandard input and the formatted result will be read from the\nstandard output.",
                     "default": null,
                     "type": [
                         "null",
@@ -1846,8 +1874,13 @@
             "editor/context": [
                 {
                     "command": "rust-analyzer.peekTests",
-                    "when": "inRustProject",
+                    "when": "inRustProject && editorTextFocus && editorLangId == rust",
                     "group": "navigation@1000"
+                },
+                {
+                    "command": "rust-analyzer.openDocs",
+                    "when": "inRustProject && editorTextFocus && editorLangId == rust",
+                    "group": "navigation@1001"
                 }
             ]
         },

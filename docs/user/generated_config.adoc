@@ -99,6 +99,14 @@ Unsetting this disables sysroot loading.
 
 This option does not take effect until rust-analyzer is restarted.
 --
+[[rust-analyzer.cargo.sysrootSrc]]rust-analyzer.cargo.sysrootSrc (default: `null`)::
++
+--
+Relative path to the sysroot library sources. If left unset, this will default to
+`{cargo.sysroot}/lib/rustlib/src/rust/library`.
+
+This option does not take effect until rust-analyzer is restarted.
+--
 [[rust-analyzer.cargo.target]]rust-analyzer.cargo.target (default: `null`)::
 +
 --
@@ -218,6 +226,11 @@ with `self` prefixed to them when inside a method.
 +
 --
 Whether to add parenthesis and argument snippets when completing function.
+--
+[[rust-analyzer.completion.limit]]rust-analyzer.completion.limit (default: `null`)::
++
+--
+Maximum number of completions to return. If `None`, the limit is infinite.
 --
 [[rust-analyzer.completion.postfix.enable]]rust-analyzer.completion.postfix.enable (default: `true`)::
 +
@@ -524,6 +537,11 @@ Only applies to closures with blocks, same as `#rust-analyzer.inlayHints.closure
 --
 Whether to hide inlay type hints for constructors.
 --
+[[rust-analyzer.interpret.tests]]rust-analyzer.interpret.tests (default: `false`)::
++
+--
+Enables the experimental support for interpreting tests.
+--
 [[rust-analyzer.joinLines.joinAssignments]]rust-analyzer.joinLines.joinAssignments (default: `true`)::
 +
 --
@@ -686,7 +704,10 @@ Additional arguments to `rustfmt`.
 +
 --
 Advanced option, fully override the command rust-analyzer uses for
-formatting.
+formatting. This should be the equivalent of `rustfmt` here, and
+not that of `cargo fmt`. The file contents will be passed on the
+standard input and the formatted result will be read from the
+standard output.
 --
 [[rust-analyzer.rustfmt.rangeFormatting.enable]]rust-analyzer.rustfmt.rangeFormatting.enable (default: `false`)::
 +

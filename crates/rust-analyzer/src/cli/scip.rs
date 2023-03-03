@@ -5,14 +5,17 @@ use std::{
     time::Instant,
 };
 
-use crate::line_index::{LineEndings, LineIndex, PositionEncoding};
+use crate::{
+    cli::load_cargo::ProcMacroServerChoice,
+    line_index::{LineEndings, LineIndex, PositionEncoding},
+};
 use hir::Name;
 use ide::{
     LineCol, MonikerDescriptorKind, StaticIndex, StaticIndexedFile, TextRange, TokenId,
     TokenStaticData,
 };
 use ide_db::LineIndexDatabase;
-use project_model::{CargoConfig, ProjectManifest, ProjectWorkspace};
+use project_model::{CargoConfig, ProjectManifest, ProjectWorkspace, RustcSource};
 use scip::types as scip_types;
 use std::env;
 
@@ -26,12 +29,13 @@ impl flags::Scip {
     pub fn run(self) -> Result<()> {
         eprintln!("Generating SCIP start...");
         let now = Instant::now();
-        let cargo_config = CargoConfig::default();
+        let mut cargo_config = CargoConfig::default();
+        cargo_config.sysroot = Some(RustcSource::Discover);
 
         let no_progress = &|s| (eprintln!("rust-analyzer: Loading {s}"));
         let load_cargo_config = LoadCargoConfig {
             load_out_dirs_from_check: true,
-            with_proc_macro: true,
+            with_proc_macro_server: ProcMacroServerChoice::Sysroot,
             prefill_caches: true,
         };
         let path = vfs::AbsPathBuf::assert(env::current_dir()?.join(&self.path));

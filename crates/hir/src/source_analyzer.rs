@@ -51,7 +51,7 @@ use syntax::{
 use crate::{
     db::HirDatabase, semantics::PathResolution, Adt, AssocItem, BindingMode, BuiltinAttr,
     BuiltinType, Callable, Const, DeriveHelper, Field, Function, Local, Macro, ModuleDef, Static,
-    Struct, ToolModule, Trait, Type, TypeAlias, Variant,
+    Struct, ToolModule, Trait, TraitAlias, Type, TypeAlias, Variant,
 };
 
 /// `SourceAnalyzer` is a convenience wrapper which exposes HIR API in terms of
@@ -791,7 +791,7 @@ impl SourceAnalyzer {
             || Arc::new(hir_ty::TraitEnvironment::empty(krate)),
             |d| db.trait_environment(d),
         );
-        method_resolution::lookup_impl_method(db, env, func, substs)
+        method_resolution::lookup_impl_method(db, env, func, substs).0
     }
 
     fn resolve_impl_const_or_trait_def(
@@ -809,7 +809,7 @@ impl SourceAnalyzer {
             || Arc::new(hir_ty::TraitEnvironment::empty(krate)),
             |d| db.trait_environment(d),
         );
-        method_resolution::lookup_impl_const(db, env, const_id, subs)
+        method_resolution::lookup_impl_const(db, env, const_id, subs).0
     }
 
     fn lang_trait_fn(
@@ -943,17 +943,17 @@ fn resolve_hir_path_(
                 res.map(|ty_ns| (ty_ns, path.segments().first()))
             }
             None => {
-                let (ty, remaining) =
+                let (ty, remaining_idx) =
                     resolver.resolve_path_in_type_ns(db.upcast(), path.mod_path())?;
-                match remaining {
-                    Some(remaining) if remaining > 1 => {
-                        if remaining + 1 == path.segments().len() {
+                match remaining_idx {
+                    Some(remaining_idx) => {
+                        if remaining_idx + 1 == path.segments().len() {
                             Some((ty, path.segments().last()))
                         } else {
                             None
                         }
                     }
-                    _ => Some((ty, path.segments().get(1))),
+                    None => Some((ty, None)),
                 }
             }
         }?;
@@ -978,6 +978,7 @@ fn resolve_hir_path_(
             TypeNs::TypeAliasId(it) => PathResolution::Def(TypeAlias::from(it).into()),
             TypeNs::BuiltinType(it) => PathResolution::Def(BuiltinType::from(it).into()),
             TypeNs::TraitId(it) => PathResolution::Def(Trait::from(it).into()),
+            TypeNs::TraitAliasId(it) => PathResolution::Def(TraitAlias::from(it).into()),
         };
         match unresolved {
             Some(unresolved) => resolver
@@ -1065,6 +1066,7 @@ fn resolve_hir_path_qualifier(
             TypeNs::TypeAliasId(it) => PathResolution::Def(TypeAlias::from(it).into()),
             TypeNs::BuiltinType(it) => PathResolution::Def(BuiltinType::from(it).into()),
             TypeNs::TraitId(it) => PathResolution::Def(Trait::from(it).into()),
+            TypeNs::TraitAliasId(it) => PathResolution::Def(TraitAlias::from(it).into()),
         })
         .or_else(|| {
             resolver

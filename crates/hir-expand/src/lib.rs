@@ -55,6 +55,7 @@ pub type ExpandResult<T> = ValueResult<T, ExpandError>;
 pub enum ExpandError {
     UnresolvedProcMacro(CrateId),
     Mbe(mbe::ExpandError),
+    RecursionOverflowPosioned,
     Other(Box<str>),
 }
 
@@ -69,6 +70,9 @@ impl fmt::Display for ExpandError {
         match self {
             ExpandError::UnresolvedProcMacro(_) => f.write_str("unresolved proc-macro"),
             ExpandError::Mbe(it) => it.fmt(f),
+            ExpandError::RecursionOverflowPosioned => {
+                f.write_str("overflow expanding the original macro")
+            }
             ExpandError::Other(it) => f.write_str(it),
         }
     }
@@ -764,6 +768,15 @@ impl<T> InFile<Option<T>> {
     pub fn transpose(self) -> Option<InFile<T>> {
         let value = self.value?;
         Some(InFile::new(self.file_id, value))
+    }
+}
+
+impl<L, R> InFile<Either<L, R>> {
+    pub fn transpose(self) -> Either<InFile<L>, InFile<R>> {
+        match self.value {
+            Either::Left(l) => Either::Left(InFile::new(self.file_id, l)),
+            Either::Right(r) => Either::Right(InFile::new(self.file_id, r)),
+        }
     }
 }
 

@@ -16,6 +16,7 @@ use chalk_ir::{
     cast::Cast, fold::Shift, fold::TypeFoldable, interner::HasInterner, Mutability, Safety,
 };
 
+use either::Either;
 use hir_def::{
     adt::StructKind,
     body::{Expander, LowerCtx},
@@ -26,17 +27,14 @@ use hir_def::{
     lang_item::{lang_attr, LangItem},
     path::{GenericArg, ModPath, Path, PathKind, PathSegment, PathSegments},
     resolver::{HasResolver, Resolver, TypeNs},
-    type_ref::{
-        ConstScalarOrPath, TraitBoundModifier, TraitRef as HirTraitRef, TypeBound, TypeRef,
-    },
+    type_ref::{ConstRefOrPath, TraitBoundModifier, TraitRef as HirTraitRef, TypeBound, TypeRef},
     AdtId, AssocItemId, ConstId, ConstParamId, EnumId, EnumVariantId, FunctionId, GenericDefId,
     HasModule, ImplId, ItemContainerId, LocalFieldId, Lookup, ModuleDefId, StaticId, StructId,
     TraitId, TypeAliasId, TypeOrConstParamId, TypeParamId, UnionId, VariantId,
 };
 use hir_expand::{name::Name, ExpandResult};
 use intern::Interned;
-use itertools::Either;
-use la_arena::ArenaMap;
+use la_arena::{Arena, ArenaMap};
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 use stdx::{impl_from, never};
@@ -44,7 +42,7 @@ use syntax::ast;
 
 use crate::{
     all_super_traits,
-    consteval::{intern_const_scalar, path_to_const, unknown_const, unknown_const_as_generic},
+    consteval::{intern_const_ref, path_to_const, unknown_const, unknown_const_as_generic},
     db::HirDatabase,
     make_binders,
     mapping::{from_chalk_trait_id, ToChalk},
@@ -58,6 +56,51 @@ use crate::{
 };
 
 #[derive(Debug)]
+enum ImplTraitLoweringState {
+    /// When turning `impl Trait` into opaque types, we have to collect the
+    /// bounds at the same time to get the IDs correct (without becoming too
+    /// complicated). I don't like using interior mutability (as for the
+    /// counter), but I've tried and failed to make the lifetimes work for
+    /// passing around a `&mut TyLoweringContext`. The core problem is that
+    /// we're grouping the mutable data (the counter and this field) together
+    /// with the immutable context (the references to the DB and resolver).
+    /// Splitting this up would be a possible fix.
+    Opaque(RefCell<Arena<ReturnTypeImplTrait>>),
+    Param(Cell<u16>),
+    Variable(Cell<u16>),
+    Disallowed,
+}
+impl ImplTraitLoweringState {
+    fn new(impl_trait_mode: ImplTraitLoweringMode) -> ImplTraitLoweringState {
+        match impl_trait_mode {
+            ImplTraitLoweringMode::Opaque => Self::Opaque(RefCell::new(Arena::new())),
+            ImplTraitLoweringMode::Param => Self::Param(Cell::new(0)),
+            ImplTraitLoweringMode::Variable => Self::Variable(Cell::new(0)),
+            ImplTraitLoweringMode::Disallowed => Self::Disallowed,
+        }
+    }
+
+    fn take(&self) -> Self {
+        match self {
+            Self::Opaque(x) => Self::Opaque(RefCell::new(x.take())),
+            Self::Param(x) => Self::Param(Cell::new(x.get())),
+            Self::Variable(x) => Self::Variable(Cell::new(x.get())),
+            Self::Disallowed => Self::Disallowed,
+        }
+    }
+
+    fn swap(&self, impl_trait_mode: &Self) {
+        match (self, impl_trait_mode) {
+            (Self::Opaque(x), Self::Opaque(y)) => x.swap(y),
+            (Self::Param(x), Self::Param(y)) => x.swap(y),
+            (Self::Variable(x), Self::Variable(y)) => x.swap(y),
+            (Self::Disallowed, Self::Disallowed) => (),
+            _ => panic!("mismatched lowering mode"),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct TyLoweringContext<'a> {
     pub db: &'a dyn HirDatabase,
     pub resolver: &'a Resolver,
@@ -67,17 +110,7 @@ pub struct TyLoweringContext<'a> {
     /// should be converted to variables. I think in practice, this isn't
     /// possible currently, so this should be fine for now.
     pub type_param_mode: ParamLoweringMode,
-    pub impl_trait_mode: ImplTraitLoweringMode,
-    impl_trait_counter: Cell<u16>,
-    /// When turning `impl Trait` into opaque types, we have to collect the
-    /// bounds at the same time to get the IDs correct (without becoming too
-    /// complicated). I don't like using interior mutability (as for the
-    /// counter), but I've tried and failed to make the lifetimes work for
-    /// passing around a `&mut TyLoweringContext`. The core problem is that
-    /// we're grouping the mutable data (the counter and this field) together
-    /// with the immutable context (the references to the DB and resolver).
-    /// Splitting this up would be a possible fix.
-    opaque_type_data: RefCell<Vec<ReturnTypeImplTrait>>,
+    impl_trait_mode: ImplTraitLoweringState,
     expander: RefCell<Option<Expander>>,
     /// Tracks types with explicit `?Sized` bounds.
     pub(crate) unsized_types: RefCell<FxHashSet<Ty>>,
@@ -85,19 +118,15 @@ pub struct TyLoweringContext<'a> {
 
 impl<'a> TyLoweringContext<'a> {
     pub fn new(db: &'a dyn HirDatabase, resolver: &'a Resolver) -> Self {
-        let impl_trait_counter = Cell::new(0);
-        let impl_trait_mode = ImplTraitLoweringMode::Disallowed;
+        let impl_trait_mode = ImplTraitLoweringState::Disallowed;
         let type_param_mode = ParamLoweringMode::Placeholder;
         let in_binders = DebruijnIndex::INNERMOST;
-        let opaque_type_data = RefCell::new(Vec::new());
         Self {
             db,
             resolver,
             in_binders,
             impl_trait_mode,
-            impl_trait_counter,
             type_param_mode,
-            opaque_type_data,
             expander: RefCell::new(None),
             unsized_types: RefCell::default(),
         }
@@ -108,20 +137,18 @@ impl<'a> TyLoweringContext<'a> {
         debruijn: DebruijnIndex,
         f: impl FnOnce(&TyLoweringContext<'_>) -> T,
     ) -> T {
-        let opaque_ty_data_vec = self.opaque_type_data.take();
+        let impl_trait_mode = self.impl_trait_mode.take();
         let expander = self.expander.take();
         let unsized_types = self.unsized_types.take();
         let new_ctx = Self {
             in_binders: debruijn,
-            impl_trait_counter: Cell::new(self.impl_trait_counter.get()),
-            opaque_type_data: RefCell::new(opaque_ty_data_vec),
+            impl_trait_mode,
             expander: RefCell::new(expander),
             unsized_types: RefCell::new(unsized_types),
             ..*self
         };
         let result = f(&new_ctx);
-        self.impl_trait_counter.set(new_ctx.impl_trait_counter.get());
-        self.opaque_type_data.replace(new_ctx.opaque_type_data.into_inner());
+        self.impl_trait_mode.swap(&new_ctx.impl_trait_mode);
         self.expander.replace(new_ctx.expander.into_inner());
         self.unsized_types.replace(new_ctx.unsized_types.into_inner());
         result
@@ -136,7 +163,7 @@ impl<'a> TyLoweringContext<'a> {
     }
 
     pub fn with_impl_trait_mode(self, impl_trait_mode: ImplTraitLoweringMode) -> Self {
-        Self { impl_trait_mode, ..self }
+        Self { impl_trait_mode: ImplTraitLoweringState::new(impl_trait_mode), ..self }
     }
 
     pub fn with_type_param_mode(self, type_param_mode: ParamLoweringMode) -> Self {
@@ -244,20 +271,17 @@ impl<'a> TyLoweringContext<'a> {
             }
             TypeRef::DynTrait(bounds) => self.lower_dyn_trait(bounds),
             TypeRef::ImplTrait(bounds) => {
-                match self.impl_trait_mode {
-                    ImplTraitLoweringMode::Opaque => {
-                        let idx = self.impl_trait_counter.get();
-                        self.impl_trait_counter.set(idx + 1);
+                match &self.impl_trait_mode {
+                    ImplTraitLoweringState::Opaque(opaque_type_data) => {
                         let func = match self.resolver.generic_def() {
                             Some(GenericDefId::FunctionId(f)) => f,
                             _ => panic!("opaque impl trait lowering in non-function"),
                         };
 
-                        assert!(idx as usize == self.opaque_type_data.borrow().len());
                         // this dance is to make sure the data is in the right
                         // place even if we encounter more opaque types while
                         // lowering the bounds
-                        self.opaque_type_data.borrow_mut().push(ReturnTypeImplTrait {
+                        let idx = opaque_type_data.borrow_mut().alloc(ReturnTypeImplTrait {
                             bounds: crate::make_single_type_binders(Vec::new()),
                         });
                         // We don't want to lower the bounds inside the binders
@@ -273,7 +297,7 @@ impl<'a> TyLoweringContext<'a> {
                             .with_debruijn(DebruijnIndex::INNERMOST, |ctx| {
                                 ctx.lower_impl_trait(bounds, func)
                             });
-                        self.opaque_type_data.borrow_mut()[idx as usize] = actual_opaque_type_data;
+                        opaque_type_data.borrow_mut()[idx] = actual_opaque_type_data;
 
                         let impl_trait_id = ImplTraitId::ReturnTypeImplTrait(func, idx);
                         let opaque_ty_id = self.db.intern_impl_trait_id(impl_trait_id).into();
@@ -281,10 +305,10 @@ impl<'a> TyLoweringContext<'a> {
                         let parameters = generics.bound_vars_subst(self.db, self.in_binders);
                         TyKind::OpaqueType(opaque_ty_id, parameters).intern(Interner)
                     }
-                    ImplTraitLoweringMode::Param => {
-                        let idx = self.impl_trait_counter.get();
+                    ImplTraitLoweringState::Param(counter) => {
+                        let idx = counter.get();
                         // FIXME we're probably doing something wrong here
-                        self.impl_trait_counter.set(idx + count_impl_traits(type_ref) as u16);
+                        counter.set(idx + count_impl_traits(type_ref) as u16);
                         if let Some(def) = self.resolver.generic_def() {
                             let generics = generics(self.db.upcast(), def);
                             let param = generics
@@ -305,10 +329,10 @@ impl<'a> TyLoweringContext<'a> {
                             TyKind::Error.intern(Interner)
                         }
                     }
-                    ImplTraitLoweringMode::Variable => {
-                        let idx = self.impl_trait_counter.get();
+                    ImplTraitLoweringState::Variable(counter) => {
+                        let idx = counter.get();
                         // FIXME we're probably doing something wrong here
-                        self.impl_trait_counter.set(idx + count_impl_traits(type_ref) as u16);
+                        counter.set(idx + count_impl_traits(type_ref) as u16);
                         let (
                             _parent_params,
                             self_params,
@@ -327,7 +351,7 @@ impl<'a> TyLoweringContext<'a> {
                         ))
                         .intern(Interner)
                     }
-                    ImplTraitLoweringMode::Disallowed => {
+                    ImplTraitLoweringState::Disallowed => {
                         // FIXME: report error
                         TyKind::Error.intern(Interner)
                     }
@@ -497,6 +521,10 @@ impl<'a> TyLoweringContext<'a> {
                     }
                 };
                 return (ty, None);
+            }
+            TypeNs::TraitAliasId(_) => {
+                // FIXME(trait_alias): Implement trait alias.
+                return (TyKind::Error.intern(Interner), None);
             }
             TypeNs::GenericParam(param_id) => {
                 let generics = generics(
@@ -853,6 +881,7 @@ impl<'a> TyLoweringContext<'a> {
     ) -> Option<TraitRef> {
         let resolved =
             match self.resolver.resolve_path_in_type_ns_fully(self.db.upcast(), path.mod_path())? {
+                // FIXME(trait_alias): We need to handle trait alias here.
                 TypeNs::TraitId(tr) => tr,
                 _ => return None,
             };
@@ -942,7 +971,7 @@ impl<'a> TyLoweringContext<'a> {
                         // - `Destruct` impls are built-in in 1.62 (current nightlies as of 08-04-2022), so until
                         //   the builtin impls are supported by Chalk, we ignore them here.
                         if let Some(lang) = lang_attr(self.db.upcast(), tr.hir_trait_id()) {
-                            if lang == "drop" || lang == "destruct" {
+                            if matches!(lang, LangItem::Drop | LangItem::Destruct) {
                                 return false;
                             }
                         }
@@ -999,7 +1028,7 @@ impl<'a> TyLoweringContext<'a> {
         last_segment
             .into_iter()
             .filter_map(|segment| segment.args_and_bindings)
-            .flat_map(|args_and_bindings| &args_and_bindings.bindings)
+            .flat_map(|args_and_bindings| args_and_bindings.bindings.iter())
             .flat_map(move |binding| {
                 let found = associated_type_by_name_including_super_traits(
                     self.db,
@@ -1042,7 +1071,7 @@ impl<'a> TyLoweringContext<'a> {
                         AliasEq { alias: AliasTy::Projection(projection_ty.clone()), ty };
                     preds.push(crate::wrap_empty_binders(WhereClause::AliasEq(alias_eq)));
                 }
-                for bound in &binding.bounds {
+                for bound in binding.bounds.iter() {
                     preds.extend(self.lower_type_bound(
                         bound,
                         TyKind::Alias(AliasTy::Projection(projection_ty.clone())).intern(Interner),
@@ -1209,7 +1238,7 @@ fn named_associated_type_shorthand_candidates<R>(
     mut cb: impl FnMut(&Name, &TraitRef, TypeAliasId) -> Option<R>,
 ) -> Option<R> {
     let mut search = |t| {
-        for t in all_super_trait_refs(db, t) {
+        all_super_trait_refs(db, t, |t| {
             let data = db.trait_data(t.hir_trait_id());
 
             for (name, assoc_id) in &data.items {
@@ -1219,8 +1248,8 @@ fn named_associated_type_shorthand_candidates<R>(
                     }
                 }
             }
-        }
-        None
+            None
+        })
     };
 
     match res {
@@ -1418,6 +1447,7 @@ pub(crate) fn trait_environment_query(
         GenericDefId::FunctionId(f) => Some(f.lookup(db.upcast()).container),
         GenericDefId::AdtId(_) => None,
         GenericDefId::TraitId(_) => None,
+        GenericDefId::TraitAliasId(_) => None,
         GenericDefId::TypeAliasId(t) => Some(t.lookup(db.upcast()).container),
         GenericDefId::ImplId(_) => None,
         GenericDefId::EnumVariantId(_) => None,
@@ -1557,10 +1587,10 @@ pub(crate) fn generic_defaults_recover(
         .iter_id()
         .map(|id| {
             let val = match id {
-                itertools::Either::Left(_) => {
+                Either::Left(_) => {
                     GenericArgData::Ty(TyKind::Error.intern(Interner)).intern(Interner)
                 }
-                itertools::Either::Right(id) => unknown_const_as_generic(db.const_param_ty(id)),
+                Either::Right(id) => unknown_const_as_generic(db.const_param_ty(id)),
             };
             crate::make_binders(db, &generic_params, val)
         })
@@ -1863,8 +1893,12 @@ pub(crate) fn return_type_impl_traits(
         .with_type_param_mode(ParamLoweringMode::Variable);
     let _ret = ctx_ret.lower_ty(&data.ret_type);
     let generics = generics(db.upcast(), def.into());
-    let return_type_impl_traits =
-        ReturnTypeImplTraits { impl_traits: ctx_ret.opaque_type_data.into_inner() };
+    let return_type_impl_traits = ReturnTypeImplTraits {
+        impl_traits: match ctx_ret.impl_trait_mode {
+            ImplTraitLoweringState::Opaque(x) => x.into_inner(),
+            _ => unreachable!(),
+        },
+    };
     if return_type_impl_traits.impl_traits.is_empty() {
         None
     } else {
@@ -1889,7 +1923,7 @@ pub(crate) fn generic_arg_to_chalk<'a, T>(
     arg: &'a GenericArg,
     this: &mut T,
     for_type: impl FnOnce(&mut T, &TypeRef) -> Ty + 'a,
-    for_const: impl FnOnce(&mut T, &ConstScalarOrPath, Ty) -> Const + 'a,
+    for_const: impl FnOnce(&mut T, &ConstRefOrPath, Ty) -> Const + 'a,
 ) -> Option<crate::GenericArg> {
     let kind = match kind_id {
         Either::Left(_) => ParamKind::Type,
@@ -1917,7 +1951,7 @@ pub(crate) fn generic_arg_to_chalk<'a, T>(
                 let p = p.mod_path();
                 if p.kind == PathKind::Plain {
                     if let [n] = p.segments() {
-                        let c = ConstScalarOrPath::Path(n.clone());
+                        let c = ConstRefOrPath::Path(n.clone());
                         return Some(
                             GenericArgData::Const(for_const(this, &c, c_ty)).intern(Interner),
                         );
@@ -1934,14 +1968,14 @@ pub(crate) fn const_or_path_to_chalk(
     db: &dyn HirDatabase,
     resolver: &Resolver,
     expected_ty: Ty,
-    value: &ConstScalarOrPath,
+    value: &ConstRefOrPath,
     mode: ParamLoweringMode,
     args: impl FnOnce() -> Generics,
     debruijn: DebruijnIndex,
 ) -> Const {
     match value {
-        ConstScalarOrPath::Scalar(s) => intern_const_scalar(*s, expected_ty),
-        ConstScalarOrPath::Path(n) => {
+        ConstRefOrPath::Scalar(s) => intern_const_ref(db, s, expected_ty, resolver.krate()),
+        ConstRefOrPath::Path(n) => {
             let path = ModPath::from_segments(PathKind::Plain, Some(n.clone()));
             path_to_const(db, resolver, &path, mode, args, debruijn)
                 .unwrap_or_else(|| unknown_const(expected_ty))

@@ -30,6 +30,7 @@ pub struct HoverConfig {
     pub documentation: bool,
     pub keywords: bool,
     pub format: HoverDocFormat,
+    pub interpret_tests: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -200,6 +201,23 @@ fn hover_simple(
                     record_pat_field_list.syntax().parent().and_then(ast::RecordPat::cast)?;
 
                 Some(render::struct_rest_pat(sema, config, &record_pat))
+            })
+        })
+        // try () call hovers
+        .or_else(|| {
+            descended().find_map(|token| {
+                if token.kind() != T!['('] && token.kind() != T![')'] {
+                    return None;
+                }
+                let arg_list = token.parent().and_then(ast::ArgList::cast)?.syntax().parent()?;
+                let call_expr = syntax::match_ast! {
+                    match arg_list {
+                        ast::CallExpr(expr) => expr.into(),
+                        ast::MethodCallExpr(expr) => expr.into(),
+                        _ => return None,
+                    }
+                };
+                render::type_info_of(sema, config, &Either::Left(call_expr))
             })
         });
 

@@ -22,7 +22,8 @@ use crate::{
     AdtId, AssocItemId, ConstId, ConstParamId, DefWithBodyId, EnumId, EnumVariantId, ExternBlockId,
     FunctionId, GenericDefId, GenericParamId, HasModule, ImplId, ItemContainerId, LifetimeParamId,
     LocalModuleId, Lookup, Macro2Id, MacroId, MacroRulesId, ModuleDefId, ModuleId, ProcMacroId,
-    StaticId, StructId, TraitId, TypeAliasId, TypeOrConstParamId, TypeParamId, VariantId,
+    StaticId, StructId, TraitAliasId, TraitId, TypeAliasId, TypeOrConstParamId, TypeParamId,
+    VariantId,
 };
 
 #[derive(Debug, Clone)]
@@ -74,6 +75,7 @@ pub enum TypeNs {
     TypeAliasId(TypeAliasId),
     BuiltinType(BuiltinType),
     TraitId(TraitId),
+    TraitAliasId(TraitAliasId),
     // Module belong to type ns, but the resolver is used when all module paths
     // are fully resolved.
     // ModuleId(ModuleId)
@@ -85,7 +87,7 @@ pub enum ResolveValueResult {
     Partial(TypeNs, usize),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ValueNs {
     ImplSelf(ImplId),
     LocalBinding(PatId),
@@ -214,10 +216,12 @@ impl Resolver {
         db: &dyn DefDatabase,
         visibility: &RawVisibility,
     ) -> Option<Visibility> {
+        let within_impl =
+            self.scopes().find(|scope| matches!(scope, Scope::ImplDefScope(_))).is_some();
         match visibility {
             RawVisibility::Module(_) => {
                 let (item_map, module) = self.item_scope();
-                item_map.resolve_visibility(db, module, visibility)
+                item_map.resolve_visibility(db, module, visibility, within_impl)
             }
             RawVisibility::Public => Some(Visibility::Public),
         }
@@ -400,6 +404,8 @@ impl Resolver {
     }
 
     pub fn traits_in_scope(&self, db: &dyn DefDatabase) -> FxHashSet<TraitId> {
+        // FIXME(trait_alias): Trait alias brings aliased traits in scope! Note that supertraits of
+        // aliased traits are NOT brought in scope (unless also aliased).
         let mut traits = FxHashSet::default();
 
         for scope in self.scopes() {
@@ -455,6 +461,13 @@ impl Resolver {
     pub fn generic_def(&self) -> Option<GenericDefId> {
         self.scopes().find_map(|scope| match scope {
             Scope::GenericParams { def, .. } => Some(*def),
+            _ => None,
+        })
+    }
+
+    pub fn generic_params(&self) -> Option<&Interned<GenericParams>> {
+        self.scopes().find_map(|scope| match scope {
+            Scope::GenericParams { params, .. } => Some(params),
             _ => None,
         })
     }
@@ -641,6 +654,7 @@ impl ModuleItemMap {
                 let ty = match module_def.take_types()? {
                     ModuleDefId::AdtId(it) => TypeNs::AdtId(it),
                     ModuleDefId::TraitId(it) => TypeNs::TraitId(it),
+                    ModuleDefId::TraitAliasId(it) => TypeNs::TraitAliasId(it),
                     ModuleDefId::TypeAliasId(it) => TypeNs::TypeAliasId(it),
                     ModuleDefId::BuiltinType(it) => TypeNs::BuiltinType(it),
 
@@ -678,6 +692,7 @@ fn to_value_ns(per_ns: PerNs) -> Option<ValueNs> {
 
         ModuleDefId::AdtId(AdtId::EnumId(_) | AdtId::UnionId(_))
         | ModuleDefId::TraitId(_)
+        | ModuleDefId::TraitAliasId(_)
         | ModuleDefId::TypeAliasId(_)
         | ModuleDefId::BuiltinType(_)
         | ModuleDefId::MacroId(_)
@@ -695,6 +710,7 @@ fn to_type_ns(per_ns: PerNs) -> Option<TypeNs> {
         ModuleDefId::BuiltinType(it) => TypeNs::BuiltinType(it),
 
         ModuleDefId::TraitId(it) => TypeNs::TraitId(it),
+        ModuleDefId::TraitAliasId(it) => TypeNs::TraitAliasId(it),
 
         ModuleDefId::FunctionId(_)
         | ModuleDefId::ConstId(_)
@@ -779,6 +795,12 @@ impl HasResolver for TraitId {
     }
 }
 
+impl HasResolver for TraitAliasId {
+    fn resolver(self, db: &dyn DefDatabase) -> Resolver {
+        self.lookup(db).container.resolver(db).push_generic_params_scope(db, self.into())
+    }
+}
+
 impl<T: Into<AdtId> + Copy> HasResolver for T {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
         let def = self.into();
@@ -858,6 +880,7 @@ impl HasResolver for GenericDefId {
             GenericDefId::FunctionId(inner) => inner.resolver(db),
             GenericDefId::AdtId(adt) => adt.resolver(db),
             GenericDefId::TraitId(inner) => inner.resolver(db),
+            GenericDefId::TraitAliasId(inner) => inner.resolver(db),
             GenericDefId::TypeAliasId(inner) => inner.resolver(db),
             GenericDefId::ImplId(inner) => inner.resolver(db),
             GenericDefId::EnumVariantId(inner) => inner.parent.resolver(db),

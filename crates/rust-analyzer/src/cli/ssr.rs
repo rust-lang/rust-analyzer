@@ -1,21 +1,22 @@
 //! Applies structured search replace rules from the command line.
 
 use ide_ssr::MatchFinder;
-use project_model::CargoConfig;
+use project_model::{CargoConfig, RustcSource};
 
 use crate::cli::{
     flags,
-    load_cargo::{load_workspace_at, LoadCargoConfig},
+    load_cargo::{load_workspace_at, LoadCargoConfig, ProcMacroServerChoice},
     Result,
 };
 
 impl flags::Ssr {
     pub fn run(self) -> Result<()> {
         use ide_db::base_db::SourceDatabaseExt;
-        let cargo_config = CargoConfig::default();
+        let mut cargo_config = CargoConfig::default();
+        cargo_config.sysroot = Some(RustcSource::Discover);
         let load_cargo_config = LoadCargoConfig {
             load_out_dirs_from_check: true,
-            with_proc_macro: true,
+            with_proc_macro_server: ProcMacroServerChoice::Sysroot,
             prefill_caches: false,
         };
         let (host, vfs, _proc_macro) = load_workspace_at(
@@ -51,7 +52,7 @@ impl flags::Search {
         let cargo_config = CargoConfig::default();
         let load_cargo_config = LoadCargoConfig {
             load_out_dirs_from_check: true,
-            with_proc_macro: true,
+            with_proc_macro_server: ProcMacroServerChoice::Sysroot,
             prefill_caches: false,
         };
         let (host, _vfs, _proc_macro) = load_workspace_at(

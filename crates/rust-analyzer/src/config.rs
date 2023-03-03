@@ -33,7 +33,7 @@ use crate::{
     caps::completion_item_edit_resolve,
     diagnostics::DiagnosticsMapConfig,
     line_index::PositionEncoding,
-    lsp_ext::{self, supports_utf8, WorkspaceSymbolSearchKind, WorkspaceSymbolSearchScope},
+    lsp_ext::{self, negotiated_encoding, WorkspaceSymbolSearchKind, WorkspaceSymbolSearchScope},
 };
 
 mod patch_old_style;
@@ -117,6 +117,11 @@ config_data! {
         ///
         /// This option does not take effect until rust-analyzer is restarted.
         cargo_sysroot: Option<String>    = "\"discover\"",
+        /// Relative path to the sysroot library sources. If left unset, this will default to
+        /// `{cargo.sysroot}/lib/rustlib/src/rust/library`.
+        ///
+        /// This option does not take effect until rust-analyzer is restarted.
+        cargo_sysrootSrc: Option<String>    = "null",
         /// Compilation target override (target triple).
         // FIXME(@poliorcetics): move to multiple targets here too, but this will need more work
         // than `checkOnSave_target`
@@ -195,6 +200,8 @@ config_data! {
         completion_autoself_enable: bool        = "true",
         /// Whether to add parenthesis and argument snippets when completing function.
         completion_callable_snippets: CallableCompletionDef  = "\"fill_arguments\"",
+        /// Maximum number of completions to return. If `None`, the limit is infinite.
+        completion_limit: Option<usize> = "null",
         /// Whether to show postfix snippets like `dbg`, `if`, `not`, etc.
         completion_postfix_enable: bool         = "true",
         /// Enables completions of private items and fields that are defined in the current workspace even if they are not visible at the current position.
@@ -359,6 +366,8 @@ config_data! {
         inlayHints_typeHints_hideClosureInitialization: bool       = "false",
         /// Whether to hide inlay type hints for constructors.
         inlayHints_typeHints_hideNamedConstructor: bool            = "false",
+        /// Enables the experimental support for interpreting tests.
+        interpret_tests: bool                                      = "false",
 
         /// Join lines merges consecutive declaration and initialization of an assignment.
         joinLines_joinAssignments: bool = "true",
@@ -449,7 +458,10 @@ config_data! {
         /// Additional arguments to `rustfmt`.
         rustfmt_extraArgs: Vec<String>               = "[]",
         /// Advanced option, fully override the command rust-analyzer uses for
-        /// formatting.
+        /// formatting. This should be the equivalent of `rustfmt` here, and
+        /// not that of `cargo fmt`. The file contents will be passed on the
+        /// standard input and the formatted result will be read from the
+        /// standard output.
         rustfmt_overrideCommand: Option<Vec<String>> = "null",
         /// Enables the use of rustfmt's unstable range formatting command for the
         /// `textDocument/rangeFormatting` request. The rustfmt option is unstable and only
@@ -519,6 +531,7 @@ impl Default for ConfigData {
 #[derive(Debug, Clone)]
 pub struct Config {
     pub discovered_projects: Option<Vec<ProjectManifest>>,
+    pub workspace_roots: Vec<AbsPathBuf>,
     caps: lsp_types::ClientCapabilities,
     root_path: AbsPathBuf,
     data: ConfigData,
@@ -715,7 +728,11 @@ impl fmt::Display for ConfigUpdateError {
 }
 
 impl Config {
-    pub fn new(root_path: AbsPathBuf, caps: ClientCapabilities) -> Self {
+    pub fn new(
+        root_path: AbsPathBuf,
+        caps: ClientCapabilities,
+        workspace_roots: Vec<AbsPathBuf>,
+    ) -> Self {
         Config {
             caps,
             data: ConfigData::default(),
@@ -723,7 +740,17 @@ impl Config {
             discovered_projects: None,
             root_path,
             snippets: Default::default(),
+            workspace_roots,
         }
+    }
+
+    pub fn rediscover_workspaces(&mut self) {
+        let discovered = ProjectManifest::discover_all(&self.workspace_roots);
+        tracing::info!("discovered projects: {:?}", discovered);
+        if discovered.is_empty() {
+            tracing::error!("failed to find any projects in {:?}", &self.workspace_roots);
+        }
+        self.discovered_projects = Some(discovered);
     }
 
     pub fn update(&mut self, mut json: serde_json::Value) -> Result<(), ConfigUpdateError> {
@@ -822,29 +849,32 @@ macro_rules! try_or_def {
 }
 
 impl Config {
+    pub fn has_linked_projects(&self) -> bool {
+        !self.data.linkedProjects.is_empty()
+    }
     pub fn linked_projects(&self) -> Vec<LinkedProject> {
         match self.data.linkedProjects.as_slice() {
-            [] => match self.discovered_projects.as_ref() {
-                Some(discovered_projects) => {
-                    let exclude_dirs: Vec<_> = self
-                        .data
-                        .files_excludeDirs
+            [] => {
+                match self.discovered_projects.as_ref() {
+                    Some(discovered_projects) => {
+                        let exclude_dirs: Vec<_> = self
+                            .data
+                            .files_excludeDirs
+                            .iter()
+                            .map(|p| self.root_path.join(p))
+                            .collect();
+                        discovered_projects
                         .iter()
-                        .map(|p| self.root_path.join(p))
-                        .collect();
-                    discovered_projects
-                        .iter()
-                        .filter(|p| {
-                            let (ProjectManifest::ProjectJson(path)
-                            | ProjectManifest::CargoToml(path)) = p;
+                        .filter(|(ProjectManifest::ProjectJson(path) | ProjectManifest::CargoToml(path))| {
                             !exclude_dirs.iter().any(|p| path.starts_with(p))
                         })
                         .cloned()
                         .map(LinkedProject::from)
                         .collect()
+                    }
+                    None => Vec::new(),
                 }
-                None => Vec::new(),
-            },
+            }
             linked_projects => linked_projects
                 .iter()
                 .filter_map(|linked_project| match linked_project {
@@ -974,11 +1004,7 @@ impl Config {
     }
 
     pub fn position_encoding(&self) -> PositionEncoding {
-        if supports_utf8(&self.caps) {
-            PositionEncoding::Utf8
-        } else {
-            PositionEncoding::Utf16
-        }
+        negotiated_encoding(&self.caps)
     }
 
     fn experimental(&self, index: &'static str) -> bool {
@@ -1103,6 +1129,8 @@ impl Config {
                 RustcSource::Path(self.root_path.join(sysroot))
             }
         });
+        let sysroot_src =
+            self.data.cargo_sysrootSrc.as_ref().map(|sysroot| self.root_path.join(sysroot));
 
         CargoConfig {
             features: match &self.data.cargo_features {
@@ -1114,6 +1142,7 @@ impl Config {
             },
             target: self.data.cargo_target.clone(),
             sysroot,
+            sysroot_src,
             rustc_source,
             unset_test_crates: UnsetTestCrates::Only(self.data.cargo_unsetTest.clone()),
             wrap_rustc_in_build_scripts: self.data.cargo_buildScripts_useRustcWrapper,
@@ -1317,6 +1346,7 @@ impl Config {
                     .snippet_support?
             )),
             snippets: self.snippets.clone(),
+            limit: self.data.completion_limit,
         }
     }
 
@@ -1416,6 +1446,7 @@ impl Config {
                 }
             },
             keywords: self.data.hover_documentation_keywords_enable,
+            interpret_tests: self.data.interpret_tests,
         }
     }
 

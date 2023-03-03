@@ -17,6 +17,7 @@ use std::ops::Index;
 use std::sync::Arc;
 
 use chalk_ir::{cast::Cast, ConstValue, DebruijnIndex, Mutability, Safety, Scalar, TypeFlags};
+use either::Either;
 use hir_def::{
     body::Body,
     builtin_type::{BuiltinInt, BuiltinType, BuiltinUint},
@@ -30,8 +31,7 @@ use hir_def::{
     AdtId, AssocItemId, DefWithBodyId, EnumVariantId, FieldId, FunctionId, HasModule,
     ItemContainerId, Lookup, TraitId, TypeAliasId, VariantId,
 };
-use hir_expand::name::name;
-use itertools::Either;
+use hir_expand::name::{name, Name};
 use la_arena::ArenaMap;
 use rustc_hash::FxHashMap;
 use stdx::always;
@@ -39,7 +39,7 @@ use stdx::always;
 use crate::{
     db::HirDatabase, fold_tys, fold_tys_and_consts, infer::coerce::CoerceMany,
     lower::ImplTraitLoweringMode, to_assoc_type_id, AliasEq, AliasTy, Const, DomainGoal,
-    GenericArg, Goal, ImplTraitId, InEnvironment, Interner, ProjectionTy, Substitution,
+    GenericArg, Goal, ImplTraitId, InEnvironment, Interner, ProjectionTy, RpitId, Substitution,
     TraitEnvironment, TraitRef, Ty, TyBuilder, TyExt, TyKind,
 };
 
@@ -66,8 +66,10 @@ pub(crate) fn infer_query(db: &dyn HirDatabase, def: DefWithBodyId) -> Arc<Infer
     let mut ctx = InferenceContext::new(db, def, &body, resolver);
 
     match def {
+        DefWithBodyId::FunctionId(f) => {
+            ctx.collect_fn(f);
+        }
         DefWithBodyId::ConstId(c) => ctx.collect_const(&db.const_data(c)),
-        DefWithBodyId::FunctionId(f) => ctx.collect_fn(f),
         DefWithBodyId::StaticId(s) => ctx.collect_static(&db.static_data(s)),
         DefWithBodyId::VariantId(v) => {
             ctx.return_ty = TyBuilder::builtin(match db.enum_data(v.parent).variant_body_type() {
@@ -144,44 +146,6 @@ impl Default for BindingMode {
     }
 }
 
-/// Used to generalize patterns and assignee expressions.
-trait PatLike: Into<ExprOrPatId> + Copy {
-    type BindingMode: Copy;
-
-    fn infer(
-        this: &mut InferenceContext<'_>,
-        id: Self,
-        expected_ty: &Ty,
-        default_bm: Self::BindingMode,
-    ) -> Ty;
-}
-
-impl PatLike for ExprId {
-    type BindingMode = ();
-
-    fn infer(
-        this: &mut InferenceContext<'_>,
-        id: Self,
-        expected_ty: &Ty,
-        _: Self::BindingMode,
-    ) -> Ty {
-        this.infer_assignee_expr(id, expected_ty)
-    }
-}
-
-impl PatLike for PatId {
-    type BindingMode = BindingMode;
-
-    fn infer(
-        this: &mut InferenceContext<'_>,
-        id: Self,
-        expected_ty: &Ty,
-        default_bm: Self::BindingMode,
-    ) -> Ty {
-        this.infer_pat(id, expected_ty, default_bm)
-    }
-}
-
 #[derive(Debug)]
 pub(crate) struct InferOk<T> {
     value: T,
@@ -200,11 +164,45 @@ pub(crate) type InferResult<T> = Result<InferOk<T>, TypeError>;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum InferenceDiagnostic {
-    NoSuchField { expr: ExprId },
-    PrivateField { expr: ExprId, field: FieldId },
-    PrivateAssocItem { id: ExprOrPatId, item: AssocItemId },
-    BreakOutsideOfLoop { expr: ExprId, is_break: bool },
-    MismatchedArgCount { call_expr: ExprId, expected: usize, found: usize },
+    NoSuchField {
+        expr: ExprId,
+    },
+    PrivateField {
+        expr: ExprId,
+        field: FieldId,
+    },
+    PrivateAssocItem {
+        id: ExprOrPatId,
+        item: AssocItemId,
+    },
+    UnresolvedField {
+        expr: ExprId,
+        receiver: Ty,
+        name: Name,
+        method_with_same_name_exists: bool,
+    },
+    UnresolvedMethodCall {
+        expr: ExprId,
+        receiver: Ty,
+        name: Name,
+        /// Contains the type the field resolves to
+        field_with_same_name: Option<Ty>,
+    },
+    // FIXME: Make this proper
+    BreakOutsideOfLoop {
+        expr: ExprId,
+        is_break: bool,
+        bad_value_break: bool,
+    },
+    MismatchedArgCount {
+        call_expr: ExprId,
+        expected: usize,
+        found: usize,
+    },
+    ExpectedFunction {
+        call_expr: ExprId,
+        found: Ty,
+    },
 }
 
 /// A mismatch between an expected and an inferred type.
@@ -219,6 +217,7 @@ struct InternedStandardTypes {
     unknown: Ty,
     bool_: Ty,
     unit: Ty,
+    never: Ty,
 }
 
 impl Default for InternedStandardTypes {
@@ -227,6 +226,7 @@ impl Default for InternedStandardTypes {
             unknown: TyKind::Error.intern(Interner),
             bool_: TyKind::Scalar(Scalar::Bool).intern(Interner),
             unit: TyKind::Tuple(0, Substitution::empty(Interner)).intern(Interner),
+            never: TyKind::Never.intern(Interner),
         }
     }
 }
@@ -352,6 +352,7 @@ pub struct InferenceResult {
     /// **Note**: When a pattern type is resolved it may still contain
     /// unresolved or missing subpatterns or subpatterns of mismatched types.
     pub type_of_pat: ArenaMap<PatId, Ty>,
+    pub type_of_rpit: ArenaMap<RpitId, Ty>,
     type_mismatches: FxHashMap<ExprOrPatId, TypeMismatch>,
     /// Interned common types to return references to.
     standard_types: InternedStandardTypes,
@@ -386,15 +387,12 @@ impl InferenceResult {
     pub fn type_mismatch_for_pat(&self, pat: PatId) -> Option<&TypeMismatch> {
         self.type_mismatches.get(&pat.into())
     }
+    pub fn type_mismatches(&self) -> impl Iterator<Item = (ExprOrPatId, &TypeMismatch)> {
+        self.type_mismatches.iter().map(|(expr_or_pat, mismatch)| (*expr_or_pat, mismatch))
+    }
     pub fn expr_type_mismatches(&self) -> impl Iterator<Item = (ExprId, &TypeMismatch)> {
         self.type_mismatches.iter().filter_map(|(expr_or_pat, mismatch)| match *expr_or_pat {
             ExprOrPatId::ExprId(expr) => Some((expr, mismatch)),
-            _ => None,
-        })
-    }
-    pub fn pat_type_mismatches(&self) -> impl Iterator<Item = (PatId, &TypeMismatch)> {
-        self.type_mismatches.iter().filter_map(|(expr_or_pat, mismatch)| match *expr_or_pat {
-            ExprOrPatId::PatId(pat) => Some((pat, mismatch)),
             _ => None,
         })
     }
@@ -430,9 +428,12 @@ pub(crate) struct InferenceContext<'a> {
     /// currently within one.
     ///
     /// We might consider using a nested inference context for checking
-    /// closures, but currently this is the only field that will change there,
-    /// so it doesn't make sense.
+    /// closures so we can swap all shared things out at once.
     return_ty: Ty,
+    /// If `Some`, this stores coercion information for returned
+    /// expressions. If `None`, this is in a context where return is
+    /// inappropriate, such as a const expression.
+    return_coercion: Option<CoerceMany>,
     /// The resume type and the yield type, respectively, of the generator being inferred.
     resume_yield_tys: Option<(Ty, Ty)>,
     diverges: Diverges,
@@ -444,7 +445,7 @@ struct BreakableContext {
     /// Whether this context contains at least one break expression.
     may_break: bool,
     /// The coercion target of the context.
-    coerce: CoerceMany,
+    coerce: Option<CoerceMany>,
     /// The optional label of the context.
     label: Option<name::Name>,
     kind: BreakableKind,
@@ -500,6 +501,7 @@ impl<'a> InferenceContext<'a> {
             trait_env,
             return_ty: TyKind::Error.intern(Interner), // set in collect_* calls
             resume_yield_tys: None,
+            return_coercion: None,
             db,
             owner,
             body,
@@ -509,7 +511,11 @@ impl<'a> InferenceContext<'a> {
         }
     }
 
-    fn resolve_all(self) -> InferenceResult {
+    // FIXME: This function should be private in module. It is currently only used in the consteval, since we need
+    // `InferenceResult` in the middle of inference. See the fixme comment in `consteval::eval_to_const`. If you
+    // used this function for another workaround, mention it here. If you really need this function and believe that
+    // there is no problem in it being `pub(crate)`, remove this comment.
+    pub(crate) fn resolve_all(self) -> InferenceResult {
         let InferenceContext { mut table, mut result, .. } = self;
 
         table.fallback_if_possible();
@@ -525,10 +531,40 @@ impl<'a> InferenceContext<'a> {
         for ty in result.type_of_pat.values_mut() {
             *ty = table.resolve_completely(ty.clone());
         }
+        for ty in result.type_of_rpit.iter_mut().map(|x| x.1) {
+            *ty = table.resolve_completely(ty.clone());
+        }
         for mismatch in result.type_mismatches.values_mut() {
             mismatch.expected = table.resolve_completely(mismatch.expected.clone());
             mismatch.actual = table.resolve_completely(mismatch.actual.clone());
         }
+        result.diagnostics.retain_mut(|diagnostic| {
+            if let InferenceDiagnostic::ExpectedFunction { found: ty, .. }
+            | InferenceDiagnostic::UnresolvedField { receiver: ty, .. }
+            | InferenceDiagnostic::UnresolvedMethodCall { receiver: ty, .. } = diagnostic
+            {
+                *ty = table.resolve_completely(ty.clone());
+                // FIXME: Remove this when we are on par with rustc in terms of inference
+                if ty.is_unknown() {
+                    return false;
+                }
+
+                if let InferenceDiagnostic::UnresolvedMethodCall { field_with_same_name, .. } =
+                    diagnostic
+                {
+                    let clear = if let Some(ty) = field_with_same_name {
+                        *ty = table.resolve_completely(ty.clone());
+                        ty.is_unknown()
+                    } else {
+                        false
+                    };
+                    if clear {
+                        *field_with_same_name = None;
+                    }
+                }
+            }
+            true
+        });
         for (_, subst) in result.method_resolutions.values_mut() {
             *subst = table.resolve_completely(subst.clone());
         }
@@ -574,7 +610,7 @@ impl<'a> InferenceContext<'a> {
             let ty = self.insert_type_vars(ty);
             let ty = self.normalize_associated_types_in(ty);
 
-            self.infer_pat(*pat, &ty, BindingMode::default());
+            self.infer_top_pat(*pat, &ty);
         }
         let error_ty = &TypeRef::Error;
         let return_ty = if data.has_async_kw() {
@@ -603,7 +639,7 @@ impl<'a> InferenceContext<'a> {
                         _ => unreachable!(),
                     };
                     let bounds = (*rpits).map_ref(|rpits| {
-                        rpits.impl_traits[idx as usize].bounds.map_ref(|it| it.into_iter())
+                        rpits.impl_traits[idx].bounds.map_ref(|it| it.into_iter())
                     });
                     let var = self.table.new_type_var();
                     let var_subst = Substitution::from1(Interner, var.clone());
@@ -616,6 +652,7 @@ impl<'a> InferenceContext<'a> {
                         always!(binders.is_empty(Interner)); // quantified where clauses not yet handled
                         self.push_obligation(var_predicate.cast(Interner));
                     }
+                    self.result.type_of_rpit.insert(idx, var.clone());
                     var
                 },
                 DebruijnIndex::INNERMOST,
@@ -625,10 +662,19 @@ impl<'a> InferenceContext<'a> {
         };
 
         self.return_ty = self.normalize_associated_types_in(return_ty);
+        self.return_coercion = Some(CoerceMany::new(self.return_ty.clone()));
     }
 
     fn infer_body(&mut self) {
-        self.infer_expr_coerce(self.body.body_expr, &Expectation::has_type(self.return_ty.clone()));
+        match self.return_coercion {
+            Some(_) => self.infer_return(self.body.body_expr),
+            None => {
+                _ = self.infer_expr_coerce(
+                    self.body.body_expr,
+                    &Expectation::has_type(self.return_ty.clone()),
+                )
+            }
+        }
     }
 
     fn write_expr_ty(&mut self, expr: ExprId, ty: Ty) {
@@ -674,11 +720,9 @@ impl<'a> InferenceContext<'a> {
     /// Replaces ConstScalar::Unknown by a new type var, so we can maybe still infer it.
     fn insert_const_vars_shallow(&mut self, c: Const) -> Const {
         let data = c.data(Interner);
-        match data.value {
+        match &data.value {
             ConstValue::Concrete(cc) => match cc.interned {
-                hir_def::type_ref::ConstScalar::Unknown => {
-                    self.table.new_const_var(data.ty.clone())
-                }
+                crate::ConstScalar::Unknown => self.table.new_const_var(data.ty.clone()),
                 _ => c,
             },
             _ => c,
@@ -859,7 +903,10 @@ impl<'a> InferenceContext<'a> {
                 // FIXME potentially resolve assoc type
                 (self.err_ty(), None)
             }
-            TypeNs::AdtId(AdtId::EnumId(_)) | TypeNs::BuiltinType(_) | TypeNs::TraitId(_) => {
+            TypeNs::AdtId(AdtId::EnumId(_))
+            | TypeNs::BuiltinType(_)
+            | TypeNs::TraitId(_)
+            | TypeNs::TraitAliasId(_) => {
                 // FIXME diagnostic
                 (self.err_ty(), None)
             }
@@ -1019,7 +1066,8 @@ impl<'a> InferenceContext<'a> {
 pub(crate) enum Expectation {
     None,
     HasType(Ty),
-    // Castable(Ty), // rustc has this, we currently just don't propagate an expectation for casts
+    #[allow(dead_code)]
+    Castable(Ty),
     RValueLikeUnsized(Ty),
 }
 
@@ -1072,6 +1120,7 @@ impl Expectation {
         match self {
             Expectation::None => Expectation::None,
             Expectation::HasType(t) => Expectation::HasType(table.resolve_ty_shallow(t)),
+            Expectation::Castable(t) => Expectation::Castable(table.resolve_ty_shallow(t)),
             Expectation::RValueLikeUnsized(t) => {
                 Expectation::RValueLikeUnsized(table.resolve_ty_shallow(t))
             }
@@ -1081,18 +1130,23 @@ impl Expectation {
     fn to_option(&self, table: &mut unify::InferenceTable<'_>) -> Option<Ty> {
         match self.resolve(table) {
             Expectation::None => None,
-            Expectation::HasType(t) |
-            // Expectation::Castable(t) |
-            Expectation::RValueLikeUnsized(t) => Some(t),
+            Expectation::HasType(t)
+            | Expectation::Castable(t)
+            | Expectation::RValueLikeUnsized(t) => Some(t),
         }
     }
 
     fn only_has_type(&self, table: &mut unify::InferenceTable<'_>) -> Option<Ty> {
         match self {
             Expectation::HasType(t) => Some(table.resolve_ty_shallow(t)),
-            // Expectation::Castable(_) |
-            Expectation::RValueLikeUnsized(_) | Expectation::None => None,
+            Expectation::Castable(_) | Expectation::RValueLikeUnsized(_) | Expectation::None => {
+                None
+            }
         }
+    }
+
+    fn coercion_target_type(&self, table: &mut unify::InferenceTable<'_>) -> Ty {
+        self.only_has_type(table).unwrap_or_else(|| table.new_type_var())
     }
 
     /// Comment copied from rustc:

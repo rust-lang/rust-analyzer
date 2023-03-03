@@ -8,10 +8,7 @@ use ide_db::imports::{
 };
 use itertools::Itertools;
 use once_cell::sync::Lazy;
-use syntax::{
-    ast::{self},
-    AstNode, SyntaxNode, T,
-};
+use syntax::{ast, AstNode, SyntaxNode, T};
 
 use crate::{
     context::{

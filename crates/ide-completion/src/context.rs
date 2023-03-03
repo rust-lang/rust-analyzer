@@ -6,13 +6,13 @@ mod tests;
 
 use std::iter;
 
-use base_db::SourceDatabaseExt;
 use hir::{
     HasAttrs, Local, Name, PathResolution, ScopeDef, Semantics, SemanticsScope, Type, TypeInfo,
 };
 use ide_db::{
     base_db::{FilePosition, SourceDatabase},
     famous_defs::FamousDefs,
+    helpers::is_editable_crate,
     FxHashMap, FxHashSet, RootDatabase,
 };
 use syntax::{
@@ -416,6 +416,7 @@ impl<'a> CompletionContext<'a> {
                 hir::ModuleDef::Const(it) => self.is_visible(it),
                 hir::ModuleDef::Static(it) => self.is_visible(it),
                 hir::ModuleDef::Trait(it) => self.is_visible(it),
+                hir::ModuleDef::TraitAlias(it) => self.is_visible(it),
                 hir::ModuleDef::TypeAlias(it) => self.is_visible(it),
                 hir::ModuleDef::Macro(it) => self.is_visible(it),
                 hir::ModuleDef::BuiltinType(_) => Visible::Yes,
@@ -525,10 +526,11 @@ impl<'a> CompletionContext<'a> {
                 return Visible::No;
             }
             // If the definition location is editable, also show private items
-            let root_file = defining_crate.root_file(self.db);
-            let source_root_id = self.db.file_source_root(root_file);
-            let is_editable = !self.db.source_root(source_root_id).is_library;
-            return if is_editable { Visible::Editable } else { Visible::No };
+            return if is_editable_crate(defining_crate, self.db) {
+                Visible::Editable
+            } else {
+                Visible::No
+            };
         }
 
         if self.is_doc_hidden(attrs, defining_crate) {
@@ -571,28 +573,25 @@ impl<'a> CompletionContext<'a> {
 
         // try to skip completions on path with invalid colons
         // this approach works in normal path and inside token tree
-        match original_token.kind() {
-            T![:] => {
-                // return if no prev token before colon
-                let prev_token = original_token.prev_token()?;
+        if original_token.kind() == T![:] {
+            // return if no prev token before colon
+            let prev_token = original_token.prev_token()?;
 
-                // only has a single colon
-                if prev_token.kind() != T![:] {
-                    return None;
-                }
-
-                // has 3 colon or 2 coloncolon in a row
-                // special casing this as per discussion in https://github.com/rust-lang/rust-analyzer/pull/13611#discussion_r1031845205
-                // and https://github.com/rust-lang/rust-analyzer/pull/13611#discussion_r1032812751
-                if prev_token
-                    .prev_token()
-                    .map(|t| t.kind() == T![:] || t.kind() == T![::])
-                    .unwrap_or(false)
-                {
-                    return None;
-                }
+            // only has a single colon
+            if prev_token.kind() != T![:] {
+                return None;
             }
-            _ => {}
+
+            // has 3 colon or 2 coloncolon in a row
+            // special casing this as per discussion in https://github.com/rust-lang/rust-analyzer/pull/13611#discussion_r1031845205
+            // and https://github.com/rust-lang/rust-analyzer/pull/13611#discussion_r1032812751
+            if prev_token
+                .prev_token()
+                .map(|t| t.kind() == T![:] || t.kind() == T![::])
+                .unwrap_or(false)
+            {
+                return None;
+            }
         }
 
         let AnalysisResult {

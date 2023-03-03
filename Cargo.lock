@@ -572,6 +572,7 @@ dependencies = [
  "chalk-recursive",
  "chalk-solve",
  "cov-mark",
+ "either",
  "ena",
  "expect-test",
  "hir-def",
@@ -583,6 +584,7 @@ dependencies = [
  "limit",
  "once_cell",
  "profile",
+ "project-model",
  "rustc-hash",
  "scoped-tls",
  "smallvec",
@@ -710,6 +712,7 @@ dependencies = [
  "limit",
  "memchr",
  "once_cell",
+ "oorandom",
  "parser",
  "profile",
  "rayon",
@@ -931,9 +934,9 @@ dependencies = [
 
 [[package]]
 name = "lsp-types"
-version = "0.93.2"
+version = "0.94.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9be6e9c7e2d18f651974370d7aff703f9513e0df6e464fd795660edc77e6ca51"
+checksum = "0b63735a13a1f9cd4f4835223d828ed9c2e35c8c5e61837774399f558b6a1237"
 dependencies = [
  "bitflags",
  "serde",
@@ -1172,6 +1175,7 @@ dependencies = [
  "limit",
  "rustc-ap-rustc_lexer",
  "sourcegen",
+ "stdx",
 ]
 
 [[package]]
@@ -1493,9 +1497,9 @@ dependencies = [
 
 [[package]]
 name = "rustc-ap-rustc_lexer"
-version = "725.0.0"
+version = "727.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f950742ef8a203aa7661aad3ab880438ddeb7f95d4b837c30d65db1a2c5df68e"
+checksum = "8f40f26e7abdcd3b982f36c09a634cc6187988fbf6ec466c91f8d30a12ac0237"
 dependencies = [
  "unicode-xid",
 ]
@@ -1711,6 +1715,7 @@ name = "syntax"
 version = "0.0.0"
 dependencies = [
  "cov-mark",
+ "either",
  "expect-test",
  "indexmap",
  "itertools",

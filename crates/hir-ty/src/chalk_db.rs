@@ -205,7 +205,7 @@ impl<'a> chalk_solve::RustIrDatabase<Interner> for ChalkContext<'a> {
                     .return_type_impl_traits(func)
                     .expect("impl trait id without impl traits");
                 let (datas, binders) = (*datas).as_ref().into_value_and_skipped_binders();
-                let data = &datas.impl_traits[idx as usize];
+                let data = &datas.impl_traits[idx];
                 let bound = OpaqueTyDatumBound {
                     bounds: make_single_type_binders(data.bounds.skip_binders().to_vec()),
                     where_clauses: chalk_ir::Binders::empty(Interner, vec![]),
@@ -540,8 +540,7 @@ pub(crate) fn trait_datum_query(
     let where_clauses = convert_where_clauses(db, trait_.into(), &bound_vars);
     let associated_ty_ids = trait_data.associated_types().map(to_assoc_type_id).collect();
     let trait_datum_bound = rust_ir::TraitDatumBound { where_clauses };
-    let well_known = lang_attr(db.upcast(), trait_)
-        .and_then(|name| well_known_trait_from_lang_item(LangItem::from_str(&name)?));
+    let well_known = lang_attr(db.upcast(), trait_).and_then(well_known_trait_from_lang_item);
     let trait_datum = TraitDatum {
         id: trait_id,
         binders: make_binders(db, &generic_params, trait_datum_bound),
