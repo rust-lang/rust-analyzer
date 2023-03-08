@@ -32,6 +32,7 @@ pub(crate) fn unresolved_field(
         ctx.sema.diagnostics_display_range(d.expr.clone().map(|it| it.into())).range,
     )
     .with_fixes(fixes(ctx, d))
+    .experimental()
 }
 
 fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::UnresolvedField) -> Option<Vec<Assist>> {
@@ -127,6 +128,19 @@ impl Bar for Foo {
 fn foo() {
     Foo.bar;
  // ^^^^^^^ 💡 error: no field `bar` on type `Foo`, but a method with a similar name exists
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn no_diagnostic_on_unknown() {
+        check_diagnostics(
+            r#"
+fn foo() {
+    x.foo;
+    (&x).foo;
+    (&((x,),),).foo;
 }
 "#,
         );

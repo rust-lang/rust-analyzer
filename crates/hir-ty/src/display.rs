@@ -5,7 +5,7 @@
 use std::fmt::{self, Debug};
 
 use base_db::CrateId;
-use chalk_ir::BoundVar;
+use chalk_ir::{BoundVar, TyKind};
 use hir_def::{
     adt::VariantData,
     body,
@@ -36,7 +36,7 @@ use crate::{
     AdtId, AliasEq, AliasTy, Binders, CallableDefId, CallableSig, Const, ConstScalar, ConstValue,
     DomainGoal, GenericArg, ImplTraitId, Interner, Lifetime, LifetimeData, LifetimeOutlives,
     MemoryMap, Mutability, OpaqueTy, ProjectionTy, ProjectionTyExt, QuantifiedWhereClause, Scalar,
-    Substitution, TraitRef, TraitRefExt, Ty, TyExt, TyKind, WhereClause,
+    Substitution, TraitRef, TraitRefExt, Ty, TyExt, WhereClause,
 };
 
 pub trait HirWrite: fmt::Write {
@@ -383,6 +383,28 @@ impl HirDisplay for Const {
     }
 }
 
+pub struct HexifiedConst(pub Const);
+
+impl HirDisplay for HexifiedConst {
+    fn hir_fmt(&self, f: &mut HirFormatter<'_>) -> Result<(), HirDisplayError> {
+        let data = &self.0.data(Interner);
+        if let TyKind::Scalar(s) = data.ty.kind(Interner) {
+            if matches!(s, Scalar::Int(_) | Scalar::Uint(_)) {
+                if let ConstValue::Concrete(c) = &data.value {
+                    if let ConstScalar::Bytes(b, m) = &c.interned {
+                        let value = u128::from_le_bytes(pad16(b, false));
+                        if value >= 10 {
+                            render_const_scalar(f, &b, m, &data.ty)?;
+                            return write!(f, " ({:#X})", value);
+                        }
+                    }
+                }
+            }
+        }
+        self.0.hir_fmt(f)
+    }
+}
+
 fn render_const_scalar(
     f: &mut HirFormatter<'_>,
     b: &[u8],
@@ -509,6 +531,7 @@ fn render_const_scalar(
             hir_def::AdtId::UnionId(u) => write!(f, "{}", f.db.union_data(u).name),
             hir_def::AdtId::EnumId(_) => f.write_str("<enum-not-supported>"),
         },
+        chalk_ir::TyKind::FnDef(..) => ty.hir_fmt(f),
         _ => f.write_str("<not-supported>"),
     }
 }

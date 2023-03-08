@@ -10,6 +10,7 @@ use std::{
     sync::Arc,
 };
 
+use either::Either;
 use hir_def::{
     body::{
         self,
@@ -266,6 +267,21 @@ impl SourceAnalyzer {
         Some(self.resolve_impl_method_or_trait_def(db, f_in_trait, substs))
     }
 
+    pub(crate) fn resolve_method_call_fallback(
+        &self,
+        db: &dyn HirDatabase,
+        call: &ast::MethodCallExpr,
+    ) -> Option<Either<FunctionId, FieldId>> {
+        let expr_id = self.expr_id(db, &call.clone().into())?;
+        let inference_result = self.infer.as_ref()?;
+        match inference_result.method_resolution(expr_id) {
+            Some((f_in_trait, substs)) => {
+                Some(Either::Left(self.resolve_impl_method_or_trait_def(db, f_in_trait, substs)))
+            }
+            None => inference_result.field_resolution(expr_id).map(Either::Right),
+        }
+    }
+
     pub(crate) fn resolve_await_to_poll(
         &self,
         db: &dyn HirDatabase,
@@ -406,8 +422,8 @@ impl SourceAnalyzer {
             // Shorthand syntax, resolve to the local
             let path = ModPath::from_segments(PathKind::Plain, once(local_name.clone()));
             match self.resolver.resolve_path_in_value_ns_fully(db.upcast(), &path) {
-                Some(ValueNs::LocalBinding(pat_id)) => {
-                    Some(Local { pat_id, parent: self.resolver.body_owner()? })
+                Some(ValueNs::LocalBinding(binding_id)) => {
+                    Some(Local { binding_id, parent: self.resolver.body_owner()? })
                 }
                 _ => None,
             }
@@ -1002,8 +1018,8 @@ fn resolve_hir_path_(
     let values = || {
         resolver.resolve_path_in_value_ns_fully(db.upcast(), path.mod_path()).and_then(|val| {
             let res = match val {
-                ValueNs::LocalBinding(pat_id) => {
-                    let var = Local { parent: body_owner?, pat_id };
+                ValueNs::LocalBinding(binding_id) => {
+                    let var = Local { parent: body_owner?, binding_id };
                     PathResolution::Local(var)
                 }
                 ValueNs::FunctionId(it) => PathResolution::Def(Function::from(it).into()),

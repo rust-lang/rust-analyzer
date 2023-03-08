@@ -17,6 +17,7 @@ use std::fmt;
 use hir_expand::name::Name;
 use intern::Interned;
 use la_arena::{Idx, RawIdx};
+use smallvec::SmallVec;
 
 use crate::{
     builtin_type::{BuiltinFloat, BuiltinInt, BuiltinUint},
@@ -28,6 +29,8 @@ use crate::{
 pub use syntax::ast::{ArithOp, BinaryOp, CmpOp, LogicOp, Ordering, RangeOp, UnaryOp};
 
 pub type ExprId = Idx<Expr>;
+
+pub type BindingId = Idx<Binding>;
 
 /// FIXME: this is a hacky function which should be removed
 pub(crate) fn dummy_expr_id() -> ExprId {
@@ -109,6 +112,26 @@ pub enum Expr {
         tail: Option<ExprId>,
         label: Option<LabelId>,
     },
+    TryBlock {
+        id: BlockId,
+        statements: Box<[Statement]>,
+        tail: Option<ExprId>,
+    },
+    Async {
+        id: BlockId,
+        statements: Box<[Statement]>,
+        tail: Option<ExprId>,
+    },
+    Const {
+        id: BlockId,
+        statements: Box<[Statement]>,
+        tail: Option<ExprId>,
+    },
+    Unsafe {
+        id: BlockId,
+        statements: Box<[Statement]>,
+        tail: Option<ExprId>,
+    },
     Loop {
         body: ExprId,
         label: Option<LabelId>,
@@ -172,15 +195,6 @@ pub enum Expr {
     Try {
         expr: ExprId,
     },
-    TryBlock {
-        body: ExprId,
-    },
-    Async {
-        body: ExprId,
-    },
-    Const {
-        body: ExprId,
-    },
     Cast {
         expr: ExprId,
         type_ref: Interned<TypeRef>,
@@ -221,9 +235,6 @@ pub enum Expr {
     Tuple {
         exprs: Box<[ExprId]>,
         is_assignee_expr: bool,
-    },
-    Unsafe {
-        body: ExprId,
     },
     Array(Array),
     Literal(Literal),
@@ -290,11 +301,18 @@ impl Expr {
             Expr::Let { expr, .. } => {
                 f(*expr);
             }
-            Expr::Block { statements, tail, .. } => {
+            Expr::Block { statements, tail, .. }
+            | Expr::TryBlock { statements, tail, .. }
+            | Expr::Unsafe { statements, tail, .. }
+            | Expr::Async { statements, tail, .. }
+            | Expr::Const { statements, tail, .. } => {
                 for stmt in statements.iter() {
                     match stmt {
-                        Statement::Let { initializer, .. } => {
+                        Statement::Let { initializer, else_branch, .. } => {
                             if let &Some(expr) = initializer {
+                                f(expr);
+                            }
+                            if let &Some(expr) = else_branch {
                                 f(expr);
                             }
                         }
@@ -305,10 +323,6 @@ impl Expr {
                     f(expr);
                 }
             }
-            Expr::TryBlock { body }
-            | Expr::Unsafe { body }
-            | Expr::Async { body }
-            | Expr::Const { body } => f(*body),
             Expr::Loop { body, .. } => f(*body),
             Expr::While { condition, body, .. } => {
                 f(*condition);
@@ -423,6 +437,13 @@ impl BindingAnnotation {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Binding {
+    pub name: Name,
+    pub mode: BindingAnnotation,
+    pub definitions: SmallVec<[PatId; 1]>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RecordFieldPat {
     pub name: Name,
     pub pat: PatId,
@@ -440,7 +461,7 @@ pub enum Pat {
     Slice { prefix: Box<[PatId]>, slice: Option<PatId>, suffix: Box<[PatId]> },
     Path(Box<Path>),
     Lit(ExprId),
-    Bind { mode: BindingAnnotation, name: Name, subpat: Option<PatId> },
+    Bind { id: BindingId, subpat: Option<PatId> },
     TupleStruct { path: Option<Box<Path>>, args: Box<[PatId]>, ellipsis: Option<usize> },
     Ref { pat: PatId, mutability: Mutability },
     Box { inner: PatId },

@@ -15,6 +15,7 @@ use la_arena::Arena;
 use once_cell::unsync::OnceCell;
 use profile::Count;
 use rustc_hash::FxHashMap;
+use smallvec::SmallVec;
 use syntax::{
     ast::{
         self, ArrayExprKind, AstChildren, HasArgList, HasLoopBody, HasName, LiteralKind,
@@ -30,14 +31,14 @@ use crate::{
     builtin_type::{BuiltinFloat, BuiltinInt, BuiltinUint},
     db::DefDatabase,
     expr::{
-        dummy_expr_id, Array, BindingAnnotation, ClosureKind, Expr, ExprId, FloatTypeWrapper,
-        Label, LabelId, Literal, MatchArm, Movability, Pat, PatId, RecordFieldPat, RecordLitField,
-        Statement,
+        dummy_expr_id, Array, Binding, BindingAnnotation, BindingId, ClosureKind, Expr, ExprId,
+        FloatTypeWrapper, Label, LabelId, Literal, MatchArm, Movability, Pat, PatId,
+        RecordFieldPat, RecordLitField, Statement,
     },
     item_scope::BuiltinShadowMode,
     path::{GenericArgs, Path},
     type_ref::{Mutability, Rawness, TypeRef},
-    AdtId, BlockLoc, ModuleDefId, UnresolvedMacro,
+    AdtId, BlockId, BlockLoc, ModuleDefId, UnresolvedMacro,
 };
 
 pub struct LowerCtx<'a> {
@@ -87,6 +88,7 @@ pub(super) fn lower(
         body: Body {
             exprs: Arena::default(),
             pats: Arena::default(),
+            bindings: Arena::default(),
             labels: Arena::default(),
             params: Vec::new(),
             body_expr: dummy_expr_id(),
@@ -116,6 +118,22 @@ struct ExprCollector<'a> {
     is_lowering_generator: bool,
 }
 
+#[derive(Debug, Default)]
+struct BindingList {
+    map: FxHashMap<Name, BindingId>,
+}
+
+impl BindingList {
+    fn find(
+        &mut self,
+        ec: &mut ExprCollector<'_>,
+        name: Name,
+        mode: BindingAnnotation,
+    ) -> BindingId {
+        *self.map.entry(name).or_insert_with_key(|n| ec.alloc_binding(n.clone(), mode))
+    }
+}
+
 impl ExprCollector<'_> {
     fn collect(
         mut self,
@@ -127,17 +145,16 @@ impl ExprCollector<'_> {
                 param_list.self_param().filter(|_| attr_enabled.next().unwrap_or(false))
             {
                 let ptr = AstPtr::new(&self_param);
-                let param_pat = self.alloc_pat(
-                    Pat::Bind {
-                        name: name![self],
-                        mode: BindingAnnotation::new(
-                            self_param.mut_token().is_some() && self_param.amp_token().is_none(),
-                            false,
-                        ),
-                        subpat: None,
-                    },
-                    Either::Right(ptr),
+                let binding_id = self.alloc_binding(
+                    name![self],
+                    BindingAnnotation::new(
+                        self_param.mut_token().is_some() && self_param.amp_token().is_none(),
+                        false,
+                    ),
                 );
+                let param_pat =
+                    self.alloc_pat(Pat::Bind { id: binding_id, subpat: None }, Either::Right(ptr));
+                self.add_definition_to_binding(binding_id, param_pat);
                 self.body.params.push(param_pat);
             }
 
@@ -179,6 +196,9 @@ impl ExprCollector<'_> {
         id
     }
 
+    fn alloc_binding(&mut self, name: Name, mode: BindingAnnotation) -> BindingId {
+        self.body.bindings.alloc(Binding { name, mode, definitions: SmallVec::new() })
+    }
     fn alloc_pat(&mut self, pat: Pat, ptr: PatPtr) -> PatId {
         let src = self.expander.to_source(ptr);
         let id = self.make_pat(pat, src.clone());
@@ -238,33 +258,32 @@ impl ExprCollector<'_> {
             }
             ast::Expr::BlockExpr(e) => match e.modifier() {
                 Some(ast::BlockModifier::Try(_)) => {
-                    let body = self.collect_block(e);
-                    self.alloc_expr(Expr::TryBlock { body }, syntax_ptr)
+                    self.collect_block_(e, |id, statements, tail| Expr::TryBlock {
+                        id,
+                        statements,
+                        tail,
+                    })
                 }
                 Some(ast::BlockModifier::Unsafe(_)) => {
-                    let body = self.collect_block(e);
-                    self.alloc_expr(Expr::Unsafe { body }, syntax_ptr)
+                    self.collect_block_(e, |id, statements, tail| Expr::Unsafe {
+                        id,
+                        statements,
+                        tail,
+                    })
                 }
-                // FIXME: we need to record these effects somewhere...
                 Some(ast::BlockModifier::Label(label)) => {
                     let label = self.collect_label(label);
-                    let res = self.collect_block(e);
-                    match &mut self.body.exprs[res] {
-                        Expr::Block { label: block_label, .. } => {
-                            *block_label = Some(label);
-                        }
-                        _ => unreachable!(),
-                    }
-                    res
+                    self.collect_block_(e, |id, statements, tail| Expr::Block {
+                        id,
+                        statements,
+                        tail,
+                        label: Some(label),
+                    })
                 }
-                Some(ast::BlockModifier::Async(_)) => {
-                    let body = self.collect_block(e);
-                    self.alloc_expr(Expr::Async { body }, syntax_ptr)
-                }
-                Some(ast::BlockModifier::Const(_)) => {
-                    let body = self.collect_block(e);
-                    self.alloc_expr(Expr::Const { body }, syntax_ptr)
-                }
+                Some(ast::BlockModifier::Async(_)) => self
+                    .collect_block_(e, |id, statements, tail| Expr::Async { id, statements, tail }),
+                Some(ast::BlockModifier::Const(_)) => self
+                    .collect_block_(e, |id, statements, tail| Expr::Const { id, statements, tail }),
                 None => self.collect_block(e),
             },
             ast::Expr::LoopExpr(e) => {
@@ -737,6 +756,19 @@ impl ExprCollector<'_> {
     }
 
     fn collect_block(&mut self, block: ast::BlockExpr) -> ExprId {
+        self.collect_block_(block, |id, statements, tail| Expr::Block {
+            id,
+            statements,
+            tail,
+            label: None,
+        })
+    }
+
+    fn collect_block_(
+        &mut self,
+        block: ast::BlockExpr,
+        mk_block: impl FnOnce(BlockId, Box<[Statement]>, Option<ExprId>) -> Expr,
+    ) -> ExprId {
         let file_local_id = self.ast_id_map.ast_id(&block);
         let ast_id = AstId::new(self.expander.current_file_id, file_local_id);
         let block_loc =
@@ -769,15 +801,8 @@ impl ExprCollector<'_> {
         });
 
         let syntax_node_ptr = AstPtr::new(&block.into());
-        let expr_id = self.alloc_expr(
-            Expr::Block {
-                id: block_id,
-                statements: statements.into_boxed_slice(),
-                tail,
-                label: None,
-            },
-            syntax_node_ptr,
-        );
+        let expr_id = self
+            .alloc_expr(mk_block(block_id, statements.into_boxed_slice(), tail), syntax_node_ptr);
 
         self.expander.def_map = prev_def_map;
         self.expander.module = prev_local_module;
@@ -799,7 +824,7 @@ impl ExprCollector<'_> {
     }
 
     fn collect_pat(&mut self, pat: ast::Pat) -> PatId {
-        let pat_id = self.collect_pat_(pat);
+        let pat_id = self.collect_pat_(pat, &mut BindingList::default());
         for (_, pats) in self.name_to_pat_grouping.drain() {
             let pats = Arc::<[_]>::from(pats);
             self.body.or_pats.extend(pats.iter().map(|&pat| (pat, pats.clone())));
@@ -815,7 +840,7 @@ impl ExprCollector<'_> {
         }
     }
 
-    fn collect_pat_(&mut self, pat: ast::Pat) -> PatId {
+    fn collect_pat_(&mut self, pat: ast::Pat, binding_list: &mut BindingList) -> PatId {
         let pattern = match &pat {
             ast::Pat::IdentPat(bp) => {
                 let name = bp.name().map(|nr| nr.as_name()).unwrap_or_else(Name::missing);
@@ -823,8 +848,10 @@ impl ExprCollector<'_> {
                 let key = self.is_lowering_inside_or_pat.then(|| name.clone());
                 let annotation =
                     BindingAnnotation::new(bp.mut_token().is_some(), bp.ref_token().is_some());
-                let subpat = bp.pat().map(|subpat| self.collect_pat_(subpat));
-                let pattern = if annotation == BindingAnnotation::Unannotated && subpat.is_none() {
+                let subpat = bp.pat().map(|subpat| self.collect_pat_(subpat, binding_list));
+                let (binding, pattern) = if annotation == BindingAnnotation::Unannotated
+                    && subpat.is_none()
+                {
                     // This could also be a single-segment path pattern. To
                     // decide that, we need to try resolving the name.
                     let (resolved, _) = self.expander.def_map.resolve_path(
@@ -834,12 +861,12 @@ impl ExprCollector<'_> {
                         BuiltinShadowMode::Other,
                     );
                     match resolved.take_values() {
-                        Some(ModuleDefId::ConstId(_)) => Pat::Path(name.into()),
+                        Some(ModuleDefId::ConstId(_)) => (None, Pat::Path(name.into())),
                         Some(ModuleDefId::EnumVariantId(_)) => {
                             // this is only really valid for unit variants, but
                             // shadowing other enum variants with a pattern is
                             // an error anyway
-                            Pat::Path(name.into())
+                            (None, Pat::Path(name.into()))
                         }
                         Some(ModuleDefId::AdtId(AdtId::StructId(s)))
                             if self.db.struct_data(s).variant_data.kind() != StructKind::Record =>
@@ -847,17 +874,24 @@ impl ExprCollector<'_> {
                             // Funnily enough, record structs *can* be shadowed
                             // by pattern bindings (but unit or tuple structs
                             // can't).
-                            Pat::Path(name.into())
+                            (None, Pat::Path(name.into()))
                         }
                         // shadowing statics is an error as well, so we just ignore that case here
-                        _ => Pat::Bind { name, mode: annotation, subpat },
+                        _ => {
+                            let id = binding_list.find(self, name, annotation);
+                            (Some(id), Pat::Bind { id, subpat })
+                        }
                     }
                 } else {
-                    Pat::Bind { name, mode: annotation, subpat }
+                    let id = binding_list.find(self, name, annotation);
+                    (Some(id), Pat::Bind { id, subpat })
                 };
 
                 let ptr = AstPtr::new(&pat);
                 let pat = self.alloc_pat(pattern, Either::Left(ptr));
+                if let Some(binding_id) = binding {
+                    self.add_definition_to_binding(binding_id, pat);
+                }
                 if let Some(key) = key {
                     self.name_to_pat_grouping.entry(key).or_default().push(pat);
                 }
@@ -866,11 +900,11 @@ impl ExprCollector<'_> {
             ast::Pat::TupleStructPat(p) => {
                 let path =
                     p.path().and_then(|path| self.expander.parse_path(self.db, path)).map(Box::new);
-                let (args, ellipsis) = self.collect_tuple_pat(p.fields());
+                let (args, ellipsis) = self.collect_tuple_pat(p.fields(), binding_list);
                 Pat::TupleStruct { path, args, ellipsis }
             }
             ast::Pat::RefPat(p) => {
-                let pat = self.collect_pat_opt(p.pat());
+                let pat = self.collect_pat_opt_(p.pat(), binding_list);
                 let mutability = Mutability::from_mutable(p.mut_token().is_some());
                 Pat::Ref { pat, mutability }
             }
@@ -881,12 +915,12 @@ impl ExprCollector<'_> {
             }
             ast::Pat::OrPat(p) => {
                 self.is_lowering_inside_or_pat = true;
-                let pats = p.pats().map(|p| self.collect_pat_(p)).collect();
+                let pats = p.pats().map(|p| self.collect_pat_(p, binding_list)).collect();
                 Pat::Or(pats)
             }
-            ast::Pat::ParenPat(p) => return self.collect_pat_opt_(p.pat()),
+            ast::Pat::ParenPat(p) => return self.collect_pat_opt_(p.pat(), binding_list),
             ast::Pat::TuplePat(p) => {
-                let (args, ellipsis) = self.collect_tuple_pat(p.fields());
+                let (args, ellipsis) = self.collect_tuple_pat(p.fields(), binding_list);
                 Pat::Tuple { args, ellipsis }
             }
             ast::Pat::WildcardPat(_) => Pat::Wild,
@@ -899,7 +933,7 @@ impl ExprCollector<'_> {
                     .fields()
                     .filter_map(|f| {
                         let ast_pat = f.pat()?;
-                        let pat = self.collect_pat_(ast_pat);
+                        let pat = self.collect_pat_(ast_pat, binding_list);
                         let name = f.field_name()?.as_name();
                         Some(RecordFieldPat { name, pat })
                     })
@@ -918,9 +952,15 @@ impl ExprCollector<'_> {
 
                 // FIXME properly handle `RestPat`
                 Pat::Slice {
-                    prefix: prefix.into_iter().map(|p| self.collect_pat_(p)).collect(),
-                    slice: slice.map(|p| self.collect_pat_(p)),
-                    suffix: suffix.into_iter().map(|p| self.collect_pat_(p)).collect(),
+                    prefix: prefix
+                        .into_iter()
+                        .map(|p| self.collect_pat_(p, binding_list))
+                        .collect(),
+                    slice: slice.map(|p| self.collect_pat_(p, binding_list)),
+                    suffix: suffix
+                        .into_iter()
+                        .map(|p| self.collect_pat_(p, binding_list))
+                        .collect(),
                 }
             }
             ast::Pat::LiteralPat(lit) => {
@@ -943,7 +983,7 @@ impl ExprCollector<'_> {
                 Pat::Missing
             }
             ast::Pat::BoxPat(boxpat) => {
-                let inner = self.collect_pat_opt_(boxpat.pat());
+                let inner = self.collect_pat_opt_(boxpat.pat(), binding_list);
                 Pat::Box { inner }
             }
             ast::Pat::ConstBlockPat(const_block_pat) => {
@@ -960,7 +1000,7 @@ impl ExprCollector<'_> {
                     let src = self.expander.to_source(Either::Left(AstPtr::new(&pat)));
                     let pat =
                         self.collect_macro_call(call, macro_ptr, true, |this, expanded_pat| {
-                            this.collect_pat_opt_(expanded_pat)
+                            this.collect_pat_opt_(expanded_pat, binding_list)
                         });
                     self.source_map.pat_map.insert(src, pat);
                     return pat;
@@ -974,21 +1014,25 @@ impl ExprCollector<'_> {
         self.alloc_pat(pattern, Either::Left(ptr))
     }
 
-    fn collect_pat_opt_(&mut self, pat: Option<ast::Pat>) -> PatId {
+    fn collect_pat_opt_(&mut self, pat: Option<ast::Pat>, binding_list: &mut BindingList) -> PatId {
         match pat {
-            Some(pat) => self.collect_pat_(pat),
+            Some(pat) => self.collect_pat_(pat, binding_list),
             None => self.missing_pat(),
         }
     }
 
-    fn collect_tuple_pat(&mut self, args: AstChildren<ast::Pat>) -> (Box<[PatId]>, Option<usize>) {
+    fn collect_tuple_pat(
+        &mut self,
+        args: AstChildren<ast::Pat>,
+        binding_list: &mut BindingList,
+    ) -> (Box<[PatId]>, Option<usize>) {
         // Find the location of the `..`, if there is one. Note that we do not
         // consider the possibility of there being multiple `..` here.
         let ellipsis = args.clone().position(|p| matches!(p, ast::Pat::RestPat(_)));
         // We want to skip the `..` pattern here, since we account for it above.
         let args = args
             .filter(|p| !matches!(p, ast::Pat::RestPat(_)))
-            .map(|p| self.collect_pat_(p))
+            .map(|p| self.collect_pat_(p, binding_list))
             .collect();
 
         (args, ellipsis)
@@ -1016,6 +1060,10 @@ impl ExprCollector<'_> {
             }
             None => Some(()),
         }
+    }
+
+    fn add_definition_to_binding(&mut self, binding_id: BindingId, pat_id: PatId) {
+        self.body.bindings[binding_id].definitions.push(pat_id);
     }
 }
 
