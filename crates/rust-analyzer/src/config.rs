@@ -329,7 +329,7 @@ config_data! {
         /// Whether to show inlay type hints for binding modes.
         inlayHints_bindingModeHints_enable: bool                   = "false",
         /// Whether to show inlay type hints for method chains.
-        inlayHints_chainingHints_enable: bool                      = "true",
+        inlayHints_chainingHints_enable: bool                      = "false",
         /// Whether to show inlay hints after a closing `}` to indicate what item it belongs to.
         inlayHints_closingBraceHints_enable: bool                  = "true",
         /// Minimum number of lines required before the `}` until the hint is shown (set to 0 or 1

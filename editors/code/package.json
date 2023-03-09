@@ -965,7 +965,7 @@
                 },
                 "rust-analyzer.inlayHints.chainingHints.enable": {
                     "markdownDescription": "Whether to show inlay type hints for method chains.",
-                    "default": true,
+                    "default": false,
                     "type": "boolean"
                 },
                 "rust-analyzer.inlayHints.closingBraceHints.enable": {
