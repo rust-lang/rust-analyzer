@@ -637,7 +637,7 @@ impl MirLowerCtx<'_> {
             }
             Expr::Box { .. } => not_supported!("box expression"),
             Expr::Field { .. } | Expr::Index { .. } | Expr::UnaryOp { op: hir_def::expr::UnaryOp::Deref, .. } => {
-                let Some((p, current)) = self.lower_expr_as_place(current, expr_id, true)? else {
+                let Some((p, current)) = self.lower_expr_as_place_without_adjust(current, expr_id, true)? else {
                     return Ok(None);
                 };
                 self.push_assignment(current, place, Operand::Copy(p).into(), expr_id.into());
@@ -1039,7 +1039,11 @@ impl MirLowerCtx<'_> {
                         }
                     }
                 }
-                (then_target, (!finished).then_some(current))
+                if !finished {
+                    let ce = *current_else.get_or_insert_with(|| self.new_basic_block());
+                    self.set_goto(current, ce);
+                }
+                (then_target, current_else)
             }
             Pat::Record { .. } => not_supported!("record pattern"),
             Pat::Range { .. } => not_supported!("range pattern"),

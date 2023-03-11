@@ -337,6 +337,18 @@ fn main() {
     }
 
     #[test]
+    fn regression_14310() {
+        check_diagnostics(
+            r#"
+            fn clone(mut i: &!) -> ! {
+                   //^^^^^ 💡 weak: variable does not need to be mutable
+                *i
+            }
+        "#,
+        );
+    }
+
+    #[test]
     fn match_bindings() {
         check_diagnostics(
             r#"
@@ -569,6 +581,27 @@ fn main() {
     let ((Some(mut x), None) | (_, Some(mut x))) = (None, Some(7));
              //^^^^^ 💡 weak: variable does not need to be mutable
     f(x);
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn or_pattern_no_terminator() {
+        check_diagnostics(
+            r#"
+enum Foo {
+    A, B, C, D
+}
+
+use Foo::*;
+
+fn f(inp: (Foo, Foo, Foo, Foo)) {
+    let ((A, B, _, x) | (B, C | D, x, _)) = inp else {
+        return;
+    };
+    x = B;
+  //^^^^^ 💡 error: cannot mutate immutable variable `x`
 }
 "#,
         );
