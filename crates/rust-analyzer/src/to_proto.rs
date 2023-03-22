@@ -631,10 +631,25 @@ fn semantic_token_type_and_modifiers(
             SymbolKind::ConstParam => semantic_tokens::CONST_PARAMETER,
             SymbolKind::LifetimeParam => semantic_tokens::LIFETIME,
             SymbolKind::Label => semantic_tokens::LABEL,
-            SymbolKind::ValueParam => semantic_tokens::PARAMETER,
-            SymbolKind::SelfParam => semantic_tokens::SELF_KEYWORD,
+            SymbolKind::ValueParam => {
+                if !highlight.mods.contains(HlMod::Mutable) {
+                    mods |= semantic_tokens::READONLY;
+                }
+                semantic_tokens::PARAMETER
+            }
+            SymbolKind::SelfParam => {
+                if !highlight.mods.contains(HlMod::Mutable) {
+                    mods |= semantic_tokens::READONLY;
+                }
+                semantic_tokens::SELF_KEYWORD
+            }
             SymbolKind::SelfType => semantic_tokens::SELF_TYPE_KEYWORD,
-            SymbolKind::Local => semantic_tokens::VARIABLE,
+            SymbolKind::Local => {
+                if !highlight.mods.contains(HlMod::Mutable) {
+                    mods |= semantic_tokens::READONLY;
+                }
+                semantic_tokens::VARIABLE
+            }
             SymbolKind::Function => {
                 if highlight.mods.contains(HlMod::Associated) {
                     semantic_tokens::METHOD
@@ -643,12 +658,16 @@ fn semantic_token_type_and_modifiers(
                 }
             }
             SymbolKind::Const => {
+                mods |= semantic_tokens::READONLY;
                 mods |= semantic_tokens::CONSTANT;
                 mods |= semantic_tokens::STATIC;
                 semantic_tokens::VARIABLE
             }
             SymbolKind::Static => {
                 mods |= semantic_tokens::STATIC;
+                if !highlight.mods.contains(HlMod::Mutable) {
+                    mods |= semantic_tokens::READONLY;
+                }
                 semantic_tokens::VARIABLE
             }
             SymbolKind::Struct => semantic_tokens::STRUCT,

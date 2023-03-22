@@ -114,6 +114,7 @@ define_semantic_token_modifiers![
         DECLARATION,
         STATIC,
         DEFAULT_LIBRARY,
+        READONLY,
     }
     custom {
         (ASYNC, "async"),
