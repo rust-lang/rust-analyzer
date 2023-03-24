@@ -7,29 +7,40 @@
 //! - Rewriting `##` at the start of lines as `#`
 
 use ide_db::rust_doc::is_rust_fence;
-use markedit::{parse, pulldown_cmark::{Event, CodeBlockKind, Tag}, Matcher, rewrite};
+use markedit::{parse, pulldown_cmark::{Event, CodeBlockKind, Tag}, Matcher, rewrite, Writer};
 use pulldown_cmark_to_cmark::{cmark_resume_with_options, Options as CMarkOptions};
 
 /// Matches all events _after_ start and _before_ end. (Excluding start and end.)
-struct Between<'a>
+struct Between<A, B>
+where
+    A: Matcher,
+    B: Matcher
 {
-    start: Box<dyn Fn(&Event<'a>) -> bool>,
-    end: Box<dyn Fn(&Event<'a>) -> bool>,
+    start: A,
+    end: B,
     between: bool,
 }
 
-impl<'a> Between<'a> {
-    fn new(start: impl Fn(&Event<'a>) -> bool, end: impl Fn(&Event<'a>) -> bool) -> Self {
-        Self { start: Box::new(start), end: Box::new(end), between: false }
+impl<A, B> Between<A, B>
+where
+    A: Matcher,
+    B: Matcher
+{
+    fn new(start: A, end: B) -> Self {
+        Self { start, end, between: false }
     }
 }
 
-impl<'a> Matcher for Between<'a> {
+impl<A, B> Matcher for Between<A, B>
+where
+    A: Matcher,
+    B: Matcher
+{
     fn matches_event(&mut self, event: &Event<'_>) -> bool {
-        if (self.start)(event) {
+        if self.start.matches_event(event) {
             self.between = true;
             return false;
-        } else if (self.end)(event) {
+        } else if self.end.matches_event(event) {
             self.between = false;
         }
         self.between
@@ -42,7 +53,7 @@ pub(crate) fn format_docs(src: &str) -> String {
     let rust_code_start = |ev: Event<'_>| matches!(ev, Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(header))) if is_rust_fence(&header));
     let rust_code_end = |ev: Event<'_>| matches!(ev, Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(header))) if is_rust_fence(&header));
 
-    let rewritten = markedit::rewrite(events, |ev, w| {
+    let rewritten = markedit::rewrite(events, |ev: Event<'_>, w: &mut Writer<'_>| {
         if rust_code_start(ev) {
             w.push(Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced("rust".into()))))
         } else if rust_code_end(ev) {
@@ -53,7 +64,7 @@ pub(crate) fn format_docs(src: &str) -> String {
     });
 
     let mut btw = Between::new(rust_code_start, rust_code_end);
-    let rewritten = rewrite(rewritten, |ev, w| {
+    let rewritten = rewrite(rewritten, |ev: Event<'_>, w: &mut Writer<'_>| {
         if btw.matches(&ev) {
             let Event::Text(text) = ev else {
                 w.push(ev);
