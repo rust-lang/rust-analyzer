@@ -1,41 +1,96 @@
-//! Transforms markdown
-use ide_db::rust_doc::is_rust_fence;
+//! Transforms markdown from rustdoc format to a something more suitable for
+//! displaying in the editor.
+//!
+//! This is done by:
+//! - Adding `rust` to code blocks that are missing a language
+//! - Removing lines that are ignored by rustdoc. (Lines starting with `#`)
+//! - Rewriting `##` at the start of lines as `#`
 
-const RUSTDOC_FENCES: [&str; 2] = ["```", "~~~"];
+use ide_db::rust_doc::is_rust_fence;
+use markedit::{parse, pulldown_cmark::{Event, CodeBlockKind, Tag}, Matcher, rewrite};
+use pulldown_cmark_to_cmark::{cmark_resume_with_options, Options as CMarkOptions};
+
+/// Matches all events _after_ start and _before_ end. (Excluding start and end.)
+struct Between<'a>
+{
+    start: Box<dyn Fn(&Event<'a>) -> bool>,
+    end: Box<dyn Fn(&Event<'a>) -> bool>,
+    between: bool,
+}
+
+impl<'a> Between<'a> {
+    fn new(start: impl Fn(&Event<'a>) -> bool, end: impl Fn(&Event<'a>) -> bool) -> Self {
+        Self { start: Box::new(start), end: Box::new(end), between: false }
+    }
+}
+
+impl<'a> Matcher for Between<'a> {
+    fn matches_event(&mut self, event: &Event<'_>) -> bool {
+        if (self.start)(event) {
+            self.between = true;
+            return false;
+        } else if (self.end)(event) {
+            self.between = false;
+        }
+        self.between
+    }
+}
 
 pub(crate) fn format_docs(src: &str) -> String {
-    let mut processed_lines = Vec::new();
-    let mut in_code_block = false;
-    let mut is_rust = false;
+    let events = parse(src);
 
-    for mut line in src.lines() {
-        if in_code_block && is_rust && code_line_ignored_by_rustdoc(line) {
-            continue;
+    let rust_code_start = |ev: Event<'_>| matches!(ev, Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(header))) if is_rust_fence(&header));
+    let rust_code_end = |ev: Event<'_>| matches!(ev, Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(header))) if is_rust_fence(&header));
+
+    let rewritten = markedit::rewrite(events, |ev, w| {
+        if rust_code_start(ev) {
+            w.push(Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced("rust".into()))))
+        } else if rust_code_end(ev) {
+            w.push(Event::End(Tag::CodeBlock(CodeBlockKind::Fenced("rust".into()))))
+        } else {
+            w.push(ev)
         }
+    });
 
-        if let Some(header) = RUSTDOC_FENCES.into_iter().find_map(|fence| line.strip_prefix(fence))
-        {
-            in_code_block ^= true;
+    let mut btw = Between::new(rust_code_start, rust_code_end);
+    let rewritten = rewrite(rewritten, |ev, w| {
+        if btw.matches(&ev) {
+            let Event::Text(text) = ev else {
+                w.push(ev);
+                return;
+            };
 
-            if in_code_block {
-                is_rust = is_rust_fence(header);
-
-                if is_rust {
-                    line = "```rust";
+            let mut output = String::with_capacity(text.len());
+            for line in text.lines() {
+                if code_line_ignored_by_rustdoc(line) {
+                    continue;
                 }
+                output.push_str(line);
             }
-        }
 
-        if in_code_block {
-            let trimmed = line.trim_start();
+            let trimmed = text.trim_start();
+
             if trimmed.starts_with("##") {
-                line = &trimmed[1..];
+                output.push_str(&trimmed[1..]);
+            } else {
+                output.push_str(&text);
             }
+            w.push(Event::Text(output.into()))
+        } else {
+            w.push(ev)
         }
+    });
 
-        processed_lines.push(line);
-    }
-    processed_lines.join("\n")
+    let mut out = String::new();
+    cmark_resume_with_options(
+        rewritten,
+        &mut out,
+        None,
+        CMarkOptions { code_block_token_count: 3, ..Default::default() },
+    )
+    .ok();
+
+    out
 }
 
 fn code_line_ignored_by_rustdoc(line: &str) -> bool {
@@ -154,4 +209,21 @@ let s = "foo
 
         assert_eq!(format_docs(comment), "```rust\nlet s = \"foo\n# bar # baz\";\n```");
     }
+
+/*     #[test]
+    fn test_format_docs_handles_nested_code_blocks() {
+        let comment = r#"  /// # Examples
+        ///
+        /// `````markdown
+        /// ```
+        /// code block
+        /// ```
+        ///
+        /// ```rust
+        /// code block
+        /// ```
+        /// `````"#;
+
+        assert_eq!(format_docs(comment), "");
+    } */
 }

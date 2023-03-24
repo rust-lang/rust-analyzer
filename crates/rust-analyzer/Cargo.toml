@@ -66,6 +66,8 @@ toolchain.workspace = true
 tt.workspace = true
 vfs-notify.workspace = true
 vfs.workspace = true
+markedit = "0.3.0"
+pulldown-cmark-to-cmark = "10.0.4"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"
@@ -85,8 +87,4 @@ mbe.workspace = true
 [features]
 jemalloc = ["jemallocator", "profile/jemalloc"]
 force-always-assert = ["always-assert/force"]
-in-rust-tree = [
-    "proc-macro-srv/sysroot-abi",
-    "ide/in-rust-tree",
-    "syntax/in-rust-tree",
-]
+in-rust-tree = ["proc-macro-srv/sysroot-abi", "ide/in-rust-tree", "syntax/in-rust-tree"]
