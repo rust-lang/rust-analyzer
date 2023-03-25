@@ -37,10 +37,13 @@ where
     B: Matcher
 {
     fn matches_event(&mut self, event: &Event<'_>) -> bool {
-        if self.start.matches_event(event) {
+        let start_matched = self.start.matches_event(event);
+        let end_matched = self.end.matches_event(event);
+
+        if start_matched {
             self.between = true;
             return false;
-        } else if self.end.matches_event(event) {
+        } else if end_matched {
             self.between = false;
         }
         self.between
