@@ -9,7 +9,7 @@ use lsp_types::{
     notification::Notification, CodeActionKind, DocumentOnTypeFormattingParams,
     PartialResultParams, Position, Range, TextDocumentIdentifier, WorkDoneProgressParams,
 };
-use serde::{Deserialize, Serialize};
+use serde_derive::{Deserialize, Serialize};
 
 use crate::line_index::PositionEncoding;
 

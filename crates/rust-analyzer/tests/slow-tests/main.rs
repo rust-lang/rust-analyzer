@@ -508,7 +508,7 @@ fn main() {}
 #[test]
 fn test_missing_module_code_action_in_json_project() {
     if skip_slow_tests() {
-        // return;
+        return;
     }
 
     let tmp_dir = TestDir::new();

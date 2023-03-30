@@ -6,7 +6,11 @@ use std::{
     path::PathBuf,
 };
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{
+    de::DeserializeOwned,
+    Serialize::{self},
+};
+use serde_derive::{Deserialize, Serialize};
 
 use crate::ProcMacroKind;
 

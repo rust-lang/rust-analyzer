@@ -78,5 +78,6 @@ vfs = { path = "./crates/vfs", version = "0.0.0" }
 # non-local crates
 smallvec = { version = "1.10.0", features = ["const_new", "union", "const_generics"] }
 # the following crates are pinned to prevent us from pulling in syn 2 until all our dependencies have moved
-serde = { version = "=1.0.156", features = ["derive"] }
+serde = { version = "=1.0.156" }
+serde_derive = { version = "=1.0.156" }
 serde_json = "1.0.94"

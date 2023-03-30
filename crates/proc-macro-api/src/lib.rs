@@ -18,7 +18,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use serde::{Deserialize, Serialize};
+use serde_derive::{Deserialize, Serialize};
 
 use ::tt::token_id as tt;
 

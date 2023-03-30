@@ -3,7 +3,11 @@ use std::{
     io::{self, BufRead, Write},
 };
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{
+    de::DeserializeOwned,
+    Serialize::{self},
+};
+use serde_derive::{Deserialize, Serialize};
 
 use crate::error::ExtractError;
 

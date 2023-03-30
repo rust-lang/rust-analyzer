@@ -54,7 +54,11 @@ use std::path::PathBuf;
 use base_db::{CrateDisplayName, CrateId, CrateName, Dependency, Edition};
 use paths::{AbsPath, AbsPathBuf};
 use rustc_hash::FxHashMap;
-use serde::{de, Deserialize};
+use serde::{
+    de,
+    Deserialize::{self},
+};
+use serde_derive::Deserialize;
 
 use crate::cfg_flag::CfgFlag;
 

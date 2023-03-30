@@ -26,7 +26,11 @@ use project_model::{
     UnsetTestCrates,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
-use serde::{de::DeserializeOwned, Deserialize};
+use serde::{
+    de::DeserializeOwned,
+    Deserialize::{self},
+};
+use serde_derive::Deserialize;
 use vfs::AbsPathBuf;
 
 use crate::{

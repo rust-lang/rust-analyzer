@@ -923,6 +923,7 @@ dependencies = [
  "log",
  "lsp-types",
  "serde",
+ "serde_derive",
  "serde_json",
 ]
 
@@ -1223,6 +1224,7 @@ dependencies = [
  "paths",
  "profile",
  "serde",
+ "serde_derive",
  "serde_json",
  "snap",
  "stdx",
@@ -1303,6 +1305,7 @@ dependencies = [
  "rustc-hash",
  "semver",
  "serde",
+ "serde_derive",
  "serde_json",
  "stdx",
  "toolchain",
@@ -1463,6 +1466,7 @@ dependencies = [
  "rustc-hash",
  "scip",
  "serde",
+ "serde_derive",
  "serde_json",
  "serde_repr",
  "sourcegen",

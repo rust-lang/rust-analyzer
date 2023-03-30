@@ -3,7 +3,8 @@ use std::{fmt, panic, thread};
 
 use ide::Cancelled;
 use lsp_server::ExtractError;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 use crate::{
     global_state::{GlobalState, GlobalStateSnapshot},
