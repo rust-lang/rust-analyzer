@@ -66,8 +66,8 @@ toolchain.workspace = true
 tt.workspace = true
 vfs-notify.workspace = true
 vfs.workspace = true
-markedit = "0.3.0"
 pulldown-cmark-to-cmark = "10.0.4"
+pulldown-cmark = "0.9.2"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"

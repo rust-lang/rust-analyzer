@@ -655,7 +655,7 @@ dependencies = [
  "itertools",
  "oorandom",
  "profile",
- "pulldown-cmark 0.9.2",
+ "pulldown-cmark",
  "pulldown-cmark-to-cmark",
  "smallvec",
  "stdx",
@@ -952,15 +952,6 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "url",
-]
-
-[[package]]
-name = "markedit"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a595a0636f9e2b0006650839d64b4ee210e68ca5614084c2ec79fae79a261ea"
-dependencies = [
- "pulldown-cmark 0.7.2",
 ]
 
 [[package]]
@@ -1364,23 +1355,12 @@ dependencies = [
 
 [[package]]
 name = "pulldown-cmark"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca36dea94d187597e104a5c8e4b07576a8a45aa5db48a65e12940d3eb7461f55"
-dependencies = [
- "bitflags",
- "getopts",
- "memchr",
- "unicase",
-]
-
-[[package]]
-name = "pulldown-cmark"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d9cc634bc78768157b5cbfe988ffcd1dcba95cd2b2f03a88316c08c6d00ed63"
 dependencies = [
  "bitflags",
+ "getopts",
  "memchr",
  "unicase",
 ]
@@ -1391,7 +1371,7 @@ version = "10.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0194e6e1966c23cc5fd988714f85b18d548d773e81965413555d96569931833d"
 dependencies = [
- "pulldown-cmark 0.9.2",
+ "pulldown-cmark",
 ]
 
 [[package]]
@@ -1492,7 +1472,6 @@ dependencies = [
  "jod-thread",
  "lsp-server",
  "lsp-types",
- "markedit",
  "mbe",
  "mimalloc",
  "num_cpus",
@@ -1502,6 +1481,7 @@ dependencies = [
  "proc-macro-srv",
  "profile",
  "project-model",
+ "pulldown-cmark",
  "pulldown-cmark-to-cmark",
  "rayon",
  "rustc-hash",

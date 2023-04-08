@@ -7,38 +7,24 @@
 //! - Rewriting `##` at the start of lines as `#`
 
 use ide_db::rust_doc::is_rust_fence;
-use markedit::{parse, pulldown_cmark::{Event, CodeBlockKind, Tag}, Matcher, rewrite, Writer};
+use pulldown_cmark::{Event, CodeBlockKind, Tag, Parser};
 use pulldown_cmark_to_cmark::{cmark_resume_with_options, Options as CMarkOptions};
 
 /// Matches all events _after_ start and _before_ end. (Excluding start and end.)
-struct Between<A, B>
-where
-    A: Matcher,
-    B: Matcher
-{
-    start: A,
-    end: B,
+// TODO: this should ideally include start and end closures
+// with FnMut(&Event<'_>) -> bool signature, but the compiler crashes (in 1.68)
+struct BetweenCodeBlock {
     between: bool,
 }
 
-impl<A, B> Between<A, B>
-where
-    A: Matcher,
-    B: Matcher
-{
-    fn new(start: A, end: B) -> Self {
-        Self { start, end, between: false }
+impl BetweenCodeBlock {
+    fn new() -> Self {
+        Self { between: false }
     }
-}
 
-impl<A, B> Matcher for Between<A, B>
-where
-    A: Matcher,
-    B: Matcher
-{
-    fn matches_event(&mut self, event: &Event<'_>) -> bool {
-        let start_matched = self.start.matches_event(event);
-        let end_matched = self.end.matches_event(event);
+    fn matches(&mut self, ev: &Event<'_>) -> bool {
+        let start_matched = matches!(ev, Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(header))) if is_rust_fence(&header));
+        let end_matched = matches!(ev, Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(header))) if is_rust_fence(&header));
 
         if start_matched {
             self.between = true;
@@ -51,27 +37,28 @@ where
 }
 
 pub(crate) fn format_docs(src: &str) -> String {
-    let events = parse(src);
+    let events = Parser::new(src);
 
-    let rust_code_start = |ev: Event<'_>| matches!(ev, Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(header))) if is_rust_fence(&header));
-    let rust_code_end = |ev: Event<'_>| matches!(ev, Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(header))) if is_rust_fence(&header));
 
-    let rewritten = markedit::rewrite(events, |ev: Event<'_>, w: &mut Writer<'_>| {
-        if rust_code_start(ev) {
-            w.push(Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced("rust".into()))))
-        } else if rust_code_end(ev) {
-            w.push(Event::End(Tag::CodeBlock(CodeBlockKind::Fenced("rust".into()))))
+    let rewritten = events.map(|ev| {
+        // can't write this as a closure due to the compiler crashing
+        // ref: https://github.com/rust-lang/rust/issues/109603
+        // should be fixed by 1.69
+        dbg!(&ev);
+        if matches!(ev, Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(ref header))) if is_rust_fence(&header)) {
+            Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced("rust".into())))
+        } else if matches!(ev, Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(ref header))) if is_rust_fence(header)) {
+            Event::End(Tag::CodeBlock(CodeBlockKind::Fenced("rust".into())))
         } else {
-            w.push(ev)
+            ev
         }
     });
 
-    let mut btw = Between::new(rust_code_start, rust_code_end);
-    let rewritten = rewrite(rewritten, |ev: Event<'_>, w: &mut Writer<'_>| {
+    let mut btw = BetweenCodeBlock::new();
+    let rewritten = rewritten.map(|ev| {
         if btw.matches(&ev) {
             let Event::Text(text) = ev else {
-                w.push(ev);
-                return;
+                return ev;
             };
 
             let mut output = String::with_capacity(text.len());
@@ -79,19 +66,18 @@ pub(crate) fn format_docs(src: &str) -> String {
                 if code_line_ignored_by_rustdoc(line) {
                     continue;
                 }
-                output.push_str(line);
-            }
 
-            let trimmed = text.trim_start();
+                let trimmed = line.trim_start();
 
-            if trimmed.starts_with("##") {
-                output.push_str(&trimmed[1..]);
-            } else {
-                output.push_str(&text);
+                if trimmed.starts_with("##") {
+                    output.push_str(&trimmed[1..]);
+                } else {
+                    output.push_str(&line);
+                }
             }
-            w.push(Event::Text(output.into()))
+            Event::Text(output.into())
         } else {
-            w.push(ev)
+            ev
         }
     });
 
@@ -100,7 +86,7 @@ pub(crate) fn format_docs(src: &str) -> String {
         rewritten,
         &mut out,
         None,
-        CMarkOptions { code_block_token_count: 3, ..Default::default() },
+        CMarkOptions { code_block_token_count: 3, newlines_after_paragraph: 0, ..Default::default() },
     )
     .ok();
 
