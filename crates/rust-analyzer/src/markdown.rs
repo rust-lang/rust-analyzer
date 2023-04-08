@@ -74,6 +74,7 @@ pub(crate) fn format_docs(src: &str) -> String {
                 } else {
                     output.push_str(&line);
                 }
+                output.push('\n');
             }
             Event::Text(output.into())
         } else {
