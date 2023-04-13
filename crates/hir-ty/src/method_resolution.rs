@@ -2,7 +2,7 @@
 //! For details about how this works in rustc, see the method lookup page in the
 //! [rustc guide](https://rust-lang.github.io/rustc-guide/method-lookup.html)
 //! and the corresponding code mostly in rustc_hir_analysis/check/method/probe.rs.
-use std::{ops::ControlFlow, sync::Arc};
+use std::{collections::hash_map::Entry, ops::ControlFlow, sync::Arc};
 
 use base_db::{CrateId, Edition};
 use chalk_ir::{cast::Cast, Mutability, TyKind, UniverseIndex, WhereClause};
@@ -463,7 +463,7 @@ pub(crate) fn lookup_method(
     traits_in_scope: &FxHashSet<TraitId>,
     visible_from_module: VisibleFromModule,
     name: &Name,
-) -> Option<(ReceiverAdjustments, FunctionId, bool)> {
+) -> Option<(ReceiverAdjustments, FunctionId, bool, Option<Substitution>)> {
     let mut not_visible = None;
     let res = iterate_method_candidates(
         ty,
@@ -473,10 +473,10 @@ pub(crate) fn lookup_method(
         visible_from_module,
         Some(name),
         LookupMode::MethodCall,
-        |adjustments, f, visible| match f {
-            AssocItemId::FunctionId(f) if visible => Some((adjustments, f, true)),
+        |adjustments, f, visible, subst| match f {
+            AssocItemId::FunctionId(f) if visible => Some((adjustments, f, true, subst)),
             AssocItemId::FunctionId(f) if not_visible.is_none() => {
-                not_visible = Some((adjustments, f, false));
+                not_visible = Some((adjustments, f, false, subst));
                 None
             }
             _ => None,
@@ -600,7 +600,7 @@ pub(crate) fn iterate_method_candidates<T>(
     visible_from_module: VisibleFromModule,
     name: Option<&Name>,
     mode: LookupMode,
-    mut callback: impl FnMut(ReceiverAdjustments, AssocItemId, bool) -> Option<T>,
+    mut callback: impl FnMut(ReceiverAdjustments, AssocItemId, bool, Option<Substitution>) -> Option<T>,
 ) -> Option<T> {
     let mut slot = None;
     iterate_method_candidates_dyn(
@@ -611,9 +611,9 @@ pub(crate) fn iterate_method_candidates<T>(
         visible_from_module,
         name,
         mode,
-        &mut |adj, item, visible| {
+        &mut |adj, item, visible, subst| {
             assert!(slot.is_none());
-            if let Some(it) = callback(adj, item, visible) {
+            if let Some(it) = callback(adj, item, visible, subst) {
                 slot = Some(it);
                 return ControlFlow::Break(());
             }
@@ -858,7 +858,7 @@ pub fn iterate_path_candidates(
         name,
         LookupMode::Path,
         // the adjustments are not relevant for path lookup
-        &mut |_, id, _| callback(id),
+        &mut |_, id, _, _| callback(id),
     )
 }
 
@@ -870,7 +870,12 @@ pub fn iterate_method_candidates_dyn(
     visible_from_module: VisibleFromModule,
     name: Option<&Name>,
     mode: LookupMode,
-    callback: &mut dyn FnMut(ReceiverAdjustments, AssocItemId, bool) -> ControlFlow<()>,
+    callback: &mut dyn FnMut(
+        ReceiverAdjustments,
+        AssocItemId,
+        bool,
+        Option<Substitution>,
+    ) -> ControlFlow<()>,
 ) -> ControlFlow<()> {
     match mode {
         LookupMode::MethodCall => {
@@ -934,7 +939,12 @@ fn iterate_method_candidates_with_autoref(
     traits_in_scope: &FxHashSet<TraitId>,
     visible_from_module: VisibleFromModule,
     name: Option<&Name>,
-    mut callback: &mut dyn FnMut(ReceiverAdjustments, AssocItemId, bool) -> ControlFlow<()>,
+    mut callback: &mut dyn FnMut(
+        ReceiverAdjustments,
+        AssocItemId,
+        bool,
+        Option<Substitution>,
+    ) -> ControlFlow<()>,
 ) -> ControlFlow<()> {
     if receiver_ty.value.is_general_var(Interner, &receiver_ty.binders) {
         // don't try to resolve methods on unknown types
@@ -991,7 +1001,12 @@ fn iterate_method_candidates_by_receiver(
     traits_in_scope: &FxHashSet<TraitId>,
     visible_from_module: VisibleFromModule,
     name: Option<&Name>,
-    mut callback: &mut dyn FnMut(ReceiverAdjustments, AssocItemId, bool) -> ControlFlow<()>,
+    mut callback: &mut dyn FnMut(
+        ReceiverAdjustments,
+        AssocItemId,
+        bool,
+        Option<Substitution>,
+    ) -> ControlFlow<()>,
 ) -> ControlFlow<()> {
     let mut table = InferenceTable::new(db, env);
     let receiver_ty = table.instantiate_canonical(receiver_ty.clone());
@@ -1023,7 +1038,7 @@ fn iterate_method_candidates_by_receiver(
             name,
             Some(&receiver_ty),
             Some(receiver_adjustments.clone()),
-            &mut callback,
+            &mut |a1, a2, a3| callback(a1, a2, a3, None),
         )?
     }
 
@@ -1037,7 +1052,12 @@ fn iterate_method_candidates_for_self_ty(
     traits_in_scope: &FxHashSet<TraitId>,
     visible_from_module: VisibleFromModule,
     name: Option<&Name>,
-    mut callback: &mut dyn FnMut(ReceiverAdjustments, AssocItemId, bool) -> ControlFlow<()>,
+    mut callback: &mut dyn FnMut(
+        ReceiverAdjustments,
+        AssocItemId,
+        bool,
+        Option<Substitution>,
+    ) -> ControlFlow<()>,
 ) -> ControlFlow<()> {
     let mut table = InferenceTable::new(db, env);
     let self_ty = table.instantiate_canonical(self_ty.clone());
@@ -1057,7 +1077,7 @@ fn iterate_method_candidates_for_self_ty(
         name,
         None,
         None,
-        callback,
+        &mut |a1, a2, a3| callback(a1, a2, a3, None),
     )
 }
 
@@ -1117,6 +1137,23 @@ fn iterate_trait_method_candidates(
     ControlFlow::Continue(())
 }
 
+/// When there is two bound with the same trait, for example `T: Into<i64> + Into<i32>`, we want to ignore subst in
+/// of `Into` in method resolution for `T`. This function handle that.
+fn unique_trait_refs(
+    trait_refs: impl Iterator<Item = TraitRef>,
+) -> impl Iterator<Item = (TraitId, Option<Substitution>)> {
+    let mut result = FxHashMap::default();
+    for trait_ref in trait_refs {
+        match result.entry(trait_ref.hir_trait_id()) {
+            Entry::Occupied(mut e) => *e.get_mut() = None,
+            Entry::Vacant(e) => {
+                e.insert(Some(trait_ref.substitution));
+            }
+        }
+    }
+    result.into_iter()
+}
+
 fn iterate_inherent_methods(
     self_ty: &Ty,
     table: &mut InferenceTable<'_>,
@@ -1124,7 +1161,12 @@ fn iterate_inherent_methods(
     receiver_ty: Option<&Ty>,
     receiver_adjustments: Option<ReceiverAdjustments>,
     visible_from_module: VisibleFromModule,
-    callback: &mut dyn FnMut(ReceiverAdjustments, AssocItemId, bool) -> ControlFlow<()>,
+    callback: &mut dyn FnMut(
+        ReceiverAdjustments,
+        AssocItemId,
+        bool,
+        Option<Substitution>,
+    ) -> ControlFlow<()>,
 ) -> ControlFlow<()> {
     let db = table.db;
     let env = table.trait_env.clone();
@@ -1136,9 +1178,10 @@ fn iterate_inherent_methods(
     match self_ty.kind(Interner) {
         TyKind::Placeholder(_) => {
             let env = table.trait_env.clone();
-            let traits = env
-                .traits_in_scope_from_clauses(self_ty.clone())
-                .flat_map(|t| all_super_traits(db.upcast(), t));
+            let traits = unique_trait_refs(
+                env.traits_in_scope_from_clauses(self_ty.clone())
+                    .flat_map(|t| all_super_traits(db, t.clone())),
+            );
             iterate_inherent_trait_methods(
                 self_ty,
                 table,
@@ -1150,8 +1193,8 @@ fn iterate_inherent_methods(
             )?;
         }
         TyKind::Dyn(_) => {
-            if let Some(principal_trait) = self_ty.dyn_trait() {
-                let traits = all_super_traits(db.upcast(), principal_trait);
+            if let Some(principal_trait) = self_ty.dyn_trait_ref() {
+                let traits = unique_trait_refs(all_super_traits(db, principal_trait).into_iter());
                 iterate_inherent_trait_methods(
                     self_ty,
                     table,
@@ -1159,7 +1202,7 @@ fn iterate_inherent_methods(
                     receiver_ty,
                     receiver_adjustments.clone(),
                     callback,
-                    traits.into_iter(),
+                    traits,
                 )?;
             }
         }
@@ -1187,7 +1230,7 @@ fn iterate_inherent_methods(
                 receiver_ty,
                 receiver_adjustments.clone(),
                 module,
-                callback,
+                &mut |a1, a2, a3| callback(a1, a2, a3, None),
             )?;
         }
 
@@ -1207,7 +1250,7 @@ fn iterate_inherent_methods(
             receiver_ty,
             receiver_adjustments.clone(),
             module,
-            callback,
+            &mut |a1, a2, a3| callback(a1, a2, a3, None),
         )?;
     }
     return ControlFlow::Continue(());
@@ -1218,21 +1261,33 @@ fn iterate_inherent_methods(
         name: Option<&Name>,
         receiver_ty: Option<&Ty>,
         receiver_adjustments: Option<ReceiverAdjustments>,
-        callback: &mut dyn FnMut(ReceiverAdjustments, AssocItemId, bool) -> ControlFlow<()>,
-        traits: impl Iterator<Item = TraitId>,
+        callback: &mut dyn FnMut(
+            ReceiverAdjustments,
+            AssocItemId,
+            bool,
+            Option<Substitution>,
+        ) -> ControlFlow<()>,
+        traits: impl Iterator<Item = (TraitId, Option<Substitution>)>,
     ) -> ControlFlow<()> {
         let db = table.db;
         for t in traits {
-            let data = db.trait_data(t);
+            let data = db.trait_data(t.0);
             for &(_, item) in data.items.iter() {
                 // We don't pass `visible_from_module` as all trait items should be visible.
+                // FIXME: is_valid_candidate should consider subst
                 let visible =
                     match is_valid_candidate(table, name, receiver_ty, item, self_ty, None) {
                         IsValidCandidate::Yes => true,
                         IsValidCandidate::NotVisible => false,
                         IsValidCandidate::No => continue,
                     };
-                callback(receiver_adjustments.clone().unwrap_or_default(), item, visible)?;
+                // FIXME: change this subst to be a method subst, not a trait
+                callback(
+                    receiver_adjustments.clone().unwrap_or_default(),
+                    item,
+                    visible,
+                    t.1.clone(),
+                )?;
             }
         }
         ControlFlow::Continue(())

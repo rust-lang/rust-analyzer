@@ -1405,9 +1405,11 @@ pub(crate) fn generic_predicates_for_param_query(
                             Some(TypeNs::TraitId(tr)) => tr,
                             _ => return false,
                         };
-
-                        all_super_traits(db.upcast(), tr).iter().any(|tr| {
-                            db.trait_data(*tr).items.iter().any(|(name, item)| {
+                        let substs = TyBuilder::placeholder_subst(db, tr);
+                        let tr_ref =
+                            TraitRef { trait_id: to_chalk_trait_id(tr), substitution: substs };
+                        all_super_traits(db, tr_ref).iter().any(|tr| {
+                            db.trait_data(tr.hir_trait_id()).items.iter().any(|(name, item)| {
                                 matches!(item, AssocItemId::TypeAliasId(_)) && name == assoc_name
                             })
                         })
@@ -1464,7 +1466,7 @@ pub(crate) fn trait_environment_query(
     for pred in resolver.where_predicates_in_scope() {
         for pred in ctx.lower_where_predicate(pred, false) {
             if let WhereClause::Implemented(tr) = &pred.skip_binders() {
-                traits_in_scope.push((tr.self_type_parameter(Interner).clone(), tr.hir_trait_id()));
+                traits_in_scope.push((tr.self_type_parameter(Interner).clone(), tr.clone()));
             }
             let program_clause: chalk_ir::ProgramClause<Interner> = pred.cast(Interner);
             clauses.push(program_clause.into_from_env_clause(Interner));

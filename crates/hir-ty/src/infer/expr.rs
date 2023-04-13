@@ -1483,10 +1483,44 @@ impl<'a> InferenceContext<'a> {
             method_name,
         );
         let (receiver_ty, method_ty, substs) = match resolved {
-            Some((adjust, func, visible)) => {
+            Some((adjust, func, visible, subst)) => {
                 let (ty, adjustments) = adjust.apply(&mut self.table, receiver_ty);
                 let generics = generics(self.db.upcast(), func.into());
-                let substs = self.substs_for_method_call(generics, generic_args);
+                let substs = match subst {
+                    Some(s) => {
+                        // FIXME: here we need the method subst, but result of `lookup_method` incorrectly returns the trait
+                        // subst. For some traits (which their methods are not generic, and are not `dyn Trait`) this
+                        // happens to be the same, so I didn't bothered myself to correctly implement it. Instead, I added
+                        // this check and we ignore the returned subst if it doesn't match.
+                        //
+                        // It might be a good idea to keep this check even after fixing the above, and just add a `never!` to
+                        // it, as mistakes will make chalk panic. But if you are sure about the implementation, you can remove
+                        // it to save some performance.
+                        let default_subst = self.substs_for_method_call(generics, generic_args);
+                        let is_valid = 'b: {
+                            if default_subst.len(Interner) != s.len(Interner) {
+                                break 'b false;
+                            }
+                            default_subst.iter(Interner).zip(s.iter(Interner)).all(|(x, y)| {
+                                matches!(
+                                    (x.data(Interner), y.data(Interner),),
+                                    (GenericArgData::Ty(_), GenericArgData::Ty(_))
+                                        | (
+                                            GenericArgData::Lifetime(_),
+                                            GenericArgData::Lifetime(_)
+                                        )
+                                        | (GenericArgData::Const(_), GenericArgData::Const(_))
+                                )
+                            })
+                        };
+                        if is_valid {
+                            s
+                        } else {
+                            default_subst
+                        }
+                    }
+                    None => self.substs_for_method_call(generics, generic_args),
+                };
                 self.write_expr_adj(receiver, adjustments);
                 self.write_method_resolution(tgt_expr, func, substs.clone());
                 if !visible {

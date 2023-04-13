@@ -8,14 +8,9 @@ use chalk_ir::{cast::Cast, fold::Shift, BoundVar, DebruijnIndex, Mutability};
 use either::Either;
 use hir_def::{
     db::DefDatabase,
-    generics::{
-        GenericParams, TypeOrConstParamData, TypeParamProvenance, WherePredicate,
-        WherePredicateTypeTarget,
-    },
+    generics::{GenericParams, TypeOrConstParamData, TypeParamProvenance},
     hir::BindingAnnotation,
     lang_item::LangItem,
-    resolver::{HasResolver, TypeNs},
-    type_ref::{TraitBoundModifier, TypeRef},
     ConstParamId, FunctionId, GenericDefId, ItemContainerId, Lookup, TraitId, TypeAliasId,
     TypeOrConstParamId, TypeParamId,
 };
@@ -41,16 +36,16 @@ pub(crate) fn fn_traits(
 
 /// Returns an iterator over the whole super trait hierarchy (including the
 /// trait itself).
-pub fn all_super_traits(db: &dyn DefDatabase, trait_: TraitId) -> SmallVec<[TraitId; 4]> {
+pub fn all_super_traits(db: &dyn HirDatabase, trait_: TraitRef) -> SmallVec<[TraitRef; 4]> {
     // we need to take care a bit here to avoid infinite loops in case of cycles
     // (i.e. if we have `trait A: B; trait B: A;`)
 
-    let mut result = smallvec![trait_];
+    let mut result: SmallVec<[TraitRef; 4]> = smallvec![trait_];
     let mut i = 0;
-    while let Some(&t) = result.get(i) {
+    while let Some(t) = result.get(i) {
         // yeah this is quadratic, but trait hierarchies should be flat
         // enough that this doesn't matter
-        direct_super_traits(db, t, |tt| {
+        direct_super_traits(db, t.clone(), |tt| {
             if !result.contains(&tt) {
                 result.push(tt);
             }
@@ -103,35 +98,19 @@ impl<'a> Iterator for SuperTraits<'a> {
     }
 }
 
-fn direct_super_traits(db: &dyn DefDatabase, trait_: TraitId, cb: impl FnMut(TraitId)) {
-    let resolver = trait_.resolver(db);
+fn direct_super_traits(db: &dyn HirDatabase, trait_ref: TraitRef, cb: impl FnMut(TraitRef)) {
+    let trait_ = trait_ref.hir_trait_id();
     let generic_params = db.generic_params(trait_.into());
-    let trait_self = generic_params.find_trait_self_param();
-    generic_params
-        .where_predicates
+    let Some(trait_self) = generic_params.find_trait_self_param() else {
+        return;
+    };
+    let trait_self_id = TypeOrConstParamId { parent: trait_.into(), local_id: trait_self };
+    let bounds = db.generic_predicates_for_param(trait_.into(), trait_self_id, None);
+    bounds
         .iter()
-        .filter_map(|pred| match pred {
-            WherePredicate::ForLifetime { target, bound, .. }
-            | WherePredicate::TypeBound { target, bound } => {
-                let is_trait = match target {
-                    WherePredicateTypeTarget::TypeRef(type_ref) => match &**type_ref {
-                        TypeRef::Path(p) => p.is_self_type(),
-                        _ => false,
-                    },
-                    WherePredicateTypeTarget::TypeOrConstParam(local_id) => {
-                        Some(*local_id) == trait_self
-                    }
-                };
-                match is_trait {
-                    true => bound.as_path(),
-                    false => None,
-                }
-            }
-            WherePredicate::Lifetime { .. } => None,
-        })
-        .filter(|(_, bound_modifier)| matches!(bound_modifier, TraitBoundModifier::None))
-        .filter_map(|(path, _)| match resolver.resolve_path_in_type_ns_fully(db, path) {
-            Some(TypeNs::TraitId(t)) => Some(t),
+        .map(|x| x.clone().substitute(Interner, &trait_ref.substitution))
+        .filter_map(|x| match x.skip_binders() {
+            chalk_ir::WhereClause::Implemented(t) => Some(t.clone()),
             _ => None,
         })
         .for_each(cb);

@@ -65,6 +65,7 @@ use hir_ty::{
     method_resolution::{self, TyFingerprint},
     mir::{self, interpret_mir},
     primitive::UintTy,
+    to_chalk_trait_id,
     traits::FnTrait,
     AliasTy, CallableDefId, CallableSig, Canonical, CanonicalVarKinds, Cast, ClosureId,
     GenericArgData, Interner, ParamKind, QuantifiedWhereClause, Scalar, Substitution,
@@ -2045,8 +2046,11 @@ impl Trait {
     }
 
     pub fn items_with_supertraits(self, db: &dyn HirDatabase) -> Vec<AssocItem> {
-        let traits = all_super_traits(db.upcast(), self.into());
-        traits.iter().flat_map(|tr| Trait::from(*tr).items(db)).collect()
+        let tr = self.into();
+        let substs = TyBuilder::placeholder_subst(db, tr);
+        let tr_ref = hir_ty::TraitRef { trait_id: to_chalk_trait_id(tr), substitution: substs };
+        let traits = all_super_traits(db, tr_ref);
+        traits.iter().flat_map(|tr| Trait::from(tr.hir_trait_id()).items(db)).collect()
     }
 
     pub fn is_auto(self, db: &dyn HirDatabase) -> bool {
@@ -3733,7 +3737,7 @@ impl Type {
             with_local_impls.and_then(|b| b.id.containing_block()).into(),
             name,
             method_resolution::LookupMode::MethodCall,
-            &mut |_adj, id, _| callback(id),
+            &mut |_adj, id, _, _| callback(id),
         );
     }
 
@@ -3814,8 +3818,9 @@ impl Type {
     ) -> impl Iterator<Item = Trait> + 'a {
         let _p = profile::span("applicable_inherent_traits");
         self.autoderef_(db)
-            .filter_map(|ty| ty.dyn_trait())
-            .flat_map(move |dyn_trait_id| hir_ty::all_super_traits(db.upcast(), dyn_trait_id))
+            .filter_map(|ty| ty.dyn_trait_ref())
+            .flat_map(move |dyn_trait_id| hir_ty::all_super_traits(db, dyn_trait_id))
+            .map(|x| x.hir_trait_id())
             .map(Trait::from)
     }
 
@@ -3826,8 +3831,9 @@ impl Type {
             .flat_map(|ty| {
                 self.env
                     .traits_in_scope_from_clauses(ty)
-                    .flat_map(|t| hir_ty::all_super_traits(db.upcast(), t))
+                    .flat_map(|t| hir_ty::all_super_traits(db, t.clone()))
             })
+            .map(|x| x.hir_trait_id())
             .map(Trait::from)
     }
 

@@ -237,19 +237,19 @@ impl<'a> InferenceContext<'a> {
             VisibleFromModule::Filter(self.resolver.module()),
             Some(name),
             method_resolution::LookupMode::Path,
-            |_ty, item, visible| {
+            |_ty, item, visible, subst| {
                 if visible {
-                    Some((item, true))
+                    Some((item, true, subst))
                 } else {
                     if not_visible.is_none() {
-                        not_visible = Some((item, false));
+                        not_visible = Some((item, false, subst));
                     }
                     None
                 }
             },
         );
         let res = res.or(not_visible);
-        let (item, visible) = res?;
+        let (item, visible, substs) = res?;
 
         let (def, container) = match item {
             AssocItemId::FunctionId(f) => {
@@ -258,7 +258,7 @@ impl<'a> InferenceContext<'a> {
             AssocItemId::ConstId(c) => (ValueNs::ConstId(c), c.lookup(self.db.upcast()).container),
             AssocItemId::TypeAliasId(_) => unreachable!(),
         };
-        let substs = match container {
+        let substs = substs.unwrap_or_else(|| match container {
             ItemContainerId::ImplId(impl_id) => {
                 let impl_substs = TyBuilder::subst_for_def(self.db, impl_id, None)
                     .fill_with_inference_vars(&mut self.table)
@@ -278,9 +278,9 @@ impl<'a> InferenceContext<'a> {
             }
             ItemContainerId::ModuleId(_) | ItemContainerId::ExternBlockId(_) => {
                 never!("assoc item contained in module/extern block");
-                return None;
+                return Substitution::empty(Interner);
             }
-        };
+        });
 
         self.write_assoc_resolution(id, item, substs.clone());
         if !visible {

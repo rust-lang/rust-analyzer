@@ -16,8 +16,8 @@ use stdx::panic_context;
 
 use crate::{
     db::HirDatabase, infer::unify::InferenceTable, AliasEq, AliasTy, Canonical, DomainGoal, Goal,
-    Guidance, InEnvironment, Interner, ProjectionTy, ProjectionTyExt, Solution, TraitRefExt, Ty,
-    TyKind, WhereClause,
+    Guidance, InEnvironment, Interner, ProjectionTy, ProjectionTyExt, Solution, TraitRef,
+    TraitRefExt, Ty, TyKind, WhereClause,
 };
 
 /// This controls how much 'time' we give the Chalk solver before giving up.
@@ -47,7 +47,8 @@ pub struct TraitEnvironment {
     pub krate: CrateId,
     pub block: Option<BlockId>,
     // FIXME make this a BTreeMap
-    pub(crate) traits_from_clauses: Vec<(Ty, TraitId)>,
+    // Note this is not trivial, as `Ty` doesn't implement `Ord` currently.
+    pub(crate) traits_from_clauses: Vec<(Ty, TraitRef)>,
     pub env: chalk_ir::Environment<Interner>,
 }
 
@@ -61,10 +62,8 @@ impl TraitEnvironment {
         }
     }
 
-    pub fn traits_in_scope_from_clauses(&self, ty: Ty) -> impl Iterator<Item = TraitId> + '_ {
-        self.traits_from_clauses
-            .iter()
-            .filter_map(move |(self_ty, trait_id)| (*self_ty == ty).then_some(*trait_id))
+    pub fn traits_in_scope_from_clauses(&self, ty: Ty) -> impl Iterator<Item = &TraitRef> + '_ {
+        self.traits_from_clauses.iter().filter(move |(self_ty, _)| *self_ty == ty).map(|(_, t)| t)
     }
 }
 

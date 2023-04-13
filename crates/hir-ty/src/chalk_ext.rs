@@ -43,6 +43,7 @@ pub trait TyExt {
 
     /// If this is a `dyn Trait`, returns that trait.
     fn dyn_trait(&self) -> Option<TraitId>;
+    fn dyn_trait_ref(&self) -> Option<TraitRef>;
 
     fn impl_trait_bounds(&self, db: &dyn HirDatabase) -> Option<Vec<QuantifiedWhereClause>>;
     fn associated_type_parent_trait(&self, db: &dyn HirDatabase) -> Option<TraitId>;
@@ -191,6 +192,31 @@ impl TyExt for Ty {
             }
             _ => None,
         }
+    }
+
+    fn dyn_trait_ref(&self) -> Option<TraitRef> {
+        let trait_ref = match self.kind(Interner) {
+            // The principal trait bound should be the first element of the bounds. This is an
+            // invariant ensured by `TyLoweringContext::lower_dyn_trait()`.
+            // FIXME: dyn types may not have principal trait and we don't want to return auto trait
+            // here.
+            TyKind::Dyn(dyn_ty) => dyn_ty.bounds.as_ref().filter_map(|x| {
+                x.interned().get(0).and_then(|b| {
+                    b.as_ref().filter_map(|b| match b {
+                        WhereClause::Implemented(trait_ref) => Some(trait_ref.clone()),
+                        _ => None,
+                    })
+                })
+            }),
+            _ => None,
+        }?;
+        // FIXME: qualified bounds not handled (is not valid here I think?)
+        Some(
+            trait_ref
+                .substitute(Interner, &Substitution::from1(Interner, self.clone()))
+                .into_value_and_skipped_binders()
+                .0,
+        )
     }
 
     fn dyn_trait(&self) -> Option<TraitId> {

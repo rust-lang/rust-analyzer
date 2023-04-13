@@ -950,6 +950,34 @@ fn test() { S2.into(); }
 }
 
 #[test]
+fn method_resolution_prefer_explicit_bound() {
+    check_types(
+        r#"
+trait Tr<T> {
+    fn tr(self) -> T;
+}
+
+impl<T> Tr<T> for T {
+    fn tr(self) -> T {
+        self
+    }
+}
+
+trait Tr2<T>: Tr<&[T]> {}
+
+fn test0<T>(x: T) { x.tr(); }
+                  //^^^^^^ T
+fn test1<T: Tr<i32>>(x: T) { x.tr(); }
+                           //^^^^^^ i32
+fn test2<T: Tr2<i32>>(x: T) { x.tr(); }
+                            //^^^^^^ &[i32]
+fn test3<T: Tr<i32> + Tr<i64>>(x: T) { let x: i64 = x.tr(); }
+                                                  //^^^^^^ i64
+"#,
+    );
+}
+
+#[test]
 fn method_resolution_overloaded_method() {
     check_types(
         r#"
