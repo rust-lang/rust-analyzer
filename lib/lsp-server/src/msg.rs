@@ -207,11 +207,22 @@ impl Request {
         }
     }
 
+    #[cfg(not(feature = "bsp"))]
     pub(crate) fn is_shutdown(&self) -> bool {
         self.method == "shutdown"
     }
+    #[cfg(not(feature = "bsp"))]
     pub(crate) fn is_initialize(&self) -> bool {
         self.method == "initialize"
+    }
+
+    #[cfg(feature = "bsp")]
+    pub(crate) fn is_shutdown(&self) -> bool {
+        self.method == "build/shutdown"
+    }
+    #[cfg(feature = "bsp")]
+    pub(crate) fn is_initialize(&self) -> bool {
+        self.method == "build/initialize"
     }
 }
 
@@ -231,11 +242,22 @@ impl Notification {
             Err(error) => Err(ExtractError::JsonError { method: self.method, error }),
         }
     }
+    #[cfg(not(feature = "bsp"))]
     pub(crate) fn is_exit(&self) -> bool {
         self.method == "exit"
     }
+    #[cfg(not(feature = "bsp"))]
     pub(crate) fn is_initialized(&self) -> bool {
         self.method == "initialized"
+    }
+
+    #[cfg(feature = "bsp")]
+    pub(crate) fn is_exit(&self) -> bool {
+        self.method == "build/exit"
+    }
+    #[cfg(feature = "bsp")]
+    pub(crate) fn is_initialized(&self) -> bool {
+        self.method == "build/initialized"
     }
 }
 

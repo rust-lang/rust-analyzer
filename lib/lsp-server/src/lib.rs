@@ -219,12 +219,21 @@ impl Connection {
 #[cfg(test)]
 mod tests {
     use crossbeam_channel::unbounded;
-    use lsp_types::notification::{Exit, Initialized, Notification};
-    use lsp_types::request::{Initialize, Request};
+    use lsp_types::notification::{Initialized, Notification};
     use lsp_types::{InitializeParams, InitializedParams};
     use serde_json::to_value;
 
     use crate::{Connection, Message, ProtocolError, RequestId};
+
+    #[cfg(not(feature = "bsp"))]
+    static INITIALIZE: &str = "initialize";
+    #[cfg(not(feature = "bsp"))]
+    static EXIT: &str = "exit";
+
+    #[cfg(feature = "bsp")]
+    static INITIALIZE: &str = "build/initialize";
+    #[cfg(feature = "bsp")]
+    static EXIT: &str = "build/exit";
 
     struct TestCase {
         test_messages: Vec<Message>,
@@ -257,7 +266,7 @@ mod tests {
         let req_id = RequestId::from(234);
         let request = crate::Request {
             id: req_id.clone(),
-            method: Initialize::METHOD.to_string(),
+            method: INITIALIZE.into(),
             params: params_as_value.clone(),
         };
 
@@ -270,7 +279,7 @@ mod tests {
     #[test]
     fn exit_notification() {
         let notification =
-            crate::Notification { method: Exit::METHOD.to_string(), params: to_value(()).unwrap() };
+            crate::Notification { method: EXIT.into(), params: to_value(()).unwrap() };
         let notification_msg = Message::from(notification);
 
         initialize_start_test(TestCase {
