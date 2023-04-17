@@ -5,10 +5,13 @@ use std::{
 
 use crossbeam_channel::{bounded, Receiver, Sender};
 
-use crate::Message;
+use crate::{Message, Notification};
 
 /// Creates an LSP connection via stdio.
-pub(crate) fn stdio_transport() -> (Sender<Message>, Receiver<Message>, IoThreads) {
+fn base_stdio_transport<ExitF>(is_exit: ExitF) -> (Sender<Message>, Receiver<Message>, IoThreads)
+where
+    ExitF: Fn(&Notification) -> bool + Send + 'static,
+{
     let (writer_sender, writer_receiver) = bounded::<Message>(0);
     let writer = thread::spawn(move || {
         let stdout = stdout();
@@ -21,11 +24,11 @@ pub(crate) fn stdio_transport() -> (Sender<Message>, Receiver<Message>, IoThread
         let stdin = stdin();
         let mut stdin = stdin.lock();
         while let Some(msg) = Message::read(&mut stdin)? {
-            let is_exit = matches!(&msg, Message::Notification(n) if n.is_exit());
+            let is_exit_notif = matches!(&msg, Message::Notification(n) if is_exit(&n));
 
             reader_sender.send(msg).unwrap();
 
-            if is_exit {
+            if is_exit_notif {
                 break;
             }
         }
@@ -33,6 +36,15 @@ pub(crate) fn stdio_transport() -> (Sender<Message>, Receiver<Message>, IoThread
     });
     let threads = IoThreads { reader, writer };
     (writer_sender, reader_receiver, threads)
+}
+
+pub(crate) fn stdio_transport() -> (Sender<Message>, Receiver<Message>, IoThreads) {
+    base_stdio_transport(Notification::is_exit)
+}
+
+#[cfg(feature = "bsp")]
+pub(crate) fn bsp_stdio_transport() -> (Sender<Message>, Receiver<Message>, IoThreads) {
+    base_stdio_transport(Notification::bsp_is_exit)
 }
 
 // Creates an IoThreads

@@ -7,7 +7,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::error::ExtractError;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum Message {
     Request(Request),
@@ -68,7 +68,7 @@ impl fmt::Display for RequestId {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Request {
     pub id: RequestId,
     pub method: String,
@@ -77,7 +77,7 @@ pub struct Request {
     pub params: serde_json::Value,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Response {
     // JSON RPC allows this to be null if it was impossible
     // to decode the request's id. Ignore this special case
@@ -89,7 +89,7 @@ pub struct Response {
     pub error: Option<ResponseError>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ResponseError {
     pub code: i32,
     pub message: String,
@@ -145,7 +145,7 @@ pub enum ErrorCode {
     RequestFailed = -32803,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Notification {
     pub method: String,
     #[serde(default = "serde_json::Value::default")]
@@ -207,21 +207,19 @@ impl Request {
         }
     }
 
-    #[cfg(not(feature = "bsp"))]
     pub(crate) fn is_shutdown(&self) -> bool {
         self.method == "shutdown"
     }
-    #[cfg(not(feature = "bsp"))]
     pub(crate) fn is_initialize(&self) -> bool {
         self.method == "initialize"
     }
 
     #[cfg(feature = "bsp")]
-    pub(crate) fn is_shutdown(&self) -> bool {
+    pub(crate) fn bsp_is_shutdown(&self) -> bool {
         self.method == "build/shutdown"
     }
     #[cfg(feature = "bsp")]
-    pub(crate) fn is_initialize(&self) -> bool {
+    pub(crate) fn bsp_is_initialize(&self) -> bool {
         self.method == "build/initialize"
     }
 }
@@ -242,21 +240,19 @@ impl Notification {
             Err(error) => Err(ExtractError::JsonError { method: self.method, error }),
         }
     }
-    #[cfg(not(feature = "bsp"))]
     pub(crate) fn is_exit(&self) -> bool {
         self.method == "exit"
     }
-    #[cfg(not(feature = "bsp"))]
     pub(crate) fn is_initialized(&self) -> bool {
         self.method == "initialized"
     }
 
     #[cfg(feature = "bsp")]
-    pub(crate) fn is_exit(&self) -> bool {
+    pub(crate) fn bsp_is_exit(&self) -> bool {
         self.method == "build/exit"
     }
     #[cfg(feature = "bsp")]
-    pub(crate) fn is_initialized(&self) -> bool {
+    pub(crate) fn bsp_is_initialized(&self) -> bool {
         self.method == "build/initialized"
     }
 }
