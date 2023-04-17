@@ -934,20 +934,20 @@ impl HasResolver for ModuleId {
 
 impl HasResolver for TraitId {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
-        self.lookup(db).container.resolver(db).push_generic_params_scope(db, self.into())
+        self.lookup(db.upcast()).container.resolver(db).push_generic_params_scope(db, self.into())
     }
 }
 
 impl HasResolver for TraitAliasId {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
-        self.lookup(db).container.resolver(db).push_generic_params_scope(db, self.into())
+        self.lookup(db.upcast()).container.resolver(db).push_generic_params_scope(db, self.into())
     }
 }
 
 impl<T: Into<AdtId> + Copy> HasResolver for T {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
         let def = self.into();
-        def.module(db)
+        def.module(db.upcast())
             .resolver(db)
             .push_generic_params_scope(db, def.into())
             .push_scope(Scope::AdtScope(def))
@@ -956,31 +956,31 @@ impl<T: Into<AdtId> + Copy> HasResolver for T {
 
 impl HasResolver for FunctionId {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
-        self.lookup(db).container.resolver(db).push_generic_params_scope(db, self.into())
+        self.lookup(db.upcast()).container.resolver(db).push_generic_params_scope(db, self.into())
     }
 }
 
 impl HasResolver for ConstId {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
-        self.lookup(db).container.resolver(db)
+        self.lookup(db.upcast()).container.resolver(db)
     }
 }
 
 impl HasResolver for StaticId {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
-        self.lookup(db).container.resolver(db)
+        self.lookup(db.upcast()).container.resolver(db)
     }
 }
 
 impl HasResolver for TypeAliasId {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
-        self.lookup(db).container.resolver(db).push_generic_params_scope(db, self.into())
+        self.lookup(db.upcast()).container.resolver(db).push_generic_params_scope(db, self.into())
     }
 }
 
 impl HasResolver for ImplId {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
-        self.lookup(db)
+        self.lookup(db.upcast())
             .container
             .resolver(db)
             .push_generic_params_scope(db, self.into())
@@ -991,7 +991,7 @@ impl HasResolver for ImplId {
 impl HasResolver for ExternBlockId {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
         // Same as parent's
-        self.lookup(db).container.resolver(db)
+        self.lookup(db.upcast()).container.resolver(db)
     }
 }
 
@@ -1054,18 +1054,18 @@ impl HasResolver for MacroId {
 
 impl HasResolver for Macro2Id {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
-        self.lookup(db).container.resolver(db)
+        self.lookup(db.upcast()).container.resolver(db)
     }
 }
 
 impl HasResolver for ProcMacroId {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
-        self.lookup(db).container.resolver(db)
+        self.lookup(db.upcast()).container.resolver(db)
     }
 }
 
 impl HasResolver for MacroRulesId {
     fn resolver(self, db: &dyn DefDatabase) -> Resolver {
-        self.lookup(db).container.resolver(db)
+        self.lookup(db.upcast()).container.resolver(db)
     }
 }

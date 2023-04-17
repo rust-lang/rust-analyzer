@@ -9,7 +9,10 @@ use base_db::{
     salsa::{self, Durability},
     AnchoredPath, CrateId, FileId, FileLoader, FileLoaderDelegate, SourceDatabase, Upcast,
 };
-use hir_def::{db::DefDatabase, ModuleId};
+use hir_def::{
+    db::{DefDatabase, ItemTreeDatabase},
+    ModuleId,
+};
 use hir_expand::db::ExpandDatabase;
 use rustc_hash::FxHashSet;
 use stdx::hash::NoHashHashMap;
@@ -22,6 +25,7 @@ use test_utils::extract_annotations;
     hir_expand::db::ExpandDatabaseStorage,
     hir_def::db::InternDatabaseStorage,
     hir_def::db::DefDatabaseStorage,
+    hir_def::db::ItemTreeDatabaseStorage,
     crate::db::HirDatabaseStorage
 )]
 pub(crate) struct TestDB {
@@ -45,6 +49,12 @@ impl fmt::Debug for TestDB {
 
 impl Upcast<dyn ExpandDatabase> for TestDB {
     fn upcast(&self) -> &(dyn ExpandDatabase + 'static) {
+        &*self
+    }
+}
+
+impl Upcast<dyn ItemTreeDatabase> for TestDB {
+    fn upcast(&self) -> &(dyn ItemTreeDatabase + 'static) {
         &*self
     }
 }

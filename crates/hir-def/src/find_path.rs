@@ -307,7 +307,7 @@ fn calculate_best_path(
     let mut best_path = None;
     // Recursive case:
     // - otherwise, look for modules containing (reexporting) it and import it from one of those
-    if item.krate(db) == Some(from.krate) {
+    if item.krate(db.upcast()) == Some(from.krate) {
         let mut best_path_len = max_len;
         // Item was defined in the same crate that wants to import it. It cannot be found in any
         // dependency in this case.
@@ -373,7 +373,7 @@ fn calculate_best_path(
             best_path = Some(new_path);
         }
     }
-    if let Some(module) = item.module(db) {
+    if let Some(module) = item.module(db.upcast()) {
         if module.def_map(db).block_id().is_some() && prefixed.is_some() {
             cov_mark::hit!(prefixed_in_block_expression);
             prefixed = Some(PrefixKind::Plain);

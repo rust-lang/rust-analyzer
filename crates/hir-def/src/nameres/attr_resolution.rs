@@ -46,7 +46,7 @@ impl DefMap {
         );
         let def = match resolved_res.resolved_def.take_macros() {
             Some(def) => {
-                if def.is_attribute(db) {
+                if def.is_attribute(db.upcast()) {
                     def
                 } else {
                     return Ok(ResolvedAttr::Other);
@@ -60,7 +60,7 @@ impl DefMap {
             &ast_id,
             attr,
             self.krate,
-            macro_id_to_def_id(db, def),
+            macro_id_to_def_id(db.upcast(), def),
             false,
         )))
     }

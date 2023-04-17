@@ -17,9 +17,9 @@ use rustc_abi::{Align, Integer, IntegerType, ReprFlags, ReprOptions};
 use syntax::ast::{self, HasName, HasVisibility};
 
 use crate::{
-    body::{CfgExpander, LowerCtx},
     builtin_type::{BuiltinInt, BuiltinUint},
-    db::DefDatabase,
+    db::{DefDatabase, ItemTreeDatabase},
+    expander::{CfgExpander, LowerCtx},
     item_tree::{AttrOwner, Field, FieldAstId, Fields, ItemTree, ModItem, RawVisibilityId},
     lang_item::LangItem,
     nameres::diagnostics::DefDiagnostic,
@@ -93,7 +93,7 @@ pub struct FieldData {
 }
 
 fn repr_from_value(
-    db: &dyn DefDatabase,
+    db: &dyn ItemTreeDatabase,
     krate: CrateId,
     item_tree: &ItemTree,
     of: AttrOwner,
@@ -180,12 +180,12 @@ fn parse_repr_tt(tt: &Subtree) -> Option<ReprOptions> {
 }
 
 impl StructData {
-    pub(crate) fn struct_data_query(db: &dyn DefDatabase, id: StructId) -> Arc<StructData> {
+    pub(crate) fn struct_data_query(db: &dyn ItemTreeDatabase, id: StructId) -> Arc<StructData> {
         db.struct_data_with_diagnostics(id).0
     }
 
     pub(crate) fn struct_data_with_diagnostics_query(
-        db: &dyn DefDatabase,
+        db: &dyn ItemTreeDatabase,
         id: StructId,
     ) -> (Arc<StructData>, Arc<[DefDiagnostic]>) {
         let loc = id.lookup(db);
@@ -236,12 +236,12 @@ impl StructData {
         )
     }
 
-    pub(crate) fn union_data_query(db: &dyn DefDatabase, id: UnionId) -> Arc<StructData> {
+    pub(crate) fn union_data_query(db: &dyn ItemTreeDatabase, id: UnionId) -> Arc<StructData> {
         db.union_data_with_diagnostics(id).0
     }
 
     pub(crate) fn union_data_with_diagnostics_query(
-        db: &dyn DefDatabase,
+        db: &dyn ItemTreeDatabase,
         id: UnionId,
     ) -> (Arc<StructData>, Arc<[DefDiagnostic]>) {
         let loc = id.lookup(db);
@@ -284,12 +284,12 @@ impl StructData {
 }
 
 impl EnumData {
-    pub(crate) fn enum_data_query(db: &dyn DefDatabase, e: EnumId) -> Arc<EnumData> {
+    pub(crate) fn enum_data_query(db: &dyn ItemTreeDatabase, e: EnumId) -> Arc<EnumData> {
         db.enum_data_with_diagnostics(e).0
     }
 
     pub(crate) fn enum_data_with_diagnostics_query(
-        db: &dyn DefDatabase,
+        db: &dyn ItemTreeDatabase,
         e: EnumId,
     ) -> (Arc<EnumData>, Arc<[DefDiagnostic]>) {
         let loc = e.lookup(db);
@@ -366,6 +366,7 @@ impl HasChildSource<LocalEnumVariantId> for EnumId {
         &self,
         db: &dyn DefDatabase,
     ) -> InFile<ArenaMap<LocalEnumVariantId, Self::Value>> {
+        let db = db.upcast();
         let src = self.lookup(db).source(db);
         let mut trace = Trace::new_for_map();
         lower_enum(db, &mut trace, &src, self.lookup(db).container);
@@ -374,7 +375,7 @@ impl HasChildSource<LocalEnumVariantId> for EnumId {
 }
 
 fn lower_enum(
-    db: &dyn DefDatabase,
+    db: &dyn ItemTreeDatabase,
     trace: &mut Trace<EnumVariantData, ast::Variant>,
     ast: &InFile<ast::Enum>,
     module_id: ModuleId,
@@ -398,7 +399,11 @@ fn lower_enum(
 }
 
 impl VariantData {
-    fn new(db: &dyn DefDatabase, flavor: InFile<ast::StructKind>, module_id: ModuleId) -> Self {
+    fn new(
+        db: &dyn ItemTreeDatabase,
+        flavor: InFile<ast::StructKind>,
+        module_id: ModuleId,
+    ) -> Self {
         let mut expander = CfgExpander::new(db, flavor.file_id, module_id.krate);
         let mut trace = Trace::new_for_arena();
         match lower_struct(db, &mut expander, &mut trace, &flavor) {
@@ -432,12 +437,16 @@ impl VariantData {
 impl HasChildSource<LocalFieldId> for VariantId {
     type Value = Either<ast::TupleField, ast::RecordField>;
 
-    fn child_source(&self, db: &dyn DefDatabase) -> InFile<ArenaMap<LocalFieldId, Self::Value>> {
+    fn child_source(
+        &self,
+        def_db: &dyn DefDatabase,
+    ) -> InFile<ArenaMap<LocalFieldId, Self::Value>> {
+        let db = def_db.upcast();
         let (src, module_id) = match self {
             VariantId::EnumVariantId(it) => {
                 // I don't really like the fact that we call into parent source
                 // here, this might add to more queries then necessary.
-                let src = it.parent.child_source(db);
+                let src = it.parent.child_source(def_db);
                 (src.map(|map| map[it.local_id].kind()), it.parent.lookup(db).container)
             }
             VariantId::StructId(it) => {
@@ -467,7 +476,7 @@ pub enum StructKind {
 }
 
 fn lower_struct(
-    db: &dyn DefDatabase,
+    db: &dyn ItemTreeDatabase,
     expander: &mut CfgExpander,
     trace: &mut Trace<FieldData, Either<ast::TupleField, ast::RecordField>>,
     ast: &InFile<ast::StructKind>,
@@ -514,7 +523,7 @@ fn lower_struct(
 }
 
 fn lower_fields(
-    db: &dyn DefDatabase,
+    db: &dyn ItemTreeDatabase,
     krate: CrateId,
     current_file_id: HirFileId,
     container: LocalModuleId,

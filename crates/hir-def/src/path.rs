@@ -7,7 +7,7 @@ use std::{
 };
 
 use crate::{
-    body::LowerCtx,
+    expander::LowerCtx,
     lang_item::LangItemTarget,
     type_ref::{ConstRefOrPath, LifetimeRef, TypeBound, TypeRef},
 };

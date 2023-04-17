@@ -1,4 +1,4 @@
-use hir::db::DefDatabase;
+use hir::db::ItemTreeDatabase;
 use ide_db::base_db::FileId;
 use ide_db::RootDatabase;
 

@@ -1,6 +1,6 @@
 use base_db::fixture::WithFixture;
 use chalk_ir::Substitution;
-use hir_def::db::DefDatabase;
+use hir_def::db::ItemTreeDatabase;
 
 use crate::{
     consteval::try_const_usize, db::HirDatabase, mir::pad16, test_db::TestDB, Const, ConstScalar,

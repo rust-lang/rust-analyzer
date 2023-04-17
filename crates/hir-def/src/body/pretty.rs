@@ -17,16 +17,16 @@ use super::*;
 pub(super) fn print_body_hir(db: &dyn DefDatabase, body: &Body, owner: DefWithBodyId) -> String {
     let header = match owner {
         DefWithBodyId::FunctionId(it) => {
-            let item_tree_id = it.lookup(db).id;
-            format!("fn {}", item_tree_id.item_tree(db)[item_tree_id.value].name)
+            let item_tree_id = it.lookup(db.upcast()).id;
+            format!("fn {}", item_tree_id.item_tree(db.upcast())[item_tree_id.value].name)
         }
         DefWithBodyId::StaticId(it) => {
-            let item_tree_id = it.lookup(db).id;
-            format!("static {} = ", item_tree_id.item_tree(db)[item_tree_id.value].name)
+            let item_tree_id = it.lookup(db.upcast()).id;
+            format!("static {} = ", item_tree_id.item_tree(db.upcast())[item_tree_id.value].name)
         }
         DefWithBodyId::ConstId(it) => {
-            let item_tree_id = it.lookup(db).id;
-            let name = match &item_tree_id.item_tree(db)[item_tree_id.value].name {
+            let item_tree_id = it.lookup(db.upcast()).id;
+            let name = match &item_tree_id.item_tree(db.upcast())[item_tree_id.value].name {
                 Some(name) => name.to_string(),
                 None => "_".to_string(),
             };

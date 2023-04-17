@@ -9,7 +9,7 @@ use hir_expand::HirFileId;
 use syntax::ast::HasDocComments;
 
 use crate::{
-    db::DefDatabase,
+    db::{DefDatabase, ItemTreeDatabase},
     dyn_map::{keys, DynMap},
     item_scope::ItemScope,
     src::{HasChildSource, HasSource},
@@ -36,7 +36,7 @@ impl ChildBySource for TraitId {
             },
         );
         data.items.iter().for_each(|&(_, item)| {
-            add_assoc_item(db, res, file_id, item);
+            add_assoc_item(db.upcast(), res, file_id, item);
         });
     }
 }
@@ -50,12 +50,17 @@ impl ChildBySource for ImplId {
             },
         );
         data.items.iter().for_each(|&item| {
-            add_assoc_item(db, res, file_id, item);
+            add_assoc_item(db.upcast(), res, file_id, item);
         });
     }
 }
 
-fn add_assoc_item(db: &dyn DefDatabase, res: &mut DynMap, file_id: HirFileId, item: AssocItemId) {
+fn add_assoc_item(
+    db: &dyn ItemTreeDatabase,
+    res: &mut DynMap,
+    file_id: HirFileId,
+    item: AssocItemId,
+) {
     match item {
         AssocItemId::FunctionId(func) => {
             let loc = func.lookup(db);
@@ -88,6 +93,7 @@ impl ChildBySource for ModuleId {
 
 impl ChildBySource for ItemScope {
     fn child_by_source_to(&self, db: &dyn DefDatabase, res: &mut DynMap, file_id: HirFileId) {
+        let db = db.upcast();
         self.declarations().for_each(|item| add_module_def(db, res, file_id, item));
         self.impls().for_each(|imp| add_impl(db, res, file_id, imp));
         self.unnamed_consts().for_each(|konst| {
@@ -125,7 +131,7 @@ impl ChildBySource for ItemScope {
         );
 
         fn add_module_def(
-            db: &dyn DefDatabase,
+            db: &dyn ItemTreeDatabase,
             map: &mut DynMap,
             file_id: HirFileId,
             item: ModuleDefId,
@@ -160,7 +166,7 @@ impl ChildBySource for ItemScope {
                 | ModuleDefId::BuiltinType(_) => (),
             }
         }
-        fn add_impl(db: &dyn DefDatabase, map: &mut DynMap, file_id: HirFileId, imp: ImplId) {
+        fn add_impl(db: &dyn ItemTreeDatabase, map: &mut DynMap, file_id: HirFileId, imp: ImplId) {
             let loc = imp.lookup(db);
             if loc.id.file_id() == file_id {
                 map[keys::IMPL].insert(loc.source(db).value, imp)

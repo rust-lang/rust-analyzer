@@ -14,8 +14,8 @@ use stdx::format_to;
 use syntax::ast;
 
 use crate::{
-    db::DefDatabase, per_ns::PerNs, visibility::Visibility, AdtId, BuiltinType, ConstId, HasModule,
-    ImplId, LocalModuleId, MacroId, ModuleDefId, ModuleId, TraitId,
+    db::ItemTreeDatabase, per_ns::PerNs, visibility::Visibility, AdtId, BuiltinType, ConstId,
+    HasModule, ImplId, LocalModuleId, MacroId, ModuleDefId, ModuleId, TraitId,
 };
 
 #[derive(Copy, Clone, Debug)]
@@ -455,14 +455,14 @@ impl ItemInNs {
     }
 
     /// Returns the crate defining this item (or `None` if `self` is built-in).
-    pub fn krate(&self, db: &dyn DefDatabase) -> Option<CrateId> {
+    pub fn krate(&self, db: &dyn ItemTreeDatabase) -> Option<CrateId> {
         match self {
             ItemInNs::Types(id) | ItemInNs::Values(id) => id.module(db).map(|m| m.krate),
             ItemInNs::Macros(id) => Some(id.module(db).krate),
         }
     }
 
-    pub fn module(&self, db: &dyn DefDatabase) -> Option<ModuleId> {
+    pub fn module(&self, db: &dyn ItemTreeDatabase) -> Option<ModuleId> {
         match self {
             ItemInNs::Types(id) | ItemInNs::Values(id) => id.module(db),
             ItemInNs::Macros(id) => Some(id.module(db)),

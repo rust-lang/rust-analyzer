@@ -7,7 +7,7 @@ use base_db::CrateId;
 use chalk_ir::{cast::Cast, fold::Shift, BoundVar, DebruijnIndex, Mutability};
 use either::Either;
 use hir_def::{
-    db::DefDatabase,
+    db::{DefDatabase, ItemTreeDatabase},
     generics::{
         GenericParams, TypeOrConstParamData, TypeParamProvenance, WherePredicate,
         WherePredicateTypeTarget,
@@ -172,7 +172,8 @@ pub(super) fn associated_type_by_name_including_super_traits(
 }
 
 pub(crate) fn generics(db: &dyn DefDatabase, def: GenericDefId) -> Generics {
-    let parent_generics = parent_generic_def(db, def).map(|def| Box::new(generics(db, def)));
+    let parent_generics =
+        parent_generic_def(db.upcast(), def).map(|def| Box::new(generics(db, def)));
     Generics { def, params: db.generic_params(def), parent_generics }
 }
 
@@ -309,7 +310,7 @@ impl Generics {
     }
 }
 
-fn parent_generic_def(db: &dyn DefDatabase, def: GenericDefId) -> Option<GenericDefId> {
+fn parent_generic_def(db: &dyn ItemTreeDatabase, def: GenericDefId) -> Option<GenericDefId> {
     let container = match def {
         GenericDefId::FunctionId(it) => it.lookup(db).container,
         GenericDefId::TypeAliasId(it) => it.lookup(db).container,

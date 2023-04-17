@@ -29,6 +29,7 @@ use crate::{
     TypeAliasId, TypeAliasLoc, UnionId, UnionLoc, VariantId,
 };
 
+// FIXME: Merge InternDatabase and ItemTreeDatabase
 #[salsa::query_group(InternDatabaseStorage)]
 pub trait InternDatabase: SourceDatabase {
     #[salsa::interned]
@@ -63,13 +64,63 @@ pub trait InternDatabase: SourceDatabase {
     fn intern_macro_rules(&self, loc: MacroRulesLoc) -> MacroRulesId;
 }
 
-#[salsa::query_group(DefDatabaseStorage)]
-pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDatabase> {
-    #[salsa::input]
-    fn expand_proc_attr_macros(&self) -> bool;
-
+#[salsa::query_group(ItemTreeDatabaseStorage)]
+pub trait ItemTreeDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDatabase> {
     #[salsa::invoke(ItemTree::file_item_tree_query)]
     fn file_item_tree(&self, file_id: HirFileId) -> Arc<ItemTree>;
+
+    #[salsa::invoke(Attrs::variants_attrs_query)]
+    fn variants_attrs(&self, def: EnumId) -> Arc<ArenaMap<LocalEnumVariantId, Attrs>>;
+
+    #[salsa::invoke(StructData::struct_data_query)]
+    fn struct_data(&self, id: StructId) -> Arc<StructData>;
+
+    #[salsa::invoke(StructData::struct_data_with_diagnostics_query)]
+    fn struct_data_with_diagnostics(&self, id: StructId)
+        -> (Arc<StructData>, Arc<[DefDiagnostic]>);
+
+    #[salsa::invoke(StructData::union_data_query)]
+    fn union_data(&self, id: UnionId) -> Arc<StructData>;
+
+    #[salsa::invoke(StructData::union_data_with_diagnostics_query)]
+    fn union_data_with_diagnostics(&self, id: UnionId) -> (Arc<StructData>, Arc<[DefDiagnostic]>);
+
+    #[salsa::invoke(EnumData::enum_data_query)]
+    fn enum_data(&self, e: EnumId) -> Arc<EnumData>;
+
+    #[salsa::invoke(EnumData::enum_data_with_diagnostics_query)]
+    fn enum_data_with_diagnostics(&self, e: EnumId) -> (Arc<EnumData>, Arc<[DefDiagnostic]>);
+
+    #[salsa::invoke(TypeAliasData::type_alias_data_query)]
+    fn type_alias_data(&self, e: TypeAliasId) -> Arc<TypeAliasData>;
+
+    #[salsa::invoke(TraitAliasData::trait_alias_query)]
+    fn trait_alias_data(&self, e: TraitAliasId) -> Arc<TraitAliasData>;
+
+    #[salsa::invoke(FunctionData::fn_data_query)]
+    fn function_data(&self, func: FunctionId) -> Arc<FunctionData>;
+
+    #[salsa::invoke(ConstData::const_data_query)]
+    fn const_data(&self, konst: ConstId) -> Arc<ConstData>;
+
+    #[salsa::invoke(StaticData::static_data_query)]
+    fn static_data(&self, konst: StaticId) -> Arc<StaticData>;
+
+    #[salsa::invoke(Macro2Data::macro2_data_query)]
+    fn macro2_data(&self, makro: Macro2Id) -> Arc<Macro2Data>;
+
+    #[salsa::invoke(MacroRulesData::macro_rules_data_query)]
+    fn macro_rules_data(&self, makro: MacroRulesId) -> Arc<MacroRulesData>;
+
+    #[salsa::invoke(ProcMacroData::proc_macro_data_query)]
+    fn proc_macro_data(&self, makro: ProcMacroId) -> Arc<ProcMacroData>;
+}
+
+#[salsa::query_group(DefDatabaseStorage)]
+pub trait DefDatabase: ItemTreeDatabase + Upcast<dyn ItemTreeDatabase> {
+    // FIXME: Move this to ExpandDatabase where it semantically belongs?
+    #[salsa::input]
+    fn expand_proc_attr_macros(&self) -> bool;
 
     #[salsa::invoke(crate_def_map_wait)]
     #[salsa::transparent]
@@ -98,25 +149,6 @@ pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDataba
 
     // region:data
 
-    #[salsa::invoke(StructData::struct_data_query)]
-    fn struct_data(&self, id: StructId) -> Arc<StructData>;
-
-    #[salsa::invoke(StructData::struct_data_with_diagnostics_query)]
-    fn struct_data_with_diagnostics(&self, id: StructId)
-        -> (Arc<StructData>, Arc<[DefDiagnostic]>);
-
-    #[salsa::invoke(StructData::union_data_query)]
-    fn union_data(&self, id: UnionId) -> Arc<StructData>;
-
-    #[salsa::invoke(StructData::union_data_with_diagnostics_query)]
-    fn union_data_with_diagnostics(&self, id: UnionId) -> (Arc<StructData>, Arc<[DefDiagnostic]>);
-
-    #[salsa::invoke(EnumData::enum_data_query)]
-    fn enum_data(&self, e: EnumId) -> Arc<EnumData>;
-
-    #[salsa::invoke(EnumData::enum_data_with_diagnostics_query)]
-    fn enum_data_with_diagnostics(&self, e: EnumId) -> (Arc<EnumData>, Arc<[DefDiagnostic]>);
-
     #[salsa::invoke(ImplData::impl_data_query)]
     fn impl_data(&self, e: ImplId) -> Arc<ImplData>;
 
@@ -128,30 +160,6 @@ pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDataba
 
     #[salsa::invoke(TraitData::trait_data_with_diagnostics_query)]
     fn trait_data_with_diagnostics(&self, tr: TraitId) -> (Arc<TraitData>, Arc<[DefDiagnostic]>);
-
-    #[salsa::invoke(TraitAliasData::trait_alias_query)]
-    fn trait_alias_data(&self, e: TraitAliasId) -> Arc<TraitAliasData>;
-
-    #[salsa::invoke(TypeAliasData::type_alias_data_query)]
-    fn type_alias_data(&self, e: TypeAliasId) -> Arc<TypeAliasData>;
-
-    #[salsa::invoke(FunctionData::fn_data_query)]
-    fn function_data(&self, func: FunctionId) -> Arc<FunctionData>;
-
-    #[salsa::invoke(ConstData::const_data_query)]
-    fn const_data(&self, konst: ConstId) -> Arc<ConstData>;
-
-    #[salsa::invoke(StaticData::static_data_query)]
-    fn static_data(&self, konst: StaticId) -> Arc<StaticData>;
-
-    #[salsa::invoke(Macro2Data::macro2_data_query)]
-    fn macro2_data(&self, makro: Macro2Id) -> Arc<Macro2Data>;
-
-    #[salsa::invoke(MacroRulesData::macro_rules_data_query)]
-    fn macro_rules_data(&self, makro: MacroRulesId) -> Arc<MacroRulesData>;
-
-    #[salsa::invoke(ProcMacroData::proc_macro_data_query)]
-    fn proc_macro_data(&self, makro: ProcMacroId) -> Arc<ProcMacroData>;
 
     // endregion:data
 
@@ -169,11 +177,15 @@ pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDataba
 
     // region:attrs
 
-    #[salsa::invoke(Attrs::variants_attrs_query)]
-    fn variants_attrs(&self, def: EnumId) -> Arc<ArenaMap<LocalEnumVariantId, Attrs>>;
-
     #[salsa::invoke(Attrs::fields_attrs_query)]
     fn fields_attrs(&self, def: VariantId) -> Arc<ArenaMap<LocalFieldId, Attrs>>;
+
+    #[salsa::invoke(AttrsWithOwner::attrs_query)]
+    fn attrs(&self, def: AttrDefId) -> Attrs;
+
+    #[salsa::transparent]
+    #[salsa::invoke(AttrsWithOwner::attrs_with_owner)]
+    fn attrs_with_owner(&self, def: AttrDefId) -> AttrsWithOwner;
 
     #[salsa::invoke(crate::attr::variants_attrs_source_map)]
     fn variants_attrs_source_map(
@@ -187,23 +199,8 @@ pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDataba
         def: VariantId,
     ) -> Arc<ArenaMap<LocalFieldId, Either<AstPtr<ast::TupleField>, AstPtr<ast::RecordField>>>>;
 
-    #[salsa::invoke(AttrsWithOwner::attrs_query)]
-    fn attrs(&self, def: AttrDefId) -> Attrs;
-
-    #[salsa::transparent]
-    #[salsa::invoke(AttrsWithOwner::attrs_with_owner)]
-    fn attrs_with_owner(&self, def: AttrDefId) -> AttrsWithOwner;
-
     // endregion:attrs
-
-    #[salsa::invoke(LangItems::crate_lang_items_query)]
-    fn crate_lang_items(&self, krate: CrateId) -> Arc<LangItems>;
-
-    #[salsa::invoke(LangItems::lang_item_query)]
-    fn lang_item(&self, start_crate: CrateId, item: LangItem) -> Option<LangItemTarget>;
-
-    #[salsa::invoke(ImportMap::import_map_query)]
-    fn import_map(&self, krate: CrateId) -> Arc<ImportMap>;
+    // region:vis
 
     #[salsa::invoke(visibility::field_visibilities_query)]
     fn field_visibilities(&self, var: VariantId) -> Arc<ArenaMap<LocalFieldId, Visibility>>;
@@ -214,6 +211,17 @@ pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDataba
 
     #[salsa::invoke(visibility::const_visibility_query)]
     fn const_visibility(&self, def: ConstId) -> Visibility;
+
+    // endregion:vis
+
+    #[salsa::invoke(LangItems::crate_lang_items_query)]
+    fn crate_lang_items(&self, krate: CrateId) -> Arc<LangItems>;
+
+    #[salsa::invoke(LangItems::lang_item_query)]
+    fn lang_item(&self, start_crate: CrateId, item: LangItem) -> Option<LangItemTarget>;
+
+    #[salsa::invoke(ImportMap::import_map_query)]
+    fn import_map(&self, krate: CrateId) -> Arc<ImportMap>;
 
     #[salsa::transparent]
     fn crate_limits(&self, crate_id: CrateId) -> CrateLimits;

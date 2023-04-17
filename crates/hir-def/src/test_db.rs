@@ -15,7 +15,7 @@ use rustc_hash::FxHashSet;
 use syntax::{algo, ast, AstNode};
 
 use crate::{
-    db::DefDatabase,
+    db::{DefDatabase, ItemTreeDatabase},
     nameres::{DefMap, ModuleSource},
     src::HasSource,
     LocalModuleId, Lookup, ModuleDefId, ModuleId,
@@ -26,7 +26,8 @@ use crate::{
     base_db::SourceDatabaseStorage,
     hir_expand::db::ExpandDatabaseStorage,
     crate::db::InternDatabaseStorage,
-    crate::db::DefDatabaseStorage
+    crate::db::DefDatabaseStorage,
+    crate::db::ItemTreeDatabaseStorage
 )]
 pub(crate) struct TestDB {
     storage: salsa::Storage<TestDB>,
@@ -49,6 +50,12 @@ impl Upcast<dyn ExpandDatabase> for TestDB {
 
 impl Upcast<dyn DefDatabase> for TestDB {
     fn upcast(&self) -> &(dyn DefDatabase + 'static) {
+        &*self
+    }
+}
+
+impl Upcast<dyn ItemTreeDatabase> for TestDB {
+    fn upcast(&self) -> &(dyn ItemTreeDatabase + 'static) {
         &*self
     }
 }

@@ -16,7 +16,7 @@ use base_db::{fixture::WithFixture, FileRange, SourceDatabaseExt};
 use expect_test::Expect;
 use hir_def::{
     body::{Body, BodySourceMap, SyntheticSyntax},
-    db::{DefDatabase, InternDatabase},
+    db::{DefDatabase, InternDatabase, ItemTreeDatabase},
     hir::{ExprId, PatId},
     item_scope::ItemScope,
     nameres::DefMap,

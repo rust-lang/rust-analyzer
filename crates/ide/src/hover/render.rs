@@ -3,7 +3,7 @@ use std::fmt::Display;
 
 use either::Either;
 use hir::{
-    db::DefDatabase, Adt, AsAssocItem, AttributeTemplate, HasAttrs, HasSource, HirDisplay,
+    db::ItemTreeDatabase, Adt, AsAssocItem, AttributeTemplate, HasAttrs, HasSource, HirDisplay,
     MirEvalError, Semantics, TypeInfo,
 };
 use ide_db::{

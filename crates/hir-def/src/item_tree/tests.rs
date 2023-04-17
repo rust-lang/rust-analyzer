@@ -1,7 +1,7 @@
 use base_db::fixture::WithFixture;
 use expect_test::{expect, Expect};
 
-use crate::{db::DefDatabase, test_db::TestDB};
+use crate::{db::ItemTreeDatabase, test_db::TestDB};
 
 fn check(ra_fixture: &str, expect: Expect) {
     let (db, file_id) = TestDB::with_single_file(ra_fixture);

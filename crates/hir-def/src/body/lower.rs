@@ -24,9 +24,10 @@ use syntax::{
 };
 
 use crate::{
-    body::{Body, BodyDiagnostic, BodySourceMap, Expander, ExprPtr, LabelPtr, LowerCtx, PatPtr},
+    body::{Body, BodyDiagnostic, BodySourceMap, ExprPtr, LabelPtr, PatPtr},
     data::adt::StructKind,
     db::DefDatabase,
+    expander::{Expander, LowerCtx},
     hir::{
         dummy_expr_id, Array, Binding, BindingAnnotation, BindingId, CaptureBy, ClosureKind, Expr,
         ExprId, Label, LabelId, Literal, MatchArm, Movability, Pat, PatId, RecordFieldPat,
@@ -198,7 +199,7 @@ impl ExprCollector<'_> {
     }
 
     fn ctx(&self) -> LowerCtx<'_> {
-        self.expander.ctx(self.db)
+        self.expander.ctx(self.db.upcast())
     }
 
     fn collect_expr(&mut self, expr: ast::Expr) -> ExprId {
@@ -348,7 +349,7 @@ impl ExprCollector<'_> {
             ast::Expr::PathExpr(e) => {
                 let path = e
                     .path()
-                    .and_then(|path| self.expander.parse_path(self.db, path))
+                    .and_then(|path| self.expander.parse_path(self.db.upcast(), path))
                     .map(Expr::Path)
                     .unwrap_or(Expr::Missing);
                 self.alloc_expr(path, syntax_ptr)
@@ -389,8 +390,10 @@ impl ExprCollector<'_> {
                 self.alloc_expr(Expr::Yeet { expr }, syntax_ptr)
             }
             ast::Expr::RecordExpr(e) => {
-                let path =
-                    e.path().and_then(|path| self.expander.parse_path(self.db, path)).map(Box::new);
+                let path = e
+                    .path()
+                    .and_then(|path| self.expander.parse_path(self.db.upcast(), path))
+                    .map(Box::new);
                 let is_assignee_expr = self.is_lowering_assignee_expr;
                 let record_lit = if let Some(nfl) = e.record_expr_field_list() {
                     let fields = nfl
@@ -1069,8 +1072,10 @@ impl ExprCollector<'_> {
                 return pat;
             }
             ast::Pat::TupleStructPat(p) => {
-                let path =
-                    p.path().and_then(|path| self.expander.parse_path(self.db, path)).map(Box::new);
+                let path = p
+                    .path()
+                    .and_then(|path| self.expander.parse_path(self.db.upcast(), path))
+                    .map(Box::new);
                 let (args, ellipsis) = self.collect_tuple_pat(p.fields(), binding_list);
                 Pat::TupleStruct { path, args, ellipsis }
             }
@@ -1080,8 +1085,10 @@ impl ExprCollector<'_> {
                 Pat::Ref { pat, mutability }
             }
             ast::Pat::PathPat(p) => {
-                let path =
-                    p.path().and_then(|path| self.expander.parse_path(self.db, path)).map(Box::new);
+                let path = p
+                    .path()
+                    .and_then(|path| self.expander.parse_path(self.db.upcast(), path))
+                    .map(Box::new);
                 path.map(Pat::Path).unwrap_or(Pat::Missing)
             }
             ast::Pat::OrPat(p) => {
@@ -1095,8 +1102,10 @@ impl ExprCollector<'_> {
             }
             ast::Pat::WildcardPat(_) => Pat::Wild,
             ast::Pat::RecordPat(p) => {
-                let path =
-                    p.path().and_then(|path| self.expander.parse_path(self.db, path)).map(Box::new);
+                let path = p
+                    .path()
+                    .and_then(|path| self.expander.parse_path(self.db.upcast(), path))
+                    .map(Box::new);
                 let args = p
                     .record_pat_field_list()
                     .expect("every struct should have a field list")
@@ -1221,7 +1230,7 @@ impl ExprCollector<'_> {
     /// Returns `None` (and emits diagnostics) when `owner` if `#[cfg]`d out, and `Some(())` when
     /// not.
     fn check_cfg(&mut self, owner: &dyn ast::HasAttrs) -> Option<()> {
-        match self.expander.parse_attrs(self.db, owner).cfg() {
+        match self.expander.parse_attrs(self.db.upcast(), owner).cfg() {
             Some(cfg) => {
                 if self.expander.cfg_options().check(&cfg) != Some(false) {
                     return Some(());

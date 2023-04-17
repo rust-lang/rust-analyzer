@@ -476,7 +476,7 @@ mod tests {
     use base_db::{fixture::WithFixture, SourceDatabase, Upcast};
     use expect_test::{expect, Expect};
 
-    use crate::{test_db::TestDB, ItemContainerId, Lookup};
+    use crate::{db::ItemTreeDatabase, test_db::TestDB, ItemContainerId, Lookup};
 
     use super::*;
 
@@ -540,7 +540,7 @@ mod tests {
             _ => return None,
         };
 
-        let trait_ = assoc_to_trait(db, dependency)?;
+        let trait_ = assoc_to_trait(db.upcast(), dependency)?;
         if let ModuleDefId::TraitId(tr) = trait_.as_module_def_id()? {
             let trait_data = db.trait_data(tr);
             let assoc_item_name =
@@ -556,7 +556,7 @@ mod tests {
         None
     }
 
-    fn assoc_to_trait(db: &dyn DefDatabase, item: ItemInNs) -> Option<ItemInNs> {
+    fn assoc_to_trait(db: &dyn ItemTreeDatabase, item: ItemInNs) -> Option<ItemInNs> {
         let assoc: AssocItemId = match item {
             ItemInNs::Types(it) | ItemInNs::Values(it) => match it {
                 ModuleDefId::TypeAliasId(it) => it.into(),

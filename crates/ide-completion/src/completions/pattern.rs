@@ -1,6 +1,6 @@
 //! Completes constants and paths in unqualified patterns.
 
-use hir::{db::DefDatabase, AssocItem, ScopeDef};
+use hir::{db::ItemTreeDatabase, AssocItem, ScopeDef};
 use syntax::ast::Pat;
 
 use crate::{

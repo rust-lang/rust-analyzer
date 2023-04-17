@@ -17,19 +17,19 @@ fn id<N: ItemTreeNode>(index: Idx<N>) -> FileItemTreeId<N> {
 }
 
 pub(super) struct Ctx<'a> {
-    db: &'a dyn DefDatabase,
+    db: &'a dyn ItemTreeDatabase,
     tree: ItemTree,
     source_ast_id_map: Arc<AstIdMap>,
-    body_ctx: crate::body::LowerCtx<'a>,
+    body_ctx: crate::expander::LowerCtx<'a>,
 }
 
 impl<'a> Ctx<'a> {
-    pub(super) fn new(db: &'a dyn DefDatabase, file: HirFileId) -> Self {
+    pub(super) fn new(db: &'a dyn ItemTreeDatabase, file: HirFileId) -> Self {
         Self {
             db,
             tree: ItemTree::default(),
             source_ast_id_map: db.ast_id_map(file),
-            body_ctx: crate::body::LowerCtx::with_file_id(db, file),
+            body_ctx: crate::expander::LowerCtx::with_file_id(db, file),
         }
     }
 
@@ -696,7 +696,7 @@ fn lower_abi(abi: ast::Abi) -> Interned<str> {
 }
 
 struct UseTreeLowering<'a> {
-    db: &'a dyn DefDatabase,
+    db: &'a dyn ItemTreeDatabase,
     hygiene: &'a Hygiene,
     mapping: Arena<ast::UseTree>,
 }
@@ -764,7 +764,7 @@ impl UseTreeLowering<'_> {
 }
 
 pub(super) fn lower_use_tree(
-    db: &dyn DefDatabase,
+    db: &dyn ItemTreeDatabase,
     hygiene: &Hygiene,
     tree: ast::UseTree,
 ) -> Option<(UseTree, Arena<ast::UseTree>)> {

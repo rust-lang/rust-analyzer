@@ -11,8 +11,8 @@ use syntax::{ast, Parse};
 
 use crate::{
     attr::Attrs,
-    body::{Expander, Mark},
-    db::DefDatabase,
+    db::{DefDatabase, ItemTreeDatabase},
+    expander::{Expander, Mark},
     item_tree::{self, AssocItem, FnFlags, ItemTree, ItemTreeId, ModItem, Param, TreeId},
     nameres::{
         attr_resolution::ResolvedAttr,
@@ -41,7 +41,7 @@ pub struct FunctionData {
 }
 
 impl FunctionData {
-    pub(crate) fn fn_data_query(db: &dyn DefDatabase, func: FunctionId) -> Arc<FunctionData> {
+    pub(crate) fn fn_data_query(db: &dyn ItemTreeDatabase, func: FunctionId) -> Arc<FunctionData> {
         let loc = func.lookup(db);
         let krate = loc.container.module(db).krate;
         let crate_graph = db.crate_graph();
@@ -49,7 +49,10 @@ impl FunctionData {
         let item_tree = loc.id.item_tree(db);
         let func = &item_tree[loc.id.value];
         let visibility = if let ItemContainerId::TraitId(trait_id) = loc.container {
-            db.trait_data(trait_id).visibility.clone()
+            let ItemLoc { id: tree_id, .. } = trait_id.lookup(db);
+            let item_tree = tree_id.item_tree(db);
+            let tr_def = &item_tree[tree_id.value];
+            item_tree[tr_def.visibility].clone()
         } else {
             item_tree[func.visibility].clone()
         };
@@ -181,14 +184,17 @@ pub struct TypeAliasData {
 
 impl TypeAliasData {
     pub(crate) fn type_alias_data_query(
-        db: &dyn DefDatabase,
+        db: &dyn ItemTreeDatabase,
         typ: TypeAliasId,
     ) -> Arc<TypeAliasData> {
         let loc = typ.lookup(db);
         let item_tree = loc.id.item_tree(db);
         let typ = &item_tree[loc.id.value];
         let visibility = if let ItemContainerId::TraitId(trait_id) = loc.container {
-            db.trait_data(trait_id).visibility.clone()
+            let ItemLoc { id: tree_id, .. } = trait_id.lookup(db);
+            let item_tree = tree_id.item_tree(db);
+            let tr_def = &item_tree[tree_id.value];
+            item_tree[tr_def.visibility].clone()
         } else {
             item_tree[typ.visibility].clone()
         };
@@ -240,8 +246,8 @@ impl TraitData {
         db: &dyn DefDatabase,
         tr: TraitId,
     ) -> (Arc<TraitData>, Arc<[DefDiagnostic]>) {
-        let tr_loc @ ItemLoc { container: module_id, id: tree_id } = tr.lookup(db);
-        let item_tree = tree_id.item_tree(db);
+        let tr_loc @ ItemLoc { container: module_id, id: tree_id } = tr.lookup(db.upcast());
+        let item_tree = tree_id.item_tree(db.upcast());
         let tr_def = &item_tree[tree_id.value];
         let _cx = stdx::panic_context::enter(format!(
             "trait_data_query({tr:?} -> {tr_loc:?} -> {tr_def:?})"
@@ -250,7 +256,8 @@ impl TraitData {
         let is_auto = tr_def.is_auto;
         let is_unsafe = tr_def.is_unsafe;
         let visibility = item_tree[tr_def.visibility].clone();
-        let attrs = item_tree.attrs(db, module_id.krate(), ModItem::from(tree_id.value).into());
+        let attrs =
+            item_tree.attrs(db.upcast(), module_id.krate(), ModItem::from(tree_id.value).into());
         let skip_array_during_method_dispatch =
             attrs.by_key("rustc_skip_array_during_method_dispatch").exists();
         let rustc_has_incoherent_inherent_impls =
@@ -310,7 +317,10 @@ pub struct TraitAliasData {
 }
 
 impl TraitAliasData {
-    pub(crate) fn trait_alias_query(db: &dyn DefDatabase, id: TraitAliasId) -> Arc<TraitAliasData> {
+    pub(crate) fn trait_alias_query(
+        db: &dyn ItemTreeDatabase,
+        id: TraitAliasId,
+    ) -> Arc<TraitAliasData> {
         let loc = id.lookup(db);
         let item_tree = loc.id.item_tree(db);
         let alias = &item_tree[loc.id.value];
@@ -340,9 +350,9 @@ impl ImplData {
         id: ImplId,
     ) -> (Arc<ImplData>, Arc<[DefDiagnostic]>) {
         let _p = profile::span("impl_data_with_diagnostics_query");
-        let ItemLoc { container: module_id, id: tree_id } = id.lookup(db);
+        let ItemLoc { container: module_id, id: tree_id } = id.lookup(db.upcast());
 
-        let item_tree = tree_id.item_tree(db);
+        let item_tree = tree_id.item_tree(db.upcast());
         let impl_def = &item_tree[tree_id.value];
         let target_trait = impl_def.target_trait.clone();
         let self_ty = impl_def.self_ty.clone();
@@ -377,7 +387,7 @@ pub struct Macro2Data {
 }
 
 impl Macro2Data {
-    pub(crate) fn macro2_data_query(db: &dyn DefDatabase, makro: Macro2Id) -> Arc<Macro2Data> {
+    pub(crate) fn macro2_data_query(db: &dyn ItemTreeDatabase, makro: Macro2Id) -> Arc<Macro2Data> {
         let loc = makro.lookup(db);
         let item_tree = loc.id.item_tree(db);
         let makro = &item_tree[loc.id.value];
@@ -405,7 +415,7 @@ pub struct MacroRulesData {
 
 impl MacroRulesData {
     pub(crate) fn macro_rules_data_query(
-        db: &dyn DefDatabase,
+        db: &dyn ItemTreeDatabase,
         makro: MacroRulesId,
     ) -> Arc<MacroRulesData> {
         let loc = makro.lookup(db);
@@ -429,7 +439,7 @@ pub struct ProcMacroData {
 
 impl ProcMacroData {
     pub(crate) fn proc_macro_data_query(
-        db: &dyn DefDatabase,
+        db: &dyn ItemTreeDatabase,
         makro: ProcMacroId,
     ) -> Arc<ProcMacroData> {
         let loc = makro.lookup(db);
@@ -466,12 +476,15 @@ pub struct ConstData {
 }
 
 impl ConstData {
-    pub(crate) fn const_data_query(db: &dyn DefDatabase, konst: ConstId) -> Arc<ConstData> {
+    pub(crate) fn const_data_query(db: &dyn ItemTreeDatabase, konst: ConstId) -> Arc<ConstData> {
         let loc = konst.lookup(db);
         let item_tree = loc.id.item_tree(db);
         let konst = &item_tree[loc.id.value];
         let visibility = if let ItemContainerId::TraitId(trait_id) = loc.container {
-            db.trait_data(trait_id).visibility.clone()
+            let ItemLoc { id: tree_id, .. } = trait_id.lookup(db);
+            let item_tree = tree_id.item_tree(db);
+            let tr_def = &item_tree[tree_id.value];
+            item_tree[tr_def.visibility].clone()
         } else {
             item_tree[konst.visibility].clone()
         };
@@ -500,7 +513,7 @@ pub struct StaticData {
 }
 
 impl StaticData {
-    pub(crate) fn static_data_query(db: &dyn DefDatabase, konst: StaticId) -> Arc<StaticData> {
+    pub(crate) fn static_data_query(db: &dyn ItemTreeDatabase, konst: StaticId) -> Arc<StaticData> {
         let loc = konst.lookup(db);
         let item_tree = loc.id.item_tree(db);
         let statik = &item_tree[loc.id.value];
@@ -566,7 +579,8 @@ impl<'a> AssocItemCollector<'a> {
         self.items.reserve(assoc_items.len());
 
         'items: for &item in assoc_items {
-            let attrs = item_tree.attrs(self.db, self.module_id.krate, ModItem::from(item).into());
+            let attrs =
+                item_tree.attrs(self.db.upcast(), self.module_id.krate, ModItem::from(item).into());
             if !attrs.is_cfg_enabled(self.expander.cfg_options()) {
                 self.inactive_diagnostics.push(DefDiagnostic::unconfigured_code(
                     self.module_id.local_id,
@@ -615,8 +629,8 @@ impl<'a> AssocItemCollector<'a> {
                 AssocItem::Function(id) => {
                     let item = &item_tree[id];
 
-                    let def =
-                        FunctionLoc { container, id: ItemTreeId::new(tree_id, id) }.intern(self.db);
+                    let def = FunctionLoc { container, id: ItemTreeId::new(tree_id, id) }
+                        .intern(self.db.upcast());
                     self.items.push((item.name.clone(), def.into()));
                 }
                 AssocItem::Const(id) => {
@@ -626,15 +640,15 @@ impl<'a> AssocItemCollector<'a> {
                         Some(name) => name,
                         None => continue,
                     };
-                    let def =
-                        ConstLoc { container, id: ItemTreeId::new(tree_id, id) }.intern(self.db);
+                    let def = ConstLoc { container, id: ItemTreeId::new(tree_id, id) }
+                        .intern(self.db.upcast());
                     self.items.push((name, def.into()));
                 }
                 AssocItem::TypeAlias(id) => {
                     let item = &item_tree[id];
 
                     let def = TypeAliasLoc { container, id: ItemTreeId::new(tree_id, id) }
-                        .intern(self.db);
+                        .intern(self.db.upcast());
                     self.items.push((item.name.clone(), def.into()));
                 }
                 AssocItem::MacroCall(call) => {
@@ -683,7 +697,7 @@ impl<'a> AssocItemCollector<'a> {
         }
 
         let tree_id = item_tree::TreeId::new(self.expander.current_file_id(), None);
-        let item_tree = tree_id.item_tree(self.db);
+        let item_tree = tree_id.item_tree(self.db.upcast());
         let iter: SmallVec<[_; 2]> =
             item_tree.top_level_items().iter().filter_map(ModItem::as_assoc_item).collect();
 

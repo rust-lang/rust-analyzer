@@ -5,19 +5,20 @@ use la_arena::ArenaMap;
 use syntax::ast;
 
 use crate::{
-    db::DefDatabase, item_tree::ItemTreeNode, AssocItemLoc, ItemLoc, Macro2Loc, MacroRulesLoc,
-    ProcMacroLoc,
+    db::{DefDatabase, ItemTreeDatabase},
+    item_tree::ItemTreeNode,
+    AssocItemLoc, ItemLoc, Macro2Loc, MacroRulesLoc, ProcMacroLoc,
 };
 
 pub trait HasSource {
     type Value;
-    fn source(&self, db: &dyn DefDatabase) -> InFile<Self::Value>;
+    fn source(&self, db: &dyn ItemTreeDatabase) -> InFile<Self::Value>;
 }
 
 impl<N: ItemTreeNode> HasSource for AssocItemLoc<N> {
     type Value = N::Source;
 
-    fn source(&self, db: &dyn DefDatabase) -> InFile<N::Source> {
+    fn source(&self, db: &dyn ItemTreeDatabase) -> InFile<N::Source> {
         let tree = self.id.item_tree(db);
         let ast_id_map = db.ast_id_map(self.id.file_id());
         let root = db.parse_or_expand(self.id.file_id());
@@ -30,7 +31,7 @@ impl<N: ItemTreeNode> HasSource for AssocItemLoc<N> {
 impl<N: ItemTreeNode> HasSource for ItemLoc<N> {
     type Value = N::Source;
 
-    fn source(&self, db: &dyn DefDatabase) -> InFile<N::Source> {
+    fn source(&self, db: &dyn ItemTreeDatabase) -> InFile<N::Source> {
         let tree = self.id.item_tree(db);
         let ast_id_map = db.ast_id_map(self.id.file_id());
         let root = db.parse_or_expand(self.id.file_id());
@@ -43,7 +44,7 @@ impl<N: ItemTreeNode> HasSource for ItemLoc<N> {
 impl HasSource for Macro2Loc {
     type Value = ast::MacroDef;
 
-    fn source(&self, db: &dyn DefDatabase) -> InFile<Self::Value> {
+    fn source(&self, db: &dyn ItemTreeDatabase) -> InFile<Self::Value> {
         let tree = self.id.item_tree(db);
         let ast_id_map = db.ast_id_map(self.id.file_id());
         let root = db.parse_or_expand(self.id.file_id());
@@ -56,7 +57,7 @@ impl HasSource for Macro2Loc {
 impl HasSource for MacroRulesLoc {
     type Value = ast::MacroRules;
 
-    fn source(&self, db: &dyn DefDatabase) -> InFile<Self::Value> {
+    fn source(&self, db: &dyn ItemTreeDatabase) -> InFile<Self::Value> {
         let tree = self.id.item_tree(db);
         let ast_id_map = db.ast_id_map(self.id.file_id());
         let root = db.parse_or_expand(self.id.file_id());
@@ -69,7 +70,7 @@ impl HasSource for MacroRulesLoc {
 impl HasSource for ProcMacroLoc {
     type Value = ast::Fn;
 
-    fn source(&self, db: &dyn DefDatabase) -> InFile<Self::Value> {
+    fn source(&self, db: &dyn ItemTreeDatabase) -> InFile<Self::Value> {
         let tree = self.id.item_tree(db);
         let ast_id_map = db.ast_id_map(self.id.file_id());
         let root = db.parse_or_expand(self.id.file_id());

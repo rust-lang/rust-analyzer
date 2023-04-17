@@ -50,7 +50,7 @@ use base_db::{
     AnchoredPath, CrateId, FileId, FileLoader, FileLoaderDelegate, SourceDatabase, Upcast,
 };
 use hir::{
-    db::{DefDatabase, ExpandDatabase, HirDatabase},
+    db::{DefDatabase, ExpandDatabase, HirDatabase, ItemTreeDatabase},
     symbols::FileSymbolKind,
 };
 
@@ -71,6 +71,7 @@ pub type FxIndexMap<K, V> =
     hir::db::DefDatabaseStorage,
     hir::db::HirDatabaseStorage,
     hir::db::InternDatabaseStorage,
+    hir::db::ItemTreeDatabaseStorage,
     LineIndexDatabaseStorage,
     symbol_index::SymbolsDatabaseStorage
 )]
@@ -102,6 +103,11 @@ impl Upcast<dyn ExpandDatabase> for RootDatabase {
 
 impl Upcast<dyn DefDatabase> for RootDatabase {
     fn upcast(&self) -> &(dyn DefDatabase + 'static) {
+        &*self
+    }
+}
+impl Upcast<dyn ItemTreeDatabase> for RootDatabase {
+    fn upcast(&self) -> &(dyn ItemTreeDatabase + 'static) {
         &*self
     }
 }

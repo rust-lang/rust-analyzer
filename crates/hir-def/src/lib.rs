@@ -22,6 +22,8 @@ pub mod builtin_type;
 pub mod per_ns;
 pub mod item_scope;
 
+pub mod expander;
+
 pub mod dyn_map;
 
 pub mod item_tree;
@@ -187,14 +189,14 @@ macro_rules! impl_intern {
 
         impl Intern for $loc {
             type ID = $id;
-            fn intern(self, db: &dyn db::DefDatabase) -> $id {
+            fn intern(self, db: &dyn db::ItemTreeDatabase) -> $id {
                 db.$intern(self)
             }
         }
 
         impl Lookup for $id {
             type Data = $loc;
-            fn lookup(&self, db: &dyn db::DefDatabase) -> $loc {
+            fn lookup(&self, db: &dyn db::ItemTreeDatabase) -> $loc {
                 db.$lookup(*self)
             }
         }
@@ -422,7 +424,7 @@ pub enum MacroId {
 impl_from!(Macro2Id, MacroRulesId, ProcMacroId for MacroId);
 
 impl MacroId {
-    pub fn is_attribute(self, db: &dyn db::DefDatabase) -> bool {
+    pub fn is_attribute(self, db: &dyn db::ItemTreeDatabase) -> bool {
         match self {
             MacroId::ProcMacroId(it) => it.lookup(db).kind == ProcMacroKind::Attr,
             _ => false,
@@ -610,7 +612,7 @@ impl VariantId {
         }
     }
 
-    pub fn file_id(self, db: &dyn db::DefDatabase) -> HirFileId {
+    pub fn file_id(self, db: &dyn db::ItemTreeDatabase) -> HirFileId {
         match self {
             VariantId::EnumVariantId(it) => it.parent.lookup(db).id.file_id(),
             VariantId::StructId(it) => it.lookup(db).id.file_id(),
@@ -629,20 +631,20 @@ impl VariantId {
 
 trait Intern {
     type ID;
-    fn intern(self, db: &dyn db::DefDatabase) -> Self::ID;
+    fn intern(self, db: &dyn db::ItemTreeDatabase) -> Self::ID;
 }
 
 pub trait Lookup {
     type Data;
-    fn lookup(&self, db: &dyn db::DefDatabase) -> Self::Data;
+    fn lookup(&self, db: &dyn db::ItemTreeDatabase) -> Self::Data;
 }
 
 pub trait HasModule {
-    fn module(&self, db: &dyn db::DefDatabase) -> ModuleId;
+    fn module(&self, db: &dyn db::ItemTreeDatabase) -> ModuleId;
 }
 
 impl HasModule for ItemContainerId {
-    fn module(&self, db: &dyn db::DefDatabase) -> ModuleId {
+    fn module(&self, db: &dyn db::ItemTreeDatabase) -> ModuleId {
         match *self {
             ItemContainerId::ModuleId(it) => it,
             ItemContainerId::ImplId(it) => it.lookup(db).container,
@@ -653,13 +655,13 @@ impl HasModule for ItemContainerId {
 }
 
 impl<N: ItemTreeNode> HasModule for AssocItemLoc<N> {
-    fn module(&self, db: &dyn db::DefDatabase) -> ModuleId {
+    fn module(&self, db: &dyn db::ItemTreeDatabase) -> ModuleId {
         self.container.module(db)
     }
 }
 
 impl HasModule for AdtId {
-    fn module(&self, db: &dyn db::DefDatabase) -> ModuleId {
+    fn module(&self, db: &dyn db::ItemTreeDatabase) -> ModuleId {
         match self {
             AdtId::StructId(it) => it.lookup(db).container,
             AdtId::UnionId(it) => it.lookup(db).container,
@@ -669,7 +671,7 @@ impl HasModule for AdtId {
 }
 
 impl HasModule for VariantId {
-    fn module(&self, db: &dyn db::DefDatabase) -> ModuleId {
+    fn module(&self, db: &dyn db::ItemTreeDatabase) -> ModuleId {
         match self {
             VariantId::EnumVariantId(it) => it.parent.lookup(db).container,
             VariantId::StructId(it) => it.lookup(db).container,
@@ -679,7 +681,7 @@ impl HasModule for VariantId {
 }
 
 impl HasModule for MacroId {
-    fn module(&self, db: &dyn db::DefDatabase) -> ModuleId {
+    fn module(&self, db: &dyn db::ItemTreeDatabase) -> ModuleId {
         match self {
             MacroId::MacroRulesId(it) => it.lookup(db).container,
             MacroId::Macro2Id(it) => it.lookup(db).container,
@@ -689,7 +691,7 @@ impl HasModule for MacroId {
 }
 
 impl HasModule for DefWithBodyId {
-    fn module(&self, db: &dyn db::DefDatabase) -> ModuleId {
+    fn module(&self, db: &dyn db::ItemTreeDatabase) -> ModuleId {
         match self {
             DefWithBodyId::FunctionId(it) => it.lookup(db).module(db),
             DefWithBodyId::StaticId(it) => it.lookup(db).module(db),
@@ -700,7 +702,7 @@ impl HasModule for DefWithBodyId {
 }
 
 impl DefWithBodyId {
-    pub fn as_mod_item(self, db: &dyn db::DefDatabase) -> ModItem {
+    pub fn as_mod_item(self, db: &dyn db::ItemTreeDatabase) -> ModItem {
         match self {
             DefWithBodyId::FunctionId(it) => it.lookup(db).id.value.into(),
             DefWithBodyId::StaticId(it) => it.lookup(db).id.value.into(),
@@ -711,7 +713,7 @@ impl DefWithBodyId {
 }
 
 impl HasModule for GenericDefId {
-    fn module(&self, db: &dyn db::DefDatabase) -> ModuleId {
+    fn module(&self, db: &dyn db::ItemTreeDatabase) -> ModuleId {
         match self {
             GenericDefId::FunctionId(it) => it.lookup(db).module(db),
             GenericDefId::AdtId(it) => it.module(db),
@@ -726,13 +728,13 @@ impl HasModule for GenericDefId {
 }
 
 impl HasModule for TypeAliasId {
-    fn module(&self, db: &dyn db::DefDatabase) -> ModuleId {
+    fn module(&self, db: &dyn db::ItemTreeDatabase) -> ModuleId {
         self.lookup(db).module(db)
     }
 }
 
 impl HasModule for TraitId {
-    fn module(&self, db: &dyn db::DefDatabase) -> ModuleId {
+    fn module(&self, db: &dyn db::ItemTreeDatabase) -> ModuleId {
         self.lookup(db).container
     }
 }
@@ -741,7 +743,7 @@ impl ModuleDefId {
     /// Returns the module containing `self` (or `self`, if `self` is itself a module).
     ///
     /// Returns `None` if `self` refers to a primitive type.
-    pub fn module(&self, db: &dyn db::DefDatabase) -> Option<ModuleId> {
+    pub fn module(&self, db: &dyn db::ItemTreeDatabase) -> Option<ModuleId> {
         Some(match self {
             ModuleDefId::ModuleId(id) => *id,
             ModuleDefId::FunctionId(id) => id.lookup(db).module(db),
@@ -759,7 +761,7 @@ impl ModuleDefId {
 }
 
 impl AttrDefId {
-    pub fn krate(&self, db: &dyn db::DefDatabase) -> CrateId {
+    pub fn krate(&self, db: &dyn db::ItemTreeDatabase) -> CrateId {
         match self {
             AttrDefId::ModuleId(it) => it.krate,
             AttrDefId::FieldId(it) => it.parent.module(db).krate,
@@ -883,7 +885,7 @@ fn macro_call_as_call_id_(
     Ok(res)
 }
 
-pub fn macro_id_to_def_id(db: &dyn db::DefDatabase, id: MacroId) -> MacroDefId {
+pub fn macro_id_to_def_id(db: &dyn db::ItemTreeDatabase, id: MacroId) -> MacroDefId {
     match id {
         MacroId::Macro2Id(it) => {
             let loc = it.lookup(db);

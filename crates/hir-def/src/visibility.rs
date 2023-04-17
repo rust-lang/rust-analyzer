@@ -7,7 +7,7 @@ use la_arena::ArenaMap;
 use syntax::ast;
 
 use crate::{
-    db::DefDatabase,
+    db::{DefDatabase, ItemTreeDatabase},
     nameres::DefMap,
     path::{ModPath, PathKind},
     resolver::HasResolver,
@@ -30,14 +30,14 @@ impl RawVisibility {
     }
 
     pub(crate) fn from_ast(
-        db: &dyn DefDatabase,
+        db: &dyn ItemTreeDatabase,
         node: InFile<Option<ast::Visibility>>,
     ) -> RawVisibility {
         Self::from_ast_with_hygiene(db, node.value, &Hygiene::new(db.upcast(), node.file_id))
     }
 
     pub(crate) fn from_ast_with_hygiene(
-        db: &dyn DefDatabase,
+        db: &dyn ItemTreeDatabase,
         node: Option<ast::Visibility>,
         hygiene: &Hygiene,
     ) -> RawVisibility {
@@ -45,7 +45,7 @@ impl RawVisibility {
     }
 
     pub(crate) fn from_ast_with_hygiene_and_default(
-        db: &dyn DefDatabase,
+        db: &dyn ItemTreeDatabase,
         node: Option<ast::Visibility>,
         default: RawVisibility,
         hygiene: &Hygiene,
@@ -224,7 +224,7 @@ pub(crate) fn field_visibilities_query(
             db.enum_data(it.parent).variants[it.local_id].variant_data.clone()
         }
     };
-    let resolver = variant_id.module(db).resolver(db);
+    let resolver = variant_id.module(db.upcast()).resolver(db);
     let mut res = ArenaMap::default();
     for (field_id, field_data) in var_data.fields().iter() {
         res.insert(field_id, field_data.visibility.resolve(db, &resolver));

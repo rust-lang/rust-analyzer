@@ -16,10 +16,10 @@ use stdx::impl_from;
 use syntax::ast::{self, HasGenericParams, HasName, HasTypeBounds};
 
 use crate::{
-    body::{Expander, LowerCtx},
     child_by_source::ChildBySource,
-    db::DefDatabase,
+    db::{DefDatabase, ItemTreeDatabase},
     dyn_map::{keys, DynMap},
+    expander::{Expander, LowerCtx},
     src::{HasChildSource, HasSource},
     type_ref::{LifetimeRef, TypeBound, TypeRef},
     AdtId, ConstParamId, GenericDefId, HasModule, LifetimeParamId, LocalLifetimeParamId,
@@ -147,11 +147,11 @@ impl GenericParams {
     }
 
     pub(crate) fn generic_params_query(
-        db: &dyn DefDatabase,
+        def_db: &dyn DefDatabase,
         def: GenericDefId,
     ) -> Interned<GenericParams> {
         let _p = profile::span("generic_params_query");
-
+        let db = def_db.upcast();
         macro_rules! id_to_generics {
             ($id:ident) => {{
                 let id = $id.lookup(db).id;
@@ -174,9 +174,10 @@ impl GenericParams {
 
                 // Don't create an `Expander` nor call `loc.source(db)` if not needed since this
                 // causes a reparse after the `ItemTree` has been created.
-                let mut expander = Lazy::new(|| Expander::new(db, loc.source(db).file_id, module));
+                let mut expander =
+                    Lazy::new(|| Expander::new(def_db, loc.source(db).file_id, module));
                 for param in &func_data.params {
-                    generic_params.fill_implicit_impl_trait_args(db, &mut expander, param);
+                    generic_params.fill_implicit_impl_trait_args(def_db, &mut expander, param);
                 }
 
                 Interned::new(generic_params)
@@ -349,7 +350,7 @@ impl GenericParams {
                 let macro_call = mc.to_node(db.upcast());
                 match expander.enter_expand::<ast::Type>(db, macro_call) {
                     Ok(ExpandResult { value: Some((mark, expanded)), .. }) => {
-                        let ctx = expander.ctx(db);
+                        let ctx = expander.ctx(db.upcast());
                         let type_ref = TypeRef::from_ast(&ctx, expanded.tree());
                         self.fill_implicit_impl_trait_args(db, expander, &type_ref);
                         expander.exit(db, mark);
@@ -403,7 +404,7 @@ impl GenericParams {
 
 fn file_id_and_params_of(
     def: GenericDefId,
-    db: &dyn DefDatabase,
+    db: &dyn ItemTreeDatabase,
 ) -> (HirFileId, Option<ast::GenericParamList>) {
     match def {
         GenericDefId::FunctionId(it) => {
@@ -452,7 +453,7 @@ impl HasChildSource<LocalTypeOrConstParamId> for GenericDefId {
         let generic_params = db.generic_params(*self);
         let mut idx_iter = generic_params.type_or_consts.iter().map(|(idx, _)| idx);
 
-        let (file_id, generic_params_list) = file_id_and_params_of(*self, db);
+        let (file_id, generic_params_list) = file_id_and_params_of(*self, db.upcast());
 
         let mut params = ArenaMap::default();
 
@@ -460,12 +461,12 @@ impl HasChildSource<LocalTypeOrConstParamId> for GenericDefId {
         // the other params.
         match *self {
             GenericDefId::TraitId(id) => {
-                let trait_ref = id.lookup(db).source(db).value;
+                let trait_ref = id.lookup(db.upcast()).source(db.upcast()).value;
                 let idx = idx_iter.next().unwrap();
                 params.insert(idx, Either::Right(ast::TraitOrAlias::Trait(trait_ref)));
             }
             GenericDefId::TraitAliasId(id) => {
-                let alias = id.lookup(db).source(db).value;
+                let alias = id.lookup(db.upcast()).source(db.upcast()).value;
                 let idx = idx_iter.next().unwrap();
                 params.insert(idx, Either::Right(ast::TraitOrAlias::TraitAlias(alias)));
             }
@@ -491,7 +492,7 @@ impl HasChildSource<LocalLifetimeParamId> for GenericDefId {
         let generic_params = db.generic_params(*self);
         let idx_iter = generic_params.lifetimes.iter().map(|(idx, _)| idx);
 
-        let (file_id, generic_params_list) = file_id_and_params_of(*self, db);
+        let (file_id, generic_params_list) = file_id_and_params_of(*self, db.upcast());
 
         let mut params = ArenaMap::default();
 
@@ -507,7 +508,7 @@ impl HasChildSource<LocalLifetimeParamId> for GenericDefId {
 
 impl ChildBySource for GenericDefId {
     fn child_by_source_to(&self, db: &dyn DefDatabase, res: &mut DynMap, file_id: HirFileId) {
-        let (gfile_id, generic_params_list) = file_id_and_params_of(*self, db);
+        let (gfile_id, generic_params_list) = file_id_and_params_of(*self, db.upcast());
         if gfile_id != file_id {
             return;
         }

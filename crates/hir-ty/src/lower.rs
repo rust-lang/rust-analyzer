@@ -18,9 +18,9 @@ use chalk_ir::{
 
 use either::Either;
 use hir_def::{
-    body::Expander,
     builtin_type::BuiltinType,
     data::adt::StructKind,
+    expander::Expander,
     generics::{
         TypeOrConstParamData, TypeParamProvenance, WherePredicate, WherePredicateTypeTarget,
     },
