@@ -113,6 +113,9 @@ impl FlycheckHandle {
 }
 
 pub enum Message {
+    /// Request clearing diagnostics for a file.
+    ClearDiagnostics { id: usize },
+
     /// Request adding a diagnostic with fixes included to a file
     AddDiagnostic { id: usize, workspace_root: AbsPathBuf, diagnostic: Diagnostic },
 
@@ -136,6 +139,7 @@ impl fmt::Debug for Message {
             Message::Progress { id, progress } => {
                 f.debug_struct("Progress").field("id", id).field("progress", progress).finish()
             }
+            Message::ClearDiagnostics { id } => f.debug_struct("Clear").field("id", id).finish(),
         }
     }
 }
@@ -262,6 +266,10 @@ impl FlycheckActor {
                             "artifact received"
                         );
                         self.report_progress(Progress::DidCheckCrate(msg.target.name));
+                    }
+
+                    CargoMessage::ClearDiagnostics => {
+                        self.send(Message::ClearDiagnostics { id: self.id });
                     }
 
                     CargoMessage::Diagnostic(msg) => {
@@ -461,6 +469,10 @@ impl CargoActor {
         let mut read_at_least_one_stdout_message = false;
         let mut read_at_least_one_stderr_message = false;
         let process_line = |line: &str, error: &mut String| {
+            if line == "CLEAR" {
+                self.sender.send(CargoMessage::ClearDiagnostics).unwrap();
+                return true;
+            }
             // Try to deserialize a message from Cargo or Rustc.
             let mut deserializer = serde_json::Deserializer::from_str(line);
             deserializer.disable_recursion_limit();
@@ -516,6 +528,7 @@ impl CargoActor {
 enum CargoMessage {
     CompilerArtifact(cargo_metadata::Artifact),
     Diagnostic(Diagnostic),
+    ClearDiagnostics,
 }
 
 #[derive(Deserialize)]

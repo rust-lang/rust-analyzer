@@ -556,6 +556,7 @@ impl GlobalState {
 
     fn handle_flycheck_msg(&mut self, message: flycheck::Message) {
         match message {
+            flycheck::Message::ClearDiagnostics { id } => self.diagnostics.clear_check(id),
             flycheck::Message::AddDiagnostic { id, workspace_root, diagnostic } => {
                 let snap = self.snapshot();
                 let diagnostics = crate::diagnostics::to_proto::map_rust_diagnostic_to_lsp(
