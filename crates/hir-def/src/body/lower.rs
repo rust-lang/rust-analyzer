@@ -35,6 +35,7 @@ use crate::{
     },
     item_scope::BuiltinShadowMode,
     lang_item::LangItem,
+    nameres::DefMap,
     path::{GenericArgs, Path},
     type_ref::{Mutability, Rawness, TypeRef},
     AdtId, BlockId, BlockLoc, ModuleDefId, UnresolvedMacro,
@@ -51,6 +52,7 @@ pub(super) fn lower(
     ExprCollector {
         db,
         krate,
+        def_map: db.crate_def_map(krate),
         source_map: BodySourceMap::default(),
         ast_id_map: db.ast_id_map(expander.current_file_id),
         body: Body {
@@ -76,6 +78,7 @@ pub(super) fn lower(
 struct ExprCollector<'a> {
     db: &'a dyn DefDatabase,
     expander: Expander,
+    def_map: Arc<DefMap>,
     ast_id_map: Arc<AstIdMap>,
     krate: CrateId,
     body: Body,
@@ -780,7 +783,13 @@ impl ExprCollector<'_> {
         let outer_file = self.expander.current_file_id;
 
         let macro_call_ptr = self.expander.to_source(AstPtr::new(&mcall));
-        let res = self.expander.enter_expand(self.db, mcall);
+        let module = self.expander.module.local_id;
+        let res = self.expander.enter_expand(self.db.upcast(), mcall, |path| {
+            self.def_map
+                .resolve_path(self.db, module, &path, crate::item_scope::BuiltinShadowMode::Other)
+                .0
+                .take_macros()
+        });
 
         let res = match res {
             Ok(res) => res,
@@ -833,7 +842,7 @@ impl ExprCollector<'_> {
 
                 let id = collector(self, Some(expansion.tree()));
                 self.ast_id_map = prev_ast_id_map;
-                self.expander.exit(self.db, mark);
+                self.expander.exit(self.db.upcast(), mark);
                 id
             }
             None => collector(self, None),
@@ -947,10 +956,7 @@ impl ExprCollector<'_> {
         let block_id = if block_has_items {
             let file_local_id = self.ast_id_map.ast_id(&block);
             let ast_id = AstId::new(self.expander.current_file_id, file_local_id);
-            Some(self.db.intern_block(BlockLoc {
-                ast_id,
-                module: self.expander.def_map.module_id(self.expander.module),
-            }))
+            Some(self.db.intern_block(BlockLoc { ast_id, module: self.expander.module }))
         } else {
             None
         };
@@ -959,11 +965,11 @@ impl ExprCollector<'_> {
             match block_id.map(|block_id| (self.db.block_def_map(block_id), block_id)) {
                 Some((def_map, block_id)) => {
                     self.body.block_scopes.push(block_id);
-                    (def_map.root(), def_map)
+                    (def_map.module_id(def_map.root()), def_map)
                 }
-                None => (self.expander.module, self.expander.def_map.clone()),
+                None => (self.expander.module, self.def_map.clone()),
             };
-        let prev_def_map = mem::replace(&mut self.expander.def_map, def_map);
+        let prev_def_map = mem::replace(&mut self.def_map, def_map);
         let prev_local_module = mem::replace(&mut self.expander.module, module);
 
         let mut statements = Vec::new();
@@ -985,7 +991,7 @@ impl ExprCollector<'_> {
         let expr_id = self
             .alloc_expr(mk_block(block_id, statements.into_boxed_slice(), tail), syntax_node_ptr);
 
-        self.expander.def_map = prev_def_map;
+        self.def_map = prev_def_map;
         self.expander.module = prev_local_module;
         expr_id
     }
@@ -1031,9 +1037,9 @@ impl ExprCollector<'_> {
                 let (binding, pattern) = if is_simple_ident_pat {
                     // This could also be a single-segment path pattern. To
                     // decide that, we need to try resolving the name.
-                    let (resolved, _) = self.expander.def_map.resolve_path(
+                    let (resolved, _) = self.def_map.resolve_path(
                         self.db,
-                        self.expander.module,
+                        self.expander.module.local_id,
                         &name.clone().into(),
                         BuiltinShadowMode::Other,
                     );

@@ -552,7 +552,12 @@ impl<'a> AssocItemCollector<'a> {
             module_id,
             def_map: module_id.def_map(db),
             container,
-            expander: Expander::new(db, file_id, module_id),
+            expander: Expander::new(
+                db.upcast(),
+                file_id,
+                module_id,
+                db.crate_limits(module_id.krate).recursion_limit,
+            ),
             items: Vec::new(),
             attr_calls: Vec::new(),
             inactive_diagnostics: Vec::new(),
@@ -619,7 +624,8 @@ impl<'a> AssocItemCollector<'a> {
                         }
                     }
 
-                    let res = self.expander.enter_expand_id::<ast::MacroItems>(self.db, call_id);
+                    let res =
+                        self.expander.enter_expand_id::<ast::MacroItems>(self.db.upcast(), call_id);
                     self.collect_macro_items(res, &|| loc.kind.clone());
                     continue 'items;
                 }
@@ -661,9 +667,22 @@ impl<'a> AssocItemCollector<'a> {
                     let _cx = stdx::panic_context::enter(format!(
                         "collect_items MacroCall: {macro_call}"
                     ));
-                    if let Ok(res) =
-                        self.expander.enter_expand::<ast::MacroItems>(self.db, macro_call)
-                    {
+                    let module = self.expander.module.local_id;
+                    if let Ok(res) = self.expander.enter_expand::<ast::MacroItems>(
+                        self.db.upcast(),
+                        macro_call,
+                        |path| {
+                            self.def_map
+                                .resolve_path(
+                                    self.db,
+                                    module,
+                                    &path,
+                                    crate::item_scope::BuiltinShadowMode::Other,
+                                )
+                                .0
+                                .take_macros()
+                        },
+                    ) {
                         self.collect_macro_items(res, &|| hir_expand::MacroCallKind::FnLike {
                             ast_id: InFile::new(file_id, call.ast_id),
                             expand_to: hir_expand::ExpandTo::Items,
@@ -703,6 +722,6 @@ impl<'a> AssocItemCollector<'a> {
 
         self.collect(&item_tree, tree_id, &iter);
 
-        self.expander.exit(self.db, mark);
+        self.expander.exit(self.db.upcast(), mark);
     }
 }

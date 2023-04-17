@@ -116,9 +116,9 @@ impl Body {
     ) -> (Arc<Body>, Arc<BodySourceMap>) {
         let _p = profile::span("body_with_source_map_query");
         let mut params = None;
+        let db = def_db.upcast();
 
         let (file_id, module, body, is_async_fn) = {
-            let db = def_db.upcast();
             match def {
                 DefWithBodyId::FunctionId(f) => {
                     let data = def_db.function_data(f);
@@ -163,7 +163,8 @@ impl Body {
                 }
             }
         };
-        let expander = Expander::new(def_db, file_id, module);
+        let expander =
+            Expander::new(db, file_id, module, def_db.crate_limits(module.krate).recursion_limit);
         let (mut body, source_map) =
             Body::new(def_db, expander, params, body, module.krate, is_async_fn);
         body.shrink_to_fit();

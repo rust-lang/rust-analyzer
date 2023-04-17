@@ -67,6 +67,7 @@ use hir_expand::{
     builtin_attr_macro::BuiltinAttrExpander,
     builtin_derive_macro::BuiltinDeriveExpander,
     builtin_fn_macro::{BuiltinFnLikeExpander, EagerExpander},
+    db::ExpandDatabase,
     eager::expand_eager_macro,
     hygiene::Hygiene,
     proc_macro::ProcMacroExpander,
@@ -793,7 +794,7 @@ impl AttrDefId {
 pub trait AsMacroCall {
     fn as_call_id(
         &self,
-        db: &dyn db::DefDatabase,
+        db: &dyn ExpandDatabase,
         krate: CrateId,
         resolver: impl Fn(path::ModPath) -> Option<MacroDefId>,
     ) -> Option<MacroCallId> {
@@ -802,7 +803,7 @@ pub trait AsMacroCall {
 
     fn as_call_id_with_errors(
         &self,
-        db: &dyn db::DefDatabase,
+        db: &dyn ExpandDatabase,
         krate: CrateId,
         resolver: impl Fn(path::ModPath) -> Option<MacroDefId>,
     ) -> Result<ExpandResult<Option<MacroCallId>>, UnresolvedMacro>;
@@ -811,15 +812,14 @@ pub trait AsMacroCall {
 impl AsMacroCall for InFile<&ast::MacroCall> {
     fn as_call_id_with_errors(
         &self,
-        db: &dyn db::DefDatabase,
+        db: &dyn ExpandDatabase,
         krate: CrateId,
         resolver: impl Fn(path::ModPath) -> Option<MacroDefId>,
     ) -> Result<ExpandResult<Option<MacroCallId>>, UnresolvedMacro> {
         let expands_to = hir_expand::ExpandTo::from_call_site(self.value);
         let ast_id = AstId::new(self.file_id, db.ast_id_map(self.file_id).ast_id(self.value));
-        let h = Hygiene::new(db.upcast(), self.file_id);
-        let path =
-            self.value.path().and_then(|path| path::ModPath::from_src(db.upcast(), path, &h));
+        let h = Hygiene::new(db, self.file_id);
+        let path = self.value.path().and_then(|path| path::ModPath::from_src(db, path, &h));
 
         let Some(path) = path else {
             return Ok(ExpandResult::only_err(ExpandError::Other("malformed macro invocation".into())));
@@ -849,7 +849,7 @@ impl<T: ast::AstNode> AstIdWithPath<T> {
 }
 
 fn macro_call_as_call_id(
-    db: &dyn db::DefDatabase,
+    db: &dyn ExpandDatabase,
     call: &AstIdWithPath<ast::MacroCall>,
     expand_to: ExpandTo,
     krate: CrateId,
@@ -859,7 +859,7 @@ fn macro_call_as_call_id(
 }
 
 fn macro_call_as_call_id_(
-    db: &dyn db::DefDatabase,
+    db: &dyn ExpandDatabase,
     call: &AstIdWithPath<ast::MacroCall>,
     expand_to: ExpandTo,
     krate: CrateId,
@@ -869,13 +869,13 @@ fn macro_call_as_call_id_(
         resolver(call.path.clone()).ok_or_else(|| UnresolvedMacro { path: call.path.clone() })?;
 
     let res = if let MacroDefKind::BuiltInEager(..) = def.kind {
-        let macro_call = InFile::new(call.ast_id.file_id, call.ast_id.to_node(db.upcast()));
+        let macro_call = InFile::new(call.ast_id.file_id, call.ast_id.to_node(db));
 
-        expand_eager_macro(db.upcast(), krate, macro_call, def, &resolver)?
+        expand_eager_macro(db, krate, macro_call, def, &resolver)?
     } else {
         ExpandResult {
             value: Some(def.as_lazy_macro(
-                db.upcast(),
+                db,
                 krate,
                 MacroCallKind::FnLike { ast_id: call.ast_id, expand_to },
             )),

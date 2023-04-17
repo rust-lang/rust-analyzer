@@ -3,6 +3,8 @@
 //! generic parameters. See also the `Generics` type and the `generics_of` query
 //! in rustc.
 
+use std::sync::Arc;
+
 use base_db::FileId;
 use either::Either;
 use hir_expand::{
@@ -20,6 +22,7 @@ use crate::{
     db::{DefDatabase, ItemTreeDatabase},
     dyn_map::{keys, DynMap},
     expander::{Expander, LowerCtx},
+    nameres::DefMap,
     src::{HasChildSource, HasSource},
     type_ref::{LifetimeRef, TypeBound, TypeRef},
     AdtId, ConstParamId, GenericDefId, HasModule, LifetimeParamId, LocalLifetimeParamId,
@@ -174,8 +177,17 @@ impl GenericParams {
 
                 // Don't create an `Expander` nor call `loc.source(db)` if not needed since this
                 // causes a reparse after the `ItemTree` has been created.
-                let mut expander =
-                    Lazy::new(|| Expander::new(def_db, loc.source(db).file_id, module));
+                let mut expander = Lazy::new(|| {
+                    (
+                        module.def_map(def_db),
+                        Expander::new(
+                            db,
+                            loc.source(db).file_id,
+                            module,
+                            def_db.crate_limits(module.krate).recursion_limit,
+                        ),
+                    )
+                });
                 for param in &func_data.params {
                     generic_params.fill_implicit_impl_trait_args(def_db, &mut expander, param);
                 }
@@ -328,7 +340,7 @@ impl GenericParams {
     pub(crate) fn fill_implicit_impl_trait_args(
         &mut self,
         db: &dyn DefDatabase,
-        expander: &mut Expander,
+        exp: &mut Lazy<(Arc<DefMap>, Expander), impl FnOnce() -> (Arc<DefMap>, Expander)>,
         type_ref: &TypeRef,
     ) {
         type_ref.walk(&mut |type_ref| {
@@ -348,14 +360,27 @@ impl GenericParams {
             }
             if let TypeRef::Macro(mc) = type_ref {
                 let macro_call = mc.to_node(db.upcast());
-                match expander.enter_expand::<ast::Type>(db, macro_call) {
-                    Ok(ExpandResult { value: Some((mark, expanded)), .. }) => {
-                        let ctx = expander.ctx(db.upcast());
-                        let type_ref = TypeRef::from_ast(&ctx, expanded.tree());
-                        self.fill_implicit_impl_trait_args(db, expander, &type_ref);
-                        expander.exit(db, mark);
-                    }
-                    _ => {}
+                let (def_map, expander) = &mut **exp;
+
+                let module = expander.module.local_id;
+                let resolver = |path| {
+                    def_map
+                        .resolve_path(
+                            db,
+                            module,
+                            &path,
+                            crate::item_scope::BuiltinShadowMode::Other,
+                        )
+                        .0
+                        .take_macros()
+                };
+                if let Ok(ExpandResult { value: Some((mark, expanded)), .. }) =
+                    expander.enter_expand(db.upcast(), macro_call, resolver)
+                {
+                    let ctx = expander.ctx(db.upcast());
+                    let type_ref = TypeRef::from_ast(&ctx, expanded.tree());
+                    self.fill_implicit_impl_trait_args(db, &mut *exp, &type_ref);
+                    exp.1.exit(db.upcast(), mark);
                 }
             }
         });
