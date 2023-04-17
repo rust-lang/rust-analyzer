@@ -1,3 +1,4 @@
+//! Macro expansion and lowering utilities.
 use std::sync::Arc;
 
 use base_db::CrateId;

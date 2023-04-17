@@ -28,8 +28,8 @@ use crate::{
     lang_item::LangItem,
     nameres::{ModuleOrigin, ModuleSource},
     src::{HasChildSource, HasSource},
-    AdtId, AttrDefId, EnumId, GenericParamId, LocalEnumVariantId, LocalFieldId, Lookup, MacroId,
-    VariantId,
+    AdtId, AssocItemLoc, AttrDefId, EnumId, GenericParamId, ItemLoc, LocalEnumVariantId,
+    LocalFieldId, Lookup, MacroId, VariantId,
 };
 
 /// Holds documentation
@@ -424,34 +424,28 @@ impl AttrsWithOwner {
             }
             // FIXME: DRY this up
             AttrDefId::AdtId(it) => match it {
-                AdtId::StructId(it) => attrs_from_item_tree(it.lookup(db.upcast()).id, db.upcast()),
-                AdtId::EnumId(it) => attrs_from_item_tree(it.lookup(db.upcast()).id, db.upcast()),
-                AdtId::UnionId(it) => attrs_from_item_tree(it.lookup(db.upcast()).id, db.upcast()),
+                AdtId::StructId(it) => attrs_from_item_tree_loc(db.upcast(), it),
+                AdtId::EnumId(it) => attrs_from_item_tree_loc(db.upcast(), it),
+                AdtId::UnionId(it) => attrs_from_item_tree_loc(db.upcast(), it),
             },
-            AttrDefId::TraitId(it) => attrs_from_item_tree(it.lookup(db.upcast()).id, db.upcast()),
-            AttrDefId::TraitAliasId(it) => {
-                attrs_from_item_tree(it.lookup(db.upcast()).id, db.upcast())
-            }
+            AttrDefId::TraitId(it) => attrs_from_item_tree_loc(db.upcast(), it),
+            AttrDefId::TraitAliasId(it) => attrs_from_item_tree_loc(db.upcast(), it),
             AttrDefId::MacroId(it) => match it {
                 MacroId::Macro2Id(it) => {
-                    attrs_from_item_tree(it.lookup(db.upcast()).id, db.upcast())
+                    attrs_from_item_tree(db.upcast(), it.lookup(db.upcast()).id)
                 }
                 MacroId::MacroRulesId(it) => {
-                    attrs_from_item_tree(it.lookup(db.upcast()).id, db.upcast())
+                    attrs_from_item_tree(db.upcast(), it.lookup(db.upcast()).id)
                 }
                 MacroId::ProcMacroId(it) => {
-                    attrs_from_item_tree(it.lookup(db.upcast()).id, db.upcast())
+                    attrs_from_item_tree(db.upcast(), it.lookup(db.upcast()).id)
                 }
             },
-            AttrDefId::ImplId(it) => attrs_from_item_tree(it.lookup(db.upcast()).id, db.upcast()),
-            AttrDefId::ConstId(it) => attrs_from_item_tree(it.lookup(db.upcast()).id, db.upcast()),
-            AttrDefId::StaticId(it) => attrs_from_item_tree(it.lookup(db.upcast()).id, db.upcast()),
-            AttrDefId::FunctionId(it) => {
-                attrs_from_item_tree(it.lookup(db.upcast()).id, db.upcast())
-            }
-            AttrDefId::TypeAliasId(it) => {
-                attrs_from_item_tree(it.lookup(db.upcast()).id, db.upcast())
-            }
+            AttrDefId::ImplId(it) => attrs_from_item_tree_loc(db.upcast(), it),
+            AttrDefId::ConstId(it) => attrs_from_item_tree_assoc(db.upcast(), it),
+            AttrDefId::StaticId(it) => attrs_from_item_tree_assoc(db.upcast(), it),
+            AttrDefId::FunctionId(it) => attrs_from_item_tree_assoc(db.upcast(), it),
+            AttrDefId::TypeAliasId(it) => attrs_from_item_tree_assoc(db.upcast(), it),
             AttrDefId::GenericParamId(it) => match it {
                 GenericParamId::ConstParamId(it) => {
                     let src = it.parent().child_source(db);
@@ -472,9 +466,7 @@ impl AttrsWithOwner {
                     RawAttrs::from_attrs_owner(db.upcast(), src.with_value(&src.value[it.local_id]))
                 }
             },
-            AttrDefId::ExternBlockId(it) => {
-                attrs_from_item_tree(it.lookup(db.upcast()).id, db.upcast())
-            }
+            AttrDefId::ExternBlockId(it) => attrs_from_item_tree_loc(db.upcast(), it),
         };
 
         let attrs = raw_attrs.filter(db.upcast(), def.krate(db.upcast()));
@@ -813,10 +805,25 @@ impl<'attr> AttrQuery<'attr> {
     }
 }
 
-fn attrs_from_item_tree<N: ItemTreeNode>(id: ItemTreeId<N>, db: &dyn ItemTreeDatabase) -> RawAttrs {
+fn attrs_from_item_tree<N: ItemTreeNode>(db: &dyn ItemTreeDatabase, id: ItemTreeId<N>) -> RawAttrs {
     let tree = id.item_tree(db);
     let mod_item = N::id_to_mod_item(id.value);
     tree.raw_attrs(mod_item.into()).clone()
+}
+fn attrs_from_item_tree_loc<N: ItemTreeNode>(
+    db: &dyn ItemTreeDatabase,
+    lookup: impl Lookup<Data = ItemLoc<N>>,
+) -> RawAttrs {
+    let id = lookup.lookup(db).id;
+    attrs_from_item_tree(db, id)
+}
+
+fn attrs_from_item_tree_assoc<N: ItemTreeNode>(
+    db: &dyn ItemTreeDatabase,
+    lookup: impl Lookup<Data = AssocItemLoc<N>>,
+) -> RawAttrs {
+    let id = lookup.lookup(db).id;
+    attrs_from_item_tree(db, id)
 }
 
 pub(crate) fn variants_attrs_source_map(
