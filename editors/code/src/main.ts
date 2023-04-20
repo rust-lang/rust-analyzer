@@ -154,6 +154,7 @@ function createCommands(): Record<string, CommandFactory> {
         shuffleCrateGraph: { enabled: commands.shuffleCrateGraph },
         reloadWorkspace: { enabled: commands.reloadWorkspace },
         rebuildProcMacros: { enabled: commands.rebuildProcMacros },
+        workspaceStateJson: { enabled: commands.workspaceStateJson },
         addProject: { enabled: commands.addProject },
         matchingBrace: { enabled: commands.matchingBrace },
         joinLines: { enabled: commands.joinLines },
