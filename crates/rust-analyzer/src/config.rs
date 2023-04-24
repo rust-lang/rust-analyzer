@@ -2330,14 +2330,21 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
 fn manual(fields: &[(&'static str, &'static str, &[&str], &str)]) -> String {
     fields
         .iter()
-        .map(|(field, _ty, doc, default)| {
+        .map(|(field, ty, doc, default)| {
             let name = format!("rust-analyzer.{}", field.replace('_', "."));
             let doc = doc_comment_to_string(doc);
+            let ty_doc = manual_field_type(ty);
+            let ty_doc = if ty_doc.contains('\n') {
+                format!("\n--\n----\n{}\n----", ty_doc)
+            } else {
+                format!(" `{}`\n--", ty_doc)
+            };
             if default.contains('\n') {
                 format!(
                     r#"[[{name}]]{name}::
 +
 --
+Type: {ty_doc}
 Default:
 ----
 {default}
@@ -2347,10 +2354,156 @@ Default:
 "#
                 )
             } else {
-                format!("[[{name}]]{name} (default: `{default}`)::\n+\n--\n{doc}--\n")
+                format!(
+                    "[[{name}]]{name} (default: `{default}`)::\n+\n--\nType: {ty_doc}\n{doc}--\n"
+                )
             }
         })
         .collect::<String>()
+}
+
+#[cfg(test)]
+fn manual_field_type(ty: &str) -> &str {
+    match ty {
+        "bool" => "bool",
+        "usize" => "usize",
+        "String" => "String",
+        "Vec<String>" => "Vec<String>",
+        "Vec<PathBuf>" => "Vec<PathBuf>",
+        "FxHashSet<String>" => "Set<String>",
+        "FxHashMap<Box<str>, Box<[Box<str>]>>" => "Map<String, Vec<String>>",
+        "FxHashMap<String, SnippetDef>" => "Map<String, SnippetDef>",
+        "FxHashMap<String, String>" => "Map<String, String>",
+        "FxHashMap<Box<str>, usize>" => "Map<String, usize>",
+        "Option<usize>" => "Option<usize>",
+        "Option<String>" => "Option<String>",
+        "Option<PathBuf>" => "Option<PathBuf>",
+        "Option<bool>" => "Option<Bool>",
+        "Option<Vec<String>>" => "Option<Vec<String>>",
+        "ExprFillDefaultDef" => {
+            r#"
+"todo" => Fill missing expressions with the `todo` macro
+"default" => Fill missing expressions with reasonable defaults, `new` or `default` constructors."#
+        }
+        "ImportGranularityDef" => {
+            r#"
+"preserve" => Do not change the granularity of any imports and preserve the original structure written by the developer.
+"crate" => Merge imports from the same crate into a single use statement. Conversely, imports from different crates are split into separate statements.
+"module" => Merge imports from the same module into a single use statement. Conversely, imports from different modules are split into separate statements.
+"item" => Flatten imports so that each has its own use statement."#
+        }
+        "ImportPrefixDef" => {
+            r#"
+"plain" => Insert import paths relative to the current module, using up to one `super` prefix if the parent module contains the requested item.
+"self" => Insert import paths relative to the current module, using up to one `super` prefix if the parent module contains the requested item. Prefixes `self` in front of the path if it starts with a module.
+"crate" => Force import paths to be absolute by always starting them with `crate` or the extern crate name they come from."#
+        }
+        "Vec<ManifestOrProjectJson>" => r"Vec<PathBuf | ProjectJson>",
+        "WorkspaceSymbolSearchScopeDef" => {
+            r#"
+"workspace" => Search in current workspace only.
+"workspace_and_dependencies" => Search in current workspace and dependencies."#
+        }
+        "WorkspaceSymbolSearchKindDef" => {
+            r#"
+"only_types" => Search for types only.
+"all_symbols" => Search for all symbols kinds."#
+        }
+        "ParallelCachePrimingNumThreads" => "u8",
+        "LifetimeElisionDef" => {
+            r#"
+"always" => Always show lifetime elision hints.
+"never" => Never show lifetime elision hints.
+"skip_trivial" => Only show lifetime elision hints if a return type is involved."#
+        }
+        "ClosureReturnTypeHintsDef" => {
+            r#"
+"always" => Always show type hints for return types of closures.
+"never" => Never show type hints for return types of closures.
+"with_block" => Only show type hints for return types of closures with blocks."#
+        }
+        "ReborrowHintsDef" => {
+            r#"
+"always" => Always show reborrow hints.
+"never" => Never show reborrow hints.
+"mutable" => Only show mutable reborrow hints."#
+        }
+        "AdjustmentHintsDef" => {
+            r#"
+"always" => Always show all adjustment hints.
+"never" => Never show adjustment hints.
+"reborrow" => Only show auto borrow and dereference adjustment hints."#
+        }
+        "DiscriminantHintsDef" => {
+            r#"
+"always" => Always show all discriminant hints.
+"never" => Never show discriminant hints.
+"fieldless" => Only show discriminant hints on fieldless enum variants."#
+        }
+        "AdjustmentHintsModeDef" => {
+            r#"
+"prefix" => Always show adjustment hints as prefix (`*expr`).
+"postfix" => Always show adjustment hints as postfix (`expr.*`).
+"prefer_prefix" => Show prefix or postfix depending on which uses less parenthesis, preferring prefix.
+"prefer_postfix" => Show prefix or postfix depending on which uses less parenthesis, preferring postfix."#
+        }
+        "CargoFeaturesDef" => {
+            r#"
+"all" => Pass `--all-features` to cargo
+Vec<String> => Pass `--features` to cargo"#
+        }
+        "Option<CargoFeaturesDef>" => {
+            r#"
+null => Do not pass any features to cargo
+"all" => Pass `--all-features` to cargo
+Vec<String> => Pass `--features` to cargo"#
+        }
+        "CallableCompletionDef" => {
+            r#"
+"fill_arguments" => Add call parentheses and pre-fill arguments.
+"add_parentheses" => Add call parentheses.
+"none" => Do no snippet completions for callables."#
+        }
+        "SignatureDetail" => {
+            r#"
+"full" => Show the entire signature.
+"parameters" => Show only the parameters."#
+        }
+        "FilesWatcherDef" => {
+            r#"
+"client" => Use the client (editor) to watch files for changes
+"server" => Use server-side file watching"#
+        }
+        "AnnotationLocation" => {
+            r#"
+"above_name" => Render annotations above the name of the item.
+"above_whole_item" => Render annotations above the whole item, including documentation comments and attributes."#
+        }
+        "InvocationStrategy" => {
+            r#"
+"per_workspace" => The command will be executed for each workspace.
+"once" => The command will be executed once."#
+        }
+        "InvocationLocation" => {
+            r#"
+"workspace" => The command will be executed in the corresponding workspace root.
+"root" => The command will be executed in the project root."#
+        }
+        "Option<CheckOnSaveTargets>" => {
+            r#"
+null => Defaults to `rust-analyzer.cargo.target`
+String => A single target to check
+Vec<String> => A list of targets to check"#
+        }
+        "ClosureStyle" => {
+            r#"
+"impl_fn" => `impl FnMut(i32, u64) -> i8`
+"rust_analyzer" => `|i32, u64| -> i8`
+"with_id" => `{closure#14352}`, where that id is the unique number of the closure in r-a internals
+"hide" => Shows `...` for every closure type"#
+        }
+        _ => panic!("missing entry for {ty}"),
+    }
 }
 
 fn doc_comment_to_string(doc: &[&str]) -> String {
