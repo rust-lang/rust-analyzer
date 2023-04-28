@@ -163,6 +163,8 @@ pub(crate) fn complete_postfix(
                     &format!("match {receiver_text} {{\n    Ok(${{1:_}}) => {{$2}},\n    Err(${{3:_}}) => {{$0}},\n}}"),
                 )
                 .add_to(acc);
+                postfix_snippet("ignore", "let _ = {};", &format!("let _ = {receiver_text}"))
+                    .add_to(acc);
             }
             TryEnum::Option => {
                 postfix_snippet(
@@ -173,6 +175,8 @@ pub(crate) fn complete_postfix(
                     ),
                 )
                 .add_to(acc);
+                postfix_snippet("ignore", "let _ = {};", &format!("let _ = {receiver_text}"))
+                    .add_to(acc);
             }
         },
         None => {
@@ -189,7 +193,6 @@ pub(crate) fn complete_postfix(
     postfix_snippet("dbg", "dbg!(expr)", &format!("dbg!({receiver_text})")).add_to(acc); // fixme
     postfix_snippet("dbgr", "dbg!(&expr)", &format!("dbg!(&{receiver_text})")).add_to(acc);
     postfix_snippet("call", "function(expr)", &format!("${{1}}({receiver_text})")).add_to(acc);
-    postfix_snippet("ignore", "let _ = expr;", &format!("let _ = {receiver_text}")).add_to(acc);
 
     if let Some(parent) = dot_receiver.syntax().parent().and_then(|p| p.parent()) {
         if matches!(parent.kind(), STMT_LIST | EXPR_STMT) {
@@ -351,7 +354,6 @@ fn main() {
                 sn dbg    dbg!(expr)
                 sn dbgr   dbg!(&expr)
                 sn if     if expr {}
-                sn ignore let _ = expr;
                 sn let    let
                 sn letm   let mut
                 sn match  match expr {}
@@ -383,7 +385,6 @@ fn main() {
                 sn dbg    dbg!(expr)
                 sn dbgr   dbg!(&expr)
                 sn if     if expr {}
-                sn ignore let _ = expr;
                 sn match  match expr {}
                 sn not    !expr
                 sn ref    &expr
@@ -408,7 +409,6 @@ fn main() {
                 sn call   function(expr)
                 sn dbg    dbg!(expr)
                 sn dbgr   dbg!(&expr)
-                sn ignore let _ = expr;
                 sn let    let
                 sn letm   let mut
                 sn match  match expr {}
@@ -434,7 +434,6 @@ fn main() {
                 sn dbg    dbg!(expr)
                 sn dbgr   dbg!(&expr)
                 sn if     if expr {}
-                sn ignore let _ = expr;
                 sn let    let
                 sn letm   let mut
                 sn match  match expr {}

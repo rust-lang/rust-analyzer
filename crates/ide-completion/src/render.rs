@@ -1721,7 +1721,6 @@ fn main() {
                 sn dbg []
                 sn dbgr []
                 sn call []
-                sn ignore []
             "#]],
         );
     }
@@ -1750,7 +1749,6 @@ fn main() {
                 sn dbg []
                 sn dbgr []
                 sn call []
-                sn ignore []
                 sn let []
                 sn letm []
             "#]],
