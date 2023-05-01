@@ -12,7 +12,7 @@ rust-version.workspace = true
 doctest = false
 
 [dependencies]
-salsa = "0.17.0-pre.2"
+salsa = { version = "0.17.0-pre.2", git = "https://github.com/salsa-rs/salsa/" }
 rustc-hash = "1.1.0"
 
 la-arena = { version = "0.3.0", path = "../../lib/la-arena" }

@@ -11,7 +11,7 @@ use std::{
     sync::Arc,
 };
 
-use base_db::CrateId;
+use base_db::{salsa::Cycle, CrateId};
 use chalk_ir::{
     cast::Cast, fold::Shift, fold::TypeFoldable, interner::HasInterner, Mutability, Safety,
 };
@@ -1436,7 +1436,7 @@ pub(crate) fn generic_predicates_for_param_query(
 
 pub(crate) fn generic_predicates_for_param_recover(
     _db: &dyn HirDatabase,
-    _cycle: &[String],
+    _cycle: &Cycle,
     _def: &GenericDefId,
     _param_id: &TypeOrConstParamId,
     _assoc_name: &Option<Name>,
@@ -1609,7 +1609,7 @@ pub(crate) fn generic_defaults_query(
 
 pub(crate) fn generic_defaults_recover(
     db: &dyn HirDatabase,
-    _cycle: &[String],
+    _cycle: &Cycle,
     def: &GenericDefId,
 ) -> Arc<[Binders<crate::GenericArg>]> {
     let generic_params = generics(db.upcast(), *def);
@@ -1842,7 +1842,7 @@ pub(crate) fn ty_query(db: &dyn HirDatabase, def: TyDefId) -> Binders<Ty> {
     }
 }
 
-pub(crate) fn ty_recover(db: &dyn HirDatabase, _cycle: &[String], def: &TyDefId) -> Binders<Ty> {
+pub(crate) fn ty_recover(db: &dyn HirDatabase, _cycle: &Cycle, def: &TyDefId) -> Binders<Ty> {
     let generics = match *def {
         TyDefId::BuiltinType(_) => return Binders::empty(Interner, TyKind::Error.intern(Interner)),
         TyDefId::AdtId(it) => generics(db.upcast(), it.into()),
@@ -1892,7 +1892,7 @@ pub(crate) fn const_param_ty_query(db: &dyn HirDatabase, def: ConstParamId) -> T
 
 pub(crate) fn impl_self_ty_recover(
     db: &dyn HirDatabase,
-    _cycle: &[String],
+    _cycle: &Cycle,
     impl_id: &ImplId,
 ) -> Binders<Ty> {
     let generics = generics(db.upcast(), (*impl_id).into());
