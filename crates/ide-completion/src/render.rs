@@ -32,11 +32,17 @@ pub(crate) struct RenderContext<'a> {
     completion: &'a CompletionContext<'a>,
     is_private_editable: bool,
     import_to_add: Option<LocatedImport>,
+    doc_aliases: Vec<SmolStr>,
 }
 
 impl<'a> RenderContext<'a> {
     pub(crate) fn new(completion: &'a CompletionContext<'a>) -> RenderContext<'a> {
-        RenderContext { completion, is_private_editable: false, import_to_add: None }
+        RenderContext {
+            completion,
+            is_private_editable: false,
+            import_to_add: None,
+            doc_aliases: vec![],
+        }
     }
 
     pub(crate) fn private_editable(mut self, private_editable: bool) -> Self {
@@ -46,6 +52,11 @@ impl<'a> RenderContext<'a> {
 
     pub(crate) fn import_to_add(mut self, import_to_add: Option<LocatedImport>) -> Self {
         self.import_to_add = import_to_add;
+        self
+    }
+
+    pub(crate) fn doc_aliases(mut self, doc_aliases: Vec<SmolStr>) -> Self {
+        self.doc_aliases = doc_aliases;
         self
     }
 
@@ -140,6 +151,7 @@ pub(crate) fn render_field(
             }
         }
     }
+    item.doc_aliases(ctx.doc_aliases);
     item.build()
 }
 
@@ -197,7 +209,9 @@ pub(crate) fn render_resolution_with_import(
 ) -> Option<Builder> {
     let resolution = ScopeDef::from(import_edit.original_item);
     let local_name = scope_def_to_name(resolution, &ctx, &import_edit)?;
-
+    //this now just renders the alias text, but we need to find the aliases earlier and call this with the alias instead
+    let doc_aliases = ctx.completion.doc_aliases_in_scope(resolution);
+    let ctx = ctx.doc_aliases(doc_aliases);
     Some(render_resolution_path(ctx, path_ctx, local_name, Some(import_edit), resolution))
 }
 
@@ -348,6 +362,8 @@ fn render_resolution_simple_(
     if let Some(import_to_add) = ctx.import_to_add {
         item.add_import(import_to_add);
     }
+
+    item.doc_aliases(ctx.doc_aliases);
     item
 }
 

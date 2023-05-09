@@ -166,6 +166,11 @@ impl AbsPath {
         AbsPathBuf::try_from(self.0.to_path_buf()).unwrap()
     }
 
+    /// Equivalent of [`Path::canonicalize`] for `AbsPath`.
+    pub fn canonicalize(&self) -> Result<AbsPathBuf, std::io::Error> {
+        Ok(self.as_ref().canonicalize()?.try_into().unwrap())
+    }
+
     /// Equivalent of [`Path::strip_prefix`] for `AbsPath`.
     ///
     /// Returns a relative path.
@@ -177,6 +182,13 @@ impl AbsPath {
     }
     pub fn ends_with(&self, suffix: &RelPath) -> bool {
         self.0.ends_with(&suffix.0)
+    }
+
+    pub fn name_and_extension(&self) -> Option<(&str, Option<&str>)> {
+        Some((
+            self.file_stem()?.to_str()?,
+            self.extension().and_then(|extension| extension.to_str()),
+        ))
     }
 
     // region:delegate-methods

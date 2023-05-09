@@ -33,12 +33,12 @@ impl ProcMacroExpander {
     ) -> ExpandResult<tt::Subtree> {
         match self.proc_macro_id {
             Some(id) => {
-                let krate_graph = db.crate_graph();
-                let proc_macros = match &krate_graph[def_crate].proc_macro {
-                    Ok(proc_macros) => proc_macros,
-                    Err(_) => {
+                let proc_macros = db.proc_macros();
+                let proc_macros = match proc_macros.get(&def_crate) {
+                    Some(Ok(proc_macros)) => proc_macros,
+                    Some(Err(_)) | None => {
                         never!("Non-dummy expander even though there are no proc macros");
-                        return ExpandResult::with_err(
+                        return ExpandResult::new(
                             tt::Subtree::empty(),
                             ExpandError::Other("Internal error".into()),
                         );
@@ -52,13 +52,14 @@ impl ProcMacroExpander {
                             proc_macros.len(),
                             id.0
                         );
-                        return ExpandResult::with_err(
+                        return ExpandResult::new(
                             tt::Subtree::empty(),
                             ExpandError::Other("Internal error".into()),
                         );
                     }
                 };
 
+                let krate_graph = db.crate_graph();
                 // Proc macros have access to the environment variables of the invoking crate.
                 let env = &krate_graph[calling_crate].env;
                 match proc_macro.expander.expand(tt, attr_arg, env) {
@@ -74,17 +75,15 @@ impl ProcMacroExpander {
                             }
                         }
                         ProcMacroExpansionError::System(text)
-                        | ProcMacroExpansionError::Panic(text) => ExpandResult::with_err(
-                            tt::Subtree::empty(),
-                            ExpandError::Other(text.into()),
-                        ),
+                        | ProcMacroExpansionError::Panic(text) => {
+                            ExpandResult::new(tt::Subtree::empty(), ExpandError::Other(text.into()))
+                        }
                     },
                 }
             }
-            None => ExpandResult::with_err(
-                tt::Subtree::empty(),
-                ExpandError::UnresolvedProcMacro(def_crate),
-            ),
+            None => {
+                ExpandResult::new(tt::Subtree::empty(), ExpandError::UnresolvedProcMacro(def_crate))
+            }
         }
     }
 }

@@ -18,7 +18,6 @@ use crate::{
     consteval::unknown_const_as_generic, db::HirDatabase, infer::unify::InferenceTable, primitive,
     to_assoc_type_id, to_chalk_trait_id, utils::generics, Binders, BoundVar, CallableSig,
     GenericArg, Interner, ProjectionTy, Substitution, TraitRef, Ty, TyDefId, TyExt, TyKind,
-    ValueTyDefId,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -233,6 +232,25 @@ impl TyBuilder<()> {
         TyBuilder::new((), params, parent_subst)
     }
 
+    pub fn subst_for_closure(
+        db: &dyn HirDatabase,
+        parent: DefWithBodyId,
+        sig_ty: Ty,
+    ) -> Substitution {
+        let sig_ty = sig_ty.cast(Interner);
+        let self_subst = iter::once(&sig_ty);
+        let Some(parent) = parent.as_generic_def_id() else {
+            return Substitution::from_iter(Interner, self_subst);
+        };
+        Substitution::from_iter(
+            Interner,
+            self_subst
+                .chain(generics(db.upcast(), parent).placeholder_subst(db).iter(Interner))
+                .cloned()
+                .collect::<Vec<_>>(),
+        )
+    }
+
     pub fn build(self) -> Substitution {
         let ((), subst) = self.build_internal();
         subst
@@ -361,22 +379,5 @@ impl TyBuilder<Binders<Ty>> {
 
     pub fn impl_self_ty(db: &dyn HirDatabase, def: hir_def::ImplId) -> TyBuilder<Binders<Ty>> {
         TyBuilder::subst_for_def(db, def, None).with_data(db.impl_self_ty(def))
-    }
-
-    pub fn value_ty(
-        db: &dyn HirDatabase,
-        def: ValueTyDefId,
-        parent_subst: Option<Substitution>,
-    ) -> TyBuilder<Binders<Ty>> {
-        let poly_value_ty = db.value_ty(def);
-        let id = match def.to_generic_def_id() {
-            Some(id) => id,
-            None => {
-                // static items
-                assert!(parent_subst.is_none());
-                return TyBuilder::new_empty(poly_value_ty);
-            }
-        };
-        TyBuilder::subst_for_def(db, id, parent_subst).with_data(poly_value_ty)
     }
 }

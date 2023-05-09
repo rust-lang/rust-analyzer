@@ -2,8 +2,6 @@
 //! requests/replies and notifications back to the client.
 use std::{
     fmt,
-    ops::Deref,
-    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -11,20 +9,19 @@ use always_assert::always;
 use crossbeam_channel::{select, Receiver};
 use flycheck::FlycheckHandle;
 use ide_db::base_db::{SourceDatabaseExt, VfsPath};
-use itertools::Itertools;
 use lsp_server::{Connection, Notification, Request};
 use lsp_types::notification::Notification as _;
-use vfs::{AbsPathBuf, ChangeKind, FileId};
+use triomphe::Arc;
+use vfs::FileId;
 
 use crate::{
     config::Config,
     dispatch::{NotificationDispatcher, RequestDispatcher},
     from_proto,
     global_state::{file_id_to_url, url_to_file_id, GlobalState},
-    handlers, lsp_ext,
-    lsp_utils::{apply_document_changes, notification_is, Progress},
-    mem_docs::DocumentData,
-    reload::{self, BuildDataProgress, ProjectWorkspaceProgress},
+    lsp_ext,
+    lsp_utils::{notification_is, Progress},
+    reload::{BuildDataProgress, ProcMacroProgress, ProjectWorkspaceProgress},
     Result,
 };
 
@@ -36,7 +33,7 @@ pub fn main_loop(config: Config, connection: Connection) -> Result<()> {
     // temporary bumped. This optimization backfires in our case: each time the
     // `main_loop` schedules a task to run on a threadpool, the worker threads
     // gets a higher priority, and (on a machine with fewer cores) displaces the
-    // main loop! We work-around this by marking the main loop as a
+    // main loop! We work around this by marking the main loop as a
     // higher-priority thread.
     //
     // https://docs.microsoft.com/en-us/windows/win32/procthread/scheduling-priorities
@@ -68,6 +65,7 @@ pub(crate) enum Task {
     PrimeCaches(PrimeCachesProgress),
     FetchWorkspace(ProjectWorkspaceProgress),
     FetchBuildData(BuildDataProgress),
+    LoadProcMacros(ProcMacroProgress),
 }
 
 #[derive(Debug)]
@@ -148,8 +146,8 @@ impl GlobalState {
             );
         }
 
-        self.fetch_workspaces_queue.request_op("startup".to_string());
-        if let Some(cause) = self.fetch_workspaces_queue.should_start_op() {
+        self.fetch_workspaces_queue.request_op("startup".to_string(), ());
+        if let Some((cause, ())) = self.fetch_workspaces_queue.should_start_op() {
             self.fetch_workspaces(cause);
         }
 
@@ -247,7 +245,7 @@ impl GlobalState {
                             self.prime_caches_queue.op_completed(());
                             if cancelled {
                                 self.prime_caches_queue
-                                    .request_op("restart after cancellation".to_string());
+                                    .request_op("restart after cancellation".to_string(), ());
                             }
                         }
                     };
@@ -279,7 +277,8 @@ impl GlobalState {
         if self.is_quiescent() {
             let became_quiescent = !(was_quiescent
                 || self.fetch_workspaces_queue.op_requested()
-                || self.fetch_build_data_queue.op_requested());
+                || self.fetch_build_data_queue.op_requested()
+                || self.fetch_proc_macros_queue.op_requested());
 
             if became_quiescent {
                 if self.config.check_on_save() {
@@ -287,7 +286,7 @@ impl GlobalState {
                     self.flycheck.iter().for_each(FlycheckHandle::restart);
                 }
                 if self.config.prefill_caches() {
-                    self.prime_caches_queue.request_op("became quiescent".to_string());
+                    self.prime_caches_queue.request_op("became quiescent".to_string(), ());
                 }
             }
 
@@ -357,18 +356,20 @@ impl GlobalState {
         }
 
         if self.config.cargo_autoreload() {
-            if let Some(cause) = self.fetch_workspaces_queue.should_start_op() {
+            if let Some((cause, ())) = self.fetch_workspaces_queue.should_start_op() {
                 self.fetch_workspaces(cause);
             }
         }
 
         if !self.fetch_workspaces_queue.op_in_progress() {
-            if let Some(cause) = self.fetch_build_data_queue.should_start_op() {
+            if let Some((cause, ())) = self.fetch_build_data_queue.should_start_op() {
                 self.fetch_build_data(cause);
+            } else if let Some((cause, paths)) = self.fetch_proc_macros_queue.should_start_op() {
+                self.fetch_proc_macros(cause, paths);
             }
         }
 
-        if let Some(cause) = self.prime_caches_queue.should_start_op() {
+        if let Some((cause, ())) = self.prime_caches_queue.should_start_op() {
             tracing::debug!(%cause, "will prime caches");
             let num_worker_threads = self.config.prime_caches_num_threads();
 
@@ -462,7 +463,8 @@ impl GlobalState {
                         let workspaces_updated = !Arc::ptr_eq(&old, &self.workspaces);
 
                         if self.config.run_build_scripts() && workspaces_updated {
-                            self.fetch_build_data_queue.request_op(format!("workspace updated"));
+                            self.fetch_build_data_queue
+                                .request_op(format!("workspace updated"), ());
                         }
 
                         (Progress::End, None)
@@ -482,6 +484,22 @@ impl GlobalState {
                         }
 
                         self.switch_workspaces("fetched build data".to_string());
+
+                        (Some(Progress::End), None)
+                    }
+                };
+
+                if let Some(state) = state {
+                    self.report_progress("Building", state, msg, None, None);
+                }
+            }
+            Task::LoadProcMacros(progress) => {
+                let (state, msg) = match progress {
+                    ProcMacroProgress::Begin => (Some(Progress::Begin), None),
+                    ProcMacroProgress::Report(msg) => (Some(Progress::Report), Some(msg)),
+                    ProcMacroProgress::End(proc_macro_load_result) => {
+                        self.fetch_proc_macros_queue.op_completed(true);
+                        self.set_proc_macros(proc_macro_load_result);
 
                         (Some(Progress::End), None)
                     }
@@ -631,18 +649,23 @@ impl GlobalState {
             _ => (),
         }
 
+        use crate::handlers::request as handlers;
+
         dispatcher
             .on_sync_mut::<lsp_ext::ReloadWorkspace>(handlers::handle_workspace_reload)
+            .on_sync_mut::<lsp_ext::RebuildProcMacros>(handlers::handle_proc_macros_rebuild)
             .on_sync_mut::<lsp_ext::MemoryUsage>(handlers::handle_memory_usage)
             .on_sync_mut::<lsp_ext::ShuffleCrateGraph>(handlers::handle_shuffle_crate_graph)
             .on_sync::<lsp_ext::JoinLines>(handlers::handle_join_lines)
             .on_sync::<lsp_ext::OnEnter>(handlers::handle_on_enter)
             .on_sync::<lsp_types::request::SelectionRangeRequest>(handlers::handle_selection_range)
             .on_sync::<lsp_ext::MatchingBrace>(handlers::handle_matching_brace)
+            .on::<lsp_ext::FetchDependencyList>(handlers::fetch_dependency_list)
             .on::<lsp_ext::AnalyzerStatus>(handlers::handle_analyzer_status)
             .on::<lsp_ext::SyntaxTree>(handlers::handle_syntax_tree)
             .on::<lsp_ext::ViewHir>(handlers::handle_view_hir)
             .on::<lsp_ext::ViewMir>(handlers::handle_view_mir)
+            .on::<lsp_ext::InterpretFunction>(handlers::handle_interpret_function)
             .on::<lsp_ext::ViewFileText>(handlers::handle_view_file_text)
             .on::<lsp_ext::ViewCrateGraph>(handlers::handle_view_crate_graph)
             .on::<lsp_ext::ViewItemTree>(handlers::handle_view_item_tree)
@@ -700,282 +723,22 @@ impl GlobalState {
 
     /// Handles an incoming notification.
     fn on_notification(&mut self, not: Notification) -> Result<()> {
-        // FIXME: Move these implementations out into a module similar to on_request
-        fn run_flycheck(this: &mut GlobalState, vfs_path: VfsPath) -> bool {
-            let file_id = this.vfs.read().0.file_id(&vfs_path);
-            if let Some(file_id) = file_id {
-                let world = this.snapshot();
-                let mut updated = false;
-                let task = move || -> std::result::Result<(), ide::Cancelled> {
-                    // Trigger flychecks for all workspaces that depend on the saved file
-                    // Crates containing or depending on the saved file
-                    let crate_ids: Vec<_> = world
-                        .analysis
-                        .crates_for(file_id)?
-                        .into_iter()
-                        .flat_map(|id| world.analysis.transitive_rev_deps(id))
-                        .flatten()
-                        .sorted()
-                        .unique()
-                        .collect();
-
-                    let crate_root_paths: Vec<_> = crate_ids
-                        .iter()
-                        .filter_map(|&crate_id| {
-                            world
-                                .analysis
-                                .crate_root(crate_id)
-                                .map(|file_id| {
-                                    world
-                                        .file_id_to_file_path(file_id)
-                                        .as_path()
-                                        .map(ToOwned::to_owned)
-                                })
-                                .transpose()
-                        })
-                        .collect::<ide::Cancellable<_>>()?;
-                    let crate_root_paths: Vec<_> =
-                        crate_root_paths.iter().map(Deref::deref).collect();
-
-                    // Find all workspaces that have at least one target containing the saved file
-                    let workspace_ids =
-                        world.workspaces.iter().enumerate().filter(|(_, ws)| match ws {
-                            project_model::ProjectWorkspace::Cargo { cargo, .. } => {
-                                cargo.packages().any(|pkg| {
-                                    cargo[pkg].targets.iter().any(|&it| {
-                                        crate_root_paths.contains(&cargo[it].root.as_path())
-                                    })
-                                })
-                            }
-                            project_model::ProjectWorkspace::Json { project, .. } => project
-                                .crates()
-                                .any(|(c, _)| crate_ids.iter().any(|&crate_id| crate_id == c)),
-                            project_model::ProjectWorkspace::DetachedFiles { .. } => false,
-                        });
-
-                    // Find and trigger corresponding flychecks
-                    for flycheck in world.flycheck.iter() {
-                        for (id, _) in workspace_ids.clone() {
-                            if id == flycheck.id() {
-                                updated = true;
-                                flycheck.restart();
-                                continue;
-                            }
-                        }
-                    }
-                    // No specific flycheck was triggered, so let's trigger all of them.
-                    if !updated {
-                        for flycheck in world.flycheck.iter() {
-                            flycheck.restart();
-                        }
-                    }
-                    Ok(())
-                };
-                this.task_pool.handle.spawn_with_sender(move |_| {
-                    if let Err(e) = std::panic::catch_unwind(task) {
-                        tracing::error!("flycheck task panicked: {e:?}")
-                    }
-                });
-                true
-            } else {
-                false
-            }
-        }
+        use crate::handlers::notification as handlers;
+        use lsp_types::notification as notifs;
 
         NotificationDispatcher { not: Some(not), global_state: self }
-            .on::<lsp_types::notification::Cancel>(|this, params| {
-                let id: lsp_server::RequestId = match params.id {
-                    lsp_types::NumberOrString::Number(id) => id.into(),
-                    lsp_types::NumberOrString::String(id) => id.into(),
-                };
-                this.cancel(id);
-                Ok(())
-            })?
-            .on::<lsp_types::notification::WorkDoneProgressCancel>(|this, params| {
-                if let lsp_types::NumberOrString::String(s) = &params.token {
-                    if let Some(id) = s.strip_prefix("rust-analyzer/flycheck/") {
-                        if let Ok(id) = u32::from_str_radix(id, 10) {
-                            if let Some(flycheck) = this.flycheck.get(id as usize) {
-                                flycheck.cancel();
-                            }
-                        }
-                    }
-                }
-                // Just ignore this. It is OK to continue sending progress
-                // notifications for this token, as the client can't know when
-                // we accepted notification.
-                Ok(())
-            })?
-            .on::<lsp_types::notification::DidOpenTextDocument>(|this, params| {
-                if let Ok(path) = from_proto::vfs_path(&params.text_document.uri) {
-                    let already_exists = this
-                        .mem_docs
-                        .insert(path.clone(), DocumentData::new(params.text_document.version))
-                        .is_err();
-                    if already_exists {
-                        tracing::error!("duplicate DidOpenTextDocument: {}", path);
-                    }
-                    this.vfs
-                        .write()
-                        .0
-                        .set_file_contents(path, Some(params.text_document.text.into_bytes()));
-                }
-                Ok(())
-            })?
+            .on::<notifs::Cancel>(handlers::handle_cancel)?
+            .on::<notifs::WorkDoneProgressCancel>(handlers::handle_work_done_progress_cancel)?
+            .on::<notifs::DidOpenTextDocument>(handlers::handle_did_open_text_document)?
+            .on::<notifs::DidChangeTextDocument>(handlers::handle_did_change_text_document)?
+            .on::<notifs::DidCloseTextDocument>(handlers::handle_did_close_text_document)?
+            .on::<notifs::DidSaveTextDocument>(handlers::handle_did_save_text_document)?
+            .on::<notifs::DidChangeConfiguration>(handlers::handle_did_change_configuration)?
+            .on::<notifs::DidChangeWorkspaceFolders>(handlers::handle_did_change_workspace_folders)?
+            .on::<notifs::DidChangeWatchedFiles>(handlers::handle_did_change_watched_files)?
             .on::<lsp_ext::CancelFlycheck>(handlers::handle_cancel_flycheck)?
-            .on::<lsp_types::notification::DidChangeTextDocument>(|this, params| {
-                if let Ok(path) = from_proto::vfs_path(&params.text_document.uri) {
-                    match this.mem_docs.get_mut(&path) {
-                        Some(doc) => {
-                            // The version passed in DidChangeTextDocument is the version after all edits are applied
-                            // so we should apply it before the vfs is notified.
-                            doc.version = params.text_document.version;
-                        }
-                        None => {
-                            tracing::error!("unexpected DidChangeTextDocument: {}", path);
-                            return Ok(());
-                        }
-                    };
-
-                    let vfs = &mut this.vfs.write().0;
-                    let file_id = vfs.file_id(&path).unwrap();
-                    let text = apply_document_changes(
-                        this.config.position_encoding(),
-                        || std::str::from_utf8(vfs.file_contents(file_id)).unwrap().into(),
-                        params.content_changes,
-                    );
-
-                    vfs.set_file_contents(path, Some(text.into_bytes()));
-                }
-                Ok(())
-            })?
-            .on::<lsp_types::notification::DidCloseTextDocument>(|this, params| {
-                if let Ok(path) = from_proto::vfs_path(&params.text_document.uri) {
-                    if this.mem_docs.remove(&path).is_err() {
-                        tracing::error!("orphan DidCloseTextDocument: {}", path);
-                    }
-
-                    this.semantic_tokens_cache.lock().remove(&params.text_document.uri);
-
-                    if let Some(path) = path.as_path() {
-                        this.loader.handle.invalidate(path.to_path_buf());
-                    }
-                }
-                Ok(())
-            })?
-            .on::<lsp_ext::ClearFlycheck>(|this, ()| {
-                this.diagnostics.clear_check_all();
-                Ok(())
-            })?
-            .on::<lsp_ext::RunFlycheck>(|this, params| {
-                if let Some(text_document) = params.text_document {
-                    if let Ok(vfs_path) = from_proto::vfs_path(&text_document.uri) {
-                        if run_flycheck(this, vfs_path) {
-                            return Ok(());
-                        }
-                    }
-                }
-                // No specific flycheck was triggered, so let's trigger all of them.
-                for flycheck in this.flycheck.iter() {
-                    flycheck.restart();
-                }
-                Ok(())
-            })?
-            .on::<lsp_types::notification::DidSaveTextDocument>(|this, params| {
-                if let Ok(vfs_path) = from_proto::vfs_path(&params.text_document.uri) {
-                    // Re-fetch workspaces if a workspace related file has changed
-                    if let Some(abs_path) = vfs_path.as_path() {
-                        if reload::should_refresh_for_change(abs_path, ChangeKind::Modify) {
-                            this.fetch_workspaces_queue
-                                .request_op(format!("DidSaveTextDocument {}", abs_path.display()));
-                        }
-                    }
-
-                    if !this.config.check_on_save() || run_flycheck(this, vfs_path) {
-                        return Ok(());
-                    }
-                } else if this.config.check_on_save() {
-                    // No specific flycheck was triggered, so let's trigger all of them.
-                    for flycheck in this.flycheck.iter() {
-                        flycheck.restart();
-                    }
-                }
-                Ok(())
-            })?
-            .on::<lsp_types::notification::DidChangeConfiguration>(|this, _params| {
-                // As stated in https://github.com/microsoft/language-server-protocol/issues/676,
-                // this notification's parameters should be ignored and the actual config queried separately.
-                this.send_request::<lsp_types::request::WorkspaceConfiguration>(
-                    lsp_types::ConfigurationParams {
-                        items: vec![lsp_types::ConfigurationItem {
-                            scope_uri: None,
-                            section: Some("rust-analyzer".to_string()),
-                        }],
-                    },
-                    |this, resp| {
-                        tracing::debug!("config update response: '{:?}", resp);
-                        let lsp_server::Response { error, result, .. } = resp;
-
-                        match (error, result) {
-                            (Some(err), _) => {
-                                tracing::error!("failed to fetch the server settings: {:?}", err)
-                            }
-                            (None, Some(mut configs)) => {
-                                if let Some(json) = configs.get_mut(0) {
-                                    // Note that json can be null according to the spec if the client can't
-                                    // provide a configuration. This is handled in Config::update below.
-                                    let mut config = Config::clone(&*this.config);
-                                    if let Err(error) = config.update(json.take()) {
-                                        this.show_message(
-                                            lsp_types::MessageType::WARNING,
-                                            error.to_string(),
-                                            false,
-                                        );
-                                    }
-                                    this.update_configuration(config);
-                                }
-                            }
-                            (None, None) => tracing::error!(
-                                "received empty server settings response from the client"
-                            ),
-                        }
-                    },
-                );
-
-                Ok(())
-            })?
-            .on::<lsp_types::notification::DidChangeWorkspaceFolders>(|this, params| {
-                let config = Arc::make_mut(&mut this.config);
-
-                for workspace in params.event.removed {
-                    let Ok(path) = workspace.uri.to_file_path() else { continue };
-                    let Ok(path) = AbsPathBuf::try_from(path) else { continue };
-                    let Some(position) = config.workspace_roots.iter().position(|it| it == &path) else { continue };
-                    config.workspace_roots.remove(position);
-                }
-
-                let added = params
-                    .event
-                    .added
-                    .into_iter()
-                    .filter_map(|it| it.uri.to_file_path().ok())
-                    .filter_map(|it| AbsPathBuf::try_from(it).ok());
-                config.workspace_roots.extend(added);
-                    if !config.has_linked_projects() && config.detached_files().is_empty() {
-                        config.rediscover_workspaces();
-                        this.fetch_workspaces_queue.request_op("client workspaces changed".to_string())
-                    }
-
-                Ok(())
-            })?
-            .on::<lsp_types::notification::DidChangeWatchedFiles>(|this, params| {
-                for change in params.changes {
-                    if let Ok(path) = from_proto::abs_path(&change.uri) {
-                        this.loader.handle.invalidate(path);
-                    }
-                }
-                Ok(())
-            })?
+            .on::<lsp_ext::ClearFlycheck>(handlers::handle_clear_flycheck)?
+            .on::<lsp_ext::RunFlycheck>(handlers::handle_run_flycheck)?
             .finish();
         Ok(())
     }
@@ -1004,7 +767,7 @@ impl GlobalState {
             let diagnostics = subscriptions
                 .into_iter()
                 .filter_map(|file_id| {
-                    handlers::publish_diagnostics(&snapshot, file_id)
+                    crate::handlers::publish_diagnostics(&snapshot, file_id)
                         .ok()
                         .map(|diags| (file_id, diags))
                 })

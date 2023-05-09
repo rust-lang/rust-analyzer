@@ -33,7 +33,7 @@ m!(&k");
 "#,
         expect![[r#"
 macro_rules! m { ($i:literal) => {}; }
-/* error: Failed to lower macro args to token tree */"#]],
+/* error: invalid token tree */"#]],
     );
 }
 
@@ -106,7 +106,6 @@ stringify!(;
 
 #[test]
 fn range_patterns() {
-    // FIXME: rustc thinks there are three patterns here, not one.
     check(
         r#"
 macro_rules! m {
@@ -118,7 +117,7 @@ m!(.. .. ..);
 macro_rules! m {
     ($($p:pat)*) => (stringify!($($p |)*);)
 }
-stringify!(.. .. .. |);
+stringify!(.. | .. | .. |);
 "#]],
     );
 }

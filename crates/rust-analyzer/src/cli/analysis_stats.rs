@@ -2,6 +2,7 @@
 //! errors.
 
 use std::{
+    collections::HashMap,
     env,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -12,7 +13,7 @@ use hir::{
 };
 use hir_def::{
     body::{BodySourceMap, SyntheticSyntax},
-    expr::{ExprId, PatId},
+    hir::{ExprId, PatId},
     FunctionId,
 };
 use hir_ty::{Interner, TyExt, TypeFlags};
@@ -153,6 +154,10 @@ impl flags::AnalysisStats {
             self.run_inference(&host, db, &vfs, &funcs, verbosity);
         }
 
+        if self.mir_stats {
+            self.lower_mir(db, &funcs);
+        }
+
         let total_span = analysis_sw.elapsed();
         eprintln!("{:<20} {total_span}", "Total:");
         report_metric("total time", total_span.time.as_millis() as u64, "ms");
@@ -175,9 +180,8 @@ impl flags::AnalysisStats {
 
             let mut total_macro_file_size = Bytes::default();
             for e in hir::db::ParseMacroExpansionQuery.in_db(db).entries::<Vec<_>>() {
-                if let Some((val, _)) = db.parse_macro_expansion(e.key).value {
-                    total_macro_file_size += syntax_len(val.syntax_node())
-                }
+                let val = db.parse_macro_expansion(e.key).value.0;
+                total_macro_file_size += syntax_len(val.syntax_node())
             }
             eprintln!("source files: {total_file_size}, macro files: {total_macro_file_size}");
         }
@@ -187,6 +191,24 @@ impl flags::AnalysisStats {
         }
 
         Ok(())
+    }
+
+    fn lower_mir(&self, db: &RootDatabase, funcs: &[Function]) {
+        let all = funcs.len();
+        let mut fail = 0;
+        let mut h: HashMap<String, usize> = HashMap::new();
+        for f in funcs {
+            let f = FunctionId::from(*f);
+            let Err(e) = db.mir_body(f.into()) else {
+                continue;
+            };
+            let es = format!("{:?}", e);
+            *h.entry(es).or_default() += 1;
+            fail += 1;
+        }
+        let h = h.into_iter().sorted_by_key(|x| x.1).collect::<Vec<_>>();
+        eprintln!("Mir failed reasons: {:#?}", h);
+        eprintln!("Mir failed bodies: {fail} ({}%)", fail * 100 / all);
     }
 
     fn run_inference(
@@ -510,7 +532,7 @@ fn location_csv_expr(
         Ok(s) => s,
         Err(SyntheticSyntax) => return "synthetic,,".to_string(),
     };
-    let root = db.parse_or_expand(src.file_id).unwrap();
+    let root = db.parse_or_expand(src.file_id);
     let node = src.map(|e| e.to_node(&root).syntax().clone());
     let original_range = node.as_ref().original_file_range(db);
     let path = vfs.file_path(original_range.file_id);
@@ -532,7 +554,7 @@ fn location_csv_pat(
         Ok(s) => s,
         Err(SyntheticSyntax) => return "synthetic,,".to_string(),
     };
-    let root = db.parse_or_expand(src.file_id).unwrap();
+    let root = db.parse_or_expand(src.file_id);
     let node = src.map(|e| {
         e.either(|it| it.to_node(&root).syntax().clone(), |it| it.to_node(&root).syntax().clone())
     });
@@ -554,7 +576,7 @@ fn expr_syntax_range(
 ) -> Option<(VfsPath, LineCol, LineCol)> {
     let src = sm.expr_syntax(expr_id);
     if let Ok(src) = src {
-        let root = db.parse_or_expand(src.file_id).unwrap();
+        let root = db.parse_or_expand(src.file_id);
         let node = src.map(|e| e.to_node(&root).syntax().clone());
         let original_range = node.as_ref().original_file_range(db);
         let path = vfs.file_path(original_range.file_id);
@@ -576,7 +598,7 @@ fn pat_syntax_range(
 ) -> Option<(VfsPath, LineCol, LineCol)> {
     let src = sm.pat_syntax(pat_id);
     if let Ok(src) = src {
-        let root = db.parse_or_expand(src.file_id).unwrap();
+        let root = db.parse_or_expand(src.file_id);
         let node = src.map(|e| {
             e.either(
                 |it| it.to_node(&root).syntax().clone(),

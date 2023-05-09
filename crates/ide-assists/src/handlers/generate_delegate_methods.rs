@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use hir::{self, HasCrate, HasSource, HasVisibility};
 use syntax::ast::{self, make, AstNode, HasGenericParams, HasName, HasVisibility as _};
 
@@ -63,21 +65,29 @@ pub(crate) fn generate_delegate_methods(acc: &mut Assists, ctx: &AssistContext<'
     };
 
     let sema_field_ty = ctx.sema.resolve_type(&field_ty)?;
-    let krate = sema_field_ty.krate(ctx.db());
     let mut methods = vec![];
-    sema_field_ty.iterate_assoc_items(ctx.db(), krate, |item| {
-        if let hir::AssocItem::Function(f) = item {
-            if f.self_param(ctx.db()).is_some() && f.is_visible_from(ctx.db(), current_module) {
-                methods.push(f)
+    let mut seen_names = HashSet::new();
+
+    for ty in sema_field_ty.autoderef(ctx.db()) {
+        let krate = ty.krate(ctx.db());
+        ty.iterate_assoc_items(ctx.db(), krate, |item| {
+            if let hir::AssocItem::Function(f) = item {
+                if f.self_param(ctx.db()).is_some()
+                    && f.is_visible_from(ctx.db(), current_module)
+                    && seen_names.insert(f.name(ctx.db()))
+                {
+                    methods.push(f)
+                }
             }
-        }
-        Option::<()>::None
-    });
+            Option::<()>::None
+        });
+    }
 
     for method in methods {
         let adt = ast::Adt::Struct(strukt.clone());
         let name = method.name(ctx.db()).to_string();
-        let impl_def = find_struct_impl(ctx, &adt, &[name]).flatten();
+        // if `find_struct_impl` returns None, that means that a function named `name` already exists.
+        let Some(impl_def) = find_struct_impl(ctx, &adt, &[name]) else { continue; };
         acc.add_group(
             &GroupLabel("Generate delegate methods…".to_owned()),
             AssistId("generate_delegate_methods", AssistKind::Generate),
@@ -315,6 +325,44 @@ impl<T> Person<T> {
     }
 
     #[test]
+    fn test_generates_delegate_autoderef() {
+        check_assist(
+            generate_delegate_methods,
+            r#"
+//- minicore: deref
+struct Age(u8);
+impl Age {
+    fn age(&self) -> u8 {
+        self.0
+    }
+}
+struct AgeDeref(Age);
+impl core::ops::Deref for AgeDeref { type Target = Age; }
+struct Person {
+    ag$0e: AgeDeref,
+}
+impl Person {}"#,
+            r#"
+struct Age(u8);
+impl Age {
+    fn age(&self) -> u8 {
+        self.0
+    }
+}
+struct AgeDeref(Age);
+impl core::ops::Deref for AgeDeref { type Target = Age; }
+struct Person {
+    age: AgeDeref,
+}
+impl Person {
+    $0fn age(&self) -> u8 {
+        self.age.age()
+    }
+}"#,
+        );
+    }
+
+    #[test]
     fn test_generate_delegate_visibility() {
         check_assist_not_applicable(
             generate_delegate_methods,
@@ -332,5 +380,27 @@ struct Person {
     ag$0e: m::Age,
 }"#,
         )
+    }
+
+    #[test]
+    fn test_generate_not_eligible_if_fn_exists() {
+        check_assist_not_applicable(
+            generate_delegate_methods,
+            r#"
+struct Age(u8);
+impl Age {
+    fn age(&self) -> u8 {
+        self.0
+    }
+}
+
+struct Person {
+    ag$0e: Age,
+}
+impl Person {
+    fn age(&self) -> u8 { 0 }
+}
+"#,
+        );
     }
 }

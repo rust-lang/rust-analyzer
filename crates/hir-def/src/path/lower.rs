@@ -2,17 +2,15 @@
 
 use std::iter;
 
-use crate::type_ref::ConstRefOrPath;
+use crate::{lower::LowerCtx, type_ref::ConstRefOrPath};
 
 use either::Either;
 use hir_expand::name::{name, AsName};
 use intern::Interned;
 use syntax::ast::{self, AstNode, HasTypeBounds};
 
-use super::AssociatedTypeBinding;
 use crate::{
-    body::LowerCtx,
-    path::{GenericArg, GenericArgs, ModPath, Path, PathKind},
+    path::{AssociatedTypeBinding, GenericArg, GenericArgs, ModPath, Path, PathKind},
     type_ref::{LifetimeRef, TypeBound, TypeRef},
 };
 
@@ -75,8 +73,11 @@ pub(super) fn lower_path(mut path: ast::Path, ctx: &LowerCtx<'_>) -> Option<Path
                     }
                     // <T as Trait<A>>::Foo desugars to Trait<Self=T, A>::Foo
                     Some(trait_ref) => {
-                        let Path { mod_path, generic_args: path_generic_args, .. } =
-                            Path::from_src(trait_ref.path()?, ctx)?;
+                        let Path::Normal { mod_path, generic_args: path_generic_args, .. } =
+                            Path::from_src(trait_ref.path()?, ctx)? else
+                        {
+                            return None;
+                        };
                         let num_segments = mod_path.segments().len();
                         kind = mod_path.kind;
 
@@ -157,7 +158,7 @@ pub(super) fn lower_path(mut path: ast::Path, ctx: &LowerCtx<'_>) -> Option<Path
     }
 
     let mod_path = Interned::new(ModPath::from_segments(kind, segments));
-    return Some(Path {
+    return Some(Path::Normal {
         type_anchor,
         mod_path,
         generic_args: if generic_args.is_empty() { None } else { Some(generic_args.into()) },
@@ -214,6 +215,9 @@ pub(super) fn lower_generic_args(
             ast::GenericArg::ConstArg(arg) => {
                 let arg = ConstRefOrPath::from_expr_opt(arg.expr());
                 args.push(GenericArg::Const(arg))
+            }
+            ast::GenericArg::ReturnTypeArg(_) => {
+                // FIXME: return type notation is experimental, we don't do anything with it yet.
             }
         }
     }

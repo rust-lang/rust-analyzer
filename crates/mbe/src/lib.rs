@@ -69,7 +69,7 @@ impl fmt::Display for ParseError {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub enum ExpandError {
     BindingError(Box<Box<str>>),
     LeftoverTokens,
@@ -104,9 +104,12 @@ impl fmt::Display for ExpandError {
 /// and `$()*` have special meaning (see `Var` and `Repeat` data structures)
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeclarativeMacro {
-    rules: Vec<Rule>,
+    rules: Box<[Rule]>,
     /// Highest id of the token we have in TokenMap
     shift: Shift,
+    // This is used for correctly determining the behavior of the pat fragment
+    // FIXME: This should be tracked by hygiene of the fragment identifier!
+    is_2021: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -190,7 +193,10 @@ pub enum Origin {
 
 impl DeclarativeMacro {
     /// The old, `macro_rules! m {}` flavor.
-    pub fn parse_macro_rules(tt: &tt::Subtree) -> Result<DeclarativeMacro, ParseError> {
+    pub fn parse_macro_rules(
+        tt: &tt::Subtree,
+        is_2021: bool,
+    ) -> Result<DeclarativeMacro, ParseError> {
         // Note: this parsing can be implemented using mbe machinery itself, by
         // matching against `$($lhs:tt => $rhs:tt);*` pattern, but implementing
         // manually seems easier.
@@ -211,11 +217,11 @@ impl DeclarativeMacro {
             validate(lhs)?;
         }
 
-        Ok(DeclarativeMacro { rules, shift: Shift::new(tt) })
+        Ok(DeclarativeMacro { rules: rules.into_boxed_slice(), shift: Shift::new(tt), is_2021 })
     }
 
     /// The new, unstable `macro m {}` flavor.
-    pub fn parse_macro2(tt: &tt::Subtree) -> Result<DeclarativeMacro, ParseError> {
+    pub fn parse_macro2(tt: &tt::Subtree, is_2021: bool) -> Result<DeclarativeMacro, ParseError> {
         let mut src = TtIter::new(tt);
         let mut rules = Vec::new();
 
@@ -244,14 +250,14 @@ impl DeclarativeMacro {
             validate(lhs)?;
         }
 
-        Ok(DeclarativeMacro { rules, shift: Shift::new(tt) })
+        Ok(DeclarativeMacro { rules: rules.into_boxed_slice(), shift: Shift::new(tt), is_2021 })
     }
 
     pub fn expand(&self, tt: &tt::Subtree) -> ExpandResult<tt::Subtree> {
         // apply shift
         let mut tt = tt.clone();
         self.shift.shift_all(&mut tt);
-        expander::expand_rules(&self.rules, &tt)
+        expander::expand_rules(&self.rules, &tt, self.is_2021)
     }
 
     pub fn map_id_down(&self, id: tt::TokenId) -> tt::TokenId {
@@ -324,12 +330,12 @@ pub struct ValueResult<T, E> {
 }
 
 impl<T, E> ValueResult<T, E> {
-    pub fn ok(value: T) -> Self {
-        Self { value, err: None }
+    pub fn new(value: T, err: E) -> Self {
+        Self { value, err: Some(err) }
     }
 
-    pub fn with_err(value: T, err: E) -> Self {
-        Self { value, err: Some(err) }
+    pub fn ok(value: T) -> Self {
+        Self { value, err: None }
     }
 
     pub fn only_err(err: E) -> Self

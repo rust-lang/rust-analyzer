@@ -7,8 +7,7 @@ use std::fmt::{self, Debug};
 use base_db::CrateId;
 use chalk_ir::{BoundVar, TyKind};
 use hir_def::{
-    adt::VariantData,
-    body,
+    data::adt::VariantData,
     db::DefDatabase,
     find_path,
     generics::{TypeOrConstParamData, TypeParamProvenance},
@@ -23,6 +22,7 @@ use hir_expand::{hygiene::Hygiene, name::Name};
 use intern::{Internable, Interned};
 use itertools::Itertools;
 use smallvec::SmallVec;
+use stdx::never;
 
 use crate::{
     db::HirDatabase,
@@ -32,7 +32,7 @@ use crate::{
     mapping::from_chalk,
     mir::pad16,
     primitive, to_assoc_type_id,
-    utils::{self, generics},
+    utils::{self, generics, ClosureSubst},
     AdtId, AliasEq, AliasTy, Binders, CallableDefId, CallableSig, Const, ConstScalar, ConstValue,
     DomainGoal, GenericArg, ImplTraitId, Interner, Lifetime, LifetimeData, LifetimeOutlives,
     MemoryMap, Mutability, OpaqueTy, ProjectionTy, ProjectionTyExt, QuantifiedWhereClause, Scalar,
@@ -64,6 +64,7 @@ pub struct HirFormatter<'a> {
     curr_size: usize,
     pub(crate) max_size: Option<usize>,
     omit_verbose_types: bool,
+    closure_style: ClosureStyle,
     display_target: DisplayTarget,
 }
 
@@ -87,6 +88,7 @@ pub trait HirDisplay {
         max_size: Option<usize>,
         omit_verbose_types: bool,
         display_target: DisplayTarget,
+        closure_style: ClosureStyle,
     ) -> HirDisplayWrapper<'a, Self>
     where
         Self: Sized,
@@ -95,7 +97,14 @@ pub trait HirDisplay {
             !matches!(display_target, DisplayTarget::SourceCode { .. }),
             "HirDisplayWrapper cannot fail with DisplaySourceCodeError, use HirDisplay::hir_fmt directly instead"
         );
-        HirDisplayWrapper { db, t: self, max_size, omit_verbose_types, display_target }
+        HirDisplayWrapper {
+            db,
+            t: self,
+            max_size,
+            omit_verbose_types,
+            display_target,
+            closure_style,
+        }
     }
 
     /// Returns a `Display`able type that is human-readable.
@@ -109,6 +118,7 @@ pub trait HirDisplay {
             t: self,
             max_size: None,
             omit_verbose_types: false,
+            closure_style: ClosureStyle::ImplFn,
             display_target: DisplayTarget::Diagnostics,
         }
     }
@@ -128,6 +138,7 @@ pub trait HirDisplay {
             t: self,
             max_size,
             omit_verbose_types: true,
+            closure_style: ClosureStyle::ImplFn,
             display_target: DisplayTarget::Diagnostics,
         }
     }
@@ -138,6 +149,7 @@ pub trait HirDisplay {
         &'a self,
         db: &'a dyn HirDatabase,
         module_id: ModuleId,
+        allow_opaque: bool,
     ) -> Result<String, DisplaySourceCodeError> {
         let mut result = String::new();
         match self.hir_fmt(&mut HirFormatter {
@@ -147,7 +159,8 @@ pub trait HirDisplay {
             curr_size: 0,
             max_size: None,
             omit_verbose_types: false,
-            display_target: DisplayTarget::SourceCode { module_id },
+            closure_style: ClosureStyle::ImplFn,
+            display_target: DisplayTarget::SourceCode { module_id, allow_opaque },
         }) {
             Ok(()) => {}
             Err(HirDisplayError::FmtError) => panic!("Writing to String can't fail!"),
@@ -166,6 +179,7 @@ pub trait HirDisplay {
             t: self,
             max_size: None,
             omit_verbose_types: false,
+            closure_style: ClosureStyle::ImplFn,
             display_target: DisplayTarget::Test,
         }
     }
@@ -235,17 +249,25 @@ pub enum DisplayTarget {
     Diagnostics,
     /// Display types for inserting them in source files.
     /// The generated code should compile, so paths need to be qualified.
-    SourceCode { module_id: ModuleId },
+    SourceCode { module_id: ModuleId, allow_opaque: bool },
     /// Only for test purpose to keep real types
     Test,
 }
 
 impl DisplayTarget {
-    fn is_source_code(&self) -> bool {
+    fn is_source_code(self) -> bool {
         matches!(self, Self::SourceCode { .. })
     }
-    fn is_test(&self) -> bool {
+
+    fn is_test(self) -> bool {
         matches!(self, Self::Test)
+    }
+
+    fn allows_opaque(self) -> bool {
+        match self {
+            Self::SourceCode { allow_opaque, .. } => allow_opaque,
+            _ => true,
+        }
     }
 }
 
@@ -253,8 +275,8 @@ impl DisplayTarget {
 pub enum DisplaySourceCodeError {
     PathNotFound,
     UnknownType,
-    Closure,
     Generator,
+    OpaqueType,
 }
 
 pub enum HirDisplayError {
@@ -274,7 +296,21 @@ pub struct HirDisplayWrapper<'a, T> {
     t: &'a T,
     max_size: Option<usize>,
     omit_verbose_types: bool,
+    closure_style: ClosureStyle,
     display_target: DisplayTarget,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum ClosureStyle {
+    /// `impl FnX(i32, i32) -> i32`, where `FnX` is the most special trait between `Fn`, `FnMut`, `FnOnce` that the
+    /// closure implements. This is the default.
+    ImplFn,
+    /// `|i32, i32| -> i32`
+    RANotation,
+    /// `{closure#14825}`, useful for some diagnostics (like type mismatch) and internal usage.
+    ClosureWithId,
+    /// `…`, which is the `TYPE_HINT_TRUNCATION`
+    Hide,
 }
 
 impl<T: HirDisplay> HirDisplayWrapper<'_, T> {
@@ -287,7 +323,13 @@ impl<T: HirDisplay> HirDisplayWrapper<'_, T> {
             max_size: self.max_size,
             omit_verbose_types: self.omit_verbose_types,
             display_target: self.display_target,
+            closure_style: self.closure_style,
         })
+    }
+
+    pub fn with_closure_style(mut self, c: ClosureStyle) -> Self {
+        self.closure_style = c;
+        self
     }
 }
 
@@ -377,6 +419,16 @@ impl HirDisplay for Const {
             }
             ConstValue::Concrete(c) => match &c.interned {
                 ConstScalar::Bytes(b, m) => render_const_scalar(f, &b, m, &data.ty),
+                ConstScalar::UnevaluatedConst(c, parameters) => {
+                    let const_data = f.db.const_data(*c);
+                    write!(
+                        f,
+                        "{}",
+                        const_data.name.as_ref().and_then(|x| x.as_str()).unwrap_or("_")
+                    )?;
+                    hir_fmt_generics(f, parameters, Some((*c).into()))?;
+                    Ok(())
+                }
                 ConstScalar::Unknown => f.write_char('_'),
             },
         }
@@ -443,7 +495,7 @@ fn render_const_scalar(
         chalk_ir::TyKind::Ref(_, _, t) => match t.kind(Interner) {
             chalk_ir::TyKind::Str => {
                 let addr = usize::from_le_bytes(b[0..b.len() / 2].try_into().unwrap());
-                let bytes = memory_map.0.get(&addr).map(|x| &**x).unwrap_or(&[]);
+                let bytes = memory_map.memory.get(&addr).map(|x| &**x).unwrap_or(&[]);
                 let s = std::str::from_utf8(bytes).unwrap_or("<utf8-error>");
                 write!(f, "{s:?}")
             }
@@ -532,6 +584,11 @@ fn render_const_scalar(
             hir_def::AdtId::EnumId(_) => f.write_str("<enum-not-supported>"),
         },
         chalk_ir::TyKind::FnDef(..) => ty.hir_fmt(f),
+        chalk_ir::TyKind::Raw(_, _) => {
+            let x = u128::from_le_bytes(pad16(b, false));
+            write!(f, "{:#X} as ", x)?;
+            ty.hir_fmt(f)
+        }
         _ => f.write_str("<not-supported>"),
     }
 }
@@ -735,7 +792,7 @@ impl HirDisplay for Ty {
                         };
                         write!(f, "{name}")?;
                     }
-                    DisplayTarget::SourceCode { module_id } => {
+                    DisplayTarget::SourceCode { module_id, allow_opaque: _ } => {
                         if let Some(path) = find_path::find_path(
                             db.upcast(),
                             ItemInNs::Types((*def_id).into()),
@@ -752,82 +809,9 @@ impl HirDisplay for Ty {
                 }
                 f.end_location_link();
 
-                if parameters.len(Interner) > 0 {
-                    let parameters_to_write = if f.display_target.is_source_code()
-                        || f.omit_verbose_types()
-                    {
-                        match self
-                            .as_generic_def(db)
-                            .map(|generic_def_id| db.generic_defaults(generic_def_id))
-                            .filter(|defaults| !defaults.is_empty())
-                        {
-                            None => parameters.as_slice(Interner),
-                            Some(default_parameters) => {
-                                fn should_show(
-                                    parameter: &GenericArg,
-                                    default_parameters: &[Binders<GenericArg>],
-                                    i: usize,
-                                    parameters: &Substitution,
-                                ) -> bool {
-                                    if parameter.ty(Interner).map(|x| x.kind(Interner))
-                                        == Some(&TyKind::Error)
-                                    {
-                                        return true;
-                                    }
-                                    if let Some(ConstValue::Concrete(c)) = parameter
-                                        .constant(Interner)
-                                        .map(|x| &x.data(Interner).value)
-                                    {
-                                        if c.interned == ConstScalar::Unknown {
-                                            return true;
-                                        }
-                                    }
-                                    let default_parameter = match default_parameters.get(i) {
-                                        Some(x) => x,
-                                        None => return true,
-                                    };
-                                    let actual_default =
-                                        default_parameter.clone().substitute(Interner, &parameters);
-                                    parameter != &actual_default
-                                }
-                                let mut default_from = 0;
-                                for (i, parameter) in parameters.iter(Interner).enumerate() {
-                                    if should_show(parameter, &default_parameters, i, parameters) {
-                                        default_from = i + 1;
-                                    }
-                                }
-                                &parameters.as_slice(Interner)[0..default_from]
-                            }
-                        }
-                    } else {
-                        parameters.as_slice(Interner)
-                    };
-                    if !parameters_to_write.is_empty() {
-                        write!(f, "<")?;
+                let generic_def = self.as_generic_def(db);
 
-                        if f.display_target.is_source_code() {
-                            let mut first = true;
-                            for generic_arg in parameters_to_write {
-                                if !first {
-                                    write!(f, ", ")?;
-                                }
-                                first = false;
-
-                                if generic_arg.ty(Interner).map(|ty| ty.kind(Interner))
-                                    == Some(&TyKind::Error)
-                                {
-                                    write!(f, "_")?;
-                                } else {
-                                    generic_arg.hir_fmt(f)?;
-                                }
-                            }
-                        } else {
-                            f.write_joined(parameters_to_write, ", ")?;
-                        }
-
-                        write!(f, ">")?;
-                    }
-                }
+                hir_fmt_generics(f, parameters, generic_def)?;
             }
             TyKind::AssociatedType(assoc_type_id, parameters) => {
                 let type_alias = from_assoc_type_id(*assoc_type_id);
@@ -873,6 +857,11 @@ impl HirDisplay for Ty {
                 f.end_location_link();
             }
             TyKind::OpaqueType(opaque_ty_id, parameters) => {
+                if !f.display_target.allows_opaque() {
+                    return Err(HirDisplayError::DisplaySourceCodeError(
+                        DisplaySourceCodeError::OpaqueType,
+                    ));
+                }
                 let impl_trait_id = db.lookup_intern_impl_trait_id((*opaque_ty_id).into());
                 match impl_trait_id {
                     ImplTraitId::ReturnTypeImplTrait(func, idx) => {
@@ -919,26 +908,48 @@ impl HirDisplay for Ty {
                     }
                 }
             }
-            TyKind::Closure(.., substs) => {
+            TyKind::Closure(id, substs) => {
                 if f.display_target.is_source_code() {
-                    return Err(HirDisplayError::DisplaySourceCodeError(
-                        DisplaySourceCodeError::Closure,
-                    ));
+                    if !f.display_target.allows_opaque() {
+                        return Err(HirDisplayError::DisplaySourceCodeError(
+                            DisplaySourceCodeError::OpaqueType,
+                        ));
+                    } else if f.closure_style != ClosureStyle::ImplFn {
+                        never!("Only `impl Fn` is valid for displaying closures in source code");
+                    }
                 }
-                let sig = substs.at(Interner, 0).assert_ty_ref(Interner).callable_sig(db);
+                match f.closure_style {
+                    ClosureStyle::Hide => return write!(f, "{TYPE_HINT_TRUNCATION}"),
+                    ClosureStyle::ClosureWithId => {
+                        return write!(f, "{{closure#{:?}}}", id.0.as_u32())
+                    }
+                    _ => (),
+                }
+                let sig = ClosureSubst(substs).sig_ty().callable_sig(db);
                 if let Some(sig) = sig {
+                    let (def, _) = db.lookup_intern_closure((*id).into());
+                    let infer = db.infer(def);
+                    let (_, kind) = infer.closure_info(id);
+                    match f.closure_style {
+                        ClosureStyle::ImplFn => write!(f, "impl {kind:?}(")?,
+                        ClosureStyle::RANotation => write!(f, "|")?,
+                        _ => unreachable!(),
+                    }
                     if sig.params().is_empty() {
-                        write!(f, "||")?;
                     } else if f.should_truncate() {
-                        write!(f, "|{TYPE_HINT_TRUNCATION}|")?;
+                        write!(f, "{TYPE_HINT_TRUNCATION}")?;
                     } else {
-                        write!(f, "|")?;
                         f.write_joined(sig.params(), ", ")?;
-                        write!(f, "|")?;
                     };
-
-                    write!(f, " -> ")?;
-                    sig.ret().hir_fmt(f)?;
+                    match f.closure_style {
+                        ClosureStyle::ImplFn => write!(f, ")")?,
+                        ClosureStyle::RANotation => write!(f, "|")?,
+                        _ => unreachable!(),
+                    }
+                    if f.closure_style == ClosureStyle::RANotation || !sig.ret().is_unit() {
+                        write!(f, " -> ")?;
+                        sig.ret().hir_fmt(f)?;
+                    }
                 } else {
                     write!(f, "{{closure}}")?;
                 }
@@ -1004,6 +1015,11 @@ impl HirDisplay for Ty {
             }
             TyKind::Alias(AliasTy::Projection(p_ty)) => p_ty.hir_fmt(f)?,
             TyKind::Alias(AliasTy::Opaque(opaque_ty)) => {
+                if !f.display_target.allows_opaque() {
+                    return Err(HirDisplayError::DisplaySourceCodeError(
+                        DisplaySourceCodeError::OpaqueType,
+                    ));
+                }
                 let impl_trait_id = db.lookup_intern_impl_trait_id(opaque_ty.opaque_ty_id.into());
                 match impl_trait_id {
                     ImplTraitId::ReturnTypeImplTrait(func, idx) => {
@@ -1065,6 +1081,85 @@ impl HirDisplay for Ty {
         }
         Ok(())
     }
+}
+
+fn hir_fmt_generics(
+    f: &mut HirFormatter<'_>,
+    parameters: &Substitution,
+    generic_def: Option<hir_def::GenericDefId>,
+) -> Result<(), HirDisplayError> {
+    let db = f.db;
+    if parameters.len(Interner) > 0 {
+        let parameters_to_write = if f.display_target.is_source_code() || f.omit_verbose_types() {
+            match generic_def
+                .map(|generic_def_id| db.generic_defaults(generic_def_id))
+                .filter(|defaults| !defaults.is_empty())
+            {
+                None => parameters.as_slice(Interner),
+                Some(default_parameters) => {
+                    fn should_show(
+                        parameter: &GenericArg,
+                        default_parameters: &[Binders<GenericArg>],
+                        i: usize,
+                        parameters: &Substitution,
+                    ) -> bool {
+                        if parameter.ty(Interner).map(|x| x.kind(Interner)) == Some(&TyKind::Error)
+                        {
+                            return true;
+                        }
+                        if let Some(ConstValue::Concrete(c)) =
+                            parameter.constant(Interner).map(|x| &x.data(Interner).value)
+                        {
+                            if c.interned == ConstScalar::Unknown {
+                                return true;
+                            }
+                        }
+                        let default_parameter = match default_parameters.get(i) {
+                            Some(x) => x,
+                            None => return true,
+                        };
+                        let actual_default =
+                            default_parameter.clone().substitute(Interner, &parameters);
+                        parameter != &actual_default
+                    }
+                    let mut default_from = 0;
+                    for (i, parameter) in parameters.iter(Interner).enumerate() {
+                        if should_show(parameter, &default_parameters, i, parameters) {
+                            default_from = i + 1;
+                        }
+                    }
+                    &parameters.as_slice(Interner)[0..default_from]
+                }
+            }
+        } else {
+            parameters.as_slice(Interner)
+        };
+        if !parameters_to_write.is_empty() {
+            write!(f, "<")?;
+
+            if f.display_target.is_source_code() {
+                let mut first = true;
+                for generic_arg in parameters_to_write {
+                    if !first {
+                        write!(f, ", ")?;
+                    }
+                    first = false;
+
+                    if generic_arg.ty(Interner).map(|ty| ty.kind(Interner)) == Some(&TyKind::Error)
+                    {
+                        write!(f, "_")?;
+                    } else {
+                        generic_arg.hir_fmt(f)?;
+                    }
+                }
+            } else {
+                f.write_joined(parameters_to_write, ", ")?;
+            }
+
+            write!(f, ">")?;
+        }
+    }
+    Ok(())
 }
 
 impl HirDisplay for CallableSig {
@@ -1477,7 +1572,10 @@ impl HirDisplay for TypeRef {
             }
             TypeRef::Macro(macro_call) => {
                 let macro_call = macro_call.to_node(f.db.upcast());
-                let ctx = body::LowerCtx::with_hygiene(f.db.upcast(), &Hygiene::new_unhygienic());
+                let ctx = hir_def::lower::LowerCtx::with_hygiene(
+                    f.db.upcast(),
+                    &Hygiene::new_unhygienic(),
+                );
                 match macro_call.path() {
                     Some(path) => match Path::from_src(path, &ctx) {
                         Some(path) => path.hir_fmt(f)?,

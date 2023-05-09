@@ -70,6 +70,11 @@ pub(crate) fn extract_function(acc: &mut Assists, ctx: &AssistContext<'_>) -> Op
     }
 
     let node = ctx.covering_element();
+    if matches!(node.kind(), T!['{'] | T!['}'] | T!['('] | T![')'] | T!['['] | T![']']) {
+        cov_mark::hit!(extract_function_in_braces_is_not_applicable);
+        return None;
+    }
+
     if node.kind() == COMMENT {
         cov_mark::hit!(extract_function_in_comment_is_not_applicable);
         return None;
@@ -369,7 +374,7 @@ struct OutlivedLocal {
 
 /// Container of local variable usages
 ///
-/// Semanticall same as `UsageSearchResult`, but provides more convenient interface
+/// Semantically same as `UsageSearchResult`, but provides more convenient interface
 struct LocalUsages(ide_db::search::UsageSearchResult);
 
 impl LocalUsages {
@@ -1286,8 +1291,8 @@ fn find_non_trait_impl(trait_impl: &SyntaxNode) -> Option<ast::Impl> {
     let as_impl = ast::Impl::cast(trait_impl.clone())?;
     let impl_type = Some(impl_type_name(&as_impl)?);
 
-    let sibblings = trait_impl.parent()?.children();
-    sibblings
+    let siblings = trait_impl.parent()?.children();
+    siblings
         .filter_map(ast::Impl::cast)
         .find(|s| impl_type_name(s) == impl_type && !is_trait_impl(s))
 }
@@ -1879,7 +1884,7 @@ fn with_tail_expr(block: ast::BlockExpr, tail_expr: ast::Expr) -> ast::BlockExpr
 }
 
 fn format_type(ty: &hir::Type, ctx: &AssistContext<'_>, module: hir::Module) -> String {
-    ty.display_source_code(ctx.db(), module.into()).ok().unwrap_or_else(|| "_".to_string())
+    ty.display_source_code(ctx.db(), module.into(), true).ok().unwrap_or_else(|| "_".to_string())
 }
 
 fn make_ty(ty: &hir::Type, ctx: &AssistContext<'_>, module: hir::Module) -> ast::Type {
@@ -5799,5 +5804,41 @@ fn $0fun_name() -> ControlFlow<()> {
 }
 "#,
         );
+    }
+
+    #[test]
+    fn in_left_curly_is_not_applicable() {
+        cov_mark::check!(extract_function_in_braces_is_not_applicable);
+        check_assist_not_applicable(extract_function, r"fn foo() { $0}$0");
+    }
+
+    #[test]
+    fn in_right_curly_is_not_applicable() {
+        cov_mark::check!(extract_function_in_braces_is_not_applicable);
+        check_assist_not_applicable(extract_function, r"fn foo() $0{$0 }");
+    }
+
+    #[test]
+    fn in_left_paren_is_not_applicable() {
+        cov_mark::check!(extract_function_in_braces_is_not_applicable);
+        check_assist_not_applicable(extract_function, r"fn foo( $0)$0 { }");
+    }
+
+    #[test]
+    fn in_right_paren_is_not_applicable() {
+        cov_mark::check!(extract_function_in_braces_is_not_applicable);
+        check_assist_not_applicable(extract_function, r"fn foo $0($0 ) { }");
+    }
+
+    #[test]
+    fn in_left_brack_is_not_applicable() {
+        cov_mark::check!(extract_function_in_braces_is_not_applicable);
+        check_assist_not_applicable(extract_function, r"fn foo(arr: &mut [i32$0]$0) {}");
+    }
+
+    #[test]
+    fn in_right_brack_is_not_applicable() {
+        cov_mark::check!(extract_function_in_braces_is_not_applicable);
+        check_assist_not_applicable(extract_function, r"fn foo(arr: &mut $0[$0i32]) {}");
     }
 }

@@ -97,7 +97,7 @@ pub use crate::{
 
 /// Main entry point for completion. We run completion as a two-phase process.
 ///
-/// First, we look at the position and collect a so-called `CompletionContext.
+/// First, we look at the position and collect a so-called `CompletionContext`.
 /// This is a somewhat messy process, because, during completion, syntax tree is
 /// incomplete and can look really weird.
 ///
@@ -133,7 +133,7 @@ pub use crate::{
 ///
 /// Another case where this would be instrumental is macro expansion. We want to
 /// insert a fake ident and re-expand code. There's `expand_speculative` as a
-/// work-around for this.
+/// workaround for this.
 ///
 /// A different use-case is completion of injection (examples and links in doc
 /// comments). When computing completion for a path in a doc-comment, you want

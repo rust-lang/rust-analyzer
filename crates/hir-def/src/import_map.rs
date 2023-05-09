@@ -1,6 +1,6 @@
 //! A map of all publicly exported items in a crate.
 
-use std::{fmt, hash::BuildHasherDefault, sync::Arc};
+use std::{fmt, hash::BuildHasherDefault};
 
 use base_db::CrateId;
 use fst::{self, Streamer};
@@ -8,6 +8,7 @@ use hir_expand::name::Name;
 use indexmap::{map::Entry, IndexMap};
 use itertools::Itertools;
 use rustc_hash::{FxHashSet, FxHasher};
+use triomphe::Arc;
 
 use crate::{
     db::DefDatabase, item_scope::ItemInNs, visibility::Visibility, AssocItemId, ModuleDefId,
@@ -167,7 +168,11 @@ fn collect_import_map(db: &dyn DefDatabase, krate: CrateId) -> ImportMap {
 
         let visible_items = mod_data.scope.entries().filter_map(|(name, per_ns)| {
             let per_ns = per_ns.filter_visibility(|vis| vis == Visibility::Public);
-            if per_ns.is_none() { None } else { Some((name, per_ns)) }
+            if per_ns.is_none() {
+                None
+            } else {
+                Some((name, per_ns))
+            }
         });
 
         for (name, per_ns) in visible_items {
@@ -472,7 +477,7 @@ mod tests {
     use base_db::{fixture::WithFixture, SourceDatabase, Upcast};
     use expect_test::{expect, Expect};
 
-    use crate::{test_db::TestDB, ItemContainerId, Lookup};
+    use crate::{db::DefDatabase, test_db::TestDB, ItemContainerId, Lookup};
 
     use super::*;
 

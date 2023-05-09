@@ -66,6 +66,8 @@ xflags::xflags! {
             optional --memory-usage
             /// Print the total length of all source and macro files (whitespace is not counted).
             optional --source-stats
+            /// Print the number of bodies that fail to lower to mir, in addition to failed reasons.
+            optional --mir-stats
 
             /// Only analyze items matching this path.
             optional -o, --only path: String
@@ -104,8 +106,6 @@ xflags::xflags! {
             optional --debug snippet: String
         }
 
-        cmd proc-macro {}
-
         cmd lsif {
             required path: PathBuf
         }
@@ -139,7 +139,6 @@ pub enum RustAnalyzerCmd {
     Diagnostics(Diagnostics),
     Ssr(Ssr),
     Search(Search),
-    ProcMacro(ProcMacro),
     Lsif(Lsif),
     Scip(Scip),
 }
@@ -172,6 +171,7 @@ pub struct AnalysisStats {
     pub parallel: bool,
     pub memory_usage: bool,
     pub source_stats: bool,
+    pub mir_stats: bool,
     pub only: Option<String>,
     pub with_deps: bool,
     pub no_sysroot: bool,
@@ -199,9 +199,6 @@ pub struct Search {
 
     pub debug: Option<String>,
 }
-
-#[derive(Debug)]
-pub struct ProcMacro;
 
 #[derive(Debug)]
 pub struct Lsif {

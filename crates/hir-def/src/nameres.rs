@@ -57,7 +57,7 @@ mod path_resolution;
 #[cfg(test)]
 mod tests;
 
-use std::{cmp::Ord, ops::Deref, sync::Arc};
+use std::{cmp::Ord, ops::Deref};
 
 use base_db::{CrateId, Edition, FileId};
 use hir_expand::{name::Name, InFile, MacroCallId, MacroDefId};
@@ -67,6 +67,7 @@ use profile::Count;
 use rustc_hash::{FxHashMap, FxHashSet};
 use stdx::format_to;
 use syntax::{ast, SmolStr};
+use triomphe::Arc;
 
 use crate::{
     db::DefDatabase,
@@ -243,17 +244,10 @@ impl DefMap {
         Arc::new(def_map)
     }
 
-    pub(crate) fn block_def_map_query(
-        db: &dyn DefDatabase,
-        block_id: BlockId,
-    ) -> Option<Arc<DefMap>> {
+    pub(crate) fn block_def_map_query(db: &dyn DefDatabase, block_id: BlockId) -> Arc<DefMap> {
         let block: BlockLoc = db.lookup_intern_block(block_id);
 
         let tree_id = TreeId::new(block.ast_id.file_id, Some(block_id));
-        let item_tree = tree_id.item_tree(db);
-        if item_tree.top_level_items().is_empty() {
-            return None;
-        }
 
         let parent_map = block.module.def_map(db);
         let krate = block.module.krate;
@@ -269,7 +263,7 @@ impl DefMap {
         def_map.block = Some(BlockInfo { block: block_id, parent: block.module });
 
         let def_map = collector::collect_defs(db, def_map, tree_id);
-        Some(Arc::new(def_map))
+        Arc::new(def_map)
     }
 
     fn empty(krate: CrateId, edition: Edition, module_data: ModuleData) -> DefMap {
@@ -367,7 +361,11 @@ impl DefMap {
 
     pub(crate) fn crate_root(&self, db: &dyn DefDatabase) -> ModuleId {
         self.with_ancestor_maps(db, self.root, &mut |def_map, _module| {
-            if def_map.block.is_none() { Some(def_map.module_id(def_map.root)) } else { None }
+            if def_map.block.is_none() {
+                Some(def_map.module_id(def_map.root))
+            } else {
+                None
+            }
         })
         .expect("DefMap chain without root")
     }

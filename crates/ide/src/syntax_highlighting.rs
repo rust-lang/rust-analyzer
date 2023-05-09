@@ -21,8 +21,11 @@ use syntax::{
 
 use crate::{
     syntax_highlighting::{
-        escape::highlight_escape_string, format::highlight_format_string, highlights::Highlights,
-        macro_::MacroHighlighter, tags::Highlight,
+        escape::{highlight_escape_char, highlight_escape_string},
+        format::highlight_format_string,
+        highlights::Highlights,
+        macro_::MacroHighlighter,
+        tags::Highlight,
     },
     FileId, HlMod, HlOperator, HlPunct, HlTag,
 };
@@ -419,7 +422,10 @@ fn traverse(
                         continue;
                     }
                     highlight_format_string(hl, &string, &expanded_string, range);
-                    highlight_escape_string(hl, &string, range.start());
+
+                    if !string.is_raw() {
+                        highlight_escape_string(hl, &string, range.start());
+                    }
                 }
             } else if ast::ByteString::can_cast(token.kind())
                 && ast::ByteString::can_cast(descended_token.kind())
@@ -427,6 +433,14 @@ fn traverse(
                 if let Some(byte_string) = ast::ByteString::cast(token) {
                     highlight_escape_string(hl, &byte_string, range.start());
                 }
+            } else if ast::Char::can_cast(token.kind())
+                && ast::Char::can_cast(descended_token.kind())
+            {
+                let Some(char) = ast::Char::cast(token) else {
+                    continue;
+                };
+
+                highlight_escape_char(hl, &char, range.start())
             }
         }
 

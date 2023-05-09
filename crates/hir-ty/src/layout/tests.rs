@@ -2,14 +2,18 @@ use std::collections::HashMap;
 
 use base_db::fixture::WithFixture;
 use chalk_ir::{AdtId, TyKind};
-use hir_def::{
-    db::DefDatabase,
+use hir_def::db::DefDatabase;
+
+use crate::{
+    db::HirDatabase,
     layout::{Layout, LayoutError},
+    test_db::TestDB,
+    Interner, Substitution,
 };
 
-use crate::{db::HirDatabase, test_db::TestDB, Interner, Substitution};
-
 use super::layout_of_ty;
+
+mod closure;
 
 fn current_machine_data_layout() -> String {
     project_model::target_data_layout::get(None, None, &HashMap::default()).unwrap()
@@ -81,8 +85,8 @@ fn check_size_and_align(ra_fixture: &str, minicore: &str, size: u64, align: u64)
 #[track_caller]
 fn check_size_and_align_expr(ra_fixture: &str, minicore: &str, size: u64, align: u64) {
     let l = eval_expr(ra_fixture, minicore).unwrap();
-    assert_eq!(l.size.bytes(), size);
-    assert_eq!(l.align.abi.bytes(), align);
+    assert_eq!(l.size.bytes(), size, "size mismatch");
+    assert_eq!(l.align.abi.bytes(), align, "align mismatch");
 }
 
 #[track_caller]
@@ -118,13 +122,31 @@ macro_rules! size_and_align {
     };
 }
 
+#[macro_export]
 macro_rules! size_and_align_expr {
+    (minicore: $($x:tt),*; stmts: [$($s:tt)*] $($t:tt)*) => {
+        {
+            #[allow(dead_code)]
+            #[allow(unused_must_use)]
+            #[allow(path_statements)]
+            {
+                $($s)*
+                let val = { $($t)* };
+                $crate::layout::tests::check_size_and_align_expr(
+                    &format!("{{ {} let val = {{ {} }}; val }}", stringify!($($s)*), stringify!($($t)*)),
+                    &format!("//- minicore: {}\n", stringify!($($x),*)),
+                    ::std::mem::size_of_val(&val) as u64,
+                    ::std::mem::align_of_val(&val) as u64,
+                );
+            }
+        }
+    };
     ($($t:tt)*) => {
         {
             #[allow(dead_code)]
             {
                 let val = { $($t)* };
-                check_size_and_align_expr(
+                $crate::layout::tests::check_size_and_align_expr(
                     stringify!($($t)*),
                     "",
                     ::std::mem::size_of_val(&val) as u64,
@@ -197,6 +219,22 @@ fn generic() {
 }
 
 #[test]
+fn associated_types() {
+    size_and_align! {
+        trait Tr {
+            type Ty;
+        }
+
+        impl Tr for i32 {
+            type Ty = i64;
+        }
+
+        struct Foo<A: Tr>(<A as Tr>::Ty);
+        struct Goal(Foo<i32>);
+    }
+}
+
+#[test]
 fn return_position_impl_trait() {
     size_and_align_expr! {
         trait T {}
@@ -211,6 +249,45 @@ fn return_position_impl_trait() {
         impl T for i64 {}
         fn foo() -> (impl T, impl T, impl T) { (2i64, 5i32, 7i32) }
         foo()
+    }
+    size_and_align_expr! {
+        minicore: iterators;
+        stmts: []
+        trait Tr {}
+        impl Tr for i32 {}
+        fn foo() -> impl Iterator<Item = impl Tr> {
+            [1, 2, 3].into_iter()
+        }
+        let mut iter = foo();
+        let item = iter.next();
+        (iter, item)
+    }
+    size_and_align_expr! {
+        minicore: future;
+        stmts: []
+        use core::{future::Future, task::{Poll, Context}, pin::pin};
+        use std::{task::Wake, sync::Arc};
+        trait Tr {}
+        impl Tr for i32 {}
+        async fn f() -> impl Tr {
+            2
+        }
+        fn unwrap_fut<T>(inp: impl Future<Output = T>) -> Poll<T> {
+            // In a normal test we could use `loop {}` or `panic!()` here,
+            // but rustc actually runs this code.
+            let pinned = pin!(inp);
+            struct EmptyWaker;
+            impl Wake for EmptyWaker {
+                fn wake(self: Arc<Self>) {
+                }
+            }
+            let waker = Arc::new(EmptyWaker).into();
+            let mut context = Context::from_waker(&waker);
+            let x = pinned.poll(&mut context);
+            x
+        }
+        let x = unwrap_fut(f());
+        x
     }
     size_and_align_expr! {
         struct Foo<T>(T, T, (T, T));
@@ -273,6 +350,14 @@ fn niche_optimization() {
     size_and_align! {
         minicore: option;
         struct Goal(Option<Option<bool>>);
+    }
+}
+
+#[test]
+fn const_eval() {
+    size_and_align! {
+        const X: usize = 5;
+        struct Goal([i32; X]);
     }
 }
 

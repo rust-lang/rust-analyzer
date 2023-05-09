@@ -3,8 +3,8 @@ use std::fmt::Display;
 
 use either::Either;
 use hir::{
-    db::DefDatabase, Adt, AsAssocItem, AttributeTemplate, HasAttrs, HasSource, HirDisplay,
-    MirEvalError, Semantics, TypeInfo,
+    Adt, AsAssocItem, AttributeTemplate, CaptureKind, HasAttrs, HasSource, HirDisplay, Semantics,
+    TypeInfo,
 };
 use ide_db::{
     base_db::SourceDatabase,
@@ -40,6 +40,48 @@ pub(super) fn type_info_of(
         Either::Right(pat) => sema.type_of_pat(pat)?,
     };
     type_info(sema, _config, original, adjusted)
+}
+
+pub(super) fn closure_expr(
+    sema: &Semantics<'_, RootDatabase>,
+    config: &HoverConfig,
+    c: ast::ClosureExpr,
+) -> Option<HoverResult> {
+    let ty = &sema.type_of_expr(&c.into())?.original;
+    let layout = if config.memory_layout {
+        ty.layout(sema.db)
+            .map(|x| format!(" // size = {}, align = {}", x.size.bytes(), x.align.abi.bytes()))
+            .unwrap_or_default()
+    } else {
+        String::default()
+    };
+    let c = ty.as_closure()?;
+    let mut captures = c
+        .captured_items(sema.db)
+        .into_iter()
+        .map(|it| {
+            let borrow_kind=   match it.kind() {
+                CaptureKind::SharedRef => "immutable borrow",
+                CaptureKind::UniqueSharedRef => "unique immutable borrow ([read more](https://doc.rust-lang.org/stable/reference/types/closure.html#unique-immutable-borrows-in-captures))",
+                CaptureKind::MutableRef => "mutable borrow",
+                CaptureKind::Move => "move",
+            };
+            format!("* `{}` by {}", it.display_place(sema.db), borrow_kind)
+        })
+        .join("\n");
+    if captures.trim().is_empty() {
+        captures = "This closure captures nothing".to_string();
+    }
+    let mut res = HoverResult::default();
+    res.markup = format!(
+        "```rust\n{}{}\n{}\n```\n\n## Captures\n{}",
+        c.display_with_id(sema.db),
+        layout,
+        c.display_with_impl(sema.db),
+        captures,
+    )
+    .into();
+    Some(res)
 }
 
 pub(super) fn try_expr(
@@ -384,7 +426,7 @@ pub(super) fn definition(
     let mod_path = definition_mod_path(db, &def);
     let (label, docs) = match def {
         Definition::Macro(it) => label_and_docs(db, it),
-        Definition::Field(it) => label_and_layout_info_and_docs(db, it, |&it| {
+        Definition::Field(it) => label_and_layout_info_and_docs(db, it, config, |&it| {
             let var_def = it.parent_def(db);
             let id = it.index();
             let layout = it.layout(db).ok()?;
@@ -403,21 +445,8 @@ pub(super) fn definition(
             ))
         }),
         Definition::Module(it) => label_and_docs(db, it),
-        Definition::Function(it) => label_and_layout_info_and_docs(db, it, |_| {
-            if !config.interpret_tests {
-                return None;
-            }
-            match it.eval(db) {
-                Ok(()) => Some("pass".into()),
-                Err(MirEvalError::Panic) => Some("fail".into()),
-                Err(MirEvalError::MirLowerError(f, e)) => {
-                    let name = &db.function_data(f).name;
-                    Some(format!("error: fail to lower {name} due {e:?}"))
-                }
-                Err(e) => Some(format!("error: {e:?}")),
-            }
-        }),
-        Definition::Adt(it) => label_and_layout_info_and_docs(db, it, |&it| {
+        Definition::Function(it) => label_and_docs(db, it),
+        Definition::Adt(it) => label_and_layout_info_and_docs(db, it, config, |&it| {
             let layout = it.layout(db).ok()?;
             Some(format!("size = {}, align = {}", layout.size.bytes(), layout.align.abi.bytes()))
         }),
@@ -455,7 +484,10 @@ pub(super) fn definition(
         }),
         Definition::Trait(it) => label_and_docs(db, it),
         Definition::TraitAlias(it) => label_and_docs(db, it),
-        Definition::TypeAlias(it) => label_and_docs(db, it),
+        Definition::TypeAlias(it) => label_and_layout_info_and_docs(db, it, config, |&it| {
+            let layout = it.ty(db).layout(db).ok()?;
+            Some(format!("size = {}, align = {}", layout.size.bytes(), layout.align.abi.bytes()))
+        }),
         Definition::BuiltinType(it) => {
             return famous_defs
                 .and_then(|fd| builtin(fd, it))
@@ -556,6 +588,7 @@ where
 fn label_and_layout_info_and_docs<D, E, V>(
     db: &RootDatabase,
     def: D,
+    config: &HoverConfig,
     value_extractor: E,
 ) -> (String, Option<hir::Documentation>)
 where
@@ -563,10 +596,9 @@ where
     E: Fn(&D) -> Option<V>,
     V: Display,
 {
-    let label = if let Some(value) = value_extractor(&def) {
-        format!("{} // {value}", def.display(db))
-    } else {
-        def.display(db).to_string()
+    let label = match value_extractor(&def) {
+        Some(value) if config.memory_layout => format!("{} // {value}", def.display(db)),
+        _ => def.display(db).to_string(),
     };
     let docs = def.attrs(db).docs();
     (label, docs)

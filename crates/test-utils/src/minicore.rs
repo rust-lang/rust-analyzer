@@ -11,6 +11,8 @@
 //!     add:
 //!     as_ref: sized
 //!     bool_impl: option, fn
+//!     builtin_impls:
+//!     cell: copy, drop
 //!     clone: sized
 //!     coerce_unsized: unsize
 //!     copy: clone
@@ -31,9 +33,11 @@
 //!     infallible:
 //!     iterator: option
 //!     iterators: iterator, fn
+//!     manually_drop: drop
 //!     non_zero:
-//!     option:
+//!     option: panic
 //!     ord: eq, option
+//!     panic:
 //!     pin:
 //!     range:
 //!     result:
@@ -124,6 +128,27 @@ pub mod default {
     #[rustc_builtin_macro(Default, attributes(default))]
     pub macro Default($item:item) {}
     // endregion:derive
+
+    // region:builtin_impls
+    macro_rules! impl_default {
+        ($v:literal; $($t:ty)*) => {
+            $(
+                impl const Default for $t {
+                    fn default() -> Self {
+                        $v
+                    }
+                }
+            )*
+        }
+    }
+
+    impl_default! {
+        0; usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128
+    }
+    impl_default! {
+        0.0; f32 f64
+    }
+    // endregion:builtin_impls
 }
 // endregion:default
 
@@ -134,8 +159,59 @@ pub mod hash {
     pub trait Hash {
         fn hash<H: Hasher>(&self, state: &mut H);
     }
+
+    // region:derive
+    #[rustc_builtin_macro]
+    pub macro Hash($item:item) {}
+    // endregion:derive
 }
 // endregion:hash
+
+// region:cell
+pub mod cell {
+    use crate::mem;
+
+    #[lang = "unsafe_cell"]
+    pub struct UnsafeCell<T: ?Sized> {
+        value: T,
+    }
+
+    impl<T> UnsafeCell<T> {
+        pub const fn new(value: T) -> UnsafeCell<T> {
+            UnsafeCell { value }
+        }
+
+        pub const fn get(&self) -> *mut T {
+            self as *const UnsafeCell<T> as *const T as *mut T
+        }
+    }
+
+    pub struct Cell<T: ?Sized> {
+        value: UnsafeCell<T>,
+    }
+
+    impl<T> Cell<T> {
+        pub const fn new(value: T) -> Cell<T> {
+            Cell { value: UnsafeCell::new(value) }
+        }
+
+        pub fn set(&self, val: T) {
+            let old = self.replace(val);
+            mem::drop(old);
+        }
+
+        pub fn replace(&self, val: T) -> T {
+            mem::replace(unsafe { &mut *self.value.get() }, val)
+        }
+    }
+
+    impl<T: Copy> Cell<T> {
+        pub fn get(&self) -> T {
+            unsafe { *self.value.get() }
+        }
+    }
+}
+// endregion:cell
 
 // region:clone
 pub mod clone {
@@ -143,6 +219,34 @@ pub mod clone {
     pub trait Clone: Sized {
         fn clone(&self) -> Self;
     }
+
+    impl<T> Clone for &T {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+
+    // region:builtin_impls
+    macro_rules! impl_clone {
+        ($($t:ty)*) => {
+            $(
+                impl const Clone for $t {
+                    fn clone(&self) -> Self {
+                        *self
+                    }
+                }
+            )*
+        }
+    }
+
+    impl_clone! {
+        usize u8 u16 u32 u64 u128
+        isize i8 i16 i32 i64 i128
+        f32 f64
+        bool char
+    }
+    // endregion:builtin_impls
+
     // region:derive
     #[rustc_builtin_macro]
     pub macro Clone($item:item) {}
@@ -181,9 +285,46 @@ pub mod convert {
     }
     // endregion:as_ref
     // region:infallible
-    pub enum Infallibe {}
+    pub enum Infallible {}
     // endregion:infallible
 }
+
+// region:drop
+pub mod mem {
+    // region:manually_drop
+    #[lang = "manually_drop"]
+    #[repr(transparent)]
+    pub struct ManuallyDrop<T: ?Sized> {
+        value: T,
+    }
+
+    impl<T> ManuallyDrop<T> {
+        pub const fn new(value: T) -> ManuallyDrop<T> {
+            ManuallyDrop { value }
+        }
+    }
+
+    // region:deref
+    impl<T: ?Sized> crate::ops::Deref for ManuallyDrop<T> {
+        type Target = T;
+        fn deref(&self) -> &T {
+            &self.value
+        }
+    }
+    // endregion:deref
+
+    // endregion:manually_drop
+
+    pub fn drop<T>(_x: T) {}
+    pub const fn replace<T>(dest: &mut T, src: T) -> T {
+        unsafe {
+            let result = *dest;
+            *dest = src;
+            result
+        }
+    }
+}
+// endregion:drop
 
 pub mod ops {
     // region:coerce_unsized
@@ -309,12 +450,6 @@ pub mod ops {
     pub use self::index::{Index, IndexMut};
     // endregion:index
 
-    // region:drop
-    pub mod mem {
-        pub fn drop<T>(_x: T) {}
-    }
-    // endregion:drop
-
     // region:range
     mod range {
         #[lang = "RangeFull"]
@@ -375,16 +510,82 @@ pub mod ops {
             type Output;
             extern "rust-call" fn call_once(self, args: Args) -> Self::Output;
         }
+
+        mod impls {
+            use crate::marker::Tuple;
+
+            #[stable(feature = "rust1", since = "1.0.0")]
+            #[rustc_const_unstable(feature = "const_fn_trait_ref_impls", issue = "101803")]
+            impl<A: Tuple, F: ?Sized> const Fn<A> for &F
+            where
+                F: ~const Fn<A>,
+            {
+                extern "rust-call" fn call(&self, args: A) -> F::Output {
+                    (**self).call(args)
+                }
+            }
+
+            #[stable(feature = "rust1", since = "1.0.0")]
+            #[rustc_const_unstable(feature = "const_fn_trait_ref_impls", issue = "101803")]
+            impl<A: Tuple, F: ?Sized> const FnMut<A> for &F
+            where
+                F: ~const Fn<A>,
+            {
+                extern "rust-call" fn call_mut(&mut self, args: A) -> F::Output {
+                    (**self).call(args)
+                }
+            }
+
+            #[stable(feature = "rust1", since = "1.0.0")]
+            #[rustc_const_unstable(feature = "const_fn_trait_ref_impls", issue = "101803")]
+            impl<A: Tuple, F: ?Sized> const FnOnce<A> for &F
+            where
+                F: ~const Fn<A>,
+            {
+                type Output = F::Output;
+
+                extern "rust-call" fn call_once(self, args: A) -> F::Output {
+                    (*self).call(args)
+                }
+            }
+
+            #[stable(feature = "rust1", since = "1.0.0")]
+            #[rustc_const_unstable(feature = "const_fn_trait_ref_impls", issue = "101803")]
+            impl<A: Tuple, F: ?Sized> const FnMut<A> for &mut F
+            where
+                F: ~const FnMut<A>,
+            {
+                extern "rust-call" fn call_mut(&mut self, args: A) -> F::Output {
+                    (*self).call_mut(args)
+                }
+            }
+
+            #[stable(feature = "rust1", since = "1.0.0")]
+            #[rustc_const_unstable(feature = "const_fn_trait_ref_impls", issue = "101803")]
+            impl<A: Tuple, F: ?Sized> const FnOnce<A> for &mut F
+            where
+                F: ~const FnMut<A>,
+            {
+                type Output = F::Output;
+                extern "rust-call" fn call_once(self, args: A) -> F::Output {
+                    (*self).call_mut(args)
+                }
+            }
+        }
     }
     pub use self::function::{Fn, FnMut, FnOnce};
     // endregion:fn
     // region:try
     mod try_ {
+        use super::super::convert::Infallible;
+
         pub enum ControlFlow<B, C = ()> {
+            #[lang = "Continue"]
             Continue(C),
+            #[lang = "Break"]
             Break(B),
         }
-        pub trait FromResidual<R = Self::Residual> {
+        pub trait FromResidual<R = <Self as Try>::Residual> {
             #[lang = "from_residual"]
             fn from_residual(residual: R) -> Self;
         }
@@ -400,14 +601,80 @@ pub mod ops {
 
         impl<B, C> Try for ControlFlow<B, C> {
             type Output = C;
-            type Residual = ControlFlow<B, convert::Infallible>;
-            fn from_output(output: Self::Output) -> Self {}
-            fn branch(self) -> ControlFlow<Self::Residual, Self::Output> {}
+            type Residual = ControlFlow<B, Infallible>;
+            fn from_output(output: Self::Output) -> Self {
+                ControlFlow::Continue(output)
+            }
+            fn branch(self) -> ControlFlow<Self::Residual, Self::Output> {
+                match self {
+                    ControlFlow::Continue(x) => ControlFlow::Continue(x),
+                    ControlFlow::Break(x) => ControlFlow::Break(ControlFlow::Break(x)),
+                }
+            }
         }
 
         impl<B, C> FromResidual for ControlFlow<B, C> {
-            fn from_residual(residual: ControlFlow<B, convert::Infallible>) -> Self {}
+            fn from_residual(residual: ControlFlow<B, Infallible>) -> Self {
+                match residual {
+                    ControlFlow::Break(b) => ControlFlow::Break(b),
+                    ControlFlow::Continue(_) => loop {},
+                }
+            }
         }
+        // region:option
+        impl<T> Try for Option<T> {
+            type Output = T;
+            type Residual = Option<Infallible>;
+            fn from_output(output: Self::Output) -> Self {
+                Some(output)
+            }
+            fn branch(self) -> ControlFlow<Self::Residual, Self::Output> {
+                match self {
+                    Some(x) => ControlFlow::Continue(x),
+                    None => ControlFlow::Break(None),
+                }
+            }
+        }
+
+        impl<T> FromResidual for Option<T> {
+            fn from_residual(x: Option<Infallible>) -> Self {
+                match x {
+                    None => None,
+                    Some(_) => loop {},
+                }
+            }
+        }
+        // endregion:option
+        // region:result
+        // region:from
+        use super::super::convert::From;
+
+        impl<T, E> Try for Result<T, E> {
+            type Output = T;
+            type Residual = Result<Infallible, E>;
+
+            fn from_output(output: Self::Output) -> Self {
+                Ok(output)
+            }
+
+            fn branch(self) -> ControlFlow<Self::Residual, Self::Output> {
+                match self {
+                    Ok(v) => ControlFlow::Continue(v),
+                    Err(e) => ControlFlow::Break(Err(e)),
+                }
+            }
+        }
+
+        impl<T, E, F: From<E>> FromResidual<Result<Infallible, E>> for Result<T, F> {
+            fn from_residual(residual: Result<Infallible, E>) -> Self {
+                match residual {
+                    Err(e) => Err(From::from(e)),
+                    Ok(_) => loop {},
+                }
+            }
+        }
+        // endregion:from
+        // endregion:result
     }
     pub use self::try_::{ControlFlow, FromResidual, Try};
     // endregion:try
@@ -505,6 +772,11 @@ pub mod fmt {
     pub trait Display {
         fn fmt(&self, f: &mut Formatter<'_>) -> Result;
     }
+
+    // region:derive
+    #[rustc_builtin_macro]
+    pub macro Debug($item:item) {}
+    // endregion:derive
 }
 // endregion:fmt
 
@@ -541,8 +813,19 @@ pub mod option {
             loop {}
         }
         pub fn unwrap_or(self, default: T) -> T {
-            loop {}
+            match self {
+                Some(val) => val,
+                None => default,
+            }
         }
+        // region:result
+        pub const fn ok_or<E>(self, err: E) -> Result<T, E> {
+            match self {
+                Some(v) => Ok(v),
+                None => Err(err),
+            }
+        }
+        // endregion:result
         // region:fn
         pub fn and_then<U, F>(self, f: F) -> Option<U>
         where
@@ -713,8 +996,6 @@ pub mod iter {
 
     mod traits {
         mod iterator {
-            use super::super::Take;
-
             pub trait Iterator {
                 type Item;
                 #[lang = "next"]
@@ -764,12 +1045,19 @@ pub mod iter {
                     self
                 }
             }
-            pub struct IntoIter<T, const N: usize>([T; N]);
+            struct IndexRange {
+                start: usize,
+                end: usize,
+            }
+            pub struct IntoIter<T, const N: usize> {
+                data: [T; N],
+                range: IndexRange,
+            }
             impl<T, const N: usize> IntoIterator for [T; N] {
                 type Item = T;
                 type IntoIter = IntoIter<T, N>;
                 fn into_iter(self) -> I {
-                    IntoIter(self)
+                    IntoIter { data: self, range: IndexRange { start: 0, end: loop {} } }
                 }
             }
             impl<T, const N: usize> Iterator for IntoIter<T, N> {
@@ -785,16 +1073,38 @@ pub mod iter {
 }
 // endregion:iterator
 
-// region:derive
+// region:panic
+mod panic {
+    pub macro panic_2021 {
+        ($($t:tt)+) => (
+            /* Nothing yet */
+        ),
+    }
+}
+// endregion:panic
+
 mod macros {
+    // region:panic
+    #[macro_export]
+    #[rustc_builtin_macro(std_panic)]
+    macro_rules! panic {
+        ($($arg:tt)*) => {
+            /* compiler built-in */
+        };
+    }
+
+    pub(crate) use panic;
+    // endregion:panic
+
+    // region:derive
     pub(crate) mod builtin {
         #[rustc_builtin_macro]
         pub macro derive($item:item) {
             /* compiler built-in */
         }
     }
+    // endregion:derive
 }
-// endregion:derive
 
 // region:non_zero
 pub mod num {
@@ -849,6 +1159,7 @@ pub mod prelude {
             ops::{Fn, FnMut, FnOnce},           // :fn
             option::Option::{self, None, Some}, // :option
             result::Result::{self, Err, Ok},    // :result
+            panic,                              // :panic
         };
     }
 

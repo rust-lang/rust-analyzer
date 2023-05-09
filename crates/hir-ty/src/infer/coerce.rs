@@ -5,14 +5,15 @@
 //! See <https://doc.rust-lang.org/nomicon/coercions.html> and
 //! `rustc_hir_analysis/check/coercion.rs`.
 
-use std::{iter, sync::Arc};
+use std::iter;
 
-use chalk_ir::{cast::Cast, BoundVar, Goal, Mutability, TyVariableKind};
+use chalk_ir::{cast::Cast, BoundVar, Goal, Mutability, TyKind, TyVariableKind};
 use hir_def::{
-    expr::ExprId,
+    hir::ExprId,
     lang_item::{LangItem, LangItemTarget},
 };
 use stdx::always;
+use triomphe::Arc;
 
 use crate::{
     autoderef::{Autoderef, AutoderefKind},
@@ -21,8 +22,10 @@ use crate::{
         Adjust, Adjustment, AutoBorrow, InferOk, InferenceContext, OverloadedDeref, PointerCast,
         TypeError, TypeMismatch,
     },
-    static_lifetime, Canonical, DomainGoal, FnPointer, FnSig, Guidance, InEnvironment, Interner,
-    Solution, Substitution, TraitEnvironment, Ty, TyBuilder, TyExt, TyKind,
+    static_lifetime,
+    utils::ClosureSubst,
+    Canonical, DomainGoal, FnPointer, FnSig, Guidance, InEnvironment, Interner, Solution,
+    Substitution, TraitEnvironment, Ty, TyBuilder, TyExt,
 };
 
 use super::unify::InferenceTable;
@@ -51,11 +54,12 @@ fn success(
 pub(super) struct CoerceMany {
     expected_ty: Ty,
     final_ty: Option<Ty>,
+    expressions: Vec<ExprId>,
 }
 
 impl CoerceMany {
     pub(super) fn new(expected: Ty) -> Self {
-        CoerceMany { expected_ty: expected, final_ty: None }
+        CoerceMany { expected_ty: expected, final_ty: None, expressions: vec![] }
     }
 
     /// Returns the "expected type" with which this coercion was
@@ -110,6 +114,8 @@ impl CoerceMany {
         // pointers to have a chance at getting a match. See
         // https://github.com/rust-lang/rust/blob/7b805396bf46dce972692a6846ce2ad8481c5f85/src/librustc_typeck/check/coercion.rs#L877-L916
         let sig = match (self.merged_ty().kind(Interner), expr_ty.kind(Interner)) {
+            (TyKind::FnDef(x, _), TyKind::FnDef(y, _)) if x == y => None,
+            (TyKind::Closure(x, _), TyKind::Closure(y, _)) if x == y => None,
             (TyKind::FnDef(..) | TyKind::Closure(..), TyKind::FnDef(..) | TyKind::Closure(..)) => {
                 // FIXME: we're ignoring safety here. To be more correct, if we have one FnDef and one Closure,
                 // we should be coercing the closure to a fn pointer of the safety of the FnDef
@@ -125,8 +131,15 @@ impl CoerceMany {
             let result1 = ctx.table.coerce_inner(self.merged_ty(), &target_ty);
             let result2 = ctx.table.coerce_inner(expr_ty.clone(), &target_ty);
             if let (Ok(result1), Ok(result2)) = (result1, result2) {
-                ctx.table.register_infer_ok(result1);
-                ctx.table.register_infer_ok(result2);
+                ctx.table.register_infer_ok(InferOk { value: (), goals: result1.goals });
+                for &e in &self.expressions {
+                    ctx.write_expr_adj(e, result1.value.0.clone());
+                }
+                ctx.table.register_infer_ok(InferOk { value: (), goals: result2.goals });
+                if let Some(expr) = expr {
+                    ctx.write_expr_adj(expr, result2.value.0);
+                    self.expressions.push(expr);
+                }
                 return self.final_ty = Some(target_ty);
             }
         }
@@ -143,10 +156,13 @@ impl CoerceMany {
             if let Some(id) = expr {
                 ctx.result.type_mismatches.insert(
                     id.into(),
-                    TypeMismatch { expected: self.merged_ty().clone(), actual: expr_ty.clone() },
+                    TypeMismatch { expected: self.merged_ty(), actual: expr_ty.clone() },
                 );
             }
             cov_mark::hit!(coerce_merge_fail_fallback);
+        }
+        if let Some(expr) = expr {
+            self.expressions.push(expr);
         }
     }
 }
@@ -625,7 +641,7 @@ impl<'a> InferenceTable<'a> {
         // Need to find out in what cases this is necessary
         let solution = self
             .db
-            .trait_solve(krate, canonicalized.value.clone().cast(Interner))
+            .trait_solve(krate, self.trait_env.block, canonicalized.value.clone().cast(Interner))
             .ok_or(TypeError)?;
 
         match solution {
@@ -657,7 +673,7 @@ impl<'a> InferenceTable<'a> {
 }
 
 fn coerce_closure_fn_ty(closure_substs: &Substitution, safety: chalk_ir::Safety) -> Ty {
-    let closure_sig = closure_substs.at(Interner, 0).assert_ty_ref(Interner).clone();
+    let closure_sig = ClosureSubst(closure_substs).sig_ty().clone();
     match closure_sig.kind(Interner) {
         TyKind::Function(fn_ty) => TyKind::Function(FnPointer {
             num_binders: fn_ty.num_binders,

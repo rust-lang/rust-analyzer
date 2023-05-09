@@ -45,12 +45,12 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::UnresolvedField) -> Option<Vec<A
     }
 }
 
-// FIXME: We should fill out the call here, mvoe the cursor and trigger signature help
+// FIXME: We should fill out the call here, move the cursor and trigger signature help
 fn method_fix(
     ctx: &DiagnosticsContext<'_>,
     expr_ptr: &InFile<AstPtr<ast::Expr>>,
 ) -> Option<Vec<Assist>> {
-    let root = ctx.sema.db.parse_or_expand(expr_ptr.file_id)?;
+    let root = ctx.sema.db.parse_or_expand(expr_ptr.file_id);
     let expr = expr_ptr.value.to_node(&root);
     let FileRange { range, file_id } = ctx.sema.original_range_opt(expr.syntax())?;
     Some(vec![Assist {

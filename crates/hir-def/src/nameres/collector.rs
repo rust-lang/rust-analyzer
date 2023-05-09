@@ -14,10 +14,11 @@ use hir_expand::{
     builtin_attr_macro::find_builtin_attr,
     builtin_derive_macro::find_builtin_derive,
     builtin_fn_macro::find_builtin_macro,
+    hygiene::Hygiene,
     name::{name, AsName, Name},
     proc_macro::ProcMacroExpander,
-    ExpandTo, HirFileId, InFile, MacroCallId, MacroCallKind, MacroCallLoc, MacroDefId,
-    MacroDefKind,
+    ExpandResult, ExpandTo, HirFileId, InFile, MacroCallId, MacroCallKind, MacroCallLoc,
+    MacroDefId, MacroDefKind,
 };
 use itertools::{izip, Itertools};
 use la_arena::Idx;
@@ -25,6 +26,7 @@ use limit::Limit;
 use rustc_hash::{FxHashMap, FxHashSet};
 use stdx::always;
 use syntax::{ast, SmolStr};
+use triomphe::Arc;
 
 use crate::{
     attr::Attrs,
@@ -78,25 +80,35 @@ pub(super) fn collect_defs(db: &dyn DefDatabase, mut def_map: DefMap, tree_id: T
     }
 
     let cfg_options = &krate.cfg_options;
-    let proc_macros = match &krate.proc_macro {
-        Ok(proc_macros) => {
-            proc_macros
-                .iter()
-                .enumerate()
-                .map(|(idx, it)| {
-                    // FIXME: a hacky way to create a Name from string.
-                    let name =
-                        tt::Ident { text: it.name.clone(), span: tt::TokenId::unspecified() };
-                    (name.as_name(), ProcMacroExpander::new(base_db::ProcMacroId(idx as u32)))
-                })
-                .collect()
-        }
-        Err(e) => {
-            def_map.proc_macro_loading_error = Some(e.clone().into_boxed_str());
-            Vec::new()
-        }
-    };
+
     let is_proc_macro = krate.is_proc_macro;
+    let proc_macros = if is_proc_macro {
+        match db.proc_macros().get(&def_map.krate) {
+            Some(Ok(proc_macros)) => {
+                proc_macros
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, it)| {
+                        // FIXME: a hacky way to create a Name from string.
+                        let name =
+                            tt::Ident { text: it.name.clone(), span: tt::TokenId::unspecified() };
+                        (name.as_name(), ProcMacroExpander::new(base_db::ProcMacroId(idx as u32)))
+                    })
+                    .collect()
+            }
+            Some(Err(e)) => {
+                def_map.proc_macro_loading_error = Some(e.clone().into_boxed_str());
+                Vec::new()
+            }
+            None => {
+                def_map.proc_macro_loading_error =
+                    Some("No proc-macros present for crate".to_owned().into_boxed_str());
+                Vec::new()
+            }
+        }
+    } else {
+        vec![]
+    };
 
     let mut collector = DefCollector {
         db,
@@ -112,6 +124,7 @@ pub(super) fn collect_defs(db: &dyn DefDatabase, mut def_map: DefMap, tree_id: T
         from_glob_import: Default::default(),
         skip_attrs: Default::default(),
         is_proc_macro,
+        hygienes: FxHashMap::default(),
     };
     if tree_id.is_block() {
         collector.seed_with_inner(tree_id);
@@ -259,6 +272,12 @@ struct DefCollector<'a> {
     /// This also stores the attributes to skip when we resolve derive helpers and non-macro
     /// non-builtin attributes in general.
     skip_attrs: FxHashMap<InFile<ModItem>, AttrId>,
+    /// `Hygiene` cache, because `Hygiene` construction is expensive.
+    ///
+    /// Almost all paths should have been lowered to `ModPath` during `ItemTree` construction.
+    /// However, `DefCollector` still needs to lower paths in attributes, in particular those in
+    /// derive meta item list.
+    hygienes: FxHashMap<HirFileId, Hygiene>,
 }
 
 impl DefCollector<'_> {
@@ -302,13 +321,15 @@ impl DefCollector<'_> {
                 }
 
                 if *attr_name == hir_expand::name![feature] {
-                    let features =
-                        attr.parse_path_comma_token_tree().into_iter().flatten().filter_map(
-                            |feat| match feat.segments() {
-                                [name] => Some(name.to_smol_str()),
-                                _ => None,
-                            },
-                        );
+                    let hygiene = &Hygiene::new_unhygienic();
+                    let features = attr
+                        .parse_path_comma_token_tree(self.db.upcast(), hygiene)
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|feat| match feat.segments() {
+                            [name] => Some(name.to_smol_str()),
+                            _ => None,
+                        });
                     self.def_map.unstable_features.extend(features);
                 }
 
@@ -456,12 +477,8 @@ impl DefCollector<'_> {
                         directive.module_id,
                         MacroCallKind::Attr {
                             ast_id: ast_id.ast_id,
-                            attr_args: std::sync::Arc::new((
-                                tt::Subtree::empty(),
-                                Default::default(),
-                            )),
+                            attr_args: Arc::new((tt::Subtree::empty(), Default::default())),
                             invoc_attr_index: attr.id,
-                            is_derive: false,
                         },
                         attr.path().clone(),
                     ));
@@ -1101,15 +1118,15 @@ impl DefCollector<'_> {
             match &directive.kind {
                 MacroDirectiveKind::FnLike { ast_id, expand_to } => {
                     let call_id = macro_call_as_call_id(
-                        self.db,
+                        self.db.upcast(),
                         ast_id,
                         *expand_to,
                         self.def_map.krate,
                         resolver_def_id,
-                        &mut |_err| (),
                     );
-                    if let Ok(Ok(call_id)) = call_id {
+                    if let Ok(Some(call_id)) = call_id {
                         push_resolved(directive, call_id);
+
                         res = ReachedFixedPoint::No;
                         return false;
                     }
@@ -1214,7 +1231,19 @@ impl DefCollector<'_> {
                         };
                         let ast_id = ast_id.with_value(ast_adt_id);
 
-                        match attr.parse_path_comma_token_tree() {
+                        let extend_unhygenic;
+                        let hygiene = if file_id.is_macro() {
+                            self.hygienes
+                                .entry(file_id)
+                                .or_insert_with(|| Hygiene::new(self.db.upcast(), file_id))
+                        } else {
+                            // Avoid heap allocation (`Hygiene` embraces `Arc`) and hash map entry
+                            // when we're in an oridinary (non-macro) file.
+                            extend_unhygenic = Hygiene::new_unhygienic();
+                            &extend_unhygenic
+                        };
+
+                        match attr.parse_path_comma_token_tree(self.db.upcast(), hygiene) {
                             Some(derive_macros) => {
                                 let mut len = 0;
                                 for (idx, path) in derive_macros.enumerate() {
@@ -1241,7 +1270,6 @@ impl DefCollector<'_> {
                                     attr,
                                     self.def_map.krate,
                                     def,
-                                    true,
                                 );
                                 self.def_map.modules[directive.module_id]
                                     .scope
@@ -1261,18 +1289,12 @@ impl DefCollector<'_> {
                     }
 
                     // Not resolved to a derive helper or the derive attribute, so try to treat as a normal attribute.
-                    let call_id = attr_macro_as_call_id(
-                        self.db,
-                        file_ast_id,
-                        attr,
-                        self.def_map.krate,
-                        def,
-                        false,
-                    );
+                    let call_id =
+                        attr_macro_as_call_id(self.db, file_ast_id, attr, self.def_map.krate, def);
                     let loc: MacroCallLoc = self.db.lookup_intern_macro_call(call_id);
 
                     // If proc attribute macro expansion is disabled, skip expanding it here
-                    if !self.db.enable_proc_attr_macros() {
+                    if !self.db.expand_proc_attr_macros() {
                         self.def_map.diagnostics.push(DefDiagnostic::unresolved_proc_macro(
                             directive.module_id,
                             loc.kind,
@@ -1345,25 +1367,31 @@ impl DefCollector<'_> {
         let file_id = macro_call_id.as_file();
 
         // First, fetch the raw expansion result for purposes of error reporting. This goes through
-        // `macro_expand_error` to avoid depending on the full expansion result (to improve
+        // `parse_macro_expansion_error` to avoid depending on the full expansion result (to improve
         // incrementality).
-        let loc: MacroCallLoc = self.db.lookup_intern_macro_call(macro_call_id);
-        let err = self.db.macro_expand_error(macro_call_id);
+        let ExpandResult { value, err } = self.db.parse_macro_expansion_error(macro_call_id);
         if let Some(err) = err {
+            let loc: MacroCallLoc = self.db.lookup_intern_macro_call(macro_call_id);
             let diag = match err {
+                // why is this reported here?
                 hir_expand::ExpandError::UnresolvedProcMacro(krate) => {
                     always!(krate == loc.def.krate);
-                    // Missing proc macros are non-fatal, so they are handled specially.
                     DefDiagnostic::unresolved_proc_macro(module_id, loc.kind.clone(), loc.def.krate)
                 }
-                _ => DefDiagnostic::macro_error(module_id, loc.kind, err.to_string()),
+                _ => DefDiagnostic::macro_error(module_id, loc.kind.clone(), err.to_string()),
             };
 
+            self.def_map.diagnostics.push(diag);
+        }
+        if let errors @ [_, ..] = &*value {
+            let loc: MacroCallLoc = self.db.lookup_intern_macro_call(macro_call_id);
+            let diag = DefDiagnostic::macro_expansion_parse_error(module_id, loc.kind, &errors);
             self.def_map.diagnostics.push(diag);
         }
 
         // Then, fetch and process the item tree. This will reuse the expansion result from above.
         let item_tree = self.db.file_item_tree(file_id);
+
         let mod_dir = self.mod_dirs[&module_id].clone();
         ModCollector {
             def_collector: &mut *self,
@@ -1384,8 +1412,9 @@ impl DefCollector<'_> {
         for directive in &self.unresolved_macros {
             match &directive.kind {
                 MacroDirectiveKind::FnLike { ast_id, expand_to } => {
+                    // FIXME: we shouldn't need to re-resolve the macro here just to get the unresolved error!
                     let macro_call_as_call_id = macro_call_as_call_id(
-                        self.db,
+                        self.db.upcast(),
                         ast_id,
                         *expand_to,
                         self.def_map.krate,
@@ -1402,7 +1431,6 @@ impl DefCollector<'_> {
                                 .take_macros()
                                 .map(|it| macro_id_to_def_id(self.db, it))
                         },
-                        &mut |_| (),
                     );
                     if let Err(UnresolvedMacro { path }) = macro_call_as_call_id {
                         self.def_map.diagnostics.push(DefDiagnostic::unresolved_macro_call(
@@ -1844,7 +1872,6 @@ impl ModCollector<'_, '_> {
         let vis = def_map
             .resolve_visibility(self.def_collector.db, self.module_id, visibility, false)
             .unwrap_or(Visibility::Public);
-        let modules = &mut def_map.modules;
         let origin = match definition {
             None => ModuleOrigin::Inline {
                 definition: declaration,
@@ -1858,6 +1885,7 @@ impl ModCollector<'_, '_> {
             },
         };
 
+        let modules = &mut def_map.modules;
         let res = modules.alloc(ModuleData::new(origin, vis));
         modules[res].parent = Some(self.module_id);
         for (name, mac) in modules[self.module_id].scope.collect_legacy_macros() {
@@ -2100,9 +2128,8 @@ impl ModCollector<'_, '_> {
         let ast_id = AstIdWithPath::new(self.file_id(), mac.ast_id, ModPath::clone(&mac.path));
 
         // Case 1: try to resolve in legacy scope and expand macro_rules
-        let mut error = None;
-        match macro_call_as_call_id(
-            self.def_collector.db,
+        if let Ok(res) = macro_call_as_call_id(
+            self.def_collector.db.upcast(),
             &ast_id,
             mac.expand_to,
             self.def_collector.def_map.krate,
@@ -2121,41 +2148,19 @@ impl ModCollector<'_, '_> {
                     )
                 })
             },
-            &mut |err| {
-                error.get_or_insert(err);
-            },
         ) {
-            Ok(Ok(macro_call_id)) => {
-                // Legacy macros need to be expanded immediately, so that any macros they produce
-                // are in scope.
+            // Legacy macros need to be expanded immediately, so that any macros they produce
+            // are in scope.
+            if let Some(val) = res {
                 self.def_collector.collect_macro_expansion(
                     self.module_id,
-                    macro_call_id,
+                    val,
                     self.macro_depth + 1,
                     container,
                 );
-
-                if let Some(err) = error {
-                    self.def_collector.def_map.diagnostics.push(DefDiagnostic::macro_error(
-                        self.module_id,
-                        MacroCallKind::FnLike { ast_id: ast_id.ast_id, expand_to: mac.expand_to },
-                        err.to_string(),
-                    ));
-                }
-
-                return;
             }
-            Ok(Err(_)) => {
-                // Built-in macro failed eager expansion.
 
-                self.def_collector.def_map.diagnostics.push(DefDiagnostic::macro_error(
-                    self.module_id,
-                    MacroCallKind::FnLike { ast_id: ast_id.ast_id, expand_to: mac.expand_to },
-                    error.unwrap().to_string(),
-                ));
-                return;
-            }
-            Err(UnresolvedMacro { .. }) => (),
+            return;
         }
 
         // Case 2: resolve in module scope, expand during name resolution.
@@ -2219,6 +2224,7 @@ mod tests {
             from_glob_import: Default::default(),
             skip_attrs: Default::default(),
             is_proc_macro: false,
+            hygienes: FxHashMap::default(),
         };
         collector.seed_with_top_level();
         collector.collect();

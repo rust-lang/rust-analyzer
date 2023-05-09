@@ -46,6 +46,7 @@ GenericArg =
 | AssocTypeArg
 | LifetimeArg
 | ConstArg
+| ReturnTypeArg
 
 TypeArg =
   Type
@@ -58,6 +59,9 @@ LifetimeArg =
 
 ConstArg =
   Expr
+
+ReturnTypeArg =
+  NameRef '(' '..' ')' ':' TypeBoundList
 
 MacroCall =
   Attr* Path '!' TokenTree ';'?
@@ -613,7 +617,7 @@ Pat =
 | ConstBlockPat
 
 LiteralPat =
-  Literal
+  '-'? Literal
 
 IdentPat =
   Attr* 'ref'? 'mut'? Name ('@' Pat)?

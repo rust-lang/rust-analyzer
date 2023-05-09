@@ -56,7 +56,7 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::MissingFields) -> Option<Vec<Ass
         return None;
     }
 
-    let root = ctx.sema.db.parse_or_expand(d.file)?;
+    let root = ctx.sema.db.parse_or_expand(d.file);
 
     let current_module = match &d.field_list_parent {
         Either::Left(ptr) => ctx.sema.scope(ptr.to_node(&root).syntax()).map(|it| it.module()),
@@ -176,7 +176,9 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::MissingFields) -> Option<Vec<Ass
 fn make_ty(ty: &hir::Type, db: &dyn HirDatabase, module: hir::Module) -> ast::Type {
     let ty_str = match ty.as_adt() {
         Some(adt) => adt.name(db).to_string(),
-        None => ty.display_source_code(db, module.into()).ok().unwrap_or_else(|| "_".to_string()),
+        None => {
+            ty.display_source_code(db, module.into(), false).ok().unwrap_or_else(|| "_".to_string())
+        }
     };
 
     make::ty(&ty_str)

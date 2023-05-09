@@ -6,10 +6,10 @@ use crate::{fixture, HoverConfig, HoverDocFormat};
 
 const HOVER_BASE_CONFIG: HoverConfig = HoverConfig {
     links_in_hover: false,
+    memory_layout: true,
     documentation: true,
     format: HoverDocFormat::Markdown,
     keywords: true,
-    interpret_tests: false,
 };
 
 fn check_hover_no_result(ra_fixture: &str) {
@@ -46,6 +46,23 @@ fn check_hover_no_links(ra_fixture: &str, expect: Expect) {
     let hover = analysis
         .hover(
             &HOVER_BASE_CONFIG,
+            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+        )
+        .unwrap()
+        .unwrap();
+
+    let content = analysis.db.file_text(position.file_id);
+    let hovered_element = &content[hover.range];
+
+    let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
+    expect.assert_eq(&actual)
+}
+
+fn check_hover_no_memory_layout(ra_fixture: &str, expect: Expect) {
+    let (analysis, position) = fixture::position(ra_fixture);
+    let hover = analysis
+        .hover(
+            &HoverConfig { memory_layout: false, ..HOVER_BASE_CONFIG },
             FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
         )
         .unwrap()
@@ -199,6 +216,85 @@ fn main() {
 }
 
 #[test]
+fn hover_closure() {
+    check(
+        r#"
+//- minicore: copy
+fn main() {
+    let x = 2;
+    let y = $0|z| x + z;
+}
+"#,
+        expect![[r#"
+            *|*
+            ```rust
+            {closure#0} // size = 8, align = 8
+            impl Fn(i32) -> i32
+            ```
+
+            ## Captures
+            * `x` by immutable borrow
+        "#]],
+    );
+
+    check(
+        r#"
+//- minicore: copy
+fn foo(x: impl Fn(i32) -> i32) {
+
+}
+fn main() {
+    foo($0|x: i32| x)
+}
+"#,
+        expect![[r#"
+            *|*
+            ```rust
+            {closure#0} // size = 0, align = 1
+            impl Fn(i32) -> i32
+            ```
+
+            ## Captures
+            This closure captures nothing
+        "#]],
+    );
+
+    check(
+        r#"
+//- minicore: copy
+
+struct Z { f: i32 }
+
+struct Y(&'static mut Z)
+
+struct X {
+    f1: Y,
+    f2: (Y, Y),
+}
+
+fn main() {
+    let x: X;
+    let y = $0|| {
+        x.f1;
+        &mut x.f2.0 .0.f;
+    };
+}
+"#,
+        expect![[r#"
+            *|*
+            ```rust
+            {closure#0} // size = 16, align = 8
+            impl FnOnce()
+            ```
+
+            ## Captures
+            * `x.f1` by move
+            * `(*x.f2.0.0).f` by mutable borrow
+        "#]],
+    );
+}
+
+#[test]
 fn hover_shows_long_type_of_an_expression() {
     check(
         r#"
@@ -225,7 +321,7 @@ fn main() {
                 *iter*
 
                 ```rust
-                let mut iter: Iter<Scan<OtherStruct<OtherStruct<i32>>, |&mut u32, &u32, &mut u32| -> Option<u32>, u32>>
+                let mut iter: Iter<Scan<OtherStruct<OtherStruct<i32>>, impl Fn(&mut u32, &u32, &mut u32) -> Option<u32>, u32>>
                 ```
             "#]],
     );
@@ -1327,7 +1423,7 @@ fn test_hover_function_pointer_show_identifiers() {
                 ```
 
                 ```rust
-                type foo = fn(a: i32, b: i32) -> i32
+                type foo = fn(a: i32, b: i32) -> i32 // size = 8, align = 8
                 ```
             "#]],
     );
@@ -1345,7 +1441,7 @@ fn test_hover_function_pointer_no_identifier() {
                 ```
 
                 ```rust
-                type foo = fn(i32, i32) -> i32
+                type foo = fn(i32, i32) -> i32 // size = 8, align = 8
                 ```
             "#]],
     );
@@ -1664,6 +1760,44 @@ pub fn fo$0o() {}
 
                 [^example]: https://www.example.com/
             "#]],
+    );
+}
+
+#[test]
+fn test_hover_no_memory_layout() {
+    check_hover_no_memory_layout(
+        r#"struct Foo { fiel$0d_a: u8, field_b: i32, field_c: i16 }"#,
+        expect![[r#"
+            *field_a*
+
+            ```rust
+            test::Foo
+            ```
+
+            ```rust
+            field_a: u8
+            ```
+        "#]],
+    );
+
+    check_hover_no_memory_layout(
+        r#"
+//- minicore: copy
+fn main() {
+    let x = 2;
+    let y = $0|z| x + z;
+}
+"#,
+        expect![[r#"
+            *|*
+            ```rust
+            {closure#0}
+            impl Fn(i32) -> i32
+            ```
+
+            ## Captures
+            * `x` by immutable borrow
+        "#]],
     );
 }
 
@@ -2021,6 +2155,19 @@ fn main() { let s$0t = S{ f1:Arg(0) }; }
 }
 
 #[test]
+fn test_hover_generic_excludes_sized_go_to_action() {
+    check_actions(
+        r#"
+//- minicore: sized
+struct S<T$0>(T);
+    "#,
+        expect![[r#"
+            []
+        "#]],
+    );
+}
+
+#[test]
 fn test_hover_generic_struct_has_flattened_goto_type_actions() {
     check_actions(
         r#"
@@ -2079,52 +2226,53 @@ mod M {
 fn main() { let s$0t = (A(1), B(2), M::C(3) ); }
 "#,
         expect![[r#"
-                [
-                    GoToType(
-                        [
-                            HoverGotoTypeData {
-                                mod_path: "test::A",
-                                nav: NavigationTarget {
-                                    file_id: FileId(
-                                        0,
-                                    ),
-                                    full_range: 0..14,
-                                    focus_range: 7..8,
-                                    name: "A",
-                                    kind: Struct,
-                                    description: "struct A",
-                                },
+            [
+                GoToType(
+                    [
+                        HoverGotoTypeData {
+                            mod_path: "test::A",
+                            nav: NavigationTarget {
+                                file_id: FileId(
+                                    0,
+                                ),
+                                full_range: 0..14,
+                                focus_range: 7..8,
+                                name: "A",
+                                kind: Struct,
+                                description: "struct A",
                             },
-                            HoverGotoTypeData {
-                                mod_path: "test::B",
-                                nav: NavigationTarget {
-                                    file_id: FileId(
-                                        0,
-                                    ),
-                                    full_range: 15..29,
-                                    focus_range: 22..23,
-                                    name: "B",
-                                    kind: Struct,
-                                    description: "struct B",
-                                },
+                        },
+                        HoverGotoTypeData {
+                            mod_path: "test::B",
+                            nav: NavigationTarget {
+                                file_id: FileId(
+                                    0,
+                                ),
+                                full_range: 15..29,
+                                focus_range: 22..23,
+                                name: "B",
+                                kind: Struct,
+                                description: "struct B",
                             },
-                            HoverGotoTypeData {
-                                mod_path: "test::M::C",
-                                nav: NavigationTarget {
-                                    file_id: FileId(
-                                        0,
-                                    ),
-                                    full_range: 42..60,
-                                    focus_range: 53..54,
-                                    name: "C",
-                                    kind: Struct,
-                                    description: "pub struct C",
-                                },
+                        },
+                        HoverGotoTypeData {
+                            mod_path: "test::M::C",
+                            nav: NavigationTarget {
+                                file_id: FileId(
+                                    0,
+                                ),
+                                full_range: 42..60,
+                                focus_range: 53..54,
+                                name: "C",
+                                kind: Struct,
+                                container_name: "M",
+                                description: "pub struct C",
                             },
-                        ],
-                    ),
-                ]
-            "#]],
+                        },
+                    ],
+                ),
+            ]
+        "#]],
     );
 }
 
@@ -2453,6 +2601,7 @@ pub mod future {
                                 focus_range: 60..66,
                                 name: "Future",
                                 kind: Trait,
+                                container_name: "future",
                                 description: "pub trait Future",
                             },
                         },
@@ -3115,7 +3264,7 @@ mod Foo$0 {
 }
 
 #[test]
-fn hover_doc_outer_inner_attribue() {
+fn hover_doc_outer_inner_attribute() {
     check(
         r#"
 #[doc = "Be quick;"]
@@ -3146,7 +3295,7 @@ mod Foo$0 {
 }
 
 #[test]
-fn hover_doc_block_style_indentend() {
+fn hover_doc_block_style_indent_end() {
     check(
         r#"
 /**
@@ -3462,7 +3611,7 @@ type Fo$0o2 = Foo<2>;
                 ```
 
                 ```rust
-                type Foo2 = Foo<2>
+                type Foo2 = Foo<2> // size = 0, align = 1
                 ```
             "#]],
     );
@@ -4242,7 +4391,7 @@ fn foo() {
 /// [threads]: ../book/ch16-01-threads.html#using-move-closures-with-threads
 mod move_keyword {}
 "#,
-        expect![[r##"
+        expect![[r#"
             *move*
 
             ```rust
@@ -4251,11 +4400,11 @@ mod move_keyword {}
 
             ---
 
-            [closure](https://doc.rust-lang.org/nightly/book/ch13-01-closures.html)
-            [closures](https://doc.rust-lang.org/nightly/book/ch13-01-closures.html)
-            [threads](https://doc.rust-lang.org/nightly/book/ch16-01-threads.html#using-move-closures-with-threads)
+            [closure](https://doc.rust-lang.org/stable/book/ch13-01-closures.html)
+            [closures](https://doc.rust-lang.org/stable/book/ch13-01-closures.html)
+            [threads](https://doc.rust-lang.org/stable/book/ch16-01-threads.html#using-move-closures-with-threads)
             <https://doc.rust-lang.org/nightly/book/ch13-01-closures.html>
-        "##]],
+        "#]],
     );
 }
 
@@ -4288,7 +4437,7 @@ fn hover_builtin() {
     check(
         r#"
 //- /main.rs crate:main deps:std
-cosnt _: &str$0 = ""; }
+const _: &str$0 = ""; }
 
 //- /libstd.rs crate:std
 /// Docs for prim_str
@@ -5009,7 +5158,7 @@ fn foo() {
 fn hover_try_expr_res() {
     check_hover_range(
         r#"
-//- minicore:result
+//- minicore: try, from, result
 struct FooError;
 
 fn foo() -> Result<(), FooError> {
@@ -5023,7 +5172,7 @@ fn foo() -> Result<(), FooError> {
     );
     check_hover_range(
         r#"
-//- minicore:result
+//- minicore: try, from, result
 struct FooError;
 struct BarError;
 
@@ -5044,6 +5193,7 @@ fn foo() -> Result<(), FooError> {
 fn hover_try_expr() {
     check_hover_range(
         r#"
+//- minicore: try
 struct NotResult<T, U>(T, U);
 struct Short;
 struct Looooong;
@@ -5061,6 +5211,7 @@ fn foo() -> NotResult<(), Looooong> {
     );
     check_hover_range(
         r#"
+//- minicore: try
 struct NotResult<T, U>(T, U);
 struct Short;
 struct Looooong;
@@ -5092,7 +5243,7 @@ fn foo() -> Option<()> {
 "#,
         expect![[r#"
                 ```rust
-                <Option<i32> as Try>::Output
+                i32
                 ```"#]],
     );
 }

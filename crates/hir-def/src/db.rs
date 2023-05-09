@@ -1,18 +1,17 @@
 //! Defines database & queries for name resolution.
-use std::sync::Arc;
-
 use base_db::{salsa, CrateId, SourceDatabase, Upcast};
 use either::Either;
 use hir_expand::{db::ExpandDatabase, HirFileId};
 use intern::Interned;
 use la_arena::ArenaMap;
 use syntax::{ast, AstPtr};
+use triomphe::Arc;
 
 use crate::{
-    adt::{EnumData, StructData},
     attr::{Attrs, AttrsWithOwner},
     body::{scope::ExprScopes, Body, BodySourceMap},
     data::{
+        adt::{EnumData, StructData},
         ConstData, FunctionData, ImplData, Macro2Data, MacroRulesData, ProcMacroData, StaticData,
         TraitAliasData, TraitData, TypeAliasData,
     },
@@ -66,7 +65,7 @@ pub trait InternDatabase: SourceDatabase {
 #[salsa::query_group(DefDatabaseStorage)]
 pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDatabase> {
     #[salsa::input]
-    fn enable_proc_attr_macros(&self) -> bool;
+    fn expand_proc_attr_macros(&self) -> bool;
 
     #[salsa::invoke(ItemTree::file_item_tree_query)]
     fn file_item_tree(&self, file_id: HirFileId) -> Arc<ItemTree>;
@@ -94,7 +93,9 @@ pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDataba
     /// The `block_def_map` for block 0 would return `None`, while `block_def_map` of block 1 would
     /// return a `DefMap` containing `inner`.
     #[salsa::invoke(DefMap::block_def_map_query)]
-    fn block_def_map(&self, block: BlockId) -> Option<Arc<DefMap>>;
+    fn block_def_map(&self, block: BlockId) -> Arc<DefMap>;
+
+    // region:data
 
     #[salsa::invoke(StructData::struct_data_query)]
     fn struct_data(&self, id: StructId) -> Arc<StructData>;
@@ -151,6 +152,8 @@ pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDataba
     #[salsa::invoke(ProcMacroData::proc_macro_data_query)]
     fn proc_macro_data(&self, makro: ProcMacroId) -> Arc<ProcMacroData>;
 
+    // endregion:data
+
     #[salsa::invoke(Body::body_with_source_map_query)]
     fn body_with_source_map(&self, def: DefWithBodyId) -> (Arc<Body>, Arc<BodySourceMap>);
 
@@ -162,6 +165,8 @@ pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDataba
 
     #[salsa::invoke(GenericParams::generic_params_query)]
     fn generic_params(&self, def: GenericDefId) -> Interned<GenericParams>;
+
+    // region:attrs
 
     #[salsa::invoke(Attrs::variants_attrs_query)]
     fn variants_attrs(&self, def: EnumId) -> Arc<ArenaMap<LocalEnumVariantId, Attrs>>;
@@ -182,7 +187,13 @@ pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDataba
     ) -> Arc<ArenaMap<LocalFieldId, Either<AstPtr<ast::TupleField>, AstPtr<ast::RecordField>>>>;
 
     #[salsa::invoke(AttrsWithOwner::attrs_query)]
-    fn attrs(&self, def: AttrDefId) -> AttrsWithOwner;
+    fn attrs(&self, def: AttrDefId) -> Attrs;
+
+    #[salsa::transparent]
+    #[salsa::invoke(AttrsWithOwner::attrs_with_owner)]
+    fn attrs_with_owner(&self, def: AttrDefId) -> AttrsWithOwner;
+
+    // endregion:attrs
 
     #[salsa::invoke(LangItems::crate_lang_items_query)]
     fn crate_lang_items(&self, krate: CrateId) -> Arc<LangItems>;
@@ -205,6 +216,8 @@ pub trait DefDatabase: InternDatabase + ExpandDatabase + Upcast<dyn ExpandDataba
 
     #[salsa::transparent]
     fn crate_limits(&self, crate_id: CrateId) -> CrateLimits;
+    #[salsa::transparent]
+    fn recursion_limit(&self, crate_id: CrateId) -> u32;
 
     fn crate_supports_no_std(&self, crate_id: CrateId) -> bool;
 }
@@ -226,6 +239,10 @@ fn crate_limits(db: &dyn DefDatabase, crate_id: CrateId) -> CrateLimits {
         // 128 is the default in rustc.
         recursion_limit: def_map.recursion_limit().unwrap_or(128),
     }
+}
+
+fn recursion_limit(db: &dyn DefDatabase, crate_id: CrateId) -> u32 {
+    db.crate_limits(crate_id).recursion_limit
 }
 
 fn crate_supports_no_std(db: &dyn DefDatabase, crate_id: CrateId) -> bool {

@@ -56,20 +56,24 @@ mod typing;
 mod view_crate_graph;
 mod view_hir;
 mod view_mir;
+mod interpret_function;
 mod view_item_tree;
 mod shuffle_crate_graph;
+mod fetch_crates;
 
-use std::sync::Arc;
+use std::ffi::OsStr;
 
 use cfg::CfgOptions;
+use fetch_crates::CrateInfo;
 use ide_db::{
     base_db::{
         salsa::{self, ParallelDatabase},
         CrateOrigin, Env, FileLoader, FileSet, SourceDatabase, VfsPath,
     },
-    symbol_index, LineIndexDatabase,
+    symbol_index, FxHashMap, FxIndexSet, LineIndexDatabase,
 };
 use syntax::SourceFile;
+use triomphe::Arc;
 
 use crate::navigation_target::{ToNav, TryToNav};
 
@@ -154,7 +158,11 @@ impl AnalysisHost {
     }
 
     pub fn update_lru_capacity(&mut self, lru_capacity: Option<usize>) {
-        self.db.update_lru_capacity(lru_capacity);
+        self.db.update_parse_query_lru_capacity(lru_capacity);
+    }
+
+    pub fn update_lru_capacities(&mut self, lru_capacities: &FxHashMap<Box<str>, usize>) {
+        self.db.update_lru_capacities(lru_capacities);
     }
 
     /// Returns a snapshot of the current state, which you can query for
@@ -233,14 +241,14 @@ impl Analysis {
             None,
             None,
             cfg_options.clone(),
-            cfg_options,
+            None,
             Env::default(),
-            Ok(Vec::new()),
             false,
-            CrateOrigin::CratesIo { repo: None, name: None },
+            CrateOrigin::Local { repo: None, name: None },
             Err("Analysis::from_single_file has no target layout".into()),
+            None,
         );
-        change.change_file(file_id, Some(Arc::new(text)));
+        change.change_file(file_id, Some(Arc::from(text)));
         change.set_crate_graph(crate_graph);
         host.apply_change(change);
         (host.analysis(), file_id)
@@ -259,7 +267,7 @@ impl Analysis {
     }
 
     /// Gets the text of the source file.
-    pub fn file_text(&self, file_id: FileId) -> Cancellable<Arc<String>> {
+    pub fn file_text(&self, file_id: FileId) -> Cancellable<Arc<str>> {
         self.with_db(|db| db.file_text(file_id))
     }
 
@@ -313,6 +321,10 @@ impl Analysis {
         self.with_db(|db| view_mir::view_mir(db, position))
     }
 
+    pub fn interpret_function(&self, position: FilePosition) -> Cancellable<String> {
+        self.with_db(|db| interpret_function::interpret_function(db, position))
+    }
+
     pub fn view_item_tree(&self, file_id: FileId) -> Cancellable<String> {
         self.with_db(|db| view_item_tree::view_item_tree(db, file_id))
     }
@@ -320,6 +332,10 @@ impl Analysis {
     /// Renders the crate graph to GraphViz "dot" syntax.
     pub fn view_crate_graph(&self, full: bool) -> Cancellable<Result<String, String>> {
         self.with_db(|db| view_crate_graph::view_crate_graph(db, full))
+    }
+
+    pub fn fetch_crates(&self) -> Cancellable<FxIndexSet<CrateInfo>> {
+        self.with_db(|db| fetch_crates::fetch_crates(db))
     }
 
     pub fn expand_macro(&self, position: FilePosition) -> Cancellable<Option<ExpandedMacro>> {
@@ -389,7 +405,7 @@ impl Analysis {
         self.with_db(|db| {
             symbol_index::world_symbols(db, query)
                 .into_iter() // xx: should we make this a par iter?
-                .filter_map(|s| s.try_to_nav(db))
+                .filter_map(|s| s.def.try_to_nav(db))
                 .collect::<Vec<_>>()
         })
     }
@@ -452,12 +468,19 @@ impl Analysis {
         self.with_db(|db| moniker::moniker(db, position))
     }
 
-    /// Return URL(s) for the documentation of the symbol under the cursor.
+    /// Returns URL(s) for the documentation of the symbol under the cursor.
+    /// # Arguments
+    /// * `position` - Position in the file.
+    /// * `target_dir` - Directory where the build output is storeda.
     pub fn external_docs(
         &self,
         position: FilePosition,
-    ) -> Cancellable<Option<doc_links::DocumentationLink>> {
-        self.with_db(|db| doc_links::external_docs(db, &position))
+        target_dir: Option<&OsStr>,
+        sysroot: Option<&OsStr>,
+    ) -> Cancellable<doc_links::DocumentationLinks> {
+        self.with_db(|db| {
+            doc_links::external_docs(db, &position, target_dir, sysroot).unwrap_or_default()
+        })
     }
 
     /// Computes parameter information at the given position.

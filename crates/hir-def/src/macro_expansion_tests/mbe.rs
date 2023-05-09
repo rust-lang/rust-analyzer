@@ -98,7 +98,7 @@ fn#19 main#20(#21)#21 {#22
     );
 }
 #[test]
-fn float_field_acces_macro_input() {
+fn float_field_access_macro_input() {
     check(
         r#"
 macro_rules! foo {
@@ -1293,15 +1293,49 @@ ok!();
 }
 
 #[test]
-fn test_vertical_bar_with_pat() {
+fn test_vertical_bar_with_pat_param() {
     check(
         r#"
-macro_rules! m { (|$pat:pat| ) => { ok!(); } }
+macro_rules! m { (|$pat:pat_param| ) => { ok!(); } }
 m! { |x| }
  "#,
         expect![[r#"
-macro_rules! m { (|$pat:pat| ) => { ok!(); } }
+macro_rules! m { (|$pat:pat_param| ) => { ok!(); } }
 ok!();
+ "#]],
+    );
+}
+
+#[test]
+fn test_new_std_matches() {
+    check(
+        r#"
+macro_rules! matches {
+    ($expression:expr, $pattern:pat $(if $guard:expr)? $(,)?) => {
+        match $expression {
+            $pattern $(if $guard)? => true,
+            _ => false
+        }
+    };
+}
+fn main() {
+    matches!(0, 0 | 1 if true);
+}
+ "#,
+        expect![[r#"
+macro_rules! matches {
+    ($expression:expr, $pattern:pat $(if $guard:expr)? $(,)?) => {
+        match $expression {
+            $pattern $(if $guard)? => true,
+            _ => false
+        }
+    };
+}
+fn main() {
+    match 0 {
+        0|1if true =>true , _=>false
+    };
+}
  "#]],
     );
 }
