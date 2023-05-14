@@ -405,7 +405,18 @@ impl Analysis {
         self.with_db(|db| {
             symbol_index::world_symbols(db, query)
                 .into_iter() // xx: should we make this a par iter?
-                .filter_map(|s| s.def.try_to_nav(db))
+                .filter_map(|s| {
+                    let nav = s.def.try_to_nav(db);
+                    // With the use of doc aliases, we should adopt `FileSymbol`s name.
+                    // Otherwise aliases would be ignored.
+                    match nav {
+                        Some(mut inner) => {
+                            inner.name = s.name;
+                            Some(inner)
+                        }
+                        None => None,
+                    }
+                })
                 .collect::<Vec<_>>()
         })
     }
