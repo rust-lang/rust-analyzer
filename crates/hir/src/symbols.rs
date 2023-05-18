@@ -249,85 +249,76 @@ impl<'a> SymbolCollector<'a> {
         <L as Lookup>::Data: HasSource,
         <<L as Lookup>::Data as HasSource>::Value: HasName,
     {
-        self.push_file_symbol(|s| {
-            let mut symbols = Vec::new();
-            let loc = id.lookup(s.db.upcast());
-            let source = loc.source(s.db.upcast());
-            let name_node = source.value.name()?;
-            let def = ModuleDef::from(id.into());
-            let dec_loc = DeclarationLocation {
-                hir_file_id: source.file_id,
-                ptr: SyntaxNodePtr::new(source.value.syntax()),
-                name_ptr: SyntaxNodePtr::new(name_node.syntax()),
-            };
+        let loc = id.lookup(self.db.upcast());
+        let source = loc.source(self.db.upcast());
+        let name_node = match source.value.name() {
+            Some(n) => n,
+            None => return,
+        };
 
-            if let Some(attrs) = def.attrs(s.db) {
-                for alias in attrs.doc_aliases() {
-                    eprintln!("Adding alias {}", alias);
-                    symbols.push(FileSymbol {
-                        name: alias,
-                        def: def.clone(),
-                        loc: dec_loc.clone(),
-                        container_name: s.current_container_name.clone(),
-                    });
-                }
+        let def = ModuleDef::from(id.into());
+        let dec_loc = DeclarationLocation {
+            hir_file_id: source.file_id,
+            ptr: SyntaxNodePtr::new(source.value.syntax()),
+            name_ptr: SyntaxNodePtr::new(name_node.syntax()),
+        };
+
+        if let Some(attrs) = def.attrs(self.db) {
+            for alias in attrs.doc_aliases() {
+                self.symbols.push(FileSymbol {
+                    name: alias,
+                    def,
+                    loc: dec_loc.clone(),
+                    container_name: self.current_container_name.clone(),
+                });
             }
+        }
 
-            symbols.push(FileSymbol {
-                name: name_node.text().into(),
-                def,
-                container_name: s.current_container_name.clone(),
-                loc: dec_loc,
-            });
-
-            Some(symbols)
-        })
+        self.symbols.push(FileSymbol {
+            name: name_node.text().into(),
+            def,
+            container_name: self.current_container_name.clone(),
+            loc: dec_loc,
+        });
     }
 
     fn push_module(&mut self, module_id: ModuleId) {
-        self.push_file_symbol(|s| {
-            let mut symbols = Vec::new();
-            let def_map = module_id.def_map(s.db.upcast());
-            let module_data = &def_map[module_id.local_id];
-            let declaration = module_data.origin.declaration()?;
-            let module = declaration.to_node(s.db.upcast());
-            let name_node = module.name()?;
-            let dec_loc = DeclarationLocation {
-                hir_file_id: declaration.file_id,
-                ptr: SyntaxNodePtr::new(module.syntax()),
-                name_ptr: SyntaxNodePtr::new(name_node.syntax()),
-            };
+        let def_map = module_id.def_map(self.db.upcast());
+        let module_data = &def_map[module_id.local_id];
+        let declaration = match module_data.origin.declaration() {
+            Some(d) => d,
+            None => return,
+        };
 
-            let def = ModuleDef::Module(module_id.into());
+        let module = declaration.to_node(self.db.upcast());
+        let name_node = match module.name() {
+            Some(n) => n,
+            None => return,
+        };
+        let dec_loc = DeclarationLocation {
+            hir_file_id: declaration.file_id,
+            ptr: SyntaxNodePtr::new(module.syntax()),
+            name_ptr: SyntaxNodePtr::new(name_node.syntax()),
+        };
 
-            if let Some(attrs) = def.attrs(s.db) {
-                for alias in attrs.doc_aliases() {
-                    eprintln!("Adding alias for module.  {}", alias);
-                    symbols.push(FileSymbol {
-                        name: alias,
-                        def: def.clone(),
-                        loc: dec_loc.clone(),
-                        container_name: s.current_container_name.clone(),
-                    });
-                }
-            }
+        let def = ModuleDef::Module(module_id.into());
 
-            symbols.push(FileSymbol {
-                name: name_node.text().into(),
-                def: ModuleDef::Module(module_id.into()),
-                container_name: s.current_container_name.clone(),
-                loc: dec_loc,
-            });
-
-            Some(symbols)
-        })
-    }
-
-    fn push_file_symbol(&mut self, f: impl FnOnce(&Self) -> Option<Vec<FileSymbol>>) {
-        if let Some(file_symbols) = f(self) {
-            for file_symbol in file_symbols {
-                self.symbols.push(file_symbol);
+        if let Some(attrs) = def.attrs(self.db) {
+            for alias in attrs.doc_aliases() {
+                self.symbols.push(FileSymbol {
+                    name: alias,
+                    def,
+                    loc: dec_loc.clone(),
+                    container_name: self.current_container_name.clone(),
+                });
             }
         }
+
+        self.symbols.push(FileSymbol {
+            name: name_node.text().into(),
+            def: ModuleDef::Module(module_id.into()),
+            container_name: self.current_container_name.clone(),
+            loc: dec_loc,
+        });
     }
 }
