@@ -158,6 +158,7 @@ mod handlers {
     mod generate_is_empty_from_len;
     mod generate_new;
     mod generate_setter;
+    mod generate_trait_impl_for_enum;
     mod generate_delegate_methods;
     mod add_return_type;
     mod inline_call;
@@ -258,6 +259,7 @@ mod handlers {
             generate_enum_projection_method::generate_enum_try_into_method,
             generate_enum_variant::generate_enum_variant,
             generate_from_impl_for_enum::generate_from_impl_for_enum,
+            generate_trait_impl_for_enum::generate_trait_impl_for_enum,
             generate_function::generate_function,
             generate_impl::generate_impl,
             generate_impl::generate_trait_impl,

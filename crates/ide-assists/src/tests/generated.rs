@@ -1459,6 +1459,71 @@ impl<T: Clone> $0 for Ctx<T> {
 }
 
 #[test]
+fn doctest_generate_trait_impl_for_enum() {
+    check_doc_test(
+        "generate_trait_impl_for_enum",
+        r#####"
+trait Trait {
+    type Input;
+    fn method(&self, input: Self::Input) -> Self;
+}
+
+impl Trait for u32 {
+    type Input = Self;
+    fn method(self: &Self, input: Self::Input) -> Self { Default::default() }
+}
+
+enum Enum where u32: $0Trait {
+    V1(i32, u32, i32),
+    V2 { name: u32, age: i32 },
+    V3 { age: u32, name: u32 },
+    v4 (String, u32)
+    v5()
+    v6{}
+    v7
+}
+"#####,
+        r#####"
+trait Trait {
+    type Input;
+    fn method(&self, input: Self::Input) -> Self;
+}
+
+impl Trait for u32 {
+    type Input = Self;
+    fn method(self: &Self, input: Self::Input) -> Self { Default::default() }
+}
+
+enum Enum {
+    V1(i32, u32, i32),
+    V2 { name: u32, age: i32 },
+    V3 { age: u32, name: u32 },
+    v4 (String, u32)
+    v5()
+    v6{}
+    v7
+}
+
+impl Trait for Enum
+where u32: Trait
+{
+    type Input = u32;
+
+    fn method(self: &Self, input: Self::Input) -> Self {
+        match Self {
+            Self::V1 (f0, f1, f2) => Self::V1(f0, f1.method(input), f2),
+            Self::V2 { name, age } => Self::V2 { name: name.method(input), age },
+            Self::V3 { age, name } => Self::V3 { age: age.method(input), name },
+            Self::v4 (f0, f1) => Self::v4(f0, f1.method(input)),
+            variant => variant
+        }
+    }
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_inline_call() {
     check_doc_test(
         "inline_call",

@@ -761,6 +761,16 @@ pub(crate) fn required_hashes(s: &str) -> usize {
     }
     res
 }
+
+#[test]
+fn test_convert_param_list_to_arg_list() {
+    let text = "trait Trait { fn method(&self, name: String, age: usize); }";
+    let parse: syntax::Parse<SourceFile> = SourceFile::parse(text);
+    let func = parse.tree().syntax().descendants().find_map(ast::Fn::cast).unwrap();
+    let param_list = func.param_list().unwrap();
+    assert_eq!("(name, age)", &convert_param_list_to_arg_list(param_list).to_string());
+}
+
 #[test]
 fn test_required_hashes() {
     assert_eq!(0, required_hashes("abc"));

@@ -189,9 +189,9 @@ pub fn ty_alias(
 
     if let Some(exp) = assignment {
         if let Some(cl) = exp.1 {
-            s.push_str(&format!("= {} {}", &exp.0.to_string(), &cl.to_string()));
+            s.push_str(&format!(" = {} {}", &exp.0.to_string(), &cl.to_string()));
         } else {
-            s.push_str(&format!("= {}", &exp.0.to_string()));
+            s.push_str(&format!(" = {}", &exp.0.to_string()));
         }
     }
 
@@ -551,6 +551,14 @@ pub fn ident_pat(ref_: bool, mut_: bool, name: ast::Name) -> ast::IdentPat {
     ast_from_text(&s)
 }
 
+pub fn rest_pat() -> ast::RestPat {
+    return from_text("..");
+
+    fn from_text(text: &str) -> ast::RestPat {
+        ast_from_text(&format!("fn f(A (f0, {text}): ())"))
+    }
+}
+
 pub fn wildcard_pat() -> ast::WildcardPat {
     return from_text("_");
 
@@ -820,9 +828,7 @@ pub fn lifetime_arg(lifetime: ast::Lifetime) -> ast::LifetimeArg {
     ast_from_text(&format!("const S: T<{lifetime}> = ();"))
 }
 
-pub(crate) fn generic_arg_list(
-    args: impl IntoIterator<Item = ast::GenericArg>,
-) -> ast::GenericArgList {
+pub fn generic_arg_list(args: impl IntoIterator<Item = ast::GenericArg>) -> ast::GenericArgList {
     let args = args.into_iter().join(", ");
     ast_from_text(&format!("const S: T<{args}> = ();"))
 }
@@ -900,6 +906,10 @@ pub fn fn_(
     ))
 }
 
+pub fn try_fn_(text: &str) -> Option<ast::Fn> {
+    try_ast_from_text(&format!("mod _ {{ {text} }}"))
+}
+
 pub fn struct_(
     visibility: Option<ast::Visibility>,
     strukt_name: ast::Name,
@@ -929,6 +939,17 @@ fn ast_from_text<N: AstNode>(text: &str) -> N {
     let node = node.clone_subtree();
     assert_eq!(node.syntax().text_range().start(), 0.into());
     node
+}
+
+fn try_ast_from_text<N: AstNode>(text: &str) -> Option<N> {
+    let parse = SourceFile::parse(text);
+    let node = match parse.tree().syntax().descendants().find_map(N::cast) {
+        Some(it) => it,
+        None => return None,
+    };
+    let node = node.clone_subtree();
+    assert_eq!(node.syntax().text_range().start(), 0.into());
+    Some(node)
 }
 
 pub fn token(kind: SyntaxKind) -> SyntaxToken {
