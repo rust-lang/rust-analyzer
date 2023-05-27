@@ -1465,12 +1465,12 @@ fn doctest_generate_trait_impl_for_enum() {
         r#####"
 trait Trait {
     type Input;
-    fn method(&self, input: Self::Input) -> Self;
+    fn method(self, input: Self::Input) -> Self;
 }
 
 impl Trait for u32 {
     type Input = Self;
-    fn method(self: &Self, input: Self::Input) -> Self { Default::default() }
+    fn method(self, input: Self::Input) -> Self { Default::default() }
 }
 
 enum Enum where u32: $0Trait {
@@ -1486,12 +1486,12 @@ enum Enum where u32: $0Trait {
         r#####"
 trait Trait {
     type Input;
-    fn method(&self, input: Self::Input) -> Self;
+    fn method(self, input: Self::Input) -> Self;
 }
 
 impl Trait for u32 {
     type Input = Self;
-    fn method(self: &Self, input: Self::Input) -> Self { Default::default() }
+    fn method(self, input: Self::Input) -> Self { Default::default() }
 }
 
 enum Enum {
@@ -1509,13 +1509,13 @@ where u32: Trait
 {
     type Input = u32;
 
-    fn method(self: &Self, input: Self::Input) -> Self {
-        match Self {
+    fn method(self, input: Self::Input) -> Self {
+        match self {
             Self::V1 (f0, f1, f2) => Self::V1(f0, f1.method(input), f2),
             Self::V2 { name, age } => Self::V2 { name: name.method(input), age },
             Self::V3 { age, name } => Self::V3 { age: age.method(input), name },
             Self::v4 (f0, f1) => Self::v4(f0, f1.method(input)),
-            variant => variant
+            variant => variant$0
         }
     }
 }

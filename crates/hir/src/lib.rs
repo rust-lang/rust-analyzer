@@ -3194,14 +3194,15 @@ impl Impl {
         all
     }
 
-    pub fn all_for_trait(db: &dyn HirDatabase, trait_: Trait) -> Vec<Impl> {
-        let krate = trait_.module(db).krate();
-        let mut all = Vec::new();
-        for Crate { id } in krate.transitive_reverse_dependencies(db) {
-            let impls = db.trait_impls_in_crate(id);
-            all.extend(impls.for_trait(trait_.id).map(Self::from))
-        }
-        all
+    pub fn all_for_trait(db: &dyn HirDatabase, trait_: Trait) -> impl Iterator<Item = Impl> + '_ {
+        trait_.module(db).krate().transitive_reverse_dependencies(db).flat_map(
+            move |Crate { id }| {
+                db.trait_impls_in_crate(id)
+                    .for_trait(trait_.id)
+                    .map(Self::from)
+                    .collect::<Vec<Impl>>()
+            },
+        )
     }
 
     pub fn trait_(self, db: &dyn HirDatabase) -> Option<Trait> {

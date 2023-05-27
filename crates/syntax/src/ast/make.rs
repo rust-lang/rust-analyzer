@@ -906,8 +906,8 @@ pub fn fn_(
     ))
 }
 
-pub fn try_fn_(text: &str) -> Option<ast::Fn> {
-    try_ast_from_text(&format!("mod _ {{ {text} }}"))
+pub fn maybe_fn_(text: &str) -> Option<ast::Fn> {
+    maybe_ast_from_text(&format!("mod _ {{ {text} }}"))
 }
 
 pub fn struct_(
@@ -941,7 +941,7 @@ fn ast_from_text<N: AstNode>(text: &str) -> N {
     node
 }
 
-fn try_ast_from_text<N: AstNode>(text: &str) -> Option<N> {
+fn maybe_ast_from_text<N: AstNode>(text: &str) -> Option<N> {
     let parse = SourceFile::parse(text);
     let node = match parse.tree().syntax().descendants().find_map(N::cast) {
         Some(it) => it,
