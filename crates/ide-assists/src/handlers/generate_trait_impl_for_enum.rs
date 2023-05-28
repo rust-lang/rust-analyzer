@@ -141,10 +141,8 @@ pub(crate) fn generate_trait_impl_for_enum(
     let ty_bound_path_at_offset = ctx.find_node_at_offset::<ast::PathType>()?;
 
     // The `Type` in `Type: Trait<..args>`
-    let where_pred_ty_hir = resolve_path_type(
-        &ctx.sema,
-        &where_pred_at_offset.syntax().descendants().find_map(ast::PathType::cast)?,
-    )?;
+    let where_pred_ty_hir =
+        resolve_path_type(&ctx.sema, &where_pred_at_offset.cast_descendant::<ast::PathType>()?)?;
 
     // The `Trait` in `Type: Trait<..args>`
     let trait_hir = resolve_trait_path(&ctx.sema, &ty_bound_path_at_offset)?;
@@ -152,7 +150,7 @@ pub(crate) fn generate_trait_impl_for_enum(
     // The `..args` in `Type: Trait<..args>`
     let generic_args_hir = get_trait_bound_generic_args(
         &ctx.sema,
-        ty_bound_path_at_offset.syntax().descendants().find_map(ast::GenericArgList::cast).as_ref(),
+        ty_bound_path_at_offset.cast_descendant::<ast::GenericArgList>().as_ref(),
     );
 
     // Finding a trait solution that matches the obligation can result in either a unique or
@@ -188,7 +186,7 @@ pub(crate) fn generate_trait_impl_for_enum(
         })
         .collect_vec();
 
-    // Make sure there's atleast one delegable variant.
+    // Make sure there's at least one delegable variant.
     // Is there a style convention against these?
     variant_arms.first()?;
 
@@ -198,7 +196,7 @@ pub(crate) fn generate_trait_impl_for_enum(
     let code = create_impl_body(db, &trait_impl.items(db), &variant_arms, &where_pred_ty_str)?;
     let where_pred_syn = where_pred_at_offset.syntax();
 
-    let id = AssistId("generate_trait_impl_for_enum", AssistKind::Generate);
+    let id = AssistId("generate_trait_impl_for_enum", AssistKind::QuickFix);
     let label = format!("Generate `{trait_text}` impl for `{enum_name}`");
     let target = where_pred_syn.text_range();
 
@@ -258,14 +256,19 @@ fn create_impl_body(
 ) -> Option<String> {
     let mut impl_body = vec![];
 
+    let mut marked = false;
     for assoc in assoc_items {
         match assoc {
             AssocItem::TypeAlias(ty_alias) => {
                 impl_body.push(create_impl_assoc_ty_alias(db, ty_alias, where_pred_ty)?)
             }
-            AssocItem::Function(method) => {
-                impl_body.push(create_impl_assoc_method(db, method, variant_arms, where_pred_ty)?)
-            }
+            AssocItem::Function(method) => impl_body.push(create_impl_assoc_method(
+                db,
+                method,
+                variant_arms,
+                where_pred_ty,
+                &mut marked,
+            )?),
             _ => (),
         }
     }
@@ -303,6 +306,7 @@ fn create_impl_assoc_method(
     method: &hir::Function,
     variant_arms: &[(ast::Pat, ast::Path, hir::Variant)],
     _where_pred_ty: &str,
+    marked: &mut bool,
 ) -> Option<ast::AssocItem> {
     // FIXME: Allow for async/unsafe-ness?
     if method.is_async(db) || method.is_unsafe_to_call(db) {
@@ -328,30 +332,8 @@ fn create_impl_assoc_method(
     // FIXME: We should resolve type aliases if for some reason there a Self::Output = Self binding.
     let method_callable_args = convert_param_list_to_arg_list(method_source.param_list()?);
 
-    // FIXME: Crying emoji
-
-    let method_ret_type_is_self = method_ret_type
-        .as_ref()
-        .map(ast::RetType::syntax)
-        .map(SyntaxNode::children)
-        .and_then(|mut children| children.find_map(ast::PathType::cast))
-        .as_ref()
-        .and_then(ast::PathType::path)
-        .as_ref()
-        .and_then(ast::Path::as_single_name_ref);
-
-    let ret_is_owned_self = matches!(
-        method_ret_type_is_self,
-        Some(ret_name_ref) if ret_name_ref.Self_token().is_some()
-    );
-
-    let default_arm = if ret_is_owned_self {
-        "variant => variant$0"
-    } else if method_ret_type.is_none() {
-        "_ => ()$0"
-    } else {
-        "_ => $0"
-    };
+    // Special function
+    let method_ret_type_is_self = extract_name_ref_from_method_ret(&method_ret_type);
 
     let method_return = method_ret_type.as_ref().map(ast::RetType::to_string).unwrap_or_default();
 
@@ -359,6 +341,7 @@ fn create_impl_assoc_method(
         method_source.where_clause().as_ref().map(ast::WhereClause::to_string).unwrap_or_default();
 
     // If method doesn't have a receiver, return early.
+    // If async is allowed, make sure to handle this (!method.is_async(db))
     if method_receiver_access.is_none() {
         let method_body = format!("{{\n        {_where_pred_ty}{qualifier_or_accessor}{method_name}{method_callable_args}\n    }}");
         let method_definition = format!(
@@ -368,35 +351,60 @@ fn create_impl_assoc_method(
         return make::maybe_fn_(&method_definition).map(ast::AssocItem::Fn);
     }
 
-    let match_arm_pats = variant_arms
-        .iter()
-        .enumerate()
-        .map(|(i, (pat, name, variant))| {
-            let indentation = if i == 0 { "" } else { "      " };
-            match (method_receiver_access, ret_is_owned_self) {
-                (Some(hir::Access::Owned), true)  => {
-                    let fields = format_variant_fields(db, variant);
+    let mut match_arm_pats = String::with_capacity(variant_arms.len());
 
-                    match pat {
-                        ast::Pat::RecordPat(record) => {
-                            format_record_pat(indentation, record, &fields, name, qualifier_or_accessor, &method_name, &method_callable_args)
-                        }
-                        ast::Pat::TupleStructPat(tuple) => {
-                            format_tuple_struct_pat(indentation, tuple, &fields, name, qualifier_or_accessor, &method_name, &method_callable_args)
-                        }
-                        _ => unreachable!(
-                            "Should not be possible to get here because of `create_partial_match_arm`"
-                        ),
+    for (i, (pat, name, variant)) in variant_arms.iter().enumerate() {
+        let indentation = if i == 0 { "" } else { "      " };
+        match (method_receiver_access, method_ret_type_is_self.as_ref()) {
+            (Some(hir::Access::Owned), Some(ret_name_ref)) if ret_name_ref.Self_token().is_some()  => {
+                let fields = format_variant_fields(db, variant);
+
+                match pat {
+                    ast::Pat::RecordPat(record) => {
+                        let rec_pat = format_record_pat(indentation, record, &fields, name, qualifier_or_accessor, &method_name, &method_callable_args);
+                        match_arm_pats.push_str(&rec_pat)
                     }
+                    ast::Pat::TupleStructPat(tuple) => {
+                        let tup_pat = format_tuple_struct_pat(indentation, tuple, &fields, name, qualifier_or_accessor, &method_name, &method_callable_args);
+                        match_arm_pats.push_str(&tup_pat)
+                    }
+                    _ => stdx::never!(
+                        "Should not be possible to get here because of `create_partial_match_arm`"
+                    ),
                 }
-                _ => format!("{indentation}{pat} => {name}{qualifier_or_accessor}{method_name}{method_callable_args}")
             }
-        })
-        .join(",\n      ");
+            _ => match_arm_pats.push_str(&format!("{indentation}{pat} => {name}{qualifier_or_accessor}{method_name}{method_callable_args}"))
+        }
+        match_arm_pats.push_str(",\n      ");
+    }
+
+    let default_arm = if matches!(
+        method_ret_type_is_self,
+        Some(ret_name_ref) if ret_name_ref.Self_token().is_some()
+    ) {
+        if *marked {
+            "variant => variant"
+        } else {
+            *marked = true;
+            "variant => variant$0"
+        }
+    } else if method_ret_type.is_none() {
+        if *marked {
+            "_ => ()"
+        } else {
+            *marked = true;
+            "_ => ()$0"
+        }
+    } else if *marked {
+        r#"_ => todo!()"#
+    } else {
+        *marked = true;
+        r#"_ => ${0:todo!()}"#
+    };
 
     let method_body = format!(
-            "{{\n        match self {{\n            {match_arm_pats},\n            {default_arm}\n        }}\n    }}",
-        );
+            "{{\n        match self {{\n            {match_arm_pats}      {default_arm}\n        }}\n    }}",
+    );
 
     let method_definition = format!(
         "fn {method_name}{method_generics}{method_params_normalized} {method_return} {method_where_clause}{method_body}"
@@ -424,10 +432,8 @@ fn create_partial_match_arm(
             continue;
         }
 
-        let resolved_field_ty = resolve_path_type(
-            sema,
-            &field_ty.syntax().descendants().find_map(ast::PathType::cast)?,
-        )?;
+        let resolved_field_ty =
+            resolve_path_type(sema, &field_ty.cast_descendant::<ast::PathType>()?)?;
 
         // FIXME: This comparison is not reliable, i.e. it does not take into account canonical
         // matches.
@@ -448,6 +454,7 @@ fn create_partial_match_arm(
                     )));
                     let record_pat_field_list = itertools::chain(
                         iter::once(make::path_pat(field_path.clone())),
+                        // Always assume it's non-exhaustive
                         iter::once(ast::Pat::RestPat(make::rest_pat())),
                     );
 
@@ -465,6 +472,7 @@ fn create_partial_match_arm(
                     for i in 0..=idx {
                         if i == idx {
                             pats.push(make::path_pat(field_path.clone()));
+                            // Always assume it's non-exhaustive
                             pats.push(ast::Pat::RestPat(make::rest_pat()));
 
                             break;
@@ -480,7 +488,7 @@ fn create_partial_match_arm(
 
                     return Some((tuple_pat, field_path, *variant_hir));
                 }
-                hir::StructKind::Unit => unreachable!(
+                hir::StructKind::Unit => stdx::never!(
                     "Should not be possible to reach this? Unless ()::method_call counts?"
                 ),
             }
@@ -490,6 +498,21 @@ fn create_partial_match_arm(
 }
 
 // --------------------- Helper functions ----------------------------
+
+fn extract_name_ref_from_method_ret(
+    method_ret_type: &Option<ast::RetType>,
+) -> Option<ast::NameRef> {
+    // FIXME: Crying emoji, should refactor this.
+    method_ret_type
+        .as_ref()
+        .map(ast::RetType::syntax)
+        .map(SyntaxNode::children)
+        .and_then(|mut children| children.find_map(ast::PathType::cast))
+        .as_ref()
+        .and_then(ast::PathType::path)
+        .as_ref()
+        .and_then(ast::Path::as_single_name_ref)
+}
 
 fn get_sibling_token_text_size(node: &SyntaxNode, direction: Direction) -> TextSize {
     match direction {
@@ -776,7 +799,7 @@ where u32: Trait<u32>
         match self {
             Self::One { verycool, .. } => verycool.next(input),
             Self::Two(_, _, f2, ..) => f2.next(input),
-            _ => $0
+            _ => ${0:todo!()}
         }
     }
 

@@ -17,7 +17,7 @@ use either::Either;
 
 use crate::{
     syntax_node::{SyntaxNode, SyntaxNodeChildren, SyntaxToken},
-    SyntaxKind,
+    Direction, SyntaxKind,
 };
 
 pub use self::{
@@ -61,6 +61,30 @@ pub trait AstNode {
         Self: Sized,
     {
         Self::cast(self.syntax().clone_subtree()).unwrap()
+    }
+
+    fn cast_descendant<N>(&self) -> Option<N>
+    where
+        Self: Sized,
+        N: AstNode,
+    {
+        self.syntax().descendants().find_map(N::cast)
+    }
+
+    fn cast_sibling<N>(&self, direction: Direction) -> Option<N>
+    where
+        Self: Sized,
+        N: AstNode,
+    {
+        self.syntax().siblings(direction).find_map(N::cast)
+    }
+
+    fn cast_child<N>(&self) -> Option<N>
+    where
+        Self: Sized,
+        N: AstNode,
+    {
+        self.syntax().children().find_map(N::cast)
     }
 }
 
