@@ -897,6 +897,8 @@ fn cargo_to_crate_graph(
             cfg_options
         });
 
+        let manifest_id = load(&cargo[pkg].manifest);
+
         let mut lib_tgt = None;
         for &tgt in cargo[pkg].targets.iter() {
             if cargo[tgt].kind != TargetKind::Lib && !cargo[pkg].is_member {
@@ -916,7 +918,7 @@ fn cargo_to_crate_graph(
                 build_scripts.get_output(pkg),
                 cfg_options.clone(),
                 file_id,
-                None,
+                manifest_id,
                 &cargo[tgt].name,
                 cargo[tgt].is_proc_macro,
                 target_layout.clone(),
