@@ -296,6 +296,7 @@ impl ReleaseChannel {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CrateData {
     pub root_file_id: FileId,
+    pub manifest_path_id: Option<FileId>,
     pub edition: Edition,
     pub version: Option<String>,
     /// A name used in the package's project declaration: for Cargo projects,
@@ -359,6 +360,7 @@ impl CrateGraph {
     pub fn add_crate_root(
         &mut self,
         root_file_id: FileId,
+        manifest_path_id: Option<FileId>,
         edition: Edition,
         display_name: Option<CrateDisplayName>,
         version: Option<String>,
@@ -372,6 +374,7 @@ impl CrateGraph {
     ) -> CrateId {
         let data = CrateData {
             root_file_id,
+            manifest_path_id,
             edition,
             version,
             display_name,
@@ -738,6 +741,7 @@ mod tests {
         let mut graph = CrateGraph::default();
         let crate1 = graph.add_crate_root(
             FileId(1u32),
+            Some(FileId(2u32)),
             Edition2018,
             None,
             None,
@@ -750,7 +754,8 @@ mod tests {
             None,
         );
         let crate2 = graph.add_crate_root(
-            FileId(2u32),
+            FileId(3u32),
+            Some(FileId(4u32)),
             Edition2018,
             None,
             None,
@@ -763,7 +768,8 @@ mod tests {
             None,
         );
         let crate3 = graph.add_crate_root(
-            FileId(3u32),
+            FileId(5u32),
+            Some(FileId(6u32)),
             Edition2018,
             None,
             None,
@@ -791,6 +797,7 @@ mod tests {
         let mut graph = CrateGraph::default();
         let crate1 = graph.add_crate_root(
             FileId(1u32),
+            Some(FileId(2u32)),
             Edition2018,
             None,
             None,
@@ -803,7 +810,8 @@ mod tests {
             None,
         );
         let crate2 = graph.add_crate_root(
-            FileId(2u32),
+            FileId(3u32),
+            Some(FileId(4u32)),
             Edition2018,
             None,
             None,
@@ -828,6 +836,7 @@ mod tests {
         let mut graph = CrateGraph::default();
         let crate1 = graph.add_crate_root(
             FileId(1u32),
+            Some(FileId(2u32)),
             Edition2018,
             None,
             None,
@@ -840,7 +849,8 @@ mod tests {
             None,
         );
         let crate2 = graph.add_crate_root(
-            FileId(2u32),
+            FileId(3u32),
+            Some(FileId(4u32)),
             Edition2018,
             None,
             None,
@@ -853,7 +863,8 @@ mod tests {
             None,
         );
         let crate3 = graph.add_crate_root(
-            FileId(3u32),
+            FileId(5u32),
+            Some(FileId(6u32)),
             Edition2018,
             None,
             None,
@@ -878,6 +889,7 @@ mod tests {
         let mut graph = CrateGraph::default();
         let crate1 = graph.add_crate_root(
             FileId(1u32),
+            Some(FileId(1u32)),
             Edition2018,
             None,
             None,
@@ -890,7 +902,8 @@ mod tests {
             None,
         );
         let crate2 = graph.add_crate_root(
-            FileId(2u32),
+            FileId(3u32),
+            Some(FileId(4u32)),
             Edition2018,
             None,
             None,

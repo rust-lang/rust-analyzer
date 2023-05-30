@@ -56,7 +56,7 @@ use rustc_hash::FxHashMap;
 use serde::{de, Deserialize};
 use std::path::PathBuf;
 
-use crate::cfg_flag::CfgFlag;
+use crate::{cfg_flag::CfgFlag, ManifestPath};
 
 /// Roots and crates that compose this Rust project.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -75,6 +75,7 @@ pub struct ProjectJson {
 pub struct Crate {
     pub(crate) display_name: Option<CrateDisplayName>,
     pub(crate) root_module: AbsPathBuf,
+    pub(crate) manifest_path: Option<ManifestPath>,
     pub(crate) edition: Edition,
     pub(crate) version: Option<String>,
     pub(crate) deps: Vec<Dependency>,
@@ -108,6 +109,13 @@ impl ProjectJson {
                 .into_iter()
                 .map(|crate_data| {
                     let root_module = absolutize_on_base(crate_data.root_module);
+                    let manifest_path = match crate_data.manifest_path {
+                        Some(path) => {
+                            let path = absolutize_on_base(path);
+                            ManifestPath::try_from(path).ok()
+                        }
+                        None => None,
+                    };
                     let is_workspace_member = crate_data
                         .is_workspace_member
                         .unwrap_or_else(|| root_module.starts_with(base));
@@ -126,6 +134,7 @@ impl ProjectJson {
                             .display_name
                             .map(CrateDisplayName::from_canonical_name),
                         root_module,
+                        manifest_path,
                         edition: crate_data.edition.into(),
                         version: crate_data.version.as_ref().map(ToString::to_string),
                         deps: crate_data
@@ -185,6 +194,7 @@ pub struct ProjectJsonData {
 struct CrateData {
     display_name: Option<String>,
     root_module: PathBuf,
+    manifest_path: Option<PathBuf>,
     edition: EditionData,
     #[serde(default)]
     version: Option<semver::Version>,

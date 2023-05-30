@@ -30,6 +30,7 @@ pub(crate) fn shuffle_crate_graph(db: &mut RootDatabase) {
         let data = &crate_graph[old_id];
         let new_id = new_graph.add_crate_root(
             data.root_file_id,
+            data.manifest_path_id,
             data.edition,
             data.display_name.clone(),
             data.version.clone(),

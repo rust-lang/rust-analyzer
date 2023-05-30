@@ -740,7 +740,12 @@ fn project_json_to_crate_graph(
     let mut cfg_cache: FxHashMap<&str, Vec<CfgFlag>> = FxHashMap::default();
     let crates: FxHashMap<CrateId, CrateId> = project
         .crates()
-        .filter_map(|(crate_id, krate)| Some((crate_id, krate, load(&krate.root_module)?)))
+        .filter_map(|(crate_id, krate)| {
+            let manifest_id =
+                krate.manifest_path.as_ref().map(|manifest_path| load(&manifest_path)).flatten();
+
+            Some((crate_id, krate, load(&krate.root_module)?, manifest_id))
+        })
         .map(
             |(
                 crate_id,
@@ -756,7 +761,8 @@ fn project_json_to_crate_graph(
                     repository,
                     ..
                 },
-                file_id,
+                root_file_id,
+                manifest_path_id,
             )| {
                 let env = env.clone().into_iter().collect();
 
@@ -768,7 +774,8 @@ fn project_json_to_crate_graph(
                 };
 
                 let crate_graph_crate_id = crate_graph.add_crate_root(
-                    file_id,
+                    root_file_id,
+                    manifest_path_id,
                     *edition,
                     display_name.clone(),
                     version.clone(),
@@ -909,6 +916,7 @@ fn cargo_to_crate_graph(
                 build_scripts.get_output(pkg),
                 cfg_options.clone(),
                 file_id,
+                None,
                 &cargo[tgt].name,
                 cargo[tgt].is_proc_macro,
                 target_layout.clone(),
@@ -1036,6 +1044,7 @@ fn detached_files_to_crate_graph(
             .map(|file_stem| CrateDisplayName::from_canonical_name(file_stem.to_string()));
         let detached_file_crate = crate_graph.add_crate_root(
             file_id,
+            None,
             Edition::CURRENT,
             display_name.clone(),
             None,
@@ -1114,6 +1123,7 @@ fn handle_rustc_crates(
                     continue;
                 }
                 if let Some(file_id) = load(&rustc_workspace[tgt].root) {
+                    let manifest_path_id = None;
                     let crate_id = add_target_crate_root(
                         crate_graph,
                         proc_macros,
@@ -1121,6 +1131,7 @@ fn handle_rustc_crates(
                         build_scripts.get_output(pkg),
                         cfg_options.clone(),
                         file_id,
+                        manifest_path_id,
                         &rustc_workspace[tgt].name,
                         rustc_workspace[tgt].is_proc_macro,
                         target_layout.clone(),
@@ -1187,6 +1198,7 @@ fn add_target_crate_root(
     build_data: Option<&BuildScriptOutput>,
     cfg_options: CfgOptions,
     file_id: FileId,
+    manifest_path_id: Option<FileId>,
     cargo_name: &str,
     is_proc_macro: bool,
     target_layout: TargetLayoutLoadResult,
@@ -1228,6 +1240,7 @@ fn add_target_crate_root(
     let display_name = CrateDisplayName::from_canonical_name(cargo_name.to_string());
     let crate_id = crate_graph.add_crate_root(
         file_id,
+        manifest_path_id,
         edition,
         Some(display_name),
         Some(pkg.version.to_string()),
@@ -1304,6 +1317,7 @@ fn sysroot_to_crate_graph(
                     CrateDisplayName::from_canonical_name(sysroot[krate].name.clone());
                 let crate_id = crate_graph.add_crate_root(
                     file_id,
+                    None, // TODO: are all sysroot crates build with Cargo?
                     Edition::CURRENT,
                     Some(display_name),
                     None,

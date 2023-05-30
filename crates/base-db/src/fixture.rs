@@ -132,7 +132,8 @@ impl ChangeFixture {
         let mut file_set = FileSet::default();
         let mut current_source_root_kind = SourceRootKind::Local;
         let source_root_prefix = "/".to_string();
-        let mut file_id = FileId(0);
+        let mut crate_root = FileId(0);
+        let manifest_path = FileId(1);
         let mut roots = Vec::new();
 
         let mut file_position = None;
@@ -144,7 +145,7 @@ impl ChangeFixture {
                 } else {
                     let (range_or_offset, text) = extract_range_or_offset(&entry.text);
                     assert!(file_position.is_none());
-                    file_position = Some((file_id, range_or_offset));
+                    file_position = Some((crate_root, range_or_offset));
                     text
                 }
             } else {
@@ -169,7 +170,8 @@ impl ChangeFixture {
             if let Some((krate, origin, version)) = meta.krate {
                 let crate_name = CrateName::normalize_dashes(&krate);
                 let crate_id = crate_graph.add_crate_root(
-                    file_id,
+                    crate_root,
+                    Some(manifest_path),
                     meta.edition,
                     Some(crate_name.clone().into()),
                     version,
@@ -193,16 +195,16 @@ impl ChangeFixture {
                 }
             } else if meta.path == "/main.rs" || meta.path == "/lib.rs" {
                 assert!(default_crate_root.is_none());
-                default_crate_root = Some(file_id);
+                default_crate_root = Some(crate_root);
                 default_cfg = meta.cfg;
                 default_target_data_layout = meta.target_data_layout;
             }
 
-            change.change_file(file_id, Some(Arc::from(text)));
+            change.change_file(crate_root, Some(Arc::from(text)));
             let path = VfsPath::new_virtual_path(meta.path);
-            file_set.insert(file_id, path);
-            files.push(file_id);
-            file_id.0 += 1;
+            file_set.insert(crate_root, path);
+            files.push(crate_root);
+            crate_root.0 += 1;
         }
 
         if crates.is_empty() {
@@ -210,6 +212,7 @@ impl ChangeFixture {
                 .expect("missing default crate root, specify a main.rs or lib.rs");
             crate_graph.add_crate_root(
                 crate_root,
+                None,
                 Edition::CURRENT,
                 Some(CrateName::new("test").unwrap().into()),
                 None,
@@ -241,8 +244,8 @@ impl ChangeFixture {
         );
 
         if let Some(mini_core) = mini_core {
-            let core_file = file_id;
-            file_id.0 += 1;
+            let core_file = crate_root;
+            crate_root.0 += 1;
 
             let mut fs = FileSet::default();
             fs.insert(core_file, VfsPath::new_virtual_path("/sysroot/core/lib.rs".to_string()));
@@ -254,6 +257,7 @@ impl ChangeFixture {
 
             let core_crate = crate_graph.add_crate_root(
                 core_file,
+                None,
                 Edition::Edition2021,
                 Some(CrateDisplayName::from_canonical_name("core".to_string())),
                 None,
@@ -275,8 +279,8 @@ impl ChangeFixture {
 
         let mut proc_macros = ProcMacros::default();
         if !proc_macro_names.is_empty() {
-            let proc_lib_file = file_id;
-            file_id.0 += 1;
+            let proc_lib_file = crate_root;
+            crate_root.0 += 1;
 
             proc_macro_defs.extend(default_test_proc_macros());
             let (proc_macro, source) = filter_test_proc_macros(&proc_macro_names, proc_macro_defs);
@@ -291,8 +295,9 @@ impl ChangeFixture {
 
             let all_crates = crate_graph.crates_in_topological_order();
 
-            let proc_macros_crate = crate_graph.add_crate_root(
+            let proc_macros_crate: la_arena::Idx<crate::CrateData> = crate_graph.add_crate_root(
                 proc_lib_file,
+                None,
                 Edition::Edition2021,
                 Some(CrateDisplayName::from_canonical_name("proc_macros".to_string())),
                 None,
