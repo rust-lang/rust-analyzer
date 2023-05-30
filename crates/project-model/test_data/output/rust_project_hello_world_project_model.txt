@@ -3,6 +3,7 @@
         root_file_id: FileId(
             1,
         ),
+        manifest_path_id: None,
         edition: Edition2021,
         version: None,
         display_name: Some(
@@ -42,6 +43,7 @@
         root_file_id: FileId(
             2,
         ),
+        manifest_path_id: None,
         edition: Edition2021,
         version: None,
         display_name: Some(
@@ -73,6 +75,7 @@
         root_file_id: FileId(
             3,
         ),
+        manifest_path_id: None,
         edition: Edition2021,
         version: None,
         display_name: Some(
@@ -104,6 +107,7 @@
         root_file_id: FileId(
             4,
         ),
+        manifest_path_id: None,
         edition: Edition2021,
         version: None,
         display_name: Some(
@@ -135,6 +139,7 @@
         root_file_id: FileId(
             5,
         ),
+        manifest_path_id: None,
         edition: Edition2021,
         version: None,
         display_name: Some(
@@ -181,6 +186,7 @@
         root_file_id: FileId(
             6,
         ),
+        manifest_path_id: None,
         edition: Edition2021,
         version: None,
         display_name: Some(
@@ -212,6 +218,7 @@
         root_file_id: FileId(
             7,
         ),
+        manifest_path_id: None,
         edition: Edition2021,
         version: None,
         display_name: Some(
@@ -300,6 +307,7 @@
         root_file_id: FileId(
             8,
         ),
+        manifest_path_id: None,
         edition: Edition2021,
         version: None,
         display_name: Some(
@@ -331,6 +339,7 @@
         root_file_id: FileId(
             9,
         ),
+        manifest_path_id: None,
         edition: Edition2021,
         version: None,
         display_name: Some(
@@ -362,6 +371,7 @@
         root_file_id: FileId(
             10,
         ),
+        manifest_path_id: None,
         edition: Edition2021,
         version: None,
         display_name: Some(
@@ -393,6 +403,7 @@
         root_file_id: FileId(
             11,
         ),
+        manifest_path_id: None,
         edition: Edition2018,
         version: None,
         display_name: Some(

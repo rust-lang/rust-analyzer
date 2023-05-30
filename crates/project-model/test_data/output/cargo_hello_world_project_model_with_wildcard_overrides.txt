@@ -1,7 +1,12 @@
 {
     0: CrateData {
         root_file_id: FileId(
-            1,
+            2,
+        ),
+        manifest_path_id: Some(
+            FileId(
+                1,
+            ),
         ),
         edition: Edition2018,
         version: Some(
@@ -63,7 +68,12 @@
     },
     1: CrateData {
         root_file_id: FileId(
-            2,
+            3,
+        ),
+        manifest_path_id: Some(
+            FileId(
+                1,
+            ),
         ),
         edition: Edition2018,
         version: Some(
@@ -132,7 +142,12 @@
     },
     2: CrateData {
         root_file_id: FileId(
-            3,
+            4,
+        ),
+        manifest_path_id: Some(
+            FileId(
+                1,
+            ),
         ),
         edition: Edition2018,
         version: Some(
@@ -201,7 +216,12 @@
     },
     3: CrateData {
         root_file_id: FileId(
-            4,
+            5,
+        ),
+        manifest_path_id: Some(
+            FileId(
+                1,
+            ),
         ),
         edition: Edition2018,
         version: Some(
@@ -270,7 +290,12 @@
     },
     4: CrateData {
         root_file_id: FileId(
-            5,
+            7,
+        ),
+        manifest_path_id: Some(
+            FileId(
+                6,
+            ),
         ),
         edition: Edition2015,
         version: Some(

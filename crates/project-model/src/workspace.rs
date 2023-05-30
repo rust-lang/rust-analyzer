@@ -1319,7 +1319,7 @@ fn sysroot_to_crate_graph(
                     CrateDisplayName::from_canonical_name(sysroot[krate].name.clone());
                 let crate_id = crate_graph.add_crate_root(
                     file_id,
-                    None, // TODO: are all sysroot crates build with Cargo?
+                    None, // FIXME: are all sysroot crates build with Cargo?
                     Edition::CURRENT,
                     Some(display_name),
                     None,

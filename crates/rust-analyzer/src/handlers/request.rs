@@ -1946,7 +1946,6 @@ pub(crate) fn fetch_dependency_list(
     let crate_infos = crates
         .into_iter()
         .filter_map(|it| {
-            dbg!(&it);
             let path = state.file_id_to_file_path(it.manifest_path_id?);
             let path = Url::from_file_path(path.as_path()?).ok()?;
             Some(CrateInfoResult { name: it.name, version: it.version, path })
