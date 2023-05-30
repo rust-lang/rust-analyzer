@@ -2,7 +2,6 @@
 //! Protocol. This module specifically handles requests.
 
 use std::{
-    fs,
     io::Write as _,
     process::{self, Stdio},
 };
@@ -30,7 +29,7 @@ use serde_json::json;
 use stdx::{format_to, never};
 use syntax::{algo, ast, AstNode, TextRange, TextSize};
 use triomphe::Arc;
-use vfs::{AbsPath, AbsPathBuf, VfsPath};
+use vfs::{AbsPath, AbsPathBuf};
 
 use crate::{
     cargo_target_spec::CargoTargetSpec,
@@ -1947,43 +1946,11 @@ pub(crate) fn fetch_dependency_list(
     let crate_infos = crates
         .into_iter()
         .filter_map(|it| {
-            let root_file_path = state.file_id_to_file_path(it.root_file_id);
-            crate_path(root_file_path).and_then(to_url).map(|path| CrateInfoResult {
-                name: it.name,
-                version: it.version,
-                path,
-            })
+            dbg!(&it);
+            let path = state.file_id_to_file_path(it.manifest_path_id?);
+            let path = Url::from_file_path(path.as_path()?).ok()?;
+            Some(CrateInfoResult { name: it.name, version: it.version, path })
         })
         .collect();
     Ok(FetchDependencyListResult { crates: crate_infos })
-}
-
-/// Searches for the directory of a Rust crate given this crate's root file path.
-///
-/// # Arguments
-///
-/// * `root_file_path`: The path to the root file of the crate.
-///
-/// # Returns
-///
-/// An `Option` value representing the path to the directory of the crate with the given
-/// name, if such a crate is found. If no crate with the given name is found, this function
-/// returns `None`.
-fn crate_path(root_file_path: VfsPath) -> Option<VfsPath> {
-    let mut current_dir = root_file_path.parent();
-    while let Some(path) = current_dir {
-        let cargo_toml_path = path.join("../Cargo.toml")?;
-        if fs::metadata(cargo_toml_path.as_path()?).is_ok() {
-            let crate_path = cargo_toml_path.parent()?;
-            return Some(crate_path);
-        }
-        current_dir = path.parent();
-    }
-    None
-}
-
-fn to_url(path: VfsPath) -> Option<Url> {
-    let path = path.as_path()?;
-    let str_path = path.as_os_str().to_str()?;
-    Url::from_file_path(str_path).ok()
 }

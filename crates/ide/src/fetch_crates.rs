@@ -8,6 +8,7 @@ pub struct CrateInfo {
     pub name: Option<String>,
     pub version: Option<String>,
     pub root_file_id: FileId,
+    pub manifest_path_id: Option<FileId>,
 }
 
 // Feature: Show Dependency Tree
@@ -32,11 +33,12 @@ pub(crate) fn fetch_crates(db: &RootDatabase) -> FxIndexSet<CrateInfo> {
 }
 
 fn crate_info(data: &ide_db::base_db::CrateData) -> CrateInfo {
-    let crate_name = crate_name(data);
-    let version = data.version.clone();
-    CrateInfo { name: crate_name, version, root_file_id: data.root_file_id }
-}
+    let name = data.display_name.as_ref().map(|it| it.canonical_name().to_owned());
 
-fn crate_name(data: &ide_db::base_db::CrateData) -> Option<String> {
-    data.display_name.as_ref().map(|it| it.canonical_name().to_owned())
+    CrateInfo {
+        name,
+        version: data.version.clone(),
+        root_file_id: data.root_file_id,
+        manifest_path_id: data.manifest_path_id,
+    }
 }
