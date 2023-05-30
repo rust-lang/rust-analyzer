@@ -188,14 +188,10 @@ impl Visibility {
                     return None;
                 }
 
-                let mut a_ancestors = iter::successors(Some(mod_a.local_id), |&m| {
-                    let parent_id = def_map[m].parent?;
-                    Some(parent_id)
-                });
-                let mut b_ancestors = iter::successors(Some(mod_b.local_id), |&m| {
-                    let parent_id = def_map[m].parent?;
-                    Some(parent_id)
-                });
+                let mut a_ancestors =
+                    iter::successors(Some(mod_a.local_id), |&m| def_map[m].parent);
+                let mut b_ancestors =
+                    iter::successors(Some(mod_b.local_id), |&m| def_map[m].parent);
 
                 if a_ancestors.any(|m| m == mod_b.local_id) {
                     // B is above A

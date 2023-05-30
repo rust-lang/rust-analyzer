@@ -31,6 +31,18 @@ pub struct PerNsGlobImports {
     macros: FxHashSet<(LocalModuleId, Name)>,
 }
 
+impl PerNsGlobImports {
+    pub(crate) fn contains_type(&self, module_id: LocalModuleId, name: Name) -> bool {
+        self.types.contains(&(module_id, name))
+    }
+    pub(crate) fn contains_value(&self, module_id: LocalModuleId, name: Name) -> bool {
+        self.values.contains(&(module_id, name))
+    }
+    pub(crate) fn contains_macro(&self, module_id: LocalModuleId, name: Name) -> bool {
+        self.macros.contains(&(module_id, name))
+    }
+}
+
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct ItemScope {
     _c: Count<Self>,
@@ -300,16 +312,24 @@ impl ItemScope {
                             entry.insert(fld);
                             $changed = true;
                         }
-                        Entry::Occupied(mut entry)
-                            if matches!($def_import_type, ImportType::Named) =>
-                        {
-                            if $glob_imports.$field.remove(&$lookup) {
-                                cov_mark::hit!(import_shadowed);
-                                entry.insert(fld);
-                                $changed = true;
+                        Entry::Occupied(mut entry) => {
+                            match $def_import_type {
+                                ImportType::Glob => {
+                                    // Multiple globs may import the same item and they may
+                                    // override visibility from previously resolved globs. This is
+                                    // currently handled by `DefCollector`, because we need to
+                                    // compute the max visibility for items and we need `DefMap`
+                                    // for that.
+                                }
+                                ImportType::Named => {
+                                    if $glob_imports.$field.remove(&$lookup) {
+                                        cov_mark::hit!(import_shadowed);
+                                        entry.insert(fld);
+                                        $changed = true;
+                                    }
+                                }
                             }
                         }
-                        _ => {}
                     }
                 }
             }};
@@ -413,6 +433,27 @@ impl ItemScope {
         legacy_macros.shrink_to_fit();
         attr_macros.shrink_to_fit();
         derive_macros.shrink_to_fit();
+    }
+}
+
+// These methods are a temporary measure only meant to be used by `DefCollector::push_res_and_update_glob_vis()`.
+impl ItemScope {
+    pub(crate) fn update_visibility_types(&mut self, name: &Name, vis: Visibility) {
+        let res =
+            self.types.get_mut(name).expect("tried to update visibility of non-existent type");
+        res.1 = vis;
+    }
+
+    pub(crate) fn update_visibility_values(&mut self, name: &Name, vis: Visibility) {
+        let res =
+            self.values.get_mut(name).expect("tried to update visibility of non-existent value");
+        res.1 = vis;
+    }
+
+    pub(crate) fn update_visibility_macros(&mut self, name: &Name, vis: Visibility) {
+        let res =
+            self.macros.get_mut(name).expect("tried to update visibility of non-existent macro");
+        res.1 = vis;
     }
 }
 

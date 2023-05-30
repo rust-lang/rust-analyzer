@@ -101,7 +101,7 @@ impl PerNs {
         self.types
             .map(|it| ItemInNs::Types(it.0))
             .into_iter()
-            .chain(self.values.map(|it| ItemInNs::Values(it.0)).into_iter())
-            .chain(self.macros.map(|it| ItemInNs::Macros(it.0)).into_iter())
+            .chain(self.values.map(|it| ItemInNs::Values(it.0)))
+            .chain(self.macros.map(|it| ItemInNs::Macros(it.0)))
     }
 }
