@@ -507,3 +507,705 @@ fn api_walkthrough() {
     }
     assert_eq!(exprs_cast, exprs_visit);
 }
+
+
+
+
+// Verus tests
+// Do "cargo test --package syntax --lib -- tests"
+
+#[test]
+fn verus_walkthrough1() {
+    use ast::HasModuleItem;
+
+    let source_code = 
+    "verus!{
+        proof fn my_proof_fun(x: int, y: int)
+            requires
+                x < 100,
+                y < 100,
+            ensures
+                x + y < 200,
+            {
+                assert(x + y < 200);
+            }
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+
+
+#[test]
+fn verus_walkthrough1_1() {
+    use ast::HasModuleItem;
+
+    let source_code = 
+    "
+verus! {
+    spec fn identity(x: u32) -> u32 {
+        x
+    }
+    proof fn proof_index(a: u32, offset: u32)
+    requires    
+        offset < 1000,
+    ensures
+        offset < 1000,
+    {
+        let mut x:u32 = 10;
+        x = identity(x);
+        assert(offset < 100);
+    }
+}
+";
+
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+        // match item {
+        //     ast::Item::Fn(f) => func = Some(f),
+        //     _ => unreachable!(),
+        // }
+    }
+}
+
+
+
+#[test]
+fn verus_walkthrough2() {
+    use ast::HasModuleItem;
+
+    let source_code = 
+    "verus!{
+        proof fn my_proof_fun(x: int, y: int) -> (sum: int)
+            requires
+                x < 100,
+                y < 100,
+            ensures
+                sum < 200,
+        {
+            x + y
+        }    
+        spec fn my_spec_fun(x: int, y: int) -> int
+            recommends
+                x < 100,
+                y < 100,
+        {
+            x + y
+        }
+        pub(crate) open spec fn my_pub_spec_fun3(x: int, y: int) -> int {
+            // function and body visible to crate
+            x / 2 + y / 2
+        }
+        pub closed spec fn my_pub_spec_fun4(x: int, y: int) -> int {
+            // function visible to all, body visible to module
+            x / 2 + y / 2
+        }
+        pub(crate) closed spec fn my_pub_spec_fun5(x: int, y: int) -> int {
+            // function visible to crate, body visible to module
+            x / 2 + y / 2
+        }
+    }";
+
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    // dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+
+}
+
+
+#[test]
+fn verus_walkthrough3() {
+    use ast::HasModuleItem;
+    let source_code = 
+    "verus!{
+        proof fn test5_bound_checking(x: u32, y: u32, z: u32)
+            requires
+                x <= 0xffff,
+                y <= 0xffff,
+                z <= 0xffff,
+        {
+            assert(x * z == mul(x, z)) by(nonlinear_arith)
+                requires
+                    x <= 0xffff,
+                    z <= 0xffff,
+            {
+                assert(0 <= x * z);
+                assert(x * z <= 0xffff * 0xffff);
+            }
+            assert(0 <= y < 100 ==> my_spec_fun(x, y) >= x);
+            assert(forall|x: int, y: int| 0 <= x < 100 && 0 <= y < 100 ==> my_spec_fun(x, y) >= x);
+        }
+        fn test_quantifier() {
+            assert(forall|x: int, y: int| 0 <= x < 100 && 0 <= y < 100 ==> my_spec_fun(x, y) >= x);
+            assert(my_spec_fun(10, 20) == 30);
+            assert(exists|x: int, y: int| my_spec_fun(x, y) == 30);
+        }
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+
+#[test]
+#[ignore = "not yet implemented"] // TODO: assume attributes
+fn verus_walkthrough4() {
+    use ast::HasModuleItem;
+    let source_code = 
+    "verus!{
+        fn test_assert_forall_by() {
+            assert forall|x: int, y: int| f1(x) + f1(y) == x + y + 2 by {
+                reveal(f1);
+            }
+            assert(f1(1) + f1(2) == 5);
+            assert(f1(3) + f1(4) == 9);
+            // to prove forall|...| P ==> Q, write assert forall|...| P implies Q by {...}
+            assert forall|x: int| x < 10 implies f1(x) < 11 by {
+                assert(x < 10);
+                reveal(f1);
+                assert(f1(x) < 11);
+            }
+            assert(f1(3) < 11);
+        }
+        fn test_choose() {
+            assume(exists|x: int| f1(x) == 10);
+            proof {
+                let x_witness = choose|x: int| f1(x) == 10;
+                assert(f1(x_witness) == 10);
+            }
+        
+            assume(exists|x: int, y: int| f1(x) + f1(y) == 30);
+            proof {
+                let (x_witness, y_witness): (int, int) = choose|x: int, y: int| f1(x) + f1(y) == 30;
+                assert(f1(x_witness) + f1(y_witness) == 30);
+            }
+        }        
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    // dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+
+#[test]
+fn verus_walkthrough5() {
+    use ast::HasModuleItem;
+    let source_code = 
+    "verus!{
+        fn test_single_trigger1() {
+            assume(forall|x: int, y: int| f1(x) < 100 && f1(y) < 100 ==> #[trigger] my_spec_fun(x, y) >= x);
+        }
+        
+        fn foo(x:int) -> int {
+            if x>0 {1} else {-1}
+        }
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+
+#[test]
+fn verus_walkthrough6() {
+    use ast::HasModuleItem;
+    let source_code = 
+    "verus!{
+        proof fn my_proof_fun(x: int, y: int) -> (sum: int)
+            requires
+                x < 100,
+                y < 100,
+            ensures
+                sum < 200,
+        {
+            x + y
+        }
+        spec fn sum2(i: int, j: int) -> int
+            recommends
+                0 <= i < 10,
+                0 <= j < 10,
+        {
+            i + j
+        }
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+#[test]
+#[ignore = "not yet implemented"] // TODO: assume attributes
+fn verus_walkthrough7() {
+    use ast::HasModuleItem;
+    let source_code = 
+    "verus!{
+        fn test_single_trigger2() {
+            // Use [f1(x), f1(y)] as the trigger
+            assume(forall|x: int, y: int| #[trigger] f1(x) < 100 && #[trigger] f1(y) < 100 ==> my_spec_fun(x, y) >= x);
+        }
+        /// To manually specify multiple triggers, use #![trigger]:
+        fn test_multiple_triggers() {
+            // Use both [my_spec_fun(x, y)] and [f1(x), f1(y)] as triggers
+            assume(forall|x: int, y: int|
+                #![trigger my_spec_fun(x, y)]
+                #![trigger f1(x), f1(y)]
+                f1(x) < 100 && f1(y) < 100 ==> my_spec_fun(x, y) >= x
+            );
+        }
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+
+#[test]
+fn verus_walkthrough8() {
+    use ast::HasModuleItem;
+    let source_code = 
+    "verus!{
+    fn test_my_funs2(
+        a: u32, // exec variable
+        b: u32, // exec variable
+    )
+        requires
+            a < 100,
+            b < 100,
+    {
+        let s = a + b; // s is an exec variable
+        proof {
+            let u = a + b; // u is a ghost variable
+            my_proof_fun(u / 2, b as int); // my_proof_fun(x, y) takes ghost parameters x and y
+        }
+    }     
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+#[test]
+fn verus_walkthrough9_0() {
+    use ast::HasModuleItem;
+    let source_code = 
+    "verus!{
+    fn test_is_variant_1(v: Vehicle2<u64>) {
+        match v {
+            Vehicle2::Car(_) => assert(v.is_Car()),
+            Vehicle2::Train(_) => assert(v.is_Train()),
+        };
+    }
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+
+
+#[test]
+fn verus_walkthrough9() {
+    use ast::HasModuleItem;
+    let source_code = 
+    "verus!{
+    proof fn test_tracked(
+        tracked w: int,
+        tracked x: int,
+        tracked y: int,
+        z: int,
+      ) -> tracked TrackedAndGhost<(int, int), int> {
+       
+    }
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+
+
+#[test]
+fn verus_walkthrough10_0() {
+    use ast::HasModuleItem;
+    let source_code = 
+    "verus!{
+    pub(crate) proof fn binary_ops<A>(a: A, x: int) {
+        assert(2 + 2 !== 3);
+        assert(a === a);
+    
+        assert(false <==> true && false);
+    }
+    
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+#[test]
+fn verus_walkthrough10_1() {
+    use ast::HasModuleItem;
+    let source_code = 
+    "verus!{
+    spec fn ccc(x: int, y: int) -> bool {
+        &&& if false {
+                true
+            } else {
+                &&& b ==> b
+                &&& !b
+            }
+        &&& true
+    }
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+
+#[test]
+fn verus_walkthrough10_2() {
+    use ast::HasModuleItem;
+    let source_code = 
+    "verus!{
+    spec fn complex_conjuncts(x: int, y: int) -> bool {
+        let b = x < y;
+        &&& b
+        &&& if false {
+                &&& b ==> b
+                &&& !b ==> !b
+            } else {
+                ||| b ==> b
+                ||| !b
+            }
+        &&& false ==> true
+    }
+    
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+
+#[test]
+fn verus_walkthrough10() {
+    use ast::HasModuleItem;
+    let source_code = 
+    "verus!{
+    fn test_views() {
+        let mut v: Vec<u8> = Vec::new();
+        v.push(10);
+        v.push(20);
+        proof {
+            let s: Seq<u8> = v@; // v@ is equivalent to v.view()
+            assert(s[0] == 10);
+            assert(s[1] == 20);
+        }
+    }    
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+
+
+
+#[test]
+fn verus_walkthrough11() {
+    use ast::HasModuleItem;
+    let source_code = 
+    "verus!{
+fn binary_search(v: &Vec<u64>, k: u64) -> (r: usize)
+    requires
+        forall|i:int, j:int| 0 <= i <= j < v.len() ==> v[i] <= v[j],
+        exists|i:int| 0 <= i < v.len() && k == v[i],
+    ensures
+        r < v.len(),
+        k == v[r as int],
+{
+    let mut i1: usize = 0;
+    let mut i2: usize = v.len() - 1;
+    while i1 != i2
+        invariant
+            i2 < v.len(),
+            exists|i:int| i1 <= i <= i2 && k == v[i],
+            forall|i:int, j:int| 0 <= i <= j < v.len() ==> v[i] <= v[j],
+    {
+        //let d: Ghost<int> = ghost(i2 - i1);
+        let ix = i1 + (i2 - i1) / 2;
+        if *v.index(ix) < k {
+            i1 = ix + 1;
+        } else {
+            i2 = ix;
+        }
+        assert(i2 - i1 < d@);
+    }
+    i1
+}
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+
+#[test]
+fn verus_walkthrough12() {
+    use ast::HasModuleItem;
+    let source_code = 
+    "verus!{
+fn pop_test(t: Vec<u64>)
+requires
+    t.len() > 0,
+    forall|i: int| #![auto] 0 <= i < t.len() ==> uninterp_fn(t[i]),
+{
+let mut t = t;
+let x = t.pop();
+assert(uninterp_fn(x));
+assert(forall|i: int| #![auto] 0 <= i < t.len() ==> uninterp_fn(t[i]));
+}
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+
+#[test]
+fn verus_walkthrough13() {
+    use ast::HasModuleItem;
+    let source_code = 
+    "verus!{
+    proof fn arith_sum_int_nonneg(i: nat)
+        ensures
+            arith_sum_int(i as int) >= 0,
+        decreases
+            i,
+    {
+        if i > 0 {
+            arith_sum_int_nonneg((i - 1) as nat);
+        }
+    }
+    
+    spec fn arith_sum_int(i: int) -> int
+    decreases i
+{
+    if i <= 0 { 0 } else { i + arith_sum_int(i - 1) }
+}
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+#[test]
+fn verus_walkthrough14() {
+    use ast::HasModuleItem;
+    let source_code = 
+    "verus!{
+fn exec_with_decreases(n: u64) -> u64
+    decreases 100 - n,
+{
+    if n < 100 {
+        exec_with_decreases(n + 1)
+    } else {
+        n
+    }
+}
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+#[test]
+fn verus_walkthrough15() {
+    use ast::HasModuleItem;
+    let source_code = 
+    "verus!{
+spec(checked) fn my_spec_fun2(x: int, y: int) -> int
+    recommends
+        x < 100,
+        y < 100,
+{
+    // Because of spec(checked), Verus checks that my_spec_fun's recommends clauses are satisfied here:
+    my_spec_fun(x, y)
+}
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+
+#[test]
+fn verus_walkthrough16() {
+    use ast::HasModuleItem;
+    let source_code = 
+    "verus!{
+proof fn test_even_f()
+    ensures
+        forall|i: int| is_even(i) ==> f(i),
+{
+    assert forall|i: int| is_even(i) implies f(i) by {
+        // First, i is in scope here
+        // Second, we assume is_even(i) here
+        lemma_even_f(i);
+        // Finally, we have to prove f(i) here
+    }
+}
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+#[test]
+fn verus_walkthrough17() {
+    use ast::HasModuleItem;
+    //from: https://github.com/verus-lang/verus/wiki/Doc%3A-Deprecated-and-recommended-syntax%2C-and-upcoming-changes
+    let source_code = 
+    "verus!{
+proof fn lemma1(i: int, tracked t: S) {
+}
+fn f(i: u32, Ghost(j): Ghost<int>, Tracked(t): Tracked<S>) -> (k: u32)
+    // Note: Ghost(j) unwraps the Ghost<int> value so that j has type int
+    // Note: Tracked(t) unwraps the Tracked<S> value so that t has type S
+    requires
+        i != j,
+        i < 10,
+    ensures
+        k == i + 1,
+{
+    let ghost i_plus_j = i + j;
+    let ghost t_ghost_copy = t;
+    let tracked t_moved = t;
+    proof {
+        lemma1(i as int, t_moved);
+    }
+    assert(t_moved == t_ghost_copy);
+    assert(i_plus_j == i + j);
+    i + 1
+}
+fn g(Tracked(t): Tracked<S>) -> u32 {
+    f(5, Ghost(6), Tracked(t))
+}
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
