@@ -79,6 +79,7 @@ pub(crate) const KINDS_SRC: KindsSrc<'_> = KindsSrc {
         "return", "self", "Self", "static", "struct", "super", "trait", "true", "try", "type",
         "typeof", "unsafe", "unsized", "use", "virtual", "where", "while", "yield",
         // verus
+        "verus",
         "spec", "proof","requires", "ensures", "checked",
         "recommends", "decreases",
         "exec", "open", "closed", "tracked", "ghost",
