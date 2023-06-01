@@ -1,4 +1,4 @@
-name: ci
+name: verus
 
 on:
   push:
@@ -26,3 +26,6 @@ jobs:
 
 
 
+# TODO: build
+# TODO: more test
+# TODO: auto-merge upstream
