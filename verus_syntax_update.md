@@ -8,4 +8,4 @@
 
 4. Add testcases. Add snippets of new Verus code at `syntax/src/lib.rs`, to make sure the new syntax is parsed correctly. `workflows/verus.yml` will run the tests in the CI.
 
-5.  
+5. Might need to change 1) `syntax/src/ast/prec.rs`, 2)
