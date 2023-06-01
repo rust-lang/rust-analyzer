@@ -42,6 +42,31 @@ pub(super) const ITEM_RECOVERY_SET: TokenSet = TokenSet::new(&[
 ]);
 
 pub(super) fn item_or_macro(p: &mut Parser<'_>, stop_on_r_curly: bool) {
+    // verus
+    // entry point for verus!{...}
+    // we don't make verus_item in a separate item in ungrammar file
+    // "verus!{" and the closing "}" will be thrown away by the parser
+    // this is to avoid additional hassel to make this new item to work with the rest of many rust-analyzer features
+    if p.at(T![verus]) && p.nth_at(1, T![!]) && p.nth_at(2, T!['{']) {
+        let m = p.start();
+        p.bump(T![verus]);
+        p.bump(T![!]);
+        p.bump(T!['{']);
+        m.abandon(p);
+        while !p.at(EOF)  &&  !p.at(T!['}']) {
+            if p.at(T!['}']) {
+                break;
+            }
+            item_or_macro(p, true);
+        }
+        let m = p.start();
+        p.bump(T!['}']);
+        m.abandon(p);
+        return;
+    }
+    // verus end
+
+
     let m = p.start();
     attributes::outer_attrs(p);
 
@@ -104,6 +129,21 @@ pub(super) fn opt_item(p: &mut Parser<'_>, m: Marker) -> Result<(), Marker> {
     let mut has_mods = false;
     let mut has_extern = false;
 
+    /*
+    Verus
+    Keep the parsing order consistent with the ungrammar file
+    Fn =
+        Attr* Visibility? Publish?
+        'default'? 'const'? 'async'? 'unsafe'? Abi? FnMode?
+        'fn' Name GenericParamList? ParamList RetType? WhereClause? RequiresClause? EnsuresClause?
+        (body:BlockExpr | ';')
+    */
+    // verus--publish : after visibility, before const
+    if p.at(T![open]) || p.at(T![closed]) {
+        verus::publish(p);
+    }
+
+
     // modifiers
     if p.at(T![const]) && p.nth(1) != T!['{'] {
         p.eat(T![const]);
@@ -129,6 +169,21 @@ pub(super) fn opt_item(p: &mut Parser<'_>, m: Marker) -> Result<(), Marker> {
         has_mods = true;
         abi(p);
     }
+
+    /*
+    Verus
+    Keep the parsing order consistent with the ungrammar file
+    Fn =
+        Attr* Visibility? Publish?
+        'default'? 'const'? 'async'? 'unsafe'? Abi? FnMode?
+        'fn' Name GenericParamList? ParamList RetType? WhereClause? RequiresClause? EnsuresClause?
+        (body:BlockExpr | ';')
+    */
+    // verus--fnmode : spec proof exec
+    if p.at(T![spec]) || p.at(T![proof]) || p.at(T![exec]) {
+        verus::fn_mode(p);
+    }
+
     if p.at_contextual_kw(T![auto]) && p.nth(1) == T![trait] {
         p.bump_remap(T![auto]);
         has_mods = true;

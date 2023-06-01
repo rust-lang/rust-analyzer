@@ -515,6 +515,28 @@ fn api_walkthrough() {
 // Do "cargo test --package syntax --lib -- tests"
 
 #[test]
+fn verus_walkthrough0() {
+    use ast::HasModuleItem;
+
+    let source_code = 
+    "verus!{
+        proof fn my_proof_fun(x: int, y: int)
+            {
+                let z = 1;
+            }
+    }";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+#[test]
 fn verus_walkthrough1() {
     use ast::HasModuleItem;
 

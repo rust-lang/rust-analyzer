@@ -8,4 +8,8 @@
 
 4. Add testcases. Add snippets of new Verus code at `syntax/src/lib.rs`, to make sure the new syntax is parsed correctly. `workflows/verus.yml` will run the tests in the CI.
 
-5. Might need to change 1) `syntax/src/ast/prec.rs`, 2)
+5. Might need to change various rust-analyzer files, but most of them are straight forward, and they are alerted my "missing enum case" by the compiler. e.g. `syntax/src/ast/prec.rs`, 
+
+6. To modify the parser, start from `syntax/src/grammar/verus.rs`. Verus specific lang items(e.g. `requires` `ensures`) should be parsed here. For modified items (e.g. `WhileExpr`), the parser is modified in-place.
+
+

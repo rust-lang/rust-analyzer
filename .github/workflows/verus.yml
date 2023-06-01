@@ -22,7 +22,7 @@ jobs:
           override: true
 
       - name: test syntax
-        run: cargo test --package syntax --lib -- tests
+        run: cargo test --package syntax --lib
 
 
 
