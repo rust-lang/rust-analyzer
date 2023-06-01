@@ -156,6 +156,7 @@ export class Ctx {
             this.traceOutputChannel = new LazyOutputChannel("Rust Analyzer Language Server Trace");
             this.pushExtCleanup(this.traceOutputChannel);
         }
+        
         if (!this.outputChannel) {
             this.outputChannel = vscode.window.createOutputChannel("Rust Analyzer Language Server");
             this.pushExtCleanup(this.outputChannel);

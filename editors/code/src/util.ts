@@ -4,13 +4,19 @@ import { exec, type ExecOptions, spawnSync } from "child_process";
 import { inspect } from "util";
 import type { Env } from "./client";
 
-export function assert(condition: boolean, explanation: string): asserts condition {
+export function noop() { }
+
+export function assert(condition: boolean, explanation?: string): asserts condition {
     try {
         nativeAssert(condition, explanation);
     } catch (err) {
         log.error(`Assertion failed:`, explanation);
         throw err;
     }
+}
+
+export function assertNever(_value: never, reason?: string): never {
+    throw new Error(`AssertNever: ${reason}`);
 }
 
 export const log = new (class {
@@ -57,7 +63,7 @@ export const log = new (class {
     }
 })();
 
-export function sleep(ms: number) {
+export async function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 

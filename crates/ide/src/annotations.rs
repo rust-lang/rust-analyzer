@@ -744,89 +744,109 @@ mod tests {
 }
             "#,
             expect![[r#"
-                [
-                    Annotation {
-                        range: 3..7,
-                        kind: Runnable(
-                            Runnable {
-                                use_name_in_title: false,
-                                nav: NavigationTarget {
-                                    file_id: FileId(
-                                        0,
-                                    ),
-                                    full_range: 0..12,
-                                    focus_range: 3..7,
-                                    name: "main",
-                                    kind: Function,
-                                },
-                                kind: Bin,
-                                cfg: None,
-                            },
-                        ),
-                    },
-                    Annotation {
-                        range: 18..23,
-                        kind: Runnable(
-                            Runnable {
-                                use_name_in_title: false,
-                                nav: NavigationTarget {
-                                    file_id: FileId(
-                                        0,
-                                    ),
-                                    full_range: 14..64,
-                                    focus_range: 18..23,
-                                    name: "tests",
-                                    kind: Module,
-                                    description: "mod tests",
-                                },
-                                kind: TestMod {
-                                    path: "tests",
-                                },
-                                cfg: None,
-                            },
-                        ),
-                    },
-                    Annotation {
-                        range: 45..57,
-                        kind: Runnable(
-                            Runnable {
-                                use_name_in_title: false,
-                                nav: NavigationTarget {
-                                    file_id: FileId(
-                                        0,
-                                    ),
-                                    full_range: 30..62,
-                                    focus_range: 45..57,
-                                    name: "my_cool_test",
-                                    kind: Function,
-                                },
-                                kind: Test {
-                                    test_id: Path(
-                                        "tests::my_cool_test",
-                                    ),
-                                    attr: TestAttr {
-                                        ignore: false,
-                                    },
-                                },
-                                cfg: None,
-                            },
-                        ),
-                    },
-                    Annotation {
-                        range: 3..7,
-                        kind: HasReferences {
-                            pos: FilePosition {
+            [
+                Annotation {
+                    range: 3..7,
+                    kind: Runnable(
+                        Runnable {
+                            use_name_in_title: false,
+                            nav: NavigationTarget {
                                 file_id: FileId(
                                     0,
                                 ),
-                                offset: 3,
+                                full_range: 0..12,
+                                focus_range: 3..7,
+                                name: "main",
+                                kind: Function,
                             },
-                            data: Some(
-                                [],
-                            ),
+                            kind: Bin,
+                            cfg: None,
                         },
+                    ),
+                },
+                Annotation {
+                    range: 18..23,
+                    kind: Runnable(
+                        Runnable {
+                            use_name_in_title: false,
+                            nav: NavigationTarget {
+                                file_id: FileId(
+                                    0,
+                                ),
+                                full_range: 14..64,
+                                focus_range: 18..23,
+                                name: "tests",
+                                kind: Module,
+                                description: "mod tests",
+                            },
+                            kind: TestMod {
+                                path: "tests",
+                            },
+                            cfg: None,
+                        },
+                    ),
+                },
+                Annotation {
+                    range: 45..57,
+                    kind: Runnable(
+                        Runnable {
+                            use_name_in_title: false,
+                            nav: NavigationTarget {
+                                file_id: FileId(
+                                    0,
+                                ),
+                                full_range: 30..62,
+                                focus_range: 45..57,
+                                name: "my_cool_test",
+                                kind: Function,
+                            },
+                            kind: Test {
+                                test_id: Path(
+                                    "tests::my_cool_test",
+                                ),
+                                attr: TestAttr {
+                                    ignore: false,
+                                },
+                            },
+                            cfg: None,
+                        },
+                    ),
+                },
+                Annotation {
+                    range: 0..77,
+                    kind: Runnable(
+                        Runnable {
+                            use_name_in_title: false,
+                            nav: NavigationTarget {
+                                file_id: FileId(
+                                    0,
+                                ),
+                                full_range: 0..77,
+                                name: "",
+                                kind: Module,
+                            },
+                            kind: TestMod {
+                                path: "",
+                            },
+                            cfg: None,
+                        },
+                    ),
+                },
+                Annotation {
+                    range: 3..7,
+                    kind: HasReferences {
+                        pos: FilePosition {
+                            file_id: FileId(
+                                0,
+                            ),
+                            offset: 3,
+                        },
+                        data: Some(
+                            [],
+                        ),
                     },
-                ]
+                },
+            ]
             "#]],
         );
     }

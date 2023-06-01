@@ -6,8 +6,17 @@ import { type CommandFactory, Ctx, fetchWorkspace } from "./ctx";
 import * as diagnostics from "./diagnostics";
 import { activateTaskProvider } from "./tasks";
 import { setContextValue } from "./util";
+import { activeTestController, deactivateTestController } from "./test_explorer";
 
 const RUST_PROJECT_CONTEXT_NAME = "inRustProject";
+
+/**
+ * Think carefully before using this directly.
+ *
+ * In most cases the work is finished by commands, and the context will pass itself
+ * as parameter to the command callback, which is defined when registering.
+ */
+export let raContext: Ctx | undefined;
 
 export interface RustAnalyzerExtensionApi {
     readonly client?: lc.LanguageClient;
@@ -15,6 +24,8 @@ export interface RustAnalyzerExtensionApi {
 
 export async function deactivate() {
     await setContextValue(RUST_PROJECT_CONTEXT_NAME, undefined);
+    deactivateTestController();
+    raContext = undefined;
 }
 
 export async function activate(
@@ -28,19 +39,22 @@ export async function activate(
                     "both plugins to not work correctly. You should disable one of them.",
                 "Got it",
             )
-            .then(() => {}, console.error);
+            .then(() => { }, console.error);
     }
 
-    const ctx = new Ctx(context, createCommands(), fetchWorkspace());
+    raContext = new Ctx(context, createCommands(), fetchWorkspace());
     // VS Code doesn't show a notification when an extension fails to activate
     // so we do it ourselves.
-    const api = await activateServer(ctx).catch((err) => {
+    const api = await activateServer(raContext).catch((err) => {
         void vscode.window.showErrorMessage(
             `Cannot activate rust-analyzer extension: ${err.message}`,
         );
         throw err;
     });
     await setContextValue(RUST_PROJECT_CONTEXT_NAME, true);
+    if (raContext.config.isTestExplorerEnabled) {
+        activeTestController();
+    }
     return api;
 }
 
@@ -144,7 +158,7 @@ function createCommands(): Record<string, CommandFactory> {
                     health: "stopped",
                 });
             },
-            disabled: (_) => async () => {},
+            disabled: (_) => async () => { },
         },
 
         analyzerStatus: { enabled: commands.analyzerStatus },

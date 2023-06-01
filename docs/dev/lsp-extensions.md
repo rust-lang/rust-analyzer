@@ -730,6 +730,86 @@ interface TestInfo {
 }
 ```
 
+## CargoWorkspaces
+
+This request is sent from client to server to get the cargo workspaces info, should be almost same as `cargo workspaces`.
+
+**Method:** `rust-analyzer/cargoWorkspaces`
+
+**Request:** `null`
+
+**Response:** `CargoMetadata[]`
+
+```typescript
+/**
+ * The result of `cargo metadata`
+ *
+ * This is only part of the whole structure
+ */
+export interface CargoMetadata {
+    workspace_root: string;
+    workspace_members: string[];
+    packages: CargoPackageMetadata[];
+}
+
+/**
+ * The value of property "cargo metadata".packages[x].targets[y].kind[0]
+ */
+export enum CargoTargetKind {
+    Lib = "lib",
+    Binary = "bin",
+    Test = "test",
+    Example = "example",
+    Bench = 'bench',
+    /**
+     * Refer "https://doc.rust-lang.org/cargo/reference/build-scripts.html"
+     *
+     * "build.rs" is a special target internally
+     */
+    BuildScript = "custom-build",
+    /** refer https://doc.rust-lang.org/reference/linkage.html */
+    DynamicLib = "dylib",
+    /** refer https://doc.rust-lang.org/reference/linkage.html */
+    StaticLib = "staticlib",
+    /** refer https://doc.rust-lang.org/reference/linkage.html */
+    CDynamicLib = "cdylib",
+    /** refer https://doc.rust-lang.org/reference/linkage.html */
+    RustLib = "rlib",
+}
+
+export namespace CargoTargetKind {
+    export function isLibraryLike(targetKind:CargoTargetKind) {
+        return [
+            CargoTargetKind.Lib,
+            CargoTargetKind.DynamicLib,
+            CargoTargetKind.StaticLib,
+            CargoTargetKind.CDynamicLib,
+            CargoTargetKind.RustLib,
+        ].includes(targetKind);
+    }
+}
+
+export enum CargoCrateType {
+    Library = "lib",
+    Binary = "bin",
+}
+
+/** This is only few part of the whole structure */
+export interface CargoPackageMetadata {
+    id: string;
+    name: string;
+    manifest_path: string;
+    targets: CargoTargetMetadata[];
+}
+
+export interface CargoTargetMetadata {
+    kind: CargoTargetKind[];
+    name: string;
+    crate_types: CargoCrateType[];
+    src_path: string;
+}
+```
+
 ## Hover Range
 
 **Upstream Issue:** https://github.com/microsoft/language-server-protocol/issues/377

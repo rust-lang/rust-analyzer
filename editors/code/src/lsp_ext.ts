@@ -3,6 +3,7 @@
  */
 
 import * as lc from "vscode-languageclient";
+import { CargoMetadata } from "./toolchain";
 
 // rust-analyzer overrides
 
@@ -68,6 +69,13 @@ export const viewItemTree = new lc.RequestType<ViewItemTreeParams, string, void>
     "rust-analyzer/viewItemTree",
 );
 
+export const cargoWorkspaces = new lc.RequestType0<CargoMetadata[], void>(
+    "rust-analyzer/cargoWorkspaces"
+);
+
+export const testRunnablesInFile = new lc.RequestType<TestRunnablesInFileParams, Runnable[], void>(
+    "rust-analyzer/testRunnablesInFile"
+);
 export type AnalyzerStatusParams = { textDocument?: lc.TextDocumentIdentifier };
 
 export interface FetchDependencyListParams {}
@@ -111,6 +119,7 @@ export type ExpandedMacro = {
     expansion: string;
 };
 export type TestInfo = { runnable: Runnable };
+
 export type SyntaxTreeParams = {
     textDocument: lc.TextDocumentIdentifier;
     range: lc.Range | null;
@@ -190,6 +199,10 @@ export type RunnablesParams = {
     textDocument: lc.TextDocumentIdentifier;
     position: lc.Position | null;
 };
+export type TestRunnablesInFileParams = {
+    textDocument: lc.TextDocumentIdentifier;
+};
+
 export type ServerStatusParams = {
     health: "ok" | "warning" | "error";
     quiescent: boolean;

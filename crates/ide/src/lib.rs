@@ -47,6 +47,7 @@ mod parent_module;
 mod references;
 mod rename;
 mod runnables;
+mod test_items;
 mod ssr;
 mod static_index;
 mod status;
@@ -550,6 +551,10 @@ impl Analysis {
     /// Returns the set of possible targets to run for the current file.
     pub fn runnables(&self, file_id: FileId) -> Cancellable<Vec<Runnable>> {
         self.with_db(|db| runnables::runnables(db, file_id))
+    }
+
+    pub fn test_runnables_in_file(&self, file_id: FileId) -> Cancellable<Vec<Runnable>> {
+        self.with_db(|db| test_items::test_runnables_in_file(db, file_id))
     }
 
     /// Returns the set of tests for the given file position.

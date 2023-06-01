@@ -26,13 +26,31 @@ use crate::{CfgOverrides, InvocationStrategy};
 ///
 /// We use absolute paths here, `cargo metadata` guarantees to always produce
 /// abs paths.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct CargoWorkspace {
     packages: Arena<PackageData>,
     targets: Arena<TargetData>,
     workspace_root: AbsPathBuf,
     target_directory: AbsPathBuf,
+    // Hack, this should be an implmentation detail, however,
+    // sometimes it's useful to let the client know the project
+    // structure.
+    // This property should only be used as JSON
+    pub origin_metadata: cargo_metadata::Metadata,
 }
+
+impl PartialEq for CargoWorkspace {
+    fn eq(&self, other: &Self) -> bool {
+        self.packages == other.packages
+            && self.targets == other.targets
+            && self.workspace_root == other.workspace_root
+        // Do not compare the origin data
+        // It's only used to be transfer as JSON
+        // && self.origin_metadata == other.origin_metadata
+    }
+}
+
+impl Eq for CargoWorkspace {}
 
 impl ops::Index<Package> for CargoWorkspace {
     type Output = PackageData;
@@ -305,8 +323,10 @@ impl CargoWorkspace {
         let mut pkg_by_id = FxHashMap::default();
         let mut packages = Arena::default();
         let mut targets = Arena::default();
-
+        // let tmp = Box::new(meta);
         let ws_members = &meta.workspace_members;
+
+        let origin_metadata = meta.clone();
 
         meta.packages.sort_by(|a, b| a.id.cmp(&b.id));
         for meta_pkg in meta.packages {
@@ -391,7 +411,7 @@ impl CargoWorkspace {
         let target_directory =
             AbsPathBuf::assert(PathBuf::from(meta.target_directory.into_os_string()));
 
-        CargoWorkspace { packages, targets, workspace_root, target_directory }
+        CargoWorkspace { packages, targets, workspace_root, target_directory, origin_metadata }
     }
 
     pub fn packages(&self) -> impl Iterator<Item = Package> + ExactSizeIterator + '_ {

@@ -304,6 +304,12 @@ pub struct RunnablesParams {
     pub position: Option<Position>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TestRunnablesInFileParams {
+    pub text_document: TextDocumentIdentifier,
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Runnable {
@@ -348,6 +354,22 @@ impl Request for RelatedTests {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TestInfo {
     pub runnable: Runnable,
+}
+
+pub enum CargoWorkspaces {}
+
+impl Request for CargoWorkspaces {
+    type Params = ();
+    type Result = Vec<cargo_metadata::Metadata>;
+    const METHOD: &'static str = "rust-analyzer/cargoWorkspaces";
+}
+
+pub enum TestRunnablesInFile {}
+
+impl Request for TestRunnablesInFile {
+    type Params = TestRunnablesInFileParams;
+    type Result = Vec<Runnable>;
+    const METHOD: &'static str = "rust-analyzer/testRunnablesInFile";
 }
 
 #[derive(Serialize, Deserialize, Debug)]

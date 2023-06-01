@@ -755,6 +755,8 @@ impl GlobalState {
             .on::<lsp_ext::ExpandMacro>(handlers::handle_expand_macro)
             .on::<lsp_ext::ParentModule>(handlers::handle_parent_module)
             .on::<lsp_ext::Runnables>(handlers::handle_runnables)
+            .on::<lsp_ext::CargoWorkspaces>(handlers::handle_cargo_workspaces)
+            .on::<lsp_ext::TestRunnablesInFile>(handlers::handle_test_runnables_in_file)
             .on::<lsp_ext::RelatedTests>(handlers::handle_related_tests)
             .on::<lsp_ext::CodeActionRequest>(handlers::handle_code_action)
             .on::<lsp_ext::CodeActionResolveRequest>(handlers::handle_code_action_resolve)

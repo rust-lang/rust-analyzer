@@ -847,6 +847,11 @@ Show full signature of the callable. Only shows parameters if disabled.
 --
 Show documentation.
 --
+[[rust-analyzer.testExplorer.isEnabled]]rust-analyzer.testExplorer.isEnabled (default: `true`)::
++
+--
+Enable VSCode native test explorer.
+--
 [[rust-analyzer.typing.autoClosingAngleBrackets.enable]]rust-analyzer.typing.autoClosingAngleBrackets.enable (default: `false`)::
 +
 --

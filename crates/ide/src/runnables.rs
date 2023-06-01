@@ -296,7 +296,7 @@ fn parent_test_module(sema: &Semantics<'_, RootDatabase>, fn_def: &ast::Fn) -> O
         let module = ast::Module::cast(node)?;
         let module = sema.to_def(&module)?;
 
-        if has_test_function_or_multiple_test_submodules(sema, &module) {
+        if has_test_function_recursively(sema, &module) {
             Some(module)
         } else {
             None
@@ -346,7 +346,7 @@ pub(crate) fn runnable_mod(
     sema: &Semantics<'_, RootDatabase>,
     def: hir::Module,
 ) -> Option<Runnable> {
-    if !has_test_function_or_multiple_test_submodules(sema, &def) {
+    if !has_test_function_recursively(sema, &def) {
         return None;
     }
     let path = def
@@ -393,7 +393,7 @@ fn runnable_mod_outline_definition(
     sema: &Semantics<'_, RootDatabase>,
     def: hir::Module,
 ) -> Option<Runnable> {
-    if !has_test_function_or_multiple_test_submodules(sema, &def) {
+    if !has_test_function_recursively(sema, &def) {
         return None;
     }
     let path = def
@@ -520,14 +520,16 @@ fn has_runnable_doc_test(attrs: &hir::Attrs) -> bool {
     })
 }
 
+// Argue:
+// Should we return when `number_of_test_submodules > 0` or `number_of_test_submodules > 1`?
+// Support `> 1`:
 // We could create runnables for modules with number_of_test_submodules > 0,
 // but that bloats the runnables for no real benefit, since all tests can be run by the submodule already
-fn has_test_function_or_multiple_test_submodules(
-    sema: &Semantics<'_, RootDatabase>,
-    module: &hir::Module,
-) -> bool {
-    let mut number_of_test_submodules = 0;
-
+// Support `> 0`:
+// This will be helpful to rebuild the test item tree for VSCode, although it might should use another function or API.
+// A bit faster
+// Tell that there are some tests in the module when there is only declaration "mod SomeModule;"
+fn has_test_function_recursively(sema: &Semantics<'_, RootDatabase>, module: &hir::Module) -> bool {
     for item in module.declarations(sema.db) {
         match item {
             hir::ModuleDef::Function(f) => {
@@ -538,15 +540,15 @@ fn has_test_function_or_multiple_test_submodules(
                 }
             }
             hir::ModuleDef::Module(submodule) => {
-                if has_test_function_or_multiple_test_submodules(sema, &submodule) {
-                    number_of_test_submodules += 1;
+                if has_test_function_recursively(sema, &submodule) {
+                    return true;
                 }
             }
             _ => (),
         }
     }
 
-    number_of_test_submodules > 1
+    return false;
 }
 
 #[cfg(test)]
@@ -1252,9 +1254,24 @@ mod test_mod {
     fn test_foo1() {}
 }
 "#,
-            &[TestMod, Test],
+            &[TestMod, TestMod, Test],
             expect![[r#"
                 [
+                    Runnable {
+                        use_name_in_title: false,
+                        nav: NavigationTarget {
+                            file_id: FileId(
+                                0,
+                            ),
+                            full_range: 0..52,
+                            name: "",
+                            kind: Module,
+                        },
+                        kind: TestMod {
+                            path: "",
+                        },
+                        cfg: None,
+                    },
                     Runnable {
                         use_name_in_title: false,
                         nav: NavigationTarget {
@@ -1325,9 +1342,41 @@ mod root_tests {
     mod nested_tests_4 {}
 }
 "#,
-            &[TestMod, TestMod, Test, Test, TestMod, Test],
+            &[TestMod, TestMod, TestMod, TestMod, Test, Test, TestMod, Test],
             expect![[r#"
                 [
+                    Runnable {
+                        use_name_in_title: false,
+                        nav: NavigationTarget {
+                            file_id: FileId(
+                                0,
+                            ),
+                            full_range: 0..353,
+                            name: "",
+                            kind: Module,
+                        },
+                        kind: TestMod {
+                            path: "",
+                        },
+                        cfg: None,
+                    },
+                    Runnable {
+                        use_name_in_title: false,
+                        nav: NavigationTarget {
+                            file_id: FileId(
+                                0,
+                            ),
+                            full_range: 1..352,
+                            focus_range: 5..15,
+                            name: "root_tests",
+                            kind: Module,
+                            description: "mod root_tests",
+                        },
+                        kind: TestMod {
+                            path: "root_tests",
+                        },
+                        cfg: None,
+                    },
                     Runnable {
                         use_name_in_title: false,
                         nav: NavigationTarget {
@@ -1776,9 +1825,24 @@ macro_rules! foo {
 }
 foo!();
 "#,
-            &[Test, Test, Test, TestMod],
+            &[TestMod, Test, Test, Test, TestMod],
             expect![[r#"
                 [
+                    Runnable {
+                        use_name_in_title: false,
+                        nav: NavigationTarget {
+                            file_id: FileId(
+                                0,
+                            ),
+                            full_range: 0..218,
+                            name: "",
+                            kind: Module,
+                        },
+                        kind: TestMod {
+                            path: "",
+                        },
+                        cfg: None,
+                    },
                     Runnable {
                         use_name_in_title: true,
                         nav: NavigationTarget {
@@ -1873,9 +1937,42 @@ mod tests {
     fn t() {}
 }
 "#,
-            &[],
+            &[TestMod, TestMod],
             expect![[r#"
-                []
+                [
+                    Runnable {
+                        use_name_in_title: false,
+                        nav: NavigationTarget {
+                            file_id: FileId(
+                                0,
+                            ),
+                            full_range: 0..8,
+                            name: "",
+                            kind: Module,
+                        },
+                        kind: TestMod {
+                            path: "",
+                        },
+                        cfg: None,
+                    },
+                    Runnable {
+                        use_name_in_title: false,
+                        nav: NavigationTarget {
+                            file_id: FileId(
+                                0,
+                            ),
+                            full_range: 1..7,
+                            focus_range: 5..6,
+                            name: "m",
+                            kind: Module,
+                            description: "mod m",
+                        },
+                        kind: TestMod {
+                            path: "m",
+                        },
+                        cfg: None,
+                    },
+                ]
             "#]],
         );
     }
@@ -1893,9 +1990,24 @@ fn t0() {}
 #[test]
 fn t1() {}
 "#,
-            &[TestMod],
+            &[TestMod, TestMod],
             expect![[r#"
                 [
+                    Runnable {
+                        use_name_in_title: false,
+                        nav: NavigationTarget {
+                            file_id: FileId(
+                                0,
+                            ),
+                            full_range: 0..8,
+                            name: "",
+                            kind: Module,
+                        },
+                        kind: TestMod {
+                            path: "",
+                        },
+                        cfg: None,
+                    },
                     Runnable {
                         use_name_in_title: false,
                         nav: NavigationTarget {
@@ -2011,9 +2123,24 @@ mod module {
     fn t1() {}
 }
 "#,
-            &[TestMod, Test, Test],
+            &[TestMod, TestMod, Test, Test],
             expect![[r#"
                 [
+                    Runnable {
+                        use_name_in_title: false,
+                        nav: NavigationTarget {
+                            file_id: FileId(
+                                0,
+                            ),
+                            full_range: 0..95,
+                            name: "",
+                            kind: Module,
+                        },
+                        kind: TestMod {
+                            path: "",
+                        },
+                        cfg: None,
+                    },
                     Runnable {
                         use_name_in_title: true,
                         nav: NavigationTarget {
@@ -2560,9 +2687,24 @@ mod r#mod {
     impl<T> r#trait for r#struct<T> {}
 }
 "#,
-            &[TestMod, Test, DocTest, DocTest, DocTest, DocTest, DocTest, DocTest],
+            &[TestMod, TestMod, Test, DocTest, DocTest, DocTest, DocTest, DocTest, DocTest],
             expect![[r#"
                 [
+                    Runnable {
+                        use_name_in_title: false,
+                        nav: NavigationTarget {
+                            file_id: FileId(
+                                0,
+                            ),
+                            full_range: 0..462,
+                            name: "",
+                            kind: Module,
+                        },
+                        kind: TestMod {
+                            path: "",
+                        },
+                        cfg: None,
+                    },
                     Runnable {
                         use_name_in_title: false,
                         nav: NavigationTarget {

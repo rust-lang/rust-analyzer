@@ -1560,6 +1560,11 @@
                     "default": true,
                     "type": "boolean"
                 },
+                "rust-analyzer.testExplorer.enable": {
+                    "markdownDescription": "Enable VSCode native test explorer.",
+                    "default": true,
+                    "type": "boolean"
+                },
                 "rust-analyzer.typing.autoClosingAngleBrackets.enable": {
                     "markdownDescription": "Whether to insert closing angle brackets when typing an opening angle bracket of a generic argument list.",
                     "default": false,

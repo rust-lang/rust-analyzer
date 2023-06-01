@@ -15,6 +15,7 @@ use ide::{
     Runnable, RunnableKind, SingleResolve, SourceChange, TextEdit,
 };
 use ide_db::SymbolKind;
+use itertools::Itertools;
 use lsp_server::ErrorCode;
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
@@ -819,6 +820,43 @@ pub(crate) fn handle_runnables(
             }
         }
     }
+    Ok(res)
+}
+
+pub(crate) fn handle_cargo_workspaces(
+    snap: GlobalStateSnapshot,
+    _: (),
+) -> anyhow::Result<Vec<cargo_metadata::Metadata>> {
+    let _p = profile::span("cargo_workspaces");
+    let res = snap
+        .workspaces
+        .iter()
+        .filter_map(|workspace| {
+            if let ProjectWorkspace::Cargo { cargo, .. } = workspace {
+                Some(cargo.origin_metadata.clone())
+            } else {
+                None
+            }
+        })
+        .collect_vec();
+    Ok(res)
+}
+
+pub(crate) fn handle_test_runnables_in_file(
+    snap: GlobalStateSnapshot,
+    params: lsp_ext::TestRunnablesInFileParams,
+) -> anyhow::Result<Vec<lsp_ext::Runnable>> {
+    let _p = profile::span("handle_test_runnables_in_file");
+
+    let file_id = from_proto::file_id(&snap, &params.text_document.uri)?;
+    let test_runnables = snap.analysis.test_runnables_in_file(file_id)?;
+
+    let mut res = Vec::new();
+    for runnable in test_runnables {
+        let runnable = to_proto::runnable(&snap, runnable)?;
+        res.push(runnable);
+    }
+
     Ok(res)
 }
 

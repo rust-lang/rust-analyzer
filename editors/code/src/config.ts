@@ -200,6 +200,10 @@ export class Config {
         return prepareVSCodeConfig(this.cfg.get<T>(path));
     }
 
+    get isTestExplorerEnabled() {
+        return this.get<boolean>("testExplorer.enable");
+    }
+
     get serverPath() {
         return this.get<null | string>("server.path") ?? this.get<null | string>("serverPath");
     }

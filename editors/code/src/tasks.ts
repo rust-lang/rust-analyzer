@@ -115,7 +115,7 @@ export async function buildCargoTask(
     if (!exec) {
         // Check whether we must use a user-defined substitute for cargo.
         // Split on spaces to allow overrides like "wrapper cargo".
-        const overrideCargo = definition.overrideCargo ?? definition.overrideCargo;
+        const overrideCargo = definition.overrideCargo;
         const cargoPath = await toolchain.cargoPath();
         const cargoCommand = overrideCargo?.split(" ") ?? [cargoPath];
 
