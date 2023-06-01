@@ -4,7 +4,7 @@
 
 2. Update `syntax/rust.ungram` with the new syntax. Also, update `syntax/tests/ast_src.rs` for newly introduced tokens if there is any. 
 
-3. Use `syntax/tests/sourcegen_ast.rs` to auto-generate `syntax/ast/generated/*` files. It uses `ast_src.rs` as input. 
+3. Use `syntax/tests/sourcegen_ast.rs` to auto-generate `syntax/ast/generated/*` files. It uses `ast_src.rs` as input. (e.g. run `cargo test --package syntax --lib -- tests::sourcegen_ast --nocapture `)
 
 4. Add testcases. Add snippets of new Verus code at `syntax/src/lib.rs`, to make sure the new syntax is parsed correctly. `workflows/verus.yml` will run the tests in the CI.
 
