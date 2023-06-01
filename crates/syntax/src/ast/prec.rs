@@ -181,6 +181,7 @@ impl Expr {
             | RecordExpr(_) | UnderscoreExpr(_) => (0, 0),
             
             // verus: review
+            // ViewExpr(@) is similar to TryExpr(?)
             ViewExpr(_) | AssertExpr(_) | AssumeExpr(_) => (29,0),
         }
     }
@@ -312,7 +313,9 @@ impl Expr {
                 | BlockExpr(_) | RecordExpr(_) | UnderscoreExpr(_) | MacroExpr(_) => None,
 
                 //verus: review
-                ViewExpr(_) | AssertExpr(_) | AssumeExpr(_) => None,
+                // ViewExpr(@) is similar to TryExpr(?)
+                ViewExpr(e) => e.at_token(),
+                AssertExpr(_) | AssumeExpr(_) => None,
             };
 
             token.map(|t| t.text_range()).unwrap_or_else(|| this.syntax().text_range()).start()
@@ -342,6 +345,7 @@ impl Expr {
             ForExpr(_) | IfExpr(_) | MatchExpr(_) | WhileExpr(_) => true,
             
             //verus
+            // ViewExpr(@) is similar to TryExpr(?)
             ViewExpr(_) | AssertExpr(_) | AssumeExpr(_) => false,
         }
     }

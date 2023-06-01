@@ -1,4 +1,4 @@
-mod atom;
+pub(crate) mod atom;
 
 use crate::grammar::attributes::ATTRIBUTE_FIRST;
 
@@ -29,7 +29,7 @@ pub(super) fn expr_stmt(
     expr_bp(p, m, r, 1)
 }
 
-fn expr_no_struct(p: &mut Parser<'_>) {
+pub(crate) fn expr_no_struct(p: &mut Parser<'_>) {
     let r = Restrictions { forbid_structs: true, prefer_stmt: false };
     expr_bp(p, None, r, 1);
 }
