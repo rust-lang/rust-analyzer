@@ -75,7 +75,7 @@ fn reparse_fuzz_tests() {
 
 /// Test that Rust-analyzer can parse and validate the rust-analyzer
 #[test]
-#[ignore = "TODO(verus), un-ignore this"] 
+#[ignore = "TODO(verus), un-ignore this"]
 fn self_hosting_parsing() {
     let crates_dir = project_root().join("crates");
 

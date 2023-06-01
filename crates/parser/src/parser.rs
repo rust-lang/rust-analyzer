@@ -96,7 +96,7 @@ impl<'t> Parser<'t> {
             // verus
             T![&&&] => self.at_composite3(n, T![&], T![&], T![&]),
             T![|||] => self.at_composite3(n, T![|], T![|], T![|]),
-            T![<==>] => self.at_composite4(n, T![<], T![=], T![=], T![>]),   
+            T![<==>] => self.at_composite4(n, T![<], T![=], T![=], T![>]),
             T![==>] => self.at_composite3(n, T![=], T![=], T![>]),
             T![<==] => self.at_composite3(n, T![<], T![=], T![=]),
             T![===] => self.at_composite3(n, T![=], T![=], T![=]),
@@ -158,7 +158,14 @@ impl<'t> Parser<'t> {
     }
 
     // verus
-    fn at_composite4(&self, n: usize, k1: SyntaxKind, k2: SyntaxKind, k3: SyntaxKind, k4: SyntaxKind) -> bool {
+    fn at_composite4(
+        &self,
+        n: usize,
+        k1: SyntaxKind,
+        k2: SyntaxKind,
+        k3: SyntaxKind,
+        k4: SyntaxKind,
+    ) -> bool {
         self.inp.kind(self.pos + n) == k1
             && self.inp.kind(self.pos + n + 1) == k2
             && self.inp.kind(self.pos + n + 2) == k3

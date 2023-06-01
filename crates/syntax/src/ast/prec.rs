@@ -179,10 +179,10 @@ impl Expr {
             ArrayExpr(_) | TupleExpr(_) | Literal(_) | PathExpr(_) | ParenExpr(_) | IfExpr(_)
             | WhileExpr(_) | ForExpr(_) | LoopExpr(_) | MatchExpr(_) | BlockExpr(_)
             | RecordExpr(_) | UnderscoreExpr(_) => (0, 0),
-            
+
             // verus: review
             // ViewExpr(@) is similar to TryExpr(?)
-            ViewExpr(_) | AssertExpr(_) | AssumeExpr(_) => (29,0),
+            ViewExpr(_) | AssertExpr(_) | AssumeExpr(_) => (29, 0),
         }
     }
 
@@ -343,7 +343,7 @@ impl Expr {
                 .unwrap_or(false),
 
             ForExpr(_) | IfExpr(_) | MatchExpr(_) | WhileExpr(_) => true,
-            
+
             //verus
             // ViewExpr(@) is similar to TryExpr(?)
             ViewExpr(_) | AssertExpr(_) | AssumeExpr(_) => false,

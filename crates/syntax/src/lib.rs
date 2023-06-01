@@ -508,9 +508,6 @@ fn api_walkthrough() {
     assert_eq!(exprs_cast, exprs_visit);
 }
 
-
-
-
 // Verus tests
 // Do "cargo test --package syntax --lib -- tests"
 
@@ -518,8 +515,7 @@ fn api_walkthrough() {
 fn verus_walkthrough0() {
     use ast::HasModuleItem;
 
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
         proof fn my_proof_fun(x: int, y: int)
             {
                 let z = 1;
@@ -548,8 +544,7 @@ fn verus_walkthrough0() {
 fn verus_walkthrough1() {
     use ast::HasModuleItem;
 
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
         proof fn my_proof_fun(x: int, y: int)
             requires
                 x < 100,
@@ -571,14 +566,11 @@ fn verus_walkthrough1() {
     }
 }
 
-
-
 #[test]
 fn verus_walkthrough1_1() {
     use ast::HasModuleItem;
 
-    let source_code = 
-    "
+    let source_code = "
 verus! {
     spec fn identity(x: u32) -> u32 {
         x
@@ -611,14 +603,11 @@ verus! {
     }
 }
 
-
-
 #[test]
 fn verus_walkthrough2() {
     use ast::HasModuleItem;
 
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
         proof fn my_proof_fun(x: int, y: int) -> (sum: int)
             requires
                 x < 100,
@@ -657,15 +646,12 @@ fn verus_walkthrough2() {
     for item in file.items() {
         dbg!(&item);
     }
-
 }
-
 
 #[test]
 fn verus_walkthrough3() {
     use ast::HasModuleItem;
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
         proof fn test5_bound_checking(x: u32, y: u32, z: u32)
             requires
                 x <= 0xffff,
@@ -698,13 +684,11 @@ fn verus_walkthrough3() {
     }
 }
 
-
 #[test]
 #[ignore = "not yet implemented"] // TODO: assume attributes
 fn verus_walkthrough4() {
     use ast::HasModuleItem;
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
         fn test_assert_forall_by() {
             assert forall|x: int, y: int| f1(x) + f1(y) == x + y + 2 by {
                 reveal(f1);
@@ -743,7 +727,6 @@ fn verus_walkthrough4() {
     }
 }
 
-
 #[test]
 fn verus_walkthrough5() {
     use ast::HasModuleItem;
@@ -767,12 +750,10 @@ fn verus_walkthrough5() {
     }
 }
 
-
 #[test]
 fn verus_walkthrough6() {
     use ast::HasModuleItem;
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
         proof fn my_proof_fun(x: int, y: int) -> (sum: int)
             requires
                 x < 100,
@@ -830,12 +811,10 @@ fn verus_walkthrough7() {
     }
 }
 
-
 #[test]
 fn verus_walkthrough8() {
     use ast::HasModuleItem;
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
     fn test_my_funs2(
         a: u32, // exec variable
         b: u32, // exec variable
@@ -864,8 +843,7 @@ fn verus_walkthrough8() {
 #[test]
 fn verus_walkthrough9_0() {
     use ast::HasModuleItem;
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
     fn test_is_variant_1(v: Vehicle2<u64>) {
         match v {
             Vehicle2::Car(_) => assert(v.is_Car()),
@@ -883,13 +861,10 @@ fn verus_walkthrough9_0() {
     }
 }
 
-
-
 #[test]
 fn verus_walkthrough9() {
     use ast::HasModuleItem;
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
     proof fn test_tracked(
         tracked w: int,
         tracked x: int,
@@ -909,13 +884,10 @@ fn verus_walkthrough9() {
     }
 }
 
-
-
 #[test]
 fn verus_walkthrough10_0() {
     use ast::HasModuleItem;
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
     pub(crate) proof fn binary_ops<A>(a: A, x: int) {
         assert(2 + 2 !== 3);
         assert(a === a);
@@ -937,8 +909,7 @@ fn verus_walkthrough10_0() {
 #[test]
 fn verus_walkthrough10_1() {
     use ast::HasModuleItem;
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
     spec fn ccc(x: int, y: int) -> bool {
         &&& if false {
                 true
@@ -958,12 +929,10 @@ fn verus_walkthrough10_1() {
     }
 }
 
-
 #[test]
 fn verus_walkthrough10_2() {
     use ast::HasModuleItem;
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
     spec fn complex_conjuncts(x: int, y: int) -> bool {
         let b = x < y;
         &&& b
@@ -988,12 +957,10 @@ fn verus_walkthrough10_2() {
     }
 }
 
-
 #[test]
 fn verus_walkthrough10() {
     use ast::HasModuleItem;
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
     fn test_views() {
         let mut v: Vec<u8> = Vec::new();
         v.push(10);
@@ -1015,14 +982,10 @@ fn verus_walkthrough10() {
     }
 }
 
-
-
-
 #[test]
 fn verus_walkthrough11() {
     use ast::HasModuleItem;
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
 fn binary_search(v: &Vec<u64>, k: u64) -> (r: usize)
     requires
         forall|i:int, j:int| 0 <= i <= j < v.len() ==> v[i] <= v[j],
@@ -1061,12 +1024,10 @@ fn binary_search(v: &Vec<u64>, k: u64) -> (r: usize)
     }
 }
 
-
 #[test]
 fn verus_walkthrough12() {
     use ast::HasModuleItem;
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
 fn pop_test(t: Vec<u64>)
 requires
     t.len() > 0,
@@ -1088,12 +1049,10 @@ assert(forall|i: int| #![auto] 0 <= i < t.len() ==> uninterp_fn(t[i]));
     }
 }
 
-
 #[test]
 fn verus_walkthrough13() {
     use ast::HasModuleItem;
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
     proof fn arith_sum_int_nonneg(i: nat)
         ensures
             arith_sum_int(i as int) >= 0,
@@ -1124,8 +1083,7 @@ fn verus_walkthrough13() {
 #[test]
 fn verus_walkthrough14() {
     use ast::HasModuleItem;
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
 fn exec_with_decreases(n: u64) -> u64
     decreases 100 - n,
 {
@@ -1170,12 +1128,10 @@ spec(checked) fn my_spec_fun2(x: int, y: int) -> int
     }
 }
 
-
 #[test]
 fn verus_walkthrough16() {
     use ast::HasModuleItem;
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
 proof fn test_even_f()
     ensures
         forall|i: int| is_even(i) ==> f(i),
@@ -1202,8 +1158,7 @@ proof fn test_even_f()
 fn verus_walkthrough17() {
     use ast::HasModuleItem;
     //from: https://github.com/verus-lang/verus/wiki/Doc%3A-Deprecated-and-recommended-syntax%2C-and-upcoming-changes
-    let source_code = 
-    "verus!{
+    let source_code = "verus!{
 proof fn lemma1(i: int, tracked t: S) {
 }
 fn f(i: u32, Ghost(j): Ghost<int>, Tracked(t): Tracked<S>) -> (k: u32)
@@ -1238,4 +1193,3 @@ fn g(Tracked(t): Tracked<S>) -> u32 {
         dbg!(&item);
     }
 }
-
