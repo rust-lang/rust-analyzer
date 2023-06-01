@@ -10,6 +10,8 @@
 
 5. Might need to change various rust-analyzer files, but most of them are straight forward, and they are alerted my "missing enum case" by the compiler. e.g. `syntax/src/ast/prec.rs`, 
 
-6. To modify the parser, start from `syntax/src/grammar/verus.rs`. Verus specific lang items(e.g. `requires` `ensures`) should be parsed here. For modified items (e.g. `WhileExpr`), the parser is modified in-place.
+6. To modify the parser, start from `syntax/src/grammar/verus.rs`. Verus specific lang items(e.g. `requires` `ensures`) should be parsed here. For modified items (e.g. `WhileExpr`), the parser is modified in-place. See `item.rs` and `expression.rs` for examples of these.
+
+
 
 
