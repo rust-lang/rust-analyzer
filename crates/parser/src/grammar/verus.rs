@@ -80,12 +80,12 @@ pub(crate) fn fn_mode(p: &mut Parser<'_>) -> CompletedMarker {
     }
 }
 
-pub(crate) fn assume(p: &mut Parser<'_>, m: Marker) {
+pub(crate) fn assume(p: &mut Parser<'_>, m: Marker) -> CompletedMarker {
     p.expect(T![assume]);
     p.expect(T!['(']);
     expressions::expr(p);
     p.expect(T![')']);
-    m.complete(p, ASSUME_EXPR);
+    m.complete(p, ASSUME_EXPR)
 }
 
 // AssertExpr =

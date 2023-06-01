@@ -25,6 +25,23 @@ pub(super) fn expr_stmt(
     p: &mut Parser<'_>,
     m: Option<Marker>,
 ) -> Option<(CompletedMarker, BlockLike)> {
+    // verus
+    // entry(1/2) for assert/assume
+    if p.at(T![assert]) || p.at(T![assume]) {
+        let m = m.unwrap_or_else(|| {
+            let m = p.start();
+            attributes::outer_attrs(p);
+            m
+        });
+        let pred_expr =
+        if p.at(T![assert]) {
+            verus::assert(p, m)
+        } else {
+            verus::assume(p, m)
+        };
+        return Some((pred_expr,  BlockLike::NotBlock));
+    }
+
     let r = Restrictions { forbid_structs: false, prefer_stmt: true };
     expr_bp(p, m, r, 1)
 }
@@ -72,10 +89,14 @@ pub(super) fn stmt(p: &mut Parser<'_>, semicolon: Semicolon) {
     };
 
     // verus
-    // entry for every assertion
-    if p.at(T![assert]) {
+    // entry(2/2) for assert/assume
+    if p.at(T![assert]) || p.at(T![assume]) {
         let m1 = p.start();
-        verus::assert(p, m1);
+        if p.at(T![assert]) {
+            verus::assert(p, m1);
+        } else {
+            verus::assume(p, m1);
+        }
         if p.at(T![;]) {
             p.expect(T![;]);
         }
