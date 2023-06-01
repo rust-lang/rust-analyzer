@@ -179,6 +179,9 @@ impl Expr {
             ArrayExpr(_) | TupleExpr(_) | Literal(_) | PathExpr(_) | ParenExpr(_) | IfExpr(_)
             | WhileExpr(_) | ForExpr(_) | LoopExpr(_) | MatchExpr(_) | BlockExpr(_)
             | RecordExpr(_) | UnderscoreExpr(_) => (0, 0),
+            
+            // verus: review
+            ViewExpr(_) | AssertExpr(_) | AssumeExpr(_) => (29,0),
         }
     }
 
@@ -307,6 +310,9 @@ impl Expr {
                 ArrayExpr(_) | TupleExpr(_) | Literal(_) | PathExpr(_) | ParenExpr(_)
                 | IfExpr(_) | WhileExpr(_) | ForExpr(_) | LoopExpr(_) | MatchExpr(_)
                 | BlockExpr(_) | RecordExpr(_) | UnderscoreExpr(_) | MacroExpr(_) => None,
+
+                //verus: review
+                ViewExpr(_) | AssertExpr(_) | AssumeExpr(_) => None,
             };
 
             token.map(|t| t.text_range()).unwrap_or_else(|| this.syntax().text_range()).start()
@@ -334,6 +340,9 @@ impl Expr {
                 .unwrap_or(false),
 
             ForExpr(_) | IfExpr(_) | MatchExpr(_) | WhileExpr(_) => true,
+            
+            //verus
+            ViewExpr(_) | AssertExpr(_) | AssumeExpr(_) => false,
         }
     }
 }
