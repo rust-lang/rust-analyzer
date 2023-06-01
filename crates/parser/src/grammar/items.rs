@@ -441,6 +441,16 @@ fn macro_def(p: &mut Parser<'_>, m: Marker) {
     m.complete(p, MACRO_DEF);
 }
 
+/*
+Verus
+Keep the parsing order consistent with the ungrammar file
+this `fn_` function parses from the `fn` keyword
+Fn =
+    Attr* Visibility? Publish?
+    'default'? 'const'? 'async'? 'unsafe'? Abi? FnMode?
+    'fn' Name GenericParamList? ParamList RetType? WhereClause? RequiresClause? EnsuresClause?
+    (body:BlockExpr | ';')
+*/
 // test fn
 // fn foo() {}
 fn fn_(p: &mut Parser<'_>, m: Marker) {
@@ -459,7 +469,7 @@ fn fn_(p: &mut Parser<'_>, m: Marker) {
     // test function_ret_type
     // fn foo() {}
     // fn bar() -> () {}
-    opt_ret_type(p);
+    verus::verus_ret_type(p); // previously opt_ret_type(p);
 
     // test function_where_clause
     // fn foo<T>() where T: Copy {}

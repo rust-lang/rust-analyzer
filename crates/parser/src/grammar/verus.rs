@@ -1,5 +1,25 @@
 use super::{*, items::ITEM_RECOVERY_SET};
 
+pub(crate) fn verus_ret_type(p: &mut Parser<'_>) -> () {
+    if p.at(T![->]) {
+        let m = p.start();
+        p.bump(T![->]);
+        if p.at(T![tracked]) {
+            p.expect(T![tracked]);
+        }
+        if p.at(T!['(']) {
+            // verus named param    
+            p.expect(T!['(']);
+            patterns::pattern(p); 
+            p.expect(T![:]);   
+            types::type_no_bounds(p);
+            p.expect(T![')']);
+        } else {
+            types::type_no_bounds(p);
+        }
+        m.complete(p, RET_TYPE);
+    } 
+}
 pub(crate) fn view_expr(p: &mut Parser<'_>, lhs: CompletedMarker) -> CompletedMarker {
     assert!(p.at(T![@]));
     let m = lhs.precede(p);

@@ -524,6 +524,14 @@ fn verus_walkthrough0() {
             {
                 let z = 1;
             }
+
+        spec fn identity(x: u32) -> u32 {
+            x
+        }
+
+        proof fn sq(x: nat) -> (squared: nat) {
+            x
+        }
     }";
     let parse = SourceFile::parse(source_code);
     dbg!(&parse.errors);
