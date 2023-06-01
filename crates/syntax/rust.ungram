@@ -146,10 +146,12 @@ UseTree =
 UseTreeList =
   '{' (UseTree (',' UseTree)* ','?)? '}'
 
+// Verus: Publish, FnMode, RequiresClause, EnsuresClause
+// Keep consistent with `verus/dependencies/syn/src/items.rs`, `impl parse for Signature`
 Fn =
- Attr* Visibility?
- 'default'? 'const'? 'async'? 'unsafe'? Abi?
- 'fn' Name GenericParamList? ParamList RetType? WhereClause?
+ Attr* Visibility? Publish?
+ 'default'? 'const'? 'async'? 'unsafe'? Abi? FnMode?
+ 'fn' Name GenericParamList? ParamList RetType? WhereClause? RequiresClause? EnsuresClause?
  (body:BlockExpr | ';')
 
 Abi =
@@ -168,15 +170,17 @@ SelfParam =
   | 'mut'? Name ':' Type
   )
 
+// Verus: tracked
 Param =
   Attr* (
-    Pat (':' Type)?
+    'tracked'? Pat (':' Type)?
   | Type
   | '...'
   )
 
+// Verus: tracked
 RetType =
-  '->' Type
+  '->' 'tracked'? ( ('(' Pat ':' Type ')') | Type)
 
 TypeAlias =
   Attr* Visibility?
@@ -328,8 +332,9 @@ Stmt =
 | Item
 | LetStmt
 
+// Verus: ghost, tracked
 LetStmt =
-  Attr* 'let' Pat (':' Type)?
+  Attr* 'let' 'ghost'? 'tracked'? Pat (':' Type)?
   '=' initializer:Expr
   LetElse?
   ';'
@@ -377,6 +382,9 @@ Expr =
 | YeetExpr
 | LetExpr
 | UnderscoreExpr
+| ViewExpr
+| AssertExpr
+| AssumeExpr
 
 OffsetOfExpr =
   Attr* 'builtin' '#' 'offset_of' '(' Type ',' fields:(NameRef ('.' NameRef)* ) ')'
@@ -424,9 +432,11 @@ TryExpr =
 BlockExpr =
   Attr* Label? ('try' | 'unsafe' | 'async' | 'const') StmtList
 
+// verus: &&&, |||
 PrefixExpr =
   Attr* op:('-' | '!' | '*') Expr
 
+// verus: ==>
 BinExpr =
   Attr*
   lhs:Expr
@@ -435,6 +445,7 @@ BinExpr =
   | '==' | '!=' | '<=' | '>=' | '<' | '>'
   | '+' | '*' | '-' | '/' | '%' | '<<' | '>>' | '^' | '|' | '&'
   | '=' | '+=' | '/=' | '*=' | '%=' | '>>=' | '<<=' | '-=' | '|=' | '&=' | '^='
+  | '==>'
   )
   rhs:Expr
 
@@ -481,8 +492,9 @@ MethodCallExpr =
 FieldExpr =
   Attr* Expr '.' NameRef
 
+// verus: forall, exsits
 ClosureExpr =
-  Attr* ('for' GenericParamList)? 'const'? 'static'? 'async'? 'move'?  ParamList RetType?
+  Attr* ('for' GenericParamList)? 'const'? 'static'? 'async'? 'move'? 'forall'? 'exists'? ParamList RetType? Attr*
   body:Expr
 
 IfExpr =
@@ -497,8 +509,9 @@ ForExpr =
   Attr* Label? 'for' Pat 'in' iterable:Expr
   loop_body:BlockExpr
 
+// verus: invariantclause, decreasesclause
 WhileExpr =
-  Attr* Label? 'while' condition:Expr
+  Attr* Label? 'while' condition:Expr InvariantClause? DecreasesClause?
   loop_body:BlockExpr
 
 Label =
@@ -701,3 +714,56 @@ MacroPat =
 
 ConstBlockPat =
   'const' BlockExpr
+
+
+//************************//
+//        Verus           //
+//************************//
+
+Publish = 
+  ('closed' | 'open' )
+
+FnMode = 
+  ('spec' | 'proof' | 'exec' | ModeSpecChecked )  
+
+ModeSpecChecked =
+ 'spec' '(' 'checked' ')'
+
+CommaAndName = 
+  ',' Name 
+
+CommaAndPat = 
+  ',' Pat
+
+CommaAndCond = 
+  ',' condition:Expr
+
+CommaAndExpr = 
+  ',' Expr
+
+CondAndComma =
+  condition:Expr ','?
+
+RequiresClause =
+  'requires' Expr CommaAndCond* ','?
+
+EnsuresClause =
+  'ensures' Expr CommaAndCond* ','?
+
+InvariantClause =
+  'invariant' Expr CommaAndCond* ','?
+
+RecommendsClause =
+  'recommends' Expr CommaAndCond* ','?
+
+DecreasesClause = 
+  'decreases' Expr CommaAndCond* ','?
+
+ViewExpr =
+  Attr* Expr '@'
+
+AssertExpr =
+  Attr* 'assert' '(' Expr ')' 'by'? ( '(' Name ')' )?  RequiresClause? BlockExpr?
+
+AssumeExpr = 
+  Attr* 'assume' '(' Expr ')' 
