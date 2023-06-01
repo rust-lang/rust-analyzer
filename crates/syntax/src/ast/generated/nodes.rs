@@ -454,10 +454,12 @@ impl ast::HasVisibility for Fn {}
 impl Fn {
     pub fn abi(&self) -> Option<Abi> { support::child(&self.syntax) }
     pub fn body(&self) -> Option<BlockExpr> { support::child(&self.syntax) }
+    pub fn decreases_clause(&self) -> Option<DecreasesClause> { support::child(&self.syntax) }
     pub fn ensures_clause(&self) -> Option<EnsuresClause> { support::child(&self.syntax) }
     pub fn fn_mode(&self) -> Option<FnMode> { support::child(&self.syntax) }
     pub fn param_list(&self) -> Option<ParamList> { support::child(&self.syntax) }
     pub fn publish(&self) -> Option<Publish> { support::child(&self.syntax) }
+    pub fn recommends_clause(&self) -> Option<RecommendsClause> { support::child(&self.syntax) }
     pub fn requires_clause(&self) -> Option<RequiresClause> { support::child(&self.syntax) }
     pub fn ret_type(&self) -> Option<RetType> { support::child(&self.syntax) }
     pub fn semicolon_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![;]) }
