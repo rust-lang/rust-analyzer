@@ -65,6 +65,10 @@ pub(super) const ATOM_EXPR_FIRST: TokenSet =
         T![while],
         T![yield],
         LIFETIME_IDENT,
+        // verus
+        T![forall],
+        T![exists],
+        T![choose],
     ]));
 
 pub(super) const EXPR_RECOVERY_SET: TokenSet = TokenSet::new(&[T![')'], T![']']]);
@@ -164,6 +168,7 @@ pub(super) fn atom_expr(
         }
 
         T![const] | T![static] | T![async] | T![move] | T![|] => closure_expr(p),
+        T![forall] | T![exists] | T![choose] => verus::verus_closure_expr(p), // verus
         T![for] if la == T![<] => closure_expr(p),
         T![for] => for_expr(p, None),
 
@@ -437,6 +442,15 @@ fn while_expr(p: &mut Parser<'_>, m: Option<Marker>) -> CompletedMarker {
     let m = m.unwrap_or_else(|| p.start());
     p.bump(T![while]);
     expr_no_struct(p);
+
+    // verus
+    if p.at(T![invariant]) {
+        verus::invariants(p);
+    }
+    if p.at(T![decreases]) {
+        verus::decreases(p);
+    }
+
     block_expr(p);
     m.complete(p, WHILE_EXPR)
 }

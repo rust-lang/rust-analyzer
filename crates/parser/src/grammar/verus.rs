@@ -1,5 +1,23 @@
 use super::{*, items::ITEM_RECOVERY_SET};
 
+// referenced atom::closure_expr
+pub(crate) fn verus_closure_expr(p: &mut Parser<'_>) -> CompletedMarker {
+    dbg!("verus_closure");
+    let m = p.start();
+    p.eat(T![forall]);
+    p.eat(T![exists]);
+    p.eat(T![choose]);
+
+    if !p.at(T![|]) {
+        p.error("expected `|`");
+        return m.complete(p, CLOSURE_EXPR);
+    }
+    params::param_list_closure(p);
+    attributes::inner_attrs(p);
+    expressions::expr(p);
+    m.complete(p, CLOSURE_EXPR)
+}
+
 pub(crate) fn verus_ret_type(p: &mut Parser<'_>) -> () {
     if p.at(T![->]) {
         let m = p.start();
@@ -77,7 +95,7 @@ pub(crate) fn assume(p: &mut Parser<'_>, m: Marker) {
 
 // AssertExpr =
 //   'assert' '(' Expr ')' 'by'? ( '(' Name ')' )?  RequiresClause? BlockExpr?
-pub(crate)  fn assert(p: &mut Parser<'_>, m: Marker) -> CompletedMarker {
+pub(crate) fn assert(p: &mut Parser<'_>, m: Marker) -> CompletedMarker {
     if p.nth_at(1, T![forall]) {
         return assert_forall(p, m);
     }
@@ -128,7 +146,7 @@ pub(crate) fn assert_forall(p: &mut Parser<'_>, m: Marker) -> CompletedMarker {
         p.error("assert forall must start with forall");
     }
 
-    expressions::atom::closure_expr(p);
+    verus_closure_expr(p);
     if p.at(T![implies]) {
         p.bump(T![implies]);
         expressions::expr(p);

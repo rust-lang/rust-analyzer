@@ -14,7 +14,7 @@ pub(super) enum Semicolon {
     Forbidden,
 }
 
-const EXPR_FIRST: TokenSet = LHS_FIRST;
+pub(crate) const EXPR_FIRST: TokenSet = LHS_FIRST;
 
 pub(super) fn expr(p: &mut Parser<'_>) -> Option<CompletedMarker> {
     let r = Restrictions { forbid_structs: false, prefer_stmt: false };
