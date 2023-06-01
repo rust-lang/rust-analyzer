@@ -63,6 +63,14 @@ pub(crate) const KINDS_SRC: KindsSrc<'_> = KindsSrc {
         (">>", "SHR"),
         ("<<=", "SHLEQ"),
         (">>=", "SHREQ"),
+        //verus
+        ("&&&"  , "BIGAND"),
+        ("|||"  , "BIGOR"),
+        ("<==>" , "EQUIV"),
+        ("==>"  , "IMPLY"),
+        ("<=="  , "EXPLY"),
+        ("==="  , "EQEQEQ"),
+        ("!=="  , "NEEQ"),
     ],
     keywords: &[
         "abstract", "as", "async", "await", "become", "box", "break", "const", "continue", "crate",
@@ -70,6 +78,11 @@ pub(crate) const KINDS_SRC: KindsSrc<'_> = KindsSrc {
         "let", "loop", "macro", "match", "mod", "move", "mut", "override", "priv", "pub", "ref",
         "return", "self", "Self", "static", "struct", "super", "trait", "true", "try", "type",
         "typeof", "unsafe", "unsized", "use", "virtual", "where", "while", "yield",
+        // verus
+        "spec", "proof","requires", "ensures", "checked",
+        "recommends", "decreases",
+        "exec", "open", "closed", "tracked", "ghost",
+        "invariant", "assert" , "assume"  , "implies" , "by"  ,"forall" , "exists"  , "choose",
     ],
     contextual_keywords: &[
         "auto",
@@ -234,6 +247,27 @@ pub(crate) const KINDS_SRC: KindsSrc<'_> = KindsSrc {
         "MACRO_ITEMS",
         "MACRO_STMTS",
         "MACRO_EAGER_INPUT",
+        // verus
+        "REQUIRES_CLAUSE",
+        "ENSURES_CLAUSE",
+        "DECREASES_CLAUSE",
+        "RECOMMENDS_CLAUSE",
+        "INVARIANT_CLAUSE",
+
+        "ASSERT_EXPR",
+        "ASSERT_FORALL_EXPR",
+        "ASSUME_EXPR",
+        "VIEW_EXPR",
+
+        "COND_AND_COMMA",       // TODO: review
+        "COMMA_AND_COND",       // TODO: review
+        "PAT_AND_COMMA",
+        "COMMA_AND_EXPR",
+        "COMMA_AND_PAT",
+        "COMMA_AND_NAME",
+        "PUBLISH",
+        "FN_MODE",
+        "MODE_SPEC_CHECKED"
     ],
 };
 
