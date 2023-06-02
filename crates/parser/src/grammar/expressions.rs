@@ -33,13 +33,8 @@ pub(super) fn expr_stmt(
             attributes::outer_attrs(p);
             m
         });
-        let pred_expr =
-        if p.at(T![assert]) {
-            verus::assert(p, m)
-        } else {
-            verus::assume(p, m)
-        };
-        return Some((pred_expr,  BlockLike::NotBlock));
+        let pred_expr = if p.at(T![assert]) { verus::assert(p, m) } else { verus::assume(p, m) };
+        return Some((pred_expr, BlockLike::NotBlock));
     }
 
     let r = Restrictions { forbid_structs: false, prefer_stmt: true };

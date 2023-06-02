@@ -112,7 +112,7 @@ fn param(p: &mut Parser<'_>, m: Marker, flavor: Flavor) {
             if p.at(T![tracked]) {
                 p.eat(T![tracked]);
             }
-            
+
             patterns::pattern(p);
             if !variadic_param(p) {
                 if p.at(T![:]) {

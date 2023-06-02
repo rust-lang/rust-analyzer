@@ -315,7 +315,7 @@ impl Expr {
                 //verus: review
                 // ViewExpr(@) is similar to TryExpr(?)
                 ViewExpr(e) => e.at_token(),
-                AssertExpr(_) | AssumeExpr(_) | AssertForallExpr(_)  => None,
+                AssertExpr(_) | AssumeExpr(_) | AssertForallExpr(_) => None,
             };
 
             token.map(|t| t.text_range()).unwrap_or_else(|| this.syntax().text_range()).start()
@@ -346,7 +346,7 @@ impl Expr {
 
             //verus
             // ViewExpr(@) is similar to TryExpr(?)
-            ViewExpr(_) | AssertExpr(_) | AssumeExpr(_) | AssertForallExpr(_)  => false,
+            ViewExpr(_) | AssertExpr(_) | AssumeExpr(_) | AssertForallExpr(_) => false,
         }
     }
 }
