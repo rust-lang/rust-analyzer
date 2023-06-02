@@ -81,6 +81,21 @@ impl AssertExpr {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct AssertForallExpr {
+    pub(crate) syntax: SyntaxNode,
+}
+impl ast::HasAttrs for AssertForallExpr {}
+impl AssertForallExpr {
+    pub fn block_expr(&self) -> Option<BlockExpr> { support::child(&self.syntax) }
+    pub fn closure_expr(&self) -> Option<ClosureExpr> { support::child(&self.syntax) }
+    pub fn expr(&self) -> Option<Expr> { support::child(&self.syntax) }
+    pub fn assert_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![assert]) }
+    pub fn by_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![by]) }
+    pub fn forall_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![forall]) }
+    pub fn implies_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![implies]) }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssocItemList {
     pub(crate) syntax: SyntaxNode,
 }
@@ -335,6 +350,15 @@ impl ContinueExpr {
     pub fn continue_token(&self) -> Option<SyntaxToken> {
         support::token(&self.syntax, T![continue])
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DataMode {
+    pub(crate) syntax: SyntaxNode,
+}
+impl DataMode {
+    pub fn ghost_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![ghost]) }
+    pub fn tracked_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![tracked]) }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1214,6 +1238,7 @@ impl ast::HasDocComments for RecordField {}
 impl ast::HasName for RecordField {}
 impl ast::HasVisibility for RecordField {}
 impl RecordField {
+    pub fn data_mode(&self) -> Option<DataMode> { support::child(&self.syntax) }
     pub fn ty(&self) -> Option<Type> { support::child(&self.syntax) }
     pub fn colon_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![:]) }
 }
@@ -1811,6 +1836,7 @@ pub enum Expr {
     ArrayExpr(ArrayExpr),
     AsmExpr(AsmExpr),
     AssertExpr(AssertExpr),
+    AssertForallExpr(AssertForallExpr),
     AssumeExpr(AssumeExpr),
     AwaitExpr(AwaitExpr),
     BecomeExpr(BecomeExpr),
@@ -2068,6 +2094,17 @@ impl AstNode for AssertExpr {
     }
     fn syntax(&self) -> &SyntaxNode { &self.syntax }
 }
+impl AstNode for AssertForallExpr {
+    fn can_cast(kind: SyntaxKind) -> bool { kind == ASSERT_FORALL_EXPR }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if Self::can_cast(syntax.kind()) {
+            Some(Self { syntax })
+        } else {
+            None
+        }
+    }
+    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+}
 impl AstNode for AssocItemList {
     fn can_cast(kind: SyntaxKind) -> bool { kind == ASSOC_ITEM_LIST }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
@@ -2312,6 +2349,17 @@ impl AstNode for ConstParam {
 }
 impl AstNode for ContinueExpr {
     fn can_cast(kind: SyntaxKind) -> bool { kind == CONTINUE_EXPR }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if Self::can_cast(syntax.kind()) {
+            Some(Self { syntax })
+        } else {
+            None
+        }
+    }
+    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+}
+impl AstNode for DataMode {
+    fn can_cast(kind: SyntaxKind) -> bool { kind == DATA_MODE }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
         if Self::can_cast(syntax.kind()) {
             Some(Self { syntax })
@@ -3788,6 +3836,9 @@ impl From<AsmExpr> for Expr {
 impl From<AssertExpr> for Expr {
     fn from(node: AssertExpr) -> Expr { Expr::AssertExpr(node) }
 }
+impl From<AssertForallExpr> for Expr {
+    fn from(node: AssertForallExpr) -> Expr { Expr::AssertForallExpr(node) }
+}
 impl From<AssumeExpr> for Expr {
     fn from(node: AssumeExpr) -> Expr { Expr::AssumeExpr(node) }
 }
@@ -3903,6 +3954,7 @@ impl AstNode for Expr {
             ARRAY_EXPR
                 | ASM_EXPR
                 | ASSERT_EXPR
+                | ASSERT_FORALL_EXPR
                 | ASSUME_EXPR
                 | AWAIT_EXPR
                 | BECOME_EXPR
@@ -3946,6 +3998,7 @@ impl AstNode for Expr {
             ARRAY_EXPR => Expr::ArrayExpr(ArrayExpr { syntax }),
             ASM_EXPR => Expr::AsmExpr(AsmExpr { syntax }),
             ASSERT_EXPR => Expr::AssertExpr(AssertExpr { syntax }),
+            ASSERT_FORALL_EXPR => Expr::AssertForallExpr(AssertForallExpr { syntax }),
             ASSUME_EXPR => Expr::AssumeExpr(AssumeExpr { syntax }),
             AWAIT_EXPR => Expr::AwaitExpr(AwaitExpr { syntax }),
             BECOME_EXPR => Expr::BecomeExpr(BecomeExpr { syntax }),
@@ -3991,6 +4044,7 @@ impl AstNode for Expr {
             Expr::ArrayExpr(it) => &it.syntax,
             Expr::AsmExpr(it) => &it.syntax,
             Expr::AssertExpr(it) => &it.syntax,
+            Expr::AssertForallExpr(it) => &it.syntax,
             Expr::AssumeExpr(it) => &it.syntax,
             Expr::AwaitExpr(it) => &it.syntax,
             Expr::BecomeExpr(it) => &it.syntax,
@@ -4519,6 +4573,7 @@ impl AstNode for AnyHasAttrs {
             ARRAY_EXPR
                 | ASM_EXPR
                 | ASSERT_EXPR
+                | ASSERT_FORALL_EXPR
                 | ASSOC_ITEM_LIST
                 | ASSUME_EXPR
                 | AWAIT_EXPR
@@ -4854,6 +4909,11 @@ impl std::fmt::Display for AssertExpr {
         std::fmt::Display::fmt(self.syntax(), f)
     }
 }
+impl std::fmt::Display for AssertForallExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
 impl std::fmt::Display for AssocItemList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self.syntax(), f)
@@ -4965,6 +5025,11 @@ impl std::fmt::Display for ConstParam {
     }
 }
 impl std::fmt::Display for ContinueExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl std::fmt::Display for DataMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self.syntax(), f)
     }
