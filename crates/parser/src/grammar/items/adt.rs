@@ -131,6 +131,12 @@ pub(crate) fn record_field_list(p: &mut Parser<'_>) {
         // struct S { #[attr] f: f32 }
         attributes::outer_attrs(p);
         opt_visibility(p, false);
+        
+        // verus: DataMode
+        if p.at(T![ghost]) || p.at(T![tracked]) {
+            verus::data_mode(p);
+        }
+
         if p.at(IDENT) {
             name(p);
             p.expect(T![:]);

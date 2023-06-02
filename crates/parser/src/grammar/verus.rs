@@ -80,6 +80,20 @@ pub(crate) fn fn_mode(p: &mut Parser<'_>) -> CompletedMarker {
     }
 }
 
+pub(crate) fn data_mode(p: &mut Parser<'_>) -> CompletedMarker {
+    let m = p.start();
+    if p.at(T![ghost]) {
+        p.bump(T![ghost]);
+        m.complete(p, DATA_MODE)
+    } else if p.at(T![tracked]) {
+        p.bump(T![tracked]);
+        m.complete(p, PUBLISH)
+    } else {
+        p.error("Err: expected ghost/tracked");
+        m.complete(p, ERROR)
+    }
+}
+
 pub(crate) fn assume(p: &mut Parser<'_>, m: Marker) -> CompletedMarker {
     p.expect(T![assume]);
     p.expect(T!['(']);

@@ -108,6 +108,11 @@ fn param(p: &mut Parser<'_>, m: Marker, flavor: Flavor) {
         // test fn_def_param
         // fn foo(..., (x, y): (i32, i32)) {}
         Flavor::FnDef => {
+            // verus
+            if p.at(T![tracked]) {
+                p.eat(T![tracked]);
+            }
+            
             patterns::pattern(p);
             if !variadic_param(p) {
                 if p.at(T![:]) {
