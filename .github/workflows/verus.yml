@@ -24,9 +24,9 @@ jobs:
       - name: test syntax
         run: cargo test --package syntax --lib
 
+      - name: build
+        run: cargo build
 
-
-# TODO: build
 # TODO: more test
 # TODO: auto-merge upstream
 # TODO: add CI to test parsing on example/syntax.rs file from verus repo
