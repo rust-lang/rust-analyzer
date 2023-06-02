@@ -29,3 +29,4 @@ jobs:
 # TODO: build
 # TODO: more test
 # TODO: auto-merge upstream
+# TODO: add CI to test parsing on example/syntax.rs file from verus repo
