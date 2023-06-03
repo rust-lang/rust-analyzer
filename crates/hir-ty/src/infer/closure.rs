@@ -702,6 +702,19 @@ impl InferenceContext<'_> {
             | Expr::Literal(_)
             | Expr::Const(_)
             | Expr::Underscore => (),
+            //verus
+            Expr::Assert { condition, body } => {
+                self.consume_expr(*condition);
+                if let &Some(b) = body {
+                    self.consume_expr(b);
+                }
+            }
+            Expr::Assume { condition } => {
+                self.consume_expr(*condition);
+            }
+            Expr::View { condition } => {
+                self.consume_expr(*condition);
+            }
         }
     }
 

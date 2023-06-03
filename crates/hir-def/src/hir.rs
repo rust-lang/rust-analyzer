@@ -160,6 +160,21 @@ impl From<ast::LiteralKind> for Literal {
 pub enum Expr {
     /// This is produced if the syntax tree does not have a required expression piece.
     Missing,
+
+    // verus
+    // TODO: AssertForall
+    Assert{
+        condition: ExprId,
+        body: Option<ExprId>,
+    },
+    Assume{
+        condition: ExprId,
+    },
+    View{
+        condition: ExprId,
+    },
+
+
     Path(Path),
     If {
         condition: ExprId,
@@ -464,6 +479,18 @@ impl Expr {
             },
             Expr::Literal(_) => {}
             Expr::Underscore => {}
+            Expr::Assert { condition, body } => {
+                f(*condition);
+                if let &Some(b) = body {
+                    f(b);
+                }
+            }
+            Expr::Assume { condition } => {
+                f(*condition);
+            }
+            Expr::View { condition } => {
+                f(*condition);
+            }
         }
     }
 }

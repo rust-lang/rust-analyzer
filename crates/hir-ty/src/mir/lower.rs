@@ -393,7 +393,10 @@ impl<'ctx> MirLowerCtx<'ctx> {
             Expr::InlineAsm(_) => {
                 not_supported!("builtin#asm")
             }
-            Expr::Missing => {
+            Expr::Missing
+            // verus
+            | Expr::Assert {..} | Expr::Assume{..} | Expr::View{..}
+             => {
                 if let DefWithBodyId::FunctionId(f) = self.owner {
                     let assoc = f.lookup(self.db.upcast());
                     if let ItemContainerId::TraitId(t) = assoc.container {

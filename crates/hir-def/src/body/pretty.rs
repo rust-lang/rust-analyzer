@@ -477,6 +477,23 @@ impl Printer<'_> {
             Expr::Const(id) => {
                 w!(self, "const {{ /* {id:?} */ }}");
             }
+            // verus
+            Expr::Assert { condition, body } => {
+                w!(self, "assert ");
+                self.print_expr(*condition);
+                if let Some(b) = *body {
+                    w!(self, " proof_block ");
+                    self.print_expr(b);
+                }
+            }
+            Expr::Assume { condition } => {
+                w!(self, "assume ");
+                self.print_expr(*condition);
+            }
+            Expr::View { condition } => {
+                w!(self, "view ");
+                self.print_expr(*condition);
+            }
         }
     }
 

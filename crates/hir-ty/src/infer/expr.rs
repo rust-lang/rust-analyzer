@@ -909,6 +909,26 @@ impl InferenceContext<'_> {
                 self.infer_expr_no_expect(it.e);
                 self.result.standard_types.unit.clone()
             }
+            // verus
+            Expr::Assert { condition, body: _ } => {
+                // TODO: body
+                // self.infer_expr_coerce_never(
+                //     condition,
+                //     &Expectation::HasType(self.result.standard_types.bool_.clone()),
+                // );
+                // coerce.complete(self)
+                let bool_ty = self.result.standard_types.bool_.clone();
+                self.infer_expr_coerce(*condition, &Expectation::HasType(bool_ty.clone()));
+                bool_ty
+            },
+            Expr::View { ..} => {
+                self.err_ty() // TODO
+            },
+            Expr::Assume { condition } => {
+                let bool_ty = self.result.standard_types.bool_.clone();
+                self.infer_expr_coerce(*condition, &Expectation::HasType(bool_ty.clone()));
+                bool_ty
+            },
         };
         // use a new type variable if we got unknown here
         let ty = self.insert_type_vars_shallow(ty);
