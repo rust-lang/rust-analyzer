@@ -87,7 +87,7 @@ pub(crate) fn data_mode(p: &mut Parser<'_>) -> CompletedMarker {
         m.complete(p, DATA_MODE)
     } else if p.at(T![tracked]) {
         p.bump(T![tracked]);
-        m.complete(p, PUBLISH)
+        m.complete(p, DATA_MODE)
     } else {
         p.error("Err: expected ghost/tracked");
         m.complete(p, ERROR)
