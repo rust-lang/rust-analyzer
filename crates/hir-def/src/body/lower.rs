@@ -672,7 +672,7 @@ impl ExprCollector<'_> {
             ast::Expr::AssumeExpr(e) => {
                 let condition = self.collect_expr_opt(e.expr());
                 self.alloc_expr(Expr::Assume { condition }, syntax_ptr)
-            },
+            }
             ast::Expr::AssertForallExpr(_) => self.alloc_expr(Expr::Missing, syntax_ptr),
         })
     }

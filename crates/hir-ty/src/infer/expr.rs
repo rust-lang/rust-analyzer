@@ -920,15 +920,15 @@ impl InferenceContext<'_> {
                 let bool_ty = self.result.standard_types.bool_.clone();
                 self.infer_expr_coerce(*condition, &Expectation::HasType(bool_ty.clone()));
                 bool_ty
-            },
-            Expr::View { ..} => {
+            }
+            Expr::View { .. } => {
                 self.err_ty() // TODO
-            },
+            }
             Expr::Assume { condition } => {
                 let bool_ty = self.result.standard_types.bool_.clone();
                 self.infer_expr_coerce(*condition, &Expectation::HasType(bool_ty.clone()));
                 bool_ty
-            },
+            }
         };
         // use a new type variable if we got unknown here
         let ty = self.insert_type_vars_shallow(ty);

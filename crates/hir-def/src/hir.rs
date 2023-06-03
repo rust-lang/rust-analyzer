@@ -163,17 +163,16 @@ pub enum Expr {
 
     // verus
     // TODO: AssertForall
-    Assert{
+    Assert {
         condition: ExprId,
         body: Option<ExprId>,
     },
-    Assume{
+    Assume {
         condition: ExprId,
     },
-    View{
+    View {
         condition: ExprId,
     },
-
 
     Path(Path),
     If {
