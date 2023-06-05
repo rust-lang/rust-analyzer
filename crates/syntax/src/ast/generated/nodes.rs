@@ -1149,6 +1149,17 @@ impl PrefixExpr {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Prover {
+    pub(crate) syntax: SyntaxNode,
+}
+impl ast::HasName for Prover {}
+impl Prover {
+    pub fn l_paren_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T!['(']) }
+    pub fn r_paren_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![')']) }
+    pub fn by_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![by]) }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PtrType {
     pub(crate) syntax: SyntaxNode,
 }
@@ -3129,6 +3140,17 @@ impl AstNode for PrefixExpr {
     }
     fn syntax(&self) -> &SyntaxNode { &self.syntax }
 }
+impl AstNode for Prover {
+    fn can_cast(kind: SyntaxKind) -> bool { kind == PROVER }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if Self::can_cast(syntax.kind()) {
+            Some(Self { syntax })
+        } else {
+            None
+        }
+    }
+    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+}
 impl AstNode for PtrType {
     fn can_cast(kind: SyntaxKind) -> bool { kind == PTR_TYPE }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
@@ -4754,6 +4776,7 @@ impl AstNode for AnyHasName {
                 | MACRO_DEF
                 | MACRO_RULES
                 | MODULE
+                | PROVER
                 | RECORD_FIELD
                 | RENAME
                 | SELF_PARAM
@@ -5376,6 +5399,11 @@ impl std::fmt::Display for PathType {
     }
 }
 impl std::fmt::Display for PrefixExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl std::fmt::Display for Prover {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self.syntax(), f)
     }
