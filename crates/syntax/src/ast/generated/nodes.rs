@@ -1403,6 +1403,17 @@ impl SelfParam {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SignatureDecreases {
+    pub(crate) syntax: SyntaxNode,
+}
+impl SignatureDecreases {
+    pub fn decreases_clause(&self) -> Option<DecreasesClause> { support::child(&self.syntax) }
+    pub fn expr(&self) -> Option<Expr> { support::child(&self.syntax) }
+    pub fn via_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![via]) }
+    pub fn when_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![when]) }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SlicePat {
     pub(crate) syntax: SyntaxNode,
 }
@@ -3385,6 +3396,17 @@ impl AstNode for ReturnExpr {
 }
 impl AstNode for SelfParam {
     fn can_cast(kind: SyntaxKind) -> bool { kind == SELF_PARAM }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if Self::can_cast(syntax.kind()) {
+            Some(Self { syntax })
+        } else {
+            None
+        }
+    }
+    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+}
+impl AstNode for SignatureDecreases {
+    fn can_cast(kind: SyntaxKind) -> bool { kind == SIGNATURE_DECREASES }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
         if Self::can_cast(syntax.kind()) {
             Some(Self { syntax })
@@ -5515,6 +5537,11 @@ impl std::fmt::Display for ReturnExpr {
     }
 }
 impl std::fmt::Display for SelfParam {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl std::fmt::Display for SignatureDecreases {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self.syntax(), f)
     }
