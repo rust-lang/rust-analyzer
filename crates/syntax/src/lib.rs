@@ -1263,3 +1263,26 @@ tracked struct TrackedAndGhost<T, G>(
         dbg!(&item);
     }
 }
+
+#[test]
+fn verus_walkthrough20() {
+    use ast::HasModuleItem;
+    //from: https://github.com/verus-lang/verus/blob/main/source/rust_verify/example/syntax.rs
+    let source_code = "
+verus!{
+proof fn lemma_mul_upper_bound(x: int, x_bound: int, y: int, y_bound: int)
+    by (nonlinear_arith)
+    requires x <= x_bound, y <= y_bound, 0 <= x, 0 <= y,
+    ensures x * y <= x_bound * y_bound,
+{
+}
+} // verus!";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
