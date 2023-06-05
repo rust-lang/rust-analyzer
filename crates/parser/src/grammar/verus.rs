@@ -164,6 +164,15 @@ pub(crate) fn assert_forall(p: &mut Parser<'_>, m: Marker) -> CompletedMarker {
     m.complete(p, ASSERT_FORALL_EXPR)
 }
 
+pub(crate) fn prover(p: &mut Parser<'_>) -> CompletedMarker {
+    let m = p.start();
+    p.expect(T![by]);
+    p.expect(T!['(']);
+    name_r(p, ITEM_RECOVERY_SET);
+    p.expect(T![')']); 
+    m.complete(p, PROVER)
+}
+
 pub(crate) fn requires(p: &mut Parser<'_>) -> CompletedMarker {
     let m = p.start();
     p.expect(T![requires]);

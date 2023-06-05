@@ -475,7 +475,10 @@ fn fn_(p: &mut Parser<'_>, m: Marker) {
     // fn foo<T>() where T: Copy {}
     generic_params::opt_where_clause(p);
 
-    // Note: requires -> recommends -> ensures -> decreases
+    // Note: prover -> requires -> recommends -> ensures -> decreases
+    if p.eat(T![by]) {
+        verus::prover(p);
+    }
     if p.eat(T![requires]) {
         verus::requires(p);
     }
