@@ -1360,6 +1360,11 @@ proof fn dec0_decreases(a: int) {
 // verus trigger attribute is custom syntax
 // Need to extend Rust attribute
 // or make a syntax kind for it (e.g. TriggerAttribute)
+// Reference https://github.com/verus-lang/verus/blob/4ef61030aadc4fd66b62f3614f36e3b64e89b855/source/builtin_macros/src/syntax.rs#L1808
+// Note that verus! macro compares the attributes name with "trigger", and process it
+// However, the rust-analyzer parser does not have access to string's content. 
+// Therefore, to make a new syntax kind (e.g. TriggerAttribute),
+// we need to register `trigger` as a reserved keyword.
 #[test]
 #[ignore = "not yet implemented: verus custom trigger attribute"]
 fn verus_walkthrough23() {
