@@ -5,6 +5,10 @@ use super::*;
 // test struct_item
 // struct S {}
 pub(super) fn strukt(p: &mut Parser<'_>, m: Marker) {
+    // verus: DataMode
+    if p.at(T![ghost]) || p.at(T![tracked]) {
+        verus::data_mode(p);
+    }
     p.bump(T![struct]);
     struct_or_union(p, m, true);
 }
@@ -171,6 +175,12 @@ fn tuple_field_list(p: &mut Parser<'_>) {
             // struct S (#[attr] f32);
             attributes::outer_attrs(p);
             let has_vis = opt_visibility(p, true);
+
+            // verus: DataMode
+            if p.at(T![ghost]) || p.at(T![tracked]) {
+                verus::data_mode(p);
+            }
+
             if !p.at_ts(types::TYPE_FIRST) {
                 p.error("expected a type");
                 if has_vis {
