@@ -100,6 +100,7 @@ pub(crate) const KINDS_SRC: KindsSrc<'_> = KindsSrc {
         "forall",
         "exists",
         "choose",
+        "via",
     ],
     contextual_keywords: &[
         "auto",

@@ -760,7 +760,7 @@ InvariantClause =
   'invariant' Expr CommaAndCond* ','?
 
 RecommendsClause =
-  'recommends' Expr CommaAndCond* ','?
+  'recommends' Expr CommaAndCond* ','? ('via' Expr)?
 
 DecreasesClause = 
   'decreases' Expr CommaAndCond* ','?
