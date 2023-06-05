@@ -1537,6 +1537,19 @@ impl TraitAlias {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TriggerAttribute {
+    pub(crate) syntax: SyntaxNode,
+}
+impl TriggerAttribute {
+    pub fn exprs(&self) -> AstChildren<Expr> { support::children(&self.syntax) }
+    pub fn excl_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![!]) }
+    pub fn pound_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![#]) }
+    pub fn l_brack_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T!['[']) }
+    pub fn r_brack_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![']']) }
+    pub fn trigger_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![trigger]) }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TryExpr {
     pub(crate) syntax: SyntaxNode,
 }
@@ -3506,6 +3519,17 @@ impl AstNode for Trait {
 }
 impl AstNode for TraitAlias {
     fn can_cast(kind: SyntaxKind) -> bool { kind == TRAIT_ALIAS }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if Self::can_cast(syntax.kind()) {
+            Some(Self { syntax })
+        } else {
+            None
+        }
+    }
+    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+}
+impl AstNode for TriggerAttribute {
+    fn can_cast(kind: SyntaxKind) -> bool { kind == TRIGGER_ATTRIBUTE }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
         if Self::can_cast(syntax.kind()) {
             Some(Self { syntax })
@@ -5587,6 +5611,11 @@ impl std::fmt::Display for Trait {
     }
 }
 impl std::fmt::Display for TraitAlias {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl std::fmt::Display for TriggerAttribute {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self.syntax(), f)
     }
