@@ -313,7 +313,7 @@ pub(crate) fn decreases(p: &mut Parser<'_>) -> CompletedMarker {
     p.expect(T![decreases]);
     expressions::expr_no_struct(p);
     while !p.at(EOF) && !p.at(T!['{']) && !p.at(T![;]) {
-        if p.at(T![recommends]) || p.at(T![ensures]) || p.at(T![decreases]) || p.at(T!['{']) {
+        if p.at(T![recommends]) || p.at(T![ensures]) || p.at(T![decreases]) || p.at(T!['{']) || p.at(T![via]) || p.at(T![when])  {
             break;
         }
         if p.at(T![,]) {
@@ -321,6 +321,8 @@ pub(crate) fn decreases(p: &mut Parser<'_>) -> CompletedMarker {
                 || p.nth_at(1, T![ensures])
                 || p.nth_at(1, T![decreases])
                 || p.nth_at(1, T!['{'])
+                || p.nth_at(1, T![via])
+                || p.nth_at(1, T![when])
             {
                 break;
             } else {
@@ -336,6 +338,20 @@ pub(crate) fn decreases(p: &mut Parser<'_>) -> CompletedMarker {
         p.expect(T![,]);
     }
     m.complete(p, DECREASES_CLAUSE)
+}
+
+pub(crate) fn signature_decreases(p: &mut Parser<'_>) -> CompletedMarker {
+    let m = p.start();
+    decreases(p);
+    if p.at(T![when]) {
+        p.expect(T![when]);
+        expressions::expr_no_struct(p);
+    }
+    if p.at(T![via]) {
+        p.expect(T![via]);
+        expressions::expr_no_struct(p);
+    }
+    m.complete(p, SIGNATURE_DECREASES)
 }
 
 fn comma_cond(p: &mut Parser<'_>) -> CompletedMarker {
