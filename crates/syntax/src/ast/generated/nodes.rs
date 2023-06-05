@@ -1203,6 +1203,7 @@ impl RecommendsClause {
     pub fn recommends_token(&self) -> Option<SyntaxToken> {
         support::token(&self.syntax, T![recommends])
     }
+    pub fn via_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![via]) }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
