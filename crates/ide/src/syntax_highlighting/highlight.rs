@@ -164,6 +164,7 @@ fn keyword(
     let h = match kind {
         T![await] => h | HlMod::Async | HlMod::ControlFlow,
         T![async] => h | HlMod::Async,
+        T![dyn] => h | HlMod::Trait,
         T![break]
         | T![continue]
         | T![else]
