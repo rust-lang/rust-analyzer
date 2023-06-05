@@ -1298,6 +1298,36 @@ verus!{
     a + b
 }
 
+#[via_fn]
+proof fn add0_recommends(a: nat, b: nat) {
+    // proof
+}
+
+} // verus!";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+
+#[test]
+fn verus_walkthrough22() {
+    use ast::HasModuleItem;
+    //from: https://github.com/verus-lang/verus/blob/main/source/rust_verify/example/syntax.rs
+    let source_code = "
+verus!{
+    spec fn add0(a: nat, b: nat) -> nat
+    recommends a > 0,
+    via add0_recommends
+{
+    a + b
+}
+
 spec fn dec0(a: int) -> int
     decreases a,
     when a > 0

@@ -216,7 +216,7 @@ pub(crate) fn recommends(p: &mut Parser<'_>) -> CompletedMarker {
     expressions::expr_no_struct(p);
     while !p.at(EOF) && !p.at(T![ensures]) && !p.at(T![decreases]) && !p.at(T!['{']) && !p.at(T![;])
     {
-        if p.at(T![recommends]) || p.at(T![ensures]) || p.at(T![decreases]) || p.at(T!['{']) {
+        if p.at(T![recommends]) || p.at(T![ensures]) || p.at(T![decreases]) || p.at(T!['{']) || p.at(T![via]) {
             break;
         }
         if p.at(T![,]) {
@@ -224,6 +224,7 @@ pub(crate) fn recommends(p: &mut Parser<'_>) -> CompletedMarker {
                 || p.nth_at(1, T![ensures])
                 || p.nth_at(1, T![decreases])
                 || p.nth_at(1, T!['{'])
+                || p.nth_at(1, T![via])
             {
                 break;
             } else {
@@ -237,6 +238,10 @@ pub(crate) fn recommends(p: &mut Parser<'_>) -> CompletedMarker {
     }
     if p.at(T![,]) {
         p.expect(T![,]);
+    }
+    if p.at(T![via]) {
+        p.expect(T![via]);
+        expressions::expr_no_struct(p);
     }
     m.complete(p, RECOMMENDS_CLAUSE)
 }
