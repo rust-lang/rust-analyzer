@@ -782,3 +782,7 @@ AssertForallExpr =
 
 Prover =
   'by' '(' Name ')'
+
+TriggerAttribute =
+ '#' '!' '[' 'trigger' (Expr (',' Expr)* ','?) ']'
+ 
