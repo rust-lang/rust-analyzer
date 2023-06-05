@@ -1241,8 +1241,6 @@ proof fn dec0_decreases(a: int) {
     }
 }
 
-
-
 #[test]
 fn verus_walkthrough19() {
     use ast::HasModuleItem;

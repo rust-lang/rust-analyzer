@@ -169,7 +169,7 @@ pub(crate) fn prover(p: &mut Parser<'_>) -> CompletedMarker {
     p.expect(T![by]);
     p.expect(T!['(']);
     name_r(p, ITEM_RECOVERY_SET);
-    p.expect(T![')']); 
+    p.expect(T![')']);
     m.complete(p, PROVER)
 }
 

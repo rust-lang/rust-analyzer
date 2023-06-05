@@ -276,7 +276,7 @@ fn opt_item_without_modifiers(p: &mut Parser<'_>, m: Marker) -> Result<(), Marke
         T![type] => type_alias(p, m),
         T![struct] => adt::strukt(p, m),
         // verus
-        T![tracked] | T![ghost] if p.nth(1) == T![struct] => adt::strukt(p,m),
+        T![tracked] | T![ghost] if p.nth(1) == T![struct] => adt::strukt(p, m),
         T![enum] => adt::enum_(p, m),
         IDENT if p.at_contextual_kw(T![union]) && p.nth(1) == IDENT => adt::union(p, m),
 
