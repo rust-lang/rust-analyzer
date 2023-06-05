@@ -1240,3 +1240,26 @@ proof fn dec0_decreases(a: int) {
         dbg!(&item);
     }
 }
+
+
+
+#[test]
+fn verus_walkthrough19() {
+    use ast::HasModuleItem;
+    //from: https://github.com/verus-lang/verus/blob/main/source/rust_verify/example/syntax.rs
+    let source_code = "
+verus!{
+tracked struct TrackedAndGhost<T, G>(
+    tracked T,
+    ghost G,
+);
+} // verus!";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}

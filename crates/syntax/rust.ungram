@@ -189,7 +189,7 @@ TypeAlias =
   ('=' Type)? ';'
 
 Struct =
-  Attr* Visibility?
+  Attr* Visibility? DataMode?
   'struct' Name GenericParamList? (
     WhereClause? (RecordFieldList | ';')
   | TupleFieldList WhereClause? ';'
