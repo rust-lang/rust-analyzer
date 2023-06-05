@@ -1461,6 +1461,7 @@ impl ast::HasGenericParams for Struct {}
 impl ast::HasName for Struct {}
 impl ast::HasVisibility for Struct {}
 impl Struct {
+    pub fn data_mode(&self) -> Option<DataMode> { support::child(&self.syntax) }
     pub fn field_list(&self) -> Option<FieldList> { support::child(&self.syntax) }
     pub fn semicolon_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![;]) }
     pub fn struct_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![struct]) }
