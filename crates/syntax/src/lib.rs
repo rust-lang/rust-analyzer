@@ -685,7 +685,6 @@ fn verus_walkthrough3() {
 }
 
 #[test]
-#[ignore = "not yet implemented"] // TODO: assume attributes
 fn verus_walkthrough4() {
     use ast::HasModuleItem;
     let source_code = "verus!{
@@ -782,7 +781,7 @@ fn verus_walkthrough6() {
 }
 
 #[test]
-#[ignore = "not yet implemented"] // TODO: assume attributes
+#[ignore = "not yet implemented: verus custom trigger attribute"]
 fn verus_walkthrough7() {
     use ast::HasModuleItem;
     let source_code = 
@@ -862,7 +861,6 @@ fn verus_walkthrough9_0() {
 }
 
 #[test]
-#[ignore]
 fn verus_walkthrough9() {
     use ast::HasModuleItem;
     let source_code = "verus!{
@@ -1196,7 +1194,6 @@ fn g(Tracked(t): Tracked<S>) -> u32 {
 }
 
 #[test]
-#[ignore = "not yet implemented: via"]
 fn verus_walkthrough18() {
     use ast::HasModuleItem;
     //from: https://github.com/verus-lang/verus/blob/main/source/rust_verify/example/syntax.rs
@@ -1349,6 +1346,34 @@ proof fn add0_recommends(a: nat, b: nat) {
 proof fn dec0_decreases(a: int) {
     // proof
 }
+} // verus!";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+// verus trigger attribute is custom syntax
+// Need to extend Rust attribute
+// or make a syntax kind for it (e.g. TriggerAttribute)
+#[test]
+#[ignore = "not yet implemented: verus custom trigger attribute"]
+fn verus_walkthrough23() {
+    use ast::HasModuleItem;
+    //from: https://github.com/verus-lang/verus/blob/main/source/rust_verify/example/syntax.rs
+    let source_code = "
+verus!{
+    fn test_multiple_triggers() {
+        assume(forall|x: int, y: int|
+            #![trigger my_spec_fun(x, y)]
+            #![trigger f1(x), f1(y)]
+            f1(x) < 100 && f1(y) < 100 ==> my_spec_fun(x, y) >= x
+        );
+    }
 } // verus!";
     let parse = SourceFile::parse(source_code);
     dbg!(&parse.errors);
