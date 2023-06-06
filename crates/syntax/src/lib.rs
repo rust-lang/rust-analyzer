@@ -781,7 +781,6 @@ fn verus_walkthrough6() {
 }
 
 #[test]
-#[ignore = "not yet implemented: verus custom trigger attribute"]
 fn verus_walkthrough7() {
     use ast::HasModuleItem;
     let source_code = 
@@ -1365,8 +1364,10 @@ proof fn dec0_decreases(a: int) {
 // However, the rust-analyzer parser does not have access to string's content. 
 // Therefore, to make a new syntax kind (e.g. TriggerAttribute),
 // we need to register `trigger` as a reserved keyword.
+// however, by registering `trigger` as a reserved keyworkd,
+// single trigger attribute, which is `#[trigger]` becomes invalid syntax.
+// therefore, we just special-case `#[trigger]`
 #[test]
-#[ignore = "not yet implemented: verus custom trigger attribute"]
 fn verus_walkthrough23() {
     use ast::HasModuleItem;
     //from: https://github.com/verus-lang/verus/blob/main/source/rust_verify/example/syntax.rs

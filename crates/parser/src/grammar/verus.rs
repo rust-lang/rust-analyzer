@@ -360,3 +360,28 @@ fn comma_cond(p: &mut Parser<'_>) -> CompletedMarker {
     expressions::expr_no_struct(p);
     m.complete(p, COMMA_AND_COND)
 }
+
+
+pub(crate) fn trigger_attribute(p: &mut Parser<'_>) -> CompletedMarker {
+    let m = p.start();
+    p.expect(T![#]);
+    p.expect(T![!]);
+    p.expect(T!['[']);
+
+    p.expect(T![trigger]);
+    expressions::expr_no_struct(p);
+    while !p.at(EOF) && !p.at(T![']'])  {
+        if !p.at(T![,]) && !p.at(EOF) && !p.at(T![']']) {
+            break;
+        }
+        p.expect(T![,]);
+        expressions::expr_no_struct(p);
+    }
+
+    if p.at(T![,]) {
+        p.expect(T![,]);
+    }
+
+    p.expect(T![']']);
+    m.complete(p, TRIGGER_ATTRIBUTE) // Review: just replace TRIGGER_ATTRIBUTE with ERROR  to avoid other parts of code indexing getting into trouble
+}
