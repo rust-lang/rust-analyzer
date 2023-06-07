@@ -739,20 +739,20 @@ CommaAndCond =
   ',' condition:Expr
 
 RequiresClause =
-  'requires' Expr CommaAndCond* ','?
+  'requires' (Expr (',' Expr)* ','?)
 
 EnsuresClause =
-  'ensures' Expr CommaAndCond* ','?
+  'ensures' (Expr (',' Expr)* ','?)
 
 InvariantClause =
-  'invariant' Expr CommaAndCond* ','?
+  'invariant' (Expr (',' Expr)* ','?)
 
 RecommendsClause =
-  'recommends' Expr CommaAndCond* ','? ('via' Expr)?
+  'recommends' (Expr (',' Expr)* ','?) ('via' Expr)?
 
 DecreasesClause = 
-  'decreases' Expr CommaAndCond* ','?
-
+  'decreases' (Expr (',' Expr)* ','?)
+  
 SignatureDecreases =
   DecreasesClause ('when' Expr)? ('via' Expr)?
 
