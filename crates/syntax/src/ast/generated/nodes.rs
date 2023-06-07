@@ -331,9 +331,7 @@ pub struct DecreasesClause {
     pub(crate) syntax: SyntaxNode,
 }
 impl DecreasesClause {
-    pub fn comma_and_conds(&self) -> AstChildren<CommaAndCond> { support::children(&self.syntax) }
-    pub fn expr(&self) -> Option<Expr> { support::child(&self.syntax) }
-    pub fn comma_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![,]) }
+    pub fn exprs(&self) -> AstChildren<Expr> { support::children(&self.syntax) }
     pub fn decreases_token(&self) -> Option<SyntaxToken> {
         support::token(&self.syntax, T![decreases])
     }
@@ -353,9 +351,7 @@ pub struct EnsuresClause {
     pub(crate) syntax: SyntaxNode,
 }
 impl EnsuresClause {
-    pub fn comma_and_conds(&self) -> AstChildren<CommaAndCond> { support::children(&self.syntax) }
-    pub fn expr(&self) -> Option<Expr> { support::child(&self.syntax) }
-    pub fn comma_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![,]) }
+    pub fn exprs(&self) -> AstChildren<Expr> { support::children(&self.syntax) }
     pub fn ensures_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![ensures]) }
 }
 
@@ -627,9 +623,7 @@ pub struct InvariantClause {
     pub(crate) syntax: SyntaxNode,
 }
 impl InvariantClause {
-    pub fn comma_and_conds(&self) -> AstChildren<CommaAndCond> { support::children(&self.syntax) }
-    pub fn expr(&self) -> Option<Expr> { support::child(&self.syntax) }
-    pub fn comma_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![,]) }
+    pub fn exprs(&self) -> AstChildren<Expr> { support::children(&self.syntax) }
     pub fn invariant_token(&self) -> Option<SyntaxToken> {
         support::token(&self.syntax, T![invariant])
     }
@@ -1162,9 +1156,8 @@ pub struct RecommendsClause {
     pub(crate) syntax: SyntaxNode,
 }
 impl RecommendsClause {
-    pub fn comma_and_conds(&self) -> AstChildren<CommaAndCond> { support::children(&self.syntax) }
     pub fn expr(&self) -> Option<Expr> { support::child(&self.syntax) }
-    pub fn comma_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![,]) }
+    pub fn exprs(&self) -> AstChildren<Expr> { support::children(&self.syntax) }
     pub fn recommends_token(&self) -> Option<SyntaxToken> {
         support::token(&self.syntax, T![recommends])
     }
@@ -1312,9 +1305,7 @@ pub struct RequiresClause {
     pub(crate) syntax: SyntaxNode,
 }
 impl RequiresClause {
-    pub fn comma_and_conds(&self) -> AstChildren<CommaAndCond> { support::children(&self.syntax) }
-    pub fn expr(&self) -> Option<Expr> { support::child(&self.syntax) }
-    pub fn comma_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![,]) }
+    pub fn exprs(&self) -> AstChildren<Expr> { support::children(&self.syntax) }
     pub fn requires_token(&self) -> Option<SyntaxToken> {
         support::token(&self.syntax, T![requires])
     }
