@@ -102,7 +102,7 @@ pub(crate) const KINDS_SRC: KindsSrc<'_> = KindsSrc {
         "choose",
         "via",
         "when",
-        "trigger"
+        "trigger",
     ],
     contextual_keywords: &[
         "auto",

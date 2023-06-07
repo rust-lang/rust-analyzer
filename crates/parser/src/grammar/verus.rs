@@ -216,7 +216,12 @@ pub(crate) fn recommends(p: &mut Parser<'_>) -> CompletedMarker {
     expressions::expr_no_struct(p);
     while !p.at(EOF) && !p.at(T![ensures]) && !p.at(T![decreases]) && !p.at(T!['{']) && !p.at(T![;])
     {
-        if p.at(T![recommends]) || p.at(T![ensures]) || p.at(T![decreases]) || p.at(T!['{']) || p.at(T![via]) {
+        if p.at(T![recommends])
+            || p.at(T![ensures])
+            || p.at(T![decreases])
+            || p.at(T!['{'])
+            || p.at(T![via])
+        {
             break;
         }
         if p.at(T![,]) {
@@ -313,7 +318,13 @@ pub(crate) fn decreases(p: &mut Parser<'_>) -> CompletedMarker {
     p.expect(T![decreases]);
     expressions::expr_no_struct(p);
     while !p.at(EOF) && !p.at(T!['{']) && !p.at(T![;]) {
-        if p.at(T![recommends]) || p.at(T![ensures]) || p.at(T![decreases]) || p.at(T!['{']) || p.at(T![via]) || p.at(T![when])  {
+        if p.at(T![recommends])
+            || p.at(T![ensures])
+            || p.at(T![decreases])
+            || p.at(T!['{'])
+            || p.at(T![via])
+            || p.at(T![when])
+        {
             break;
         }
         if p.at(T![,]) {
@@ -359,7 +370,6 @@ fn comma_cond(p: &mut Parser<'_>) -> () {
     expressions::expr_no_struct(p);
 }
 
-
 pub(crate) fn trigger_attribute(p: &mut Parser<'_>) -> CompletedMarker {
     let m = p.start();
     p.expect(T![#]);
@@ -368,7 +378,7 @@ pub(crate) fn trigger_attribute(p: &mut Parser<'_>) -> CompletedMarker {
 
     p.expect(T![trigger]);
     expressions::expr_no_struct(p);
-    while !p.at(EOF) && !p.at(T![']'])  {
+    while !p.at(EOF) && !p.at(T![']']) {
         if !p.at(T![,]) && !p.at(EOF) && !p.at(T![']']) {
             break;
         }

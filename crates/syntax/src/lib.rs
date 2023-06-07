@@ -1310,7 +1310,6 @@ proof fn add0_recommends(a: nat, b: nat) {
     }
 }
 
-
 #[test]
 fn verus_walkthrough22() {
     use ast::HasModuleItem;
@@ -1361,7 +1360,7 @@ proof fn dec0_decreases(a: int) {
 // or make a syntax kind for it (e.g. TriggerAttribute)
 // Reference https://github.com/verus-lang/verus/blob/4ef61030aadc4fd66b62f3614f36e3b64e89b855/source/builtin_macros/src/syntax.rs#L1808
 // Note that verus! macro compares the attributes name with "trigger", and process it
-// However, the rust-analyzer parser does not have access to string's content. 
+// However, the rust-analyzer parser does not have access to string's content.
 // Therefore, to make a new syntax kind (e.g. TriggerAttribute),
 // we need to register `trigger` as a reserved keyword.
 // however, by registering `trigger` as a reserved keyworkd,
@@ -1391,7 +1390,6 @@ verus!{
     }
 }
 
-
 #[test]
 fn verus_walkthrough24() {
     use ast::HasModuleItem;
@@ -1419,4 +1417,3 @@ spec fn test_rec2(x: int, y: int) -> int
         dbg!(&item);
     }
 }
-
