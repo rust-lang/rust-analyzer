@@ -319,7 +319,6 @@ pub enum SyntaxKind {
     ASSERT_FORALL_EXPR,
     ASSUME_EXPR,
     VIEW_EXPR,
-    COMMA_AND_COND,
     PUBLISH,
     FN_MODE,
     DATA_MODE,

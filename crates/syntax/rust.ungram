@@ -735,9 +735,6 @@ DataMode =
 ModeSpecChecked =
  'spec' '(' 'checked' ')'
 
-CommaAndCond = 
-  ',' condition:Expr
-
 RequiresClause =
   'requires' (Expr (',' Expr)* ','?)
 
@@ -752,7 +749,7 @@ RecommendsClause =
 
 DecreasesClause = 
   'decreases' (Expr (',' Expr)* ','?)
-  
+
 SignatureDecreases =
   DecreasesClause ('when' Expr)? ('via' Expr)?
 
