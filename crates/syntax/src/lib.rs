@@ -1390,3 +1390,33 @@ verus!{
         dbg!(&item);
     }
 }
+
+
+#[test]
+fn verus_walkthrough24() {
+    use ast::HasModuleItem;
+    //from: https://github.com/verus-lang/verus/blob/main/source/rust_verify/example/syntax.rs
+    let source_code = "
+verus!{
+spec fn test_rec2(x: int, y: int) -> int
+    decreases x, y
+{
+    if y > 0 {
+        1 + test_rec2(x, y - 1)
+    } else if x > 0 {
+        2 + test_rec2(x - 1, 100)
+    } else {
+        3
+    }
+}
+} // verus!";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+

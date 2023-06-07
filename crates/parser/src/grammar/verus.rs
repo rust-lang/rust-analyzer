@@ -354,11 +354,9 @@ pub(crate) fn signature_decreases(p: &mut Parser<'_>) -> CompletedMarker {
     m.complete(p, SIGNATURE_DECREASES)
 }
 
-fn comma_cond(p: &mut Parser<'_>) -> CompletedMarker {
-    let m = p.start();
+fn comma_cond(p: &mut Parser<'_>) -> () {
     p.expect(T![,]);
     expressions::expr_no_struct(p);
-    m.complete(p, COMMA_AND_COND)
 }
 
 
