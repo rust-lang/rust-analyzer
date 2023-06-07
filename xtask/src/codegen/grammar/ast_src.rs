@@ -277,13 +277,7 @@ pub(crate) const KINDS_SRC: KindsSrc<'_> = KindsSrc {
         "ASSERT_FORALL_EXPR",
         "ASSUME_EXPR",
         "VIEW_EXPR",
-
-        "COND_AND_COMMA",       // TODO: review
-        "COMMA_AND_COND",       // TODO: review
-        "PAT_AND_COMMA",
-        "COMMA_AND_EXPR",
-        "COMMA_AND_PAT",
-        "COMMA_AND_NAME",
+        "COMMA_AND_COND", // TODO: review
         "PUBLISH",
         "FN_MODE",
         "DATA_MODE",
