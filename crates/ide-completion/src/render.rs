@@ -256,12 +256,9 @@ fn render_resolution_pat(
     let _p = profile::span("render_resolution");
     use hir::ModuleDef::*;
 
-    match resolution {
-        ScopeDef::ModuleDef(Macro(mac)) => {
-            let ctx = ctx.import_to_add(import_to_add);
-            return render_macro_pat(ctx, pattern_ctx, local_name, mac);
-        }
-        _ => (),
+    if let ScopeDef::ModuleDef(Macro(mac)) = resolution {
+        let ctx = ctx.import_to_add(import_to_add);
+        return render_macro_pat(ctx, pattern_ctx, local_name, mac);
     }
 
     render_resolution_simple_(ctx, &local_name, import_to_add, resolution)

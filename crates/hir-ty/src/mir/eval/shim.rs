@@ -48,7 +48,7 @@ impl Evaluator<'_> {
                 args,
                 generic_args,
                 destination,
-                &locals,
+                locals,
                 span,
             )?;
             return Ok(true);
@@ -66,7 +66,7 @@ impl Evaluator<'_> {
                 args,
                 generic_args,
                 destination,
-                &locals,
+                locals,
                 span,
             )?;
             return Ok(true);
@@ -91,7 +91,7 @@ impl Evaluator<'_> {
         }
         if let Some(x) = self.detect_lang_function(def) {
             let arg_bytes =
-                args.iter().map(|x| Ok(x.get(&self)?.to_owned())).collect::<Result<Vec<_>>>()?;
+                args.iter().map(|x| Ok(x.get(self)?.to_owned())).collect::<Result<Vec<_>>>()?;
             let result = self.exec_lang_item(x, generic_args, &arg_bytes, locals, span)?;
             destination.write_from_bytes(self, &result)?;
             return Ok(true);
@@ -489,7 +489,7 @@ impl Evaluator<'_> {
                 let Some(ty) = generic_args.as_slice(Interner).get(0).and_then(|x| x.ty(Interner)) else {
                     return Err(MirEvalError::TypeError("size_of generic arg is not provided"));
                 };
-                let result = !ty.clone().is_copy(self.db, locals.body.owner);
+                let result = !ty.clone().implements_copy(self.db, locals.body.owner);
                 destination.write_from_bytes(self, &[u8::from(result)])
             }
             "ptr_guaranteed_cmp" => {

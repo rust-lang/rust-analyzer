@@ -105,8 +105,8 @@ impl MirLowerCtx<'_> {
                     current_else,
                     args,
                     *ellipsis,
-                    (0..subst.len(Interner)).map(|i| PlaceElem::TupleOrClosureField(i)),
-                    &(&mut cond_place),
+                    (0..subst.len(Interner)).map(PlaceElem::TupleOrClosureField),
+                    &cond_place,
                     mode,
                 )?
             }
@@ -117,7 +117,7 @@ impl MirLowerCtx<'_> {
                     let (mut next, next_else) = self.pattern_match_inner(
                         current,
                         None,
-                        (&mut cond_place).clone(),
+                        cond_place.clone(),
                         *pat,
                         MatchingMode::Check,
                     )?;
@@ -125,7 +125,7 @@ impl MirLowerCtx<'_> {
                         (next, _) = self.pattern_match_inner(
                             next,
                             None,
-                            (&mut cond_place).clone(),
+                            cond_place.clone(),
                             *pat,
                             MatchingMode::Bind,
                         )?;
@@ -161,7 +161,7 @@ impl MirLowerCtx<'_> {
                     current,
                     pattern.into(),
                     current_else,
-                    AdtPatternShape::Record { args: &*args },
+                    AdtPatternShape::Record { args },
                     mode,
                 )?
             }
@@ -176,11 +176,7 @@ impl MirLowerCtx<'_> {
                     self.push_assignment(
                         current,
                         discr.clone(),
-                        Rvalue::CheckedBinaryOp(
-                            binop,
-                            lv,
-                            Operand::Copy((&mut cond_place).clone()),
-                        ),
+                        Rvalue::CheckedBinaryOp(binop, lv, Operand::Copy(cond_place.clone())),
                         pattern.into(),
                     );
                     let discr = Operand::Copy(discr);
@@ -215,7 +211,7 @@ impl MirLowerCtx<'_> {
                         self.push_assignment(
                             current,
                             place_len.clone(),
-                            Rvalue::Len((&mut cond_place).clone()),
+                            Rvalue::Len(cond_place.clone()),
                             pattern.into(),
                         );
                         let else_target =
@@ -262,7 +258,7 @@ impl MirLowerCtx<'_> {
                     }
                 }
                 for (i, &pat) in prefix.iter().enumerate() {
-                    let next_place = (&mut cond_place).project(ProjectionElem::ConstantIndex {
+                    let next_place = cond_place.project(ProjectionElem::ConstantIndex {
                         offset: i as u64,
                         from_end: false,
                     });
@@ -272,7 +268,7 @@ impl MirLowerCtx<'_> {
                 if let Some(slice) = slice {
                     if mode == MatchingMode::Bind {
                         if let Pat::Bind { id, subpat: _ } = self.body[*slice] {
-                            let next_place = (&mut cond_place).project(ProjectionElem::Subslice {
+                            let next_place = cond_place.project(ProjectionElem::Subslice {
                                 from: prefix.len() as u64,
                                 to: suffix.len() as u64,
                             });
@@ -287,7 +283,7 @@ impl MirLowerCtx<'_> {
                     }
                 }
                 for (i, &pat) in suffix.iter().enumerate() {
-                    let next_place = (&mut cond_place).project(ProjectionElem::ConstantIndex {
+                    let next_place = cond_place.project(ProjectionElem::ConstantIndex {
                         offset: i as u64,
                         from_end: true,
                     });
@@ -318,10 +314,8 @@ impl MirLowerCtx<'_> {
                                 break 'b (c, x.1);
                             }
                         }
-                        if let ResolveValueResult::ValueNs(v) = pr {
-                            if let ValueNs::ConstId(c) = v {
-                                break 'b (c, Substitution::empty(Interner));
-                            }
+                        if let ResolveValueResult::ValueNs(ValueNs::ConstId(c)) = pr {
+                            break 'b (c, Substitution::empty(Interner));
                         }
                         not_supported!("path in pattern position that is not const or variant")
                     };
@@ -376,7 +370,7 @@ impl MirLowerCtx<'_> {
                     (current, current_else) = self.pattern_match_inner(
                         current,
                         current_else,
-                        (&mut cond_place).clone(),
+                        cond_place.clone(),
                         *subpat,
                         mode,
                     )?
@@ -553,10 +547,7 @@ impl MirLowerCtx<'_> {
                     .map(|x| {
                         let field_id =
                             variant_data.field(&x.name).ok_or(MirLowerError::UnresolvedField)?;
-                        Ok((
-                            PlaceElem::Field(FieldId { parent: v.into(), local_id: field_id }),
-                            x.pat,
-                        ))
+                        Ok((PlaceElem::Field(FieldId { parent: v, local_id: field_id }), x.pat))
                     })
                     .collect::<Result<Vec<_>>>()?;
                 self.pattern_match_adt(current, current_else, it.into_iter(), cond_place, mode)?
@@ -565,7 +556,7 @@ impl MirLowerCtx<'_> {
                 let fields = variant_data
                     .fields()
                     .iter()
-                    .map(|(x, _)| PlaceElem::Field(FieldId { parent: v.into(), local_id: x }));
+                    .map(|(x, _)| PlaceElem::Field(FieldId { parent: v, local_id: x }));
                 self.pattern_match_tuple_like(
                     current,
                     current_else,

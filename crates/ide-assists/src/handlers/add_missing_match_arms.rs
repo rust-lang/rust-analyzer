@@ -42,7 +42,7 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_>)
     let match_arm_list = match_expr.match_arm_list()?;
     let target_range = ctx.sema.original_range(match_expr.syntax()).range;
 
-    if let None = cursor_at_trivial_match_arm_list(ctx, &match_expr, &match_arm_list) {
+    if cursor_at_trivial_match_arm_list(ctx, &match_expr, &match_arm_list).is_none() {
         let arm_list_range = ctx.sema.original_range(match_arm_list.syntax()).range;
         let cursor_in_range = arm_list_range.contains_range(ctx.selection_trimmed());
         if cursor_in_range {
@@ -159,7 +159,7 @@ pub(crate) fn add_missing_match_arms(acc: &mut Assists, ctx: &AssistContext<'_>)
                     .iter()
                     .any(|variant| variant.should_be_hidden(ctx.db(), module.krate()));
                 let patterns = variants.into_iter().filter_map(|variant| {
-                    build_pat(ctx.db(), module, variant.clone(), ctx.config.prefer_no_std)
+                    build_pat(ctx.db(), module, variant, ctx.config.prefer_no_std)
                 });
                 (ast::Pat::from(make::slice_pat(patterns)), is_hidden)
             })
@@ -253,7 +253,7 @@ fn cursor_at_trivial_match_arm_list(
     match_arm_list: &MatchArmList,
 ) -> Option<()> {
     // match x { $0 }
-    if match_arm_list.arms().next() == None {
+    if match_arm_list.arms().next().is_none() {
         cov_mark::hit!(add_missing_match_arms_empty_body);
         return Some(());
     }

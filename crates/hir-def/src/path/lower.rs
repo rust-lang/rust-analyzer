@@ -45,7 +45,7 @@ pub(super) fn lower_path(mut path: ast::Path, ctx: &LowerCtx<'_>) -> Option<Path
                                 )
                             })
                             .map(Interned::new);
-                        if let Some(_) = args {
+                        if args.is_some() {
                             generic_args.resize(segments.len(), None);
                             generic_args.push(args);
                         }

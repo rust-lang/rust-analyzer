@@ -454,7 +454,7 @@ impl DefMap {
         let macro_use_prelude = || {
             self.macro_use_prelude
                 .get(name)
-                .map_or(PerNs::none(), |&it| PerNs::macros(it.into(), Visibility::Public))
+                .map_or(PerNs::none(), |&it| PerNs::macros(it, Visibility::Public))
         };
         let prelude = || self.resolve_in_prelude(db, name);
 

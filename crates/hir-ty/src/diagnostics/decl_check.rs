@@ -55,6 +55,7 @@ pub fn incorrect_case(
     validator.sink
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 pub enum CaseType {
     // `some_var`

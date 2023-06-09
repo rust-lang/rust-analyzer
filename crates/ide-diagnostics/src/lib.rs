@@ -310,8 +310,8 @@ pub fn diagnostics(
     }
 
     res.retain(|d| {
-        !ctx.config.disabled.contains(d.code.as_str())
-            && !(ctx.config.disable_experimental && d.experimental)
+        !(ctx.config.disabled.contains(d.code.as_str())
+            || ctx.config.disable_experimental && d.experimental)
     });
 
     res

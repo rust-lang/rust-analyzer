@@ -102,7 +102,7 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::MissingFields) -> Option<Vec<Ass
             let generate_fill_expr = |ty: &Type| match ctx.config.expr_fill_default {
                 crate::ExprFillDefaultMode::Todo => make::ext::expr_todo(),
                 crate::ExprFillDefaultMode::Default => {
-                    get_default_constructor(ctx, d, ty).unwrap_or_else(|| make::ext::expr_todo())
+                    get_default_constructor(ctx, d, ty).unwrap_or_else(make::ext::expr_todo)
                 }
             };
 

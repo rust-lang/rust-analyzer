@@ -199,10 +199,8 @@ impl SourceAnalyzer {
     ) -> Option<(Type, Option<Type>)> {
         let pat_id = self.pat_id(pat)?;
         let infer = self.infer.as_ref()?;
-        let coerced = infer
-            .pat_adjustments
-            .get(&pat_id)
-            .and_then(|adjusts| adjusts.last().map(|adjust| adjust.clone()));
+        let coerced =
+            infer.pat_adjustments.get(&pat_id).and_then(|adjusts| adjusts.last().cloned());
         let ty = infer[pat_id].clone();
         let mk_ty = |ty| Type::new_with_resolver(db, &self.resolver, ty);
         Some((mk_ty(ty), coerced.map(mk_ty)))
@@ -591,7 +589,7 @@ impl SourceAnalyzer {
             }
             None
         })();
-        if let Some(_) = resolved {
+        if resolved.is_some() {
             return resolved;
         }
 
@@ -637,7 +635,7 @@ impl SourceAnalyzer {
             if let Some(name_ref) = path.as_single_name_ref() {
                 let builtin =
                     BuiltinAttr::by_name(db, self.resolver.krate().into(), &name_ref.text());
-                if let Some(_) = builtin {
+                if builtin.is_some() {
                     return builtin.map(PathResolution::BuiltinAttr);
                 }
 
@@ -1093,7 +1091,7 @@ fn resolve_hir_path_qualifier(
     path: &Path,
 ) -> Option<PathResolution> {
     resolver
-        .resolve_path_in_type_ns_fully(db.upcast(), &path)
+        .resolve_path_in_type_ns_fully(db.upcast(), path)
         .map(|ty| match ty {
             TypeNs::SelfType(it) => PathResolution::SelfType(it.into()),
             TypeNs::GenericParam(id) => PathResolution::TypeParam(id.into()),

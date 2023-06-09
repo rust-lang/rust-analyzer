@@ -1,3 +1,5 @@
+#![allow(clippy::useless_attribute)]
+
 use std::collections::HashMap;
 
 use base_db::fixture::WithFixture;
@@ -307,11 +309,11 @@ fn return_position_impl_trait() {
             }
             let waker = Arc::new(EmptyWaker).into();
             let mut context = Context::from_waker(&waker);
-            let x = pinned.poll(&mut context);
-            x
+
+            pinned.poll(&mut context)
         }
-        let x = unwrap_fut(f());
-        x
+
+        unwrap_fut(f())
     }
     size_and_align_expr! {
         struct Foo<T>(T, T, (T, T));

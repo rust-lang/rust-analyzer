@@ -9,17 +9,17 @@
 #[macro_export]
 macro_rules! __quote {
     () => {
-        Vec::<crate::tt::TokenTree>::new()
+        Vec::<$crate::tt::TokenTree>::new()
     };
 
     ( @SUBTREE $delim:ident $($tt:tt)* ) => {
         {
             let children = $crate::__quote!($($tt)*);
-            crate::tt::Subtree {
-                delimiter: crate::tt::Delimiter {
-                    kind: crate::tt::DelimiterKind::$delim,
-                    open: crate::tt::TokenId::unspecified(),
-                    close: crate::tt::TokenId::unspecified(),
+            $crate::tt::Subtree {
+                delimiter: $crate::tt::Delimiter {
+                    kind: $crate::tt::DelimiterKind::$delim,
+                    open: $crate::tt::TokenId::unspecified(),
+                    close: $crate::tt::TokenId::unspecified(),
                 },
                 token_trees: $crate::quote::IntoTt::to_tokens(children),
             }
@@ -29,10 +29,10 @@ macro_rules! __quote {
     ( @PUNCT $first:literal ) => {
         {
             vec![
-                crate::tt::Leaf::Punct(crate::tt::Punct {
+                $crate::tt::Leaf::Punct($crate::tt::Punct {
                     char: $first,
-                    spacing: crate::tt::Spacing::Alone,
-                    span: crate::tt::TokenId::unspecified(),
+                    spacing: $crate::tt::Spacing::Alone,
+                    span: $crate::tt::TokenId::unspecified(),
                 }).into()
             ]
         }
@@ -41,15 +41,15 @@ macro_rules! __quote {
     ( @PUNCT $first:literal, $sec:literal ) => {
         {
             vec![
-                crate::tt::Leaf::Punct(crate::tt::Punct {
+                $crate::tt::Leaf::Punct($crate::tt::Punct {
                     char: $first,
-                    spacing: crate::tt::Spacing::Joint,
-                    span: crate::tt::TokenId::unspecified(),
+                    spacing: $crate::tt::Spacing::Joint,
+                    span: $crate::tt::TokenId::unspecified(),
                 }).into(),
-                crate::tt::Leaf::Punct(crate::tt::Punct {
+                $crate::tt::Leaf::Punct($crate::tt::Punct {
                     char: $sec,
-                    spacing: crate::tt::Spacing::Alone,
-                    span: crate::tt::TokenId::unspecified(),
+                    spacing: $crate::tt::Spacing::Alone,
+                    span: $crate::tt::TokenId::unspecified(),
                 }).into()
             ]
         }
@@ -68,7 +68,7 @@ macro_rules! __quote {
 
     ( ## $first:ident $($tail:tt)* ) => {
         {
-            let mut tokens = $first.into_iter().map($crate::quote::ToTokenTree::to_token).collect::<Vec<crate::tt::TokenTree>>();
+            let mut tokens = $first.into_iter().map($crate::quote::ToTokenTree::to_token).collect::<Vec<$crate::tt::TokenTree>>();
             let mut tail_tokens = $crate::quote::IntoTt::to_tokens($crate::__quote!($($tail)*));
             tokens.append(&mut tail_tokens);
             tokens
@@ -87,9 +87,9 @@ macro_rules! __quote {
     // Ident
     ( $tt:ident ) => {
         vec![ {
-            crate::tt::Leaf::Ident(crate::tt::Ident {
+            $crate::tt::Leaf::Ident($crate::tt::Ident {
                 text: stringify!($tt).into(),
-                span: crate::tt::TokenId::unspecified(),
+                span: $crate::tt::TokenId::unspecified(),
             }).into()
         }]
     };

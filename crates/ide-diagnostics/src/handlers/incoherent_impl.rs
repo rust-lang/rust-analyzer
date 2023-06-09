@@ -8,7 +8,7 @@ use crate::{Diagnostic, DiagnosticsContext, Severity};
 pub(crate) fn incoherent_impl(ctx: &DiagnosticsContext<'_>, d: &hir::IncoherentImpl) -> Diagnostic {
     Diagnostic::new(
         "incoherent-impl",
-        format!("cannot define inherent `impl` for foreign type"),
+        "cannot define inherent `impl` for foreign type".to_string(),
         ctx.sema.diagnostics_display_range(InFile::new(d.file_id, d.impl_.clone().into())).range,
     )
     .severity(Severity::Error)

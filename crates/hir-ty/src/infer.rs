@@ -136,8 +136,9 @@ pub(crate) fn normalize(db: &dyn HirDatabase, trait_env: Arc<TraitEnvironment>, 
 
 /// Binding modes inferred for patterns.
 /// <https://doc.rust-lang.org/reference/patterns.html#binding-modes>
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Default)]
 pub enum BindingMode {
+    #[default]
     Move,
     Ref(Mutability),
 }
@@ -149,12 +150,6 @@ impl BindingMode {
             BindingAnnotation::Ref => BindingMode::Ref(Mutability::Not),
             BindingAnnotation::RefMut => BindingMode::Ref(Mutability::Mut),
         }
-    }
-}
-
-impl Default for BindingMode {
-    fn default() -> Self {
-        BindingMode::Move
     }
 }
 
@@ -522,10 +517,10 @@ enum BreakableKind {
     Border,
 }
 
-fn find_breakable<'c>(
-    ctxs: &'c mut [BreakableContext],
+fn find_breakable(
+    ctxs: &mut [BreakableContext],
     label: Option<LabelId>,
-) -> Option<&'c mut BreakableContext> {
+) -> Option<&mut BreakableContext> {
     let mut ctxs = ctxs
         .iter_mut()
         .rev()
@@ -536,10 +531,10 @@ fn find_breakable<'c>(
     }
 }
 
-fn find_continuable<'c>(
-    ctxs: &'c mut [BreakableContext],
+fn find_continuable(
+    ctxs: &mut [BreakableContext],
     label: Option<LabelId>,
-) -> Option<&'c mut BreakableContext> {
+) -> Option<&mut BreakableContext> {
     match label {
         Some(_) => find_breakable(ctxs, label).filter(|it| matches!(it.kind, BreakableKind::Loop)),
         None => find_breakable(ctxs, label),
@@ -754,8 +749,8 @@ impl<'a> InferenceContext<'a> {
                     ImplTraitId::ReturnTypeImplTrait(_, idx) => idx,
                     _ => unreachable!(),
                 };
-                let bounds = (*rpits)
-                    .map_ref(|rpits| rpits.impl_traits[idx].bounds.map_ref(|it| it.into_iter()));
+                let bounds =
+                    (*rpits).map_ref(|rpits| rpits.impl_traits[idx].bounds.map_ref(|it| it.iter()));
                 let var = self.table.new_type_var();
                 let var_subst = Substitution::from1(Interner, var.clone());
                 for bound in bounds {

@@ -2,7 +2,7 @@
 //! metadata` or `rust-project.json`) into representation stored in the salsa
 //! database -- `CrateGraph`.
 
-use std::{collections::VecDeque, fmt, fs, process::Command, sync};
+use std::{collections::VecDeque, fmt, fs, process::Command, str::FromStr, sync};
 
 use anyhow::{format_err, Context, Result};
 use base_db::{
@@ -38,7 +38,7 @@ pub struct CfgOverrides {
 
 impl CfgOverrides {
     pub fn len(&self) -> usize {
-        self.global.len() + self.selective.iter().map(|(_, it)| it.len()).sum::<usize>()
+        self.global.len() + self.selective.values().map(|it| it.len()).sum::<usize>()
     }
 }
 
@@ -53,6 +53,7 @@ pub struct PackageRoot {
     pub exclude: Vec<AbsPathBuf>,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 pub enum ProjectWorkspace {
     /// Project workspace was discovered by running `cargo metadata` and `rustc --print sysroot`.
@@ -608,7 +609,9 @@ impl ProjectWorkspace {
                     sysroot.as_ref().ok(),
                     extra_env,
                     Err("rust-project.json projects have no target layout set".into()),
-                    toolchain.as_ref().and_then(|it| ReleaseChannel::from_str(it.pre.as_str())),
+                    toolchain
+                        .as_ref()
+                        .and_then(|it| ReleaseChannel::from_str(it.pre.as_str()).ok()),
                 )
             }
             ProjectWorkspace::Cargo {
@@ -633,7 +636,7 @@ impl ProjectWorkspace {
                     Ok(it) => Ok(Arc::from(it.as_str())),
                     Err(it) => Err(Arc::from(it.as_str())),
                 },
-                toolchain.as_ref().and_then(|it| ReleaseChannel::from_str(it.pre.as_str())),
+                toolchain.as_ref().and_then(|it| ReleaseChannel::from_str(it.pre.as_str()).ok()),
             ),
             ProjectWorkspace::DetachedFiles { files, sysroot, rustc_cfg } => {
                 detached_files_to_crate_graph(

@@ -129,7 +129,7 @@ impl HirPlace {
                 ctx.owner.module(ctx.db.upcast()).krate(),
             );
         }
-        ty.clone()
+        ty
     }
 
     fn capture_kind_of_truncated_place(
@@ -137,13 +137,10 @@ impl HirPlace {
         mut current_capture: CaptureKind,
         len: usize,
     ) -> CaptureKind {
-        match current_capture {
-            CaptureKind::ByRef(BorrowKind::Mut { .. }) => {
-                if self.projections[len..].iter().any(|x| *x == ProjectionElem::Deref) {
-                    current_capture = CaptureKind::ByRef(BorrowKind::Unique);
-                }
+        if let CaptureKind::ByRef(BorrowKind::Mut { .. }) = current_capture {
+            if self.projections[len..].iter().any(|x| *x == ProjectionElem::Deref) {
+                current_capture = CaptureKind::ByRef(BorrowKind::Unique);
             }
-            _ => (),
         }
         current_capture
     }
@@ -236,7 +233,7 @@ pub(crate) struct CapturedItemWithoutTy {
 
 impl CapturedItemWithoutTy {
     fn with_ty(self, ctx: &mut InferenceContext<'_>) -> CapturedItem {
-        let ty = self.place.ty(ctx).clone();
+        let ty = self.place.ty(ctx);
         let ty = match &self.kind {
             CaptureKind::ByValue => ty,
             CaptureKind::ByRef(bk) => {
@@ -321,12 +318,10 @@ impl InferenceContext<'_> {
         match &self.body[tgt_expr] {
             Expr::Path(p) => {
                 let resolver = resolver_for_expr(self.db.upcast(), self.owner, tgt_expr);
-                if let Some(r) = resolver.resolve_path_in_value_ns(self.db.upcast(), p) {
-                    if let ResolveValueResult::ValueNs(v) = r {
-                        if let ValueNs::LocalBinding(b) = v {
-                            return Some(HirPlace { local: b, projections: vec![] });
-                        }
-                    }
+                if let Some(ResolveValueResult::ValueNs(ValueNs::LocalBinding(b))) =
+                    resolver.resolve_path_in_value_ns(self.db.upcast(), p)
+                {
+                    return Some(HirPlace { local: b, projections: vec![] });
                 }
             }
             Expr::Field { expr, name } => {
@@ -392,7 +387,7 @@ impl InferenceContext<'_> {
 
     fn consume_place(&mut self, place: HirPlace, span: MirSpan) {
         if self.is_upvar(&place) {
-            let ty = place.ty(self).clone();
+            let ty = place.ty(self);
             let kind = if self.is_ty_copy(ty) {
                 CaptureKind::ByRef(BorrowKind::Shared)
             } else {
@@ -730,7 +725,7 @@ impl InferenceContext<'_> {
             // without creating query cycles.
             return self.result.closure_info.get(id).map(|x| x.1 == FnTrait::Fn).unwrap_or(true);
         }
-        self.table.resolve_completely(ty).is_copy(self.db, self.owner)
+        self.table.resolve_completely(ty).implements_copy(self.db, self.owner)
     }
 
     fn select_from_expr(&mut self, expr: ExprId) {
@@ -787,8 +782,7 @@ impl InferenceContext<'_> {
             .iter()
             .cloned()
             .chain((0..cnt).map(|_| ProjectionElem::Deref))
-            .collect::<Vec<_>>()
-            .into();
+            .collect::<Vec<_>>();
         match &self.body[pat] {
             Pat::Missing | Pat::Wild => (),
             Pat::Tuple { args, ellipsis } => {
@@ -826,10 +820,8 @@ impl InferenceContext<'_> {
                                 continue;
                             };
                             let mut p = place.clone();
-                            p.projections.push(ProjectionElem::Field(FieldId {
-                                parent: variant.into(),
-                                local_id,
-                            }));
+                            p.projections
+                                .push(ProjectionElem::Field(FieldId { parent: variant, local_id }));
                             self.consume_with_pat(p, arg);
                         }
                     }
@@ -871,7 +863,7 @@ impl InferenceContext<'_> {
                         for (arg, (i, _)) in it {
                             let mut p = place.clone();
                             p.projections.push(ProjectionElem::Field(FieldId {
-                                parent: variant.into(),
+                                parent: variant,
                                 local_id: i,
                             }));
                             self.consume_with_pat(p, *arg);
@@ -975,11 +967,11 @@ impl InferenceContext<'_> {
         let mut deferred_closures = mem::take(&mut self.deferred_closures);
         let mut dependents_count: FxHashMap<ClosureId, usize> =
             deferred_closures.keys().map(|x| (*x, 0)).collect();
-        for (_, deps) in &self.closure_dependencies {
+        self.closure_dependencies.iter().for_each(|(_, deps)| {
             for dep in deps {
                 *dependents_count.entry(*dep).or_default() += 1;
             }
-        }
+        });
         let mut queue: Vec<_> =
             deferred_closures.keys().copied().filter(|x| dependents_count[x] == 0).collect();
         let mut result = vec![];

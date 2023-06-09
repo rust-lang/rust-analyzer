@@ -633,7 +633,7 @@ fn signature_help_for_tuple_pat_ish(
         res.push_call_param(&buf);
         buf.clear();
     }
-    res.signature.push_str(")");
+    res.signature.push(')');
     res
 }
 #[cfg(test)]

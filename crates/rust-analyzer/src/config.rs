@@ -1125,12 +1125,12 @@ impl Config {
     }
 
     pub fn lru_query_capacities(&self) -> Option<&FxHashMap<Box<str>, usize>> {
-        self.data.lru_query_capacities.is_empty().not().then(|| &self.data.lru_query_capacities)
+        self.data.lru_query_capacities.is_empty().not().then_some(&self.data.lru_query_capacities)
     }
 
     pub fn proc_macro_srv(&self) -> Option<AbsPathBuf> {
         let path = self.data.procMacro_server.clone()?;
-        Some(AbsPathBuf::try_from(path).unwrap_or_else(|path| self.root_path.join(&path)))
+        Some(AbsPathBuf::try_from(path).unwrap_or_else(|path| self.root_path.join(path)))
     }
 
     pub fn dummy_replacements(&self) -> &FxHashMap<Box<str>, Box<[Box<str>]>> {
@@ -1635,7 +1635,7 @@ impl Config {
     }
 
     pub fn main_loop_num_threads(&self) -> usize {
-        self.data.numThreads.unwrap_or(num_cpus::get_physical().try_into().unwrap_or(1))
+        self.data.numThreads.unwrap_or(num_cpus::get_physical())
     }
 
     pub fn typing_autoclose_angle(&self) -> bool {
@@ -1751,16 +1751,12 @@ mod de_unit_v {
 
 #[derive(Deserialize, Debug, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 enum SnippetScopeDef {
+    #[default]
     Expr,
     Item,
     Type,
-}
-
-impl Default for SnippetScopeDef {
-    fn default() -> Self {
-        SnippetScopeDef::Expr
-    }
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]

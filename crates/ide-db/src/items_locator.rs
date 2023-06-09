@@ -112,9 +112,9 @@ fn find_items<'a>(
     let local_results = local_query
         .search(&symbol_index::crate_symbols(db, krate))
         .into_iter()
-        .filter_map(|local_candidate| match local_candidate.def {
-            hir::ModuleDef::Macro(macro_def) => Some(ItemInNs::Macros(macro_def)),
-            def => Some(ItemInNs::from(def)),
+        .map(|local_candidate| match local_candidate.def {
+            hir::ModuleDef::Macro(macro_def) => ItemInNs::Macros(macro_def),
+            def => ItemInNs::from(def),
         });
 
     external_importables.chain(local_results).filter(move |&item| match assoc_item_search {

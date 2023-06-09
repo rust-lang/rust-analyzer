@@ -54,10 +54,12 @@ impl flags::AnalysisStats {
             Rand32::new(seed)
         };
 
-        let mut cargo_config = CargoConfig::default();
-        cargo_config.sysroot = match self.no_sysroot {
-            true => None,
-            false => Some(RustLibSource::Discover),
+        let cargo_config = CargoConfig {
+            sysroot: match self.no_sysroot {
+                true => None,
+                false => Some(RustLibSource::Discover),
+            },
+            ..Default::default()
         };
         let no_progress = &|_| ();
 
@@ -210,7 +212,7 @@ impl flags::AnalysisStats {
                 continue;
             }
             all += 1;
-            let Err(e) = db.layout_of_adt(hir_def::AdtId::from(a).into(), Substitution::empty(Interner), a.krate(db).into()) else {
+            let Err(e) = db.layout_of_adt(hir_def::AdtId::from(a), Substitution::empty(Interner), a.krate(db).into()) else {
                 continue;
             };
             if verbosity.is_spammy() {

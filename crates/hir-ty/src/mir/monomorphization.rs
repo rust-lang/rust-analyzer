@@ -206,11 +206,10 @@ impl Filler<'_> {
                                 const_id = GeneralConstId::ConstId(c);
                                 subst = s;
                             }
-                            let result =
-                                self.db.const_eval(const_id.into(), subst).map_err(|e| {
-                                    let name = const_id.name(self.db.upcast());
-                                    MirLowerError::ConstEvalError(name, Box::new(e))
-                                })?;
+                            let result = self.db.const_eval(const_id, subst).map_err(|e| {
+                                let name = const_id.name(self.db.upcast());
+                                MirLowerError::ConstEvalError(name, Box::new(e))
+                            })?;
                             *c = result;
                         }
                         crate::ConstScalar::Bytes(_, _) | crate::ConstScalar::Unknown => (),
@@ -318,7 +317,7 @@ pub fn monomorphized_mir_body_recover(
     _: &Substitution,
     _: &Arc<crate::TraitEnvironment>,
 ) -> Result<Arc<MirBody>, MirLowerError> {
-    return Err(MirLowerError::Loop);
+    Err(MirLowerError::Loop)
 }
 
 pub fn monomorphized_mir_body_for_closure_query(

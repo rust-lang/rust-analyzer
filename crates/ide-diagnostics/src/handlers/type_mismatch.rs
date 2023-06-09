@@ -183,7 +183,7 @@ fn str_ref_to_owned(
     let expr = expr_ptr.value.to_node(&root);
     let expr_range = expr.syntax().text_range();
 
-    let to_owned = format!(".to_owned()");
+    let to_owned = ".to_owned()".to_string();
 
     let edit = TextEdit::insert(expr.syntax().text_range().end(), to_owned);
     let source_change =

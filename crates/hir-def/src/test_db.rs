@@ -39,12 +39,14 @@ impl Default for TestDB {
     }
 }
 
+#[allow(clippy::borrow_deref_ref)] // false positive
 impl Upcast<dyn ExpandDatabase> for TestDB {
     fn upcast(&self) -> &(dyn ExpandDatabase + 'static) {
         &*self
     }
 }
 
+#[allow(clippy::borrow_deref_ref)] // false positive
 impl Upcast<dyn DefDatabase> for TestDB {
     fn upcast(&self) -> &(dyn DefDatabase + 'static) {
         &*self

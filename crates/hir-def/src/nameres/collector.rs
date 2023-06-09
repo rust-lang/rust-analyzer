@@ -1388,14 +1388,14 @@ impl DefCollector<'_> {
                     always!(krate == loc.def.krate);
                     DefDiagnostic::unresolved_proc_macro(module_id, loc.kind.clone(), loc.def.krate)
                 }
-                _ => DefDiagnostic::macro_error(module_id, loc.kind.clone(), err.to_string()),
+                _ => DefDiagnostic::macro_error(module_id, loc.kind, err.to_string()),
             };
 
             self.def_map.diagnostics.push(diag);
         }
         if let errors @ [_, ..] = &*value {
             let loc: MacroCallLoc = self.db.lookup_intern_macro_call(macro_call_id);
-            let diag = DefDiagnostic::macro_expansion_parse_error(module_id, loc.kind, &errors);
+            let diag = DefDiagnostic::macro_expansion_parse_error(module_id, loc.kind, errors);
             self.def_map.diagnostics.push(diag);
         }
 
@@ -1847,7 +1847,7 @@ impl ModCollector<'_, '_> {
                         item_tree: self.item_tree,
                         mod_dir,
                     }
-                    .collect_in_top_module(&*items);
+                    .collect_in_top_module(items);
                     if is_macro_use {
                         self.import_all_legacy_macros(module_id);
                     }
@@ -2238,9 +2238,9 @@ impl ModCollector<'_, '_> {
     fn import_all_legacy_macros(&mut self, module_id: LocalModuleId) {
         let macros = self.def_collector.def_map[module_id].scope.collect_legacy_macros();
         for (name, macs) in macros {
-            macs.last().map(|&mac| {
-                self.def_collector.define_legacy_macro(self.module_id, name.clone(), mac)
-            });
+            if let Some(&mac) = macs.last() {
+                self.def_collector.define_legacy_macro(self.module_id, name.clone(), mac);
+            }
         }
     }
 

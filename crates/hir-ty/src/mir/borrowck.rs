@@ -116,7 +116,7 @@ fn moved_out_of_ref(db: &dyn HirDatabase, body: &MirBody) -> Vec<MovedOutOfRef> 
                 );
             }
             if is_dereference_of_ref
-                && !ty.clone().is_copy(db, body.owner)
+                && !ty.clone().implements_copy(db, body.owner)
                 && !ty.data(Interner).flags.intersects(TypeFlags::HAS_ERROR)
             {
                 result.push(MovedOutOfRef { span, ty });
@@ -281,10 +281,10 @@ fn ever_initialized_map(body: &MirBody) -> ArenaMap<BasicBlockId, ArenaMap<Local
                 if destination.projection.len() == 0 && destination.local == l {
                     is_ever_initialized = true;
                 }
-                target.into_iter().chain(cleanup.into_iter()).copied().collect()
+                target.iter().chain(cleanup.iter()).copied().collect()
             }
             TerminatorKind::Drop { target, unwind, place: _ } => {
-                Some(target).into_iter().chain(unwind.into_iter()).copied().collect()
+                Some(target).into_iter().chain(unwind.iter()).copied().collect()
             }
             TerminatorKind::DropAndReplace { .. }
             | TerminatorKind::Assert { .. }

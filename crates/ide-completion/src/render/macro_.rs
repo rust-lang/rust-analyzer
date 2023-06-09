@@ -94,7 +94,7 @@ fn label(
 ) -> SmolStr {
     if needs_bang {
         if ctx.snippet_cap().is_some() {
-            SmolStr::from_iter([&*name, "!", bra, "…", ket])
+            SmolStr::from_iter([name, "!", bra, "…", ket])
         } else {
             banged_name(name)
         }

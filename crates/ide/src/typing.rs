@@ -342,12 +342,9 @@ fn on_left_angle_typed(file: &SourceFile, offset: TextSize) -> Option<ExtendedTe
         }
     }
 
-    if ancestors_at_offset(file.syntax(), offset)
-        .find(|n| {
-            ast::GenericParamList::can_cast(n.kind()) || ast::GenericArgList::can_cast(n.kind())
-        })
-        .is_some()
-    {
+    if ancestors_at_offset(file.syntax(), offset).any(|n| {
+        ast::GenericParamList::can_cast(n.kind()) || ast::GenericArgList::can_cast(n.kind())
+    }) {
         return Some(ExtendedTextEdit {
             edit: TextEdit::replace(range, "<$0>".to_string()),
             is_snippet: true,

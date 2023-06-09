@@ -414,16 +414,16 @@ fn push_subtree(buf: &mut Vec<tt::TokenTree>, tt: tt::Subtree) {
 /// Handles `${count(t, depth)}`. `our_depth` is the recursion depth and `count_depth` is the depth
 /// defined by the metavar expression.
 fn count(
-    ctx: &ExpandCtx<'_>,
+    _ctx: &ExpandCtx<'_>,
     binding: &Binding,
     our_depth: usize,
     count_depth: Option<usize>,
 ) -> Result<usize, CountError> {
     match binding {
         Binding::Nested(bs) => match count_depth {
-            None => bs.iter().map(|b| count(ctx, b, our_depth + 1, None)).sum(),
+            None => bs.iter().map(|b| count(_ctx, b, our_depth + 1, None)).sum(),
             Some(0) => Ok(bs.len()),
-            Some(d) => bs.iter().map(|b| count(ctx, b, our_depth + 1, Some(d - 1))).sum(),
+            Some(d) => bs.iter().map(|b| count(_ctx, b, our_depth + 1, Some(d - 1))).sum(),
         },
         Binding::Empty => Ok(0),
         Binding::Fragment(_) | Binding::Missing(_) => {

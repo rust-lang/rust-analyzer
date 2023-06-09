@@ -619,9 +619,8 @@ impl Converter {
                     return (None, v);
                 }
             }
-            match ele {
-                SyntaxElement::Token(t) => return (Some(t), Vec::new()),
-                _ => {}
+            if let SyntaxElement::Token(t) = ele {
+                return (Some(t), Vec::new());
             }
         }
         (None, Vec::new())

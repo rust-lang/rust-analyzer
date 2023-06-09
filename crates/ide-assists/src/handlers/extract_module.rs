@@ -668,7 +668,7 @@ fn check_intersection_and_push(
     // check for intersection between all current members
     // and combine all such ranges into one.
     let s: SmallVec<[_; 2]> = import_paths_to_be_removed
-        .into_iter()
+        .iter_mut()
         .positions(|it| it.intersect(import_path).is_some())
         .collect();
     for pos in s.into_iter().rev() {
@@ -704,12 +704,9 @@ fn does_source_exists_outside_sel_in_same_mod(
             }
 
             if have_same_parent {
-                match source.value {
-                    ModuleSource::Module(module_) => {
-                        source_exists_outside_sel_in_same_mod =
-                            !selection_range.contains_range(module_.syntax().text_range());
-                    }
-                    _ => {}
+                if let ModuleSource::Module(module_) = source.value {
+                    source_exists_outside_sel_in_same_mod =
+                        !selection_range.contains_range(module_.syntax().text_range());
                 }
             }
         }

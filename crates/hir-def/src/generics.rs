@@ -300,6 +300,7 @@ impl GenericParams {
         }
     }
 
+    #[allow(clippy::borrowed_box)]
     fn add_where_predicate_from_bound(
         &mut self,
         lower_ctx: &LowerCtx<'_>,

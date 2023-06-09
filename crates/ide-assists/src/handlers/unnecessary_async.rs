@@ -37,7 +37,7 @@ pub(crate) fn unnecessary_async(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
         return None;
     }
     // Do nothing if the function isn't async.
-    if let None = function.async_token() {
+    if function.async_token().is_none() {
         return None;
     }
     // Do nothing if the function has an `await` expression in its body.
@@ -46,7 +46,7 @@ pub(crate) fn unnecessary_async(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
     }
     // Do nothing if the method is a member of trait.
     if let Some(impl_) = function.syntax().ancestors().nth(2).and_then(ast::Impl::cast) {
-        if let Some(_) = impl_.trait_() {
+        if impl_.trait_().is_some() {
             return None;
         }
     }

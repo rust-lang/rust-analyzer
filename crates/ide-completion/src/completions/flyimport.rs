@@ -346,11 +346,10 @@ fn import_on_the_fly_method(
         .sorted_by_key(|located_import| {
             compute_fuzzy_completion_order_key(&located_import.import_path, &user_input_lowercased)
         })
-        .for_each(|import| match import.original_item {
-            ItemInNs::Values(hir::ModuleDef::Function(f)) => {
+        .for_each(|import| {
+            if let ItemInNs::Values(hir::ModuleDef::Function(f)) = import.original_item {
                 acc.add_method_with_import(ctx, dot_access, f, import);
             }
-            _ => (),
         });
     Some(())
 }

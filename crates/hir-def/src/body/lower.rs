@@ -811,7 +811,7 @@ impl ExprCollector<'_> {
                 expr: iterator,
                 arms: Box::new([MatchArm { pat: iter_pat, guard: None, expr: loop_outer }]),
             },
-            syntax_ptr.clone(),
+            syntax_ptr,
         )
     }
 

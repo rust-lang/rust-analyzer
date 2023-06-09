@@ -202,7 +202,7 @@ pub(crate) fn check_edit_with_config(
             .import_to_add
             .iter()
             .cloned()
-            .filter_map(|(import_path, import_name)| Some((import_path, import_name))),
+            .map(|(import_path, import_name)| (import_path, import_name)),
     )
     .into_iter()
     .flatten()

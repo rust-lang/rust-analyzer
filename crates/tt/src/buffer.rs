@@ -33,6 +33,7 @@ pub struct TokenBuffer<'t, Span> {
     buffers: Vec<Box<[Entry<'t, Span>]>>,
 }
 
+#[allow(clippy::type_complexity)]
 trait TokenList<'a, Span> {
     fn entries(
         &self,

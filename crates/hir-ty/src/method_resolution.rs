@@ -563,7 +563,7 @@ impl ReceiverAdjustments {
                 if let TyKind::Ref(m, l, inner) = ty.kind(Interner) {
                     if let TyKind::Array(inner, _) = inner.kind(Interner) {
                         break 'x TyKind::Ref(
-                            m.clone(),
+                            *m,
                             l.clone(),
                             TyKind::Slice(inner.clone()).intern(Interner),
                         )
@@ -911,7 +911,7 @@ pub fn iterate_method_candidates_dyn(
             let ty = table.instantiate_canonical(ty.clone());
             let deref_chain = autoderef_method_receiver(&mut table, ty);
 
-            let result = deref_chain.into_iter().try_for_each(|(receiver_ty, adj)| {
+            deref_chain.into_iter().try_for_each(|(receiver_ty, adj)| {
                 iterate_method_candidates_with_autoref(
                     &receiver_ty,
                     adj,
@@ -922,8 +922,7 @@ pub fn iterate_method_candidates_dyn(
                     name,
                     callback,
                 )
-            });
-            result
+            })
         }
         LookupMode::Path => {
             // No autoderef for path lookups
@@ -1288,7 +1287,7 @@ pub(crate) fn resolve_indexing_op(
     ty: Canonical<Ty>,
     index_trait: TraitId,
 ) -> Option<ReceiverAdjustments> {
-    let mut table = InferenceTable::new(db, env.clone());
+    let mut table = InferenceTable::new(db, env);
     let ty = table.instantiate_canonical(ty);
     let deref_chain = autoderef_method_receiver(&mut table, ty);
     for (ty, adj) in deref_chain {

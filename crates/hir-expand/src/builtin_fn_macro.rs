@@ -326,7 +326,7 @@ fn format_args_expand_general(
                     '}' => "".to_owned(),
                     ':' => {
                         let mut s = String::new();
-                        while let Some(c) = format_iter.next() {
+                        for c in format_iter.by_ref() {
                             if c == '}' {
                                 break;
                             }

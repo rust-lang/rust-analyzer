@@ -200,7 +200,7 @@ impl<'a> chalk_solve::RustIrDatabase<Interner> for ChalkContext<'a> {
         well_known_trait: rust_ir::WellKnownTrait,
     ) -> Option<chalk_ir::TraitId<Interner>> {
         let lang_attr = lang_item_from_well_known_trait(well_known_trait);
-        let trait_ = match self.db.lang_item(self.krate, lang_attr.into()) {
+        let trait_ = match self.db.lang_item(self.krate, lang_attr) {
             Some(LangItemTarget::Trait(trait_)) => trait_,
             _ => return None,
         };

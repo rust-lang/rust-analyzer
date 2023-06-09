@@ -280,10 +280,10 @@ impl GlobalState {
 
                 let text = if file.exists() {
                     let bytes = vfs.file_contents(file.file_id).to_vec();
-                    String::from_utf8(bytes).ok().and_then(|text| {
+                    String::from_utf8(bytes).ok().map(|text| {
                         let (text, line_endings) = LineEndings::normalize(text);
                         line_endings_map.insert(file.file_id, line_endings);
-                        Some(Arc::from(text))
+                        Arc::from(text)
                     })
                 } else {
                     None

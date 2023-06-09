@@ -105,6 +105,7 @@ pub enum MirLowerError {
 /// A token to ensuring that each drop scope is popped at most once, thanks to the compiler that checks moves.
 struct DropScopeToken;
 impl DropScopeToken {
+    #[allow(clippy::forget_non_drop)]
     fn pop_and_drop(self, ctx: &mut MirLowerCtx<'_>, current: BasicBlockId) -> BasicBlockId {
         std::mem::forget(self);
         ctx.pop_drop_scope_internal(current)
@@ -114,6 +115,7 @@ impl DropScopeToken {
     /// code. Either when the control flow is diverging (so drop code doesn't reached) or when drop is handled
     /// for us (for example a block that ended with a return statement. Return will drop everything, so the block shouldn't
     /// do anything)
+    #[allow(clippy::forget_non_drop)]
     fn pop_assume_dropped(self, ctx: &mut MirLowerCtx<'_>) {
         std::mem::forget(self);
         ctx.pop_drop_scope_assume_dropped_internal();
@@ -252,7 +254,8 @@ impl<'ctx> MirLowerCtx<'ctx> {
             owner,
             closures: vec![],
         };
-        let ctx = MirLowerCtx {
+
+        MirLowerCtx {
             result: mir,
             db,
             infer,
@@ -262,8 +265,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
             labeled_loop_blocks: Default::default(),
             discr_temp: None,
             drop_scopes: vec![DropScope::default()],
-        };
-        ctx
+        }
     }
 
     fn temp(&mut self, ty: Ty, current: BasicBlockId, span: MirSpan) -> Result<LocalId> {
@@ -281,12 +283,9 @@ impl<'ctx> MirLowerCtx<'ctx> {
         current: BasicBlockId,
     ) -> Result<Option<(Operand, BasicBlockId)>> {
         if !self.has_adjustments(expr_id) {
-            match &self.body.exprs[expr_id] {
-                Expr::Literal(l) => {
-                    let ty = self.expr_ty_without_adjust(expr_id);
-                    return Ok(Some((self.lower_literal_to_operand(ty, l)?, current)));
-                }
-                _ => (),
+            if let Expr::Literal(l) = &self.body.exprs[expr_id] {
+                let ty = self.expr_ty_without_adjust(expr_id);
+                return Ok(Some((self.lower_literal_to_operand(ty, l)?, current)));
             }
         }
         let Some((p, current)) = self.lower_expr_as_place(current, expr_id, true)? else {
@@ -332,8 +331,8 @@ impl<'ctx> MirLowerCtx<'ctx> {
                         current,
                         place,
                         Rvalue::Cast(
-                            CastKind::Pointer(cast.clone()),
-                            Operand::Copy(p).into(),
+                            CastKind::Pointer(*cast),
+                            Operand::Copy(p),
                             last.target.clone(),
                         ),
                         expr_id.into(),
@@ -612,8 +611,8 @@ impl<'ctx> MirLowerCtx<'ctx> {
                         };
                         self.lower_call_and_args(func, args.iter().copied(), place, current, self.is_uninhabited(expr_id), expr_id.into())
                     }
-                    TyKind::Error => return Err(MirLowerError::MissingFunctionDefinition(self.owner, expr_id)),
-                    _ => return Err(MirLowerError::TypeError("function call on bad type")),
+                    TyKind::Error => Err(MirLowerError::MissingFunctionDefinition(self.owner, expr_id)),
+                    _ => Err(MirLowerError::TypeError("function call on bad type")),
                 }
             }
             Expr::MethodCall { receiver, args, method_name, .. } => {
@@ -861,10 +860,8 @@ impl<'ctx> MirLowerCtx<'ctx> {
                     // for binary operator, and use without adjust to simplify our conditions.
                     let lhs_ty = self.expr_ty_without_adjust(*lhs);
                     let rhs_ty = self.expr_ty_without_adjust(*rhs);
-                    if matches!(op ,BinaryOp::CmpOp(syntax::ast::CmpOp::Eq { .. })) {
-                        if lhs_ty.as_raw_ptr().is_some() && rhs_ty.as_raw_ptr().is_some() {
-                            break 'b true;
-                        }
+                    if matches!(op ,BinaryOp::CmpOp(syntax::ast::CmpOp::Eq { .. })) && lhs_ty.as_raw_ptr().is_some() && rhs_ty.as_raw_ptr().is_some() {
+                        break 'b true;
                     }
                     let builtin_inequal_impls = matches!(
                         op,
@@ -1040,7 +1037,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
                             self.push_assignment(
                                 current,
                                 tmp.clone(),
-                                Rvalue::Ref(bk.clone(), p),
+                                Rvalue::Ref(*bk, p),
                                 capture.span,
                             );
                             operands.push(Operand::Move(tmp));
@@ -1135,11 +1132,10 @@ impl<'ctx> MirLowerCtx<'ctx> {
     }
 
     fn placeholder_subst(&mut self) -> Substitution {
-        let placeholder_subst = match self.owner.as_generic_def_id() {
+        match self.owner.as_generic_def_id() {
             Some(x) => TyBuilder::placeholder_subst(self.db, x),
             None => Substitution::empty(Interner),
-        };
-        placeholder_subst
+        }
     }
 
     fn push_field_projection(&self, place: &mut Place, expr_id: ExprId) -> Result<()> {
@@ -1269,7 +1265,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
         } else {
             let name = const_id.name(self.db.upcast());
             self.db
-                .const_eval(const_id.into(), subst)
+                .const_eval(const_id, subst)
                 .map_err(|e| MirLowerError::ConstEvalError(name, Box::new(e)))?
         };
         Ok(Operand::Constant(c))
@@ -1713,7 +1709,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
         current: &mut Idx<BasicBlock>,
     ) {
         for &l in scope.locals.iter().rev() {
-            if !self.result.locals[l].ty.clone().is_copy(self.db, self.owner) {
+            if !self.result.locals[l].ty.clone().implements_copy(self.db, self.owner) {
                 let prev = std::mem::replace(current, self.new_basic_block());
                 self.set_terminator(
                     prev,
@@ -1739,6 +1735,7 @@ fn cast_kind(source_ty: &Ty, target_ty: &Ty) -> Result<CastKind> {
         },
         (TyKind::Scalar(_), TyKind::Raw(..)) => CastKind::PointerFromExposedAddress,
         (TyKind::Raw(..), TyKind::Scalar(_)) => CastKind::PointerExposeAddress,
+        #[allow(clippy::if_same_then_else)]
         (TyKind::Raw(_, a) | TyKind::Ref(_, _, a), TyKind::Raw(_, b) | TyKind::Ref(_, _, b)) => {
             CastKind::Pointer(if a == b {
                 PointerCast::MutToConstPointer
@@ -1842,7 +1839,7 @@ pub fn mir_body_for_closure_query(
                     if x.0.kind != CaptureKind::ByValue {
                         next_projs.push(ProjectionElem::Deref);
                     }
-                    next_projs.extend(prev_projs.iter().cloned().skip(x.0.place.projections.len()));
+                    next_projs.extend(prev_projs.iter().skip(x.0.place.projections.len()).cloned());
                     p.projection = next_projs.into();
                 }
                 None => err = Some(p.clone()),

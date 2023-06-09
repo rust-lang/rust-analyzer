@@ -29,8 +29,8 @@ impl flags::Scip {
     pub fn run(self) -> Result<()> {
         eprintln!("Generating SCIP start...");
         let now = Instant::now();
-        let mut cargo_config = CargoConfig::default();
-        cargo_config.sysroot = Some(RustLibSource::Discover);
+        let cargo_config =
+            CargoConfig { sysroot: Some(RustLibSource::Discover), ..Default::default() };
 
         let no_progress = &|s| (eprintln!("rust-analyzer: Loading {s}"));
         let load_cargo_config = LoadCargoConfig {
@@ -214,7 +214,7 @@ fn new_descriptor(name: &str, suffix: scip_types::descriptor::Suffix) -> scip_ty
     if name.contains('\'') {
         new_descriptor_str(&format!("`{name}`"), suffix)
     } else {
-        new_descriptor_str(&name, suffix)
+        new_descriptor_str(name, suffix)
     }
 }
 
@@ -305,7 +305,7 @@ mod test {
             }
         }
 
-        if expected == "" {
+        if expected.is_empty() {
             assert!(found_symbol.is_none(), "must have no symbols {found_symbol:?}");
             return;
         }

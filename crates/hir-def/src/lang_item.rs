@@ -219,6 +219,7 @@ macro_rules! language_item_table {
                 }
             }
 
+            #[allow(clippy::should_implement_trait)]
             /// Opposite of [`LangItem::name`]
             pub fn from_str(name: &str) -> Option<Self> {
                 match name {

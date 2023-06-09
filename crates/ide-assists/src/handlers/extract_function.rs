@@ -531,7 +531,7 @@ impl FunctionBody {
 
     fn extracted_from_trait_impl(&self) -> bool {
         match self.node().ancestors().find_map(ast::Impl::cast) {
-            Some(c) => return c.trait_().is_some(),
+            Some(c) => c.trait_().is_some(),
             None => false,
         }
     }
@@ -1048,23 +1048,17 @@ impl GenericParent {
 fn generic_parents(parent: &SyntaxNode) -> Vec<GenericParent> {
     let mut list = Vec::new();
     if let Some(parent_item) = parent.ancestors().find_map(ast::Item::cast) {
-        match parent_item {
-            ast::Item::Fn(ref fn_) => {
-                if let Some(parent_parent) = parent_item
-                    .syntax()
-                    .parent()
-                    .and_then(|it| it.parent())
-                    .and_then(ast::Item::cast)
-                {
-                    match parent_parent {
-                        ast::Item::Impl(impl_) => list.push(GenericParent::Impl(impl_)),
-                        ast::Item::Trait(trait_) => list.push(GenericParent::Trait(trait_)),
-                        _ => (),
-                    }
+        if let ast::Item::Fn(ref fn_) = parent_item {
+            if let Some(parent_parent) =
+                parent_item.syntax().parent().and_then(|it| it.parent()).and_then(ast::Item::cast)
+            {
+                match parent_parent {
+                    ast::Item::Impl(impl_) => list.push(GenericParent::Impl(impl_)),
+                    ast::Item::Trait(trait_) => list.push(GenericParent::Trait(trait_)),
+                    _ => (),
                 }
-                list.push(GenericParent::Fn(fn_.clone()));
             }
-            _ => (),
+            list.push(GenericParent::Fn(fn_.clone()));
         }
     }
     list
@@ -1876,10 +1870,9 @@ fn with_tail_expr(block: ast::BlockExpr, tail_expr: ast::Expr) -> ast::BlockExpr
 
     if let Some(stmt_list) = block.stmt_list() {
         stmt_list.syntax().children_with_tokens().for_each(|node_or_token| {
-            match &node_or_token {
-                syntax::NodeOrToken::Token(_) => elements.push(node_or_token),
-                _ => (),
-            };
+            if let syntax::NodeOrToken::Token(_) = &node_or_token {
+                elements.push(node_or_token)
+            }
         });
     }
 

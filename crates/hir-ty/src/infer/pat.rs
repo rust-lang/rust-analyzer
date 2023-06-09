@@ -149,13 +149,13 @@ impl<'a> InferenceContext<'a> {
     ) -> Ty {
         let expected = self.resolve_ty_shallow(expected);
         let expectations = match expected.as_tuple() {
-            Some(parameters) => &*parameters.as_slice(Interner),
+            Some(parameters) => parameters.as_slice(Interner),
             _ => &[],
         };
 
         let ((pre, post), n_uncovered_patterns) = match ellipsis {
             Some(idx) => (subs.split_at(idx), expectations.len().saturating_sub(subs.len())),
-            None => ((&subs[..], &[][..]), 0),
+            None => ((subs, &[][..]), 0),
         };
         let mut expectations_iter = expectations
             .iter()
@@ -262,7 +262,7 @@ impl<'a> InferenceContext<'a> {
             &Pat::Lit(expr) => {
                 // Don't emit type mismatches again, the expression lowering already did that.
                 let ty = self.infer_lit_pat(expr, &expected);
-                self.write_pat_ty(pat, ty.clone());
+                self.write_pat_ty(pat, ty);
                 return self.pat_ty_after_adjustment(pat);
             }
             Pat::Box { inner } => match self.resolve_boxed_box() {
@@ -350,7 +350,7 @@ impl<'a> InferenceContext<'a> {
         self.result.binding_modes.insert(binding, mode);
 
         let inner_ty = match subpat {
-            Some(subpat) => self.infer_pat(subpat, &expected, default_bm),
+            Some(subpat) => self.infer_pat(subpat, expected, default_bm),
             None => expected.clone(),
         };
         let inner_ty = self.insert_type_vars_shallow(inner_ty);
@@ -363,7 +363,7 @@ impl<'a> InferenceContext<'a> {
         };
         self.write_pat_ty(pat, inner_ty.clone());
         self.write_binding_ty(binding, bound_ty);
-        return inner_ty;
+        inner_ty
     }
 
     fn infer_slice_pat(

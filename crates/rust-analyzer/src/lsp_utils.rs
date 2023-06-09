@@ -287,7 +287,7 @@ mod tests {
         }
 
         let encoding = PositionEncoding::Wide(WideEncoding::Utf16);
-        let text = apply_document_changes(encoding, || String::new(), vec![]);
+        let text = apply_document_changes(encoding, String::new, vec![]);
         assert_eq!(text, "");
         let text = apply_document_changes(
             encoding,

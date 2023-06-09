@@ -290,7 +290,7 @@ impl<'a> InferenceContext<'a> {
 
                 // Now go through the argument patterns
                 for (arg_pat, arg_ty) in args.iter().zip(&sig_tys) {
-                    self.infer_top_pat(*arg_pat, &arg_ty);
+                    self.infer_top_pat(*arg_pat, arg_ty);
                 }
 
                 // FIXME: lift these out into a struct
@@ -449,7 +449,7 @@ impl<'a> InferenceContext<'a> {
                 ty
             }
             &Expr::Continue { label } => {
-                if let None = find_continuable(&mut self.breakables, label) {
+                if find_continuable(&mut self.breakables, label).is_none() {
                     self.push_diagnostic(InferenceDiagnostic::BreakOutsideOfLoop {
                         expr: tgt_expr,
                         is_break: false,
@@ -919,7 +919,7 @@ impl<'a> InferenceContext<'a> {
         derefed_callee: &Ty,
         adjustments: &mut Vec<Adjustment>,
         callee_ty: &Ty,
-        params: &Vec<Ty>,
+        params: &[Ty],
         tgt_expr: ExprId,
     ) {
         match fn_x {
@@ -955,7 +955,7 @@ impl<'a> InferenceContext<'a> {
                 .push(callee_ty.clone())
                 .push(TyBuilder::tuple_with(params.iter().cloned()))
                 .build();
-            self.write_method_resolution(tgt_expr, func, subst.clone());
+            self.write_method_resolution(tgt_expr, func, subst);
         }
     }
 
@@ -1058,8 +1058,7 @@ impl<'a> InferenceContext<'a> {
             let inner_exp = expected
                 .to_option(table)
                 .as_ref()
-                .map(|e| e.as_adt())
-                .flatten()
+                .and_then(|e| e.as_adt())
                 .filter(|(e_adt, _)| e_adt == &box_id)
                 .map(|(_, subts)| {
                     let g = subts.at(Interner, 0);
@@ -1297,7 +1296,7 @@ impl<'a> InferenceContext<'a> {
                                 .unwrap_or_else(|| this.table.new_type_var());
 
                             let ty = if let Some(expr) = initializer {
-                                let ty = if contains_explicit_ref_binding(&this.body, *pat) {
+                                let ty = if contains_explicit_ref_binding(this.body, *pat) {
                                     this.infer_expr(*expr, &Expectation::has_type(decl_ty.clone()))
                                 } else {
                                     this.infer_expr_coerce(
@@ -1629,7 +1628,7 @@ impl<'a> InferenceContext<'a> {
         // that we have more information about the types of arguments when we
         // type-check the functions. This isn't really the right way to do this.
         for check_closures in [false, true] {
-            let mut skip_indices = skip_indices.into_iter().copied().fuse().peekable();
+            let mut skip_indices = skip_indices.iter().copied().fuse().peekable();
             let param_iter = param_tys.iter().cloned().chain(repeat(self.err_ty()));
             let expected_iter = expected_inputs
                 .iter()

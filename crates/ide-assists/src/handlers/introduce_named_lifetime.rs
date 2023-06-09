@@ -87,7 +87,7 @@ fn generate_fn_def_assist(
         let fn_def = builder.make_mut(fn_def);
         let lifetime = builder.make_mut(lifetime);
         let loc_needing_lifetime =
-            loc_needing_lifetime.and_then(|it| it.make_mut(builder).to_position());
+            loc_needing_lifetime.and_then(|it| it.make_mut(builder).into_position());
 
         fn_def.get_or_create_generic_param_list().add_generic_param(
             make::lifetime_param(new_lifetime_param.clone()).clone_for_update().into(),
@@ -147,7 +147,7 @@ impl NeedsLifetime {
         }
     }
 
-    fn to_position(self) -> Option<Position> {
+    fn into_position(self) -> Option<Position> {
         match self {
             Self::SelfParam(it) => Some(Position::after(it.amp_token()?)),
             Self::RefType(it) => Some(Position::after(it.amp_token()?)),

@@ -127,7 +127,7 @@ pub(super) fn try_expr(
     let l = "Propagated as: ".len() - " Type: ".len();
     let static_text_len_diff = l as isize - s.len() as isize;
     let tpad = static_text_len_diff.max(0) as usize;
-    let ppad = static_text_len_diff.min(0).abs() as usize;
+    let ppad = static_text_len_diff.min(0).unsigned_abs();
 
     res.markup = format!(
         "```text\n{} Type: {:>pad0$}\nPropagated as: {:>pad1$}\n```\n",
@@ -337,7 +337,7 @@ pub(super) fn try_for_lint(attr: &ast::Attr, token: &SyntaxToken) -> Option<Hove
         tmp = format!("clippy::{}", token.text());
         &tmp
     } else {
-        &*token.text()
+        token.text()
     };
 
     let lint =
@@ -527,7 +527,7 @@ fn type_info(
         )
         .into()
     } else {
-        Markup::fenced_block(&original.display(sema.db))
+        Markup::fenced_block(original.display(sema.db))
     };
     res.actions.push(HoverAction::goto_type_from_targets(sema.db, targets));
     Some(res)
@@ -566,7 +566,7 @@ fn closure_ty(
     });
 
     let adjusted = if let Some(adjusted_ty) = adjusted {
-        walk_and_push_ty(sema.db, &adjusted_ty, &mut push_new_def);
+        walk_and_push_ty(sema.db, adjusted_ty, &mut push_new_def);
         format!(
             "\nCoerced to: {}",
             adjusted_ty.display(sema.db).with_closure_style(hir::ClosureStyle::ImplFn)

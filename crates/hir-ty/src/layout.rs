@@ -84,9 +84,9 @@ pub fn layout_of_ty_query(
 ) -> Result<Arc<Layout>, LayoutError> {
     let Some(target) = db.target_data_layout(krate) else { return Err(LayoutError::TargetLayoutNotAvailable) };
     let cx = LayoutCx { krate, target: &target };
-    let dl = &*cx.current_data_layout();
+    let dl = cx.current_data_layout();
     let trait_env = Arc::new(TraitEnvironment::empty(krate));
-    let ty = normalize(db, trait_env, ty.clone());
+    let ty = normalize(db, trait_env, ty);
     let result = match ty.kind(Interner) {
         TyKind::Adt(AdtId(def), subst) => return db.layout_of_adt(*def, subst.clone(), krate),
         TyKind::Scalar(s) => match s {
@@ -152,7 +152,7 @@ pub fn layout_of_ty_query(
             cx.univariant(dl, &fields, &ReprOptions::default(), kind).ok_or(LayoutError::Unknown)?
         }
         TyKind::Array(element, count) => {
-            let count = try_const_usize(db, &count).ok_or(LayoutError::UserError(
+            let count = try_const_usize(db, count).ok_or(LayoutError::UserError(
                 "unevaluated or mistyped const generic parameter".to_string(),
             ))? as u64;
             let element = db.layout_of_ty(element.clone(), krate)?;

@@ -801,7 +801,7 @@ fn emit_def_diagnostic_(
         }
         DefDiagnosticKind::InvalidDeriveTarget { ast, id } => {
             let node = ast.to_node(db.upcast());
-            let derive = node.attrs().nth(*id as usize);
+            let derive = node.attrs().nth(*id);
             match derive {
                 Some(derive) => {
                     acc.push(
@@ -816,7 +816,7 @@ fn emit_def_diagnostic_(
         }
         DefDiagnosticKind::MalformedDerive { ast, id } => {
             let node = ast.to_node(db.upcast());
-            let derive = node.attrs().nth(*id as usize);
+            let derive = node.attrs().nth(*id);
             match derive {
                 Some(derive) => {
                     acc.push(
@@ -962,7 +962,7 @@ impl Field {
     }
 
     pub fn layout(&self, db: &dyn HirDatabase) -> Result<Layout, LayoutError> {
-        db.layout_of_ty(self.ty(db).ty.clone(), self.parent.module(db).krate().into())
+        db.layout_of_ty(self.ty(db).ty, self.parent.module(db).krate().into())
             .map(|layout| Layout(layout, db.target_data_layout(self.krate(db).into()).unwrap()))
     }
 
@@ -1297,13 +1297,7 @@ impl Adt {
         };
         resolver
             .generic_params()
-            .and_then(|gp| {
-                (&gp.lifetimes)
-                    .iter()
-                    // there should only be a single lifetime
-                    // but `Arena` requires to use an iterator
-                    .nth(0)
-            })
+            .and_then(|gp| gp.lifetimes.iter().next())
             .map(|arena| arena.1.clone())
     }
 
@@ -1677,7 +1671,7 @@ impl DefWithBody {
                         }
                         (mir::MutabilityReason::Not, true) => {
                             if !infer.mutated_bindings_in_closure.contains(&binding_id) {
-                                let should_ignore = matches!(body[binding_id].name.as_str(), Some(x) if x.starts_with("_"));
+                                let should_ignore = matches!(body[binding_id].name.as_str(), Some(x) if x.starts_with('_'));
                                 if !should_ignore {
                                     acc.push(UnusedMut { local }.into())
                                 }
@@ -2110,7 +2104,7 @@ impl Const {
     pub fn render_eval(self, db: &dyn HirDatabase) -> Result<String, ConstEvalError> {
         let c = db.const_eval(self.id.into(), Substitution::empty(Interner))?;
         let r = format!("{}", HexifiedConst(c).display(db));
-        return Ok(r);
+        Ok(r)
     }
 }
 
@@ -2198,14 +2192,7 @@ impl Trait {
         db.generic_params(GenericDefId::from(self.id))
             .type_or_consts
             .iter()
-            .filter(|(_, ty)| match ty {
-                TypeOrConstParamData::TypeParamData(ty)
-                    if ty.provenance != TypeParamProvenance::TypeParamList =>
-                {
-                    false
-                }
-                _ => true,
-            })
+            .filter(|(_, ty)| !matches!(ty, TypeOrConstParamData::TypeParamData(ty) if ty.provenance != TypeParamProvenance::TypeParamList))
             .filter(|(_, ty)| !count_required_only || !ty.has_default())
             .count()
     }
@@ -2482,6 +2469,7 @@ pub enum AssocItemContainer {
     Impl(Impl),
 }
 pub trait AsAssocItem {
+    #[allow(clippy::wrong_self_convention)]
     fn as_assoc_item(self, db: &dyn HirDatabase) -> Option<AssocItem>;
 }
 
@@ -2819,7 +2807,7 @@ impl DeriveHelper {
                 .and_then(|it| it.get(self.idx as usize))
                 .cloned(),
         }
-        .unwrap_or_else(|| Name::missing())
+        .unwrap_or_else(Name::missing)
     }
 }
 
@@ -3281,16 +3269,20 @@ impl From<Closure> for ClosureId {
 }
 
 impl Closure {
-    fn as_ty(self) -> Ty {
+    fn into_ty(self) -> Ty {
         TyKind::Closure(self.id, self.subst).intern(Interner)
     }
 
     pub fn display_with_id(&self, db: &dyn HirDatabase) -> String {
-        self.clone().as_ty().display(db).with_closure_style(ClosureStyle::ClosureWithId).to_string()
+        self.clone()
+            .into_ty()
+            .display(db)
+            .with_closure_style(ClosureStyle::ClosureWithId)
+            .to_string()
     }
 
     pub fn display_with_impl(&self, db: &dyn HirDatabase) -> String {
-        self.clone().as_ty().display(db).with_closure_style(ClosureStyle::ImplFn).to_string()
+        self.clone().into_ty().display(db).with_closure_style(ClosureStyle::ImplFn).to_string()
     }
 
     pub fn captured_items(&self, db: &dyn HirDatabase) -> Vec<ClosureCapture> {
@@ -3488,10 +3480,7 @@ impl Type {
     }
 
     pub fn is_int_or_uint(&self) -> bool {
-        match self.ty.kind(Interner) {
-            TyKind::Scalar(Scalar::Int(_) | Scalar::Uint(_)) => true,
-            _ => false,
-        }
+        matches!(self.ty.kind(Interner), TyKind::Scalar(Scalar::Int(_) | Scalar::Uint(_)))
     }
 
     pub fn is_scalar(&self) -> bool {
@@ -3895,10 +3884,9 @@ impl Type {
                 // arg can be either a `Ty` or `constant`
                 if let Some(ty) = arg.ty(Interner) {
                     Some(SmolStr::new(ty.display(db).to_string()))
-                } else if let Some(const_) = arg.constant(Interner) {
-                    Some(SmolStr::new_inline(&const_.display(db).to_string()))
                 } else {
-                    None
+                    arg.constant(Interner)
+                        .map(|const_| SmolStr::new_inline(&const_.display(db).to_string()))
                 }
             })
     }
@@ -3910,7 +3898,7 @@ impl Type {
     ) -> impl Iterator<Item = SmolStr> + 'a {
         // iterate the lifetime
         self.as_adt()
-            .and_then(|a| a.lifetime(db).and_then(|lt| Some((&lt.name).to_smol_str())))
+            .and_then(|a| a.lifetime(db).map(|lt| lt.name.to_smol_str()))
             .into_iter()
             // add the type and const parameters
             .chain(self.type_and_const_arguments(db))
@@ -4047,7 +4035,7 @@ impl Type {
             traits_in_scope,
             with_local_impls.and_then(|b| b.id.containing_block()).into(),
             name,
-            &mut |id| callback(id),
+            callback,
         );
     }
 

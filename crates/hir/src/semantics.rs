@@ -758,7 +758,7 @@ impl<'db> SemanticsImpl<'db> {
                 res = Some(value);
                 true
             } else {
-                if let None = res {
+                if res.is_none() {
                     res = Some(value)
                 }
                 false
@@ -1126,9 +1126,7 @@ impl<'db> SemanticsImpl<'db> {
                     // Update `source_ty` for the next adjustment
                     let source = mem::replace(&mut source_ty, target.clone());
 
-                    let adjustment = Adjustment { source, target, kind };
-
-                    adjustment
+                    Adjustment { source, target, kind }
                 })
                 .collect()
         })
@@ -1375,7 +1373,7 @@ impl<'db> SemanticsImpl<'db> {
         assert!(root_node.parent().is_none());
         let mut cache = self.cache.borrow_mut();
         let prev = cache.insert(root_node, file_id);
-        assert!(prev == None || prev == Some(file_id))
+        assert!(prev.is_none() || prev == Some(file_id))
     }
 
     fn assert_contains_node(&self, node: &SyntaxNode) {

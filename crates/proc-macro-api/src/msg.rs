@@ -19,6 +19,7 @@ pub const ENCODE_CLOSE_SPAN_VERSION: u32 = 2;
 
 pub const CURRENT_API_VERSION: u32 = ENCODE_CLOSE_SPAN_VERSION;
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Request {
     ListMacros { dylib_path: PathBuf },

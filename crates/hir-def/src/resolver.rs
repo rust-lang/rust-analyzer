@@ -69,15 +69,15 @@ impl fmt::Debug for ExprScope {
 #[derive(Debug, Clone)]
 enum Scope {
     /// All the items and imported names of a module
-    BlockScope(ModuleItemMap),
+    Block(ModuleItemMap),
     /// Brings the generic parameters of an item into scope
     GenericParams { def: GenericDefId, params: Interned<GenericParams> },
     /// Brings `Self` in `impl` block into scope
-    ImplDefScope(ImplId),
+    ImplDef(ImplId),
     /// Brings `Self` in enum, struct and union definitions into scope
-    AdtScope(AdtId),
+    Adt(AdtId),
     /// Local bindings
-    ExprScope(ExprScope),
+    Expr(ExprScope),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -210,23 +210,23 @@ impl Resolver {
 
         for scope in self.scopes() {
             match scope {
-                Scope::ExprScope(_) => continue,
+                Scope::Expr(_) => continue,
                 Scope::GenericParams { params, def } => {
                     if let Some(id) = params.find_type_by_name(first_name, *def) {
                         return Some((TypeNs::GenericParam(id), remaining_idx()));
                     }
                 }
-                &Scope::ImplDefScope(impl_) => {
+                &Scope::ImplDef(impl_) => {
                     if first_name == &name![Self] {
                         return Some((TypeNs::SelfType(impl_), remaining_idx()));
                     }
                 }
-                &Scope::AdtScope(adt) => {
+                &Scope::Adt(adt) => {
                     if first_name == &name![Self] {
                         return Some((TypeNs::AdtSelfType(adt), remaining_idx()));
                     }
                 }
-                Scope::BlockScope(m) => {
+                Scope::Block(m) => {
                     if let Some(res) = m.resolve_path_in_type_ns(db, path) {
                         return Some(res);
                     }
@@ -253,8 +253,7 @@ impl Resolver {
         db: &dyn DefDatabase,
         visibility: &RawVisibility,
     ) -> Option<Visibility> {
-        let within_impl =
-            self.scopes().find(|scope| matches!(scope, Scope::ImplDefScope(_))).is_some();
+        let within_impl = self.scopes().any(|scope| matches!(&scope, Scope::ImplDef(_)));
         match visibility {
             RawVisibility::Module(_) => {
                 let (item_map, module) = self.item_scope();
@@ -296,7 +295,7 @@ impl Resolver {
         if n_segments <= 1 {
             for scope in self.scopes() {
                 match scope {
-                    Scope::ExprScope(scope) => {
+                    Scope::Expr(scope) => {
                         let entry = scope
                             .expr_scopes
                             .entries(scope.scope_id)
@@ -315,14 +314,14 @@ impl Resolver {
                             return Some(ResolveValueResult::ValueNs(val));
                         }
                     }
-                    &Scope::ImplDefScope(impl_) => {
+                    &Scope::ImplDef(impl_) => {
                         if first_name == &name![Self] {
                             return Some(ResolveValueResult::ValueNs(ValueNs::ImplSelf(impl_)));
                         }
                     }
                     // bare `Self` doesn't work in the value namespace in a struct/enum definition
-                    Scope::AdtScope(_) => continue,
-                    Scope::BlockScope(m) => {
+                    Scope::Adt(_) => continue,
+                    Scope::Block(m) => {
                         if let Some(def) = m.resolve_path_in_value_ns(db, path) {
                             return Some(def);
                         }
@@ -332,25 +331,25 @@ impl Resolver {
         } else {
             for scope in self.scopes() {
                 match scope {
-                    Scope::ExprScope(_) => continue,
+                    Scope::Expr(_) => continue,
                     Scope::GenericParams { params, def } => {
                         if let Some(id) = params.find_type_by_name(first_name, *def) {
                             let ty = TypeNs::GenericParam(id);
                             return Some(ResolveValueResult::Partial(ty, 1));
                         }
                     }
-                    &Scope::ImplDefScope(impl_) => {
+                    &Scope::ImplDef(impl_) => {
                         if first_name == &name![Self] {
                             return Some(ResolveValueResult::Partial(TypeNs::SelfType(impl_), 1));
                         }
                     }
-                    Scope::AdtScope(adt) => {
+                    Scope::Adt(adt) => {
                         if first_name == &name![Self] {
                             let ty = TypeNs::AdtSelfType(*adt);
                             return Some(ResolveValueResult::Partial(ty, 1));
                         }
                     }
-                    Scope::BlockScope(m) => {
+                    Scope::Block(m) => {
                         if let Some(def) = m.resolve_path_in_value_ns(db, path) {
                             return Some(def);
                         }
@@ -486,8 +485,8 @@ impl Resolver {
 
         for scope in self.scopes() {
             match scope {
-                Scope::BlockScope(m) => traits.extend(m.def_map[m.module_id].scope.traits()),
-                &Scope::ImplDefScope(impl_) => {
+                Scope::Block(m) => traits.extend(m.def_map[m.module_id].scope.traits()),
+                &Scope::ImplDef(impl_) => {
                     if let Some(target_trait) = &db.impl_data(impl_).target_trait {
                         if let Some(TypeNs::TraitId(trait_)) =
                             self.resolve_path_in_type_ns_fully(db, &target_trait.path)
@@ -513,7 +512,7 @@ impl Resolver {
     pub fn traits_in_scope_from_block_scopes(&self) -> impl Iterator<Item = TraitId> + '_ {
         self.scopes()
             .filter_map(|scope| match scope {
-                Scope::BlockScope(m) => Some(m.def_map[m.module_id].scope.traits()),
+                Scope::Block(m) => Some(m.def_map[m.module_id].scope.traits()),
                 _ => None,
             })
             .flatten()
@@ -559,7 +558,7 @@ impl Resolver {
 
     pub fn body_owner(&self) -> Option<DefWithBodyId> {
         self.scopes().find_map(|scope| match scope {
-            Scope::ExprScope(it) => Some(it.owner),
+            Scope::Expr(it) => Some(it.owner),
             _ => None,
         })
     }
@@ -579,7 +578,7 @@ impl Resolver {
             expr_scopes: &Arc<ExprScopes>,
             scope_id: ScopeId,
         ) {
-            resolver.scopes.push(Scope::ExprScope(ExprScope {
+            resolver.scopes.push(Scope::Expr(ExprScope {
                 owner,
                 expr_scopes: expr_scopes.clone(),
                 scope_id,
@@ -588,7 +587,7 @@ impl Resolver {
                 let def_map = db.block_def_map(block);
                 resolver
                     .scopes
-                    .push(Scope::BlockScope(ModuleItemMap { def_map, module_id: DefMap::ROOT }));
+                    .push(Scope::Block(ModuleItemMap { def_map, module_id: DefMap::ROOT }));
                 // FIXME: This adds as many module scopes as there are blocks, but resolving in each
                 // already traverses all parents, so this is O(n²). I think we could only store the
                 // innermost module scope instead?
@@ -598,7 +597,7 @@ impl Resolver {
         let start = self.scopes.len();
         let innermost_scope = self.scopes().next();
         match innermost_scope {
-            Some(&Scope::ExprScope(ExprScope { scope_id, ref expr_scopes, owner })) => {
+            Some(&Scope::Expr(ExprScope { scope_id, ref expr_scopes, owner })) => {
                 let expr_scopes = expr_scopes.clone();
                 let scope_chain = expr_scopes
                     .scope_chain(expr_scopes.scope_for(expr_id))
@@ -651,7 +650,7 @@ impl Resolver {
     fn item_scope(&self) -> (&DefMap, LocalModuleId) {
         self.scopes()
             .find_map(|scope| match scope {
-                Scope::BlockScope(m) => Some((&*m.def_map, m.module_id)),
+                Scope::Block(m) => Some((&*m.def_map, m.module_id)),
                 _ => None,
             })
             .unwrap_or((&self.module_scope.def_map, self.module_scope.module_id))
@@ -672,7 +671,7 @@ pub enum ScopeDef {
 impl Scope {
     fn process_names(&self, acc: &mut ScopeNames, db: &dyn DefDatabase) {
         match self {
-            Scope::BlockScope(m) => {
+            Scope::Block(m) => {
                 m.def_map[m.module_id].scope.entries().for_each(|(name, def)| {
                     acc.add_per_ns(name, def);
                 });
@@ -706,13 +705,13 @@ impl Scope {
                     acc.add(&param.name, ScopeDef::GenericParam(id.into()))
                 }
             }
-            Scope::ImplDefScope(i) => {
+            Scope::ImplDef(i) => {
                 acc.add(&name![Self], ScopeDef::ImplSelfType(*i));
             }
-            Scope::AdtScope(i) => {
+            Scope::Adt(i) => {
                 acc.add(&name![Self], ScopeDef::AdtSelfType(*i));
             }
-            Scope::ExprScope(scope) => {
+            Scope::Expr(scope) => {
                 if let Some((label, name)) = scope.expr_scopes.label(scope.scope_id) {
                     acc.add(&name, ScopeDef::Label(label))
                 }
@@ -777,11 +776,11 @@ impl Resolver {
     }
 
     fn push_impl_def_scope(self, impl_def: ImplId) -> Resolver {
-        self.push_scope(Scope::ImplDefScope(impl_def))
+        self.push_scope(Scope::ImplDef(impl_def))
     }
 
     fn push_block_scope(self, def_map: Arc<DefMap>, module_id: LocalModuleId) -> Resolver {
-        self.push_scope(Scope::BlockScope(ModuleItemMap { def_map, module_id }))
+        self.push_scope(Scope::Block(ModuleItemMap { def_map, module_id }))
     }
 
     fn push_expr_scope(
@@ -790,7 +789,7 @@ impl Resolver {
         expr_scopes: Arc<ExprScopes>,
         scope_id: ScopeId,
     ) -> Resolver {
-        self.push_scope(Scope::ExprScope(ExprScope { owner, expr_scopes, scope_id }))
+        self.push_scope(Scope::Expr(ExprScope { owner, expr_scopes, scope_id }))
     }
 }
 
@@ -964,7 +963,7 @@ impl<T: Into<AdtId> + Copy> HasResolver for T {
         def.module(db)
             .resolver(db)
             .push_generic_params_scope(db, def.into())
-            .push_scope(Scope::AdtScope(def))
+            .push_scope(Scope::Adt(def))
     }
 }
 

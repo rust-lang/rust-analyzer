@@ -116,7 +116,7 @@ impl ChangeFixture {
         let toolchain = toolchain
             .map(|it| {
                 ReleaseChannel::from_str(&it)
-                    .unwrap_or_else(|| panic!("unknown release channel found: {it}"))
+                    .unwrap_or_else(|()| panic!("unknown release channel found: {it}"))
             })
             .unwrap_or(ReleaseChannel::Stable);
         let mut change = Change::new();

@@ -480,7 +480,7 @@ impl GlobalState {
 
                         if self.config.run_build_scripts() && workspaces_updated {
                             self.fetch_build_data_queue
-                                .request_op(format!("workspace updated"), ());
+                                .request_op("workspace updated".to_string(), ());
                         }
 
                         (Progress::End, None)

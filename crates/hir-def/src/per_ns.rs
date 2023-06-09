@@ -5,17 +5,11 @@
 
 use crate::{item_scope::ItemInNs, visibility::Visibility, MacroId, ModuleDefId};
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct PerNs {
     pub types: Option<(ModuleDefId, Visibility)>,
     pub values: Option<(ModuleDefId, Visibility)>,
     pub macros: Option<(MacroId, Visibility)>,
-}
-
-impl Default for PerNs {
-    fn default() -> Self {
-        PerNs { types: None, values: None, macros: None }
-    }
 }
 
 impl PerNs {

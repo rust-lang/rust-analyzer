@@ -275,8 +275,8 @@ fn traverse(
                 inside_attribute = false
             }
 
-            Enter(NodeOrToken::Node(node)) => match ast::Item::cast(node.clone()) {
-                Some(item) => {
+            Enter(NodeOrToken::Node(node)) => {
+                if let Some(item) = ast::Item::cast(node.clone()) {
                     match item {
                         ast::Item::MacroRules(mac) => {
                             macro_highlighter.init();
@@ -317,8 +317,7 @@ fn traverse(
                         }
                     }
                 }
-                _ => (),
-            },
+            }
             Leave(NodeOrToken::Node(node)) if ast::Item::can_cast(node.kind()) => {
                 match ast::Item::cast(node.clone()) {
                     Some(ast::Item::MacroRules(mac)) => {

@@ -158,7 +158,7 @@ mod tests {
     use super::*;
     use crate::tests::check_assist;
 
-    const MACRO_DECL: &'static str = r#"
+    const MACRO_DECL: &str = r#"
 macro_rules! format_args {
     ($lit:literal $(tt:tt)*) => { 0 },
 }

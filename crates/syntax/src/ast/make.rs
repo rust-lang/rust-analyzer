@@ -279,14 +279,14 @@ pub fn impl_trait(
 
     let where_clause = match (ty_where_clause, trait_where_clause) {
         (None, None) => " ".to_string(),
-        (None, Some(tr)) => format!("\n{}\n", tr).to_string(),
-        (Some(ty), None) => format!("\n{}\n", ty).to_string(),
+        (None, Some(tr)) => format!("\n{}\n", tr),
+        (Some(ty), None) => format!("\n{}\n", ty),
         (Some(ty), Some(tr)) => {
             let updated = ty.clone_for_update();
             tr.predicates().for_each(|p| {
                 ty.add_predicate(p);
             });
-            format!("\n{}\n", updated).to_string()
+            format!("\n{}\n", updated)
         }
     };
 

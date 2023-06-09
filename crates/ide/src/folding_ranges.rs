@@ -220,6 +220,7 @@ fn contiguous_range_for_comment(
         return None;
     }
 
+    #[allow(clippy::redundant_clone)] // false positive
     let mut last = first.clone();
     for element in first.syntax().siblings_with_tokens(Direction::Next) {
         match element {
@@ -271,7 +272,7 @@ fn fold_range_for_where_clause(where_clause: ast::WhereClause) -> Option<TextRan
 }
 
 fn fold_range_for_multiline_match_arm(match_arm: ast::MatchArm) -> Option<TextRange> {
-    if let Some(_) = fold_kind(match_arm.expr()?.syntax().kind()) {
+    if fold_kind(match_arm.expr()?.syntax().kind()).is_some() {
         return None;
     }
     if match_arm.expr()?.syntax().text().contains_char('\n') {

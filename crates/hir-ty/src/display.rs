@@ -89,7 +89,7 @@ pub trait HirDisplay {
     fn hir_fmt(&self, f: &mut HirFormatter<'_>) -> Result<(), HirDisplayError>;
 
     /// Returns a `Display`able type that is human-readable.
-    fn into_displayable<'a>(
+    fn as_displayable<'a>(
         &'a self,
         db: &'a dyn HirDatabase,
         max_size: Option<usize>,
@@ -434,7 +434,7 @@ impl HirDisplay for Const {
                 Ok(())
             }
             ConstValue::Concrete(c) => match &c.interned {
-                ConstScalar::Bytes(b, m) => render_const_scalar(f, &b, m, &data.ty),
+                ConstScalar::Bytes(b, m) => render_const_scalar(f, b, m, &data.ty),
                 ConstScalar::UnevaluatedConst(c, parameters) => {
                     write!(f, "{}", c.name(f.db.upcast()))?;
                     hir_fmt_generics(f, parameters, c.generic_def(f.db.upcast()))?;
@@ -457,7 +457,7 @@ impl HirDisplay for HexifiedConst {
                     if let ConstScalar::Bytes(b, m) = &c.interned {
                         let value = u128::from_le_bytes(pad16(b, false));
                         if value >= 10 {
-                            render_const_scalar(f, &b, m, &data.ty)?;
+                            render_const_scalar(f, b, m, &data.ty)?;
                             return write!(f, " ({:#X})", value);
                         }
                     }
@@ -479,7 +479,7 @@ fn render_const_scalar(
     let krate = *f.db.crate_graph().crates_in_topological_order().last().unwrap();
     match ty.kind(Interner) {
         TyKind::Scalar(s) => match s {
-            Scalar::Bool => write!(f, "{}", if b[0] == 0 { false } else { true }),
+            Scalar::Bool => write!(f, "{}", b[0] != 0),
             Scalar::Char => {
                 let x = u128::from_le_bytes(pad16(b, false)) as u32;
                 let Ok(c) = char::try_from(x) else {
@@ -513,7 +513,7 @@ fn render_const_scalar(
                 let Some(bytes) = memory_map.get(addr, size) else {
                     return f.write_str("<ref-data-not-available>");
                 };
-                let s = std::str::from_utf8(&bytes).unwrap_or("<utf8-error>");
+                let s = std::str::from_utf8(bytes).unwrap_or("<utf8-error>");
                 write!(f, "{s:?}")
             }
             TyKind::Slice(ty) => {
@@ -535,7 +535,7 @@ fn render_const_scalar(
                         f.write_str(", ")?;
                     }
                     let offset = size_one * i;
-                    render_const_scalar(f, &bytes[offset..offset + size_one], memory_map, &ty)?;
+                    render_const_scalar(f, &bytes[offset..offset + size_one], memory_map, ty)?;
                 }
                 f.write_str("]")
             }
@@ -607,7 +607,7 @@ fn render_const_scalar(
                     continue;
                 };
                 let size = layout.size.bytes_usize();
-                render_const_scalar(f, &b[offset..offset + size], memory_map, &ty)?;
+                render_const_scalar(f, &b[offset..offset + size], memory_map, ty)?;
             }
             f.write_str(")")
         }
@@ -648,7 +648,7 @@ fn render_const_scalar(
                         f,
                         &field_types,
                         adt.0.module(f.db.upcast()).krate(),
-                        &var_layout,
+                        var_layout,
                         subst,
                         b,
                         memory_map,
@@ -679,7 +679,7 @@ fn render_const_scalar(
                     f.write_str(", ")?;
                 }
                 let offset = size_one * i;
-                render_const_scalar(f, &b[offset..offset + size_one], memory_map, &ty)?;
+                render_const_scalar(f, &b[offset..offset + size_one], memory_map, ty)?;
             }
             f.write_str("]")
         }
@@ -746,7 +746,7 @@ fn render_variant_after_name(
                 }
                 write!(f, ")")?;
             }
-            return Ok(());
+            Ok(())
         }
         VariantData::Unit => Ok(()),
     }
@@ -892,7 +892,7 @@ impl HirDisplay for Ty {
                     write!(f, ",)")?;
                 } else {
                     write!(f, "(")?;
-                    f.write_joined(&*substs.as_slice(Interner), ", ")?;
+                    f.write_joined(substs.as_slice(Interner), ", ")?;
                     write!(f, ")")?;
                 }
             }
@@ -1056,7 +1056,7 @@ impl HirDisplay for Ty {
                             f.start_location_link(t.into());
                         }
                         write!(f, "Future")?;
-                        if let Some(_) = future_trait {
+                        if future_trait.is_some() {
                             f.end_location_link();
                         }
                         write!(f, "<")?;
@@ -1064,7 +1064,7 @@ impl HirDisplay for Ty {
                             f.start_location_link(t.into());
                         }
                         write!(f, "Output")?;
-                        if let Some(_) = output {
+                        if output.is_some() {
                             f.end_location_link();
                         }
                         write!(f, " = ")?;
@@ -1232,8 +1232,7 @@ impl HirDisplay for Ty {
                 let subst = subst.as_slice(Interner);
                 let a: Option<SmallVec<[&Ty; 3]>> = subst
                     .get(subst.len() - 3..)
-                    .map(|args| args.iter().map(|arg| arg.ty(Interner)).collect())
-                    .flatten();
+                    .and_then(|args| args.iter().map(|arg| arg.ty(Interner)).collect());
 
                 if let Some([resume_ty, yield_ty, ret_ty]) = a.as_deref() {
                     write!(f, "|")?;
@@ -1443,7 +1442,7 @@ fn write_bounds_like_dyn_trait(
                 f.start_location_link(trait_.into());
                 write!(f, "{}", f.db.trait_data(trait_).name.display(f.db.upcast()))?;
                 f.end_location_link();
-                if let [_, params @ ..] = &*trait_ref.substitution.as_slice(Interner) {
+                if let [_, params @ ..] = trait_ref.substitution.as_slice(Interner) {
                     if is_fn_trait {
                         if let Some(args) =
                             params.first().and_then(|it| it.assert_ty_ref(Interner).as_tuple())
@@ -1523,7 +1522,7 @@ fn write_bounds_like_dyn_trait(
             }
             write!(f, "Sized")?;
         }
-        if let Some(_) = sized_trait {
+        if sized_trait.is_some() {
             f.end_location_link();
         }
     }

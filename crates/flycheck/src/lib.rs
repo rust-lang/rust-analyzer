@@ -513,6 +513,7 @@ impl CargoActor {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 enum CargoMessage {
     CompilerArtifact(cargo_metadata::Artifact),
     Diagnostic(Diagnostic),

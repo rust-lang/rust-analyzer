@@ -259,7 +259,7 @@ impl Analysis {
 
     /// Debug info about the current state of the analysis.
     pub fn status(&self, file_id: Option<FileId>) -> Cancellable<String> {
-        self.with_db(|db| status::status(&*db, file_id))
+        self.with_db(|db| status::status(db, file_id))
     }
 
     pub fn parallel_prime_caches<F>(&self, num_worker_threads: u8, cb: F) -> Cancellable<()>
@@ -338,7 +338,7 @@ impl Analysis {
     }
 
     pub fn fetch_crates(&self) -> Cancellable<FxIndexSet<CrateInfo>> {
-        self.with_db(|db| fetch_crates::fetch_crates(db))
+        self.with_db(fetch_crates::fetch_crates)
     }
 
     pub fn expand_macro(&self, position: FilePosition) -> Cancellable<Option<ExpandedMacro>> {

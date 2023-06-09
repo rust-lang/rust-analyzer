@@ -435,7 +435,7 @@ pub(crate) fn detect_variant_from_bytes<'a>(
     e: EnumId,
 ) -> Option<(LocalEnumVariantId, &'a Layout)> {
     let (var_id, var_layout) = match &layout.variants {
-        hir_def::layout::Variants::Single { index } => (index.0, &*layout),
+        hir_def::layout::Variants::Single { index } => (index.0, layout),
         hir_def::layout::Variants::Multiple { tag, tag_encoding, variants, .. } => {
             let target_data_layout = db.target_data_layout(krate)?;
             let size = tag.size(&*target_data_layout).bytes_usize();

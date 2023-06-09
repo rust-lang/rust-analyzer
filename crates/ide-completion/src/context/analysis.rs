@@ -1139,8 +1139,7 @@ fn pattern_context_for(
     pat
         .syntax()
         .ancestors()
-        .skip_while(|it| ast::Pat::can_cast(it.kind()))
-        .next()
+        .find(|it| !ast::Pat::can_cast(it.kind()))
         .map_or((PatternRefutability::Irrefutable, false), |node| {
             let refutability = match_ast! {
                 match node {
@@ -1175,7 +1174,7 @@ fn pattern_context_for(
                                 .parent()
                                 .and_then(ast::MatchExpr::cast)
                                 .and_then(|match_expr| {
-                                    let expr_opt = find_opt_node_in_file(&original_file, match_expr.expr());
+                                    let expr_opt = find_opt_node_in_file(original_file, match_expr.expr());
 
                                     expr_opt.and_then(|expr| {
                                         sema.type_of_expr(&expr)?
@@ -1184,24 +1183,20 @@ fn pattern_context_for(
                                         .find_map(|ty| match ty.as_adt() {
                                             Some(hir::Adt::Enum(e)) => Some(e),
                                             _ => None,
-                                        }).and_then(|enum_| {
-                                            Some(enum_.variants(sema.db))
-                                        })
+                                        }).map(|enum_| enum_.variants(sema.db))
                                     })
-                                }).and_then(|variants| {
-                                   Some(variants.iter().filter_map(|variant| {
+                                }).map(|variants| variants.iter().filter_map(|variant| {
                                         let variant_name = variant.name(sema.db).display(sema.db).to_string();
 
                                         let variant_already_present = match_arm_list.arms().any(|arm| {
                                             arm.pat().and_then(|pat| {
                                                 let pat_already_present = pat.syntax().to_string().contains(&variant_name);
-                                                pat_already_present.then(|| pat_already_present)
+                                                pat_already_present.then_some(pat_already_present)
                                             }).is_some()
                                         });
 
-                                        (!variant_already_present).then_some(variant.clone())
+                                        (!variant_already_present).then_some(*variant)
                                     }).collect::<Vec<Variant>>())
-                                })
                         });
 
                         if let Some(missing_variants_) = missing_variants_opt {

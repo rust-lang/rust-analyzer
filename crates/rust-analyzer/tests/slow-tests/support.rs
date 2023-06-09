@@ -217,6 +217,7 @@ impl Server {
         self.send_request_(r)
     }
     fn send_request_(&self, r: Request) -> Value {
+        #[allow(clippy::redundant_clone)] // false positive
         let id = r.id.clone();
         self.client.sender.send(r.clone().into()).unwrap();
         while let Some(msg) = self.recv().unwrap_or_else(|Timeout| panic!("timeout: {r:?}")) {

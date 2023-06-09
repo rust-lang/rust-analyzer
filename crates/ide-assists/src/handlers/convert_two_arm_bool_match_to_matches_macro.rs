@@ -80,7 +80,7 @@ fn is_bool_literal_expr(expr: &Option<ast::Expr>, expect_bool: bool) -> bool {
         }
     }
 
-    return false;
+    false
 }
 
 #[cfg(test)]

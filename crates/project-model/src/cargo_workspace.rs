@@ -275,7 +275,7 @@ impl CargoWorkspace {
             other_options.append(
                 &mut targets
                     .into_iter()
-                    .flat_map(|target| ["--filter-platform".to_owned().to_string(), target])
+                    .flat_map(|target| ["--filter-platform".to_owned(), target])
                     .collect(),
             );
         }
@@ -366,7 +366,7 @@ impl CargoWorkspace {
                     name,
                     root: AbsPathBuf::assert(src_path.into()),
                     kind: TargetKind::new(&kind),
-                    is_proc_macro: &*kind == ["proc-macro"],
+                    is_proc_macro: *kind == ["proc-macro"],
                     required_features,
                 });
                 pkg_data.targets.push(tgt);
@@ -439,7 +439,7 @@ impl CargoWorkspace {
             .collect::<Vec<ManifestPath>>();
 
         // some packages has this pkg as dep. return their manifests
-        if parent_manifests.len() > 0 {
+        if !parent_manifests.is_empty() {
             return Some(parent_manifests);
         }
 

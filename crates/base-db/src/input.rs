@@ -282,13 +282,17 @@ impl ReleaseChannel {
             ReleaseChannel::Nightly => "nightly",
         }
     }
+}
 
-    pub fn from_str(str: &str) -> Option<Self> {
-        Some(match str {
+impl FromStr for ReleaseChannel {
+    type Err = ();
+
+    fn from_str(str: &str) -> Result<Self, Self::Err> {
+        Ok(match str {
             "" => ReleaseChannel::Stable,
             "nightly" => ReleaseChannel::Nightly,
             _ if str.starts_with("beta") => ReleaseChannel::Beta,
-            _ => return None,
+            _ => return Err(()),
         })
     }
 }

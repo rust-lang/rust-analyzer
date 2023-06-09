@@ -185,7 +185,7 @@ impl MemoryMap {
         self.memory.iter().map(|x| Ok((*x.0, f(x.1)?))).collect()
     }
 
-    fn get<'a>(&'a self, addr: usize, size: usize) -> Option<&'a [u8]> {
+    fn get(&self, addr: usize, size: usize) -> Option<&[u8]> {
         if size == 0 {
             Some(&[])
         } else {

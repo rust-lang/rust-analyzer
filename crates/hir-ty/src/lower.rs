@@ -1316,7 +1316,7 @@ fn named_associated_type_shorthand_candidates<R>(
                 ),
                 _ => None,
             });
-            if let Some(_) = res {
+            if res.is_some() {
                 return res;
             }
             // Handle `Self::Type` referring to own associated type in trait definitions

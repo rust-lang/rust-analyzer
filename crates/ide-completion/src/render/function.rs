@@ -103,42 +103,30 @@ fn render(
         .detail(detail(db, func))
         .lookup_by(name.unescaped().to_smol_str());
 
-    match ctx.completion.config.snippet_cap {
-        Some(cap) => {
-            let complete_params = match func_kind {
-                FuncKind::Function(PathCompletionCtx {
-                    kind: PathKind::Expr { .. },
-                    has_call_parens: false,
+    if let Some(cap) = ctx.completion.config.snippet_cap {
+        let complete_params = match func_kind {
+            FuncKind::Function(PathCompletionCtx {
+                kind: PathKind::Expr { .. },
+                has_call_parens: false,
+                ..
+            }) => Some(false),
+            FuncKind::Method(
+                DotAccess {
+                    kind: DotAccessKind::Method { has_parens: false } | DotAccessKind::Field { .. },
                     ..
-                }) => Some(false),
-                FuncKind::Method(
-                    DotAccess {
-                        kind:
-                            DotAccessKind::Method { has_parens: false } | DotAccessKind::Field { .. },
-                        ..
-                    },
-                    _,
-                ) => Some(true),
-                _ => None,
-            };
-            if let Some(has_dot_receiver) = complete_params {
-                if let Some((self_param, params)) =
-                    params(ctx.completion, func, &func_kind, has_dot_receiver)
-                {
-                    add_call_parens(
-                        &mut item,
-                        completion,
-                        cap,
-                        call,
-                        escaped_call,
-                        self_param,
-                        params,
-                    );
-                }
+                },
+                _,
+            ) => Some(true),
+            _ => None,
+        };
+        if let Some(has_dot_receiver) = complete_params {
+            if let Some((self_param, params)) =
+                params(ctx.completion, func, &func_kind, has_dot_receiver)
+            {
+                add_call_parens(&mut item, completion, cap, call, escaped_call, self_param, params);
             }
         }
-        _ => (),
-    };
+    }
 
     match ctx.import_to_add {
         Some(import_to_add) => {

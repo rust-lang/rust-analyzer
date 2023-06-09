@@ -129,7 +129,7 @@ pub(crate) fn generate_getter_impl(
     };
 
     // No record fields to do work on :(
-    if info_of_record_fields.len() == 0 {
+    if info_of_record_fields.is_empty() {
         return None;
     }
 
@@ -179,10 +179,8 @@ pub(crate) fn generate_getter_impl(
                     generate_getter_from_info(ctx, &getter_info, record_field_info);
 
                 // Insert `$0` only for last getter we generate
-                if i == record_fields_count - 1 {
-                    if ctx.config.snippet_cap.is_some() {
-                        getter_buf = getter_buf.replacen("fn ", "fn $0", 1);
-                    }
+                if i == record_fields_count - 1 && ctx.config.snippet_cap.is_some() {
+                    getter_buf = getter_buf.replacen("fn ", "fn $0", 1);
                 }
 
                 // For first element we do not merge with '\n', as
@@ -209,7 +207,7 @@ pub(crate) fn generate_getter_impl(
                 // getter and end of impl ( i.e. `}` ) with an
                 // extra line for no reason
                 if i < record_fields_count - 1 {
-                    buf = buf + "\n";
+                    buf += "\n";
                 }
             }
 
@@ -304,15 +302,13 @@ fn extract_and_parse_record_fields(
                 })
                 .collect::<Vec<RecordFieldInfo>>();
 
-            if info_of_record_fields_in_selection.len() == 0 {
+            if info_of_record_fields_in_selection.is_empty() {
                 return None;
             }
 
             Some((info_of_record_fields_in_selection, field_names))
         }
-        ast::FieldList::TupleFieldList(_) => {
-            return None;
-        }
+        ast::FieldList::TupleFieldList(_) => None,
     }
 }
 

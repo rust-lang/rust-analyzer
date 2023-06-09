@@ -1,15 +1,16 @@
 use line_index::{LineCol, LineIndex, TextRange};
 
 #[test]
+#[rustfmt::skip]
 fn test_line_index() {
     let text = "hello\nworld";
     let table = [
-        (00, 0, 0),
-        (01, 0, 1),
-        (05, 0, 5),
-        (06, 1, 0),
-        (07, 1, 1),
-        (08, 1, 2),
+        ( 0, 0, 0),
+        ( 1, 0, 1),
+        ( 5, 0, 5),
+        ( 6, 1, 0),
+        ( 7, 1, 1),
+        ( 8, 1, 2),
         (10, 1, 4),
         (11, 1, 5),
     ];

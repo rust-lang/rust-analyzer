@@ -166,7 +166,7 @@ pub fn try_const_usize(db: &dyn HirDatabase, c: &Const) -> Option<u128> {
         chalk_ir::ConstValue::InferenceVar(_) => None,
         chalk_ir::ConstValue::Placeholder(_) => None,
         chalk_ir::ConstValue::Concrete(c) => match &c.interned {
-            ConstScalar::Bytes(x, _) => Some(u128::from_le_bytes(pad16(&x, false))),
+            ConstScalar::Bytes(x, _) => Some(u128::from_le_bytes(pad16(x, false))),
             ConstScalar::UnevaluatedConst(c, subst) => {
                 let ec = db.const_eval(*c, subst.clone()).ok()?;
                 try_const_usize(db, &ec)
@@ -286,7 +286,7 @@ pub(crate) fn eval_to_const(
         }
     }
     let infer = ctx.clone().resolve_all();
-    if let Ok(mir_body) = lower_to_mir(ctx.db, ctx.owner, &ctx.body, &infer, expr) {
+    if let Ok(mir_body) = lower_to_mir(ctx.db, ctx.owner, ctx.body, &infer, expr) {
         if let Ok(result) = interpret_mir(db, &mir_body, true).0 {
             return result;
         }

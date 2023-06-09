@@ -142,7 +142,7 @@ impl<V, T> ProjectionElem<V, T> {
                 }
                 _ => {
                     never!("Overloaded deref on type {} is not a projection", base.display(db));
-                    return TyKind::Error.intern(Interner);
+                    TyKind::Error.intern(Interner)
                 }
             },
             ProjectionElem::Field(f) => match &base.data(Interner).kind {
@@ -151,7 +151,7 @@ impl<V, T> ProjectionElem<V, T> {
                 }
                 _ => {
                     never!("Only adt has field");
-                    return TyKind::Error.intern(Interner);
+                    TyKind::Error.intern(Interner)
                 }
             },
             ProjectionElem::TupleOrClosureField(f) => match &base.data(Interner).kind {
@@ -167,7 +167,7 @@ impl<V, T> ProjectionElem<V, T> {
                 TyKind::Closure(id, subst) => closure_field(*id, subst, *f),
                 _ => {
                     never!("Only tuple or closure has tuple or closure field");
-                    return TyKind::Error.intern(Interner);
+                    TyKind::Error.intern(Interner)
                 }
             },
             ProjectionElem::ConstantIndex { .. } | ProjectionElem::Index(_) => {
@@ -175,7 +175,7 @@ impl<V, T> ProjectionElem<V, T> {
                     TyKind::Array(inner, _) | TyKind::Slice(inner) => inner.clone(),
                     _ => {
                         never!("Overloaded index is not a projection");
-                        return TyKind::Error.intern(Interner);
+                        TyKind::Error.intern(Interner)
                     }
                 }
             }
@@ -194,12 +194,12 @@ impl<V, T> ProjectionElem<V, T> {
                 TyKind::Slice(_) => base.clone(),
                 _ => {
                     never!("Subslice projection should only happen on slice and array");
-                    return TyKind::Error.intern(Interner);
+                    TyKind::Error.intern(Interner)
                 }
             },
             ProjectionElem::OpaqueCast(_) => {
                 never!("We don't emit these yet");
-                return TyKind::Error.intern(Interner);
+                TyKind::Error.intern(Interner)
             }
         }
     }
