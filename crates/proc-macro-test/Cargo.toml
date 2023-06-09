@@ -18,3 +18,6 @@ proc-macro-test-impl = { path = "imp", version = "0.0.0" }
 
 # local deps
 toolchain.workspace = true
+
+[lints]
+workspace = true

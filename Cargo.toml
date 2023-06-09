@@ -92,3 +92,25 @@ serde_json = "1.0.94"
 triomphe = { version = "0.1.8", default-features = false, features = ["std"] }
 
 rustc_lexer = { version = "0.1.0", package = "ra-ap-rustc_lexer" }
+
+[workspace.lints.rust]
+rust_2018_idioms = "warn"
+unused_lifetimes = "warn"
+semicolon_in_expressions_from_macros = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+# () makes a fine error in most cases
+result_unit_err = "allow"
+# We don't expose public APIs that matter like this
+len_without_is_empty = "allow"
+# Should be tackled at some point
+too_many_arguments = "allow"
+# Should be tackled at some point
+type_complexity = "allow"
+# we currently prefer explicit control flow return over `...?;` statements whose result is unused
+question_mark = "allow"
+# We have macros that rely on this currently
+enum_variant_names = "allow"
+# Builder pattern disagrees
+new_ret_no_self = "allow"

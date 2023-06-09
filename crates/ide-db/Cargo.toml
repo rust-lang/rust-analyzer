@@ -48,3 +48,6 @@ xshell = "0.2.2"
 # local deps
 test-utils.workspace = true
 sourcegen.workspace = true
+
+[lints]
+workspace = true

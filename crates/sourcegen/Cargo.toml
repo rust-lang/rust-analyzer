@@ -13,3 +13,6 @@ doctest = false
 
 [dependencies]
 xshell = "0.2.2"
+
+[lints]
+workspace = true

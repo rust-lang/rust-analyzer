@@ -52,3 +52,6 @@ test-utils.workspace = true
 
 [features]
 in-rust-tree = ["ide-assists/in-rust-tree", "ide-diagnostics/in-rust-tree"]
+
+[lints]
+workspace = true

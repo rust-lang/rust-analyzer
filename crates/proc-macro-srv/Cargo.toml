@@ -36,3 +36,6 @@ proc-macro-test.workspace = true
 
 [features]
 sysroot-abi = []
+
+[lints]
+workspace = true

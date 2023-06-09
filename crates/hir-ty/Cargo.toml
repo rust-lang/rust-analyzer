@@ -55,3 +55,6 @@ project-model = { path = "../project-model" }
 
 # local deps
 test-utils.workspace = true
+
+[lints]
+workspace = true

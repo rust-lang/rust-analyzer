@@ -33,3 +33,6 @@ stdx.workspace = true
 profile.workspace = true
 # Intentionally *not* depend on anything salsa-related
 # base-db.workspace = true
+
+[lints]
+workspace = true
