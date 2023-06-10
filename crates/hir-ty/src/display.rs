@@ -561,9 +561,7 @@ fn render_const_scalar(
                     write!(f, "&{}", data.name.display(f.db.upcast()))?;
                     Ok(())
                 }
-                _ => {
-                    return f.write_str("<unsized-enum-or-union>");
-                }
+                _ => f.write_str("<unsized-enum-or-union>"),
             },
             _ => {
                 let addr = usize::from_le_bytes(match b.try_into() {

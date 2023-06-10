@@ -152,7 +152,7 @@ impl flags::Scip {
 
             documents.push(scip_types::Document {
                 relative_path,
-                language: "rust".to_string(),
+                language: "rust".to_owned(),
                 occurrences,
                 symbols,
                 special_fields: Default::default(),
@@ -204,7 +204,7 @@ fn new_descriptor_str(
 ) -> scip_types::Descriptor {
     scip_types::Descriptor {
         name: name.to_string(),
-        disambiguator: "".to_string(),
+        disambiguator: "".to_owned(),
         suffix: suffix.into(),
         special_fields: Default::default(),
     }
@@ -253,9 +253,9 @@ fn token_to_symbol(token: &TokenStaticData) -> Option<scip_types::Symbol> {
     Some(scip_types::Symbol {
         scheme: "rust-analyzer".into(),
         package: Some(scip_types::Package {
-            manager: "cargo".to_string(),
+            manager: "cargo".to_owned(),
             name: package_name,
-            version: version.unwrap_or_else(|| ".".to_string()),
+            version: version.unwrap_or_else(|| ".".to_owned()),
             special_fields: Default::default(),
         })
         .into(),

@@ -115,7 +115,7 @@ impl GlobalState {
             self.register_did_save_capability();
         }
 
-        self.fetch_workspaces_queue.request_op("startup".to_string(), ());
+        self.fetch_workspaces_queue.request_op("startup".to_owned(), ());
         if let Some((cause, ())) = self.fetch_workspaces_queue.should_start_op() {
             self.fetch_workspaces(cause);
         }
@@ -159,8 +159,8 @@ impl GlobalState {
         };
 
         let registration = lsp_types::Registration {
-            id: "textDocument/didSave".to_string(),
-            method: "textDocument/didSave".to_string(),
+            id: "textDocument/didSave".to_owned(),
+            method: "textDocument/didSave".to_owned(),
             register_options: Some(serde_json::to_value(save_registration_options).unwrap()),
         };
         self.send_request::<lsp_types::request::RegisterCapability>(
@@ -252,7 +252,7 @@ impl GlobalState {
                             self.prime_caches_queue.op_completed(());
                             if cancelled {
                                 self.prime_caches_queue
-                                    .request_op("restart after cancellation".to_string(), ());
+                                    .request_op("restart after cancellation".to_owned(), ());
                             }
                         }
                     };
@@ -293,7 +293,7 @@ impl GlobalState {
                     self.flycheck.iter().for_each(FlycheckHandle::restart);
                 }
                 if self.config.prefill_caches() {
-                    self.prime_caches_queue.request_op("became quiescent".to_string(), ());
+                    self.prime_caches_queue.request_op("became quiescent".to_owned(), ());
                 }
             }
 
@@ -340,7 +340,7 @@ impl GlobalState {
                 // See https://github.com/rust-lang/rust-analyzer/issues/13130
                 let patch_empty = |message: &mut String| {
                     if message.is_empty() {
-                        *message = " ".to_string();
+                        *message = " ".to_owned();
                     }
                 };
 
@@ -475,12 +475,12 @@ impl GlobalState {
                         }
 
                         let old = Arc::clone(&self.workspaces);
-                        self.switch_workspaces("fetched workspace".to_string());
+                        self.switch_workspaces("fetched workspace".to_owned());
                         let workspaces_updated = !Arc::ptr_eq(&old, &self.workspaces);
 
                         if self.config.run_build_scripts() && workspaces_updated {
                             self.fetch_build_data_queue
-                                .request_op("workspace updated".to_string(), ());
+                                .request_op("workspace updated".to_owned(), ());
                         }
 
                         (Progress::End, None)
@@ -499,7 +499,7 @@ impl GlobalState {
                             tracing::error!("FetchBuildDataError:\n{e}");
                         }
 
-                        self.switch_workspaces("fetched build data".to_string());
+                        self.switch_workspaces("fetched build data".to_owned());
 
                         (Some(Progress::End), None)
                     }
@@ -833,7 +833,7 @@ impl GlobalState {
                                     ))
                                     .unwrap(),
                                 }),
-                                source: Some("rust-analyzer".to_string()),
+                                source: Some("rust-analyzer".to_owned()),
                                 message: d.message,
                                 related_information: None,
                                 tags: if d.unused {

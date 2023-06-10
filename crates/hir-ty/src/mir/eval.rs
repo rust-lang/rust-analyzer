@@ -1463,7 +1463,7 @@ impl Evaluator<'_> {
             }
         };
         mem.get(pos..pos + size)
-            .ok_or_else(|| MirEvalError::UndefinedBehavior("out of bound memory read".to_string()))
+            .ok_or_else(|| MirEvalError::UndefinedBehavior("out of bound memory read".to_owned()))
     }
 
     fn write_memory(&mut self, addr: Address, r: &[u8]) -> Result<()> {
@@ -1480,9 +1480,7 @@ impl Evaluator<'_> {
             }
         };
         mem.get_mut(pos..pos + r.len())
-            .ok_or_else(|| {
-                MirEvalError::UndefinedBehavior("out of bound memory write".to_string())
-            })?
+            .ok_or_else(|| MirEvalError::UndefinedBehavior("out of bound memory write".to_owned()))?
             .copy_from_slice(r);
         Ok(())
     }
@@ -1584,7 +1582,7 @@ impl Evaluator<'_> {
                             if let Some(ty) = check_inner {
                                 for i in 0..count {
                                     let offset = element_size * i;
-                                    rec(this, &b[offset..offset + element_size], &ty, locals, mm)?;
+                                    rec(this, &b[offset..offset + element_size], ty, locals, mm)?;
                                 }
                             }
                         }

@@ -961,7 +961,7 @@ fn fn_arg_name(sema: &Semantics<'_, RootDatabase>, arg_expr: &ast::Expr) -> Stri
             name
         }
         Some(name) => name,
-        None => "arg".to_string(),
+        None => "arg".to_owned(),
     }
 }
 

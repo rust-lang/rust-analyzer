@@ -312,7 +312,7 @@ fn main() {
         check_fix(
             r#"
 unsafe fn foo() -> String {
-    "string".to_string()
+    "string".to_owned()
 }
 
 fn main() {
@@ -321,7 +321,7 @@ fn main() {
 "#,
             r#"
 unsafe fn foo() -> String {
-    "string".to_string()
+    "string".to_owned()
 }
 
 fn main() {

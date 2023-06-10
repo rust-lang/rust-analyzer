@@ -70,7 +70,7 @@ fn field_fix(
     };
     Some(vec![Assist {
         id: AssistId("expected-method-found-field-fix", AssistKind::QuickFix),
-        label: Label::new("Use parentheses to call the value of the field".to_string()),
+        label: Label::new("Use parentheses to call the value of the field".to_owned()),
         group: None,
         target: range,
         source_change: Some(SourceChange::from_iter([

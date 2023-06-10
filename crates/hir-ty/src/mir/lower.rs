@@ -1435,7 +1435,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
         self.set_goto(prev_block, begin, span);
         f(self, begin)?;
         let my = mem::replace(&mut self.current_loop_blocks, prev).ok_or(
-            MirLowerError::ImplementationError("current_loop_blocks is corrupt".to_string()),
+            MirLowerError::ImplementationError("current_loop_blocks is corrupt".to_owned()),
         )?;
         if let Some(prev) = prev_label {
             self.labeled_loop_blocks.insert(label.unwrap(), prev);
@@ -1470,7 +1470,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
             .current_loop_blocks
             .as_mut()
             .ok_or(MirLowerError::ImplementationError(
-                "Current loop access out of loop".to_string(),
+                "Current loop access out of loop".to_owned(),
             ))?
             .end
         {
@@ -1480,7 +1480,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
                 self.current_loop_blocks
                     .as_mut()
                     .ok_or(MirLowerError::ImplementationError(
-                        "Current loop access out of loop".to_string(),
+                        "Current loop access out of loop".to_owned(),
                     ))?
                     .end = Some(s);
                 s

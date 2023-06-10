@@ -59,7 +59,7 @@ fn standalone_function() {
 
 pub fn public_thing(argument: bool) -> String {
     // code
-    # "".to_string()
+    # "".to_owned()
 }
 
 struct Thing {
@@ -120,7 +120,7 @@ book] or the [Reference].
 
             pub fn public_thing(argument: bool) -> String {
                 // code
-                # "".to_string()
+                # "".to_owned()
             }
 
             struct Thing {

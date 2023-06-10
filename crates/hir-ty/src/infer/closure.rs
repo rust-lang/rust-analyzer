@@ -199,7 +199,7 @@ impl CapturedItem {
                             .position(|x| x.0 == f.local_id)
                             .unwrap_or_default()
                             .to_string(),
-                        VariantData::Unit => "[missing field]".to_string(),
+                        VariantData::Unit => "[missing field]".to_owned(),
                     };
                     result = format!("{result}.{field}");
                     field_need_paren = false;

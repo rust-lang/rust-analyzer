@@ -609,7 +609,7 @@ fn location_csv_expr(
 ) -> String {
     let src = match sm.expr_syntax(expr_id) {
         Ok(s) => s,
-        Err(SyntheticSyntax) => return "synthetic,,".to_string(),
+        Err(SyntheticSyntax) => return "synthetic,,".to_owned(),
     };
     let root = db.parse_or_expand(src.file_id);
     let node = src.map(|e| e.to_node(&root).syntax().clone());
@@ -631,7 +631,7 @@ fn location_csv_pat(
 ) -> String {
     let src = match sm.pat_syntax(pat_id) {
         Ok(s) => s,
-        Err(SyntheticSyntax) => return "synthetic,,".to_string(),
+        Err(SyntheticSyntax) => return "synthetic,,".to_owned(),
     };
     let root = db.parse_or_expand(src.file_id);
     let node = src.map(|e| {

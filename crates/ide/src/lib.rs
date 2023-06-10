@@ -228,7 +228,7 @@ impl Analysis {
         let mut host = AnalysisHost::default();
         let file_id = FileId(0);
         let mut file_set = FileSet::default();
-        file_set.insert(file_id, VfsPath::new_virtual_path("/main.rs".to_string()));
+        file_set.insert(file_id, VfsPath::new_virtual_path("/main.rs".to_owned()));
         let source_root = SourceRoot::new_local(file_set);
 
         let mut change = Change::new();

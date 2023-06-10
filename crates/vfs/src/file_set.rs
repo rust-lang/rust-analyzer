@@ -71,12 +71,12 @@ impl fmt::Debug for FileSet {
 /// ```rust
 /// # use vfs::{file_set::FileSetConfigBuilder, VfsPath, Vfs};
 /// let mut builder = FileSetConfigBuilder::default();
-/// builder.add_file_set(vec![VfsPath::new_virtual_path("/src".to_string())]);
+/// builder.add_file_set(vec![VfsPath::new_virtual_path("/src".to_owned())]);
 /// let config = builder.build();
 /// let mut file_system = Vfs::default();
-/// file_system.set_file_contents(VfsPath::new_virtual_path("/src/main.rs".to_string()), Some(vec![]));
-/// file_system.set_file_contents(VfsPath::new_virtual_path("/src/lib.rs".to_string()), Some(vec![]));
-/// file_system.set_file_contents(VfsPath::new_virtual_path("/build.rs".to_string()), Some(vec![]));
+/// file_system.set_file_contents(VfsPath::new_virtual_path("/src/main.rs".to_owned()), Some(vec![]));
+/// file_system.set_file_contents(VfsPath::new_virtual_path("/src/lib.rs".to_owned()), Some(vec![]));
+/// file_system.set_file_contents(VfsPath::new_virtual_path("/build.rs".to_owned()), Some(vec![]));
 /// // contains the sets :
 /// // { "/src/main.rs", "/src/lib.rs" }
 /// // { "build.rs" }

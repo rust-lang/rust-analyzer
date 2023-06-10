@@ -284,7 +284,7 @@ impl CargoWorkspace {
         // FIXME: Fetching metadata is a slow process, as it might require
         // calling crates.io. We should be reporting progress here, but it's
         // unclear whether cargo itself supports it.
-        progress("metadata".to_string());
+        progress("metadata".to_owned());
 
         (|| -> Result<cargo_metadata::Metadata, cargo_metadata::Error> {
             let mut command = meta.cargo_command();

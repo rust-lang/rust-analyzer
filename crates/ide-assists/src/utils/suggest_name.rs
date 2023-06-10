@@ -119,7 +119,7 @@ pub(crate) fn for_variable(expr: &ast::Expr, sema: &Semantics<'_, RootDatabase>)
         }
     }
 
-    "var_name".to_string()
+    "var_name".to_owned()
 }
 
 fn normalize(name: &str) -> Option<String> {

@@ -2056,7 +2056,7 @@ A simple example is:
 fn foo<T: ?Sized>(_f: impl AsRef<T>) {}
 
 fn main() {
-    foo::<str>("".to_string());
+    foo::<str>("".to_owned());
 }
 ```
 
@@ -2066,7 +2066,7 @@ This is currently rejected:
 error[E0632]: cannot provide explicit generic arguments when `impl Trait` is used in argument position
  --> src/main.rs:6:11
   |
-6 |     foo::<str>("".to_string());
+6 |     foo::<str>("".to_owned());
   |           ^^^ explicit generic argument not allowed
 
 ```
@@ -2083,11 +2083,11 @@ fn foo<T: ?Sized>(_f: impl AsRef<T>) {}
 fn bar<T: ?Sized, F: AsRef<T>>(_f: F) {}
 
 fn main() {
-    bar::<str, _>("".to_string()); // Okay
-    bar::<str, String>("".to_string()); // Okay
+    bar::<str, _>("".to_owned()); // Okay
+    bar::<str, String>("".to_owned()); // Okay
 
-    foo::<str>("".to_string()); // Okay
-    foo::<str, String>("".to_string()); // Error, you cannot specify `impl Trait` explicitly
+    foo::<str>("".to_owned()); // Okay
+    foo::<str, String>("".to_owned()); // Error, you cannot specify `impl Trait` explicitly
 }
 ```
 "##,

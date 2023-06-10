@@ -841,7 +841,7 @@ impl Config {
         use serde::de::Error;
         if self.data.check_command.is_empty() {
             error_sink.push((
-                "/check/command".to_string(),
+                "/check/command".to_owned(),
                 serde_json::Error::custom("expected a non-empty string"),
             ));
         }

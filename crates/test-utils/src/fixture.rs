@@ -192,7 +192,7 @@ impl FixtureWithProjectMeta {
         let mut env = FxHashMap::default();
         let mut introduce_new_source_root = None;
         let mut target_data_layout = Some(
-            "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128".to_string(),
+            "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128".to_owned(),
         );
         for component in components[1..].iter() {
             let (key, value) =
@@ -423,9 +423,9 @@ fn parse_fixture_gets_full_meta() {
 mod m;
 "#,
         );
-    assert_eq!(toolchain, Some("nightly".to_string()));
-    assert_eq!(proc_macro_names, vec!["identity".to_string()]);
-    assert_eq!(mini_core.unwrap().activated_flags, vec!["coerce_unsized".to_string()]);
+    assert_eq!(toolchain, Some("nightly".to_owned()));
+    assert_eq!(proc_macro_names, vec!["identity".to_owned()]);
+    assert_eq!(mini_core.unwrap().activated_flags, vec!["coerce_unsized".to_owned()]);
     assert_eq!(1, parsed.len());
 
     let meta = &parsed[0];

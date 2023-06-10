@@ -341,7 +341,7 @@ impl WorkspaceBuildScripts {
                                 if let Some(out_dir) =
                                     out_dir.as_os_str().to_str().map(|s| s.to_owned())
                                 {
-                                    data.envs.push(("OUT_DIR".to_string(), out_dir));
+                                    data.envs.push(("OUT_DIR".to_owned(), out_dir));
                                 }
                                 data.out_dir = Some(out_dir);
                                 data.cfgs = cfgs;
@@ -381,7 +381,7 @@ impl WorkspaceBuildScripts {
 
         let errors = if !output.status.success() {
             let errors = errors.into_inner();
-            Some(if errors.is_empty() { "cargo check failed".to_string() } else { errors })
+            Some(if errors.is_empty() { "cargo check failed".to_owned() } else { errors })
         } else {
             None
         };

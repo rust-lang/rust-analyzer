@@ -85,7 +85,7 @@ impl GlobalState {
             );
         }
         if self.config.linked_projects() != old_config.linked_projects() {
-            self.fetch_workspaces_queue.request_op("linked projects changed".to_string(), ())
+            self.fetch_workspaces_queue.request_op("linked projects changed".to_owned(), ())
         } else if self.config.flycheck() != old_config.flycheck() {
             self.reload_flycheck();
         }
@@ -407,8 +407,8 @@ impl GlobalState {
                     .collect(),
             };
             let registration = lsp_types::Registration {
-                id: "workspace/didChangeWatchedFiles".to_string(),
-                method: "workspace/didChangeWatchedFiles".to_string(),
+                id: "workspace/didChangeWatchedFiles".to_owned(),
+                method: "workspace/didChangeWatchedFiles".to_owned(),
                 register_options: Some(serde_json::to_value(registration_options).unwrap()),
             };
             self.send_request::<lsp_types::request::RegisterCapability>(
@@ -753,7 +753,7 @@ pub(crate) fn load_proc_macro(
         let dylib = MacroDylib::new(path.to_path_buf());
         let vec = server.load_dylib(dylib).map_err(|e| format!("{e}"))?;
         if vec.is_empty() {
-            return Err("proc macro library returned no proc macros".to_string());
+            return Err("proc macro library returned no proc macros".to_owned());
         }
         Ok(vec
             .into_iter()

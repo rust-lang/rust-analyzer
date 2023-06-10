@@ -108,7 +108,7 @@ pub fn identity_when_valid(_attr: TokenStream, item: TokenStream) -> TokenStream
         if let TokenExpander::DeclarativeMacro { mac, def_site_token_map } = &*macro_def {
             let tt = match &macro_ {
                 ast::Macro::MacroRules(mac) => mac.token_tree().unwrap(),
-                ast::Macro::MacroDef(_) => unimplemented!(""),
+                ast::Macro::MacroDef(m) => m.body().unwrap(),
             };
 
             let tt_start = tt.syntax().text_range().start();

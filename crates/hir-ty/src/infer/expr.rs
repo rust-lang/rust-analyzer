@@ -576,6 +576,7 @@ impl<'a> InferenceContext<'a> {
                 let cast_ty = self.make_ty(type_ref);
                 // FIXME: propagate the "castable to" expectation
                 let inner_ty = self.infer_expr_no_expect(*expr);
+                #[allow(clippy::single_match)]
                 match (inner_ty.kind(Interner), cast_ty.kind(Interner)) {
                     (TyKind::Ref(_, _, inner), TyKind::Raw(_, cast)) => {
                         // FIXME: record invalid cast diagnostic in case of mismatch

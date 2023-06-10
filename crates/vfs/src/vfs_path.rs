@@ -342,7 +342,7 @@ impl VirtualPath {
     /// # Example
     ///
     /// ```rust,ignore
-    /// let mut path = VirtualPath("/foo/bar".to_string());
+    /// let mut path = VirtualPath("/foo/bar".to_owned());
     /// path.pop();
     /// assert_eq!(path.0, "/foo");
     /// path.pop();

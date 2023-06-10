@@ -552,7 +552,7 @@ fn closure_ty(
         })
         .join("\n");
     if captures_rendered.trim().is_empty() {
-        captures_rendered = "This closure captures nothing".to_string();
+        captures_rendered = "This closure captures nothing".to_owned();
     }
     let mut targets: Vec<hir::ModuleDef> = Vec::new();
     let mut push_new_def = |item: hir::ModuleDef| {

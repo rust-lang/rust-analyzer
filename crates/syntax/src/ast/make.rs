@@ -232,7 +232,7 @@ pub fn impl_(
 
     let where_clause = match where_clause {
         Some(pr) => pr.to_string(),
-        None => " ".to_string(),
+        None => " ".to_owned(),
     };
 
     let body = match body {
@@ -278,7 +278,7 @@ pub fn impl_trait(
     let is_negative = if is_negative { "! " } else { "" };
 
     let where_clause = match (ty_where_clause, trait_where_clause) {
-        (None, None) => " ".to_string(),
+        (None, None) => " ".to_owned(),
         (None, Some(tr)) => format!("\n{}\n", tr),
         (Some(ty), None) => format!("\n{}\n", ty),
         (Some(ty), Some(tr)) => {
@@ -369,7 +369,7 @@ pub fn use_tree(
     alias: Option<ast::Rename>,
     add_star: bool,
 ) -> ast::UseTree {
-    let mut buf = "use ".to_string();
+    let mut buf = "use ".to_owned();
     buf += &path.syntax().to_string();
     if let Some(use_tree_list) = use_tree_list {
         format_to!(buf, "::{use_tree_list}");
@@ -436,7 +436,7 @@ pub fn block_expr(
     stmts: impl IntoIterator<Item = ast::Stmt>,
     tail_expr: Option<ast::Expr>,
 ) -> ast::BlockExpr {
-    let mut buf = "{\n".to_string();
+    let mut buf = "{\n".to_owned();
     for stmt in stmts.into_iter() {
         format_to!(buf, "    {stmt}\n");
     }
@@ -459,7 +459,7 @@ pub fn hacky_block_expr(
     elements: impl IntoIterator<Item = crate::SyntaxElement>,
     tail_expr: Option<ast::Expr>,
 ) -> ast::BlockExpr {
-    let mut buf = "{\n".to_string();
+    let mut buf = "{\n".to_owned();
     for node_or_token in elements.into_iter() {
         match node_or_token {
             rowan::NodeOrToken::Node(n) => format_to!(buf, "    {n}\n"),

@@ -99,18 +99,41 @@ unused_lifetimes = "warn"
 semicolon_in_expressions_from_macros = "warn"
 
 [workspace.lints.clippy]
-all = { level = "warn", priority = -1 }
+# complexity lints
+complexity = { level = "warn", priority = -1 }
+# Should be tackled at some point where relevant
+too_many_arguments = "allow"
+# Should be tackled at some point
+type_complexity = "allow"
+
+# correctness lints
+correctness = { level = "deny", priority = -1 }
+
+# perf lints
+perf = { level = "deny", priority = -1 }
+
+# style lints
+style = { level = "warn", priority = -1 }
 # () makes a fine error in most cases
 result_unit_err = "allow"
 # We don't expose public APIs that matter like this
 len_without_is_empty = "allow"
-# Should be tackled at some point
-too_many_arguments = "allow"
-# Should be tackled at some point
-type_complexity = "allow"
 # we currently prefer explicit control flow return over `...?;` statements whose result is unused
 question_mark = "allow"
 # We have macros that rely on this currently
 enum_variant_names = "allow"
 # Builder pattern disagrees
 new_ret_no_self = "allow"
+
+# suspicious lints
+suspicious = { level = "warn", priority = -1 }
+
+# suspicious lints
+restriction = { level = "allow", priority = -1 }
+# Remove the tidy test once the lint table is stable
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+rc_buffer = "warn"
+# FIXME enable this, we use this pattern a lot so its annoying work ...
+# str_to_string = "warn"

@@ -196,14 +196,14 @@ fn recursive() {
     }
     check_fail(
         r#"struct Goal(Goal);"#,
-        LayoutError::UserError("infinite sized recursive type".to_string()),
+        LayoutError::UserError("infinite sized recursive type".to_owned()),
     );
     check_fail(
         r#"
         struct Foo<T>(Foo<T>);
         struct Goal(Foo<i32>);
         "#,
-        LayoutError::UserError("infinite sized recursive type".to_string()),
+        LayoutError::UserError("infinite sized recursive type".to_owned()),
     );
 }
 

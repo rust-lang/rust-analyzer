@@ -155,7 +155,7 @@ impl Evaluator<'_> {
         use LangItem::*;
         let mut args = args.iter();
         match x {
-            BeginPanic => Err(MirEvalError::Panic("<unknown-panic-payload>".to_string())),
+            BeginPanic => Err(MirEvalError::Panic("<unknown-panic-payload>".to_owned())),
             PanicFmt => {
                 let message = (|| {
                     let arguments_struct =
@@ -178,7 +178,7 @@ impl Evaluator<'_> {
                             .try_into()
                             .ok()?,
                     );
-                    let mut message = "".to_string();
+                    let mut message = "".to_owned();
                     for i in 0..pieces_array_len {
                         let piece_ptr_addr = pieces_array_addr.offset(2 * i * ptr_size);
                         let piece_addr =
@@ -195,7 +195,7 @@ impl Evaluator<'_> {
                     }
                     Some(message)
                 })()
-                .unwrap_or_else(|| "<format-args-evaluation-failed>".to_string());
+                .unwrap_or_else(|| "<format-args-evaluation-failed>".to_owned());
                 Err(MirEvalError::Panic(message))
             }
             SliceLen => {

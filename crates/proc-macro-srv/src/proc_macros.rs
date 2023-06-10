@@ -92,7 +92,7 @@ impl ProcMacros {
             }
         }
 
-        Err(proc_macro::bridge::PanicMessage::String("Nothing to expand".to_string()).into())
+        Err(proc_macro::bridge::PanicMessage::String("Nothing to expand".to_owned()).into())
     }
 
     pub(crate) fn list_macros(&self) -> Vec<(String, ProcMacroKind)> {

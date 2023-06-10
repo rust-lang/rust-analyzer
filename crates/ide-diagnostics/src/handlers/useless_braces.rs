@@ -33,7 +33,7 @@ pub(crate) fn useless_braces(
         acc.push(
             Diagnostic::new(
                 "unnecessary-braces",
-                "Unnecessary braces in use statement".to_string(),
+                "Unnecessary braces in use statement".to_owned(),
                 use_range,
             )
             .severity(Severity::WeakWarning)

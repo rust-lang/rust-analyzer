@@ -161,7 +161,7 @@ fn repr_discr(
             return Err(LayoutError::UserError(
                 "Integer::repr_discr: `#[repr]` hint too small for \
                       discriminant range of enum "
-                    .to_string(),
+                    .to_owned(),
             ));
         }
         return Ok((discr, ity.is_signed()));

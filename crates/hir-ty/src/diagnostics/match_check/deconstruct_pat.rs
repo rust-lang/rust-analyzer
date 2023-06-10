@@ -129,7 +129,7 @@ impl IntRange {
     fn from_range(lo: u128, hi: u128, scalar_ty: Scalar) -> IntRange {
         match scalar_ty {
             Scalar::Bool => IntRange { range: lo..=hi },
-            _ => unimplemented!(),
+            s => panic!("unexpected scalar {s:?}"),
         }
     }
 
@@ -161,7 +161,7 @@ impl IntRange {
                 };
                 Pat { ty, kind: kind.into() }
             }
-            _ => unimplemented!(),
+            t => panic!("unexpected type {t:?}"),
         }
     }
 

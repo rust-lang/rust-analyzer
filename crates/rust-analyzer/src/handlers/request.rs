@@ -52,7 +52,7 @@ pub(crate) fn handle_workspace_reload(state: &mut GlobalState, _: ()) -> Result<
     state.proc_macro_clients = Arc::from(Vec::new());
     state.proc_macro_changed = false;
 
-    state.fetch_workspaces_queue.request_op("reload workspace request".to_string(), ());
+    state.fetch_workspaces_queue.request_op("reload workspace request".to_owned(), ());
     Ok(())
 }
 
@@ -61,7 +61,7 @@ pub(crate) fn handle_proc_macros_rebuild(state: &mut GlobalState, _: ()) -> Resu
     state.proc_macro_clients = Arc::from(Vec::new());
     state.proc_macro_changed = false;
 
-    state.fetch_build_data_queue.request_op("rebuild proc macros request".to_string(), ());
+    state.fetch_build_data_queue.request_op("rebuild proc macros request".to_owned(), ());
     Ok(())
 }
 
@@ -798,13 +798,13 @@ pub(crate) fn handle_runnables(
         None => {
             if !snap.config.linked_projects().is_empty() {
                 res.push(lsp_ext::Runnable {
-                    label: "cargo check --workspace".to_string(),
+                    label: "cargo check --workspace".to_owned(),
                     location: None,
                     kind: lsp_ext::RunnableKind::Cargo,
                     args: lsp_ext::CargoRunnable {
                         workspace_root: None,
                         override_cargo: config.override_cargo,
-                        cargo_args: vec!["check".to_string(), "--workspace".to_string()],
+                        cargo_args: vec!["check".to_owned(), "--workspace".to_owned()],
                         cargo_extra_args: config.cargo_extra_args,
                         executable_args: Vec::new(),
                         expect_test: None,
@@ -878,7 +878,7 @@ pub(crate) fn handle_completion_resolve(
 
     if !all_edits_are_disjoint(&original_completion, &[]) {
         return Err(invalid_params_error(
-            "Received a completion with overlapping edits, this is not LSP-compliant".to_string(),
+            "Received a completion with overlapping edits, this is not LSP-compliant".to_owned(),
         )
         .into());
     }
@@ -1163,7 +1163,7 @@ pub(crate) fn handle_code_action_resolve(
     let _p = profile::span("handle_code_action_resolve");
     let params = match code_action.data.take() {
         Some(it) => it,
-        None => return Err(invalid_params_error("code action without data".to_string()).into()),
+        None => return Err(invalid_params_error("code action without data".to_owned()).into()),
     };
 
     let file_id = from_proto::file_id(&snap, &params.code_action_params.text_document.uri)?;
@@ -1231,7 +1231,7 @@ fn parse_action_id(action_id: &str) -> Result<(usize, SingleResolve), String> {
             };
             Ok((index, SingleResolve { assist_id: assist_id_string.to_string(), assist_kind }))
         }
-        _ => Err("Action id contains incorrect number of segments".to_string()),
+        _ => Err("Action id contains incorrect number of segments".to_owned()),
     }
 }
 

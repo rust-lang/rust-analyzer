@@ -116,7 +116,7 @@ impl<'a> RequestDispatcher<'a> {
                     Err(_) => Task::Response(lsp_server::Response::new_err(
                         req.id,
                         lsp_server::ErrorCode::ContentModified as i32,
-                        "content modified".to_string(),
+                        "content modified".to_owned(),
                     )),
                 }
             }
@@ -157,7 +157,7 @@ impl<'a> RequestDispatcher<'a> {
             let response = lsp_server::Response::new_err(
                 req.id,
                 lsp_server::ErrorCode::MethodNotFound as i32,
-                "unknown request".to_string(),
+                "unknown request".to_owned(),
             );
             self.global_state.respond(response);
         }
@@ -242,7 +242,7 @@ where
                 .map(String::as_str)
                 .or_else(|| panic.downcast_ref::<&str>().copied());
 
-            let mut message = "request handler panicked".to_string();
+            let mut message = "request handler panicked".to_owned();
             if let Some(panic_message) = panic_message {
                 message.push_str(": ");
                 message.push_str(panic_message)

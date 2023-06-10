@@ -264,12 +264,12 @@ pub(crate) fn def_to_moniker(
                 ),
                 CrateOrigin::Rustc { name } => (
                     name.clone(),
-                    Some("https://github.com/rust-lang/rust/".to_string()),
+                    Some("https://github.com/rust-lang/rust/".to_owned()),
                     Some(format!("https://github.com/rust-lang/rust/compiler/{name}",)),
                 ),
                 CrateOrigin::Lang(lang) => (
                     krate.display_name(db)?.canonical_name().to_string(),
-                    Some("https://github.com/rust-lang/rust/".to_string()),
+                    Some("https://github.com/rust-lang/rust/".to_owned()),
                     Some(match lang {
                         LangCrateOrigin::Other => {
                             "https://github.com/rust-lang/rust/library/".into()

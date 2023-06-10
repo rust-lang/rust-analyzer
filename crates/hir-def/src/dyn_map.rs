@@ -14,7 +14,7 @@
 //! let mut map = DynMap::new();
 //!
 //! // To access a specific map, index the `DynMap` by `Key`:
-//! map[STRING_TO_U32].insert("hello".to_string(), 92);
+//! map[STRING_TO_U32].insert("hello".to_owned(), 92);
 //! let value = map[U32_TO_VEC].get(92);
 //! assert!(value.is_none());
 //! ```

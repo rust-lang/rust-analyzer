@@ -188,6 +188,7 @@ impl<'a> chalk_solve::RustIrDatabase<Interner> for ChalkContext<'a> {
     fn custom_clauses(&self) -> Vec<chalk_ir::ProgramClause<Interner>> {
         vec![]
     }
+    #[allow(clippy::unimplemented)]
     fn local_impls_to_coherence_check(&self, _trait_id: TraitId) -> Vec<ImplId> {
         // We don't do coherence checking (yet)
         unimplemented!()

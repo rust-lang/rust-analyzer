@@ -90,8 +90,8 @@ pub(crate) fn trait_solve_query(
         GoalData::DomainGoal(DomainGoal::Holds(WhereClause::Implemented(it))) => {
             db.trait_data(it.hir_trait_id()).name.display(db.upcast()).to_string()
         }
-        GoalData::DomainGoal(DomainGoal::Holds(WhereClause::AliasEq(_))) => "alias_eq".to_string(),
-        _ => "??".to_string(),
+        GoalData::DomainGoal(DomainGoal::Holds(WhereClause::AliasEq(_))) => "alias_eq".to_owned(),
+        _ => "??".to_owned(),
     });
     tracing::info!("trait_solve_query({:?})", goal.value.goal);
 

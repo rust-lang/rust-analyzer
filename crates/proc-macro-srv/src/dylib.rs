@@ -154,7 +154,7 @@ impl Expander {
         attributes: Option<&crate::tt::Subtree>,
     ) -> Result<crate::tt::Subtree, String> {
         let result = self.inner.proc_macros.expand(macro_name, macro_body, attributes);
-        result.map_err(|e| e.as_str().unwrap_or_else(|| "<unknown error>".to_string()))
+        result.map_err(|e| e.as_str().unwrap_or_else(|| "<unknown error>".to_owned()))
     }
 
     pub fn list_macros(&self) -> Vec<(String, ProcMacroKind)> {

@@ -777,7 +777,7 @@ fn env_expand(
         // We cannot use an empty string here, because for
         // `include!(concat!(env!("OUT_DIR"), "/foo.rs"))` will become
         // `include!("foo.rs"), which might go to infinite loop
-        "UNRESOLVED_ENV_VAR".to_string()
+        "UNRESOLVED_ENV_VAR".to_owned()
     });
     let expanded = quote! { #s };
 

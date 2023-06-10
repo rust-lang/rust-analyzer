@@ -166,7 +166,7 @@ impl Server {
         let (connection, client) = Connection::memory();
 
         let _thread = stdx::thread::Builder::new(stdx::thread::ThreadIntent::Worker)
-            .name("test server".to_string())
+            .name("test server".to_owned())
             .spawn(move || main_loop(config, connection).unwrap())
             .expect("failed to spawn a thread");
 

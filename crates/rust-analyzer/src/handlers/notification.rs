@@ -153,7 +153,7 @@ pub(crate) fn handle_did_change_configuration(
         lsp_types::ConfigurationParams {
             items: vec![lsp_types::ConfigurationItem {
                 scope_uri: None,
-                section: Some("rust-analyzer".to_string()),
+                section: Some("rust-analyzer".to_owned()),
             }],
         },
         |this, resp| {
@@ -205,7 +205,7 @@ pub(crate) fn handle_did_change_workspace_folders(
 
     if !config.has_linked_projects() && config.detached_files().is_empty() {
         config.rediscover_workspaces();
-        state.fetch_workspaces_queue.request_op("client workspaces changed".to_string(), ())
+        state.fetch_workspaces_queue.request_op("client workspaces changed".to_owned(), ())
     }
 
     Ok(())

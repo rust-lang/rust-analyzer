@@ -92,7 +92,7 @@ pub(crate) fn check_expect(ra_fixture: &str, expect: Expect) {
 #[track_caller]
 pub(crate) fn check_diagnostics(ra_fixture: &str) {
     let mut config = DiagnosticsConfig::test_sample();
-    config.disabled.insert("inactive-code".to_string());
+    config.disabled.insert("inactive-code".to_owned());
     check_diagnostics_with_config(config, ra_fixture)
 }
 
@@ -159,7 +159,7 @@ fn minicore_smoke_test() {
         let source = minicore.source_code();
         let mut config = DiagnosticsConfig::test_sample();
         // This should be ignored since we conditionaly remove code which creates single item use with braces
-        config.disabled.insert("unnecessary-braces".to_string());
+        config.disabled.insert("unnecessary-braces".to_owned());
         check_diagnostics_with_config(config, &source);
     }
 

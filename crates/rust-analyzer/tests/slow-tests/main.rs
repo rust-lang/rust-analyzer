@@ -621,9 +621,9 @@ fn main() {{}}
         server.notification::<DidOpenTextDocument>(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
                 uri: server.doc_id(&format!("src/m{i}.rs")).uri,
-                language_id: "rust".to_string(),
+                language_id: "rust".to_owned(),
                 version: 0,
-                text: "/// Docs\nfn foo() {}".to_string(),
+                text: "/// Docs\nfn foo() {}".to_owned(),
             },
         });
     }

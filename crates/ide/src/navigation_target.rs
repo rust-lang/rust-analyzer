@@ -630,7 +630,7 @@ fn foo() { enum FooInner { } }
 "#,
         );
 
-        let navs = analysis.symbol_search(Query::new("FooInner".to_string())).unwrap();
+        let navs = analysis.symbol_search(Query::new("FooInner".to_owned())).unwrap();
         expect![[r#"
             [
                 NavigationTarget {
@@ -668,7 +668,7 @@ struct Foo;
 "#,
         );
 
-        let navs = analysis.symbol_search(Query::new("foo".to_string())).unwrap();
+        let navs = analysis.symbol_search(Query::new("foo".to_owned())).unwrap();
         assert_eq!(navs.len(), 2)
     }
 }

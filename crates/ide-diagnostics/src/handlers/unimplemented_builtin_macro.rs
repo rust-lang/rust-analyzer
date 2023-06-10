@@ -9,7 +9,7 @@ pub(crate) fn unimplemented_builtin_macro(
 ) -> Diagnostic {
     Diagnostic::new(
         "unimplemented-builtin-macro",
-        "unimplemented built-in macro".to_string(),
+        "unimplemented built-in macro".to_owned(),
         ctx.sema.diagnostics_display_range(d.node.clone()).range,
     )
     .severity(Severity::WeakWarning)

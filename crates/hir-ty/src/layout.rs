@@ -153,7 +153,7 @@ pub fn layout_of_ty_query(
         }
         TyKind::Array(element, count) => {
             let count = try_const_usize(db, count).ok_or(LayoutError::UserError(
-                "unevaluated or mistyped const generic parameter".to_string(),
+                "unevaluated or mistyped const generic parameter".to_owned(),
             ))? as u64;
             let element = db.layout_of_ty(element.clone(), krate)?;
             let size = element.size.checked_mul(count, dl).ok_or(LayoutError::SizeOverflow)?;

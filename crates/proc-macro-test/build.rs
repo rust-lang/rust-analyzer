@@ -86,7 +86,7 @@ fn main() {
     let mut artifact_path = None;
     for message in Message::parse_stream(output.stdout.as_slice()) {
         if let Message::CompilerArtifact(artifact) = message.unwrap() {
-            if artifact.target.kind.contains(&"proc-macro".to_string()) {
+            if artifact.target.kind.contains(&"proc-macro".to_owned()) {
                 let repr = format!("{name} {version}");
                 if artifact.package_id.repr.starts_with(&repr) {
                     artifact_path = Some(PathBuf::from(&artifact.filenames[0]));

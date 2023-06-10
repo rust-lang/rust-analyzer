@@ -162,7 +162,7 @@ impl ProcMacro {
                 Ok(it.map(|tree| FlatTree::to_subtree(tree, version)))
             }
             msg::Response::ListMacros(..) | msg::Response::ApiVersionCheck(..) => {
-                Err(ServerError { message: "unexpected response".to_string(), io: None })
+                Err(ServerError { message: "unexpected response".to_owned(), io: None })
             }
         }
     }

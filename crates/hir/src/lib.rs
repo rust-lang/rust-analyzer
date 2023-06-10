@@ -1946,7 +1946,7 @@ impl Function {
         };
         let (result, stdout, stderr) = interpret_mir(db, &body, false);
         let mut text = match result {
-            Ok(_) => "pass".to_string(),
+            Ok(_) => "pass".to_owned(),
             Err(e) => {
                 let mut r = String::new();
                 _ = e.pretty_print(&mut r, db, &span_formatter);

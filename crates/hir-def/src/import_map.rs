@@ -872,7 +872,7 @@ mod tests {
         check_search(
             ra_fixture,
             "main",
-            Query::new("fmt".to_string()).search_mode(SearchMode::Fuzzy),
+            Query::new("fmt".to_owned()).search_mode(SearchMode::Fuzzy),
             expect![[r#"
                 dep::fmt (t)
                 dep::fmt::Display (t)
@@ -902,7 +902,7 @@ mod tests {
         check_search(
             ra_fixture,
             "main",
-            Query::new("fmt".to_string()).search_mode(SearchMode::Fuzzy).assoc_items_only(),
+            Query::new("fmt".to_owned()).search_mode(SearchMode::Fuzzy).assoc_items_only(),
             expect![[r#"
                 dep::fmt::Display::FMT_CONST (a)
                 dep::fmt::Display::format_function (a)
@@ -913,7 +913,7 @@ mod tests {
         check_search(
             ra_fixture,
             "main",
-            Query::new("fmt".to_string())
+            Query::new("fmt".to_owned())
                 .search_mode(SearchMode::Fuzzy)
                 .exclude_import_kind(ImportKind::AssociatedItem),
             expect![[r#"
@@ -925,7 +925,7 @@ mod tests {
         check_search(
             ra_fixture,
             "main",
-            Query::new("fmt".to_string())
+            Query::new("fmt".to_owned())
                 .search_mode(SearchMode::Fuzzy)
                 .assoc_items_only()
                 .exclude_import_kind(ImportKind::AssociatedItem),
@@ -962,7 +962,7 @@ mod tests {
         check_search(
             ra_fixture,
             "main",
-            Query::new("fmt".to_string()).search_mode(SearchMode::Fuzzy),
+            Query::new("fmt".to_owned()).search_mode(SearchMode::Fuzzy),
             expect![[r#"
                 dep::Fmt (m)
                 dep::Fmt (t)
@@ -977,7 +977,7 @@ mod tests {
         check_search(
             ra_fixture,
             "main",
-            Query::new("fmt".to_string()).search_mode(SearchMode::Equals),
+            Query::new("fmt".to_owned()).search_mode(SearchMode::Equals),
             expect![[r#"
                 dep::Fmt (m)
                 dep::Fmt (t)
@@ -990,7 +990,7 @@ mod tests {
         check_search(
             ra_fixture,
             "main",
-            Query::new("fmt".to_string()).search_mode(SearchMode::Contains),
+            Query::new("fmt".to_owned()).search_mode(SearchMode::Contains),
             expect![[r#"
                 dep::Fmt (m)
                 dep::Fmt (t)
@@ -1031,7 +1031,7 @@ mod tests {
         check_search(
             ra_fixture,
             "main",
-            Query::new("fmt".to_string()),
+            Query::new("fmt".to_owned()),
             expect![[r#"
                 dep::Fmt (m)
                 dep::Fmt (t)
@@ -1045,7 +1045,7 @@ mod tests {
         check_search(
             ra_fixture,
             "main",
-            Query::new("fmt".to_string()).name_only(),
+            Query::new("fmt".to_owned()).name_only(),
             expect![[r#"
                 dep::Fmt (m)
                 dep::Fmt (t)
@@ -1069,7 +1069,7 @@ mod tests {
         check_search(
             ra_fixture,
             "main",
-            Query::new("FMT".to_string()),
+            Query::new("FMT".to_owned()),
             expect![[r#"
                 dep::FMT (t)
                 dep::FMT (v)
@@ -1081,7 +1081,7 @@ mod tests {
         check_search(
             ra_fixture,
             "main",
-            Query::new("FMT".to_string()).case_sensitive(),
+            Query::new("FMT".to_owned()).case_sensitive(),
             expect![[r#"
                 dep::FMT (t)
                 dep::FMT (v)
@@ -1110,7 +1110,7 @@ mod tests {
         pub fn no() {}
     "#,
             "main",
-            Query::new("".to_string()).limit(2),
+            Query::new("".to_owned()).limit(2),
             expect![[r#"
                 dep::Fmt (m)
                 dep::Fmt (t)
@@ -1133,7 +1133,7 @@ mod tests {
         check_search(
             ra_fixture,
             "main",
-            Query::new("FMT".to_string()),
+            Query::new("FMT".to_owned()),
             expect![[r#"
                 dep::FMT (t)
                 dep::FMT (v)
@@ -1145,7 +1145,7 @@ mod tests {
         check_search(
             ra_fixture,
             "main",
-            Query::new("FMT".to_string()).exclude_import_kind(ImportKind::Adt),
+            Query::new("FMT".to_owned()).exclude_import_kind(ImportKind::Adt),
             expect![[r#""#]],
         );
     }

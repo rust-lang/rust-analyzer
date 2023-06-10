@@ -131,7 +131,7 @@ impl ChangeFixture {
 
         let mut file_set = FileSet::default();
         let mut current_source_root_kind = SourceRootKind::Local;
-        let source_root_prefix = "/".to_string();
+        let source_root_prefix = "/".to_owned();
         let mut file_id = FileId(0);
         let mut roots = Vec::new();
 
@@ -245,7 +245,7 @@ impl ChangeFixture {
             file_id.0 += 1;
 
             let mut fs = FileSet::default();
-            fs.insert(core_file, VfsPath::new_virtual_path("/sysroot/core/lib.rs".to_string()));
+            fs.insert(core_file, VfsPath::new_virtual_path("/sysroot/core/lib.rs".to_owned()));
             roots.push(SourceRoot::new_library(fs));
 
             change.change_file(core_file, Some(Arc::from(mini_core.source_code())));
@@ -255,7 +255,7 @@ impl ChangeFixture {
             let core_crate = crate_graph.add_crate_root(
                 core_file,
                 Edition::Edition2021,
-                Some(CrateDisplayName::from_canonical_name("core".to_string())),
+                Some(CrateDisplayName::from_canonical_name("core".to_owned())),
                 None,
                 Default::default(),
                 Default::default(),
@@ -283,7 +283,7 @@ impl ChangeFixture {
             let mut fs = FileSet::default();
             fs.insert(
                 proc_lib_file,
-                VfsPath::new_virtual_path("/sysroot/proc_macros/lib.rs".to_string()),
+                VfsPath::new_virtual_path("/sysroot/proc_macros/lib.rs".to_owned()),
             );
             roots.push(SourceRoot::new_library(fs));
 
@@ -294,7 +294,7 @@ impl ChangeFixture {
             let proc_macros_crate = crate_graph.add_crate_root(
                 proc_lib_file,
                 Edition::Edition2021,
-                Some(CrateDisplayName::from_canonical_name("proc_macros".to_string())),
+                Some(CrateDisplayName::from_canonical_name("proc_macros".to_owned())),
                 None,
                 Default::default(),
                 Default::default(),
@@ -453,7 +453,7 @@ fn parse_crate(crate_str: String) -> (String, CrateOrigin, Option<String>) {
             },
             _ => panic!("Bad string for crate origin: {b}"),
         };
-        (a.to_owned(), origin, Some(version.to_string()))
+        (a.to_owned(), origin, Some(version.to_owned()))
     } else {
         let crate_origin = match LangCrateOrigin::from(&*crate_str) {
             LangCrateOrigin::Other => CrateOrigin::Local { repo: None, name: None },

@@ -154,7 +154,7 @@ fn remove_newline(
                 Some(_) => cov_mark::hit!(join_two_ifs_with_existing_else),
                 None => {
                     cov_mark::hit!(join_two_ifs);
-                    edit.replace(token.text_range(), " else ".to_string());
+                    edit.replace(token.text_range(), " else ".to_owned());
                     return;
                 }
             }

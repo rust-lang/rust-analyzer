@@ -36,7 +36,7 @@ pub(super) fn print_body_hir(db: &dyn DefDatabase, body: &Body, owner: DefWithBo
             let item_tree_id = it.lookup(db).id;
             let name = match &item_tree_id.item_tree(db)[item_tree_id.value].name {
                 Some(name) => name.display(db.upcast()).to_string(),
-                None => "_".to_string(),
+                None => "_".to_owned(),
             };
             format!("const {name} = ")
         }
@@ -45,7 +45,7 @@ pub(super) fn print_body_hir(db: &dyn DefDatabase, body: &Body, owner: DefWithBo
             let variant = &src.value[it.local_id];
             match &variant.name() {
                 Some(name) => name.to_string(),
-                None => "_".to_string(),
+                None => "_".to_owned(),
             }
         }
     };
