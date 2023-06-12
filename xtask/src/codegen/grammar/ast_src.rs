@@ -71,6 +71,10 @@ pub(crate) const KINDS_SRC: KindsSrc<'_> = KindsSrc {
         ("<==", "EXPLY"),
         ("===", "EQEQEQ"),
         ("!==", "NEEQ"),
+        ("=~=", "ExtEq"),
+        ("!~=", "ExtNe"),
+        ("=~~=", "ExtDeepEq"),
+        ("!~~=", "ExtDeepNe"),
     ],
     keywords: &[
         "abstract", "as", "async", "await", "become", "box", "break", "const", "continue", "crate",
