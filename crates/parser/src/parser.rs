@@ -101,6 +101,10 @@ impl<'t> Parser<'t> {
             T![<==] => self.at_composite3(n, T![<], T![=], T![=]),
             T![===] => self.at_composite3(n, T![=], T![=], T![=]),
             T![!==] => self.at_composite3(n, T![!], T![=], T![=]),
+            T![=~=] => self.at_composite3(n, T![=], T![~], T![=]),
+            T![!~=] => self.at_composite3(n, T![!], T![~], T![=]),
+            T![=~~=] => self.at_composite4(n, T![=], T![~], T![~], T![=]),
+            T![!~~=] => self.at_composite4(n, T![!], T![~], T![~], T![=]),
 
             _ => self.inp.kind(self.pos + n) == kind,
         }
@@ -135,8 +139,8 @@ impl<'t> Parser<'t> {
 
             T![...] | T![..=] | T![<<=] | T![>>=] => 3,
             //verus
-            T![==>] | T![<==] | T![===] | T![&&&] | T![|||] | T![!==] => 3,
-            T![<==>] => 4,
+            T![==>] | T![<==] | T![===] | T![&&&] | T![|||] | T![!==] | T![=~=] | T![!~=] => 3,
+            T![<==>] | T![=~~=] | T![!~~=] => 4,
             _ => 1,
         };
         self.do_bump(kind, n_raw_tokens);

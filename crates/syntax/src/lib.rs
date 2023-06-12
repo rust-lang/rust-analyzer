@@ -1417,3 +1417,38 @@ spec fn test_rec2(x: int, y: int) -> int
         dbg!(&item);
     }
 }
+
+
+#[test]
+fn verus_walkthrough25() {
+    use ast::HasModuleItem;
+    // https://github.com/verus-lang/verus/blob/ed95a417a236707fbb50efd96c91cb217ed2b22a/source/rust_verify/example/vectors.rs
+    let source_code = "
+verus!{
+    fn pusher() -> Vec<u64> {
+        let mut v = Vec::new();
+        v.push(0);
+        v.push(1);
+        v.push(2);
+        v.push(3);
+        v.push(4);
+        let ghost goal = Seq::new(5, |i: int| i as u64);
+        assert(v@ =~= goal);
+        assert(v[2] == 2);
+    
+        v.pop();
+        v.push(4);
+        assert(v@ =~= goal);
+    
+        v
+    }
+} // verus!";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
