@@ -59,6 +59,12 @@ For VS Code in Remote Machine, we need to set up the entire above process in the
 
 
 
+#### 3.IDE functionalities
+There is a requirement for the IDE functionalities to work. The requirement is that Rust-analyzer expects normal Rust project's layout and the metadata(`cargo.toml`) file.
+
+Rust-analyzer scans the project root(`lib.rs` or `main.rs`) and all files that are reachable from the root. If the file you are working on is not reachable from the project root, most of the IDE functionalities like "goto definition" will not work. For example, if you open the `verus` repository and open up one of the examples, these functionalities might not work, as the examples are not reachable from Verus project's root.
+
+We also need `cargo.toml` files as in many Rust projects. For a small promect, you could start by `cargo new`, and it automatically generated the `cargo.toml` file. For a larger project, you could use [workspace](https://doc.rust-lang.org/cargo/reference/workspaces.html) to manage multiple crates.
 
 ---
 ### Functionalities and Details
@@ -68,8 +74,6 @@ We extended rust-analyzer's grammar for Verus-specific syntax. This custom rust-
 
 
 #### 2.IDE functionalities
-Rust-analyzer scans the project root and all files that are reachable from the root. If the file you are working on is not reachable from the project root, most of the IDE functionalities like "goto definition" will not work. For example, if you open the `verus` repository and open up one of the examples, these functionalities might not work.
-
 You can find more documents for IDE functionalities on the following links.
 - [Go to Definition](https://rust-analyzer.github.io/manual.html#go-to-definition)
 - [Go to Type Declaration](https://rust-analyzer.github.io/manual.html#go-to-type-definition)
