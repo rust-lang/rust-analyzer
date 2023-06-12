@@ -1,6 +1,6 @@
 ## Using VS Code for Verus
 
-**(WARNING: this is experimental and under active development)**
+**WARNING: this is experimental; some features might be broken**
 
 The steps below walk you through compiling a Verus-specific version of rust-analyzer and using it in VS Code. It provides Verus syntax support and several IDE functionalities.
 
@@ -87,6 +87,13 @@ You can find more documents for IDE functionalities on the following links.
 - It is intended to be used only for Verus code. (For Rust code, you can use the original binary by opening the project without the `.code-workspace` file, which is just using "open folder" in VS Code)
 - Some features of rust-analyzer might be broken or missing.
 - An issue was reported while compiling this custom rust-analyzer on Apple Silicon Mac. As a temporary measure, running `rustup target add x86_64-apple-darwin` might help bypass the problem.
-- Information of `builtin` is currently not known to this custom rust-analyzer. For example, the builtin types like `int` and `nat` could be shown as `unknown`.
-- `pervasive`/`vstd` is not scanned
+
+
+### TODOs
 - requires/ensures/decreaes/invariant/assert-by-block/assert-forall-block are not fully scanned for IDE purposes(e.g. might not be able to "goto definition" of the function used in requires/ensures)
+
+- Although Verus' custom operators are parsed, those are not registered for IDE purposes. For example, type inference around those operators might not work. (e.g., `A ==> B` is parsed as `implies(A, B)`, but the IDE might not be able to infer that `A` and `B` are boolean)
+
+- `builtin` and `pervasive`/`vstd` are not scanned. For example, the builtin types like `int` and `nat` could be shown as `unknown`.
+
+
