@@ -13,8 +13,8 @@ The steps below walk you through compiling a Verus-specific version of rust-anal
 1. Clone the repository: `git clone https://github.com/verus-lang/verus-analyzer.git`
 2. `cd verus-analyzer`
 3. Compile the rust-analyzer binary: `cargo xtask dist`
-4. Unzip the generated file (e.g., `gunzip ./dist/verus-analyzer-x86_64-apple-darwin.gz`)
-5. Make it executable (e.g., `chmod +x ./dist/verus-analyzer-x86_64-apple-darwin`)
+4. Unzip the generated file (e.g., `gunzip ./dist/rust-analyzer-x86_64-apple-darwin.gz`)
+5. Make it executable (e.g., `chmod +x ./dist/rust-analyzer-x86_64-apple-darwin`)
 
 
 
@@ -52,7 +52,7 @@ For example, the "settings" in the `.code-workspace` file could look the followi
 
 When you modify and save this file, VS Code will ask you if you want to reload the rust-analyzer server. It will replace the rust-analyzer binary with this custom one.
 
-By opening this workspace, the rust-analyzer plugin will use the custom binary. If you open your project without that workspace setting(e.g. open this project by "open folder"), it will use the original rust-analyzer binary.
+By opening this workspace, the rust-analyzer plugin will use the custom binary. If you open your project without that workspace setting(e.g., open this project by "open folder"), it will use the original rust-analyzer binary.
 
 
 #### 2.3. [VS Code in Remote Machine](https://code.visualstudio.com/docs/remote/ssh)(Optional)
@@ -64,13 +64,13 @@ There is a requirement for the IDE functionalities to work. The requirement is t
 
 Rust-analyzer scans the project root(`lib.rs` or `main.rs`) and all files that are reachable from the root. If the file you are working on is not reachable from the project root, most of the IDE functionalities like "goto definition" will not work. For example, when you have a file named `foo.rs` next to `main.rs`, and did not import `foo.rs` in `main.rs`(i.e., did not add `mod foo` on top of `main.rs`), the IDE functionalities will not work for `foo.rs`.
 
-We also need `cargo.toml` files as in standard Rust projects. For a small promect, you could start by `cargo new`, and it automatically generated the `cargo.toml` file. For a larger project, you could use [workspace](https://doc.rust-lang.org/cargo/reference/workspaces.html) to manage multiple crates.
+We also need `cargo.toml` files as in standard Rust projects. For a small project, you could start with `cargo new`, and it automatically generated the `cargo.toml` file. For a larger project, you could use [workspace](https://doc.rust-lang.org/cargo/reference/workspaces.html) to manage multiple crates.
 
 ---
 ## Functionalities and Details
 
 ### 1.Syntax
-We extended rust-analyzer's grammar for Verus-specific syntax. This custom rust-analyzer highlights reserved Verus keywords (e.g. `spec`, `proof`, `requires`, `ensures`). If a user types `prooof` instead of `proof`, a syntax error will be generated for it.
+We extended rust-analyzer's grammar for Verus-specific syntax. This custom rust-analyzer highlights reserved Verus keywords (e.g., `spec`, `proof`, `requires`, `ensures`). If a user types `prooof` instead of `proof`, a syntax error will be generated for it.
 
 
 ### 2.IDE functionalities
@@ -81,7 +81,7 @@ You can find more documents for IDE functionalities on the following links.
 - [Hover](https://rust-analyzer.github.io/manual.html#hover)
 
 #### 2.1 TODOs for IDE functionalities
-- requires/ensures/decreaes/invariant/assert-by-block/assert-forall-block are not fully scanned for IDE purposes(e.g. might not be able to "goto definition" of the function used in requires/ensures)
+- requires/ensures/decreases/invariant/assert-by-block/assert-forall-block are not fully scanned for IDE purposes(e.g. might not be able to "goto definition" of the function used in requires/ensures)
 
 - Although Verus' custom operators are parsed, those are not registered for IDE purposes. For example, type inference around those operators might not work. (e.g., `A ==> B` is parsed as `implies(A, B)`, but the IDE might not be able to infer that `A` and `B` are boolean)
 
