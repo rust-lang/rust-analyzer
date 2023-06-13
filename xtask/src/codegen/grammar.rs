@@ -81,7 +81,7 @@ fn generate_tokens(grammar: &AstSrc) -> String {
     .replace("#[derive", "\n#[derive")
 }
 
-fn generate_nodes(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
+pub(crate) fn generate_nodes(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
     let (node_defs, node_boilerplate_impls): (Vec<_>, Vec<_>) = grammar
         .nodes
         .iter()
@@ -461,7 +461,7 @@ fn generate_syntax_kinds(grammar: KindsSrc<'_>) -> String {
     add_preamble("sourcegen_ast", reformat(ast.to_string()))
 }
 
-fn to_upper_snake_case(s: &str) -> String {
+pub(crate) fn to_upper_snake_case(s: &str) -> String {
     let mut buf = String::with_capacity(s.len());
     let mut prev = false;
     for c in s.chars() {
@@ -510,10 +510,10 @@ fn pluralize(s: &str) -> String {
 }
 
 impl Field {
-    fn is_many(&self) -> bool {
+    pub(crate) fn is_many(&self) -> bool {
         matches!(self, Field::Node { cardinality: Cardinality::Many, .. })
     }
-    fn token_kind(&self) -> Option<proc_macro2::TokenStream> {
+    pub(crate) fn token_kind(&self) -> Option<proc_macro2::TokenStream> {
         match self {
             Field::Token(token) => {
                 let token: proc_macro2::TokenStream = token.parse().unwrap();
@@ -522,7 +522,7 @@ impl Field {
             _ => None,
         }
     }
-    fn method_name(&self) -> proc_macro2::Ident {
+    pub(crate) fn method_name(&self) -> proc_macro2::Ident {
         match self {
             Field::Token(name) => {
                 let name = match name.as_str() {
@@ -568,7 +568,7 @@ impl Field {
             }
         }
     }
-    fn ty(&self) -> proc_macro2::Ident {
+    pub(crate) fn ty(&self) -> proc_macro2::Ident {
         match self {
             Field::Token(_) => format_ident!("SyntaxToken"),
             Field::Node { ty, .. } => format_ident!("{}", ty),
@@ -576,7 +576,7 @@ impl Field {
     }
 }
 
-fn lower(grammar: &Grammar) -> AstSrc {
+pub(crate) fn lower(grammar: &Grammar) -> AstSrc {
     let mut res = AstSrc {
         tokens:
             "Whitespace Comment String ByteString CString IntNumber FloatNumber Char Byte Ident"
