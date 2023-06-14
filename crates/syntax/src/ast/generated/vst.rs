@@ -7,37 +7,65 @@ use crate::{
     SyntaxNode, SyntaxToken, T,
 };
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Name {}
+pub struct Name {
+    ident_token: String,
+    self_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct NameRef {}
+pub struct NameRef {
+    ident_token: String,
+    self_token: bool,
+    super_token: bool,
+    crate_token: bool,
+    Self_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Lifetime {}
+pub struct Lifetime {
+    lifetime_ident_token: String,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Path {
     pub qualifier: Option<Box<Path>>,
+    coloncolon_token: bool,
     pub segment: Option<Box<PathSegment>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathSegment {
+    coloncolon_token: bool,
     pub name_ref: Option<Box<NameRef>>,
     pub generic_arg_list: Option<Box<GenericArgList>>,
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
+    l_angle_token: bool,
     pub path_type: Option<Box<PathType>>,
+    as_token: bool,
+    r_angle_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GenericArgList {
+    coloncolon_token: bool,
+    l_angle_token: bool,
     pub generic_args: Vec<GenericArg>,
+    r_angle_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParamList {
+    l_paren_token: bool,
     pub self_param: Option<Box<SelfParam>>,
+    comma_token: bool,
     pub params: Vec<Param>,
+    r_paren_token: bool,
+    pipe_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RetType {
+    thin_arrow_token: bool,
+    tracked_token: bool,
+    l_paren_token: bool,
     pub pat: Option<Box<Pat>>,
+    colon_token: bool,
     pub ty: Option<Box<Type>>,
+    r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathType {
@@ -53,6 +81,7 @@ pub struct AssocTypeArg {
     pub generic_arg_list: Option<Box<GenericArgList>>,
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
+    eq_token: bool,
     pub ty: Option<Box<Type>>,
     pub const_arg: Option<Box<ConstArg>>,
 }
@@ -71,14 +100,27 @@ pub struct TypeBoundList {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroCall {
     pub path: Option<Box<Path>>,
+    excl_token: bool,
     pub token_tree: Option<Box<TokenTree>>,
+    semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Attr {
+    pound_token: bool,
+    excl_token: bool,
+    l_brack_token: bool,
     pub meta: Option<Box<Meta>>,
+    r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TokenTree {}
+pub struct TokenTree {
+    l_paren_token: bool,
+    r_paren_token: bool,
+    l_curly_token: bool,
+    r_curly_token: bool,
+    l_brack_token: bool,
+    r_brack_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroItems {}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -87,31 +129,49 @@ pub struct MacroStmts {
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct SourceFile {}
+pub struct SourceFile {
+    shebang_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Const {
+    default_token: bool,
+    const_token: bool,
+    underscore_token: bool,
+    colon_token: bool,
     pub ty: Option<Box<Type>>,
+    eq_token: bool,
     pub body: Option<Box<Expr>>,
+    semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Enum {
+    enum_token: bool,
     pub variant_list: Option<Box<VariantList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExternBlock {
+    unsafe_token: bool,
     pub abi: Option<Box<Abi>>,
     pub extern_item_list: Option<Box<ExternItemList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExternCrate {
+    extern_token: bool,
+    crate_token: bool,
     pub name_ref: Option<Box<NameRef>>,
     pub rename: Option<Box<Rename>>,
+    semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Fn {
     pub publish: Option<Box<Publish>>,
+    default_token: bool,
+    const_token: bool,
+    async_token: bool,
+    unsafe_token: bool,
     pub abi: Option<Box<Abi>>,
     pub fn_mode: Option<Box<FnMode>>,
+    fn_token: bool,
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
     pub requires_clause: Option<Box<RequiresClause>>,
@@ -119,133 +179,213 @@ pub struct Fn {
     pub ensures_clause: Option<Box<EnsuresClause>>,
     pub decreases_clause: Option<Box<DecreasesClause>>,
     pub body: Option<Box<BlockExpr>>,
+    semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Impl {
+    default_token: bool,
+    unsafe_token: bool,
+    impl_token: bool,
+    const_token: bool,
+    excl_token: bool,
+    for_token: bool,
     pub assoc_item_list: Option<Box<AssocItemList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroRules {
+    macro_rules_token: bool,
+    excl_token: bool,
     pub token_tree: Option<Box<TokenTree>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroDef {
+    macro_token: bool,
     pub args: Option<Box<TokenTree>>,
     pub body: Option<Box<TokenTree>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Module {
+    mod_token: bool,
     pub item_list: Option<Box<ItemList>>,
+    semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Static {
+    static_token: bool,
+    mut_token: bool,
+    colon_token: bool,
     pub ty: Option<Box<Type>>,
+    eq_token: bool,
     pub body: Option<Box<Expr>>,
+    semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Struct {
     pub data_mode: Option<Box<DataMode>>,
+    struct_token: bool,
+    semicolon_token: bool,
     pub field_list: Option<Box<FieldList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Trait {
+    unsafe_token: bool,
+    auto_token: bool,
+    trait_token: bool,
     pub assoc_item_list: Option<Box<AssocItemList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TraitAlias {
+    trait_token: bool,
+    eq_token: bool,
     pub type_bound_list: Option<Box<TypeBoundList>>,
+    semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeAlias {
+    default_token: bool,
+    type_token: bool,
+    eq_token: bool,
     pub ty: Option<Box<Type>>,
+    semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Union {
+    union_token: bool,
     pub record_field_list: Option<Box<RecordFieldList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Use {
+    use_token: bool,
     pub use_tree: Option<Box<UseTree>>,
+    semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Visibility {
+    pub_token: bool,
+    l_paren_token: bool,
+    in_token: bool,
     pub path: Option<Box<Path>>,
+    r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ItemList {}
+pub struct ItemList {
+    l_curly_token: bool,
+    r_curly_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Rename {}
+pub struct Rename {
+    as_token: bool,
+    underscore_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UseTree {
     pub path: Option<Box<Path>>,
+    coloncolon_token: bool,
+    star_token: bool,
     pub use_tree_list: Option<Box<UseTreeList>>,
     pub rename: Option<Box<Rename>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UseTreeList {
+    l_curly_token: bool,
     pub use_trees: Vec<UseTree>,
+    r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Publish {}
+pub struct Publish {
+    closed_token: bool,
+    open_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Abi {}
+pub struct Abi {
+    extern_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FnMode {
+    spec_token: bool,
+    proof_token: bool,
+    exec_token: bool,
     pub mode_spec_checked: Option<Box<ModeSpecChecked>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GenericParamList {
+    l_angle_token: bool,
     pub generic_params: Vec<GenericParam>,
+    r_angle_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WhereClause {
+    where_token: bool,
     pub predicates: Vec<WherePred>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RequiresClause {
+    requires_token: bool,
     pub exprs: Vec<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecommendsClause {
+    recommends_token: bool,
     pub exprs: Vec<Expr>,
+    via_token: bool,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EnsuresClause {
+    ensures_token: bool,
     pub exprs: Vec<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DecreasesClause {
+    decreases_token: bool,
     pub exprs: Vec<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BlockExpr {
     pub label: Option<Box<Label>>,
+    try_token: bool,
+    unsafe_token: bool,
+    async_token: bool,
+    const_token: bool,
     pub stmt_list: Option<Box<StmtList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SelfParam {
+    amp_token: bool,
     pub lifetime: Option<Box<Lifetime>>,
+    mut_token: bool,
+    colon_token: bool,
     pub ty: Option<Box<Type>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Param {
+    tracked_token: bool,
     pub pat: Option<Box<Pat>>,
+    colon_token: bool,
     pub ty: Option<Box<Type>>,
+    dotdotdot_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct DataMode {}
+pub struct DataMode {
+    ghost_token: bool,
+    tracked_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordFieldList {
+    l_curly_token: bool,
     pub fields: Vec<RecordField>,
+    r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleFieldList {
+    l_paren_token: bool,
     pub fields: Vec<TupleField>,
+    r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordField {
     pub data_mode: Option<Box<DataMode>>,
+    colon_token: bool,
     pub ty: Option<Box<Type>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -254,24 +394,34 @@ pub struct TupleField {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VariantList {
+    l_curly_token: bool,
     pub variants: Vec<Variant>,
+    r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Variant {
     pub field_list: Option<Box<FieldList>>,
+    eq_token: bool,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssocItemList {
+    l_curly_token: bool,
     pub assoc_items: Vec<AssocItem>,
+    r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExternItemList {
+    l_curly_token: bool,
     pub extern_items: Vec<ExternItem>,
+    r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConstParam {
+    const_token: bool,
+    colon_token: bool,
     pub ty: Option<Box<Type>>,
+    eq_token: bool,
     pub default_val: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -280,10 +430,12 @@ pub struct LifetimeParam {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeParam {
+    eq_token: bool,
     pub default_type: Option<Box<Type>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WherePred {
+    for_token: bool,
     pub generic_param_list: Option<Box<GenericParamList>>,
     pub lifetime: Option<Box<Lifetime>>,
     pub ty: Option<Box<Type>>,
@@ -291,41 +443,57 @@ pub struct WherePred {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Meta {
     pub path: Option<Box<Path>>,
+    eq_token: bool,
     pub expr: Option<Box<Expr>>,
     pub token_tree: Option<Box<TokenTree>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExprStmt {
     pub expr: Option<Box<Expr>>,
+    semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LetStmt {
+    let_token: bool,
+    ghost_token: bool,
+    tracked_token: bool,
     pub pat: Option<Box<Pat>>,
+    colon_token: bool,
     pub ty: Option<Box<Type>>,
+    eq_token: bool,
     pub initializer: Option<Box<Expr>>,
     pub let_else: Option<Box<LetElse>>,
+    semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LetElse {
+    else_token: bool,
     pub block_expr: Option<Box<BlockExpr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayExpr {
+    l_brack_token: bool,
     pub exprs: Vec<Expr>,
     pub expr: Option<Box<Expr>>,
+    semicolon_token: bool,
+    r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AwaitExpr {
     pub expr: Option<Box<Expr>>,
+    dot_token: bool,
+    await_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BinExpr {}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BoxExpr {
+    box_token: bool,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BreakExpr {
+    break_token: bool,
     pub lifetime: Option<Box<Lifetime>>,
     pub expr: Option<Box<Expr>>,
 }
@@ -336,54 +504,78 @@ pub struct CallExpr {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CastExpr {
     pub expr: Option<Box<Expr>>,
+    as_token: bool,
     pub ty: Option<Box<Type>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClosureExpr {
+    for_token: bool,
     pub generic_param_list: Option<Box<GenericParamList>>,
+    const_token: bool,
+    static_token: bool,
+    async_token: bool,
+    move_token: bool,
+    forall_token: bool,
+    exists_token: bool,
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
     pub body: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ContinueExpr {
+    continue_token: bool,
     pub lifetime: Option<Box<Lifetime>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FieldExpr {
     pub expr: Option<Box<Expr>>,
+    dot_token: bool,
     pub name_ref: Option<Box<NameRef>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ForExpr {
+    for_token: bool,
     pub pat: Option<Box<Pat>>,
+    in_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct IfExpr {}
+pub struct IfExpr {
+    if_token: bool,
+    else_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct IndexExpr {}
+pub struct IndexExpr {
+    l_brack_token: bool,
+    r_brack_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Literal {}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct LoopExpr {}
+pub struct LoopExpr {
+    loop_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroExpr {
     pub macro_call: Option<Box<MacroCall>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchExpr {
+    match_token: bool,
     pub expr: Option<Box<Expr>>,
     pub match_arm_list: Option<Box<MatchArmList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MethodCallExpr {
     pub receiver: Option<Box<Expr>>,
+    dot_token: bool,
     pub name_ref: Option<Box<NameRef>>,
     pub generic_arg_list: Option<Box<GenericArgList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParenExpr {
+    l_paren_token: bool,
     pub expr: Option<Box<Expr>>,
+    r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathExpr {
@@ -402,169 +594,248 @@ pub struct RecordExpr {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefExpr {
+    amp_token: bool,
+    raw_token: bool,
+    mut_token: bool,
+    const_token: bool,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReturnExpr {
+    return_token: bool,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TryExpr {
     pub expr: Option<Box<Expr>>,
+    question_mark_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleExpr {
+    l_paren_token: bool,
     pub fields: Vec<Expr>,
+    r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WhileExpr {
+    while_token: bool,
     pub invariant_clause: Option<Box<InvariantClause>>,
     pub decreases_clause: Option<Box<DecreasesClause>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct YieldExpr {
+    yield_token: bool,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct YeetExpr {
+    do_token: bool,
+    yeet_token: bool,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LetExpr {
+    let_token: bool,
     pub pat: Option<Box<Pat>>,
+    eq_token: bool,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct UnderscoreExpr {}
+pub struct UnderscoreExpr {
+    underscore_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ViewExpr {
     pub expr: Option<Box<Expr>>,
+    at_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssertExpr {
+    assert_token: bool,
+    l_paren_token: bool,
     pub expr: Option<Box<Expr>>,
+    r_paren_token: bool,
+    by_token: bool,
     pub requires_clause: Option<Box<RequiresClause>>,
     pub block_expr: Option<Box<BlockExpr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssumeExpr {
+    assume_token: bool,
+    l_paren_token: bool,
     pub expr: Option<Box<Expr>>,
+    r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssertForallExpr {
+    assert_token: bool,
+    forall_token: bool,
     pub closure_expr: Option<Box<ClosureExpr>>,
+    implies_token: bool,
     pub expr: Option<Box<Expr>>,
+    by_token: bool,
     pub block_expr: Option<Box<BlockExpr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StmtList {
+    l_curly_token: bool,
     pub statements: Vec<Stmt>,
     pub tail_expr: Option<Box<Expr>>,
+    r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Label {
     pub lifetime: Option<Box<Lifetime>>,
+    colon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordExprFieldList {
+    l_curly_token: bool,
     pub fields: Vec<RecordExprField>,
+    dotdot_token: bool,
     pub spread: Option<Box<Expr>>,
+    r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordExprField {
     pub name_ref: Option<Box<NameRef>>,
+    colon_token: bool,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArgList {
+    l_paren_token: bool,
     pub args: Vec<Expr>,
+    r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct InvariantClause {
+    invariant_token: bool,
     pub exprs: Vec<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchArmList {
+    l_curly_token: bool,
     pub arms: Vec<MatchArm>,
+    r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchArm {
     pub pat: Option<Box<Pat>>,
     pub guard: Option<Box<MatchGuard>>,
+    fat_arrow_token: bool,
     pub expr: Option<Box<Expr>>,
+    comma_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MatchGuard {}
+pub struct MatchGuard {
+    if_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayType {
+    l_brack_token: bool,
     pub ty: Option<Box<Type>>,
+    semicolon_token: bool,
     pub expr: Option<Box<Expr>>,
+    r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DynTraitType {
+    dyn_token: bool,
     pub type_bound_list: Option<Box<TypeBoundList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FnPtrType {
+    const_token: bool,
+    async_token: bool,
+    unsafe_token: bool,
     pub abi: Option<Box<Abi>>,
+    fn_token: bool,
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ForType {
+    for_token: bool,
     pub generic_param_list: Option<Box<GenericParamList>>,
     pub ty: Option<Box<Type>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ImplTraitType {
+    impl_token: bool,
     pub type_bound_list: Option<Box<TypeBoundList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct InferType {}
+pub struct InferType {
+    underscore_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroType {
     pub macro_call: Option<Box<MacroCall>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct NeverType {}
+pub struct NeverType {
+    excl_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParenType {
+    l_paren_token: bool,
     pub ty: Option<Box<Type>>,
+    r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PtrType {
+    star_token: bool,
+    const_token: bool,
+    mut_token: bool,
     pub ty: Option<Box<Type>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefType {
+    amp_token: bool,
     pub lifetime: Option<Box<Lifetime>>,
+    mut_token: bool,
     pub ty: Option<Box<Type>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SliceType {
+    l_brack_token: bool,
     pub ty: Option<Box<Type>>,
+    r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleType {
+    l_paren_token: bool,
     pub fields: Vec<Type>,
+    r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeBound {
     pub lifetime: Option<Box<Lifetime>>,
+    question_mark_token: bool,
+    tilde_token: bool,
+    const_token: bool,
     pub ty: Option<Box<Type>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IdentPat {
+    ref_token: bool,
+    mut_token: bool,
+    at_token: bool,
     pub pat: Option<Box<Pat>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BoxPat {
+    box_token: bool,
     pub pat: Option<Box<Pat>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct RestPat {}
+pub struct RestPat {
+    dotdot_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LiteralPat {
+    minus_token: bool,
     pub literal: Option<Box<Literal>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -577,14 +848,18 @@ pub struct OrPat {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParenPat {
+    l_paren_token: bool,
     pub pat: Option<Box<Pat>>,
+    r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathPat {
     pub path: Option<Box<Path>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct WildcardPat {}
+pub struct WildcardPat {
+    underscore_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RangePat {}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -594,47 +869,75 @@ pub struct RecordPat {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefPat {
+    amp_token: bool,
+    mut_token: bool,
     pub pat: Option<Box<Pat>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SlicePat {
+    l_brack_token: bool,
     pub pats: Vec<Pat>,
+    r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TuplePat {
+    l_paren_token: bool,
     pub fields: Vec<Pat>,
+    r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleStructPat {
     pub path: Option<Box<Path>>,
+    l_paren_token: bool,
     pub fields: Vec<Pat>,
+    r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConstBlockPat {
+    const_token: bool,
     pub block_expr: Option<Box<BlockExpr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordPatFieldList {
+    l_curly_token: bool,
     pub fields: Vec<RecordPatField>,
     pub rest_pat: Option<Box<RestPat>>,
+    r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordPatField {
     pub name_ref: Option<Box<NameRef>>,
+    colon_token: bool,
     pub pat: Option<Box<Pat>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ModeSpecChecked {}
+pub struct ModeSpecChecked {
+    spec_token: bool,
+    l_paren_token: bool,
+    checked_token: bool,
+    r_paren_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SignatureDecreases {
     pub decreases_clause: Option<Box<DecreasesClause>>,
+    when_token: bool,
     pub expr: Option<Box<Expr>>,
+    via_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Prover {}
+pub struct Prover {
+    by_token: bool,
+    l_paren_token: bool,
+    r_paren_token: bool,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TriggerAttribute {
+    pound_token: bool,
+    excl_token: bool,
+    l_brack_token: bool,
+    trigger_token: bool,
     pub exprs: Vec<Expr>,
+    r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GenericArg {
