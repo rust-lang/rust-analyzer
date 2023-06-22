@@ -106,6 +106,7 @@ impl WorkspaceBuildScripts {
             }
         };
 
+        cmd.env("IS_RUST_ANALYZER", "1");
         cmd.envs(&config.extra_env);
         if config.wrap_rustc_in_build_scripts {
             // Setup RUSTC_WRAPPER to point to `rust-analyzer` binary itself. We use
