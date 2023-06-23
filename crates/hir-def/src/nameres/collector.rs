@@ -1128,6 +1128,41 @@ impl DefCollector<'_> {
                         resolver_def_id,
                     );
                     if let Ok(Some(call_id)) = call_id {
+                        let loc: MacroCallLoc = self.db.lookup_intern_macro_call(call_id);
+
+                        if let MacroDefKind::ProcMacro(expander, _, _) = loc.def.kind {
+                            if expander.is_dummy() {
+                                // If there's no expander for the proc macro (e.g.
+                                // because proc macros are disabled, or building the
+                                // proc macro crate failed), report this and skip
+                                // expansion like we would if it was disabled
+                                self.def_map.diagnostics.push(
+                                    DefDiagnostic::unresolved_proc_macro(
+                                        directive.module_id,
+                                        loc.kind,
+                                        loc.def.krate,
+                                    ),
+                                );
+
+                                res = ReachedFixedPoint::No;
+                                return false;
+                            }
+
+                            // We check whether the proc macro is ignored, if it is, we don't expand it.
+                            let proc_macros = self.db.proc_macros();
+                            let proc_macro = proc_macros.get(&loc.def.krate).and_then(|m| {
+                                m.as_ref()
+                                    .ok()
+                                    .and_then(|m| m.get(expander.proc_macro_id().0 as usize))
+                            });
+                            if let Some(proc_macro) = proc_macro {
+                                if proc_macro.ignored {
+                                    res = ReachedFixedPoint::No;
+                                    return false;
+                                }
+                            }
+                        }
+
                         push_resolved(directive, call_id);
 
                         res = ReachedFixedPoint::No;
@@ -1306,30 +1341,45 @@ impl DefCollector<'_> {
                         return recollect_without(self);
                     }
 
-                    // Skip #[test]/#[bench] expansion, which would merely result in more memory usage
-                    // due to duplicating functions into macro expansions
-                    if matches!(
-                        loc.def.kind,
+                    match loc.def.kind {
+                        // Skip #[test]/#[bench] expansion, which would merely result in more memory usage
+                        // due to duplicating functions into macro expansions
                         MacroDefKind::BuiltInAttr(expander, _)
-                        if expander.is_test() || expander.is_bench()
-                    ) {
-                        return recollect_without(self);
-                    }
-
-                    if let MacroDefKind::ProcMacro(exp, ..) = loc.def.kind {
-                        if exp.is_dummy() {
-                            // If there's no expander for the proc macro (e.g.
-                            // because proc macros are disabled, or building the
-                            // proc macro crate failed), report this and skip
-                            // expansion like we would if it was disabled
-                            self.def_map.diagnostics.push(DefDiagnostic::unresolved_proc_macro(
-                                directive.module_id,
-                                loc.kind,
-                                loc.def.krate,
-                            ));
-
+                            if expander.is_test() || expander.is_bench() =>
+                        {
                             return recollect_without(self);
                         }
+                        MacroDefKind::ProcMacro(expander, _, _) => {
+                            if expander.is_dummy() {
+                                // If there's no expander for the proc macro (e.g.
+                                // because proc macros are disabled, or building the
+                                // proc macro crate failed), report this and skip
+                                // expansion like we would if it was disabled
+                                self.def_map.diagnostics.push(
+                                    DefDiagnostic::unresolved_proc_macro(
+                                        directive.module_id,
+                                        loc.kind,
+                                        loc.def.krate,
+                                    ),
+                                );
+
+                                return recollect_without(self);
+                            }
+
+                            // We check whether the proc macro is ignored, if it is, we don't expand it.
+                            let proc_macros = self.db.proc_macros();
+                            let proc_macro = proc_macros.get(&loc.def.krate).and_then(|m| {
+                                m.as_ref()
+                                    .ok()
+                                    .and_then(|m| m.get(expander.proc_macro_id().0 as usize))
+                            });
+                            if let Some(proc_macro) = proc_macro {
+                                if proc_macro.ignored {
+                                    return recollect_without(self);
+                                }
+                            }
+                        }
+                        _ => {}
                     }
 
                     self.def_map.modules[directive.module_id]

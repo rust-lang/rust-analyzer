@@ -26,6 +26,10 @@ impl ProcMacroExpander {
         self.proc_macro_id.0 == DUMMY_ID
     }
 
+    pub fn proc_macro_id(&self) -> ProcMacroId {
+        self.proc_macro_id
+    }
+
     pub fn expand(
         self,
         db: &dyn ExpandDatabase,

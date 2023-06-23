@@ -55,6 +55,7 @@ pub fn identity_when_valid(_attr: TokenStream, item: TokenStream) -> TokenStream
         ProcMacro {
             name: "identity_when_valid".into(),
             kind: base_db::ProcMacroKind::Attr,
+            ignored: false,
             expander: sync::Arc::new(IdentityWhenValidProcMacroExpander),
         },
     )];

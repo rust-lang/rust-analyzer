@@ -271,6 +271,9 @@ pub type TargetLayoutLoadResult = Result<Arc<str>, Arc<str>>;
 pub struct ProcMacro {
     pub name: SmolStr,
     pub kind: ProcMacroKind,
+    /// Ignored proc macros should only be expanded
+    /// when we are explicitly asked to do so by the user.
+    pub ignored: bool,
     pub expander: sync::Arc<dyn ProcMacroExpander>,
 }
 

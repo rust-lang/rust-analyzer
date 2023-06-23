@@ -281,13 +281,13 @@ impl GlobalState {
 
     pub(crate) fn fetch_proc_macros(&mut self, cause: Cause, paths: Vec<ProcMacroPaths>) {
         tracing::info!(%cause, "will load proc macros");
-        let dummy_replacements = self.config.dummy_replacements().clone();
+        let ignored_proc_macros = self.config.ignored_proc_macros().clone();
         let proc_macro_clients = self.proc_macro_clients.clone();
 
         self.task_pool.handle.spawn_with_sender(ThreadIntent::Worker, move |sender| {
             sender.send(Task::LoadProcMacros(ProcMacroProgress::Begin)).unwrap();
 
-            let dummy_replacements = &dummy_replacements;
+            let ignored_proc_macros = &ignored_proc_macros;
             let progress = {
                 let sender = sender.clone();
                 &move |msg| {
@@ -315,7 +315,13 @@ impl GlobalState {
                                         crate_name
                                             .as_deref()
                                             .and_then(|crate_name| {
-                                                dummy_replacements.get(crate_name).map(|v| &**v)
+                                                ignored_proc_macros.iter().find_map(|c| {
+                                                    if eq_ignore_underscore(&*c.0, crate_name) {
+                                                        Some(&**c.1)
+                                                    } else {
+                                                        None
+                                                    }
+                                                })
                                             })
                                             .unwrap_or_default(),
                                     )
@@ -622,6 +628,247 @@ impl GlobalState {
     }
 }
 
+#[derive(Default)]
+pub(crate) struct ProjectFolders {
+    pub(crate) load: Vec<vfs::loader::Entry>,
+    pub(crate) watch: Vec<usize>,
+    pub(crate) source_root_config: SourceRootConfig,
+}
+
+impl ProjectFolders {
+    pub(crate) fn new(
+        workspaces: &[ProjectWorkspace],
+        global_excludes: &[AbsPathBuf],
+    ) -> ProjectFolders {
+        let mut res = ProjectFolders::default();
+        let mut fsc = FileSetConfig::builder();
+        let mut local_filesets = vec![];
+
+        // Dedup source roots
+        // Depending on the project setup, we can have duplicated source roots, or for example in
+        // the case of the rustc workspace, we can end up with two source roots that are almost the
+        // same but not quite, like:
+        // PackageRoot { is_local: false, include: [AbsPathBuf(".../rust/src/tools/miri/cargo-miri")], exclude: [] }
+        // PackageRoot {
+        //     is_local: true,
+        //     include: [AbsPathBuf(".../rust/src/tools/miri/cargo-miri"), AbsPathBuf(".../rust/build/x86_64-pc-windows-msvc/stage0-tools/x86_64-pc-windows-msvc/release/build/cargo-miri-85801cd3d2d1dae4/out")],
+        //     exclude: [AbsPathBuf(".../rust/src/tools/miri/cargo-miri/.git"), AbsPathBuf(".../rust/src/tools/miri/cargo-miri/target")]
+        // }
+        //
+        // The first one comes from the explicit rustc workspace which points to the rustc workspace itself
+        // The second comes from the rustc workspace that we load as the actual project workspace
+        // These `is_local` differing in this kind of way gives us problems, especially when trying to filter diagnostics as we don't report diagnostics for external libraries.
+        // So we need to deduplicate these, usually it would be enough to deduplicate by `include`, but as the rustc example shows here that doesn't work,
+        // so we need to also coalesce the includes if they overlap.
+
+        let mut roots: Vec<_> = workspaces
+            .iter()
+            .flat_map(|ws| ws.to_roots())
+            .update(|root| root.include.sort())
+            .sorted_by(|a, b| a.include.cmp(&b.include))
+            .collect();
+
+        // map that tracks indices of overlapping roots
+        let mut overlap_map = FxHashMap::<_, Vec<_>>::default();
+        let mut done = false;
+
+        while !mem::replace(&mut done, true) {
+            // maps include paths to indices of the corresponding root
+            let mut include_to_idx = FxHashMap::default();
+            // Find and note down the indices of overlapping roots
+            for (idx, root) in roots.iter().enumerate().filter(|(_, it)| !it.include.is_empty()) {
+                for include in &root.include {
+                    match include_to_idx.entry(include) {
+                        Entry::Occupied(e) => {
+                            overlap_map.entry(*e.get()).or_default().push(idx);
+                        }
+                        Entry::Vacant(e) => {
+                            e.insert(idx);
+                        }
+                    }
+                }
+            }
+            for (k, v) in overlap_map.drain() {
+                done = false;
+                for v in v {
+                    let r = mem::replace(
+                        &mut roots[v],
+                        PackageRoot { is_local: false, include: vec![], exclude: vec![] },
+                    );
+                    roots[k].is_local |= r.is_local;
+                    roots[k].include.extend(r.include);
+                    roots[k].exclude.extend(r.exclude);
+                }
+                roots[k].include.sort();
+                roots[k].exclude.sort();
+                roots[k].include.dedup();
+                roots[k].exclude.dedup();
+            }
+        }
+
+        for root in roots.into_iter().filter(|it| !it.include.is_empty()) {
+            let file_set_roots: Vec<VfsPath> =
+                root.include.iter().cloned().map(VfsPath::from).collect();
+
+            let entry = {
+                let mut dirs = vfs::loader::Directories::default();
+                dirs.extensions.push("rs".into());
+                dirs.include.extend(root.include);
+                dirs.exclude.extend(root.exclude);
+                for excl in global_excludes {
+                    if dirs
+                        .include
+                        .iter()
+                        .any(|incl| incl.starts_with(excl) || excl.starts_with(incl))
+                    {
+                        dirs.exclude.push(excl.clone());
+                    }
+                }
+
+                vfs::loader::Entry::Directories(dirs)
+            };
+
+            if root.is_local {
+                res.watch.push(res.load.len());
+            }
+            res.load.push(entry);
+
+            if root.is_local {
+                local_filesets.push(fsc.len());
+            }
+            fsc.add_file_set(file_set_roots)
+        }
+
+        let fsc = fsc.build();
+        res.source_root_config = SourceRootConfig { fsc, local_filesets };
+
+        res
+    }
+}
+
+#[derive(Default, Debug)]
+pub(crate) struct SourceRootConfig {
+    pub(crate) fsc: FileSetConfig,
+    pub(crate) local_filesets: Vec<usize>,
+}
+
+impl SourceRootConfig {
+    pub(crate) fn partition(&self, vfs: &vfs::Vfs) -> Vec<SourceRoot> {
+        let _p = profile::span("SourceRootConfig::partition");
+        self.fsc
+            .partition(vfs)
+            .into_iter()
+            .enumerate()
+            .map(|(idx, file_set)| {
+                let is_local = self.local_filesets.contains(&idx);
+                if is_local {
+                    SourceRoot::new_local(file_set)
+                } else {
+                    SourceRoot::new_library(file_set)
+                }
+            })
+            .collect()
+    }
+}
+
+/// Load the proc-macros for the given lib path, marking them as ignored if needed.
+pub(crate) fn load_proc_macro(
+    server: &ProcMacroServer,
+    path: &AbsPath,
+    ignored_macros: &[Box<str>],
+) -> ProcMacroLoadResult {
+    let res: Result<Vec<_>, String> = (|| {
+        let dylib = MacroDylib::new(path.to_path_buf());
+        let vec = server.load_dylib(dylib).map_err(|e| format!("{e}"))?;
+        if vec.is_empty() {
+            return Err("proc macro library returned no proc macros".to_string());
+        }
+        Ok(vec
+            .into_iter()
+            .map(|expander| expander_to_proc_macro(expander, ignored_macros))
+            .collect())
+    })();
+    return match res {
+        Ok(proc_macros) => {
+            tracing::info!(
+                "Loaded proc-macros for {path}: {:?}",
+                proc_macros.iter().map(|it| it.name.clone()).collect::<Vec<_>>()
+            );
+            Ok(proc_macros)
+        }
+        Err(e) => {
+            tracing::warn!("proc-macro loading for {path} failed: {e}");
+            Err(e)
+        }
+    };
+
+    fn expander_to_proc_macro(
+        expander: proc_macro_api::ProcMacro,
+        ignored: &[Box<str>],
+    ) -> ProcMacro {
+        let name = SmolStr::from(expander.name());
+        let kind = match expander.kind() {
+            proc_macro_api::ProcMacroKind::CustomDerive => ProcMacroKind::CustomDerive,
+            proc_macro_api::ProcMacroKind::FuncLike => ProcMacroKind::FuncLike,
+            proc_macro_api::ProcMacroKind::Attr => ProcMacroKind::Attr,
+        };
+
+        let ignored = ignored.iter().any(|ignored| &**ignored == name);
+
+        let expander: sync::Arc<dyn ProcMacroExpander> = sync::Arc::new(Expander(expander));
+        ProcMacro { name, kind, expander, ignored }
+    }
+
+    #[derive(Debug)]
+    struct Expander(proc_macro_api::ProcMacro);
+
+    impl ProcMacroExpander for Expander {
+        fn expand(
+            &self,
+            subtree: &tt::Subtree,
+            attrs: Option<&tt::Subtree>,
+            env: &Env,
+        ) -> Result<tt::Subtree, ProcMacroExpansionError> {
+            let env = env.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+            match self.0.expand(subtree, attrs, env) {
+                Ok(Ok(subtree)) => Ok(subtree),
+                Ok(Err(err)) => Err(ProcMacroExpansionError::Panic(err.0)),
+                Err(err) => Err(ProcMacroExpansionError::System(err.to_string())),
+            }
+        }
+    }
+
+    /// Dummy identity expander, used for attribute proc-macros that are deliberately ignored by the user.
+    #[derive(Debug)]
+    struct IdentityExpander;
+
+    impl ProcMacroExpander for IdentityExpander {
+        fn expand(
+            &self,
+            subtree: &tt::Subtree,
+            _: Option<&tt::Subtree>,
+            _: &Env,
+        ) -> Result<tt::Subtree, ProcMacroExpansionError> {
+            Ok(subtree.clone())
+        }
+    }
+
+    /// Empty expander, used for proc-macros that are deliberately ignored by the user.
+    #[derive(Debug)]
+    struct EmptyExpander;
+
+    impl ProcMacroExpander for EmptyExpander {
+        fn expand(
+            &self,
+            _: &tt::Subtree,
+            _: Option<&tt::Subtree>,
+            _: &Env,
+        ) -> Result<tt::Subtree, ProcMacroExpansionError> {
+            Ok(tt::Subtree::empty())
+        }
+    }
+}
+
 pub(crate) fn should_refresh_for_change(path: &AbsPath, change_kind: ChangeKind) -> bool {
     const IMPLICIT_TARGET_FILES: &[&str] = &["build.rs", "src/main.rs", "src/lib.rs"];
     const IMPLICIT_TARGET_DIRS: &[&str] = &["src/bin", "examples", "tests", "benches"];
@@ -665,4 +912,19 @@ pub(crate) fn should_refresh_for_change(path: &AbsPath, change_kind: ChangeKind)
         }
     }
     false
+}
+
+/// Similar to [`str::eq_ignore_ascii_case`] but instead of ignoring
+/// case, we say that `-` and `_` are equal.
+fn eq_ignore_underscore(s1: &str, s2: &str) -> bool {
+    if s1.len() != s2.len() {
+        return false;
+    }
+
+    s1.as_bytes().iter().zip(s2.as_bytes()).all(|(s1, s2)| {
+        let s1_underscore = s1 == &b'_' || s1 == &b'-';
+        let s2_underscore = s2 == &b'_' || s2 == &b'-';
+
+        s1 == s2 || (s1_underscore && s2_underscore)
+    })
 }

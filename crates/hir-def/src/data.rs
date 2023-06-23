@@ -635,11 +635,11 @@ impl<'a> AssocItemCollector<'a> {
                     attr,
                 ) {
                     Ok(ResolvedAttr::Macro(call_id)) => {
-                        self.attr_calls.push((ast_id, call_id));
                         // If proc attribute macro expansion is disabled, skip expanding it here
                         if !self.db.expand_proc_attr_macros() {
                             continue 'attrs;
                         }
+
                         let loc = self.db.lookup_intern_macro_call(call_id);
                         if let MacroDefKind::ProcMacro(exp, ..) = loc.def.kind {
                             // If there's no expander for the proc macro (e.g. the
@@ -650,7 +650,20 @@ impl<'a> AssocItemCollector<'a> {
                             if exp.is_dummy() {
                                 continue 'attrs;
                             }
+
+                            // We check whether the proc macro is ignored, if it is, we don't expand it.
+                            let proc_macros = self.db.proc_macros();
+                            let proc_macro = proc_macros.get(&loc.def.krate).and_then(|m| {
+                                m.as_ref().ok().and_then(|m| m.get(exp.proc_macro_id().0 as usize))
+                            });
+                            if let Some(proc_macro) = proc_macro {
+                                if proc_macro.ignored {
+                                    continue 'attrs;
+                                }
+                            }
                         }
+
+                        self.attr_calls.push((ast_id, call_id));
 
                         let res =
                             self.expander.enter_expand_id::<ast::MacroItems>(self.db, call_id);
