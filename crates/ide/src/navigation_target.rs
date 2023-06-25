@@ -393,8 +393,8 @@ impl TryToNav for hir::Impl {
     }
 }
 
-impl TryToNav for hir::Field {
-    fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
+impl ToNav for hir::Field {
+    fn to_nav(&self, db: &RootDatabase) -> NavigationTarget {
         let src = self.source(db);
 
         let field_source = match &src.value {
@@ -411,7 +411,13 @@ impl TryToNav for hir::Field {
                 NavigationTarget::from_syntax(file_id, "".into(), None, range, SymbolKind::Field)
             }
         };
-        Some(field_source)
+        field_source
+    }
+}
+
+impl TryToNav for hir::Field {
+    fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
+        Some(self.to_nav(db))
     }
 }
 
