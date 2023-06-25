@@ -590,14 +590,14 @@ impl TryToNav for hir::TypeOrConstParam {
     }
 }
 
-impl TryToNav for hir::LifetimeParam {
-    fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
+impl ToNav for hir::LifetimeParam {
+    fn to_nav(&self, db: &RootDatabase) -> NavigationTarget {
         let InFile { file_id, value } = self.source(db);
         let name = self.name(db).to_smol_str();
 
         let FileRange { file_id, range } =
             InFile::new(file_id, value.syntax()).original_file_range(db);
-        Some(NavigationTarget {
+        NavigationTarget {
             file_id,
             name,
             alias: None,
@@ -607,7 +607,13 @@ impl TryToNav for hir::LifetimeParam {
             container_name: None,
             description: None,
             docs: None,
-        })
+        }
+    }
+}
+
+impl TryToNav for hir::LifetimeParam {
+    fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
+        Some(self.to_nav(db))
     }
 }
 
