@@ -320,12 +320,12 @@ impl ToNavFromAst for hir::TraitAlias {
     }
 }
 
-impl<D> TryToNav for D
+impl<D> ToNav for D
 where
     D: HasSource + ToNavFromAst + Copy + HasAttrs + HirDisplay,
     D::Ast: ast::HasName,
 {
-    fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
+    fn to_nav(&self, db: &RootDatabase) -> NavigationTarget {
         let src = self.source(db);
         let mut res = NavigationTarget::from_named(
             db,
@@ -335,7 +335,17 @@ where
         res.docs = self.docs(db);
         res.description = Some(self.display(db).to_string());
         res.container_name = self.container_name(db);
-        Some(res)
+        res
+    }
+}
+
+impl<D> TryToNav for D
+where
+    D: HasSource + ToNavFromAst + Copy + HasAttrs + HirDisplay,
+    D::Ast: ast::HasName,
+{
+    fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
+        Some(self.to_nav(db))
     }
 }
 
