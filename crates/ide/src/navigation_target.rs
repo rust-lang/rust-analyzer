@@ -364,8 +364,8 @@ impl ToNav for hir::Module {
     }
 }
 
-impl TryToNav for hir::Impl {
-    fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
+impl ToNav for hir::Impl {
+    fn to_nav(&self, db: &RootDatabase) -> NavigationTarget {
         let InFile { file_id, value } = self.source(db);
         let derive_attr = self.is_builtin_derive(db);
 
@@ -377,13 +377,19 @@ impl TryToNav for hir::Impl {
         };
 
         let (file_id, full_range, focus_range) = orig_range_with_focus(db, file_id, syntax, focus);
-        Some(NavigationTarget::from_syntax(
+        NavigationTarget::from_syntax(
             file_id,
             "impl".into(),
             focus_range,
             full_range,
             SymbolKind::Impl,
-        ))
+        )
+    }
+}
+
+impl TryToNav for hir::Impl {
+    fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
+        Some(self.to_nav(db))
     }
 }
 
