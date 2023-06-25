@@ -444,13 +444,19 @@ impl TryToNav for hir::Macro {
     }
 }
 
+impl ToNav for hir::Adt {
+    fn to_nav(&self, db: &RootDatabase) -> NavigationTarget {
+        match self {
+            hir::Adt::Struct(it) => it.to_nav(db),
+            hir::Adt::Union(it) => it.to_nav(db),
+            hir::Adt::Enum(it) => it.to_nav(db),
+        }
+    }
+}
+
 impl TryToNav for hir::Adt {
     fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
-        match self {
-            hir::Adt::Struct(it) => it.try_to_nav(db),
-            hir::Adt::Union(it) => it.try_to_nav(db),
-            hir::Adt::Enum(it) => it.try_to_nav(db),
-        }
+        Some(self.to_nav(db))
     }
 }
 
