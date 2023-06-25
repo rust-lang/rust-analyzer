@@ -421,8 +421,8 @@ impl TryToNav for hir::Field {
     }
 }
 
-impl TryToNav for hir::Macro {
-    fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
+impl ToNav for hir::Macro {
+    fn to_nav(&self, db: &RootDatabase) -> NavigationTarget {
         let src = self.source(db);
         let name_owner: &dyn ast::HasName = match &src.value {
             Either::Left(it) => it,
@@ -434,7 +434,13 @@ impl TryToNav for hir::Macro {
             self.kind(db).into(),
         );
         res.docs = self.docs(db);
-        Some(res)
+        res
+    }
+}
+
+impl TryToNav for hir::Macro {
+    fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
+        Some(self.to_nav(db))
     }
 }
 
