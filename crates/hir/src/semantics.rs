@@ -1311,7 +1311,7 @@ impl<'db> SemanticsImpl<'db> {
     where
         Def::Ast: AstNode,
     {
-        let res = def.source(self.db)?;
+        let res = def.source(self.db);
         self.cache(find_root(res.value.syntax()), res.file_id);
         Some(res)
     }

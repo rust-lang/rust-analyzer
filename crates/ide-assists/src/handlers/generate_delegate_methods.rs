@@ -96,10 +96,7 @@ pub(crate) fn generate_delegate_methods(acc: &mut Assists, ctx: &AssistContext<'
             target,
             |builder| {
                 // Create the function
-                let method_source = match method.source(ctx.db()) {
-                    Some(source) => source.value,
-                    None => return,
-                };
+                let method_source = method.source(ctx.db()).value;
                 let vis = method_source.visibility();
                 let fn_name = make::name(&name);
                 let params =

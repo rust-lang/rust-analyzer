@@ -169,7 +169,7 @@ fn try_gen_trait_body(
     let trait_path =
         make::ext::ident_path(&trait_ref.trait_().name(ctx.db()).display(ctx.db()).to_string());
     let hir_ty = ctx.sema.resolve_type(&impl_def.self_ty()?)?;
-    let adt = hir_ty.as_adt()?.source(ctx.db())?;
+    let adt = hir_ty.as_adt()?.source(ctx.db());
     gen_trait_fn_body(func, &trait_path, &adt.value, Some(trait_ref))
 }
 

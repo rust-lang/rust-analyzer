@@ -347,7 +347,7 @@ fn runnable_action(
     match def {
         Definition::Module(it) => runnable_mod(sema, it).map(HoverAction::Runnable),
         Definition::Function(func) => {
-            let src = func.source(sema.db)?;
+            let src = func.source(sema.db);
             if src.file_id != file_id.into() {
                 cov_mark::hit!(hover_macro_generated_struct_fn_doc_comment);
                 cov_mark::hit!(hover_macro_generated_struct_fn_doc_attr);

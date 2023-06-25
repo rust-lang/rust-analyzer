@@ -406,7 +406,7 @@ fn build_pat(
                 mod_path_to_ast(&module.find_use_path(db, ModuleDef::from(var), prefer_no_std)?);
 
             // FIXME: use HIR for this; it doesn't currently expose struct vs. tuple vs. unit variants though
-            let pat: ast::Pat = match var.source(db)?.value.kind() {
+            let pat: ast::Pat = match var.source(db).value.kind() {
                 ast::StructKind::Tuple(field_list) => {
                     let pats =
                         iter::repeat(make::wildcard_pat().into()).take(field_list.fields().count());

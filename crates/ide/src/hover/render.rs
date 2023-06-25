@@ -439,7 +439,7 @@ pub(super) fn definition(
             match body {
                 Ok(x) => Some(x),
                 Err(_) => {
-                    let source = it.source(db)?;
+                    let source = it.source(db);
                     let mut body = source.value.body()?.syntax().clone();
                     if source.file_id.is_macro() {
                         body = insert_whitespace_into_node::insert_ws_into(body);
@@ -449,7 +449,7 @@ pub(super) fn definition(
             }
         }),
         Definition::Static(it) => label_value_and_docs(db, it, |it| {
-            let source = it.source(db)?;
+            let source = it.source(db);
             let mut body = source.value.body()?.syntax().clone();
             if source.file_id.is_macro() {
                 body = insert_whitespace_into_node::insert_ws_into(body);

@@ -414,7 +414,7 @@ impl Function {
         let self_param = self.self_param.as_ref()?;
         let def = ctx.sema.to_def(self_param)?;
         let adt = def.ty(ctx.db()).strip_references().as_adt()?;
-        let InFile { file_id: _, value } = adt.source(ctx.db())?;
+        let InFile { file_id: _, value } = adt.source(ctx.db());
         Some(value)
     }
 }

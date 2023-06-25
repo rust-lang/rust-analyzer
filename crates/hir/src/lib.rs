@@ -1194,7 +1194,7 @@ impl Variant {
     }
 
     pub fn value(self, db: &dyn HirDatabase) -> Option<ast::Expr> {
-        self.source(db)?.value.expr()
+        self.source(db).value.expr()
     }
 
     pub fn eval(self, db: &dyn HirDatabase) -> Result<i128, ConstEvalError> {
@@ -2056,7 +2056,7 @@ impl Param {
     }
 
     pub fn source(&self, db: &dyn HirDatabase) -> Option<InFile<ast::Param>> {
-        let InFile { file_id, value } = self.func.source(db)?;
+        let InFile { file_id, value } = self.func.source(db);
         let params = value.param_list()?;
         if params.self_param().is_some() {
             params.params().nth(self.idx.checked_sub(1)?)
@@ -2097,7 +2097,7 @@ impl SelfParam {
     }
 
     pub fn source(&self, db: &dyn HirDatabase) -> Option<InFile<ast::SelfParam>> {
-        let InFile { file_id, value } = Function::from(self.func).source(db)?;
+        let InFile { file_id, value } = Function::from(self.func).source(db);
         value
             .param_list()
             .and_then(|params| params.self_param())
@@ -2146,7 +2146,7 @@ impl Const {
     }
 
     pub fn value(self, db: &dyn HirDatabase) -> Option<ast::Expr> {
-        self.source(db)?.value.body()
+        self.source(db).value.body()
     }
 
     pub fn ty(self, db: &dyn HirDatabase) -> Type {
@@ -2185,7 +2185,7 @@ impl Static {
     }
 
     pub fn value(self, db: &dyn HirDatabase) -> Option<ast::Expr> {
-        self.source(db)?.value.body()
+        self.source(db).value.body()
     }
 
     pub fn ty(self, db: &dyn HirDatabase) -> Type {
@@ -3284,7 +3284,7 @@ impl Impl {
     }
 
     pub fn is_builtin_derive(self, db: &dyn HirDatabase) -> Option<InFile<ast::Attr>> {
-        let src = self.source(db)?;
+        let src = self.source(db);
         src.file_id.is_builtin_derive(db.upcast())
     }
 }

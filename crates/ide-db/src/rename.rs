@@ -87,7 +87,7 @@ impl Definition {
     pub fn range_for_rename(self, sema: &Semantics<'_, RootDatabase>) -> Option<FileRange> {
         let res = match self {
             Definition::Macro(mac) => {
-                let src = mac.source(sema.db)?;
+                let src = mac.source(sema.db);
                 let name = match &src.value {
                     Either::Left(it) => it.name()?,
                     Either::Right(it) => it.name()?,
@@ -95,7 +95,7 @@ impl Definition {
                 src.with_value(name.syntax()).original_file_range_opt(sema.db)
             }
             Definition::Field(field) => {
-                let src = field.source(sema.db)?;
+                let src = field.source(sema.db);
                 match &src.value {
                     FieldSource::Named(record_field) => {
                         let name = record_field.name()?;
@@ -124,7 +124,7 @@ impl Definition {
             Definition::Local(it) => name_range(it.primary_source(sema.db), sema),
             Definition::GenericParam(generic_param) => match generic_param {
                 hir::GenericParam::LifetimeParam(lifetime_param) => {
-                    let src = lifetime_param.source(sema.db)?;
+                    let src = lifetime_param.source(sema.db);
                     src.with_value(src.value.lifetime()?.syntax()).original_file_range_opt(sema.db)
                 }
                 _ => {
@@ -133,7 +133,7 @@ impl Definition {
                         hir::GenericParam::ConstParam(it) => it.merge(),
                         hir::GenericParam::LifetimeParam(_) => return None,
                     };
-                    let src = x.source(sema.db)?;
+                    let src = x.source(sema.db);
                     let name = match &src.value {
                         Either::Left(x) => x.name()?,
                         Either::Right(_) => return None,
@@ -160,7 +160,7 @@ impl Definition {
             D: HasSource,
             D::Ast: ast::HasName,
         {
-            let src = def.source(sema.db)?;
+            let src = def.source(sema.db);
             let name = src.value.name()?;
             src.with_value(name.syntax()).original_file_range_opt(sema.db)
         }

@@ -138,7 +138,7 @@ pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable> {
             if let Some(def) = def {
                 let file_id = match def {
                     Definition::Module(it) => it.declaration_source(db).map(|src| src.file_id),
-                    Definition::Function(it) => it.source(db).map(|src| src.file_id),
+                    Definition::Function(it) => Some(it.source(db).file_id),
                     _ => None,
                 };
                 if let Some(file_id) = file_id.filter(|file| file.call_node(db).is_some()) {
@@ -334,7 +334,7 @@ pub(crate) fn runnable_fn(
 
     let nav = NavigationTarget::from_named(
         sema.db,
-        def.source(sema.db)?.as_ref().map(|it| it as &dyn ast::HasName),
+        def.source(sema.db).as_ref().map(|it| it as &dyn ast::HasName),
         SymbolKind::Function,
     );
     let cfg = def.attrs(sema.db).cfg();
@@ -530,10 +530,9 @@ fn has_test_function_or_multiple_test_submodules(
     for item in module.declarations(sema.db) {
         match item {
             hir::ModuleDef::Function(f) => {
-                if let Some(it) = f.source(sema.db) {
-                    if test_related_attribute(&it.value).is_some() {
-                        return true;
-                    }
+                let it = f.source(sema.db);
+                if test_related_attribute(&it.value).is_some() {
+                    return true;
                 }
             }
             hir::ModuleDef::Module(submodule) => {

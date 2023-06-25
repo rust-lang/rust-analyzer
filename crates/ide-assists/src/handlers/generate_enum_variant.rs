@@ -114,7 +114,7 @@ fn add_variant_to_accumulator(
     parent: PathParent,
 ) -> Option<()> {
     let db = ctx.db();
-    let InFile { file_id, value: enum_node } = adt.source(db)?.original_ast_node(db)?;
+    let InFile { file_id, value: enum_node } = adt.source(db).original_ast_node(db)?;
 
     acc.add(
         AssistId("generate_enum_variant", AssistKind::Generate),

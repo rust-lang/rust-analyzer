@@ -403,20 +403,16 @@ impl flags::AnalysisStats {
             let msg = move || {
                 if verbosity.is_verbose() {
                     let source = match body_id {
-                        DefWithBody::Function(it) => it.source(db).map(|it| it.syntax().cloned()),
-                        DefWithBody::Static(it) => it.source(db).map(|it| it.syntax().cloned()),
-                        DefWithBody::Const(it) => it.source(db).map(|it| it.syntax().cloned()),
-                        DefWithBody::Variant(it) => it.source(db).map(|it| it.syntax().cloned()),
+                        DefWithBody::Function(it) => it.source(db).syntax().cloned(),
+                        DefWithBody::Static(it) => it.source(db).syntax().cloned(),
+                        DefWithBody::Const(it) => it.source(db).syntax().cloned(),
+                        DefWithBody::Variant(it) => it.source(db).syntax().cloned(),
                         DefWithBody::InTypeConst(_) => unimplemented!(),
                     };
-                    if let Some(src) = source {
-                        let original_file = src.file_id.original_file(db);
-                        let path = vfs.file_path(original_file);
-                        let syntax_range = src.value.text_range();
-                        format!("processing: {} ({} {:?})", full_name(), path, syntax_range)
-                    } else {
-                        format!("processing: {}", full_name())
-                    }
+                    let original_file = source.file_id.original_file(db);
+                    let path = vfs.file_path(original_file);
+                    let syntax_range = source.value.text_range();
+                    format!("processing: {} ({} {:?})", full_name(), path, syntax_range)
                 } else {
                     format!("processing: {}", full_name())
                 }
@@ -697,20 +693,16 @@ impl flags::AnalysisStats {
             let msg = move || {
                 if verbosity.is_verbose() {
                     let source = match body_id {
-                        DefWithBody::Function(it) => it.source(db).map(|it| it.syntax().cloned()),
-                        DefWithBody::Static(it) => it.source(db).map(|it| it.syntax().cloned()),
-                        DefWithBody::Const(it) => it.source(db).map(|it| it.syntax().cloned()),
-                        DefWithBody::Variant(it) => it.source(db).map(|it| it.syntax().cloned()),
+                        DefWithBody::Function(it) => it.source(db).syntax().cloned(),
+                        DefWithBody::Static(it) => it.source(db).syntax().cloned(),
+                        DefWithBody::Const(it) => it.source(db).syntax().cloned(),
+                        DefWithBody::Variant(it) => it.source(db).syntax().cloned(),
                         DefWithBody::InTypeConst(_) => unimplemented!(),
                     };
-                    if let Some(src) = source {
-                        let original_file = src.file_id.original_file(db);
-                        let path = vfs.file_path(original_file);
-                        let syntax_range = src.value.text_range();
-                        format!("processing: {} ({} {:?})", full_name(), path, syntax_range)
-                    } else {
-                        format!("processing: {}", full_name())
-                    }
+                    let original_file = source.file_id.original_file(db);
+                    let path = vfs.file_path(original_file);
+                    let syntax_range = source.value.text_range();
+                    format!("processing: {} ({} {:?})", full_name(), path, syntax_range)
                 } else {
                     format!("processing: {}", full_name())
                 }

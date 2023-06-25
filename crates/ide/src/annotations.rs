@@ -83,10 +83,12 @@ pub(crate) fn annotations(
     visit_file_defs(&Semantics::new(db), file_id, &mut |def| {
         let range = match def {
             Definition::Const(konst) if config.annotate_references => {
-                konst.source(db).and_then(|node| name_range(db, node, file_id))
+                let node = konst.source(db);
+                name_range(db, node, file_id)
             }
             Definition::Trait(trait_) if config.annotate_references || config.annotate_impls => {
-                trait_.source(db).and_then(|node| name_range(db, node, file_id))
+                let node = trait_.source(db);
+                name_range(db, node, file_id)
             }
             Definition::Adt(adt) => match adt {
                 hir::Adt::Enum(enum_) => {
@@ -95,7 +97,8 @@ pub(crate) fn annotations(
                             .variants(db)
                             .into_iter()
                             .map(|variant| {
-                                variant.source(db).and_then(|node| name_range(db, node, file_id))
+                                let node = variant.source(db);
+                                name_range(db, node, file_id)
                             })
                             .flatten()
                             .for_each(|range| {
@@ -110,14 +113,16 @@ pub(crate) fn annotations(
                             })
                     }
                     if config.annotate_references || config.annotate_impls {
-                        enum_.source(db).and_then(|node| name_range(db, node, file_id))
+                        let node = enum_.source(db);
+                        name_range(db, node, file_id)
                     } else {
                         None
                     }
                 }
                 _ => {
                     if config.annotate_references || config.annotate_impls {
-                        adt.source(db).and_then(|node| name_range(db, node, file_id))
+                        let node = adt.source(db);
+                        name_range(db, node, file_id)
                     } else {
                         None
                     }

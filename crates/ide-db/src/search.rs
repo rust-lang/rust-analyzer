@@ -237,41 +237,33 @@ impl Definition {
 
         if let Definition::Local(var) = self {
             let def = match var.parent(db) {
-                DefWithBody::Function(f) => f.source(db).map(|src| src.syntax().cloned()),
-                DefWithBody::Const(c) => c.source(db).map(|src| src.syntax().cloned()),
-                DefWithBody::Static(s) => s.source(db).map(|src| src.syntax().cloned()),
-                DefWithBody::Variant(v) => v.source(db).map(|src| src.syntax().cloned()),
+                DefWithBody::Function(f) => f.source(db).syntax().cloned(),
+                DefWithBody::Const(c) => c.source(db).syntax().cloned(),
+                DefWithBody::Static(s) => s.source(db).syntax().cloned(),
+                DefWithBody::Variant(v) => v.source(db).syntax().cloned(),
                 // FIXME: implement
                 DefWithBody::InTypeConst(_) => return SearchScope::empty(),
             };
-            return match def {
-                Some(def) => SearchScope::file_range(def.as_ref().original_file_range_full(db)),
-                None => SearchScope::single_file(file_id),
-            };
+            return SearchScope::file_range(def.as_ref().original_file_range_full(db));
         }
 
         if let Definition::SelfType(impl_) = self {
-            return match impl_.source(db).map(|src| src.syntax().cloned()) {
-                Some(def) => SearchScope::file_range(def.as_ref().original_file_range_full(db)),
-                None => SearchScope::single_file(file_id),
-            };
+            let def = impl_.source(db).syntax().cloned();
+            return SearchScope::file_range(def.as_ref().original_file_range_full(db));
         }
 
         if let Definition::GenericParam(hir::GenericParam::LifetimeParam(param)) = self {
             let def = match param.parent(db) {
-                hir::GenericDef::Function(it) => it.source(db).map(|src| src.syntax().cloned()),
-                hir::GenericDef::Adt(it) => it.source(db).map(|src| src.syntax().cloned()),
-                hir::GenericDef::Trait(it) => it.source(db).map(|src| src.syntax().cloned()),
-                hir::GenericDef::TraitAlias(it) => it.source(db).map(|src| src.syntax().cloned()),
-                hir::GenericDef::TypeAlias(it) => it.source(db).map(|src| src.syntax().cloned()),
-                hir::GenericDef::Impl(it) => it.source(db).map(|src| src.syntax().cloned()),
-                hir::GenericDef::Variant(it) => it.source(db).map(|src| src.syntax().cloned()),
-                hir::GenericDef::Const(it) => it.source(db).map(|src| src.syntax().cloned()),
+                hir::GenericDef::Function(it) => it.source(db).syntax().cloned(),
+                hir::GenericDef::Adt(it) => it.source(db).syntax().cloned(),
+                hir::GenericDef::Trait(it) => it.source(db).syntax().cloned(),
+                hir::GenericDef::TraitAlias(it) => it.source(db).syntax().cloned(),
+                hir::GenericDef::TypeAlias(it) => it.source(db).syntax().cloned(),
+                hir::GenericDef::Impl(it) => it.source(db).syntax().cloned(),
+                hir::GenericDef::Variant(it) => it.source(db).syntax().cloned(),
+                hir::GenericDef::Const(it) => it.source(db).syntax().cloned(),
             };
-            return match def {
-                Some(def) => SearchScope::file_range(def.as_ref().original_file_range_full(db)),
-                None => SearchScope::single_file(file_id),
-            };
+            return SearchScope::file_range(def.as_ref().original_file_range_full(db));
         }
 
         if let Definition::Macro(macro_def) = self {

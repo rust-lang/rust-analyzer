@@ -326,7 +326,7 @@ where
     D::Ast: ast::HasName,
 {
     fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
-        let src = self.source(db)?;
+        let src = self.source(db);
         let mut res = NavigationTarget::from_named(
             db,
             src.as_ref().map(|it| it as &dyn ast::HasName),
@@ -356,7 +356,7 @@ impl ToNav for hir::Module {
 
 impl TryToNav for hir::Impl {
     fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
-        let InFile { file_id, value } = self.source(db)?;
+        let InFile { file_id, value } = self.source(db);
         let derive_attr = self.is_builtin_derive(db);
 
         let focus = if derive_attr.is_some() { None } else { value.self_ty() };
@@ -379,7 +379,7 @@ impl TryToNav for hir::Impl {
 
 impl TryToNav for hir::Field {
     fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
-        let src = self.source(db)?;
+        let src = self.source(db);
 
         let field_source = match &src.value {
             FieldSource::Named(it) => {
@@ -401,7 +401,7 @@ impl TryToNav for hir::Field {
 
 impl TryToNav for hir::Macro {
     fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
-        let src = self.source(db)?;
+        let src = self.source(db);
         let name_owner: &dyn ast::HasName = match &src.value {
             Either::Left(it) => it,
             Either::Right(it) => it,
@@ -510,7 +510,7 @@ impl ToNav for hir::Label {
 
 impl TryToNav for hir::TypeParam {
     fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
-        let InFile { file_id, value } = self.merge().source(db)?;
+        let InFile { file_id, value } = self.merge().source(db);
         let name = self.name(db).to_smol_str();
 
         let value = match value {
@@ -552,7 +552,7 @@ impl TryToNav for hir::TypeOrConstParam {
 
 impl TryToNav for hir::LifetimeParam {
     fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
-        let InFile { file_id, value } = self.source(db)?;
+        let InFile { file_id, value } = self.source(db);
         let name = self.name(db).to_smol_str();
 
         let FileRange { file_id, range } =
@@ -573,7 +573,7 @@ impl TryToNav for hir::LifetimeParam {
 
 impl TryToNav for hir::ConstParam {
     fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
-        let InFile { file_id, value } = self.merge().source(db)?;
+        let InFile { file_id, value } = self.merge().source(db);
         let name = self.name(db).to_smol_str();
 
         let value = match value {
