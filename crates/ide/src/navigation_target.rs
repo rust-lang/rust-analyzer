@@ -460,13 +460,19 @@ impl TryToNav for hir::Adt {
     }
 }
 
+impl ToNav for hir::AssocItem {
+    fn to_nav(&self, db: &RootDatabase) -> NavigationTarget {
+        match self {
+            AssocItem::Function(it) => it.to_nav(db),
+            AssocItem::Const(it) => it.to_nav(db),
+            AssocItem::TypeAlias(it) => it.to_nav(db),
+        }
+    }
+}
+
 impl TryToNav for hir::AssocItem {
     fn try_to_nav(&self, db: &RootDatabase) -> Option<NavigationTarget> {
-        match self {
-            AssocItem::Function(it) => it.try_to_nav(db),
-            AssocItem::Const(it) => it.try_to_nav(db),
-            AssocItem::TypeAlias(it) => it.try_to_nav(db),
-        }
+        Some(self.to_nav(db))
     }
 }
 
