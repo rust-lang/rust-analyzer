@@ -50,10 +50,8 @@ pub(crate) fn convert_tuple_struct_to_named_struct(
     acc: &mut Assists,
     ctx: &AssistContext<'_>,
 ) -> Option<()> {
-    let strukt = ctx
-        .find_node_at_offset::<ast::Struct>()
-        .map(Either::Left)
-        .or_else(|| ctx.find_node_at_offset::<ast::Variant>().map(Either::Right))?;
+    let name = ctx.find_node_at_offset::<ast::Name>()?;
+    let strukt = name.syntax().parent().and_then(<Either<ast::Struct, ast::Variant>>::cast)?;
     let field_list = strukt.as_ref().either(|s| s.field_list(), |v| v.field_list())?;
     let tuple_fields = match field_list {
         ast::FieldList::TupleFieldList(it) => it,
@@ -168,7 +166,7 @@ fn edit_struct_references(
                     let arg_list = call_expr.syntax().descendants().find_map(ast::ArgList::cast)?;
 
                     edit.replace(
-                        call_expr.syntax().text_range(),
+                        ctx.sema.original_range(&node).range,
                         ast::make::record_expr(
                             path,
                             ast::make::record_expr_field_list(arg_list.args().zip(names).map(
@@ -226,7 +224,13 @@ fn edit_field_references(
 }
 
 fn generate_names(fields: impl Iterator<Item = ast::TupleField>) -> Vec<ast::Name> {
-    fields.enumerate().map(|(i, _)| ast::make::name(&format!("field{}", i + 1))).collect()
+    fields
+        .enumerate()
+        .map(|(i, _)| {
+            let idx = i + 1;
+            ast::make::name(&format!("field{idx}"))
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -242,6 +246,24 @@ mod tests {
             r#"struct Foo$0 { bar: u32 };"#,
         );
         check_assist_not_applicable(convert_tuple_struct_to_named_struct, r#"struct Foo$0;"#);
+    }
+    #[test]
+    fn convert_in_macro_args() {
+        check_assist(
+            convert_tuple_struct_to_named_struct,
+            r#"
+macro_rules! foo {($i:expr) => {$i} }
+struct T$0(u8);
+fn test() {
+    foo!(T(1));
+}"#,
+            r#"
+macro_rules! foo {($i:expr) => {$i} }
+struct T { field1: u8 }
+fn test() {
+    foo!(T { field1: 1 });
+}"#,
+        );
     }
 
     #[test]
@@ -545,6 +567,29 @@ where
         check_assist_not_applicable(
             convert_tuple_struct_to_named_struct,
             r#"enum Enum { Variant$0 }"#,
+        );
+    }
+
+    #[test]
+    fn convert_variant_in_macro_args() {
+        check_assist(
+            convert_tuple_struct_to_named_struct,
+            r#"
+macro_rules! foo {($i:expr) => {$i} }
+enum T {
+  V$0(u8)
+}
+fn test() {
+    foo!(T::V(1));
+}"#,
+            r#"
+macro_rules! foo {($i:expr) => {$i} }
+enum T {
+  V { field1: u8 }
+}
+fn test() {
+    foo!(T::V { field1: 1 });
+}"#,
         );
     }
 

@@ -13,7 +13,7 @@ use syntax::{
         edit::{AstNodeEdit, IndentLevel},
         make, HasName,
     },
-    AstNode, TextRange,
+    AstNode, TextRange, T,
 };
 
 use crate::{
@@ -96,14 +96,17 @@ pub(crate) fn replace_if_let_with_match(acc: &mut Assists, ctx: &AssistContext<'
         cond_bodies.push((cond, body));
     }
 
-    if !pat_seen {
-        // Don't offer turning an if (chain) without patterns into a match
+    if !pat_seen && cond_bodies.len() != 1 {
+        // Don't offer turning an if (chain) without patterns into a match,
+        // unless its a simple `if cond { .. } (else { .. })`
         return None;
     }
 
+    let let_ = if pat_seen { " let" } else { "" };
+
     acc.add(
         AssistId("replace_if_let_with_match", AssistKind::RefactorRewrite),
-        "Replace if let with match",
+        format!("Replace if{let_} with match"),
         available_range,
         move |edit| {
             let match_expr = {
@@ -114,6 +117,11 @@ pub(crate) fn replace_if_let_with_match(acc: &mut Assists, ctx: &AssistContext<'
                         Either::Left(pat) => {
                             make::match_arm(iter::once(pat), None, unwrap_trivial_block(body))
                         }
+                        Either::Right(_) if !pat_seen => make::match_arm(
+                            iter::once(make::literal_pat("true").into()),
+                            None,
+                            unwrap_trivial_block(body),
+                        ),
                         Either::Right(expr) => make::match_arm(
                             iter::once(make::wildcard_pat().into()),
                             Some(expr),
@@ -144,31 +152,36 @@ fn make_else_arm(
     else_block: Option<ast::BlockExpr>,
     conditionals: &[(Either<ast::Pat, ast::Expr>, ast::BlockExpr)],
 ) -> ast::MatchArm {
-    if let Some(else_block) = else_block {
-        let pattern = if let [(Either::Left(pat), _)] = conditionals {
-            ctx.sema
+    let (pattern, expr) = if let Some(else_block) = else_block {
+        let pattern = match conditionals {
+            [(Either::Right(_), _)] => make::literal_pat("false").into(),
+            [(Either::Left(pat), _)] => match ctx
+                .sema
                 .type_of_pat(pat)
                 .and_then(|ty| TryEnum::from_ty(&ctx.sema, &ty.adjusted()))
-                .zip(Some(pat))
-        } else {
-            None
-        };
-        let pattern = match pattern {
-            Some((it, pat)) => {
-                if does_pat_match_variant(pat, &it.sad_pattern()) {
-                    it.happy_pattern_wildcard()
-                } else if does_nested_pattern(pat) {
-                    make::wildcard_pat().into()
-                } else {
-                    it.sad_pattern()
+            {
+                Some(it) => {
+                    if does_pat_match_variant(pat, &it.sad_pattern()) {
+                        it.happy_pattern_wildcard()
+                    } else if does_nested_pattern(pat) {
+                        make::wildcard_pat().into()
+                    } else {
+                        it.sad_pattern()
+                    }
                 }
-            }
-            None => make::wildcard_pat().into(),
+                None => make::wildcard_pat().into(),
+            },
+            _ => make::wildcard_pat().into(),
         };
-        make::match_arm(iter::once(pattern), None, unwrap_trivial_block(else_block))
+        (pattern, unwrap_trivial_block(else_block))
     } else {
-        make::match_arm(iter::once(make::wildcard_pat().into()), None, make::expr_unit())
-    }
+        let pattern = match conditionals {
+            [(Either::Right(_), _)] => make::literal_pat("false").into(),
+            _ => make::wildcard_pat().into(),
+        };
+        (pattern, make::expr_unit())
+    };
+    make::match_arm(iter::once(pattern), None, expr)
 }
 
 // Assist: replace_match_with_if_let
@@ -199,8 +212,17 @@ fn make_else_arm(
 // ```
 pub(crate) fn replace_match_with_if_let(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     let match_expr: ast::MatchExpr = ctx.find_node_at_offset()?;
+    let match_arm_list = match_expr.match_arm_list()?;
+    let available_range = TextRange::new(
+        match_expr.syntax().text_range().start(),
+        match_arm_list.syntax().text_range().start(),
+    );
+    let cursor_in_range = available_range.contains_range(ctx.selection_trimmed());
+    if !cursor_in_range {
+        return None;
+    }
 
-    let mut arms = match_expr.match_arm_list()?.arms();
+    let mut arms = match_arm_list.arms();
     let (first_arm, second_arm) = (arms.next()?, arms.next()?);
     if arms.next().is_some() || first_arm.guard().is_some() || second_arm.guard().is_some() {
         return None;
@@ -215,10 +237,20 @@ pub(crate) fn replace_match_with_if_let(acc: &mut Assists, ctx: &AssistContext<'
     )?;
     let scrutinee = match_expr.expr()?;
 
+    let let_ = match &if_let_pat {
+        ast::Pat::LiteralPat(p)
+            if p.literal()
+                .map(|it| it.token().kind())
+                .map_or(false, |it| it == T![true] || it == T![false]) =>
+        {
+            ""
+        }
+        _ => " let",
+    };
     let target = match_expr.syntax().text_range();
     acc.add(
         AssistId("replace_match_with_if_let", AssistKind::RefactorRewrite),
-        "Replace match with if let",
+        format!("Replace match with if{let_}"),
         target,
         move |edit| {
             fn make_block_expr(expr: ast::Expr) -> ast::BlockExpr {
@@ -231,7 +263,19 @@ pub(crate) fn replace_match_with_if_let(acc: &mut Assists, ctx: &AssistContext<'
                 }
             }
 
-            let condition = make::expr_let(if_let_pat, scrutinee);
+            let condition = match if_let_pat {
+                ast::Pat::LiteralPat(p)
+                    if p.literal().map_or(false, |it| it.token().kind() == T![true]) =>
+                {
+                    scrutinee
+                }
+                ast::Pat::LiteralPat(p)
+                    if p.literal().map_or(false, |it| it.token().kind() == T![false]) =>
+                {
+                    make::expr_prefix(T![!], scrutinee)
+                }
+                _ => make::expr_let(if_let_pat, scrutinee).into(),
+            };
             let then_block = make_block_expr(then_expr.reset_indent());
             let else_expr = if is_empty_expr(&else_expr) { None } else { Some(else_expr) };
             let if_let_expr = make::expr_if(
@@ -322,6 +366,58 @@ mod tests {
             r#"
 fn main() {
     if $0true {} else if false {} else {}
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn test_if_with_match_no_else() {
+        check_assist(
+            replace_if_let_with_match,
+            r#"
+pub fn foo(foo: bool) {
+    if foo$0 {
+        self.foo();
+    }
+}
+"#,
+            r#"
+pub fn foo(foo: bool) {
+    match foo {
+        true => {
+            self.foo();
+        }
+        false => (),
+    }
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn test_if_with_match_with_else() {
+        check_assist(
+            replace_if_let_with_match,
+            r#"
+pub fn foo(foo: bool) {
+    if foo$0 {
+        self.foo();
+    } else {
+        self.bar();
+    }
+}
+"#,
+            r#"
+pub fn foo(foo: bool) {
+    match foo {
+        true => {
+            self.foo();
+        }
+        false => {
+            self.bar();
+        }
+    }
 }
 "#,
         )
@@ -990,6 +1086,66 @@ fn main() {
     if let 0 = 0 {
         ()
     } else {
+        code()
+    }
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn test_replace_match_with_if_bool() {
+        check_assist(
+            replace_match_with_if_let,
+            r#"
+fn main() {
+    match$0 b {
+        true => (),
+        _ => code(),
+    }
+}
+"#,
+            r#"
+fn main() {
+    if b {
+        ()
+    } else {
+        code()
+    }
+}
+"#,
+        );
+        check_assist(
+            replace_match_with_if_let,
+            r#"
+fn main() {
+    match$0 b {
+        false => code(),
+        true => (),
+    }
+}
+"#,
+            r#"
+fn main() {
+    if !b {
+        code()
+    }
+}
+"#,
+        );
+        check_assist(
+            replace_match_with_if_let,
+            r#"
+fn main() {
+    match$0 b {
+        false => (),
+        true => code(),
+    }
+}
+"#,
+            r#"
+fn main() {
+    if b {
         code()
     }
 }

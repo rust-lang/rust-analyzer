@@ -101,7 +101,7 @@ Including a description and GIF suitable for the changelog means less work for t
 
 We don't enforce Clippy.
 A number of default lints have high false positive rate.
-Selectively patching false-positives with `allow(clippy)` is considered worse than not using Clippy at all.
+Selectively patching false-positives with `allow(clippy)` is probably worse than entirely disabling a problematic lint.
 There's a `cargo lint` command which runs a subset of low-FPR lints.
 Careful tweaking of `lint` is welcome.
 Of course, applying Clippy suggestions is welcome as long as they indeed improve the code.
@@ -868,6 +868,19 @@ type   -> ty
 ```
 
 **Rationale:** consistency.
+
+## Error Handling Trivia
+
+Use `anyhow::Result` rather than just `Result`.
+
+**Rationale:** makes it immediately clear what result that is.
+
+Use `anyhow::format_err!` rather than `anyhow::anyhow`.
+
+**Rationale:** consistent, boring, avoids stuttering.
+
+There's no specific guidance on the formatting of error messages, see [anyhow/#209](https://github.com/dtolnay/anyhow/issues/209).
+Do not end error and context messages with `.` though. 
 
 ## Early Returns
 

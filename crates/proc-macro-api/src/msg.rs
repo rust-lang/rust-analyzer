@@ -12,16 +12,25 @@ use crate::ProcMacroKind;
 
 pub use crate::msg::flat::FlatTree;
 
+// The versions of the server protocol
+pub const NO_VERSION_CHECK_VERSION: u32 = 0;
+pub const VERSION_CHECK_VERSION: u32 = 1;
+pub const ENCODE_CLOSE_SPAN_VERSION: u32 = 2;
+
+pub const CURRENT_API_VERSION: u32 = ENCODE_CLOSE_SPAN_VERSION;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Request {
     ListMacros { dylib_path: PathBuf },
     ExpandMacro(ExpandMacro),
+    ApiVersionCheck {},
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Response {
     ListMacros(Result<Vec<(String, ProcMacroKind)>, String>),
     ExpandMacro(Result<FlatTree, PanicMessage>),
+    ApiVersionCheck(u32),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -107,27 +116,31 @@ fn write_json(out: &mut impl Write, msg: &str) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tt::*;
+    use crate::tt::*;
 
     fn fixture_token_tree() -> Subtree {
-        let mut subtree = Subtree::default();
+        let mut subtree = Subtree { delimiter: Delimiter::unspecified(), token_trees: Vec::new() };
         subtree
             .token_trees
-            .push(TokenTree::Leaf(Ident { text: "struct".into(), id: TokenId(0) }.into()));
+            .push(TokenTree::Leaf(Ident { text: "struct".into(), span: TokenId(0) }.into()));
         subtree
             .token_trees
-            .push(TokenTree::Leaf(Ident { text: "Foo".into(), id: TokenId(1) }.into()));
+            .push(TokenTree::Leaf(Ident { text: "Foo".into(), span: TokenId(1) }.into()));
         subtree.token_trees.push(TokenTree::Leaf(Leaf::Literal(Literal {
             text: "Foo".into(),
-            id: TokenId::unspecified(),
+            span: TokenId::unspecified(),
         })));
         subtree.token_trees.push(TokenTree::Leaf(Leaf::Punct(Punct {
             char: '@',
-            id: TokenId::unspecified(),
+            span: TokenId::unspecified(),
             spacing: Spacing::Joint,
         })));
         subtree.token_trees.push(TokenTree::Subtree(Subtree {
-            delimiter: Some(Delimiter { id: TokenId(2), kind: DelimiterKind::Brace }),
+            delimiter: Delimiter {
+                open: TokenId(2),
+                close: TokenId::UNSPECIFIED,
+                kind: DelimiterKind::Brace,
+            },
             token_trees: vec![],
         }));
         subtree
@@ -137,7 +150,7 @@ mod tests {
     fn test_proc_macro_rpc_works() {
         let tt = fixture_token_tree();
         let task = ExpandMacro {
-            macro_body: FlatTree::new(&tt),
+            macro_body: FlatTree::new(&tt, CURRENT_API_VERSION),
             macro_name: Default::default(),
             attributes: None,
             lib: std::env::current_dir().unwrap(),
@@ -149,6 +162,6 @@ mod tests {
         // println!("{}", json);
         let back: ExpandMacro = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(tt, back.macro_body.to_subtree());
+        assert_eq!(tt, back.macro_body.to_subtree(CURRENT_API_VERSION));
     }
 }

@@ -7,7 +7,7 @@ use syntax::SmolStr;
 
 use crate::{db::DefDatabase, HirFileId};
 
-const MOD_DEPTH_LIMIT: Limit = Limit::new(32);
+static MOD_DEPTH_LIMIT: Limit = Limit::new(32);
 
 #[derive(Clone, Debug)]
 pub(super) struct ModDir {
@@ -34,7 +34,7 @@ impl ModDir {
         let path = match attr_path.map(SmolStr::as_str) {
             None => {
                 let mut path = self.dir_path.clone();
-                path.push(&name.to_smol_str());
+                path.push(&name.unescaped().to_smol_str());
                 path
             }
             Some(attr_path) => {
@@ -74,12 +74,20 @@ impl ModDir {
                 candidate_files.push(self.dir_path.join_attr(attr_path, self.root_non_dir_owner))
             }
             None if file_id.is_include_macro(db.upcast()) => {
-                candidate_files.push(format!("{}.rs", name));
-                candidate_files.push(format!("{}/mod.rs", name));
+                candidate_files.push(format!("{}.rs", name.display(db.upcast())));
+                candidate_files.push(format!("{}/mod.rs", name.display(db.upcast())));
             }
             None => {
-                candidate_files.push(format!("{}{}.rs", self.dir_path.0, name));
-                candidate_files.push(format!("{}{}/mod.rs", self.dir_path.0, name));
+                candidate_files.push(format!(
+                    "{}{}.rs",
+                    self.dir_path.0,
+                    name.display(db.upcast())
+                ));
+                candidate_files.push(format!(
+                    "{}{}/mod.rs",
+                    self.dir_path.0,
+                    name.display(db.upcast())
+                ));
             }
         };
 
@@ -91,7 +99,7 @@ impl ModDir {
                 let (dir_path, root_non_dir_owner) = if is_mod_rs || attr_path.is_some() {
                     (DirPath::empty(), false)
                 } else {
-                    (DirPath::new(format!("{}/", name)), true)
+                    (DirPath::new(format!("{}/", name.display(db.upcast()))), true)
                 };
                 if let Some(mod_dir) = self.child(dir_path, root_non_dir_owner) {
                     return Ok((file_id, is_mod_rs, mod_dir));
@@ -156,7 +164,7 @@ impl DirPath {
         } else {
             attr
         };
-        let res = format!("{}{}", base, attr);
+        let res = format!("{base}{attr}");
         res
     }
 }

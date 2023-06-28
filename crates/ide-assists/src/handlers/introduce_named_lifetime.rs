@@ -66,7 +66,7 @@ fn generate_fn_def_assist(
         // if we have a self reference, use that
         Some(NeedsLifetime::SelfParam(self_param))
     } else {
-        // otherwise, if there's a single reference parameter without a named liftime, use that
+        // otherwise, if there's a single reference parameter without a named lifetime, use that
         let fn_params_without_lifetime: Vec<_> = param_list
             .params()
             .filter_map(|param| match param.ty() {
@@ -79,7 +79,7 @@ fn generate_fn_def_assist(
         match fn_params_without_lifetime.len() {
             1 => Some(fn_params_without_lifetime.into_iter().next()?),
             0 => None,
-            // multiple unnnamed is invalid. assist is not applicable
+            // multiple unnamed is invalid. assist is not applicable
             _ => return None,
         }
     };
@@ -127,7 +127,7 @@ fn generate_unique_lifetime_param_name(
         Some(type_params) => {
             let used_lifetime_params: FxHashSet<_> =
                 type_params.lifetime_params().map(|p| p.syntax().text().to_string()).collect();
-            ('a'..='z').map(|it| format!("'{}", it)).find(|it| !used_lifetime_params.contains(it))
+            ('a'..='z').map(|it| format!("'{it}")).find(|it| !used_lifetime_params.contains(it))
         }
         None => Some("'a".to_string()),
     }

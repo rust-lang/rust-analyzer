@@ -119,15 +119,9 @@ impl Definition {
             Definition::Const(it) => name_range(it, sema),
             Definition::Static(it) => name_range(it, sema),
             Definition::Trait(it) => name_range(it, sema),
+            Definition::TraitAlias(it) => name_range(it, sema),
             Definition::TypeAlias(it) => name_range(it, sema),
-            Definition::Local(local) => {
-                let src = local.source(sema.db);
-                let name = match &src.value {
-                    Either::Left(bind_pat) => bind_pat.name()?,
-                    Either::Right(_) => return None,
-                };
-                src.with_value(name.syntax()).original_file_range_opt(sema.db)
-            }
+            Definition::Local(it) => name_range(it.primary_source(sema.db), sema),
             Definition::GenericParam(generic_param) => match generic_param {
                 hir::GenericParam::LifetimeParam(lifetime_param) => {
                     let src = lifetime_param.source(sema.db)?;
@@ -184,12 +178,13 @@ fn rename_mod(
 
     let mut source_change = SourceChange::default();
 
-    if module.is_crate_root(sema.db) {
+    if module.is_crate_root() {
         return Ok(source_change);
     }
 
     let InFile { file_id, value: def_source } = module.definition_source(sema.db);
     if let ModuleSource::SourceFile(..) = def_source {
+        let new_name = new_name.trim_start_matches("r#");
         let anchor = file_id.original_file(sema.db);
 
         let is_mod_rs = module.is_mod_rs(sema.db);
@@ -197,7 +192,7 @@ fn rename_mod(
 
         // Module exists in a named file
         if !is_mod_rs {
-            let path = format!("{}.rs", new_name);
+            let path = format!("{new_name}.rs");
             let dst = AnchoredPathBuf { anchor, path };
             source_change.push_file_system_edit(FileSystemEdit::MoveFile { src: anchor, dst })
         }
@@ -207,11 +202,14 @@ fn rename_mod(
         //  - Module has submodules defined in separate files
         let dir_paths = match (is_mod_rs, has_detached_child, module.name(sema.db)) {
             // Go up one level since the anchor is inside the dir we're trying to rename
-            (true, _, Some(mod_name)) => {
-                Some((format!("../{}", mod_name), format!("../{}", new_name)))
-            }
+            (true, _, Some(mod_name)) => Some((
+                format!("../{}", mod_name.unescaped().display(sema.db)),
+                format!("../{new_name}"),
+            )),
             // The anchor is on the same level as target dir
-            (false, true, Some(mod_name)) => Some((mod_name.to_string(), new_name.to_string())),
+            (false, true, Some(mod_name)) => {
+                Some((mod_name.unescaped().display(sema.db).to_string(), new_name.to_owned()))
+            }
             _ => None,
         };
 
@@ -235,7 +233,7 @@ fn rename_mod(
                 {
                     source_change.insert_source_edit(
                         file_id,
-                        TextEdit::replace(file_range.range, new_name.to_string()),
+                        TextEdit::replace(file_range.range, new_name.to_owned()),
                     )
                 };
             }
@@ -265,11 +263,10 @@ fn rename_reference(
         Definition::GenericParam(hir::GenericParam::LifetimeParam(_)) | Definition::Label(_)
     ) {
         match ident_kind {
-            IdentifierKind::Ident | IdentifierKind::Underscore => {
-                cov_mark::hit!(rename_not_a_lifetime_ident_ref);
+            IdentifierKind::Underscore => {
                 bail!("Invalid name `{}`: not a lifetime identifier", new_name);
             }
-            IdentifierKind::Lifetime => cov_mark::hit!(rename_lifetime),
+            _ => cov_mark::hit!(rename_lifetime),
         }
     } else {
         match ident_kind {
@@ -299,13 +296,7 @@ fn rename_reference(
         source_change.insert_source_edit(file_id, edit);
         Ok(())
     };
-    match def {
-        Definition::Local(l) => l
-            .associated_locals(sema.db)
-            .iter()
-            .try_for_each(|&local| insert_def_edit(Definition::Local(local))),
-        def => insert_def_edit(def),
-    }?;
+    insert_def_edit(def)?;
     Ok(source_change)
 }
 
@@ -336,11 +327,17 @@ pub fn source_edit_from_references(
             }
             _ => false,
         };
-        if !has_emitted_edit {
-            if !edited_ranges.contains(&range.start()) {
-                edit.replace(range, new_name.to_string());
-                edited_ranges.push(range.start());
-            }
+        if !has_emitted_edit && !edited_ranges.contains(&range.start()) {
+            let (range, new_name) = match name {
+                ast::NameLike::Lifetime(_) => (
+                    TextRange::new(range.start() + syntax::TextSize::from(1), range.end()),
+                    new_name.strip_prefix('\'').unwrap_or(new_name).to_owned(),
+                ),
+                _ => (range, new_name.to_owned()),
+            };
+
+            edit.replace(range, new_name);
+            edited_ranges.push(range.start());
         }
     }
 
@@ -356,7 +353,7 @@ fn source_edit_from_name(edit: &mut TextEditBuilder, name: &ast::Name, new_name:
 
             // FIXME: instead of splitting the shorthand, recursively trigger a rename of the
             // other name https://github.com/rust-lang/rust-analyzer/issues/6547
-            edit.insert(ident_pat.syntax().text_range().start(), format!("{}: ", new_name));
+            edit.insert(ident_pat.syntax().text_range().start(), format!("{new_name}: "));
             return true;
         }
     }
@@ -393,19 +390,17 @@ fn source_edit_from_name_ref(
                         edit.delete(TextRange::new(s, e));
                         return true;
                     }
-                } else if init == name_ref {
-                    if field_name.text() == new_name {
-                        cov_mark::hit!(test_rename_local_put_init_shorthand);
-                        // Foo { field: local } -> Foo { field }
-                        //            ^^^^^^^ delete this
+                } else if init == name_ref && field_name.text() == new_name {
+                    cov_mark::hit!(test_rename_local_put_init_shorthand);
+                    // Foo { field: local } -> Foo { field }
+                    //            ^^^^^^^ delete this
 
-                        // same names, we can use a shorthand here instead.
-                        // we do not want to erase attributes hence this range start
-                        let s = field_name.syntax().text_range().end();
-                        let e = init.syntax().text_range().end();
-                        edit.delete(TextRange::new(s, e));
-                        return true;
-                    }
+                    // same names, we can use a shorthand here instead.
+                    // we do not want to erase attributes hence this range start
+                    let s = field_name.syntax().text_range().end();
+                    let e = init.syntax().text_range().end();
+                    edit.delete(TextRange::new(s, e));
+                    return true;
                 }
             }
             // init shorthand
@@ -414,7 +409,7 @@ fn source_edit_from_name_ref(
                 // Foo { field } -> Foo { new_name: field }
                 //       ^ insert `new_name: `
                 let offset = name_ref.syntax().text_range().start();
-                edit.insert(offset, format!("{}: ", new_name));
+                edit.insert(offset, format!("{new_name}: "));
                 return true;
             }
             (None, Some(_)) if matches!(def, Definition::Local(_)) => {
@@ -422,7 +417,7 @@ fn source_edit_from_name_ref(
                 // Foo { field } -> Foo { field: new_name }
                 //            ^ insert `: new_name`
                 let offset = name_ref.syntax().text_range().end();
-                edit.insert(offset, format!(": {}", new_name));
+                edit.insert(offset, format!(": {new_name}"));
                 return true;
             }
             _ => (),
@@ -448,7 +443,7 @@ fn source_edit_from_name_ref(
                         let s = field_name.syntax().text_range().start();
                         let e = pat.syntax().text_range().start();
                         edit.delete(TextRange::new(s, e));
-                        edit.replace(name.syntax().text_range(), new_name.to_string());
+                        edit.replace(name.syntax().text_range(), new_name.to_owned());
                         return true;
                     }
                 }
@@ -464,51 +459,76 @@ fn source_edit_from_def(
     def: Definition,
     new_name: &str,
 ) -> Result<(FileId, TextEdit)> {
-    let FileRange { file_id, range } = def
-        .range_for_rename(sema)
-        .ok_or_else(|| format_err!("No identifier available to rename"))?;
-
     let mut edit = TextEdit::builder();
     if let Definition::Local(local) = def {
-        if let Either::Left(pat) = local.source(sema.db).value {
-            // special cases required for renaming fields/locals in Record patterns
-            if let Some(pat_field) = pat.syntax().parent().and_then(ast::RecordPatField::cast) {
+        let mut file_id = None;
+        for source in local.sources(sema.db) {
+            let source = match source.source.clone().original_ast_node(sema.db) {
+                Some(source) => source,
+                None => match source.source.syntax().original_file_range_opt(sema.db) {
+                    Some(FileRange { file_id: file_id2, range }) => {
+                        file_id = Some(file_id2);
+                        edit.replace(range, new_name.to_owned());
+                        continue;
+                    }
+                    None => {
+                        bail!("Can't rename local that is defined in a macro declaration")
+                    }
+                },
+            };
+            file_id = source.file_id.file_id();
+            if let Either::Left(pat) = source.value {
                 let name_range = pat.name().unwrap().syntax().text_range();
-                if let Some(name_ref) = pat_field.name_ref() {
-                    if new_name == name_ref.text() && pat.at_token().is_none() {
-                        // Foo { field: ref mut local } -> Foo { ref mut field }
-                        //       ^^^^^^ delete this
-                        //                      ^^^^^ replace this with `field`
-                        cov_mark::hit!(test_rename_local_put_init_shorthand_pat);
-                        edit.delete(
-                            name_ref
-                                .syntax()
-                                .text_range()
-                                .cover_offset(pat.syntax().text_range().start()),
-                        );
-                        edit.replace(name_range, name_ref.text().to_string());
+                // special cases required for renaming fields/locals in Record patterns
+                if let Some(pat_field) = pat.syntax().parent().and_then(ast::RecordPatField::cast) {
+                    if let Some(name_ref) = pat_field.name_ref() {
+                        if new_name == name_ref.text() && pat.at_token().is_none() {
+                            // Foo { field: ref mut local } -> Foo { ref mut field }
+                            //       ^^^^^^ delete this
+                            //                      ^^^^^ replace this with `field`
+                            cov_mark::hit!(test_rename_local_put_init_shorthand_pat);
+                            edit.delete(
+                                name_ref
+                                    .syntax()
+                                    .text_range()
+                                    .cover_offset(pat.syntax().text_range().start()),
+                            );
+                            edit.replace(name_range, name_ref.text().to_string());
+                        } else {
+                            // Foo { field: ref mut local @ local 2} -> Foo { field: ref mut new_name @ local2 }
+                            // Foo { field: ref mut local } -> Foo { field: ref mut new_name }
+                            //                      ^^^^^ replace this with `new_name`
+                            edit.replace(name_range, new_name.to_owned());
+                        }
                     } else {
-                        // Foo { field: ref mut local @ local 2} -> Foo { field: ref mut new_name @ local2 }
-                        // Foo { field: ref mut local } -> Foo { field: ref mut new_name }
-                        //                      ^^^^^ replace this with `new_name`
-                        edit.replace(name_range, new_name.to_string());
+                        // Foo { ref mut field } -> Foo { field: ref mut new_name }
+                        //      ^ insert `field: `
+                        //               ^^^^^ replace this with `new_name`
+                        edit.insert(
+                            pat.syntax().text_range().start(),
+                            format!("{}: ", pat_field.field_name().unwrap()),
+                        );
+                        edit.replace(name_range, new_name.to_owned());
                     }
                 } else {
-                    // Foo { ref mut field } -> Foo { field: ref mut new_name }
-                    //      ^ insert `field: `
-                    //               ^^^^^ replace this with `new_name`
-                    edit.insert(
-                        pat.syntax().text_range().start(),
-                        format!("{}: ", pat_field.field_name().unwrap()),
-                    );
-                    edit.replace(name_range, new_name.to_string());
+                    edit.replace(name_range, new_name.to_owned());
                 }
             }
         }
+        let Some(file_id) = file_id else { bail!("No file available to rename") };
+        return Ok((file_id, edit.finish()));
     }
-    if edit.is_empty() {
-        edit.replace(range, new_name.to_string());
-    }
+    let FileRange { file_id, range } = def
+        .range_for_rename(sema)
+        .ok_or_else(|| format_err!("No identifier available to rename"))?;
+    let (range, new_name) = match def {
+        Definition::GenericParam(hir::GenericParam::LifetimeParam(_)) | Definition::Label(_) => (
+            TextRange::new(range.start() + syntax::TextSize::from(1), range.end()),
+            new_name.strip_prefix('\'').unwrap_or(new_name).to_owned(),
+        ),
+        _ => (range, new_name.to_owned()),
+    };
+    edit.replace(range, new_name);
     Ok((file_id, edit.finish()))
 }
 
@@ -523,13 +543,17 @@ impl IdentifierKind {
     pub fn classify(new_name: &str) -> Result<IdentifierKind> {
         match parser::LexedStr::single_token(new_name) {
             Some(res) => match res {
-                (SyntaxKind::IDENT, _) => Ok(IdentifierKind::Ident),
+                (SyntaxKind::IDENT, _) => {
+                    if let Some(inner) = new_name.strip_prefix("r#") {
+                        if matches!(inner, "self" | "crate" | "super" | "Self") {
+                            bail!("Invalid name: `{}` cannot be a raw identifier", inner);
+                        }
+                    }
+                    Ok(IdentifierKind::Ident)
+                }
                 (T![_], _) => Ok(IdentifierKind::Underscore),
                 (SyntaxKind::LIFETIME_IDENT, _) if new_name != "'static" && new_name != "'_" => {
                     Ok(IdentifierKind::Lifetime)
-                }
-                (SyntaxKind::LIFETIME_IDENT, _) => {
-                    bail!("Invalid name `{}`: not a lifetime identifier", new_name)
                 }
                 (_, Some(syntax_error)) => bail!("Invalid name `{}`: {}", new_name, syntax_error),
                 (_, None) => bail!("Invalid name `{}`: not an identifier", new_name),

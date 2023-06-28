@@ -1,50 +1,119 @@
 //! Helper functions for working with def, which don't need to be a separate
 //! query, but can't be computed directly from `*Data` (ie, which need a `db`).
 
-use std::iter;
+use std::{hash::Hash, iter};
 
 use base_db::CrateId;
-use chalk_ir::{fold::Shift, BoundVar, DebruijnIndex};
+use chalk_ir::{
+    cast::Cast,
+    fold::{FallibleTypeFolder, Shift},
+    BoundVar, DebruijnIndex,
+};
+use either::Either;
 use hir_def::{
     db::DefDatabase,
     generics::{
         GenericParams, TypeOrConstParamData, TypeParamProvenance, WherePredicate,
         WherePredicateTypeTarget,
     },
-    intern::Interned,
+    lang_item::LangItem,
     resolver::{HasResolver, TypeNs},
     type_ref::{TraitBoundModifier, TypeRef},
-    ConstParamId, FunctionId, GenericDefId, ItemContainerId, Lookup, TraitId, TypeAliasId,
-    TypeOrConstParamId, TypeParamId,
+    ConstParamId, EnumId, EnumVariantId, FunctionId, GenericDefId, ItemContainerId,
+    LocalEnumVariantId, Lookup, OpaqueInternableThing, TraitId, TypeAliasId, TypeOrConstParamId,
+    TypeParamId,
 };
-use hir_expand::name::{known, Name};
-use itertools::Either;
+use hir_expand::name::Name;
+use intern::Interned;
 use rustc_hash::FxHashSet;
 use smallvec::{smallvec, SmallVec};
-use syntax::SmolStr;
+use stdx::never;
 
 use crate::{
-    db::HirDatabase, ChalkTraitId, ConstData, ConstValue, GenericArgData, Interner, Substitution,
-    TraitRef, TraitRefExt, TyKind, WhereClause,
+    consteval::unknown_const,
+    db::HirDatabase,
+    layout::{Layout, TagEncoding},
+    mir::pad16,
+    ChalkTraitId, Const, ConstScalar, GenericArg, Interner, Substitution, TraitRef, TraitRefExt,
+    Ty, WhereClause,
 };
 
-pub(crate) fn fn_traits(db: &dyn DefDatabase, krate: CrateId) -> impl Iterator<Item = TraitId> {
-    [
-        db.lang_item(krate, SmolStr::new_inline("fn")),
-        db.lang_item(krate, SmolStr::new_inline("fn_mut")),
-        db.lang_item(krate, SmolStr::new_inline("fn_once")),
-    ]
-    .into_iter()
-    .flatten()
-    .flat_map(|it| it.as_trait())
+pub(crate) fn fn_traits(
+    db: &dyn DefDatabase,
+    krate: CrateId,
+) -> impl Iterator<Item = TraitId> + '_ {
+    [LangItem::Fn, LangItem::FnMut, LangItem::FnOnce]
+        .into_iter()
+        .filter_map(move |lang| db.lang_item(krate, lang))
+        .flat_map(|it| it.as_trait())
 }
 
-fn direct_super_traits(db: &dyn DefDatabase, trait_: TraitId) -> SmallVec<[TraitId; 4]> {
+/// Returns an iterator over the whole super trait hierarchy (including the
+/// trait itself).
+pub fn all_super_traits(db: &dyn DefDatabase, trait_: TraitId) -> SmallVec<[TraitId; 4]> {
+    // we need to take care a bit here to avoid infinite loops in case of cycles
+    // (i.e. if we have `trait A: B; trait B: A;`)
+
+    let mut result = smallvec![trait_];
+    let mut i = 0;
+    while let Some(&t) = result.get(i) {
+        // yeah this is quadratic, but trait hierarchies should be flat
+        // enough that this doesn't matter
+        direct_super_traits(db, t, |tt| {
+            if !result.contains(&tt) {
+                result.push(tt);
+            }
+        });
+        i += 1;
+    }
+    result
+}
+
+/// Given a trait ref (`Self: Trait`), builds all the implied trait refs for
+/// super traits. The original trait ref will be included. So the difference to
+/// `all_super_traits` is that we keep track of type parameters; for example if
+/// we have `Self: Trait<u32, i32>` and `Trait<T, U>: OtherTrait<U>` we'll get
+/// `Self: OtherTrait<i32>`.
+pub(super) fn all_super_trait_refs<T>(
+    db: &dyn HirDatabase,
+    trait_ref: TraitRef,
+    cb: impl FnMut(TraitRef) -> Option<T>,
+) -> Option<T> {
+    let seen = iter::once(trait_ref.trait_id).collect();
+    SuperTraits { db, seen, stack: vec![trait_ref] }.find_map(cb)
+}
+
+struct SuperTraits<'a> {
+    db: &'a dyn HirDatabase,
+    stack: Vec<TraitRef>,
+    seen: FxHashSet<ChalkTraitId>,
+}
+
+impl<'a> SuperTraits<'a> {
+    fn elaborate(&mut self, trait_ref: &TraitRef) {
+        direct_super_trait_refs(self.db, trait_ref, |trait_ref| {
+            if !self.seen.contains(&trait_ref.trait_id) {
+                self.stack.push(trait_ref);
+            }
+        });
+    }
+}
+
+impl<'a> Iterator for SuperTraits<'a> {
+    type Item = TraitRef;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(next) = self.stack.pop() {
+            self.elaborate(&next);
+            Some(next)
+        } else {
+            None
+        }
+    }
+}
+
+fn direct_super_traits(db: &dyn DefDatabase, trait_: TraitId, cb: impl FnMut(TraitId)) {
     let resolver = trait_.resolver(db);
-    // returning the iterator directly doesn't easily work because of
-    // lifetime problems, but since there usually shouldn't be more than a
-    // few direct traits this should be fine (we could even use some kind of
-    // SmallVec if performance is a concern)
     let generic_params = db.generic_params(trait_.into());
     let trait_self = generic_params.find_trait_self_param();
     generic_params
@@ -70,22 +139,18 @@ fn direct_super_traits(db: &dyn DefDatabase, trait_: TraitId) -> SmallVec<[Trait
             WherePredicate::Lifetime { .. } => None,
         })
         .filter(|(_, bound_modifier)| matches!(bound_modifier, TraitBoundModifier::None))
-        .filter_map(|(path, _)| match resolver.resolve_path_in_type_ns_fully(db, path.mod_path()) {
+        .filter_map(|(path, _)| match resolver.resolve_path_in_type_ns_fully(db, path) {
             Some(TypeNs::TraitId(t)) => Some(t),
             _ => None,
         })
-        .collect()
+        .for_each(cb);
 }
 
-fn direct_super_trait_refs(db: &dyn HirDatabase, trait_ref: &TraitRef) -> Vec<TraitRef> {
-    // returning the iterator directly doesn't easily work because of
-    // lifetime problems, but since there usually shouldn't be more than a
-    // few direct traits this should be fine (we could even use some kind of
-    // SmallVec if performance is a concern)
+fn direct_super_trait_refs(db: &dyn HirDatabase, trait_ref: &TraitRef, cb: impl FnMut(TraitRef)) {
     let generic_params = db.generic_params(trait_ref.hir_trait_id().into());
     let trait_self = match generic_params.find_trait_self_param() {
         Some(p) => TypeOrConstParamId { parent: trait_ref.hir_trait_id().into(), local_id: p },
-        None => return Vec::new(),
+        None => return,
     };
     db.generic_predicates_for_param(trait_self.parent, trait_self, None)
         .iter()
@@ -101,64 +166,7 @@ fn direct_super_trait_refs(db: &dyn HirDatabase, trait_ref: &TraitRef) -> Vec<Tr
             })
         })
         .map(|pred| pred.substitute(Interner, &trait_ref.substitution))
-        .collect()
-}
-
-/// Returns an iterator over the whole super trait hierarchy (including the
-/// trait itself).
-pub fn all_super_traits(db: &dyn DefDatabase, trait_: TraitId) -> SmallVec<[TraitId; 4]> {
-    // we need to take care a bit here to avoid infinite loops in case of cycles
-    // (i.e. if we have `trait A: B; trait B: A;`)
-
-    let mut result = smallvec![trait_];
-    let mut i = 0;
-    while let Some(&t) = result.get(i) {
-        // yeah this is quadratic, but trait hierarchies should be flat
-        // enough that this doesn't matter
-        for tt in direct_super_traits(db, t) {
-            if !result.contains(&tt) {
-                result.push(tt);
-            }
-        }
-        i += 1;
-    }
-    result
-}
-
-/// Given a trait ref (`Self: Trait`), builds all the implied trait refs for
-/// super traits. The original trait ref will be included. So the difference to
-/// `all_super_traits` is that we keep track of type parameters; for example if
-/// we have `Self: Trait<u32, i32>` and `Trait<T, U>: OtherTrait<U>` we'll get
-/// `Self: OtherTrait<i32>`.
-pub(super) fn all_super_trait_refs(db: &dyn HirDatabase, trait_ref: TraitRef) -> SuperTraits<'_> {
-    SuperTraits { db, seen: iter::once(trait_ref.trait_id).collect(), stack: vec![trait_ref] }
-}
-
-pub(super) struct SuperTraits<'a> {
-    db: &'a dyn HirDatabase,
-    stack: Vec<TraitRef>,
-    seen: FxHashSet<ChalkTraitId>,
-}
-
-impl<'a> SuperTraits<'a> {
-    fn elaborate(&mut self, trait_ref: &TraitRef) {
-        let mut trait_refs = direct_super_trait_refs(self.db, trait_ref);
-        trait_refs.retain(|tr| !self.seen.contains(&tr.trait_id));
-        self.stack.extend(trait_refs);
-    }
-}
-
-impl<'a> Iterator for SuperTraits<'a> {
-    type Item = TraitRef;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(next) = self.stack.pop() {
-            self.elaborate(&next);
-            Some(next)
-        } else {
-            None
-        }
-    }
+        .for_each(cb);
 }
 
 pub(super) fn associated_type_by_name_including_super_traits(
@@ -166,7 +174,7 @@ pub(super) fn associated_type_by_name_including_super_traits(
     trait_ref: TraitRef,
     name: &Name,
 ) -> Option<(TraitRef, TypeAliasId)> {
-    all_super_trait_refs(db, trait_ref).find_map(|t| {
+    all_super_trait_refs(db, trait_ref, |t| {
         let assoc_type = db.trait_data(t.hir_trait_id()).associated_type_by_name(name)?;
         Some((t, assoc_type))
     })
@@ -174,32 +182,38 @@ pub(super) fn associated_type_by_name_including_super_traits(
 
 pub(crate) fn generics(db: &dyn DefDatabase, def: GenericDefId) -> Generics {
     let parent_generics = parent_generic_def(db, def).map(|def| Box::new(generics(db, def)));
-    if parent_generics.is_some() && matches!(def, GenericDefId::TypeAliasId(_)) {
-        let params = db.generic_params(def);
-        let parent_params = &parent_generics.as_ref().unwrap().params;
-        let has_consts =
-            params.iter().any(|(_, x)| matches!(x, TypeOrConstParamData::ConstParamData(_)));
-        let parent_has_consts =
-            parent_params.iter().any(|(_, x)| matches!(x, TypeOrConstParamData::ConstParamData(_)));
-        return if has_consts || parent_has_consts {
-            // XXX: treat const generic associated types as not existing to avoid crashes
-            // (#11769)
-            //
-            // Note: Also crashes when the parent has const generics (also even if the GAT
-            // doesn't use them), see `tests::regression::gat_crash_3` for an example.
-            // Avoids that by disabling GATs when the parent (i.e. `impl` block) has
-            // const generics (#12193).
-            //
-            // Chalk expects the inner associated type's parameters to come
-            // *before*, not after the trait's generics as we've always done it.
-            // Adapting to this requires a larger refactoring
-            cov_mark::hit!(ignore_gats);
-            Generics { def, params: Interned::new(Default::default()), parent_generics }
-        } else {
-            Generics { def, params, parent_generics }
-        };
-    }
     Generics { def, params: db.generic_params(def), parent_generics }
+}
+
+/// It is a bit different from the rustc equivalent. Currently it stores:
+/// - 0: the function signature, encoded as a function pointer type
+/// - 1..n: generics of the parent
+///
+/// and it doesn't store the closure types and fields.
+///
+/// Codes should not assume this ordering, and should always use methods available
+/// on this struct for retriving, and `TyBuilder::substs_for_closure` for creating.
+pub(crate) struct ClosureSubst<'a>(pub(crate) &'a Substitution);
+
+impl<'a> ClosureSubst<'a> {
+    pub(crate) fn parent_subst(&self) -> &'a [GenericArg] {
+        match self.0.as_slice(Interner) {
+            [_, x @ ..] => x,
+            _ => {
+                never!("Closure missing parameter");
+                &[]
+            }
+        }
+    }
+
+    pub(crate) fn sig_ty(&self) -> &'a Ty {
+        match self.0.as_slice(Interner) {
+            [x, ..] => x.assert_ty_ref(Interner),
+            _ => {
+                unreachable!("Closure missing sig_ty parameter");
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -210,9 +224,7 @@ pub(crate) struct Generics {
 }
 
 impl Generics {
-    pub(crate) fn iter_id<'a>(
-        &'a self,
-    ) -> impl Iterator<Item = Either<TypeParamId, ConstParamId>> + 'a {
+    pub(crate) fn iter_id(&self) -> impl Iterator<Item = Either<TypeParamId, ConstParamId>> + '_ {
         self.iter().map(|(id, data)| match data {
             TypeOrConstParamData::TypeParamData(_) => Either::Left(TypeParamId::from_unchecked(id)),
             TypeOrConstParamData::ConstParamData(_) => {
@@ -221,23 +233,30 @@ impl Generics {
         })
     }
 
-    /// Iterator over types and const params of parent, then self.
+    /// Iterator over types and const params of self, then parent.
     pub(crate) fn iter<'a>(
         &'a self,
     ) -> impl DoubleEndedIterator<Item = (TypeOrConstParamId, &'a TypeOrConstParamData)> + 'a {
         let to_toc_id = |it: &'a Generics| {
             move |(local_id, p)| (TypeOrConstParamId { parent: it.def, local_id }, p)
         };
-        self.parent_generics()
-            .into_iter()
-            .flat_map(move |it| it.params.iter().map(to_toc_id(it)))
-            .chain(self.params.iter().map(to_toc_id(self)))
+        self.params.iter().map(to_toc_id(self)).chain(self.iter_parent())
+    }
+
+    /// Iterate over types and const params without parent params.
+    pub(crate) fn iter_self<'a>(
+        &'a self,
+    ) -> impl DoubleEndedIterator<Item = (TypeOrConstParamId, &'a TypeOrConstParamData)> + 'a {
+        let to_toc_id = |it: &'a Generics| {
+            move |(local_id, p)| (TypeOrConstParamId { parent: it.def, local_id }, p)
+        };
+        self.params.iter().map(to_toc_id(self))
     }
 
     /// Iterator over types and const params of parent.
-    pub(crate) fn iter_parent<'a>(
-        &'a self,
-    ) -> impl Iterator<Item = (TypeOrConstParamId, &'a TypeOrConstParamData)> + 'a {
+    pub(crate) fn iter_parent(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = (TypeOrConstParamId, &TypeOrConstParamData)> {
         self.parent_generics().into_iter().flat_map(|it| {
             let to_toc_id =
                 move |(local_id, p)| (TypeOrConstParamId { parent: it.def, local_id }, p);
@@ -245,23 +264,32 @@ impl Generics {
         })
     }
 
+    /// Returns total number of generic parameters in scope, including those from parent.
     pub(crate) fn len(&self) -> usize {
         let parent = self.parent_generics().map_or(0, Generics::len);
         let child = self.params.type_or_consts.len();
         parent + child
     }
 
+    /// Returns numbers of generic parameters excluding those from parent.
+    pub(crate) fn len_self(&self) -> usize {
+        self.params.type_or_consts.len()
+    }
+
     /// (parent total, self param, type param list, const param list, impl trait)
     pub(crate) fn provenance_split(&self) -> (usize, usize, usize, usize, usize) {
-        let ty_iter = || self.params.iter().filter_map(|x| x.1.type_param());
-
-        let self_params =
-            ty_iter().filter(|p| p.provenance == TypeParamProvenance::TraitSelf).count();
-        let type_params =
-            ty_iter().filter(|p| p.provenance == TypeParamProvenance::TypeParamList).count();
-        let impl_trait_params =
-            ty_iter().filter(|p| p.provenance == TypeParamProvenance::ArgumentImplTrait).count();
-        let const_params = self.params.iter().filter_map(|x| x.1.const_param()).count();
+        let mut self_params = 0;
+        let mut type_params = 0;
+        let mut impl_trait_params = 0;
+        let mut const_params = 0;
+        self.params.iter().for_each(|(_, data)| match data {
+            TypeOrConstParamData::TypeParamData(p) => match p.provenance {
+                TypeParamProvenance::TypeParamList => type_params += 1,
+                TypeParamProvenance::TraitSelf => self_params += 1,
+                TypeParamProvenance::ArgumentImplTrait => impl_trait_params += 1,
+            },
+            TypeOrConstParamData::ConstParamData(_) => const_params += 1,
+        });
 
         let parent_len = self.parent_generics().map_or(0, Generics::len);
         (parent_len, self_params, type_params, const_params, impl_trait_params)
@@ -275,15 +303,17 @@ impl Generics {
         if param.parent == self.def {
             let (idx, (_local_id, data)) =
                 self.params.iter().enumerate().find(|(_, (idx, _))| *idx == param.local_id)?;
-            let parent_len = self.parent_generics().map_or(0, Generics::len);
-            Some((parent_len + idx, data))
+            Some((idx, data))
         } else {
-            self.parent_generics().and_then(|g| g.find_param(param))
+            self.parent_generics()
+                .and_then(|g| g.find_param(param))
+                // Remember that parent parameters come after parameters for self.
+                .map(|(idx, data)| (self.len_self() + idx, data))
         }
     }
 
-    fn parent_generics(&self) -> Option<&Generics> {
-        self.parent_generics.as_ref().map(|it| &**it)
+    pub(crate) fn parent_generics(&self) -> Option<&Generics> {
+        self.parent_generics.as_deref()
     }
 
     /// Returns a Substitution that replaces each parameter by a bound variable.
@@ -295,18 +325,10 @@ impl Generics {
         Substitution::from_iter(
             Interner,
             self.iter_id().enumerate().map(|(idx, id)| match id {
-                Either::Left(_) => GenericArgData::Ty(
-                    TyKind::BoundVar(BoundVar::new(debruijn, idx)).intern(Interner),
-                )
-                .intern(Interner),
-                Either::Right(id) => GenericArgData::Const(
-                    ConstData {
-                        value: ConstValue::BoundVar(BoundVar::new(debruijn, idx)),
-                        ty: db.const_param_ty(id),
-                    }
-                    .intern(Interner),
-                )
-                .intern(Interner),
+                Either::Left(_) => BoundVar::new(debruijn, idx).to_ty(Interner).cast(Interner),
+                Either::Right(id) => BoundVar::new(debruijn, idx)
+                    .to_const(Interner, db.const_param_ty(id))
+                    .cast(Interner),
             }),
         )
     }
@@ -316,18 +338,12 @@ impl Generics {
         Substitution::from_iter(
             Interner,
             self.iter_id().map(|id| match id {
-                Either::Left(id) => GenericArgData::Ty(
-                    TyKind::Placeholder(crate::to_placeholder_idx(db, id.into())).intern(Interner),
-                )
-                .intern(Interner),
-                Either::Right(id) => GenericArgData::Const(
-                    ConstData {
-                        value: ConstValue::Placeholder(crate::to_placeholder_idx(db, id.into())),
-                        ty: db.const_param_ty(id),
-                    }
-                    .intern(Interner),
-                )
-                .intern(Interner),
+                Either::Left(id) => {
+                    crate::to_placeholder_idx(db, id.into()).to_ty(Interner).cast(Interner)
+                }
+                Either::Right(id) => crate::to_placeholder_idx(db, id.into())
+                    .to_const(Interner, db.const_param_ty(id))
+                    .cast(Interner),
             }),
         )
     }
@@ -339,7 +355,10 @@ fn parent_generic_def(db: &dyn DefDatabase, def: GenericDefId) -> Option<Generic
         GenericDefId::TypeAliasId(it) => it.lookup(db).container,
         GenericDefId::ConstId(it) => it.lookup(db).container,
         GenericDefId::EnumVariantId(it) => return Some(it.parent.into()),
-        GenericDefId::AdtId(_) | GenericDefId::TraitId(_) | GenericDefId::ImplId(_) => return None,
+        GenericDefId::AdtId(_)
+        | GenericDefId::TraitId(_)
+        | GenericDefId::ImplId(_)
+        | GenericDefId::TraitAliasId(_) => return None,
     };
 
     match container {
@@ -360,54 +379,114 @@ pub fn is_fn_unsafe_to_call(db: &dyn HirDatabase, func: FunctionId) -> bool {
             // Function in an `extern` block are always unsafe to call, except when it has
             // `"rust-intrinsic"` ABI there are a few exceptions.
             let id = block.lookup(db.upcast()).id;
-            !matches!(
-                id.item_tree(db.upcast())[id.value].abi.as_deref(),
-                Some("rust-intrinsic") if !is_intrinsic_fn_unsafe(&data.name)
-            )
+
+            let is_intrinsic =
+                id.item_tree(db.upcast())[id.value].abi.as_deref() == Some("rust-intrinsic");
+
+            if is_intrinsic {
+                // Intrinsics are unsafe unless they have the rustc_safe_intrinsic attribute
+                !data.attrs.by_key("rustc_safe_intrinsic").exists()
+            } else {
+                // Extern items are always unsafe
+                true
+            }
         }
         _ => false,
     }
 }
 
-/// Returns `true` if the given intrinsic is unsafe to call, or false otherwise.
-fn is_intrinsic_fn_unsafe(name: &Name) -> bool {
-    // Should be kept in sync with https://github.com/rust-lang/rust/blob/532d2b14c05f9bc20b2d27cbb5f4550d28343a36/compiler/rustc_typeck/src/check/intrinsic.rs#L72-L106
-    ![
-        known::abort,
-        known::add_with_overflow,
-        known::bitreverse,
-        known::black_box,
-        known::bswap,
-        known::caller_location,
-        known::ctlz,
-        known::ctpop,
-        known::cttz,
-        known::discriminant_value,
-        known::forget,
-        known::likely,
-        known::maxnumf32,
-        known::maxnumf64,
-        known::min_align_of,
-        known::minnumf32,
-        known::minnumf64,
-        known::mul_with_overflow,
-        known::needs_drop,
-        known::ptr_guaranteed_eq,
-        known::ptr_guaranteed_ne,
-        known::rotate_left,
-        known::rotate_right,
-        known::rustc_peek,
-        known::saturating_add,
-        known::saturating_sub,
-        known::size_of,
-        known::sub_with_overflow,
-        known::type_id,
-        known::type_name,
-        known::unlikely,
-        known::variant_count,
-        known::wrapping_add,
-        known::wrapping_mul,
-        known::wrapping_sub,
-    ]
-    .contains(name)
+pub(crate) struct UnevaluatedConstEvaluatorFolder<'a> {
+    pub(crate) db: &'a dyn HirDatabase,
+}
+
+impl FallibleTypeFolder<Interner> for UnevaluatedConstEvaluatorFolder<'_> {
+    type Error = ();
+
+    fn as_dyn(&mut self) -> &mut dyn FallibleTypeFolder<Interner, Error = ()> {
+        self
+    }
+
+    fn interner(&self) -> Interner {
+        Interner
+    }
+
+    fn try_fold_const(
+        &mut self,
+        constant: Const,
+        _outer_binder: DebruijnIndex,
+    ) -> Result<Const, Self::Error> {
+        if let chalk_ir::ConstValue::Concrete(c) = &constant.data(Interner).value {
+            if let ConstScalar::UnevaluatedConst(id, subst) = &c.interned {
+                if let Ok(eval) = self.db.const_eval(*id, subst.clone()) {
+                    return Ok(eval);
+                } else {
+                    return Ok(unknown_const(constant.data(Interner).ty.clone()));
+                }
+            }
+        }
+        Ok(constant)
+    }
+}
+
+pub(crate) fn detect_variant_from_bytes<'a>(
+    layout: &'a Layout,
+    db: &dyn HirDatabase,
+    krate: CrateId,
+    b: &[u8],
+    e: EnumId,
+) -> Option<(LocalEnumVariantId, &'a Layout)> {
+    let (var_id, var_layout) = match &layout.variants {
+        hir_def::layout::Variants::Single { index } => (index.0, &*layout),
+        hir_def::layout::Variants::Multiple { tag, tag_encoding, variants, .. } => {
+            let target_data_layout = db.target_data_layout(krate)?;
+            let size = tag.size(&*target_data_layout).bytes_usize();
+            let offset = layout.fields.offset(0).bytes_usize(); // The only field on enum variants is the tag field
+            let tag = i128::from_le_bytes(pad16(&b[offset..offset + size], false));
+            match tag_encoding {
+                TagEncoding::Direct => {
+                    let x = variants.iter_enumerated().find(|x| {
+                        db.const_eval_discriminant(EnumVariantId { parent: e, local_id: x.0 .0 })
+                            == Ok(tag)
+                    })?;
+                    (x.0 .0, x.1)
+                }
+                TagEncoding::Niche { untagged_variant, niche_start, .. } => {
+                    let candidate_tag = tag.wrapping_sub(*niche_start as i128) as usize;
+                    let variant = variants
+                        .iter_enumerated()
+                        .map(|(x, _)| x)
+                        .filter(|x| x != untagged_variant)
+                        .nth(candidate_tag)
+                        .unwrap_or(*untagged_variant);
+                    (variant.0, &variants[variant])
+                }
+            }
+        }
+    };
+    Some((var_id, var_layout))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct InTypeConstIdMetadata(pub(crate) Ty);
+
+impl OpaqueInternableThing for InTypeConstIdMetadata {
+    fn dyn_hash(&self, mut state: &mut dyn std::hash::Hasher) {
+        self.hash(&mut state);
+    }
+
+    fn dyn_eq(&self, other: &dyn OpaqueInternableThing) -> bool {
+        other.as_any().downcast_ref::<Self>().map_or(false, |x| self == x)
+    }
+
+    fn dyn_clone(&self) -> Box<dyn OpaqueInternableThing> {
+        Box::new(self.clone())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn box_any(&self) -> Box<dyn std::any::Any> {
+        Box::new(self.clone())
+    }
 }

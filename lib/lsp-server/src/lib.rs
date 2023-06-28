@@ -114,30 +114,24 @@ impl Connection {
     /// ```
     pub fn initialize_start(&self) -> Result<(RequestId, serde_json::Value), ProtocolError> {
         loop {
-            match self.receiver.recv() {
-                Ok(Message::Request(req)) if req.is_initialize() => {
-                    return Ok((req.id, req.params))
-                }
+            break match self.receiver.recv() {
+                Ok(Message::Request(req)) if req.is_initialize() => Ok((req.id, req.params)),
                 // Respond to non-initialize requests with ServerNotInitialized
                 Ok(Message::Request(req)) => {
                     let resp = Response::new_err(
                         req.id.clone(),
                         ErrorCode::ServerNotInitialized as i32,
-                        format!("expected initialize request, got {:?}", req),
+                        format!("expected initialize request, got {req:?}"),
                     );
                     self.sender.send(resp.into()).unwrap();
+                    continue;
                 }
-                Ok(msg) => {
-                    return Err(ProtocolError(format!(
-                        "expected initialize request, got {:?}",
-                        msg
-                    )))
+                Ok(Message::Notification(n)) if !n.is_exit() => {
+                    continue;
                 }
+                Ok(msg) => Err(ProtocolError(format!("expected initialize request, got {msg:?}"))),
                 Err(e) => {
-                    return Err(ProtocolError(format!(
-                        "expected initialize request, got error: {}",
-                        e
-                    )))
+                    Err(ProtocolError(format!("expected initialize request, got error: {e}")))
                 }
             };
         }
@@ -152,21 +146,14 @@ impl Connection {
         let resp = Response::new_ok(initialize_id, initialize_result);
         self.sender.send(resp.into()).unwrap();
         match &self.receiver.recv() {
-            Ok(Message::Notification(n)) if n.is_initialized() => (),
+            Ok(Message::Notification(n)) if n.is_initialized() => Ok(()),
             Ok(msg) => {
-                return Err(ProtocolError(format!(
-                    "expected Message::Notification, got: {:?}",
-                    msg,
-                )))
+                Err(ProtocolError(format!(r#"expected initialized notification, got: {msg:?}"#)))
             }
             Err(e) => {
-                return Err(ProtocolError(format!(
-                    "expected initialized notification, got error: {}",
-                    e,
-                )))
+                Err(ProtocolError(format!("expected initialized notification, got error: {e}",)))
             }
         }
-        Ok(())
     }
 
     /// Initialize the connection. Sends the server capabilities
@@ -221,12 +208,77 @@ impl Connection {
         match &self.receiver.recv_timeout(std::time::Duration::from_secs(30)) {
             Ok(Message::Notification(n)) if n.is_exit() => (),
             Ok(msg) => {
-                return Err(ProtocolError(format!("unexpected message during shutdown: {:?}", msg)))
+                return Err(ProtocolError(format!("unexpected message during shutdown: {msg:?}")))
             }
-            Err(e) => {
-                return Err(ProtocolError(format!("unexpected error during shutdown: {}", e)))
-            }
+            Err(e) => return Err(ProtocolError(format!("unexpected error during shutdown: {e}"))),
         }
         Ok(true)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crossbeam_channel::unbounded;
+    use lsp_types::notification::{Exit, Initialized, Notification};
+    use lsp_types::request::{Initialize, Request};
+    use lsp_types::{InitializeParams, InitializedParams};
+    use serde_json::to_value;
+
+    use crate::{Connection, Message, ProtocolError, RequestId};
+
+    struct TestCase {
+        test_messages: Vec<Message>,
+        expected_resp: Result<(RequestId, serde_json::Value), ProtocolError>,
+    }
+
+    fn initialize_start_test(test_case: TestCase) {
+        let (reader_sender, reader_receiver) = unbounded::<Message>();
+        let (writer_sender, writer_receiver) = unbounded::<Message>();
+        let conn = Connection { sender: writer_sender, receiver: reader_receiver };
+
+        for msg in test_case.test_messages {
+            assert!(reader_sender.send(msg).is_ok());
+        }
+
+        let resp = conn.initialize_start();
+        assert_eq!(test_case.expected_resp, resp);
+
+        assert!(writer_receiver.recv_timeout(std::time::Duration::from_secs(1)).is_err());
+    }
+
+    #[test]
+    fn not_exit_notification() {
+        let notification = crate::Notification {
+            method: Initialized::METHOD.to_string(),
+            params: to_value(InitializedParams {}).unwrap(),
+        };
+
+        let params_as_value = to_value(InitializeParams::default()).unwrap();
+        let req_id = RequestId::from(234);
+        let request = crate::Request {
+            id: req_id.clone(),
+            method: Initialize::METHOD.to_string(),
+            params: params_as_value.clone(),
+        };
+
+        initialize_start_test(TestCase {
+            test_messages: vec![notification.into(), request.into()],
+            expected_resp: Ok((req_id, params_as_value)),
+        });
+    }
+
+    #[test]
+    fn exit_notification() {
+        let notification =
+            crate::Notification { method: Exit::METHOD.to_string(), params: to_value(()).unwrap() };
+        let notification_msg = Message::from(notification);
+
+        initialize_start_test(TestCase {
+            test_messages: vec![notification_msg.clone()],
+            expected_resp: Err(ProtocolError(format!(
+                "expected initialize request, got {:?}",
+                notification_msg
+            ))),
+        });
     }
 }

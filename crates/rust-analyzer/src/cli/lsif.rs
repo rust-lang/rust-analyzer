@@ -11,16 +11,17 @@ use ide::{
 use ide_db::LineIndexDatabase;
 
 use ide_db::base_db::salsa::{self, ParallelDatabase};
+use ide_db::line_index::WideEncoding;
 use lsp_types::{self, lsif};
-use project_model::{CargoConfig, ProjectManifest, ProjectWorkspace};
+use project_model::{CargoConfig, ProjectManifest, ProjectWorkspace, RustLibSource};
 use vfs::{AbsPathBuf, Vfs};
 
+use crate::cli::load_cargo::ProcMacroServerChoice;
 use crate::cli::{
     flags,
     load_cargo::{load_workspace, LoadCargoConfig},
-    Result,
 };
-use crate::line_index::{LineEndings, LineIndex, OffsetEncoding};
+use crate::line_index::{LineEndings, LineIndex, PositionEncoding};
 use crate::to_proto;
 use crate::version::version;
 
@@ -83,7 +84,7 @@ impl LsifManager<'_> {
 
     // FIXME: support file in addition to stdout here
     fn emit(&self, data: &str) {
-        println!("{}", data);
+        println!("{data}");
     }
 
     fn get_token_id(&mut self, id: TokenId) -> Id {
@@ -106,12 +107,12 @@ impl LsifManager<'_> {
                 manager: "cargo".to_string(),
                 uri: None,
                 content: None,
-                repository: Some(lsif::Repository {
-                    url: pi.repo,
+                repository: pi.repo.map(|url| lsif::Repository {
+                    url,
                     r#type: "git".to_string(),
                     commit_id: None,
                 }),
-                version: Some(pi.version),
+                version: pi.version,
             }));
         self.package_map.insert(package_information, result_set_id);
         result_set_id
@@ -126,7 +127,7 @@ impl LsifManager<'_> {
         let line_index = self.db.line_index(file_id);
         let line_index = LineIndex {
             index: line_index,
-            encoding: OffsetEncoding::Utf16,
+            encoding: PositionEncoding::Wide(WideEncoding::Utf16),
             endings: LineEndings::Unix,
         };
         let range_id = self.add_vertex(lsif::Vertex::Range {
@@ -248,12 +249,12 @@ impl LsifManager<'_> {
         let line_index = self.db.line_index(file_id);
         let line_index = LineIndex {
             index: line_index,
-            encoding: OffsetEncoding::Utf16,
+            encoding: PositionEncoding::Wide(WideEncoding::Utf16),
             endings: LineEndings::Unix,
         };
         let result = folds
             .into_iter()
-            .map(|it| to_proto::folding_range(&*text, &line_index, false, it))
+            .map(|it| to_proto::folding_range(&text, &line_index, false, it))
             .collect();
         let folding_id = self.add_vertex(lsif::Vertex::FoldingRangeResult { result });
         self.add_edge(lsif::Edge::FoldingRange(lsif::EdgeData {
@@ -284,14 +285,15 @@ impl LsifManager<'_> {
 }
 
 impl flags::Lsif {
-    pub fn run(self) -> Result<()> {
+    pub fn run(self) -> anyhow::Result<()> {
         eprintln!("Generating LSIF started...");
         let now = Instant::now();
-        let cargo_config = CargoConfig::default();
+        let mut cargo_config = CargoConfig::default();
+        cargo_config.sysroot = Some(RustLibSource::Discover);
         let no_progress = &|_| ();
         let load_cargo_config = LoadCargoConfig {
             load_out_dirs_from_check: true,
-            with_proc_macro: true,
+            with_proc_macro_server: ProcMacroServerChoice::Sysroot,
             prefill_caches: false,
         };
         let path = AbsPathBuf::assert(env::current_dir()?.join(&self.path));

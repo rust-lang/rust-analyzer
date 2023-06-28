@@ -3,13 +3,15 @@
 //! fields, etc.
 
 use std::fmt;
-use std::sync::Arc;
 
-use hir_def::{path::path, resolver::HasResolver, AdtId, AssocItemId, DefWithBodyId, HasModule};
+use either::Either;
+use hir_def::lang_item::LangItem;
+use hir_def::{resolver::HasResolver, AdtId, AssocItemId, DefWithBodyId, HasModule};
+use hir_def::{ItemContainerId, Lookup};
 use hir_expand::name;
-use itertools::Either;
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
+use triomphe::Arc;
 use typed_arena::Arena;
 
 use crate::{
@@ -25,7 +27,7 @@ use crate::{
 
 pub(crate) use hir_def::{
     body::Body,
-    expr::{Expr, ExprId, MatchArm, Pat, PatId},
+    hir::{Expr, ExprId, MatchArm, Pat, PatId},
     LocalFieldId, VariantId,
 };
 
@@ -82,7 +84,7 @@ impl ExprValidator {
 
             match expr {
                 Expr::Match { expr, arms } => {
-                    self.validate_match(id, *expr, arms, db, self.infer.clone());
+                    self.validate_match(id, *expr, arms, db);
                 }
                 Expr::Call { .. } | Expr::MethodCall { .. } => {
                     self.validate_call(db, id, expr, &mut filter_map_next_checker);
@@ -145,16 +147,15 @@ impl ExprValidator {
 
     fn validate_match(
         &mut self,
-        id: ExprId,
         match_expr: ExprId,
+        scrutinee_expr: ExprId,
         arms: &[MatchArm],
         db: &dyn HirDatabase,
-        infer: Arc<InferenceResult>,
     ) {
         let body = db.body(self.owner);
 
-        let match_expr_ty = &infer[match_expr];
-        if match_expr_ty.is_unknown() {
+        let scrut_ty = &self.infer[scrutinee_expr];
+        if scrut_ty.is_unknown() {
             return;
         }
 
@@ -164,23 +165,23 @@ impl ExprValidator {
         let mut m_arms = Vec::with_capacity(arms.len());
         let mut has_lowering_errors = false;
         for arm in arms {
-            if let Some(pat_ty) = infer.type_of_pat.get(arm.pat) {
+            if let Some(pat_ty) = self.infer.type_of_pat.get(arm.pat) {
                 // We only include patterns whose type matches the type
-                // of the match expression. If we had an InvalidMatchArmPattern
+                // of the scrutinee expression. If we had an InvalidMatchArmPattern
                 // diagnostic or similar we could raise that in an else
                 // block here.
                 //
                 // When comparing the types, we also have to consider that rustc
-                // will automatically de-reference the match expression type if
+                // will automatically de-reference the scrutinee expression type if
                 // necessary.
                 //
                 // FIXME we should use the type checker for this.
-                if (pat_ty == match_expr_ty
-                    || match_expr_ty
+                if (pat_ty == scrut_ty
+                    || scrut_ty
                         .as_reference()
                         .map(|(match_expr_ty, ..)| match_expr_ty == pat_ty)
                         .unwrap_or(false))
-                    && types_of_subpatterns_do_match(arm.pat, &body, &infer)
+                    && types_of_subpatterns_do_match(arm.pat, &body, &self.infer)
                 {
                     // If we had a NotUsefulMatchArm diagnostic, we could
                     // check the usefulness of each pattern as we added it
@@ -204,16 +205,16 @@ impl ExprValidator {
             return;
         }
 
-        let report = compute_match_usefulness(&cx, &m_arms, match_expr_ty);
+        let report = compute_match_usefulness(&cx, &m_arms, scrut_ty);
 
-        // FIXME Report unreacheble arms
+        // FIXME Report unreachable arms
         // https://github.com/rust-lang/rust/blob/f31622a50/compiler/rustc_mir_build/src/thir/pattern/check_match.rs#L200
 
         let witnesses = report.non_exhaustiveness_witnesses;
         if !witnesses.is_empty() {
             self.diagnostics.push(BodyValidationDiagnostic::MissingMatchArms {
-                match_expr: id,
-                uncovered_patterns: missing_match_arms(&cx, match_expr_ty, witnesses, arms),
+                match_expr,
+                uncovered_patterns: missing_match_arms(&cx, scrut_ty, witnesses, arms),
             });
         }
     }
@@ -245,26 +246,25 @@ struct FilterMapNextChecker {
 impl FilterMapNextChecker {
     fn new(resolver: &hir_def::resolver::Resolver, db: &dyn HirDatabase) -> Self {
         // Find and store the FunctionIds for Iterator::filter_map and Iterator::next
-        let iterator_path = path![core::iter::Iterator];
-        let mut filter_map_function_id = None;
-        let mut next_function_id = None;
-
-        if let Some(iterator_trait_id) = resolver.resolve_known_trait(db.upcast(), &iterator_path) {
-            let iterator_trait_items = &db.trait_data(iterator_trait_id).items;
-            for item in iterator_trait_items.iter() {
-                if let (name, AssocItemId::FunctionId(id)) = item {
-                    if *name == name![filter_map] {
-                        filter_map_function_id = Some(*id);
+        let (next_function_id, filter_map_function_id) = match db
+            .lang_item(resolver.krate(), LangItem::IteratorNext)
+            .and_then(|it| it.as_function())
+        {
+            Some(next_function_id) => (
+                Some(next_function_id),
+                match next_function_id.lookup(db.upcast()).container {
+                    ItemContainerId::TraitId(iterator_trait_id) => {
+                        let iterator_trait_items = &db.trait_data(iterator_trait_id).items;
+                        iterator_trait_items.iter().find_map(|(name, it)| match it {
+                            &AssocItemId::FunctionId(id) if *name == name![filter_map] => Some(id),
+                            _ => None,
+                        })
                     }
-                    if *name == name![next] {
-                        next_function_id = Some(*id);
-                    }
-                }
-                if filter_map_function_id.is_some() && next_function_id.is_some() {
-                    break;
-                }
-            }
-        }
+                    _ => None,
+                },
+            ),
+            None => (None, None),
+        };
         Self { filter_map_function_id, next_function_id, prev_filter_map_expr_id: None }
     }
 
@@ -378,7 +378,7 @@ fn missing_match_arms<'p>(
     arms: &[MatchArm],
 ) -> String {
     struct DisplayWitness<'a, 'p>(&'a DeconstructedPat<'p>, &'a MatchCheckCtx<'a, 'p>);
-    impl<'a, 'p> fmt::Display for DisplayWitness<'a, 'p> {
+    impl fmt::Display for DisplayWitness<'_, '_> {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             let DisplayWitness(witness, cx) = *self;
             let pat = witness.to_pat(cx);

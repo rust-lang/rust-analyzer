@@ -16,7 +16,8 @@ use ide_db::{
     search::{ReferenceCategory, SearchScope, UsageSearchResult},
     RootDatabase,
 };
-use stdx::hash::NoHashHashMap;
+use itertools::Itertools;
+use nohash_hasher::IntMap;
 use syntax::{
     algo::find_node_at_offset,
     ast::{self, HasName},
@@ -30,7 +31,7 @@ use crate::{FilePosition, NavigationTarget, TryToNav};
 #[derive(Debug, Clone)]
 pub struct ReferenceSearchResult {
     pub declaration: Option<Declaration>,
-    pub references: NoHashHashMap<FileId, Vec<(TextRange, Option<ReferenceCategory>)>>,
+    pub references: IntMap<FileId, Vec<(TextRange, Option<ReferenceCategory>)>>,
 }
 
 #[derive(Debug, Clone)]
@@ -86,6 +87,7 @@ pub(crate) fn find_all_refs(
                         file_id,
                         refs.into_iter()
                             .map(|file_ref| (file_ref.range, file_ref.category))
+                            .unique()
                             .collect(),
                     )
                 })
@@ -713,7 +715,7 @@ fn f() {
 }
 "#,
             expect![[r#"
-                Foo Struct FileId(1) 17..51 28..31
+                Foo Struct FileId(1) 17..51 28..31 foo
 
                 FileId(0) 53..56
                 FileId(2) 79..82
@@ -801,7 +803,7 @@ pub(super) struct Foo$0 {
 }
 "#,
             expect![[r#"
-                Foo Struct FileId(2) 0..41 18..21
+                Foo Struct FileId(2) 0..41 18..21 some
 
                 FileId(1) 20..23 Import
                 FileId(1) 47..50
@@ -1287,7 +1289,7 @@ trait Foo where Self$0 {
 impl Foo for () {}
 "#,
             expect![[r#"
-                Self TypeParam FileId(0) 6..9 6..9
+                Self TypeParam FileId(0) 0..44 6..9
 
                 FileId(0) 16..20
                 FileId(0) 37..41
@@ -1349,6 +1351,38 @@ impl Foo {
                 Bar Variant FileId(0) 11..16 11..14
 
                 FileId(0) 89..92
+            "#]],
+        );
+    }
+
+    #[test]
+    fn test_trait_alias() {
+        check(
+            r#"
+trait Foo {}
+trait Bar$0 = Foo where Self: ;
+fn foo<T: Bar>(_: impl Bar, _: &dyn Bar) {}
+"#,
+            expect![[r#"
+                Bar TraitAlias FileId(0) 13..42 19..22
+
+                FileId(0) 53..56
+                FileId(0) 66..69
+                FileId(0) 79..82
+            "#]],
+        );
+    }
+
+    #[test]
+    fn test_trait_alias_self() {
+        check(
+            r#"
+trait Foo = where Self$0: ;
+"#,
+            expect![[r#"
+                Self TypeParam FileId(0) 0..25 6..9
+
+                FileId(0) 18..22
             "#]],
         );
     }
@@ -1508,7 +1542,7 @@ fn f() {
                 FileId(0) 161..165
 
 
-                func Function FileId(0) 137..146 140..144
+                func Function FileId(0) 137..146 140..144 module
 
                 FileId(0) 181..185
             "#]],
@@ -1547,7 +1581,7 @@ trait Trait {
 }
 "#,
             expect![[r#"
-                func Function FileId(0) 48..87 51..55
+                func Function FileId(0) 48..87 51..55 Trait
 
                 FileId(0) 74..78
             "#]],
@@ -1631,6 +1665,401 @@ pub fn deri$0ve(_stream: TokenStream) -> TokenStream {}
                 derive Derive FileId(0) 28..125 79..85
 
                 (no references)
+            "#]],
+        );
+    }
+
+    #[test]
+    fn assoc_items_trait_def() {
+        check(
+            r#"
+trait Trait {
+    const CONST$0: usize;
+}
+
+impl Trait for () {
+    const CONST: usize = 0;
+}
+
+impl Trait for ((),) {
+    const CONST: usize = 0;
+}
+
+fn f<T: Trait>() {
+    let _ = <()>::CONST;
+
+    let _ = T::CONST;
+}
+"#,
+            expect![[r#"
+                CONST Const FileId(0) 18..37 24..29 Trait
+
+                FileId(0) 71..76
+                FileId(0) 125..130
+                FileId(0) 183..188
+                FileId(0) 206..211
+            "#]],
+        );
+        check(
+            r#"
+trait Trait {
+    type TypeAlias$0;
+}
+
+impl Trait for () {
+    type TypeAlias = ();
+}
+
+impl Trait for ((),) {
+    type TypeAlias = ();
+}
+
+fn f<T: Trait>() {
+    let _: <() as Trait>::TypeAlias;
+
+    let _: T::TypeAlias;
+}
+"#,
+            expect![[r#"
+                TypeAlias TypeAlias FileId(0) 18..33 23..32 Trait
+
+                FileId(0) 66..75
+                FileId(0) 117..126
+                FileId(0) 181..190
+                FileId(0) 207..216
+            "#]],
+        );
+        check(
+            r#"
+trait Trait {
+    fn function$0() {}
+}
+
+impl Trait for () {
+    fn function() {}
+}
+
+impl Trait for ((),) {
+    fn function() {}
+}
+
+fn f<T: Trait>() {
+    let _ = <()>::function;
+
+    let _ = T::function;
+}
+"#,
+            expect![[r#"
+                function Function FileId(0) 18..34 21..29 Trait
+
+                FileId(0) 65..73
+                FileId(0) 112..120
+                FileId(0) 166..174
+                FileId(0) 192..200
+            "#]],
+        );
+    }
+
+    #[test]
+    fn assoc_items_trait_impl_def() {
+        check(
+            r#"
+trait Trait {
+    const CONST: usize;
+}
+
+impl Trait for () {
+    const CONST$0: usize = 0;
+}
+
+impl Trait for ((),) {
+    const CONST: usize = 0;
+}
+
+fn f<T: Trait>() {
+    let _ = <()>::CONST;
+
+    let _ = T::CONST;
+}
+"#,
+            expect![[r#"
+                CONST Const FileId(0) 65..88 71..76
+
+                FileId(0) 183..188
+            "#]],
+        );
+        check(
+            r#"
+trait Trait {
+    type TypeAlias;
+}
+
+impl Trait for () {
+    type TypeAlias$0 = ();
+}
+
+impl Trait for ((),) {
+    type TypeAlias = ();
+}
+
+fn f<T: Trait>() {
+    let _: <() as Trait>::TypeAlias;
+
+    let _: T::TypeAlias;
+}
+"#,
+            expect![[r#"
+                TypeAlias TypeAlias FileId(0) 61..81 66..75
+
+                FileId(0) 23..32
+                FileId(0) 117..126
+                FileId(0) 181..190
+                FileId(0) 207..216
+            "#]],
+        );
+        check(
+            r#"
+trait Trait {
+    fn function() {}
+}
+
+impl Trait for () {
+    fn function$0() {}
+}
+
+impl Trait for ((),) {
+    fn function() {}
+}
+
+fn f<T: Trait>() {
+    let _ = <()>::function;
+
+    let _ = T::function;
+}
+"#,
+            expect![[r#"
+                function Function FileId(0) 62..78 65..73
+
+                FileId(0) 166..174
+            "#]],
+        );
+    }
+
+    #[test]
+    fn assoc_items_ref() {
+        check(
+            r#"
+trait Trait {
+    const CONST: usize;
+}
+
+impl Trait for () {
+    const CONST: usize = 0;
+}
+
+impl Trait for ((),) {
+    const CONST: usize = 0;
+}
+
+fn f<T: Trait>() {
+    let _ = <()>::CONST$0;
+
+    let _ = T::CONST;
+}
+"#,
+            expect![[r#"
+                CONST Const FileId(0) 65..88 71..76
+
+                FileId(0) 183..188
+            "#]],
+        );
+        check(
+            r#"
+trait Trait {
+    type TypeAlias;
+}
+
+impl Trait for () {
+    type TypeAlias = ();
+}
+
+impl Trait for ((),) {
+    type TypeAlias = ();
+}
+
+fn f<T: Trait>() {
+    let _: <() as Trait>::TypeAlias$0;
+
+    let _: T::TypeAlias;
+}
+"#,
+            expect![[r#"
+                TypeAlias TypeAlias FileId(0) 18..33 23..32 Trait
+
+                FileId(0) 66..75
+                FileId(0) 117..126
+                FileId(0) 181..190
+                FileId(0) 207..216
+            "#]],
+        );
+        check(
+            r#"
+trait Trait {
+    fn function() {}
+}
+
+impl Trait for () {
+    fn function() {}
+}
+
+impl Trait for ((),) {
+    fn function() {}
+}
+
+fn f<T: Trait>() {
+    let _ = <()>::function$0;
+
+    let _ = T::function;
+}
+"#,
+            expect![[r#"
+                function Function FileId(0) 62..78 65..73
+
+                FileId(0) 166..174
+            "#]],
+        );
+    }
+
+    #[test]
+    fn name_clashes() {
+        check(
+            r#"
+trait Foo {
+    fn method$0(&self) -> u8;
+}
+
+struct Bar {
+    method: u8,
+}
+
+impl Foo for Bar {
+    fn method(&self) -> u8 {
+        self.method
+    }
+}
+fn method() {}
+"#,
+            expect![[r#"
+                method Function FileId(0) 16..39 19..25 Foo
+
+                FileId(0) 101..107
+            "#]],
+        );
+        check(
+            r#"
+trait Foo {
+    fn method(&self) -> u8;
+}
+
+struct Bar {
+    method$0: u8,
+}
+
+impl Foo for Bar {
+    fn method(&self) -> u8 {
+        self.method
+    }
+}
+fn method() {}
+"#,
+            expect![[r#"
+                method Field FileId(0) 60..70 60..66
+
+                FileId(0) 136..142 Read
+            "#]],
+        );
+        check(
+            r#"
+trait Foo {
+    fn method(&self) -> u8;
+}
+
+struct Bar {
+    method: u8,
+}
+
+impl Foo for Bar {
+    fn method$0(&self) -> u8 {
+        self.method
+    }
+}
+fn method() {}
+"#,
+            expect![[r#"
+                method Function FileId(0) 98..148 101..107
+
+                (no references)
+            "#]],
+        );
+        check(
+            r#"
+trait Foo {
+    fn method(&self) -> u8;
+}
+
+struct Bar {
+    method: u8,
+}
+
+impl Foo for Bar {
+    fn method(&self) -> u8 {
+        self.method$0
+    }
+}
+fn method() {}
+"#,
+            expect![[r#"
+                method Field FileId(0) 60..70 60..66
+
+                FileId(0) 136..142 Read
+            "#]],
+        );
+        check(
+            r#"
+trait Foo {
+    fn method(&self) -> u8;
+}
+
+struct Bar {
+    method: u8,
+}
+
+impl Foo for Bar {
+    fn method(&self) -> u8 {
+        self.method
+    }
+}
+fn method$0() {}
+"#,
+            expect![[r#"
+                method Function FileId(0) 151..165 154..160
+
+                (no references)
+            "#]],
+        );
+    }
+
+    #[test]
+    fn raw_identifier() {
+        check(
+            r#"
+fn r#fn$0() {}
+fn main() { r#fn(); }
+"#,
+            expect![[r#"
+                r#fn Function FileId(0) 0..12 3..7
+
+                FileId(0) 25..29
             "#]],
         );
     }

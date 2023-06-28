@@ -16,7 +16,7 @@ fn render(ctx: RenderContext<'_>, const_: hir::Const) -> Option<CompletionItem> 
     let (name, escaped_name) = (name.unescaped().to_smol_str(), name.to_smol_str());
     let detail = const_.display(db).to_string();
 
-    let mut item = CompletionItem::new(SymbolKind::Const, ctx.source_range(), name.clone());
+    let mut item = CompletionItem::new(SymbolKind::Const, ctx.source_range(), name);
     item.set_documentation(ctx.docs(const_))
         .set_deprecated(ctx.is_deprecated(const_) || ctx.is_deprecated_assoc_item(const_))
         .detail(detail)
@@ -29,5 +29,5 @@ fn render(ctx: RenderContext<'_>, const_: hir::Const) -> Option<CompletionItem> 
     }
     item.insert_text(escaped_name);
 
-    Some(item.build())
+    Some(item.build(ctx.db()))
 }

@@ -4,7 +4,6 @@ use hir_def::{
     attr::{AttrsWithOwner, Documentation},
     item_scope::ItemInNs,
     path::ModPath,
-    per_ns::PerNs,
     resolver::HasResolver,
     AttrDefId, GenericParamId, ModuleDefId,
 };
@@ -14,7 +13,8 @@ use syntax::{ast, AstNode};
 
 use crate::{
     Adt, AssocItem, Const, ConstParam, Enum, Field, Function, GenericParam, Impl, LifetimeParam,
-    Macro, Module, ModuleDef, Static, Struct, Trait, TypeAlias, TypeParam, Union, Variant,
+    Macro, Module, ModuleDef, Static, Struct, Trait, TraitAlias, TypeAlias, TypeParam, Union,
+    Variant,
 };
 
 pub trait HasAttrs {
@@ -40,7 +40,7 @@ macro_rules! impl_has_attrs {
         impl HasAttrs for $def {
             fn attrs(self, db: &dyn HirDatabase) -> AttrsWithOwner {
                 let def = AttrDefId::$def_id(self.into());
-                db.attrs(def)
+                db.attrs_with_owner(def)
             }
             fn docs(self, db: &dyn HirDatabase) -> Option<Documentation> {
                 let def = AttrDefId::$def_id(self.into());
@@ -60,6 +60,7 @@ impl_has_attrs![
     (Static, StaticId),
     (Const, ConstId),
     (Trait, TraitId),
+    (TraitAlias, TraitAliasId),
     (TypeAlias, TypeAliasId),
     (Macro, MacroId),
     (Function, FunctionId),
@@ -119,6 +120,7 @@ impl HasAttrs for AssocItem {
     }
 }
 
+/// Resolves the item `link` points to in the scope of `def`.
 fn resolve_doc_path(
     db: &dyn HirDatabase,
     def: AttrDefId,
@@ -134,10 +136,12 @@ fn resolve_doc_path(
         AttrDefId::StaticId(it) => it.resolver(db.upcast()),
         AttrDefId::ConstId(it) => it.resolver(db.upcast()),
         AttrDefId::TraitId(it) => it.resolver(db.upcast()),
+        AttrDefId::TraitAliasId(it) => it.resolver(db.upcast()),
         AttrDefId::TypeAliasId(it) => it.resolver(db.upcast()),
         AttrDefId::ImplId(it) => it.resolver(db.upcast()),
         AttrDefId::ExternBlockId(it) => it.resolver(db.upcast()),
         AttrDefId::MacroId(it) => it.resolver(db.upcast()),
+        AttrDefId::ExternCrateId(it) => it.resolver(db.upcast()),
         AttrDefId::GenericParamId(it) => match it {
             GenericParamId::TypeParamId(it) => it.parent(),
             GenericParamId::ConstParamId(it) => it.parent(),
@@ -148,18 +152,18 @@ fn resolve_doc_path(
 
     let modpath = {
         // FIXME: this is not how we should get a mod path here
-        let ast_path = ast::SourceFile::parse(&format!("type T = {};", link))
+        let ast_path = ast::SourceFile::parse(&format!("type T = {link};"))
             .syntax_node()
             .descendants()
             .find_map(ast::Path::cast)?;
-        if ast_path.to_string() != link {
+        if ast_path.syntax().text() != link {
             return None;
         }
         ModPath::from_src(db.upcast(), ast_path, &Hygiene::new_unhygienic())?
     };
 
     let resolved = resolver.resolve_module_path_in_items(db.upcast(), &modpath);
-    let resolved = if resolved == PerNs::none() {
+    let resolved = if resolved.is_none() {
         resolver.resolve_module_path_in_trait_assoc_items(db.upcast(), &modpath)?
     } else {
         resolved

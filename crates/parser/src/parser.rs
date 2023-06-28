@@ -148,9 +148,14 @@ impl<'t> Parser<'t> {
         kinds.contains(self.current())
     }
 
-    /// Checks if the current token is contextual keyword with text `t`.
+    /// Checks if the current token is contextual keyword `kw`.
     pub(crate) fn at_contextual_kw(&self, kw: SyntaxKind) -> bool {
         self.inp.contextual_kind(self.pos) == kw
+    }
+
+    /// Checks if the nth token is contextual keyword `kw`.
+    pub(crate) fn nth_at_contextual_kw(&self, n: usize, kw: SyntaxKind) -> bool {
+        self.inp.contextual_kind(self.pos + n) == kw
     }
 
     /// Starts a new node in the syntax tree. All nodes and tokens
@@ -162,7 +167,7 @@ impl<'t> Parser<'t> {
         Marker::new(pos)
     }
 
-    /// Consume the next token if `kind` matches.
+    /// Consume the next token. Panics if the parser isn't currently at `kind`.
     pub(crate) fn bump(&mut self, kind: SyntaxKind) {
         assert!(self.eat(kind));
     }
@@ -174,6 +179,35 @@ impl<'t> Parser<'t> {
             return;
         }
         self.do_bump(kind, 1);
+    }
+
+    /// Advances the parser by one token
+    pub(crate) fn split_float(&mut self, mut marker: Marker) -> (bool, Marker) {
+        assert!(self.at(SyntaxKind::FLOAT_NUMBER));
+        // we have parse `<something>.`
+        // `<something>`.0.1
+        // here we need to insert an extra event
+        //
+        // `<something>`. 0. 1;
+        // here we need to change the follow up parse, the return value will cause us to emulate a dot
+        // the actual splitting happens later
+        let ends_in_dot = !self.inp.is_joint(self.pos);
+        if !ends_in_dot {
+            let new_marker = self.start();
+            let idx = marker.pos as usize;
+            match &mut self.events[idx] {
+                Event::Start { forward_parent, kind } => {
+                    *kind = SyntaxKind::FIELD_EXPR;
+                    *forward_parent = Some(new_marker.pos - marker.pos);
+                }
+                _ => unreachable!(),
+            }
+            marker.bomb.defuse();
+            marker = new_marker;
+        };
+        self.pos += 1;
+        self.push_event(Event::FloatSplitHack { ends_in_dot });
+        (ends_in_dot, marker)
     }
 
     /// Advances the parser by one token, remapping its kind.
@@ -205,7 +239,7 @@ impl<'t> Parser<'t> {
         if self.eat(kind) {
             return true;
         }
-        self.error(format!("expected {:?}", kind));
+        self.error(format!("expected {kind:?}"));
         false
     }
 
@@ -237,6 +271,7 @@ impl<'t> Parser<'t> {
 
     fn do_bump(&mut self, kind: SyntaxKind, n_raw_tokens: u8) {
         self.pos += n_raw_tokens as usize;
+        self.steps.set(0);
         self.push_event(Event::Token { kind, n_raw_tokens });
     }
 

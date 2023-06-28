@@ -1,7 +1,7 @@
 //! Abstract-ish representation of paths for VFS.
 use std::fmt;
 
-use paths::{AbsPath, AbsPathBuf};
+use paths::{AbsPath, AbsPathBuf, RelPath};
 
 /// Path in [`Vfs`].
 ///
@@ -84,6 +84,14 @@ impl VfsPath {
         }
     }
 
+    pub fn strip_prefix(&self, other: &VfsPath) -> Option<&RelPath> {
+        match (&self.0, &other.0) {
+            (VfsPathRepr::PathBuf(lhs), VfsPathRepr::PathBuf(rhs)) => lhs.strip_prefix(rhs),
+            (VfsPathRepr::VirtualPath(lhs), VfsPathRepr::VirtualPath(rhs)) => lhs.strip_prefix(rhs),
+            (VfsPathRepr::PathBuf(_) | VfsPathRepr::VirtualPath(_), _) => None,
+        }
+    }
+
     /// Returns the `VfsPath` without its final component, if there is one.
     ///
     /// Returns [`None`] if the path is a root or prefix.
@@ -99,10 +107,7 @@ impl VfsPath {
     /// Returns `self`'s base name and file extension.
     pub fn name_and_extension(&self) -> Option<(&str, Option<&str>)> {
         match &self.0 {
-            VfsPathRepr::PathBuf(p) => Some((
-                p.file_stem()?.to_str()?,
-                p.extension().and_then(|extension| extension.to_str()),
-            )),
+            VfsPathRepr::PathBuf(p) => p.name_and_extension(),
             VfsPathRepr::VirtualPath(p) => p.name_and_extension(),
         }
     }
@@ -287,8 +292,8 @@ impl From<AbsPathBuf> for VfsPath {
 impl fmt::Display for VfsPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.0 {
-            VfsPathRepr::PathBuf(it) => fmt::Display::fmt(&it.display(), f),
-            VfsPathRepr::VirtualPath(VirtualPath(it)) => fmt::Display::fmt(it, f),
+            VfsPathRepr::PathBuf(it) => it.fmt(f),
+            VfsPathRepr::VirtualPath(VirtualPath(it)) => it.fmt(f),
         }
     }
 }
@@ -302,8 +307,8 @@ impl fmt::Debug for VfsPath {
 impl fmt::Debug for VfsPathRepr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self {
-            VfsPathRepr::PathBuf(it) => fmt::Debug::fmt(&it.display(), f),
-            VfsPathRepr::VirtualPath(VirtualPath(it)) => fmt::Debug::fmt(&it, f),
+            VfsPathRepr::PathBuf(it) => it.fmt(f),
+            VfsPathRepr::VirtualPath(VirtualPath(it)) => it.fmt(f),
         }
     }
 }
@@ -318,6 +323,13 @@ impl VirtualPath {
     /// Returns `true` if `other` is a prefix of `self` (as strings).
     fn starts_with(&self, other: &VirtualPath) -> bool {
         self.0.starts_with(&other.0)
+    }
+
+    fn strip_prefix(&self, base: &VirtualPath) -> Option<&RelPath> {
+        <_ as AsRef<std::path::Path>>::as_ref(&self.0)
+            .strip_prefix(&base.0)
+            .ok()
+            .map(RelPath::new_unchecked)
     }
 
     /// Remove the last component of `self`.
@@ -364,7 +376,7 @@ impl VirtualPath {
             path = &path["../".len()..];
         }
         path = path.trim_start_matches("./");
-        res.0 = format!("{}/{}", res.0, path);
+        res.0 = format!("{}/{path}", res.0);
         Some(res)
     }
 

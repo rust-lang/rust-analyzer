@@ -1,4 +1,4 @@
-use hir::{db::AstDatabase, InFile};
+use hir::{db::ExpandDatabase, InFile};
 use ide_db::{assists::Assist, defs::NameClass};
 use syntax::AstNode;
 
@@ -27,7 +27,7 @@ pub(crate) fn incorrect_case(ctx: &DiagnosticsContext<'_>, d: &hir::IncorrectCas
 }
 
 fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::IncorrectCase) -> Option<Vec<Assist>> {
-    let root = ctx.sema.db.parse_or_expand(d.file)?;
+    let root = ctx.sema.db.parse_or_expand(d.file);
     let name_node = d.ident.to_node(&root);
     let def = NameClass::classify(&ctx.sema, &name_node)?.defined()?;
 
@@ -295,7 +295,7 @@ impl someStruct {
     }
 
     #[test]
-    fn no_diagnostic_for_enum_varinats() {
+    fn no_diagnostic_for_enum_variants() {
         check_diagnostics(
             r#"
 enum Option { Some, None }

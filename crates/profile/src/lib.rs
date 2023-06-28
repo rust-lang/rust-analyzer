@@ -26,7 +26,7 @@ pub use countme::Count;
 
 thread_local!(static IN_SCOPE: RefCell<bool> = RefCell::new(false));
 
-/// Allows to check if the current code is withing some dynamic scope, can be
+/// Allows to check if the current code is within some dynamic scope, can be
 /// useful during debugging to figure out why a function is called.
 pub struct Scope {
     prev: bool,
@@ -114,11 +114,11 @@ impl Drop for CpuSpan {
             match out {
                 Ok(out) if out.status.success() => {
                     let svg = profile_data.with_extension("svg");
-                    std::fs::write(&svg, &out.stdout).unwrap();
+                    std::fs::write(&svg, out.stdout).unwrap();
                     eprintln!("Profile rendered to:\n\n    {}\n", svg.display());
                 }
                 _ => {
-                    eprintln!("Failed to run:\n\n   {:?}\n", cmd);
+                    eprintln!("Failed to run:\n\n   {cmd:?}\n");
                 }
             }
         }

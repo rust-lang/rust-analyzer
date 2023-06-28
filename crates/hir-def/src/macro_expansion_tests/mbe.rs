@@ -4,6 +4,7 @@
 mod tt_conversion;
 mod matching;
 mod meta_syntax;
+mod metavar_expr;
 mod regression;
 
 use expect_test::expect;
@@ -95,6 +96,41 @@ fn#19 main#20(#21)#21 {#22
 
 
 "##]],
+    );
+}
+#[test]
+fn float_field_access_macro_input() {
+    check(
+        r#"
+macro_rules! foo {
+    ($expr:expr) => {
+        fn foo() {
+            $expr;
+        }
+    };
+}
+foo!(x .0.1);
+foo!(x .2. 3);
+foo!(x .4 .5);
+"#,
+        expect![[r#"
+macro_rules! foo {
+    ($expr:expr) => {
+        fn foo() {
+            $expr;
+        }
+    };
+}
+fn foo() {
+    (x.0.1);
+}
+fn foo() {
+    (x.2.3);
+}
+fn foo() {
+    (x.4.5);
+}
+"#]],
     );
 }
 
@@ -887,7 +923,7 @@ macro_rules! m {
 
 fn bar() -> &'a Baz<u8> {}
 
-fn bar() -> extern "Rust"fn() -> Ret {}
+fn bar() -> extern "Rust" fn() -> Ret {}
 "#]],
     );
 }
@@ -1258,15 +1294,49 @@ ok!();
 }
 
 #[test]
-fn test_vertical_bar_with_pat() {
+fn test_vertical_bar_with_pat_param() {
     check(
         r#"
-macro_rules! m { (|$pat:pat| ) => { ok!(); } }
+macro_rules! m { (|$pat:pat_param| ) => { ok!(); } }
 m! { |x| }
  "#,
         expect![[r#"
-macro_rules! m { (|$pat:pat| ) => { ok!(); } }
+macro_rules! m { (|$pat:pat_param| ) => { ok!(); } }
 ok!();
+ "#]],
+    );
+}
+
+#[test]
+fn test_new_std_matches() {
+    check(
+        r#"
+macro_rules! matches {
+    ($expression:expr, $pattern:pat $(if $guard:expr)? $(,)?) => {
+        match $expression {
+            $pattern $(if $guard)? => true,
+            _ => false
+        }
+    };
+}
+fn main() {
+    matches!(0, 0 | 1 if true);
+}
+ "#,
+        expect![[r#"
+macro_rules! matches {
+    ($expression:expr, $pattern:pat $(if $guard:expr)? $(,)?) => {
+        match $expression {
+            $pattern $(if $guard)? => true,
+            _ => false
+        }
+    };
+}
+fn main() {
+    match 0 {
+        0|1 if true =>true , _=>false
+    };
+}
  "#]],
     );
 }
@@ -1441,7 +1511,7 @@ macro_rules! m {
 /* parse error: expected identifier */
 /* parse error: expected SEMICOLON */
 /* parse error: expected SEMICOLON */
-/* parse error: expected expression */
+/* parse error: expected expression, item or let statement */
 fn f() {
     K::(C("0"));
 }
@@ -1546,87 +1616,46 @@ struct Foo;
 }
 
 #[test]
-fn test_dollar_dollar() {
+fn test_punct_without_space() {
+    // Puncts are "glued" greedily.
     check(
         r#"
-macro_rules! register_struct { ($Struct:ident) => {
-    macro_rules! register_methods { ($$($method:ident),*) => {
-        macro_rules! implement_methods { ($$$$($$val:expr),*) => {
-            struct $Struct;
-            impl $Struct { $$(fn $method() -> &'static [u32] { &[$$$$($$$$val),*] })*}
-        }}
-    }}
-}}
+macro_rules! foo {
+    (: : :) => { "1 1 1" };
+    (: ::) => { "1 2" };
+    (:: :) => { "2 1" };
 
-register_struct!(Foo);
-register_methods!(alpha, beta);
-implement_methods!(1, 2, 3);
+    (: : : :) => { "1 1 1 1" };
+    (:: : :) => { "2 1 1" };
+    (: :: :) => { "1 2 1" };
+    (: : ::) => { "1 1 2" };
+    (:: ::) => { "2 2" };
+}
+
+fn test() {
+    foo!(:::);
+    foo!(: :::);
+    foo!(::::);
+}
 "#,
         expect![[r#"
-macro_rules! register_struct { ($Struct:ident) => {
-    macro_rules! register_methods { ($$($method:ident),*) => {
-        macro_rules! implement_methods { ($$$$($$val:expr),*) => {
-            struct $Struct;
-            impl $Struct { $$(fn $method() -> &'static [u32] { &[$$$$($$$$val),*] })*}
-        }}
-    }}
-}}
+macro_rules! foo {
+    (: : :) => { "1 1 1" };
+    (: ::) => { "1 2" };
+    (:: :) => { "2 1" };
 
-macro_rules !register_methods {
-    ($($method: ident), *) = > {
-        macro_rules!implement_methods {
-            ($$($val: expr), *) = > {
-                struct Foo;
-                impl Foo {
-                    $(fn $method()-> &'static[u32] {
-                        &[$$($$val), *]
-                    }
-                    )*
-                }
-            }
-        }
-    }
+    (: : : :) => { "1 1 1 1" };
+    (:: : :) => { "2 1 1" };
+    (: :: :) => { "1 2 1" };
+    (: : ::) => { "1 1 2" };
+    (:: ::) => { "2 2" };
 }
-macro_rules !implement_methods {
-    ($($val: expr), *) = > {
-        struct Foo;
-        impl Foo {
-            fn alpha()-> &'static[u32] {
-                &[$($val), *]
-            }
-            fn beta()-> &'static[u32] {
-                &[$($val), *]
-            }
-        }
-    }
-}
-struct Foo;
-impl Foo {
-    fn alpha() -> &'static[u32] {
-        &[1, 2, 3]
-    }
-    fn beta() -> &'static[u32] {
-        &[1, 2, 3]
-    }
+
+fn test() {
+    "2 1";
+    "1 2 1";
+    "2 2";
 }
 "#]],
-    )
-}
-
-#[test]
-fn test_metavar_exprs() {
-    check(
-        r#"
-macro_rules! m {
-    ( $( $t:tt )* ) => ( $( ${ignore(t)} -${index()} )-* );
-}
-const _: i32 = m!(a b c);
-    "#,
-        expect![[r#"
-macro_rules! m {
-    ( $( $t:tt )* ) => ( $( ${ignore(t)} -${index()} )-* );
-}
-const _: i32 = -0--1--2;
-    "#]],
     );
 }

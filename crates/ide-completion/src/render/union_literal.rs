@@ -21,10 +21,12 @@ pub(crate) fn render_union_literal(
     let name = local_name.unwrap_or_else(|| un.name(ctx.db()));
 
     let (qualified_name, escaped_qualified_name) = match path {
-        Some(p) => (p.unescaped().to_string(), p.to_string()),
-        None => (name.unescaped().to_string(), name.to_string()),
+        Some(p) => (p.unescaped().display(ctx.db()).to_string(), p.display(ctx.db()).to_string()),
+        None => {
+            (name.unescaped().display(ctx.db()).to_string(), name.display(ctx.db()).to_string())
+        }
     };
-    let label = format_literal_label(&name.to_smol_str(), StructKind::Record);
+    let label = format_literal_label(&name.to_smol_str(), StructKind::Record, ctx.snippet_cap());
     let lookup = format_literal_lookup(&name.to_smol_str(), StructKind::Record);
     let mut item = CompletionItem::new(
         CompletionItemKind::SymbolKind(SymbolKind::Union),
@@ -51,9 +53,9 @@ pub(crate) fn render_union_literal(
         format!(
             "{} {{ {} }}",
             escaped_qualified_name,
-            fields
-                .iter()
-                .format_with(", ", |field, f| { f(&format_args!("{}: ()", field.name(ctx.db()))) })
+            fields.iter().format_with(", ", |field, f| {
+                f(&format_args!("{}: ()", field.name(ctx.db()).display(ctx.db())))
+            })
         )
     };
 
@@ -61,20 +63,24 @@ pub(crate) fn render_union_literal(
         "{} {{ {}{} }}",
         qualified_name,
         fields.iter().format_with(", ", |field, f| {
-            f(&format_args!("{}: {}", field.name(ctx.db()), field.ty(ctx.db()).display(ctx.db())))
+            f(&format_args!(
+                "{}: {}",
+                field.name(ctx.db()).display(ctx.db()),
+                field.ty(ctx.db()).display(ctx.db())
+            ))
         }),
         if fields_omitted { ", .." } else { "" }
     );
 
     item.set_documentation(ctx.docs(un))
         .set_deprecated(ctx.is_deprecated(un))
-        .detail(&detail)
+        .detail(detail)
         .set_relevance(ctx.completion_relevance());
 
     match ctx.snippet_cap() {
-        Some(snippet_cap) => item.insert_snippet(snippet_cap, literal),
+        Some(snippet_cap) => item.insert_snippet(snippet_cap, literal).trigger_call_info(),
         None => item.insert_text(literal),
     };
 
-    Some(item.build())
+    Some(item.build(ctx.db()))
 }

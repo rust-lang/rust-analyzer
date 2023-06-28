@@ -2,12 +2,16 @@
 
 use std::{collections::HashMap, path::PathBuf};
 
+use ide_db::line_index::WideEncoding;
 use lsp_types::request::Request;
 use lsp_types::{
     notification::Notification, CodeActionKind, DocumentOnTypeFormattingParams,
     PartialResultParams, Position, Range, TextDocumentIdentifier, WorkDoneProgressParams,
 };
+use lsp_types::{PositionEncodingKind, Url};
 use serde::{Deserialize, Serialize};
+
+use crate::line_index::PositionEncoding;
 
 pub enum AnalyzerStatus {}
 
@@ -21,6 +25,31 @@ impl Request for AnalyzerStatus {
 #[serde(rename_all = "camelCase")]
 pub struct AnalyzerStatusParams {
     pub text_document: Option<TextDocumentIdentifier>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct CrateInfoResult {
+    pub name: Option<String>,
+    pub version: Option<String>,
+    pub path: Url,
+}
+pub enum FetchDependencyList {}
+
+impl Request for FetchDependencyList {
+    type Params = FetchDependencyListParams;
+    type Result = FetchDependencyListResult;
+    const METHOD: &'static str = "rust-analyzer/fetchDependencyList";
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchDependencyListParams {}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchDependencyListResult {
+    pub crates: Vec<CrateInfoResult>,
 }
 
 pub enum MemoryUsage {}
@@ -47,6 +76,14 @@ impl Request for ReloadWorkspace {
     const METHOD: &'static str = "rust-analyzer/reloadWorkspace";
 }
 
+pub enum RebuildProcMacros {}
+
+impl Request for RebuildProcMacros {
+    type Params = ();
+    type Result = ();
+    const METHOD: &'static str = "rust-analyzer/rebuildProcMacros";
+}
+
 pub enum SyntaxTree {}
 
 impl Request for SyntaxTree {
@@ -68,6 +105,22 @@ impl Request for ViewHir {
     type Params = lsp_types::TextDocumentPositionParams;
     type Result = String;
     const METHOD: &'static str = "rust-analyzer/viewHir";
+}
+
+pub enum ViewMir {}
+
+impl Request for ViewMir {
+    type Params = lsp_types::TextDocumentPositionParams;
+    type Result = String;
+    const METHOD: &'static str = "rust-analyzer/viewMir";
+}
+
+pub enum InterpretFunction {}
+
+impl Request for InterpretFunction {
+    type Params = lsp_types::TextDocumentPositionParams;
+    type Result = String;
+    const METHOD: &'static str = "rust-analyzer/interpretFunction";
 }
 
 pub enum ViewFileText {}
@@ -131,10 +184,36 @@ pub struct ExpandedMacro {
 
 pub enum CancelFlycheck {}
 
-impl Request for CancelFlycheck {
+impl Notification for CancelFlycheck {
     type Params = ();
-    type Result = ();
     const METHOD: &'static str = "rust-analyzer/cancelFlycheck";
+}
+
+pub enum RunFlycheck {}
+
+impl Notification for RunFlycheck {
+    type Params = RunFlycheckParams;
+    const METHOD: &'static str = "rust-analyzer/runFlycheck";
+}
+
+pub enum ClearFlycheck {}
+
+impl Notification for ClearFlycheck {
+    type Params = ();
+    const METHOD: &'static str = "rust-analyzer/clearFlycheck";
+}
+
+pub enum OpenServerLogs {}
+
+impl Notification for OpenServerLogs {
+    type Params = ();
+    const METHOD: &'static str = "rust-analyzer/openServerLogs";
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RunFlycheckParams {
+    pub text_document: Option<TextDocumentIdentifier>,
 }
 
 pub enum MatchingBrace {}
@@ -305,6 +384,7 @@ impl Request for CodeActionRequest {
 }
 
 pub enum CodeActionResolveRequest {}
+
 impl Request for CodeActionResolveRequest {
     type Params = CodeAction;
     type Result = CodeAction;
@@ -380,7 +460,7 @@ pub enum HoverRequest {}
 impl Request for HoverRequest {
     type Params = HoverParams;
     type Result = Option<Hover>;
-    const METHOD: &'static str = "textDocument/hover";
+    const METHOD: &'static str = lsp_types::request::HoverRequest::METHOD;
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
@@ -428,8 +508,22 @@ pub enum ExternalDocs {}
 
 impl Request for ExternalDocs {
     type Params = lsp_types::TextDocumentPositionParams;
-    type Result = Option<lsp_types::Url>;
+    type Result = ExternalDocsResponse;
     const METHOD: &'static str = "experimental/externalDocs";
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum ExternalDocsResponse {
+    Simple(Option<lsp_types::Url>),
+    WithLocal(ExternalDocsPair),
+}
+
+#[derive(Debug, Default, PartialEq, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalDocsPair {
+    pub web: Option<lsp_types::Url>,
+    pub local: Option<lsp_types::Url>,
 }
 
 pub enum OpenCargoToml {}
@@ -449,13 +543,34 @@ pub struct OpenCargoTomlParams {
 /// Information about CodeLens, that is to be resolved.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) enum CodeLensResolveData {
+pub struct CodeLensResolveData {
+    pub version: i32,
+    pub kind: CodeLensResolveDataKind,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CodeLensResolveDataKind {
     Impls(lsp_types::request::GotoImplementationParams),
     References(lsp_types::TextDocumentPositionParams),
 }
 
-pub fn supports_utf8(caps: &lsp_types::ClientCapabilities) -> bool {
-    caps.offset_encoding.as_deref().unwrap_or_default().iter().any(|it| it == "utf-8")
+pub fn negotiated_encoding(caps: &lsp_types::ClientCapabilities) -> PositionEncoding {
+    let client_encodings = match &caps.general {
+        Some(general) => general.position_encodings.as_deref().unwrap_or_default(),
+        None => &[],
+    };
+
+    for enc in client_encodings {
+        if enc == &PositionEncodingKind::UTF8 {
+            return PositionEncoding::Utf8;
+        } else if enc == &PositionEncodingKind::UTF32 {
+            return PositionEncoding::Wide(WideEncoding::Utf32);
+        }
+        // NB: intentionally prefer just about anything else to utf-16.
+    }
+
+    PositionEncoding::Wide(WideEncoding::Utf16)
 }
 
 pub enum MoveItem {}
@@ -540,10 +655,7 @@ pub struct CompletionResolveData {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct InlayHintResolveData {
-    pub text_document: TextDocumentIdentifier,
-    pub position: PositionOrRange,
-}
+pub struct InlayHintResolveData {}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CompletionImport {

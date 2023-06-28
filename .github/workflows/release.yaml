@@ -29,6 +29,9 @@ jobs:
             target: x86_64-pc-windows-msvc
             code-target: win32-x64
           - os: windows-latest
+            target: i686-pc-windows-msvc
+            code-target: win32-ia32
+          - os: windows-latest
             target: aarch64-pc-windows-msvc
             code-target: win32-arm64
           - os: ubuntu-20.04
@@ -76,9 +79,9 @@ jobs:
           rustup component add rust-src
 
       - name: Install Node.js
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@v3
         with:
-          node-version: 16.x
+          node-version: 16
 
       - name: Update apt repositories
         if: matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'arm-unknown-linux-gnueabihf'
@@ -184,9 +187,9 @@ jobs:
     needs: ["dist", "dist-x86_64-unknown-linux-musl"]
     steps:
       - name: Install Nodejs
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@v3
         with:
-          node-version: 16.x
+          node-version: 16
 
       - run: echo "TAG=$(date --iso -u)" >> $GITHUB_ENV
         if: github.ref == 'refs/heads/release'
@@ -232,6 +235,10 @@ jobs:
           path: dist
       - uses: actions/download-artifact@v1
         with:
+          name: dist-i686-pc-windows-msvc
+          path: dist
+      - uses: actions/download-artifact@v1
+        with:
           name: dist-aarch64-pc-windows-msvc
           path: dist
       - run: ls -al ./dist
@@ -257,15 +264,16 @@ jobs:
       - name: Publish Extension (OpenVSX, release)
         if: github.ref == 'refs/heads/release' && (github.repository == 'rust-analyzer/rust-analyzer' || github.repository == 'rust-lang/rust-analyzer')
         working-directory: ./editors/code
-        # token from https://dev.azure.com/rust-analyzer/
-        run: npx ovsx publish --pat ${{ secrets.OPENVSX_TOKEN }} --packagePath ../../dist/rust-analyzer-*.vsix || true
+        run: npx ovsx publish --pat ${{ secrets.OPENVSX_TOKEN }} --packagePath ../../dist/rust-analyzer-*.vsix
+        timeout-minutes: 2
 
       - name: Publish Extension (Code Marketplace, nightly)
         if: github.ref != 'refs/heads/release' && (github.repository == 'rust-analyzer/rust-analyzer' || github.repository == 'rust-lang/rust-analyzer')
         working-directory: ./editors/code
-        run: npx vsce publish --pat ${{ secrets.MARKETPLACE_TOKEN }} --packagePath ../../dist/rust-analyzer-*.vsix
+        run: npx vsce publish --pat ${{ secrets.MARKETPLACE_TOKEN }} --packagePath ../../dist/rust-analyzer-*.vsix --pre-release
 
       - name: Publish Extension (OpenVSX, nightly)
         if: github.ref != 'refs/heads/release' && (github.repository == 'rust-analyzer/rust-analyzer' || github.repository == 'rust-lang/rust-analyzer')
         working-directory: ./editors/code
-        run: npx ovsx publish --pat ${{ secrets.OPENVSX_TOKEN }} --packagePath ../../dist/rust-analyzer-*.vsix || true
+        run: npx ovsx publish --pat ${{ secrets.OPENVSX_TOKEN }} --packagePath ../../dist/rust-analyzer-*.vsix
+        timeout-minutes: 2

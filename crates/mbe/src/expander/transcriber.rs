@@ -2,12 +2,12 @@
 //! `$ident => foo`, interpolates variables in the template, to get `fn foo() {}`
 
 use syntax::SmolStr;
-use tt::{Delimiter, Subtree};
 
 use crate::{
     expander::{Binding, Bindings, Fragment},
-    parser::{Op, RepeatKind, Separator},
-    ExpandError, ExpandResult, MetaTemplate,
+    parser::{MetaVarKind, Op, RepeatKind, Separator},
+    tt::{self, Delimiter},
+    CountError, ExpandError, ExpandResult, MetaTemplate,
 };
 
 impl Bindings {
@@ -15,17 +15,28 @@ impl Bindings {
         self.inner.contains_key(name)
     }
 
-    fn get(&self, name: &str, nesting: &mut [NestingState]) -> Result<&Fragment, ExpandError> {
+    fn get(&self, name: &str) -> Result<&Binding, ExpandError> {
+        match self.inner.get(name) {
+            Some(binding) => Ok(binding),
+            None => Err(ExpandError::binding_error(format!("could not find binding `{name}`"))),
+        }
+    }
+
+    fn get_fragment(
+        &self,
+        name: &str,
+        nesting: &mut [NestingState],
+    ) -> Result<Fragment, ExpandError> {
         macro_rules! binding_err {
             ($($arg:tt)*) => { ExpandError::binding_error(format!($($arg)*)) };
         }
 
-        let mut b: &Binding =
-            self.inner.get(name).ok_or_else(|| binding_err!("could not find binding `{name}`"))?;
+        let mut b = self.get(name)?;
         for nesting_state in nesting.iter_mut() {
             nesting_state.hit = true;
             b = match b {
                 Binding::Fragment(_) => break,
+                Binding::Missing(_) => break,
                 Binding::Nested(bs) => bs.get(nesting_state.idx).ok_or_else(|| {
                     nesting_state.at_end = true;
                     binding_err!("could not find nested binding `{name}`")
@@ -37,7 +48,56 @@ impl Bindings {
             };
         }
         match b {
-            Binding::Fragment(it) => Ok(it),
+            Binding::Fragment(it) => Ok(it.clone()),
+            // emit some reasonable default expansion for missing bindings,
+            // this gives better recovery than emitting the `$fragment-name` verbatim
+            Binding::Missing(it) => Ok(match it {
+                MetaVarKind::Stmt => {
+                    Fragment::Tokens(tt::TokenTree::Leaf(tt::Leaf::Punct(tt::Punct {
+                        span: tt::TokenId::unspecified(),
+                        char: ';',
+                        spacing: tt::Spacing::Alone,
+                    })))
+                }
+                MetaVarKind::Block => Fragment::Tokens(tt::TokenTree::Subtree(tt::Subtree {
+                    delimiter: tt::Delimiter {
+                        open: tt::TokenId::unspecified(),
+                        close: tt::TokenId::unspecified(),
+                        kind: tt::DelimiterKind::Brace,
+                    },
+                    token_trees: vec![],
+                })),
+                // FIXME: Meta and Item should get proper defaults
+                MetaVarKind::Meta | MetaVarKind::Item | MetaVarKind::Tt | MetaVarKind::Vis => {
+                    Fragment::Tokens(tt::TokenTree::Subtree(tt::Subtree {
+                        delimiter: tt::Delimiter::UNSPECIFIED,
+                        token_trees: vec![],
+                    }))
+                }
+                MetaVarKind::Path
+                | MetaVarKind::Ty
+                | MetaVarKind::Pat
+                | MetaVarKind::PatParam
+                | MetaVarKind::Expr
+                | MetaVarKind::Ident => {
+                    Fragment::Tokens(tt::TokenTree::Leaf(tt::Leaf::Ident(tt::Ident {
+                        text: SmolStr::new_inline("missing"),
+                        span: tt::TokenId::unspecified(),
+                    })))
+                }
+                MetaVarKind::Lifetime => {
+                    Fragment::Tokens(tt::TokenTree::Leaf(tt::Leaf::Ident(tt::Ident {
+                        text: SmolStr::new_inline("'missing"),
+                        span: tt::TokenId::unspecified(),
+                    })))
+                }
+                MetaVarKind::Literal => {
+                    Fragment::Tokens(tt::TokenTree::Leaf(tt::Leaf::Ident(tt::Ident {
+                        text: SmolStr::new_inline("\"missing\""),
+                        span: tt::TokenId::unspecified(),
+                    })))
+                }
+            }),
             Binding::Nested(_) => {
                 Err(binding_err!("expected simple binding, found nested binding `{name}`"))
             }
@@ -83,12 +143,18 @@ fn expand_subtree(
     // remember how many elements are in the arena now - when returning, we want to drain exactly how many elements we added. This way, the recursive uses of the arena get their own "view" of the arena, but will reuse the allocation
     let start_elements = arena.len();
     let mut err = None;
-    for op in template.iter() {
+    'ops: for op in template.iter() {
         match op {
-            Op::Leaf(tt) => arena.push(tt.clone().into()),
+            Op::Literal(it) => arena.push(tt::Leaf::from(it.clone()).into()),
+            Op::Ident(it) => arena.push(tt::Leaf::from(it.clone()).into()),
+            Op::Punct(puncts) => {
+                for punct in puncts {
+                    arena.push(tt::Leaf::from(*punct).into());
+                }
+            }
             Op::Subtree { tokens, delimiter } => {
                 let ExpandResult { value: tt, err: e } =
-                    expand_subtree(ctx, tokens, *delimiter, arena);
+                    expand_subtree(ctx, tokens, Some(*delimiter), arena);
                 err = err.or(e);
                 arena.push(tt.into());
             }
@@ -105,17 +171,75 @@ fn expand_subtree(
             }
             Op::Ignore { name, id } => {
                 // Expand the variable, but ignore the result. This registers the repetition count.
+                // FIXME: Any emitted errors are dropped.
                 expand_var(ctx, name, *id);
             }
             Op::Index { depth } => {
-                let index = ctx
-                    .nesting
-                    .get(ctx.nesting.len() - 1 - (*depth as usize))
-                    .map_or(0, |nest| nest.idx);
+                let index =
+                    ctx.nesting.get(ctx.nesting.len() - 1 - depth).map_or(0, |nest| nest.idx);
                 arena.push(
                     tt::Leaf::Literal(tt::Literal {
                         text: index.to_string().into(),
-                        id: tt::TokenId::unspecified(),
+                        span: tt::TokenId::unspecified(),
+                    })
+                    .into(),
+                );
+            }
+            Op::Count { name, depth } => {
+                let mut binding = match ctx.bindings.get(name.as_str()) {
+                    Ok(b) => b,
+                    Err(e) => {
+                        if err.is_none() {
+                            err = Some(e);
+                        }
+                        continue;
+                    }
+                };
+                for state in ctx.nesting.iter_mut() {
+                    state.hit = true;
+                    match binding {
+                        Binding::Fragment(_) | Binding::Missing(_) => {
+                            // `count()` will report an error.
+                            break;
+                        }
+                        Binding::Nested(bs) => {
+                            if let Some(b) = bs.get(state.idx) {
+                                binding = b;
+                            } else {
+                                state.at_end = true;
+                                continue 'ops;
+                            }
+                        }
+                        Binding::Empty => {
+                            state.at_end = true;
+                            // FIXME: Breaking here and proceeding to `count()` isn't the most
+                            // correct thing to do here. This could be a binding of some named
+                            // fragment which we don't know the depth of, so `count()` will just
+                            // return 0 for this no matter what `depth` is. See test
+                            // `count_interaction_with_empty_binding` for example.
+                            break;
+                        }
+                    }
+                }
+
+                let c = match count(ctx, binding, 0, *depth) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        // XXX: It *might* make sense to emit a dummy integer value like `0` here.
+                        // That would type inference a bit more robust in cases like
+                        // `v[${count(t)}]` where index doesn't matter, but also coult also lead to
+                        // wrong infefrence for cases like `tup.${count(t)}` where index itself
+                        // does matter.
+                        if err.is_none() {
+                            err = Some(e.into());
+                        }
+                        continue;
+                    }
+                };
+                arena.push(
+                    tt::Leaf::Literal(tt::Literal {
+                        text: c.to_string().into(),
+                        span: tt::TokenId::unspecified(),
                     })
                     .into(),
                 );
@@ -124,7 +248,13 @@ fn expand_subtree(
     }
     // drain the elements added in this instance of expand_subtree
     let tts = arena.drain(start_elements..).collect();
-    ExpandResult { value: tt::Subtree { delimiter, token_trees: tts }, err }
+    ExpandResult {
+        value: tt::Subtree {
+            delimiter: delimiter.unwrap_or_else(tt::Delimiter::unspecified),
+            token_trees: tts,
+        },
+        err,
+    }
 }
 
 fn expand_var(ctx: &mut ExpandCtx<'_>, v: &SmolStr, id: tt::TokenId) -> ExpandResult<Fragment> {
@@ -146,18 +276,22 @@ fn expand_var(ctx: &mut ExpandCtx<'_>, v: &SmolStr, id: tt::TokenId) -> ExpandRe
         // ```
         // We just treat it a normal tokens
         let tt = tt::Subtree {
-            delimiter: None,
+            delimiter: tt::Delimiter::UNSPECIFIED,
             token_trees: vec![
-                tt::Leaf::from(tt::Punct { char: '$', spacing: tt::Spacing::Alone, id }).into(),
-                tt::Leaf::from(tt::Ident { text: v.clone(), id }).into(),
+                tt::Leaf::from(tt::Punct { char: '$', spacing: tt::Spacing::Alone, span: id })
+                    .into(),
+                tt::Leaf::from(tt::Ident { text: v.clone(), span: id }).into(),
             ],
         }
         .into();
         ExpandResult::ok(Fragment::Tokens(tt))
     } else {
-        ctx.bindings.get(v, &mut ctx.nesting).map_or_else(
-            |e| ExpandResult { value: Fragment::Tokens(tt::TokenTree::empty()), err: Some(e) },
-            |b| ExpandResult::ok(b.clone()),
+        ctx.bindings.get_fragment(v, &mut ctx.nesting).map_or_else(
+            |e| ExpandResult {
+                value: Fragment::Tokens(tt::TokenTree::Subtree(tt::Subtree::empty())),
+                err: Some(e),
+            },
+            ExpandResult::ok,
         )
     }
 }
@@ -176,6 +310,7 @@ fn expand_repeat(
     let limit = 65536;
     let mut has_seps = 0;
     let mut counter = 0;
+    let mut err = None;
 
     loop {
         let ExpandResult { value: mut t, err: e } = expand_subtree(ctx, template, None, arena);
@@ -194,16 +329,20 @@ fn expand_repeat(
                 ctx
             );
             return ExpandResult {
-                value: Fragment::Tokens(Subtree::default().into()),
+                value: Fragment::Tokens(
+                    tt::Subtree { delimiter: tt::Delimiter::unspecified(), token_trees: vec![] }
+                        .into(),
+                ),
                 err: Some(ExpandError::LimitExceeded),
             };
         }
 
         if e.is_some() {
+            err = err.or(e);
             continue;
         }
 
-        t.delimiter = None;
+        t.delimiter = tt::Delimiter::unspecified();
         push_subtree(&mut buf, t);
 
         if let Some(sep) = separator {
@@ -237,7 +376,7 @@ fn expand_repeat(
 
     // Check if it is a single token subtree without any delimiter
     // e.g {Delimiter:None> ['>'] /Delimiter:None>}
-    let tt = tt::Subtree { delimiter: None, token_trees: buf }.into();
+    let tt = tt::Subtree { delimiter: tt::Delimiter::unspecified(), token_trees: buf }.into();
 
     if RepeatKind::OneOrMore == kind && counter == 0 {
         return ExpandResult {
@@ -245,18 +384,19 @@ fn expand_repeat(
             err: Some(ExpandError::UnexpectedToken),
         };
     }
-    ExpandResult::ok(Fragment::Tokens(tt))
+    ExpandResult { value: Fragment::Tokens(tt), err }
 }
 
 fn push_fragment(buf: &mut Vec<tt::TokenTree>, fragment: Fragment) {
     match fragment {
         Fragment::Tokens(tt::TokenTree::Subtree(tt)) => push_subtree(buf, tt),
         Fragment::Expr(tt::TokenTree::Subtree(mut tt)) => {
-            if tt.delimiter.is_none() {
-                tt.delimiter = Some(tt::Delimiter {
-                    id: tt::TokenId::unspecified(),
+            if tt.delimiter.kind == tt::DelimiterKind::Invisible {
+                tt.delimiter = tt::Delimiter {
+                    open: tt::TokenId::UNSPECIFIED,
+                    close: tt::TokenId::UNSPECIFIED,
                     kind: tt::DelimiterKind::Parenthesis,
-                })
+                };
             }
             buf.push(tt.into())
         }
@@ -265,8 +405,39 @@ fn push_fragment(buf: &mut Vec<tt::TokenTree>, fragment: Fragment) {
 }
 
 fn push_subtree(buf: &mut Vec<tt::TokenTree>, tt: tt::Subtree) {
-    match tt.delimiter {
-        None => buf.extend(tt.token_trees),
-        Some(_) => buf.push(tt.into()),
+    match tt.delimiter.kind {
+        tt::DelimiterKind::Invisible => buf.extend(tt.token_trees),
+        _ => buf.push(tt.into()),
+    }
+}
+
+/// Handles `${count(t, depth)}`. `our_depth` is the recursion depth and `count_depth` is the depth
+/// defined by the metavar expression.
+fn count(
+    ctx: &ExpandCtx<'_>,
+    binding: &Binding,
+    our_depth: usize,
+    count_depth: Option<usize>,
+) -> Result<usize, CountError> {
+    match binding {
+        Binding::Nested(bs) => match count_depth {
+            None => bs.iter().map(|b| count(ctx, b, our_depth + 1, None)).sum(),
+            Some(0) => Ok(bs.len()),
+            Some(d) => bs.iter().map(|b| count(ctx, b, our_depth + 1, Some(d - 1))).sum(),
+        },
+        Binding::Empty => Ok(0),
+        Binding::Fragment(_) | Binding::Missing(_) => {
+            if our_depth == 0 {
+                // `${count(t)}` is placed inside the innermost repetition. This includes cases
+                // where `t` is not a repeated fragment.
+                Err(CountError::Misplaced)
+            } else if count_depth.is_none() {
+                Ok(1)
+            } else {
+                // We've reached at the innermost repeated fragment, but the user wants us to go
+                // further!
+                Err(CountError::OutOfBounds)
+            }
+        }
     }
 }

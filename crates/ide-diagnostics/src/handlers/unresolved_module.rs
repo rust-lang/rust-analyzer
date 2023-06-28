@@ -1,4 +1,4 @@
-use hir::db::AstDatabase;
+use hir::db::ExpandDatabase;
 use ide_db::{assists::Assist, base_db::AnchoredPathBuf, source_change::FileSystemEdit};
 use itertools::Itertools;
 use syntax::AstNode;
@@ -16,7 +16,7 @@ pub(crate) fn unresolved_module(
         "unresolved-module",
         match &*d.candidates {
             [] => "unresolved module".to_string(),
-            [candidate] => format!("unresolved module, can't find module file: {}", candidate),
+            [candidate] => format!("unresolved module, can't find module file: {candidate}"),
             [candidates @ .., last] => {
                 format!(
                     "unresolved module, can't find module file: {}, or {}",
@@ -31,7 +31,7 @@ pub(crate) fn unresolved_module(
 }
 
 fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::UnresolvedModule) -> Option<Vec<Assist>> {
-    let root = ctx.sema.db.parse_or_expand(d.decl.file_id)?;
+    let root = ctx.sema.db.parse_or_expand(d.decl.file_id);
     let unresolved_module = d.decl.value.to_node(&root);
     Some(
         d.candidates

@@ -54,16 +54,17 @@ fn block_to_line(acc: &mut Assists, comment: ast::Comment) -> Option<()> {
 
             let indent_spaces = indentation.to_string();
             let output = lines
-                .map(|l| l.trim_start_matches(&indent_spaces))
-                .map(|l| {
+                .map(|line| {
+                    let line = line.trim_start_matches(&indent_spaces);
+
                     // Don't introduce trailing whitespace
-                    if l.is_empty() {
+                    if line.is_empty() {
                         line_prefix.to_string()
                     } else {
-                        format!("{} {}", line_prefix, l.trim_start_matches(&indent_spaces))
+                        format!("{line_prefix} {line}")
                     }
                 })
-                .join(&format!("\n{}", indent_spaces));
+                .join(&format!("\n{indent_spaces}"));
 
             edit.replace(target, output)
         },
@@ -96,7 +97,7 @@ fn line_to_block(acc: &mut Assists, comment: ast::Comment) -> Option<()> {
             let block_prefix =
                 CommentKind { shape: CommentShape::Block, ..comment.kind() }.prefix();
 
-            let output = format!("{}\n{}\n{}*/", block_prefix, block_comment_body, indentation);
+            let output = format!("{block_prefix}\n{block_comment_body}\n{indentation}*/");
 
             edit.replace(target, output)
         },
@@ -106,7 +107,7 @@ fn line_to_block(acc: &mut Assists, comment: ast::Comment) -> Option<()> {
 /// The line -> block assist can  be invoked from anywhere within a sequence of line comments.
 /// relevant_line_comments crawls backwards and forwards finding the complete sequence of comments that will
 /// be joined.
-fn relevant_line_comments(comment: &ast::Comment) -> Vec<Comment> {
+pub(crate) fn relevant_line_comments(comment: &ast::Comment) -> Vec<Comment> {
     // The prefix identifies the kind of comment we're dealing with
     let prefix = comment.prefix();
     let same_prefix = |c: &ast::Comment| c.prefix() == prefix;
@@ -158,7 +159,7 @@ fn relevant_line_comments(comment: &ast::Comment) -> Vec<Comment> {
 //              */
 //
 // But since such comments aren't idiomatic we're okay with this.
-fn line_comment_text(indentation: IndentLevel, comm: ast::Comment) -> String {
+pub(crate) fn line_comment_text(indentation: IndentLevel, comm: ast::Comment) -> String {
     let contents_without_prefix = comm.text().strip_prefix(comm.prefix()).unwrap();
     let contents = contents_without_prefix.strip_prefix(' ').unwrap_or(contents_without_prefix);
 

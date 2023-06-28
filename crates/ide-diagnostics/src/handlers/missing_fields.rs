@@ -1,11 +1,11 @@
 use either::Either;
 use hir::{
-    db::{AstDatabase, HirDatabase},
+    db::{ExpandDatabase, HirDatabase},
     known, AssocItem, HirDisplay, InFile, Type,
 };
 use ide_db::{
     assists::Assist, famous_defs::FamousDefs, imports::import_assets::item_for_path_search,
-    source_change::SourceChange, use_trivial_contructor::use_trivial_constructor, FxHashMap,
+    source_change::SourceChange, use_trivial_constructor::use_trivial_constructor, FxHashMap,
 };
 use stdx::format_to;
 use syntax::{
@@ -31,7 +31,7 @@ use crate::{fix, Diagnostic, DiagnosticsContext};
 pub(crate) fn missing_fields(ctx: &DiagnosticsContext<'_>, d: &hir::MissingFields) -> Diagnostic {
     let mut message = String::from("missing structure fields:\n");
     for field in &d.missed_fields {
-        format_to!(message, "- {}\n", field);
+        format_to!(message, "- {}\n", field.display(ctx.sema.db));
     }
 
     let ptr = InFile::new(
@@ -56,7 +56,7 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::MissingFields) -> Option<Vec<Ass
         return None;
     }
 
-    let root = ctx.sema.db.parse_or_expand(d.file)?;
+    let root = ctx.sema.db.parse_or_expand(d.file);
 
     let current_module = match &d.field_list_parent {
         Either::Left(ptr) => ctx.sema.scope(ptr.to_node(&root).syntax()).map(|it| it.module()),
@@ -128,9 +128,9 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::MissingFields) -> Option<Vec<Ass
                         )?;
 
                         use_trivial_constructor(
-                            &ctx.sema.db,
+                            ctx.sema.db,
                             ide_db::helpers::mod_path_to_ast(&type_path),
-                            &ty,
+                            ty,
                         )
                     })();
 
@@ -175,8 +175,10 @@ fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::MissingFields) -> Option<Vec<Ass
 
 fn make_ty(ty: &hir::Type, db: &dyn HirDatabase, module: hir::Module) -> ast::Type {
     let ty_str = match ty.as_adt() {
-        Some(adt) => adt.name(db).to_string(),
-        None => ty.display_source_code(db, module.into()).ok().unwrap_or_else(|| "_".to_string()),
+        Some(adt) => adt.name(db).display(db.upcast()).to_string(),
+        None => {
+            ty.display_source_code(db, module.into(), false).ok().unwrap_or_else(|| "_".to_string())
+        }
     };
 
     make::ty(&ty_str)

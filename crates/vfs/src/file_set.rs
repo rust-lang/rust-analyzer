@@ -5,8 +5,8 @@
 use std::fmt;
 
 use fst::{IntoStreamer, Streamer};
+use nohash_hasher::IntMap;
 use rustc_hash::FxHashMap;
-use stdx::hash::NoHashHashMap;
 
 use crate::{AnchoredPath, FileId, Vfs, VfsPath};
 
@@ -14,7 +14,7 @@ use crate::{AnchoredPath, FileId, Vfs, VfsPath};
 #[derive(Default, Clone, Eq, PartialEq)]
 pub struct FileSet {
     files: FxHashMap<VfsPath, FileId>,
-    paths: NoHashHashMap<FileId, VfsPath>,
+    paths: IntMap<FileId, VfsPath>,
 }
 
 impl FileSet {
@@ -140,14 +140,9 @@ impl FileSetConfig {
 }
 
 /// Builder for [`FileSetConfig`].
+#[derive(Default)]
 pub struct FileSetConfigBuilder {
     roots: Vec<Vec<VfsPath>>,
-}
-
-impl Default for FileSetConfigBuilder {
-    fn default() -> Self {
-        FileSetConfigBuilder { roots: Vec::new() }
-    }
 }
 
 impl FileSetConfigBuilder {

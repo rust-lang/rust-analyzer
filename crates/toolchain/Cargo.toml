@@ -2,12 +2,14 @@
 name = "toolchain"
 version = "0.0.0"
 description = "TBD"
-license = "MIT OR Apache-2.0"
-edition = "2021"
-rust-version = "1.57"
+
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
 
 [lib]
 doctest = false
 
 [dependencies]
-home = "0.5.3"
+home = "0.5.4"

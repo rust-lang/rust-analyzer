@@ -3,7 +3,7 @@ mod generated;
 mod sourcegen;
 
 use expect_test::expect;
-use hir::{db::DefDatabase, Semantics};
+use hir::Semantics;
 use ide_db::{
     base_db::{fixture::WithFixture, FileId, FileRange, SourceDatabaseExt},
     imports::insert_use::{ImportGranularity, InsertUseConfig},
@@ -30,6 +30,21 @@ pub(crate) const TEST_CONFIG: AssistConfig = AssistConfig {
         skip_glob_imports: true,
     },
     prefer_no_std: false,
+    assist_emit_must_use: false,
+};
+
+pub(crate) const TEST_CONFIG_NO_SNIPPET_CAP: AssistConfig = AssistConfig {
+    snippet_cap: None,
+    allowed: None,
+    insert_use: InsertUseConfig {
+        granularity: ImportGranularity::Crate,
+        prefix_kind: hir::PrefixKind::Plain,
+        enforce_granularity: true,
+        group: true,
+        skip_glob_imports: true,
+    },
+    prefer_no_std: false,
+    assist_emit_must_use: false,
 };
 
 pub(crate) fn with_single_file(text: &str) -> (RootDatabase, FileId) {
@@ -40,6 +55,22 @@ pub(crate) fn with_single_file(text: &str) -> (RootDatabase, FileId) {
 pub(crate) fn check_assist(assist: Handler, ra_fixture_before: &str, ra_fixture_after: &str) {
     let ra_fixture_after = trim_indent(ra_fixture_after);
     check(assist, ra_fixture_before, ExpectedResult::After(&ra_fixture_after), None);
+}
+
+#[track_caller]
+pub(crate) fn check_assist_no_snippet_cap(
+    assist: Handler,
+    ra_fixture_before: &str,
+    ra_fixture_after: &str,
+) {
+    let ra_fixture_after = trim_indent(ra_fixture_after);
+    check_with_config(
+        TEST_CONFIG_NO_SNIPPET_CAP,
+        assist,
+        ra_fixture_before,
+        ExpectedResult::After(&ra_fixture_after),
+        None,
+    );
 }
 
 // There is no way to choose what assist within a group you want to test against,
@@ -96,8 +127,10 @@ fn check_doc_test(assist_id: &str, before: &str, after: &str) {
         });
 
     let actual = {
-        let source_change =
-            assist.source_change.expect("Assist did not contain any source changes");
+        let source_change = assist
+            .source_change
+            .filter(|it| !it.source_file_edits.is_empty() || !it.file_system_edits.is_empty())
+            .expect("Assist did not contain any source changes");
         let mut actual = before;
         if let Some(source_file_edit) = source_change.get_source_edit(file_id) {
             source_file_edit.apply(&mut actual);
@@ -116,14 +149,24 @@ enum ExpectedResult<'a> {
 
 #[track_caller]
 fn check(handler: Handler, before: &str, expected: ExpectedResult<'_>, assist_label: Option<&str>) {
+    check_with_config(TEST_CONFIG, handler, before, expected, assist_label);
+}
+
+#[track_caller]
+fn check_with_config(
+    config: AssistConfig,
+    handler: Handler,
+    before: &str,
+    expected: ExpectedResult<'_>,
+    assist_label: Option<&str>,
+) {
     let (mut db, file_with_caret_id, range_or_offset) = RootDatabase::with_range_or_offset(before);
-    db.set_enable_proc_attr_macros(true);
+    db.enable_proc_attr_macros();
     let text_without_caret = db.file_text(file_with_caret_id).to_string();
 
     let frange = FileRange { file_id: file_with_caret_id, range: range_or_offset.into() };
 
     let sema = Semantics::new(&db);
-    let config = TEST_CONFIG;
     let ctx = AssistContext::new(sema, &config, frange);
     let resolve = match expected {
         ExpectedResult::Unresolved => AssistResolveStrategy::None,
@@ -140,8 +183,10 @@ fn check(handler: Handler, before: &str, expected: ExpectedResult<'_>, assist_la
 
     match (assist, expected) {
         (Some(assist), ExpectedResult::After(after)) => {
-            let source_change =
-                assist.source_change.expect("Assist did not contain any source changes");
+            let source_change = assist
+                .source_change
+                .filter(|it| !it.source_file_edits.is_empty() || !it.file_system_edits.is_empty())
+                .expect("Assist did not contain any source changes");
             let skip_header = source_change.source_file_edits.len() == 1
                 && source_change.file_system_edits.len() == 0;
 
@@ -166,7 +211,7 @@ fn check(handler: Handler, before: &str, expected: ExpectedResult<'_>, assist_la
                     }
                     FileSystemEdit::MoveDir { src, src_id, dst } => {
                         // temporary placeholder for MoveDir since we are not using MoveDir in ide assists yet.
-                        (dst, format!("{:?}\n{:?}", src_id, src))
+                        (dst, format!("{src_id:?}\n{src:?}"))
                     }
                 };
                 let sr = db.file_source_root(dst.anchor);
@@ -229,6 +274,8 @@ fn assist_order_field_struct() {
     assert_eq!(assists.next().expect("expected assist").label, "Generate a mut getter method");
     assert_eq!(assists.next().expect("expected assist").label, "Generate a setter method");
     assert_eq!(assists.next().expect("expected assist").label, "Add `#[derive]`");
+    assert_eq!(assists.next().expect("expected assist").label, "Generate `new`");
+    assert_eq!(assists.next().map(|it| it.label.to_string()), None);
 }
 
 #[test]

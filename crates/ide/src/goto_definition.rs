@@ -48,10 +48,14 @@ pub(crate) fn goto_definition(
             _ => 1,
         })?;
     if let Some(doc_comment) = token_as_doc_comment(&original_token) {
-        return doc_comment.get_definition_with_descend_at(sema, position.offset, |def, _, _| {
-            let nav = def.try_to_nav(db)?;
-            Some(RangeInfo::new(original_token.text_range(), vec![nav]))
-        });
+        return doc_comment.get_definition_with_descend_at(
+            sema,
+            position.offset,
+            |def, _, link_range| {
+                let nav = def.try_to_nav(db)?;
+                Some(RangeInfo::new(link_range, vec![nav]))
+            },
+        );
     }
     let navs = sema
         .descend_into_macros(original_token.clone())
@@ -95,12 +99,21 @@ fn try_lookup_include_path(
     if !matches!(&*name.text(), "include" | "include_str" | "include_bytes") {
         return None;
     }
+
+    // Ignore non-built-in macros to account for shadowing
+    if let Some(it) = sema.resolve_macro_call(&macro_call) {
+        if !matches!(it.kind(sema.db), hir::MacroKind::BuiltIn) {
+            return None;
+        }
+    }
+
     let file_id = sema.db.resolve_path(AnchoredPath { anchor: file_id, path: &path })?;
     let size = sema.db.file_text(file_id).len().try_into().ok()?;
     Some(NavigationTarget {
         file_id,
         full_range: TextRange::new(0.into(), size),
         name: path.into(),
+        alias: None,
         focus_range: None,
         kind: None,
         container_name: None,
@@ -156,9 +169,6 @@ mod tests {
     fn check(ra_fixture: &str) {
         let (analysis, position, expected) = fixture::annotations(ra_fixture);
         let navs = analysis.goto_definition(position).unwrap().expect("no definition found").info;
-        if navs.is_empty() {
-            panic!("unresolved reference")
-        }
 
         let cmp = |&FileRange { file_id, range }: &_| (file_id, range.start());
         let navs = navs
@@ -178,7 +188,7 @@ mod tests {
         let (analysis, position) = fixture::position(ra_fixture);
         let navs = analysis.goto_definition(position).unwrap().expect("no definition found").info;
 
-        assert!(navs.is_empty(), "didn't expect this to resolve anywhere: {:?}", navs)
+        assert!(navs.is_empty(), "didn't expect this to resolve anywhere: {navs:?}")
     }
 
     #[test]
@@ -280,10 +290,10 @@ mod b;
 enum E { X(Foo$0) }
 
 //- /a.rs
-struct Foo;
-     //^^^
+pub struct Foo;
+         //^^^
 //- /b.rs
-struct Foo;
+pub struct Foo;
 "#,
         );
     }
@@ -757,6 +767,13 @@ trait Foo$0 { }
 
         check(
             r#"
+trait Foo$0 = ;
+    //^^^
+"#,
+        );
+
+        check(
+            r#"
 mod bar$0 { }
   //^^^
 "#,
@@ -817,8 +834,7 @@ fn test() {
 #[rustc_builtin_macro]
 macro_rules! include {}
 
-  include!("foo.rs");
-//^^^^^^^^^^^^^^^^^^^
+include!("foo.rs");
 
 fn f() {
     foo$0();
@@ -830,6 +846,33 @@ mod confuse_index {
 
 //- /foo.rs
 fn foo() {}
+ //^^^
+        "#,
+        );
+    }
+
+    #[test]
+    fn goto_through_included_file_struct_with_doc_comment() {
+        check(
+            r#"
+//- /main.rs
+#[rustc_builtin_macro]
+macro_rules! include {}
+
+include!("foo.rs");
+
+fn f() {
+    let x = Foo$0;
+}
+
+mod confuse_index {
+    pub struct Foo;
+}
+
+//- /foo.rs
+/// This is a doc comment
+pub struct Foo;
+         //^^^
         "#,
         );
     }
@@ -1054,6 +1097,23 @@ trait Sub: Super {}
 fn f() -> impl Sub<Item$0 = u8> {}
 "#,
         );
+    }
+
+    #[test]
+    fn goto_def_for_module_declaration_in_path_if_types_and_values_same_name() {
+        check(
+            r#"
+mod bar {
+    pub struct Foo {}
+             //^^^
+    pub fn Foo() {}
+}
+
+fn baz() {
+    let _foo_enum: bar::Foo$0 = bar::Foo {};
+}
+        "#,
+        )
     }
 
     #[test]
@@ -1348,6 +1408,10 @@ fn f(e: Enum) {
         check(
             r#"
 //- /main.rs
+
+#[rustc_builtin_macro]
+macro_rules! include_str {}
+
 fn main() {
     let str = include_str!("foo.txt$0");
 }
@@ -1357,7 +1421,42 @@ fn main() {
 "#,
         );
     }
-    #[cfg(test)]
+
+    #[test]
+    fn goto_doc_include_str() {
+        check(
+            r#"
+//- /main.rs
+#[rustc_builtin_macro]
+macro_rules! include_str {}
+
+#[doc = include_str!("docs.md$0")]
+struct Item;
+
+//- /docs.md
+// docs
+//^file
+"#,
+        );
+    }
+
+    #[test]
+    fn goto_shadow_include() {
+        check(
+            r#"
+//- /main.rs
+macro_rules! include {
+    ("included.rs") => {}
+}
+
+include!("included.rs$0");
+
+//- /included.rs
+// empty
+"#,
+        );
+    }
+
     mod goto_impl_of_trait_fn {
         use super::check;
         #[test]
@@ -1394,6 +1493,29 @@ impl Twait for Stwuct {
 fn f() {
     let s = Stwuct;
     s.a$0();
+}
+        "#,
+            );
+        }
+        #[test]
+        fn method_call_inside_block() {
+            check(
+                r#"
+trait Twait {
+    fn a(&self);
+}
+
+fn outer() {
+    struct Stwuct;
+
+    impl Twait for Stwuct {
+        fn a(&self){}
+         //^
+    }
+    fn f() {
+        let s = Stwuct;
+        s.a$0();
+    }
 }
         "#,
             );
@@ -1781,6 +1903,152 @@ impl core::ops::Add for Struct {
 
 fn f() {
     Struct +$0 Struct;
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn goto_bin_op_multiple_impl() {
+        check(
+            r#"
+//- minicore: add
+struct S;
+impl core::ops::Add for S {
+    fn add(
+     //^^^
+    ) {}
+}
+impl core::ops::Add<usize> for S {
+    fn add(
+    ) {}
+}
+
+fn f() {
+    S +$0 S
+}
+"#,
+        );
+
+        check(
+            r#"
+//- minicore: add
+struct S;
+impl core::ops::Add for S {
+    fn add(
+    ) {}
+}
+impl core::ops::Add<usize> for S {
+    fn add(
+     //^^^
+    ) {}
+}
+
+fn f() {
+    S +$0 0usize
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn path_call_multiple_trait_impl() {
+        check(
+            r#"
+trait Trait<T> {
+    fn f(_: T);
+}
+impl Trait<i32> for usize {
+    fn f(_: i32) {}
+     //^
+}
+impl Trait<i64> for usize {
+    fn f(_: i64) {}
+}
+fn main() {
+    usize::f$0(0i32);
+}
+"#,
+        );
+
+        check(
+            r#"
+trait Trait<T> {
+    fn f(_: T);
+}
+impl Trait<i32> for usize {
+    fn f(_: i32) {}
+}
+impl Trait<i64> for usize {
+    fn f(_: i64) {}
+     //^
+}
+fn main() {
+    usize::f$0(0i64);
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn query_impls_in_nearest_block() {
+        check(
+            r#"
+struct S1;
+impl S1 {
+    fn e() -> () {}
+}
+fn f1() {
+    struct S1;
+    impl S1 {
+        fn e() -> () {}
+         //^
+    }
+    fn f2() {
+        fn f3() {
+            S1::e$0();
+        }
+    }
+}
+"#,
+        );
+
+        check(
+            r#"
+struct S1;
+impl S1 {
+    fn e() -> () {}
+}
+fn f1() {
+    struct S1;
+    impl S1 {
+        fn e() -> () {}
+         //^
+    }
+    fn f2() {
+        struct S2;
+        S1::e$0();
+    }
+}
+fn f12() {
+    struct S1;
+    impl S1 {
+        fn e() -> () {}
+    }
+}
+"#,
+        );
+
+        check(
+            r#"
+struct S1;
+impl S1 {
+    fn e() -> () {}
+     //^
+}
+fn f2() {
+    struct S2;
+    S1::e$0();
 }
 "#,
         );

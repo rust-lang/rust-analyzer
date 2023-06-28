@@ -119,19 +119,19 @@ pub(crate) fn convert_for_loop_with_for_each(
             {
                 // We have either "for x in &col" and col implements a method called iter
                 //             or "for x in &mut col" and col implements a method called iter_mut
-                format_to!(buf, "{}.{}()", expr_behind_ref, method);
+                format_to!(buf, "{expr_behind_ref}.{}()", method.display(ctx.db()));
             } else if let ast::Expr::RangeExpr(..) = iterable {
                 // range expressions need to be parenthesized for the syntax to be correct
-                format_to!(buf, "({})", iterable);
+                format_to!(buf, "({iterable})");
             } else if impls_core_iter(&ctx.sema, &iterable) {
-                format_to!(buf, "{}", iterable);
+                format_to!(buf, "{iterable}");
             } else if let ast::Expr::RefExpr(_) = iterable {
-                format_to!(buf, "({}).into_iter()", iterable);
+                format_to!(buf, "({iterable}).into_iter()");
             } else {
-                format_to!(buf, "{}.into_iter()", iterable);
+                format_to!(buf, "{iterable}.into_iter()");
             }
 
-            format_to!(buf, ".for_each(|{}| {});", pat, body);
+            format_to!(buf, ".for_each(|{pat}| {body});");
 
             builder.replace(for_loop.syntax().text_range(), buf)
         },
@@ -157,19 +157,12 @@ fn is_ref_and_impls_iter_method(
     let iter_trait = FamousDefs(sema, krate).core_iter_Iterator()?;
 
     let has_wanted_method = ty
-        .iterate_method_candidates(
-            sema.db,
-            &scope,
-            &scope.visible_traits().0,
-            None,
-            Some(&wanted_method),
-            |func| {
-                if func.ret_type(sema.db).impls_trait(sema.db, iter_trait, &[]) {
-                    return Some(());
-                }
-                None
-            },
-        )
+        .iterate_method_candidates(sema.db, &scope, None, Some(&wanted_method), |func| {
+            if func.ret_type(sema.db).impls_trait(sema.db, iter_trait, &[]) {
+                return Some(());
+            }
+            None
+        })
         .is_some();
     if !has_wanted_method {
         return None;
@@ -216,7 +209,7 @@ fn validate_method_call_expr(
     let krate = module.krate();
 
     let iter_trait = FamousDefs(sema, krate).core_iter_Iterator()?;
-    it_type.impls_trait(sema.db, iter_trait, &[]).then(|| (expr, receiver))
+    it_type.impls_trait(sema.db, iter_trait, &[]).then_some((expr, receiver))
 }
 
 #[cfg(test)]

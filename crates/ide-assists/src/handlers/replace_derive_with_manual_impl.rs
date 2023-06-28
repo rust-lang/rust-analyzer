@@ -1,8 +1,5 @@
 use hir::{InFile, ModuleDef};
-use ide_db::{
-    helpers::mod_path_to_ast, imports::import_assets::NameToImport, items_locator,
-    syntax_helpers::insert_whitespace_into_node::insert_ws_into,
-};
+use ide_db::{helpers::mod_path_to_ast, imports::import_assets::NameToImport, items_locator};
 use itertools::Itertools;
 use syntax::{
     ast::{self, AstNode, HasName},
@@ -59,7 +56,7 @@ pub(crate) fn replace_derive_with_manual_impl(
     // collect the derive paths from the #[derive] expansion
     let current_derives = ctx
         .sema
-        .parse_or_expand(hir_file)?
+        .parse_or_expand(hir_file)
         .descendants()
         .filter_map(ast::Attr::cast)
         .filter_map(|attr| attr.path())
@@ -124,7 +121,7 @@ fn add_assist(
 ) -> Option<()> {
     let target = attr.syntax().text_range();
     let annotated_name = adt.name()?;
-    let label = format!("Convert to manual `impl {} for {}`", replace_trait_path, annotated_name);
+    let label = format!("Convert to manual `impl {replace_trait_path} for {annotated_name}`");
 
     acc.add(
         AssistId("replace_derive_with_manual_impl", AssistKind::Refactor),
@@ -158,11 +155,8 @@ fn add_assist(
                         }
                     }
 
-                    builder.insert_snippet(
-                        cap,
-                        insert_pos,
-                        format!("\n\n{}", render_snippet(cap, impl_def.syntax(), cursor)),
-                    )
+                    let rendered = render_snippet(cap, impl_def.syntax(), cursor);
+                    builder.insert_snippet(cap, insert_pos, format!("\n\n{rendered}"))
                 }
             };
         },
@@ -185,7 +179,11 @@ fn impl_def_from_trait(
     let impl_def = {
         use syntax::ast::Impl;
         let text = generate_trait_impl_text(adt, trait_path.to_string().as_str(), "");
-        let parse = syntax::SourceFile::parse(&text);
+        // FIXME: `generate_trait_impl_text` currently generates two newlines
+        // at the front, but these leading newlines should really instead be
+        // inserted at the same time the impl is inserted
+        assert_eq!(&text[..2], "\n\n", "`generate_trait_impl_text` output changed");
+        let parse = syntax::SourceFile::parse(&text[2..]);
         let node = match parse.tree().syntax().descendants().find_map(Impl::cast) {
             Some(it) => it,
             None => {
@@ -196,28 +194,17 @@ fn impl_def_from_trait(
                 )
             }
         };
-        let node = node.clone_subtree();
+        let node = node.clone_for_update();
         assert_eq!(node.syntax().text_range().start(), 0.into());
         node
     };
 
-    let trait_items = trait_items
-        .into_iter()
-        .map(|it| {
-            if sema.hir_file_for(it.syntax()).is_macro() {
-                if let Some(it) = ast::AssocItem::cast(insert_ws_into(it.syntax().clone())) {
-                    return it;
-                }
-            }
-            it.clone_for_update()
-        })
-        .collect();
-    let (impl_def, first_assoc_item) =
-        add_trait_assoc_items_to_impl(sema, trait_items, trait_, impl_def, target_scope);
+    let first_assoc_item =
+        add_trait_assoc_items_to_impl(sema, &trait_items, trait_, &impl_def, target_scope);
 
     // Generate a default `impl` function body for the derived trait.
     if let ast::AssocItem::Fn(ref func) = first_assoc_item {
-        let _ = gen_trait_fn_body(func, trait_path, adt);
+        let _ = gen_trait_fn_body(func, trait_path, adt, None);
     };
 
     Some((impl_def, first_assoc_item))
@@ -910,7 +897,34 @@ impl PartialEq for Foo {
     }
 
     #[test]
-    fn add_custom_impl_partial_eq_tuple_enum() {
+    fn add_custom_impl_partial_eq_single_variant_tuple_enum() {
+        check_assist(
+            replace_derive_with_manual_impl,
+            r#"
+//- minicore: eq, derive
+#[derive(Partial$0Eq)]
+enum Foo {
+    Bar(String),
+}
+"#,
+            r#"
+enum Foo {
+    Bar(String),
+}
+
+impl PartialEq for Foo {
+    $0fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Bar(l0), Self::Bar(r0)) => l0 == r0,
+        }
+    }
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn add_custom_impl_partial_eq_partial_tuple_enum() {
         check_assist(
             replace_derive_with_manual_impl,
             r#"
@@ -932,6 +946,99 @@ impl PartialEq for Foo {
         match (self, other) {
             (Self::Bar(l0), Self::Bar(r0)) => l0 == r0,
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+        }
+    }
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn add_custom_impl_partial_eq_tuple_enum() {
+        check_assist(
+            replace_derive_with_manual_impl,
+            r#"
+//- minicore: eq, derive
+#[derive(Partial$0Eq)]
+enum Foo {
+    Bar(String),
+    Baz(i32),
+}
+"#,
+            r#"
+enum Foo {
+    Bar(String),
+    Baz(i32),
+}
+
+impl PartialEq for Foo {
+    $0fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Bar(l0), Self::Bar(r0)) => l0 == r0,
+            (Self::Baz(l0), Self::Baz(r0)) => l0 == r0,
+            _ => false,
+        }
+    }
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn add_custom_impl_partial_eq_tuple_enum_generic() {
+        check_assist(
+            replace_derive_with_manual_impl,
+            r#"
+//- minicore: eq, derive
+#[derive(Partial$0Eq)]
+enum Either<T, U> {
+    Left(T),
+    Right(U),
+}
+"#,
+            r#"
+enum Either<T, U> {
+    Left(T),
+    Right(U),
+}
+
+impl<T: PartialEq, U: PartialEq> PartialEq for Either<T, U> {
+    $0fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Left(l0), Self::Left(r0)) => l0 == r0,
+            (Self::Right(l0), Self::Right(r0)) => l0 == r0,
+            _ => false,
+        }
+    }
+}
+"#,
+        )
+    }
+
+    #[test]
+    fn add_custom_impl_partial_eq_tuple_enum_generic_existing_bounds() {
+        check_assist(
+            replace_derive_with_manual_impl,
+            r#"
+//- minicore: eq, derive
+#[derive(Partial$0Eq)]
+enum Either<T: PartialEq + Error, U: Clone> {
+    Left(T),
+    Right(U),
+}
+"#,
+            r#"
+enum Either<T: PartialEq + Error, U: Clone> {
+    Left(T),
+    Right(U),
+}
+
+impl<T: PartialEq + Error, U: Clone + PartialEq> PartialEq for Either<T, U> {
+    $0fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Left(l0), Self::Left(r0)) => l0 == r0,
+            (Self::Right(l0), Self::Right(r0)) => l0 == r0,
+            _ => false,
         }
     }
 }
@@ -1021,8 +1128,6 @@ struct Foo {
 
 impl foo::Bar for Foo {
     $0type Qux;
-
-    const Baz: usize = 42;
 
     const Fez: usize;
 
@@ -1117,7 +1222,7 @@ struct Foo<T, U> {
     bar: U,
 }
 
-impl<T, U> Default for Foo<T, U> {
+impl<T: Default, U: Default> Default for Foo<T, U> {
     $0fn default() -> Self {
         Self { foo: Default::default(), bar: Default::default() }
     }

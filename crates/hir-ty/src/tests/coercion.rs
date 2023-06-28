@@ -123,6 +123,23 @@ fn test() {
 }
 
 #[test]
+fn if_else_adjust_for_branches_discard_type_var() {
+    check_no_mismatches(
+        r#"
+fn test() {
+    let f = || {
+        if true {
+            &""
+        } else {
+            ""
+        }
+    };
+}
+"#,
+    );
+}
+
+#[test]
 fn match_first_coerce() {
     check_no_mismatches(
         r#"
@@ -183,6 +200,22 @@ fn test() {
 }
 
 #[test]
+fn match_adjust_for_branches_discard_type_var() {
+    check_no_mismatches(
+        r#"
+fn test() {
+    let f = || {
+        match 0i32 {
+            0i32 => &"",
+            _ => "",
+        }
+    };
+}
+"#,
+    );
+}
+
+#[test]
 fn return_coerce_unknown() {
     check_types(
         r"
@@ -234,7 +267,7 @@ fn takes_ref_str(x: &str) {}
 fn returns_string() -> String { loop {} }
 fn test() {
     takes_ref_str(&{ returns_string() });
-               // ^^^^^^^^^^^^^^^^^^^^^ adjustments: Deref(None), Deref(Some(OverloadedDeref(Not))), Borrow(Ref(Not))
+               // ^^^^^^^^^^^^^^^^^^^^^ adjustments: Deref(None), Deref(Some(OverloadedDeref(Some(Not)))), Borrow(Ref(Not))
 }
 "#,
     );
@@ -295,6 +328,24 @@ fn foo() {
 }
 
 #[test]
+fn generator_yield_return_coerce() {
+    check_no_mismatches(
+        r#"
+fn test() {
+    let g = || {
+        yield &1u32;
+        yield &&1u32;
+        if true {
+            return &1u32;
+        }
+        &&1u32
+    };
+}
+        "#,
+    );
+}
+
+#[test]
 fn assign_coerce() {
     check_no_mismatches(
         r"
@@ -339,7 +390,20 @@ fn test() {
     let f: fn(u32) -> isize = foo;
                            // ^^^ adjustments: Pointer(ReifyFnPointer)
     let f: unsafe fn(u32) -> isize = foo;
-                                  // ^^^ adjustments: Pointer(ReifyFnPointer)
+                                  // ^^^ adjustments: Pointer(ReifyFnPointer), Pointer(UnsafeFnPointer)
+}",
+    );
+}
+
+#[test]
+fn coerce_fn_item_to_fn_ptr_in_array() {
+    check_no_mismatches(
+        r"
+fn foo(x: u32) -> isize { 1 }
+fn bar(x: u32) -> isize { 1 }
+fn test() {
+    let f = [foo, bar];
+          // ^^^ adjustments: Pointer(ReifyFnPointer)
 }",
     );
 }
@@ -348,6 +412,23 @@ fn test() {
 fn coerce_fn_items_in_match_arms() {
     cov_mark::check!(coerce_fn_reification);
 
+    check_no_mismatches(
+        r"
+fn foo1(x: u32) -> isize { 1 }
+fn foo2(x: u32) -> isize { 2 }
+fn foo3(x: u32) -> isize { 3 }
+fn test() {
+    let x = match 1 {
+        1 => foo1,
+          // ^^^^ adjustments: Pointer(ReifyFnPointer)
+        2 => foo2,
+          // ^^^^ adjustments: Pointer(ReifyFnPointer)
+        _ => foo3,
+          // ^^^^ adjustments: Pointer(ReifyFnPointer)
+    };
+    x;
+}",
+    );
     check_types(
         r"
 fn foo1(x: u32) -> isize { 1 }
@@ -370,7 +451,10 @@ fn coerce_closure_to_fn_ptr() {
     check_no_mismatches(
         r"
 fn test() {
-    let f: fn(u32) -> isize = |x| { 1 };
+    let f: fn(u32) -> u32 = |x| x;
+                         // ^^^^^ adjustments: Pointer(ClosureFnPointer(Safe))
+    let f: unsafe fn(u32) -> u32 = |x| x;
+                                // ^^^^^ adjustments: Pointer(ClosureFnPointer(Unsafe))
 }",
     );
 }
@@ -452,7 +536,6 @@ fn test() {
 
 #[test]
 fn coerce_unsize_generic() {
-    // FIXME: fix the type mismatches here
     check(
         r#"
 //- minicore: coerce_unsized
@@ -461,9 +544,9 @@ struct Bar<T>(Foo<T>);
 
 fn test() {
     let _: &Foo<[usize]> = &Foo { t: [1, 2, 3] };
-                                   //^^^^^^^^^ expected [usize], got [usize; 3]
+                         //^^^^^^^^^^^^^^^^^^^^^ expected &Foo<[usize]>, got &Foo<[i32; 3]>
     let _: &Bar<[usize]> = &Bar(Foo { t: [1, 2, 3] });
-                                       //^^^^^^^^^ expected [usize], got [usize; 3]
+                         //^^^^^^^^^^^^^^^^^^^^^^^^^^ expected &Bar<[usize]>, got &Bar<[i32; 3]>
 }
 "#,
     );
@@ -492,7 +575,7 @@ fn two_closures_lub() {
 fn foo(c: i32) {
     let add = |a: i32, b: i32| a + b;
     let sub = |a, b| a - b;
-            //^^^^^^^^^^^^ |i32, i32| -> i32
+            //^^^^^^^^^^^^ impl Fn(i32, i32) -> i32
     if c > 42 { add } else { sub };
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ fn(i32, i32) -> i32
 }
@@ -752,4 +835,109 @@ fn main() {
 }
         "#,
     );
+}
+
+#[test]
+fn adjust_comparison_arguments() {
+    check_no_mismatches(
+        r"
+//- minicore: eq
+struct Struct;
+impl core::cmp::PartialEq for Struct {
+    fn eq(&self, other: &Self) -> bool { true }
+}
+fn test() {
+    Struct == Struct;
+ // ^^^^^^ adjustments: Borrow(Ref(Not))
+           // ^^^^^^ adjustments: Borrow(Ref(Not))
+}",
+    );
+}
+
+#[test]
+fn adjust_assign_lhs() {
+    check_no_mismatches(
+        r"
+//- minicore: add
+struct Struct;
+impl core::ops::AddAssign for Struct {
+    fn add_assign(&mut self, other: Self) {}
+}
+fn test() {
+    Struct += Struct;
+ // ^^^^^^ adjustments: Borrow(Ref(Mut))
+           // ^^^^^^ adjustments:
+}",
+    );
+}
+
+#[test]
+fn adjust_index() {
+    check_no_mismatches(
+        r"
+//- minicore: index, slice, coerce_unsized
+fn test() {
+    let x = [1, 2, 3];
+    x[2] = 6;
+ // ^ adjustments: Borrow(Ref(Mut))
+}
+    ",
+    );
+    check_no_mismatches(
+        r"
+//- minicore: index
+struct Struct;
+impl core::ops::Index<usize> for Struct {
+    type Output = ();
+
+    fn index(&self, index: usize) -> &Self::Output { &() }
+}
+struct StructMut;
+
+impl core::ops::Index<usize> for StructMut {
+    type Output = ();
+
+    fn index(&self, index: usize) -> &Self::Output { &() }
+}
+impl core::ops::IndexMut for StructMut {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output { &mut () }
+}
+fn test() {
+    Struct[0];
+ // ^^^^^^ adjustments: Borrow(Ref(Not))
+    StructMut[0];
+ // ^^^^^^^^^ adjustments: Borrow(Ref(Not))
+    &mut StructMut[0];
+      // ^^^^^^^^^ adjustments: Borrow(Ref(Mut))
+}",
+    );
+}
+
+#[test]
+fn regression_14443_dyn_coercion_block_impls() {
+    check_no_mismatches(
+        r#"
+//- minicore: coerce_unsized
+trait T {}
+
+fn dyn_t(d: &dyn T) {}
+
+fn main() {
+    struct A;
+    impl T for A {}
+
+    let a = A;
+
+    let b = {
+        struct B;
+        impl T for B {}
+
+        B
+    };
+
+    dyn_t(&a);
+    dyn_t(&b);
+}
+"#,
+    )
 }

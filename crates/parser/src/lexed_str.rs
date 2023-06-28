@@ -36,7 +36,7 @@ impl<'a> LexedStr<'a> {
         };
 
         for token in rustc_lexer::tokenize(&text[conv.offset..]) {
-            let token_text = &text[conv.offset..][..token.len];
+            let token_text = &text[conv.offset..][..token.len as usize];
 
             conv.extend_token(&token.kind, token_text);
         }
@@ -49,15 +49,15 @@ impl<'a> LexedStr<'a> {
             return None;
         }
 
-        let token = rustc_lexer::first_token(text);
-        if token.len != text.len() {
+        let token = rustc_lexer::tokenize(text).next()?;
+        if token.len as usize != text.len() {
             return None;
         }
 
         let mut conv = Converter::new(text);
         conv.extend_token(&token.kind, text);
         match &*conv.res.kind {
-            [kind] => Some((*kind, conv.res.error.pop().map(|it| it.msg.clone()))),
+            [kind] => Some((*kind, conv.res.error.pop().map(|it| it.msg))),
             _ => None,
         }
     }
@@ -82,6 +82,7 @@ impl<'a> LexedStr<'a> {
     pub fn text(&self, i: usize) -> &str {
         self.range_text(i..i + 1)
     }
+
     pub fn range_text(&self, r: ops::Range<usize>) -> &str {
         assert!(r.start < r.end && r.end <= self.len());
         let lo = self.start[r.start] as usize;
@@ -174,6 +175,10 @@ impl<'a> Converter<'a> {
                 rustc_lexer::TokenKind::Ident => {
                     SyntaxKind::from_keyword(token_text).unwrap_or(IDENT)
                 }
+                rustc_lexer::TokenKind::InvalidIdent => {
+                    err = "Ident contains invalid characters";
+                    IDENT
+                }
 
                 rustc_lexer::TokenKind::RawIdent => IDENT,
                 rustc_lexer::TokenKind::Literal { kind, .. } => {
@@ -216,6 +221,11 @@ impl<'a> Converter<'a> {
                 rustc_lexer::TokenKind::Caret => T![^],
                 rustc_lexer::TokenKind::Percent => T![%],
                 rustc_lexer::TokenKind::Unknown => ERROR,
+                rustc_lexer::TokenKind::UnknownPrefix => {
+                    err = "unknown literal prefix";
+                    IDENT
+                }
+                rustc_lexer::TokenKind::Eof => EOF,
             }
         };
 
@@ -263,34 +273,29 @@ impl<'a> Converter<'a> {
                 }
                 BYTE_STRING
             }
-            rustc_lexer::LiteralKind::RawStr { err: raw_str_err, .. } => {
-                if let Some(raw_str_err) = raw_str_err {
-                    err = match raw_str_err {
-                        rustc_lexer::RawStrError::InvalidStarter { .. } => "Missing `\"` symbol after `#` symbols to begin the raw string literal",
-                        rustc_lexer::RawStrError::NoTerminator { expected, found, .. } => if expected == found {
-                            "Missing trailing `\"` to terminate the raw string literal"
-                        } else {
-                            "Missing trailing `\"` with `#` symbols to terminate the raw string literal"
-                        },
-                        rustc_lexer::RawStrError::TooManyDelimiters { .. } => "Too many `#` symbols: raw strings may be delimited by up to 65535 `#` symbols",
-                    };
-                };
+            rustc_lexer::LiteralKind::CStr { terminated } => {
+                if !terminated {
+                    err = "Missing trailing `\"` symbol to terminate the string literal";
+                }
+                C_STRING
+            }
+            rustc_lexer::LiteralKind::RawStr { n_hashes } => {
+                if n_hashes.is_none() {
+                    err = "Invalid raw string literal";
+                }
                 STRING
             }
-            rustc_lexer::LiteralKind::RawByteStr { err: raw_str_err, .. } => {
-                if let Some(raw_str_err) = raw_str_err {
-                    err = match raw_str_err {
-                        rustc_lexer::RawStrError::InvalidStarter { .. } => "Missing `\"` symbol after `#` symbols to begin the raw byte string literal",
-                        rustc_lexer::RawStrError::NoTerminator { expected, found, .. } => if expected == found {
-                            "Missing trailing `\"` to terminate the raw byte string literal"
-                        } else {
-                            "Missing trailing `\"` with `#` symbols to terminate the raw byte string literal"
-                        },
-                        rustc_lexer::RawStrError::TooManyDelimiters { .. } => "Too many `#` symbols: raw byte strings may be delimited by up to 65535 `#` symbols",
-                    };
-                };
-
+            rustc_lexer::LiteralKind::RawByteStr { n_hashes } => {
+                if n_hashes.is_none() {
+                    err = "Invalid raw string literal";
+                }
                 BYTE_STRING
+            }
+            rustc_lexer::LiteralKind::RawCStr { n_hashes } => {
+                if n_hashes.is_none() {
+                    err = "Invalid raw string literal";
+                }
+                C_STRING
             }
         };
 

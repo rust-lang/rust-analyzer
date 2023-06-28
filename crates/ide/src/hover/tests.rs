@@ -2,17 +2,28 @@ use expect_test::{expect, Expect};
 use ide_db::base_db::{FileLoader, FileRange};
 use syntax::TextRange;
 
-use crate::{fixture, hover::HoverDocFormat, HoverConfig};
+use crate::{
+    fixture, HoverConfig, HoverDocFormat, MemoryLayoutHoverConfig, MemoryLayoutHoverRenderKind,
+};
+
+const HOVER_BASE_CONFIG: HoverConfig = HoverConfig {
+    links_in_hover: false,
+    memory_layout: Some(MemoryLayoutHoverConfig {
+        size: Some(MemoryLayoutHoverRenderKind::Both),
+        offset: Some(MemoryLayoutHoverRenderKind::Both),
+        alignment: Some(MemoryLayoutHoverRenderKind::Both),
+        niches: true,
+    }),
+    documentation: true,
+    format: HoverDocFormat::Markdown,
+    keywords: true,
+};
 
 fn check_hover_no_result(ra_fixture: &str) {
     let (analysis, position) = fixture::position(ra_fixture);
     let hover = analysis
         .hover(
-            &HoverConfig {
-                links_in_hover: true,
-                documentation: Some(HoverDocFormat::Markdown),
-                keywords: true,
-            },
+            &HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG },
             FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
         )
         .unwrap();
@@ -24,11 +35,7 @@ fn check(ra_fixture: &str, expect: Expect) {
     let (analysis, position) = fixture::position(ra_fixture);
     let hover = analysis
         .hover(
-            &HoverConfig {
-                links_in_hover: true,
-                documentation: Some(HoverDocFormat::Markdown),
-                keywords: true,
-            },
+            &HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG },
             FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
         )
         .unwrap()
@@ -37,7 +44,7 @@ fn check(ra_fixture: &str, expect: Expect) {
     let content = analysis.db.file_text(position.file_id);
     let hovered_element = &content[hover.range];
 
-    let actual = format!("*{}*\n{}\n", hovered_element, hover.info.markup);
+    let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
     expect.assert_eq(&actual)
 }
 
@@ -45,11 +52,7 @@ fn check_hover_no_links(ra_fixture: &str, expect: Expect) {
     let (analysis, position) = fixture::position(ra_fixture);
     let hover = analysis
         .hover(
-            &HoverConfig {
-                links_in_hover: false,
-                documentation: Some(HoverDocFormat::Markdown),
-                keywords: true,
-            },
+            &HOVER_BASE_CONFIG,
             FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
         )
         .unwrap()
@@ -58,7 +61,24 @@ fn check_hover_no_links(ra_fixture: &str, expect: Expect) {
     let content = analysis.db.file_text(position.file_id);
     let hovered_element = &content[hover.range];
 
-    let actual = format!("*{}*\n{}\n", hovered_element, hover.info.markup);
+    let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
+    expect.assert_eq(&actual)
+}
+
+fn check_hover_no_memory_layout(ra_fixture: &str, expect: Expect) {
+    let (analysis, position) = fixture::position(ra_fixture);
+    let hover = analysis
+        .hover(
+            &HoverConfig { memory_layout: None, ..HOVER_BASE_CONFIG },
+            FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
+        )
+        .unwrap()
+        .unwrap();
+
+    let content = analysis.db.file_text(position.file_id);
+    let hovered_element = &content[hover.range];
+
+    let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
     expect.assert_eq(&actual)
 }
 
@@ -68,8 +88,8 @@ fn check_hover_no_markdown(ra_fixture: &str, expect: Expect) {
         .hover(
             &HoverConfig {
                 links_in_hover: true,
-                documentation: Some(HoverDocFormat::PlainText),
-                keywords: true,
+                format: HoverDocFormat::PlainText,
+                ..HOVER_BASE_CONFIG
             },
             FileRange { file_id: position.file_id, range: TextRange::empty(position.offset) },
         )
@@ -79,7 +99,7 @@ fn check_hover_no_markdown(ra_fixture: &str, expect: Expect) {
     let content = analysis.db.file_text(position.file_id);
     let hovered_element = &content[hover.range];
 
-    let actual = format!("*{}*\n{}\n", hovered_element, hover.info.markup);
+    let actual = format!("*{hovered_element}*\n{}\n", hover.info.markup);
     expect.assert_eq(&actual)
 }
 
@@ -87,11 +107,7 @@ fn check_actions(ra_fixture: &str, expect: Expect) {
     let (analysis, file_id, position) = fixture::range_or_position(ra_fixture);
     let hover = analysis
         .hover(
-            &HoverConfig {
-                links_in_hover: true,
-                documentation: Some(HoverDocFormat::Markdown),
-                keywords: true,
-            },
+            &HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG },
             FileRange { file_id, range: position.range_or_empty() },
         )
         .unwrap()
@@ -101,32 +117,22 @@ fn check_actions(ra_fixture: &str, expect: Expect) {
 
 fn check_hover_range(ra_fixture: &str, expect: Expect) {
     let (analysis, range) = fixture::range(ra_fixture);
+    let hover = analysis.hover(&HOVER_BASE_CONFIG, range).unwrap().unwrap();
+    expect.assert_eq(hover.info.markup.as_str())
+}
+
+fn check_hover_range_actions(ra_fixture: &str, expect: Expect) {
+    let (analysis, range) = fixture::range(ra_fixture);
     let hover = analysis
-        .hover(
-            &HoverConfig {
-                links_in_hover: false,
-                documentation: Some(HoverDocFormat::Markdown),
-                keywords: true,
-            },
-            range,
-        )
+        .hover(&HoverConfig { links_in_hover: true, ..HOVER_BASE_CONFIG }, range)
         .unwrap()
         .unwrap();
-    expect.assert_eq(hover.info.markup.as_str())
+    expect.assert_debug_eq(&hover.info.actions);
 }
 
 fn check_hover_range_no_results(ra_fixture: &str) {
     let (analysis, range) = fixture::range(ra_fixture);
-    let hover = analysis
-        .hover(
-            &HoverConfig {
-                links_in_hover: false,
-                documentation: Some(HoverDocFormat::Markdown),
-                keywords: true,
-            },
-            range,
-        )
-        .unwrap();
+    let hover = analysis.hover(&HOVER_BASE_CONFIG, range).unwrap();
     assert!(hover.is_none());
 }
 
@@ -151,7 +157,7 @@ fn foo() {
             *local*
 
             ```rust
-            let local: i32
+            let local: i32 // size = 4, align = 4
             ```
         "#]],
     );
@@ -207,37 +213,195 @@ m!(ab$0c);
 }
 
 #[test]
-fn hover_shows_type_of_an_expression() {
-    check(
-        r#"
-pub fn foo() -> u32 { 1 }
-
-fn main() {
-    let foo_test = foo()$0;
-}
-"#,
-        expect![[r#"
-            *foo()*
-            ```rust
-            u32
-            ```
-        "#]],
-    );
-}
-
-#[test]
 fn hover_remove_markdown_if_configured() {
     check_hover_no_markdown(
         r#"
 pub fn foo() -> u32 { 1 }
 
 fn main() {
-    let foo_test = foo()$0;
+    let foo_test = foo$0();
 }
 "#,
         expect![[r#"
-            *foo()*
-            u32
+            *foo*
+            test
+
+            pub fn foo() -> u32
+        "#]],
+    );
+}
+
+#[test]
+fn hover_closure() {
+    check(
+        r#"
+//- minicore: copy
+fn main() {
+    let x = 2;
+    let y = $0|z| x + z;
+}
+"#,
+        expect![[r#"
+            *|*
+            ```rust
+            {closure#0} // size = 8, align = 8, niches = 1
+            impl Fn(i32) -> i32
+            ```
+
+            ## Captures
+            * `x` by immutable borrow
+        "#]],
+    );
+
+    check(
+        r#"
+//- minicore: copy
+fn foo(x: impl Fn(i32) -> i32) {
+
+}
+fn main() {
+    foo($0|x: i32| x)
+}
+"#,
+        expect![[r#"
+            *|*
+            ```rust
+            {closure#0} // size = 0, align = 1
+            impl Fn(i32) -> i32
+            ```
+
+            ## Captures
+            This closure captures nothing
+        "#]],
+    );
+
+    check(
+        r#"
+//- minicore: copy
+
+struct Z { f: i32 }
+
+struct Y(&'static mut Z)
+
+struct X {
+    f1: Y,
+    f2: (Y, Y),
+}
+
+fn main() {
+    let x: X;
+    let y = $0|| {
+        x.f1;
+        &mut x.f2.0 .0.f;
+    };
+}
+"#,
+        expect![[r#"
+            *|*
+            ```rust
+            {closure#0} // size = 16 (0x10), align = 8, niches = 1
+            impl FnOnce()
+            ```
+
+            ## Captures
+            * `x.f1` by move
+            * `(*x.f2.0.0).f` by mutable borrow
+        "#]],
+    );
+    check(
+        r#"
+//- minicore: copy, option
+
+fn do_char(c: char) {}
+
+fn main() {
+    let x = None;
+    let y = |$0| {
+        match x {
+            Some(c) => do_char(c),
+            None => x = None,
+        }
+    };
+}
+"#,
+        expect![[r#"
+            *|*
+            ```rust
+            {closure#0} // size = 8, align = 8, niches = 1
+            impl FnMut()
+            ```
+
+            ## Captures
+            * `x` by mutable borrow
+        "#]],
+    );
+}
+
+#[test]
+fn hover_ranged_closure() {
+    check_hover_range(
+        r#"
+//- minicore: fn
+struct S;
+struct S2;
+fn main() {
+    let x = &S;
+    let y = ($0|| {x; S2}$0).call();
+}
+"#,
+        expect![[r#"
+            ```rust
+            {closure#0} // size = 8, align = 8, niches = 1
+            impl FnOnce() -> S2
+            ```
+            Coerced to: &impl FnOnce() -> S2
+
+            ## Captures
+            * `x` by move"#]],
+    );
+    check_hover_range_actions(
+        r#"
+//- minicore: fn
+struct S;
+struct S2;
+fn main() {
+    let x = &S;
+    let y = ($0|| {x; S2}$0).call();
+}
+"#,
+        expect![[r#"
+            [
+                GoToType(
+                    [
+                        HoverGotoTypeData {
+                            mod_path: "test::S2",
+                            nav: NavigationTarget {
+                                file_id: FileId(
+                                    0,
+                                ),
+                                full_range: 10..20,
+                                focus_range: 17..19,
+                                name: "S2",
+                                kind: Struct,
+                                description: "struct S2",
+                            },
+                        },
+                        HoverGotoTypeData {
+                            mod_path: "test::S",
+                            nav: NavigationTarget {
+                                file_id: FileId(
+                                    0,
+                                ),
+                                full_range: 0..9,
+                                focus_range: 7..8,
+                                name: "S",
+                                kind: Struct,
+                                description: "struct S",
+                            },
+                        },
+                    ],
+                ),
+            ]
         "#]],
     );
 }
@@ -266,12 +430,12 @@ fn main() {
 }
 "#,
         expect![[r#"
-                *iter*
+            *iter*
 
-                ```rust
-                let mut iter: Iter<Scan<OtherStruct<OtherStruct<i32>>, |&mut u32, &u32, &mut u32| -> Option<u32>, u32>>
-                ```
-            "#]],
+            ```rust
+            let mut iter: Iter<Scan<OtherStruct<OtherStruct<i32>>, impl Fn(&mut u32, &u32, &mut u32) -> Option<u32>, u32>> // size = 8, align = 4
+            ```
+        "#]],
     );
 }
 
@@ -293,33 +457,6 @@ fn main() { let foo_test = fo$0o(); }
 
                 ```rust
                 pub fn foo() -> u32
-                ```
-            "#]],
-    );
-
-    // Multiple candidates but results are ambiguous.
-    check(
-        r#"
-//- /a.rs
-pub fn foo() -> u32 { 1 }
-
-//- /b.rs
-pub fn foo() -> &str { "" }
-
-//- /c.rs
-pub fn foo(a: u32, b: u32) {}
-
-//- /main.rs
-mod a;
-mod b;
-mod c;
-
-fn main() { let foo_test = fo$0o(); }
-        "#,
-        expect![[r#"
-                *foo*
-                ```rust
-                {unknown}
                 ```
             "#]],
     );
@@ -523,6 +660,27 @@ fn main() { }
 }
 
 #[test]
+fn hover_field_offset() {
+    // Hovering over the field when instantiating
+    check(
+        r#"
+struct Foo { fiel$0d_a: u8, field_b: i32, field_c: i16 }
+"#,
+        expect![[r#"
+            *field_a*
+
+            ```rust
+            test::Foo
+            ```
+
+            ```rust
+            field_a: u8 // size = 1, align = 1, offset = 4
+            ```
+        "#]],
+    );
+}
+
+#[test]
 fn hover_shows_struct_field_info() {
     // Hovering over the field when instantiating
     check(
@@ -534,16 +692,16 @@ fn main() {
 }
 "#,
         expect![[r#"
-                *field_a*
+            *field_a*
 
-                ```rust
-                test::Foo
-                ```
+            ```rust
+            test::Foo
+            ```
 
-                ```rust
-                field_a: u32
-                ```
-            "#]],
+            ```rust
+            field_a: u32 // size = 4, align = 4, offset = 0
+            ```
+        "#]],
     );
 
     // Hovering over the field in the definition
@@ -556,16 +714,16 @@ fn main() {
 }
 "#,
         expect![[r#"
-                *field_a*
+            *field_a*
 
-                ```rust
-                test::Foo
-                ```
+            ```rust
+            test::Foo
+            ```
 
-                ```rust
-                field_a: u32
-                ```
-            "#]],
+            ```rust
+            field_a: u32 // size = 4, align = 4, offset = 0
+            ```
+        "#]],
     );
 }
 
@@ -621,6 +779,60 @@ const foo$0: u32 = {
             ```
         "#]],
     );
+
+    check(
+        r#"const FOO$0: i32 = -2147483648;"#,
+        expect![[r#"
+            *FOO*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const FOO: i32 = -2147483648 (0x80000000)
+            ```
+        "#]],
+    );
+
+    check(
+        r#"
+        const FOO: i32 = -2147483648;
+        const BAR$0: bool = FOO > 0;
+        "#,
+        expect![[r#"
+            *BAR*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const BAR: bool = false
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn hover_eval_complex_constants() {
+    check(
+        r#"
+        struct X { f1: (), f2: i32 }
+        const foo$0: (i8, X, i64) = (1, X { f2: 5 - 1, f1: () }, 1 - 2);
+        "#,
+        expect![[r#"
+            *foo*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const foo: (i8, X, i64) = (1, X { f1: (), f2: 4 }, -1)
+            ```
+        "#]],
+    );
 }
 
 #[test]
@@ -633,12 +845,12 @@ fn main() {
     let zz$0 = Test { t: 23u8, k: 33 };
 }"#,
         expect![[r#"
-                *zz*
+            *zz*
 
-                ```rust
-                let zz: Test<i32>
-                ```
-            "#]],
+            ```rust
+            let zz: Test<i32> // size = 8, align = 4
+            ```
+        "#]],
     );
     check_hover_range(
         r#"
@@ -684,12 +896,12 @@ use Option::Some;
 fn main() { let b$0ar = Some(12); }
 "#,
         expect![[r#"
-                *bar*
+            *bar*
 
-                ```rust
-                let bar: Option<i32>
-                ```
-            "#]],
+            ```rust
+            let bar: Option<i32> // size = 4, align = 4
+            ```
+        "#]],
     );
 }
 
@@ -753,12 +965,12 @@ fn hover_for_local_variable() {
     check(
         r#"fn func(foo: i32) { fo$0o; }"#,
         expect![[r#"
-                *foo*
+            *foo*
 
-                ```rust
-                foo: i32
-                ```
-            "#]],
+            ```rust
+            foo: i32 // size = 4, align = 4
+            ```
+        "#]],
     )
 }
 
@@ -767,12 +979,12 @@ fn hover_for_local_variable_pat() {
     check(
         r#"fn func(fo$0o: i32) {}"#,
         expect![[r#"
-                *foo*
+            *foo*
 
-                ```rust
-                foo: i32
-                ```
-            "#]],
+            ```rust
+            foo: i32 // size = 4, align = 4
+            ```
+        "#]],
     )
 }
 
@@ -781,12 +993,12 @@ fn hover_local_var_edge() {
     check(
         r#"fn func(foo: i32) { if true { $0foo; }; }"#,
         expect![[r#"
-                *foo*
+            *foo*
 
-                ```rust
-                foo: i32
-                ```
-            "#]],
+            ```rust
+            foo: i32 // size = 4, align = 4
+            ```
+        "#]],
     )
 }
 
@@ -795,12 +1007,12 @@ fn hover_for_param_edge() {
     check(
         r#"fn func($0foo: i32) {}"#,
         expect![[r#"
-                *foo*
+            *foo*
 
-                ```rust
-                foo: i32
-                ```
-            "#]],
+            ```rust
+            foo: i32 // size = 4, align = 4
+            ```
+        "#]],
     )
 }
 
@@ -839,12 +1051,12 @@ impl Thing {
 fn main() { let foo_$0test = Thing::new(); }
 "#,
         expect![[r#"
-                *foo_test*
+            *foo_test*
 
-                ```rust
-                let foo_test: Thing
-                ```
-            "#]],
+            ```rust
+            let foo_test: Thing // size = 4, align = 4
+            ```
+        "#]],
     )
 }
 
@@ -999,12 +1211,12 @@ fn y() {
 }
 "#,
         expect![[r#"
-                *x*
+            *x*
 
-                ```rust
-                let x: i32
-                ```
-            "#]],
+            ```rust
+            let x: i32 // size = 4, align = 4
+            ```
+        "#]],
     )
 }
 
@@ -1129,12 +1341,12 @@ macro_rules! id { ($($tt:tt)*) => { $($tt)* } }
 fn foo(bar:u32) { let a = id!(ba$0r); }
 "#,
         expect![[r#"
-                *bar*
+            *bar*
 
-                ```rust
-                bar: u32
-                ```
-            "#]],
+            ```rust
+            bar: u32 // size = 4, align = 4
+            ```
+        "#]],
     );
 }
 
@@ -1147,12 +1359,12 @@ macro_rules! id { ($($tt:tt)*) => { id_deep!($($tt)*) } }
 fn foo(bar:u32) { let a = id!(ba$0r); }
 "#,
         expect![[r#"
-                *bar*
+            *bar*
 
-                ```rust
-                bar: u32
-                ```
-            "#]],
+            ```rust
+            bar: u32 // size = 4, align = 4
+            ```
+        "#]],
     );
 }
 
@@ -1163,33 +1375,19 @@ fn test_hover_through_func_in_macro_recursive() {
 macro_rules! id_deep { ($($tt:tt)*) => { $($tt)* } }
 macro_rules! id { ($($tt:tt)*) => { id_deep!($($tt)*) } }
 fn bar() -> u32 { 0 }
-fn foo() { let a = id!([0u32, bar($0)] ); }
+fn foo() { let a = id!([0u32, bar$0()] ); }
 "#,
         expect![[r#"
-                *bar()*
-                ```rust
-                u32
-                ```
-            "#]],
-    );
-}
+            *bar*
 
-#[test]
-fn test_hover_through_literal_string_in_macro() {
-    check(
-        r#"
-macro_rules! arr { ($($tt:tt)*) => { [$($tt)*] } }
-fn foo() {
-    let mastered_for_itunes = "";
-    let _ = arr!("Tr$0acks", &mastered_for_itunes);
-}
-"#,
-        expect![[r#"
-                *"Tracks"*
-                ```rust
-                &str
-                ```
-            "#]],
+            ```rust
+            test
+            ```
+
+            ```rust
+            fn bar() -> u32
+            ```
+        "#]],
     );
 }
 
@@ -1363,16 +1561,16 @@ fn test_hover_function_pointer_show_identifiers() {
     check(
         r#"type foo$0 = fn(a: i32, b: i32) -> i32;"#,
         expect![[r#"
-                *foo*
+            *foo*
 
-                ```rust
-                test
-                ```
+            ```rust
+            test
+            ```
 
-                ```rust
-                type foo = fn(a: i32, b: i32) -> i32
-                ```
-            "#]],
+            ```rust
+            type foo = fn(a: i32, b: i32) -> i32 // size = 8, align = 8, niches = 1
+            ```
+        "#]],
     );
 }
 
@@ -1381,16 +1579,16 @@ fn test_hover_function_pointer_no_identifier() {
     check(
         r#"type foo$0 = fn(i32, _: i32) -> i32;"#,
         expect![[r#"
-                *foo*
+            *foo*
 
-                ```rust
-                test
-                ```
+            ```rust
+            test
+            ```
 
-                ```rust
-                type foo = fn(i32, i32) -> i32
-                ```
-            "#]],
+            ```rust
+            type foo = fn(i32, i32) -> i32 // size = 8, align = 8, niches = 1
+            ```
+        "#]],
     );
 }
 
@@ -1508,30 +1706,30 @@ struct Bar;
 
 fn foo() { let bar = Ba$0r; }
 "#,
-        expect![[r##"
-                *Bar*
+        expect![[r#"
+            *Bar*
 
-                ```rust
-                test
-                ```
+            ```rust
+            test
+            ```
 
-                ```rust
-                struct Bar
-                ```
+            ```rust
+            struct Bar // size = 0, align = 1
+            ```
 
-                ---
+            ---
 
-                This is an example
-                multiline doc
+            This is an example
+            multiline doc
 
-                # Example
+            # Example
 
-                ```
-                let five = 5;
+            ```
+            let five = 5;
 
-                assert_eq!(6, my_crate::add_one(5));
-                ```
-            "##]],
+            assert_eq!(6, my_crate::add_one(5));
+            ```
+        "#]],
     );
 }
 
@@ -1545,20 +1743,20 @@ struct Bar;
 fn foo() { let bar = Ba$0r; }
 "#,
         expect![[r#"
-                *Bar*
+            *Bar*
 
-                ```rust
-                test
-                ```
+            ```rust
+            test
+            ```
 
-                ```rust
-                struct Bar
-                ```
+            ```rust
+            struct Bar // size = 0, align = 1
+            ```
 
-                ---
+            ---
 
-                bar docs
-            "#]],
+            bar docs
+        "#]],
     );
 }
 
@@ -1574,22 +1772,22 @@ struct Bar;
 fn foo() { let bar = Ba$0r; }
 "#,
         expect![[r#"
-                *Bar*
+            *Bar*
 
-                ```rust
-                test
-                ```
+            ```rust
+            test
+            ```
 
-                ```rust
-                struct Bar
-                ```
+            ```rust
+            struct Bar // size = 0, align = 1
+            ```
 
-                ---
+            ---
 
-                bar docs 0
-                bar docs 1
-                bar docs 2
-            "#]],
+            bar docs 0
+            bar docs 1
+            bar docs 2
+        "#]],
     );
 }
 
@@ -1602,20 +1800,20 @@ pub struct Foo;
 pub struct B$0ar
 "#,
         expect![[r#"
-                *Bar*
+            *Bar*
 
-                ```rust
-                test
-                ```
+            ```rust
+            test
+            ```
 
-                ```rust
-                pub struct Bar
-                ```
+            ```rust
+            pub struct Bar // size = 0, align = 1
+            ```
 
-                ---
+            ---
 
-                [external](https://www.google.com)
-            "#]],
+            [external](https://www.google.com)
+        "#]],
     );
 }
 
@@ -1629,20 +1827,20 @@ pub struct Foo;
 pub struct B$0ar
 "#,
         expect![[r#"
-                *Bar*
+            *Bar*
 
-                ```rust
-                test
-                ```
+            ```rust
+            test
+            ```
 
-                ```rust
-                pub struct Bar
-                ```
+            ```rust
+            pub struct Bar // size = 0, align = 1
+            ```
 
-                ---
+            ---
 
-                [baz](Baz)
-            "#]],
+            [baz](Baz)
+        "#]],
     );
 }
 
@@ -1707,6 +1905,86 @@ pub fn fo$0o() {}
 
                 [^example]: https://www.example.com/
             "#]],
+    );
+}
+
+#[test]
+fn test_hover_layout_of_variant() {
+    check(
+        r#"enum Foo {
+            Va$0riant1(u8, u16),
+            Variant2(i32, u8, i64),
+        }"#,
+        expect![[r#"
+            *Variant1*
+
+            ```rust
+            test::Foo
+            ```
+
+            ```rust
+            Variant1(u8, u16) // size = 4, align = 2
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn test_hover_layout_of_enum() {
+    check(
+        r#"enum $0Foo {
+            Variant1(u8, u16),
+            Variant2(i32, u8, i64),
+        }"#,
+        expect![[r#"
+            *Foo*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            enum Foo // size = 16 (0x10), align = 8, niches = 254
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn test_hover_no_memory_layout() {
+    check_hover_no_memory_layout(
+        r#"struct Foo { fiel$0d_a: u8, field_b: i32, field_c: i16 }"#,
+        expect![[r#"
+            *field_a*
+
+            ```rust
+            test::Foo
+            ```
+
+            ```rust
+            field_a: u8
+            ```
+        "#]],
+    );
+
+    check_hover_no_memory_layout(
+        r#"
+//- minicore: copy
+fn main() {
+    let x = 2;
+    let y = $0|z| x + z;
+}
+"#,
+        expect![[r#"
+            *|*
+            ```rust
+            {closure#0}
+            impl Fn(i32) -> i32
+            ```
+
+            ## Captures
+            * `x` by immutable borrow
+        "#]],
     );
 }
 
@@ -2064,6 +2342,19 @@ fn main() { let s$0t = S{ f1:Arg(0) }; }
 }
 
 #[test]
+fn test_hover_generic_excludes_sized_go_to_action() {
+    check_actions(
+        r#"
+//- minicore: sized
+struct S<T$0>(T);
+    "#,
+        expect![[r#"
+            []
+        "#]],
+    );
+}
+
+#[test]
 fn test_hover_generic_struct_has_flattened_goto_type_actions() {
     check_actions(
         r#"
@@ -2122,52 +2413,53 @@ mod M {
 fn main() { let s$0t = (A(1), B(2), M::C(3) ); }
 "#,
         expect![[r#"
-                [
-                    GoToType(
-                        [
-                            HoverGotoTypeData {
-                                mod_path: "test::A",
-                                nav: NavigationTarget {
-                                    file_id: FileId(
-                                        0,
-                                    ),
-                                    full_range: 0..14,
-                                    focus_range: 7..8,
-                                    name: "A",
-                                    kind: Struct,
-                                    description: "struct A",
-                                },
+            [
+                GoToType(
+                    [
+                        HoverGotoTypeData {
+                            mod_path: "test::A",
+                            nav: NavigationTarget {
+                                file_id: FileId(
+                                    0,
+                                ),
+                                full_range: 0..14,
+                                focus_range: 7..8,
+                                name: "A",
+                                kind: Struct,
+                                description: "struct A",
                             },
-                            HoverGotoTypeData {
-                                mod_path: "test::B",
-                                nav: NavigationTarget {
-                                    file_id: FileId(
-                                        0,
-                                    ),
-                                    full_range: 15..29,
-                                    focus_range: 22..23,
-                                    name: "B",
-                                    kind: Struct,
-                                    description: "struct B",
-                                },
+                        },
+                        HoverGotoTypeData {
+                            mod_path: "test::B",
+                            nav: NavigationTarget {
+                                file_id: FileId(
+                                    0,
+                                ),
+                                full_range: 15..29,
+                                focus_range: 22..23,
+                                name: "B",
+                                kind: Struct,
+                                description: "struct B",
                             },
-                            HoverGotoTypeData {
-                                mod_path: "test::M::C",
-                                nav: NavigationTarget {
-                                    file_id: FileId(
-                                        0,
-                                    ),
-                                    full_range: 42..60,
-                                    focus_range: 53..54,
-                                    name: "C",
-                                    kind: Struct,
-                                    description: "pub struct C",
-                                },
+                        },
+                        HoverGotoTypeData {
+                            mod_path: "test::M::C",
+                            nav: NavigationTarget {
+                                file_id: FileId(
+                                    0,
+                                ),
+                                full_range: 42..60,
+                                focus_range: 53..54,
+                                name: "C",
+                                kind: Struct,
+                                container_name: "M",
+                                description: "pub struct C",
                             },
-                        ],
-                    ),
-                ]
-            "#]],
+                        },
+                    ],
+                ),
+            ]
+        "#]],
     );
 }
 
@@ -2496,6 +2788,7 @@ pub mod future {
                                 focus_range: 60..66,
                                 name: "Future",
                                 kind: Trait,
+                                container_name: "future",
                                 description: "pub trait Future",
                             },
                         },
@@ -2951,7 +3244,7 @@ fn main() {
             *f*
 
             ```rust
-            f: &i32
+            f: &i32 // size = 8, align = 8, niches = 1
             ```
             ---
 
@@ -2960,7 +3253,7 @@ fn main() {
             ```
 
             ```rust
-            f: i32
+            f: i32 // size = 4, align = 4, offset = 0
             ```
         "#]],
     );
@@ -3001,7 +3294,7 @@ fn main() {
             *value*
 
             ```rust
-            let value: Const<1>
+            let value: Const<1> // size = 0, align = 1
             ```
         "#]],
     );
@@ -3021,7 +3314,7 @@ fn main() {
             *value*
 
             ```rust
-            let value: Const<0>
+            let value: Const<0> // size = 0, align = 1
             ```
         "#]],
     );
@@ -3041,7 +3334,7 @@ fn main() {
             *value*
 
             ```rust
-            let value: Const<-1>
+            let value: Const<-1> // size = 0, align = 1
             ```
         "#]],
     );
@@ -3061,7 +3354,7 @@ fn main() {
             *value*
 
             ```rust
-            let value: Const<true>
+            let value: Const<true> // size = 0, align = 1
             ```
         "#]],
     );
@@ -3081,7 +3374,7 @@ fn main() {
             *value*
 
             ```rust
-            let value: Const<'🦀'>
+            let value: Const<'🦀'> // size = 0, align = 1
             ```
         "#]],
     );
@@ -3097,12 +3390,12 @@ impl Foo {
 }
 "#,
         expect![[r#"
-                *self*
+            *self*
 
-                ```rust
-                self: &Foo
-                ```
-            "#]],
+            ```rust
+            self: &Foo // size = 8, align = 8, niches = 1
+            ```
+        "#]],
     );
 }
 
@@ -3117,12 +3410,12 @@ impl Foo {
 }
 "#,
         expect![[r#"
-                *self*
+            *self*
 
-                ```rust
-                self: Arc<Foo>
-                ```
-            "#]],
+            ```rust
+            self: Arc<Foo> // size = 0, align = 1
+            ```
+        "#]],
     );
 }
 
@@ -3158,7 +3451,7 @@ mod Foo$0 {
 }
 
 #[test]
-fn hover_doc_outer_inner_attribue() {
+fn hover_doc_outer_inner_attribute() {
     check(
         r#"
 #[doc = "Be quick;"]
@@ -3189,7 +3482,7 @@ mod Foo$0 {
 }
 
 #[test]
-fn hover_doc_block_style_indentend() {
+fn hover_doc_block_style_indent_end() {
     check(
         r#"
 /**
@@ -3498,16 +3791,16 @@ struct Foo<const LEN: usize>;
 type Fo$0o2 = Foo<2>;
 "#,
         expect![[r#"
-                *Foo2*
+            *Foo2*
 
-                ```rust
-                test
-                ```
+            ```rust
+            test
+            ```
 
-                ```rust
-                type Foo2 = Foo<2>
-                ```
-            "#]],
+            ```rust
+            type Foo2 = Foo<2> // size = 0, align = 1
+            ```
+        "#]],
     );
 }
 
@@ -3529,8 +3822,8 @@ impl<const LEN: usize> Foo<LEN$0> {}
 }
 
 #[test]
-fn hover_const_eval_variant() {
-    // show hex for <10
+fn hover_const_eval_discriminant() {
+    // Don't show hex for <10
     check(
         r#"
 #[repr(u8)]
@@ -3547,7 +3840,7 @@ enum E {
             ```
 
             ```rust
-            A = 8
+            A = 8 // size = 1, align = 1
             ```
 
             ---
@@ -3555,7 +3848,7 @@ enum E {
             This is a doc
         "#]],
     );
-    // show hex for >10
+    // Show hex for >10
     check(
         r#"
 #[repr(u8)]
@@ -3572,7 +3865,7 @@ enum E {
             ```
 
             ```rust
-            A = 12 (0xC)
+            A = 12 (0xC) // size = 1, align = 1
             ```
 
             ---
@@ -3598,7 +3891,7 @@ enum E {
             ```
 
             ```rust
-            B = 2
+            B = 2 // size = 1, align = 1
             ```
 
             ---
@@ -3624,7 +3917,7 @@ enum E {
             ```
 
             ```rust
-            B = 5
+            B = 5 // size = 1, align = 1
             ```
 
             ---
@@ -3636,6 +3929,161 @@ enum E {
 
 #[test]
 fn hover_const_eval() {
+    check(
+        r#"
+trait T {
+    const B: bool = false;
+}
+impl T for <()> {
+    /// true
+    const B: bool = true;
+}
+fn main() {
+    <()>::B$0;
+}
+"#,
+        expect![[r#"
+        *B*
+
+        ```rust
+        test
+        ```
+
+        ```rust
+        const B: bool = true
+        ```
+
+        ---
+
+        true
+    "#]],
+    );
+
+    check(
+        r#"
+struct A {
+    i: i32
+};
+
+trait T {
+    const AA: A = A {
+        i: 1
+    };
+}
+impl T for i32 {
+    const AA: A = A {
+        i: 2 + 3
+    }
+}
+fn main() {
+    <i32>::AA$0;
+}
+"#,
+        expect![[r#"
+        *AA*
+
+        ```rust
+        test
+        ```
+
+        ```rust
+        const AA: A = A { i: 5 }
+        ```
+    "#]],
+    );
+
+    check(
+        r#"
+trait T {
+    /// false
+    const B: bool = false;
+}
+impl T for () {
+    /// true
+    const B: bool = true;
+}
+fn main() {
+    T::B$0;
+}
+"#,
+        expect![[r#"
+            *B*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const B: bool = false
+            ```
+
+            ---
+
+            false
+        "#]],
+    );
+
+    check(
+        r#"
+trait T {
+    /// false
+    const B: bool = false;
+}
+impl T for () {
+}
+fn main() {
+    <()>::B$0;
+}
+"#,
+        expect![[r#"
+            *B*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const B: bool = false
+            ```
+
+            ---
+
+            false
+        "#]],
+    );
+
+    check(
+        r#"
+trait T {
+    /// false
+    const B: bool = false;
+}
+impl T for () {
+    /// true
+    const B: bool = true;
+}
+impl T for i32 {}
+fn main() {
+    <i32>::B$0;
+}
+"#,
+        expect![[r#"
+            *B*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const B: bool = false
+            ```
+
+            ---
+
+            false
+        "#]],
+    );
+
     // show hex for <10
     check(
         r#"
@@ -3658,7 +4106,6 @@ const FOO$0: usize = 1 << 3;
             This is a doc
         "#]],
     );
-    // show hex for >10
     check(
         r#"
 /// This is a doc
@@ -3716,7 +4163,7 @@ const FOO$0: i32 = 2 - 3;
             ```
 
             ```rust
-            const FOO: i32 = -1
+            const FOO: i32 = -1 (0xFFFFFFFF)
             ```
 
             ---
@@ -3877,6 +4324,28 @@ const FOO$0: f32 = 1f32;
             This is a doc
         "#]],
     );
+    // Don't show `<ref-not-supported>` in const hover
+    check(
+        r#"
+/// This is a doc
+const FOO$0: &i32 = &2;
+"#,
+        expect![[r#"
+            *FOO*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const FOO: &i32 = &2
+            ```
+
+            ---
+
+            This is a doc
+        "#]],
+    );
     //show f64 typecasted from float
     check(
         r#"
@@ -3897,6 +4366,309 @@ const FOO$0: f64 = 1.0f64;
             ---
 
             This is a doc
+        "#]],
+    );
+}
+
+#[test]
+fn hover_const_eval_floating_point() {
+    check(
+        r#"
+extern "rust-intrinsic" {
+    pub fn expf64(x: f64) -> f64;
+}
+
+const FOO$0: f64 = expf64(1.2);
+"#,
+        expect![[r#"
+            *FOO*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const FOO: f64 = 3.3201169227365472
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn hover_const_eval_enum() {
+    check(
+        r#"
+enum Enum {
+    V1,
+    V2,
+}
+
+const VX: Enum = Enum::V1;
+
+const FOO$0: Enum = VX;
+"#,
+        expect![[r#"
+            *FOO*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const FOO: Enum = V1
+            ```
+        "#]],
+    );
+    check(
+        r#"
+//- minicore: option
+const FOO$0: Option<i32> = Some(2);
+"#,
+        expect![[r#"
+            *FOO*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const FOO: Option<i32> = Some(2)
+            ```
+        "#]],
+    );
+    check(
+        r#"
+//- minicore: option
+const FOO$0: Option<&i32> = Some(2).as_ref();
+"#,
+        expect![[r#"
+            *FOO*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const FOO: Option<&i32> = Some(&2)
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn hover_const_eval_dyn_trait() {
+    check(
+        r#"
+//- minicore: fmt, coerce_unsized, builtin_impls
+use core::fmt::Debug;
+
+const FOO$0: &dyn Debug = &2i32;
+"#,
+        expect![[r#"
+            *FOO*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const FOO: &dyn Debug = &2
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn hover_const_eval_slice() {
+    check(
+        r#"
+//- minicore: slice, index, coerce_unsized
+const FOO$0: &[i32] = &[1, 2, 3 + 4];
+"#,
+        expect![[r#"
+            *FOO*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const FOO: &[i32] = &[1, 2, 7]
+            ```
+        "#]],
+    );
+    check(
+        r#"
+//- minicore: slice, index, coerce_unsized
+const FOO$0: &[i32; 5] = &[12; 5];
+"#,
+        expect![[r#"
+            *FOO*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const FOO: &[i32; 5] = &[12, 12, 12, 12, 12]
+            ```
+        "#]],
+    );
+    check(
+        r#"
+//- minicore: slice, index, coerce_unsized
+
+const FOO$0: (&i32, &[i32], &i32) = {
+    let a: &[i32] = &[1, 2, 3];
+    (&a[0], a, &a[0])
+}
+"#,
+        expect![[r#"
+            *FOO*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const FOO: (&i32, &[i32], &i32) = (&1, &[1, 2, 3], &1)
+            ```
+        "#]],
+    );
+    check(
+        r#"
+//- minicore: slice, index, coerce_unsized
+
+struct Tree(&[Tree]);
+
+const FOO$0: Tree = {
+    let x = &[Tree(&[]), Tree(&[Tree(&[])])];
+    Tree(&[Tree(x), Tree(x)])
+}
+"#,
+        expect![[r#"
+            *FOO*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const FOO: Tree = Tree(&[Tree(&[Tree(&[]), Tree(&[Tree(&[])])]), Tree(&[Tree(&[]), Tree(&[Tree(&[])])])])
+            ```
+        "#]],
+    );
+    // FIXME: Show the data of unsized structs
+    check(
+        r#"
+//- minicore: slice, index, coerce_unsized, transmute
+#[repr(transparent)]
+struct S<T: ?Sized>(T);
+const FOO$0: &S<[u8]> = core::mem::transmute::<&[u8], _>(&[1, 2, 3]);
+"#,
+        expect![[r#"
+            *FOO*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const FOO: &S<[u8]> = &S
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn hover_const_eval_str() {
+    check(
+        r#"
+const FOO$0: &str = "foo";
+"#,
+        expect![[r#"
+            *FOO*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const FOO: &str = "foo"
+            ```
+        "#]],
+    );
+    check(
+        r#"
+struct X {
+    a: &'static str,
+    b: &'static str,
+}
+const FOO$0: X = X {
+    a: "axiom",
+    b: "buy N large",
+};
+"#,
+        expect![[r#"
+            *FOO*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const FOO: X = X { a: "axiom", b: "buy N large" }
+            ```
+        "#]],
+    );
+    check(
+        r#"
+const FOO$0: (&str, &str) = {
+    let x = "foo";
+    (x, x)
+};
+"#,
+        expect![[r#"
+            *FOO*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const FOO: (&str, &str) = ("foo", "foo")
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn hover_const_eval_in_generic_trait() {
+    // Doesn't compile, but we shouldn't crash.
+    check(
+        r#"
+trait Trait<T> {
+    const FOO: bool = false;
+}
+struct S<T>(T);
+impl<T> Trait<T> for S<T> {
+    const FOO: bool = true;
+}
+
+fn test() {
+    S::FOO$0;
+}
+"#,
+        expect![[r#"
+            *FOO*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            const FOO: bool = true
+            ```
         "#]],
     );
 }
@@ -3951,7 +4723,7 @@ fn foo(e: E) {
             ```
 
             ```rust
-            A = 3
+            A = 3 // size = 0, align = 1
             ```
 
             ---
@@ -3973,9 +4745,9 @@ fn main() {
             *tile4*
 
             ```rust
-            let tile4: [u32; 8]
+            let tile4: [u32; 8] // size = 32 (0x20), align = 4
             ```
-            "#]],
+        "#]],
     );
 }
 
@@ -4078,7 +4850,7 @@ fn foo() {
 /// [threads]: ../book/ch16-01-threads.html#using-move-closures-with-threads
 mod move_keyword {}
 "#,
-        expect![[r##"
+        expect![[r#"
             *move*
 
             ```rust
@@ -4087,11 +4859,11 @@ mod move_keyword {}
 
             ---
 
-            [closure](https://doc.rust-lang.org/nightly/book/ch13-01-closures.html)
-            [closures](https://doc.rust-lang.org/nightly/book/ch13-01-closures.html)
-            [threads](https://doc.rust-lang.org/nightly/book/ch16-01-threads.html#using-move-closures-with-threads)
+            [closure](https://doc.rust-lang.org/stable/book/ch13-01-closures.html)
+            [closures](https://doc.rust-lang.org/stable/book/ch13-01-closures.html)
+            [threads](https://doc.rust-lang.org/stable/book/ch16-01-threads.html#using-move-closures-with-threads)
             <https://doc.rust-lang.org/nightly/book/ch13-01-closures.html>
-        "##]],
+        "#]],
     );
 }
 
@@ -4124,7 +4896,7 @@ fn hover_builtin() {
     check(
         r#"
 //- /main.rs crate:main deps:std
-cosnt _: &str$0 = ""; }
+const _: &str$0 = ""; }
 
 //- /libstd.rs crate:std
 /// Docs for prim_str
@@ -4189,7 +4961,6 @@ fn main() {
 fn hover_intra_doc_links() {
     check(
         r#"
-
 pub mod theitem {
     /// This is the item. Cool!
     pub struct TheItem;
@@ -4203,20 +4974,20 @@ pub fn gimme() -> theitem::TheItem {
 }
 "#,
         expect![[r#"
-                *[`TheItem`]*
+            *[`TheItem`]*
 
-                ```rust
-                test::theitem
-                ```
+            ```rust
+            test::theitem
+            ```
 
-                ```rust
-                pub struct TheItem
-                ```
+            ```rust
+            pub struct TheItem // size = 0, align = 1
+            ```
 
-                ---
+            ---
 
-                This is the item. Cool!
-            "#]],
+            This is the item. Cool!
+        "#]],
     );
 }
 
@@ -4351,20 +5122,20 @@ mod string {
 }
 "#,
         expect![[r#"
-                *String*
+            *String*
 
-                ```rust
-                main
-                ```
+            ```rust
+            main
+            ```
 
-                ```rust
-                struct String
-                ```
+            ```rust
+            struct String // size = 0, align = 1
+            ```
 
-                ---
+            ---
 
-                Custom `String` type.
-            "#]],
+            Custom `String` type.
+        "#]],
     )
 }
 
@@ -4846,7 +5617,7 @@ fn foo() {
 fn hover_try_expr_res() {
     check_hover_range(
         r#"
-//- minicore:result
+//- minicore: try, from, result
 struct FooError;
 
 fn foo() -> Result<(), FooError> {
@@ -4860,7 +5631,7 @@ fn foo() -> Result<(), FooError> {
     );
     check_hover_range(
         r#"
-//- minicore:result
+//- minicore: try, from, result
 struct FooError;
 struct BarError;
 
@@ -4881,6 +5652,7 @@ fn foo() -> Result<(), FooError> {
 fn hover_try_expr() {
     check_hover_range(
         r#"
+//- minicore: try
 struct NotResult<T, U>(T, U);
 struct Short;
 struct Looooong;
@@ -4898,6 +5670,7 @@ fn foo() -> NotResult<(), Looooong> {
     );
     check_hover_range(
         r#"
+//- minicore: try
 struct NotResult<T, U>(T, U);
 struct Short;
 struct Looooong;
@@ -4929,7 +5702,7 @@ fn foo() -> Option<()> {
 "#,
         expect![[r#"
                 ```rust
-                <Option<i32> as Try>::Output
+                i32
                 ```"#]],
     );
 }
@@ -5025,7 +5798,7 @@ foo_macro!(
             ```
 
             ```rust
-            pub struct Foo
+            pub struct Foo // size = 0, align = 1
             ```
 
             ---
@@ -5040,7 +5813,7 @@ fn hover_intra_in_attr() {
     check(
         r#"
 #[doc = "Doc comment for [`Foo$0`]"]
-pub struct Foo;
+pub struct Foo(i32);
 "#,
         expect![[r#"
             *[`Foo`]*
@@ -5050,7 +5823,7 @@ pub struct Foo;
             ```
 
             ```rust
-            pub struct Foo
+            pub struct Foo // size = 4, align = 4
             ```
 
             ---
@@ -5127,7 +5900,7 @@ pub struct Type;
             ```
 
             ```rust
-            const KONST: dep::Type = $crate::Type
+            const KONST: dep::Type = Type
             ```
         "#]],
     );
@@ -5149,7 +5922,29 @@ enum Enum {
             ```
 
             ```rust
-            RecordV { field: u32 }
+            RecordV { field: u32 } // size = 4, align = 4
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn hover_record_variant_field() {
+    check(
+        r#"
+enum Enum {
+    RecordV { field$0: u32 }
+}
+"#,
+        expect![[r#"
+            *field*
+
+            ```rust
+            test::RecordV
+            ```
+
+            ```rust
+            field: u32 // size = 4, align = 4
             ```
         "#]],
     );
@@ -5303,6 +6098,355 @@ fn main() { $0V; }
             pub static V: i8 = {
               let e = 123;
             }
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn hover_rest_pat() {
+    check(
+        r#"
+struct Struct {a: u32, b: u32, c: u8, d: u16};
+
+fn main() {
+    let Struct {a, c, .$0.} = Struct {a: 1, b: 2, c: 3, d: 4};
+}
+"#,
+        expect![[r#"
+            *..*
+            ```rust
+            .., b: u32, d: u16
+            ```
+        "#]],
+    );
+
+    check(
+        r#"
+struct Struct {a: u32, b: u32, c: u8, d: u16};
+
+fn main() {
+    let Struct {a, b, c, d, .$0.} = Struct {a: 1, b: 2, c: 3, d: 4};
+}
+"#,
+        expect![[r#"
+            *..*
+            ```rust
+            ..
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn hover_underscore_pat() {
+    check(
+        r#"
+fn main() {
+    let _$0 = 0;
+}
+"#,
+        expect![[r#"
+            *_*
+            ```rust
+            i32
+            ```
+        "#]],
+    );
+    check(
+        r#"
+fn main() {
+    let (_$0,) = (0,);
+}
+"#,
+        expect![[r#"
+            *_*
+            ```rust
+            i32
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn hover_underscore_expr() {
+    check(
+        r#"
+fn main() {
+    _$0 = 0;
+}
+"#,
+        expect![[r#"
+            *_*
+            ```rust
+            i32
+            ```
+        "#]],
+    );
+    check(
+        r#"
+fn main() {
+    (_$0,) = (0,);
+}
+"#,
+        expect![[r#"
+            *_*
+            ```rust
+            i32
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn hover_underscore_type() {
+    check_hover_no_result(
+        r#"
+fn main() {
+    let x: _$0 = 0;
+}
+"#,
+    );
+    check_hover_no_result(
+        r#"
+fn main() {
+    let x: (_$0,) = (0,);
+}
+"#,
+    );
+}
+
+#[test]
+fn hover_call_parens() {
+    check(
+        r#"
+fn foo() -> i32 {}
+fn main() {
+    foo($0);
+}
+"#,
+        expect![[r#"
+            *)*
+            ```rust
+            i32
+            ```
+        "#]],
+    );
+    check(
+        r#"
+struct S;
+impl S {
+    fn foo(self) -> i32 {}
+}
+fn main() {
+    S.foo($0);
+}
+"#,
+        expect![[r#"
+            *)*
+            ```rust
+            i32
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn assoc_fn_in_block_local_impl() {
+    check(
+        r#"
+struct S;
+mod m {
+    const _: () = {
+        impl crate::S {
+            pub(crate) fn foo() {}
+        }
+    };
+}
+fn test() {
+    S::foo$0();
+}
+"#,
+        expect![[r#"
+            *foo*
+
+            ```rust
+            test::S
+            ```
+
+            ```rust
+            pub(crate) fn foo()
+            ```
+        "#]],
+    );
+
+    check(
+        r#"
+struct S;
+mod m {
+    const _: () = {
+        const _: () = {
+            impl crate::S {
+                pub(crate) fn foo() {}
+            }
+        };
+    };
+}
+fn test() {
+    S::foo$0();
+}
+"#,
+        expect![[r#"
+            *foo*
+
+            ```rust
+            test::S
+            ```
+
+            ```rust
+            pub(crate) fn foo()
+            ```
+        "#]],
+    );
+
+    check(
+        r#"
+struct S;
+mod m {
+    mod inner {
+        const _: () = {
+            impl crate::S {
+                pub(super) fn foo() {}
+            }
+        };
+    }
+
+    fn test() {
+        crate::S::foo$0();
+    }
+}
+"#,
+        expect![[r#"
+            *foo*
+
+            ```rust
+            test::S
+            ```
+
+            ```rust
+            pub(super) fn foo()
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn assoc_const_in_block_local_impl() {
+    check(
+        r#"
+struct S;
+mod m {
+    const _: () = {
+        impl crate::S {
+            pub(crate) const A: () = ();
+        }
+    };
+}
+fn test() {
+    S::A$0;
+}
+"#,
+        expect![[r#"
+            *A*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            pub(crate) const A: () = ()
+            ```
+        "#]],
+    );
+
+    check(
+        r#"
+struct S;
+mod m {
+    const _: () = {
+        const _: () = {
+            impl crate::S {
+                pub(crate) const A: () = ();
+            }
+        };
+    };
+}
+fn test() {
+    S::A$0;
+}
+"#,
+        expect![[r#"
+            *A*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            pub(crate) const A: () = ()
+            ```
+        "#]],
+    );
+
+    check(
+        r#"
+struct S;
+mod m {
+    mod inner {
+        const _: () = {
+            impl crate::S {
+                pub(super) const A: () = ();
+            }
+        };
+    }
+
+    fn test() {
+        crate::S::A$0;
+    }
+}
+"#,
+        expect![[r#"
+            *A*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            pub(super) const A: () = ()
+            ```
+        "#]],
+    );
+}
+
+#[test]
+fn field_as_method_call_fallback() {
+    check(
+        r#"
+struct S { f: u32 }
+fn test() {
+    S { f: 0 }.f$0();
+}
+"#,
+        expect![[r#"
+            *f*
+
+            ```rust
+            test::S
+            ```
+
+            ```rust
+            f: u32 // size = 4, align = 4, offset = 0
             ```
         "#]],
     );

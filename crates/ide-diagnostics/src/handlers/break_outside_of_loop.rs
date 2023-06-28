@@ -7,10 +7,15 @@ pub(crate) fn break_outside_of_loop(
     ctx: &DiagnosticsContext<'_>,
     d: &hir::BreakOutsideOfLoop,
 ) -> Diagnostic {
-    let construct = if d.is_break { "break" } else { "continue" };
+    let message = if d.bad_value_break {
+        "can't break with a value in this position".to_owned()
+    } else {
+        let construct = if d.is_break { "break" } else { "continue" };
+        format!("{construct} outside of loop")
+    };
     Diagnostic::new(
         "break-outside-of-loop",
-        format!("{construct} outside of loop"),
+        message,
         ctx.sema.diagnostics_display_range(d.expr.clone().map(|it| it.into())).range,
     )
 }
@@ -26,34 +31,8 @@ mod tests {
 fn foo() {
     break;
   //^^^^^ error: break outside of loop
-    break 'a;
-  //^^^^^^^^ error: break outside of loop
     continue;
   //^^^^^^^^ error: continue outside of loop
-    continue 'a;
-  //^^^^^^^^^^^ error: continue outside of loop
-}
-"#,
-        );
-    }
-
-    #[test]
-    fn try_blocks_are_borders() {
-        check_diagnostics(
-            r#"
-fn foo() {
-    'a: loop {
-        try {
-                break;
-              //^^^^^ error: break outside of loop
-                break 'a;
-              //^^^^^^^^ error: break outside of loop
-                continue;
-              //^^^^^^^^ error: continue outside of loop
-                continue 'a;
-              //^^^^^^^^^^^ error: continue outside of loop
-        };
-    }
 }
 "#,
         );
@@ -65,15 +44,11 @@ fn foo() {
             r#"
 fn foo() {
     'a: loop {
-        try {
+        async {
                 break;
               //^^^^^ error: break outside of loop
-                break 'a;
-              //^^^^^^^^ error: break outside of loop
                 continue;
               //^^^^^^^^ error: continue outside of loop
-                continue 'a;
-              //^^^^^^^^^^^ error: continue outside of loop
         };
     }
 }
@@ -87,15 +62,11 @@ fn foo() {
             r#"
 fn foo() {
     'a: loop {
-        try {
+        || {
                 break;
               //^^^^^ error: break outside of loop
-                break 'a;
-              //^^^^^^^^ error: break outside of loop
                 continue;
               //^^^^^^^^ error: continue outside of loop
-                continue 'a;
-              //^^^^^^^^^^^ error: continue outside of loop
         };
     }
 }
@@ -111,10 +82,24 @@ fn foo() {
     'a: loop {
         {
             break;
-            break 'a;
             continue;
-            continue 'a;
         }
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn try_blocks_pass_through() {
+        check_diagnostics(
+            r#"
+fn foo() {
+    'a: loop {
+        try {
+                break;
+                continue;
+        };
     }
 }
 "#,
@@ -129,12 +114,43 @@ fn foo() {
     'a: {
         break;
       //^^^^^ error: break outside of loop
-        break 'a;
         continue;
       //^^^^^^^^ error: continue outside of loop
-        continue 'a;
-      //^^^^^^^^^^^ error: continue outside of loop
     }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn value_break_in_for_loop() {
+        // FIXME: the error is correct, but the message is terrible
+        check_diagnostics(
+            r#"
+//- minicore: iterator
+fn test() {
+    for _ in [()] {
+        break 3;
+           // ^ error: expected (), found i32
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn try_block_desugaring_inside_closure() {
+        // regression test for #14701
+        check_diagnostics(
+            r#"
+//- minicore: option, try
+fn test() {
+    try {
+        || {
+            let x = Some(2);
+            Some(x?)
+        };
+    };
 }
 "#,
         );

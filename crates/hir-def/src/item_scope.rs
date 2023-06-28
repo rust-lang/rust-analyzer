@@ -4,7 +4,7 @@
 use std::collections::hash_map::Entry;
 
 use base_db::CrateId;
-use hir_expand::{name::Name, AstId, MacroCallId};
+use hir_expand::{attrs::AttrId, db::ExpandDatabase, name::Name, AstId, MacroCallId};
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use profile::Count;
@@ -14,8 +14,8 @@ use stdx::format_to;
 use syntax::ast;
 
 use crate::{
-    attr::AttrId, db::DefDatabase, per_ns::PerNs, visibility::Visibility, AdtId, BuiltinType,
-    ConstId, HasModule, ImplId, LocalModuleId, MacroId, ModuleDefId, ModuleId, TraitId,
+    db::DefDatabase, per_ns::PerNs, visibility::Visibility, AdtId, BuiltinType, ConstId,
+    ExternCrateId, HasModule, ImplId, LocalModuleId, MacroId, ModuleDefId, ModuleId, TraitId,
 };
 
 #[derive(Copy, Clone, Debug)]
@@ -50,6 +50,7 @@ pub struct ItemScope {
     unnamed_consts: Vec<ConstId>,
     /// Traits imported via `use Trait as _;`.
     unnamed_trait_imports: FxHashMap<TraitId, Visibility>,
+    extern_crate_decls: Vec<ExternCrateId>,
     /// Macros visible in current module in legacy textual scope
     ///
     /// For macros invoked by an unqualified identifier like `bar!()`, `legacy_macros` will be searched in first.
@@ -96,7 +97,7 @@ pub(crate) enum BuiltinShadowMode {
 /// Legacy macros can only be accessed through special methods like `get_legacy_macros`.
 /// Other methods will only resolve values, types and module scoped macros only.
 impl ItemScope {
-    pub fn entries<'a>(&'a self) -> impl Iterator<Item = (&'a Name, PerNs)> + 'a {
+    pub fn entries(&self) -> impl Iterator<Item = (&Name, PerNs)> + '_ {
         // FIXME: shadowing
         self.types
             .keys()
@@ -159,18 +160,17 @@ impl ItemScope {
     pub(crate) fn name_of(&self, item: ItemInNs) -> Option<(&Name, Visibility)> {
         let (def, mut iter) = match item {
             ItemInNs::Macros(def) => {
-                return self
-                    .macros
-                    .iter()
-                    .find_map(|(name, &(other_def, vis))| (other_def == def).then(|| (name, vis)));
+                return self.macros.iter().find_map(|(name, &(other_def, vis))| {
+                    (other_def == def).then_some((name, vis))
+                });
             }
             ItemInNs::Types(def) => (def, self.types.iter()),
             ItemInNs::Values(def) => (def, self.values.iter()),
         };
-        iter.find_map(|(name, &(other_def, vis))| (other_def == def).then(|| (name, vis)))
+        iter.find_map(|(name, &(other_def, vis))| (other_def == def).then_some((name, vis)))
     }
 
-    pub(crate) fn traits<'a>(&'a self) -> impl Iterator<Item = TraitId> + 'a {
+    pub(crate) fn traits(&self) -> impl Iterator<Item = TraitId> + '_ {
         self.types
             .values()
             .filter_map(|&(def, _)| match def {
@@ -189,7 +189,11 @@ impl ItemScope {
     }
 
     pub(crate) fn define_impl(&mut self, imp: ImplId) {
-        self.impls.push(imp)
+        self.impls.push(imp);
+    }
+
+    pub(crate) fn define_extern_crate_decl(&mut self, extern_crate: ExternCrateId) {
+        self.extern_crate_decls.push(extern_crate);
     }
 
     pub(crate) fn define_unnamed_const(&mut self, konst: ConstId) {
@@ -327,16 +331,12 @@ impl ItemScope {
         changed
     }
 
-    pub(crate) fn resolutions<'a>(&'a self) -> impl Iterator<Item = (Option<Name>, PerNs)> + 'a {
+    pub(crate) fn resolutions(&self) -> impl Iterator<Item = (Option<Name>, PerNs)> + '_ {
         self.entries().map(|(name, res)| (Some(name.clone()), res)).chain(
             self.unnamed_trait_imports
                 .iter()
                 .map(|(tr, vis)| (None, PerNs::types(ModuleDefId::TraitId(*tr), *vis))),
         )
-    }
-
-    pub(crate) fn collect_legacy_macros(&self) -> FxHashMap<Name, SmallVec<[MacroId; 1]>> {
-        self.legacy_macros.clone()
     }
 
     /// Marks everything that is not a procedural macro as private to `this_module`.
@@ -359,12 +359,16 @@ impl ItemScope {
         }
     }
 
-    pub(crate) fn dump(&self, buf: &mut String) {
+    pub(crate) fn dump(&self, db: &dyn ExpandDatabase, buf: &mut String) {
         let mut entries: Vec<_> = self.resolutions().collect();
         entries.sort_by_key(|(name, _)| name.clone());
 
         for (name, def) in entries {
-            format_to!(buf, "{}:", name.map_or("_".to_string(), |name| name.to_string()));
+            format_to!(
+                buf,
+                "{}:",
+                name.map_or("_".to_string(), |name| name.display(db).to_string())
+            );
 
             if def.types.is_some() {
                 buf.push_str(" t");
@@ -398,6 +402,7 @@ impl ItemScope {
             legacy_macros,
             attr_macros,
             derive_macros,
+            extern_crate_decls,
         } = self;
         types.shrink_to_fit();
         values.shrink_to_fit();
@@ -410,6 +415,7 @@ impl ItemScope {
         legacy_macros.shrink_to_fit();
         attr_macros.shrink_to_fit();
         derive_macros.shrink_to_fit();
+        extern_crate_decls.shrink_to_fit();
     }
 }
 
@@ -432,6 +438,7 @@ impl PerNs {
             ModuleDefId::EnumVariantId(_) => PerNs::both(def, def, v),
             ModuleDefId::ConstId(_) | ModuleDefId::StaticId(_) => PerNs::values(def, v),
             ModuleDefId::TraitId(_) => PerNs::types(def, v),
+            ModuleDefId::TraitAliasId(_) => PerNs::types(def, v),
             ModuleDefId::TypeAliasId(_) => PerNs::types(def, v),
             ModuleDefId::BuiltinType(_) => PerNs::types(def, v),
             ModuleDefId::MacroId(mac) => PerNs::macros(mac, v),

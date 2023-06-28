@@ -1,4 +1,4 @@
-use hir::{db::AstDatabase, InFile};
+use hir::{db::ExpandDatabase, InFile};
 use ide_db::source_change::SourceChange;
 use syntax::{
     ast::{self, HasArgList},
@@ -28,7 +28,7 @@ fn fixes(
     ctx: &DiagnosticsContext<'_>,
     d: &hir::ReplaceFilterMapNextWithFindMap,
 ) -> Option<Vec<Assist>> {
-    let root = ctx.sema.db.parse_or_expand(d.file)?;
+    let root = ctx.sema.db.parse_or_expand(d.file);
     let next_expr = d.next_expr.to_node(&root);
     let next_call = ast::MethodCallExpr::cast(next_expr.syntax().clone())?;
 
@@ -55,7 +55,18 @@ fn fixes(
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::{check_diagnostics, check_fix};
+    use crate::{
+        tests::{check_diagnostics_with_config, check_fix},
+        DiagnosticsConfig,
+    };
+
+    #[track_caller]
+    pub(crate) fn check_diagnostics(ra_fixture: &str) {
+        let mut config = DiagnosticsConfig::test_sample();
+        config.disabled.insert("inactive-code".to_string());
+        config.disabled.insert("unresolved-method".to_string());
+        check_diagnostics_with_config(config, ra_fixture)
+    }
 
     #[test]
     fn replace_filter_map_next_with_find_map2() {
@@ -104,7 +115,7 @@ fn foo() {
             r#"
 //- minicore: iterators
 fn foo() {
-    let m = core::iter::repeat(())
+    let mut m = core::iter::repeat(())
         .filter_map(|()| Some(92));
     let n = m.next();
 }

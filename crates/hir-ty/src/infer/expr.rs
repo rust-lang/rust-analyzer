@@ -1,7 +1,6 @@
 //! Type inference for expressions.
 
 use std::{
-    collections::hash_map::Entry,
     iter::{repeat, repeat_with},
     mem,
 };
@@ -10,35 +9,45 @@ use chalk_ir::{
     cast::Cast, fold::Shift, DebruijnIndex, GenericArgData, Mutability, TyVariableKind,
 };
 use hir_def::{
-    expr::{ArithOp, Array, BinaryOp, CmpOp, Expr, ExprId, LabelId, Literal, Statement, UnaryOp},
     generics::TypeOrConstParamData,
+    hir::{
+        ArithOp, Array, BinaryOp, ClosureKind, Expr, ExprId, LabelId, Literal, Statement, UnaryOp,
+    },
+    lang_item::{LangItem, LangItemTarget},
     path::{GenericArg, GenericArgs},
-    resolver::resolver_for_expr,
-    ConstParamId, FieldId, ItemContainerId, Lookup,
+    BlockId, ConstParamId, FieldId, ItemContainerId, Lookup,
 };
-use hir_expand::name::Name;
+use hir_expand::name::{name, Name};
 use stdx::always;
 use syntax::ast::RangeOp;
+use triomphe::Arc;
 
 use crate::{
-    autoderef::{self, Autoderef},
+    autoderef::{builtin_deref, deref_by_trait, Autoderef},
     consteval,
-    infer::{coerce::CoerceMany, find_continuable, BreakableKind},
+    infer::{
+        coerce::{CoerceMany, CoercionCause},
+        find_continuable,
+        pat::contains_explicit_ref_binding,
+        BreakableKind,
+    },
+    lang_items::lang_items_for_bin_op,
     lower::{
         const_or_path_to_chalk, generic_arg_to_chalk, lower_to_chalk_mutability, ParamLoweringMode,
     },
     mapping::{from_chalk, ToChalk},
-    method_resolution::{self, lang_names_for_bin_op, VisibleFromModule},
+    method_resolution::{self, VisibleFromModule},
     primitive::{self, UintTy},
     static_lifetime, to_chalk_trait_id,
+    traits::FnTrait,
     utils::{generics, Generics},
-    AdtId, Binders, CallableDefId, FnPointer, FnSig, FnSubst, Interner, Rawness, Scalar,
-    Substitution, TraitRef, Ty, TyBuilder, TyExt, TyKind,
+    Adjust, Adjustment, AdtId, AutoBorrow, Binders, CallableDefId, FnPointer, FnSig, FnSubst,
+    Interner, Rawness, Scalar, Substitution, TraitRef, Ty, TyBuilder, TyExt, TyKind,
 };
 
 use super::{
-    coerce::auto_deref_adjust_steps, find_breakable, BindingMode, BreakableContext, Diverges,
-    Expectation, InferenceContext, InferenceDiagnostic, TypeMismatch,
+    coerce::auto_deref_adjust_steps, find_breakable, BreakableContext, Diverges, Expectation,
+    InferenceContext, InferenceDiagnostic, TypeMismatch,
 };
 
 impl<'a> InferenceContext<'a> {
@@ -54,6 +63,10 @@ impl<'a> InferenceContext<'a> {
             }
         }
         ty
+    }
+
+    pub(crate) fn infer_expr_no_expect(&mut self, tgt_expr: ExprId) -> Ty {
+        self.infer_expr_inner(tgt_expr, &Expectation::None)
     }
 
     /// Infer type of expression with possibly implicit coerce to the expected type.
@@ -76,109 +89,105 @@ impl<'a> InferenceContext<'a> {
         }
     }
 
+    fn infer_expr_coerce_never(&mut self, expr: ExprId, expected: &Expectation) -> Ty {
+        let ty = self.infer_expr_inner(expr, expected);
+        // While we don't allow *arbitrary* coercions here, we *do* allow
+        // coercions from `!` to `expected`.
+        if ty.is_never() {
+            if let Some(adjustments) = self.result.expr_adjustments.get(&expr) {
+                return if let [Adjustment { kind: Adjust::NeverToAny, target }] = &**adjustments {
+                    target.clone()
+                } else {
+                    self.err_ty()
+                };
+            }
+
+            if let Some(target) = expected.only_has_type(&mut self.table) {
+                self.coerce(Some(expr), &ty, &target)
+                    .expect("never-to-any coercion should always succeed")
+            } else {
+                ty
+            }
+        } else {
+            if let Some(expected_ty) = expected.only_has_type(&mut self.table) {
+                let could_unify = self.unify(&ty, &expected_ty);
+                if !could_unify {
+                    self.result.type_mismatches.insert(
+                        expr.into(),
+                        TypeMismatch { expected: expected_ty, actual: ty.clone() },
+                    );
+                }
+            }
+            ty
+        }
+    }
+
     fn infer_expr_inner(&mut self, tgt_expr: ExprId, expected: &Expectation) -> Ty {
         self.db.unwind_if_cancelled();
 
         let ty = match &self.body[tgt_expr] {
             Expr::Missing => self.err_ty(),
             &Expr::If { condition, then_branch, else_branch } => {
-                self.infer_expr(
+                let expected = &expected.adjust_for_branches(&mut self.table);
+                self.infer_expr_coerce_never(
                     condition,
-                    &Expectation::has_type(TyKind::Scalar(Scalar::Bool).intern(Interner)),
+                    &Expectation::HasType(self.result.standard_types.bool_.clone()),
                 );
 
                 let condition_diverges = mem::replace(&mut self.diverges, Diverges::Maybe);
-                let mut both_arms_diverge = Diverges::Always;
 
-                let result_ty = self.table.new_type_var();
                 let then_ty = self.infer_expr_inner(then_branch, expected);
-                both_arms_diverge &= mem::replace(&mut self.diverges, Diverges::Maybe);
-                let mut coerce = CoerceMany::new(result_ty);
-                coerce.coerce(self, Some(then_branch), &then_ty);
-                let else_ty = match else_branch {
-                    Some(else_branch) => self.infer_expr_inner(else_branch, expected),
-                    None => TyBuilder::unit(),
-                };
-                both_arms_diverge &= self.diverges;
-                // FIXME: create a synthetic `else {}` so we have something to refer to here instead of None?
-                coerce.coerce(self, else_branch, &else_ty);
+                let then_diverges = mem::replace(&mut self.diverges, Diverges::Maybe);
+                let mut coerce = CoerceMany::new(expected.coercion_target_type(&mut self.table));
+                coerce.coerce(self, Some(then_branch), &then_ty, CoercionCause::Expr(then_branch));
+                match else_branch {
+                    Some(else_branch) => {
+                        let else_ty = self.infer_expr_inner(else_branch, expected);
+                        let else_diverges = mem::replace(&mut self.diverges, Diverges::Maybe);
+                        coerce.coerce(
+                            self,
+                            Some(else_branch),
+                            &else_ty,
+                            CoercionCause::Expr(else_branch),
+                        );
+                        self.diverges = condition_diverges | then_diverges & else_diverges;
+                    }
+                    None => {
+                        coerce.coerce_forced_unit(self, CoercionCause::Expr(tgt_expr));
+                        self.diverges = condition_diverges;
+                    }
+                }
 
-                self.diverges = condition_diverges | both_arms_diverge;
-
-                coerce.complete()
+                coerce.complete(self)
             }
             &Expr::Let { pat, expr } => {
                 let input_ty = self.infer_expr(expr, &Expectation::none());
-                self.infer_pat(pat, &input_ty, BindingMode::default());
-                TyKind::Scalar(Scalar::Bool).intern(Interner)
+                self.infer_top_pat(pat, &input_ty);
+                self.result.standard_types.bool_.clone()
             }
-            Expr::Block { statements, tail, label, id: _ } => {
-                let old_resolver = mem::replace(
-                    &mut self.resolver,
-                    resolver_for_expr(self.db.upcast(), self.owner, tgt_expr),
-                );
-                let ty = match label {
-                    Some(_) => {
-                        let break_ty = self.table.new_type_var();
-                        let (breaks, ty) = self.with_breakable_ctx(
-                            BreakableKind::Block,
-                            break_ty.clone(),
-                            *label,
-                            |this| {
-                                this.infer_block(
-                                    tgt_expr,
-                                    statements,
-                                    *tail,
-                                    &Expectation::has_type(break_ty),
-                                )
-                            },
-                        );
-                        breaks.unwrap_or(ty)
-                    }
-                    None => self.infer_block(tgt_expr, statements, *tail, expected),
-                };
-                self.resolver = old_resolver;
-                ty
+            Expr::Block { statements, tail, label, id } => {
+                self.infer_block(tgt_expr, *id, statements, *tail, *label, expected)
             }
-            Expr::Unsafe { body } => self.infer_expr(*body, expected),
-            Expr::Const { body } => {
-                self.with_breakable_ctx(BreakableKind::Border, self.err_ty(), None, |this| {
-                    this.infer_expr(*body, expected)
+            Expr::Unsafe { id, statements, tail } => {
+                self.infer_block(tgt_expr, *id, statements, *tail, None, expected)
+            }
+            Expr::Const(id) => {
+                self.with_breakable_ctx(BreakableKind::Border, None, None, |this| {
+                    let loc = this.db.lookup_intern_anonymous_const(*id);
+                    this.infer_expr(loc.root, expected)
                 })
                 .1
             }
-            Expr::TryBlock { body } => {
-                self.with_breakable_ctx(BreakableKind::Border, self.err_ty(), None, |this| {
-                    let _inner = this.infer_expr(*body, expected);
-                });
-                // FIXME should be std::result::Result<{inner}, _>
-                self.err_ty()
-            }
-            Expr::Async { body } => {
-                let ret_ty = self.table.new_type_var();
-                let prev_diverges = mem::replace(&mut self.diverges, Diverges::Maybe);
-                let prev_ret_ty = mem::replace(&mut self.return_ty, ret_ty.clone());
-
-                let (_, inner_ty) =
-                    self.with_breakable_ctx(BreakableKind::Border, self.err_ty(), None, |this| {
-                        this.infer_expr_coerce(*body, &Expectation::has_type(ret_ty))
-                    });
-
-                self.diverges = prev_diverges;
-                self.return_ty = prev_ret_ty;
-
-                // Use the first type parameter as the output type of future.
-                // existential type AsyncBlockImplTrait<InnerType>: Future<Output = InnerType>
-                let impl_trait_id = crate::ImplTraitId::AsyncBlockTypeImplTrait(self.owner, *body);
-                let opaque_ty_id = self.db.intern_impl_trait_id(impl_trait_id).into();
-                TyKind::OpaqueType(opaque_ty_id, Substitution::from1(Interner, inner_ty))
-                    .intern(Interner)
+            Expr::Async { id, statements, tail } => {
+                self.infer_async_block(tgt_expr, id, statements, tail)
             }
             &Expr::Loop { body, label } => {
+                // FIXME: should be:
+                // let ty = expected.coercion_target_type(&mut self.table);
                 let ty = self.table.new_type_var();
                 let (breaks, ()) =
-                    self.with_breakable_ctx(BreakableKind::Loop, ty, label, |this| {
-                        this.infer_expr(body, &Expectation::has_type(TyBuilder::unit()));
+                    self.with_breakable_ctx(BreakableKind::Loop, Some(ty), label, |this| {
+                        this.infer_expr(body, &Expectation::HasType(TyBuilder::unit()));
                     });
 
                 match breaks {
@@ -186,40 +195,26 @@ impl<'a> InferenceContext<'a> {
                         self.diverges = Diverges::Maybe;
                         breaks
                     }
-                    None => TyKind::Never.intern(Interner),
+                    None => self.result.standard_types.never.clone(),
                 }
             }
             &Expr::While { condition, body, label } => {
-                self.with_breakable_ctx(BreakableKind::Loop, self.err_ty(), label, |this| {
+                self.with_breakable_ctx(BreakableKind::Loop, None, label, |this| {
                     this.infer_expr(
                         condition,
-                        &Expectation::has_type(TyKind::Scalar(Scalar::Bool).intern(Interner)),
+                        &Expectation::HasType(this.result.standard_types.bool_.clone()),
                     );
-                    this.infer_expr(body, &Expectation::has_type(TyBuilder::unit()));
+                    this.infer_expr(body, &Expectation::HasType(TyBuilder::unit()));
                 });
 
                 // the body may not run, so it diverging doesn't mean we diverge
                 self.diverges = Diverges::Maybe;
                 TyBuilder::unit()
             }
-            &Expr::For { iterable, body, pat, label } => {
-                let iterable_ty = self.infer_expr(iterable, &Expectation::none());
-                let pat_ty =
-                    self.resolve_associated_type(iterable_ty, self.resolve_into_iter_item());
-
-                self.infer_pat(pat, &pat_ty, BindingMode::default());
-                self.with_breakable_ctx(BreakableKind::Loop, self.err_ty(), label, |this| {
-                    this.infer_expr(body, &Expectation::has_type(TyBuilder::unit()));
-                });
-
-                // the body may not run, so it diverging doesn't mean we diverge
-                self.diverges = Diverges::Maybe;
-                TyBuilder::unit()
-            }
-            Expr::Closure { body, args, ret_type, arg_types } => {
+            Expr::Closure { body, args, ret_type, arg_types, closure_kind, capture_by: _ } => {
                 assert_eq!(args.len(), arg_types.len());
 
-                let mut sig_tys = Vec::new();
+                let mut sig_tys = Vec::with_capacity(arg_types.len() + 1);
 
                 // collect explicitly written argument types
                 for arg_type in arg_types.iter() {
@@ -235,72 +230,144 @@ impl<'a> InferenceContext<'a> {
                     Some(type_ref) => self.make_ty(type_ref),
                     None => self.table.new_type_var(),
                 };
-                sig_tys.push(ret_ty.clone());
+                if let ClosureKind::Async = closure_kind {
+                    sig_tys.push(self.lower_async_block_type_impl_trait(ret_ty.clone(), *body));
+                } else {
+                    sig_tys.push(ret_ty.clone());
+                }
+
                 let sig_ty = TyKind::Function(FnPointer {
                     num_binders: 0,
                     sig: FnSig { abi: (), safety: chalk_ir::Safety::Safe, variadic: false },
                     substitution: FnSubst(
-                        Substitution::from_iter(Interner, sig_tys.clone()).shifted_in(Interner),
+                        Substitution::from_iter(Interner, sig_tys.iter().cloned())
+                            .shifted_in(Interner),
                     ),
                 })
                 .intern(Interner);
-                let closure_id = self.db.intern_closure((self.owner, tgt_expr)).into();
-                let closure_ty =
-                    TyKind::Closure(closure_id, Substitution::from1(Interner, sig_ty.clone()))
+
+                let (id, ty, resume_yield_tys) = match closure_kind {
+                    ClosureKind::Generator(_) => {
+                        // FIXME: report error when there are more than 1 parameter.
+                        let resume_ty = match sig_tys.first() {
+                            // When `sig_tys.len() == 1` the first type is the return type, not the
+                            // first parameter type.
+                            Some(ty) if sig_tys.len() > 1 => ty.clone(),
+                            _ => self.result.standard_types.unit.clone(),
+                        };
+                        let yield_ty = self.table.new_type_var();
+
+                        let subst = TyBuilder::subst_for_generator(self.db, self.owner)
+                            .push(resume_ty.clone())
+                            .push(yield_ty.clone())
+                            .push(ret_ty.clone())
+                            .build();
+
+                        let generator_id = self.db.intern_generator((self.owner, tgt_expr)).into();
+                        let generator_ty = TyKind::Generator(generator_id, subst).intern(Interner);
+
+                        (None, generator_ty, Some((resume_ty, yield_ty)))
+                    }
+                    ClosureKind::Closure | ClosureKind::Async => {
+                        let closure_id = self.db.intern_closure((self.owner, tgt_expr)).into();
+                        let closure_ty = TyKind::Closure(
+                            closure_id,
+                            TyBuilder::subst_for_closure(self.db, self.owner, sig_ty.clone()),
+                        )
                         .intern(Interner);
+                        self.deferred_closures.entry(closure_id).or_default();
+                        if let Some(c) = self.current_closure {
+                            self.closure_dependencies.entry(c).or_default().push(closure_id);
+                        }
+                        (Some(closure_id), closure_ty, None)
+                    }
+                };
 
                 // Eagerly try to relate the closure type with the expected
                 // type, otherwise we often won't have enough information to
                 // infer the body.
-                self.deduce_closure_type_from_expectations(
-                    tgt_expr,
-                    &closure_ty,
-                    &sig_ty,
-                    expected,
-                );
+                self.deduce_closure_type_from_expectations(tgt_expr, &ty, &sig_ty, expected);
 
                 // Now go through the argument patterns
-                for (arg_pat, arg_ty) in args.iter().zip(sig_tys) {
-                    self.infer_pat(*arg_pat, &arg_ty, BindingMode::default());
+                for (arg_pat, arg_ty) in args.iter().zip(&sig_tys) {
+                    self.infer_top_pat(*arg_pat, &arg_ty);
                 }
 
+                // FIXME: lift these out into a struct
                 let prev_diverges = mem::replace(&mut self.diverges, Diverges::Maybe);
+                let prev_closure = mem::replace(&mut self.current_closure, id);
                 let prev_ret_ty = mem::replace(&mut self.return_ty, ret_ty.clone());
+                let prev_ret_coercion =
+                    mem::replace(&mut self.return_coercion, Some(CoerceMany::new(ret_ty)));
+                let prev_resume_yield_tys =
+                    mem::replace(&mut self.resume_yield_tys, resume_yield_tys);
 
-                self.with_breakable_ctx(BreakableKind::Border, self.err_ty(), None, |this| {
-                    this.infer_expr_coerce(*body, &Expectation::has_type(ret_ty));
+                self.with_breakable_ctx(BreakableKind::Border, None, None, |this| {
+                    this.infer_return(*body);
                 });
 
                 self.diverges = prev_diverges;
                 self.return_ty = prev_ret_ty;
+                self.return_coercion = prev_ret_coercion;
+                self.current_closure = prev_closure;
+                self.resume_yield_tys = prev_resume_yield_tys;
 
-                closure_ty
+                ty
             }
             Expr::Call { callee, args, .. } => {
                 let callee_ty = self.infer_expr(*callee, &Expectation::none());
                 let mut derefs = Autoderef::new(&mut self.table, callee_ty.clone());
-                let mut res = None;
-                let mut derefed_callee = callee_ty.clone();
-                // manual loop to be able to access `derefs.table`
-                while let Some((callee_deref_ty, _)) = derefs.next() {
-                    res = derefs.table.callable_sig(&callee_deref_ty, args.len());
-                    if res.is_some() {
-                        derefed_callee = callee_deref_ty;
-                        break;
+                let (res, derefed_callee) = 'b: {
+                    // manual loop to be able to access `derefs.table`
+                    while let Some((callee_deref_ty, _)) = derefs.next() {
+                        let res = derefs.table.callable_sig(&callee_deref_ty, args.len());
+                        if res.is_some() {
+                            break 'b (res, callee_deref_ty);
+                        }
                     }
-                }
+                    (None, callee_ty.clone())
+                };
                 // if the function is unresolved, we use is_varargs=true to
                 // suppress the arg count diagnostic here
                 let is_varargs =
                     derefed_callee.callable_sig(self.db).map_or(false, |sig| sig.is_varargs)
                         || res.is_none();
                 let (param_tys, ret_ty) = match res {
-                    Some(res) => {
-                        let adjustments = auto_deref_adjust_steps(&derefs);
+                    Some((func, params, ret_ty)) => {
+                        let mut adjustments = auto_deref_adjust_steps(&derefs);
+                        if let TyKind::Closure(c, _) =
+                            self.table.resolve_completely(callee_ty.clone()).kind(Interner)
+                        {
+                            if let Some(par) = self.current_closure {
+                                self.closure_dependencies.entry(par).or_default().push(*c);
+                            }
+                            self.deferred_closures.entry(*c).or_default().push((
+                                derefed_callee.clone(),
+                                callee_ty.clone(),
+                                params.clone(),
+                                tgt_expr,
+                            ));
+                        }
+                        if let Some(fn_x) = func {
+                            self.write_fn_trait_method_resolution(
+                                fn_x,
+                                &derefed_callee,
+                                &mut adjustments,
+                                &callee_ty,
+                                &params,
+                                tgt_expr,
+                            );
+                        }
                         self.write_expr_adj(*callee, adjustments);
-                        res
+                        (params, ret_ty)
                     }
-                    None => (Vec::new(), self.err_ty()), // FIXME diagnostic
+                    None => {
+                        self.result.diagnostics.push(InferenceDiagnostic::ExpectedFunction {
+                            call_expr: tgt_expr,
+                            found: callee_ty.clone(),
+                        });
+                        (Vec::new(), self.err_ty())
+                    }
                 };
                 let indices_to_skip = self.check_legacy_const_generics(derefed_callee, args);
                 self.register_obligations_for_call(&callee_ty);
@@ -333,101 +400,132 @@ impl<'a> InferenceContext<'a> {
             Expr::Match { expr, arms } => {
                 let input_ty = self.infer_expr(*expr, &Expectation::none());
 
-                let expected = expected.adjust_for_branches(&mut self.table);
-
-                let result_ty = if arms.is_empty() {
-                    TyKind::Never.intern(Interner)
+                if arms.is_empty() {
+                    self.diverges = Diverges::Always;
+                    self.result.standard_types.never.clone()
                 } else {
-                    match &expected {
-                        Expectation::HasType(ty) => ty.clone(),
+                    let matchee_diverges = mem::replace(&mut self.diverges, Diverges::Maybe);
+                    let mut all_arms_diverge = Diverges::Always;
+                    for arm in arms.iter() {
+                        let input_ty = self.resolve_ty_shallow(&input_ty);
+                        self.infer_top_pat(arm.pat, &input_ty);
+                    }
+
+                    let expected = expected.adjust_for_branches(&mut self.table);
+                    let result_ty = match &expected {
+                        // We don't coerce to `()` so that if the match expression is a
+                        // statement it's branches can have any consistent type.
+                        Expectation::HasType(ty) if *ty != self.result.standard_types.unit => {
+                            ty.clone()
+                        }
                         _ => self.table.new_type_var(),
+                    };
+                    let mut coerce = CoerceMany::new(result_ty);
+
+                    for arm in arms.iter() {
+                        if let Some(guard_expr) = arm.guard {
+                            self.diverges = Diverges::Maybe;
+                            self.infer_expr_coerce_never(
+                                guard_expr,
+                                &Expectation::HasType(self.result.standard_types.bool_.clone()),
+                            );
+                        }
+                        self.diverges = Diverges::Maybe;
+
+                        let arm_ty = self.infer_expr_inner(arm.expr, &expected);
+                        all_arms_diverge &= self.diverges;
+                        coerce.coerce(self, Some(arm.expr), &arm_ty, CoercionCause::Expr(arm.expr));
                     }
-                };
-                let mut coerce = CoerceMany::new(result_ty);
 
-                let matchee_diverges = self.diverges;
-                let mut all_arms_diverge = Diverges::Always;
+                    self.diverges = matchee_diverges | all_arms_diverge;
 
-                for arm in arms.iter() {
-                    self.diverges = Diverges::Maybe;
-                    let _pat_ty = self.infer_pat(arm.pat, &input_ty, BindingMode::default());
-                    if let Some(guard_expr) = arm.guard {
-                        self.infer_expr(
-                            guard_expr,
-                            &Expectation::has_type(TyKind::Scalar(Scalar::Bool).intern(Interner)),
-                        );
-                    }
-
-                    let arm_ty = self.infer_expr_inner(arm.expr, &expected);
-                    all_arms_diverge &= self.diverges;
-                    coerce.coerce(self, Some(arm.expr), &arm_ty);
+                    coerce.complete(self)
                 }
-
-                self.diverges = matchee_diverges | all_arms_diverge;
-
-                coerce.complete()
             }
             Expr::Path(p) => {
-                // FIXME this could be more efficient...
-                let resolver = resolver_for_expr(self.db.upcast(), self.owner, tgt_expr);
-                self.infer_path(&resolver, p, tgt_expr.into()).unwrap_or_else(|| self.err_ty())
+                let g = self.resolver.update_to_inner_scope(self.db.upcast(), self.owner, tgt_expr);
+                let ty = self.infer_path(p, tgt_expr.into()).unwrap_or_else(|| self.err_ty());
+                self.resolver.reset_to_guard(g);
+                ty
             }
-            Expr::Continue { label } => {
-                if let None = find_continuable(&mut self.breakables, label.as_ref()) {
+            &Expr::Continue { label } => {
+                if let None = find_continuable(&mut self.breakables, label) {
                     self.push_diagnostic(InferenceDiagnostic::BreakOutsideOfLoop {
                         expr: tgt_expr,
                         is_break: false,
+                        bad_value_break: false,
                     });
                 };
-                TyKind::Never.intern(Interner)
+                self.result.standard_types.never.clone()
             }
-            Expr::Break { expr, label } => {
-                let val_ty = if let Some(expr) = *expr {
-                    self.infer_expr(expr, &Expectation::none())
+            &Expr::Break { expr, label } => {
+                let val_ty = if let Some(expr) = expr {
+                    let opt_coerce_to = match find_breakable(&mut self.breakables, label) {
+                        Some(ctxt) => match &ctxt.coerce {
+                            Some(coerce) => coerce.expected_ty(),
+                            None => {
+                                self.push_diagnostic(InferenceDiagnostic::BreakOutsideOfLoop {
+                                    expr: tgt_expr,
+                                    is_break: true,
+                                    bad_value_break: true,
+                                });
+                                self.err_ty()
+                            }
+                        },
+                        None => self.err_ty(),
+                    };
+                    self.infer_expr_inner(expr, &Expectation::HasType(opt_coerce_to))
                 } else {
                     TyBuilder::unit()
                 };
 
-                match find_breakable(&mut self.breakables, label.as_ref()) {
-                    Some(ctxt) => {
-                        // avoiding the borrowck
-                        let mut coerce = mem::replace(
-                            &mut ctxt.coerce,
-                            CoerceMany::new(self.result.standard_types.unknown.clone()),
-                        );
+                match find_breakable(&mut self.breakables, label) {
+                    Some(ctxt) => match ctxt.coerce.take() {
+                        Some(mut coerce) => {
+                            let cause = match expr {
+                                Some(expr) => CoercionCause::Expr(expr),
+                                None => CoercionCause::Expr(tgt_expr),
+                            };
+                            coerce.coerce(self, expr, &val_ty, cause);
 
-                        // FIXME: create a synthetic `()` during lowering so we have something to refer to here?
-                        coerce.coerce(self, *expr, &val_ty);
-
-                        let ctxt = find_breakable(&mut self.breakables, label.as_ref())
-                            .expect("breakable stack changed during coercion");
-                        ctxt.coerce = coerce;
-                        ctxt.may_break = true;
-                    }
+                            // Avoiding borrowck
+                            let ctxt = find_breakable(&mut self.breakables, label)
+                                .expect("breakable stack changed during coercion");
+                            ctxt.may_break = true;
+                            ctxt.coerce = Some(coerce);
+                        }
+                        None => ctxt.may_break = true,
+                    },
                     None => {
                         self.push_diagnostic(InferenceDiagnostic::BreakOutsideOfLoop {
                             expr: tgt_expr,
                             is_break: true,
+                            bad_value_break: false,
                         });
                     }
                 }
-                TyKind::Never.intern(Interner)
+                self.result.standard_types.never.clone()
             }
-            Expr::Return { expr } => {
-                if let Some(expr) = expr {
-                    self.infer_expr_coerce(*expr, &Expectation::has_type(self.return_ty.clone()));
-                } else {
-                    let unit = TyBuilder::unit();
-                    let _ = self.coerce(Some(tgt_expr), &unit, &self.return_ty.clone());
-                }
-                TyKind::Never.intern(Interner)
-            }
+            &Expr::Return { expr } => self.infer_expr_return(tgt_expr, expr),
             Expr::Yield { expr } => {
-                // FIXME: track yield type for coercion
-                if let Some(expr) = expr {
-                    self.infer_expr(*expr, &Expectation::none());
+                if let Some((resume_ty, yield_ty)) = self.resume_yield_tys.clone() {
+                    if let Some(expr) = expr {
+                        self.infer_expr_coerce(*expr, &Expectation::has_type(yield_ty));
+                    } else {
+                        let unit = self.result.standard_types.unit.clone();
+                        let _ = self.coerce(Some(tgt_expr), &unit, &yield_ty);
+                    }
+                    resume_ty
+                } else {
+                    // FIXME: report error (yield expr in non-generator)
+                    self.result.standard_types.unknown.clone()
                 }
-                TyKind::Never.intern(Interner)
+            }
+            Expr::Yeet { expr } => {
+                if let &Some(expr) = expr {
+                    self.infer_expr_no_expect(expr);
+                }
+                self.result.standard_types.never.clone()
             }
             Expr::RecordLit { path, fields, spread, .. } => {
                 let (ty, def_id) = self.resolve_variant(path.as_deref(), false);
@@ -459,6 +557,9 @@ impl<'a> InferenceContext<'a> {
                     let field_ty = field_def.map_or(self.err_ty(), |it| {
                         field_types[it.local_id].clone().substitute(Interner, &substs)
                     });
+                    // Field type might have some unknown types
+                    // FIXME: we may want to emit a single type variable for all instance of type fields?
+                    let field_ty = self.insert_type_vars(field_ty);
                     self.infer_expr_coerce(field.expr, &Expectation::has_type(field_ty));
                 }
                 if let Some(expr) = spread {
@@ -466,78 +567,23 @@ impl<'a> InferenceContext<'a> {
                 }
                 ty
             }
-            Expr::Field { expr, name } => {
-                let receiver_ty = self.infer_expr_inner(*expr, &Expectation::none());
-
-                let mut autoderef = Autoderef::new(&mut self.table, receiver_ty);
-                let ty = autoderef.by_ref().find_map(|(derefed_ty, _)| {
-                    let (field_id, parameters) = match derefed_ty.kind(Interner) {
-                        TyKind::Tuple(_, substs) => {
-                            return name.as_tuple_index().and_then(|idx| {
-                                substs
-                                    .as_slice(Interner)
-                                    .get(idx)
-                                    .map(|a| a.assert_ty_ref(Interner))
-                                    .cloned()
-                            });
-                        }
-                        TyKind::Adt(AdtId(hir_def::AdtId::StructId(s)), parameters) => {
-                            let local_id = self.db.struct_data(*s).variant_data.field(name)?;
-                            let field = FieldId { parent: (*s).into(), local_id };
-                            (field, parameters.clone())
-                        }
-                        TyKind::Adt(AdtId(hir_def::AdtId::UnionId(u)), parameters) => {
-                            let local_id = self.db.union_data(*u).variant_data.field(name)?;
-                            let field = FieldId { parent: (*u).into(), local_id };
-                            (field, parameters.clone())
-                        }
-                        _ => return None,
-                    };
-                    let is_visible = self.db.field_visibilities(field_id.parent)[field_id.local_id]
-                        .is_visible_from(self.db.upcast(), self.resolver.module());
-                    if !is_visible {
-                        // Write down the first field resolution even if it is not visible
-                        // This aids IDE features for private fields like goto def and in
-                        // case of autoderef finding an applicable field, this will be
-                        // overwritten in a following cycle
-                        if let Entry::Vacant(entry) = self.result.field_resolutions.entry(tgt_expr)
-                        {
-                            entry.insert(field_id);
-                        }
-                        return None;
-                    }
-                    // can't have `write_field_resolution` here because `self.table` is borrowed :(
-                    self.result.field_resolutions.insert(tgt_expr, field_id);
-                    let ty = self.db.field_types(field_id.parent)[field_id.local_id]
-                        .clone()
-                        .substitute(Interner, &parameters);
-                    Some(ty)
-                });
-                let ty = match ty {
-                    Some(ty) => {
-                        let adjustments = auto_deref_adjust_steps(&autoderef);
-                        self.write_expr_adj(*expr, adjustments);
-                        let ty = self.insert_type_vars(ty);
-                        let ty = self.normalize_associated_types_in(ty);
-                        ty
-                    }
-                    _ => self.err_ty(),
-                };
-                ty
-            }
+            Expr::Field { expr, name } => self.infer_field_access(tgt_expr, *expr, name),
             Expr::Await { expr } => {
                 let inner_ty = self.infer_expr_inner(*expr, &Expectation::none());
                 self.resolve_associated_type(inner_ty, self.resolve_future_future_output())
             }
-            Expr::Try { expr } => {
-                let inner_ty = self.infer_expr_inner(*expr, &Expectation::none());
-                self.resolve_associated_type(inner_ty, self.resolve_ops_try_ok())
-            }
             Expr::Cast { expr, type_ref } => {
-                // FIXME: propagate the "castable to" expectation (and find a test case that shows this is necessary)
-                let _inner_ty = self.infer_expr_inner(*expr, &Expectation::none());
                 let cast_ty = self.make_ty(type_ref);
-                // FIXME check the cast...
+                // FIXME: propagate the "castable to" expectation
+                let inner_ty = self.infer_expr_no_expect(*expr);
+                match (inner_ty.kind(Interner), cast_ty.kind(Interner)) {
+                    (TyKind::Ref(_, _, inner), TyKind::Raw(_, cast)) => {
+                        // FIXME: record invalid cast diagnostic in case of mismatch
+                        self.unify(inner, cast);
+                    }
+                    // FIXME check the other kinds of cast...
+                    _ => (),
+                }
                 cast_ty
             }
             Expr::Ref { expr, rawness, mutability } => {
@@ -555,7 +601,7 @@ impl<'a> InferenceContext<'a> {
                         // FIXME: record type error - expected reference but found ptr,
                         // which cannot be coerced
                     }
-                    Expectation::rvalue_hint(&mut self.table, Ty::clone(exp_inner))
+                    Expectation::rvalue_hint(self, Ty::clone(exp_inner))
                 } else {
                     Expectation::none()
                 };
@@ -570,9 +616,28 @@ impl<'a> InferenceContext<'a> {
             Expr::UnaryOp { expr, op } => {
                 let inner_ty = self.infer_expr_inner(*expr, &Expectation::none());
                 let inner_ty = self.resolve_ty_shallow(&inner_ty);
+                // FIXME: Note down method resolution her
                 match op {
                     UnaryOp::Deref => {
-                        autoderef::deref(&mut self.table, inner_ty).unwrap_or_else(|| self.err_ty())
+                        if let Some(deref_trait) = self.resolve_lang_trait(LangItem::Deref) {
+                            if let Some(deref_fn) =
+                                self.db.trait_data(deref_trait).method_by_name(&name![deref])
+                            {
+                                // FIXME: this is wrong in multiple ways, subst is empty, and we emit it even for builtin deref (note that
+                                // the mutability is not wrong, and will be fixed in `self.infer_mut`).
+                                self.write_method_resolution(
+                                    tgt_expr,
+                                    deref_fn,
+                                    Substitution::empty(Interner),
+                                );
+                            }
+                        }
+                        if let Some(derefed) = builtin_deref(&mut self.table, &inner_ty, true) {
+                            self.resolve_ty_shallow(derefed)
+                        } else {
+                            deref_by_trait(&mut self.table, inner_ty)
+                                .unwrap_or_else(|| self.err_ty())
+                        }
                     }
                     UnaryOp::Neg => {
                         match inner_ty.kind(Interner) {
@@ -679,19 +744,30 @@ impl<'a> InferenceContext<'a> {
                 let base_ty = self.infer_expr_inner(*base, &Expectation::none());
                 let index_ty = self.infer_expr(*index, &Expectation::none());
 
-                if let Some(index_trait) = self.resolve_ops_index() {
+                if let Some(index_trait) = self.resolve_lang_trait(LangItem::Index) {
                     let canonicalized = self.canonicalize(base_ty.clone());
                     let receiver_adjustments = method_resolution::resolve_indexing_op(
                         self.db,
-                        self.trait_env.clone(),
+                        self.table.trait_env.clone(),
                         canonicalized.value,
                         index_trait,
                     );
-                    let (self_ty, adj) = receiver_adjustments
+                    let (self_ty, mut adj) = receiver_adjustments
                         .map_or((self.err_ty(), Vec::new()), |adj| {
                             adj.apply(&mut self.table, base_ty)
                         });
+                    // mutability will be fixed up in `InferenceContext::infer_mut`;
+                    adj.push(Adjustment::borrow(Mutability::Not, self_ty.clone()));
                     self.write_expr_adj(*base, adj);
+                    if let Some(func) =
+                        self.db.trait_data(index_trait).method_by_name(&name!(index))
+                    {
+                        let substs = TyBuilder::subst_for_def(self.db, index_trait, None)
+                            .push(self_ty.clone())
+                            .push(index_ty.clone())
+                            .build();
+                        self.write_method_resolution(tgt_expr, func, substs);
+                    }
                     self.resolve_associated_type_with_params(
                         self_ty,
                         self.resolve_ops_index_output(),
@@ -722,51 +798,9 @@ impl<'a> InferenceContext<'a> {
 
                 TyKind::Tuple(tys.len(), Substitution::from_iter(Interner, tys)).intern(Interner)
             }
-            Expr::Array(array) => {
-                let elem_ty =
-                    match expected.to_option(&mut self.table).as_ref().map(|t| t.kind(Interner)) {
-                        Some(TyKind::Array(st, _) | TyKind::Slice(st)) => st.clone(),
-                        _ => self.table.new_type_var(),
-                    };
-                let mut coerce = CoerceMany::new(elem_ty.clone());
-
-                let expected = Expectation::has_type(elem_ty.clone());
-                let len = match array {
-                    Array::ElementList { elements, .. } => {
-                        for &expr in elements.iter() {
-                            let cur_elem_ty = self.infer_expr_inner(expr, &expected);
-                            coerce.coerce(self, Some(expr), &cur_elem_ty);
-                        }
-                        consteval::usize_const(Some(elements.len() as u128))
-                    }
-                    &Array::Repeat { initializer, repeat } => {
-                        self.infer_expr_coerce(initializer, &Expectation::has_type(elem_ty));
-                        self.infer_expr(
-                            repeat,
-                            &Expectation::has_type(
-                                TyKind::Scalar(Scalar::Uint(UintTy::Usize)).intern(Interner),
-                            ),
-                        );
-
-                        if let Some(g_def) = self.owner.as_generic_def_id() {
-                            let generics = generics(self.db.upcast(), g_def);
-                            consteval::eval_to_const(
-                                repeat,
-                                ParamLoweringMode::Placeholder,
-                                self,
-                                || generics,
-                                DebruijnIndex::INNERMOST,
-                            )
-                        } else {
-                            consteval::usize_const(None)
-                        }
-                    }
-                };
-
-                TyKind::Array(coerce.complete(), len).intern(Interner)
-            }
+            Expr::Array(array) => self.infer_expr_array(array, expected),
             Expr::Literal(lit) => match lit {
-                Literal::Bool(..) => TyKind::Scalar(Scalar::Bool).intern(Interner),
+                Literal::Bool(..) => self.result.standard_types.bool_.clone(),
                 Literal::String(..) => {
                     TyKind::Ref(Mutability::Not, static_lifetime(), TyKind::Str.intern(Interner))
                         .intern(Interner)
@@ -774,11 +808,29 @@ impl<'a> InferenceContext<'a> {
                 Literal::ByteString(bs) => {
                     let byte_type = TyKind::Scalar(Scalar::Uint(UintTy::U8)).intern(Interner);
 
-                    let len = consteval::usize_const(Some(bs.len() as u128));
+                    let len = consteval::usize_const(
+                        self.db,
+                        Some(bs.len() as u128),
+                        self.resolver.krate(),
+                    );
 
                     let array_type = TyKind::Array(byte_type, len).intern(Interner);
                     TyKind::Ref(Mutability::Not, static_lifetime(), array_type).intern(Interner)
                 }
+                Literal::CString(..) => TyKind::Ref(
+                    Mutability::Not,
+                    static_lifetime(),
+                    self.resolve_lang_item(LangItem::CStr)
+                        .and_then(LangItemTarget::as_struct)
+                        .map_or_else(
+                            || self.err_ty(),
+                            |strukt| {
+                                TyKind::Adt(AdtId(strukt.into()), Substitution::empty(Interner))
+                                    .intern(Interner)
+                            },
+                        ),
+                )
+                .intern(Interner),
                 Literal::Char(..) => TyKind::Scalar(Scalar::Char).intern(Interner),
                 Literal::Int(_v, ty) => match ty {
                     Some(int_ty) => {
@@ -804,9 +856,15 @@ impl<'a> InferenceContext<'a> {
             },
             Expr::Underscore => {
                 // Underscore expressions may only appear in assignee expressions,
-                // which are handled by `infer_assignee_expr()`, so any underscore
-                // expression reaching this branch is an error.
-                self.err_ty()
+                // which are handled by `infer_assignee_expr()`.
+                // Any other underscore expression is an error, we render a specialized diagnostic
+                // to let the user know what type is expected though.
+                let expected = expected.to_option(&mut self.table).unwrap_or_else(|| self.err_ty());
+                self.push_diagnostic(InferenceDiagnostic::TypedHole {
+                    expr: tgt_expr,
+                    expected: expected.clone(),
+                });
+                expected
             }
         };
         // use a new type variable if we got unknown here
@@ -817,6 +875,181 @@ impl<'a> InferenceContext<'a> {
             self.diverges = Diverges::Always;
         }
         ty
+    }
+
+    fn infer_async_block(
+        &mut self,
+        tgt_expr: ExprId,
+        id: &Option<BlockId>,
+        statements: &[Statement],
+        tail: &Option<ExprId>,
+    ) -> Ty {
+        let ret_ty = self.table.new_type_var();
+        let prev_diverges = mem::replace(&mut self.diverges, Diverges::Maybe);
+        let prev_ret_ty = mem::replace(&mut self.return_ty, ret_ty.clone());
+        let prev_ret_coercion =
+            mem::replace(&mut self.return_coercion, Some(CoerceMany::new(ret_ty.clone())));
+
+        let (_, inner_ty) = self.with_breakable_ctx(BreakableKind::Border, None, None, |this| {
+            this.infer_block(tgt_expr, *id, statements, *tail, None, &Expectation::has_type(ret_ty))
+        });
+
+        self.diverges = prev_diverges;
+        self.return_ty = prev_ret_ty;
+        self.return_coercion = prev_ret_coercion;
+
+        self.lower_async_block_type_impl_trait(inner_ty, tgt_expr)
+    }
+
+    pub(crate) fn lower_async_block_type_impl_trait(
+        &mut self,
+        inner_ty: Ty,
+        tgt_expr: ExprId,
+    ) -> Ty {
+        // Use the first type parameter as the output type of future.
+        // existential type AsyncBlockImplTrait<InnerType>: Future<Output = InnerType>
+        let impl_trait_id = crate::ImplTraitId::AsyncBlockTypeImplTrait(self.owner, tgt_expr);
+        let opaque_ty_id = self.db.intern_impl_trait_id(impl_trait_id).into();
+        TyKind::OpaqueType(opaque_ty_id, Substitution::from1(Interner, inner_ty)).intern(Interner)
+    }
+
+    pub(crate) fn write_fn_trait_method_resolution(
+        &mut self,
+        fn_x: FnTrait,
+        derefed_callee: &Ty,
+        adjustments: &mut Vec<Adjustment>,
+        callee_ty: &Ty,
+        params: &Vec<Ty>,
+        tgt_expr: ExprId,
+    ) {
+        match fn_x {
+            FnTrait::FnOnce => (),
+            FnTrait::FnMut => {
+                if let TyKind::Ref(Mutability::Mut, _, inner) = derefed_callee.kind(Interner) {
+                    if adjustments
+                        .last()
+                        .map(|x| matches!(x.kind, Adjust::Borrow(_)))
+                        .unwrap_or(true)
+                    {
+                        // prefer reborrow to move
+                        adjustments
+                            .push(Adjustment { kind: Adjust::Deref(None), target: inner.clone() });
+                        adjustments.push(Adjustment::borrow(Mutability::Mut, inner.clone()))
+                    }
+                } else {
+                    adjustments.push(Adjustment::borrow(Mutability::Mut, derefed_callee.clone()));
+                }
+            }
+            FnTrait::Fn => {
+                if !matches!(derefed_callee.kind(Interner), TyKind::Ref(Mutability::Not, _, _)) {
+                    adjustments.push(Adjustment::borrow(Mutability::Not, derefed_callee.clone()));
+                }
+            }
+        }
+        let Some(trait_) = fn_x.get_id(self.db, self.table.trait_env.krate) else {
+            return;
+        };
+        let trait_data = self.db.trait_data(trait_);
+        if let Some(func) = trait_data.method_by_name(&fn_x.method_name()) {
+            let subst = TyBuilder::subst_for_def(self.db, trait_, None)
+                .push(callee_ty.clone())
+                .push(TyBuilder::tuple_with(params.iter().cloned()))
+                .build();
+            self.write_method_resolution(tgt_expr, func, subst.clone());
+        }
+    }
+
+    fn infer_expr_array(
+        &mut self,
+        array: &Array,
+        expected: &Expectation,
+    ) -> chalk_ir::Ty<Interner> {
+        let elem_ty = match expected.to_option(&mut self.table).as_ref().map(|t| t.kind(Interner)) {
+            Some(TyKind::Array(st, _) | TyKind::Slice(st)) => st.clone(),
+            _ => self.table.new_type_var(),
+        };
+
+        let krate = self.resolver.krate();
+
+        let expected = Expectation::has_type(elem_ty.clone());
+        let (elem_ty, len) = match array {
+            Array::ElementList { elements, .. } if elements.is_empty() => {
+                (elem_ty, consteval::usize_const(self.db, Some(0), krate))
+            }
+            Array::ElementList { elements, .. } => {
+                let mut coerce = CoerceMany::new(elem_ty);
+                for &expr in elements.iter() {
+                    let cur_elem_ty = self.infer_expr_inner(expr, &expected);
+                    coerce.coerce(self, Some(expr), &cur_elem_ty, CoercionCause::Expr(expr));
+                }
+                (
+                    coerce.complete(self),
+                    consteval::usize_const(self.db, Some(elements.len() as u128), krate),
+                )
+            }
+            &Array::Repeat { initializer, repeat } => {
+                self.infer_expr_coerce(initializer, &Expectation::has_type(elem_ty.clone()));
+                let usize = TyKind::Scalar(Scalar::Uint(UintTy::Usize)).intern(Interner);
+                match self.body[repeat] {
+                    Expr::Underscore => {
+                        self.write_expr_ty(repeat, usize);
+                    }
+                    _ => _ = self.infer_expr(repeat, &Expectation::HasType(usize)),
+                }
+
+                (
+                    elem_ty,
+                    if let Some(g_def) = self.owner.as_generic_def_id() {
+                        let generics = generics(self.db.upcast(), g_def);
+                        consteval::eval_to_const(
+                            repeat,
+                            ParamLoweringMode::Placeholder,
+                            self,
+                            || generics,
+                            DebruijnIndex::INNERMOST,
+                        )
+                    } else {
+                        consteval::usize_const(self.db, None, krate)
+                    },
+                )
+            }
+        };
+        // Try to evaluate unevaluated constant, and insert variable if is not possible.
+        let len = self.table.insert_const_vars_shallow(len);
+        TyKind::Array(elem_ty, len).intern(Interner)
+    }
+
+    pub(super) fn infer_return(&mut self, expr: ExprId) {
+        let ret_ty = self
+            .return_coercion
+            .as_mut()
+            .expect("infer_return called outside function body")
+            .expected_ty();
+        let return_expr_ty = self.infer_expr_inner(expr, &Expectation::HasType(ret_ty));
+        let mut coerce_many = self.return_coercion.take().unwrap();
+        coerce_many.coerce(self, Some(expr), &return_expr_ty, CoercionCause::Expr(expr));
+        self.return_coercion = Some(coerce_many);
+    }
+
+    fn infer_expr_return(&mut self, ret: ExprId, expr: Option<ExprId>) -> Ty {
+        match self.return_coercion {
+            Some(_) => {
+                if let Some(expr) = expr {
+                    self.infer_return(expr);
+                } else {
+                    let mut coerce = self.return_coercion.take().unwrap();
+                    coerce.coerce_forced_unit(self, CoercionCause::Expr(ret));
+                    self.return_coercion = Some(coerce);
+                }
+            }
+            None => {
+                // FIXME: diagnose return outside of function
+                if let Some(expr) = expr {
+                    self.infer_expr_no_expect(expr);
+                }
+            }
+        }
+        self.result.standard_types.never.clone()
     }
 
     fn infer_expr_box(&mut self, inner_expr: ExprId, expected: &Expectation) -> Ty {
@@ -830,7 +1063,7 @@ impl<'a> InferenceContext<'a> {
                 .filter(|(e_adt, _)| e_adt == &box_id)
                 .map(|(_, subts)| {
                     let g = subts.at(Interner, 0);
-                    Expectation::rvalue_hint(table, Ty::clone(g.assert_ty_ref(Interner)))
+                    Expectation::rvalue_hint(self, Ty::clone(g.assert_ty_ref(Interner)))
                 })
                 .unwrap_or_else(Expectation::none);
 
@@ -897,14 +1130,17 @@ impl<'a> InferenceContext<'a> {
                     // type and length). This should not be just an error type,
                     // because we are to compute the unifiability of this type and
                     // `rhs_ty` in the end of this function to issue type mismatches.
-                    _ => TyKind::Array(self.err_ty(), crate::consteval::usize_const(None))
-                        .intern(Interner),
+                    _ => TyKind::Array(
+                        self.err_ty(),
+                        crate::consteval::usize_const(self.db, None, self.resolver.krate()),
+                    )
+                    .intern(Interner),
                 }
             }
             Expr::RecordLit { path, fields, .. } => {
                 let subs = fields.iter().map(|f| (f.name.clone(), f.expr));
 
-                self.infer_record_pat_like(path.as_deref(), &rhs_ty, (), lhs.into(), subs)
+                self.infer_record_pat_like(path.as_deref(), &rhs_ty, (), lhs, subs)
             }
             Expr::Underscore => rhs_ty.clone(),
             _ => {
@@ -952,21 +1188,35 @@ impl<'a> InferenceContext<'a> {
         let lhs_ty = self.infer_expr(lhs, &lhs_expectation);
         let rhs_ty = self.table.new_type_var();
 
-        let func = lang_names_for_bin_op(op).and_then(|(name, lang_item)| {
-            self.db.trait_data(self.resolve_lang_item(lang_item)?.as_trait()?).method_by_name(&name)
+        let trait_func = lang_items_for_bin_op(op).and_then(|(name, lang_item)| {
+            let trait_id = self.resolve_lang_item(lang_item)?.as_trait()?;
+            let func = self.db.trait_data(trait_id).method_by_name(&name)?;
+            Some((trait_id, func))
         });
-        let func = match func {
-            Some(func) => func,
+        let (trait_, func) = match trait_func {
+            Some(it) => it,
             None => {
-                let rhs_ty = self.builtin_binary_op_rhs_expectation(op, lhs_ty.clone());
-                let rhs_ty = self.infer_expr_coerce(rhs, &Expectation::from_option(rhs_ty));
-                return self
-                    .builtin_binary_op_return_ty(op, lhs_ty, rhs_ty)
-                    .unwrap_or_else(|| self.err_ty());
+                // HACK: `rhs_ty` is a general inference variable with no clue at all at this
+                // point. Passing `lhs_ty` as both operands just to check if `lhs_ty` is a builtin
+                // type applicable to `op`.
+                let ret_ty = if self.is_builtin_binop(&lhs_ty, &lhs_ty, op) {
+                    // Assume both operands are builtin so we can continue inference. No guarantee
+                    // on the correctness, rustc would complain as necessary lang items don't seem
+                    // to exist anyway.
+                    self.enforce_builtin_binop_types(&lhs_ty, &rhs_ty, op)
+                } else {
+                    self.err_ty()
+                };
+
+                self.infer_expr_coerce(rhs, &Expectation::has_type(rhs_ty));
+
+                return ret_ty;
             }
         };
 
-        let subst = TyBuilder::subst_for_def(self.db, func)
+        // HACK: We can use this substitution for the function because the function itself doesn't
+        // have its own generic parameters.
+        let subst = TyBuilder::subst_for_def(self.db, trait_, None)
             .push(lhs_ty.clone())
             .push(rhs_ty.clone())
             .build();
@@ -978,19 +1228,41 @@ impl<'a> InferenceContext<'a> {
         self.infer_expr_coerce(rhs, &Expectation::has_type(rhs_ty.clone()));
 
         let ret_ty = match method_ty.callable_sig(self.db) {
-            Some(sig) => sig.ret().clone(),
+            Some(sig) => {
+                let p_left = &sig.params()[0];
+                if matches!(op, BinaryOp::CmpOp(..) | BinaryOp::Assignment { .. }) {
+                    if let &TyKind::Ref(mtbl, _, _) = p_left.kind(Interner) {
+                        self.write_expr_adj(
+                            lhs,
+                            vec![Adjustment {
+                                kind: Adjust::Borrow(AutoBorrow::Ref(mtbl)),
+                                target: p_left.clone(),
+                            }],
+                        );
+                    }
+                }
+                let p_right = &sig.params()[1];
+                if matches!(op, BinaryOp::CmpOp(..)) {
+                    if let &TyKind::Ref(mtbl, _, _) = p_right.kind(Interner) {
+                        self.write_expr_adj(
+                            rhs,
+                            vec![Adjustment {
+                                kind: Adjust::Borrow(AutoBorrow::Ref(mtbl)),
+                                target: p_right.clone(),
+                            }],
+                        );
+                    }
+                }
+                sig.ret().clone()
+            }
             None => self.err_ty(),
         };
 
         let ret_ty = self.normalize_associated_types_in(ret_ty);
 
-        // FIXME: record autoref adjustments
-
-        // use knowledge of built-in binary ops, which can sometimes help inference
-        if let Some(builtin_rhs) = self.builtin_binary_op_rhs_expectation(op, lhs_ty.clone()) {
-            self.unify(&builtin_rhs, &rhs_ty);
-        }
-        if let Some(builtin_ret) = self.builtin_binary_op_return_ty(op, lhs_ty, rhs_ty) {
+        if self.is_builtin_binop(&lhs_ty, &rhs_ty, op) {
+            // use knowledge of built-in binary ops, which can sometimes help inference
+            let builtin_ret = self.enforce_builtin_binop_types(&lhs_ty, &rhs_ty, op);
             self.unify(&builtin_ret, &ret_ty);
         }
 
@@ -1000,69 +1272,222 @@ impl<'a> InferenceContext<'a> {
     fn infer_block(
         &mut self,
         expr: ExprId,
+        block_id: Option<BlockId>,
         statements: &[Statement],
         tail: Option<ExprId>,
+        label: Option<LabelId>,
         expected: &Expectation,
     ) -> Ty {
-        for stmt in statements {
-            match stmt {
-                Statement::Let { pat, type_ref, initializer, else_branch } => {
-                    let decl_ty = type_ref
-                        .as_ref()
-                        .map(|tr| self.make_ty(tr))
-                        .unwrap_or_else(|| self.err_ty());
+        let coerce_ty = expected.coercion_target_type(&mut self.table);
+        let g = self.resolver.update_to_inner_scope(self.db.upcast(), self.owner, expr);
+        let prev_env = block_id.map(|block_id| {
+            let prev_env = self.table.trait_env.clone();
+            Arc::make_mut(&mut self.table.trait_env).block = Some(block_id);
+            prev_env
+        });
 
-                    // Always use the declared type when specified
-                    let mut ty = decl_ty.clone();
+        let (break_ty, ty) =
+            self.with_breakable_ctx(BreakableKind::Block, Some(coerce_ty), label, |this| {
+                for stmt in statements {
+                    match stmt {
+                        Statement::Let { pat, type_ref, initializer, else_branch } => {
+                            let decl_ty = type_ref
+                                .as_ref()
+                                .map(|tr| this.make_ty(tr))
+                                .unwrap_or_else(|| this.table.new_type_var());
 
-                    if let Some(expr) = initializer {
-                        let actual_ty =
-                            self.infer_expr_coerce(*expr, &Expectation::has_type(decl_ty.clone()));
-                        if decl_ty.is_unknown() {
-                            ty = actual_ty;
+                            let ty = if let Some(expr) = initializer {
+                                let ty = if contains_explicit_ref_binding(&this.body, *pat) {
+                                    this.infer_expr(*expr, &Expectation::has_type(decl_ty.clone()))
+                                } else {
+                                    this.infer_expr_coerce(
+                                        *expr,
+                                        &Expectation::has_type(decl_ty.clone()),
+                                    )
+                                };
+                                if type_ref.is_some() {
+                                    decl_ty
+                                } else {
+                                    ty
+                                }
+                            } else {
+                                decl_ty
+                            };
+
+                            this.infer_top_pat(*pat, &ty);
+
+                            if let Some(expr) = else_branch {
+                                let previous_diverges =
+                                    mem::replace(&mut this.diverges, Diverges::Maybe);
+                                this.infer_expr_coerce(
+                                    *expr,
+                                    &Expectation::HasType(this.result.standard_types.never.clone()),
+                                );
+                                this.diverges = previous_diverges;
+                            }
+                        }
+                        &Statement::Expr { expr, has_semi } => {
+                            if has_semi {
+                                this.infer_expr(expr, &Expectation::none());
+                            } else {
+                                this.infer_expr_coerce(
+                                    expr,
+                                    &Expectation::HasType(this.result.standard_types.unit.clone()),
+                                );
+                            }
                         }
                     }
+                }
 
-                    if let Some(expr) = else_branch {
-                        self.infer_expr_coerce(
-                            *expr,
-                            &Expectation::has_type(Ty::new(Interner, TyKind::Never)),
-                        );
+                // FIXME: This should make use of the breakable CoerceMany
+                if let Some(expr) = tail {
+                    this.infer_expr_coerce(expr, expected)
+                } else {
+                    // Citing rustc: if there is no explicit tail expression,
+                    // that is typically equivalent to a tail expression
+                    // of `()` -- except if the block diverges. In that
+                    // case, there is no value supplied from the tail
+                    // expression (assuming there are no other breaks,
+                    // this implies that the type of the block will be
+                    // `!`).
+                    if this.diverges.is_always() {
+                        // we don't even make an attempt at coercion
+                        this.table.new_maybe_never_var()
+                    } else if let Some(t) = expected.only_has_type(&mut this.table) {
+                        if this
+                            .coerce(Some(expr), &this.result.standard_types.unit.clone(), &t)
+                            .is_err()
+                        {
+                            this.result.type_mismatches.insert(
+                                expr.into(),
+                                TypeMismatch {
+                                    expected: t.clone(),
+                                    actual: this.result.standard_types.unit.clone(),
+                                },
+                            );
+                        }
+                        t
+                    } else {
+                        this.result.standard_types.unit.clone()
                     }
-
-                    self.infer_pat(*pat, &ty, BindingMode::default());
                 }
-                Statement::Expr { expr, .. } => {
-                    self.infer_expr(*expr, &Expectation::none());
-                }
-            }
+            });
+        self.resolver.reset_to_guard(g);
+        if let Some(prev_env) = prev_env {
+            self.table.trait_env = prev_env;
         }
 
-        if let Some(expr) = tail {
-            self.infer_expr_coerce(expr, expected)
-        } else {
-            // Citing rustc: if there is no explicit tail expression,
-            // that is typically equivalent to a tail expression
-            // of `()` -- except if the block diverges. In that
-            // case, there is no value supplied from the tail
-            // expression (assuming there are no other breaks,
-            // this implies that the type of the block will be
-            // `!`).
-            if self.diverges.is_always() {
-                // we don't even make an attempt at coercion
-                self.table.new_maybe_never_var()
-            } else {
-                if let Some(t) = expected.only_has_type(&mut self.table) {
-                    if self.coerce(Some(expr), &TyBuilder::unit(), &t).is_err() {
-                        self.result.type_mismatches.insert(
-                            expr.into(),
-                            TypeMismatch { expected: t.clone(), actual: TyBuilder::unit() },
-                        );
-                    }
-                    t
-                } else {
-                    TyBuilder::unit()
+        break_ty.unwrap_or(ty)
+    }
+
+    fn lookup_field(
+        &mut self,
+        receiver_ty: &Ty,
+        name: &Name,
+    ) -> Option<(Ty, Option<FieldId>, Vec<Adjustment>, bool)> {
+        let mut autoderef = Autoderef::new(&mut self.table, receiver_ty.clone());
+        let mut private_field = None;
+        let res = autoderef.by_ref().find_map(|(derefed_ty, _)| {
+            let (field_id, parameters) = match derefed_ty.kind(Interner) {
+                TyKind::Tuple(_, substs) => {
+                    return name.as_tuple_index().and_then(|idx| {
+                        substs
+                            .as_slice(Interner)
+                            .get(idx)
+                            .map(|a| a.assert_ty_ref(Interner))
+                            .cloned()
+                            .map(|ty| (None, ty))
+                    });
                 }
+                TyKind::Adt(AdtId(hir_def::AdtId::StructId(s)), parameters) => {
+                    let local_id = self.db.struct_data(*s).variant_data.field(name)?;
+                    let field = FieldId { parent: (*s).into(), local_id };
+                    (field, parameters.clone())
+                }
+                TyKind::Adt(AdtId(hir_def::AdtId::UnionId(u)), parameters) => {
+                    let local_id = self.db.union_data(*u).variant_data.field(name)?;
+                    let field = FieldId { parent: (*u).into(), local_id };
+                    (field, parameters.clone())
+                }
+                _ => return None,
+            };
+            let is_visible = self.db.field_visibilities(field_id.parent)[field_id.local_id]
+                .is_visible_from(self.db.upcast(), self.resolver.module());
+            if !is_visible {
+                if private_field.is_none() {
+                    private_field = Some((field_id, parameters));
+                }
+                return None;
+            }
+            let ty = self.db.field_types(field_id.parent)[field_id.local_id]
+                .clone()
+                .substitute(Interner, &parameters);
+            Some((Some(field_id), ty))
+        });
+
+        Some(match res {
+            Some((field_id, ty)) => {
+                let adjustments = auto_deref_adjust_steps(&autoderef);
+                let ty = self.insert_type_vars(ty);
+                let ty = self.normalize_associated_types_in(ty);
+
+                (ty, field_id, adjustments, true)
+            }
+            None => {
+                let (field_id, subst) = private_field?;
+                let adjustments = auto_deref_adjust_steps(&autoderef);
+                let ty = self.db.field_types(field_id.parent)[field_id.local_id]
+                    .clone()
+                    .substitute(Interner, &subst);
+                let ty = self.insert_type_vars(ty);
+                let ty = self.normalize_associated_types_in(ty);
+
+                (ty, Some(field_id), adjustments, false)
+            }
+        })
+    }
+
+    fn infer_field_access(&mut self, tgt_expr: ExprId, receiver: ExprId, name: &Name) -> Ty {
+        let receiver_ty = self.infer_expr_inner(receiver, &Expectation::none());
+        match self.lookup_field(&receiver_ty, name) {
+            Some((ty, field_id, adjustments, is_public)) => {
+                self.write_expr_adj(receiver, adjustments);
+                if let Some(field_id) = field_id {
+                    self.result.field_resolutions.insert(tgt_expr, field_id);
+                }
+                if !is_public {
+                    if let Some(field) = field_id {
+                        // FIXME: Merge this diagnostic into UnresolvedField?
+                        self.result
+                            .diagnostics
+                            .push(InferenceDiagnostic::PrivateField { expr: tgt_expr, field });
+                    }
+                }
+                ty
+            }
+            None => {
+                // no field found,
+                let method_with_same_name_exists = {
+                    self.get_traits_in_scope();
+
+                    let canonicalized_receiver = self.canonicalize(receiver_ty.clone());
+                    method_resolution::lookup_method(
+                        self.db,
+                        &canonicalized_receiver.value,
+                        self.table.trait_env.clone(),
+                        self.get_traits_in_scope().as_ref().left_or_else(|&it| it),
+                        VisibleFromModule::Filter(self.resolver.module()),
+                        name,
+                    )
+                    .is_some()
+                };
+                self.result.diagnostics.push(InferenceDiagnostic::UnresolvedField {
+                    expr: tgt_expr,
+                    receiver: receiver_ty,
+                    name: name.clone(),
+                    method_with_same_name_exists,
+                });
+                self.err_ty()
             }
         }
     }
@@ -1079,30 +1504,53 @@ impl<'a> InferenceContext<'a> {
         let receiver_ty = self.infer_expr(receiver, &Expectation::none());
         let canonicalized_receiver = self.canonicalize(receiver_ty.clone());
 
-        let traits_in_scope = self.resolver.traits_in_scope(self.db.upcast());
-
         let resolved = method_resolution::lookup_method(
-            &canonicalized_receiver.value,
             self.db,
-            self.trait_env.clone(),
-            &traits_in_scope,
+            &canonicalized_receiver.value,
+            self.table.trait_env.clone(),
+            self.get_traits_in_scope().as_ref().left_or_else(|&it| it),
             VisibleFromModule::Filter(self.resolver.module()),
             method_name,
         );
         let (receiver_ty, method_ty, substs) = match resolved {
-            Some((adjust, func)) => {
+            Some((adjust, func, visible)) => {
                 let (ty, adjustments) = adjust.apply(&mut self.table, receiver_ty);
                 let generics = generics(self.db.upcast(), func.into());
                 let substs = self.substs_for_method_call(generics, generic_args);
                 self.write_expr_adj(receiver, adjustments);
                 self.write_method_resolution(tgt_expr, func, substs.clone());
+                if !visible {
+                    self.push_diagnostic(InferenceDiagnostic::PrivateAssocItem {
+                        id: tgt_expr.into(),
+                        item: func.into(),
+                    })
+                }
                 (ty, self.db.value_ty(func.into()), substs)
             }
-            None => (
-                receiver_ty,
-                Binders::empty(Interner, self.err_ty()),
-                Substitution::empty(Interner),
-            ),
+            None => {
+                let field_with_same_name_exists = match self.lookup_field(&receiver_ty, method_name)
+                {
+                    Some((ty, field_id, adjustments, _public)) => {
+                        self.write_expr_adj(receiver, adjustments);
+                        if let Some(field_id) = field_id {
+                            self.result.field_resolutions.insert(tgt_expr, field_id);
+                        }
+                        Some(ty)
+                    }
+                    None => None,
+                };
+                self.result.diagnostics.push(InferenceDiagnostic::UnresolvedMethodCall {
+                    expr: tgt_expr,
+                    receiver: receiver_ty.clone(),
+                    name: method_name.clone(),
+                    field_with_same_name: field_with_same_name_exists,
+                });
+                (
+                    receiver_ty,
+                    Binders::empty(Interner, self.err_ty()),
+                    Substitution::empty(Interner),
+                )
+            }
         };
         let method_ty = method_ty.substitute(Interner, &substs);
         self.register_obligations_for_call(&method_ty);
@@ -1180,7 +1628,7 @@ impl<'a> InferenceContext<'a> {
         // that are not closures, then we type-check the closures. This is so
         // that we have more information about the types of arguments when we
         // type-check the functions. This isn't really the right way to do this.
-        for &check_closures in &[false, true] {
+        for check_closures in [false, true] {
             let mut skip_indices = skip_indices.into_iter().copied().fuse().peekable();
             let param_iter = param_tys.iter().cloned().chain(repeat(self.err_ty()));
             let expected_iter = expected_inputs
@@ -1210,7 +1658,7 @@ impl<'a> InferenceContext<'a> {
                 // the parameter to coerce to the expected type (for example in
                 // `coerce_unsize_expected_type_4`).
                 let param_ty = self.normalize_associated_types_in(param_ty);
-                let expected = Expectation::rvalue_hint(&mut self.table, expected_ty);
+                let expected = Expectation::rvalue_hint(self, expected_ty);
                 // infer with the expected type we have...
                 let ty = self.infer_expr_inner(arg, &expected);
 
@@ -1223,13 +1671,14 @@ impl<'a> InferenceContext<'a> {
                 } else {
                     param_ty
                 };
-                if !coercion_target.is_unknown() {
-                    if self.coerce(Some(arg), &ty, &coercion_target).is_err() {
-                        self.result.type_mismatches.insert(
-                            arg.into(),
-                            TypeMismatch { expected: coercion_target, actual: ty.clone() },
-                        );
-                    }
+                // The function signature may contain some unknown types, so we need to insert
+                // type vars here to avoid type mismatch false positive.
+                let coercion_target = self.insert_type_vars(coercion_target);
+                if self.coerce(Some(arg), &ty, &coercion_target).is_err() {
+                    self.result.type_mismatches.insert(
+                        arg.into(),
+                        TypeMismatch { expected: coercion_target, actual: ty.clone() },
+                    );
                 }
             }
         }
@@ -1245,19 +1694,7 @@ impl<'a> InferenceContext<'a> {
         assert_eq!(self_params, 0); // method shouldn't have another Self param
         let total_len = parent_params + type_params + const_params + impl_trait_params;
         let mut substs = Vec::with_capacity(total_len);
-        // Parent arguments are unknown
-        for (id, param) in def_generics.iter_parent() {
-            match param {
-                TypeOrConstParamData::TypeParamData(_) => {
-                    substs.push(GenericArgData::Ty(self.table.new_type_var()).intern(Interner));
-                }
-                TypeOrConstParamData::ConstParamData(_) => {
-                    let ty = self.db.const_param_ty(ConstParamId::from_unchecked(id));
-                    substs
-                        .push(GenericArgData::Const(self.table.new_const_var(ty)).intern(Interner));
-                }
-            }
-        }
+
         // handle provided arguments
         if let Some(generic_args) = generic_args {
             // if args are provided, it should be all of them, but we can't rely on that
@@ -1266,7 +1703,7 @@ impl<'a> InferenceContext<'a> {
                 .iter()
                 .filter(|arg| !matches!(arg, GenericArg::Lifetime(_)))
                 .take(type_params + const_params)
-                .zip(def_generics.iter_id().skip(parent_params))
+                .zip(def_generics.iter_id())
             {
                 if let Some(g) = generic_arg_to_chalk(
                     self.db,
@@ -1278,10 +1715,11 @@ impl<'a> InferenceContext<'a> {
                         const_or_path_to_chalk(
                             this.db,
                             &this.resolver,
+                            this.owner.into(),
                             ty,
                             c,
                             ParamLoweringMode::Placeholder,
-                            || generics(this.db.upcast(), (&this.resolver).generic_def().unwrap()),
+                            || generics(this.db.upcast(), this.resolver.generic_def().unwrap()),
                             DebruijnIndex::INNERMOST,
                         )
                     },
@@ -1290,6 +1728,9 @@ impl<'a> InferenceContext<'a> {
                 }
             }
         };
+
+        // Handle everything else as unknown. This also handles generic arguments for the method's
+        // parent (impl or trait), which should come after those for the method.
         for (id, data) in def_generics.iter().skip(substs.len()) {
             match data {
                 TypeOrConstParamData::TypeParamData(_) => {
@@ -1327,9 +1768,13 @@ impl<'a> InferenceContext<'a> {
                 CallableDefId::FunctionId(f) => {
                     if let ItemContainerId::TraitId(trait_) = f.lookup(self.db.upcast()).container {
                         // construct a TraitRef
-                        let substs = crate::subst_prefix(
-                            &*parameters,
-                            generics(self.db.upcast(), trait_.into()).len(),
+                        let params_len = parameters.len(Interner);
+                        let trait_params_len = generics(self.db.upcast(), trait_.into()).len();
+                        let substs = Substitution::from_iter(
+                            Interner,
+                            // The generic parameters for the trait come after those for the
+                            // function.
+                            &parameters.as_slice(Interner)[params_len - trait_params_len..],
                         );
                         self.push_obligation(
                             TraitRef { trait_id: to_chalk_trait_id(trait_), substitution: substs }
@@ -1393,107 +1838,138 @@ impl<'a> InferenceContext<'a> {
         indices
     }
 
-    fn builtin_binary_op_return_ty(&mut self, op: BinaryOp, lhs_ty: Ty, rhs_ty: Ty) -> Option<Ty> {
-        let lhs_ty = self.resolve_ty_shallow(&lhs_ty);
-        let rhs_ty = self.resolve_ty_shallow(&rhs_ty);
-        match op {
-            BinaryOp::LogicOp(_) | BinaryOp::CmpOp(_) => {
-                Some(TyKind::Scalar(Scalar::Bool).intern(Interner))
-            }
-            BinaryOp::Assignment { .. } => Some(TyBuilder::unit()),
-            BinaryOp::ArithOp(ArithOp::Shl | ArithOp::Shr) => {
-                // all integer combinations are valid here
-                if matches!(
-                    lhs_ty.kind(Interner),
-                    TyKind::Scalar(Scalar::Int(_) | Scalar::Uint(_))
-                        | TyKind::InferenceVar(_, TyVariableKind::Integer)
-                ) && matches!(
-                    rhs_ty.kind(Interner),
-                    TyKind::Scalar(Scalar::Int(_) | Scalar::Uint(_))
-                        | TyKind::InferenceVar(_, TyVariableKind::Integer)
-                ) {
-                    Some(lhs_ty)
-                } else {
-                    None
-                }
-            }
-            BinaryOp::ArithOp(_) => match (lhs_ty.kind(Interner), rhs_ty.kind(Interner)) {
-                // (int, int) | (uint, uint) | (float, float)
-                (TyKind::Scalar(Scalar::Int(_)), TyKind::Scalar(Scalar::Int(_)))
-                | (TyKind::Scalar(Scalar::Uint(_)), TyKind::Scalar(Scalar::Uint(_)))
-                | (TyKind::Scalar(Scalar::Float(_)), TyKind::Scalar(Scalar::Float(_))) => {
-                    Some(rhs_ty)
-                }
-                // ({int}, int) | ({int}, uint)
-                (
-                    TyKind::InferenceVar(_, TyVariableKind::Integer),
-                    TyKind::Scalar(Scalar::Int(_) | Scalar::Uint(_)),
-                ) => Some(rhs_ty),
-                // (int, {int}) | (uint, {int})
-                (
-                    TyKind::Scalar(Scalar::Int(_) | Scalar::Uint(_)),
-                    TyKind::InferenceVar(_, TyVariableKind::Integer),
-                ) => Some(lhs_ty),
-                // ({float} | float)
-                (
-                    TyKind::InferenceVar(_, TyVariableKind::Float),
-                    TyKind::Scalar(Scalar::Float(_)),
-                ) => Some(rhs_ty),
-                // (float, {float})
-                (
-                    TyKind::Scalar(Scalar::Float(_)),
-                    TyKind::InferenceVar(_, TyVariableKind::Float),
-                ) => Some(lhs_ty),
-                // ({int}, {int}) | ({float}, {float})
-                (
-                    TyKind::InferenceVar(_, TyVariableKind::Integer),
-                    TyKind::InferenceVar(_, TyVariableKind::Integer),
-                )
-                | (
-                    TyKind::InferenceVar(_, TyVariableKind::Float),
-                    TyKind::InferenceVar(_, TyVariableKind::Float),
-                ) => Some(rhs_ty),
-                _ => None,
-            },
+    /// Dereferences a single level of immutable referencing.
+    fn deref_ty_if_possible(&mut self, ty: &Ty) -> Ty {
+        let ty = self.resolve_ty_shallow(ty);
+        match ty.kind(Interner) {
+            TyKind::Ref(Mutability::Not, _, inner) => self.resolve_ty_shallow(inner),
+            _ => ty,
         }
     }
 
-    fn builtin_binary_op_rhs_expectation(&mut self, op: BinaryOp, lhs_ty: Ty) -> Option<Ty> {
-        Some(match op {
-            BinaryOp::LogicOp(..) => TyKind::Scalar(Scalar::Bool).intern(Interner),
-            BinaryOp::Assignment { op: None } => lhs_ty,
-            BinaryOp::CmpOp(CmpOp::Eq { .. }) => match self
-                .resolve_ty_shallow(&lhs_ty)
-                .kind(Interner)
-            {
-                TyKind::Scalar(_) | TyKind::Str => lhs_ty,
-                TyKind::InferenceVar(_, TyVariableKind::Integer | TyVariableKind::Float) => lhs_ty,
-                _ => return None,
-            },
-            BinaryOp::ArithOp(ArithOp::Shl | ArithOp::Shr) => return None,
-            BinaryOp::CmpOp(CmpOp::Ord { .. })
-            | BinaryOp::Assignment { op: Some(_) }
-            | BinaryOp::ArithOp(_) => match self.resolve_ty_shallow(&lhs_ty).kind(Interner) {
-                TyKind::Scalar(Scalar::Int(_) | Scalar::Uint(_) | Scalar::Float(_)) => lhs_ty,
-                TyKind::InferenceVar(_, TyVariableKind::Integer | TyVariableKind::Float) => lhs_ty,
-                _ => return None,
-            },
-        })
+    /// Enforces expectations on lhs type and rhs type depending on the operator and returns the
+    /// output type of the binary op.
+    fn enforce_builtin_binop_types(&mut self, lhs: &Ty, rhs: &Ty, op: BinaryOp) -> Ty {
+        // Special-case a single layer of referencing, so that things like `5.0 + &6.0f32` work (See rust-lang/rust#57447).
+        let lhs = self.deref_ty_if_possible(lhs);
+        let rhs = self.deref_ty_if_possible(rhs);
+
+        let (op, is_assign) = match op {
+            BinaryOp::Assignment { op: Some(inner) } => (BinaryOp::ArithOp(inner), true),
+            _ => (op, false),
+        };
+
+        let output_ty = match op {
+            BinaryOp::LogicOp(_) => {
+                let bool_ = self.result.standard_types.bool_.clone();
+                self.unify(&lhs, &bool_);
+                self.unify(&rhs, &bool_);
+                bool_
+            }
+
+            BinaryOp::ArithOp(ArithOp::Shl | ArithOp::Shr) => {
+                // result type is same as LHS always
+                lhs
+            }
+
+            BinaryOp::ArithOp(_) => {
+                // LHS, RHS, and result will have the same type
+                self.unify(&lhs, &rhs);
+                lhs
+            }
+
+            BinaryOp::CmpOp(_) => {
+                // LHS and RHS will have the same type
+                self.unify(&lhs, &rhs);
+                self.result.standard_types.bool_.clone()
+            }
+
+            BinaryOp::Assignment { op: None } => {
+                stdx::never!("Simple assignment operator is not binary op.");
+                lhs
+            }
+
+            BinaryOp::Assignment { .. } => unreachable!("handled above"),
+        };
+
+        if is_assign {
+            self.result.standard_types.unit.clone()
+        } else {
+            output_ty
+        }
+    }
+
+    fn is_builtin_binop(&mut self, lhs: &Ty, rhs: &Ty, op: BinaryOp) -> bool {
+        // Special-case a single layer of referencing, so that things like `5.0 + &6.0f32` work (See rust-lang/rust#57447).
+        let lhs = self.deref_ty_if_possible(lhs);
+        let rhs = self.deref_ty_if_possible(rhs);
+
+        let op = match op {
+            BinaryOp::Assignment { op: Some(inner) } => BinaryOp::ArithOp(inner),
+            _ => op,
+        };
+
+        match op {
+            BinaryOp::LogicOp(_) => true,
+
+            BinaryOp::ArithOp(ArithOp::Shl | ArithOp::Shr) => {
+                lhs.is_integral() && rhs.is_integral()
+            }
+
+            BinaryOp::ArithOp(
+                ArithOp::Add | ArithOp::Sub | ArithOp::Mul | ArithOp::Div | ArithOp::Rem,
+            ) => {
+                lhs.is_integral() && rhs.is_integral()
+                    || lhs.is_floating_point() && rhs.is_floating_point()
+            }
+
+            BinaryOp::ArithOp(ArithOp::BitAnd | ArithOp::BitOr | ArithOp::BitXor) => {
+                lhs.is_integral() && rhs.is_integral()
+                    || lhs.is_floating_point() && rhs.is_floating_point()
+                    || matches!(
+                        (lhs.kind(Interner), rhs.kind(Interner)),
+                        (TyKind::Scalar(Scalar::Bool), TyKind::Scalar(Scalar::Bool))
+                    )
+            }
+
+            BinaryOp::CmpOp(_) => {
+                let is_scalar = |kind| {
+                    matches!(
+                        kind,
+                        &TyKind::Scalar(_)
+                            | TyKind::FnDef(..)
+                            | TyKind::Function(_)
+                            | TyKind::Raw(..)
+                            | TyKind::InferenceVar(
+                                _,
+                                TyVariableKind::Integer | TyVariableKind::Float
+                            )
+                    )
+                };
+                is_scalar(lhs.kind(Interner)) && is_scalar(rhs.kind(Interner))
+            }
+
+            BinaryOp::Assignment { op: None } => {
+                stdx::never!("Simple assignment operator is not binary op.");
+                false
+            }
+
+            BinaryOp::Assignment { .. } => unreachable!("handled above"),
+        }
     }
 
     fn with_breakable_ctx<T>(
         &mut self,
         kind: BreakableKind,
-        ty: Ty,
+        ty: Option<Ty>,
         label: Option<LabelId>,
         cb: impl FnOnce(&mut Self) -> T,
     ) -> (Option<Ty>, T) {
         self.breakables.push({
-            let label = label.map(|label| self.body[label].name.clone());
-            BreakableContext { kind, may_break: false, coerce: CoerceMany::new(ty), label }
+            BreakableContext { kind, may_break: false, coerce: ty.map(CoerceMany::new), label }
         });
         let res = cb(self);
         let ctx = self.breakables.pop().expect("breakable stack broken");
-        (ctx.may_break.then(|| ctx.coerce.complete()), res)
+        (if ctx.may_break { ctx.coerce.map(|ctx| ctx.complete(self)) } else { None }, res)
     }
 }

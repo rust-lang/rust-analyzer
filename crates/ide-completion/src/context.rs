@@ -1,4 +1,4 @@
-//! See `CompletionContext` structure.
+//! See [`CompletionContext`] structure.
 
 mod analysis;
 #[cfg(test)]
@@ -6,24 +6,27 @@ mod tests;
 
 use std::iter;
 
-use base_db::SourceDatabaseExt;
 use hir::{
     HasAttrs, Local, Name, PathResolution, ScopeDef, Semantics, SemanticsScope, Type, TypeInfo,
 };
 use ide_db::{
     base_db::{FilePosition, SourceDatabase},
     famous_defs::FamousDefs,
+    helpers::is_editable_crate,
     FxHashMap, FxHashSet, RootDatabase,
 };
 use syntax::{
     ast::{self, AttrKind, NameOrNameRef},
-    AstNode,
+    AstNode, SmolStr,
     SyntaxKind::{self, *},
-    SyntaxToken, TextRange, TextSize,
+    SyntaxToken, TextRange, TextSize, T,
 };
 use text_edit::Indel;
 
-use crate::CompletionConfig;
+use crate::{
+    context::analysis::{expand_and_analyze, AnalysisResult},
+    CompletionConfig,
+};
 
 const COMPLETION_MARKER: &str = "intellijRulezz";
 
@@ -217,6 +220,8 @@ pub(super) struct PatternContext {
     /// The record pattern this name or ref is a field of
     pub(super) record_pat: Option<ast::RecordPat>,
     pub(super) impl_: Option<ast::Impl>,
+    /// List of missing variants in a match expr
+    pub(super) missing_variants: Vec<hir::Variant>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -362,6 +367,8 @@ pub(crate) struct CompletionContext<'a> {
     pub(super) krate: hir::Crate,
     /// The module of the `scope`.
     pub(super) module: hir::Module,
+    /// Whether nightly toolchain is used. Cached since this is looked up a lot.
+    is_nightly: bool,
 
     /// The expected name of what we are completing.
     /// This is usually the parameter name of the function argument we are completing.
@@ -381,11 +388,10 @@ pub(crate) struct CompletionContext<'a> {
     pub(super) depth_from_crate_root: usize,
 }
 
-impl<'a> CompletionContext<'a> {
+impl CompletionContext<'_> {
     /// The range of the identifier that is being completed.
     pub(crate) fn source_range(&self) -> TextRange {
-        // check kind of macro-expanded token, but use range of original token
-        let kind = self.token.kind();
+        let kind = self.original_token.kind();
         match kind {
             CHAR => {
                 // assume we are completing a lifetime but the user has only typed the '
@@ -413,6 +419,7 @@ impl<'a> CompletionContext<'a> {
                 hir::ModuleDef::Const(it) => self.is_visible(it),
                 hir::ModuleDef::Static(it) => self.is_visible(it),
                 hir::ModuleDef::Trait(it) => self.is_visible(it),
+                hir::ModuleDef::TraitAlias(it) => self.is_visible(it),
                 hir::ModuleDef::TypeAlias(it) => self.is_visible(it),
                 hir::ModuleDef::Macro(it) => self.is_visible(it),
                 hir::ModuleDef::BuiltinType(_) => Visible::Yes,
@@ -436,6 +443,14 @@ impl<'a> CompletionContext<'a> {
         self.is_visible_impl(&vis, &attrs, item.krate(self.db))
     }
 
+    pub(crate) fn doc_aliases<I>(&self, item: &I) -> Vec<SmolStr>
+    where
+        I: hir::HasAttrs + Copy,
+    {
+        let attrs = item.attrs(self.db);
+        attrs.doc_aliases().collect()
+    }
+
     /// Check if an item is `#[doc(hidden)]`.
     pub(crate) fn is_item_hidden(&self, item: &hir::ItemInNs) -> bool {
         let attrs = item.attrs(self.db);
@@ -444,6 +459,12 @@ impl<'a> CompletionContext<'a> {
             (Some(attrs), Some(krate)) => self.is_doc_hidden(&attrs, krate),
             _ => false,
         }
+    }
+
+    /// Checks whether this item should be listed in regards to stability. Returns `true` if we should.
+    pub(crate) fn check_stability(&self, attrs: Option<&hir::Attrs>) -> bool {
+        let Some(attrs) = attrs else { return true; };
+        !attrs.is_unstable() || self.is_nightly
     }
 
     /// Whether the given trait is an operator trait or not.
@@ -486,21 +507,22 @@ impl<'a> CompletionContext<'a> {
         );
     }
 
-    /// A version of [`SemanticsScope::process_all_names`] that filters out `#[doc(hidden)]` items.
-    pub(crate) fn process_all_names(&self, f: &mut dyn FnMut(Name, ScopeDef)) {
+    /// A version of [`SemanticsScope::process_all_names`] that filters out `#[doc(hidden)]` items and
+    /// passes all doc-aliases along, to funnel it into [`Completions::add_path_resolution`].
+    pub(crate) fn process_all_names(&self, f: &mut dyn FnMut(Name, ScopeDef, Vec<SmolStr>)) {
         let _p = profile::span("CompletionContext::process_all_names");
         self.scope.process_all_names(&mut |name, def| {
             if self.is_scope_def_hidden(def) {
                 return;
             }
-
-            f(name, def);
+            let doc_aliases = self.doc_aliases_in_scope(def);
+            f(name, def, doc_aliases);
         });
     }
 
     pub(crate) fn process_all_names_raw(&self, f: &mut dyn FnMut(Name, ScopeDef)) {
         let _p = profile::span("CompletionContext::process_all_names_raw");
-        self.scope.process_all_names(&mut |name, def| f(name, def));
+        self.scope.process_all_names(f);
     }
 
     fn is_scope_def_hidden(&self, scope_def: ScopeDef) -> bool {
@@ -522,10 +544,11 @@ impl<'a> CompletionContext<'a> {
                 return Visible::No;
             }
             // If the definition location is editable, also show private items
-            let root_file = defining_crate.root_file(self.db);
-            let source_root_id = self.db.file_source_root(root_file);
-            let is_editable = !self.db.source_root(source_root_id).is_library;
-            return if is_editable { Visible::Editable } else { Visible::No };
+            return if is_editable_crate(defining_crate, self.db) {
+                Visible::Editable
+            } else {
+                Visible::No
+            };
         }
 
         if self.is_doc_hidden(attrs, defining_crate) {
@@ -538,6 +561,14 @@ impl<'a> CompletionContext<'a> {
     fn is_doc_hidden(&self, attrs: &hir::Attrs, defining_crate: hir::Crate) -> bool {
         // `doc(hidden)` items are only completed within the defining crate.
         self.krate != defining_crate && attrs.has_doc_hidden()
+    }
+
+    pub(crate) fn doc_aliases_in_scope(&self, scope_def: ScopeDef) -> Vec<SmolStr> {
+        if let Some(attrs) = scope_def.attrs(self.db) {
+            attrs.doc_aliases().collect()
+        } else {
+            vec![]
+        }
     }
 }
 
@@ -561,18 +592,58 @@ impl<'a> CompletionContext<'a> {
             let edit = Indel::insert(offset, COMPLETION_MARKER.to_string());
             parse.reparse(&edit).tree()
         };
-        let fake_ident_token =
-            file_with_fake_ident.syntax().token_at_offset(offset).right_biased()?;
 
+        // always pick the token to the immediate left of the cursor, as that is what we are actually
+        // completing on
         let original_token = original_file.syntax().token_at_offset(offset).left_biased()?;
-        let token = sema.descend_into_macros_single(original_token.clone());
+
+        // try to skip completions on path with invalid colons
+        // this approach works in normal path and inside token tree
+        if original_token.kind() == T![:] {
+            // return if no prev token before colon
+            let prev_token = original_token.prev_token()?;
+
+            // only has a single colon
+            if prev_token.kind() != T![:] {
+                return None;
+            }
+
+            // has 3 colon or 2 coloncolon in a row
+            // special casing this as per discussion in https://github.com/rust-lang/rust-analyzer/pull/13611#discussion_r1031845205
+            // and https://github.com/rust-lang/rust-analyzer/pull/13611#discussion_r1032812751
+            if prev_token
+                .prev_token()
+                .map(|t| t.kind() == T![:] || t.kind() == T![::])
+                .unwrap_or(false)
+            {
+                return None;
+            }
+        }
+
+        let AnalysisResult {
+            analysis,
+            expected: (expected_type, expected_name),
+            qualifier_ctx,
+            token,
+            offset,
+        } = expand_and_analyze(
+            &sema,
+            original_file.syntax().clone(),
+            file_with_fake_ident.syntax().clone(),
+            offset,
+            &original_token,
+        )?;
 
         // adjust for macro input, this still fails if there is no token written yet
-        let scope_offset = if original_token == token { offset } else { token.text_range().end() };
-        let scope = sema.scope_at_offset(&token.parent()?, scope_offset)?;
+        let scope = sema.scope_at_offset(&token.parent()?, offset)?;
 
         let krate = scope.krate();
         let module = scope.module();
+
+        let toolchain = db.crate_graph()[krate.into()].channel;
+        // `toolchain == None` means we're in some detached files. Since we have no information on
+        // the toolchain being used, let's just allow unstable items to be listed.
+        let is_nightly = matches!(toolchain, Some(base_db::ReleaseChannel::Nightly) | None);
 
         let mut locals = FxHashMap::default();
         scope.process_all_names(&mut |name, scope| {
@@ -583,7 +654,7 @@ impl<'a> CompletionContext<'a> {
 
         let depth_from_crate_root = iter::successors(module.parent(db), |m| m.parent(db)).count();
 
-        let mut ctx = CompletionContext {
+        let ctx = CompletionContext {
             sema,
             scope,
             db,
@@ -593,19 +664,14 @@ impl<'a> CompletionContext<'a> {
             token,
             krate,
             module,
-            expected_name: None,
-            expected_type: None,
-            qualifier_ctx: Default::default(),
+            is_nightly,
+            expected_name,
+            expected_type,
+            qualifier_ctx,
             locals,
             depth_from_crate_root,
         };
-        let ident_ctx = ctx.expand_and_analyze(
-            original_file.syntax().clone(),
-            file_with_fake_ident.syntax().clone(),
-            offset,
-            fake_ident_token,
-        )?;
-        Some((ctx, ident_ctx))
+        Some((ctx, analysis))
     }
 }
 

@@ -19,7 +19,7 @@ fn check_expected_type_and_name(ra_fixture: &str, expect: Expect) {
     let name =
         completion_context.expected_name.map_or_else(|| "?".to_owned(), |name| name.to_string());
 
-    expect.assert_eq(&format!("ty: {}, name: {}", ty, name));
+    expect.assert_eq(&format!("ty: {ty}, name: {name}"));
 }
 
 #[test]
@@ -409,5 +409,17 @@ fn main() {
 }
 "#,
         expect!["ty: i32, name: ?"],
+    );
+}
+
+#[test]
+fn expected_type_ref_return_pos() {
+    check_expected_type_and_name(
+        r#"
+fn f(thing: u32) -> &u32 {
+    &thin$0
+}
+"#,
+        expect!["ty: u32, name: ?"],
     );
 }

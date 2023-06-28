@@ -12,14 +12,12 @@ mod process;
 mod version;
 
 use paths::AbsPathBuf;
-use std::{
-    ffi::OsStr,
-    fmt, io,
-    sync::{Arc, Mutex},
-};
+use std::{fmt, io, sync::Mutex};
+use triomphe::Arc;
 
 use serde::{Deserialize, Serialize};
-use tt::Subtree;
+
+use ::tt::token_id as tt;
 
 use crate::{
     msg::{ExpandMacro, FlatTree, PanicMessage},
@@ -53,24 +51,14 @@ pub struct MacroDylib {
 }
 
 impl MacroDylib {
-    // FIXME: this is buggy due to TOCTOU, we should check the version in the
-    // macro process instead.
-    pub fn new(path: AbsPathBuf) -> io::Result<MacroDylib> {
-        let _p = profile::span("MacroDylib::new");
-
-        let info = version::read_dylib_info(&path)?;
-        if info.version.0 < 1 || info.version.1 < 47 {
-            let msg = format!("proc-macro {} built by {:#?} is not supported by rust-analyzer, please update your Rust version.", path.display(), info);
-            return Err(io::Error::new(io::ErrorKind::InvalidData, msg));
-        }
-
-        Ok(MacroDylib { path })
+    pub fn new(path: AbsPathBuf) -> MacroDylib {
+        MacroDylib { path }
     }
 }
 
 /// A handle to a specific macro (a `#[proc_macro]` annotated function).
 ///
-/// It exists withing a context of a specific [`ProcMacroProcess`] -- currently
+/// It exists within a context of a specific [`ProcMacroProcess`] -- currently
 /// we share a single expander process for all macros.
 #[derive(Debug, Clone)]
 pub struct ProcMacro {
@@ -112,16 +100,13 @@ pub struct MacroPanic {
 
 impl ProcMacroServer {
     /// Spawns an external process as the proc macro server and returns a client connected to it.
-    pub fn spawn(
-        process_path: AbsPathBuf,
-        args: impl IntoIterator<Item = impl AsRef<OsStr>>,
-    ) -> io::Result<ProcMacroServer> {
-        let process = ProcMacroProcessSrv::run(process_path, args)?;
+    pub fn spawn(process_path: AbsPathBuf) -> io::Result<ProcMacroServer> {
+        let process = ProcMacroProcessSrv::run(process_path)?;
         Ok(ProcMacroServer { process: Arc::new(Mutex::new(process)) })
     }
 
     pub fn load_dylib(&self, dylib: MacroDylib) -> Result<Vec<ProcMacro>, ServerError> {
-        let _p = profile::span("ProcMacroClient::by_dylib_path");
+        let _p = profile::span("ProcMacroClient::load_dylib");
         let macros =
             self.process.lock().unwrap_or_else(|e| e.into_inner()).find_proc_macros(&dylib.path)?;
 
@@ -151,19 +136,20 @@ impl ProcMacro {
 
     pub fn expand(
         &self,
-        subtree: &Subtree,
-        attr: Option<&Subtree>,
+        subtree: &tt::Subtree,
+        attr: Option<&tt::Subtree>,
         env: Vec<(String, String)>,
-    ) -> Result<Result<Subtree, PanicMessage>, ServerError> {
+    ) -> Result<Result<tt::Subtree, PanicMessage>, ServerError> {
+        let version = self.process.lock().unwrap_or_else(|e| e.into_inner()).version();
         let current_dir = env
             .iter()
             .find(|(name, _)| name == "CARGO_MANIFEST_DIR")
             .map(|(_, value)| value.clone());
 
         let task = ExpandMacro {
-            macro_body: FlatTree::new(subtree),
+            macro_body: FlatTree::new(subtree, version),
             macro_name: self.name.to_string(),
-            attributes: attr.map(FlatTree::new),
+            attributes: attr.map(|subtree| FlatTree::new(subtree, version)),
             lib: self.dylib_path.to_path_buf().into(),
             env,
             current_dir,
@@ -172,8 +158,10 @@ impl ProcMacro {
         let request = msg::Request::ExpandMacro(task);
         let response = self.process.lock().unwrap_or_else(|e| e.into_inner()).send_task(request)?;
         match response {
-            msg::Response::ExpandMacro(it) => Ok(it.map(FlatTree::to_subtree)),
-            msg::Response::ListMacros { .. } => {
+            msg::Response::ExpandMacro(it) => {
+                Ok(it.map(|tree| FlatTree::to_subtree(tree, version)))
+            }
+            msg::Response::ListMacros(..) | msg::Response::ApiVersionCheck(..) => {
                 Err(ServerError { message: "unexpected response".to_string(), io: None })
             }
         }

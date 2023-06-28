@@ -18,12 +18,11 @@ mod tidy;
 
 use std::{collections::HashMap, path::PathBuf, time::Instant};
 
-use expect_test::expect;
 use lsp_types::{
     notification::DidOpenTextDocument,
     request::{
         CodeActionRequest, Completion, Formatting, GotoTypeDefinition, HoverRequest,
-        WillRenameFiles, WorkspaceSymbol,
+        WillRenameFiles, WorkspaceSymbolRequest,
     },
     CodeActionContext, CodeActionParams, CompletionParams, DidOpenTextDocumentParams,
     DocumentFormattingParams, FileRename, FormattingOptions, GotoDefinitionParams, HoverParams,
@@ -60,7 +59,7 @@ use std::collections::Spam;
 "#,
     )
     .with_config(serde_json::json!({
-        "cargo": { "noSysroot": false }
+        "cargo": { "sysroot": "discover" },
     }))
     .server()
     .wait_until_workspace_is_loaded();
@@ -264,7 +263,7 @@ mod tests {
     for runnable in ["consumer", "dependency", "devdependency"] {
         server.request::<Runnables>(
             RunnablesParams {
-                text_document: server.doc_id(&format!("{}/src/lib.rs", runnable)),
+                text_document: server.doc_id(&format!("{runnable}/src/lib.rs")),
                 position: None,
             },
             json!([
@@ -509,7 +508,7 @@ fn main() {}
 #[test]
 fn test_missing_module_code_action_in_json_project() {
     if skip_slow_tests() {
-        // return;
+        return;
     }
 
     let tmp_dir = TestDir::new();
@@ -529,14 +528,13 @@ fn test_missing_module_code_action_in_json_project() {
     let code = format!(
         r#"
 //- /rust-project.json
-{PROJECT}
+{project}
 
 //- /src/lib.rs
 mod bar;
 
 fn main() {{}}
 "#,
-        PROJECT = project,
     );
 
     let server =
@@ -596,8 +594,8 @@ fn diagnostics_dont_block_typing() {
         return;
     }
 
-    let librs: String = (0..10).map(|i| format!("mod m{};", i)).collect();
-    let libs: String = (0..10).map(|i| format!("//- /src/m{}.rs\nfn foo() {{}}\n\n", i)).collect();
+    let librs: String = (0..10).map(|i| format!("mod m{i};")).collect();
+    let libs: String = (0..10).map(|i| format!("//- /src/m{i}.rs\nfn foo() {{}}\n\n")).collect();
     let server = Project::with_fixture(&format!(
         r#"
 //- /Cargo.toml
@@ -606,16 +604,15 @@ name = "foo"
 version = "0.0.0"
 
 //- /src/lib.rs
-{}
+{librs}
 
-{}
+{libs}
 
 fn main() {{}}
-"#,
-        librs, libs
+"#
     ))
     .with_config(serde_json::json!({
-        "cargo": { "noSysroot": false }
+        "cargo": { "sysroot": "discover" },
     }))
     .server()
     .wait_until_workspace_is_loaded();
@@ -623,7 +620,7 @@ fn main() {{}}
     for i in 0..10 {
         server.notification::<DidOpenTextDocument>(DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
-                uri: server.doc_id(&format!("src/m{}.rs", i)).uri,
+                uri: server.doc_id(&format!("src/m{i}.rs")).uri,
                 language_id: "rust".to_string(),
                 version: 0,
                 text: "/// Docs\nfn foo() {}".to_string(),
@@ -646,7 +643,7 @@ fn main() {{}}
         }]),
     );
     let elapsed = start.elapsed();
-    assert!(elapsed.as_millis() < 2000, "typing enter took {:?}", elapsed);
+    assert!(elapsed.as_millis() < 2000, "typing enter took {elapsed:?}");
 }
 
 #[test]
@@ -688,7 +685,7 @@ version = \"0.0.0\"
 #[test]
 fn out_dirs_check() {
     if skip_slow_tests() {
-        // return;
+        return;
     }
 
     let server = Project::with_fixture(
@@ -714,10 +711,21 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
 }
 //- /src/main.rs
-#[rustc_builtin_macro] macro_rules! include {}
-#[rustc_builtin_macro] macro_rules! include_str {}
-#[rustc_builtin_macro] macro_rules! concat {}
-#[rustc_builtin_macro] macro_rules! env {}
+#![allow(warnings)]
+#![feature(rustc_attrs)]
+#[rustc_builtin_macro] macro_rules! include {
+    ($file:expr $(,)?) => {{ /* compiler built-in */ }};
+}
+#[rustc_builtin_macro] macro_rules! include_str {
+    ($file:expr $(,)?) => {{ /* compiler built-in */ }};
+}
+#[rustc_builtin_macro] macro_rules! concat {
+    ($($e:ident),+ $(,)?) => {{ /* compiler built-in */ }};
+}
+#[rustc_builtin_macro] macro_rules! env {
+    ($name:expr $(,)?) => {{ /* compiler built-in */ }};
+    ($name:expr, $error_msg:expr $(,)?) => {{ /* compiler built-in */ }};
+}
 
 include!(concat!(env!("OUT_DIR"), "/hello.rs"));
 
@@ -743,7 +751,10 @@ fn main() {
             "buildScripts": {
                 "enable": true
             },
-            "noSysroot": true,
+            "sysroot": null,
+            "extraEnv": {
+                "RUSTC_BOOTSTRAP": "1"
+            }
         }
     }))
     .server()
@@ -752,7 +763,7 @@ fn main() {
     let res = server.send_request::<HoverRequest>(HoverParams {
         text_document_position_params: TextDocumentPositionParams::new(
             server.doc_id("src/main.rs"),
-            Position::new(19, 10),
+            Position::new(30, 10),
         ),
         work_done_progress_params: Default::default(),
     });
@@ -761,7 +772,7 @@ fn main() {
     let res = server.send_request::<HoverRequest>(HoverParams {
         text_document_position_params: TextDocumentPositionParams::new(
             server.doc_id("src/main.rs"),
-            Position::new(20, 10),
+            Position::new(31, 10),
         ),
         work_done_progress_params: Default::default(),
     });
@@ -771,23 +782,23 @@ fn main() {
         GotoDefinitionParams {
             text_document_position_params: TextDocumentPositionParams::new(
                 server.doc_id("src/main.rs"),
-                Position::new(17, 9),
+                Position::new(28, 9),
             ),
             work_done_progress_params: Default::default(),
             partial_result_params: Default::default(),
         },
         json!([{
             "originSelectionRange": {
-                "end": { "character": 10, "line": 17 },
-                "start": { "character": 8, "line": 17 }
+                "end": { "character": 10, "line": 28 },
+                "start": { "character": 8, "line": 28 }
             },
             "targetRange": {
-                "end": { "character": 9, "line": 8 },
-                "start": { "character": 0, "line": 7 }
+                "end": { "character": 9, "line": 19 },
+                "start": { "character": 0, "line": 18 }
             },
             "targetSelectionRange": {
-                "end": { "character": 8, "line": 8 },
-                "start": { "character": 7, "line": 8 }
+                "end": { "character": 8, "line": 19 },
+                "start": { "character": 7, "line": 19 }
             },
             "targetUri": "file:///[..]src/main.rs"
         }]),
@@ -797,23 +808,23 @@ fn main() {
         GotoDefinitionParams {
             text_document_position_params: TextDocumentPositionParams::new(
                 server.doc_id("src/main.rs"),
-                Position::new(18, 9),
+                Position::new(29, 9),
             ),
             work_done_progress_params: Default::default(),
             partial_result_params: Default::default(),
         },
         json!([{
             "originSelectionRange": {
-                "end": { "character": 10, "line": 18 },
-                "start": { "character": 8, "line": 18 }
+                "end": { "character": 10, "line": 29 },
+                "start": { "character": 8, "line": 29 }
             },
             "targetRange": {
-                "end": { "character": 9, "line": 12 },
-                "start": { "character": 0, "line":11 }
+                "end": { "character": 9, "line": 23 },
+                "start": { "character": 0, "line": 22 }
             },
             "targetSelectionRange": {
-                "end": { "character": 8, "line": 12 },
-                "start": { "character": 7, "line": 12 }
+                "end": { "character": 8, "line": 23 },
+                "start": { "character": 7, "line": 23 }
             },
             "targetUri": "file:///[..]src/main.rs"
         }]),
@@ -821,10 +832,23 @@ fn main() {
 }
 
 #[test]
+#[cfg(feature = "sysroot-abi")]
 fn resolve_proc_macro() {
+    use expect_test::expect;
     if skip_slow_tests() {
         return;
     }
+
+    // skip using the sysroot config as to prevent us from loading the sysroot sources
+    let mut rustc = std::process::Command::new(toolchain::rustc());
+    rustc.args(["--print", "sysroot"]);
+    let output = rustc.output().unwrap();
+    let sysroot =
+        vfs::AbsPathBuf::try_from(std::str::from_utf8(&output.stdout).unwrap().trim()).unwrap();
+
+    let standalone_server_name =
+        format!("rust-analyzer-proc-macro-srv{}", std::env::consts::EXE_SUFFIX);
+    let proc_macro_server_path = sysroot.join("libexec").join(&standalone_server_name);
 
     let server = Project::with_fixture(
         r###"
@@ -837,6 +861,7 @@ edition = "2021"
 bar = {path = "../bar"}
 
 //- /foo/src/main.rs
+#![feature(rustc_attrs, decl_macro)]
 use bar::Bar;
 
 #[rustc_builtin_macro]
@@ -898,11 +923,11 @@ pub fn foo(_input: TokenStream) -> TokenStream {
             "buildScripts": {
                 "enable": true
             },
-            "noSysroot": true,
+            "sysroot": null,
         },
         "procMacro": {
             "enable": true,
-            "server": PathBuf::from(env!("CARGO_BIN_EXE_rust-analyzer")),
+            "server": proc_macro_server_path.as_path().as_ref(),
         }
     }))
     .root("foo")
@@ -913,7 +938,7 @@ pub fn foo(_input: TokenStream) -> TokenStream {
     let res = server.send_request::<HoverRequest>(HoverParams {
         text_document_position_params: TextDocumentPositionParams::new(
             server.doc_id("foo/src/main.rs"),
-            Position::new(10, 9),
+            Position::new(11, 9),
         ),
         work_done_progress_params: Default::default(),
     });
@@ -940,7 +965,7 @@ fn test_will_rename_files_same_level() {
     let tmp_dir = TestDir::new();
     let tmp_dir_path = tmp_dir.path().to_owned();
     let tmp_dir_str = tmp_dir_path.to_str().unwrap();
-    let base_path = PathBuf::from(format!("file://{}", tmp_dir_str));
+    let base_path = PathBuf::from(format!("file://{tmp_dir_str}"));
 
     let code = r#"
 //- /Cargo.toml
@@ -1083,10 +1108,18 @@ version = "0.0.0"
 
 //- /bar/src/lib.rs
 pub fn bar() {}
+
+//- /baz/Cargo.toml
+[package]
+name = "baz"
+version = "0.0.0"
+
+//- /baz/src/lib.rs
 "#,
     )
     .root("foo")
     .root("bar")
+    .root("baz")
     .with_config(json!({
        "files": {
            "excludeDirs": ["foo", "bar"]
@@ -1095,5 +1128,5 @@ pub fn bar() {}
     .server()
     .wait_until_workspace_is_loaded();
 
-    server.request::<WorkspaceSymbol>(Default::default(), json!([]));
+    server.request::<WorkspaceSymbolRequest>(Default::default(), json!([]));
 }

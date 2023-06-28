@@ -33,7 +33,7 @@ m!(&k");
 "#,
         expect![[r#"
 macro_rules! m { ($i:literal) => {}; }
-/* error: Failed to lower macro args to token tree */"#]],
+/* error: invalid token tree */"#]],
     );
 }
 
@@ -73,7 +73,7 @@ fn main() {
 macro_rules! asi { ($($stmt:stmt)*) => ($($stmt)*); }
 
 fn main() {
-    let a = 2let b = 5drop(b-a)println!("{}", a+b)
+    let a = 2 let b = 5 drop(b-a)println!("{}", a+b)
 }
 "#]],
     )
@@ -94,11 +94,11 @@ macro_rules! m {
     ($($s:stmt)*) => (stringify!($($s |)*);)
 }
 stringify!(;
-|;
-|92|;
-|let x = 92|;
+| ;
+|92| ;
+|let x = 92| ;
 |loop {}
-|;
+| ;
 |);
 "#]],
     );
@@ -106,7 +106,6 @@ stringify!(;
 
 #[test]
 fn range_patterns() {
-    // FIXME: rustc thinks there are three patterns here, not one.
     check(
         r#"
 macro_rules! m {
@@ -118,7 +117,7 @@ m!(.. .. ..);
 macro_rules! m {
     ($($p:pat)*) => (stringify!($($p |)*);)
 }
-stringify!(.. .. ..|);
+stringify!(.. | .. | .. |);
 "#]],
     );
 }
@@ -135,4 +134,53 @@ macro_rules! m { ($($i:ident)? $vis:vis) => () }
 
 "#]],
     )
+}
+
+// For this test and the one below, see rust-lang/rust#86730.
+#[test]
+fn expr_dont_match_let_expr() {
+    check(
+        r#"
+macro_rules! foo {
+    ($e:expr) => { $e }
+}
+
+fn test() {
+    foo!(let a = 3);
+}
+"#,
+        expect![[r#"
+macro_rules! foo {
+    ($e:expr) => { $e }
+}
+
+fn test() {
+    /* error: no rule matches input tokens */missing;
+}
+"#]],
+    );
+}
+
+#[test]
+fn expr_dont_match_inline_const() {
+    check(
+        r#"
+macro_rules! foo {
+    ($e:expr) => { $e }
+}
+
+fn test() {
+    foo!(const { 3 });
+}
+"#,
+        expect![[r#"
+macro_rules! foo {
+    ($e:expr) => { $e }
+}
+
+fn test() {
+    /* error: no rule matches input tokens */missing;
+}
+"#]],
+    );
 }

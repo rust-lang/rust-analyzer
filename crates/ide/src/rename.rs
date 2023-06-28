@@ -13,7 +13,7 @@ use ide_db::{
 };
 use itertools::Itertools;
 use stdx::{always, never};
-use syntax::{ast, AstNode, SyntaxNode};
+use syntax::{ast, utils::is_raw_identifier, AstNode, SmolStr, SyntaxNode, TextRange, TextSize};
 
 use text_edit::TextEdit;
 
@@ -40,18 +40,26 @@ pub(crate) fn prepare_rename(
             if def.range_for_rename(&sema).is_none() {
                 bail!("No references found at position")
             }
-            let frange = sema.original_range(name_like.syntax());
+            let Some(frange) = sema.original_range_opt(name_like.syntax()) else {
+                bail!("No references found at position");
+            };
 
             always!(
                 frange.range.contains_inclusive(position.offset)
                     && frange.file_id == position.file_id
             );
-            Ok(frange.range)
+
+            Ok(match name_like {
+                ast::NameLike::Lifetime(_) => {
+                    TextRange::new(frange.range.start() + TextSize::from(1), frange.range.end())
+                }
+                _ => frange.range,
+            })
         })
         .reduce(|acc, cur| match (acc, cur) {
             // ensure all ranges are the same
             (Ok(acc_inner), Ok(cur_inner)) if acc_inner == cur_inner => Ok(acc_inner),
-            (Err(e), _) => Err(e),
+            (e @ Err(_), _) | (_, e @ Err(_)) => e,
             _ => bail!("inconsistent text range"),
         });
 
@@ -114,7 +122,11 @@ pub(crate) fn will_rename_file(
     let sema = Semantics::new(db);
     let module = sema.to_module_def(file_id)?;
     let def = Definition::Module(module);
-    let mut change = def.rename(&sema, new_name_stem).ok()?;
+    let mut change = if is_raw_identifier(new_name_stem) {
+        def.rename(&sema, &SmolStr::from_iter(["r#", new_name_stem])).ok()?
+    } else {
+        def.rename(&sema, new_name_stem).ok()?
+    };
     change.file_system_edits.clear();
     Some(change)
 }
@@ -341,9 +353,14 @@ mod tests {
     fn check(new_name: &str, ra_fixture_before: &str, ra_fixture_after: &str) {
         let ra_fixture_after = &trim_indent(ra_fixture_after);
         let (analysis, position) = fixture::position(ra_fixture_before);
+        if !ra_fixture_after.starts_with("error: ") {
+            if let Err(err) = analysis.prepare_rename(position).unwrap() {
+                panic!("Prepare rename to '{new_name}' was failed: {err}")
+            }
+        }
         let rename_result = analysis
             .rename(position, new_name)
-            .unwrap_or_else(|err| panic!("Rename to '{}' was cancelled: {}", new_name, err));
+            .unwrap_or_else(|err| panic!("Rename to '{new_name}' was cancelled: {err}"));
         match rename_result {
             Ok(source_change) => {
                 let mut text_edit_builder = TextEdit::builder();
@@ -362,14 +379,11 @@ mod tests {
             }
             Err(err) => {
                 if ra_fixture_after.starts_with("error:") {
-                    let error_message = ra_fixture_after
-                        .chars()
-                        .into_iter()
-                        .skip("error:".len())
-                        .collect::<String>();
+                    let error_message =
+                        ra_fixture_after.chars().skip("error:".len()).collect::<String>();
                     assert_eq!(error_message.trim(), err.to_string());
                 } else {
-                    panic!("Rename to '{}' failed unexpectedly: {}", new_name, err)
+                    panic!("Rename to '{new_name}' failed unexpectedly: {err}")
                 }
             }
         };
@@ -395,11 +409,11 @@ mod tests {
         let (analysis, position) = fixture::position(ra_fixture);
         let result = analysis
             .prepare_rename(position)
-            .unwrap_or_else(|err| panic!("PrepareRename was cancelled: {}", err));
+            .unwrap_or_else(|err| panic!("PrepareRename was cancelled: {err}"));
         match result {
             Ok(RangeInfo { range, info: () }) => {
                 let source = analysis.file_text(position.file_id).unwrap();
-                expect.assert_eq(&format!("{:?}: {}", range, &source[range]))
+                expect.assert_eq(&format!("{range:?}: {}", &source[range]))
             }
             Err(RenameError(err)) => expect.assert_eq(&err),
         };
@@ -408,7 +422,7 @@ mod tests {
     #[test]
     fn test_prepare_rename_namelikes() {
         check_prepare(r"fn name$0<'lifetime>() {}", expect![[r#"3..7: name"#]]);
-        check_prepare(r"fn name<'lifetime$0>() {}", expect![[r#"8..17: 'lifetime"#]]);
+        check_prepare(r"fn name<'lifetime$0>() {}", expect![[r#"9..17: lifetime"#]]);
         check_prepare(r"fn name<'lifetime>() { name$0(); }", expect![[r#"23..27: name"#]]);
     }
 
@@ -522,12 +536,16 @@ impl Foo {
 
     #[test]
     fn test_rename_to_invalid_identifier_lifetime2() {
-        cov_mark::check!(rename_not_a_lifetime_ident_ref);
         check(
-            "foo",
+            "_",
             r#"fn main<'a>(_: &'a$0 ()) {}"#,
-            "error: Invalid name `foo`: not a lifetime identifier",
+            r#"error: Invalid name `_`: not a lifetime identifier"#,
         );
+    }
+
+    #[test]
+    fn test_rename_accepts_lifetime_without_apostrophe() {
+        check("foo", r#"fn main<'a>(_: &'a$0 ()) {}"#, r#"fn main<'foo>(_: &'foo ()) {}"#);
     }
 
     #[test]
@@ -546,6 +564,15 @@ impl Foo {
             "'foo",
             r#"mod foo$0 {}"#,
             "error: Invalid name `'foo`: cannot rename module to 'foo",
+        );
+    }
+
+    #[test]
+    fn test_rename_mod_invalid_raw_ident() {
+        check(
+            "r#self",
+            r#"mod foo$0 {}"#,
+            "error: Invalid name: `self` cannot be a raw identifier",
         );
     }
 
@@ -1278,6 +1305,146 @@ mod bar$0;
     }
 
     #[test]
+    fn test_rename_mod_to_raw_ident() {
+        check_expect(
+            "r#fn",
+            r#"
+//- /lib.rs
+mod foo$0;
+
+fn main() { foo::bar::baz(); }
+
+//- /foo.rs
+pub mod bar;
+
+//- /foo/bar.rs
+pub fn baz() {}
+"#,
+            expect![[r#"
+                SourceChange {
+                    source_file_edits: {
+                        FileId(
+                            0,
+                        ): TextEdit {
+                            indels: [
+                                Indel {
+                                    insert: "r#fn",
+                                    delete: 4..7,
+                                },
+                                Indel {
+                                    insert: "r#fn",
+                                    delete: 22..25,
+                                },
+                            ],
+                        },
+                    },
+                    file_system_edits: [
+                        MoveFile {
+                            src: FileId(
+                                1,
+                            ),
+                            dst: AnchoredPathBuf {
+                                anchor: FileId(
+                                    1,
+                                ),
+                                path: "fn.rs",
+                            },
+                        },
+                        MoveDir {
+                            src: AnchoredPathBuf {
+                                anchor: FileId(
+                                    1,
+                                ),
+                                path: "foo",
+                            },
+                            src_id: FileId(
+                                1,
+                            ),
+                            dst: AnchoredPathBuf {
+                                anchor: FileId(
+                                    1,
+                                ),
+                                path: "fn",
+                            },
+                        },
+                    ],
+                    is_snippet: false,
+                }
+            "#]],
+        );
+    }
+
+    #[test]
+    fn test_rename_mod_from_raw_ident() {
+        check_expect(
+            "foo",
+            r#"
+//- /lib.rs
+mod r#fn$0;
+
+fn main() { r#fn::bar::baz(); }
+
+//- /fn.rs
+pub mod bar;
+
+//- /fn/bar.rs
+pub fn baz() {}
+"#,
+            expect![[r#"
+                SourceChange {
+                    source_file_edits: {
+                        FileId(
+                            0,
+                        ): TextEdit {
+                            indels: [
+                                Indel {
+                                    insert: "foo",
+                                    delete: 4..8,
+                                },
+                                Indel {
+                                    insert: "foo",
+                                    delete: 23..27,
+                                },
+                            ],
+                        },
+                    },
+                    file_system_edits: [
+                        MoveFile {
+                            src: FileId(
+                                1,
+                            ),
+                            dst: AnchoredPathBuf {
+                                anchor: FileId(
+                                    1,
+                                ),
+                                path: "foo.rs",
+                            },
+                        },
+                        MoveDir {
+                            src: AnchoredPathBuf {
+                                anchor: FileId(
+                                    1,
+                                ),
+                                path: "fn",
+                            },
+                            src_id: FileId(
+                                1,
+                            ),
+                            dst: AnchoredPathBuf {
+                                anchor: FileId(
+                                    1,
+                                ),
+                                path: "foo",
+                            },
+                        },
+                    ],
+                    is_snippet: false,
+                }
+            "#]],
+        );
+    }
+
+    #[test]
     fn test_enum_variant_from_module_1() {
         cov_mark::check!(rename_non_local);
         check(
@@ -1542,6 +1709,23 @@ struct Foo { bar: i32 }
 
 fn foo(bar: i32) -> Foo {
     Foo { bar }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn test_rename_local_simple() {
+        check(
+            "i",
+            r#"
+fn foo(bar$0: i32) -> i32 {
+    bar
+}
+"#,
+            r#"
+fn foo(i: i32) -> i32 {
+    i
 }
 "#,
         );
@@ -1830,6 +2014,31 @@ fn foo<'a>() -> &'a () {
 }
 "#,
         )
+    }
+
+    #[test]
+    fn test_rename_label_new_name_without_apostrophe() {
+        check(
+            "foo",
+            r#"
+fn main() {
+    'outer$0: loop {
+        'inner: loop {
+            break 'outer;
+        }
+    }
+}
+        "#,
+            r#"
+fn main() {
+    'foo: loop {
+        'inner: loop {
+            break 'foo;
+        }
+    }
+}
+        "#,
+        );
     }
 
     #[test]
@@ -2248,5 +2457,34 @@ fn foo((bar | bar | bar): ()) {
 }
 "#,
         );
+    }
+
+    #[test]
+    fn regression_13498() {
+        check(
+            "Testing",
+            r"
+mod foo {
+    pub struct Test$0;
+}
+
+use foo::Test as Tester;
+
+fn main() {
+    let t = Tester;
+}
+",
+            r"
+mod foo {
+    pub struct Testing;
+}
+
+use foo::Testing as Tester;
+
+fn main() {
+    let t = Tester;
+}
+",
+        )
     }
 }

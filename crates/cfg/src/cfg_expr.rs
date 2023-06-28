@@ -44,7 +44,7 @@ impl fmt::Display for CfgAtom {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CfgAtom::Flag(name) => name.fmt(f),
-            CfgAtom::KeyValue { key, value } => write!(f, "{} = {:?}", key, value),
+            CfgAtom::KeyValue { key, value } => write!(f, "{key} = {value:?}"),
         }
     }
 }
@@ -66,7 +66,7 @@ impl From<CfgAtom> for CfgExpr {
 }
 
 impl CfgExpr {
-    pub fn parse(tt: &tt::Subtree) -> CfgExpr {
+    pub fn parse<S>(tt: &tt::Subtree<S>) -> CfgExpr {
         next_cfg_expr(&mut tt.token_trees.iter()).unwrap_or(CfgExpr::Invalid)
     }
     /// Fold the cfg by querying all basic `Atom` and `KeyValue` predicates.
@@ -85,7 +85,7 @@ impl CfgExpr {
     }
 }
 
-fn next_cfg_expr(it: &mut SliceIter<'_, tt::TokenTree>) -> Option<CfgExpr> {
+fn next_cfg_expr<S>(it: &mut SliceIter<'_, tt::TokenTree<S>>) -> Option<CfgExpr> {
     let name = match it.next() {
         None => return None,
         Some(tt::TokenTree::Leaf(tt::Leaf::Ident(ident))) => ident.text.clone(),

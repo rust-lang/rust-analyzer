@@ -82,14 +82,14 @@ fn attribute_macro_syntax_completion_2() {
 #[proc_macros::identity_when_valid]
 fn foo() { bar.; blub }
 "#,
-        expect![[r##"
+        expect![[r#"
 #[proc_macros::identity_when_valid]
 fn foo() { bar.; blub }
 
 fn foo() {
-    bar.;
+    bar. ;
     blub
-}"##]],
+}"#]],
     );
 }
 
@@ -104,7 +104,7 @@ macro_rules! id {
         $($t)*
     };
 }
-id /*+errors*/! {
+id! {
     #[proc_macros::identity]
     impl Foo for WrapBj {
         async fn foo(&self) {
@@ -113,18 +113,17 @@ id /*+errors*/! {
     }
 }
 "#,
-        expect![[r##"
+        expect![[r#"
 macro_rules! id {
     ($($t:tt)*) => {
         $($t)*
     };
 }
-/* parse error: expected SEMICOLON */
 #[proc_macros::identity] impl Foo for WrapBj {
     async fn foo(&self ) {
         self .0.id().await ;
     }
 }
-"##]],
+"#]],
     );
 }

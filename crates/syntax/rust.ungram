@@ -51,7 +51,9 @@ TypeArg =
   Type
 
 AssocTypeArg =
-  NameRef GenericParamList? (':' TypeBoundList | ('=' Type | ConstArg))
+  NameRef
+  (GenericArgList | ParamList RetType?)?
+  (':' TypeBoundList | ('=' Type | ConstArg))
 
 LifetimeArg =
   Lifetime
@@ -97,6 +99,7 @@ Item =
 | Static
 | Struct
 | Trait
+| TraitAlias
 | TypeAlias
 | Union
 | Use
@@ -239,8 +242,12 @@ Static =
 Trait =
   Attr* Visibility?
   'unsafe'? 'auto'?
-  'trait' Name GenericParamList? (':' TypeBoundList?)? WhereClause?
-  AssocItemList
+  'trait' Name GenericParamList?
+  (':' TypeBoundList?)? WhereClause? AssocItemList
+
+TraitAlias =
+  Attr* Visibility?
+  'trait' Name GenericParamList? '=' TypeBoundList? WhereClause? ';'
 
 AssocItemList =
   '{' Attr* AssocItem* '}'
@@ -356,6 +363,7 @@ Expr =
 | TupleExpr
 | WhileExpr
 | YieldExpr
+| YeetExpr
 | LetExpr
 | UnderscoreExpr
 
@@ -448,7 +456,7 @@ FieldExpr =
   Attr* Expr '.' NameRef
 
 ClosureExpr =
-  Attr* ('for' GenericParamList)? 'static'? 'async'? 'move'?  ParamList RetType?
+  Attr* ('for' GenericParamList)? 'const'? 'static'? 'async'? 'move'?  ParamList RetType?
   body:Expr
 
 IfExpr =
@@ -499,6 +507,9 @@ ReturnExpr =
 
 YieldExpr =
   Attr* 'yield' Expr?
+
+YeetExpr =
+  Attr* 'do' 'yeet' Expr?
 
 LetExpr =
   Attr* 'let' Pat '=' Expr
@@ -554,7 +565,7 @@ RefType =
   '&' Lifetime? 'mut'? Type
 
 ArrayType =
-  '[' Type ';' Expr ']'
+  '[' Type ';' ConstArg ']'
 
 SliceType =
   '[' Type ']'
@@ -572,7 +583,7 @@ ImplTraitType =
   'impl' TypeBoundList
 
 DynTraitType =
-  'dyn' TypeBoundList
+  'dyn'? TypeBoundList
 
 TypeBoundList =
   bounds:(TypeBound ('+' TypeBound)* '+'?)
@@ -604,7 +615,7 @@ Pat =
 | ConstBlockPat
 
 LiteralPat =
-  Literal
+  '-'? Literal
 
 IdentPat =
   Attr* 'ref'? 'mut'? Name ('@' Pat)?

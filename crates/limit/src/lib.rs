@@ -6,6 +6,7 @@
 use std::sync::atomic::AtomicUsize;
 
 /// Represents a struct used to enforce a numerical limit.
+#[derive(Debug)]
 pub struct Limit {
     upper_bound: usize,
     #[cfg(feature = "tracking")]
@@ -59,7 +60,7 @@ impl Limit {
                     .compare_exchange_weak(old_max, other, Ordering::Relaxed, Ordering::Relaxed)
                     .is_ok()
                 {
-                    eprintln!("new max: {}", other);
+                    eprintln!("new max: {other}");
                 }
             }
 

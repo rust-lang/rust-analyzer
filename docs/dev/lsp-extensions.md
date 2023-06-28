@@ -1,5 +1,5 @@
 <!---
-lsp_ext.rs hash: 7b710095d773b978
+lsp_ext.rs hash: 2d60bbffe70ae198
 
 If you need to change the above hash to make the test pass, please check if you
 need to adjust this doc as well and ping this issue:
@@ -18,12 +18,6 @@ Requests which we hope to upstream live under `experimental/` namespace.
 Requests, which are likely to always remain specific to `rust-analyzer` are under `rust-analyzer/` namespace.
 
 If you want to be notified about the changes to this document, subscribe to [#4604](https://github.com/rust-lang/rust-analyzer/issues/4604).
-
-## UTF-8 offsets
-
-rust-analyzer supports clangd's extension for opting into UTF-8 as the coordinate space for offsets (by default, LSP uses UTF-16 offsets).
-
-https://clangd.llvm.org/extensions.html#utf-8-offsets
 
 ## Configuration in `initializationOptions`
 
@@ -339,7 +333,7 @@ Moreover, it would be cool if editors didn't need to implement even basic langua
 
 ### Unresolved Question
 
-* Should we return a nested brace structure, to allow paredit-like actions of jump *out* of the current brace pair?
+* Should we return a nested brace structure, to allow [paredit](https://paredit.org/)-like actions of jump *out* of the current brace pair?
   This is how `SelectionRange` request works.
 * Alternatively, should we perhaps flag certain `SelectionRange`s as being brace pairs?
 
@@ -392,14 +386,26 @@ rust-analyzer supports only one `kind`, `"cargo"`. The `args` for `"cargo"` look
 
 ## Open External Documentation
 
-This request is sent from client to server to get a URL to documentation for the symbol under the cursor, if available.
+This request is sent from the client to the server to obtain web and local URL(s) for documentation related to the symbol under the cursor, if available.
 
-**Method** `experimental/externalDocs`
+**Method:** `experimental/externalDocs`
 
-**Request:**: `TextDocumentPositionParams`
+**Request:** `TextDocumentPositionParams`
 
-**Response** `string | null`
+**Response:** `string | null`
 
+## Local Documentation
+
+**Experimental Client Capability:** `{ "localDocs": boolean }`
+
+If this capability is set, the `Open External Documentation` request returned from the server will have the following structure:
+
+```typescript
+interface ExternalDocsResponse {
+    web?: string;
+    local?: string;
+}
+```
 
 ## Analyzer Status
 
@@ -427,6 +433,16 @@ Returns internal status message, mostly for debugging purposes.
 **Response:** `null`
 
 Reloads project information (that is, re-executes `cargo metadata`).
+
+## Rebuild proc-macros
+
+**Method:** `rust-analyzer/rebuildProcMacros`
+
+**Request:** `null`
+
+**Response:** `null`
+
+Rebuilds build scripts and proc-macros, and runs the build scripts to reseed the build data.
 
 ## Server Status
 
@@ -465,6 +481,45 @@ Note that this functionality is intended primarily to inform the end user about 
 In particular, it's valid for the client to completely ignore this extension.
 Clients are discouraged from but are allowed to use the `health` status to decide if it's worth sending a request to the server.
 
+### Controlling Flycheck
+
+The flycheck/checkOnSave feature can be controlled via notifications sent by the client to the server.
+
+**Method:** `rust-analyzer/runFlycheck`
+
+**Notification:**
+
+```typescript
+interface RunFlycheckParams {
+    /// The text document whose cargo workspace flycheck process should be started.
+    /// If the document is null or does not belong to a cargo workspace all flycheck processes will be started.
+    textDocument: lc.TextDocumentIdentifier | null;
+}
+```
+
+Triggers the flycheck processes.
+
+
+**Method:** `rust-analyzer/clearFlycheck`
+
+**Notification:**
+
+```typescript
+interface ClearFlycheckParams {}
+```
+
+Clears the flycheck diagnostics.
+
+**Method:** `rust-analyzer/cancelFlycheck`
+
+**Notification:**
+
+```typescript
+interface CancelFlycheckParams {}
+```
+
+Cancels all running flycheck processes.
+
 ## Syntax Tree
 
 **Method:** `rust-analyzer/syntaxTree`
@@ -493,6 +548,29 @@ Primarily for debugging, but very useful for all people working on rust-analyzer
 
 Returns a textual representation of the HIR of the function containing the cursor.
 For debugging or when working on rust-analyzer itself.
+
+## View Mir
+
+**Method:** `rust-analyzer/viewMir`
+
+**Request:** `TextDocumentPositionParams`
+
+**Response:** `string`
+
+Returns a textual representation of the MIR of the function containing the cursor.
+For debugging or when working on rust-analyzer itself.
+
+## Interpret Function
+
+**Method:** `rust-analyzer/interpretFunction`
+
+**Request:** `TextDocumentPositionParams`
+
+**Response:** `string`
+
+Tries to evaluate the function using internal rust analyzer knowledge, without compiling
+the code. Currently evaluates the function under cursor, but will give a runnable in
+future. Highly experimental.
 
 ## View File Text
 
@@ -759,3 +837,52 @@ export interface ClientCommandOptions {
     commands: string[];
 }
 ```
+
+## Colored Diagnostic Output
+
+**Experimental Client Capability:** `{ "colorDiagnosticOutput": boolean }`
+
+If this capability is set, the "full compiler diagnostics" provided by `checkOnSave`
+will include ANSI color and style codes to render the diagnostic in a similar manner
+as `cargo`. This is translated into `--message-format=json-diagnostic-rendered-ansi`
+when flycheck is run, instead of the default `--message-format=json`.
+
+The full compiler rendered diagnostics are included in the server response
+regardless of this capability:
+
+```typescript
+// https://microsoft.github.io/language-server-protocol/specifications/specification-current#diagnostic
+export interface Diagnostic {
+    ...
+    data?: {
+        /**
+         * The human-readable compiler output as it would be printed to a terminal.
+         * Includes ANSI color and style codes if the client has set the experimental
+         * `colorDiagnosticOutput` capability.
+         */
+        rendered?: string;
+    };
+}
+```
+
+## Dependency Tree
+
+**Method:** `rust-analyzer/fetchDependencyList`
+
+**Request:**
+
+```typescript
+export interface FetchDependencyListParams {}
+```
+
+**Response:**
+```typescript
+export interface FetchDependencyListResult {
+    crates: {
+        name: string;
+        version: string;
+        path: string;
+    }[];
+}
+```
+Returns all crates from this workspace, so it can be used create a viewTree to help navigate the dependency tree.

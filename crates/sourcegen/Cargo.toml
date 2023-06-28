@@ -2,15 +2,14 @@
 name = "sourcegen"
 version = "0.0.0"
 description = "TBD"
-license = "MIT OR Apache-2.0"
-edition = "2021"
-rust-version = "1.57"
+
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
 
 [lib]
 doctest = false
 
 [dependencies]
 xshell = "0.2.2"
-
-[features]
-in-rust-tree = []

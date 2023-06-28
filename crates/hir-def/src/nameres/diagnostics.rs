@@ -2,12 +2,14 @@
 
 use base_db::CrateId;
 use cfg::{CfgExpr, CfgOptions};
-use hir_expand::MacroCallKind;
+use hir_expand::{attrs::AttrId, MacroCallKind};
 use la_arena::Idx;
-use syntax::ast;
+use syntax::{
+    ast::{self, AnyHasAttrs},
+    SyntaxError,
+};
 
 use crate::{
-    attr::AttrId,
     item_tree::{self, ItemTreeId},
     nameres::LocalModuleId,
     path::ModPath,
@@ -22,7 +24,7 @@ pub enum DefDiagnosticKind {
 
     UnresolvedImport { id: ItemTreeId<item_tree::Import>, index: Idx<ast::UseTree> },
 
-    UnconfiguredCode { ast: AstId<ast::Item>, cfg: CfgExpr, opts: CfgOptions },
+    UnconfiguredCode { ast: AstId<AnyHasAttrs>, cfg: CfgExpr, opts: CfgOptions },
 
     UnresolvedProcMacro { ast: MacroCallKind, krate: CrateId },
 
@@ -30,11 +32,15 @@ pub enum DefDiagnosticKind {
 
     MacroError { ast: MacroCallKind, message: String },
 
+    MacroExpansionParseError { ast: MacroCallKind, errors: Box<[SyntaxError]> },
+
     UnimplementedBuiltinMacro { ast: AstId<ast::Macro> },
 
-    InvalidDeriveTarget { ast: AstId<ast::Item>, id: u32 },
+    InvalidDeriveTarget { ast: AstId<ast::Item>, id: usize },
 
-    MalformedDerive { ast: AstId<ast::Adt>, id: u32 },
+    MalformedDerive { ast: AstId<ast::Adt>, id: usize },
+
+    MacroDefError { ast: AstId<ast::Macro>, message: String },
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -75,14 +81,15 @@ impl DefDiagnostic {
 
     pub fn unconfigured_code(
         container: LocalModuleId,
-        ast: AstId<ast::Item>,
+        ast: AstId<ast::AnyHasAttrs>,
         cfg: CfgExpr,
         opts: CfgOptions,
     ) -> Self {
         Self { in_module: container, kind: DefDiagnosticKind::UnconfiguredCode { ast, cfg, opts } }
     }
 
-    pub(super) fn unresolved_proc_macro(
+    // FIXME: Whats the difference between this and unresolved_macro_call
+    pub(crate) fn unresolved_proc_macro(
         container: LocalModuleId,
         ast: MacroCallKind,
         krate: CrateId,
@@ -90,7 +97,7 @@ impl DefDiagnostic {
         Self { in_module: container, kind: DefDiagnosticKind::UnresolvedProcMacro { ast, krate } }
     }
 
-    pub(super) fn macro_error(
+    pub(crate) fn macro_error(
         container: LocalModuleId,
         ast: MacroCallKind,
         message: String,
@@ -98,7 +105,22 @@ impl DefDiagnostic {
         Self { in_module: container, kind: DefDiagnosticKind::MacroError { ast, message } }
     }
 
-    pub(super) fn unresolved_macro_call(
+    pub(crate) fn macro_expansion_parse_error(
+        container: LocalModuleId,
+        ast: MacroCallKind,
+        errors: &[SyntaxError],
+    ) -> Self {
+        Self {
+            in_module: container,
+            kind: DefDiagnosticKind::MacroExpansionParseError {
+                ast,
+                errors: errors.to_vec().into_boxed_slice(),
+            },
+        }
+    }
+
+    // FIXME: Whats the difference between this and unresolved_proc_macro
+    pub(crate) fn unresolved_macro_call(
         container: LocalModuleId,
         ast: MacroCallKind,
         path: ModPath,
@@ -120,7 +142,7 @@ impl DefDiagnostic {
     ) -> Self {
         Self {
             in_module: container,
-            kind: DefDiagnosticKind::InvalidDeriveTarget { ast, id: id.ast_index },
+            kind: DefDiagnosticKind::InvalidDeriveTarget { ast, id: id.ast_index() },
         }
     }
 
@@ -131,7 +153,7 @@ impl DefDiagnostic {
     ) -> Self {
         Self {
             in_module: container,
-            kind: DefDiagnosticKind::MalformedDerive { ast, id: id.ast_index },
+            kind: DefDiagnosticKind::MalformedDerive { ast, id: id.ast_index() },
         }
     }
 }

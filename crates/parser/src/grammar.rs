@@ -51,7 +51,7 @@ pub(crate) mod entry {
         use super::*;
 
         pub(crate) fn vis(p: &mut Parser<'_>) {
-            let _ = opt_visibility(p, false);
+            opt_visibility(p, false);
         }
 
         pub(crate) fn block(p: &mut Parser<'_>) {
@@ -66,14 +66,18 @@ pub(crate) mod entry {
             patterns::pattern_single(p);
         }
 
+        pub(crate) fn pat_top(p: &mut Parser<'_>) {
+            patterns::pattern_top(p);
+        }
+
         pub(crate) fn ty(p: &mut Parser<'_>) {
             types::type_(p);
         }
         pub(crate) fn expr(p: &mut Parser<'_>) {
-            let _ = expressions::expr(p);
+            expressions::expr(p);
         }
         pub(crate) fn path(p: &mut Parser<'_>) {
-            let _ = paths::type_path(p);
+            paths::type_path(p);
         }
         pub(crate) fn item(p: &mut Parser<'_>) {
             items::item_or_macro(p, true);
@@ -198,7 +202,13 @@ impl BlockLike {
     fn is_block(self) -> bool {
         self == BlockLike::Block
     }
+
+    fn is_blocklike(kind: SyntaxKind) -> bool {
+        matches!(kind, BLOCK_EXPR | IF_EXPR | WHILE_EXPR | FOR_EXPR | LOOP_EXPR | MATCH_EXPR)
+    }
 }
+
+const VISIBILITY_FIRST: TokenSet = TokenSet::new(&[T![pub], T![crate]]);
 
 fn opt_visibility(p: &mut Parser<'_>, in_tuple_field: bool) -> bool {
     match p.current() {
@@ -212,17 +222,22 @@ fn opt_visibility(p: &mut Parser<'_>, in_tuple_field: bool) -> bool {
                     // pub(self) struct S;
                     // pub(super) struct S;
 
+                    // test_err crate_visibility_empty_recover
+                    // pub() struct S;
+
                     // test pub_parens_typepath
                     // struct B(pub (super::A));
                     // struct B(pub (crate::A,));
-                    T![crate] | T![self] | T![super] | T![ident] if p.nth(2) != T![:] => {
+                    T![crate] | T![self] | T![super] | T![ident] | T![')'] if p.nth(2) != T![:] => {
                         // If we are in a tuple struct, then the parens following `pub`
                         // might be an tuple field, not part of the visibility. So in that
                         // case we don't want to consume an identifier.
 
                         // test pub_tuple_field
                         // struct MyStruct(pub (u32, u32));
-                        if !(in_tuple_field && matches!(p.nth(1), T![ident])) {
+                        // struct MyStruct(pub (u32));
+                        // struct MyStruct(pub ());
+                        if !(in_tuple_field && matches!(p.nth(1), T![ident] | T![')'])) {
                             p.bump(T!['(']);
                             paths::use_path(p);
                             p.expect(T![')']);
@@ -237,7 +252,7 @@ fn opt_visibility(p: &mut Parser<'_>, in_tuple_field: bool) -> bool {
                         paths::use_path(p);
                         p.expect(T![')']);
                     }
-                    _ => (),
+                    _ => {}
                 }
             }
             m.complete(p, VISIBILITY);
@@ -339,4 +354,32 @@ fn error_block(p: &mut Parser<'_>, message: &str) {
     expressions::expr_block_contents(p);
     p.eat(T!['}']);
     m.complete(p, ERROR);
+}
+
+/// The `parser` passed this is required to at least consume one token if it returns `true`.
+/// If the `parser` returns false, parsing will stop.
+fn delimited(
+    p: &mut Parser<'_>,
+    bra: SyntaxKind,
+    ket: SyntaxKind,
+    delim: SyntaxKind,
+    first_set: TokenSet,
+    mut parser: impl FnMut(&mut Parser<'_>) -> bool,
+) {
+    p.bump(bra);
+    while !p.at(ket) && !p.at(EOF) {
+        if !parser(p) {
+            break;
+        }
+        if !p.at(delim) {
+            if p.at_ts(first_set) {
+                p.error(format!("expected {:?}", delim));
+            } else {
+                break;
+            }
+        } else {
+            p.bump(delim);
+        }
+    }
+    p.expect(ket);
 }

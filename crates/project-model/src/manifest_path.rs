@@ -1,5 +1,5 @@
 //! See [`ManifestPath`].
-use std::{ops, path::Path};
+use std::{fmt, ops, path::Path};
 
 use paths::{AbsPath, AbsPathBuf};
 
@@ -34,13 +34,23 @@ impl ManifestPath {
     pub fn parent(&self) -> &AbsPath {
         self.file.parent().unwrap()
     }
+
+    pub fn canonicalize(&self) -> ! {
+        (&**self).canonicalize()
+    }
+}
+
+impl fmt::Display for ManifestPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.file, f)
+    }
 }
 
 impl ops::Deref for ManifestPath {
     type Target = AbsPath;
 
     fn deref(&self) -> &Self::Target {
-        &*self.file
+        &self.file
     }
 }
 

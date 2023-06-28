@@ -18,16 +18,19 @@ mod to_parser_input;
 mod benchmark;
 mod token_map;
 
+use ::tt::token_id as tt;
+use stdx::impl_from;
+
 use std::fmt;
 
 use crate::{
-    parser::{MetaTemplate, Op},
+    parser::{MetaTemplate, MetaVarKind, Op},
     tt_iter::TtIter,
 };
 
 // FIXME: we probably should re-think  `token_tree_to_syntax_node` interfaces
+pub use self::tt::{Delimiter, DelimiterKind, Punct};
 pub use ::parser::TopEntryPoint;
-pub use tt::{Delimiter, DelimiterKind, Punct};
 
 pub use crate::{
     syntax_bridge::{
@@ -67,7 +70,7 @@ impl fmt::Display for ParseError {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub enum ExpandError {
     BindingError(Box<Box<str>>),
     LeftoverTokens,
@@ -75,7 +78,10 @@ pub enum ExpandError {
     LimitExceeded,
     NoMatchingRule,
     UnexpectedToken,
+    CountError(CountError),
 }
+
+impl_from!(CountError for ExpandError);
 
 impl ExpandError {
     fn binding_error(e: impl Into<Box<str>>) -> ExpandError {
@@ -92,6 +98,23 @@ impl fmt::Display for ExpandError {
             ExpandError::ConversionError => f.write_str("could not convert tokens"),
             ExpandError::LimitExceeded => f.write_str("Expand exceed limit"),
             ExpandError::LeftoverTokens => f.write_str("leftover tokens"),
+            ExpandError::CountError(e) => e.fmt(f),
+        }
+    }
+}
+
+// FIXME: Showing these errors could be nicer.
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+pub enum CountError {
+    OutOfBounds,
+    Misplaced,
+}
+
+impl fmt::Display for CountError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CountError::OutOfBounds => f.write_str("${count} out of bounds"),
+            CountError::Misplaced => f.write_str("${count} misplaced"),
         }
     }
 }
@@ -102,9 +125,12 @@ impl fmt::Display for ExpandError {
 /// and `$()*` have special meaning (see `Var` and `Repeat` data structures)
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeclarativeMacro {
-    rules: Vec<Rule>,
+    rules: Box<[Rule]>,
     /// Highest id of the token we have in TokenMap
     shift: Shift,
+    // This is used for correctly determining the behavior of the pat fragment
+    // FIXME: This should be tracked by hygiene of the fragment identifier!
+    is_2021: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -125,24 +151,26 @@ impl Shift {
 
         // Find the max token id inside a subtree
         fn max_id(subtree: &tt::Subtree) -> Option<u32> {
-            let filter = |tt: &_| match tt {
-                tt::TokenTree::Subtree(subtree) => {
-                    let tree_id = max_id(subtree);
-                    match subtree.delimiter {
-                        Some(it) if it.id != tt::TokenId::unspecified() => {
-                            Some(tree_id.map_or(it.id.0, |t| t.max(it.id.0)))
+            let filter =
+                |tt: &_| match tt {
+                    tt::TokenTree::Subtree(subtree) => {
+                        let tree_id = max_id(subtree);
+                        if subtree.delimiter.open != tt::TokenId::unspecified() {
+                            Some(tree_id.map_or(subtree.delimiter.open.0, |t| {
+                                t.max(subtree.delimiter.open.0)
+                            }))
+                        } else {
+                            tree_id
                         }
-                        _ => tree_id,
                     }
-                }
-                tt::TokenTree::Leaf(leaf) => {
-                    let &(tt::Leaf::Ident(tt::Ident { id, .. })
-                    | tt::Leaf::Punct(tt::Punct { id, .. })
-                    | tt::Leaf::Literal(tt::Literal { id, .. })) = leaf;
+                    tt::TokenTree::Leaf(leaf) => {
+                        let &(tt::Leaf::Ident(tt::Ident { span, .. })
+                        | tt::Leaf::Punct(tt::Punct { span, .. })
+                        | tt::Leaf::Literal(tt::Literal { span, .. })) = leaf;
 
-                    (id != tt::TokenId::unspecified()).then(|| id.0)
-                }
-            };
+                        (span != tt::TokenId::unspecified()).then_some(span.0)
+                    }
+                };
             subtree.token_trees.iter().filter_map(filter).max()
         }
     }
@@ -152,14 +180,13 @@ impl Shift {
         for t in &mut tt.token_trees {
             match t {
                 tt::TokenTree::Leaf(
-                    tt::Leaf::Ident(tt::Ident { id, .. })
-                    | tt::Leaf::Punct(tt::Punct { id, .. })
-                    | tt::Leaf::Literal(tt::Literal { id, .. }),
-                ) => *id = self.shift(*id),
+                    tt::Leaf::Ident(tt::Ident { span, .. })
+                    | tt::Leaf::Punct(tt::Punct { span, .. })
+                    | tt::Leaf::Literal(tt::Literal { span, .. }),
+                ) => *span = self.shift(*span),
                 tt::TokenTree::Subtree(tt) => {
-                    if let Some(it) = tt.delimiter.as_mut() {
-                        it.id = self.shift(it.id);
-                    }
+                    tt.delimiter.open = self.shift(tt.delimiter.open);
+                    tt.delimiter.close = self.shift(tt.delimiter.close);
                     self.shift_all(tt)
                 }
             }
@@ -187,7 +214,10 @@ pub enum Origin {
 
 impl DeclarativeMacro {
     /// The old, `macro_rules! m {}` flavor.
-    pub fn parse_macro_rules(tt: &tt::Subtree) -> Result<DeclarativeMacro, ParseError> {
+    pub fn parse_macro_rules(
+        tt: &tt::Subtree,
+        is_2021: bool,
+    ) -> Result<DeclarativeMacro, ParseError> {
         // Note: this parsing can be implemented using mbe machinery itself, by
         // matching against `$($lhs:tt => $rhs:tt);*` pattern, but implementing
         // manually seems easier.
@@ -208,15 +238,15 @@ impl DeclarativeMacro {
             validate(lhs)?;
         }
 
-        Ok(DeclarativeMacro { rules, shift: Shift::new(tt) })
+        Ok(DeclarativeMacro { rules: rules.into_boxed_slice(), shift: Shift::new(tt), is_2021 })
     }
 
     /// The new, unstable `macro m {}` flavor.
-    pub fn parse_macro2(tt: &tt::Subtree) -> Result<DeclarativeMacro, ParseError> {
+    pub fn parse_macro2(tt: &tt::Subtree, is_2021: bool) -> Result<DeclarativeMacro, ParseError> {
         let mut src = TtIter::new(tt);
         let mut rules = Vec::new();
 
-        if Some(tt::DelimiterKind::Brace) == tt.delimiter_kind() {
+        if tt::DelimiterKind::Brace == tt.delimiter.kind {
             cov_mark::hit!(parse_macro_def_rules);
             while src.len() > 0 {
                 let rule = Rule::parse(&mut src, true)?;
@@ -241,14 +271,14 @@ impl DeclarativeMacro {
             validate(lhs)?;
         }
 
-        Ok(DeclarativeMacro { rules, shift: Shift::new(tt) })
+        Ok(DeclarativeMacro { rules: rules.into_boxed_slice(), shift: Shift::new(tt), is_2021 })
     }
 
     pub fn expand(&self, tt: &tt::Subtree) -> ExpandResult<tt::Subtree> {
         // apply shift
         let mut tt = tt.clone();
         self.shift.shift_all(&mut tt);
-        expander::expand_rules(&self.rules, &tt)
+        expander::expand_rules(&self.rules, &tt, self.is_2021)
     }
 
     pub fn map_id_down(&self, id: tt::TokenId) -> tt::TokenId {
@@ -291,9 +321,9 @@ fn validate(pattern: &MetaTemplate) -> Result<(), ParseError> {
                 // Checks that no repetition which could match an empty token
                 // https://github.com/rust-lang/rust/blob/a58b1ed44f5e06976de2bdc4d7dc81c36a96934f/src/librustc_expand/mbe/macro_rules.rs#L558
                 let lsh_is_empty_seq = separator.is_none() && subtree.iter().all(|child_op| {
-                    match child_op {
+                    match *child_op {
                         // vis is optional
-                        Op::Var { kind: Some(kind), .. } => kind == "vis",
+                        Op::Var { kind: Some(kind), .. } => kind == MetaVarKind::Vis,
                         Op::Repeat {
                             kind: parser::RepeatKind::ZeroOrMore | parser::RepeatKind::ZeroOrOne,
                             ..
@@ -321,6 +351,10 @@ pub struct ValueResult<T, E> {
 }
 
 impl<T, E> ValueResult<T, E> {
+    pub fn new(value: T, err: E) -> Self {
+        Self { value, err: Some(err) }
+    }
+
     pub fn ok(value: T) -> Self {
         Self { value, err: None }
     }

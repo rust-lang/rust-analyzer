@@ -1,30 +1,36 @@
 //! A higher level attributes based on TokenTree, with also some shortcuts.
 
-use std::{fmt, hash::Hash, ops, sync::Arc};
+pub mod builtin;
+
+#[cfg(test)]
+mod tests;
+
+use std::{hash::Hash, ops};
 
 use base_db::CrateId;
 use cfg::{CfgExpr, CfgOptions};
 use either::Either;
-use hir_expand::{hygiene::Hygiene, name::AsName, HirFileId, InFile};
+use hir_expand::{
+    attrs::{collect_attrs, Attr, AttrId, RawAttrs},
+    HirFileId, InFile,
+};
 use itertools::Itertools;
 use la_arena::{ArenaMap, Idx, RawIdx};
-use mbe::{syntax_node_to_token_tree, DelimiterKind, Punct};
-use smallvec::{smallvec, SmallVec};
+use mbe::DelimiterKind;
 use syntax::{
-    ast::{self, AstNode, HasAttrs, IsString},
-    match_ast, AstPtr, AstToken, SmolStr, SyntaxNode, TextRange, TextSize,
+    ast::{self, HasAttrs, IsString},
+    AstPtr, AstToken, SmolStr, TextRange, TextSize,
 };
-use tt::Subtree;
+use triomphe::Arc;
 
 use crate::{
     db::DefDatabase,
-    intern::Interned,
     item_tree::{AttrOwner, Fields, ItemTreeId, ItemTreeNode},
+    lang_item::LangItem,
     nameres::{ModuleOrigin, ModuleSource},
-    path::{ModPath, PathKind},
     src::{HasChildSource, HasSource},
-    AdtId, AttrDefId, EnumId, GenericParamId, LocalEnumVariantId, LocalFieldId, Lookup, MacroId,
-    VariantId,
+    AdtId, AssocItemLoc, AttrDefId, EnumId, GenericParamId, ItemLoc, LocalEnumVariantId,
+    LocalFieldId, Lookup, MacroId, VariantId,
 };
 
 /// Holds documentation
@@ -47,12 +53,6 @@ impl From<Documentation> for String {
     }
 }
 
-/// Syntactical attributes, without filtering of `cfg_attr`s.
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RawAttrs {
-    entries: Option<Arc<[Attr]>>,
-}
-
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct Attrs(RawAttrs);
 
@@ -62,19 +62,13 @@ pub struct AttrsWithOwner {
     owner: AttrDefId,
 }
 
-impl ops::Deref for RawAttrs {
-    type Target = [Attr];
-
-    fn deref(&self) -> &[Attr] {
-        match &self.entries {
-            Some(it) => &*it,
-            None => &[],
-        }
-    }
-}
 impl Attrs {
     pub fn get(&self, id: AttrId) -> Option<&Attr> {
         (**self).iter().find(|attr| attr.id == id)
+    }
+
+    pub(crate) fn filter(db: &dyn DefDatabase, krate: CrateId, raw_attrs: RawAttrs) -> Attrs {
+        Attrs(raw_attrs.filter(db.upcast(), krate))
     }
 }
 
@@ -82,10 +76,7 @@ impl ops::Deref for Attrs {
     type Target = [Attr];
 
     fn deref(&self) -> &[Attr] {
-        match &self.0.entries {
-            Some(it) => &*it,
-            None => &[],
-        }
+        &self.0
     }
 }
 
@@ -97,114 +88,6 @@ impl ops::Deref for AttrsWithOwner {
     }
 }
 
-impl RawAttrs {
-    pub(crate) const EMPTY: Self = Self { entries: None };
-
-    pub(crate) fn new(db: &dyn DefDatabase, owner: &dyn ast::HasAttrs, hygiene: &Hygiene) -> Self {
-        let entries = collect_attrs(owner)
-            .filter_map(|(id, attr)| match attr {
-                Either::Left(attr) => {
-                    attr.meta().and_then(|meta| Attr::from_src(db, meta, hygiene, id))
-                }
-                Either::Right(comment) => comment.doc_comment().map(|doc| Attr {
-                    id,
-                    input: Some(Interned::new(AttrInput::Literal(SmolStr::new(doc)))),
-                    path: Interned::new(ModPath::from(hir_expand::name!(doc))),
-                }),
-            })
-            .collect::<Arc<_>>();
-
-        Self { entries: if entries.is_empty() { None } else { Some(entries) } }
-    }
-
-    fn from_attrs_owner(db: &dyn DefDatabase, owner: InFile<&dyn ast::HasAttrs>) -> Self {
-        let hygiene = Hygiene::new(db.upcast(), owner.file_id);
-        Self::new(db, owner.value, &hygiene)
-    }
-
-    pub(crate) fn merge(&self, other: Self) -> Self {
-        // FIXME: This needs to fixup `AttrId`s
-        match (&self.entries, other.entries) {
-            (None, None) => Self::EMPTY,
-            (None, entries @ Some(_)) => Self { entries },
-            (Some(entries), None) => Self { entries: Some(entries.clone()) },
-            (Some(a), Some(b)) => {
-                let last_ast_index = a.last().map_or(0, |it| it.id.ast_index + 1);
-                Self {
-                    entries: Some(
-                        a.iter()
-                            .cloned()
-                            .chain(b.iter().map(|it| {
-                                let mut it = it.clone();
-                                it.id.ast_index += last_ast_index;
-                                it
-                            }))
-                            .collect(),
-                    ),
-                }
-            }
-        }
-    }
-
-    /// Processes `cfg_attr`s, returning the resulting semantic `Attrs`.
-    pub(crate) fn filter(self, db: &dyn DefDatabase, krate: CrateId) -> Attrs {
-        let has_cfg_attrs = self.iter().any(|attr| {
-            attr.path.as_ident().map_or(false, |name| *name == hir_expand::name![cfg_attr])
-        });
-        if !has_cfg_attrs {
-            return Attrs(self);
-        }
-
-        let crate_graph = db.crate_graph();
-        let new_attrs = self
-            .iter()
-            .flat_map(|attr| -> SmallVec<[_; 1]> {
-                let is_cfg_attr =
-                    attr.path.as_ident().map_or(false, |name| *name == hir_expand::name![cfg_attr]);
-                if !is_cfg_attr {
-                    return smallvec![attr.clone()];
-                }
-
-                let subtree = match attr.token_tree_value() {
-                    Some(it) => it,
-                    _ => return smallvec![attr.clone()],
-                };
-
-                // Input subtree is: `(cfg, $(attr),+)`
-                // Split it up into a `cfg` subtree and the `attr` subtrees.
-                // FIXME: There should be a common API for this.
-                let mut parts = subtree.token_trees.split(|tt| {
-                    matches!(tt, tt::TokenTree::Leaf(tt::Leaf::Punct(Punct { char: ',', .. })))
-                });
-                let cfg = match parts.next() {
-                    Some(it) => it,
-                    None => return smallvec![],
-                };
-                let cfg = Subtree { delimiter: subtree.delimiter, token_trees: cfg.to_vec() };
-                let cfg = CfgExpr::parse(&cfg);
-                let index = attr.id;
-                let attrs = parts.filter(|a| !a.is_empty()).filter_map(|attr| {
-                    let tree = Subtree { delimiter: None, token_trees: attr.to_vec() };
-                    // FIXME hygiene
-                    let hygiene = Hygiene::new_unhygienic();
-                    Attr::from_tt(db, &tree, &hygiene, index)
-                });
-
-                let cfg_options = &crate_graph[krate].cfg_options;
-                if cfg_options.check(&cfg) == Some(false) {
-                    smallvec![]
-                } else {
-                    cov_mark::hit!(cfg_attr_active);
-
-                    attrs.collect()
-                }
-            })
-            .collect();
-
-        Attrs(RawAttrs { entries: Some(new_attrs) })
-    }
-}
-
 impl Attrs {
     pub const EMPTY: Self = Self(RawAttrs::EMPTY);
 
@@ -212,6 +95,7 @@ impl Attrs {
         db: &dyn DefDatabase,
         e: EnumId,
     ) -> Arc<ArenaMap<LocalEnumVariantId, Attrs>> {
+        let _p = profile::span("variants_attrs_query");
         // FIXME: There should be some proper form of mapping between item tree enum variant ids and hir enum variant ids
         let mut res = ArenaMap::default();
 
@@ -238,6 +122,7 @@ impl Attrs {
         db: &dyn DefDatabase,
         v: VariantId,
     ) -> Arc<ArenaMap<LocalFieldId, Attrs>> {
+        let _p = profile::span("fields_attrs_query");
         // FIXME: There should be some proper form of mapping between item tree field ids and hir field ids
         let mut res = ArenaMap::default();
 
@@ -251,19 +136,18 @@ impl Attrs {
                 let enum_ = &item_tree[loc.id.value];
 
                 let cfg_options = &crate_graph[krate].cfg_options;
-                let variant = 'tri: loop {
-                    let mut idx = 0;
-                    for variant in enum_.variants.clone() {
-                        let attrs = item_tree.attrs(db, krate, variant.into());
-                        if attrs.is_cfg_enabled(cfg_options) {
-                            if it.local_id == Idx::from_raw(RawIdx::from(idx)) {
-                                break 'tri variant;
-                            }
-                            idx += 1;
-                        }
-                    }
+
+                let Some(variant) = enum_.variants.clone().filter(|variant| {
+                    let attrs = item_tree.attrs(db, krate, (*variant).into());
+                    attrs.is_cfg_enabled(cfg_options)
+                })
+                .zip(0u32..)
+                .find(|(_variant, idx)| it.local_id == Idx::from_raw(RawIdx::from(*idx)))
+                .map(|(variant, _idx)| variant)
+                else {
                     return Arc::new(res);
                 };
+
                 (item_tree[variant].fields.clone(), item_tree, krate)
             }
             VariantId::StructId(it) => {
@@ -300,13 +184,13 @@ impl Attrs {
 
         Arc::new(res)
     }
-
-    pub fn by_key(&self, key: &'static str) -> AttrQuery<'_> {
-        AttrQuery { attrs: self, key }
-    }
 }
 
 impl Attrs {
+    pub fn by_key(&self, key: &'static str) -> AttrQuery<'_> {
+        AttrQuery { attrs: self, key }
+    }
+
     pub fn cfg(&self) -> Option<CfgExpr> {
         let mut cfgs = self.by_key("cfg").tt_values().map(CfgExpr::parse);
         let first = cfgs.next()?;
@@ -318,6 +202,7 @@ impl Attrs {
             None => Some(first),
         }
     }
+
     pub(crate) fn is_cfg_enabled(&self, cfg_options: &CfgOptions) -> bool {
         match self.cfg() {
             None => true,
@@ -327,6 +212,10 @@ impl Attrs {
 
     pub fn lang(&self) -> Option<&SmolStr> {
         self.by_key("lang").string_value()
+    }
+
+    pub fn lang_item(&self) -> Option<LangItem> {
+        self.by_key("lang").string_value().and_then(|it| LangItem::from_str(it))
     }
 
     pub fn docs(&self) -> Option<Documentation> {
@@ -358,9 +247,17 @@ impl Attrs {
 
     pub fn has_doc_hidden(&self) -> bool {
         self.by_key("doc").tt_values().any(|tt| {
-            tt.delimiter_kind() == Some(DelimiterKind::Parenthesis) &&
+            tt.delimiter.kind == DelimiterKind::Parenthesis &&
                 matches!(&*tt.token_trees, [tt::TokenTree::Leaf(tt::Leaf::Ident(ident))] if ident.text == "hidden")
         })
+    }
+
+    pub fn doc_exprs(&self) -> impl Iterator<Item = DocExpr> + '_ {
+        self.by_key("doc").tt_values().map(DocExpr::parse)
+    }
+
+    pub fn doc_aliases(&self) -> impl Iterator<Item = SmolStr> + '_ {
+        self.doc_exprs().flat_map(|doc_expr| doc_expr.aliases().to_vec())
     }
 
     pub fn is_proc_macro(&self) -> bool {
@@ -374,10 +271,132 @@ impl Attrs {
     pub fn is_proc_macro_derive(&self) -> bool {
         self.by_key("proc_macro_derive").exists()
     }
+
+    pub fn is_test(&self) -> bool {
+        self.by_key("test").exists()
+    }
+
+    pub fn is_ignore(&self) -> bool {
+        self.by_key("ignore").exists()
+    }
+
+    pub fn is_bench(&self) -> bool {
+        self.by_key("bench").exists()
+    }
+
+    pub fn is_unstable(&self) -> bool {
+        self.by_key("unstable").exists()
+    }
+}
+
+use std::slice::Iter as SliceIter;
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
+pub enum DocAtom {
+    /// eg. `#[doc(hidden)]`
+    Flag(SmolStr),
+    /// eg. `#[doc(alias = "x")]`
+    ///
+    /// Note that a key can have multiple values that are all considered "active" at the same time.
+    /// For example, `#[doc(alias = "x")]` and `#[doc(alias = "y")]`.
+    KeyValue { key: SmolStr, value: SmolStr },
+}
+
+// Adapted from `CfgExpr` parsing code
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+// #[cfg_attr(test, derive(derive_arbitrary::Arbitrary))]
+pub enum DocExpr {
+    Invalid,
+    /// eg. `#[doc(hidden)]`, `#[doc(alias = "x")]`
+    Atom(DocAtom),
+    /// eg. `#[doc(alias("x", "y"))]`
+    Alias(Vec<SmolStr>),
+}
+
+impl From<DocAtom> for DocExpr {
+    fn from(atom: DocAtom) -> Self {
+        DocExpr::Atom(atom)
+    }
+}
+
+impl DocExpr {
+    fn parse<S>(tt: &tt::Subtree<S>) -> DocExpr {
+        next_doc_expr(&mut tt.token_trees.iter()).unwrap_or(DocExpr::Invalid)
+    }
+
+    pub fn aliases(&self) -> &[SmolStr] {
+        match self {
+            DocExpr::Atom(DocAtom::KeyValue { key, value }) if key == "alias" => {
+                std::slice::from_ref(value)
+            }
+            DocExpr::Alias(aliases) => aliases,
+            _ => &[],
+        }
+    }
+}
+
+fn next_doc_expr<S>(it: &mut SliceIter<'_, tt::TokenTree<S>>) -> Option<DocExpr> {
+    let name = match it.next() {
+        None => return None,
+        Some(tt::TokenTree::Leaf(tt::Leaf::Ident(ident))) => ident.text.clone(),
+        Some(_) => return Some(DocExpr::Invalid),
+    };
+
+    // Peek
+    let ret = match it.as_slice().first() {
+        Some(tt::TokenTree::Leaf(tt::Leaf::Punct(punct))) if punct.char == '=' => {
+            match it.as_slice().get(1) {
+                Some(tt::TokenTree::Leaf(tt::Leaf::Literal(literal))) => {
+                    it.next();
+                    it.next();
+                    // FIXME: escape? raw string?
+                    let value =
+                        SmolStr::new(literal.text.trim_start_matches('"').trim_end_matches('"'));
+                    DocAtom::KeyValue { key: name, value }.into()
+                }
+                _ => return Some(DocExpr::Invalid),
+            }
+        }
+        Some(tt::TokenTree::Subtree(subtree)) => {
+            it.next();
+            let subs = parse_comma_sep(subtree);
+            match name.as_str() {
+                "alias" => DocExpr::Alias(subs),
+                _ => DocExpr::Invalid,
+            }
+        }
+        _ => DocAtom::Flag(name).into(),
+    };
+
+    // Eat comma separator
+    if let Some(tt::TokenTree::Leaf(tt::Leaf::Punct(punct))) = it.as_slice().first() {
+        if punct.char == ',' {
+            it.next();
+        }
+    }
+    Some(ret)
+}
+
+fn parse_comma_sep<S>(subtree: &tt::Subtree<S>) -> Vec<SmolStr> {
+    subtree
+        .token_trees
+        .iter()
+        .filter_map(|tt| match tt {
+            tt::TokenTree::Leaf(tt::Leaf::Literal(lit)) => {
+                // FIXME: escape? raw string?
+                Some(SmolStr::new(lit.text.trim_start_matches('"').trim_end_matches('"')))
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 impl AttrsWithOwner {
-    pub(crate) fn attrs_query(db: &dyn DefDatabase, def: AttrDefId) -> Self {
+    pub(crate) fn attrs_with_owner(db: &dyn DefDatabase, owner: AttrDefId) -> Self {
+        Self { attrs: db.attrs(owner), owner }
+    }
+
+    pub(crate) fn attrs_query(db: &dyn DefDatabase, def: AttrDefId) -> Attrs {
+        let _p = profile::span("attrs_query");
         // FIXME: this should use `Trace` to avoid duplication in `source_map` below
         let raw_attrs = match def {
             AttrDefId::ModuleId(module) => {
@@ -403,7 +422,7 @@ impl AttrsWithOwner {
                         .raw_attrs(AttrOwner::ModItem(definition_tree_id.value.into()))
                         .clone(),
                     ModuleOrigin::BlockExpr { block } => RawAttrs::from_attrs_owner(
-                        db,
+                        db.upcast(),
                         InFile::new(block.file_id, block.to_node(db.upcast()))
                             .as_ref()
                             .map(|it| it as &dyn ast::HasAttrs),
@@ -411,67 +430,55 @@ impl AttrsWithOwner {
                 }
             }
             AttrDefId::FieldId(it) => {
-                return Self { attrs: db.fields_attrs(it.parent)[it.local_id].clone(), owner: def };
+                return db.fields_attrs(it.parent)[it.local_id].clone();
             }
             AttrDefId::EnumVariantId(it) => {
-                return Self {
-                    attrs: db.variants_attrs(it.parent)[it.local_id].clone(),
-                    owner: def,
-                };
+                return db.variants_attrs(it.parent)[it.local_id].clone();
             }
+            // FIXME: DRY this up
             AttrDefId::AdtId(it) => match it {
-                AdtId::StructId(it) => attrs_from_item_tree(it.lookup(db).id, db),
-                AdtId::EnumId(it) => attrs_from_item_tree(it.lookup(db).id, db),
-                AdtId::UnionId(it) => attrs_from_item_tree(it.lookup(db).id, db),
+                AdtId::StructId(it) => attrs_from_item_tree_loc(db, it),
+                AdtId::EnumId(it) => attrs_from_item_tree_loc(db, it),
+                AdtId::UnionId(it) => attrs_from_item_tree_loc(db, it),
             },
-            AttrDefId::TraitId(it) => attrs_from_item_tree(it.lookup(db).id, db),
+            AttrDefId::TraitId(it) => attrs_from_item_tree_loc(db, it),
+            AttrDefId::TraitAliasId(it) => attrs_from_item_tree_loc(db, it),
             AttrDefId::MacroId(it) => match it {
-                MacroId::Macro2Id(it) => attrs_from_item_tree(it.lookup(db).id, db),
-                MacroId::MacroRulesId(it) => attrs_from_item_tree(it.lookup(db).id, db),
-                MacroId::ProcMacroId(it) => attrs_from_item_tree(it.lookup(db).id, db),
+                MacroId::Macro2Id(it) => attrs_from_item_tree(db, it.lookup(db).id),
+                MacroId::MacroRulesId(it) => attrs_from_item_tree(db, it.lookup(db).id),
+                MacroId::ProcMacroId(it) => attrs_from_item_tree(db, it.lookup(db).id),
             },
-            AttrDefId::ImplId(it) => attrs_from_item_tree(it.lookup(db).id, db),
-            AttrDefId::ConstId(it) => attrs_from_item_tree(it.lookup(db).id, db),
-            AttrDefId::StaticId(it) => attrs_from_item_tree(it.lookup(db).id, db),
-            AttrDefId::FunctionId(it) => attrs_from_item_tree(it.lookup(db).id, db),
-            AttrDefId::TypeAliasId(it) => attrs_from_item_tree(it.lookup(db).id, db),
+            AttrDefId::ImplId(it) => attrs_from_item_tree_loc(db, it),
+            AttrDefId::ConstId(it) => attrs_from_item_tree_assoc(db, it),
+            AttrDefId::StaticId(it) => attrs_from_item_tree_assoc(db, it),
+            AttrDefId::FunctionId(it) => attrs_from_item_tree_assoc(db, it),
+            AttrDefId::TypeAliasId(it) => attrs_from_item_tree_assoc(db, it),
             AttrDefId::GenericParamId(it) => match it {
                 GenericParamId::ConstParamId(it) => {
                     let src = it.parent().child_source(db);
                     RawAttrs::from_attrs_owner(
-                        db,
-                        src.with_value(src.value[it.local_id()].as_ref().either(
-                            |it| match it {
-                                ast::TypeOrConstParam::Type(it) => it as _,
-                                ast::TypeOrConstParam::Const(it) => it as _,
-                            },
-                            |it| it as _,
-                        )),
+                        db.upcast(),
+                        src.with_value(&src.value[it.local_id()]),
                     )
                 }
                 GenericParamId::TypeParamId(it) => {
                     let src = it.parent().child_source(db);
                     RawAttrs::from_attrs_owner(
-                        db,
-                        src.with_value(src.value[it.local_id()].as_ref().either(
-                            |it| match it {
-                                ast::TypeOrConstParam::Type(it) => it as _,
-                                ast::TypeOrConstParam::Const(it) => it as _,
-                            },
-                            |it| it as _,
-                        )),
+                        db.upcast(),
+                        src.with_value(&src.value[it.local_id()]),
                     )
                 }
                 GenericParamId::LifetimeParamId(it) => {
                     let src = it.parent.child_source(db);
-                    RawAttrs::from_attrs_owner(db, src.with_value(&src.value[it.local_id]))
+                    RawAttrs::from_attrs_owner(db.upcast(), src.with_value(&src.value[it.local_id]))
                 }
             },
-            AttrDefId::ExternBlockId(it) => attrs_from_item_tree(it.lookup(db).id, db),
+            AttrDefId::ExternBlockId(it) => attrs_from_item_tree_loc(db, it),
+            AttrDefId::ExternCrateId(it) => attrs_from_item_tree_loc(db, it),
         };
 
-        let attrs = raw_attrs.filter(db, def.krate(db));
-        Self { attrs, owner: def }
+        let attrs = raw_attrs.filter(db.upcast(), def.krate(db));
+        Attrs(attrs)
     }
 
     pub fn source_map(&self, db: &dyn DefDatabase) -> AttrSourceMap {
@@ -507,7 +514,7 @@ impl AttrsWithOwner {
             AttrDefId::FieldId(id) => {
                 let map = db.fields_attrs_source_map(id.parent);
                 let file_id = id.parent.file_id(db);
-                let root = db.parse_or_expand(file_id).unwrap();
+                let root = db.parse_or_expand(file_id);
                 let owner = match &map[id.local_id] {
                     Either::Left(it) => ast::AnyHasAttrs::new(it.to_node(&root)),
                     Either::Right(it) => ast::AnyHasAttrs::new(it.to_node(&root)),
@@ -515,56 +522,44 @@ impl AttrsWithOwner {
                 InFile::new(file_id, owner)
             }
             AttrDefId::AdtId(adt) => match adt {
-                AdtId::StructId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
-                AdtId::UnionId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
-                AdtId::EnumId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
+                AdtId::StructId(id) => any_has_attrs(db, id),
+                AdtId::UnionId(id) => any_has_attrs(db, id),
+                AdtId::EnumId(id) => any_has_attrs(db, id),
             },
-            AttrDefId::FunctionId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
+            AttrDefId::FunctionId(id) => any_has_attrs(db, id),
             AttrDefId::EnumVariantId(id) => {
                 let map = db.variants_attrs_source_map(id.parent);
                 let file_id = id.parent.lookup(db).id.file_id();
-                let root = db.parse_or_expand(file_id).unwrap();
+                let root = db.parse_or_expand(file_id);
                 InFile::new(file_id, ast::AnyHasAttrs::new(map[id.local_id].to_node(&root)))
             }
-            AttrDefId::StaticId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
-            AttrDefId::ConstId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
-            AttrDefId::TraitId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
-            AttrDefId::TypeAliasId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
+            AttrDefId::StaticId(id) => any_has_attrs(db, id),
+            AttrDefId::ConstId(id) => any_has_attrs(db, id),
+            AttrDefId::TraitId(id) => any_has_attrs(db, id),
+            AttrDefId::TraitAliasId(id) => any_has_attrs(db, id),
+            AttrDefId::TypeAliasId(id) => any_has_attrs(db, id),
             AttrDefId::MacroId(id) => match id {
-                MacroId::Macro2Id(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
-                MacroId::MacroRulesId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
-                MacroId::ProcMacroId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
+                MacroId::Macro2Id(id) => any_has_attrs(db, id),
+                MacroId::MacroRulesId(id) => any_has_attrs(db, id),
+                MacroId::ProcMacroId(id) => any_has_attrs(db, id),
             },
-            AttrDefId::ImplId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
+            AttrDefId::ImplId(id) => any_has_attrs(db, id),
             AttrDefId::GenericParamId(id) => match id {
-                GenericParamId::ConstParamId(id) => {
-                    id.parent().child_source(db).map(|source| match &source[id.local_id()] {
-                        Either::Left(ast::TypeOrConstParam::Type(id)) => {
-                            ast::AnyHasAttrs::new(id.clone())
-                        }
-                        Either::Left(ast::TypeOrConstParam::Const(id)) => {
-                            ast::AnyHasAttrs::new(id.clone())
-                        }
-                        Either::Right(id) => ast::AnyHasAttrs::new(id.clone()),
-                    })
-                }
-                GenericParamId::TypeParamId(id) => {
-                    id.parent().child_source(db).map(|source| match &source[id.local_id()] {
-                        Either::Left(ast::TypeOrConstParam::Type(id)) => {
-                            ast::AnyHasAttrs::new(id.clone())
-                        }
-                        Either::Left(ast::TypeOrConstParam::Const(id)) => {
-                            ast::AnyHasAttrs::new(id.clone())
-                        }
-                        Either::Right(id) => ast::AnyHasAttrs::new(id.clone()),
-                    })
-                }
+                GenericParamId::ConstParamId(id) => id
+                    .parent()
+                    .child_source(db)
+                    .map(|source| ast::AnyHasAttrs::new(source[id.local_id()].clone())),
+                GenericParamId::TypeParamId(id) => id
+                    .parent()
+                    .child_source(db)
+                    .map(|source| ast::AnyHasAttrs::new(source[id.local_id()].clone())),
                 GenericParamId::LifetimeParamId(id) => id
                     .parent
                     .child_source(db)
                     .map(|source| ast::AnyHasAttrs::new(source[id.local_id].clone())),
             },
-            AttrDefId::ExternBlockId(id) => id.lookup(db).source(db).map(ast::AnyHasAttrs::new),
+            AttrDefId::ExternBlockId(id) => any_has_attrs(db, id),
+            AttrDefId::ExternCrateId(id) => any_has_attrs(db, id),
         };
 
         AttrSourceMap::new(owner.as_ref().map(|node| node as &dyn HasAttrs))
@@ -627,40 +622,6 @@ fn doc_indent(attrs: &Attrs) -> usize {
         .unwrap_or(0)
 }
 
-fn inner_attributes(
-    syntax: &SyntaxNode,
-) -> Option<impl Iterator<Item = Either<ast::Attr, ast::Comment>>> {
-    let node = match_ast! {
-        match syntax {
-            ast::SourceFile(_) => syntax.clone(),
-            ast::ExternBlock(it) => it.extern_item_list()?.syntax().clone(),
-            ast::Fn(it) => it.body()?.stmt_list()?.syntax().clone(),
-            ast::Impl(it) => it.assoc_item_list()?.syntax().clone(),
-            ast::Module(it) => it.item_list()?.syntax().clone(),
-            ast::BlockExpr(it) => {
-                use syntax::SyntaxKind::{BLOCK_EXPR , EXPR_STMT};
-                // Block expressions accept outer and inner attributes, but only when they are the outer
-                // expression of an expression statement or the final expression of another block expression.
-                let may_carry_attributes = matches!(
-                    it.syntax().parent().map(|it| it.kind()),
-                     Some(BLOCK_EXPR | EXPR_STMT)
-                );
-                if !may_carry_attributes {
-                    return None
-                }
-                syntax.clone()
-            },
-            _ => return None,
-        }
-    };
-
-    let attrs = ast::AttrDocCommentIter::from_syntax_node(&node).filter(|el| match el {
-        Either::Left(attr) => attr.kind().is_inner(),
-        Either::Right(comment) => comment.is_inner(),
-    });
-    Some(attrs)
-}
-
 #[derive(Debug)]
 pub struct AttrSourceMap {
     source: Vec<Either<ast::Attr, ast::Comment>>,
@@ -703,7 +664,7 @@ impl AttrSourceMap {
     }
 
     fn source_of_id(&self, id: AttrId) -> InFile<&Either<ast::Attr, ast::Comment>> {
-        let ast_idx = id.ast_index as usize;
+        let ast_idx = id.ast_index();
         let file_id = match self.mod_def_site_file_id {
             Some((file_id, def_site_cut)) if def_site_cut <= ast_idx => file_id,
             _ => self.file_id,
@@ -712,7 +673,7 @@ impl AttrSourceMap {
         self.source
             .get(ast_idx)
             .map(|it| InFile::new(file_id, it))
-            .unwrap_or_else(|| panic!("cannot find attr at index {:?}", id))
+            .unwrap_or_else(|| panic!("cannot find attr at index {id:?}"))
     }
 }
 
@@ -779,128 +740,6 @@ fn get_doc_string_in_attr(it: &ast::Attr) -> Option<ast::String> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct AttrId {
-    pub(crate) ast_index: u32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Attr {
-    pub(crate) id: AttrId,
-    pub(crate) path: Interned<ModPath>,
-    pub(crate) input: Option<Interned<AttrInput>>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum AttrInput {
-    /// `#[attr = "string"]`
-    Literal(SmolStr),
-    /// `#[attr(subtree)]`
-    TokenTree(tt::Subtree, mbe::TokenMap),
-}
-
-impl fmt::Display for AttrInput {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AttrInput::Literal(lit) => write!(f, " = \"{}\"", lit.escape_debug()),
-            AttrInput::TokenTree(subtree, _) => subtree.fmt(f),
-        }
-    }
-}
-
-impl Attr {
-    fn from_src(
-        db: &dyn DefDatabase,
-        ast: ast::Meta,
-        hygiene: &Hygiene,
-        id: AttrId,
-    ) -> Option<Attr> {
-        let path = Interned::new(ModPath::from_src(db.upcast(), ast.path()?, hygiene)?);
-        let input = if let Some(ast::Expr::Literal(lit)) = ast.expr() {
-            let value = match lit.kind() {
-                ast::LiteralKind::String(string) => string.value()?.into(),
-                _ => lit.syntax().first_token()?.text().trim_matches('"').into(),
-            };
-            Some(Interned::new(AttrInput::Literal(value)))
-        } else if let Some(tt) = ast.token_tree() {
-            let (tree, map) = syntax_node_to_token_tree(tt.syntax());
-            Some(Interned::new(AttrInput::TokenTree(tree, map)))
-        } else {
-            None
-        };
-        Some(Attr { id, path, input })
-    }
-
-    fn from_tt(
-        db: &dyn DefDatabase,
-        tt: &tt::Subtree,
-        hygiene: &Hygiene,
-        id: AttrId,
-    ) -> Option<Attr> {
-        let (parse, _) = mbe::token_tree_to_syntax_node(tt, mbe::TopEntryPoint::MetaItem);
-        let ast = ast::Meta::cast(parse.syntax_node())?;
-
-        Self::from_src(db, ast, hygiene, id)
-    }
-
-    pub fn path(&self) -> &ModPath {
-        &self.path
-    }
-}
-
-impl Attr {
-    /// #[path = "string"]
-    pub fn string_value(&self) -> Option<&SmolStr> {
-        match self.input.as_deref()? {
-            AttrInput::Literal(it) => Some(it),
-            _ => None,
-        }
-    }
-
-    /// #[path(ident)]
-    pub fn single_ident_value(&self) -> Option<&tt::Ident> {
-        match self.input.as_deref()? {
-            AttrInput::TokenTree(subtree, _) => match &*subtree.token_trees {
-                [tt::TokenTree::Leaf(tt::Leaf::Ident(ident))] => Some(ident),
-                _ => None,
-            },
-            _ => None,
-        }
-    }
-
-    /// #[path TokenTree]
-    pub fn token_tree_value(&self) -> Option<&Subtree> {
-        match self.input.as_deref()? {
-            AttrInput::TokenTree(subtree, _) => Some(subtree),
-            _ => None,
-        }
-    }
-
-    /// Parses this attribute as a token tree consisting of comma separated paths.
-    pub fn parse_path_comma_token_tree(&self) -> Option<impl Iterator<Item = ModPath> + '_> {
-        let args = self.token_tree_value()?;
-
-        if args.delimiter_kind() != Some(DelimiterKind::Parenthesis) {
-            return None;
-        }
-        let paths = args
-            .token_trees
-            .split(|tt| matches!(tt, tt::TokenTree::Leaf(tt::Leaf::Punct(Punct { char: ',', .. }))))
-            .filter_map(|tts| {
-                if tts.is_empty() {
-                    return None;
-                }
-                let segments = tts.iter().filter_map(|tt| match tt {
-                    tt::TokenTree::Leaf(tt::Leaf::Ident(id)) => Some(id.as_name()),
-                    _ => None,
-                });
-                Some(ModPath::from_segments(PathKind::Plain, segments))
-            });
-
-        Some(paths)
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct AttrQuery<'attr> {
     attrs: &'attr Attrs,
@@ -908,7 +747,7 @@ pub struct AttrQuery<'attr> {
 }
 
 impl<'attr> AttrQuery<'attr> {
-    pub fn tt_values(self) -> impl Iterator<Item = &'attr Subtree> {
+    pub fn tt_values(self) -> impl Iterator<Item = &'attr crate::tt::Subtree> {
         self.attrs().filter_map(|attr| attr.token_tree_value())
     }
 
@@ -940,32 +779,40 @@ impl<'attr> AttrQuery<'attr> {
                 .nth(2);
 
             match name {
-                Some(tt::TokenTree::Leaf(tt::Leaf::Literal(tt::Literal{ref text, ..}))) => Some(text),
+                Some(tt::TokenTree::Leaf(tt::Leaf::Literal(tt::Literal{ ref text, ..}))) => Some(text),
                 _ => None
             }
         })
     }
 }
 
-fn attrs_from_item_tree<N: ItemTreeNode>(id: ItemTreeId<N>, db: &dyn DefDatabase) -> RawAttrs {
+fn any_has_attrs(
+    db: &dyn DefDatabase,
+    id: impl Lookup<Data = impl HasSource<Value = impl ast::HasAttrs>>,
+) -> InFile<ast::AnyHasAttrs> {
+    id.lookup(db).source(db).map(ast::AnyHasAttrs::new)
+}
+
+fn attrs_from_item_tree<N: ItemTreeNode>(db: &dyn DefDatabase, id: ItemTreeId<N>) -> RawAttrs {
     let tree = id.item_tree(db);
     let mod_item = N::id_to_mod_item(id.value);
     tree.raw_attrs(mod_item.into()).clone()
 }
 
-fn collect_attrs(
-    owner: &dyn ast::HasAttrs,
-) -> impl Iterator<Item = (AttrId, Either<ast::Attr, ast::Comment>)> {
-    let inner_attrs = inner_attributes(owner.syntax()).into_iter().flatten();
-    let outer_attrs =
-        ast::AttrDocCommentIter::from_syntax_node(owner.syntax()).filter(|el| match el {
-            Either::Left(attr) => attr.kind().is_outer(),
-            Either::Right(comment) => comment.is_outer(),
-        });
-    outer_attrs
-        .chain(inner_attrs)
-        .enumerate()
-        .map(|(id, attr)| (AttrId { ast_index: id as u32 }, attr))
+fn attrs_from_item_tree_loc<N: ItemTreeNode>(
+    db: &dyn DefDatabase,
+    lookup: impl Lookup<Data = ItemLoc<N>>,
+) -> RawAttrs {
+    let id = lookup.lookup(db).id;
+    attrs_from_item_tree(db, id)
+}
+
+fn attrs_from_item_tree_assoc<N: ItemTreeNode>(
+    db: &dyn DefDatabase,
+    lookup: impl Lookup<Data = AssocItemLoc<N>>,
+) -> RawAttrs {
+    let id = lookup.lookup(db).id;
+    attrs_from_item_tree(db, id)
 }
 
 pub(crate) fn variants_attrs_source_map(

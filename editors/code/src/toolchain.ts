@@ -18,7 +18,11 @@ export interface ArtifactSpec {
 }
 
 export class Cargo {
-    constructor(readonly rootFolder: string, readonly output: vscode.OutputChannel) {}
+    constructor(
+        readonly rootFolder: string,
+        readonly output: vscode.OutputChannel,
+        readonly env: Record<string, string>
+    ) {}
 
     // Made public for testing purposes
     static artifactSpec(args: readonly string[]): ArtifactSpec {
@@ -102,6 +106,7 @@ export class Cargo {
             const cargo = cp.spawn(path, cargoArgs, {
                 stdio: ["ignore", "pipe", "pipe"],
                 cwd: this.rootFolder,
+                env: this.env,
             });
 
             cargo.on("error", (err) => reject(new Error(`could not launch cargo: ${err}`)));
@@ -156,19 +161,10 @@ export const getPathForExecutable = memoizeAsync(
 
         if (await lookupInPath(executableName)) return executableName;
 
-        try {
-            // hmm, `os.homedir()` seems to be infallible
-            // it is not mentioned in docs and cannot be inferred by the type signature...
-            const standardPath = vscode.Uri.joinPath(
-                vscode.Uri.file(os.homedir()),
-                ".cargo",
-                "bin",
-                executableName
-            );
-
+        const cargoHome = getCargoHome();
+        if (cargoHome) {
+            const standardPath = vscode.Uri.joinPath(cargoHome, "bin", executableName);
             if (await isFileAtUri(standardPath)) return standardPath.fsPath;
-        } catch (err) {
-            log.error("Failed to read the fs info", err);
         }
         return executableName;
     }
@@ -188,6 +184,21 @@ async function lookupInPath(exec: string): Promise<boolean> {
         }
     }
     return false;
+}
+
+function getCargoHome(): vscode.Uri | null {
+    const envVar = process.env["CARGO_HOME"];
+    if (envVar) return vscode.Uri.file(envVar);
+
+    try {
+        // hmm, `os.homedir()` seems to be infallible
+        // it is not mentioned in docs and cannot be inferred by the type signature...
+        return vscode.Uri.joinPath(vscode.Uri.file(os.homedir()), ".cargo");
+    } catch (err) {
+        log.error("Failed to read the fs info", err);
+    }
+
+    return null;
 }
 
 async function isFileAtPath(path: string): Promise<boolean> {

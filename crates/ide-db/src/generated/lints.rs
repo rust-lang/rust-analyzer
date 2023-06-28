@@ -3624,7 +3624,7 @@ of a library.
 Plugins can extend [Rust's lint
 infrastructure](../../reference/attributes/diagnostics.md#lint-check-attributes) with
 additional checks for code style, safety, etc. Now let's write a plugin
-[`lint-plugin-test.rs`](https://github.com/rust-lang/rust/blob/master/src/test/ui-fulldeps/auxiliary/lint-plugin-test.rs)
+[`lint-plugin-test.rs`](https://github.com/rust-lang/rust/blob/master/tests/ui-fulldeps/auxiliary/lint-plugin-test.rs)
 that warns about any item named `lintme`.
 
 ```rust,ignore (requires-stage-2)
@@ -4230,7 +4230,7 @@ pub union GenericUnion<T: Copy> { // Unions with non-`Copy` fields are unstable.
 pub const THIS_IS_OKAY: GenericUnion<()> = GenericUnion { field: () };
 ```
 
-Like transarent `struct`s, a transparent `union` of type `U` has the same
+Like transparent `struct`s, a transparent `union` of type `U` has the same
 layout, size, and ABI as its single non-ZST field. If it is generic over a type
 `T`, and all its fields are ZSTs except for exactly one field of type `T`, then
 it has the same layout and ABI as `T` (even if `T` is a ZST when monomorphized).
@@ -6548,7 +6548,7 @@ subtracting elements in an Add impl."##,
     },
     Lint {
         label: "clippy::suspicious_assignment_formatting",
-        description: r##"Checks for use of the non-existent `=*`, `=!` and `=-`
+        description: r##"Checks for use of the nonexistent `=*`, `=!` and `=-`
 operators."##,
     },
     Lint {

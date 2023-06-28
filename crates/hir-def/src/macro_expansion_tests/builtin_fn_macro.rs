@@ -13,12 +13,12 @@ macro_rules! column {() => {}}
 
 fn main() { column!(); }
 "#,
-        expect![[r##"
+        expect![[r#"
 #[rustc_builtin_macro]
 macro_rules! column {() => {}}
 
-fn main() { 0; }
-"##]],
+fn main() { 0 as u32; }
+"#]],
     );
 }
 
@@ -31,12 +31,12 @@ macro_rules! line {() => {}}
 
 fn main() { line!() }
 "#,
-        expect![[r##"
+        expect![[r#"
 #[rustc_builtin_macro]
 macro_rules! line {() => {}}
 
-fn main() { 0 }
-"##]],
+fn main() { 0 as u32 }
+"#]],
     );
 }
 
@@ -79,7 +79,7 @@ fn main() { env!("TEST_ENV_VAR"); }
 #[rustc_builtin_macro]
 macro_rules! env {() => {}}
 
-fn main() { "__RA_UNIMPLEMENTED__"; }
+fn main() { "UNRESOLVED_ENV_VAR"; }
 "##]],
     );
 }
@@ -93,12 +93,12 @@ macro_rules! option_env {() => {}}
 
 fn main() { option_env!("TEST_ENV_VAR"); }
 "#,
-        expect![[r##"
+        expect![[r#"
 #[rustc_builtin_macro]
 macro_rules! option_env {() => {}}
 
-fn main() { std::option::Option::None:: < &str>; }
-"##]],
+fn main() { ::core::option::Option::None:: < &str>; }
+"#]],
     );
 }
 
@@ -143,7 +143,7 @@ macro_rules! assert {
 
 fn main() {
      {
-        if !true {
+        if !(true ) {
             $crate::panic!("{} {:?}", arg1(a, b, c), arg2);
         }
     };
@@ -163,7 +163,8 @@ macro_rules! compile_error {
 }
 
 // This expands to nothing (since it's in item position), but emits an error.
-compile_error!("error!");
+compile_error!("error, with an escaped quote: \"");
+compile_error!(r"this is a raw string");
 "#,
         expect![[r##"
 #[rustc_builtin_macro]
@@ -172,7 +173,8 @@ macro_rules! compile_error {
     ($msg:expr,) => ({ /* compiler built-in */ })
 }
 
-/* error: error! */
+/* error: error, with an escaped quote: " */
+/* error: this is a raw string */
 "##]],
     );
 }
@@ -199,7 +201,45 @@ macro_rules! format_args {
 }
 
 fn main() {
-    std::fmt::Arguments::new_v1(&[], &[std::fmt::ArgumentV1::new(&(arg1(a, b, c)), std::fmt::Display::fmt), std::fmt::ArgumentV1::new(&(arg2), std::fmt::Display::fmt), ]);
+    ::core::fmt::Arguments::new_v1(&["", " ", ], &[::core::fmt::ArgumentV1::new(&(arg1(a, b, c)), ::core::fmt::Display::fmt), ::core::fmt::ArgumentV1::new(&(arg2), ::core::fmt::Debug::fmt), ]);
+}
+"##]],
+    );
+}
+
+#[test]
+fn regression_15002() {
+    check(
+        r#"
+#[rustc_builtin_macro]
+macro_rules! format_args {
+    ($fmt:expr) => ({ /* compiler built-in */ });
+    ($fmt:expr, $($args:tt)*) => ({ /* compiler built-in */ })
+}
+
+fn main() {
+    format_args!(x = 2);
+    format_args!(x =);
+    format_args!(x =, x = 2);
+    format_args!("{}", x =);
+    format_args!(=, "{}", x =);
+    format_args!(x = 2, "{}", 5);
+}
+"#,
+        expect![[r##"
+#[rustc_builtin_macro]
+macro_rules! format_args {
+    ($fmt:expr) => ({ /* compiler built-in */ });
+    ($fmt:expr, $($args:tt)*) => ({ /* compiler built-in */ })
+}
+
+fn main() {
+    /* error: no rule matches input tokens */;
+    /* error: no rule matches input tokens */;
+    /* error: no rule matches input tokens */;
+    /* error: no rule matches input tokens */::core::fmt::Arguments::new_v1(&["", ], &[::core::fmt::ArgumentV1::new(&(), ::core::fmt::Display::fmt), ]);
+    /* error: no rule matches input tokens */;
+    ::core::fmt::Arguments::new_v1(&["", ], &[::core::fmt::ArgumentV1::new(&(5), ::core::fmt::Display::fmt), ]);
 }
 "##]],
     );
@@ -227,7 +267,74 @@ macro_rules! format_args {
 }
 
 fn main() {
-    std::fmt::Arguments::new_v1(&[], &[std::fmt::ArgumentV1::new(&(a::<A, B>()), std::fmt::Display::fmt), std::fmt::ArgumentV1::new(&(b), std::fmt::Display::fmt), ]);
+    ::core::fmt::Arguments::new_v1(&["", " ", ], &[::core::fmt::ArgumentV1::new(&(a::<A, B>()), ::core::fmt::Display::fmt), ::core::fmt::ArgumentV1::new(&(b), ::core::fmt::Debug::fmt), ]);
+}
+"##]],
+    );
+}
+
+#[test]
+fn test_format_args_expand_with_raw_strings() {
+    check(
+        r##"
+#[rustc_builtin_macro]
+macro_rules! format_args {
+    ($fmt:expr) => ({ /* compiler built-in */ });
+    ($fmt:expr, $($args:tt)*) => ({ /* compiler built-in */ })
+}
+
+fn main() {
+    format_args!(
+        r#"{},mismatch,"{}","{}""#,
+        location_csv_pat(db, &analysis, vfs, &sm, pat_id),
+        mismatch.expected.display(db),
+        mismatch.actual.display(db)
+    );
+}
+"##,
+        expect![[r##"
+#[rustc_builtin_macro]
+macro_rules! format_args {
+    ($fmt:expr) => ({ /* compiler built-in */ });
+    ($fmt:expr, $($args:tt)*) => ({ /* compiler built-in */ })
+}
+
+fn main() {
+    ::core::fmt::Arguments::new_v1(&[r#""#, r#",mismatch,""#, r#"",""#, r#"""#, ], &[::core::fmt::ArgumentV1::new(&(location_csv_pat(db, &analysis, vfs, &sm, pat_id)), ::core::fmt::Display::fmt), ::core::fmt::ArgumentV1::new(&(mismatch.expected.display(db)), ::core::fmt::Display::fmt), ::core::fmt::ArgumentV1::new(&(mismatch.actual.display(db)), ::core::fmt::Display::fmt), ]);
+}
+"##]],
+    );
+}
+
+#[test]
+fn test_format_args_expand_eager() {
+    check(
+        r#"
+#[rustc_builtin_macro]
+macro_rules! concat {}
+
+#[rustc_builtin_macro]
+macro_rules! format_args {
+    ($fmt:expr) => ({ /* compiler built-in */ });
+    ($fmt:expr, $($args:tt)*) => ({ /* compiler built-in */ })
+}
+
+fn main() {
+    format_args!(concat!("xxx{}y", "{:?}zzz"), 2, b);
+}
+"#,
+        expect![[r##"
+#[rustc_builtin_macro]
+macro_rules! concat {}
+
+#[rustc_builtin_macro]
+macro_rules! format_args {
+    ($fmt:expr) => ({ /* compiler built-in */ });
+    ($fmt:expr, $($args:tt)*) => ({ /* compiler built-in */ })
+}
+
+fn main() {
+    ::core::fmt::Arguments::new_v1(&["xxx", "y", "zzz", ], &[::core::fmt::ArgumentV1::new(&(2), ::core::fmt::Display::fmt), ::core::fmt::ArgumentV1::new(&(b), ::core::fmt::Debug::fmt), ]);
 }
 "##]],
     );
@@ -257,8 +364,8 @@ macro_rules! format_args {
 
 fn main() {
     let _ =
-        /* parse error: expected field name or number */
-std::fmt::Arguments::new_v1(&[], &[std::fmt::ArgumentV1::new(&(a.), std::fmt::Display::fmt), ]);
+        /* error: no rule matches input tokens *//* parse error: expected field name or number */
+::core::fmt::Arguments::new_v1(&["", " ", ], &[::core::fmt::ArgumentV1::new(&(a.), ::core::fmt::Display::fmt), ::core::fmt::ArgumentV1::new(&(), ::core::fmt::Debug::fmt), ]);
 }
 "##]],
     );
@@ -335,10 +442,6 @@ macro_rules! surprise {
     () => { "s" };
 }
 
-macro_rules! stuff {
-    ($string:expr) => { concat!($string) };
-}
-
 fn main() { concat!(surprise!()); }
 "##,
         expect![[r##"
@@ -347,10 +450,6 @@ macro_rules! concat {}
 
 macro_rules! surprise {
     () => { "s" };
-}
-
-macro_rules! stuff {
-    ($string:expr) => { concat!($string) };
 }
 
 fn main() { "s"; }

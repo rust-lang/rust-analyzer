@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use syntax::{ast, ast::IsString, AstToken, TextRange, TextSize};
 
-use crate::{AssistContext, AssistId, AssistKind, Assists};
+use crate::{utils::required_hashes, AssistContext, AssistId, AssistKind, Assists};
 
 // Assist: make_raw_string
 //
@@ -20,6 +20,7 @@ use crate::{AssistContext, AssistId, AssistKind, Assists};
 // }
 // ```
 pub(crate) fn make_raw_string(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+    // FIXME: This should support byte and c strings as well.
     let token = ctx.find_token_at_offset::<ast::String>()?;
     if token.is_raw() {
         return None;
@@ -34,13 +35,10 @@ pub(crate) fn make_raw_string(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
             let hashes = "#".repeat(required_hashes(&value).max(1));
             if matches!(value, Cow::Borrowed(_)) {
                 // Avoid replacing the whole string to better position the cursor.
-                edit.insert(token.syntax().text_range().start(), format!("r{}", hashes));
+                edit.insert(token.syntax().text_range().start(), format!("r{hashes}"));
                 edit.insert(token.syntax().text_range().end(), hashes);
             } else {
-                edit.replace(
-                    token.syntax().text_range(),
-                    format!("r{}\"{}\"{}", hashes, value, hashes),
-                );
+                edit.replace(token.syntax().text_range(), format!("r{hashes}\"{value}\"{hashes}"));
             }
         },
     )
@@ -83,7 +81,7 @@ pub(crate) fn make_usual_string(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
                 }
             }
 
-            edit.replace(token.syntax().text_range(), format!("\"{}\"", escaped));
+            edit.replace(token.syntax().text_range(), format!("\"{escaped}\""));
         },
     )
 }
@@ -158,32 +156,10 @@ pub(crate) fn remove_hash(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
     })
 }
 
-fn required_hashes(s: &str) -> usize {
-    let mut res = 0usize;
-    for idx in s.match_indices('"').map(|(i, _)| i) {
-        let (_, sub) = s.split_at(idx + 1);
-        let n_hashes = sub.chars().take_while(|c| *c == '#').count();
-        res = res.max(n_hashes + 1)
-    }
-    res
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::tests::{check_assist, check_assist_not_applicable, check_assist_target};
-
     use super::*;
-
-    #[test]
-    fn test_required_hashes() {
-        assert_eq!(0, required_hashes("abc"));
-        assert_eq!(0, required_hashes("###"));
-        assert_eq!(1, required_hashes("\""));
-        assert_eq!(2, required_hashes("\"#abc"));
-        assert_eq!(0, required_hashes("#abc"));
-        assert_eq!(3, required_hashes("#ab\"##c"));
-        assert_eq!(5, required_hashes("#ab\"##\"####c"));
-    }
+    use crate::tests::{check_assist, check_assist_not_applicable, check_assist_target};
 
     #[test]
     fn make_raw_string_target() {

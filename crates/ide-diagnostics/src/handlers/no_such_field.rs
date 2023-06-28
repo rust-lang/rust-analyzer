@@ -1,4 +1,4 @@
-use hir::{db::AstDatabase, HasSource, HirDisplay, Semantics};
+use hir::{db::ExpandDatabase, HasSource, HirDisplay, Semantics};
 use ide_db::{base_db::FileId, source_change::SourceChange, RootDatabase};
 use syntax::{
     ast::{self, edit::IndentLevel, make},
@@ -21,7 +21,7 @@ pub(crate) fn no_such_field(ctx: &DiagnosticsContext<'_>, d: &hir::NoSuchField) 
 }
 
 fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::NoSuchField) -> Option<Vec<Assist>> {
-    let root = ctx.sema.db.parse_or_expand(d.field.file_id)?;
+    let root = ctx.sema.db.parse_or_expand(d.field.file_id);
     missing_record_expr_field_fixes(
         &ctx.sema,
         d.field.file_id.original_file(ctx.sema.db),
@@ -68,8 +68,8 @@ fn missing_record_expr_field_fixes(
     }
     let new_field = make::record_field(
         None,
-        make::name(&record_expr_field.field_name()?.ident_token()?.text()),
-        make::ty(&new_field_type.display_source_code(sema.db, module.into()).ok()?),
+        make::name(record_expr_field.field_name()?.ident_token()?.text()),
+        make::ty(&new_field_type.display_source_code(sema.db, module.into(), true).ok()?),
     );
 
     let last_field = record_fields.fields().last()?;
@@ -78,13 +78,13 @@ fn missing_record_expr_field_fixes(
 
     let mut new_field = new_field.to_string();
     if usage_file_id != def_file_id {
-        new_field = format!("pub(crate) {}", new_field);
+        new_field = format!("pub(crate) {new_field}");
     }
-    new_field = format!("\n{}{}", indent, new_field);
+    new_field = format!("\n{indent}{new_field}");
 
     let needs_comma = !last_field_syntax.to_string().ends_with(',');
     if needs_comma {
-        new_field = format!(",{}", new_field);
+        new_field = format!(",{new_field}");
     }
 
     let source_change = SourceChange::from_text_edit(
@@ -268,12 +268,12 @@ fn main() {
     foo::Foo { bar: 3, $0baz: false};
 }
 //- /foo.rs
-struct Foo {
+pub struct Foo {
     bar: i32
 }
 "#,
             r#"
-struct Foo {
+pub struct Foo {
     bar: i32,
     pub(crate) baz: bool
 }

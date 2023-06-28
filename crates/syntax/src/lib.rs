@@ -43,10 +43,11 @@ pub mod utils;
 pub mod ted;
 pub mod hacks;
 
-use std::{marker::PhantomData, sync::Arc};
+use std::marker::PhantomData;
 
 use stdx::format_to;
 use text_edit::Indel;
+use triomphe::Arc;
 
 pub use crate::{
     ast::{AstNode, AstToken},
@@ -92,7 +93,7 @@ impl<T> Parse<T> {
         SyntaxNode::new_root(self.green.clone())
     }
     pub fn errors(&self) -> &[SyntaxError] {
-        &*self.errors
+        &self.errors
     }
 }
 
@@ -186,7 +187,7 @@ impl SourceFile {
 /// ```
 #[macro_export]
 macro_rules! match_ast {
-    (match $node:ident { $($tt:tt)* }) => { match_ast!(match ($node) { $($tt)* }) };
+    (match $node:ident { $($tt:tt)* }) => { $crate::match_ast!(match ($node) { $($tt)* }) };
 
     (match ($node:expr) {
         $( $( $path:ident )::+ ($it:pat) => $res:expr, )*

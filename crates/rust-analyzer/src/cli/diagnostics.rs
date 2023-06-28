@@ -1,6 +1,7 @@
 //! Analyze all modules in a project for diagnostics. Exits with a non-zero
 //! status code if any errors are found.
 
+use project_model::{CargoConfig, RustLibSource};
 use rustc_hash::FxHashSet;
 
 use hir::{db::HirDatabase, Crate, Module};
@@ -9,15 +10,22 @@ use ide_db::base_db::SourceDatabaseExt;
 
 use crate::cli::{
     flags,
-    load_cargo::{load_workspace_at, LoadCargoConfig},
+    load_cargo::{load_workspace_at, LoadCargoConfig, ProcMacroServerChoice},
 };
 
 impl flags::Diagnostics {
     pub fn run(self) -> anyhow::Result<()> {
-        let cargo_config = Default::default();
+        let mut cargo_config = CargoConfig::default();
+        cargo_config.sysroot = Some(RustLibSource::Discover);
+        let with_proc_macro_server = if let Some(p) = &self.proc_macro_srv {
+            let path = vfs::AbsPathBuf::assert(std::env::current_dir()?.join(&p));
+            ProcMacroServerChoice::Explicit(path)
+        } else {
+            ProcMacroServerChoice::Sysroot
+        };
         let load_cargo_config = LoadCargoConfig {
             load_out_dirs_from_check: !self.disable_build_scripts,
-            with_proc_macro: !self.disable_proc_macros,
+            with_proc_macro_server,
             prefill_caches: false,
         };
         let (host, _vfs, _proc_macro) =
@@ -29,18 +37,18 @@ impl flags::Diagnostics {
         let mut visited_files = FxHashSet::default();
 
         let work = all_modules(db).into_iter().filter(|module| {
-            let file_id = module.definition_source(db).file_id.original_file(db);
+            let file_id = module.definition_source_file_id(db).original_file(db);
             let source_root = db.file_source_root(file_id);
             let source_root = db.source_root(source_root);
             !source_root.is_library
         });
 
         for module in work {
-            let file_id = module.definition_source(db).file_id.original_file(db);
+            let file_id = module.definition_source_file_id(db).original_file(db);
             if !visited_files.contains(&file_id) {
                 let crate_name =
                     module.krate().display_name(db).as_deref().unwrap_or("unknown").to_string();
-                println!("processing crate: {}, module: {}", crate_name, _vfs.file_path(file_id));
+                println!("processing crate: {crate_name}, module: {}", _vfs.file_path(file_id));
                 for diagnostic in analysis
                     .diagnostics(
                         &DiagnosticsConfig::test_sample(),
@@ -53,7 +61,7 @@ impl flags::Diagnostics {
                         found_error = true;
                     }
 
-                    println!("{:?}", diagnostic);
+                    println!("{diagnostic:?}");
                 }
 
                 visited_files.insert(file_id);

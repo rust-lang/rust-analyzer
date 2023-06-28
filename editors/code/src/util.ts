@@ -112,12 +112,25 @@ export function isRustEditor(editor: vscode.TextEditor): editor is RustEditor {
     return isRustDocument(editor.document);
 }
 
+export function isDocumentInWorkspace(document: RustDocument): boolean {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders) {
+        return false;
+    }
+    for (const folder of workspaceFolders) {
+        if (document.uri.fsPath.startsWith(folder.uri.fsPath)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 export function isValidExecutable(path: string): boolean {
     log.debug("Checking availability of a binary at", path);
 
     const res = spawnSync(path, ["--version"], { encoding: "utf8" });
 
-    const printOutput = res.error && (res.error as any).code !== "ENOENT" ? log.warn : log.debug;
+    const printOutput = res.error ? log.warn : log.info;
     printOutput(path, "--version:", res);
 
     return res.status === 0;
@@ -150,9 +163,11 @@ export function memoizeAsync<Ret, TThis, Param extends string>(
 
 /** Awaitable wrapper around `child_process.exec` */
 export function execute(command: string, options: ExecOptions): Promise<string> {
+    log.info(`running command: ${command}`);
     return new Promise((resolve, reject) => {
         exec(command, options, (err, stdout, stderr) => {
             if (err) {
+                log.error(err);
                 reject(err);
                 return;
             }
@@ -165,4 +180,65 @@ export function execute(command: string, options: ExecOptions): Promise<string> 
             resolve(stdout.trimEnd());
         });
     });
+}
+
+export function executeDiscoverProject(command: string, options: ExecOptions): Promise<string> {
+    log.info(`running command: ${command}`);
+    return new Promise((resolve, reject) => {
+        exec(command, options, (err, stdout, _) => {
+            if (err) {
+                log.error(err);
+                reject(err);
+                return;
+            }
+
+            resolve(stdout.trimEnd());
+        });
+    });
+}
+
+export class LazyOutputChannel implements vscode.OutputChannel {
+    constructor(name: string) {
+        this.name = name;
+    }
+
+    name: string;
+    _channel: vscode.OutputChannel | undefined;
+
+    get channel(): vscode.OutputChannel {
+        if (!this._channel) {
+            this._channel = vscode.window.createOutputChannel(this.name);
+        }
+        return this._channel;
+    }
+
+    append(value: string): void {
+        this.channel.append(value);
+    }
+    appendLine(value: string): void {
+        this.channel.appendLine(value);
+    }
+    replace(value: string): void {
+        this.channel.replace(value);
+    }
+    clear(): void {
+        if (this._channel) {
+            this._channel.clear();
+        }
+    }
+    show(preserveFocus?: boolean): void;
+    show(column?: vscode.ViewColumn, preserveFocus?: boolean): void;
+    show(column?: any, preserveFocus?: any): void {
+        this.channel.show(column, preserveFocus);
+    }
+    hide(): void {
+        if (this._channel) {
+            this._channel.hide();
+        }
+    }
+    dispose(): void {
+        if (this._channel) {
+            this._channel.dispose();
+        }
+    }
 }

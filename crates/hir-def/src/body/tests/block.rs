@@ -148,8 +148,8 @@ fn f() {
 }
     "#,
         expect![[r#"
-            BlockId(1) in ModuleId { krate: CrateId(0), block: Some(BlockId(0)), local_id: Idx::<ModuleData>(1) }
-            BlockId(0) in ModuleId { krate: CrateId(0), block: None, local_id: Idx::<ModuleData>(0) }
+            BlockId(1) in BlockRelativeModuleId { block: Some(BlockId(0)), local_id: Idx::<ModuleData>(1) }
+            BlockId(0) in BlockRelativeModuleId { block: None, local_id: Idx::<ModuleData>(0) }
             crate scope
         "#]],
     );
@@ -392,6 +392,28 @@ fn foo() {
 
             crate
             foo: v
+        "#]],
+    )
+}
+
+#[test]
+fn trailing_expr_macro_expands_stmts() {
+    check_at(
+        r#"
+macro_rules! foo {
+    () => { const FOO: u32 = 0;const BAR: u32 = 0; };
+}
+fn f() {$0
+    foo!{}
+};
+        "#,
+        expect![[r#"
+            block scope
+            BAR: v
+            FOO: v
+
+            crate
+            f: v
         "#]],
     )
 }

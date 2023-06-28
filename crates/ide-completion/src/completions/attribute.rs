@@ -93,7 +93,7 @@ pub(crate) fn complete_attribute_path(
                         acc.add_macro(ctx, path_ctx, m, name)
                     }
                     hir::ScopeDef::ModuleDef(hir::ModuleDef::Module(m)) => {
-                        acc.add_module(ctx, path_ctx, m, name)
+                        acc.add_module(ctx, path_ctx, m, name, vec![])
                     }
                     _ => (),
                 }
@@ -104,12 +104,12 @@ pub(crate) fn complete_attribute_path(
         Qualified::Absolute => acc.add_crate_roots(ctx, path_ctx),
         // only show modules in a fresh UseTree
         Qualified::No => {
-            ctx.process_all_names(&mut |name, def| match def {
+            ctx.process_all_names(&mut |name, def, doc_aliases| match def {
                 hir::ScopeDef::ModuleDef(hir::ModuleDef::Macro(m)) if m.is_attr(ctx.db) => {
                     acc.add_macro(ctx, path_ctx, m, name)
                 }
                 hir::ScopeDef::ModuleDef(hir::ModuleDef::Module(m)) => {
-                    acc.add_module(ctx, path_ctx, m, name)
+                    acc.add_module(ctx, path_ctx, m, name, doc_aliases)
                 }
                 _ => (),
             });
@@ -139,7 +139,7 @@ pub(crate) fn complete_attribute_path(
         }
 
         if is_inner || !attr_completion.prefer_inner {
-            item.add_to(acc);
+            item.add_to(acc, ctx.db);
         }
     };
 
@@ -357,7 +357,7 @@ fn parse_comma_sep_expr(input: ast::TokenTree) -> Option<Vec<ast::Expr>> {
     Some(
         input_expressions
             .into_iter()
-            .filter_map(|(is_sep, group)| (!is_sep).then(|| group))
+            .filter_map(|(is_sep, group)| (!is_sep).then_some(group))
             .filter_map(|mut tokens| syntax::hacks::parse_expr_from_str(&tokens.join("")))
             .collect::<Vec<ast::Expr>>(),
     )
@@ -371,9 +371,7 @@ fn attributes_are_sorted() {
     attrs.for_each(|next| {
         assert!(
             prev < next,
-            r#"ATTRIBUTES array is not sorted, "{}" should come after "{}""#,
-            prev,
-            next
+            r#"ATTRIBUTES array is not sorted, "{prev}" should come after "{next}""#
         );
         prev = next;
     });

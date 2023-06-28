@@ -91,6 +91,12 @@ fn memusage_linux() -> MemoryUsage {
 pub struct Bytes(isize);
 
 impl Bytes {
+    pub fn new(bytes: isize) -> Bytes {
+        Bytes(bytes)
+    }
+}
+
+impl Bytes {
     pub fn megabytes(self) -> isize {
         self.0 / 1024 / 1024
     }
@@ -109,7 +115,7 @@ impl fmt::Display for Bytes {
                 suffix = "mb";
             }
         }
-        f.pad(&format!("{}{}", value, suffix))
+        f.pad(&format!("{value}{suffix}"))
     }
 }
 

@@ -12,7 +12,7 @@
 use itertools::Itertools;
 use stdx::{format_to, never};
 
-use crate::{ast, AstNode, SourceFile, SyntaxKind, SyntaxToken};
+use crate::{ast, utils::is_raw_identifier, AstNode, SourceFile, SyntaxKind, SyntaxToken};
 
 /// While the parent module defines basic atomic "constructors", the `ext`
 /// module defines shortcuts for common things.
@@ -88,6 +88,9 @@ pub mod ext {
         block_expr(None, None)
     }
 
+    pub fn ty_name(name: ast::Name) -> ast::Type {
+        ty_path(ident_path(&name.to_string()))
+    }
     pub fn ty_bool() -> ast::Type {
         ty_path(ident_path("bool"))
     }
@@ -108,8 +111,7 @@ pub fn name_ref(name_ref: &str) -> ast::NameRef {
     ast_from_text(&format!("fn f() {{ {raw_escape}{name_ref}; }}"))
 }
 fn raw_ident_esc(ident: &str) -> &'static str {
-    let is_keyword = parser::SyntaxKind::from_keyword(ident).is_some();
-    if is_keyword && !matches!(ident, "self" | "crate" | "super" | "Self") {
+    if is_raw_identifier(ident) {
         "r#"
     } else {
         ""
@@ -156,37 +158,148 @@ fn ty_from_text(text: &str) -> ast::Type {
     ast_from_text(&format!("type _T = {text};"))
 }
 
+pub fn ty_alias(
+    ident: &str,
+    generic_param_list: Option<ast::GenericParamList>,
+    type_param_bounds: Option<ast::TypeParam>,
+    where_clause: Option<ast::WhereClause>,
+    assignment: Option<(ast::Type, Option<ast::WhereClause>)>,
+) -> ast::TypeAlias {
+    let mut s = String::new();
+    s.push_str(&format!("type {}", ident));
+
+    if let Some(list) = generic_param_list {
+        s.push_str(&list.to_string());
+    }
+
+    if let Some(list) = type_param_bounds {
+        s.push_str(&format!(" : {}", &list));
+    }
+
+    if let Some(cl) = where_clause {
+        s.push_str(&format!(" {}", &cl.to_string()));
+    }
+
+    if let Some(exp) = assignment {
+        if let Some(cl) = exp.1 {
+            s.push_str(&format!(" = {} {}", &exp.0.to_string(), &cl.to_string()));
+        } else {
+            s.push_str(&format!(" = {}", &exp.0.to_string()));
+        }
+    }
+
+    s.push(';');
+    ast_from_text(&s)
+}
+
 pub fn assoc_item_list() -> ast::AssocItemList {
     ast_from_text("impl C for D {}")
 }
 
+fn merge_gen_params(
+    ps: Option<ast::GenericParamList>,
+    bs: Option<ast::GenericParamList>,
+) -> Option<ast::GenericParamList> {
+    match (ps, bs) {
+        (None, None) => None,
+        (None, Some(bs)) => Some(bs),
+        (Some(ps), None) => Some(ps),
+        (Some(ps), Some(bs)) => {
+            for b in bs.generic_params() {
+                ps.add_generic_param(b);
+            }
+            Some(ps)
+        }
+    }
+}
+
 pub fn impl_(
-    ty: ast::Path,
-    params: Option<ast::GenericParamList>,
-    ty_params: Option<ast::GenericParamList>,
+    generic_params: Option<ast::GenericParamList>,
+    generic_args: Option<ast::GenericParamList>,
+    path_type: ast::Type,
+    where_clause: Option<ast::WhereClause>,
+    body: Option<Vec<either::Either<ast::Attr, ast::AssocItem>>>,
 ) -> ast::Impl {
-    let params = match params {
-        Some(params) => params.to_string(),
+    let (gen_params, tr_gen_args) = match (generic_params, generic_args) {
+        (None, None) => (String::new(), String::new()),
+        (None, Some(args)) => (String::new(), args.to_generic_args().to_string()),
+        (Some(params), None) => (params.to_string(), params.to_generic_args().to_string()),
+        (Some(params), Some(args)) => match merge_gen_params(Some(params.clone()), Some(args)) {
+            Some(merged) => (params.to_string(), merged.to_generic_args().to_string()),
+            None => (params.to_string(), String::new()),
+        },
+    };
+
+    let where_clause = match where_clause {
+        Some(pr) => pr.to_string(),
+        None => " ".to_string(),
+    };
+
+    let body = match body {
+        Some(bd) => bd.iter().map(|elem| elem.to_string()).join(""),
         None => String::new(),
     };
-    let ty_params = match ty_params {
-        Some(params) => params.to_string(),
-        None => String::new(),
-    };
-    ast_from_text(&format!("impl{params} {ty}{ty_params} {{}}"))
+
+    ast_from_text(&format!("impl{gen_params} {path_type}{tr_gen_args}{where_clause}{{{}}}", body))
 }
 
+// FIXME : We must make *_gen_args' type ast::GenericArgList but in order to do so we must implement in `edit_in_place.rs`
+// `add_generic_arg()` just like `add_generic_param()`
+// is implemented for `ast::GenericParamList`
 pub fn impl_trait(
-    trait_: ast::Path,
-    ty: ast::Path,
-    ty_params: Option<ast::GenericParamList>,
+    is_unsafe: bool,
+    trait_gen_params: Option<ast::GenericParamList>,
+    trait_gen_args: Option<ast::GenericParamList>,
+    type_gen_params: Option<ast::GenericParamList>,
+    type_gen_args: Option<ast::GenericParamList>,
+    is_negative: bool,
+    path_type: ast::Type,
+    ty: ast::Type,
+    trait_where_clause: Option<ast::WhereClause>,
+    ty_where_clause: Option<ast::WhereClause>,
+    body: Option<Vec<either::Either<ast::Attr, ast::AssocItem>>>,
 ) -> ast::Impl {
-    let ty_params = ty_params.map_or_else(String::new, |params| params.to_string());
-    ast_from_text(&format!("impl{ty_params} {trait_} for {ty}{ty_params} {{}}"))
+    let is_unsafe = if is_unsafe { "unsafe " } else { "" };
+    let ty_gen_args = match merge_gen_params(type_gen_params.clone(), type_gen_args) {
+        Some(pars) => pars.to_generic_args().to_string(),
+        None => String::new(),
+    };
+
+    let tr_gen_args = match merge_gen_params(trait_gen_params.clone(), trait_gen_args) {
+        Some(pars) => pars.to_generic_args().to_string(),
+        None => String::new(),
+    };
+
+    let gen_params = match merge_gen_params(trait_gen_params, type_gen_params) {
+        Some(pars) => pars.to_string(),
+        None => String::new(),
+    };
+
+    let is_negative = if is_negative { "! " } else { "" };
+
+    let where_clause = match (ty_where_clause, trait_where_clause) {
+        (None, None) => " ".to_string(),
+        (None, Some(tr)) => format!("\n{}\n", tr).to_string(),
+        (Some(ty), None) => format!("\n{}\n", ty).to_string(),
+        (Some(ty), Some(tr)) => {
+            let updated = ty.clone_for_update();
+            tr.predicates().for_each(|p| {
+                ty.add_predicate(p);
+            });
+            format!("\n{}\n", updated).to_string()
+        }
+    };
+
+    let body = match body {
+        Some(bd) => bd.iter().map(|elem| elem.to_string()).join(""),
+        None => String::new(),
+    };
+
+    ast_from_text(&format!("{is_unsafe}impl{gen_params} {is_negative}{path_type}{tr_gen_args} for {ty}{ty_gen_args}{where_clause}{{{}}}" , body))
 }
 
-pub(crate) fn generic_arg_list() -> ast::GenericArgList {
-    ast_from_text("const S: T<> = ();")
+pub fn impl_trait_type(bounds: ast::TypeBoundList) -> ast::ImplTraitType {
+    ast_from_text(&format!("fn f(x: impl {bounds}) {{}}"))
 }
 
 pub fn path_segment(name_ref: ast::NameRef) -> ast::PathSegment {
@@ -334,11 +447,30 @@ pub fn block_expr(
     ast_from_text(&format!("fn f() {buf}"))
 }
 
+pub fn async_move_block_expr(
+    stmts: impl IntoIterator<Item = ast::Stmt>,
+    tail_expr: Option<ast::Expr>,
+) -> ast::BlockExpr {
+    let mut buf = "async move {\n".to_string();
+    for stmt in stmts.into_iter() {
+        format_to!(buf, "    {stmt}\n");
+    }
+    if let Some(tail_expr) = tail_expr {
+        format_to!(buf, "    {tail_expr}\n");
+    }
+    buf += "}";
+    ast_from_text(&format!("const _: () = {buf};"))
+}
+
+pub fn tail_only_block_expr(tail_expr: ast::Expr) -> ast::BlockExpr {
+    ast_from_text(&format!("fn f() {{ {tail_expr} }}"))
+}
+
 /// Ideally this function wouldn't exist since it involves manual indenting.
-/// It differs from `make::block_expr` by also supporting comments.
+/// It differs from `make::block_expr` by also supporting comments and whitespace.
 ///
 /// FIXME: replace usages of this with the mutable syntax tree API
-pub fn hacky_block_expr_with_comments(
+pub fn hacky_block_expr(
     elements: impl IntoIterator<Item = crate::SyntaxElement>,
     tail_expr: Option<ast::Expr>,
 ) -> ast::BlockExpr {
@@ -346,10 +478,17 @@ pub fn hacky_block_expr_with_comments(
     for node_or_token in elements.into_iter() {
         match node_or_token {
             rowan::NodeOrToken::Node(n) => format_to!(buf, "    {n}\n"),
-            rowan::NodeOrToken::Token(t) if t.kind() == SyntaxKind::COMMENT => {
-                format_to!(buf, "    {t}\n")
+            rowan::NodeOrToken::Token(t) => {
+                let kind = t.kind();
+                if kind == SyntaxKind::COMMENT {
+                    format_to!(buf, "    {t}\n")
+                } else if kind == SyntaxKind::WHITESPACE {
+                    let content = t.text().trim_matches(|c| c != '\n');
+                    if !content.is_empty() {
+                        format_to!(buf, "{}", &content[1..])
+                    }
+                }
             }
-            _ => (),
         }
     }
     if let Some(tail_expr) = tail_expr {
@@ -509,6 +648,15 @@ pub fn literal_pat(lit: &str) -> ast::LiteralPat {
     }
 }
 
+pub fn slice_pat(pats: impl IntoIterator<Item = ast::Pat>) -> ast::SlicePat {
+    let pats_str = pats.into_iter().join(", ");
+    return from_text(&format!("[{pats_str}]"));
+
+    fn from_text(text: &str) -> ast::SlicePat {
+        ast_from_text(&format!("fn f() {{ match () {{{text} => ()}} }}"))
+    }
+}
+
 /// Creates a tuple of patterns from an iterator of patterns.
 ///
 /// Invariant: `pats` must be length > 0
@@ -656,6 +804,22 @@ pub fn let_stmt(
     };
     ast_from_text(&format!("fn f() {{ {text} }}"))
 }
+
+pub fn let_else_stmt(
+    pattern: ast::Pat,
+    ty: Option<ast::Type>,
+    expr: ast::Expr,
+    diverging: ast::BlockExpr,
+) -> ast::LetStmt {
+    let mut text = String::new();
+    format_to!(text, "let {pattern}");
+    if let Some(ty) = ty {
+        format_to!(text, ": {ty}");
+    }
+    format_to!(text, " = {expr} else {diverging};");
+    ast_from_text(&format!("fn f() {{ {text} }}"))
+}
+
 pub fn expr_stmt(expr: ast::Expr) -> ast::ExprStmt {
     let semi = if expr.is_block_like() { "" } else { ";" };
     ast_from_text(&format!("fn f() {{ {expr}{semi} (); }}"))
@@ -699,12 +863,23 @@ pub fn param_list(
     ast_from_text(&list)
 }
 
-pub fn type_param(name: ast::Name, ty: Option<ast::TypeBoundList>) -> ast::TypeParam {
-    let bound = match ty {
-        Some(it) => format!(": {it}"),
-        None => String::new(),
-    };
-    ast_from_text(&format!("fn f<{name}{bound}>() {{ }}"))
+pub fn type_bound(bound: &str) -> ast::TypeBound {
+    ast_from_text(&format!("fn f<T: {bound}>() {{ }}"))
+}
+
+pub fn type_bound_list(
+    bounds: impl IntoIterator<Item = ast::TypeBound>,
+) -> Option<ast::TypeBoundList> {
+    let bounds = bounds.into_iter().map(|it| it.to_string()).unique().join(" + ");
+    if bounds.is_empty() {
+        return None;
+    }
+    Some(ast_from_text(&format!("fn f<T: {bounds}>() {{ }}")))
+}
+
+pub fn type_param(name: ast::Name, bounds: Option<ast::TypeBoundList>) -> ast::TypeParam {
+    let bounds = bounds.map_or_else(String::new, |it| format!(": {it}"));
+    ast_from_text(&format!("fn f<{name}{bounds}>() {{ }}"))
 }
 
 pub fn lifetime_param(lifetime: ast::Lifetime) -> ast::LifetimeParam {
@@ -716,6 +891,21 @@ pub fn generic_param_list(
 ) -> ast::GenericParamList {
     let args = pats.into_iter().join(", ");
     ast_from_text(&format!("fn f<{args}>() {{ }}"))
+}
+
+pub fn type_arg(ty: ast::Type) -> ast::TypeArg {
+    ast_from_text(&format!("const S: T<{ty}> = ();"))
+}
+
+pub fn lifetime_arg(lifetime: ast::Lifetime) -> ast::LifetimeArg {
+    ast_from_text(&format!("const S: T<{lifetime}> = ();"))
+}
+
+pub(crate) fn generic_arg_list(
+    args: impl IntoIterator<Item = ast::GenericArg>,
+) -> ast::GenericArgList {
+    let args = args.into_iter().join(", ");
+    ast_from_text(&format!("const S: T<{args}> = ();"))
 }
 
 pub fn visibility_pub_crate() -> ast::Visibility {
@@ -761,13 +951,20 @@ pub fn fn_(
     visibility: Option<ast::Visibility>,
     fn_name: ast::Name,
     type_params: Option<ast::GenericParamList>,
+    where_clause: Option<ast::WhereClause>,
     params: ast::ParamList,
     body: ast::BlockExpr,
     ret_type: Option<ast::RetType>,
     is_async: bool,
+    is_const: bool,
+    is_unsafe: bool,
 ) -> ast::Fn {
     let type_params = match type_params {
         Some(type_params) => format!("{type_params}"),
+        None => "".into(),
+    };
+    let where_clause = match where_clause {
+        Some(it) => format!("{it} "),
         None => "".into(),
     };
     let ret_type = match ret_type {
@@ -780,12 +977,13 @@ pub fn fn_(
     };
 
     let async_literal = if is_async { "async " } else { "" };
+    let const_literal = if is_const { "const " } else { "" };
+    let unsafe_literal = if is_unsafe { "unsafe " } else { "" };
 
     ast_from_text(&format!(
-        "{visibility}{async_literal}fn {fn_name}{type_params}{params} {ret_type}{body}",
+        "{visibility}{async_literal}{const_literal}{unsafe_literal}fn {fn_name}{type_params}{params} {ret_type}{where_clause}{body}",
     ))
 }
-
 pub fn struct_(
     visibility: Option<ast::Visibility>,
     strukt_name: ast::Name,
@@ -835,7 +1033,7 @@ pub mod tokens {
 
     pub(super) static SOURCE_FILE: Lazy<Parse<SourceFile>> = Lazy::new(|| {
         SourceFile::parse(
-            "const C: <()>::Item = (1 != 1, 2 == 2, 3 < 3, 4 <= 4, 5 > 5, 6 >= 6, !true, *p)\n;\n\n",
+            "const C: <()>::Item = (1 != 1, 2 == 2, 3 < 3, 4 <= 4, 5 > 5, 6 >= 6, !true, *p, &p , &mut p)\n;\n\n",
         )
     });
 

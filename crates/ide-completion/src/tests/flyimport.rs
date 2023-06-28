@@ -541,9 +541,9 @@ fn main() {
 }
 "#,
         expect![[r#"
-                fn weird_function() (use dep::test_mod::TestTrait) fn() DEPRECATED
-                ct SPECIAL_CONST (use dep::test_mod::TestTrait) DEPRECATED
-            "#]],
+            ct SPECIAL_CONST (use dep::test_mod::TestTrait) DEPRECATED
+            fn weird_function() (use dep::test_mod::TestTrait) fn() DEPRECATED
+        "#]],
     );
 }
 
@@ -1108,6 +1108,41 @@ fn function() {
 }
 
 #[test]
+fn flyimport_pattern_no_unstable_item_on_stable() {
+    check(
+        r#"
+//- /main.rs crate:main deps:std
+fn function() {
+    let foo$0
+}
+//- /std.rs crate:std
+#[unstable]
+pub struct FooStruct {}
+"#,
+        expect![""],
+    );
+}
+
+#[test]
+fn flyimport_pattern_unstable_item_on_nightly() {
+    check(
+        r#"
+//- toolchain:nightly
+//- /main.rs crate:main deps:std
+fn function() {
+    let foo$0
+}
+//- /std.rs crate:std
+#[unstable]
+pub struct FooStruct {}
+"#,
+        expect![[r#"
+            st FooStruct (use std::FooStruct)
+        "#]],
+    );
+}
+
+#[test]
 fn flyimport_item_name() {
     check(
         r#"
@@ -1229,4 +1264,25 @@ macro_rules! define_struct {
             ma define_struct!(…) (use dep::define_struct) macro_rules! define_struct
         "#]],
     );
+}
+
+#[test]
+fn macro_use_prelude_is_in_scope() {
+    check(
+        r#"
+//- /main.rs crate:main deps:dep
+#[macro_use]
+extern crate dep;
+
+fn main() {
+    print$0
+}
+//- /lib.rs crate:dep
+#[macro_export]
+macro_rules! println {
+    () => {}
+}
+"#,
+        expect![""],
+    )
 }

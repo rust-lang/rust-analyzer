@@ -1,14 +1,13 @@
 //! In certain situations, rust automatically inserts derefs as necessary: for
 //! example, field accesses `foo.bar` still work when `foo` is actually a
 //! reference to a type with the field `bar`. This is an approximation of the
-//! logic in rustc (which lives in librustc_typeck/check/autoderef.rs).
-
-use std::sync::Arc;
+//! logic in rustc (which lives in rustc_hir_analysis/check/autoderef.rs).
 
 use chalk_ir::cast::Cast;
+use hir_def::lang_item::LangItem;
 use hir_expand::name::name;
 use limit::Limit;
-use syntax::SmolStr;
+use triomphe::Arc;
 
 use crate::{
     db::HirDatabase, infer::unify::InferenceTable, Canonical, Goal, Interner, ProjectionTyExt,
@@ -17,11 +16,48 @@ use crate::{
 
 static AUTODEREF_RECURSION_LIMIT: Limit = Limit::new(10);
 
+#[derive(Debug)]
 pub(crate) enum AutoderefKind {
     Builtin,
     Overloaded,
 }
 
+/// Returns types that `ty` transitively dereferences to. This function is only meant to be used
+/// outside `hir-ty`.
+///
+/// It is guaranteed that:
+/// - the yielded types don't contain inference variables (but may contain `TyKind::Error`).
+/// - a type won't be yielded more than once; in other words, the returned iterator will stop if it
+///   detects a cycle in the deref chain.
+pub fn autoderef(
+    db: &dyn HirDatabase,
+    env: Arc<TraitEnvironment>,
+    ty: Canonical<Ty>,
+) -> impl Iterator<Item = Ty> {
+    let mut table = InferenceTable::new(db, env);
+    let ty = table.instantiate_canonical(ty);
+    let mut autoderef = Autoderef::new(&mut table, ty);
+    let mut v = Vec::new();
+    while let Some((ty, _steps)) = autoderef.next() {
+        // `ty` may contain unresolved inference variables. Since there's no chance they would be
+        // resolved, just replace with fallback type.
+        let resolved = autoderef.table.resolve_completely(ty);
+
+        // If the deref chain contains a cycle (e.g. `A` derefs to `B` and `B` derefs to `A`), we
+        // would revisit some already visited types. Stop here to avoid duplication.
+        //
+        // XXX: The recursion limit for `Autoderef` is currently 10, so `Vec::contains()` shouldn't
+        // be too expensive. Replace this duplicate check with `FxHashSet` if it proves to be more
+        // performant.
+        if v.contains(&resolved) {
+            break;
+        }
+        v.push(resolved);
+    }
+    v.into_iter()
+}
+
+#[derive(Debug)]
 pub(crate) struct Autoderef<'a, 'db> {
     pub(crate) table: &'a mut InferenceTable<'db>,
     ty: Ty,
@@ -74,62 +110,56 @@ pub(crate) fn autoderef_step(
     table: &mut InferenceTable<'_>,
     ty: Ty,
 ) -> Option<(AutoderefKind, Ty)> {
-    if let Some(derefed) = builtin_deref(&ty) {
+    if let Some(derefed) = builtin_deref(table, &ty, false) {
         Some((AutoderefKind::Builtin, table.resolve_ty_shallow(derefed)))
     } else {
         Some((AutoderefKind::Overloaded, deref_by_trait(table, ty)?))
     }
 }
 
-// FIXME: replace uses of this with Autoderef above
-pub fn autoderef<'a>(
-    db: &'a dyn HirDatabase,
-    env: Arc<TraitEnvironment>,
-    ty: Canonical<Ty>,
-) -> impl Iterator<Item = Canonical<Ty>> + 'a {
-    let mut table = InferenceTable::new(db, env);
-    let ty = table.instantiate_canonical(ty);
-    let mut autoderef = Autoderef::new(&mut table, ty);
-    let mut v = Vec::new();
-    while let Some((ty, _steps)) = autoderef.next() {
-        v.push(autoderef.table.canonicalize(ty).value);
-    }
-    v.into_iter()
-}
-
-pub(crate) fn deref(table: &mut InferenceTable<'_>, ty: Ty) -> Option<Ty> {
-    let _p = profile::span("deref");
-    autoderef_step(table, ty).map(|(_, ty)| ty)
-}
-
-fn builtin_deref(ty: &Ty) -> Option<&Ty> {
+pub(crate) fn builtin_deref<'ty>(
+    table: &mut InferenceTable<'_>,
+    ty: &'ty Ty,
+    explicit: bool,
+) -> Option<&'ty Ty> {
     match ty.kind(Interner) {
-        TyKind::Ref(.., ty) | TyKind::Raw(.., ty) => Some(ty),
+        TyKind::Ref(.., ty) => Some(ty),
+        // FIXME: Maybe accept this but diagnose if its not explicit?
+        TyKind::Raw(.., ty) if explicit => Some(ty),
+        &TyKind::Adt(chalk_ir::AdtId(adt), ref substs) => {
+            if crate::lang_items::is_box(table.db, adt) {
+                substs.at(Interner, 0).ty(Interner)
+            } else {
+                None
+            }
+        }
         _ => None,
     }
 }
 
-fn deref_by_trait(table: &mut InferenceTable<'_>, ty: Ty) -> Option<Ty> {
+pub(crate) fn deref_by_trait(
+    table @ &mut InferenceTable { db, .. }: &mut InferenceTable<'_>,
+    ty: Ty,
+) -> Option<Ty> {
     let _p = profile::span("deref_by_trait");
     if table.resolve_ty_shallow(&ty).inference_var(Interner).is_some() {
         // don't try to deref unknown variables
         return None;
     }
 
-    let db = table.db;
-    let deref_trait = db
-        .lang_item(table.trait_env.krate, SmolStr::new_inline("deref"))
-        .and_then(|l| l.as_trait())?;
+    let deref_trait =
+        db.lang_item(table.trait_env.krate, LangItem::Deref).and_then(|l| l.as_trait())?;
     let target = db.trait_data(deref_trait).associated_type_by_name(&name![Target])?;
 
     let projection = {
-        let b = TyBuilder::assoc_type_projection(db, target);
+        let b = TyBuilder::subst_for_def(db, deref_trait, None);
         if b.remaining() != 1 {
             // the Target type + Deref trait should only have one generic parameter,
             // namely Deref's Self type
             return None;
         }
-        b.push(ty).build()
+        let deref_subst = b.push(ty).build();
+        TyBuilder::assoc_type_projection(db, target, Some(deref_subst)).build()
     };
 
     // Check that the type implements Deref at all

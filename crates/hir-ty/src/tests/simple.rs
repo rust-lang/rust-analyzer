@@ -214,7 +214,7 @@ fn infer_paths() {
 fn a() -> u32 { 1 }
 
 mod b {
-    fn c() -> u32 { 1 }
+    pub fn c() -> u32 { 1 }
 }
 
 fn test() {
@@ -225,13 +225,13 @@ fn test() {
         expect![[r#"
             14..19 '{ 1 }': u32
             16..17 '1': u32
-            47..52 '{ 1 }': u32
-            49..50 '1': u32
-            66..90 '{     ...c(); }': ()
-            72..73 'a': fn a() -> u32
-            72..75 'a()': u32
-            81..85 'b::c': fn c() -> u32
-            81..87 'b::c()': u32
+            51..56 '{ 1 }': u32
+            53..54 '1': u32
+            70..94 '{     ...c(); }': ()
+            76..77 'a': fn a() -> u32
+            76..79 'a()': u32
+            85..89 'b::c': fn c() -> u32
+            85..91 'b::c()': u32
         "#]],
     );
 }
@@ -352,14 +352,12 @@ unsafe fn baz(u: MyUnion) {
             71..89 'MyUnio...o: 0 }': MyUnion
             86..87 '0': u32
             95..113 'unsafe...(u); }': ()
-            95..113 'unsafe...(u); }': ()
             104..107 'baz': fn baz(MyUnion)
             104..110 'baz(u)': ()
             108..109 'u': MyUnion
             122..123 'u': MyUnion
             126..146 'MyUnio... 0.0 }': MyUnion
             141..144 '0.0': f32
-            152..170 'unsafe...(u); }': ()
             152..170 'unsafe...(u); }': ()
             161..164 'baz': fn baz(MyUnion)
             161..167 'baz(u)': ()
@@ -856,9 +854,9 @@ fn test2(a1: *const A, a2: *mut A) {
             237..239 'a2': *mut A
             249..272 '{     ...2.b; }': ()
             255..257 'a1': *const A
-            255..259 'a1.b': B
+            255..259 'a1.b': {unknown}
             265..267 'a2': *mut A
-            265..269 'a2.b': B
+            265..269 'a2.b': {unknown}
         "#]],
     );
 }
@@ -1118,21 +1116,22 @@ fn infer_inherent_method() {
 fn infer_inherent_method_str() {
     check_infer(
         r#"
-        #[lang = "str"]
-        impl str {
-            fn foo(&self) -> i32 {}
-        }
+#![rustc_coherence_is_core]
+#[lang = "str"]
+impl str {
+    fn foo(&self) -> i32 {}
+}
 
-        fn test() {
-            "foo".foo();
-        }
-        "#,
+fn test() {
+    "foo".foo();
+}
+"#,
         expect![[r#"
-            39..43 'self': &str
-            52..54 '{}': i32
-            68..88 '{     ...o(); }': ()
-            74..79 '"foo"': &str
-            74..85 '"foo".foo()': i32
+            67..71 'self': &str
+            80..82 '{}': i32
+            96..116 '{     ...o(); }': ()
+            102..107 '"foo"': &str
+            102..113 '"foo".foo()': i32
         "#]],
     );
 }
@@ -1813,6 +1812,52 @@ fn main() {
       //^ [(); 7]
 }"#,
     );
+    check_types(
+        r#"
+trait Foo {
+    fn x(self);
+}
+
+impl Foo for u8 {
+    fn x(self) {
+        let t = [0; 4 + 2];
+          //^ [i32; 6]
+    }
+}
+    "#,
+    );
+}
+
+#[test]
+fn const_eval_in_function_signature() {
+    check_types(
+        r#"
+const fn foo() -> usize {
+    5
+}
+
+fn f() -> [u8; foo()] {
+    loop {}
+}
+
+fn main() {
+    let t = f();
+      //^ [u8; 5]
+}"#,
+    );
+    check_types(
+        r#"
+//- minicore: default, builtin_impls
+fn f() -> [u8; Default::default()] {
+    loop {}
+}
+
+fn main() {
+    let t = f();
+      //^ [u8; 0]
+}
+    "#,
+    );
 }
 
 #[test]
@@ -1856,7 +1901,7 @@ fn not_shadowing_module_by_primitive() {
     check_types(
         r#"
 //- /str.rs
-fn foo() -> u32 {0}
+pub fn foo() -> u32 {0}
 
 //- /main.rs
 mod str;
@@ -1907,8 +1952,8 @@ fn closure_return() {
         "#,
         expect![[r#"
             16..58 '{     ...; }; }': u32
-            26..27 'x': || -> usize
-            30..55 '|| -> ...n 1; }': || -> usize
+            26..27 'x': impl Fn() -> usize
+            30..55 '|| -> ...n 1; }': impl Fn() -> usize
             42..55 '{ return 1; }': usize
             44..52 'return 1': !
             51..52 '1': usize
@@ -1926,8 +1971,8 @@ fn closure_return_unit() {
         "#,
         expect![[r#"
             16..47 '{     ...; }; }': u32
-            26..27 'x': || -> ()
-            30..44 '|| { return; }': || -> ()
+            26..27 'x': impl Fn()
+            30..44 '|| { return; }': impl Fn()
             33..44 '{ return; }': ()
             35..41 'return': !
         "#]],
@@ -1944,11 +1989,143 @@ fn closure_return_inferred() {
         "#,
         expect![[r#"
             16..46 '{     ..." }; }': u32
-            26..27 'x': || -> &str
-            30..43 '|| { "test" }': || -> &str
+            26..27 'x': impl Fn() -> &str
+            30..43 '|| { "test" }': impl Fn() -> &str
             33..43 '{ "test" }': &str
             35..41 '"test"': &str
         "#]],
+    );
+}
+
+#[test]
+fn generator_types_inferred() {
+    check_infer(
+        r#"
+//- minicore: generator, deref
+use core::ops::{Generator, GeneratorState};
+use core::pin::Pin;
+
+fn f(v: i64) {}
+fn test() {
+    let mut g = |r| {
+        let a = yield 0;
+        let a = yield 1;
+        let a = yield 2;
+        "return value"
+    };
+
+    match Pin::new(&mut g).resume(0usize) {
+        GeneratorState::Yielded(y) => { f(y); }
+        GeneratorState::Complete(r) => {}
+    }
+}
+        "#,
+        expect![[r#"
+            70..71 'v': i64
+            78..80 '{}': ()
+            91..362 '{     ...   } }': ()
+            101..106 'mut g': |usize| yields i64 -> &str
+            109..218 '|r| { ...     }': |usize| yields i64 -> &str
+            110..111 'r': usize
+            113..218 '{     ...     }': &str
+            127..128 'a': usize
+            131..138 'yield 0': usize
+            137..138 '0': i64
+            152..153 'a': usize
+            156..163 'yield 1': usize
+            162..163 '1': i64
+            177..178 'a': usize
+            181..188 'yield 2': usize
+            187..188 '2': i64
+            198..212 '"return value"': &str
+            225..360 'match ...     }': ()
+            231..239 'Pin::new': fn new<&mut |usize| yields i64 -> &str>(&mut |usize| yields i64 -> &str) -> Pin<&mut |usize| yields i64 -> &str>
+            231..247 'Pin::n...mut g)': Pin<&mut |usize| yields i64 -> &str>
+            231..262 'Pin::n...usize)': GeneratorState<i64, &str>
+            240..246 '&mut g': &mut |usize| yields i64 -> &str
+            245..246 'g': |usize| yields i64 -> &str
+            255..261 '0usize': usize
+            273..299 'Genera...ded(y)': GeneratorState<i64, &str>
+            297..298 'y': i64
+            303..312 '{ f(y); }': ()
+            305..306 'f': fn f(i64)
+            305..309 'f(y)': ()
+            307..308 'y': i64
+            321..348 'Genera...ete(r)': GeneratorState<i64, &str>
+            346..347 'r': &str
+            352..354 '{}': ()
+        "#]],
+    );
+}
+
+#[test]
+fn generator_resume_yield_return_unit() {
+    check_no_mismatches(
+        r#"
+//- minicore: generator, deref
+use core::ops::{Generator, GeneratorState};
+use core::pin::Pin;
+fn test() {
+    let mut g = || {
+        let () = yield;
+    };
+
+    match Pin::new(&mut g).resume(()) {
+        GeneratorState::Yielded(()) => {}
+        GeneratorState::Complete(()) => {}
+    }
+}
+        "#,
+    );
+}
+
+#[test]
+fn tuple_pattern_nested_match_ergonomics() {
+    check_no_mismatches(
+        r#"
+fn f(x: (&i32, &i32)) -> i32 {
+    match x {
+        (3, 4) => 5,
+        _ => 12,
+    }
+}
+        "#,
+    );
+    check_types(
+        r#"
+fn f(x: (&&&&i32, &&&i32)) {
+    let f = match x {
+        t @ (3, 4) => t,
+        _ => loop {},
+    };
+    f;
+  //^ (&&&&i32, &&&i32)
+}
+        "#,
+    );
+    check_types(
+        r#"
+fn f() {
+    let x = &&&(&&&2, &&&&&3);
+    let (y, z) = x;
+       //^ &&&&i32
+    let t @ (y, z) = x;
+    t;
+  //^ &&&(&&&i32, &&&&&i32)
+}
+        "#,
+    );
+    check_types(
+        r#"
+fn f() {
+    let x = &&&(&&&2, &&&&&3);
+    let (y, z) = x;
+       //^ &&&&i32
+    let t @ (y, z) = x;
+    t;
+  //^ &&&(&&&i32, &&&&&i32)
+}
+        "#,
     );
 }
 
@@ -1969,7 +2146,7 @@ fn fn_pointer_return() {
             47..120 '{     ...hod; }': ()
             57..63 'vtable': Vtable
             66..90 'Vtable...| {} }': Vtable
-            83..88 '|| {}': || -> ()
+            83..88 '|| {}': impl Fn()
             86..88 '{}': ()
             100..101 'm': fn()
             104..110 'vtable': Vtable
@@ -1982,42 +2159,56 @@ fn fn_pointer_return() {
 fn block_modifiers_smoke_test() {
     check_infer(
         r#"
-//- minicore: future
+//- minicore: future, try
 async fn main() {
     let x = unsafe { 92 };
     let y = async { async { () }.await };
-    let z = try { () };
+    let z: core::ops::ControlFlow<(), _> = try { () };
     let w = const { 92 };
     let t = 'a: { 92 };
 }
         "#,
         expect![[r#"
-            16..162 '{     ...2 }; }': ()
+            16..193 '{     ...2 }; }': ()
             26..27 'x': i32
-            30..43 'unsafe { 92 }': i32
             30..43 'unsafe { 92 }': i32
             39..41 '92': i32
             53..54 'y': impl Future<Output = ()>
-            57..85 'async ...wait }': ()
             57..85 'async ...wait }': impl Future<Output = ()>
-            65..77 'async { () }': ()
             65..77 'async { () }': impl Future<Output = ()>
             65..83 'async ....await': ()
             73..75 '()': ()
-            95..96 'z': {unknown}
-            99..109 'try { () }': ()
-            99..109 'try { () }': {unknown}
-            105..107 '()': ()
-            119..120 'w': i32
-            123..135 'const { 92 }': i32
-            123..135 'const { 92 }': i32
-            131..133 '92': i32
-            145..146 't': i32
-            149..159 ''a: { 92 }': i32
-            155..157 '92': i32
+            95..96 'z': ControlFlow<(), ()>
+            130..140 'try { () }': ControlFlow<(), ()>
+            136..138 '()': ()
+            150..151 'w': i32
+            154..166 'const { 92 }': i32
+            154..166 'const { 92 }': i32
+            162..164 '92': i32
+            176..177 't': i32
+            180..190 ''a: { 92 }': i32
+            186..188 '92': i32
         "#]],
     )
 }
+
+#[test]
+fn async_fn_and_try_operator() {
+    check_no_mismatches(
+        r#"
+//- minicore: future, result, fn, try, from
+async fn foo() -> Result<(), ()> {
+    Ok(())
+}
+
+async fn bar() -> Result<(), ()> {
+    let x = foo().await?;
+    Ok(x)
+}
+        "#,
+    )
+}
+
 #[test]
 fn async_block_early_return() {
     check_infer(
@@ -2040,7 +2231,6 @@ fn main() {
             83..84 'f': F
             89..91 '{}': ()
             103..231 '{     ... }); }': ()
-            109..161 'async ...     }': Result<(), ()>
             109..161 'async ...     }': impl Future<Output = Result<(), ()>>
             125..139 'return Err(())': !
             132..135 'Err': Err<(), ()>(()) -> Result<(), ()>
@@ -2049,10 +2239,9 @@ fn main() {
             149..151 'Ok': Ok<(), ()>(()) -> Result<(), ()>
             149..155 'Ok(())': Result<(), ()>
             152..154 '()': ()
-            167..171 'test': fn test<(), (), || -> impl Future<Output = Result<(), ()>>, impl Future<Output = Result<(), ()>>>(|| -> impl Future<Output = Result<(), ()>>)
+            167..171 'test': fn test<(), (), impl Fn() -> impl Future<Output = Result<(), ()>>, impl Future<Output = Result<(), ()>>>(impl Fn() -> impl Future<Output = Result<(), ()>>)
             167..228 'test(|...    })': ()
-            172..227 '|| asy...     }': || -> impl Future<Output = Result<(), ()>>
-            175..227 'async ...     }': Result<(), ()>
+            172..227 '|| asy...     }': impl Fn() -> impl Future<Output = Result<(), ()>>
             175..227 'async ...     }': impl Future<Output = Result<(), ()>>
             191..205 'return Err(())': !
             198..201 'Err': Err<(), ()>(()) -> Result<(), ()>
@@ -2178,8 +2367,8 @@ fn infer_labelled_break_with_val() {
         "#,
         expect![[r#"
             9..335 '{     ...  }; }': ()
-            19..21 '_x': || -> bool
-            24..332 '|| 'ou...     }': || -> bool
+            19..21 '_x': impl Fn() -> bool
+            24..332 '|| 'ou...     }': impl Fn() -> bool
             27..332 ''outer...     }': bool
             40..332 '{     ...     }': ()
             54..59 'inner': i8
@@ -2567,6 +2756,7 @@ impl<T> [T] {}
 
 #[lang = "slice_alloc"]
 impl<T> [T] {
+    #[rustc_allow_incoherent_impl]
     pub fn into_vec<A: Allocator>(self: Box<Self, A>) -> Vec<T, A> {
         unimplemented!()
     }
@@ -2582,23 +2772,196 @@ struct Astruct;
 impl B for Astruct {}
 "#,
         expect![[r#"
-            569..573 'self': Box<[T], A>
-            602..634 '{     ...     }': Vec<T, A>
-            648..761 '{     ...t]); }': ()
-            658..661 'vec': Vec<i32, Global>
-            664..679 '<[_]>::into_vec': fn into_vec<i32, Global>(Box<[i32], Global>) -> Vec<i32, Global>
-            664..691 '<[_]>:...1i32])': Vec<i32, Global>
-            680..690 'box [1i32]': Box<[i32; 1], Global>
-            684..690 '[1i32]': [i32; 1]
-            685..689 '1i32': i32
-            701..702 'v': Vec<Box<dyn B, Global>, Global>
-            722..739 '<[_]> ...to_vec': fn into_vec<Box<dyn B, Global>, Global>(Box<[Box<dyn B, Global>], Global>) -> Vec<Box<dyn B, Global>, Global>
-            722..758 '<[_]> ...ruct])': Vec<Box<dyn B, Global>, Global>
-            740..757 'box [b...truct]': Box<[Box<dyn B, Global>; 1], Global>
-            744..757 '[box Astruct]': [Box<dyn B, Global>; 1]
-            745..756 'box Astruct': Box<Astruct, Global>
-            749..756 'Astruct': Astruct
+            604..608 'self': Box<[T], A>
+            637..669 '{     ...     }': Vec<T, A>
+            683..796 '{     ...t]); }': ()
+            693..696 'vec': Vec<i32, Global>
+            699..714 '<[_]>::into_vec': fn into_vec<i32, Global>(Box<[i32], Global>) -> Vec<i32, Global>
+            699..726 '<[_]>:...1i32])': Vec<i32, Global>
+            715..725 'box [1i32]': Box<[i32; 1], Global>
+            719..725 '[1i32]': [i32; 1]
+            720..724 '1i32': i32
+            736..737 'v': Vec<Box<dyn B, Global>, Global>
+            757..774 '<[_]> ...to_vec': fn into_vec<Box<dyn B, Global>, Global>(Box<[Box<dyn B, Global>], Global>) -> Vec<Box<dyn B, Global>, Global>
+            757..793 '<[_]> ...ruct])': Vec<Box<dyn B, Global>, Global>
+            775..792 'box [b...truct]': Box<[Box<dyn B, Global>; 1], Global>
+            779..792 '[box Astruct]': [Box<dyn B, Global>; 1]
+            780..791 'box Astruct': Box<Astruct, Global>
+            784..791 'Astruct': Astruct
         "#]],
+    )
+}
+
+#[test]
+fn capture_kinds_simple() {
+    check_types(
+        r#"
+struct S;
+
+impl S {
+    fn read(&self) -> &S { self }
+    fn write(&mut self) -> &mut S { self }
+    fn consume(self) -> S { self }
+}
+
+fn f() {
+    let x = S;
+    let c1 = || x.read();
+      //^^ impl Fn() -> &S
+    let c2 = || x.write();
+      //^^ impl FnMut() -> &mut S
+    let c3 = || x.consume();
+      //^^ impl FnOnce() -> S
+    let c3 = || x.consume().consume().consume();
+      //^^ impl FnOnce() -> S
+    let c3 = || x.consume().write().read();
+      //^^ impl FnOnce() -> &S
+    let x = &mut x;
+    let c1 = || x.write();
+      //^^ impl FnMut() -> &mut S
+    let x = S;
+    let c1 = || { let ref t = x; t };
+      //^^ impl Fn() -> &S
+    let c2 = || { let ref mut t = x; t };
+      //^^ impl FnMut() -> &mut S
+    let c3 = || { let t = x; t };
+      //^^ impl FnOnce() -> S
+}
+    "#,
+    )
+}
+
+#[test]
+fn capture_kinds_closure() {
+    check_types(
+        r#"
+//- minicore: copy, fn
+fn f() {
+    let mut x = 2;
+    x = 5;
+    let mut c1 = || { x = 3; x };
+      //^^^^^^ impl FnMut() -> i32
+    let mut c2 = || { c1() };
+      //^^^^^^ impl FnMut() -> i32
+    let mut c1 = || { x };
+      //^^^^^^ impl Fn() -> i32
+    let mut c2 = || { c1() };
+      //^^^^^^ impl Fn() -> i32
+    struct X;
+    let x = X;
+    let mut c1 = || { x };
+      //^^^^^^ impl FnOnce() -> X
+    let mut c2 = || { c1() };
+      //^^^^^^ impl FnOnce() -> X
+}
+        "#,
+    );
+}
+
+#[test]
+fn capture_kinds_overloaded_deref() {
+    check_types(
+        r#"
+//- minicore: fn, deref_mut
+use core::ops::{Deref, DerefMut};
+
+struct Foo;
+impl Deref for Foo {
+    type Target = (i32, u8);
+    fn deref(&self) -> &(i32, u8) {
+        &(5, 2)
+    }
+}
+impl DerefMut for Foo {
+    fn deref_mut(&mut self) -> &mut (i32, u8) {
+        &mut (5, 2)
+    }
+}
+fn test() {
+    let mut x = Foo;
+    let c1 = || *x;
+      //^^ impl Fn() -> (i32, u8)
+    let c2 = || { *x = (2, 5); };
+      //^^ impl FnMut()
+    let c3 = || { x.1 };
+      //^^ impl Fn() -> u8
+    let c4 = || { x.1 = 6; };
+      //^^ impl FnMut()
+}
+       "#,
+    );
+}
+
+#[test]
+fn capture_kinds_with_copy_types() {
+    check_types(
+        r#"
+//- minicore: copy, clone, derive
+#[derive(Clone, Copy)]
+struct Copy;
+struct NotCopy;
+#[derive(Clone, Copy)]
+struct Generic<T>(T);
+
+trait Tr {
+    type Assoc;
+}
+
+impl Tr for Copy {
+    type Assoc = NotCopy;
+}
+
+#[derive(Clone, Copy)]
+struct AssocGeneric<T: Tr>(T::Assoc);
+
+fn f() {
+    let a = Copy;
+    let b = NotCopy;
+    let c = Generic(Copy);
+    let d = Generic(NotCopy);
+    let e: AssocGeneric<Copy> = AssocGeneric(NotCopy);
+    let c1 = || a;
+      //^^ impl Fn() -> Copy
+    let c2 = || b;
+      //^^ impl FnOnce() -> NotCopy
+    let c3 = || c;
+      //^^ impl Fn() -> Generic<Copy>
+    let c3 = || d;
+      //^^ impl FnOnce() -> Generic<NotCopy>
+    let c3 = || e;
+      //^^ impl FnOnce() -> AssocGeneric<Copy>
+}
+    "#,
+    )
+}
+
+#[test]
+fn derive_macro_should_work_for_associated_type() {
+    check_types(
+        r#"
+//- minicore: copy, clone, derive
+#[derive(Clone)]
+struct X;
+#[derive(Clone)]
+struct Y;
+
+trait Tr {
+    type Assoc;
+}
+
+impl Tr for X {
+    type Assoc = Y;
+}
+
+#[derive(Clone)]
+struct AssocGeneric<T: Tr>(T::Assoc);
+
+fn f() {
+    let e: AssocGeneric<X> = AssocGeneric(Y);
+    let e_clone = e.clone();
+      //^^^^^^^ AssocGeneric<X>
+}
+    "#,
     )
 }
 
@@ -2619,6 +2982,21 @@ fn f() {
 }
     "#,
     )
+}
+
+#[test]
+fn infer_ref_to_raw_cast() {
+    check_types(
+        r#"
+struct S;
+
+fn f() {
+    let s = &mut S;
+    let s = s as *mut _;
+      //^ *mut S
+}
+    "#,
+    );
 }
 
 #[test]
@@ -3116,5 +3494,144 @@ fn func() {
     };
 }
     "#,
+    );
+}
+
+#[test]
+fn pointee_trait() {
+    check_types(
+        r#"
+//- minicore: pointee
+use core::ptr::Pointee;
+fn func() {
+    let x: <u8 as Pointee>::Metadata;
+      //^ ()
+    let x: <[u8] as Pointee>::Metadata;
+      //^ usize
+}
+    "#,
+    );
+}
+
+// FIXME
+#[test]
+fn castable_to() {
+    check_infer(
+        r#"
+//- minicore: sized
+#[lang = "owned_box"]
+pub struct Box<T: ?Sized> {
+    inner: *mut T,
+}
+impl<T> Box<T> {
+    fn new(t: T) -> Self { loop {} }
+}
+
+fn func() {
+    let x = Box::new([]) as Box<[i32; 0]>;
+}
+"#,
+        expect![[r#"
+            99..100 't': T
+            113..124 '{ loop {} }': Box<T>
+            115..122 'loop {}': !
+            120..122 '{}': ()
+            138..184 '{     ...0]>; }': ()
+            148..149 'x': Box<[i32; 0]>
+            152..160 'Box::new': fn new<[{unknown}; 0]>([{unknown}; 0]) -> Box<[{unknown}; 0]>
+            152..164 'Box::new([])': Box<[{unknown}; 0]>
+            152..181 'Box::n...2; 0]>': Box<[i32; 0]>
+            161..163 '[]': [{unknown}; 0]
+        "#]],
+    );
+}
+
+#[test]
+fn castable_to1() {
+    check_infer(
+        r#"
+struct Ark<T>(T);
+impl<T> Ark<T> {
+    fn foo(&self) -> *const T {
+        &self.0
+    }
+}
+fn f<T>(t: Ark<T>) {
+    Ark::foo(&t) as *const ();
+}
+"#,
+        expect![[r#"
+            47..51 'self': &Ark<T>
+            65..88 '{     ...     }': *const T
+            75..82 '&self.0': &T
+            76..80 'self': &Ark<T>
+            76..82 'self.0': T
+            99..100 't': Ark<T>
+            110..144 '{     ... (); }': ()
+            116..124 'Ark::foo': fn foo<T>(&Ark<T>) -> *const T
+            116..128 'Ark::foo(&t)': *const T
+            116..141 'Ark::f...nst ()': *const ()
+            125..127 '&t': &Ark<T>
+            126..127 't': Ark<T>
+        "#]],
+    );
+}
+
+#[test]
+fn const_dependent_on_local() {
+    check_types(
+        r#"
+fn main() {
+    let s = 5;
+    let t = [2; s];
+      //^ [i32; _]
+}
+"#,
+    );
+}
+
+#[test]
+fn issue_14275() {
+    check_types(
+        r#"
+struct Foo<const T: bool>;
+fn main() {
+    const B: bool = false;
+    let foo = Foo::<B>;
+      //^^^ Foo<false>
+}
+"#,
+    );
+    check_types(
+        r#"
+struct Foo<const T: bool>;
+impl Foo<true> {
+    fn foo(self) -> u8 { 2 }
+}
+impl Foo<false> {
+    fn foo(self) -> u16 { 5 }
+}
+fn main() {
+    const B: bool = false;
+    let foo: Foo<B> = Foo;
+    let x = foo.foo();
+      //^ u16
+}
+"#,
+    );
+}
+
+#[test]
+fn cstring_literals() {
+    check_types(
+        r#"
+#[lang = "CStr"]
+pub struct CStr;
+
+fn main() {
+    c"ello";
+  //^^^^^^^ &CStr
+}
+"#,
     );
 }

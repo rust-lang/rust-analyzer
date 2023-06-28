@@ -1,7 +1,7 @@
 //! When *constructing* `hir`, we start at some parent syntax node and recursively
 //! lower the children.
 //!
-//! This modules allows one to go in the opposite direction: start with a syntax
+//! This module allows one to go in the opposite direction: start with a syntax
 //! node for a *child*, and get its hir.
 
 use either::Either;
@@ -10,9 +10,9 @@ use syntax::ast::HasDocComments;
 
 use crate::{
     db::DefDatabase,
-    dyn_map::DynMap,
+    dyn_map::{keys, DynMap},
     item_scope::ItemScope,
-    keys,
+    nameres::DefMap,
     src::{HasChildSource, HasSource},
     AdtId, AssocItemId, DefWithBodyId, EnumId, EnumVariantId, FieldId, ImplId, Lookup, MacroId,
     ModuleDefId, ModuleId, TraitId, VariantId,
@@ -117,7 +117,7 @@ impl ChildBySource for ItemScope {
                 let adt = ast_id.to_node(db.upcast());
                 calls.for_each(|(attr_id, call_id, calls)| {
                     if let Some(Either::Left(attr)) =
-                        adt.doc_comments_and_attrs().nth(attr_id.ast_index as usize)
+                        adt.doc_comments_and_attrs().nth(attr_id.ast_index())
                     {
                         res[keys::DERIVE_MACRO_CALL].insert(attr, (attr_id, call_id, calls.into()));
                     }
@@ -145,6 +145,7 @@ impl ChildBySource for ItemScope {
                 ModuleDefId::StaticId(id) => insert!(map[keys::STATIC].insert(id)),
                 ModuleDefId::TypeAliasId(id) => insert!(map[keys::TYPE_ALIAS].insert(id)),
                 ModuleDefId::TraitId(id) => insert!(map[keys::TRAIT].insert(id)),
+                ModuleDefId::TraitAliasId(id) => insert!(map[keys::TRAIT_ALIAS].insert(id)),
                 ModuleDefId::AdtId(adt) => match adt {
                     AdtId::StructId(id) => insert!(map[keys::STRUCT].insert(id)),
                     AdtId::UnionId(id) => insert!(map[keys::UNION].insert(id)),
@@ -198,10 +199,14 @@ impl ChildBySource for EnumId {
 impl ChildBySource for DefWithBodyId {
     fn child_by_source_to(&self, db: &dyn DefDatabase, res: &mut DynMap, file_id: HirFileId) {
         let body = db.body(*self);
+        if let &DefWithBodyId::VariantId(v) = self {
+            VariantId::EnumVariantId(v).child_by_source_to(db, res, file_id)
+        }
+
         for (_, def_map) in body.blocks(db) {
             // All block expressions are merged into the same map, because they logically all add
             // inner items to the containing `DefWithBodyId`.
-            def_map[def_map.root()].scope.child_by_source_to(db, res, file_id);
+            def_map[DefMap::ROOT].scope.child_by_source_to(db, res, file_id);
         }
     }
 }

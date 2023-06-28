@@ -22,7 +22,7 @@ pub(crate) fn add_return_type(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     if ty.is_unit() {
         return None;
     }
-    let ty = ty.display_source_code(ctx.db(), module.into()).ok()?;
+    let ty = ty.display_source_code(ctx.db(), module.into(), true).ok()?;
 
     acc.add(
         AssistId("add_return_type", AssistKind::RefactorRewrite),
@@ -34,17 +34,17 @@ pub(crate) fn add_return_type(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
         |builder| {
             match builder_edit_pos {
                 InsertOrReplace::Insert(insert_pos, needs_whitespace) => {
-                    let preceeding_whitespace = if needs_whitespace { " " } else { "" };
-                    builder.insert(insert_pos, &format!("{}-> {} ", preceeding_whitespace, ty))
+                    let preceding_whitespace = if needs_whitespace { " " } else { "" };
+                    builder.insert(insert_pos, format!("{preceding_whitespace}-> {ty} "))
                 }
                 InsertOrReplace::Replace(text_range) => {
-                    builder.replace(text_range, &format!("-> {}", ty))
+                    builder.replace(text_range, format!("-> {ty}"))
                 }
             }
             if let FnType::Closure { wrap_expr: true } = fn_type {
                 cov_mark::hit!(wrap_closure_non_block_expr);
                 // `|x| x` becomes `|x| -> T x` which is invalid, so wrap it in a block
-                builder.replace(tail_expr.syntax().text_range(), &format!("{{{}}}", tail_expr));
+                builder.replace(tail_expr.syntax().text_range(), format!("{{{tail_expr}}}"));
             }
         },
     )

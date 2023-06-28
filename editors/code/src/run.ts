@@ -3,7 +3,7 @@ import * as lc from "vscode-languageclient";
 import * as ra from "./lsp_ext";
 import * as tasks from "./tasks";
 
-import { Ctx } from "./ctx";
+import { CtxInit } from "./ctx";
 import { makeDebugConfig } from "./debug";
 import { Config, RunnableEnvCfg } from "./config";
 
@@ -12,15 +12,15 @@ const quickPickButtons = [
 ];
 
 export async function selectRunnable(
-    ctx: Ctx,
+    ctx: CtxInit,
     prevRunnable?: RunnableQuickPick,
     debuggeeOnly = false,
     showButtons: boolean = true
 ): Promise<RunnableQuickPick | undefined> {
     const editor = ctx.activeRustEditor;
-    const client = ctx.client;
-    if (!editor || !client) return;
+    if (!editor) return;
 
+    const client = ctx.client;
     const textDocument: lc.TextDocumentIdentifier = {
         uri: editor.document.uri.toString(),
     };
@@ -157,7 +157,7 @@ export async function createTask(runnable: ra.Runnable, config: Config): Promise
 
     cargoTask.presentationOptions.clear = true;
     // Sadly, this doesn't prevent focus stealing if the terminal is currently
-    // hidden, and will become revealed due to task exucution.
+    // hidden, and will become revealed due to task execution.
     cargoTask.presentationOptions.focus = false;
 
     return cargoTask;
