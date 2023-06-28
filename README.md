@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="README.md">EN</a>
-  <a href=".README/README-KO.md">KR</a>
+  <a href="README-KO.md">KR</a>
 </p>
 
 rust-analyzer is a modular compiler frontend for the Rust language.
