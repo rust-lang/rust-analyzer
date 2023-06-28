@@ -5,8 +5,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/rust-lang/rust-analyzer/blob/master/README.md">en</a>
-  <a href="README-KO.md">kr</a>
+  <a href="https://github.com/rust-lang/rust-analyzer/blob/master/README.md">EN</a>
+  <a href="README-KO.md">KR</a>
 </p>
 
 rust-analyzer는 Rust 언어를 위한 모듈식 컴파일러 프론트엔드입니다.
