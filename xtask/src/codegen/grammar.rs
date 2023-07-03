@@ -33,7 +33,7 @@ pub(crate) fn generate(check: bool) {
         .unwrap()
         .parse()
         .unwrap();
-    let ast = lower(&grammar);
+    let ast = lower(&grammar, true);
 
     let ast_tokens = generate_tokens(&ast);
     let ast_tokens_file = project_root().join("crates/syntax/src/ast/generated/tokens.rs");
@@ -43,6 +43,7 @@ pub(crate) fn generate(check: bool) {
     let ast_nodes_file = project_root().join("crates/syntax/src/ast/generated/nodes.rs");
     ensure_file_contents(ast_nodes_file.as_path(), &ast_nodes, check);
 }
+
 
 fn generate_tokens(grammar: &AstSrc) -> String {
     let tokens = grammar.tokens.iter().map(|token| {
@@ -576,7 +577,7 @@ impl Field {
     }
 }
 
-pub(crate) fn lower(grammar: &Grammar) -> AstSrc {
+pub(crate) fn lower(grammar: &Grammar, is_vst: bool) -> AstSrc {
     let mut res = AstSrc {
         tokens:
             "Whitespace Comment String ByteString CString IntNumber FloatNumber Char Byte Ident"
@@ -606,7 +607,10 @@ pub(crate) fn lower(grammar: &Grammar) -> AstSrc {
 
     deduplicate_fields(&mut res);
     extract_enums(&mut res);
-    extract_struct_traits(&mut res);
+    if !is_vst{
+        // CST omits some fields, but VST should have all the fields
+        extract_struct_traits(&mut res);
+    }
     extract_enum_traits(&mut res);
     res.nodes.sort_by_key(|it| it.name.clone());
     res.enums.sort_by_key(|it| it.name.clone());

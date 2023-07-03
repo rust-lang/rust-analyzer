@@ -3,7 +3,7 @@
 pub mod edit;
 pub mod edit_in_place;
 mod expr_ext;
-mod generated;
+pub(crate) mod generated; // vst
 pub mod make;
 mod node_ext;
 mod operators;

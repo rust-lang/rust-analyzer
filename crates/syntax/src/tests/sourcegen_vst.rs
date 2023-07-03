@@ -18,11 +18,24 @@ use crate::tests::ast_src::{
 
 use crate::tests::sourcegen_ast::*;
 
+// From sourcegen_ast::extract_struct_traits
+const special_items: &[(&str, &[&str])] = &[
+    ("HasAttrs", &["attrs"]),
+    ("HasName", &["name"]),
+    ("HasVisibility", &["visibility"]),
+    ("HasGenericParams", &["generic_param_list", "where_clause"]),
+    ("HasTypeBounds", &["type_bound_list", "colon_token"]),
+    ("HasModuleItem", &["items"]),
+    ("HasLoopBody", &["label", "loop_body"]),
+    ("HasArgList", &["arg_list"]),
+];
+
+
 #[test]
 fn sourcegen_vst() {
     let grammar =
         include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/rust.ungram")).parse().unwrap();
-    let ast = lower(&grammar);
+    let ast = lower(&grammar, true);
 
     let ast_nodes = generate_vst(KINDS_SRC, &ast);
     let ast_nodes_file = sourcegen::project_root().join("crates/syntax/src/ast/generated/vst.rs");
@@ -205,7 +218,7 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         #![allow(non_snake_case)]
         use crate::{
             SyntaxNode, SyntaxToken, SyntaxKind::{self, *},
-            ast::{self, AstNode, AstChildren, support},
+            ast::{self, AstNode, AstChildren, support, traits::*},
             T,
         };
 
@@ -217,15 +230,34 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
 
 
 
+    // TODO: expr_ext 
+    // this file contains manual `impl`s that are not auto-generated. 
+    // VST should have all corresponding `impl`s
 
-    
+
     // VST -> CST
     // TODO: generate display impls (this is to print VST and parse into CST)
     // #(#display_impls)*
+    
 
     sourcegen::add_preamble("sourcegen_vst", sourcegen::reformat(ast.to_string()))
 }
 
+
+
+/*
+below stuff are removed in "sourcege_ast" with "remove_field" 
+through "extract_struct_traits"
+
+("HasAttrs", &["attrs"]),
+("HasName", &["name"]),
+("HasVisibility", &["visibility"]),
+("HasGenericParams", &["generic_param_list", "where_clause"]),
+("HasTypeBounds", &["type_bound_list", "colon_token"]),
+("HasModuleItem", &["items"]),
+("HasLoopBody", &["label", "loop_body"]),
+("HasArgList", &["arg_list"]),
+ */
 
 /*
 impl From<super::nodes::AssertExpr> for AssertExpr {

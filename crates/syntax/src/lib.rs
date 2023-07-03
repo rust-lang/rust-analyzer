@@ -68,6 +68,8 @@ pub use rowan::{
 pub use rustc_lexer::unescape;
 pub use smol_str::{format_smolstr, SmolStr};
 
+use ast::generated::vst;
+
 /// `Parse` is the result of the parsing: a syntax tree and a collection of
 /// errors.
 ///
@@ -1450,5 +1452,57 @@ verus!{
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+    }
+}
+
+
+
+#[test]
+fn cst_to_vst1() {
+    use ast::HasModuleItem;
+    let source_code = " 
+verus!{
+spec fn sum(x: int, y: int) -> int
+{
+    x + y
+}
+} // verus!";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+        let v_item:vst::Item = item.into();
+        dbg!(v_item);
+    }
+}
+
+
+#[test]
+fn cst_to_vst2() {
+    use ast::HasModuleItem;
+    let source_code = " 
+verus!{
+spec fn test_rec2(x: int, y: int) -> int
+    decreases x, y
+{
+    if y > 0 {
+        1 + test_rec2(x, y - 1)
+    } else {
+        3
+    }
+}
+} // verus!";
+    let parse = SourceFile::parse(source_code);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+        let v_item:vst::Item = item.into();
+        dbg!(v_item);
     }
 }
