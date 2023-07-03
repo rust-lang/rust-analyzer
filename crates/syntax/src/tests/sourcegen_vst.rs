@@ -30,6 +30,7 @@ fn sourcegen_vst() {
 }
 
 pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
+    // TODO: add "Comment" item
     
     // generate struct definitions
     let node_defs:Vec<_> = grammar
@@ -54,7 +55,7 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
                         token_kind.to_string() == "T ! [lifetime_ident]" 
                     {
                         quote! {
-                            #name : String,
+                            #name : Option<String>,
                         }
                     } else {
                         quote! {
@@ -63,6 +64,11 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
                     }
                 } else {
                     // As source code can be incomplete, we use Option even if the field is not optional in ungrammar.
+                    // TODO:
+                    // As source code can be incomplete, we use might use `Option` even if the field is not optional in ungrammar.
+                    // instead, however, since proof action might choose to be available when syntax is complete
+                    // therefore, we do not use `Option` for VST.
+                    // we only use `Option` when the syntax item is optional in ungrammar.
                     quote! {
                         pub #name : Option<Box<#ty>>,
                     }
@@ -77,6 +83,61 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
             }
 
         }).collect_vec();
+
+    // CST -> VST
+    // impl From (eventually `TryFrom` to remove all the options around every fields) for each node
+    let from_node_to_vnode_struct:Vec<_> = grammar
+        .nodes
+        .iter()
+        .map(|node| {
+            let name = format_ident!("{}", node.name);
+            let fields = node.fields.iter().map(|field| {
+                let name = field.method_name();
+                let ty = field.ty();
+
+                if field.is_many() {
+                    quote! {
+                        #name : item.#name().into_iter().map(#ty::from).collect(),
+                    }
+                } else if let Some(token_kind) = field.token_kind() {
+                    // hacky for now
+                    // maybe special-case identifier to "#name : Option<String>"
+                    // 'ident, 'int_number', and 'lifetime_ident'.
+                    if token_kind.to_string() == "T ! [ident]" ||
+                        token_kind.to_string() == "T ! [int_number]" ||
+                        token_kind.to_string() == "T ! [lifetime_ident]" 
+                    {
+                        // #name : Option<String>,
+                        quote! {
+                            #name : item.#name().map(|it| it.text().to_string()),
+                        }
+                    } else {
+                        // #name : bool,
+                        quote! {
+                            #name : item.#name().is_some(),
+                        }
+                    }
+                } else {
+                    // pub #name : Option<Box<#ty>>,
+                    quote! {
+                        #name : item.#name().map(#ty::from).map(Box::new),
+                    }
+                }
+            });
+
+            quote! {
+                impl From<super::nodes::#name> for #name {
+                    fn from(item: super::nodes::#name) -> Self {
+                        Self {
+                            #(#fields)*
+                        }
+                    }
+                }
+            }
+
+        }).collect_vec();
+
+    
 
 
     // generate enum definitions
@@ -106,6 +167,40 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
     .collect_vec();
 
 
+
+    // CST to VST
+    let from_node_to_vnode_enum:  Vec<_> = grammar
+    .enums
+    .iter()
+    .map(|en| {
+        let variants: Vec<_> = en.variants.iter().map(|var| format_ident!("{}", var)).collect();
+        let name = format_ident!("{}", en.name);
+        let kinds: Vec<_> = variants
+            .iter()
+            .map(|name| format_ident!("{}", to_upper_snake_case(&name.to_string())))
+            .collect();
+        
+        let traits = en.traits.iter().map(|trait_name| {
+            let trait_name = format_ident!("{}", trait_name);
+            quote!(impl ast::#trait_name for #name {})
+        });
+
+        quote! {
+            impl From<super::nodes::#name> for #name {
+                fn from(item: super::nodes::#name) -> Self {
+                    match item {
+                        #(
+                            super::nodes::#name::#variants(it) => Self::#variants(Box::new(it.into())),
+                        )*
+                    }
+                }
+            }
+        }  
+    })
+    .collect_vec();
+
+
+
     let ast = quote! {
         #![allow(non_snake_case)]
         use crate::{
@@ -116,9 +211,60 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
 
         #(#node_defs)*
         #(#enum_defs)*
+        #(#from_node_to_vnode_struct)*
+        #(#from_node_to_vnode_enum)*
     };
-    // TODO: generate display impls
+
+
+
+
+    
+    // VST -> CST
+    // TODO: generate display impls (this is to print VST and parse into CST)
     // #(#display_impls)*
 
     sourcegen::add_preamble("sourcegen_vst", sourcegen::reformat(ast.to_string()))
 }
+
+
+/*
+impl From<super::nodes::AssertExpr> for AssertExpr {
+    fn from(item: super::nodes::AssertExpr) -> Self {
+        Self {
+            assert_token: item.assert_token().is_some(),
+            l_paren_token: item.l_paren_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+            r_paren_token: item.r_paren_token().is_some(),
+            by_token: item.by_token().is_some(),
+            requires_clause: item.requires_clause().map(RequiresClause::from).map(Box::new),
+            block_expr: item.block_expr().map(BlockExpr::from).map(Box::new),
+        }
+    }
+}
+
+impl From<super::nodes::Name> for Name {
+    fn from(item: super::nodes::Name) -> Self {
+        Self {
+            ident_token: item.ident_token().map(|it| it.text().to_string()),
+            self_token: item.self_token().is_some(), 
+        }
+    }
+}
+
+impl TryFrom<super::nodes::AssertExpr> for AssertExpr {
+    type Error = ();
+
+    fn try_from(item: super::nodes::AssertExpr) -> Result<Self, Self::Error> {
+        let res = Self {
+            assert_token: item.assert_token().is_some(),
+            l_paren_token: item.l_paren_token().is_some(),
+            expr: Some(Box::new(item.expr().try_into()?)),
+            r_paren_token: item.r_paren_token().is_some(),
+            by_token: item.by_token().is_some(),
+            requires_clause: item.requires_clause().map(RequiresClause::try_from).map(Box::new),
+            block_expr: item.block_expr.map(Box::new),
+        };
+        Ok(res)
+    }
+}
+ */
