@@ -2,18 +2,18 @@
 
 #![allow(non_snake_case)]
 use crate::{
-    ast::{self, support, AstChildren, AstNode},
+    ast::{self, support, traits::*, AstChildren, AstNode},
     SyntaxKind::{self, *},
     SyntaxNode, SyntaxToken, T,
 };
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Name {
-    ident_token: String,
+    ident_token: Option<String>,
     self_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NameRef {
-    ident_token: String,
+    ident_token: Option<String>,
     self_token: bool,
     super_token: bool,
     crate_token: bool,
@@ -21,7 +21,7 @@ pub struct NameRef {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Lifetime {
-    lifetime_ident_token: String,
+    lifetime_ident_token: Option<String>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Path {
@@ -81,6 +81,8 @@ pub struct AssocTypeArg {
     pub generic_arg_list: Option<Box<GenericArgList>>,
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
+    colon_token: bool,
+    pub type_bound_list: Option<Box<TypeBoundList>>,
     eq_token: bool,
     pub ty: Option<Box<Type>>,
     pub const_arg: Option<Box<ConstArg>>,
@@ -99,6 +101,7 @@ pub struct TypeBoundList {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroCall {
+    pub attrs: Vec<Attr>,
     pub path: Option<Box<Path>>,
     excl_token: bool,
     pub token_tree: Option<Box<TokenTree>>,
@@ -122,7 +125,9 @@ pub struct TokenTree {
     r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MacroItems {}
+pub struct MacroItems {
+    pub items: Vec<Item>,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroStmts {
     pub statements: Vec<Stmt>,
@@ -131,11 +136,16 @@ pub struct MacroStmts {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SourceFile {
     shebang_token: bool,
+    pub attrs: Vec<Attr>,
+    pub items: Vec<Item>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Const {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
     default_token: bool,
     const_token: bool,
+    pub name: Option<Box<Name>>,
     underscore_token: bool,
     colon_token: bool,
     pub ty: Option<Box<Type>>,
@@ -145,17 +155,25 @@ pub struct Const {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Enum {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
     enum_token: bool,
+    pub name: Option<Box<Name>>,
+    pub generic_param_list: Option<Box<GenericParamList>>,
+    pub where_clause: Option<Box<WhereClause>>,
     pub variant_list: Option<Box<VariantList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExternBlock {
+    pub attrs: Vec<Attr>,
     unsafe_token: bool,
     pub abi: Option<Box<Abi>>,
     pub extern_item_list: Option<Box<ExternItemList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExternCrate {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
     extern_token: bool,
     crate_token: bool,
     pub name_ref: Option<Box<NameRef>>,
@@ -164,6 +182,8 @@ pub struct ExternCrate {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Fn {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
     pub publish: Option<Box<Publish>>,
     default_token: bool,
     const_token: bool,
@@ -172,8 +192,11 @@ pub struct Fn {
     pub abi: Option<Box<Abi>>,
     pub fn_mode: Option<Box<FnMode>>,
     fn_token: bool,
+    pub name: Option<Box<Name>>,
+    pub generic_param_list: Option<Box<GenericParamList>>,
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
+    pub where_clause: Option<Box<WhereClause>>,
     pub requires_clause: Option<Box<RequiresClause>>,
     pub recommends_clause: Option<Box<RecommendsClause>>,
     pub ensures_clause: Option<Box<EnsuresClause>>,
@@ -183,36 +206,52 @@ pub struct Fn {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Impl {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
     default_token: bool,
     unsafe_token: bool,
     impl_token: bool,
+    pub generic_param_list: Option<Box<GenericParamList>>,
     const_token: bool,
     excl_token: bool,
     for_token: bool,
+    pub where_clause: Option<Box<WhereClause>>,
     pub assoc_item_list: Option<Box<AssocItemList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroRules {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
     macro_rules_token: bool,
     excl_token: bool,
+    pub name: Option<Box<Name>>,
     pub token_tree: Option<Box<TokenTree>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroDef {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
     macro_token: bool,
+    pub name: Option<Box<Name>>,
     pub args: Option<Box<TokenTree>>,
     pub body: Option<Box<TokenTree>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Module {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
     mod_token: bool,
+    pub name: Option<Box<Name>>,
     pub item_list: Option<Box<ItemList>>,
     semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Static {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
     static_token: bool,
     mut_token: bool,
+    pub name: Option<Box<Name>>,
     colon_token: bool,
     pub ty: Option<Box<Type>>,
     eq_token: bool,
@@ -221,40 +260,71 @@ pub struct Static {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Struct {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
     pub data_mode: Option<Box<DataMode>>,
     struct_token: bool,
+    pub name: Option<Box<Name>>,
+    pub generic_param_list: Option<Box<GenericParamList>>,
+    pub where_clause: Option<Box<WhereClause>>,
     semicolon_token: bool,
     pub field_list: Option<Box<FieldList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Trait {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
     unsafe_token: bool,
     auto_token: bool,
     trait_token: bool,
+    pub name: Option<Box<Name>>,
+    pub generic_param_list: Option<Box<GenericParamList>>,
+    colon_token: bool,
+    pub type_bound_list: Option<Box<TypeBoundList>>,
+    pub where_clause: Option<Box<WhereClause>>,
     pub assoc_item_list: Option<Box<AssocItemList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TraitAlias {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
     trait_token: bool,
+    pub name: Option<Box<Name>>,
+    pub generic_param_list: Option<Box<GenericParamList>>,
     eq_token: bool,
     pub type_bound_list: Option<Box<TypeBoundList>>,
+    pub where_clause: Option<Box<WhereClause>>,
     semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeAlias {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
     default_token: bool,
     type_token: bool,
+    pub name: Option<Box<Name>>,
+    pub generic_param_list: Option<Box<GenericParamList>>,
+    colon_token: bool,
+    pub type_bound_list: Option<Box<TypeBoundList>>,
+    pub where_clause: Option<Box<WhereClause>>,
     eq_token: bool,
     pub ty: Option<Box<Type>>,
     semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Union {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
     union_token: bool,
+    pub name: Option<Box<Name>>,
+    pub generic_param_list: Option<Box<GenericParamList>>,
+    pub where_clause: Option<Box<WhereClause>>,
     pub record_field_list: Option<Box<RecordFieldList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Use {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
     use_token: bool,
     pub use_tree: Option<Box<UseTree>>,
     semicolon_token: bool,
@@ -270,11 +340,14 @@ pub struct Visibility {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ItemList {
     l_curly_token: bool,
+    pub attrs: Vec<Attr>,
+    pub items: Vec<Item>,
     r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Rename {
     as_token: bool,
+    pub name: Option<Box<Name>>,
     underscore_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -342,6 +415,7 @@ pub struct DecreasesClause {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BlockExpr {
+    pub attrs: Vec<Attr>,
     pub label: Option<Box<Label>>,
     try_token: bool,
     unsafe_token: bool,
@@ -351,14 +425,17 @@ pub struct BlockExpr {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SelfParam {
+    pub attrs: Vec<Attr>,
     amp_token: bool,
     pub lifetime: Option<Box<Lifetime>>,
     mut_token: bool,
+    pub name: Option<Box<Name>>,
     colon_token: bool,
     pub ty: Option<Box<Type>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Param {
+    pub attrs: Vec<Attr>,
     tracked_token: bool,
     pub pat: Option<Box<Pat>>,
     colon_token: bool,
@@ -384,12 +461,17 @@ pub struct TupleFieldList {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordField {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
     pub data_mode: Option<Box<DataMode>>,
+    pub name: Option<Box<Name>>,
     colon_token: bool,
     pub ty: Option<Box<Type>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleField {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
     pub ty: Option<Box<Type>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -400,6 +482,9 @@ pub struct VariantList {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Variant {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
+    pub name: Option<Box<Name>>,
     pub field_list: Option<Box<FieldList>>,
     eq_token: bool,
     pub expr: Option<Box<Expr>>,
@@ -407,18 +492,22 @@ pub struct Variant {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssocItemList {
     l_curly_token: bool,
+    pub attrs: Vec<Attr>,
     pub assoc_items: Vec<AssocItem>,
     r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExternItemList {
     l_curly_token: bool,
+    pub attrs: Vec<Attr>,
     pub extern_items: Vec<ExternItem>,
     r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConstParam {
+    pub attrs: Vec<Attr>,
     const_token: bool,
+    pub name: Option<Box<Name>>,
     colon_token: bool,
     pub ty: Option<Box<Type>>,
     eq_token: bool,
@@ -426,10 +515,17 @@ pub struct ConstParam {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LifetimeParam {
+    pub attrs: Vec<Attr>,
     pub lifetime: Option<Box<Lifetime>>,
+    colon_token: bool,
+    pub type_bound_list: Option<Box<TypeBoundList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeParam {
+    pub attrs: Vec<Attr>,
+    pub name: Option<Box<Name>>,
+    colon_token: bool,
+    pub type_bound_list: Option<Box<TypeBoundList>>,
     eq_token: bool,
     pub default_type: Option<Box<Type>>,
 }
@@ -439,6 +535,8 @@ pub struct WherePred {
     pub generic_param_list: Option<Box<GenericParamList>>,
     pub lifetime: Option<Box<Lifetime>>,
     pub ty: Option<Box<Type>>,
+    colon_token: bool,
+    pub type_bound_list: Option<Box<TypeBoundList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Meta {
@@ -454,6 +552,7 @@ pub struct ExprStmt {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LetStmt {
+    pub attrs: Vec<Attr>,
     let_token: bool,
     ghost_token: bool,
     tracked_token: bool,
@@ -472,6 +571,7 @@ pub struct LetElse {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayExpr {
+    pub attrs: Vec<Attr>,
     l_brack_token: bool,
     pub exprs: Vec<Expr>,
     pub expr: Option<Box<Expr>>,
@@ -480,35 +580,44 @@ pub struct ArrayExpr {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AwaitExpr {
+    pub attrs: Vec<Attr>,
     pub expr: Option<Box<Expr>>,
     dot_token: bool,
     await_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct BinExpr {}
+pub struct BinExpr {
+    pub attrs: Vec<Attr>,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BoxExpr {
+    pub attrs: Vec<Attr>,
     box_token: bool,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BreakExpr {
+    pub attrs: Vec<Attr>,
     break_token: bool,
     pub lifetime: Option<Box<Lifetime>>,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CallExpr {
+    pub attrs: Vec<Attr>,
     pub expr: Option<Box<Expr>>,
+    pub arg_list: Option<Box<ArgList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CastExpr {
+    pub attrs: Vec<Attr>,
     pub expr: Option<Box<Expr>>,
     as_token: bool,
     pub ty: Option<Box<Type>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClosureExpr {
+    pub attrs: Vec<Attr>,
     for_token: bool,
     pub generic_param_list: Option<Box<GenericParamList>>,
     const_token: bool,
@@ -523,36 +632,48 @@ pub struct ClosureExpr {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ContinueExpr {
+    pub attrs: Vec<Attr>,
     continue_token: bool,
     pub lifetime: Option<Box<Lifetime>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FieldExpr {
+    pub attrs: Vec<Attr>,
     pub expr: Option<Box<Expr>>,
     dot_token: bool,
     pub name_ref: Option<Box<NameRef>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ForExpr {
+    pub attrs: Vec<Attr>,
+    pub label: Option<Box<Label>>,
     for_token: bool,
     pub pat: Option<Box<Pat>>,
     in_token: bool,
+    pub loop_body: Option<Box<BlockExpr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IfExpr {
+    pub attrs: Vec<Attr>,
     if_token: bool,
     else_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IndexExpr {
+    pub attrs: Vec<Attr>,
     l_brack_token: bool,
     r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Literal {}
+pub struct Literal {
+    pub attrs: Vec<Attr>,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LoopExpr {
+    pub attrs: Vec<Attr>,
+    pub label: Option<Box<Label>>,
     loop_token: bool,
+    pub loop_body: Option<Box<BlockExpr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroExpr {
@@ -560,33 +681,41 @@ pub struct MacroExpr {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchExpr {
+    pub attrs: Vec<Attr>,
     match_token: bool,
     pub expr: Option<Box<Expr>>,
     pub match_arm_list: Option<Box<MatchArmList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MethodCallExpr {
+    pub attrs: Vec<Attr>,
     pub receiver: Option<Box<Expr>>,
     dot_token: bool,
     pub name_ref: Option<Box<NameRef>>,
     pub generic_arg_list: Option<Box<GenericArgList>>,
+    pub arg_list: Option<Box<ArgList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParenExpr {
+    pub attrs: Vec<Attr>,
     l_paren_token: bool,
     pub expr: Option<Box<Expr>>,
     r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathExpr {
+    pub attrs: Vec<Attr>,
     pub path: Option<Box<Path>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PrefixExpr {
+    pub attrs: Vec<Attr>,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct RangeExpr {}
+pub struct RangeExpr {
+    pub attrs: Vec<Attr>,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordExpr {
     pub path: Option<Box<Path>>,
@@ -594,6 +723,7 @@ pub struct RecordExpr {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefExpr {
+    pub attrs: Vec<Attr>,
     amp_token: bool,
     raw_token: bool,
     mut_token: bool,
@@ -602,39 +732,48 @@ pub struct RefExpr {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReturnExpr {
+    pub attrs: Vec<Attr>,
     return_token: bool,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TryExpr {
+    pub attrs: Vec<Attr>,
     pub expr: Option<Box<Expr>>,
     question_mark_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleExpr {
+    pub attrs: Vec<Attr>,
     l_paren_token: bool,
     pub fields: Vec<Expr>,
     r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WhileExpr {
+    pub attrs: Vec<Attr>,
+    pub label: Option<Box<Label>>,
     while_token: bool,
     pub invariant_clause: Option<Box<InvariantClause>>,
     pub decreases_clause: Option<Box<DecreasesClause>>,
+    pub loop_body: Option<Box<BlockExpr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct YieldExpr {
+    pub attrs: Vec<Attr>,
     yield_token: bool,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct YeetExpr {
+    pub attrs: Vec<Attr>,
     do_token: bool,
     yeet_token: bool,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LetExpr {
+    pub attrs: Vec<Attr>,
     let_token: bool,
     pub pat: Option<Box<Pat>>,
     eq_token: bool,
@@ -642,25 +781,30 @@ pub struct LetExpr {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UnderscoreExpr {
+    pub attrs: Vec<Attr>,
     underscore_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ViewExpr {
+    pub attrs: Vec<Attr>,
     pub expr: Option<Box<Expr>>,
     at_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssertExpr {
+    pub attrs: Vec<Attr>,
     assert_token: bool,
     l_paren_token: bool,
     pub expr: Option<Box<Expr>>,
     r_paren_token: bool,
     by_token: bool,
+    pub name: Option<Box<Name>>,
     pub requires_clause: Option<Box<RequiresClause>>,
     pub block_expr: Option<Box<BlockExpr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssumeExpr {
+    pub attrs: Vec<Attr>,
     assume_token: bool,
     l_paren_token: bool,
     pub expr: Option<Box<Expr>>,
@@ -668,6 +812,7 @@ pub struct AssumeExpr {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssertForallExpr {
+    pub attrs: Vec<Attr>,
     assert_token: bool,
     forall_token: bool,
     pub closure_expr: Option<Box<ClosureExpr>>,
@@ -679,6 +824,7 @@ pub struct AssertForallExpr {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StmtList {
     l_curly_token: bool,
+    pub attrs: Vec<Attr>,
     pub statements: Vec<Stmt>,
     pub tail_expr: Option<Box<Expr>>,
     r_curly_token: bool,
@@ -691,6 +837,7 @@ pub struct Label {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordExprFieldList {
     l_curly_token: bool,
+    pub attrs: Vec<Attr>,
     pub fields: Vec<RecordExprField>,
     dotdot_token: bool,
     pub spread: Option<Box<Expr>>,
@@ -698,6 +845,7 @@ pub struct RecordExprFieldList {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordExprField {
+    pub attrs: Vec<Attr>,
     pub name_ref: Option<Box<NameRef>>,
     colon_token: bool,
     pub expr: Option<Box<Expr>>,
@@ -716,11 +864,13 @@ pub struct InvariantClause {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchArmList {
     l_curly_token: bool,
+    pub attrs: Vec<Attr>,
     pub arms: Vec<MatchArm>,
     r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchArm {
+    pub attrs: Vec<Attr>,
     pub pat: Option<Box<Pat>>,
     pub guard: Option<Box<MatchGuard>>,
     fat_arrow_token: bool,
@@ -819,8 +969,10 @@ pub struct TypeBound {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IdentPat {
+    pub attrs: Vec<Attr>,
     ref_token: bool,
     mut_token: bool,
+    pub name: Option<Box<Name>>,
     at_token: bool,
     pub pat: Option<Box<Pat>>,
 }
@@ -831,6 +983,7 @@ pub struct BoxPat {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RestPat {
+    pub attrs: Vec<Attr>,
     dotdot_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -906,6 +1059,7 @@ pub struct RecordPatFieldList {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordPatField {
+    pub attrs: Vec<Attr>,
     pub name_ref: Option<Box<NameRef>>,
     colon_token: bool,
     pub pat: Option<Box<Pat>>,
@@ -928,6 +1082,7 @@ pub struct SignatureDecreases {
 pub struct Prover {
     by_token: bool,
     l_paren_token: bool,
+    pub name: Option<Box<Name>>,
     r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1078,4 +1233,1683 @@ pub enum GenericParam {
     ConstParam(Box<ConstParam>),
     LifetimeParam(Box<LifetimeParam>),
     TypeParam(Box<TypeParam>),
+}
+impl From<super::nodes::Name> for Name {
+    fn from(item: super::nodes::Name) -> Self {
+        Self {
+            ident_token: item.ident_token().map(|it| it.text().to_string()),
+            self_token: item.self_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::NameRef> for NameRef {
+    fn from(item: super::nodes::NameRef) -> Self {
+        Self {
+            ident_token: item.ident_token().map(|it| it.text().to_string()),
+            self_token: item.self_token().is_some(),
+            super_token: item.super_token().is_some(),
+            crate_token: item.crate_token().is_some(),
+            Self_token: item.Self_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::Lifetime> for Lifetime {
+    fn from(item: super::nodes::Lifetime) -> Self {
+        Self { lifetime_ident_token: item.lifetime_ident_token().map(|it| it.text().to_string()) }
+    }
+}
+impl From<super::nodes::Path> for Path {
+    fn from(item: super::nodes::Path) -> Self {
+        Self {
+            qualifier: item.qualifier().map(Path::from).map(Box::new),
+            coloncolon_token: item.coloncolon_token().is_some(),
+            segment: item.segment().map(PathSegment::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::PathSegment> for PathSegment {
+    fn from(item: super::nodes::PathSegment) -> Self {
+        Self {
+            coloncolon_token: item.coloncolon_token().is_some(),
+            name_ref: item.name_ref().map(NameRef::from).map(Box::new),
+            generic_arg_list: item.generic_arg_list().map(GenericArgList::from).map(Box::new),
+            param_list: item.param_list().map(ParamList::from).map(Box::new),
+            ret_type: item.ret_type().map(RetType::from).map(Box::new),
+            l_angle_token: item.l_angle_token().is_some(),
+            path_type: item.path_type().map(PathType::from).map(Box::new),
+            as_token: item.as_token().is_some(),
+            r_angle_token: item.r_angle_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::GenericArgList> for GenericArgList {
+    fn from(item: super::nodes::GenericArgList) -> Self {
+        Self {
+            coloncolon_token: item.coloncolon_token().is_some(),
+            l_angle_token: item.l_angle_token().is_some(),
+            generic_args: item.generic_args().into_iter().map(GenericArg::from).collect(),
+            r_angle_token: item.r_angle_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::ParamList> for ParamList {
+    fn from(item: super::nodes::ParamList) -> Self {
+        Self {
+            l_paren_token: item.l_paren_token().is_some(),
+            self_param: item.self_param().map(SelfParam::from).map(Box::new),
+            comma_token: item.comma_token().is_some(),
+            params: item.params().into_iter().map(Param::from).collect(),
+            r_paren_token: item.r_paren_token().is_some(),
+            pipe_token: item.pipe_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::RetType> for RetType {
+    fn from(item: super::nodes::RetType) -> Self {
+        Self {
+            thin_arrow_token: item.thin_arrow_token().is_some(),
+            tracked_token: item.tracked_token().is_some(),
+            l_paren_token: item.l_paren_token().is_some(),
+            pat: item.pat().map(Pat::from).map(Box::new),
+            colon_token: item.colon_token().is_some(),
+            ty: item.ty().map(Type::from).map(Box::new),
+            r_paren_token: item.r_paren_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::PathType> for PathType {
+    fn from(item: super::nodes::PathType) -> Self {
+        Self { path: item.path().map(Path::from).map(Box::new) }
+    }
+}
+impl From<super::nodes::TypeArg> for TypeArg {
+    fn from(item: super::nodes::TypeArg) -> Self {
+        Self { ty: item.ty().map(Type::from).map(Box::new) }
+    }
+}
+impl From<super::nodes::AssocTypeArg> for AssocTypeArg {
+    fn from(item: super::nodes::AssocTypeArg) -> Self {
+        Self {
+            name_ref: item.name_ref().map(NameRef::from).map(Box::new),
+            generic_arg_list: item.generic_arg_list().map(GenericArgList::from).map(Box::new),
+            param_list: item.param_list().map(ParamList::from).map(Box::new),
+            ret_type: item.ret_type().map(RetType::from).map(Box::new),
+            colon_token: item.colon_token().is_some(),
+            type_bound_list: item.type_bound_list().map(TypeBoundList::from).map(Box::new),
+            eq_token: item.eq_token().is_some(),
+            ty: item.ty().map(Type::from).map(Box::new),
+            const_arg: item.const_arg().map(ConstArg::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::LifetimeArg> for LifetimeArg {
+    fn from(item: super::nodes::LifetimeArg) -> Self {
+        Self { lifetime: item.lifetime().map(Lifetime::from).map(Box::new) }
+    }
+}
+impl From<super::nodes::ConstArg> for ConstArg {
+    fn from(item: super::nodes::ConstArg) -> Self {
+        Self { expr: item.expr().map(Expr::from).map(Box::new) }
+    }
+}
+impl From<super::nodes::TypeBoundList> for TypeBoundList {
+    fn from(item: super::nodes::TypeBoundList) -> Self {
+        Self { bounds: item.bounds().into_iter().map(TypeBound::from).collect() }
+    }
+}
+impl From<super::nodes::MacroCall> for MacroCall {
+    fn from(item: super::nodes::MacroCall) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            path: item.path().map(Path::from).map(Box::new),
+            excl_token: item.excl_token().is_some(),
+            token_tree: item.token_tree().map(TokenTree::from).map(Box::new),
+            semicolon_token: item.semicolon_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::Attr> for Attr {
+    fn from(item: super::nodes::Attr) -> Self {
+        Self {
+            pound_token: item.pound_token().is_some(),
+            excl_token: item.excl_token().is_some(),
+            l_brack_token: item.l_brack_token().is_some(),
+            meta: item.meta().map(Meta::from).map(Box::new),
+            r_brack_token: item.r_brack_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::TokenTree> for TokenTree {
+    fn from(item: super::nodes::TokenTree) -> Self {
+        Self {
+            l_paren_token: item.l_paren_token().is_some(),
+            r_paren_token: item.r_paren_token().is_some(),
+            l_curly_token: item.l_curly_token().is_some(),
+            r_curly_token: item.r_curly_token().is_some(),
+            l_brack_token: item.l_brack_token().is_some(),
+            r_brack_token: item.r_brack_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::MacroItems> for MacroItems {
+    fn from(item: super::nodes::MacroItems) -> Self {
+        Self { items: item.items().into_iter().map(Item::from).collect() }
+    }
+}
+impl From<super::nodes::MacroStmts> for MacroStmts {
+    fn from(item: super::nodes::MacroStmts) -> Self {
+        Self {
+            statements: item.statements().into_iter().map(Stmt::from).collect(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::SourceFile> for SourceFile {
+    fn from(item: super::nodes::SourceFile) -> Self {
+        Self {
+            shebang_token: item.shebang_token().is_some(),
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            items: item.items().into_iter().map(Item::from).collect(),
+        }
+    }
+}
+impl From<super::nodes::Const> for Const {
+    fn from(item: super::nodes::Const) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            visibility: item.visibility().map(Visibility::from).map(Box::new),
+            default_token: item.default_token().is_some(),
+            const_token: item.const_token().is_some(),
+            name: item.name().map(Name::from).map(Box::new),
+            underscore_token: item.underscore_token().is_some(),
+            colon_token: item.colon_token().is_some(),
+            ty: item.ty().map(Type::from).map(Box::new),
+            eq_token: item.eq_token().is_some(),
+            body: item.body().map(Expr::from).map(Box::new),
+            semicolon_token: item.semicolon_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::Enum> for Enum {
+    fn from(item: super::nodes::Enum) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            visibility: item.visibility().map(Visibility::from).map(Box::new),
+            enum_token: item.enum_token().is_some(),
+            name: item.name().map(Name::from).map(Box::new),
+            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
+            where_clause: item.where_clause().map(WhereClause::from).map(Box::new),
+            variant_list: item.variant_list().map(VariantList::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::ExternBlock> for ExternBlock {
+    fn from(item: super::nodes::ExternBlock) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            unsafe_token: item.unsafe_token().is_some(),
+            abi: item.abi().map(Abi::from).map(Box::new),
+            extern_item_list: item.extern_item_list().map(ExternItemList::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::ExternCrate> for ExternCrate {
+    fn from(item: super::nodes::ExternCrate) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            visibility: item.visibility().map(Visibility::from).map(Box::new),
+            extern_token: item.extern_token().is_some(),
+            crate_token: item.crate_token().is_some(),
+            name_ref: item.name_ref().map(NameRef::from).map(Box::new),
+            rename: item.rename().map(Rename::from).map(Box::new),
+            semicolon_token: item.semicolon_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::Fn> for Fn {
+    fn from(item: super::nodes::Fn) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            visibility: item.visibility().map(Visibility::from).map(Box::new),
+            publish: item.publish().map(Publish::from).map(Box::new),
+            default_token: item.default_token().is_some(),
+            const_token: item.const_token().is_some(),
+            async_token: item.async_token().is_some(),
+            unsafe_token: item.unsafe_token().is_some(),
+            abi: item.abi().map(Abi::from).map(Box::new),
+            fn_mode: item.fn_mode().map(FnMode::from).map(Box::new),
+            fn_token: item.fn_token().is_some(),
+            name: item.name().map(Name::from).map(Box::new),
+            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
+            param_list: item.param_list().map(ParamList::from).map(Box::new),
+            ret_type: item.ret_type().map(RetType::from).map(Box::new),
+            where_clause: item.where_clause().map(WhereClause::from).map(Box::new),
+            requires_clause: item.requires_clause().map(RequiresClause::from).map(Box::new),
+            recommends_clause: item.recommends_clause().map(RecommendsClause::from).map(Box::new),
+            ensures_clause: item.ensures_clause().map(EnsuresClause::from).map(Box::new),
+            decreases_clause: item.decreases_clause().map(DecreasesClause::from).map(Box::new),
+            body: item.body().map(BlockExpr::from).map(Box::new),
+            semicolon_token: item.semicolon_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::Impl> for Impl {
+    fn from(item: super::nodes::Impl) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            visibility: item.visibility().map(Visibility::from).map(Box::new),
+            default_token: item.default_token().is_some(),
+            unsafe_token: item.unsafe_token().is_some(),
+            impl_token: item.impl_token().is_some(),
+            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
+            const_token: item.const_token().is_some(),
+            excl_token: item.excl_token().is_some(),
+            for_token: item.for_token().is_some(),
+            where_clause: item.where_clause().map(WhereClause::from).map(Box::new),
+            assoc_item_list: item.assoc_item_list().map(AssocItemList::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::MacroRules> for MacroRules {
+    fn from(item: super::nodes::MacroRules) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            visibility: item.visibility().map(Visibility::from).map(Box::new),
+            macro_rules_token: item.macro_rules_token().is_some(),
+            excl_token: item.excl_token().is_some(),
+            name: item.name().map(Name::from).map(Box::new),
+            token_tree: item.token_tree().map(TokenTree::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::MacroDef> for MacroDef {
+    fn from(item: super::nodes::MacroDef) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            visibility: item.visibility().map(Visibility::from).map(Box::new),
+            macro_token: item.macro_token().is_some(),
+            name: item.name().map(Name::from).map(Box::new),
+            args: item.args().map(TokenTree::from).map(Box::new),
+            body: item.body().map(TokenTree::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::Module> for Module {
+    fn from(item: super::nodes::Module) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            visibility: item.visibility().map(Visibility::from).map(Box::new),
+            mod_token: item.mod_token().is_some(),
+            name: item.name().map(Name::from).map(Box::new),
+            item_list: item.item_list().map(ItemList::from).map(Box::new),
+            semicolon_token: item.semicolon_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::Static> for Static {
+    fn from(item: super::nodes::Static) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            visibility: item.visibility().map(Visibility::from).map(Box::new),
+            static_token: item.static_token().is_some(),
+            mut_token: item.mut_token().is_some(),
+            name: item.name().map(Name::from).map(Box::new),
+            colon_token: item.colon_token().is_some(),
+            ty: item.ty().map(Type::from).map(Box::new),
+            eq_token: item.eq_token().is_some(),
+            body: item.body().map(Expr::from).map(Box::new),
+            semicolon_token: item.semicolon_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::Struct> for Struct {
+    fn from(item: super::nodes::Struct) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            visibility: item.visibility().map(Visibility::from).map(Box::new),
+            data_mode: item.data_mode().map(DataMode::from).map(Box::new),
+            struct_token: item.struct_token().is_some(),
+            name: item.name().map(Name::from).map(Box::new),
+            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
+            where_clause: item.where_clause().map(WhereClause::from).map(Box::new),
+            semicolon_token: item.semicolon_token().is_some(),
+            field_list: item.field_list().map(FieldList::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::Trait> for Trait {
+    fn from(item: super::nodes::Trait) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            visibility: item.visibility().map(Visibility::from).map(Box::new),
+            unsafe_token: item.unsafe_token().is_some(),
+            auto_token: item.auto_token().is_some(),
+            trait_token: item.trait_token().is_some(),
+            name: item.name().map(Name::from).map(Box::new),
+            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
+            colon_token: item.colon_token().is_some(),
+            type_bound_list: item.type_bound_list().map(TypeBoundList::from).map(Box::new),
+            where_clause: item.where_clause().map(WhereClause::from).map(Box::new),
+            assoc_item_list: item.assoc_item_list().map(AssocItemList::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::TraitAlias> for TraitAlias {
+    fn from(item: super::nodes::TraitAlias) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            visibility: item.visibility().map(Visibility::from).map(Box::new),
+            trait_token: item.trait_token().is_some(),
+            name: item.name().map(Name::from).map(Box::new),
+            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
+            eq_token: item.eq_token().is_some(),
+            type_bound_list: item.type_bound_list().map(TypeBoundList::from).map(Box::new),
+            where_clause: item.where_clause().map(WhereClause::from).map(Box::new),
+            semicolon_token: item.semicolon_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::TypeAlias> for TypeAlias {
+    fn from(item: super::nodes::TypeAlias) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            visibility: item.visibility().map(Visibility::from).map(Box::new),
+            default_token: item.default_token().is_some(),
+            type_token: item.type_token().is_some(),
+            name: item.name().map(Name::from).map(Box::new),
+            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
+            colon_token: item.colon_token().is_some(),
+            type_bound_list: item.type_bound_list().map(TypeBoundList::from).map(Box::new),
+            where_clause: item.where_clause().map(WhereClause::from).map(Box::new),
+            eq_token: item.eq_token().is_some(),
+            ty: item.ty().map(Type::from).map(Box::new),
+            semicolon_token: item.semicolon_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::Union> for Union {
+    fn from(item: super::nodes::Union) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            visibility: item.visibility().map(Visibility::from).map(Box::new),
+            union_token: item.union_token().is_some(),
+            name: item.name().map(Name::from).map(Box::new),
+            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
+            where_clause: item.where_clause().map(WhereClause::from).map(Box::new),
+            record_field_list: item.record_field_list().map(RecordFieldList::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::Use> for Use {
+    fn from(item: super::nodes::Use) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            visibility: item.visibility().map(Visibility::from).map(Box::new),
+            use_token: item.use_token().is_some(),
+            use_tree: item.use_tree().map(UseTree::from).map(Box::new),
+            semicolon_token: item.semicolon_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::Visibility> for Visibility {
+    fn from(item: super::nodes::Visibility) -> Self {
+        Self {
+            pub_token: item.pub_token().is_some(),
+            l_paren_token: item.l_paren_token().is_some(),
+            in_token: item.in_token().is_some(),
+            path: item.path().map(Path::from).map(Box::new),
+            r_paren_token: item.r_paren_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::ItemList> for ItemList {
+    fn from(item: super::nodes::ItemList) -> Self {
+        Self {
+            l_curly_token: item.l_curly_token().is_some(),
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            items: item.items().into_iter().map(Item::from).collect(),
+            r_curly_token: item.r_curly_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::Rename> for Rename {
+    fn from(item: super::nodes::Rename) -> Self {
+        Self {
+            as_token: item.as_token().is_some(),
+            name: item.name().map(Name::from).map(Box::new),
+            underscore_token: item.underscore_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::UseTree> for UseTree {
+    fn from(item: super::nodes::UseTree) -> Self {
+        Self {
+            path: item.path().map(Path::from).map(Box::new),
+            coloncolon_token: item.coloncolon_token().is_some(),
+            star_token: item.star_token().is_some(),
+            use_tree_list: item.use_tree_list().map(UseTreeList::from).map(Box::new),
+            rename: item.rename().map(Rename::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::UseTreeList> for UseTreeList {
+    fn from(item: super::nodes::UseTreeList) -> Self {
+        Self {
+            l_curly_token: item.l_curly_token().is_some(),
+            use_trees: item.use_trees().into_iter().map(UseTree::from).collect(),
+            r_curly_token: item.r_curly_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::Publish> for Publish {
+    fn from(item: super::nodes::Publish) -> Self {
+        Self {
+            closed_token: item.closed_token().is_some(),
+            open_token: item.open_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::Abi> for Abi {
+    fn from(item: super::nodes::Abi) -> Self {
+        Self { extern_token: item.extern_token().is_some() }
+    }
+}
+impl From<super::nodes::FnMode> for FnMode {
+    fn from(item: super::nodes::FnMode) -> Self {
+        Self {
+            spec_token: item.spec_token().is_some(),
+            proof_token: item.proof_token().is_some(),
+            exec_token: item.exec_token().is_some(),
+            mode_spec_checked: item.mode_spec_checked().map(ModeSpecChecked::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::GenericParamList> for GenericParamList {
+    fn from(item: super::nodes::GenericParamList) -> Self {
+        Self {
+            l_angle_token: item.l_angle_token().is_some(),
+            generic_params: item.generic_params().into_iter().map(GenericParam::from).collect(),
+            r_angle_token: item.r_angle_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::WhereClause> for WhereClause {
+    fn from(item: super::nodes::WhereClause) -> Self {
+        Self {
+            where_token: item.where_token().is_some(),
+            predicates: item.predicates().into_iter().map(WherePred::from).collect(),
+        }
+    }
+}
+impl From<super::nodes::RequiresClause> for RequiresClause {
+    fn from(item: super::nodes::RequiresClause) -> Self {
+        Self {
+            requires_token: item.requires_token().is_some(),
+            exprs: item.exprs().into_iter().map(Expr::from).collect(),
+        }
+    }
+}
+impl From<super::nodes::RecommendsClause> for RecommendsClause {
+    fn from(item: super::nodes::RecommendsClause) -> Self {
+        Self {
+            recommends_token: item.recommends_token().is_some(),
+            exprs: item.exprs().into_iter().map(Expr::from).collect(),
+            via_token: item.via_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::EnsuresClause> for EnsuresClause {
+    fn from(item: super::nodes::EnsuresClause) -> Self {
+        Self {
+            ensures_token: item.ensures_token().is_some(),
+            exprs: item.exprs().into_iter().map(Expr::from).collect(),
+        }
+    }
+}
+impl From<super::nodes::DecreasesClause> for DecreasesClause {
+    fn from(item: super::nodes::DecreasesClause) -> Self {
+        Self {
+            decreases_token: item.decreases_token().is_some(),
+            exprs: item.exprs().into_iter().map(Expr::from).collect(),
+        }
+    }
+}
+impl From<super::nodes::BlockExpr> for BlockExpr {
+    fn from(item: super::nodes::BlockExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            label: item.label().map(Label::from).map(Box::new),
+            try_token: item.try_token().is_some(),
+            unsafe_token: item.unsafe_token().is_some(),
+            async_token: item.async_token().is_some(),
+            const_token: item.const_token().is_some(),
+            stmt_list: item.stmt_list().map(StmtList::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::SelfParam> for SelfParam {
+    fn from(item: super::nodes::SelfParam) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            amp_token: item.amp_token().is_some(),
+            lifetime: item.lifetime().map(Lifetime::from).map(Box::new),
+            mut_token: item.mut_token().is_some(),
+            name: item.name().map(Name::from).map(Box::new),
+            colon_token: item.colon_token().is_some(),
+            ty: item.ty().map(Type::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::Param> for Param {
+    fn from(item: super::nodes::Param) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            tracked_token: item.tracked_token().is_some(),
+            pat: item.pat().map(Pat::from).map(Box::new),
+            colon_token: item.colon_token().is_some(),
+            ty: item.ty().map(Type::from).map(Box::new),
+            dotdotdot_token: item.dotdotdot_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::DataMode> for DataMode {
+    fn from(item: super::nodes::DataMode) -> Self {
+        Self {
+            ghost_token: item.ghost_token().is_some(),
+            tracked_token: item.tracked_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::RecordFieldList> for RecordFieldList {
+    fn from(item: super::nodes::RecordFieldList) -> Self {
+        Self {
+            l_curly_token: item.l_curly_token().is_some(),
+            fields: item.fields().into_iter().map(RecordField::from).collect(),
+            r_curly_token: item.r_curly_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::TupleFieldList> for TupleFieldList {
+    fn from(item: super::nodes::TupleFieldList) -> Self {
+        Self {
+            l_paren_token: item.l_paren_token().is_some(),
+            fields: item.fields().into_iter().map(TupleField::from).collect(),
+            r_paren_token: item.r_paren_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::RecordField> for RecordField {
+    fn from(item: super::nodes::RecordField) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            visibility: item.visibility().map(Visibility::from).map(Box::new),
+            data_mode: item.data_mode().map(DataMode::from).map(Box::new),
+            name: item.name().map(Name::from).map(Box::new),
+            colon_token: item.colon_token().is_some(),
+            ty: item.ty().map(Type::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::TupleField> for TupleField {
+    fn from(item: super::nodes::TupleField) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            visibility: item.visibility().map(Visibility::from).map(Box::new),
+            ty: item.ty().map(Type::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::VariantList> for VariantList {
+    fn from(item: super::nodes::VariantList) -> Self {
+        Self {
+            l_curly_token: item.l_curly_token().is_some(),
+            variants: item.variants().into_iter().map(Variant::from).collect(),
+            r_curly_token: item.r_curly_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::Variant> for Variant {
+    fn from(item: super::nodes::Variant) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            visibility: item.visibility().map(Visibility::from).map(Box::new),
+            name: item.name().map(Name::from).map(Box::new),
+            field_list: item.field_list().map(FieldList::from).map(Box::new),
+            eq_token: item.eq_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::AssocItemList> for AssocItemList {
+    fn from(item: super::nodes::AssocItemList) -> Self {
+        Self {
+            l_curly_token: item.l_curly_token().is_some(),
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            assoc_items: item.assoc_items().into_iter().map(AssocItem::from).collect(),
+            r_curly_token: item.r_curly_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::ExternItemList> for ExternItemList {
+    fn from(item: super::nodes::ExternItemList) -> Self {
+        Self {
+            l_curly_token: item.l_curly_token().is_some(),
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            extern_items: item.extern_items().into_iter().map(ExternItem::from).collect(),
+            r_curly_token: item.r_curly_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::ConstParam> for ConstParam {
+    fn from(item: super::nodes::ConstParam) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            const_token: item.const_token().is_some(),
+            name: item.name().map(Name::from).map(Box::new),
+            colon_token: item.colon_token().is_some(),
+            ty: item.ty().map(Type::from).map(Box::new),
+            eq_token: item.eq_token().is_some(),
+            default_val: item.default_val().map(Expr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::LifetimeParam> for LifetimeParam {
+    fn from(item: super::nodes::LifetimeParam) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            lifetime: item.lifetime().map(Lifetime::from).map(Box::new),
+            colon_token: item.colon_token().is_some(),
+            type_bound_list: item.type_bound_list().map(TypeBoundList::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::TypeParam> for TypeParam {
+    fn from(item: super::nodes::TypeParam) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            name: item.name().map(Name::from).map(Box::new),
+            colon_token: item.colon_token().is_some(),
+            type_bound_list: item.type_bound_list().map(TypeBoundList::from).map(Box::new),
+            eq_token: item.eq_token().is_some(),
+            default_type: item.default_type().map(Type::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::WherePred> for WherePred {
+    fn from(item: super::nodes::WherePred) -> Self {
+        Self {
+            for_token: item.for_token().is_some(),
+            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
+            lifetime: item.lifetime().map(Lifetime::from).map(Box::new),
+            ty: item.ty().map(Type::from).map(Box::new),
+            colon_token: item.colon_token().is_some(),
+            type_bound_list: item.type_bound_list().map(TypeBoundList::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::Meta> for Meta {
+    fn from(item: super::nodes::Meta) -> Self {
+        Self {
+            path: item.path().map(Path::from).map(Box::new),
+            eq_token: item.eq_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+            token_tree: item.token_tree().map(TokenTree::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::ExprStmt> for ExprStmt {
+    fn from(item: super::nodes::ExprStmt) -> Self {
+        Self {
+            expr: item.expr().map(Expr::from).map(Box::new),
+            semicolon_token: item.semicolon_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::LetStmt> for LetStmt {
+    fn from(item: super::nodes::LetStmt) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            let_token: item.let_token().is_some(),
+            ghost_token: item.ghost_token().is_some(),
+            tracked_token: item.tracked_token().is_some(),
+            pat: item.pat().map(Pat::from).map(Box::new),
+            colon_token: item.colon_token().is_some(),
+            ty: item.ty().map(Type::from).map(Box::new),
+            eq_token: item.eq_token().is_some(),
+            initializer: item.initializer().map(Expr::from).map(Box::new),
+            let_else: item.let_else().map(LetElse::from).map(Box::new),
+            semicolon_token: item.semicolon_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::LetElse> for LetElse {
+    fn from(item: super::nodes::LetElse) -> Self {
+        Self {
+            else_token: item.else_token().is_some(),
+            block_expr: item.block_expr().map(BlockExpr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::ArrayExpr> for ArrayExpr {
+    fn from(item: super::nodes::ArrayExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            l_brack_token: item.l_brack_token().is_some(),
+            exprs: item.exprs().into_iter().map(Expr::from).collect(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+            semicolon_token: item.semicolon_token().is_some(),
+            r_brack_token: item.r_brack_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::AwaitExpr> for AwaitExpr {
+    fn from(item: super::nodes::AwaitExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+            dot_token: item.dot_token().is_some(),
+            await_token: item.await_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::BinExpr> for BinExpr {
+    fn from(item: super::nodes::BinExpr) -> Self {
+        Self { attrs: item.attrs().into_iter().map(Attr::from).collect() }
+    }
+}
+impl From<super::nodes::BoxExpr> for BoxExpr {
+    fn from(item: super::nodes::BoxExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            box_token: item.box_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::BreakExpr> for BreakExpr {
+    fn from(item: super::nodes::BreakExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            break_token: item.break_token().is_some(),
+            lifetime: item.lifetime().map(Lifetime::from).map(Box::new),
+            expr: item.expr().map(Expr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::CallExpr> for CallExpr {
+    fn from(item: super::nodes::CallExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+            arg_list: item.arg_list().map(ArgList::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::CastExpr> for CastExpr {
+    fn from(item: super::nodes::CastExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+            as_token: item.as_token().is_some(),
+            ty: item.ty().map(Type::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::ClosureExpr> for ClosureExpr {
+    fn from(item: super::nodes::ClosureExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            for_token: item.for_token().is_some(),
+            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
+            const_token: item.const_token().is_some(),
+            static_token: item.static_token().is_some(),
+            async_token: item.async_token().is_some(),
+            move_token: item.move_token().is_some(),
+            forall_token: item.forall_token().is_some(),
+            exists_token: item.exists_token().is_some(),
+            param_list: item.param_list().map(ParamList::from).map(Box::new),
+            ret_type: item.ret_type().map(RetType::from).map(Box::new),
+            body: item.body().map(Expr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::ContinueExpr> for ContinueExpr {
+    fn from(item: super::nodes::ContinueExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            continue_token: item.continue_token().is_some(),
+            lifetime: item.lifetime().map(Lifetime::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::FieldExpr> for FieldExpr {
+    fn from(item: super::nodes::FieldExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+            dot_token: item.dot_token().is_some(),
+            name_ref: item.name_ref().map(NameRef::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::ForExpr> for ForExpr {
+    fn from(item: super::nodes::ForExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            label: item.label().map(Label::from).map(Box::new),
+            for_token: item.for_token().is_some(),
+            pat: item.pat().map(Pat::from).map(Box::new),
+            in_token: item.in_token().is_some(),
+            loop_body: item.loop_body().map(BlockExpr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::IfExpr> for IfExpr {
+    fn from(item: super::nodes::IfExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            if_token: item.if_token().is_some(),
+            else_token: item.else_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::IndexExpr> for IndexExpr {
+    fn from(item: super::nodes::IndexExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            l_brack_token: item.l_brack_token().is_some(),
+            r_brack_token: item.r_brack_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::Literal> for Literal {
+    fn from(item: super::nodes::Literal) -> Self {
+        Self { attrs: item.attrs().into_iter().map(Attr::from).collect() }
+    }
+}
+impl From<super::nodes::LoopExpr> for LoopExpr {
+    fn from(item: super::nodes::LoopExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            label: item.label().map(Label::from).map(Box::new),
+            loop_token: item.loop_token().is_some(),
+            loop_body: item.loop_body().map(BlockExpr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::MacroExpr> for MacroExpr {
+    fn from(item: super::nodes::MacroExpr) -> Self {
+        Self { macro_call: item.macro_call().map(MacroCall::from).map(Box::new) }
+    }
+}
+impl From<super::nodes::MatchExpr> for MatchExpr {
+    fn from(item: super::nodes::MatchExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            match_token: item.match_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+            match_arm_list: item.match_arm_list().map(MatchArmList::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::MethodCallExpr> for MethodCallExpr {
+    fn from(item: super::nodes::MethodCallExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            receiver: item.receiver().map(Expr::from).map(Box::new),
+            dot_token: item.dot_token().is_some(),
+            name_ref: item.name_ref().map(NameRef::from).map(Box::new),
+            generic_arg_list: item.generic_arg_list().map(GenericArgList::from).map(Box::new),
+            arg_list: item.arg_list().map(ArgList::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::ParenExpr> for ParenExpr {
+    fn from(item: super::nodes::ParenExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            l_paren_token: item.l_paren_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+            r_paren_token: item.r_paren_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::PathExpr> for PathExpr {
+    fn from(item: super::nodes::PathExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            path: item.path().map(Path::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::PrefixExpr> for PrefixExpr {
+    fn from(item: super::nodes::PrefixExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::RangeExpr> for RangeExpr {
+    fn from(item: super::nodes::RangeExpr) -> Self {
+        Self { attrs: item.attrs().into_iter().map(Attr::from).collect() }
+    }
+}
+impl From<super::nodes::RecordExpr> for RecordExpr {
+    fn from(item: super::nodes::RecordExpr) -> Self {
+        Self {
+            path: item.path().map(Path::from).map(Box::new),
+            record_expr_field_list: item
+                .record_expr_field_list()
+                .map(RecordExprFieldList::from)
+                .map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::RefExpr> for RefExpr {
+    fn from(item: super::nodes::RefExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            amp_token: item.amp_token().is_some(),
+            raw_token: item.raw_token().is_some(),
+            mut_token: item.mut_token().is_some(),
+            const_token: item.const_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::ReturnExpr> for ReturnExpr {
+    fn from(item: super::nodes::ReturnExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            return_token: item.return_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::TryExpr> for TryExpr {
+    fn from(item: super::nodes::TryExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+            question_mark_token: item.question_mark_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::TupleExpr> for TupleExpr {
+    fn from(item: super::nodes::TupleExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            l_paren_token: item.l_paren_token().is_some(),
+            fields: item.fields().into_iter().map(Expr::from).collect(),
+            r_paren_token: item.r_paren_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::WhileExpr> for WhileExpr {
+    fn from(item: super::nodes::WhileExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            label: item.label().map(Label::from).map(Box::new),
+            while_token: item.while_token().is_some(),
+            invariant_clause: item.invariant_clause().map(InvariantClause::from).map(Box::new),
+            decreases_clause: item.decreases_clause().map(DecreasesClause::from).map(Box::new),
+            loop_body: item.loop_body().map(BlockExpr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::YieldExpr> for YieldExpr {
+    fn from(item: super::nodes::YieldExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            yield_token: item.yield_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::YeetExpr> for YeetExpr {
+    fn from(item: super::nodes::YeetExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            do_token: item.do_token().is_some(),
+            yeet_token: item.yeet_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::LetExpr> for LetExpr {
+    fn from(item: super::nodes::LetExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            let_token: item.let_token().is_some(),
+            pat: item.pat().map(Pat::from).map(Box::new),
+            eq_token: item.eq_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::UnderscoreExpr> for UnderscoreExpr {
+    fn from(item: super::nodes::UnderscoreExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            underscore_token: item.underscore_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::ViewExpr> for ViewExpr {
+    fn from(item: super::nodes::ViewExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+            at_token: item.at_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::AssertExpr> for AssertExpr {
+    fn from(item: super::nodes::AssertExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            assert_token: item.assert_token().is_some(),
+            l_paren_token: item.l_paren_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+            r_paren_token: item.r_paren_token().is_some(),
+            by_token: item.by_token().is_some(),
+            name: item.name().map(Name::from).map(Box::new),
+            requires_clause: item.requires_clause().map(RequiresClause::from).map(Box::new),
+            block_expr: item.block_expr().map(BlockExpr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::AssumeExpr> for AssumeExpr {
+    fn from(item: super::nodes::AssumeExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            assume_token: item.assume_token().is_some(),
+            l_paren_token: item.l_paren_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+            r_paren_token: item.r_paren_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::AssertForallExpr> for AssertForallExpr {
+    fn from(item: super::nodes::AssertForallExpr) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            assert_token: item.assert_token().is_some(),
+            forall_token: item.forall_token().is_some(),
+            closure_expr: item.closure_expr().map(ClosureExpr::from).map(Box::new),
+            implies_token: item.implies_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+            by_token: item.by_token().is_some(),
+            block_expr: item.block_expr().map(BlockExpr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::StmtList> for StmtList {
+    fn from(item: super::nodes::StmtList) -> Self {
+        Self {
+            l_curly_token: item.l_curly_token().is_some(),
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            statements: item.statements().into_iter().map(Stmt::from).collect(),
+            tail_expr: item.tail_expr().map(Expr::from).map(Box::new),
+            r_curly_token: item.r_curly_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::Label> for Label {
+    fn from(item: super::nodes::Label) -> Self {
+        Self {
+            lifetime: item.lifetime().map(Lifetime::from).map(Box::new),
+            colon_token: item.colon_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::RecordExprFieldList> for RecordExprFieldList {
+    fn from(item: super::nodes::RecordExprFieldList) -> Self {
+        Self {
+            l_curly_token: item.l_curly_token().is_some(),
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            fields: item.fields().into_iter().map(RecordExprField::from).collect(),
+            dotdot_token: item.dotdot_token().is_some(),
+            spread: item.spread().map(Expr::from).map(Box::new),
+            r_curly_token: item.r_curly_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::RecordExprField> for RecordExprField {
+    fn from(item: super::nodes::RecordExprField) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            name_ref: item.name_ref().map(NameRef::from).map(Box::new),
+            colon_token: item.colon_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::ArgList> for ArgList {
+    fn from(item: super::nodes::ArgList) -> Self {
+        Self {
+            l_paren_token: item.l_paren_token().is_some(),
+            args: item.args().into_iter().map(Expr::from).collect(),
+            r_paren_token: item.r_paren_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::InvariantClause> for InvariantClause {
+    fn from(item: super::nodes::InvariantClause) -> Self {
+        Self {
+            invariant_token: item.invariant_token().is_some(),
+            exprs: item.exprs().into_iter().map(Expr::from).collect(),
+        }
+    }
+}
+impl From<super::nodes::MatchArmList> for MatchArmList {
+    fn from(item: super::nodes::MatchArmList) -> Self {
+        Self {
+            l_curly_token: item.l_curly_token().is_some(),
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            arms: item.arms().into_iter().map(MatchArm::from).collect(),
+            r_curly_token: item.r_curly_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::MatchArm> for MatchArm {
+    fn from(item: super::nodes::MatchArm) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            pat: item.pat().map(Pat::from).map(Box::new),
+            guard: item.guard().map(MatchGuard::from).map(Box::new),
+            fat_arrow_token: item.fat_arrow_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+            comma_token: item.comma_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::MatchGuard> for MatchGuard {
+    fn from(item: super::nodes::MatchGuard) -> Self { Self { if_token: item.if_token().is_some() } }
+}
+impl From<super::nodes::ArrayType> for ArrayType {
+    fn from(item: super::nodes::ArrayType) -> Self {
+        Self {
+            l_brack_token: item.l_brack_token().is_some(),
+            ty: item.ty().map(Type::from).map(Box::new),
+            semicolon_token: item.semicolon_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+            r_brack_token: item.r_brack_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::DynTraitType> for DynTraitType {
+    fn from(item: super::nodes::DynTraitType) -> Self {
+        Self {
+            dyn_token: item.dyn_token().is_some(),
+            type_bound_list: item.type_bound_list().map(TypeBoundList::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::FnPtrType> for FnPtrType {
+    fn from(item: super::nodes::FnPtrType) -> Self {
+        Self {
+            const_token: item.const_token().is_some(),
+            async_token: item.async_token().is_some(),
+            unsafe_token: item.unsafe_token().is_some(),
+            abi: item.abi().map(Abi::from).map(Box::new),
+            fn_token: item.fn_token().is_some(),
+            param_list: item.param_list().map(ParamList::from).map(Box::new),
+            ret_type: item.ret_type().map(RetType::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::ForType> for ForType {
+    fn from(item: super::nodes::ForType) -> Self {
+        Self {
+            for_token: item.for_token().is_some(),
+            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
+            ty: item.ty().map(Type::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::ImplTraitType> for ImplTraitType {
+    fn from(item: super::nodes::ImplTraitType) -> Self {
+        Self {
+            impl_token: item.impl_token().is_some(),
+            type_bound_list: item.type_bound_list().map(TypeBoundList::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::InferType> for InferType {
+    fn from(item: super::nodes::InferType) -> Self {
+        Self { underscore_token: item.underscore_token().is_some() }
+    }
+}
+impl From<super::nodes::MacroType> for MacroType {
+    fn from(item: super::nodes::MacroType) -> Self {
+        Self { macro_call: item.macro_call().map(MacroCall::from).map(Box::new) }
+    }
+}
+impl From<super::nodes::NeverType> for NeverType {
+    fn from(item: super::nodes::NeverType) -> Self {
+        Self { excl_token: item.excl_token().is_some() }
+    }
+}
+impl From<super::nodes::ParenType> for ParenType {
+    fn from(item: super::nodes::ParenType) -> Self {
+        Self {
+            l_paren_token: item.l_paren_token().is_some(),
+            ty: item.ty().map(Type::from).map(Box::new),
+            r_paren_token: item.r_paren_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::PtrType> for PtrType {
+    fn from(item: super::nodes::PtrType) -> Self {
+        Self {
+            star_token: item.star_token().is_some(),
+            const_token: item.const_token().is_some(),
+            mut_token: item.mut_token().is_some(),
+            ty: item.ty().map(Type::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::RefType> for RefType {
+    fn from(item: super::nodes::RefType) -> Self {
+        Self {
+            amp_token: item.amp_token().is_some(),
+            lifetime: item.lifetime().map(Lifetime::from).map(Box::new),
+            mut_token: item.mut_token().is_some(),
+            ty: item.ty().map(Type::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::SliceType> for SliceType {
+    fn from(item: super::nodes::SliceType) -> Self {
+        Self {
+            l_brack_token: item.l_brack_token().is_some(),
+            ty: item.ty().map(Type::from).map(Box::new),
+            r_brack_token: item.r_brack_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::TupleType> for TupleType {
+    fn from(item: super::nodes::TupleType) -> Self {
+        Self {
+            l_paren_token: item.l_paren_token().is_some(),
+            fields: item.fields().into_iter().map(Type::from).collect(),
+            r_paren_token: item.r_paren_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::TypeBound> for TypeBound {
+    fn from(item: super::nodes::TypeBound) -> Self {
+        Self {
+            lifetime: item.lifetime().map(Lifetime::from).map(Box::new),
+            question_mark_token: item.question_mark_token().is_some(),
+            tilde_token: item.tilde_token().is_some(),
+            const_token: item.const_token().is_some(),
+            ty: item.ty().map(Type::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::IdentPat> for IdentPat {
+    fn from(item: super::nodes::IdentPat) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            ref_token: item.ref_token().is_some(),
+            mut_token: item.mut_token().is_some(),
+            name: item.name().map(Name::from).map(Box::new),
+            at_token: item.at_token().is_some(),
+            pat: item.pat().map(Pat::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::BoxPat> for BoxPat {
+    fn from(item: super::nodes::BoxPat) -> Self {
+        Self { box_token: item.box_token().is_some(), pat: item.pat().map(Pat::from).map(Box::new) }
+    }
+}
+impl From<super::nodes::RestPat> for RestPat {
+    fn from(item: super::nodes::RestPat) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            dotdot_token: item.dotdot_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::LiteralPat> for LiteralPat {
+    fn from(item: super::nodes::LiteralPat) -> Self {
+        Self {
+            minus_token: item.minus_token().is_some(),
+            literal: item.literal().map(Literal::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::MacroPat> for MacroPat {
+    fn from(item: super::nodes::MacroPat) -> Self {
+        Self { macro_call: item.macro_call().map(MacroCall::from).map(Box::new) }
+    }
+}
+impl From<super::nodes::OrPat> for OrPat {
+    fn from(item: super::nodes::OrPat) -> Self {
+        Self { pats: item.pats().into_iter().map(Pat::from).collect() }
+    }
+}
+impl From<super::nodes::ParenPat> for ParenPat {
+    fn from(item: super::nodes::ParenPat) -> Self {
+        Self {
+            l_paren_token: item.l_paren_token().is_some(),
+            pat: item.pat().map(Pat::from).map(Box::new),
+            r_paren_token: item.r_paren_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::PathPat> for PathPat {
+    fn from(item: super::nodes::PathPat) -> Self {
+        Self { path: item.path().map(Path::from).map(Box::new) }
+    }
+}
+impl From<super::nodes::WildcardPat> for WildcardPat {
+    fn from(item: super::nodes::WildcardPat) -> Self {
+        Self { underscore_token: item.underscore_token().is_some() }
+    }
+}
+impl From<super::nodes::RangePat> for RangePat {
+    fn from(item: super::nodes::RangePat) -> Self { Self {} }
+}
+impl From<super::nodes::RecordPat> for RecordPat {
+    fn from(item: super::nodes::RecordPat) -> Self {
+        Self {
+            path: item.path().map(Path::from).map(Box::new),
+            record_pat_field_list: item
+                .record_pat_field_list()
+                .map(RecordPatFieldList::from)
+                .map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::RefPat> for RefPat {
+    fn from(item: super::nodes::RefPat) -> Self {
+        Self {
+            amp_token: item.amp_token().is_some(),
+            mut_token: item.mut_token().is_some(),
+            pat: item.pat().map(Pat::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::SlicePat> for SlicePat {
+    fn from(item: super::nodes::SlicePat) -> Self {
+        Self {
+            l_brack_token: item.l_brack_token().is_some(),
+            pats: item.pats().into_iter().map(Pat::from).collect(),
+            r_brack_token: item.r_brack_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::TuplePat> for TuplePat {
+    fn from(item: super::nodes::TuplePat) -> Self {
+        Self {
+            l_paren_token: item.l_paren_token().is_some(),
+            fields: item.fields().into_iter().map(Pat::from).collect(),
+            r_paren_token: item.r_paren_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::TupleStructPat> for TupleStructPat {
+    fn from(item: super::nodes::TupleStructPat) -> Self {
+        Self {
+            path: item.path().map(Path::from).map(Box::new),
+            l_paren_token: item.l_paren_token().is_some(),
+            fields: item.fields().into_iter().map(Pat::from).collect(),
+            r_paren_token: item.r_paren_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::ConstBlockPat> for ConstBlockPat {
+    fn from(item: super::nodes::ConstBlockPat) -> Self {
+        Self {
+            const_token: item.const_token().is_some(),
+            block_expr: item.block_expr().map(BlockExpr::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::RecordPatFieldList> for RecordPatFieldList {
+    fn from(item: super::nodes::RecordPatFieldList) -> Self {
+        Self {
+            l_curly_token: item.l_curly_token().is_some(),
+            fields: item.fields().into_iter().map(RecordPatField::from).collect(),
+            rest_pat: item.rest_pat().map(RestPat::from).map(Box::new),
+            r_curly_token: item.r_curly_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::RecordPatField> for RecordPatField {
+    fn from(item: super::nodes::RecordPatField) -> Self {
+        Self {
+            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+            name_ref: item.name_ref().map(NameRef::from).map(Box::new),
+            colon_token: item.colon_token().is_some(),
+            pat: item.pat().map(Pat::from).map(Box::new),
+        }
+    }
+}
+impl From<super::nodes::ModeSpecChecked> for ModeSpecChecked {
+    fn from(item: super::nodes::ModeSpecChecked) -> Self {
+        Self {
+            spec_token: item.spec_token().is_some(),
+            l_paren_token: item.l_paren_token().is_some(),
+            checked_token: item.checked_token().is_some(),
+            r_paren_token: item.r_paren_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::SignatureDecreases> for SignatureDecreases {
+    fn from(item: super::nodes::SignatureDecreases) -> Self {
+        Self {
+            decreases_clause: item.decreases_clause().map(DecreasesClause::from).map(Box::new),
+            when_token: item.when_token().is_some(),
+            expr: item.expr().map(Expr::from).map(Box::new),
+            via_token: item.via_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::Prover> for Prover {
+    fn from(item: super::nodes::Prover) -> Self {
+        Self {
+            by_token: item.by_token().is_some(),
+            l_paren_token: item.l_paren_token().is_some(),
+            name: item.name().map(Name::from).map(Box::new),
+            r_paren_token: item.r_paren_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::TriggerAttribute> for TriggerAttribute {
+    fn from(item: super::nodes::TriggerAttribute) -> Self {
+        Self {
+            pound_token: item.pound_token().is_some(),
+            excl_token: item.excl_token().is_some(),
+            l_brack_token: item.l_brack_token().is_some(),
+            trigger_token: item.trigger_token().is_some(),
+            exprs: item.exprs().into_iter().map(Expr::from).collect(),
+            r_brack_token: item.r_brack_token().is_some(),
+        }
+    }
+}
+impl From<super::nodes::GenericArg> for GenericArg {
+    fn from(item: super::nodes::GenericArg) -> Self {
+        match item {
+            super::nodes::GenericArg::TypeArg(it) => Self::TypeArg(Box::new(it.into())),
+            super::nodes::GenericArg::AssocTypeArg(it) => Self::AssocTypeArg(Box::new(it.into())),
+            super::nodes::GenericArg::LifetimeArg(it) => Self::LifetimeArg(Box::new(it.into())),
+            super::nodes::GenericArg::ConstArg(it) => Self::ConstArg(Box::new(it.into())),
+        }
+    }
+}
+impl From<super::nodes::Type> for Type {
+    fn from(item: super::nodes::Type) -> Self {
+        match item {
+            super::nodes::Type::ArrayType(it) => Self::ArrayType(Box::new(it.into())),
+            super::nodes::Type::DynTraitType(it) => Self::DynTraitType(Box::new(it.into())),
+            super::nodes::Type::FnPtrType(it) => Self::FnPtrType(Box::new(it.into())),
+            super::nodes::Type::ForType(it) => Self::ForType(Box::new(it.into())),
+            super::nodes::Type::ImplTraitType(it) => Self::ImplTraitType(Box::new(it.into())),
+            super::nodes::Type::InferType(it) => Self::InferType(Box::new(it.into())),
+            super::nodes::Type::MacroType(it) => Self::MacroType(Box::new(it.into())),
+            super::nodes::Type::NeverType(it) => Self::NeverType(Box::new(it.into())),
+            super::nodes::Type::ParenType(it) => Self::ParenType(Box::new(it.into())),
+            super::nodes::Type::PathType(it) => Self::PathType(Box::new(it.into())),
+            super::nodes::Type::PtrType(it) => Self::PtrType(Box::new(it.into())),
+            super::nodes::Type::RefType(it) => Self::RefType(Box::new(it.into())),
+            super::nodes::Type::SliceType(it) => Self::SliceType(Box::new(it.into())),
+            super::nodes::Type::TupleType(it) => Self::TupleType(Box::new(it.into())),
+        }
+    }
+}
+impl From<super::nodes::Expr> for Expr {
+    fn from(item: super::nodes::Expr) -> Self {
+        match item {
+            super::nodes::Expr::ArrayExpr(it) => Self::ArrayExpr(Box::new(it.into())),
+            super::nodes::Expr::AwaitExpr(it) => Self::AwaitExpr(Box::new(it.into())),
+            super::nodes::Expr::BinExpr(it) => Self::BinExpr(Box::new(it.into())),
+            super::nodes::Expr::BlockExpr(it) => Self::BlockExpr(Box::new(it.into())),
+            super::nodes::Expr::BoxExpr(it) => Self::BoxExpr(Box::new(it.into())),
+            super::nodes::Expr::BreakExpr(it) => Self::BreakExpr(Box::new(it.into())),
+            super::nodes::Expr::CallExpr(it) => Self::CallExpr(Box::new(it.into())),
+            super::nodes::Expr::CastExpr(it) => Self::CastExpr(Box::new(it.into())),
+            super::nodes::Expr::ClosureExpr(it) => Self::ClosureExpr(Box::new(it.into())),
+            super::nodes::Expr::ContinueExpr(it) => Self::ContinueExpr(Box::new(it.into())),
+            super::nodes::Expr::FieldExpr(it) => Self::FieldExpr(Box::new(it.into())),
+            super::nodes::Expr::ForExpr(it) => Self::ForExpr(Box::new(it.into())),
+            super::nodes::Expr::IfExpr(it) => Self::IfExpr(Box::new(it.into())),
+            super::nodes::Expr::IndexExpr(it) => Self::IndexExpr(Box::new(it.into())),
+            super::nodes::Expr::Literal(it) => Self::Literal(Box::new(it.into())),
+            super::nodes::Expr::LoopExpr(it) => Self::LoopExpr(Box::new(it.into())),
+            super::nodes::Expr::MacroExpr(it) => Self::MacroExpr(Box::new(it.into())),
+            super::nodes::Expr::MatchExpr(it) => Self::MatchExpr(Box::new(it.into())),
+            super::nodes::Expr::MethodCallExpr(it) => Self::MethodCallExpr(Box::new(it.into())),
+            super::nodes::Expr::ParenExpr(it) => Self::ParenExpr(Box::new(it.into())),
+            super::nodes::Expr::PathExpr(it) => Self::PathExpr(Box::new(it.into())),
+            super::nodes::Expr::PrefixExpr(it) => Self::PrefixExpr(Box::new(it.into())),
+            super::nodes::Expr::RangeExpr(it) => Self::RangeExpr(Box::new(it.into())),
+            super::nodes::Expr::RecordExpr(it) => Self::RecordExpr(Box::new(it.into())),
+            super::nodes::Expr::RefExpr(it) => Self::RefExpr(Box::new(it.into())),
+            super::nodes::Expr::ReturnExpr(it) => Self::ReturnExpr(Box::new(it.into())),
+            super::nodes::Expr::TryExpr(it) => Self::TryExpr(Box::new(it.into())),
+            super::nodes::Expr::TupleExpr(it) => Self::TupleExpr(Box::new(it.into())),
+            super::nodes::Expr::WhileExpr(it) => Self::WhileExpr(Box::new(it.into())),
+            super::nodes::Expr::YieldExpr(it) => Self::YieldExpr(Box::new(it.into())),
+            super::nodes::Expr::YeetExpr(it) => Self::YeetExpr(Box::new(it.into())),
+            super::nodes::Expr::LetExpr(it) => Self::LetExpr(Box::new(it.into())),
+            super::nodes::Expr::UnderscoreExpr(it) => Self::UnderscoreExpr(Box::new(it.into())),
+            super::nodes::Expr::ViewExpr(it) => Self::ViewExpr(Box::new(it.into())),
+            super::nodes::Expr::AssertExpr(it) => Self::AssertExpr(Box::new(it.into())),
+            super::nodes::Expr::AssumeExpr(it) => Self::AssumeExpr(Box::new(it.into())),
+            super::nodes::Expr::AssertForallExpr(it) => Self::AssertForallExpr(Box::new(it.into())),
+        }
+    }
+}
+impl From<super::nodes::Item> for Item {
+    fn from(item: super::nodes::Item) -> Self {
+        match item {
+            super::nodes::Item::Const(it) => Self::Const(Box::new(it.into())),
+            super::nodes::Item::Enum(it) => Self::Enum(Box::new(it.into())),
+            super::nodes::Item::ExternBlock(it) => Self::ExternBlock(Box::new(it.into())),
+            super::nodes::Item::ExternCrate(it) => Self::ExternCrate(Box::new(it.into())),
+            super::nodes::Item::Fn(it) => Self::Fn(Box::new(it.into())),
+            super::nodes::Item::Impl(it) => Self::Impl(Box::new(it.into())),
+            super::nodes::Item::MacroCall(it) => Self::MacroCall(Box::new(it.into())),
+            super::nodes::Item::MacroRules(it) => Self::MacroRules(Box::new(it.into())),
+            super::nodes::Item::MacroDef(it) => Self::MacroDef(Box::new(it.into())),
+            super::nodes::Item::Module(it) => Self::Module(Box::new(it.into())),
+            super::nodes::Item::Static(it) => Self::Static(Box::new(it.into())),
+            super::nodes::Item::Struct(it) => Self::Struct(Box::new(it.into())),
+            super::nodes::Item::Trait(it) => Self::Trait(Box::new(it.into())),
+            super::nodes::Item::TraitAlias(it) => Self::TraitAlias(Box::new(it.into())),
+            super::nodes::Item::TypeAlias(it) => Self::TypeAlias(Box::new(it.into())),
+            super::nodes::Item::Union(it) => Self::Union(Box::new(it.into())),
+            super::nodes::Item::Use(it) => Self::Use(Box::new(it.into())),
+        }
+    }
+}
+impl From<super::nodes::Stmt> for Stmt {
+    fn from(item: super::nodes::Stmt) -> Self {
+        match item {
+            super::nodes::Stmt::ExprStmt(it) => Self::ExprStmt(Box::new(it.into())),
+            super::nodes::Stmt::Item(it) => Self::Item(Box::new(it.into())),
+            super::nodes::Stmt::LetStmt(it) => Self::LetStmt(Box::new(it.into())),
+        }
+    }
+}
+impl From<super::nodes::Pat> for Pat {
+    fn from(item: super::nodes::Pat) -> Self {
+        match item {
+            super::nodes::Pat::IdentPat(it) => Self::IdentPat(Box::new(it.into())),
+            super::nodes::Pat::BoxPat(it) => Self::BoxPat(Box::new(it.into())),
+            super::nodes::Pat::RestPat(it) => Self::RestPat(Box::new(it.into())),
+            super::nodes::Pat::LiteralPat(it) => Self::LiteralPat(Box::new(it.into())),
+            super::nodes::Pat::MacroPat(it) => Self::MacroPat(Box::new(it.into())),
+            super::nodes::Pat::OrPat(it) => Self::OrPat(Box::new(it.into())),
+            super::nodes::Pat::ParenPat(it) => Self::ParenPat(Box::new(it.into())),
+            super::nodes::Pat::PathPat(it) => Self::PathPat(Box::new(it.into())),
+            super::nodes::Pat::WildcardPat(it) => Self::WildcardPat(Box::new(it.into())),
+            super::nodes::Pat::RangePat(it) => Self::RangePat(Box::new(it.into())),
+            super::nodes::Pat::RecordPat(it) => Self::RecordPat(Box::new(it.into())),
+            super::nodes::Pat::RefPat(it) => Self::RefPat(Box::new(it.into())),
+            super::nodes::Pat::SlicePat(it) => Self::SlicePat(Box::new(it.into())),
+            super::nodes::Pat::TuplePat(it) => Self::TuplePat(Box::new(it.into())),
+            super::nodes::Pat::TupleStructPat(it) => Self::TupleStructPat(Box::new(it.into())),
+            super::nodes::Pat::ConstBlockPat(it) => Self::ConstBlockPat(Box::new(it.into())),
+        }
+    }
+}
+impl From<super::nodes::FieldList> for FieldList {
+    fn from(item: super::nodes::FieldList) -> Self {
+        match item {
+            super::nodes::FieldList::RecordFieldList(it) => {
+                Self::RecordFieldList(Box::new(it.into()))
+            }
+            super::nodes::FieldList::TupleFieldList(it) => {
+                Self::TupleFieldList(Box::new(it.into()))
+            }
+        }
+    }
+}
+impl From<super::nodes::Adt> for Adt {
+    fn from(item: super::nodes::Adt) -> Self {
+        match item {
+            super::nodes::Adt::Enum(it) => Self::Enum(Box::new(it.into())),
+            super::nodes::Adt::Struct(it) => Self::Struct(Box::new(it.into())),
+            super::nodes::Adt::Union(it) => Self::Union(Box::new(it.into())),
+        }
+    }
+}
+impl From<super::nodes::AssocItem> for AssocItem {
+    fn from(item: super::nodes::AssocItem) -> Self {
+        match item {
+            super::nodes::AssocItem::Const(it) => Self::Const(Box::new(it.into())),
+            super::nodes::AssocItem::Fn(it) => Self::Fn(Box::new(it.into())),
+            super::nodes::AssocItem::MacroCall(it) => Self::MacroCall(Box::new(it.into())),
+            super::nodes::AssocItem::TypeAlias(it) => Self::TypeAlias(Box::new(it.into())),
+        }
+    }
+}
+impl From<super::nodes::ExternItem> for ExternItem {
+    fn from(item: super::nodes::ExternItem) -> Self {
+        match item {
+            super::nodes::ExternItem::Fn(it) => Self::Fn(Box::new(it.into())),
+            super::nodes::ExternItem::MacroCall(it) => Self::MacroCall(Box::new(it.into())),
+            super::nodes::ExternItem::Static(it) => Self::Static(Box::new(it.into())),
+            super::nodes::ExternItem::TypeAlias(it) => Self::TypeAlias(Box::new(it.into())),
+        }
+    }
+}
+impl From<super::nodes::GenericParam> for GenericParam {
+    fn from(item: super::nodes::GenericParam) -> Self {
+        match item {
+            super::nodes::GenericParam::ConstParam(it) => Self::ConstParam(Box::new(it.into())),
+            super::nodes::GenericParam::LifetimeParam(it) => {
+                Self::LifetimeParam(Box::new(it.into()))
+            }
+            super::nodes::GenericParam::TypeParam(it) => Self::TypeParam(Box::new(it.into())),
+        }
+    }
 }
