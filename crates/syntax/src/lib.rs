@@ -1420,7 +1420,6 @@ spec fn test_rec2(x: int, y: int) -> int
     }
 }
 
-
 #[test]
 fn verus_walkthrough25() {
     use ast::HasModuleItem;
@@ -1455,8 +1454,6 @@ verus!{
     }
 }
 
-
-
 #[test]
 fn cst_to_vst1() {
     use ast::HasModuleItem;
@@ -1474,11 +1471,10 @@ spec fn sum(x: int, y: int) -> int
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
-        let v_item:vst::Item = item.into();
+        let v_item: vst::Item = item.into();
         dbg!(v_item);
     }
 }
-
 
 #[test]
 fn cst_to_vst2() {
@@ -1502,7 +1498,7 @@ spec fn test_rec2(x: int, y: int) -> int
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
-        let v_item:vst::Item = item.into();
+        let v_item: vst::Item = item.into();
         dbg!(v_item);
     }
 }

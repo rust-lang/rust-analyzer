@@ -607,7 +607,7 @@ pub(crate) fn lower(grammar: &Grammar, is_vst: bool) -> AstSrc {
 
     deduplicate_fields(&mut res);
     extract_enums(&mut res);
-    if !is_vst{
+    if !is_vst {
         // CST omits some fields, but VST should have all the fields
         extract_struct_traits(&mut res);
     }
