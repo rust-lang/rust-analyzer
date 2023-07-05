@@ -2,18 +2,10 @@
 //!
 //! The VST datatype is generated from the ungrammar file.
 
-use std::{
-    collections::{BTreeSet, HashSet},
-    fmt::Write,
-};
-
 use itertools::Itertools;
-use proc_macro2::{Punct, Spacing};
 use quote::{format_ident, quote};
-use ungrammar::{Grammar, Rule};
-
 use crate::tests::ast_src::{
-    AstEnumSrc, AstNodeSrc, AstSrc, Cardinality, Field, KindsSrc, KINDS_SRC,
+    AstSrc, KindsSrc, KINDS_SRC,
 };
 
 use crate::tests::sourcegen_ast::*;

@@ -10,6 +10,7 @@ mod operators;
 pub mod prec;
 mod token_ext;
 mod traits;
+pub mod vst;
 
 use std::marker::PhantomData;
 
