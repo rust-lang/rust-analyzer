@@ -37,7 +37,7 @@ fn sourcegen_vst() {
     let ast = lower(&grammar, true);
 
     let ast_nodes = generate_vst(KINDS_SRC, &ast);
-    let ast_nodes_file = sourcegen::project_root().join("crates/syntax/src/ast/generated/vst.rs");
+    let ast_nodes_file = sourcegen::project_root().join("crates/syntax/src/ast/generated/vst_nodes.rs");
     sourcegen::ensure_file_contents(ast_nodes_file.as_path(), &ast_nodes);
 }
 

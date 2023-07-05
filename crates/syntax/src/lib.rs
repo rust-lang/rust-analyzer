@@ -68,7 +68,7 @@ pub use rowan::{
 pub use rustc_lexer::unescape;
 pub use smol_str::{format_smolstr, SmolStr};
 
-use ast::generated::vst;
+use ast::generated::vst_nodes;
 
 /// `Parse` is the result of the parsing: a syntax tree and a collection of
 /// errors.
@@ -1471,7 +1471,7 @@ spec fn sum(x: int, y: int) -> int
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
-        let v_item: vst::Item = item.into();
+        let v_item: vst_nodes::Item = item.into();
         dbg!(v_item);
     }
 }
@@ -1498,7 +1498,7 @@ spec fn test_rec2(x: int, y: int) -> int
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
-        let v_item: vst::Item = item.into();
+        let v_item: vst_nodes::Item = item.into();
         dbg!(v_item);
     }
 }
