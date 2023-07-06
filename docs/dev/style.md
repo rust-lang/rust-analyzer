@@ -1,3 +1,5 @@
+<a href="https://github-com.translate.goog/rust-lang/rust-analyzer/blob/master/docs/dev/style.md?_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en&_x_tr_pto=wapp">![Translate](https://img.shields.io/badge/Translate-blue)</a>
+
 Our approach to "clean code" is two-fold:
 
 * We generally don't block PRs on style changes.

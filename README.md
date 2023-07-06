@@ -1,3 +1,5 @@
+<a href="https://github-com.translate.goog/rust-lang/rust-analyzer/blob/master/README.md?_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en&_x_tr_pto=wapp">![Translate](https://img.shields.io/badge/Translate-blue)</a>
+
 <p align="center">
   <img
     src="https://raw.githubusercontent.com/rust-analyzer/rust-analyzer/master/assets/logo-wide.svg"

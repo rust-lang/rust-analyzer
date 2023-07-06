@@ -1,3 +1,5 @@
+<a href="https://github-com.translate.goog/rust-lang/rust-analyzer/blob/master/docs/dev/README.md?_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en&_x_tr_pto=wapp">![Translate](https://img.shields.io/badge/Translate-blue)</a>
+
 # Contributing Quick Start
 
 rust-analyzer is an ordinary Rust project, which is organized as a Cargo workspace, builds on stable and doesn't depend on C libraries.

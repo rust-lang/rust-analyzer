@@ -7,7 +7,7 @@ need to adjust this doc as well and ping this issue:
   https://github.com/rust-lang/rust-analyzer/issues/4604
 
 --->
-
+<a href="https://github-com.translate.goog/rust-lang/rust-analyzer/blob/master/docs/dev/lsp-extensions.md?_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en&_x_tr_pto=wapp">![Translate](https://img.shields.io/badge/Translate-blue)</a>
 # LSP Extensions
 
 This document describes LSP extensions used by rust-analyzer.

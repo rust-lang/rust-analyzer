@@ -1,3 +1,5 @@
+<a href="https://github-com.translate.goog/rust-lang/rust-analyzer/blob/master/docs/dev/syntax.md?_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en&_x_tr_pto=wapp">![Translate](https://img.shields.io/badge/Translate-blue)</a>
+
 # Syntax in rust-analyzer
 
 ## About the guide
