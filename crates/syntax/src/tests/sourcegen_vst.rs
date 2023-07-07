@@ -25,6 +25,7 @@ const special_items: &[(&str, &[&str])] = &[
 const HAND_WRITTEN: &[&str] = &[
     "BinExpr",
     "IfExpr",
+    "Literal",
 ];
 
 #[test]

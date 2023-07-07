@@ -1,5 +1,7 @@
 // defines VST's Expr
 
+use rustc_lexer::LiteralKind;
+
 use crate::{
     ast::{
         self,
@@ -22,6 +24,52 @@ pub struct BinExpr {
     pub rhs: Box<Expr>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct IfExpr {
+    pub attrs: Vec<Attr>,
+    if_token: bool,
+    pub condition: Box<Expr>,
+    pub then_branch: Box<BlockExpr>,
+    else_token: bool,
+    pub else_branch: Option<Box<ElseBranch>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ElseBranch {
+    Block(Box<BlockExpr>),
+    IfExpr(Box<IfExpr>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Literal {
+    pub attrs: Vec<Attr>,
+    pub literal: String
+}
+
+impl TryFrom<generated::nodes::Literal> for Literal {
+    type Error = String;
+    fn try_from(item: generated::nodes::Literal) -> Result<Self, Self::Error> {
+        use ast::expr_ext::LiteralKind;
+        Ok(Self { 
+            attrs:item
+            .attrs()
+            .into_iter()
+            .map(Attr::try_from)
+            .collect::<Result<Vec<Attr>, String>>()?,
+            literal: match item.kind() {
+                LiteralKind::String(it) => it.to_string(),
+                LiteralKind::ByteString(it) => it.to_string(),
+                LiteralKind::CString(it) => it.to_string(),
+                LiteralKind::IntNumber(it) => it.to_string(),
+                LiteralKind::FloatNumber(it) => it.to_string(),
+                LiteralKind::Char(it) => it.to_string(),
+                LiteralKind::Byte(it) => it.to_string(),
+                LiteralKind::Bool(it) => it.to_string(),
+            },
+        })
+    }
+}
+
 impl TryFrom<generated::nodes::BinExpr> for BinExpr {
     type Error = String;
     fn try_from(item: generated::nodes::BinExpr) -> Result<Self, Self::Error> {
@@ -42,21 +90,6 @@ impl TryFrom<generated::nodes::BinExpr> for BinExpr {
                     .map(|it| Expr::try_from(it))??),        })
     }
 }
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct IfExpr {
-    pub attrs: Vec<Attr>,
-    if_token: bool,
-    pub condition: Box<Expr>,
-    pub then_branch: Box<BlockExpr>,
-    else_token: bool,
-    pub else_branch: Option<Box<ElseBranch>>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ElseBranch {
-    Block(Box<BlockExpr>),
-    IfExpr(Box<IfExpr>),
-}
 
 impl TryFrom<super::expr_ext::ElseBranch> for ElseBranch {
     type Error = String;
@@ -71,7 +104,6 @@ impl TryFrom<super::expr_ext::ElseBranch> for ElseBranch {
         }
     }
 }
-
 
 impl TryFrom<generated::nodes::IfExpr> for IfExpr {
     type Error = String;
@@ -99,3 +131,4 @@ impl TryFrom<generated::nodes::IfExpr> for IfExpr {
         })
     }
 }
+
