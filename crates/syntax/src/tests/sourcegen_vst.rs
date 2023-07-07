@@ -73,8 +73,14 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
                     // instead, however, since proof action might choose to be available when syntax is complete
                     // therefore, we do not use `Option` for VST.
                     // we only use `Option` when the syntax item is optional in ungrammar.
-                    quote! {
-                        pub #name : Option<Box<#ty>>,
+                    if field.is_one() {
+                        quote! {
+                            pub #name : Box<#ty>,
+                        }
+                    } else {
+                        quote! {
+                            pub #name : Option<Box<#ty>>,
+                        }
                     }
                 }
             });
@@ -101,7 +107,7 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
 
                 if field.is_many() {
                     quote! {
-                        #name : item.#name().into_iter().map(#ty::from).collect(),
+                        #name : item.#name().into_iter().map(#ty::try_from).collect::<Result<Vec<#ty>, String>>()?,
                     }
                 } else if let Some(token_kind) = field.token_kind() {
                     // hacky for now
@@ -122,19 +128,30 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
                         }
                     }
                 } else {
-                    // pub #name : Option<Box<#ty>>,
-                    quote! {
-                        #name : item.#name().map(#ty::from).map(Box::new),
+                    if field.is_one() {
+                        // pub #name : Box<#ty>,
+                        quote! {
+                            #name: Box::new(item.#name().ok_or(format!("{}", stringify!(#name))).map(|it| #ty::try_from(it))??),
+                        }
+                    } else {                    
+                        // pub #name : Option<Box<#ty>>,
+                        quote! {
+                            #name: match item.#name() {
+                                Some(it) => Some(Box::new(#ty::try_from(it)?)),
+                                None => None,
+                            },
+                        }
                     }
                 }
             });
 
             quote! {
-                impl From<super::nodes::#name> for #name {
-                    fn from(item: super::nodes::#name) -> Self {
-                        Self {
+                impl TryFrom<super::nodes::#name> for #name {
+                    type Error = String;
+                    fn try_from(item: super::nodes::#name) -> Result<Self, Self::Error>  {
+                        Ok(Self {
                             #(#fields)*
-                        }
+                        })
                     }
                 }
             }
@@ -167,6 +184,7 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         })
         .collect_vec();
 
+
     // CST to VST
     let from_node_to_vnode_enum:  Vec<_> = grammar
     .enums
@@ -185,11 +203,12 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         });
 
         quote! {
-            impl From<super::nodes::#name> for #name {
-                fn from(item: super::nodes::#name) -> Self {
+            impl TryFrom<super::nodes::#name> for #name {
+                type Error = String;
+                fn try_from(item: super::nodes::#name) -> Result<Self, Self::Error> {
                     match item {
                         #(
-                            super::nodes::#name::#variants(it) => Self::#variants(Box::new(it.into())),
+                            super::nodes::#name::#variants(it) => Ok(Self::#variants(Box::new(it.try_into()?))),
                         )*
                     }
                 }
@@ -275,6 +294,87 @@ impl TryFrom<super::nodes::AssertExpr> for AssertExpr {
             block_expr: item.block_expr.map(Box::new),
         };
         Ok(res)
+    }
+}
+ */
+
+/*
+
+
+
+impl TryFrom<super::nodes::Attr> for Attr {
+
+
+    type Error = ();
+    fn try_from(item: super::nodes::Attr) -> Result<Self, Self::Error> {
+    }
+}
+
+impl TryFrom<super::nodes::Expr> for Expr {
+
+
+    type Error = ();
+    fn try_from(item: super::nodes::Expr) -> Result<Self, Self::Error> {
+    }
+}
+impl TryFrom<super::nodes::Name> for Name {
+
+
+    type Error = ();
+    fn try_from(item: super::nodes::Name) -> Result<Self, Self::Error> {
+    }
+}
+impl TryFrom<super::nodes::RequiresClause> for RequiresClause {
+
+
+    type Error = ();
+    fn try_from(item: super::nodes::RequiresClause) -> Result<Self, Self::Error> {
+    }
+}
+// pub struct AssertExpr {
+//     pub attrs: Vec<Attr>,
+//     assert_token: bool,
+//     l_paren_token: bool,
+//     pub expr: Box<Expr>,
+//     r_paren_token: bool,
+//     by_token: bool,
+//     pub name: Option<Box<Name>>,
+//     pub requires_clause: Option<Box<RequiresClause>>,
+//     pub block_expr: Option<Box<BlockExpr>>,
+// }
+impl TryFrom<super::nodes::AssertExpr> for AssertExpr {
+    type Error = ();
+
+    fn try_from(item: super::nodes::AssertExpr) -> Result<Self, Self::Error> {
+        let attrs = item.attrs().into_iter().map(Attr::try_from).collect()?;
+        let assert_token = item.assert_token().is_some();
+        let l_paren_token = item.l_paren_token().is_some();
+        let expr = Box::new(item.expr().ok_or(()).map(|it| Expr::try_from(it))??);
+        let r_paren_token= item.r_paren_token().is_some();
+        let by_token = item.by_token().is_some();
+        let name = match item.name() {
+            Some(it) => Some(Box::new(Name::try_from(it)?)),
+            None => None,
+        };
+        let requires_clause = match item.requires_clause() {
+            Some(it) => Some(Box::new(RequiresClause::try_from(it)?)),
+            None => None,
+        };
+        let block_expr = match item.block_expr() {
+            Some(it) => Some(Box::new(BlockExpr::try_from(it)?)),
+            None => None,
+        };
+        Ok (Self {
+            attrs,
+            assert_token,
+            l_paren_token, 
+            expr,
+            r_paren_token,
+            by_token,
+            name,
+            requires_clause,
+            block_expr,
+        })
     }
 }
  */

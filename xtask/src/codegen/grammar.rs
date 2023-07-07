@@ -514,6 +514,9 @@ impl Field {
     pub(crate) fn is_many(&self) -> bool {
         matches!(self, Field::Node { cardinality: Cardinality::Many, .. })
     }
+    pub(crate) fn is_one(&self) -> bool {
+        matches!(self, Field::Node { cardinality: Cardinality::One, .. })
+    }
     pub(crate) fn token_kind(&self) -> Option<proc_macro2::TokenStream> {
         match self {
             Field::Token(token) => {
@@ -599,7 +602,11 @@ pub(crate) fn lower(grammar: &Grammar, is_vst: bool) -> AstSrc {
             }
             None => {
                 let mut fields = Vec::new();
-                lower_rule(&mut fields, grammar, None, rule);
+                // dbg!(format!("lowering: {}", &name));
+                // if name == "Fn" {
+                //     dbg!(&grammar[node].rule);
+                // }
+                lower_rule(&mut fields, grammar, None, rule, is_vst, false);
                 res.nodes.push(AstNodeSrc { doc: Vec::new(), name, traits: Vec::new(), fields });
             }
         }
@@ -645,16 +652,21 @@ fn lower_enum(grammar: &Grammar, rule: &Rule) -> Option<Vec<String>> {
     Some(variants)
 }
 
-fn lower_rule(acc: &mut Vec<Field>, grammar: &Grammar, label: Option<&String>, rule: &Rule) {
+fn lower_rule(acc: &mut Vec<Field>, grammar: &Grammar, label: Option<&String>, rule: &Rule, is_vst: bool, inside_opt: bool) {
     if lower_separated_list(acc, grammar, label, rule) {
         return;
     }
+    // dbg!(rule);
 
     match rule {
         Rule::Node(node) => {
             let ty = grammar[*node].name.clone();
             let name = label.cloned().unwrap_or_else(|| to_lower_snake_case(&ty));
-            let field = Field::Node { name, ty, cardinality: Cardinality::Optional };
+            // dbg!("node");
+            // dbg!(&name);
+
+            let cardinality =  if is_vst && !inside_opt {Cardinality::One } else { Cardinality::Optional };
+            let field = Field::Node { name, ty, cardinality};
             acc.push(field);
         }
         Rule::Token(token) => {
@@ -700,14 +712,14 @@ fn lower_rule(acc: &mut Vec<Field>, grammar: &Grammar, label: Option<&String>, r
             if manually_implemented {
                 return;
             }
-            lower_rule(acc, grammar, Some(l), rule);
+            lower_rule(acc, grammar, Some(l), rule, is_vst, inside_opt);
         }
         Rule::Seq(rules) | Rule::Alt(rules) => {
             for rule in rules {
-                lower_rule(acc, grammar, label, rule)
+                lower_rule(acc, grammar, label, rule, is_vst, inside_opt)
             }
         }
-        Rule::Opt(rule) => lower_rule(acc, grammar, label, rule),
+        Rule::Opt(rule) => lower_rule(acc, grammar, label, rule, is_vst, true),
     }
 }
 
@@ -754,9 +766,20 @@ fn deduplicate_fields(ast: &mut AstSrc) {
             for j in 0..i {
                 let f1 = &node.fields[i];
                 let f2 = &node.fields[j];
+
                 if f1 == f2 {
                     node.fields.remove(i);
                     continue 'outer;
+                }
+                // verus
+                match (f1,f2) {
+                    (Field::Node { name: n1, ty: t1, .. }, Field::Node { name: n2, ty: t2, .. }) => {
+                        if n1 == n2 {
+                            node.fields.remove(i);
+                            continue 'outer;
+                        }
+                    }
+                    _ => {}
                 }
             }
             i += 1;
@@ -778,6 +801,8 @@ fn extract_enums(ast: &mut AstSrc) {
                 node.remove_field(to_remove);
                 let ty = enm.name.clone();
                 let name = to_lower_snake_case(&ty);
+                // dbg!("to remove");
+                // dbg!(&name);
                 node.fields.push(Field::Node { name, ty, cardinality: Cardinality::Optional });
             }
         }
