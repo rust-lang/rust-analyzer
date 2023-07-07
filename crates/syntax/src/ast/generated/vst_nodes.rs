@@ -27,12 +27,12 @@ pub struct Lifetime {
 pub struct Path {
     pub qualifier: Option<Box<Path>>,
     coloncolon_token: bool,
-    pub segment: Option<Box<PathSegment>>,
+    pub segment: Box<PathSegment>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathSegment {
     coloncolon_token: bool,
-    pub name_ref: Option<Box<NameRef>>,
+    pub name_ref: Box<NameRef>,
     pub generic_arg_list: Option<Box<GenericArgList>>,
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
@@ -64,36 +64,36 @@ pub struct RetType {
     l_paren_token: bool,
     pub pat: Option<Box<Pat>>,
     colon_token: bool,
-    pub ty: Option<Box<Type>>,
+    pub ty: Box<Type>,
     r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathType {
-    pub path: Option<Box<Path>>,
+    pub path: Box<Path>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeArg {
-    pub ty: Option<Box<Type>>,
+    pub ty: Box<Type>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssocTypeArg {
-    pub name_ref: Option<Box<NameRef>>,
+    pub name_ref: Box<NameRef>,
     pub generic_arg_list: Option<Box<GenericArgList>>,
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
     colon_token: bool,
-    pub type_bound_list: Option<Box<TypeBoundList>>,
+    pub type_bound_list: Box<TypeBoundList>,
     eq_token: bool,
-    pub ty: Option<Box<Type>>,
+    pub ty: Box<Type>,
     pub const_arg: Option<Box<ConstArg>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LifetimeArg {
-    pub lifetime: Option<Box<Lifetime>>,
+    pub lifetime: Box<Lifetime>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConstArg {
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeBoundList {
@@ -102,9 +102,9 @@ pub struct TypeBoundList {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroCall {
     pub attrs: Vec<Attr>,
-    pub path: Option<Box<Path>>,
+    pub path: Box<Path>,
     excl_token: bool,
-    pub token_tree: Option<Box<TokenTree>>,
+    pub token_tree: Box<TokenTree>,
     semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -112,7 +112,7 @@ pub struct Attr {
     pound_token: bool,
     excl_token: bool,
     l_brack_token: bool,
-    pub meta: Option<Box<Meta>>,
+    pub meta: Box<Meta>,
     r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -148,7 +148,7 @@ pub struct Const {
     pub name: Option<Box<Name>>,
     underscore_token: bool,
     colon_token: bool,
-    pub ty: Option<Box<Type>>,
+    pub ty: Box<Type>,
     eq_token: bool,
     pub body: Option<Box<Expr>>,
     semicolon_token: bool,
@@ -158,17 +158,17 @@ pub struct Enum {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
     enum_token: bool,
-    pub name: Option<Box<Name>>,
+    pub name: Box<Name>,
     pub generic_param_list: Option<Box<GenericParamList>>,
     pub where_clause: Option<Box<WhereClause>>,
-    pub variant_list: Option<Box<VariantList>>,
+    pub variant_list: Box<VariantList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExternBlock {
     pub attrs: Vec<Attr>,
     unsafe_token: bool,
-    pub abi: Option<Box<Abi>>,
-    pub extern_item_list: Option<Box<ExternItemList>>,
+    pub abi: Box<Abi>,
+    pub extern_item_list: Box<ExternItemList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExternCrate {
@@ -176,7 +176,7 @@ pub struct ExternCrate {
     pub visibility: Option<Box<Visibility>>,
     extern_token: bool,
     crate_token: bool,
-    pub name_ref: Option<Box<NameRef>>,
+    pub name_ref: Box<NameRef>,
     pub rename: Option<Box<Rename>>,
     semicolon_token: bool,
 }
@@ -192,7 +192,7 @@ pub struct Fn {
     pub abi: Option<Box<Abi>>,
     pub fn_mode: Option<Box<FnMode>>,
     fn_token: bool,
-    pub name: Option<Box<Name>>,
+    pub name: Box<Name>,
     pub generic_param_list: Option<Box<GenericParamList>>,
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
@@ -216,7 +216,7 @@ pub struct Impl {
     excl_token: bool,
     for_token: bool,
     pub where_clause: Option<Box<WhereClause>>,
-    pub assoc_item_list: Option<Box<AssocItemList>>,
+    pub assoc_item_list: Box<AssocItemList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroRules {
@@ -224,24 +224,24 @@ pub struct MacroRules {
     pub visibility: Option<Box<Visibility>>,
     macro_rules_token: bool,
     excl_token: bool,
-    pub name: Option<Box<Name>>,
-    pub token_tree: Option<Box<TokenTree>>,
+    pub name: Box<Name>,
+    pub token_tree: Box<TokenTree>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroDef {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
     macro_token: bool,
-    pub name: Option<Box<Name>>,
+    pub name: Box<Name>,
     pub args: Option<Box<TokenTree>>,
-    pub body: Option<Box<TokenTree>>,
+    pub body: Box<TokenTree>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Module {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
     mod_token: bool,
-    pub name: Option<Box<Name>>,
+    pub name: Box<Name>,
     pub item_list: Option<Box<ItemList>>,
     semicolon_token: bool,
 }
@@ -251,9 +251,9 @@ pub struct Static {
     pub visibility: Option<Box<Visibility>>,
     static_token: bool,
     mut_token: bool,
-    pub name: Option<Box<Name>>,
+    pub name: Box<Name>,
     colon_token: bool,
-    pub ty: Option<Box<Type>>,
+    pub ty: Box<Type>,
     eq_token: bool,
     pub body: Option<Box<Expr>>,
     semicolon_token: bool,
@@ -264,7 +264,7 @@ pub struct Struct {
     pub visibility: Option<Box<Visibility>>,
     pub data_mode: Option<Box<DataMode>>,
     struct_token: bool,
-    pub name: Option<Box<Name>>,
+    pub name: Box<Name>,
     pub generic_param_list: Option<Box<GenericParamList>>,
     pub where_clause: Option<Box<WhereClause>>,
     semicolon_token: bool,
@@ -277,19 +277,19 @@ pub struct Trait {
     unsafe_token: bool,
     auto_token: bool,
     trait_token: bool,
-    pub name: Option<Box<Name>>,
+    pub name: Box<Name>,
     pub generic_param_list: Option<Box<GenericParamList>>,
     colon_token: bool,
     pub type_bound_list: Option<Box<TypeBoundList>>,
     pub where_clause: Option<Box<WhereClause>>,
-    pub assoc_item_list: Option<Box<AssocItemList>>,
+    pub assoc_item_list: Box<AssocItemList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TraitAlias {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
     trait_token: bool,
-    pub name: Option<Box<Name>>,
+    pub name: Box<Name>,
     pub generic_param_list: Option<Box<GenericParamList>>,
     eq_token: bool,
     pub type_bound_list: Option<Box<TypeBoundList>>,
@@ -302,7 +302,7 @@ pub struct TypeAlias {
     pub visibility: Option<Box<Visibility>>,
     default_token: bool,
     type_token: bool,
-    pub name: Option<Box<Name>>,
+    pub name: Box<Name>,
     pub generic_param_list: Option<Box<GenericParamList>>,
     colon_token: bool,
     pub type_bound_list: Option<Box<TypeBoundList>>,
@@ -316,17 +316,17 @@ pub struct Union {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
     union_token: bool,
-    pub name: Option<Box<Name>>,
+    pub name: Box<Name>,
     pub generic_param_list: Option<Box<GenericParamList>>,
     pub where_clause: Option<Box<WhereClause>>,
-    pub record_field_list: Option<Box<RecordFieldList>>,
+    pub record_field_list: Box<RecordFieldList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Use {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
     use_token: bool,
-    pub use_tree: Option<Box<UseTree>>,
+    pub use_tree: Box<UseTree>,
     semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -421,7 +421,7 @@ pub struct BlockExpr {
     unsafe_token: bool,
     async_token: bool,
     const_token: bool,
-    pub stmt_list: Option<Box<StmtList>>,
+    pub stmt_list: Box<StmtList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SelfParam {
@@ -429,9 +429,9 @@ pub struct SelfParam {
     amp_token: bool,
     pub lifetime: Option<Box<Lifetime>>,
     mut_token: bool,
-    pub name: Option<Box<Name>>,
+    pub name: Box<Name>,
     colon_token: bool,
-    pub ty: Option<Box<Type>>,
+    pub ty: Box<Type>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Param {
@@ -464,15 +464,15 @@ pub struct RecordField {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
     pub data_mode: Option<Box<DataMode>>,
-    pub name: Option<Box<Name>>,
+    pub name: Box<Name>,
     colon_token: bool,
-    pub ty: Option<Box<Type>>,
+    pub ty: Box<Type>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleField {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
-    pub ty: Option<Box<Type>>,
+    pub ty: Box<Type>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VariantList {
@@ -484,7 +484,7 @@ pub struct VariantList {
 pub struct Variant {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
-    pub name: Option<Box<Name>>,
+    pub name: Box<Name>,
     pub field_list: Option<Box<FieldList>>,
     eq_token: bool,
     pub expr: Option<Box<Expr>>,
@@ -507,23 +507,23 @@ pub struct ExternItemList {
 pub struct ConstParam {
     pub attrs: Vec<Attr>,
     const_token: bool,
-    pub name: Option<Box<Name>>,
+    pub name: Box<Name>,
     colon_token: bool,
-    pub ty: Option<Box<Type>>,
+    pub ty: Box<Type>,
     eq_token: bool,
     pub default_val: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LifetimeParam {
     pub attrs: Vec<Attr>,
-    pub lifetime: Option<Box<Lifetime>>,
+    pub lifetime: Box<Lifetime>,
     colon_token: bool,
     pub type_bound_list: Option<Box<TypeBoundList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeParam {
     pub attrs: Vec<Attr>,
-    pub name: Option<Box<Name>>,
+    pub name: Box<Name>,
     colon_token: bool,
     pub type_bound_list: Option<Box<TypeBoundList>>,
     eq_token: bool,
@@ -540,14 +540,14 @@ pub struct WherePred {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Meta {
-    pub path: Option<Box<Path>>,
+    pub path: Box<Path>,
     eq_token: bool,
     pub expr: Option<Box<Expr>>,
     pub token_tree: Option<Box<TokenTree>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExprStmt {
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Expr>,
     semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -560,28 +560,28 @@ pub struct LetStmt {
     colon_token: bool,
     pub ty: Option<Box<Type>>,
     eq_token: bool,
-    pub initializer: Option<Box<Expr>>,
+    pub initializer: Box<Expr>,
     pub let_else: Option<Box<LetElse>>,
     semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LetElse {
     else_token: bool,
-    pub block_expr: Option<Box<BlockExpr>>,
+    pub block_expr: Box<BlockExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayExpr {
     pub attrs: Vec<Attr>,
     l_brack_token: bool,
     pub exprs: Vec<Expr>,
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Expr>,
     semicolon_token: bool,
     r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AwaitExpr {
     pub attrs: Vec<Attr>,
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Expr>,
     dot_token: bool,
     await_token: bool,
 }
@@ -593,7 +593,7 @@ pub struct BinExpr {
 pub struct BoxExpr {
     pub attrs: Vec<Attr>,
     box_token: bool,
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BreakExpr {
@@ -605,15 +605,15 @@ pub struct BreakExpr {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CallExpr {
     pub attrs: Vec<Attr>,
-    pub expr: Option<Box<Expr>>,
-    pub arg_list: Option<Box<ArgList>>,
+    pub expr: Box<Expr>,
+    pub arg_list: Box<ArgList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CastExpr {
     pub attrs: Vec<Attr>,
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Expr>,
     as_token: bool,
-    pub ty: Option<Box<Type>>,
+    pub ty: Box<Type>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClosureExpr {
@@ -628,7 +628,7 @@ pub struct ClosureExpr {
     exists_token: bool,
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
-    pub body: Option<Box<Expr>>,
+    pub body: Box<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ContinueExpr {
@@ -639,9 +639,9 @@ pub struct ContinueExpr {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FieldExpr {
     pub attrs: Vec<Attr>,
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Expr>,
     dot_token: bool,
-    pub name_ref: Option<Box<NameRef>>,
+    pub name_ref: Box<NameRef>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ForExpr {
@@ -650,7 +650,7 @@ pub struct ForExpr {
     for_token: bool,
     pub pat: Option<Box<Pat>>,
     in_token: bool,
-    pub loop_body: Option<Box<BlockExpr>>,
+    pub loop_body: Box<BlockExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IfExpr {
@@ -673,44 +673,44 @@ pub struct LoopExpr {
     pub attrs: Vec<Attr>,
     pub label: Option<Box<Label>>,
     loop_token: bool,
-    pub loop_body: Option<Box<BlockExpr>>,
+    pub loop_body: Box<BlockExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroExpr {
-    pub macro_call: Option<Box<MacroCall>>,
+    pub macro_call: Box<MacroCall>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchExpr {
     pub attrs: Vec<Attr>,
     match_token: bool,
-    pub expr: Option<Box<Expr>>,
-    pub match_arm_list: Option<Box<MatchArmList>>,
+    pub expr: Box<Expr>,
+    pub match_arm_list: Box<MatchArmList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MethodCallExpr {
     pub attrs: Vec<Attr>,
-    pub receiver: Option<Box<Expr>>,
+    pub receiver: Box<Expr>,
     dot_token: bool,
-    pub name_ref: Option<Box<NameRef>>,
+    pub name_ref: Box<NameRef>,
     pub generic_arg_list: Option<Box<GenericArgList>>,
-    pub arg_list: Option<Box<ArgList>>,
+    pub arg_list: Box<ArgList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParenExpr {
     pub attrs: Vec<Attr>,
     l_paren_token: bool,
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Expr>,
     r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathExpr {
     pub attrs: Vec<Attr>,
-    pub path: Option<Box<Path>>,
+    pub path: Box<Path>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PrefixExpr {
     pub attrs: Vec<Attr>,
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RangeExpr {
@@ -718,8 +718,8 @@ pub struct RangeExpr {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordExpr {
-    pub path: Option<Box<Path>>,
-    pub record_expr_field_list: Option<Box<RecordExprFieldList>>,
+    pub path: Box<Path>,
+    pub record_expr_field_list: Box<RecordExprFieldList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefExpr {
@@ -728,7 +728,7 @@ pub struct RefExpr {
     raw_token: bool,
     mut_token: bool,
     const_token: bool,
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReturnExpr {
@@ -739,7 +739,7 @@ pub struct ReturnExpr {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TryExpr {
     pub attrs: Vec<Attr>,
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Expr>,
     question_mark_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -756,7 +756,7 @@ pub struct WhileExpr {
     while_token: bool,
     pub invariant_clause: Option<Box<InvariantClause>>,
     pub decreases_clause: Option<Box<DecreasesClause>>,
-    pub loop_body: Option<Box<BlockExpr>>,
+    pub loop_body: Box<BlockExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct YieldExpr {
@@ -777,7 +777,7 @@ pub struct LetExpr {
     let_token: bool,
     pub pat: Option<Box<Pat>>,
     eq_token: bool,
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UnderscoreExpr {
@@ -787,7 +787,7 @@ pub struct UnderscoreExpr {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ViewExpr {
     pub attrs: Vec<Attr>,
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Expr>,
     at_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -795,7 +795,7 @@ pub struct AssertExpr {
     pub attrs: Vec<Attr>,
     assert_token: bool,
     l_paren_token: bool,
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Expr>,
     r_paren_token: bool,
     by_token: bool,
     pub name: Option<Box<Name>>,
@@ -807,7 +807,7 @@ pub struct AssumeExpr {
     pub attrs: Vec<Attr>,
     assume_token: bool,
     l_paren_token: bool,
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Expr>,
     r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -815,11 +815,11 @@ pub struct AssertForallExpr {
     pub attrs: Vec<Attr>,
     assert_token: bool,
     forall_token: bool,
-    pub closure_expr: Option<Box<ClosureExpr>>,
+    pub closure_expr: Box<ClosureExpr>,
     implies_token: bool,
     pub expr: Option<Box<Expr>>,
     by_token: bool,
-    pub block_expr: Option<Box<BlockExpr>>,
+    pub block_expr: Box<BlockExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StmtList {
@@ -831,7 +831,7 @@ pub struct StmtList {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Label {
-    pub lifetime: Option<Box<Lifetime>>,
+    pub lifetime: Box<Lifetime>,
     colon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -848,7 +848,7 @@ pub struct RecordExprField {
     pub attrs: Vec<Attr>,
     pub name_ref: Option<Box<NameRef>>,
     colon_token: bool,
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArgList {
@@ -874,7 +874,7 @@ pub struct MatchArm {
     pub pat: Option<Box<Pat>>,
     pub guard: Option<Box<MatchGuard>>,
     fat_arrow_token: bool,
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Expr>,
     comma_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -884,15 +884,15 @@ pub struct MatchGuard {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayType {
     l_brack_token: bool,
-    pub ty: Option<Box<Type>>,
+    pub ty: Box<Type>,
     semicolon_token: bool,
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Expr>,
     r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DynTraitType {
     dyn_token: bool,
-    pub type_bound_list: Option<Box<TypeBoundList>>,
+    pub type_bound_list: Box<TypeBoundList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FnPtrType {
@@ -907,13 +907,13 @@ pub struct FnPtrType {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ForType {
     for_token: bool,
-    pub generic_param_list: Option<Box<GenericParamList>>,
-    pub ty: Option<Box<Type>>,
+    pub generic_param_list: Box<GenericParamList>,
+    pub ty: Box<Type>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ImplTraitType {
     impl_token: bool,
-    pub type_bound_list: Option<Box<TypeBoundList>>,
+    pub type_bound_list: Box<TypeBoundList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct InferType {
@@ -921,7 +921,7 @@ pub struct InferType {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroType {
-    pub macro_call: Option<Box<MacroCall>>,
+    pub macro_call: Box<MacroCall>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NeverType {
@@ -930,7 +930,7 @@ pub struct NeverType {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParenType {
     l_paren_token: bool,
-    pub ty: Option<Box<Type>>,
+    pub ty: Box<Type>,
     r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -938,19 +938,19 @@ pub struct PtrType {
     star_token: bool,
     const_token: bool,
     mut_token: bool,
-    pub ty: Option<Box<Type>>,
+    pub ty: Box<Type>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefType {
     amp_token: bool,
     pub lifetime: Option<Box<Lifetime>>,
     mut_token: bool,
-    pub ty: Option<Box<Type>>,
+    pub ty: Box<Type>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SliceType {
     l_brack_token: bool,
-    pub ty: Option<Box<Type>>,
+    pub ty: Box<Type>,
     r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -965,14 +965,14 @@ pub struct TypeBound {
     question_mark_token: bool,
     tilde_token: bool,
     const_token: bool,
-    pub ty: Option<Box<Type>>,
+    pub ty: Box<Type>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IdentPat {
     pub attrs: Vec<Attr>,
     ref_token: bool,
     mut_token: bool,
-    pub name: Option<Box<Name>>,
+    pub name: Box<Name>,
     at_token: bool,
     pub pat: Option<Box<Pat>>,
 }
@@ -989,11 +989,11 @@ pub struct RestPat {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LiteralPat {
     minus_token: bool,
-    pub literal: Option<Box<Literal>>,
+    pub literal: Box<Literal>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroPat {
-    pub macro_call: Option<Box<MacroCall>>,
+    pub macro_call: Box<MacroCall>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OrPat {
@@ -1007,7 +1007,7 @@ pub struct ParenPat {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathPat {
-    pub path: Option<Box<Path>>,
+    pub path: Box<Path>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WildcardPat {
@@ -1017,8 +1017,8 @@ pub struct WildcardPat {
 pub struct RangePat {}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordPat {
-    pub path: Option<Box<Path>>,
-    pub record_pat_field_list: Option<Box<RecordPatFieldList>>,
+    pub path: Box<Path>,
+    pub record_pat_field_list: Box<RecordPatFieldList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefPat {
@@ -1040,7 +1040,7 @@ pub struct TuplePat {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleStructPat {
-    pub path: Option<Box<Path>>,
+    pub path: Box<Path>,
     l_paren_token: bool,
     pub fields: Vec<Pat>,
     r_paren_token: bool,
@@ -1048,7 +1048,7 @@ pub struct TupleStructPat {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConstBlockPat {
     const_token: bool,
-    pub block_expr: Option<Box<BlockExpr>>,
+    pub block_expr: Box<BlockExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordPatFieldList {
@@ -1073,7 +1073,7 @@ pub struct ModeSpecChecked {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SignatureDecreases {
-    pub decreases_clause: Option<Box<DecreasesClause>>,
+    pub decreases_clause: Box<DecreasesClause>,
     when_token: bool,
     pub expr: Option<Box<Expr>>,
     via_token: bool,
@@ -1082,7 +1082,7 @@ pub struct SignatureDecreases {
 pub struct Prover {
     by_token: bool,
     l_paren_token: bool,
-    pub name: Option<Box<Name>>,
+    pub name: Box<Name>,
     r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1234,1682 +1234,3123 @@ pub enum GenericParam {
     LifetimeParam(Box<LifetimeParam>),
     TypeParam(Box<TypeParam>),
 }
-impl From<super::nodes::Name> for Name {
-    fn from(item: super::nodes::Name) -> Self {
-        Self {
+impl TryFrom<super::nodes::Name> for Name {
+    type Error = String;
+    fn try_from(item: super::nodes::Name) -> Result<Self, Self::Error> {
+        Ok(Self {
             ident_token: item.ident_token().map(|it| it.text().to_string()),
             self_token: item.self_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::NameRef> for NameRef {
-    fn from(item: super::nodes::NameRef) -> Self {
-        Self {
+impl TryFrom<super::nodes::NameRef> for NameRef {
+    type Error = String;
+    fn try_from(item: super::nodes::NameRef) -> Result<Self, Self::Error> {
+        Ok(Self {
             ident_token: item.ident_token().map(|it| it.text().to_string()),
             self_token: item.self_token().is_some(),
             super_token: item.super_token().is_some(),
             crate_token: item.crate_token().is_some(),
             Self_token: item.Self_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::Lifetime> for Lifetime {
-    fn from(item: super::nodes::Lifetime) -> Self {
-        Self { lifetime_ident_token: item.lifetime_ident_token().map(|it| it.text().to_string()) }
+impl TryFrom<super::nodes::Lifetime> for Lifetime {
+    type Error = String;
+    fn try_from(item: super::nodes::Lifetime) -> Result<Self, Self::Error> {
+        Ok(Self {
+            lifetime_ident_token: item.lifetime_ident_token().map(|it| it.text().to_string()),
+        })
     }
 }
-impl From<super::nodes::Path> for Path {
-    fn from(item: super::nodes::Path) -> Self {
-        Self {
-            qualifier: item.qualifier().map(Path::from).map(Box::new),
+impl TryFrom<super::nodes::Path> for Path {
+    type Error = String;
+    fn try_from(item: super::nodes::Path) -> Result<Self, Self::Error> {
+        Ok(Self {
+            qualifier: match item.qualifier() {
+                Some(it) => Some(Box::new(Path::try_from(it)?)),
+                None => None,
+            },
             coloncolon_token: item.coloncolon_token().is_some(),
-            segment: item.segment().map(PathSegment::from).map(Box::new),
-        }
+            segment: Box::new(
+                item.segment()
+                    .ok_or(format!("{}", stringify!(segment)))
+                    .map(|it| PathSegment::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::PathSegment> for PathSegment {
-    fn from(item: super::nodes::PathSegment) -> Self {
-        Self {
+impl TryFrom<super::nodes::PathSegment> for PathSegment {
+    type Error = String;
+    fn try_from(item: super::nodes::PathSegment) -> Result<Self, Self::Error> {
+        Ok(Self {
             coloncolon_token: item.coloncolon_token().is_some(),
-            name_ref: item.name_ref().map(NameRef::from).map(Box::new),
-            generic_arg_list: item.generic_arg_list().map(GenericArgList::from).map(Box::new),
-            param_list: item.param_list().map(ParamList::from).map(Box::new),
-            ret_type: item.ret_type().map(RetType::from).map(Box::new),
+            name_ref: Box::new(
+                item.name_ref()
+                    .ok_or(format!("{}", stringify!(name_ref)))
+                    .map(|it| NameRef::try_from(it))??,
+            ),
+            generic_arg_list: match item.generic_arg_list() {
+                Some(it) => Some(Box::new(GenericArgList::try_from(it)?)),
+                None => None,
+            },
+            param_list: match item.param_list() {
+                Some(it) => Some(Box::new(ParamList::try_from(it)?)),
+                None => None,
+            },
+            ret_type: match item.ret_type() {
+                Some(it) => Some(Box::new(RetType::try_from(it)?)),
+                None => None,
+            },
             l_angle_token: item.l_angle_token().is_some(),
-            path_type: item.path_type().map(PathType::from).map(Box::new),
+            path_type: match item.path_type() {
+                Some(it) => Some(Box::new(PathType::try_from(it)?)),
+                None => None,
+            },
             as_token: item.as_token().is_some(),
             r_angle_token: item.r_angle_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::GenericArgList> for GenericArgList {
-    fn from(item: super::nodes::GenericArgList) -> Self {
-        Self {
+impl TryFrom<super::nodes::GenericArgList> for GenericArgList {
+    type Error = String;
+    fn try_from(item: super::nodes::GenericArgList) -> Result<Self, Self::Error> {
+        Ok(Self {
             coloncolon_token: item.coloncolon_token().is_some(),
             l_angle_token: item.l_angle_token().is_some(),
-            generic_args: item.generic_args().into_iter().map(GenericArg::from).collect(),
+            generic_args: item
+                .generic_args()
+                .into_iter()
+                .map(GenericArg::try_from)
+                .collect::<Result<Vec<GenericArg>, String>>()?,
             r_angle_token: item.r_angle_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::ParamList> for ParamList {
-    fn from(item: super::nodes::ParamList) -> Self {
-        Self {
+impl TryFrom<super::nodes::ParamList> for ParamList {
+    type Error = String;
+    fn try_from(item: super::nodes::ParamList) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_paren_token: item.l_paren_token().is_some(),
-            self_param: item.self_param().map(SelfParam::from).map(Box::new),
+            self_param: match item.self_param() {
+                Some(it) => Some(Box::new(SelfParam::try_from(it)?)),
+                None => None,
+            },
             comma_token: item.comma_token().is_some(),
-            params: item.params().into_iter().map(Param::from).collect(),
+            params: item
+                .params()
+                .into_iter()
+                .map(Param::try_from)
+                .collect::<Result<Vec<Param>, String>>()?,
             r_paren_token: item.r_paren_token().is_some(),
             pipe_token: item.pipe_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::RetType> for RetType {
-    fn from(item: super::nodes::RetType) -> Self {
-        Self {
+impl TryFrom<super::nodes::RetType> for RetType {
+    type Error = String;
+    fn try_from(item: super::nodes::RetType) -> Result<Self, Self::Error> {
+        Ok(Self {
             thin_arrow_token: item.thin_arrow_token().is_some(),
             tracked_token: item.tracked_token().is_some(),
             l_paren_token: item.l_paren_token().is_some(),
-            pat: item.pat().map(Pat::from).map(Box::new),
+            pat: match item.pat() {
+                Some(it) => Some(Box::new(Pat::try_from(it)?)),
+                None => None,
+            },
             colon_token: item.colon_token().is_some(),
-            ty: item.ty().map(Type::from).map(Box::new),
+            ty: Box::new(
+                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
+            ),
             r_paren_token: item.r_paren_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::PathType> for PathType {
-    fn from(item: super::nodes::PathType) -> Self {
-        Self { path: item.path().map(Path::from).map(Box::new) }
+impl TryFrom<super::nodes::PathType> for PathType {
+    type Error = String;
+    fn try_from(item: super::nodes::PathType) -> Result<Self, Self::Error> {
+        Ok(Self {
+            path: Box::new(
+                item.path()
+                    .ok_or(format!("{}", stringify!(path)))
+                    .map(|it| Path::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::TypeArg> for TypeArg {
-    fn from(item: super::nodes::TypeArg) -> Self {
-        Self { ty: item.ty().map(Type::from).map(Box::new) }
+impl TryFrom<super::nodes::TypeArg> for TypeArg {
+    type Error = String;
+    fn try_from(item: super::nodes::TypeArg) -> Result<Self, Self::Error> {
+        Ok(Self {
+            ty: Box::new(
+                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::AssocTypeArg> for AssocTypeArg {
-    fn from(item: super::nodes::AssocTypeArg) -> Self {
-        Self {
-            name_ref: item.name_ref().map(NameRef::from).map(Box::new),
-            generic_arg_list: item.generic_arg_list().map(GenericArgList::from).map(Box::new),
-            param_list: item.param_list().map(ParamList::from).map(Box::new),
-            ret_type: item.ret_type().map(RetType::from).map(Box::new),
+impl TryFrom<super::nodes::AssocTypeArg> for AssocTypeArg {
+    type Error = String;
+    fn try_from(item: super::nodes::AssocTypeArg) -> Result<Self, Self::Error> {
+        Ok(Self {
+            name_ref: Box::new(
+                item.name_ref()
+                    .ok_or(format!("{}", stringify!(name_ref)))
+                    .map(|it| NameRef::try_from(it))??,
+            ),
+            generic_arg_list: match item.generic_arg_list() {
+                Some(it) => Some(Box::new(GenericArgList::try_from(it)?)),
+                None => None,
+            },
+            param_list: match item.param_list() {
+                Some(it) => Some(Box::new(ParamList::try_from(it)?)),
+                None => None,
+            },
+            ret_type: match item.ret_type() {
+                Some(it) => Some(Box::new(RetType::try_from(it)?)),
+                None => None,
+            },
             colon_token: item.colon_token().is_some(),
-            type_bound_list: item.type_bound_list().map(TypeBoundList::from).map(Box::new),
+            type_bound_list: Box::new(
+                item.type_bound_list()
+                    .ok_or(format!("{}", stringify!(type_bound_list)))
+                    .map(|it| TypeBoundList::try_from(it))??,
+            ),
             eq_token: item.eq_token().is_some(),
-            ty: item.ty().map(Type::from).map(Box::new),
-            const_arg: item.const_arg().map(ConstArg::from).map(Box::new),
-        }
+            ty: Box::new(
+                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
+            ),
+            const_arg: match item.const_arg() {
+                Some(it) => Some(Box::new(ConstArg::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::LifetimeArg> for LifetimeArg {
-    fn from(item: super::nodes::LifetimeArg) -> Self {
-        Self { lifetime: item.lifetime().map(Lifetime::from).map(Box::new) }
+impl TryFrom<super::nodes::LifetimeArg> for LifetimeArg {
+    type Error = String;
+    fn try_from(item: super::nodes::LifetimeArg) -> Result<Self, Self::Error> {
+        Ok(Self {
+            lifetime: Box::new(
+                item.lifetime()
+                    .ok_or(format!("{}", stringify!(lifetime)))
+                    .map(|it| Lifetime::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::ConstArg> for ConstArg {
-    fn from(item: super::nodes::ConstArg) -> Self {
-        Self { expr: item.expr().map(Expr::from).map(Box::new) }
+impl TryFrom<super::nodes::ConstArg> for ConstArg {
+    type Error = String;
+    fn try_from(item: super::nodes::ConstArg) -> Result<Self, Self::Error> {
+        Ok(Self {
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::TypeBoundList> for TypeBoundList {
-    fn from(item: super::nodes::TypeBoundList) -> Self {
-        Self { bounds: item.bounds().into_iter().map(TypeBound::from).collect() }
+impl TryFrom<super::nodes::TypeBoundList> for TypeBoundList {
+    type Error = String;
+    fn try_from(item: super::nodes::TypeBoundList) -> Result<Self, Self::Error> {
+        Ok(Self {
+            bounds: item
+                .bounds()
+                .into_iter()
+                .map(TypeBound::try_from)
+                .collect::<Result<Vec<TypeBound>, String>>()?,
+        })
     }
 }
-impl From<super::nodes::MacroCall> for MacroCall {
-    fn from(item: super::nodes::MacroCall) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            path: item.path().map(Path::from).map(Box::new),
+impl TryFrom<super::nodes::MacroCall> for MacroCall {
+    type Error = String;
+    fn try_from(item: super::nodes::MacroCall) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            path: Box::new(
+                item.path()
+                    .ok_or(format!("{}", stringify!(path)))
+                    .map(|it| Path::try_from(it))??,
+            ),
             excl_token: item.excl_token().is_some(),
-            token_tree: item.token_tree().map(TokenTree::from).map(Box::new),
+            token_tree: Box::new(
+                item.token_tree()
+                    .ok_or(format!("{}", stringify!(token_tree)))
+                    .map(|it| TokenTree::try_from(it))??,
+            ),
             semicolon_token: item.semicolon_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::Attr> for Attr {
-    fn from(item: super::nodes::Attr) -> Self {
-        Self {
+impl TryFrom<super::nodes::Attr> for Attr {
+    type Error = String;
+    fn try_from(item: super::nodes::Attr) -> Result<Self, Self::Error> {
+        Ok(Self {
             pound_token: item.pound_token().is_some(),
             excl_token: item.excl_token().is_some(),
             l_brack_token: item.l_brack_token().is_some(),
-            meta: item.meta().map(Meta::from).map(Box::new),
+            meta: Box::new(
+                item.meta()
+                    .ok_or(format!("{}", stringify!(meta)))
+                    .map(|it| Meta::try_from(it))??,
+            ),
             r_brack_token: item.r_brack_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::TokenTree> for TokenTree {
-    fn from(item: super::nodes::TokenTree) -> Self {
-        Self {
+impl TryFrom<super::nodes::TokenTree> for TokenTree {
+    type Error = String;
+    fn try_from(item: super::nodes::TokenTree) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_paren_token: item.l_paren_token().is_some(),
             r_paren_token: item.r_paren_token().is_some(),
             l_curly_token: item.l_curly_token().is_some(),
             r_curly_token: item.r_curly_token().is_some(),
             l_brack_token: item.l_brack_token().is_some(),
             r_brack_token: item.r_brack_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::MacroItems> for MacroItems {
-    fn from(item: super::nodes::MacroItems) -> Self {
-        Self { items: item.items().into_iter().map(Item::from).collect() }
+impl TryFrom<super::nodes::MacroItems> for MacroItems {
+    type Error = String;
+    fn try_from(item: super::nodes::MacroItems) -> Result<Self, Self::Error> {
+        Ok(Self {
+            items: item
+                .items()
+                .into_iter()
+                .map(Item::try_from)
+                .collect::<Result<Vec<Item>, String>>()?,
+        })
     }
 }
-impl From<super::nodes::MacroStmts> for MacroStmts {
-    fn from(item: super::nodes::MacroStmts) -> Self {
-        Self {
-            statements: item.statements().into_iter().map(Stmt::from).collect(),
-            expr: item.expr().map(Expr::from).map(Box::new),
-        }
+impl TryFrom<super::nodes::MacroStmts> for MacroStmts {
+    type Error = String;
+    fn try_from(item: super::nodes::MacroStmts) -> Result<Self, Self::Error> {
+        Ok(Self {
+            statements: item
+                .statements()
+                .into_iter()
+                .map(Stmt::try_from)
+                .collect::<Result<Vec<Stmt>, String>>()?,
+            expr: match item.expr() {
+                Some(it) => Some(Box::new(Expr::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::SourceFile> for SourceFile {
-    fn from(item: super::nodes::SourceFile) -> Self {
-        Self {
+impl TryFrom<super::nodes::SourceFile> for SourceFile {
+    type Error = String;
+    fn try_from(item: super::nodes::SourceFile) -> Result<Self, Self::Error> {
+        Ok(Self {
             shebang_token: item.shebang_token().is_some(),
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            items: item.items().into_iter().map(Item::from).collect(),
-        }
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            items: item
+                .items()
+                .into_iter()
+                .map(Item::try_from)
+                .collect::<Result<Vec<Item>, String>>()?,
+        })
     }
 }
-impl From<super::nodes::Const> for Const {
-    fn from(item: super::nodes::Const) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            visibility: item.visibility().map(Visibility::from).map(Box::new),
+impl TryFrom<super::nodes::Const> for Const {
+    type Error = String;
+    fn try_from(item: super::nodes::Const) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
             default_token: item.default_token().is_some(),
             const_token: item.const_token().is_some(),
-            name: item.name().map(Name::from).map(Box::new),
+            name: match item.name() {
+                Some(it) => Some(Box::new(Name::try_from(it)?)),
+                None => None,
+            },
             underscore_token: item.underscore_token().is_some(),
             colon_token: item.colon_token().is_some(),
-            ty: item.ty().map(Type::from).map(Box::new),
+            ty: Box::new(
+                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
+            ),
             eq_token: item.eq_token().is_some(),
-            body: item.body().map(Expr::from).map(Box::new),
+            body: match item.body() {
+                Some(it) => Some(Box::new(Expr::try_from(it)?)),
+                None => None,
+            },
             semicolon_token: item.semicolon_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::Enum> for Enum {
-    fn from(item: super::nodes::Enum) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            visibility: item.visibility().map(Visibility::from).map(Box::new),
+impl TryFrom<super::nodes::Enum> for Enum {
+    type Error = String;
+    fn try_from(item: super::nodes::Enum) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
             enum_token: item.enum_token().is_some(),
-            name: item.name().map(Name::from).map(Box::new),
-            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
-            where_clause: item.where_clause().map(WhereClause::from).map(Box::new),
-            variant_list: item.variant_list().map(VariantList::from).map(Box::new),
-        }
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
+            generic_param_list: match item.generic_param_list() {
+                Some(it) => Some(Box::new(GenericParamList::try_from(it)?)),
+                None => None,
+            },
+            where_clause: match item.where_clause() {
+                Some(it) => Some(Box::new(WhereClause::try_from(it)?)),
+                None => None,
+            },
+            variant_list: Box::new(
+                item.variant_list()
+                    .ok_or(format!("{}", stringify!(variant_list)))
+                    .map(|it| VariantList::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::ExternBlock> for ExternBlock {
-    fn from(item: super::nodes::ExternBlock) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::ExternBlock> for ExternBlock {
+    type Error = String;
+    fn try_from(item: super::nodes::ExternBlock) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             unsafe_token: item.unsafe_token().is_some(),
-            abi: item.abi().map(Abi::from).map(Box::new),
-            extern_item_list: item.extern_item_list().map(ExternItemList::from).map(Box::new),
-        }
+            abi: Box::new(
+                item.abi().ok_or(format!("{}", stringify!(abi))).map(|it| Abi::try_from(it))??,
+            ),
+            extern_item_list: Box::new(
+                item.extern_item_list()
+                    .ok_or(format!("{}", stringify!(extern_item_list)))
+                    .map(|it| ExternItemList::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::ExternCrate> for ExternCrate {
-    fn from(item: super::nodes::ExternCrate) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            visibility: item.visibility().map(Visibility::from).map(Box::new),
+impl TryFrom<super::nodes::ExternCrate> for ExternCrate {
+    type Error = String;
+    fn try_from(item: super::nodes::ExternCrate) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
             extern_token: item.extern_token().is_some(),
             crate_token: item.crate_token().is_some(),
-            name_ref: item.name_ref().map(NameRef::from).map(Box::new),
-            rename: item.rename().map(Rename::from).map(Box::new),
+            name_ref: Box::new(
+                item.name_ref()
+                    .ok_or(format!("{}", stringify!(name_ref)))
+                    .map(|it| NameRef::try_from(it))??,
+            ),
+            rename: match item.rename() {
+                Some(it) => Some(Box::new(Rename::try_from(it)?)),
+                None => None,
+            },
             semicolon_token: item.semicolon_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::Fn> for Fn {
-    fn from(item: super::nodes::Fn) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            visibility: item.visibility().map(Visibility::from).map(Box::new),
-            publish: item.publish().map(Publish::from).map(Box::new),
+impl TryFrom<super::nodes::Fn> for Fn {
+    type Error = String;
+    fn try_from(item: super::nodes::Fn) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
+            publish: match item.publish() {
+                Some(it) => Some(Box::new(Publish::try_from(it)?)),
+                None => None,
+            },
             default_token: item.default_token().is_some(),
             const_token: item.const_token().is_some(),
             async_token: item.async_token().is_some(),
             unsafe_token: item.unsafe_token().is_some(),
-            abi: item.abi().map(Abi::from).map(Box::new),
-            fn_mode: item.fn_mode().map(FnMode::from).map(Box::new),
+            abi: match item.abi() {
+                Some(it) => Some(Box::new(Abi::try_from(it)?)),
+                None => None,
+            },
+            fn_mode: match item.fn_mode() {
+                Some(it) => Some(Box::new(FnMode::try_from(it)?)),
+                None => None,
+            },
             fn_token: item.fn_token().is_some(),
-            name: item.name().map(Name::from).map(Box::new),
-            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
-            param_list: item.param_list().map(ParamList::from).map(Box::new),
-            ret_type: item.ret_type().map(RetType::from).map(Box::new),
-            where_clause: item.where_clause().map(WhereClause::from).map(Box::new),
-            requires_clause: item.requires_clause().map(RequiresClause::from).map(Box::new),
-            recommends_clause: item.recommends_clause().map(RecommendsClause::from).map(Box::new),
-            ensures_clause: item.ensures_clause().map(EnsuresClause::from).map(Box::new),
-            decreases_clause: item.decreases_clause().map(DecreasesClause::from).map(Box::new),
-            body: item.body().map(BlockExpr::from).map(Box::new),
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
+            generic_param_list: match item.generic_param_list() {
+                Some(it) => Some(Box::new(GenericParamList::try_from(it)?)),
+                None => None,
+            },
+            param_list: match item.param_list() {
+                Some(it) => Some(Box::new(ParamList::try_from(it)?)),
+                None => None,
+            },
+            ret_type: match item.ret_type() {
+                Some(it) => Some(Box::new(RetType::try_from(it)?)),
+                None => None,
+            },
+            where_clause: match item.where_clause() {
+                Some(it) => Some(Box::new(WhereClause::try_from(it)?)),
+                None => None,
+            },
+            requires_clause: match item.requires_clause() {
+                Some(it) => Some(Box::new(RequiresClause::try_from(it)?)),
+                None => None,
+            },
+            recommends_clause: match item.recommends_clause() {
+                Some(it) => Some(Box::new(RecommendsClause::try_from(it)?)),
+                None => None,
+            },
+            ensures_clause: match item.ensures_clause() {
+                Some(it) => Some(Box::new(EnsuresClause::try_from(it)?)),
+                None => None,
+            },
+            decreases_clause: match item.decreases_clause() {
+                Some(it) => Some(Box::new(DecreasesClause::try_from(it)?)),
+                None => None,
+            },
+            body: match item.body() {
+                Some(it) => Some(Box::new(BlockExpr::try_from(it)?)),
+                None => None,
+            },
             semicolon_token: item.semicolon_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::Impl> for Impl {
-    fn from(item: super::nodes::Impl) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            visibility: item.visibility().map(Visibility::from).map(Box::new),
+impl TryFrom<super::nodes::Impl> for Impl {
+    type Error = String;
+    fn try_from(item: super::nodes::Impl) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
             default_token: item.default_token().is_some(),
             unsafe_token: item.unsafe_token().is_some(),
             impl_token: item.impl_token().is_some(),
-            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
+            generic_param_list: match item.generic_param_list() {
+                Some(it) => Some(Box::new(GenericParamList::try_from(it)?)),
+                None => None,
+            },
             const_token: item.const_token().is_some(),
             excl_token: item.excl_token().is_some(),
             for_token: item.for_token().is_some(),
-            where_clause: item.where_clause().map(WhereClause::from).map(Box::new),
-            assoc_item_list: item.assoc_item_list().map(AssocItemList::from).map(Box::new),
-        }
+            where_clause: match item.where_clause() {
+                Some(it) => Some(Box::new(WhereClause::try_from(it)?)),
+                None => None,
+            },
+            assoc_item_list: Box::new(
+                item.assoc_item_list()
+                    .ok_or(format!("{}", stringify!(assoc_item_list)))
+                    .map(|it| AssocItemList::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::MacroRules> for MacroRules {
-    fn from(item: super::nodes::MacroRules) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            visibility: item.visibility().map(Visibility::from).map(Box::new),
+impl TryFrom<super::nodes::MacroRules> for MacroRules {
+    type Error = String;
+    fn try_from(item: super::nodes::MacroRules) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
             macro_rules_token: item.macro_rules_token().is_some(),
             excl_token: item.excl_token().is_some(),
-            name: item.name().map(Name::from).map(Box::new),
-            token_tree: item.token_tree().map(TokenTree::from).map(Box::new),
-        }
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
+            token_tree: Box::new(
+                item.token_tree()
+                    .ok_or(format!("{}", stringify!(token_tree)))
+                    .map(|it| TokenTree::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::MacroDef> for MacroDef {
-    fn from(item: super::nodes::MacroDef) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            visibility: item.visibility().map(Visibility::from).map(Box::new),
+impl TryFrom<super::nodes::MacroDef> for MacroDef {
+    type Error = String;
+    fn try_from(item: super::nodes::MacroDef) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
             macro_token: item.macro_token().is_some(),
-            name: item.name().map(Name::from).map(Box::new),
-            args: item.args().map(TokenTree::from).map(Box::new),
-            body: item.body().map(TokenTree::from).map(Box::new),
-        }
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
+            args: match item.args() {
+                Some(it) => Some(Box::new(TokenTree::try_from(it)?)),
+                None => None,
+            },
+            body: Box::new(
+                item.body()
+                    .ok_or(format!("{}", stringify!(body)))
+                    .map(|it| TokenTree::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::Module> for Module {
-    fn from(item: super::nodes::Module) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            visibility: item.visibility().map(Visibility::from).map(Box::new),
+impl TryFrom<super::nodes::Module> for Module {
+    type Error = String;
+    fn try_from(item: super::nodes::Module) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
             mod_token: item.mod_token().is_some(),
-            name: item.name().map(Name::from).map(Box::new),
-            item_list: item.item_list().map(ItemList::from).map(Box::new),
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
+            item_list: match item.item_list() {
+                Some(it) => Some(Box::new(ItemList::try_from(it)?)),
+                None => None,
+            },
             semicolon_token: item.semicolon_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::Static> for Static {
-    fn from(item: super::nodes::Static) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            visibility: item.visibility().map(Visibility::from).map(Box::new),
+impl TryFrom<super::nodes::Static> for Static {
+    type Error = String;
+    fn try_from(item: super::nodes::Static) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
             static_token: item.static_token().is_some(),
             mut_token: item.mut_token().is_some(),
-            name: item.name().map(Name::from).map(Box::new),
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
             colon_token: item.colon_token().is_some(),
-            ty: item.ty().map(Type::from).map(Box::new),
+            ty: Box::new(
+                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
+            ),
             eq_token: item.eq_token().is_some(),
-            body: item.body().map(Expr::from).map(Box::new),
+            body: match item.body() {
+                Some(it) => Some(Box::new(Expr::try_from(it)?)),
+                None => None,
+            },
             semicolon_token: item.semicolon_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::Struct> for Struct {
-    fn from(item: super::nodes::Struct) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            visibility: item.visibility().map(Visibility::from).map(Box::new),
-            data_mode: item.data_mode().map(DataMode::from).map(Box::new),
+impl TryFrom<super::nodes::Struct> for Struct {
+    type Error = String;
+    fn try_from(item: super::nodes::Struct) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
+            data_mode: match item.data_mode() {
+                Some(it) => Some(Box::new(DataMode::try_from(it)?)),
+                None => None,
+            },
             struct_token: item.struct_token().is_some(),
-            name: item.name().map(Name::from).map(Box::new),
-            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
-            where_clause: item.where_clause().map(WhereClause::from).map(Box::new),
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
+            generic_param_list: match item.generic_param_list() {
+                Some(it) => Some(Box::new(GenericParamList::try_from(it)?)),
+                None => None,
+            },
+            where_clause: match item.where_clause() {
+                Some(it) => Some(Box::new(WhereClause::try_from(it)?)),
+                None => None,
+            },
             semicolon_token: item.semicolon_token().is_some(),
-            field_list: item.field_list().map(FieldList::from).map(Box::new),
-        }
+            field_list: match item.field_list() {
+                Some(it) => Some(Box::new(FieldList::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::Trait> for Trait {
-    fn from(item: super::nodes::Trait) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            visibility: item.visibility().map(Visibility::from).map(Box::new),
+impl TryFrom<super::nodes::Trait> for Trait {
+    type Error = String;
+    fn try_from(item: super::nodes::Trait) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
             unsafe_token: item.unsafe_token().is_some(),
             auto_token: item.auto_token().is_some(),
             trait_token: item.trait_token().is_some(),
-            name: item.name().map(Name::from).map(Box::new),
-            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
+            generic_param_list: match item.generic_param_list() {
+                Some(it) => Some(Box::new(GenericParamList::try_from(it)?)),
+                None => None,
+            },
             colon_token: item.colon_token().is_some(),
-            type_bound_list: item.type_bound_list().map(TypeBoundList::from).map(Box::new),
-            where_clause: item.where_clause().map(WhereClause::from).map(Box::new),
-            assoc_item_list: item.assoc_item_list().map(AssocItemList::from).map(Box::new),
-        }
+            type_bound_list: match item.type_bound_list() {
+                Some(it) => Some(Box::new(TypeBoundList::try_from(it)?)),
+                None => None,
+            },
+            where_clause: match item.where_clause() {
+                Some(it) => Some(Box::new(WhereClause::try_from(it)?)),
+                None => None,
+            },
+            assoc_item_list: Box::new(
+                item.assoc_item_list()
+                    .ok_or(format!("{}", stringify!(assoc_item_list)))
+                    .map(|it| AssocItemList::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::TraitAlias> for TraitAlias {
-    fn from(item: super::nodes::TraitAlias) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            visibility: item.visibility().map(Visibility::from).map(Box::new),
+impl TryFrom<super::nodes::TraitAlias> for TraitAlias {
+    type Error = String;
+    fn try_from(item: super::nodes::TraitAlias) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
             trait_token: item.trait_token().is_some(),
-            name: item.name().map(Name::from).map(Box::new),
-            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
+            generic_param_list: match item.generic_param_list() {
+                Some(it) => Some(Box::new(GenericParamList::try_from(it)?)),
+                None => None,
+            },
             eq_token: item.eq_token().is_some(),
-            type_bound_list: item.type_bound_list().map(TypeBoundList::from).map(Box::new),
-            where_clause: item.where_clause().map(WhereClause::from).map(Box::new),
+            type_bound_list: match item.type_bound_list() {
+                Some(it) => Some(Box::new(TypeBoundList::try_from(it)?)),
+                None => None,
+            },
+            where_clause: match item.where_clause() {
+                Some(it) => Some(Box::new(WhereClause::try_from(it)?)),
+                None => None,
+            },
             semicolon_token: item.semicolon_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::TypeAlias> for TypeAlias {
-    fn from(item: super::nodes::TypeAlias) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            visibility: item.visibility().map(Visibility::from).map(Box::new),
+impl TryFrom<super::nodes::TypeAlias> for TypeAlias {
+    type Error = String;
+    fn try_from(item: super::nodes::TypeAlias) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
             default_token: item.default_token().is_some(),
             type_token: item.type_token().is_some(),
-            name: item.name().map(Name::from).map(Box::new),
-            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
+            generic_param_list: match item.generic_param_list() {
+                Some(it) => Some(Box::new(GenericParamList::try_from(it)?)),
+                None => None,
+            },
             colon_token: item.colon_token().is_some(),
-            type_bound_list: item.type_bound_list().map(TypeBoundList::from).map(Box::new),
-            where_clause: item.where_clause().map(WhereClause::from).map(Box::new),
+            type_bound_list: match item.type_bound_list() {
+                Some(it) => Some(Box::new(TypeBoundList::try_from(it)?)),
+                None => None,
+            },
+            where_clause: match item.where_clause() {
+                Some(it) => Some(Box::new(WhereClause::try_from(it)?)),
+                None => None,
+            },
             eq_token: item.eq_token().is_some(),
-            ty: item.ty().map(Type::from).map(Box::new),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             semicolon_token: item.semicolon_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::Union> for Union {
-    fn from(item: super::nodes::Union) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            visibility: item.visibility().map(Visibility::from).map(Box::new),
+impl TryFrom<super::nodes::Union> for Union {
+    type Error = String;
+    fn try_from(item: super::nodes::Union) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
             union_token: item.union_token().is_some(),
-            name: item.name().map(Name::from).map(Box::new),
-            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
-            where_clause: item.where_clause().map(WhereClause::from).map(Box::new),
-            record_field_list: item.record_field_list().map(RecordFieldList::from).map(Box::new),
-        }
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
+            generic_param_list: match item.generic_param_list() {
+                Some(it) => Some(Box::new(GenericParamList::try_from(it)?)),
+                None => None,
+            },
+            where_clause: match item.where_clause() {
+                Some(it) => Some(Box::new(WhereClause::try_from(it)?)),
+                None => None,
+            },
+            record_field_list: Box::new(
+                item.record_field_list()
+                    .ok_or(format!("{}", stringify!(record_field_list)))
+                    .map(|it| RecordFieldList::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::Use> for Use {
-    fn from(item: super::nodes::Use) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            visibility: item.visibility().map(Visibility::from).map(Box::new),
+impl TryFrom<super::nodes::Use> for Use {
+    type Error = String;
+    fn try_from(item: super::nodes::Use) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
             use_token: item.use_token().is_some(),
-            use_tree: item.use_tree().map(UseTree::from).map(Box::new),
+            use_tree: Box::new(
+                item.use_tree()
+                    .ok_or(format!("{}", stringify!(use_tree)))
+                    .map(|it| UseTree::try_from(it))??,
+            ),
             semicolon_token: item.semicolon_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::Visibility> for Visibility {
-    fn from(item: super::nodes::Visibility) -> Self {
-        Self {
+impl TryFrom<super::nodes::Visibility> for Visibility {
+    type Error = String;
+    fn try_from(item: super::nodes::Visibility) -> Result<Self, Self::Error> {
+        Ok(Self {
             pub_token: item.pub_token().is_some(),
             l_paren_token: item.l_paren_token().is_some(),
             in_token: item.in_token().is_some(),
-            path: item.path().map(Path::from).map(Box::new),
+            path: match item.path() {
+                Some(it) => Some(Box::new(Path::try_from(it)?)),
+                None => None,
+            },
             r_paren_token: item.r_paren_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::ItemList> for ItemList {
-    fn from(item: super::nodes::ItemList) -> Self {
-        Self {
+impl TryFrom<super::nodes::ItemList> for ItemList {
+    type Error = String;
+    fn try_from(item: super::nodes::ItemList) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_curly_token: item.l_curly_token().is_some(),
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            items: item.items().into_iter().map(Item::from).collect(),
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            items: item
+                .items()
+                .into_iter()
+                .map(Item::try_from)
+                .collect::<Result<Vec<Item>, String>>()?,
             r_curly_token: item.r_curly_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::Rename> for Rename {
-    fn from(item: super::nodes::Rename) -> Self {
-        Self {
+impl TryFrom<super::nodes::Rename> for Rename {
+    type Error = String;
+    fn try_from(item: super::nodes::Rename) -> Result<Self, Self::Error> {
+        Ok(Self {
             as_token: item.as_token().is_some(),
-            name: item.name().map(Name::from).map(Box::new),
+            name: match item.name() {
+                Some(it) => Some(Box::new(Name::try_from(it)?)),
+                None => None,
+            },
             underscore_token: item.underscore_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::UseTree> for UseTree {
-    fn from(item: super::nodes::UseTree) -> Self {
-        Self {
-            path: item.path().map(Path::from).map(Box::new),
+impl TryFrom<super::nodes::UseTree> for UseTree {
+    type Error = String;
+    fn try_from(item: super::nodes::UseTree) -> Result<Self, Self::Error> {
+        Ok(Self {
+            path: match item.path() {
+                Some(it) => Some(Box::new(Path::try_from(it)?)),
+                None => None,
+            },
             coloncolon_token: item.coloncolon_token().is_some(),
             star_token: item.star_token().is_some(),
-            use_tree_list: item.use_tree_list().map(UseTreeList::from).map(Box::new),
-            rename: item.rename().map(Rename::from).map(Box::new),
-        }
+            use_tree_list: match item.use_tree_list() {
+                Some(it) => Some(Box::new(UseTreeList::try_from(it)?)),
+                None => None,
+            },
+            rename: match item.rename() {
+                Some(it) => Some(Box::new(Rename::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::UseTreeList> for UseTreeList {
-    fn from(item: super::nodes::UseTreeList) -> Self {
-        Self {
+impl TryFrom<super::nodes::UseTreeList> for UseTreeList {
+    type Error = String;
+    fn try_from(item: super::nodes::UseTreeList) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_curly_token: item.l_curly_token().is_some(),
-            use_trees: item.use_trees().into_iter().map(UseTree::from).collect(),
+            use_trees: item
+                .use_trees()
+                .into_iter()
+                .map(UseTree::try_from)
+                .collect::<Result<Vec<UseTree>, String>>()?,
             r_curly_token: item.r_curly_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::Publish> for Publish {
-    fn from(item: super::nodes::Publish) -> Self {
-        Self {
+impl TryFrom<super::nodes::Publish> for Publish {
+    type Error = String;
+    fn try_from(item: super::nodes::Publish) -> Result<Self, Self::Error> {
+        Ok(Self {
             closed_token: item.closed_token().is_some(),
             open_token: item.open_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::Abi> for Abi {
-    fn from(item: super::nodes::Abi) -> Self {
-        Self { extern_token: item.extern_token().is_some() }
+impl TryFrom<super::nodes::Abi> for Abi {
+    type Error = String;
+    fn try_from(item: super::nodes::Abi) -> Result<Self, Self::Error> {
+        Ok(Self { extern_token: item.extern_token().is_some() })
     }
 }
-impl From<super::nodes::FnMode> for FnMode {
-    fn from(item: super::nodes::FnMode) -> Self {
-        Self {
+impl TryFrom<super::nodes::FnMode> for FnMode {
+    type Error = String;
+    fn try_from(item: super::nodes::FnMode) -> Result<Self, Self::Error> {
+        Ok(Self {
             spec_token: item.spec_token().is_some(),
             proof_token: item.proof_token().is_some(),
             exec_token: item.exec_token().is_some(),
-            mode_spec_checked: item.mode_spec_checked().map(ModeSpecChecked::from).map(Box::new),
-        }
+            mode_spec_checked: match item.mode_spec_checked() {
+                Some(it) => Some(Box::new(ModeSpecChecked::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::GenericParamList> for GenericParamList {
-    fn from(item: super::nodes::GenericParamList) -> Self {
-        Self {
+impl TryFrom<super::nodes::GenericParamList> for GenericParamList {
+    type Error = String;
+    fn try_from(item: super::nodes::GenericParamList) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_angle_token: item.l_angle_token().is_some(),
-            generic_params: item.generic_params().into_iter().map(GenericParam::from).collect(),
+            generic_params: item
+                .generic_params()
+                .into_iter()
+                .map(GenericParam::try_from)
+                .collect::<Result<Vec<GenericParam>, String>>()?,
             r_angle_token: item.r_angle_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::WhereClause> for WhereClause {
-    fn from(item: super::nodes::WhereClause) -> Self {
-        Self {
+impl TryFrom<super::nodes::WhereClause> for WhereClause {
+    type Error = String;
+    fn try_from(item: super::nodes::WhereClause) -> Result<Self, Self::Error> {
+        Ok(Self {
             where_token: item.where_token().is_some(),
-            predicates: item.predicates().into_iter().map(WherePred::from).collect(),
-        }
+            predicates: item
+                .predicates()
+                .into_iter()
+                .map(WherePred::try_from)
+                .collect::<Result<Vec<WherePred>, String>>()?,
+        })
     }
 }
-impl From<super::nodes::RequiresClause> for RequiresClause {
-    fn from(item: super::nodes::RequiresClause) -> Self {
-        Self {
+impl TryFrom<super::nodes::RequiresClause> for RequiresClause {
+    type Error = String;
+    fn try_from(item: super::nodes::RequiresClause) -> Result<Self, Self::Error> {
+        Ok(Self {
             requires_token: item.requires_token().is_some(),
-            exprs: item.exprs().into_iter().map(Expr::from).collect(),
-        }
+            exprs: item
+                .exprs()
+                .into_iter()
+                .map(Expr::try_from)
+                .collect::<Result<Vec<Expr>, String>>()?,
+        })
     }
 }
-impl From<super::nodes::RecommendsClause> for RecommendsClause {
-    fn from(item: super::nodes::RecommendsClause) -> Self {
-        Self {
+impl TryFrom<super::nodes::RecommendsClause> for RecommendsClause {
+    type Error = String;
+    fn try_from(item: super::nodes::RecommendsClause) -> Result<Self, Self::Error> {
+        Ok(Self {
             recommends_token: item.recommends_token().is_some(),
-            exprs: item.exprs().into_iter().map(Expr::from).collect(),
+            exprs: item
+                .exprs()
+                .into_iter()
+                .map(Expr::try_from)
+                .collect::<Result<Vec<Expr>, String>>()?,
             via_token: item.via_token().is_some(),
-            expr: item.expr().map(Expr::from).map(Box::new),
-        }
+            expr: match item.expr() {
+                Some(it) => Some(Box::new(Expr::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::EnsuresClause> for EnsuresClause {
-    fn from(item: super::nodes::EnsuresClause) -> Self {
-        Self {
+impl TryFrom<super::nodes::EnsuresClause> for EnsuresClause {
+    type Error = String;
+    fn try_from(item: super::nodes::EnsuresClause) -> Result<Self, Self::Error> {
+        Ok(Self {
             ensures_token: item.ensures_token().is_some(),
-            exprs: item.exprs().into_iter().map(Expr::from).collect(),
-        }
+            exprs: item
+                .exprs()
+                .into_iter()
+                .map(Expr::try_from)
+                .collect::<Result<Vec<Expr>, String>>()?,
+        })
     }
 }
-impl From<super::nodes::DecreasesClause> for DecreasesClause {
-    fn from(item: super::nodes::DecreasesClause) -> Self {
-        Self {
+impl TryFrom<super::nodes::DecreasesClause> for DecreasesClause {
+    type Error = String;
+    fn try_from(item: super::nodes::DecreasesClause) -> Result<Self, Self::Error> {
+        Ok(Self {
             decreases_token: item.decreases_token().is_some(),
-            exprs: item.exprs().into_iter().map(Expr::from).collect(),
-        }
+            exprs: item
+                .exprs()
+                .into_iter()
+                .map(Expr::try_from)
+                .collect::<Result<Vec<Expr>, String>>()?,
+        })
     }
 }
-impl From<super::nodes::BlockExpr> for BlockExpr {
-    fn from(item: super::nodes::BlockExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            label: item.label().map(Label::from).map(Box::new),
+impl TryFrom<super::nodes::BlockExpr> for BlockExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::BlockExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            label: match item.label() {
+                Some(it) => Some(Box::new(Label::try_from(it)?)),
+                None => None,
+            },
             try_token: item.try_token().is_some(),
             unsafe_token: item.unsafe_token().is_some(),
             async_token: item.async_token().is_some(),
             const_token: item.const_token().is_some(),
-            stmt_list: item.stmt_list().map(StmtList::from).map(Box::new),
-        }
+            stmt_list: Box::new(
+                item.stmt_list()
+                    .ok_or(format!("{}", stringify!(stmt_list)))
+                    .map(|it| StmtList::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::SelfParam> for SelfParam {
-    fn from(item: super::nodes::SelfParam) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::SelfParam> for SelfParam {
+    type Error = String;
+    fn try_from(item: super::nodes::SelfParam) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             amp_token: item.amp_token().is_some(),
-            lifetime: item.lifetime().map(Lifetime::from).map(Box::new),
+            lifetime: match item.lifetime() {
+                Some(it) => Some(Box::new(Lifetime::try_from(it)?)),
+                None => None,
+            },
             mut_token: item.mut_token().is_some(),
-            name: item.name().map(Name::from).map(Box::new),
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
             colon_token: item.colon_token().is_some(),
-            ty: item.ty().map(Type::from).map(Box::new),
-        }
+            ty: Box::new(
+                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::Param> for Param {
-    fn from(item: super::nodes::Param) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::Param> for Param {
+    type Error = String;
+    fn try_from(item: super::nodes::Param) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             tracked_token: item.tracked_token().is_some(),
-            pat: item.pat().map(Pat::from).map(Box::new),
+            pat: match item.pat() {
+                Some(it) => Some(Box::new(Pat::try_from(it)?)),
+                None => None,
+            },
             colon_token: item.colon_token().is_some(),
-            ty: item.ty().map(Type::from).map(Box::new),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             dotdotdot_token: item.dotdotdot_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::DataMode> for DataMode {
-    fn from(item: super::nodes::DataMode) -> Self {
-        Self {
+impl TryFrom<super::nodes::DataMode> for DataMode {
+    type Error = String;
+    fn try_from(item: super::nodes::DataMode) -> Result<Self, Self::Error> {
+        Ok(Self {
             ghost_token: item.ghost_token().is_some(),
             tracked_token: item.tracked_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::RecordFieldList> for RecordFieldList {
-    fn from(item: super::nodes::RecordFieldList) -> Self {
-        Self {
+impl TryFrom<super::nodes::RecordFieldList> for RecordFieldList {
+    type Error = String;
+    fn try_from(item: super::nodes::RecordFieldList) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_curly_token: item.l_curly_token().is_some(),
-            fields: item.fields().into_iter().map(RecordField::from).collect(),
+            fields: item
+                .fields()
+                .into_iter()
+                .map(RecordField::try_from)
+                .collect::<Result<Vec<RecordField>, String>>()?,
             r_curly_token: item.r_curly_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::TupleFieldList> for TupleFieldList {
-    fn from(item: super::nodes::TupleFieldList) -> Self {
-        Self {
+impl TryFrom<super::nodes::TupleFieldList> for TupleFieldList {
+    type Error = String;
+    fn try_from(item: super::nodes::TupleFieldList) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_paren_token: item.l_paren_token().is_some(),
-            fields: item.fields().into_iter().map(TupleField::from).collect(),
+            fields: item
+                .fields()
+                .into_iter()
+                .map(TupleField::try_from)
+                .collect::<Result<Vec<TupleField>, String>>()?,
             r_paren_token: item.r_paren_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::RecordField> for RecordField {
-    fn from(item: super::nodes::RecordField) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            visibility: item.visibility().map(Visibility::from).map(Box::new),
-            data_mode: item.data_mode().map(DataMode::from).map(Box::new),
-            name: item.name().map(Name::from).map(Box::new),
+impl TryFrom<super::nodes::RecordField> for RecordField {
+    type Error = String;
+    fn try_from(item: super::nodes::RecordField) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
+            data_mode: match item.data_mode() {
+                Some(it) => Some(Box::new(DataMode::try_from(it)?)),
+                None => None,
+            },
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
             colon_token: item.colon_token().is_some(),
-            ty: item.ty().map(Type::from).map(Box::new),
-        }
+            ty: Box::new(
+                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::TupleField> for TupleField {
-    fn from(item: super::nodes::TupleField) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            visibility: item.visibility().map(Visibility::from).map(Box::new),
-            ty: item.ty().map(Type::from).map(Box::new),
-        }
+impl TryFrom<super::nodes::TupleField> for TupleField {
+    type Error = String;
+    fn try_from(item: super::nodes::TupleField) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
+            ty: Box::new(
+                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::VariantList> for VariantList {
-    fn from(item: super::nodes::VariantList) -> Self {
-        Self {
+impl TryFrom<super::nodes::VariantList> for VariantList {
+    type Error = String;
+    fn try_from(item: super::nodes::VariantList) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_curly_token: item.l_curly_token().is_some(),
-            variants: item.variants().into_iter().map(Variant::from).collect(),
+            variants: item
+                .variants()
+                .into_iter()
+                .map(Variant::try_from)
+                .collect::<Result<Vec<Variant>, String>>()?,
             r_curly_token: item.r_curly_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::Variant> for Variant {
-    fn from(item: super::nodes::Variant) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            visibility: item.visibility().map(Visibility::from).map(Box::new),
-            name: item.name().map(Name::from).map(Box::new),
-            field_list: item.field_list().map(FieldList::from).map(Box::new),
+impl TryFrom<super::nodes::Variant> for Variant {
+    type Error = String;
+    fn try_from(item: super::nodes::Variant) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
+            field_list: match item.field_list() {
+                Some(it) => Some(Box::new(FieldList::try_from(it)?)),
+                None => None,
+            },
             eq_token: item.eq_token().is_some(),
-            expr: item.expr().map(Expr::from).map(Box::new),
-        }
+            expr: match item.expr() {
+                Some(it) => Some(Box::new(Expr::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::AssocItemList> for AssocItemList {
-    fn from(item: super::nodes::AssocItemList) -> Self {
-        Self {
+impl TryFrom<super::nodes::AssocItemList> for AssocItemList {
+    type Error = String;
+    fn try_from(item: super::nodes::AssocItemList) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_curly_token: item.l_curly_token().is_some(),
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            assoc_items: item.assoc_items().into_iter().map(AssocItem::from).collect(),
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            assoc_items: item
+                .assoc_items()
+                .into_iter()
+                .map(AssocItem::try_from)
+                .collect::<Result<Vec<AssocItem>, String>>()?,
             r_curly_token: item.r_curly_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::ExternItemList> for ExternItemList {
-    fn from(item: super::nodes::ExternItemList) -> Self {
-        Self {
+impl TryFrom<super::nodes::ExternItemList> for ExternItemList {
+    type Error = String;
+    fn try_from(item: super::nodes::ExternItemList) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_curly_token: item.l_curly_token().is_some(),
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            extern_items: item.extern_items().into_iter().map(ExternItem::from).collect(),
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            extern_items: item
+                .extern_items()
+                .into_iter()
+                .map(ExternItem::try_from)
+                .collect::<Result<Vec<ExternItem>, String>>()?,
             r_curly_token: item.r_curly_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::ConstParam> for ConstParam {
-    fn from(item: super::nodes::ConstParam) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::ConstParam> for ConstParam {
+    type Error = String;
+    fn try_from(item: super::nodes::ConstParam) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             const_token: item.const_token().is_some(),
-            name: item.name().map(Name::from).map(Box::new),
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
             colon_token: item.colon_token().is_some(),
-            ty: item.ty().map(Type::from).map(Box::new),
+            ty: Box::new(
+                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
+            ),
             eq_token: item.eq_token().is_some(),
-            default_val: item.default_val().map(Expr::from).map(Box::new),
-        }
+            default_val: match item.default_val() {
+                Some(it) => Some(Box::new(Expr::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::LifetimeParam> for LifetimeParam {
-    fn from(item: super::nodes::LifetimeParam) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            lifetime: item.lifetime().map(Lifetime::from).map(Box::new),
+impl TryFrom<super::nodes::LifetimeParam> for LifetimeParam {
+    type Error = String;
+    fn try_from(item: super::nodes::LifetimeParam) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            lifetime: Box::new(
+                item.lifetime()
+                    .ok_or(format!("{}", stringify!(lifetime)))
+                    .map(|it| Lifetime::try_from(it))??,
+            ),
             colon_token: item.colon_token().is_some(),
-            type_bound_list: item.type_bound_list().map(TypeBoundList::from).map(Box::new),
-        }
+            type_bound_list: match item.type_bound_list() {
+                Some(it) => Some(Box::new(TypeBoundList::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::TypeParam> for TypeParam {
-    fn from(item: super::nodes::TypeParam) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            name: item.name().map(Name::from).map(Box::new),
+impl TryFrom<super::nodes::TypeParam> for TypeParam {
+    type Error = String;
+    fn try_from(item: super::nodes::TypeParam) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
             colon_token: item.colon_token().is_some(),
-            type_bound_list: item.type_bound_list().map(TypeBoundList::from).map(Box::new),
+            type_bound_list: match item.type_bound_list() {
+                Some(it) => Some(Box::new(TypeBoundList::try_from(it)?)),
+                None => None,
+            },
             eq_token: item.eq_token().is_some(),
-            default_type: item.default_type().map(Type::from).map(Box::new),
-        }
+            default_type: match item.default_type() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::WherePred> for WherePred {
-    fn from(item: super::nodes::WherePred) -> Self {
-        Self {
+impl TryFrom<super::nodes::WherePred> for WherePred {
+    type Error = String;
+    fn try_from(item: super::nodes::WherePred) -> Result<Self, Self::Error> {
+        Ok(Self {
             for_token: item.for_token().is_some(),
-            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
-            lifetime: item.lifetime().map(Lifetime::from).map(Box::new),
-            ty: item.ty().map(Type::from).map(Box::new),
+            generic_param_list: match item.generic_param_list() {
+                Some(it) => Some(Box::new(GenericParamList::try_from(it)?)),
+                None => None,
+            },
+            lifetime: match item.lifetime() {
+                Some(it) => Some(Box::new(Lifetime::try_from(it)?)),
+                None => None,
+            },
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             colon_token: item.colon_token().is_some(),
-            type_bound_list: item.type_bound_list().map(TypeBoundList::from).map(Box::new),
-        }
+            type_bound_list: match item.type_bound_list() {
+                Some(it) => Some(Box::new(TypeBoundList::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::Meta> for Meta {
-    fn from(item: super::nodes::Meta) -> Self {
-        Self {
-            path: item.path().map(Path::from).map(Box::new),
+impl TryFrom<super::nodes::Meta> for Meta {
+    type Error = String;
+    fn try_from(item: super::nodes::Meta) -> Result<Self, Self::Error> {
+        Ok(Self {
+            path: Box::new(
+                item.path()
+                    .ok_or(format!("{}", stringify!(path)))
+                    .map(|it| Path::try_from(it))??,
+            ),
             eq_token: item.eq_token().is_some(),
-            expr: item.expr().map(Expr::from).map(Box::new),
-            token_tree: item.token_tree().map(TokenTree::from).map(Box::new),
-        }
+            expr: match item.expr() {
+                Some(it) => Some(Box::new(Expr::try_from(it)?)),
+                None => None,
+            },
+            token_tree: match item.token_tree() {
+                Some(it) => Some(Box::new(TokenTree::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::ExprStmt> for ExprStmt {
-    fn from(item: super::nodes::ExprStmt) -> Self {
-        Self {
-            expr: item.expr().map(Expr::from).map(Box::new),
+impl TryFrom<super::nodes::ExprStmt> for ExprStmt {
+    type Error = String;
+    fn try_from(item: super::nodes::ExprStmt) -> Result<Self, Self::Error> {
+        Ok(Self {
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
             semicolon_token: item.semicolon_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::LetStmt> for LetStmt {
-    fn from(item: super::nodes::LetStmt) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::LetStmt> for LetStmt {
+    type Error = String;
+    fn try_from(item: super::nodes::LetStmt) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             let_token: item.let_token().is_some(),
             ghost_token: item.ghost_token().is_some(),
             tracked_token: item.tracked_token().is_some(),
-            pat: item.pat().map(Pat::from).map(Box::new),
+            pat: match item.pat() {
+                Some(it) => Some(Box::new(Pat::try_from(it)?)),
+                None => None,
+            },
             colon_token: item.colon_token().is_some(),
-            ty: item.ty().map(Type::from).map(Box::new),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             eq_token: item.eq_token().is_some(),
-            initializer: item.initializer().map(Expr::from).map(Box::new),
-            let_else: item.let_else().map(LetElse::from).map(Box::new),
+            initializer: Box::new(
+                item.initializer()
+                    .ok_or(format!("{}", stringify!(initializer)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
+            let_else: match item.let_else() {
+                Some(it) => Some(Box::new(LetElse::try_from(it)?)),
+                None => None,
+            },
             semicolon_token: item.semicolon_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::LetElse> for LetElse {
-    fn from(item: super::nodes::LetElse) -> Self {
-        Self {
+impl TryFrom<super::nodes::LetElse> for LetElse {
+    type Error = String;
+    fn try_from(item: super::nodes::LetElse) -> Result<Self, Self::Error> {
+        Ok(Self {
             else_token: item.else_token().is_some(),
-            block_expr: item.block_expr().map(BlockExpr::from).map(Box::new),
-        }
+            block_expr: Box::new(
+                item.block_expr()
+                    .ok_or(format!("{}", stringify!(block_expr)))
+                    .map(|it| BlockExpr::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::ArrayExpr> for ArrayExpr {
-    fn from(item: super::nodes::ArrayExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::ArrayExpr> for ArrayExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::ArrayExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             l_brack_token: item.l_brack_token().is_some(),
-            exprs: item.exprs().into_iter().map(Expr::from).collect(),
-            expr: item.expr().map(Expr::from).map(Box::new),
+            exprs: item
+                .exprs()
+                .into_iter()
+                .map(Expr::try_from)
+                .collect::<Result<Vec<Expr>, String>>()?,
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
             semicolon_token: item.semicolon_token().is_some(),
             r_brack_token: item.r_brack_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::AwaitExpr> for AwaitExpr {
-    fn from(item: super::nodes::AwaitExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            expr: item.expr().map(Expr::from).map(Box::new),
+impl TryFrom<super::nodes::AwaitExpr> for AwaitExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::AwaitExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
             dot_token: item.dot_token().is_some(),
             await_token: item.await_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::BinExpr> for BinExpr {
-    fn from(item: super::nodes::BinExpr) -> Self {
-        Self { attrs: item.attrs().into_iter().map(Attr::from).collect() }
+impl TryFrom<super::nodes::BinExpr> for BinExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::BinExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+        })
     }
 }
-impl From<super::nodes::BoxExpr> for BoxExpr {
-    fn from(item: super::nodes::BoxExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::BoxExpr> for BoxExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::BoxExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             box_token: item.box_token().is_some(),
-            expr: item.expr().map(Expr::from).map(Box::new),
-        }
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::BreakExpr> for BreakExpr {
-    fn from(item: super::nodes::BreakExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::BreakExpr> for BreakExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::BreakExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             break_token: item.break_token().is_some(),
-            lifetime: item.lifetime().map(Lifetime::from).map(Box::new),
-            expr: item.expr().map(Expr::from).map(Box::new),
-        }
+            lifetime: match item.lifetime() {
+                Some(it) => Some(Box::new(Lifetime::try_from(it)?)),
+                None => None,
+            },
+            expr: match item.expr() {
+                Some(it) => Some(Box::new(Expr::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::CallExpr> for CallExpr {
-    fn from(item: super::nodes::CallExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            expr: item.expr().map(Expr::from).map(Box::new),
-            arg_list: item.arg_list().map(ArgList::from).map(Box::new),
-        }
+impl TryFrom<super::nodes::CallExpr> for CallExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::CallExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
+            arg_list: Box::new(
+                item.arg_list()
+                    .ok_or(format!("{}", stringify!(arg_list)))
+                    .map(|it| ArgList::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::CastExpr> for CastExpr {
-    fn from(item: super::nodes::CastExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            expr: item.expr().map(Expr::from).map(Box::new),
+impl TryFrom<super::nodes::CastExpr> for CastExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::CastExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
             as_token: item.as_token().is_some(),
-            ty: item.ty().map(Type::from).map(Box::new),
-        }
+            ty: Box::new(
+                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::ClosureExpr> for ClosureExpr {
-    fn from(item: super::nodes::ClosureExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::ClosureExpr> for ClosureExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::ClosureExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             for_token: item.for_token().is_some(),
-            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
+            generic_param_list: match item.generic_param_list() {
+                Some(it) => Some(Box::new(GenericParamList::try_from(it)?)),
+                None => None,
+            },
             const_token: item.const_token().is_some(),
             static_token: item.static_token().is_some(),
             async_token: item.async_token().is_some(),
             move_token: item.move_token().is_some(),
             forall_token: item.forall_token().is_some(),
             exists_token: item.exists_token().is_some(),
-            param_list: item.param_list().map(ParamList::from).map(Box::new),
-            ret_type: item.ret_type().map(RetType::from).map(Box::new),
-            body: item.body().map(Expr::from).map(Box::new),
-        }
+            param_list: match item.param_list() {
+                Some(it) => Some(Box::new(ParamList::try_from(it)?)),
+                None => None,
+            },
+            ret_type: match item.ret_type() {
+                Some(it) => Some(Box::new(RetType::try_from(it)?)),
+                None => None,
+            },
+            body: Box::new(
+                item.body()
+                    .ok_or(format!("{}", stringify!(body)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::ContinueExpr> for ContinueExpr {
-    fn from(item: super::nodes::ContinueExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::ContinueExpr> for ContinueExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::ContinueExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             continue_token: item.continue_token().is_some(),
-            lifetime: item.lifetime().map(Lifetime::from).map(Box::new),
-        }
+            lifetime: match item.lifetime() {
+                Some(it) => Some(Box::new(Lifetime::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::FieldExpr> for FieldExpr {
-    fn from(item: super::nodes::FieldExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            expr: item.expr().map(Expr::from).map(Box::new),
+impl TryFrom<super::nodes::FieldExpr> for FieldExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::FieldExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
             dot_token: item.dot_token().is_some(),
-            name_ref: item.name_ref().map(NameRef::from).map(Box::new),
-        }
+            name_ref: Box::new(
+                item.name_ref()
+                    .ok_or(format!("{}", stringify!(name_ref)))
+                    .map(|it| NameRef::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::ForExpr> for ForExpr {
-    fn from(item: super::nodes::ForExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            label: item.label().map(Label::from).map(Box::new),
+impl TryFrom<super::nodes::ForExpr> for ForExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::ForExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            label: match item.label() {
+                Some(it) => Some(Box::new(Label::try_from(it)?)),
+                None => None,
+            },
             for_token: item.for_token().is_some(),
-            pat: item.pat().map(Pat::from).map(Box::new),
+            pat: match item.pat() {
+                Some(it) => Some(Box::new(Pat::try_from(it)?)),
+                None => None,
+            },
             in_token: item.in_token().is_some(),
-            loop_body: item.loop_body().map(BlockExpr::from).map(Box::new),
-        }
+            loop_body: Box::new(
+                item.loop_body()
+                    .ok_or(format!("{}", stringify!(loop_body)))
+                    .map(|it| BlockExpr::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::IfExpr> for IfExpr {
-    fn from(item: super::nodes::IfExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::IfExpr> for IfExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::IfExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             if_token: item.if_token().is_some(),
             else_token: item.else_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::IndexExpr> for IndexExpr {
-    fn from(item: super::nodes::IndexExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::IndexExpr> for IndexExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::IndexExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             l_brack_token: item.l_brack_token().is_some(),
             r_brack_token: item.r_brack_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::Literal> for Literal {
-    fn from(item: super::nodes::Literal) -> Self {
-        Self { attrs: item.attrs().into_iter().map(Attr::from).collect() }
+impl TryFrom<super::nodes::Literal> for Literal {
+    type Error = String;
+    fn try_from(item: super::nodes::Literal) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+        })
     }
 }
-impl From<super::nodes::LoopExpr> for LoopExpr {
-    fn from(item: super::nodes::LoopExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            label: item.label().map(Label::from).map(Box::new),
+impl TryFrom<super::nodes::LoopExpr> for LoopExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::LoopExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            label: match item.label() {
+                Some(it) => Some(Box::new(Label::try_from(it)?)),
+                None => None,
+            },
             loop_token: item.loop_token().is_some(),
-            loop_body: item.loop_body().map(BlockExpr::from).map(Box::new),
-        }
+            loop_body: Box::new(
+                item.loop_body()
+                    .ok_or(format!("{}", stringify!(loop_body)))
+                    .map(|it| BlockExpr::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::MacroExpr> for MacroExpr {
-    fn from(item: super::nodes::MacroExpr) -> Self {
-        Self { macro_call: item.macro_call().map(MacroCall::from).map(Box::new) }
+impl TryFrom<super::nodes::MacroExpr> for MacroExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::MacroExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            macro_call: Box::new(
+                item.macro_call()
+                    .ok_or(format!("{}", stringify!(macro_call)))
+                    .map(|it| MacroCall::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::MatchExpr> for MatchExpr {
-    fn from(item: super::nodes::MatchExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::MatchExpr> for MatchExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::MatchExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             match_token: item.match_token().is_some(),
-            expr: item.expr().map(Expr::from).map(Box::new),
-            match_arm_list: item.match_arm_list().map(MatchArmList::from).map(Box::new),
-        }
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
+            match_arm_list: Box::new(
+                item.match_arm_list()
+                    .ok_or(format!("{}", stringify!(match_arm_list)))
+                    .map(|it| MatchArmList::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::MethodCallExpr> for MethodCallExpr {
-    fn from(item: super::nodes::MethodCallExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            receiver: item.receiver().map(Expr::from).map(Box::new),
+impl TryFrom<super::nodes::MethodCallExpr> for MethodCallExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::MethodCallExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            receiver: Box::new(
+                item.receiver()
+                    .ok_or(format!("{}", stringify!(receiver)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
             dot_token: item.dot_token().is_some(),
-            name_ref: item.name_ref().map(NameRef::from).map(Box::new),
-            generic_arg_list: item.generic_arg_list().map(GenericArgList::from).map(Box::new),
-            arg_list: item.arg_list().map(ArgList::from).map(Box::new),
-        }
+            name_ref: Box::new(
+                item.name_ref()
+                    .ok_or(format!("{}", stringify!(name_ref)))
+                    .map(|it| NameRef::try_from(it))??,
+            ),
+            generic_arg_list: match item.generic_arg_list() {
+                Some(it) => Some(Box::new(GenericArgList::try_from(it)?)),
+                None => None,
+            },
+            arg_list: Box::new(
+                item.arg_list()
+                    .ok_or(format!("{}", stringify!(arg_list)))
+                    .map(|it| ArgList::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::ParenExpr> for ParenExpr {
-    fn from(item: super::nodes::ParenExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::ParenExpr> for ParenExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::ParenExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             l_paren_token: item.l_paren_token().is_some(),
-            expr: item.expr().map(Expr::from).map(Box::new),
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
             r_paren_token: item.r_paren_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::PathExpr> for PathExpr {
-    fn from(item: super::nodes::PathExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            path: item.path().map(Path::from).map(Box::new),
-        }
+impl TryFrom<super::nodes::PathExpr> for PathExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::PathExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            path: Box::new(
+                item.path()
+                    .ok_or(format!("{}", stringify!(path)))
+                    .map(|it| Path::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::PrefixExpr> for PrefixExpr {
-    fn from(item: super::nodes::PrefixExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            expr: item.expr().map(Expr::from).map(Box::new),
-        }
+impl TryFrom<super::nodes::PrefixExpr> for PrefixExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::PrefixExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::RangeExpr> for RangeExpr {
-    fn from(item: super::nodes::RangeExpr) -> Self {
-        Self { attrs: item.attrs().into_iter().map(Attr::from).collect() }
+impl TryFrom<super::nodes::RangeExpr> for RangeExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::RangeExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+        })
     }
 }
-impl From<super::nodes::RecordExpr> for RecordExpr {
-    fn from(item: super::nodes::RecordExpr) -> Self {
-        Self {
-            path: item.path().map(Path::from).map(Box::new),
-            record_expr_field_list: item
-                .record_expr_field_list()
-                .map(RecordExprFieldList::from)
-                .map(Box::new),
-        }
+impl TryFrom<super::nodes::RecordExpr> for RecordExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::RecordExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            path: Box::new(
+                item.path()
+                    .ok_or(format!("{}", stringify!(path)))
+                    .map(|it| Path::try_from(it))??,
+            ),
+            record_expr_field_list: Box::new(
+                item.record_expr_field_list()
+                    .ok_or(format!("{}", stringify!(record_expr_field_list)))
+                    .map(|it| RecordExprFieldList::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::RefExpr> for RefExpr {
-    fn from(item: super::nodes::RefExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::RefExpr> for RefExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::RefExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             amp_token: item.amp_token().is_some(),
             raw_token: item.raw_token().is_some(),
             mut_token: item.mut_token().is_some(),
             const_token: item.const_token().is_some(),
-            expr: item.expr().map(Expr::from).map(Box::new),
-        }
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::ReturnExpr> for ReturnExpr {
-    fn from(item: super::nodes::ReturnExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::ReturnExpr> for ReturnExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::ReturnExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             return_token: item.return_token().is_some(),
-            expr: item.expr().map(Expr::from).map(Box::new),
-        }
+            expr: match item.expr() {
+                Some(it) => Some(Box::new(Expr::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::TryExpr> for TryExpr {
-    fn from(item: super::nodes::TryExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            expr: item.expr().map(Expr::from).map(Box::new),
+impl TryFrom<super::nodes::TryExpr> for TryExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::TryExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
             question_mark_token: item.question_mark_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::TupleExpr> for TupleExpr {
-    fn from(item: super::nodes::TupleExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::TupleExpr> for TupleExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::TupleExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             l_paren_token: item.l_paren_token().is_some(),
-            fields: item.fields().into_iter().map(Expr::from).collect(),
+            fields: item
+                .fields()
+                .into_iter()
+                .map(Expr::try_from)
+                .collect::<Result<Vec<Expr>, String>>()?,
             r_paren_token: item.r_paren_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::WhileExpr> for WhileExpr {
-    fn from(item: super::nodes::WhileExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            label: item.label().map(Label::from).map(Box::new),
+impl TryFrom<super::nodes::WhileExpr> for WhileExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::WhileExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            label: match item.label() {
+                Some(it) => Some(Box::new(Label::try_from(it)?)),
+                None => None,
+            },
             while_token: item.while_token().is_some(),
-            invariant_clause: item.invariant_clause().map(InvariantClause::from).map(Box::new),
-            decreases_clause: item.decreases_clause().map(DecreasesClause::from).map(Box::new),
-            loop_body: item.loop_body().map(BlockExpr::from).map(Box::new),
-        }
+            invariant_clause: match item.invariant_clause() {
+                Some(it) => Some(Box::new(InvariantClause::try_from(it)?)),
+                None => None,
+            },
+            decreases_clause: match item.decreases_clause() {
+                Some(it) => Some(Box::new(DecreasesClause::try_from(it)?)),
+                None => None,
+            },
+            loop_body: Box::new(
+                item.loop_body()
+                    .ok_or(format!("{}", stringify!(loop_body)))
+                    .map(|it| BlockExpr::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::YieldExpr> for YieldExpr {
-    fn from(item: super::nodes::YieldExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::YieldExpr> for YieldExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::YieldExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             yield_token: item.yield_token().is_some(),
-            expr: item.expr().map(Expr::from).map(Box::new),
-        }
+            expr: match item.expr() {
+                Some(it) => Some(Box::new(Expr::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::YeetExpr> for YeetExpr {
-    fn from(item: super::nodes::YeetExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::YeetExpr> for YeetExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::YeetExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             do_token: item.do_token().is_some(),
             yeet_token: item.yeet_token().is_some(),
-            expr: item.expr().map(Expr::from).map(Box::new),
-        }
+            expr: match item.expr() {
+                Some(it) => Some(Box::new(Expr::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::LetExpr> for LetExpr {
-    fn from(item: super::nodes::LetExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::LetExpr> for LetExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::LetExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             let_token: item.let_token().is_some(),
-            pat: item.pat().map(Pat::from).map(Box::new),
+            pat: match item.pat() {
+                Some(it) => Some(Box::new(Pat::try_from(it)?)),
+                None => None,
+            },
             eq_token: item.eq_token().is_some(),
-            expr: item.expr().map(Expr::from).map(Box::new),
-        }
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::UnderscoreExpr> for UnderscoreExpr {
-    fn from(item: super::nodes::UnderscoreExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::UnderscoreExpr> for UnderscoreExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::UnderscoreExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             underscore_token: item.underscore_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::ViewExpr> for ViewExpr {
-    fn from(item: super::nodes::ViewExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            expr: item.expr().map(Expr::from).map(Box::new),
+impl TryFrom<super::nodes::ViewExpr> for ViewExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::ViewExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
             at_token: item.at_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::AssertExpr> for AssertExpr {
-    fn from(item: super::nodes::AssertExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::AssertExpr> for AssertExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::AssertExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             assert_token: item.assert_token().is_some(),
             l_paren_token: item.l_paren_token().is_some(),
-            expr: item.expr().map(Expr::from).map(Box::new),
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
             r_paren_token: item.r_paren_token().is_some(),
             by_token: item.by_token().is_some(),
-            name: item.name().map(Name::from).map(Box::new),
-            requires_clause: item.requires_clause().map(RequiresClause::from).map(Box::new),
-            block_expr: item.block_expr().map(BlockExpr::from).map(Box::new),
-        }
+            name: match item.name() {
+                Some(it) => Some(Box::new(Name::try_from(it)?)),
+                None => None,
+            },
+            requires_clause: match item.requires_clause() {
+                Some(it) => Some(Box::new(RequiresClause::try_from(it)?)),
+                None => None,
+            },
+            block_expr: match item.block_expr() {
+                Some(it) => Some(Box::new(BlockExpr::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::AssumeExpr> for AssumeExpr {
-    fn from(item: super::nodes::AssumeExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::AssumeExpr> for AssumeExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::AssumeExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             assume_token: item.assume_token().is_some(),
             l_paren_token: item.l_paren_token().is_some(),
-            expr: item.expr().map(Expr::from).map(Box::new),
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
             r_paren_token: item.r_paren_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::AssertForallExpr> for AssertForallExpr {
-    fn from(item: super::nodes::AssertForallExpr) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::AssertForallExpr> for AssertForallExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::AssertForallExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             assert_token: item.assert_token().is_some(),
             forall_token: item.forall_token().is_some(),
-            closure_expr: item.closure_expr().map(ClosureExpr::from).map(Box::new),
+            closure_expr: Box::new(
+                item.closure_expr()
+                    .ok_or(format!("{}", stringify!(closure_expr)))
+                    .map(|it| ClosureExpr::try_from(it))??,
+            ),
             implies_token: item.implies_token().is_some(),
-            expr: item.expr().map(Expr::from).map(Box::new),
+            expr: match item.expr() {
+                Some(it) => Some(Box::new(Expr::try_from(it)?)),
+                None => None,
+            },
             by_token: item.by_token().is_some(),
-            block_expr: item.block_expr().map(BlockExpr::from).map(Box::new),
-        }
+            block_expr: Box::new(
+                item.block_expr()
+                    .ok_or(format!("{}", stringify!(block_expr)))
+                    .map(|it| BlockExpr::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::StmtList> for StmtList {
-    fn from(item: super::nodes::StmtList) -> Self {
-        Self {
+impl TryFrom<super::nodes::StmtList> for StmtList {
+    type Error = String;
+    fn try_from(item: super::nodes::StmtList) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_curly_token: item.l_curly_token().is_some(),
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            statements: item.statements().into_iter().map(Stmt::from).collect(),
-            tail_expr: item.tail_expr().map(Expr::from).map(Box::new),
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            statements: item
+                .statements()
+                .into_iter()
+                .map(Stmt::try_from)
+                .collect::<Result<Vec<Stmt>, String>>()?,
+            tail_expr: match item.tail_expr() {
+                Some(it) => Some(Box::new(Expr::try_from(it)?)),
+                None => None,
+            },
             r_curly_token: item.r_curly_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::Label> for Label {
-    fn from(item: super::nodes::Label) -> Self {
-        Self {
-            lifetime: item.lifetime().map(Lifetime::from).map(Box::new),
+impl TryFrom<super::nodes::Label> for Label {
+    type Error = String;
+    fn try_from(item: super::nodes::Label) -> Result<Self, Self::Error> {
+        Ok(Self {
+            lifetime: Box::new(
+                item.lifetime()
+                    .ok_or(format!("{}", stringify!(lifetime)))
+                    .map(|it| Lifetime::try_from(it))??,
+            ),
             colon_token: item.colon_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::RecordExprFieldList> for RecordExprFieldList {
-    fn from(item: super::nodes::RecordExprFieldList) -> Self {
-        Self {
+impl TryFrom<super::nodes::RecordExprFieldList> for RecordExprFieldList {
+    type Error = String;
+    fn try_from(item: super::nodes::RecordExprFieldList) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_curly_token: item.l_curly_token().is_some(),
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            fields: item.fields().into_iter().map(RecordExprField::from).collect(),
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            fields: item
+                .fields()
+                .into_iter()
+                .map(RecordExprField::try_from)
+                .collect::<Result<Vec<RecordExprField>, String>>()?,
             dotdot_token: item.dotdot_token().is_some(),
-            spread: item.spread().map(Expr::from).map(Box::new),
+            spread: match item.spread() {
+                Some(it) => Some(Box::new(Expr::try_from(it)?)),
+                None => None,
+            },
             r_curly_token: item.r_curly_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::RecordExprField> for RecordExprField {
-    fn from(item: super::nodes::RecordExprField) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            name_ref: item.name_ref().map(NameRef::from).map(Box::new),
+impl TryFrom<super::nodes::RecordExprField> for RecordExprField {
+    type Error = String;
+    fn try_from(item: super::nodes::RecordExprField) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            name_ref: match item.name_ref() {
+                Some(it) => Some(Box::new(NameRef::try_from(it)?)),
+                None => None,
+            },
             colon_token: item.colon_token().is_some(),
-            expr: item.expr().map(Expr::from).map(Box::new),
-        }
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::ArgList> for ArgList {
-    fn from(item: super::nodes::ArgList) -> Self {
-        Self {
+impl TryFrom<super::nodes::ArgList> for ArgList {
+    type Error = String;
+    fn try_from(item: super::nodes::ArgList) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_paren_token: item.l_paren_token().is_some(),
-            args: item.args().into_iter().map(Expr::from).collect(),
+            args: item
+                .args()
+                .into_iter()
+                .map(Expr::try_from)
+                .collect::<Result<Vec<Expr>, String>>()?,
             r_paren_token: item.r_paren_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::InvariantClause> for InvariantClause {
-    fn from(item: super::nodes::InvariantClause) -> Self {
-        Self {
+impl TryFrom<super::nodes::InvariantClause> for InvariantClause {
+    type Error = String;
+    fn try_from(item: super::nodes::InvariantClause) -> Result<Self, Self::Error> {
+        Ok(Self {
             invariant_token: item.invariant_token().is_some(),
-            exprs: item.exprs().into_iter().map(Expr::from).collect(),
-        }
+            exprs: item
+                .exprs()
+                .into_iter()
+                .map(Expr::try_from)
+                .collect::<Result<Vec<Expr>, String>>()?,
+        })
     }
 }
-impl From<super::nodes::MatchArmList> for MatchArmList {
-    fn from(item: super::nodes::MatchArmList) -> Self {
-        Self {
+impl TryFrom<super::nodes::MatchArmList> for MatchArmList {
+    type Error = String;
+    fn try_from(item: super::nodes::MatchArmList) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_curly_token: item.l_curly_token().is_some(),
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            arms: item.arms().into_iter().map(MatchArm::from).collect(),
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            arms: item
+                .arms()
+                .into_iter()
+                .map(MatchArm::try_from)
+                .collect::<Result<Vec<MatchArm>, String>>()?,
             r_curly_token: item.r_curly_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::MatchArm> for MatchArm {
-    fn from(item: super::nodes::MatchArm) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            pat: item.pat().map(Pat::from).map(Box::new),
-            guard: item.guard().map(MatchGuard::from).map(Box::new),
+impl TryFrom<super::nodes::MatchArm> for MatchArm {
+    type Error = String;
+    fn try_from(item: super::nodes::MatchArm) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            pat: match item.pat() {
+                Some(it) => Some(Box::new(Pat::try_from(it)?)),
+                None => None,
+            },
+            guard: match item.guard() {
+                Some(it) => Some(Box::new(MatchGuard::try_from(it)?)),
+                None => None,
+            },
             fat_arrow_token: item.fat_arrow_token().is_some(),
-            expr: item.expr().map(Expr::from).map(Box::new),
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
             comma_token: item.comma_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::MatchGuard> for MatchGuard {
-    fn from(item: super::nodes::MatchGuard) -> Self { Self { if_token: item.if_token().is_some() } }
+impl TryFrom<super::nodes::MatchGuard> for MatchGuard {
+    type Error = String;
+    fn try_from(item: super::nodes::MatchGuard) -> Result<Self, Self::Error> {
+        Ok(Self { if_token: item.if_token().is_some() })
+    }
 }
-impl From<super::nodes::ArrayType> for ArrayType {
-    fn from(item: super::nodes::ArrayType) -> Self {
-        Self {
+impl TryFrom<super::nodes::ArrayType> for ArrayType {
+    type Error = String;
+    fn try_from(item: super::nodes::ArrayType) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_brack_token: item.l_brack_token().is_some(),
-            ty: item.ty().map(Type::from).map(Box::new),
+            ty: Box::new(
+                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
+            ),
             semicolon_token: item.semicolon_token().is_some(),
-            expr: item.expr().map(Expr::from).map(Box::new),
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
             r_brack_token: item.r_brack_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::DynTraitType> for DynTraitType {
-    fn from(item: super::nodes::DynTraitType) -> Self {
-        Self {
+impl TryFrom<super::nodes::DynTraitType> for DynTraitType {
+    type Error = String;
+    fn try_from(item: super::nodes::DynTraitType) -> Result<Self, Self::Error> {
+        Ok(Self {
             dyn_token: item.dyn_token().is_some(),
-            type_bound_list: item.type_bound_list().map(TypeBoundList::from).map(Box::new),
-        }
+            type_bound_list: Box::new(
+                item.type_bound_list()
+                    .ok_or(format!("{}", stringify!(type_bound_list)))
+                    .map(|it| TypeBoundList::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::FnPtrType> for FnPtrType {
-    fn from(item: super::nodes::FnPtrType) -> Self {
-        Self {
+impl TryFrom<super::nodes::FnPtrType> for FnPtrType {
+    type Error = String;
+    fn try_from(item: super::nodes::FnPtrType) -> Result<Self, Self::Error> {
+        Ok(Self {
             const_token: item.const_token().is_some(),
             async_token: item.async_token().is_some(),
             unsafe_token: item.unsafe_token().is_some(),
-            abi: item.abi().map(Abi::from).map(Box::new),
+            abi: match item.abi() {
+                Some(it) => Some(Box::new(Abi::try_from(it)?)),
+                None => None,
+            },
             fn_token: item.fn_token().is_some(),
-            param_list: item.param_list().map(ParamList::from).map(Box::new),
-            ret_type: item.ret_type().map(RetType::from).map(Box::new),
-        }
+            param_list: match item.param_list() {
+                Some(it) => Some(Box::new(ParamList::try_from(it)?)),
+                None => None,
+            },
+            ret_type: match item.ret_type() {
+                Some(it) => Some(Box::new(RetType::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::ForType> for ForType {
-    fn from(item: super::nodes::ForType) -> Self {
-        Self {
+impl TryFrom<super::nodes::ForType> for ForType {
+    type Error = String;
+    fn try_from(item: super::nodes::ForType) -> Result<Self, Self::Error> {
+        Ok(Self {
             for_token: item.for_token().is_some(),
-            generic_param_list: item.generic_param_list().map(GenericParamList::from).map(Box::new),
-            ty: item.ty().map(Type::from).map(Box::new),
-        }
+            generic_param_list: Box::new(
+                item.generic_param_list()
+                    .ok_or(format!("{}", stringify!(generic_param_list)))
+                    .map(|it| GenericParamList::try_from(it))??,
+            ),
+            ty: Box::new(
+                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::ImplTraitType> for ImplTraitType {
-    fn from(item: super::nodes::ImplTraitType) -> Self {
-        Self {
+impl TryFrom<super::nodes::ImplTraitType> for ImplTraitType {
+    type Error = String;
+    fn try_from(item: super::nodes::ImplTraitType) -> Result<Self, Self::Error> {
+        Ok(Self {
             impl_token: item.impl_token().is_some(),
-            type_bound_list: item.type_bound_list().map(TypeBoundList::from).map(Box::new),
-        }
+            type_bound_list: Box::new(
+                item.type_bound_list()
+                    .ok_or(format!("{}", stringify!(type_bound_list)))
+                    .map(|it| TypeBoundList::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::InferType> for InferType {
-    fn from(item: super::nodes::InferType) -> Self {
-        Self { underscore_token: item.underscore_token().is_some() }
+impl TryFrom<super::nodes::InferType> for InferType {
+    type Error = String;
+    fn try_from(item: super::nodes::InferType) -> Result<Self, Self::Error> {
+        Ok(Self { underscore_token: item.underscore_token().is_some() })
     }
 }
-impl From<super::nodes::MacroType> for MacroType {
-    fn from(item: super::nodes::MacroType) -> Self {
-        Self { macro_call: item.macro_call().map(MacroCall::from).map(Box::new) }
+impl TryFrom<super::nodes::MacroType> for MacroType {
+    type Error = String;
+    fn try_from(item: super::nodes::MacroType) -> Result<Self, Self::Error> {
+        Ok(Self {
+            macro_call: Box::new(
+                item.macro_call()
+                    .ok_or(format!("{}", stringify!(macro_call)))
+                    .map(|it| MacroCall::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::NeverType> for NeverType {
-    fn from(item: super::nodes::NeverType) -> Self {
-        Self { excl_token: item.excl_token().is_some() }
+impl TryFrom<super::nodes::NeverType> for NeverType {
+    type Error = String;
+    fn try_from(item: super::nodes::NeverType) -> Result<Self, Self::Error> {
+        Ok(Self { excl_token: item.excl_token().is_some() })
     }
 }
-impl From<super::nodes::ParenType> for ParenType {
-    fn from(item: super::nodes::ParenType) -> Self {
-        Self {
+impl TryFrom<super::nodes::ParenType> for ParenType {
+    type Error = String;
+    fn try_from(item: super::nodes::ParenType) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_paren_token: item.l_paren_token().is_some(),
-            ty: item.ty().map(Type::from).map(Box::new),
+            ty: Box::new(
+                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
+            ),
             r_paren_token: item.r_paren_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::PtrType> for PtrType {
-    fn from(item: super::nodes::PtrType) -> Self {
-        Self {
+impl TryFrom<super::nodes::PtrType> for PtrType {
+    type Error = String;
+    fn try_from(item: super::nodes::PtrType) -> Result<Self, Self::Error> {
+        Ok(Self {
             star_token: item.star_token().is_some(),
             const_token: item.const_token().is_some(),
             mut_token: item.mut_token().is_some(),
-            ty: item.ty().map(Type::from).map(Box::new),
-        }
+            ty: Box::new(
+                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::RefType> for RefType {
-    fn from(item: super::nodes::RefType) -> Self {
-        Self {
+impl TryFrom<super::nodes::RefType> for RefType {
+    type Error = String;
+    fn try_from(item: super::nodes::RefType) -> Result<Self, Self::Error> {
+        Ok(Self {
             amp_token: item.amp_token().is_some(),
-            lifetime: item.lifetime().map(Lifetime::from).map(Box::new),
+            lifetime: match item.lifetime() {
+                Some(it) => Some(Box::new(Lifetime::try_from(it)?)),
+                None => None,
+            },
             mut_token: item.mut_token().is_some(),
-            ty: item.ty().map(Type::from).map(Box::new),
-        }
+            ty: Box::new(
+                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::SliceType> for SliceType {
-    fn from(item: super::nodes::SliceType) -> Self {
-        Self {
+impl TryFrom<super::nodes::SliceType> for SliceType {
+    type Error = String;
+    fn try_from(item: super::nodes::SliceType) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_brack_token: item.l_brack_token().is_some(),
-            ty: item.ty().map(Type::from).map(Box::new),
+            ty: Box::new(
+                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
+            ),
             r_brack_token: item.r_brack_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::TupleType> for TupleType {
-    fn from(item: super::nodes::TupleType) -> Self {
-        Self {
+impl TryFrom<super::nodes::TupleType> for TupleType {
+    type Error = String;
+    fn try_from(item: super::nodes::TupleType) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_paren_token: item.l_paren_token().is_some(),
-            fields: item.fields().into_iter().map(Type::from).collect(),
+            fields: item
+                .fields()
+                .into_iter()
+                .map(Type::try_from)
+                .collect::<Result<Vec<Type>, String>>()?,
             r_paren_token: item.r_paren_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::TypeBound> for TypeBound {
-    fn from(item: super::nodes::TypeBound) -> Self {
-        Self {
-            lifetime: item.lifetime().map(Lifetime::from).map(Box::new),
+impl TryFrom<super::nodes::TypeBound> for TypeBound {
+    type Error = String;
+    fn try_from(item: super::nodes::TypeBound) -> Result<Self, Self::Error> {
+        Ok(Self {
+            lifetime: match item.lifetime() {
+                Some(it) => Some(Box::new(Lifetime::try_from(it)?)),
+                None => None,
+            },
             question_mark_token: item.question_mark_token().is_some(),
             tilde_token: item.tilde_token().is_some(),
             const_token: item.const_token().is_some(),
-            ty: item.ty().map(Type::from).map(Box::new),
-        }
+            ty: Box::new(
+                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::IdentPat> for IdentPat {
-    fn from(item: super::nodes::IdentPat) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::IdentPat> for IdentPat {
+    type Error = String;
+    fn try_from(item: super::nodes::IdentPat) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             ref_token: item.ref_token().is_some(),
             mut_token: item.mut_token().is_some(),
-            name: item.name().map(Name::from).map(Box::new),
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
             at_token: item.at_token().is_some(),
-            pat: item.pat().map(Pat::from).map(Box::new),
-        }
+            pat: match item.pat() {
+                Some(it) => Some(Box::new(Pat::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::BoxPat> for BoxPat {
-    fn from(item: super::nodes::BoxPat) -> Self {
-        Self { box_token: item.box_token().is_some(), pat: item.pat().map(Pat::from).map(Box::new) }
+impl TryFrom<super::nodes::BoxPat> for BoxPat {
+    type Error = String;
+    fn try_from(item: super::nodes::BoxPat) -> Result<Self, Self::Error> {
+        Ok(Self {
+            box_token: item.box_token().is_some(),
+            pat: match item.pat() {
+                Some(it) => Some(Box::new(Pat::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::RestPat> for RestPat {
-    fn from(item: super::nodes::RestPat) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
+impl TryFrom<super::nodes::RestPat> for RestPat {
+    type Error = String;
+    fn try_from(item: super::nodes::RestPat) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             dotdot_token: item.dotdot_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::LiteralPat> for LiteralPat {
-    fn from(item: super::nodes::LiteralPat) -> Self {
-        Self {
+impl TryFrom<super::nodes::LiteralPat> for LiteralPat {
+    type Error = String;
+    fn try_from(item: super::nodes::LiteralPat) -> Result<Self, Self::Error> {
+        Ok(Self {
             minus_token: item.minus_token().is_some(),
-            literal: item.literal().map(Literal::from).map(Box::new),
-        }
+            literal: Box::new(
+                item.literal()
+                    .ok_or(format!("{}", stringify!(literal)))
+                    .map(|it| Literal::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::MacroPat> for MacroPat {
-    fn from(item: super::nodes::MacroPat) -> Self {
-        Self { macro_call: item.macro_call().map(MacroCall::from).map(Box::new) }
+impl TryFrom<super::nodes::MacroPat> for MacroPat {
+    type Error = String;
+    fn try_from(item: super::nodes::MacroPat) -> Result<Self, Self::Error> {
+        Ok(Self {
+            macro_call: Box::new(
+                item.macro_call()
+                    .ok_or(format!("{}", stringify!(macro_call)))
+                    .map(|it| MacroCall::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::OrPat> for OrPat {
-    fn from(item: super::nodes::OrPat) -> Self {
-        Self { pats: item.pats().into_iter().map(Pat::from).collect() }
+impl TryFrom<super::nodes::OrPat> for OrPat {
+    type Error = String;
+    fn try_from(item: super::nodes::OrPat) -> Result<Self, Self::Error> {
+        Ok(Self {
+            pats: item
+                .pats()
+                .into_iter()
+                .map(Pat::try_from)
+                .collect::<Result<Vec<Pat>, String>>()?,
+        })
     }
 }
-impl From<super::nodes::ParenPat> for ParenPat {
-    fn from(item: super::nodes::ParenPat) -> Self {
-        Self {
+impl TryFrom<super::nodes::ParenPat> for ParenPat {
+    type Error = String;
+    fn try_from(item: super::nodes::ParenPat) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_paren_token: item.l_paren_token().is_some(),
-            pat: item.pat().map(Pat::from).map(Box::new),
+            pat: match item.pat() {
+                Some(it) => Some(Box::new(Pat::try_from(it)?)),
+                None => None,
+            },
             r_paren_token: item.r_paren_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::PathPat> for PathPat {
-    fn from(item: super::nodes::PathPat) -> Self {
-        Self { path: item.path().map(Path::from).map(Box::new) }
+impl TryFrom<super::nodes::PathPat> for PathPat {
+    type Error = String;
+    fn try_from(item: super::nodes::PathPat) -> Result<Self, Self::Error> {
+        Ok(Self {
+            path: Box::new(
+                item.path()
+                    .ok_or(format!("{}", stringify!(path)))
+                    .map(|it| Path::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::WildcardPat> for WildcardPat {
-    fn from(item: super::nodes::WildcardPat) -> Self {
-        Self { underscore_token: item.underscore_token().is_some() }
+impl TryFrom<super::nodes::WildcardPat> for WildcardPat {
+    type Error = String;
+    fn try_from(item: super::nodes::WildcardPat) -> Result<Self, Self::Error> {
+        Ok(Self { underscore_token: item.underscore_token().is_some() })
     }
 }
-impl From<super::nodes::RangePat> for RangePat {
-    fn from(item: super::nodes::RangePat) -> Self { Self {} }
+impl TryFrom<super::nodes::RangePat> for RangePat {
+    type Error = String;
+    fn try_from(item: super::nodes::RangePat) -> Result<Self, Self::Error> { Ok(Self {}) }
 }
-impl From<super::nodes::RecordPat> for RecordPat {
-    fn from(item: super::nodes::RecordPat) -> Self {
-        Self {
-            path: item.path().map(Path::from).map(Box::new),
-            record_pat_field_list: item
-                .record_pat_field_list()
-                .map(RecordPatFieldList::from)
-                .map(Box::new),
-        }
+impl TryFrom<super::nodes::RecordPat> for RecordPat {
+    type Error = String;
+    fn try_from(item: super::nodes::RecordPat) -> Result<Self, Self::Error> {
+        Ok(Self {
+            path: Box::new(
+                item.path()
+                    .ok_or(format!("{}", stringify!(path)))
+                    .map(|it| Path::try_from(it))??,
+            ),
+            record_pat_field_list: Box::new(
+                item.record_pat_field_list()
+                    .ok_or(format!("{}", stringify!(record_pat_field_list)))
+                    .map(|it| RecordPatFieldList::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::RefPat> for RefPat {
-    fn from(item: super::nodes::RefPat) -> Self {
-        Self {
+impl TryFrom<super::nodes::RefPat> for RefPat {
+    type Error = String;
+    fn try_from(item: super::nodes::RefPat) -> Result<Self, Self::Error> {
+        Ok(Self {
             amp_token: item.amp_token().is_some(),
             mut_token: item.mut_token().is_some(),
-            pat: item.pat().map(Pat::from).map(Box::new),
-        }
+            pat: match item.pat() {
+                Some(it) => Some(Box::new(Pat::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::SlicePat> for SlicePat {
-    fn from(item: super::nodes::SlicePat) -> Self {
-        Self {
+impl TryFrom<super::nodes::SlicePat> for SlicePat {
+    type Error = String;
+    fn try_from(item: super::nodes::SlicePat) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_brack_token: item.l_brack_token().is_some(),
-            pats: item.pats().into_iter().map(Pat::from).collect(),
+            pats: item
+                .pats()
+                .into_iter()
+                .map(Pat::try_from)
+                .collect::<Result<Vec<Pat>, String>>()?,
             r_brack_token: item.r_brack_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::TuplePat> for TuplePat {
-    fn from(item: super::nodes::TuplePat) -> Self {
-        Self {
+impl TryFrom<super::nodes::TuplePat> for TuplePat {
+    type Error = String;
+    fn try_from(item: super::nodes::TuplePat) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_paren_token: item.l_paren_token().is_some(),
-            fields: item.fields().into_iter().map(Pat::from).collect(),
+            fields: item
+                .fields()
+                .into_iter()
+                .map(Pat::try_from)
+                .collect::<Result<Vec<Pat>, String>>()?,
             r_paren_token: item.r_paren_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::TupleStructPat> for TupleStructPat {
-    fn from(item: super::nodes::TupleStructPat) -> Self {
-        Self {
-            path: item.path().map(Path::from).map(Box::new),
+impl TryFrom<super::nodes::TupleStructPat> for TupleStructPat {
+    type Error = String;
+    fn try_from(item: super::nodes::TupleStructPat) -> Result<Self, Self::Error> {
+        Ok(Self {
+            path: Box::new(
+                item.path()
+                    .ok_or(format!("{}", stringify!(path)))
+                    .map(|it| Path::try_from(it))??,
+            ),
             l_paren_token: item.l_paren_token().is_some(),
-            fields: item.fields().into_iter().map(Pat::from).collect(),
+            fields: item
+                .fields()
+                .into_iter()
+                .map(Pat::try_from)
+                .collect::<Result<Vec<Pat>, String>>()?,
             r_paren_token: item.r_paren_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::ConstBlockPat> for ConstBlockPat {
-    fn from(item: super::nodes::ConstBlockPat) -> Self {
-        Self {
+impl TryFrom<super::nodes::ConstBlockPat> for ConstBlockPat {
+    type Error = String;
+    fn try_from(item: super::nodes::ConstBlockPat) -> Result<Self, Self::Error> {
+        Ok(Self {
             const_token: item.const_token().is_some(),
-            block_expr: item.block_expr().map(BlockExpr::from).map(Box::new),
-        }
+            block_expr: Box::new(
+                item.block_expr()
+                    .ok_or(format!("{}", stringify!(block_expr)))
+                    .map(|it| BlockExpr::try_from(it))??,
+            ),
+        })
     }
 }
-impl From<super::nodes::RecordPatFieldList> for RecordPatFieldList {
-    fn from(item: super::nodes::RecordPatFieldList) -> Self {
-        Self {
+impl TryFrom<super::nodes::RecordPatFieldList> for RecordPatFieldList {
+    type Error = String;
+    fn try_from(item: super::nodes::RecordPatFieldList) -> Result<Self, Self::Error> {
+        Ok(Self {
             l_curly_token: item.l_curly_token().is_some(),
-            fields: item.fields().into_iter().map(RecordPatField::from).collect(),
-            rest_pat: item.rest_pat().map(RestPat::from).map(Box::new),
+            fields: item
+                .fields()
+                .into_iter()
+                .map(RecordPatField::try_from)
+                .collect::<Result<Vec<RecordPatField>, String>>()?,
+            rest_pat: match item.rest_pat() {
+                Some(it) => Some(Box::new(RestPat::try_from(it)?)),
+                None => None,
+            },
             r_curly_token: item.r_curly_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::RecordPatField> for RecordPatField {
-    fn from(item: super::nodes::RecordPatField) -> Self {
-        Self {
-            attrs: item.attrs().into_iter().map(Attr::from).collect(),
-            name_ref: item.name_ref().map(NameRef::from).map(Box::new),
+impl TryFrom<super::nodes::RecordPatField> for RecordPatField {
+    type Error = String;
+    fn try_from(item: super::nodes::RecordPatField) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            name_ref: match item.name_ref() {
+                Some(it) => Some(Box::new(NameRef::try_from(it)?)),
+                None => None,
+            },
             colon_token: item.colon_token().is_some(),
-            pat: item.pat().map(Pat::from).map(Box::new),
-        }
+            pat: match item.pat() {
+                Some(it) => Some(Box::new(Pat::try_from(it)?)),
+                None => None,
+            },
+        })
     }
 }
-impl From<super::nodes::ModeSpecChecked> for ModeSpecChecked {
-    fn from(item: super::nodes::ModeSpecChecked) -> Self {
-        Self {
+impl TryFrom<super::nodes::ModeSpecChecked> for ModeSpecChecked {
+    type Error = String;
+    fn try_from(item: super::nodes::ModeSpecChecked) -> Result<Self, Self::Error> {
+        Ok(Self {
             spec_token: item.spec_token().is_some(),
             l_paren_token: item.l_paren_token().is_some(),
             checked_token: item.checked_token().is_some(),
             r_paren_token: item.r_paren_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::SignatureDecreases> for SignatureDecreases {
-    fn from(item: super::nodes::SignatureDecreases) -> Self {
-        Self {
-            decreases_clause: item.decreases_clause().map(DecreasesClause::from).map(Box::new),
+impl TryFrom<super::nodes::SignatureDecreases> for SignatureDecreases {
+    type Error = String;
+    fn try_from(item: super::nodes::SignatureDecreases) -> Result<Self, Self::Error> {
+        Ok(Self {
+            decreases_clause: Box::new(
+                item.decreases_clause()
+                    .ok_or(format!("{}", stringify!(decreases_clause)))
+                    .map(|it| DecreasesClause::try_from(it))??,
+            ),
             when_token: item.when_token().is_some(),
-            expr: item.expr().map(Expr::from).map(Box::new),
+            expr: match item.expr() {
+                Some(it) => Some(Box::new(Expr::try_from(it)?)),
+                None => None,
+            },
             via_token: item.via_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::Prover> for Prover {
-    fn from(item: super::nodes::Prover) -> Self {
-        Self {
+impl TryFrom<super::nodes::Prover> for Prover {
+    type Error = String;
+    fn try_from(item: super::nodes::Prover) -> Result<Self, Self::Error> {
+        Ok(Self {
             by_token: item.by_token().is_some(),
             l_paren_token: item.l_paren_token().is_some(),
-            name: item.name().map(Name::from).map(Box::new),
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
             r_paren_token: item.r_paren_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::TriggerAttribute> for TriggerAttribute {
-    fn from(item: super::nodes::TriggerAttribute) -> Self {
-        Self {
+impl TryFrom<super::nodes::TriggerAttribute> for TriggerAttribute {
+    type Error = String;
+    fn try_from(item: super::nodes::TriggerAttribute) -> Result<Self, Self::Error> {
+        Ok(Self {
             pound_token: item.pound_token().is_some(),
             excl_token: item.excl_token().is_some(),
             l_brack_token: item.l_brack_token().is_some(),
             trigger_token: item.trigger_token().is_some(),
-            exprs: item.exprs().into_iter().map(Expr::from).collect(),
+            exprs: item
+                .exprs()
+                .into_iter()
+                .map(Expr::try_from)
+                .collect::<Result<Vec<Expr>, String>>()?,
             r_brack_token: item.r_brack_token().is_some(),
-        }
+        })
     }
 }
-impl From<super::nodes::GenericArg> for GenericArg {
-    fn from(item: super::nodes::GenericArg) -> Self {
+impl TryFrom<super::nodes::GenericArg> for GenericArg {
+    type Error = String;
+    fn try_from(item: super::nodes::GenericArg) -> Result<Self, Self::Error> {
         match item {
-            super::nodes::GenericArg::TypeArg(it) => Self::TypeArg(Box::new(it.into())),
-            super::nodes::GenericArg::AssocTypeArg(it) => Self::AssocTypeArg(Box::new(it.into())),
-            super::nodes::GenericArg::LifetimeArg(it) => Self::LifetimeArg(Box::new(it.into())),
-            super::nodes::GenericArg::ConstArg(it) => Self::ConstArg(Box::new(it.into())),
+            super::nodes::GenericArg::TypeArg(it) => Ok(Self::TypeArg(Box::new(it.try_into()?))),
+            super::nodes::GenericArg::AssocTypeArg(it) => {
+                Ok(Self::AssocTypeArg(Box::new(it.try_into()?)))
+            }
+            super::nodes::GenericArg::LifetimeArg(it) => {
+                Ok(Self::LifetimeArg(Box::new(it.try_into()?)))
+            }
+            super::nodes::GenericArg::ConstArg(it) => Ok(Self::ConstArg(Box::new(it.try_into()?))),
         }
     }
 }
-impl From<super::nodes::Type> for Type {
-    fn from(item: super::nodes::Type) -> Self {
+impl TryFrom<super::nodes::Type> for Type {
+    type Error = String;
+    fn try_from(item: super::nodes::Type) -> Result<Self, Self::Error> {
         match item {
-            super::nodes::Type::ArrayType(it) => Self::ArrayType(Box::new(it.into())),
-            super::nodes::Type::DynTraitType(it) => Self::DynTraitType(Box::new(it.into())),
-            super::nodes::Type::FnPtrType(it) => Self::FnPtrType(Box::new(it.into())),
-            super::nodes::Type::ForType(it) => Self::ForType(Box::new(it.into())),
-            super::nodes::Type::ImplTraitType(it) => Self::ImplTraitType(Box::new(it.into())),
-            super::nodes::Type::InferType(it) => Self::InferType(Box::new(it.into())),
-            super::nodes::Type::MacroType(it) => Self::MacroType(Box::new(it.into())),
-            super::nodes::Type::NeverType(it) => Self::NeverType(Box::new(it.into())),
-            super::nodes::Type::ParenType(it) => Self::ParenType(Box::new(it.into())),
-            super::nodes::Type::PathType(it) => Self::PathType(Box::new(it.into())),
-            super::nodes::Type::PtrType(it) => Self::PtrType(Box::new(it.into())),
-            super::nodes::Type::RefType(it) => Self::RefType(Box::new(it.into())),
-            super::nodes::Type::SliceType(it) => Self::SliceType(Box::new(it.into())),
-            super::nodes::Type::TupleType(it) => Self::TupleType(Box::new(it.into())),
+            super::nodes::Type::ArrayType(it) => Ok(Self::ArrayType(Box::new(it.try_into()?))),
+            super::nodes::Type::DynTraitType(it) => {
+                Ok(Self::DynTraitType(Box::new(it.try_into()?)))
+            }
+            super::nodes::Type::FnPtrType(it) => Ok(Self::FnPtrType(Box::new(it.try_into()?))),
+            super::nodes::Type::ForType(it) => Ok(Self::ForType(Box::new(it.try_into()?))),
+            super::nodes::Type::ImplTraitType(it) => {
+                Ok(Self::ImplTraitType(Box::new(it.try_into()?)))
+            }
+            super::nodes::Type::InferType(it) => Ok(Self::InferType(Box::new(it.try_into()?))),
+            super::nodes::Type::MacroType(it) => Ok(Self::MacroType(Box::new(it.try_into()?))),
+            super::nodes::Type::NeverType(it) => Ok(Self::NeverType(Box::new(it.try_into()?))),
+            super::nodes::Type::ParenType(it) => Ok(Self::ParenType(Box::new(it.try_into()?))),
+            super::nodes::Type::PathType(it) => Ok(Self::PathType(Box::new(it.try_into()?))),
+            super::nodes::Type::PtrType(it) => Ok(Self::PtrType(Box::new(it.try_into()?))),
+            super::nodes::Type::RefType(it) => Ok(Self::RefType(Box::new(it.try_into()?))),
+            super::nodes::Type::SliceType(it) => Ok(Self::SliceType(Box::new(it.try_into()?))),
+            super::nodes::Type::TupleType(it) => Ok(Self::TupleType(Box::new(it.try_into()?))),
         }
     }
 }
-impl From<super::nodes::Expr> for Expr {
-    fn from(item: super::nodes::Expr) -> Self {
+impl TryFrom<super::nodes::Expr> for Expr {
+    type Error = String;
+    fn try_from(item: super::nodes::Expr) -> Result<Self, Self::Error> {
         match item {
-            super::nodes::Expr::ArrayExpr(it) => Self::ArrayExpr(Box::new(it.into())),
-            super::nodes::Expr::AwaitExpr(it) => Self::AwaitExpr(Box::new(it.into())),
-            super::nodes::Expr::BinExpr(it) => Self::BinExpr(Box::new(it.into())),
-            super::nodes::Expr::BlockExpr(it) => Self::BlockExpr(Box::new(it.into())),
-            super::nodes::Expr::BoxExpr(it) => Self::BoxExpr(Box::new(it.into())),
-            super::nodes::Expr::BreakExpr(it) => Self::BreakExpr(Box::new(it.into())),
-            super::nodes::Expr::CallExpr(it) => Self::CallExpr(Box::new(it.into())),
-            super::nodes::Expr::CastExpr(it) => Self::CastExpr(Box::new(it.into())),
-            super::nodes::Expr::ClosureExpr(it) => Self::ClosureExpr(Box::new(it.into())),
-            super::nodes::Expr::ContinueExpr(it) => Self::ContinueExpr(Box::new(it.into())),
-            super::nodes::Expr::FieldExpr(it) => Self::FieldExpr(Box::new(it.into())),
-            super::nodes::Expr::ForExpr(it) => Self::ForExpr(Box::new(it.into())),
-            super::nodes::Expr::IfExpr(it) => Self::IfExpr(Box::new(it.into())),
-            super::nodes::Expr::IndexExpr(it) => Self::IndexExpr(Box::new(it.into())),
-            super::nodes::Expr::Literal(it) => Self::Literal(Box::new(it.into())),
-            super::nodes::Expr::LoopExpr(it) => Self::LoopExpr(Box::new(it.into())),
-            super::nodes::Expr::MacroExpr(it) => Self::MacroExpr(Box::new(it.into())),
-            super::nodes::Expr::MatchExpr(it) => Self::MatchExpr(Box::new(it.into())),
-            super::nodes::Expr::MethodCallExpr(it) => Self::MethodCallExpr(Box::new(it.into())),
-            super::nodes::Expr::ParenExpr(it) => Self::ParenExpr(Box::new(it.into())),
-            super::nodes::Expr::PathExpr(it) => Self::PathExpr(Box::new(it.into())),
-            super::nodes::Expr::PrefixExpr(it) => Self::PrefixExpr(Box::new(it.into())),
-            super::nodes::Expr::RangeExpr(it) => Self::RangeExpr(Box::new(it.into())),
-            super::nodes::Expr::RecordExpr(it) => Self::RecordExpr(Box::new(it.into())),
-            super::nodes::Expr::RefExpr(it) => Self::RefExpr(Box::new(it.into())),
-            super::nodes::Expr::ReturnExpr(it) => Self::ReturnExpr(Box::new(it.into())),
-            super::nodes::Expr::TryExpr(it) => Self::TryExpr(Box::new(it.into())),
-            super::nodes::Expr::TupleExpr(it) => Self::TupleExpr(Box::new(it.into())),
-            super::nodes::Expr::WhileExpr(it) => Self::WhileExpr(Box::new(it.into())),
-            super::nodes::Expr::YieldExpr(it) => Self::YieldExpr(Box::new(it.into())),
-            super::nodes::Expr::YeetExpr(it) => Self::YeetExpr(Box::new(it.into())),
-            super::nodes::Expr::LetExpr(it) => Self::LetExpr(Box::new(it.into())),
-            super::nodes::Expr::UnderscoreExpr(it) => Self::UnderscoreExpr(Box::new(it.into())),
-            super::nodes::Expr::ViewExpr(it) => Self::ViewExpr(Box::new(it.into())),
-            super::nodes::Expr::AssertExpr(it) => Self::AssertExpr(Box::new(it.into())),
-            super::nodes::Expr::AssumeExpr(it) => Self::AssumeExpr(Box::new(it.into())),
-            super::nodes::Expr::AssertForallExpr(it) => Self::AssertForallExpr(Box::new(it.into())),
+            super::nodes::Expr::ArrayExpr(it) => Ok(Self::ArrayExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::AwaitExpr(it) => Ok(Self::AwaitExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::BinExpr(it) => Ok(Self::BinExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::BlockExpr(it) => Ok(Self::BlockExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::BoxExpr(it) => Ok(Self::BoxExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::BreakExpr(it) => Ok(Self::BreakExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::CallExpr(it) => Ok(Self::CallExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::CastExpr(it) => Ok(Self::CastExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::ClosureExpr(it) => Ok(Self::ClosureExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::ContinueExpr(it) => {
+                Ok(Self::ContinueExpr(Box::new(it.try_into()?)))
+            }
+            super::nodes::Expr::FieldExpr(it) => Ok(Self::FieldExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::ForExpr(it) => Ok(Self::ForExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::IfExpr(it) => Ok(Self::IfExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::IndexExpr(it) => Ok(Self::IndexExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::Literal(it) => Ok(Self::Literal(Box::new(it.try_into()?))),
+            super::nodes::Expr::LoopExpr(it) => Ok(Self::LoopExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::MacroExpr(it) => Ok(Self::MacroExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::MatchExpr(it) => Ok(Self::MatchExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::MethodCallExpr(it) => {
+                Ok(Self::MethodCallExpr(Box::new(it.try_into()?)))
+            }
+            super::nodes::Expr::ParenExpr(it) => Ok(Self::ParenExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::PathExpr(it) => Ok(Self::PathExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::PrefixExpr(it) => Ok(Self::PrefixExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::RangeExpr(it) => Ok(Self::RangeExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::RecordExpr(it) => Ok(Self::RecordExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::RefExpr(it) => Ok(Self::RefExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::ReturnExpr(it) => Ok(Self::ReturnExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::TryExpr(it) => Ok(Self::TryExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::TupleExpr(it) => Ok(Self::TupleExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::WhileExpr(it) => Ok(Self::WhileExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::YieldExpr(it) => Ok(Self::YieldExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::YeetExpr(it) => Ok(Self::YeetExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::LetExpr(it) => Ok(Self::LetExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::UnderscoreExpr(it) => {
+                Ok(Self::UnderscoreExpr(Box::new(it.try_into()?)))
+            }
+            super::nodes::Expr::ViewExpr(it) => Ok(Self::ViewExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::AssertExpr(it) => Ok(Self::AssertExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::AssumeExpr(it) => Ok(Self::AssumeExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::AssertForallExpr(it) => {
+                Ok(Self::AssertForallExpr(Box::new(it.try_into()?)))
+            }
         }
     }
 }
-impl From<super::nodes::Item> for Item {
-    fn from(item: super::nodes::Item) -> Self {
+impl TryFrom<super::nodes::Item> for Item {
+    type Error = String;
+    fn try_from(item: super::nodes::Item) -> Result<Self, Self::Error> {
         match item {
-            super::nodes::Item::Const(it) => Self::Const(Box::new(it.into())),
-            super::nodes::Item::Enum(it) => Self::Enum(Box::new(it.into())),
-            super::nodes::Item::ExternBlock(it) => Self::ExternBlock(Box::new(it.into())),
-            super::nodes::Item::ExternCrate(it) => Self::ExternCrate(Box::new(it.into())),
-            super::nodes::Item::Fn(it) => Self::Fn(Box::new(it.into())),
-            super::nodes::Item::Impl(it) => Self::Impl(Box::new(it.into())),
-            super::nodes::Item::MacroCall(it) => Self::MacroCall(Box::new(it.into())),
-            super::nodes::Item::MacroRules(it) => Self::MacroRules(Box::new(it.into())),
-            super::nodes::Item::MacroDef(it) => Self::MacroDef(Box::new(it.into())),
-            super::nodes::Item::Module(it) => Self::Module(Box::new(it.into())),
-            super::nodes::Item::Static(it) => Self::Static(Box::new(it.into())),
-            super::nodes::Item::Struct(it) => Self::Struct(Box::new(it.into())),
-            super::nodes::Item::Trait(it) => Self::Trait(Box::new(it.into())),
-            super::nodes::Item::TraitAlias(it) => Self::TraitAlias(Box::new(it.into())),
-            super::nodes::Item::TypeAlias(it) => Self::TypeAlias(Box::new(it.into())),
-            super::nodes::Item::Union(it) => Self::Union(Box::new(it.into())),
-            super::nodes::Item::Use(it) => Self::Use(Box::new(it.into())),
+            super::nodes::Item::Const(it) => Ok(Self::Const(Box::new(it.try_into()?))),
+            super::nodes::Item::Enum(it) => Ok(Self::Enum(Box::new(it.try_into()?))),
+            super::nodes::Item::ExternBlock(it) => Ok(Self::ExternBlock(Box::new(it.try_into()?))),
+            super::nodes::Item::ExternCrate(it) => Ok(Self::ExternCrate(Box::new(it.try_into()?))),
+            super::nodes::Item::Fn(it) => Ok(Self::Fn(Box::new(it.try_into()?))),
+            super::nodes::Item::Impl(it) => Ok(Self::Impl(Box::new(it.try_into()?))),
+            super::nodes::Item::MacroCall(it) => Ok(Self::MacroCall(Box::new(it.try_into()?))),
+            super::nodes::Item::MacroRules(it) => Ok(Self::MacroRules(Box::new(it.try_into()?))),
+            super::nodes::Item::MacroDef(it) => Ok(Self::MacroDef(Box::new(it.try_into()?))),
+            super::nodes::Item::Module(it) => Ok(Self::Module(Box::new(it.try_into()?))),
+            super::nodes::Item::Static(it) => Ok(Self::Static(Box::new(it.try_into()?))),
+            super::nodes::Item::Struct(it) => Ok(Self::Struct(Box::new(it.try_into()?))),
+            super::nodes::Item::Trait(it) => Ok(Self::Trait(Box::new(it.try_into()?))),
+            super::nodes::Item::TraitAlias(it) => Ok(Self::TraitAlias(Box::new(it.try_into()?))),
+            super::nodes::Item::TypeAlias(it) => Ok(Self::TypeAlias(Box::new(it.try_into()?))),
+            super::nodes::Item::Union(it) => Ok(Self::Union(Box::new(it.try_into()?))),
+            super::nodes::Item::Use(it) => Ok(Self::Use(Box::new(it.try_into()?))),
         }
     }
 }
-impl From<super::nodes::Stmt> for Stmt {
-    fn from(item: super::nodes::Stmt) -> Self {
+impl TryFrom<super::nodes::Stmt> for Stmt {
+    type Error = String;
+    fn try_from(item: super::nodes::Stmt) -> Result<Self, Self::Error> {
         match item {
-            super::nodes::Stmt::ExprStmt(it) => Self::ExprStmt(Box::new(it.into())),
-            super::nodes::Stmt::Item(it) => Self::Item(Box::new(it.into())),
-            super::nodes::Stmt::LetStmt(it) => Self::LetStmt(Box::new(it.into())),
+            super::nodes::Stmt::ExprStmt(it) => Ok(Self::ExprStmt(Box::new(it.try_into()?))),
+            super::nodes::Stmt::Item(it) => Ok(Self::Item(Box::new(it.try_into()?))),
+            super::nodes::Stmt::LetStmt(it) => Ok(Self::LetStmt(Box::new(it.try_into()?))),
         }
     }
 }
-impl From<super::nodes::Pat> for Pat {
-    fn from(item: super::nodes::Pat) -> Self {
+impl TryFrom<super::nodes::Pat> for Pat {
+    type Error = String;
+    fn try_from(item: super::nodes::Pat) -> Result<Self, Self::Error> {
         match item {
-            super::nodes::Pat::IdentPat(it) => Self::IdentPat(Box::new(it.into())),
-            super::nodes::Pat::BoxPat(it) => Self::BoxPat(Box::new(it.into())),
-            super::nodes::Pat::RestPat(it) => Self::RestPat(Box::new(it.into())),
-            super::nodes::Pat::LiteralPat(it) => Self::LiteralPat(Box::new(it.into())),
-            super::nodes::Pat::MacroPat(it) => Self::MacroPat(Box::new(it.into())),
-            super::nodes::Pat::OrPat(it) => Self::OrPat(Box::new(it.into())),
-            super::nodes::Pat::ParenPat(it) => Self::ParenPat(Box::new(it.into())),
-            super::nodes::Pat::PathPat(it) => Self::PathPat(Box::new(it.into())),
-            super::nodes::Pat::WildcardPat(it) => Self::WildcardPat(Box::new(it.into())),
-            super::nodes::Pat::RangePat(it) => Self::RangePat(Box::new(it.into())),
-            super::nodes::Pat::RecordPat(it) => Self::RecordPat(Box::new(it.into())),
-            super::nodes::Pat::RefPat(it) => Self::RefPat(Box::new(it.into())),
-            super::nodes::Pat::SlicePat(it) => Self::SlicePat(Box::new(it.into())),
-            super::nodes::Pat::TuplePat(it) => Self::TuplePat(Box::new(it.into())),
-            super::nodes::Pat::TupleStructPat(it) => Self::TupleStructPat(Box::new(it.into())),
-            super::nodes::Pat::ConstBlockPat(it) => Self::ConstBlockPat(Box::new(it.into())),
+            super::nodes::Pat::IdentPat(it) => Ok(Self::IdentPat(Box::new(it.try_into()?))),
+            super::nodes::Pat::BoxPat(it) => Ok(Self::BoxPat(Box::new(it.try_into()?))),
+            super::nodes::Pat::RestPat(it) => Ok(Self::RestPat(Box::new(it.try_into()?))),
+            super::nodes::Pat::LiteralPat(it) => Ok(Self::LiteralPat(Box::new(it.try_into()?))),
+            super::nodes::Pat::MacroPat(it) => Ok(Self::MacroPat(Box::new(it.try_into()?))),
+            super::nodes::Pat::OrPat(it) => Ok(Self::OrPat(Box::new(it.try_into()?))),
+            super::nodes::Pat::ParenPat(it) => Ok(Self::ParenPat(Box::new(it.try_into()?))),
+            super::nodes::Pat::PathPat(it) => Ok(Self::PathPat(Box::new(it.try_into()?))),
+            super::nodes::Pat::WildcardPat(it) => Ok(Self::WildcardPat(Box::new(it.try_into()?))),
+            super::nodes::Pat::RangePat(it) => Ok(Self::RangePat(Box::new(it.try_into()?))),
+            super::nodes::Pat::RecordPat(it) => Ok(Self::RecordPat(Box::new(it.try_into()?))),
+            super::nodes::Pat::RefPat(it) => Ok(Self::RefPat(Box::new(it.try_into()?))),
+            super::nodes::Pat::SlicePat(it) => Ok(Self::SlicePat(Box::new(it.try_into()?))),
+            super::nodes::Pat::TuplePat(it) => Ok(Self::TuplePat(Box::new(it.try_into()?))),
+            super::nodes::Pat::TupleStructPat(it) => {
+                Ok(Self::TupleStructPat(Box::new(it.try_into()?)))
+            }
+            super::nodes::Pat::ConstBlockPat(it) => {
+                Ok(Self::ConstBlockPat(Box::new(it.try_into()?)))
+            }
         }
     }
 }
-impl From<super::nodes::FieldList> for FieldList {
-    fn from(item: super::nodes::FieldList) -> Self {
+impl TryFrom<super::nodes::FieldList> for FieldList {
+    type Error = String;
+    fn try_from(item: super::nodes::FieldList) -> Result<Self, Self::Error> {
         match item {
             super::nodes::FieldList::RecordFieldList(it) => {
-                Self::RecordFieldList(Box::new(it.into()))
+                Ok(Self::RecordFieldList(Box::new(it.try_into()?)))
             }
             super::nodes::FieldList::TupleFieldList(it) => {
-                Self::TupleFieldList(Box::new(it.into()))
+                Ok(Self::TupleFieldList(Box::new(it.try_into()?)))
             }
         }
     }
 }
-impl From<super::nodes::Adt> for Adt {
-    fn from(item: super::nodes::Adt) -> Self {
+impl TryFrom<super::nodes::Adt> for Adt {
+    type Error = String;
+    fn try_from(item: super::nodes::Adt) -> Result<Self, Self::Error> {
         match item {
-            super::nodes::Adt::Enum(it) => Self::Enum(Box::new(it.into())),
-            super::nodes::Adt::Struct(it) => Self::Struct(Box::new(it.into())),
-            super::nodes::Adt::Union(it) => Self::Union(Box::new(it.into())),
+            super::nodes::Adt::Enum(it) => Ok(Self::Enum(Box::new(it.try_into()?))),
+            super::nodes::Adt::Struct(it) => Ok(Self::Struct(Box::new(it.try_into()?))),
+            super::nodes::Adt::Union(it) => Ok(Self::Union(Box::new(it.try_into()?))),
         }
     }
 }
-impl From<super::nodes::AssocItem> for AssocItem {
-    fn from(item: super::nodes::AssocItem) -> Self {
+impl TryFrom<super::nodes::AssocItem> for AssocItem {
+    type Error = String;
+    fn try_from(item: super::nodes::AssocItem) -> Result<Self, Self::Error> {
         match item {
-            super::nodes::AssocItem::Const(it) => Self::Const(Box::new(it.into())),
-            super::nodes::AssocItem::Fn(it) => Self::Fn(Box::new(it.into())),
-            super::nodes::AssocItem::MacroCall(it) => Self::MacroCall(Box::new(it.into())),
-            super::nodes::AssocItem::TypeAlias(it) => Self::TypeAlias(Box::new(it.into())),
+            super::nodes::AssocItem::Const(it) => Ok(Self::Const(Box::new(it.try_into()?))),
+            super::nodes::AssocItem::Fn(it) => Ok(Self::Fn(Box::new(it.try_into()?))),
+            super::nodes::AssocItem::MacroCall(it) => Ok(Self::MacroCall(Box::new(it.try_into()?))),
+            super::nodes::AssocItem::TypeAlias(it) => Ok(Self::TypeAlias(Box::new(it.try_into()?))),
         }
     }
 }
-impl From<super::nodes::ExternItem> for ExternItem {
-    fn from(item: super::nodes::ExternItem) -> Self {
+impl TryFrom<super::nodes::ExternItem> for ExternItem {
+    type Error = String;
+    fn try_from(item: super::nodes::ExternItem) -> Result<Self, Self::Error> {
         match item {
-            super::nodes::ExternItem::Fn(it) => Self::Fn(Box::new(it.into())),
-            super::nodes::ExternItem::MacroCall(it) => Self::MacroCall(Box::new(it.into())),
-            super::nodes::ExternItem::Static(it) => Self::Static(Box::new(it.into())),
-            super::nodes::ExternItem::TypeAlias(it) => Self::TypeAlias(Box::new(it.into())),
+            super::nodes::ExternItem::Fn(it) => Ok(Self::Fn(Box::new(it.try_into()?))),
+            super::nodes::ExternItem::MacroCall(it) => {
+                Ok(Self::MacroCall(Box::new(it.try_into()?)))
+            }
+            super::nodes::ExternItem::Static(it) => Ok(Self::Static(Box::new(it.try_into()?))),
+            super::nodes::ExternItem::TypeAlias(it) => {
+                Ok(Self::TypeAlias(Box::new(it.try_into()?)))
+            }
         }
     }
 }
-impl From<super::nodes::GenericParam> for GenericParam {
-    fn from(item: super::nodes::GenericParam) -> Self {
+impl TryFrom<super::nodes::GenericParam> for GenericParam {
+    type Error = String;
+    fn try_from(item: super::nodes::GenericParam) -> Result<Self, Self::Error> {
         match item {
-            super::nodes::GenericParam::ConstParam(it) => Self::ConstParam(Box::new(it.into())),
+            super::nodes::GenericParam::ConstParam(it) => {
+                Ok(Self::ConstParam(Box::new(it.try_into()?)))
+            }
             super::nodes::GenericParam::LifetimeParam(it) => {
-                Self::LifetimeParam(Box::new(it.into()))
+                Ok(Self::LifetimeParam(Box::new(it.try_into()?)))
             }
-            super::nodes::GenericParam::TypeParam(it) => Self::TypeParam(Box::new(it.into())),
+            super::nodes::GenericParam::TypeParam(it) => {
+                Ok(Self::TypeParam(Box::new(it.try_into()?)))
+            }
         }
     }
 }
