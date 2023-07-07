@@ -539,6 +539,8 @@ fn verus_walkthrough0() {
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -565,6 +567,8 @@ fn verus_walkthrough1() {
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -602,6 +606,8 @@ verus! {
         //     ast::Item::Fn(f) => func = Some(f),
         //     _ => unreachable!(),
         // }
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -647,6 +653,8 @@ fn verus_walkthrough2() {
     // dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -683,6 +691,8 @@ fn verus_walkthrough3() {
     let file: SourceFile = parse.tree();
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -725,6 +735,8 @@ fn verus_walkthrough4() {
     // dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -748,6 +760,8 @@ fn verus_walkthrough5() {
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -779,6 +793,8 @@ fn verus_walkthrough6() {
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -808,6 +824,8 @@ fn verus_walkthrough7() {
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -837,6 +855,8 @@ fn verus_walkthrough8() {
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -858,6 +878,8 @@ fn verus_walkthrough9_0() {
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -881,6 +903,8 @@ fn verus_walkthrough9() {
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -903,6 +927,8 @@ fn verus_walkthrough10_0() {
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -926,6 +952,8 @@ fn verus_walkthrough10_1() {
     let file: SourceFile = parse.tree();
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -954,6 +982,8 @@ fn verus_walkthrough10_2() {
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -979,6 +1009,8 @@ fn verus_walkthrough10() {
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -1021,6 +1053,8 @@ fn binary_search(v: &Vec<u64>, k: u64) -> (r: usize)
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -1046,6 +1080,8 @@ assert(forall|i: int| #![auto] 0 <= i < t.len() ==> uninterp_fn(t[i]));
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -1077,6 +1113,8 @@ fn verus_walkthrough13() {
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -1101,6 +1139,8 @@ fn exec_with_decreases(n: u64) -> u64
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -1125,6 +1165,8 @@ spec(checked) fn my_spec_fun2(x: int, y: int) -> int
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -1151,6 +1193,8 @@ proof fn test_even_f()
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -1191,6 +1235,8 @@ fn g(Tracked(t): Tracked<S>) -> u32 {
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -1236,6 +1282,8 @@ proof fn dec0_decreases(a: int) {
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -1257,6 +1305,8 @@ tracked struct TrackedAndGhost<T, G>(
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -1280,6 +1330,8 @@ proof fn lemma_mul_upper_bound(x: int, x_bound: int, y: int, y_bound: int)
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -1309,6 +1361,8 @@ proof fn add0_recommends(a: nat, b: nat) {
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -1354,6 +1408,8 @@ proof fn dec0_decreases(a: int) {
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -1389,6 +1445,8 @@ verus!{
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -1417,6 +1475,8 @@ spec fn test_rec2(x: int, y: int) -> int
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 
@@ -1451,6 +1511,8 @@ verus!{
     dbg!(&file);
     for item in file.items() {
         dbg!(&item);
+        let v_item: vst_nodes::Item = item.try_into().unwrap();
+        dbg!(v_item);
     }
 }
 

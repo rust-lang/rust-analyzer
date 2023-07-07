@@ -606,7 +606,7 @@ pub(crate) fn lower(grammar: &Grammar, is_vst: bool) -> AstSrc {
                 // if name == "Fn" {
                 //     dbg!(&grammar[node].rule);
                 // }
-                lower_rule(&mut fields, grammar, None, rule, is_vst, false);
+                lower_rule(&mut fields, grammar, None, rule, is_vst, false, false);
                 res.nodes.push(AstNodeSrc { doc: Vec::new(), name, traits: Vec::new(), fields });
             }
         }
@@ -652,7 +652,7 @@ fn lower_enum(grammar: &Grammar, rule: &Rule) -> Option<Vec<String>> {
     Some(variants)
 }
 
-fn lower_rule(acc: &mut Vec<Field>, grammar: &Grammar, label: Option<&String>, rule: &Rule, is_vst: bool, inside_opt: bool) {
+fn lower_rule(acc: &mut Vec<Field>, grammar: &Grammar, label: Option<&String>, rule: &Rule, is_vst: bool, inside_opt: bool, inside_alt: bool) {
     if lower_separated_list(acc, grammar, label, rule) {
         return;
     }
@@ -665,7 +665,9 @@ fn lower_rule(acc: &mut Vec<Field>, grammar: &Grammar, label: Option<&String>, r
             // dbg!("node");
             // dbg!(&name);
 
-            let cardinality =  if is_vst && !inside_opt {Cardinality::One } else { Cardinality::Optional };
+            let cardinality =  if is_vst && !inside_opt && !inside_alt && (ty != "Pat".to_string()) && (ty != "PathType".to_string()) && (ty != "ParamList".to_string() ) {Cardinality::One } else { Cardinality::Optional };
+
+            // let cardinality = Cardinality::Optional;
             let field = Field::Node { name, ty, cardinality};
             acc.push(field);
         }
@@ -712,14 +714,15 @@ fn lower_rule(acc: &mut Vec<Field>, grammar: &Grammar, label: Option<&String>, r
             if manually_implemented {
                 return;
             }
-            lower_rule(acc, grammar, Some(l), rule, is_vst, inside_opt);
+            lower_rule(acc, grammar, Some(l), rule, is_vst, inside_opt, inside_alt);
         }
         Rule::Seq(rules) | Rule::Alt(rules) => {
+            let inside_alt = matches!(rule, Rule::Alt(_));
             for rule in rules {
-                lower_rule(acc, grammar, label, rule, is_vst, inside_opt)
+                lower_rule(acc, grammar, label, rule, is_vst, inside_opt, inside_alt);
             }
         }
-        Rule::Opt(rule) => lower_rule(acc, grammar, label, rule, is_vst, true),
+        Rule::Opt(rule) => lower_rule(acc, grammar, label, rule, is_vst, true, inside_alt),
     }
 }
 
