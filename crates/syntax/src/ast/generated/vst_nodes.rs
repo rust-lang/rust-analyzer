@@ -2,70 +2,70 @@
 
 #![allow(non_snake_case)]
 use crate::{
-    ast::{self, support, traits::*, AstChildren, AstNode},
+    ast::{self, support, traits::*, vst::*, AstChildren, AstNode},
     SyntaxKind::{self, *},
     SyntaxNode, SyntaxToken, T,
 };
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Name {
-    ident_token: Option<String>,
-    self_token: bool,
+    pub ident_token: Option<String>,
+    pub self_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NameRef {
-    ident_token: Option<String>,
-    self_token: bool,
-    super_token: bool,
-    crate_token: bool,
-    Self_token: bool,
+    pub ident_token: Option<String>,
+    pub self_token: bool,
+    pub super_token: bool,
+    pub crate_token: bool,
+    pub Self_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Lifetime {
-    lifetime_ident_token: Option<String>,
+    pub lifetime_ident_token: Option<String>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Path {
     pub qualifier: Option<Box<Path>>,
-    coloncolon_token: bool,
+    pub coloncolon_token: bool,
     pub segment: Box<PathSegment>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathSegment {
-    coloncolon_token: bool,
+    pub coloncolon_token: bool,
     pub name_ref: Box<NameRef>,
     pub generic_arg_list: Option<Box<GenericArgList>>,
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
-    l_angle_token: bool,
+    pub l_angle_token: bool,
     pub path_type: Option<Box<PathType>>,
-    as_token: bool,
-    r_angle_token: bool,
+    pub as_token: bool,
+    pub r_angle_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GenericArgList {
-    coloncolon_token: bool,
-    l_angle_token: bool,
+    pub coloncolon_token: bool,
+    pub l_angle_token: bool,
     pub generic_args: Vec<GenericArg>,
-    r_angle_token: bool,
+    pub r_angle_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParamList {
-    l_paren_token: bool,
+    pub l_paren_token: bool,
     pub self_param: Option<Box<SelfParam>>,
-    comma_token: bool,
+    pub comma_token: bool,
     pub params: Vec<Param>,
-    r_paren_token: bool,
-    pipe_token: bool,
+    pub r_paren_token: bool,
+    pub pipe_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RetType {
-    thin_arrow_token: bool,
-    tracked_token: bool,
-    l_paren_token: bool,
+    pub thin_arrow_token: bool,
+    pub tracked_token: bool,
+    pub l_paren_token: bool,
     pub pat: Option<Box<Pat>>,
-    colon_token: bool,
+    pub colon_token: bool,
     pub ty: Box<Type>,
-    r_paren_token: bool,
+    pub r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathType {
@@ -81,9 +81,9 @@ pub struct AssocTypeArg {
     pub generic_arg_list: Option<Box<GenericArgList>>,
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
-    colon_token: bool,
+    pub colon_token: bool,
     pub type_bound_list: Box<TypeBoundList>,
-    eq_token: bool,
+    pub eq_token: bool,
     pub ty: Box<Type>,
     pub const_arg: Option<Box<ConstArg>>,
 }
@@ -103,26 +103,26 @@ pub struct TypeBoundList {
 pub struct MacroCall {
     pub attrs: Vec<Attr>,
     pub path: Box<Path>,
-    excl_token: bool,
+    pub excl_token: bool,
     pub token_tree: Box<TokenTree>,
-    semicolon_token: bool,
+    pub semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Attr {
-    pound_token: bool,
-    excl_token: bool,
-    l_brack_token: bool,
+    pub pound_token: bool,
+    pub excl_token: bool,
+    pub l_brack_token: bool,
     pub meta: Box<Meta>,
-    r_brack_token: bool,
+    pub r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TokenTree {
-    l_paren_token: bool,
-    r_paren_token: bool,
-    l_curly_token: bool,
-    r_curly_token: bool,
-    l_brack_token: bool,
-    r_brack_token: bool,
+    pub l_paren_token: bool,
+    pub r_paren_token: bool,
+    pub l_curly_token: bool,
+    pub r_curly_token: bool,
+    pub l_brack_token: bool,
+    pub r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroItems {
@@ -135,7 +135,7 @@ pub struct MacroStmts {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SourceFile {
-    shebang_token: bool,
+    pub shebang_token: bool,
     pub attrs: Vec<Attr>,
     pub items: Vec<Item>,
 }
@@ -143,21 +143,21 @@ pub struct SourceFile {
 pub struct Const {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
-    default_token: bool,
-    const_token: bool,
+    pub default_token: bool,
+    pub const_token: bool,
     pub name: Option<Box<Name>>,
-    underscore_token: bool,
-    colon_token: bool,
+    pub underscore_token: bool,
+    pub colon_token: bool,
     pub ty: Box<Type>,
-    eq_token: bool,
+    pub eq_token: bool,
     pub body: Option<Box<Expr>>,
-    semicolon_token: bool,
+    pub semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Enum {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
-    enum_token: bool,
+    pub enum_token: bool,
     pub name: Box<Name>,
     pub generic_param_list: Option<Box<GenericParamList>>,
     pub where_clause: Option<Box<WhereClause>>,
@@ -166,7 +166,7 @@ pub struct Enum {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExternBlock {
     pub attrs: Vec<Attr>,
-    unsafe_token: bool,
+    pub unsafe_token: bool,
     pub abi: Box<Abi>,
     pub extern_item_list: Box<ExternItemList>,
 }
@@ -174,24 +174,24 @@ pub struct ExternBlock {
 pub struct ExternCrate {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
-    extern_token: bool,
-    crate_token: bool,
+    pub extern_token: bool,
+    pub crate_token: bool,
     pub name_ref: Box<NameRef>,
     pub rename: Option<Box<Rename>>,
-    semicolon_token: bool,
+    pub semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Fn {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
     pub publish: Option<Box<Publish>>,
-    default_token: bool,
-    const_token: bool,
-    async_token: bool,
-    unsafe_token: bool,
+    pub default_token: bool,
+    pub const_token: bool,
+    pub async_token: bool,
+    pub unsafe_token: bool,
     pub abi: Option<Box<Abi>>,
     pub fn_mode: Option<Box<FnMode>>,
-    fn_token: bool,
+    pub fn_token: bool,
     pub name: Box<Name>,
     pub generic_param_list: Option<Box<GenericParamList>>,
     pub param_list: Option<Box<ParamList>>,
@@ -202,19 +202,19 @@ pub struct Fn {
     pub ensures_clause: Option<Box<EnsuresClause>>,
     pub decreases_clause: Option<Box<DecreasesClause>>,
     pub body: Option<Box<BlockExpr>>,
-    semicolon_token: bool,
+    pub semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Impl {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
-    default_token: bool,
-    unsafe_token: bool,
-    impl_token: bool,
+    pub default_token: bool,
+    pub unsafe_token: bool,
+    pub impl_token: bool,
     pub generic_param_list: Option<Box<GenericParamList>>,
-    const_token: bool,
-    excl_token: bool,
-    for_token: bool,
+    pub const_token: bool,
+    pub excl_token: bool,
+    pub for_token: bool,
     pub where_clause: Option<Box<WhereClause>>,
     pub assoc_item_list: Box<AssocItemList>,
 }
@@ -222,8 +222,8 @@ pub struct Impl {
 pub struct MacroRules {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
-    macro_rules_token: bool,
-    excl_token: bool,
+    pub macro_rules_token: bool,
+    pub excl_token: bool,
     pub name: Box<Name>,
     pub token_tree: Box<TokenTree>,
 }
@@ -231,7 +231,7 @@ pub struct MacroRules {
 pub struct MacroDef {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
-    macro_token: bool,
+    pub macro_token: bool,
     pub name: Box<Name>,
     pub args: Option<Box<TokenTree>>,
     pub body: Box<TokenTree>,
@@ -240,46 +240,46 @@ pub struct MacroDef {
 pub struct Module {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
-    mod_token: bool,
+    pub mod_token: bool,
     pub name: Box<Name>,
     pub item_list: Option<Box<ItemList>>,
-    semicolon_token: bool,
+    pub semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Static {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
-    static_token: bool,
-    mut_token: bool,
+    pub static_token: bool,
+    pub mut_token: bool,
     pub name: Box<Name>,
-    colon_token: bool,
+    pub colon_token: bool,
     pub ty: Box<Type>,
-    eq_token: bool,
+    pub eq_token: bool,
     pub body: Option<Box<Expr>>,
-    semicolon_token: bool,
+    pub semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Struct {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
     pub data_mode: Option<Box<DataMode>>,
-    struct_token: bool,
+    pub struct_token: bool,
     pub name: Box<Name>,
     pub generic_param_list: Option<Box<GenericParamList>>,
     pub where_clause: Option<Box<WhereClause>>,
-    semicolon_token: bool,
+    pub semicolon_token: bool,
     pub field_list: Option<Box<FieldList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Trait {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
-    unsafe_token: bool,
-    auto_token: bool,
-    trait_token: bool,
+    pub unsafe_token: bool,
+    pub auto_token: bool,
+    pub trait_token: bool,
     pub name: Box<Name>,
     pub generic_param_list: Option<Box<GenericParamList>>,
-    colon_token: bool,
+    pub colon_token: bool,
     pub type_bound_list: Option<Box<TypeBoundList>>,
     pub where_clause: Option<Box<WhereClause>>,
     pub assoc_item_list: Box<AssocItemList>,
@@ -288,34 +288,34 @@ pub struct Trait {
 pub struct TraitAlias {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
-    trait_token: bool,
+    pub trait_token: bool,
     pub name: Box<Name>,
     pub generic_param_list: Option<Box<GenericParamList>>,
-    eq_token: bool,
+    pub eq_token: bool,
     pub type_bound_list: Option<Box<TypeBoundList>>,
     pub where_clause: Option<Box<WhereClause>>,
-    semicolon_token: bool,
+    pub semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeAlias {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
-    default_token: bool,
-    type_token: bool,
+    pub default_token: bool,
+    pub type_token: bool,
     pub name: Box<Name>,
     pub generic_param_list: Option<Box<GenericParamList>>,
-    colon_token: bool,
+    pub colon_token: bool,
     pub type_bound_list: Option<Box<TypeBoundList>>,
     pub where_clause: Option<Box<WhereClause>>,
-    eq_token: bool,
+    pub eq_token: bool,
     pub ty: Option<Box<Type>>,
-    semicolon_token: bool,
+    pub semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Union {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
-    union_token: bool,
+    pub union_token: bool,
     pub name: Box<Name>,
     pub generic_param_list: Option<Box<GenericParamList>>,
     pub where_clause: Option<Box<WhereClause>>,
@@ -325,139 +325,139 @@ pub struct Union {
 pub struct Use {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
-    use_token: bool,
+    pub use_token: bool,
     pub use_tree: Box<UseTree>,
-    semicolon_token: bool,
+    pub semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Visibility {
-    pub_token: bool,
-    l_paren_token: bool,
-    in_token: bool,
+    pub pub_token: bool,
+    pub l_paren_token: bool,
+    pub in_token: bool,
     pub path: Option<Box<Path>>,
-    r_paren_token: bool,
+    pub r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ItemList {
-    l_curly_token: bool,
+    pub l_curly_token: bool,
     pub attrs: Vec<Attr>,
     pub items: Vec<Item>,
-    r_curly_token: bool,
+    pub r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Rename {
-    as_token: bool,
+    pub as_token: bool,
     pub name: Option<Box<Name>>,
-    underscore_token: bool,
+    pub underscore_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UseTree {
     pub path: Option<Box<Path>>,
-    coloncolon_token: bool,
-    star_token: bool,
+    pub coloncolon_token: bool,
+    pub star_token: bool,
     pub use_tree_list: Option<Box<UseTreeList>>,
     pub rename: Option<Box<Rename>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UseTreeList {
-    l_curly_token: bool,
+    pub l_curly_token: bool,
     pub use_trees: Vec<UseTree>,
-    r_curly_token: bool,
+    pub r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Publish {
-    closed_token: bool,
-    open_token: bool,
+    pub closed_token: bool,
+    pub open_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Abi {
-    extern_token: bool,
+    pub extern_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FnMode {
-    spec_token: bool,
-    proof_token: bool,
-    exec_token: bool,
+    pub spec_token: bool,
+    pub proof_token: bool,
+    pub exec_token: bool,
     pub mode_spec_checked: Option<Box<ModeSpecChecked>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GenericParamList {
-    l_angle_token: bool,
+    pub l_angle_token: bool,
     pub generic_params: Vec<GenericParam>,
-    r_angle_token: bool,
+    pub r_angle_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WhereClause {
-    where_token: bool,
+    pub where_token: bool,
     pub predicates: Vec<WherePred>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RequiresClause {
-    requires_token: bool,
+    pub requires_token: bool,
     pub exprs: Vec<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecommendsClause {
-    recommends_token: bool,
+    pub recommends_token: bool,
     pub exprs: Vec<Expr>,
-    via_token: bool,
+    pub via_token: bool,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EnsuresClause {
-    ensures_token: bool,
+    pub ensures_token: bool,
     pub exprs: Vec<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DecreasesClause {
-    decreases_token: bool,
+    pub decreases_token: bool,
     pub exprs: Vec<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BlockExpr {
     pub attrs: Vec<Attr>,
     pub label: Option<Box<Label>>,
-    try_token: bool,
-    unsafe_token: bool,
-    async_token: bool,
-    const_token: bool,
+    pub try_token: bool,
+    pub unsafe_token: bool,
+    pub async_token: bool,
+    pub const_token: bool,
     pub stmt_list: Box<StmtList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SelfParam {
     pub attrs: Vec<Attr>,
-    amp_token: bool,
+    pub amp_token: bool,
     pub lifetime: Option<Box<Lifetime>>,
-    mut_token: bool,
+    pub mut_token: bool,
     pub name: Box<Name>,
-    colon_token: bool,
+    pub colon_token: bool,
     pub ty: Box<Type>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Param {
     pub attrs: Vec<Attr>,
-    tracked_token: bool,
+    pub tracked_token: bool,
     pub pat: Option<Box<Pat>>,
-    colon_token: bool,
+    pub colon_token: bool,
     pub ty: Option<Box<Type>>,
-    dotdotdot_token: bool,
+    pub dotdotdot_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DataMode {
-    ghost_token: bool,
-    tracked_token: bool,
+    pub ghost_token: bool,
+    pub tracked_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordFieldList {
-    l_curly_token: bool,
+    pub l_curly_token: bool,
     pub fields: Vec<RecordField>,
-    r_curly_token: bool,
+    pub r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleFieldList {
-    l_paren_token: bool,
+    pub l_paren_token: bool,
     pub fields: Vec<TupleField>,
-    r_paren_token: bool,
+    pub r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordField {
@@ -465,7 +465,7 @@ pub struct RecordField {
     pub visibility: Option<Box<Visibility>>,
     pub data_mode: Option<Box<DataMode>>,
     pub name: Box<Name>,
-    colon_token: bool,
+    pub colon_token: bool,
     pub ty: Box<Type>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -476,9 +476,9 @@ pub struct TupleField {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VariantList {
-    l_curly_token: bool,
+    pub l_curly_token: bool,
     pub variants: Vec<Variant>,
-    r_curly_token: bool,
+    pub r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Variant {
@@ -486,119 +486,115 @@ pub struct Variant {
     pub visibility: Option<Box<Visibility>>,
     pub name: Box<Name>,
     pub field_list: Option<Box<FieldList>>,
-    eq_token: bool,
+    pub eq_token: bool,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssocItemList {
-    l_curly_token: bool,
+    pub l_curly_token: bool,
     pub attrs: Vec<Attr>,
     pub assoc_items: Vec<AssocItem>,
-    r_curly_token: bool,
+    pub r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExternItemList {
-    l_curly_token: bool,
+    pub l_curly_token: bool,
     pub attrs: Vec<Attr>,
     pub extern_items: Vec<ExternItem>,
-    r_curly_token: bool,
+    pub r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConstParam {
     pub attrs: Vec<Attr>,
-    const_token: bool,
+    pub const_token: bool,
     pub name: Box<Name>,
-    colon_token: bool,
+    pub colon_token: bool,
     pub ty: Box<Type>,
-    eq_token: bool,
+    pub eq_token: bool,
     pub default_val: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LifetimeParam {
     pub attrs: Vec<Attr>,
     pub lifetime: Box<Lifetime>,
-    colon_token: bool,
+    pub colon_token: bool,
     pub type_bound_list: Option<Box<TypeBoundList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeParam {
     pub attrs: Vec<Attr>,
     pub name: Box<Name>,
-    colon_token: bool,
+    pub colon_token: bool,
     pub type_bound_list: Option<Box<TypeBoundList>>,
-    eq_token: bool,
+    pub eq_token: bool,
     pub default_type: Option<Box<Type>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WherePred {
-    for_token: bool,
+    pub for_token: bool,
     pub generic_param_list: Option<Box<GenericParamList>>,
     pub lifetime: Option<Box<Lifetime>>,
     pub ty: Option<Box<Type>>,
-    colon_token: bool,
+    pub colon_token: bool,
     pub type_bound_list: Option<Box<TypeBoundList>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Meta {
     pub path: Box<Path>,
-    eq_token: bool,
+    pub eq_token: bool,
     pub expr: Option<Box<Expr>>,
     pub token_tree: Option<Box<TokenTree>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExprStmt {
     pub expr: Box<Expr>,
-    semicolon_token: bool,
+    pub semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LetStmt {
     pub attrs: Vec<Attr>,
-    let_token: bool,
-    ghost_token: bool,
-    tracked_token: bool,
+    pub let_token: bool,
+    pub ghost_token: bool,
+    pub tracked_token: bool,
     pub pat: Option<Box<Pat>>,
-    colon_token: bool,
+    pub colon_token: bool,
     pub ty: Option<Box<Type>>,
-    eq_token: bool,
+    pub eq_token: bool,
     pub initializer: Box<Expr>,
     pub let_else: Option<Box<LetElse>>,
-    semicolon_token: bool,
+    pub semicolon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LetElse {
-    else_token: bool,
+    pub else_token: bool,
     pub block_expr: Box<BlockExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayExpr {
     pub attrs: Vec<Attr>,
-    l_brack_token: bool,
+    pub l_brack_token: bool,
     pub exprs: Vec<Expr>,
     pub expr: Box<Expr>,
-    semicolon_token: bool,
-    r_brack_token: bool,
+    pub semicolon_token: bool,
+    pub r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AwaitExpr {
     pub attrs: Vec<Attr>,
     pub expr: Box<Expr>,
-    dot_token: bool,
-    await_token: bool,
-}
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct BinExpr {
-    pub attrs: Vec<Attr>,
+    pub dot_token: bool,
+    pub await_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BoxExpr {
     pub attrs: Vec<Attr>,
-    box_token: bool,
+    pub box_token: bool,
     pub expr: Box<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BreakExpr {
     pub attrs: Vec<Attr>,
-    break_token: bool,
+    pub break_token: bool,
     pub lifetime: Option<Box<Lifetime>>,
     pub expr: Option<Box<Expr>>,
 }
@@ -612,20 +608,20 @@ pub struct CallExpr {
 pub struct CastExpr {
     pub attrs: Vec<Attr>,
     pub expr: Box<Expr>,
-    as_token: bool,
+    pub as_token: bool,
     pub ty: Box<Type>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClosureExpr {
     pub attrs: Vec<Attr>,
-    for_token: bool,
+    pub for_token: bool,
     pub generic_param_list: Option<Box<GenericParamList>>,
-    const_token: bool,
-    static_token: bool,
-    async_token: bool,
-    move_token: bool,
-    forall_token: bool,
-    exists_token: bool,
+    pub const_token: bool,
+    pub static_token: bool,
+    pub async_token: bool,
+    pub move_token: bool,
+    pub forall_token: bool,
+    pub exists_token: bool,
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
     pub body: Box<Expr>,
@@ -633,46 +629,36 @@ pub struct ClosureExpr {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ContinueExpr {
     pub attrs: Vec<Attr>,
-    continue_token: bool,
+    pub continue_token: bool,
     pub lifetime: Option<Box<Lifetime>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FieldExpr {
     pub attrs: Vec<Attr>,
     pub expr: Box<Expr>,
-    dot_token: bool,
+    pub dot_token: bool,
     pub name_ref: Box<NameRef>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ForExpr {
     pub attrs: Vec<Attr>,
     pub label: Option<Box<Label>>,
-    for_token: bool,
+    pub for_token: bool,
     pub pat: Option<Box<Pat>>,
-    in_token: bool,
+    pub in_token: bool,
     pub loop_body: Box<BlockExpr>,
-}
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct IfExpr {
-    pub attrs: Vec<Attr>,
-    if_token: bool,
-    else_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IndexExpr {
     pub attrs: Vec<Attr>,
-    l_brack_token: bool,
-    r_brack_token: bool,
-}
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Literal {
-    pub attrs: Vec<Attr>,
+    pub l_brack_token: bool,
+    pub r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LoopExpr {
     pub attrs: Vec<Attr>,
     pub label: Option<Box<Label>>,
-    loop_token: bool,
+    pub loop_token: bool,
     pub loop_body: Box<BlockExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -682,7 +668,7 @@ pub struct MacroExpr {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchExpr {
     pub attrs: Vec<Attr>,
-    match_token: bool,
+    pub match_token: bool,
     pub expr: Box<Expr>,
     pub match_arm_list: Box<MatchArmList>,
 }
@@ -690,7 +676,7 @@ pub struct MatchExpr {
 pub struct MethodCallExpr {
     pub attrs: Vec<Attr>,
     pub receiver: Box<Expr>,
-    dot_token: bool,
+    pub dot_token: bool,
     pub name_ref: Box<NameRef>,
     pub generic_arg_list: Option<Box<GenericArgList>>,
     pub arg_list: Box<ArgList>,
@@ -698,9 +684,9 @@ pub struct MethodCallExpr {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParenExpr {
     pub attrs: Vec<Attr>,
-    l_paren_token: bool,
+    pub l_paren_token: bool,
     pub expr: Box<Expr>,
-    r_paren_token: bool,
+    pub r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathExpr {
@@ -724,36 +710,36 @@ pub struct RecordExpr {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefExpr {
     pub attrs: Vec<Attr>,
-    amp_token: bool,
-    raw_token: bool,
-    mut_token: bool,
-    const_token: bool,
+    pub amp_token: bool,
+    pub raw_token: bool,
+    pub mut_token: bool,
+    pub const_token: bool,
     pub expr: Box<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReturnExpr {
     pub attrs: Vec<Attr>,
-    return_token: bool,
+    pub return_token: bool,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TryExpr {
     pub attrs: Vec<Attr>,
     pub expr: Box<Expr>,
-    question_mark_token: bool,
+    pub question_mark_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleExpr {
     pub attrs: Vec<Attr>,
-    l_paren_token: bool,
+    pub l_paren_token: bool,
     pub fields: Vec<Expr>,
-    r_paren_token: bool,
+    pub r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WhileExpr {
     pub attrs: Vec<Attr>,
     pub label: Option<Box<Label>>,
-    while_token: bool,
+    pub while_token: bool,
     pub invariant_clause: Option<Box<InvariantClause>>,
     pub decreases_clause: Option<Box<DecreasesClause>>,
     pub loop_body: Box<BlockExpr>,
@@ -761,43 +747,43 @@ pub struct WhileExpr {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct YieldExpr {
     pub attrs: Vec<Attr>,
-    yield_token: bool,
+    pub yield_token: bool,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct YeetExpr {
     pub attrs: Vec<Attr>,
-    do_token: bool,
-    yeet_token: bool,
+    pub do_token: bool,
+    pub yeet_token: bool,
     pub expr: Option<Box<Expr>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LetExpr {
     pub attrs: Vec<Attr>,
-    let_token: bool,
+    pub let_token: bool,
     pub pat: Option<Box<Pat>>,
-    eq_token: bool,
+    pub eq_token: bool,
     pub expr: Box<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UnderscoreExpr {
     pub attrs: Vec<Attr>,
-    underscore_token: bool,
+    pub underscore_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ViewExpr {
     pub attrs: Vec<Attr>,
     pub expr: Box<Expr>,
-    at_token: bool,
+    pub at_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssertExpr {
     pub attrs: Vec<Attr>,
-    assert_token: bool,
-    l_paren_token: bool,
+    pub assert_token: bool,
+    pub l_paren_token: bool,
     pub expr: Box<Expr>,
-    r_paren_token: bool,
-    by_token: bool,
+    pub r_paren_token: bool,
+    pub by_token: bool,
     pub name: Option<Box<Name>>,
     pub requires_clause: Option<Box<RequiresClause>>,
     pub block_expr: Option<Box<BlockExpr>>,
@@ -805,119 +791,119 @@ pub struct AssertExpr {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssumeExpr {
     pub attrs: Vec<Attr>,
-    assume_token: bool,
-    l_paren_token: bool,
+    pub assume_token: bool,
+    pub l_paren_token: bool,
     pub expr: Box<Expr>,
-    r_paren_token: bool,
+    pub r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssertForallExpr {
     pub attrs: Vec<Attr>,
-    assert_token: bool,
-    forall_token: bool,
+    pub assert_token: bool,
+    pub forall_token: bool,
     pub closure_expr: Box<ClosureExpr>,
-    implies_token: bool,
+    pub implies_token: bool,
     pub expr: Option<Box<Expr>>,
-    by_token: bool,
+    pub by_token: bool,
     pub block_expr: Box<BlockExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StmtList {
-    l_curly_token: bool,
+    pub l_curly_token: bool,
     pub attrs: Vec<Attr>,
     pub statements: Vec<Stmt>,
     pub tail_expr: Option<Box<Expr>>,
-    r_curly_token: bool,
+    pub r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Label {
     pub lifetime: Box<Lifetime>,
-    colon_token: bool,
+    pub colon_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordExprFieldList {
-    l_curly_token: bool,
+    pub l_curly_token: bool,
     pub attrs: Vec<Attr>,
     pub fields: Vec<RecordExprField>,
-    dotdot_token: bool,
+    pub dotdot_token: bool,
     pub spread: Option<Box<Expr>>,
-    r_curly_token: bool,
+    pub r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordExprField {
     pub attrs: Vec<Attr>,
     pub name_ref: Option<Box<NameRef>>,
-    colon_token: bool,
+    pub colon_token: bool,
     pub expr: Box<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArgList {
-    l_paren_token: bool,
+    pub l_paren_token: bool,
     pub args: Vec<Expr>,
-    r_paren_token: bool,
+    pub r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct InvariantClause {
-    invariant_token: bool,
+    pub invariant_token: bool,
     pub exprs: Vec<Expr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchArmList {
-    l_curly_token: bool,
+    pub l_curly_token: bool,
     pub attrs: Vec<Attr>,
     pub arms: Vec<MatchArm>,
-    r_curly_token: bool,
+    pub r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchArm {
     pub attrs: Vec<Attr>,
     pub pat: Option<Box<Pat>>,
     pub guard: Option<Box<MatchGuard>>,
-    fat_arrow_token: bool,
+    pub fat_arrow_token: bool,
     pub expr: Box<Expr>,
-    comma_token: bool,
+    pub comma_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchGuard {
-    if_token: bool,
+    pub if_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayType {
-    l_brack_token: bool,
+    pub l_brack_token: bool,
     pub ty: Box<Type>,
-    semicolon_token: bool,
+    pub semicolon_token: bool,
     pub expr: Box<Expr>,
-    r_brack_token: bool,
+    pub r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DynTraitType {
-    dyn_token: bool,
+    pub dyn_token: bool,
     pub type_bound_list: Box<TypeBoundList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FnPtrType {
-    const_token: bool,
-    async_token: bool,
-    unsafe_token: bool,
+    pub const_token: bool,
+    pub async_token: bool,
+    pub unsafe_token: bool,
     pub abi: Option<Box<Abi>>,
-    fn_token: bool,
+    pub fn_token: bool,
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ForType {
-    for_token: bool,
+    pub for_token: bool,
     pub generic_param_list: Box<GenericParamList>,
     pub ty: Box<Type>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ImplTraitType {
-    impl_token: bool,
+    pub impl_token: bool,
     pub type_bound_list: Box<TypeBoundList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct InferType {
-    underscore_token: bool,
+    pub underscore_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroType {
@@ -925,70 +911,70 @@ pub struct MacroType {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NeverType {
-    excl_token: bool,
+    pub excl_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParenType {
-    l_paren_token: bool,
+    pub l_paren_token: bool,
     pub ty: Box<Type>,
-    r_paren_token: bool,
+    pub r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PtrType {
-    star_token: bool,
-    const_token: bool,
-    mut_token: bool,
+    pub star_token: bool,
+    pub const_token: bool,
+    pub mut_token: bool,
     pub ty: Box<Type>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefType {
-    amp_token: bool,
+    pub amp_token: bool,
     pub lifetime: Option<Box<Lifetime>>,
-    mut_token: bool,
+    pub mut_token: bool,
     pub ty: Box<Type>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SliceType {
-    l_brack_token: bool,
+    pub l_brack_token: bool,
     pub ty: Box<Type>,
-    r_brack_token: bool,
+    pub r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleType {
-    l_paren_token: bool,
+    pub l_paren_token: bool,
     pub fields: Vec<Type>,
-    r_paren_token: bool,
+    pub r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeBound {
     pub lifetime: Option<Box<Lifetime>>,
-    question_mark_token: bool,
-    tilde_token: bool,
-    const_token: bool,
+    pub question_mark_token: bool,
+    pub tilde_token: bool,
+    pub const_token: bool,
     pub ty: Box<Type>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IdentPat {
     pub attrs: Vec<Attr>,
-    ref_token: bool,
-    mut_token: bool,
+    pub ref_token: bool,
+    pub mut_token: bool,
     pub name: Box<Name>,
-    at_token: bool,
+    pub at_token: bool,
     pub pat: Option<Box<Pat>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BoxPat {
-    box_token: bool,
+    pub box_token: bool,
     pub pat: Option<Box<Pat>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RestPat {
     pub attrs: Vec<Attr>,
-    dotdot_token: bool,
+    pub dotdot_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LiteralPat {
-    minus_token: bool,
+    pub minus_token: bool,
     pub literal: Box<Literal>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1001,9 +987,9 @@ pub struct OrPat {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParenPat {
-    l_paren_token: bool,
+    pub l_paren_token: bool,
     pub pat: Option<Box<Pat>>,
-    r_paren_token: bool,
+    pub r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathPat {
@@ -1011,7 +997,7 @@ pub struct PathPat {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WildcardPat {
-    underscore_token: bool,
+    pub underscore_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RangePat {}
@@ -1022,77 +1008,77 @@ pub struct RecordPat {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefPat {
-    amp_token: bool,
-    mut_token: bool,
+    pub amp_token: bool,
+    pub mut_token: bool,
     pub pat: Option<Box<Pat>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SlicePat {
-    l_brack_token: bool,
+    pub l_brack_token: bool,
     pub pats: Vec<Pat>,
-    r_brack_token: bool,
+    pub r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TuplePat {
-    l_paren_token: bool,
+    pub l_paren_token: bool,
     pub fields: Vec<Pat>,
-    r_paren_token: bool,
+    pub r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleStructPat {
     pub path: Box<Path>,
-    l_paren_token: bool,
+    pub l_paren_token: bool,
     pub fields: Vec<Pat>,
-    r_paren_token: bool,
+    pub r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConstBlockPat {
-    const_token: bool,
+    pub const_token: bool,
     pub block_expr: Box<BlockExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordPatFieldList {
-    l_curly_token: bool,
+    pub l_curly_token: bool,
     pub fields: Vec<RecordPatField>,
     pub rest_pat: Option<Box<RestPat>>,
-    r_curly_token: bool,
+    pub r_curly_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordPatField {
     pub attrs: Vec<Attr>,
     pub name_ref: Option<Box<NameRef>>,
-    colon_token: bool,
+    pub colon_token: bool,
     pub pat: Option<Box<Pat>>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ModeSpecChecked {
-    spec_token: bool,
-    l_paren_token: bool,
-    checked_token: bool,
-    r_paren_token: bool,
+    pub spec_token: bool,
+    pub l_paren_token: bool,
+    pub checked_token: bool,
+    pub r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SignatureDecreases {
     pub decreases_clause: Box<DecreasesClause>,
-    when_token: bool,
+    pub when_token: bool,
     pub expr: Option<Box<Expr>>,
-    via_token: bool,
+    pub via_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Prover {
-    by_token: bool,
-    l_paren_token: bool,
+    pub by_token: bool,
+    pub l_paren_token: bool,
     pub name: Box<Name>,
-    r_paren_token: bool,
+    pub r_paren_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TriggerAttribute {
-    pound_token: bool,
-    excl_token: bool,
-    l_brack_token: bool,
-    trigger_token: bool,
+    pub pound_token: bool,
+    pub excl_token: bool,
+    pub l_brack_token: bool,
+    pub trigger_token: bool,
     pub exprs: Vec<Expr>,
-    r_brack_token: bool,
+    pub r_brack_token: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GenericArg {
@@ -2788,18 +2774,6 @@ impl TryFrom<super::nodes::AwaitExpr> for AwaitExpr {
         })
     }
 }
-impl TryFrom<super::nodes::BinExpr> for BinExpr {
-    type Error = String;
-    fn try_from(item: super::nodes::BinExpr) -> Result<Self, Self::Error> {
-        Ok(Self {
-            attrs: item
-                .attrs()
-                .into_iter()
-                .map(Attr::try_from)
-                .collect::<Result<Vec<Attr>, String>>()?,
-        })
-    }
-}
 impl TryFrom<super::nodes::BoxExpr> for BoxExpr {
     type Error = String;
     fn try_from(item: super::nodes::BoxExpr) -> Result<Self, Self::Error> {
@@ -2985,20 +2959,6 @@ impl TryFrom<super::nodes::ForExpr> for ForExpr {
         })
     }
 }
-impl TryFrom<super::nodes::IfExpr> for IfExpr {
-    type Error = String;
-    fn try_from(item: super::nodes::IfExpr) -> Result<Self, Self::Error> {
-        Ok(Self {
-            attrs: item
-                .attrs()
-                .into_iter()
-                .map(Attr::try_from)
-                .collect::<Result<Vec<Attr>, String>>()?,
-            if_token: item.if_token().is_some(),
-            else_token: item.else_token().is_some(),
-        })
-    }
-}
 impl TryFrom<super::nodes::IndexExpr> for IndexExpr {
     type Error = String;
     fn try_from(item: super::nodes::IndexExpr) -> Result<Self, Self::Error> {
@@ -3010,18 +2970,6 @@ impl TryFrom<super::nodes::IndexExpr> for IndexExpr {
                 .collect::<Result<Vec<Attr>, String>>()?,
             l_brack_token: item.l_brack_token().is_some(),
             r_brack_token: item.r_brack_token().is_some(),
-        })
-    }
-}
-impl TryFrom<super::nodes::Literal> for Literal {
-    type Error = String;
-    fn try_from(item: super::nodes::Literal) -> Result<Self, Self::Error> {
-        Ok(Self {
-            attrs: item
-                .attrs()
-                .into_iter()
-                .map(Attr::try_from)
-                .collect::<Result<Vec<Attr>, String>>()?,
         })
     }
 }
@@ -4351,6 +4299,3596 @@ impl TryFrom<super::nodes::GenericParam> for GenericParam {
             super::nodes::GenericParam::TypeParam(it) => {
                 Ok(Self::TypeParam(Box::new(it.try_into()?)))
             }
+        }
+    }
+}
+impl std::fmt::Display for Name {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if let Some(it) = &self.ident_token {
+            s.push_str(&it);
+            s.push_str(" ");
+        }
+        if self.self_token {
+            let mut tmp = stringify!(self_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for NameRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if let Some(it) = &self.ident_token {
+            s.push_str(&it);
+            s.push_str(" ");
+        }
+        if self.self_token {
+            let mut tmp = stringify!(self_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.super_token {
+            let mut tmp = stringify!(super_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.crate_token {
+            let mut tmp = stringify!(crate_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.Self_token {
+            let mut tmp = stringify!(Self_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Lifetime {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if let Some(it) = &self.lifetime_ident_token {
+            s.push_str(&it);
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Path {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if let Some(it) = &self.qualifier {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.coloncolon_token {
+            let mut tmp = stringify!(coloncolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.segment.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for PathSegment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.coloncolon_token {
+            let mut tmp = stringify!(coloncolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name_ref.to_string());
+        s.push_str(" ");
+        if let Some(it) = &self.generic_arg_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.param_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.ret_type {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.l_angle_token {
+            let mut tmp = stringify!(l_angle_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.path_type {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.as_token {
+            let mut tmp = stringify!(as_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.r_angle_token {
+            let mut tmp = stringify!(r_angle_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for GenericArgList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.coloncolon_token {
+            let mut tmp = stringify!(coloncolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.l_angle_token {
+            let mut tmp = stringify!(l_angle_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(
+            &self.generic_args.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
+        );
+        if self.r_angle_token {
+            let mut tmp = stringify!(r_angle_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for RetType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.thin_arrow_token {
+            let mut tmp = stringify!(thin_arrow_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.tracked_token {
+            let mut tmp = stringify!(tracked_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.pat {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.colon_token {
+            let mut tmp = stringify!(colon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.ty.to_string());
+        s.push_str(" ");
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for PathType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.path.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for TypeArg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.ty.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for AssocTypeArg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.name_ref.to_string());
+        s.push_str(" ");
+        if let Some(it) = &self.generic_arg_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.param_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.ret_type {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.colon_token {
+            let mut tmp = stringify!(colon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.type_bound_list.to_string());
+        s.push_str(" ");
+        if self.eq_token {
+            let mut tmp = stringify!(eq_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.ty.to_string());
+        s.push_str(" ");
+        if let Some(it) = &self.const_arg {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for LifetimeArg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.lifetime.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ConstArg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for TypeBoundList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.bounds.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for MacroCall {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.path.to_string());
+        s.push_str(" ");
+        if self.excl_token {
+            let mut tmp = stringify!(excl_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.token_tree.to_string());
+        s.push_str(" ");
+        if self.semicolon_token {
+            let mut tmp = stringify!(semicolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Attr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.pound_token {
+            let mut tmp = stringify!(pound_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.excl_token {
+            let mut tmp = stringify!(excl_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.l_brack_token {
+            let mut tmp = stringify!(l_brack_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.meta.to_string());
+        s.push_str(" ");
+        if self.r_brack_token {
+            let mut tmp = stringify!(r_brack_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for TokenTree {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.l_curly_token {
+            let mut tmp = stringify!(l_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.r_curly_token {
+            let mut tmp = stringify!(r_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.l_brack_token {
+            let mut tmp = stringify!(l_brack_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.r_brack_token {
+            let mut tmp = stringify!(r_brack_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for MacroItems {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.items.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for MacroStmts {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(
+            &self.statements.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
+        );
+        if let Some(it) = &self.expr {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for SourceFile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.shebang_token {
+            let mut tmp = stringify!(shebang_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.items.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Const {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.default_token {
+            let mut tmp = stringify!(default_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.const_token {
+            let mut tmp = stringify!(const_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.name {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.underscore_token {
+            let mut tmp = stringify!(underscore_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.colon_token {
+            let mut tmp = stringify!(colon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.ty.to_string());
+        s.push_str(" ");
+        if self.eq_token {
+            let mut tmp = stringify!(eq_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.body {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.semicolon_token {
+            let mut tmp = stringify!(semicolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Enum {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.enum_token {
+            let mut tmp = stringify!(enum_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        if let Some(it) = &self.generic_param_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.where_clause {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        s.push_str(&self.variant_list.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ExternBlock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.unsafe_token {
+            let mut tmp = stringify!(unsafe_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.abi.to_string());
+        s.push_str(" ");
+        s.push_str(&self.extern_item_list.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ExternCrate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.extern_token {
+            let mut tmp = stringify!(extern_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.crate_token {
+            let mut tmp = stringify!(crate_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name_ref.to_string());
+        s.push_str(" ");
+        if let Some(it) = &self.rename {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.semicolon_token {
+            let mut tmp = stringify!(semicolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Fn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.publish {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.default_token {
+            let mut tmp = stringify!(default_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.const_token {
+            let mut tmp = stringify!(const_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.async_token {
+            let mut tmp = stringify!(async_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.unsafe_token {
+            let mut tmp = stringify!(unsafe_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.abi {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.fn_mode {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.fn_token {
+            let mut tmp = stringify!(fn_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        if let Some(it) = &self.generic_param_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.param_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.ret_type {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.where_clause {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.requires_clause {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.recommends_clause {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.ensures_clause {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.decreases_clause {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.body {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.semicolon_token {
+            let mut tmp = stringify!(semicolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Impl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.default_token {
+            let mut tmp = stringify!(default_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.unsafe_token {
+            let mut tmp = stringify!(unsafe_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.impl_token {
+            let mut tmp = stringify!(impl_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.generic_param_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.const_token {
+            let mut tmp = stringify!(const_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.excl_token {
+            let mut tmp = stringify!(excl_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.for_token {
+            let mut tmp = stringify!(for_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.where_clause {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        s.push_str(&self.assoc_item_list.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for MacroRules {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.macro_rules_token {
+            let mut tmp = stringify!(macro_rules_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.excl_token {
+            let mut tmp = stringify!(excl_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        s.push_str(&self.token_tree.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for MacroDef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.macro_token {
+            let mut tmp = stringify!(macro_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        if let Some(it) = &self.args {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        s.push_str(&self.body.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Module {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.mod_token {
+            let mut tmp = stringify!(mod_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        if let Some(it) = &self.item_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.semicolon_token {
+            let mut tmp = stringify!(semicolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Static {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.static_token {
+            let mut tmp = stringify!(static_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.mut_token {
+            let mut tmp = stringify!(mut_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        if self.colon_token {
+            let mut tmp = stringify!(colon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.ty.to_string());
+        s.push_str(" ");
+        if self.eq_token {
+            let mut tmp = stringify!(eq_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.body {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.semicolon_token {
+            let mut tmp = stringify!(semicolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Struct {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.data_mode {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.struct_token {
+            let mut tmp = stringify!(struct_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        if let Some(it) = &self.generic_param_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.where_clause {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.semicolon_token {
+            let mut tmp = stringify!(semicolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.field_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Trait {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.unsafe_token {
+            let mut tmp = stringify!(unsafe_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.auto_token {
+            let mut tmp = stringify!(auto_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.trait_token {
+            let mut tmp = stringify!(trait_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        if let Some(it) = &self.generic_param_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.colon_token {
+            let mut tmp = stringify!(colon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.type_bound_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.where_clause {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        s.push_str(&self.assoc_item_list.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for TraitAlias {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.trait_token {
+            let mut tmp = stringify!(trait_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        if let Some(it) = &self.generic_param_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.eq_token {
+            let mut tmp = stringify!(eq_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.type_bound_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.where_clause {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.semicolon_token {
+            let mut tmp = stringify!(semicolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for TypeAlias {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.default_token {
+            let mut tmp = stringify!(default_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.type_token {
+            let mut tmp = stringify!(type_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        if let Some(it) = &self.generic_param_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.colon_token {
+            let mut tmp = stringify!(colon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.type_bound_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.where_clause {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.eq_token {
+            let mut tmp = stringify!(eq_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.semicolon_token {
+            let mut tmp = stringify!(semicolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Union {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.union_token {
+            let mut tmp = stringify!(union_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        if let Some(it) = &self.generic_param_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.where_clause {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        s.push_str(&self.record_field_list.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Use {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.use_token {
+            let mut tmp = stringify!(use_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.use_tree.to_string());
+        s.push_str(" ");
+        if self.semicolon_token {
+            let mut tmp = stringify!(semicolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Visibility {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.pub_token {
+            let mut tmp = stringify!(pub_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.in_token {
+            let mut tmp = stringify!(in_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.path {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ItemList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_curly_token {
+            let mut tmp = stringify!(l_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.items.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.r_curly_token {
+            let mut tmp = stringify!(r_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Rename {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.as_token {
+            let mut tmp = stringify!(as_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.name {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.underscore_token {
+            let mut tmp = stringify!(underscore_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for UseTree {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if let Some(it) = &self.path {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.coloncolon_token {
+            let mut tmp = stringify!(coloncolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.star_token {
+            let mut tmp = stringify!(star_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.use_tree_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.rename {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for UseTreeList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_curly_token {
+            let mut tmp = stringify!(l_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(
+            &self.use_trees.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
+        );
+        if self.r_curly_token {
+            let mut tmp = stringify!(r_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Publish {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.closed_token {
+            let mut tmp = stringify!(closed_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.open_token {
+            let mut tmp = stringify!(open_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Abi {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.extern_token {
+            let mut tmp = stringify!(extern_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for FnMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.spec_token {
+            let mut tmp = stringify!(spec_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.proof_token {
+            let mut tmp = stringify!(proof_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.exec_token {
+            let mut tmp = stringify!(exec_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.mode_spec_checked {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for GenericParamList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_angle_token {
+            let mut tmp = stringify!(l_angle_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(
+            &self.generic_params.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
+        );
+        if self.r_angle_token {
+            let mut tmp = stringify!(r_angle_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for WhereClause {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.where_token {
+            let mut tmp = stringify!(where_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(
+            &self.predicates.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
+        );
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for RequiresClause {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.requires_token {
+            let mut tmp = stringify!(requires_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.exprs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for RecommendsClause {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.recommends_token {
+            let mut tmp = stringify!(recommends_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.exprs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.via_token {
+            let mut tmp = stringify!(via_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.expr {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for EnsuresClause {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.ensures_token {
+            let mut tmp = stringify!(ensures_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.exprs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for DecreasesClause {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.decreases_token {
+            let mut tmp = stringify!(decreases_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.exprs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for BlockExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.label {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.try_token {
+            let mut tmp = stringify!(try_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.unsafe_token {
+            let mut tmp = stringify!(unsafe_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.async_token {
+            let mut tmp = stringify!(async_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.const_token {
+            let mut tmp = stringify!(const_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.stmt_list.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for SelfParam {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.amp_token {
+            let mut tmp = stringify!(amp_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.lifetime {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.mut_token {
+            let mut tmp = stringify!(mut_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        if self.colon_token {
+            let mut tmp = stringify!(colon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.ty.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Param {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.tracked_token {
+            let mut tmp = stringify!(tracked_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.pat {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.colon_token {
+            let mut tmp = stringify!(colon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.dotdotdot_token {
+            let mut tmp = stringify!(dotdotdot_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for DataMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.ghost_token {
+            let mut tmp = stringify!(ghost_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.tracked_token {
+            let mut tmp = stringify!(tracked_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for RecordFieldList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_curly_token {
+            let mut tmp = stringify!(l_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.fields.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.r_curly_token {
+            let mut tmp = stringify!(r_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for TupleFieldList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.fields.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for RecordField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.data_mode {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        if self.colon_token {
+            let mut tmp = stringify!(colon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.ty.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for TupleField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        s.push_str(&self.ty.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for VariantList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_curly_token {
+            let mut tmp = stringify!(l_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(
+            &self.variants.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
+        );
+        if self.r_curly_token {
+            let mut tmp = stringify!(r_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Variant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        if let Some(it) = &self.field_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.eq_token {
+            let mut tmp = stringify!(eq_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.expr {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for AssocItemList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_curly_token {
+            let mut tmp = stringify!(l_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(
+            &self.assoc_items.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
+        );
+        if self.r_curly_token {
+            let mut tmp = stringify!(r_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ExternItemList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_curly_token {
+            let mut tmp = stringify!(l_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(
+            &self.extern_items.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
+        );
+        if self.r_curly_token {
+            let mut tmp = stringify!(r_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ConstParam {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.const_token {
+            let mut tmp = stringify!(const_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        if self.colon_token {
+            let mut tmp = stringify!(colon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.ty.to_string());
+        s.push_str(" ");
+        if self.eq_token {
+            let mut tmp = stringify!(eq_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.default_val {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for LifetimeParam {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.lifetime.to_string());
+        s.push_str(" ");
+        if self.colon_token {
+            let mut tmp = stringify!(colon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.type_bound_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for TypeParam {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        if self.colon_token {
+            let mut tmp = stringify!(colon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.type_bound_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.eq_token {
+            let mut tmp = stringify!(eq_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.default_type {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for WherePred {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.for_token {
+            let mut tmp = stringify!(for_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.generic_param_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.lifetime {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.colon_token {
+            let mut tmp = stringify!(colon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.type_bound_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Meta {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.path.to_string());
+        s.push_str(" ");
+        if self.eq_token {
+            let mut tmp = stringify!(eq_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.expr {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.token_tree {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ExprStmt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        if self.semicolon_token {
+            let mut tmp = stringify!(semicolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for LetStmt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.let_token {
+            let mut tmp = stringify!(let_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.ghost_token {
+            let mut tmp = stringify!(ghost_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.tracked_token {
+            let mut tmp = stringify!(tracked_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.pat {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.colon_token {
+            let mut tmp = stringify!(colon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.eq_token {
+            let mut tmp = stringify!(eq_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.initializer.to_string());
+        s.push_str(" ");
+        if let Some(it) = &self.let_else {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.semicolon_token {
+            let mut tmp = stringify!(semicolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for LetElse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.else_token {
+            let mut tmp = stringify!(else_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.block_expr.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ArrayExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.l_brack_token {
+            let mut tmp = stringify!(l_brack_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.exprs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        if self.semicolon_token {
+            let mut tmp = stringify!(semicolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.r_brack_token {
+            let mut tmp = stringify!(r_brack_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for AwaitExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        if self.dot_token {
+            let mut tmp = stringify!(dot_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.await_token {
+            let mut tmp = stringify!(await_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for BoxExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.box_token {
+            let mut tmp = stringify!(box_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for BreakExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.break_token {
+            let mut tmp = stringify!(break_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.lifetime {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.expr {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for CallExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        s.push_str(&self.arg_list.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for CastExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        if self.as_token {
+            let mut tmp = stringify!(as_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.ty.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ClosureExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.for_token {
+            let mut tmp = stringify!(for_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.generic_param_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.const_token {
+            let mut tmp = stringify!(const_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.static_token {
+            let mut tmp = stringify!(static_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.async_token {
+            let mut tmp = stringify!(async_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.move_token {
+            let mut tmp = stringify!(move_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.forall_token {
+            let mut tmp = stringify!(forall_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.exists_token {
+            let mut tmp = stringify!(exists_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.param_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.ret_type {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        s.push_str(&self.body.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ContinueExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.continue_token {
+            let mut tmp = stringify!(continue_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.lifetime {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for FieldExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        if self.dot_token {
+            let mut tmp = stringify!(dot_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name_ref.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ForExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.label {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.for_token {
+            let mut tmp = stringify!(for_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.pat {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.in_token {
+            let mut tmp = stringify!(in_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.loop_body.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for IndexExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.l_brack_token {
+            let mut tmp = stringify!(l_brack_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.r_brack_token {
+            let mut tmp = stringify!(r_brack_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for LoopExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.label {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.loop_token {
+            let mut tmp = stringify!(loop_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.loop_body.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for MacroExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.macro_call.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for MatchExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.match_token {
+            let mut tmp = stringify!(match_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        s.push_str(&self.match_arm_list.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for MethodCallExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.receiver.to_string());
+        s.push_str(" ");
+        if self.dot_token {
+            let mut tmp = stringify!(dot_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name_ref.to_string());
+        s.push_str(" ");
+        if let Some(it) = &self.generic_arg_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        s.push_str(&self.arg_list.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ParenExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for PathExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.path.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for PrefixExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for RangeExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for RecordExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.path.to_string());
+        s.push_str(" ");
+        s.push_str(&self.record_expr_field_list.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for RefExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.amp_token {
+            let mut tmp = stringify!(amp_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.raw_token {
+            let mut tmp = stringify!(raw_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.mut_token {
+            let mut tmp = stringify!(mut_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.const_token {
+            let mut tmp = stringify!(const_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ReturnExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.return_token {
+            let mut tmp = stringify!(return_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.expr {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for TryExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        if self.question_mark_token {
+            let mut tmp = stringify!(question_mark_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for TupleExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.fields.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for WhileExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.label {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.while_token {
+            let mut tmp = stringify!(while_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.invariant_clause {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.decreases_clause {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        s.push_str(&self.loop_body.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for YieldExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.yield_token {
+            let mut tmp = stringify!(yield_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.expr {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for YeetExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.do_token {
+            let mut tmp = stringify!(do_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.yeet_token {
+            let mut tmp = stringify!(yeet_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.expr {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for LetExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.let_token {
+            let mut tmp = stringify!(let_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.pat {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.eq_token {
+            let mut tmp = stringify!(eq_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for UnderscoreExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.underscore_token {
+            let mut tmp = stringify!(underscore_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ViewExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        if self.at_token {
+            let mut tmp = stringify!(at_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for AssertExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.assert_token {
+            let mut tmp = stringify!(assert_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.by_token {
+            let mut tmp = stringify!(by_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.name {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.requires_clause {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.block_expr {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for AssumeExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.assume_token {
+            let mut tmp = stringify!(assume_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for AssertForallExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.assert_token {
+            let mut tmp = stringify!(assert_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.forall_token {
+            let mut tmp = stringify!(forall_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.closure_expr.to_string());
+        s.push_str(" ");
+        if self.implies_token {
+            let mut tmp = stringify!(implies_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.expr {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.by_token {
+            let mut tmp = stringify!(by_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.block_expr.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for StmtList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_curly_token {
+            let mut tmp = stringify!(l_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(
+            &self.statements.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
+        );
+        if let Some(it) = &self.tail_expr {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.r_curly_token {
+            let mut tmp = stringify!(r_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Label {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.lifetime.to_string());
+        s.push_str(" ");
+        if self.colon_token {
+            let mut tmp = stringify!(colon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for RecordExprFieldList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_curly_token {
+            let mut tmp = stringify!(l_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.fields.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.dotdot_token {
+            let mut tmp = stringify!(dotdot_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.spread {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.r_curly_token {
+            let mut tmp = stringify!(r_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for RecordExprField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.name_ref {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.colon_token {
+            let mut tmp = stringify!(colon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for InvariantClause {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.invariant_token {
+            let mut tmp = stringify!(invariant_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.exprs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for MatchArmList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_curly_token {
+            let mut tmp = stringify!(l_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.arms.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.r_curly_token {
+            let mut tmp = stringify!(r_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for MatchArm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.pat {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.guard {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.fat_arrow_token {
+            let mut tmp = stringify!(fat_arrow_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        if self.comma_token {
+            let mut tmp = stringify!(comma_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for MatchGuard {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.if_token {
+            let mut tmp = stringify!(if_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ArrayType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_brack_token {
+            let mut tmp = stringify!(l_brack_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.ty.to_string());
+        s.push_str(" ");
+        if self.semicolon_token {
+            let mut tmp = stringify!(semicolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        if self.r_brack_token {
+            let mut tmp = stringify!(r_brack_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for DynTraitType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.dyn_token {
+            let mut tmp = stringify!(dyn_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.type_bound_list.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for FnPtrType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.const_token {
+            let mut tmp = stringify!(const_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.async_token {
+            let mut tmp = stringify!(async_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.unsafe_token {
+            let mut tmp = stringify!(unsafe_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.abi {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.fn_token {
+            let mut tmp = stringify!(fn_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.param_list {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.ret_type {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ForType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.for_token {
+            let mut tmp = stringify!(for_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.generic_param_list.to_string());
+        s.push_str(" ");
+        s.push_str(&self.ty.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ImplTraitType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.impl_token {
+            let mut tmp = stringify!(impl_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.type_bound_list.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for InferType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.underscore_token {
+            let mut tmp = stringify!(underscore_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for MacroType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.macro_call.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for NeverType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.excl_token {
+            let mut tmp = stringify!(excl_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ParenType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.ty.to_string());
+        s.push_str(" ");
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for PtrType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.star_token {
+            let mut tmp = stringify!(star_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.const_token {
+            let mut tmp = stringify!(const_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.mut_token {
+            let mut tmp = stringify!(mut_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.ty.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for RefType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.amp_token {
+            let mut tmp = stringify!(amp_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.lifetime {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.mut_token {
+            let mut tmp = stringify!(mut_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.ty.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for SliceType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_brack_token {
+            let mut tmp = stringify!(l_brack_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.ty.to_string());
+        s.push_str(" ");
+        if self.r_brack_token {
+            let mut tmp = stringify!(r_brack_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for TupleType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.fields.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for TypeBound {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if let Some(it) = &self.lifetime {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.question_mark_token {
+            let mut tmp = stringify!(question_mark_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.tilde_token {
+            let mut tmp = stringify!(tilde_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.const_token {
+            let mut tmp = stringify!(const_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.ty.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for IdentPat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.ref_token {
+            let mut tmp = stringify!(ref_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.mut_token {
+            let mut tmp = stringify!(mut_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        if self.at_token {
+            let mut tmp = stringify!(at_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.pat {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for BoxPat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.box_token {
+            let mut tmp = stringify!(box_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.pat {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for RestPat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.dotdot_token {
+            let mut tmp = stringify!(dotdot_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for LiteralPat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.minus_token {
+            let mut tmp = stringify!(minus_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.literal.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for MacroPat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.macro_call.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for OrPat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.pats.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ParenPat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.pat {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for PathPat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.path.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for WildcardPat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.underscore_token {
+            let mut tmp = stringify!(underscore_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for RangePat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for RecordPat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.path.to_string());
+        s.push_str(" ");
+        s.push_str(&self.record_pat_field_list.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for RefPat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.amp_token {
+            let mut tmp = stringify!(amp_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.mut_token {
+            let mut tmp = stringify!(mut_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.pat {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for SlicePat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_brack_token {
+            let mut tmp = stringify!(l_brack_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.pats.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.r_brack_token {
+            let mut tmp = stringify!(r_brack_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for TuplePat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.fields.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for TupleStructPat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.path.to_string());
+        s.push_str(" ");
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.fields.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ConstBlockPat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.const_token {
+            let mut tmp = stringify!(const_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.block_expr.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for RecordPatFieldList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_curly_token {
+            let mut tmp = stringify!(l_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.fields.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.rest_pat {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.r_curly_token {
+            let mut tmp = stringify!(r_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for RecordPatField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.name_ref {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.colon_token {
+            let mut tmp = stringify!(colon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.pat {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ModeSpecChecked {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.spec_token {
+            let mut tmp = stringify!(spec_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.checked_token {
+            let mut tmp = stringify!(checked_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for SignatureDecreases {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.decreases_clause.to_string());
+        s.push_str(" ");
+        if self.when_token {
+            let mut tmp = stringify!(when_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.expr {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.via_token {
+            let mut tmp = stringify!(via_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Prover {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.by_token {
+            let mut tmp = stringify!(by_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for TriggerAttribute {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.pound_token {
+            let mut tmp = stringify!(pound_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.excl_token {
+            let mut tmp = stringify!(excl_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.l_brack_token {
+            let mut tmp = stringify!(l_brack_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.trigger_token {
+            let mut tmp = stringify!(trigger_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.exprs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.r_brack_token {
+            let mut tmp = stringify!(r_brack_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for GenericArg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GenericArg::TypeArg(it) => write!(f, "{}", it.to_string()),
+            GenericArg::AssocTypeArg(it) => write!(f, "{}", it.to_string()),
+            GenericArg::LifetimeArg(it) => write!(f, "{}", it.to_string()),
+            GenericArg::ConstArg(it) => write!(f, "{}", it.to_string()),
+        }
+    }
+}
+impl std::fmt::Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::ArrayType(it) => write!(f, "{}", it.to_string()),
+            Type::DynTraitType(it) => write!(f, "{}", it.to_string()),
+            Type::FnPtrType(it) => write!(f, "{}", it.to_string()),
+            Type::ForType(it) => write!(f, "{}", it.to_string()),
+            Type::ImplTraitType(it) => write!(f, "{}", it.to_string()),
+            Type::InferType(it) => write!(f, "{}", it.to_string()),
+            Type::MacroType(it) => write!(f, "{}", it.to_string()),
+            Type::NeverType(it) => write!(f, "{}", it.to_string()),
+            Type::ParenType(it) => write!(f, "{}", it.to_string()),
+            Type::PathType(it) => write!(f, "{}", it.to_string()),
+            Type::PtrType(it) => write!(f, "{}", it.to_string()),
+            Type::RefType(it) => write!(f, "{}", it.to_string()),
+            Type::SliceType(it) => write!(f, "{}", it.to_string()),
+            Type::TupleType(it) => write!(f, "{}", it.to_string()),
+        }
+    }
+}
+impl std::fmt::Display for Expr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Expr::ArrayExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::AwaitExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::BinExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::BlockExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::BoxExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::BreakExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::CallExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::CastExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::ClosureExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::ContinueExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::FieldExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::ForExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::IfExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::IndexExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::Literal(it) => write!(f, "{}", it.to_string()),
+            Expr::LoopExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::MacroExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::MatchExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::MethodCallExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::ParenExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::PathExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::PrefixExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::RangeExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::RecordExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::RefExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::ReturnExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::TryExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::TupleExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::WhileExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::YieldExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::YeetExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::LetExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::UnderscoreExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::ViewExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::AssertExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::AssumeExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::AssertForallExpr(it) => write!(f, "{}", it.to_string()),
+        }
+    }
+}
+impl std::fmt::Display for Item {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Item::Const(it) => write!(f, "{}", it.to_string()),
+            Item::Enum(it) => write!(f, "{}", it.to_string()),
+            Item::ExternBlock(it) => write!(f, "{}", it.to_string()),
+            Item::ExternCrate(it) => write!(f, "{}", it.to_string()),
+            Item::Fn(it) => write!(f, "{}", it.to_string()),
+            Item::Impl(it) => write!(f, "{}", it.to_string()),
+            Item::MacroCall(it) => write!(f, "{}", it.to_string()),
+            Item::MacroRules(it) => write!(f, "{}", it.to_string()),
+            Item::MacroDef(it) => write!(f, "{}", it.to_string()),
+            Item::Module(it) => write!(f, "{}", it.to_string()),
+            Item::Static(it) => write!(f, "{}", it.to_string()),
+            Item::Struct(it) => write!(f, "{}", it.to_string()),
+            Item::Trait(it) => write!(f, "{}", it.to_string()),
+            Item::TraitAlias(it) => write!(f, "{}", it.to_string()),
+            Item::TypeAlias(it) => write!(f, "{}", it.to_string()),
+            Item::Union(it) => write!(f, "{}", it.to_string()),
+            Item::Use(it) => write!(f, "{}", it.to_string()),
+        }
+    }
+}
+impl std::fmt::Display for Stmt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Stmt::ExprStmt(it) => write!(f, "{}", it.to_string()),
+            Stmt::Item(it) => write!(f, "{}", it.to_string()),
+            Stmt::LetStmt(it) => write!(f, "{}", it.to_string()),
+        }
+    }
+}
+impl std::fmt::Display for Pat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Pat::IdentPat(it) => write!(f, "{}", it.to_string()),
+            Pat::BoxPat(it) => write!(f, "{}", it.to_string()),
+            Pat::RestPat(it) => write!(f, "{}", it.to_string()),
+            Pat::LiteralPat(it) => write!(f, "{}", it.to_string()),
+            Pat::MacroPat(it) => write!(f, "{}", it.to_string()),
+            Pat::OrPat(it) => write!(f, "{}", it.to_string()),
+            Pat::ParenPat(it) => write!(f, "{}", it.to_string()),
+            Pat::PathPat(it) => write!(f, "{}", it.to_string()),
+            Pat::WildcardPat(it) => write!(f, "{}", it.to_string()),
+            Pat::RangePat(it) => write!(f, "{}", it.to_string()),
+            Pat::RecordPat(it) => write!(f, "{}", it.to_string()),
+            Pat::RefPat(it) => write!(f, "{}", it.to_string()),
+            Pat::SlicePat(it) => write!(f, "{}", it.to_string()),
+            Pat::TuplePat(it) => write!(f, "{}", it.to_string()),
+            Pat::TupleStructPat(it) => write!(f, "{}", it.to_string()),
+            Pat::ConstBlockPat(it) => write!(f, "{}", it.to_string()),
+        }
+    }
+}
+impl std::fmt::Display for FieldList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FieldList::RecordFieldList(it) => write!(f, "{}", it.to_string()),
+            FieldList::TupleFieldList(it) => write!(f, "{}", it.to_string()),
+        }
+    }
+}
+impl std::fmt::Display for Adt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Adt::Enum(it) => write!(f, "{}", it.to_string()),
+            Adt::Struct(it) => write!(f, "{}", it.to_string()),
+            Adt::Union(it) => write!(f, "{}", it.to_string()),
+        }
+    }
+}
+impl std::fmt::Display for AssocItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AssocItem::Const(it) => write!(f, "{}", it.to_string()),
+            AssocItem::Fn(it) => write!(f, "{}", it.to_string()),
+            AssocItem::MacroCall(it) => write!(f, "{}", it.to_string()),
+            AssocItem::TypeAlias(it) => write!(f, "{}", it.to_string()),
+        }
+    }
+}
+impl std::fmt::Display for ExternItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ExternItem::Fn(it) => write!(f, "{}", it.to_string()),
+            ExternItem::MacroCall(it) => write!(f, "{}", it.to_string()),
+            ExternItem::Static(it) => write!(f, "{}", it.to_string()),
+            ExternItem::TypeAlias(it) => write!(f, "{}", it.to_string()),
+        }
+    }
+}
+impl std::fmt::Display for GenericParam {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GenericParam::ConstParam(it) => write!(f, "{}", it.to_string()),
+            GenericParam::LifetimeParam(it) => write!(f, "{}", it.to_string()),
+            GenericParam::TypeParam(it) => write!(f, "{}", it.to_string()),
         }
     }
 }
