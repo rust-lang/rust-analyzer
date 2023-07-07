@@ -22,6 +22,11 @@ const special_items: &[(&str, &[&str])] = &[
     ("HasArgList", &["arg_list"]),
 ];
 
+const HAND_WRITTEN: &[&str] = &[
+    "BinExpr",
+    "IfExpr",
+];
+
 #[test]
 fn sourcegen_vst() {
     let grammar =
@@ -85,12 +90,20 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
                 }
             });
 
-            quote! {
-                #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-                pub struct #name {
-                    #(#fields)*
+            if HAND_WRITTEN.contains(&node.name.as_str()) {
+                quote! {
+
+                }
+            } else {
+                quote! {
+                    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+                    pub struct #name {
+                        #(#fields)*
+                    }
                 }
             }
+
+
         })
         .collect_vec();
 
@@ -144,14 +157,18 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
                     }
                 }
             });
-
-            quote! {
-                impl TryFrom<super::nodes::#name> for #name {
-                    type Error = String;
-                    fn try_from(item: super::nodes::#name) -> Result<Self, Self::Error>  {
-                        Ok(Self {
-                            #(#fields)*
-                        })
+            if HAND_WRITTEN.contains(&node.name.as_str()) {
+                quote! {
+                }
+            } else {
+                quote! {
+                    impl TryFrom<super::nodes::#name> for #name {
+                        type Error = String;
+                        fn try_from(item: super::nodes::#name) -> Result<Self, Self::Error>  {
+                            Ok(Self {
+                                #(#fields)*
+                            })
+                        }
                     }
                 }
             }
@@ -221,7 +238,7 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         #![allow(non_snake_case)]
         use crate::{
             SyntaxNode, SyntaxToken, SyntaxKind::{self, *},
-            ast::{self, AstNode, AstChildren, support, traits::*},
+            ast::{self, AstNode, AstChildren, support, traits::*, vst::*},
             T,
         };
 

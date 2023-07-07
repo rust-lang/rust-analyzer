@@ -14,21 +14,88 @@ use crate::{
 
 use super::{generated, HasAttrs};
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BinExpr {
+    pub attrs: Vec<Attr>,
+    pub lhs: Box<Expr>,
+    pub op: BinaryOp,
+    pub rhs: Box<Expr>,
+}
 
-// pub struct BinExpr {
-//     pub attrs: Vec<Attr>,
-//     pub lhs: Option<Box<Expr>>,
-//     pub op: Option<BinaryOp>,
-//     pub rhs: Option<Box<Expr>>,
-// }
+impl TryFrom<generated::nodes::BinExpr> for BinExpr {
+    type Error = String;
+    fn try_from(item: generated::nodes::BinExpr) -> Result<Self, Self::Error> {
+        Ok(Self { 
+            attrs:item
+            .attrs()
+            .into_iter()
+            .map(Attr::try_from)
+            .collect::<Result<Vec<Attr>, String>>()?,
+            lhs: Box::new(
+                item.lhs()
+                    .ok_or(format!("{}", stringify!(lhs)))
+                    .map(|it| Expr::try_from(it))??),
+            op: item.op_details().ok_or(format!("{}", stringify!(op_details))).map(|it| it.1)?,
+            rhs: Box::new(
+                item.rhs()
+                    .ok_or(format!("{}", stringify!(rhs)))
+                    .map(|it| Expr::try_from(it))??),        })
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct IfExpr {
+    pub attrs: Vec<Attr>,
+    if_token: bool,
+    pub condition: Box<Expr>,
+    pub then_branch: Box<BlockExpr>,
+    else_token: bool,
+    pub else_branch: Option<Box<ElseBranch>>,
+}
 
-// impl From<generated::nodes::BinExpr> for BinExpr {
-//     fn from(item: generated::nodes::BinExpr) -> Self {
-//         Self { 
-//             attrs: item.attrs().into_iter().map(Attr::from).collect(),
-//             lhs: item.lhs().map(Expr::from).map(Box::new),
-//             op: item.op_details().map(|it| it.1),
-//             rhs:item.rhs().map(Expr::from).map(Box::new),
-//         }
-//     }
-// }
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ElseBranch {
+    Block(Box<BlockExpr>),
+    IfExpr(Box<IfExpr>),
+}
+
+impl TryFrom<super::expr_ext::ElseBranch> for ElseBranch {
+    type Error = String;
+    fn try_from(item: super::expr_ext::ElseBranch) -> Result<Self, Self::Error> {
+        match item {
+            super::expr_ext::ElseBranch::Block(it) => {
+                Ok(Self::Block(Box::new(it.try_into()?)))
+            }
+            super::expr_ext::ElseBranch::IfExpr(it) => {
+                Ok(Self::IfExpr(Box::new(it.try_into()?)))
+            }
+        }
+    }
+}
+
+
+impl TryFrom<generated::nodes::IfExpr> for IfExpr {
+    type Error = String;
+    fn try_from(item: generated::nodes::IfExpr) -> Result<Self, Self::Error> {
+        Ok(Self { 
+            attrs:item
+            .attrs()
+            .into_iter()
+            .map(Attr::try_from)
+            .collect::<Result<Vec<Attr>, String>>()?,
+            if_token: item.if_token().is_some(),
+            condition: Box::new(
+                item.condition()
+                    .ok_or(format!("{}", stringify!(condition)))
+                    .map(|it| Expr::try_from(it))??),
+            then_branch: Box::new(
+                item.then_branch()
+                    .ok_or(format!("{}", stringify!(then_branch)))
+                    .map(|it| BlockExpr::try_from(it))??),
+            else_token: item.else_token().is_some(),
+            else_branch: match item.else_branch() {
+                Some(it) => Some(Box::new(ElseBranch::try_from(it)?)),
+                None => None,
+            },
+        })
+    }
+}
