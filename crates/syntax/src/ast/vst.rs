@@ -16,12 +16,60 @@ use crate::{
 
 use super::{generated, HasAttrs};
 
+pub(crate) fn token_ascii(name: &String) -> &str {
+    match name.as_str() {
+        "semicolon" => ";",
+        "thin_arrow" => "->",
+        "l_curly" => "{",
+        "r_curly" => "}",
+        "l_paren" => "(",
+        "r_paren" => ")",
+        "l_brack" => "[",
+        "r_brack" => "]",
+        "l_angle" => "<",
+        "r_angle" => ">",
+        "eq" => "=",
+        "excl" => "!",
+        "star" => "*",
+        "amp" => "&",
+        "minus" => "-",
+        "underscore" => "_",
+        "dot" => ".",
+        "dotdot" => "..",
+        "dotdotdot" => "...",
+        "dotdoteq" => "..=",
+        "fat_arrow" => "=>",
+        "at" => "@",
+        "colon" => ":",
+        "coloncolon" => "::",
+        "pound" => "#",
+        "question_mark" => "?",
+        "comma" => ",",
+        "pipe" => "|",
+        "tilde" => "~",
+        _ => name.as_str(),
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BinExpr {
     pub attrs: Vec<Attr>,
     pub lhs: Box<Expr>,
     pub op: BinaryOp,
     pub rhs: Box<Expr>,
+}
+
+impl std::fmt::Display for BinExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(
+            &self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
+        );
+        s.push_str(&self.lhs.to_string());
+        s.push_str(&self.op.to_string());
+        s.push_str(&self.rhs.to_string());
+        write!(f, "{s}")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -34,10 +82,40 @@ pub struct IfExpr {
     pub else_branch: Option<Box<ElseBranch>>,
 }
 
+impl std::fmt::Display for IfExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(
+            &self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
+        );
+        if self.if_token {
+            s.push_str("if ");
+        }
+        s.push_str(&self.condition.to_string());
+        s.push_str(&self.then_branch.to_string());
+        if self.else_token {
+            s.push_str("else ");
+        }
+        if let Some(it) = &self.else_branch {
+            s.push_str(&it.to_string());
+        }
+        write!(f, "{s}")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ElseBranch {
     Block(Box<BlockExpr>),
     IfExpr(Box<IfExpr>),
+}
+
+impl std::fmt::Display for ElseBranch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ElseBranch::Block(it) => write!(f, "{}", it),
+            ElseBranch::IfExpr(it) => write!(f, "{}", it),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -45,6 +123,18 @@ pub struct Literal {
     pub attrs: Vec<Attr>,
     pub literal: String
 }
+
+impl std::fmt::Display for Literal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(
+            &self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
+        );
+        s.push_str(&self.literal);
+        write!(f, "{s}")
+    }
+}
+
 
 impl TryFrom<generated::nodes::Literal> for Literal {
     type Error = String;
@@ -132,3 +222,58 @@ impl TryFrom<generated::nodes::IfExpr> for IfExpr {
     }
 }
 
+impl std::fmt::Display for ParamList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.self_param {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.comma_token && self.self_param.is_some() {
+            let mut tmp = stringify!(comma_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.params.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(", "));
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.pipe_token {
+            let mut tmp = stringify!(pipe_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+
+impl std::fmt::Display for ArgList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.args.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(", "));
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}

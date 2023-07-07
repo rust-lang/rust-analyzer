@@ -1561,6 +1561,7 @@ spec fn test_rec2(x: int, y: int) -> int
     for item in file.items() {
         dbg!(&item);
         let v_item: vst_nodes::Item = item.try_into().unwrap();
-        dbg!(v_item);
+        dbg!(&v_item);
+        println!("{}", &v_item);
     }
 }

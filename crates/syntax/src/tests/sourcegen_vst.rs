@@ -28,6 +28,11 @@ const HAND_WRITTEN: &[&str] = &[
     "Literal",
 ];
 
+const HAND_WRITTEN_PRINT_ONLY: &[&str] = &[
+    "ParamList",
+    "ArgList",
+];
+
 #[test]
 fn sourcegen_vst() {
     let grammar =
@@ -65,11 +70,11 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
                         || token_kind.to_string() == "T ! [lifetime_ident]"
                     {
                         quote! {
-                            #name : Option<String>,
+                            pub #name : Option<String>,
                         }
                     } else {
                         quote! {
-                            #name : bool,
+                            pub #name : bool,
                         }
                     }
                 } else {
@@ -176,6 +181,80 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         })
         .collect_vec();
 
+        // display struct
+        let display_impls_struct: Vec<_> = grammar
+        .nodes
+        .iter()
+        .map(|node| {
+            let name = format_ident!("{}", node.name);
+            let fields = node.fields.iter().map(|field| {
+                let name = field.method_name();
+                let ty = field.ty();
+
+                if field.is_many() {
+                    quote! {
+                        s.push_str(&self.#name.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+                    }
+                } else if let Some(token_kind) = field.token_kind() {
+                    // hacky for now
+                    // maybe special-case identifier to "#name : Option<String>"
+                    // 'ident, 'int_number', and 'lifetime_ident'.
+                    if token_kind.to_string() == "T ! [ident]"
+                        || token_kind.to_string() == "T ! [int_number]"
+                        || token_kind.to_string() == "T ! [lifetime_ident]"
+                    {
+                        // #name : Option<String>,
+                        quote! {
+                            if let Some(it) = &self.#name {
+                                s.push_str(&it); s.push_str(" ");
+                            }
+                        }
+                    } else {
+                        // #name : bool,
+                        quote! {
+                            if self.#name {
+                                let mut tmp = stringify!(#name).to_string();
+                                tmp.truncate(tmp.len() - 6);
+                                s.push_str(token_ascii(&tmp));
+                                s.push_str(" ");
+                            }
+                        }
+                    }
+                } else {
+                    if field.is_one() {
+                        // pub #name : Box<#ty>,
+                        quote! {
+                            s.push_str(&self.#name.to_string());
+                            s.push_str(" ");
+                        }
+                    } else {                    
+                        // pub #name : Option<Box<#ty>>,
+                        quote! {
+                            if let Some(it) = &self.#name {
+                                s.push_str(&it.to_string()); s.push_str(" ");
+                            }
+                        }
+                    }
+                }
+            });
+            if HAND_WRITTEN.contains(&node.name.as_str()) || HAND_WRITTEN_PRINT_ONLY.contains(&node.name.as_str()) {
+                quote! {
+                }
+            } else {
+                quote! {
+                    impl std::fmt::Display for #name {
+                        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                            let mut s = String::new();
+                            #(#fields)*
+                            write!(f, "{s}")
+                        }
+                    }
+                }
+            }
+        })
+        .collect_vec();
+
+
     // generate enum definitions
     let enum_defs: Vec<_> = grammar
         .enums
@@ -235,6 +314,38 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
     })
     .collect_vec();
 
+    // display
+    let display_impls_enum:  Vec<_> = grammar
+    .enums
+    .iter()
+    .map(|en| {
+        let variants: Vec<_> = en.variants.iter().map(|var| format_ident!("{}", var)).collect();
+        let name = format_ident!("{}", en.name);
+        let kinds: Vec<_> = variants
+            .iter()
+            .map(|name| format_ident!("{}", to_upper_snake_case(&name.to_string())))
+            .collect();
+        
+        let traits = en.traits.iter().map(|trait_name| {
+            let trait_name = format_ident!("{}", trait_name);
+            quote!(impl ast::#trait_name for #name {})
+        });
+        
+
+        quote! {
+            impl std::fmt::Display for #name {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    match self {
+                        #(
+                            #name::#variants(it) => write!(f, "{}", it.to_string()),
+                        )*
+                    }
+                }
+            }
+        }  
+    })
+    .collect_vec();
+
     let ast = quote! {
         #![allow(non_snake_case)]
         use crate::{
@@ -247,6 +358,8 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         #(#enum_defs)*
         #(#from_node_to_vnode_struct)*
         #(#from_node_to_vnode_enum)*
+        #(#display_impls_struct)*
+        #(#display_impls_enum)*
     };
 
     // TODO: expr_ext
@@ -255,7 +368,7 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
 
     // VST -> CST
     // TODO: generate display impls (this is to print VST and parse into CST)
-    // #(#display_impls)*
+    // 
 
     sourcegen::add_preamble("sourcegen_vst", sourcegen::reformat(ast.to_string()))
 }
