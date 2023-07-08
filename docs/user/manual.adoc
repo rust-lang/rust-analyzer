@@ -73,7 +73,7 @@ image::https://user-images.githubusercontent.com/9021944/75067008-17502500-54ba-
 
 [NOTE]
 ====
-To disable this notification put the following to `settings.json`
+To always download without prompting add the following to `settings.json`:
 
 [source,json]
 ----
