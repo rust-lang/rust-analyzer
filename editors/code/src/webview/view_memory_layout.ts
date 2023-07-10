@@ -46,8 +46,7 @@ export function showMemoryLayout(data): void {
     container.appendChild(table);
     const rows = [];
 
-    // eslint-disable-next-line camelcase
-    function node_t(idx, depth, offset) {
+    function nodeT(idx, depth, offset) {
         if (!rows[depth]) {
             rows[depth] = { el: document.createElement("tr"), offset: 0 };
         }
@@ -92,13 +91,12 @@ export function showMemoryLayout(data): void {
             tooltip.style.display = "block";
         });
         td.addEventListener("mouseleave", (_) => (tooltip.style.display = "none"));
-        // eslint-disable-next-line camelcase
-        const total_offset = rows[depth].offset;
+
+        const totalOffset = rows[depth].offset;
         td.addEventListener("dblclick", (e) => {
             const node = data.nodes[idx];
             zoom = data.nodes[0].size / node.size;
-            // eslint-disable-next-line camelcase
-            y = (-total_offset / data.nodes[0].size) * zoom;
+            y = (-totalOffset / data.nodes[0].size) * zoom;
             x = 0;
             locate();
         });
@@ -106,11 +104,10 @@ export function showMemoryLayout(data): void {
         rows[depth].el.appendChild(td);
         rows[depth].offset += data.nodes[idx].size;
 
-        // eslint-disable-next-line eqeqeq
-        if (data.nodes[idx].childrenStart != -1) {
+        if (data.nodes[idx].childrenStart !== -1) {
             for (let i = 0; i < data.nodes[idx].childrenLen; i++) {
                 if (data.nodes[data.nodes[idx].childrenStart + i].size) {
-                    node_t(
+                    nodeT(
                         data.nodes[idx].childrenStart + i,
                         depth + 1,
                         offset + data.nodes[data.nodes[idx].childrenStart + i].offset,
@@ -120,7 +117,7 @@ export function showMemoryLayout(data): void {
         }
     }
 
-    node_t(0, 0, 0);
+    nodeT(0, 0, 0);
 
     for (const row of rows) table.appendChild(row.el);
 
