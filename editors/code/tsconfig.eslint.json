@@ -6,6 +6,7 @@
         "src",
         "tests",
         // these are the eslint-only inclusions
-        ".eslintrc.js"
+        ".eslintrc.js",
+        "./build.mjs"
     ]
 }
