@@ -7,6 +7,7 @@
 !node_modules/d3-graphviz/build/d3-graphviz.min.js
 !node_modules/d3/dist/d3.min.js
 !out/main.js
+!out/webview/
 !package-lock.json
 !package.json
 !ra_syntax_tree.tmGrammar.json

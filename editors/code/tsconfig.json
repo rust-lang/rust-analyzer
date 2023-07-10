@@ -6,7 +6,6 @@
         "moduleResolution": "node16",
         "target": "es2021",
         "outDir": "out",
-        "lib": ["es2021"],
         "sourceMap": true,
         "rootDir": ".",
         "newLine": "LF",

@@ -30,19 +30,40 @@ function parseCliOptions() {
 const { shouldMinify, shouldEmitSourceMap, isWatchMode } = parseCliOptions();
 
 const OUT_DIR = "./out";
+const OUT_WEBVIEW_DIR = path.resolve(OUT_DIR, "webview");
+
+/** @type {esbuild.BuildOptions} */
+const BASE_OPTIONS = {
+    minify: shouldMinify,
+    sourcemap: shouldEmitSourceMap ? "external" : false,
+    bundle: true,
+};
 
 function createBuildOption(entryPoints) {
     /** @type {esbuild.BuildOptions} */
     const options = {
+        ...BASE_OPTIONS,
         entryPoints,
-        minify: shouldMinify,
-        sourcemap: shouldEmitSourceMap ? "external" : false,
-        bundle: true,
         external: ["vscode"],
         format: "cjs",
         platform: "node",
         target: "node16",
         outdir: OUT_DIR,
+    };
+    return options;
+}
+
+function createBuildOptionForWebView(entryPoints) {
+    /** @type {esbuild.BuildOptions} */
+    const options = {
+        ...BASE_OPTIONS,
+        entryPoints,
+        format: "esm",
+        platform: "browser",
+        // VSCode v1.78 (Electron 22) uses Chromium 108.
+        // https://code.visualstudio.com/updates/v1_78
+        target: "chrome108",
+        outdir: OUT_WEBVIEW_DIR,
     };
     return options;
 }
@@ -56,5 +77,12 @@ async function bundleSource(options) {
     return ctx.watch();
 }
 
-const extensionMain = bundleSource(createBuildOption(["src/main.ts"]));
-await Promise.all([extensionMain]);
+await Promise.all([
+    bundleSource(createBuildOption(["src/main.ts"])),
+    bundleSource(
+        createBuildOptionForWebView([
+            "src/webview/view_memory_layout.ts",
+            "src/webview/view_memory_layout.css",
+        ]),
+    ),
+]);
