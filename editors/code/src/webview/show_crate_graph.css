@@ -1,0 +1,27 @@
+/* Fill the entire view */
+html,
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+svg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+}
+
+/* Disable the graphviz background and fill the polygons */
+.graph > polygon {
+    display: none;
+}
+:is(.node, .edge) polygon {
+    fill: white;
+}
+
+/* Invert the line colours for dark themes */
+body:not(.vscode-light) .edge path {
+    stroke: white;
+}

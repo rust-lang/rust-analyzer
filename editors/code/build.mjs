@@ -81,6 +81,12 @@ await Promise.all([
     bundleSource(createBuildOption(["src/main.ts"])),
     bundleSource(
         createBuildOptionForWebView([
+            "src/webview/show_crate_graph.ts",
+            "src/webview/show_crate_graph.css",
+        ]),
+    ),
+    bundleSource(
+        createBuildOptionForWebView([
             "src/webview/view_memory_layout.ts",
             "src/webview/view_memory_layout.css",
         ]),

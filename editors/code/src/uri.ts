@@ -10,3 +10,7 @@ function getBundledAssetsUri(ctx: CtxInit, pathname: string): Uri {
 export function getWebViewModulePath(ctx: CtxInit) {
     return getBundledAssetsUri(ctx, "out/webview");
 }
+
+export function getNodeModulePath(ctx: CtxInit) {
+    return getBundledAssetsUri(ctx, "node_modules");
+}

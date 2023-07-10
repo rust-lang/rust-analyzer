@@ -21,7 +21,7 @@ import type { LanguageClient } from "vscode-languageclient/node";
 import { LINKED_COMMANDS } from "./client";
 import type { DependencyId } from "./dependencies_provider";
 import { unwrapUndefinable } from "./undefinable";
-import { getWebViewModulePath } from "./uri";
+import { getNodeModulePath, getWebViewModulePath } from "./uri";
 
 export * from "./ast_inspector";
 export * from "./run";
@@ -737,7 +737,8 @@ export function viewItemTree(ctx: CtxInit): Cmd {
 
 function crateGraph(ctx: CtxInit, full: boolean): Cmd {
     return async () => {
-        const nodeModulesPath = vscode.Uri.file(path.join(ctx.extensionPath, "node_modules"));
+        const nodeModulesPath = getNodeModulePath(ctx);
+        const webviewModulePath = getWebViewModulePath(ctx);
 
         const panel = vscode.window.createWebviewPanel(
             "rust-analyzer.crate-graph",
@@ -746,7 +747,7 @@ function crateGraph(ctx: CtxInit, full: boolean): Cmd {
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
-                localResourceRoots: [nodeModulesPath],
+                localResourceRoots: [nodeModulesPath, webviewModulePath],
             },
         );
         const params = {
@@ -754,47 +755,25 @@ function crateGraph(ctx: CtxInit, full: boolean): Cmd {
         };
         const client = ctx.client;
         const dot = await client.sendRequest(ra.viewCrateGraph, params);
-        const uri = panel.webview.asWebviewUri(nodeModulesPath);
+
+        const nodeModuleUri = panel.webview.asWebviewUri(nodeModulesPath);
+        const webviewModuleUri = panel.webview.asWebviewUri(webviewModulePath);
 
         const html = `
             <!DOCTYPE html>
             <meta charset="utf-8">
             <head>
-                <style>
-                    /* Fill the entire view */
-                    html, body { margin:0; padding:0; overflow:hidden }
-                    svg { position:fixed; top:0; left:0; height:100%; width:100% }
-
-                    /* Disable the graphviz background and fill the polygons */
-                    .graph > polygon { display:none; }
-                    :is(.node,.edge) polygon { fill: white; }
-
-                    /* Invert the line colours for dark themes */
-                    body:not(.vscode-light) .edge path { stroke: white; }
-                </style>
+                <link href="${webviewModuleUri}/show_crate_graph.css" rel="stylesheet" media="screen"/>
             </head>
             <body>
-                <script type="text/javascript" src="${uri}/d3/dist/d3.min.js"></script>
-                <script type="text/javascript" src="${uri}/@hpcc-js/wasm/dist/graphviz.umd.js"></script>
-                <script type="text/javascript" src="${uri}/d3-graphviz/build/d3-graphviz.min.js"></script>
+                <script type="text/javascript" src="${nodeModuleUri}/d3/dist/d3.min.js"></script>
+                <script type="text/javascript" src="${nodeModuleUri}/@hpcc-js/wasm/dist/graphviz.umd.js"></script>
+                <script type="text/javascript" src="${nodeModuleUri}/d3-graphviz/build/d3-graphviz.min.js"></script>
                 <div id="graph"></div>
-                <script>
-                    let dot = \`${dot}\`;
-                    let graph = d3.select("#graph")
-                                  .graphviz({ useWorker: false, useSharedWorker: false })
-                                  .fit(true)
-                                  .zoomScaleExtent([0.1, Infinity])
-                                  .renderDot(dot);
-
-                    d3.select(window).on("click", (event) => {
-                        if (event.ctrlKey) {
-                            graph.resetZoom(d3.transition().duration(100));
-                        }
-                    });
-                    d3.select(window).on("copy", (event) => {
-                        event.clipboardData.setData("text/plain", dot);
-                        event.preventDefault();
-                    });
+                <script type="module">
+                    import { showCrateDependencyGraph } from '${webviewModuleUri}/show_crate_graph.js';
+                    const dot = ${JSON.stringify(dot)};
+                    showCrateDependencyGraph(dot);
                 </script>
             </body>
             `;
