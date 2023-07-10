@@ -5,15 +5,15 @@ It is recommended over and replaces `rust-lang.rust`.
 
 ## Features
 
-- [code completion] with [imports insertion]
-- go to [definition], [implementation], [type definition]
-- [find all references], [workspace symbol search], [symbol renaming]
-- [types and documentation on hover]
-- [inlay hints] for types and parameter names
-- [semantic syntax highlighting]
-- a lot of [assists (code actions)]
-- apply suggestions from errors
-- ... and many more, check out the [manual] to see them all
+-   [code completion] with [imports insertion]
+-   go to [definition], [implementation], [type definition]
+-   [find all references], [workspace symbol search], [symbol renaming]
+-   [types and documentation on hover]
+-   [inlay hints] for types and parameter names
+-   [semantic syntax highlighting]
+-   a lot of [assists (code actions)]
+-   apply suggestions from errors
+-   ... and many more, check out the [manual] to see them all
 
 [code completion]: https://rust-analyzer.github.io/manual.html#magic-completions
 [imports insertion]: https://rust-analyzer.github.io/manual.html#completion-with-autoimport
