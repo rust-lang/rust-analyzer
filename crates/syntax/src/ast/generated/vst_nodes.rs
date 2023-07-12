@@ -10,6 +10,7 @@ use crate::{
 pub struct Name {
     pub ident_token: Option<String>,
     pub self_token: bool,
+    pub cst: Option<super::nodes::Name>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NameRef {
@@ -18,16 +19,19 @@ pub struct NameRef {
     pub super_token: bool,
     pub crate_token: bool,
     pub Self_token: bool,
+    pub cst: Option<super::nodes::NameRef>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Lifetime {
     pub lifetime_ident_token: Option<String>,
+    pub cst: Option<super::nodes::Lifetime>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Path {
     pub qualifier: Option<Box<Path>>,
     pub coloncolon_token: bool,
     pub segment: Box<PathSegment>,
+    pub cst: Option<super::nodes::Path>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathSegment {
@@ -40,6 +44,7 @@ pub struct PathSegment {
     pub path_type: Option<Box<PathType>>,
     pub as_token: bool,
     pub r_angle_token: bool,
+    pub cst: Option<super::nodes::PathSegment>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GenericArgList {
@@ -47,6 +52,7 @@ pub struct GenericArgList {
     pub l_angle_token: bool,
     pub generic_args: Vec<GenericArg>,
     pub r_angle_token: bool,
+    pub cst: Option<super::nodes::GenericArgList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParamList {
@@ -56,6 +62,7 @@ pub struct ParamList {
     pub params: Vec<Param>,
     pub r_paren_token: bool,
     pub pipe_token: bool,
+    pub cst: Option<super::nodes::ParamList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RetType {
@@ -66,14 +73,17 @@ pub struct RetType {
     pub colon_token: bool,
     pub ty: Box<Type>,
     pub r_paren_token: bool,
+    pub cst: Option<super::nodes::RetType>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathType {
     pub path: Box<Path>,
+    pub cst: Option<super::nodes::PathType>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeArg {
     pub ty: Box<Type>,
+    pub cst: Option<super::nodes::TypeArg>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssocTypeArg {
@@ -86,18 +96,22 @@ pub struct AssocTypeArg {
     pub eq_token: bool,
     pub ty: Box<Type>,
     pub const_arg: Option<Box<ConstArg>>,
+    pub cst: Option<super::nodes::AssocTypeArg>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LifetimeArg {
     pub lifetime: Box<Lifetime>,
+    pub cst: Option<super::nodes::LifetimeArg>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConstArg {
     pub expr: Box<Expr>,
+    pub cst: Option<super::nodes::ConstArg>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeBoundList {
     pub bounds: Vec<TypeBound>,
+    pub cst: Option<super::nodes::TypeBoundList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroCall {
@@ -106,6 +120,7 @@ pub struct MacroCall {
     pub excl_token: bool,
     pub token_tree: Box<TokenTree>,
     pub semicolon_token: bool,
+    pub cst: Option<super::nodes::MacroCall>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Attr {
@@ -114,6 +129,7 @@ pub struct Attr {
     pub l_brack_token: bool,
     pub meta: Box<Meta>,
     pub r_brack_token: bool,
+    pub cst: Option<super::nodes::Attr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TokenTree {
@@ -123,21 +139,25 @@ pub struct TokenTree {
     pub r_curly_token: bool,
     pub l_brack_token: bool,
     pub r_brack_token: bool,
+    pub cst: Option<super::nodes::TokenTree>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroItems {
     pub items: Vec<Item>,
+    pub cst: Option<super::nodes::MacroItems>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroStmts {
     pub statements: Vec<Stmt>,
     pub expr: Option<Box<Expr>>,
+    pub cst: Option<super::nodes::MacroStmts>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SourceFile {
     pub shebang_token: bool,
     pub attrs: Vec<Attr>,
     pub items: Vec<Item>,
+    pub cst: Option<super::nodes::SourceFile>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Const {
@@ -152,6 +172,7 @@ pub struct Const {
     pub eq_token: bool,
     pub body: Option<Box<Expr>>,
     pub semicolon_token: bool,
+    pub cst: Option<super::nodes::Const>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Enum {
@@ -162,6 +183,7 @@ pub struct Enum {
     pub generic_param_list: Option<Box<GenericParamList>>,
     pub where_clause: Option<Box<WhereClause>>,
     pub variant_list: Box<VariantList>,
+    pub cst: Option<super::nodes::Enum>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExternBlock {
@@ -169,6 +191,7 @@ pub struct ExternBlock {
     pub unsafe_token: bool,
     pub abi: Box<Abi>,
     pub extern_item_list: Box<ExternItemList>,
+    pub cst: Option<super::nodes::ExternBlock>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExternCrate {
@@ -179,6 +202,7 @@ pub struct ExternCrate {
     pub name_ref: Box<NameRef>,
     pub rename: Option<Box<Rename>>,
     pub semicolon_token: bool,
+    pub cst: Option<super::nodes::ExternCrate>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Fn {
@@ -203,6 +227,7 @@ pub struct Fn {
     pub decreases_clause: Option<Box<DecreasesClause>>,
     pub body: Option<Box<BlockExpr>>,
     pub semicolon_token: bool,
+    pub cst: Option<super::nodes::Fn>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Impl {
@@ -217,6 +242,7 @@ pub struct Impl {
     pub for_token: bool,
     pub where_clause: Option<Box<WhereClause>>,
     pub assoc_item_list: Box<AssocItemList>,
+    pub cst: Option<super::nodes::Impl>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroRules {
@@ -226,6 +252,7 @@ pub struct MacroRules {
     pub excl_token: bool,
     pub name: Box<Name>,
     pub token_tree: Box<TokenTree>,
+    pub cst: Option<super::nodes::MacroRules>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroDef {
@@ -235,6 +262,7 @@ pub struct MacroDef {
     pub name: Box<Name>,
     pub args: Option<Box<TokenTree>>,
     pub body: Box<TokenTree>,
+    pub cst: Option<super::nodes::MacroDef>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Module {
@@ -244,6 +272,7 @@ pub struct Module {
     pub name: Box<Name>,
     pub item_list: Option<Box<ItemList>>,
     pub semicolon_token: bool,
+    pub cst: Option<super::nodes::Module>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Static {
@@ -257,6 +286,7 @@ pub struct Static {
     pub eq_token: bool,
     pub body: Option<Box<Expr>>,
     pub semicolon_token: bool,
+    pub cst: Option<super::nodes::Static>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Struct {
@@ -269,6 +299,7 @@ pub struct Struct {
     pub where_clause: Option<Box<WhereClause>>,
     pub semicolon_token: bool,
     pub field_list: Option<Box<FieldList>>,
+    pub cst: Option<super::nodes::Struct>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Trait {
@@ -283,6 +314,7 @@ pub struct Trait {
     pub type_bound_list: Option<Box<TypeBoundList>>,
     pub where_clause: Option<Box<WhereClause>>,
     pub assoc_item_list: Box<AssocItemList>,
+    pub cst: Option<super::nodes::Trait>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TraitAlias {
@@ -295,6 +327,7 @@ pub struct TraitAlias {
     pub type_bound_list: Option<Box<TypeBoundList>>,
     pub where_clause: Option<Box<WhereClause>>,
     pub semicolon_token: bool,
+    pub cst: Option<super::nodes::TraitAlias>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeAlias {
@@ -310,6 +343,7 @@ pub struct TypeAlias {
     pub eq_token: bool,
     pub ty: Option<Box<Type>>,
     pub semicolon_token: bool,
+    pub cst: Option<super::nodes::TypeAlias>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Union {
@@ -320,6 +354,7 @@ pub struct Union {
     pub generic_param_list: Option<Box<GenericParamList>>,
     pub where_clause: Option<Box<WhereClause>>,
     pub record_field_list: Box<RecordFieldList>,
+    pub cst: Option<super::nodes::Union>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Use {
@@ -328,6 +363,7 @@ pub struct Use {
     pub use_token: bool,
     pub use_tree: Box<UseTree>,
     pub semicolon_token: bool,
+    pub cst: Option<super::nodes::Use>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Visibility {
@@ -336,6 +372,7 @@ pub struct Visibility {
     pub in_token: bool,
     pub path: Option<Box<Path>>,
     pub r_paren_token: bool,
+    pub cst: Option<super::nodes::Visibility>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ItemList {
@@ -343,12 +380,14 @@ pub struct ItemList {
     pub attrs: Vec<Attr>,
     pub items: Vec<Item>,
     pub r_curly_token: bool,
+    pub cst: Option<super::nodes::ItemList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Rename {
     pub as_token: bool,
     pub name: Option<Box<Name>>,
     pub underscore_token: bool,
+    pub cst: Option<super::nodes::Rename>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UseTree {
@@ -357,21 +396,25 @@ pub struct UseTree {
     pub star_token: bool,
     pub use_tree_list: Option<Box<UseTreeList>>,
     pub rename: Option<Box<Rename>>,
+    pub cst: Option<super::nodes::UseTree>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UseTreeList {
     pub l_curly_token: bool,
     pub use_trees: Vec<UseTree>,
     pub r_curly_token: bool,
+    pub cst: Option<super::nodes::UseTreeList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Publish {
     pub closed_token: bool,
     pub open_token: bool,
+    pub cst: Option<super::nodes::Publish>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Abi {
     pub extern_token: bool,
+    pub cst: Option<super::nodes::Abi>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FnMode {
@@ -379,22 +422,26 @@ pub struct FnMode {
     pub proof_token: bool,
     pub exec_token: bool,
     pub mode_spec_checked: Option<Box<ModeSpecChecked>>,
+    pub cst: Option<super::nodes::FnMode>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GenericParamList {
     pub l_angle_token: bool,
     pub generic_params: Vec<GenericParam>,
     pub r_angle_token: bool,
+    pub cst: Option<super::nodes::GenericParamList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WhereClause {
     pub where_token: bool,
     pub predicates: Vec<WherePred>,
+    pub cst: Option<super::nodes::WhereClause>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RequiresClause {
     pub requires_token: bool,
     pub exprs: Vec<Expr>,
+    pub cst: Option<super::nodes::RequiresClause>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecommendsClause {
@@ -402,16 +449,19 @@ pub struct RecommendsClause {
     pub exprs: Vec<Expr>,
     pub via_token: bool,
     pub expr: Option<Box<Expr>>,
+    pub cst: Option<super::nodes::RecommendsClause>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EnsuresClause {
     pub ensures_token: bool,
     pub exprs: Vec<Expr>,
+    pub cst: Option<super::nodes::EnsuresClause>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DecreasesClause {
     pub decreases_token: bool,
     pub exprs: Vec<Expr>,
+    pub cst: Option<super::nodes::DecreasesClause>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BlockExpr {
@@ -422,6 +472,7 @@ pub struct BlockExpr {
     pub async_token: bool,
     pub const_token: bool,
     pub stmt_list: Box<StmtList>,
+    pub cst: Option<super::nodes::BlockExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SelfParam {
@@ -432,6 +483,7 @@ pub struct SelfParam {
     pub name: Box<Name>,
     pub colon_token: bool,
     pub ty: Box<Type>,
+    pub cst: Option<super::nodes::SelfParam>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Param {
@@ -441,23 +493,27 @@ pub struct Param {
     pub colon_token: bool,
     pub ty: Option<Box<Type>>,
     pub dotdotdot_token: bool,
+    pub cst: Option<super::nodes::Param>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DataMode {
     pub ghost_token: bool,
     pub tracked_token: bool,
+    pub cst: Option<super::nodes::DataMode>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordFieldList {
     pub l_curly_token: bool,
     pub fields: Vec<RecordField>,
     pub r_curly_token: bool,
+    pub cst: Option<super::nodes::RecordFieldList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleFieldList {
     pub l_paren_token: bool,
     pub fields: Vec<TupleField>,
     pub r_paren_token: bool,
+    pub cst: Option<super::nodes::TupleFieldList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordField {
@@ -467,18 +523,21 @@ pub struct RecordField {
     pub name: Box<Name>,
     pub colon_token: bool,
     pub ty: Box<Type>,
+    pub cst: Option<super::nodes::RecordField>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleField {
     pub attrs: Vec<Attr>,
     pub visibility: Option<Box<Visibility>>,
     pub ty: Box<Type>,
+    pub cst: Option<super::nodes::TupleField>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VariantList {
     pub l_curly_token: bool,
     pub variants: Vec<Variant>,
     pub r_curly_token: bool,
+    pub cst: Option<super::nodes::VariantList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Variant {
@@ -488,6 +547,7 @@ pub struct Variant {
     pub field_list: Option<Box<FieldList>>,
     pub eq_token: bool,
     pub expr: Option<Box<Expr>>,
+    pub cst: Option<super::nodes::Variant>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssocItemList {
@@ -495,6 +555,7 @@ pub struct AssocItemList {
     pub attrs: Vec<Attr>,
     pub assoc_items: Vec<AssocItem>,
     pub r_curly_token: bool,
+    pub cst: Option<super::nodes::AssocItemList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExternItemList {
@@ -502,6 +563,7 @@ pub struct ExternItemList {
     pub attrs: Vec<Attr>,
     pub extern_items: Vec<ExternItem>,
     pub r_curly_token: bool,
+    pub cst: Option<super::nodes::ExternItemList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConstParam {
@@ -512,6 +574,7 @@ pub struct ConstParam {
     pub ty: Box<Type>,
     pub eq_token: bool,
     pub default_val: Option<Box<Expr>>,
+    pub cst: Option<super::nodes::ConstParam>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LifetimeParam {
@@ -519,6 +582,7 @@ pub struct LifetimeParam {
     pub lifetime: Box<Lifetime>,
     pub colon_token: bool,
     pub type_bound_list: Option<Box<TypeBoundList>>,
+    pub cst: Option<super::nodes::LifetimeParam>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeParam {
@@ -528,6 +592,7 @@ pub struct TypeParam {
     pub type_bound_list: Option<Box<TypeBoundList>>,
     pub eq_token: bool,
     pub default_type: Option<Box<Type>>,
+    pub cst: Option<super::nodes::TypeParam>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WherePred {
@@ -537,6 +602,7 @@ pub struct WherePred {
     pub ty: Option<Box<Type>>,
     pub colon_token: bool,
     pub type_bound_list: Option<Box<TypeBoundList>>,
+    pub cst: Option<super::nodes::WherePred>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Meta {
@@ -544,11 +610,13 @@ pub struct Meta {
     pub eq_token: bool,
     pub expr: Option<Box<Expr>>,
     pub token_tree: Option<Box<TokenTree>>,
+    pub cst: Option<super::nodes::Meta>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExprStmt {
     pub expr: Box<Expr>,
     pub semicolon_token: bool,
+    pub cst: Option<super::nodes::ExprStmt>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LetStmt {
@@ -563,11 +631,13 @@ pub struct LetStmt {
     pub initializer: Box<Expr>,
     pub let_else: Option<Box<LetElse>>,
     pub semicolon_token: bool,
+    pub cst: Option<super::nodes::LetStmt>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LetElse {
     pub else_token: bool,
     pub block_expr: Box<BlockExpr>,
+    pub cst: Option<super::nodes::LetElse>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayExpr {
@@ -577,6 +647,7 @@ pub struct ArrayExpr {
     pub expr: Box<Expr>,
     pub semicolon_token: bool,
     pub r_brack_token: bool,
+    pub cst: Option<super::nodes::ArrayExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AwaitExpr {
@@ -584,12 +655,14 @@ pub struct AwaitExpr {
     pub expr: Box<Expr>,
     pub dot_token: bool,
     pub await_token: bool,
+    pub cst: Option<super::nodes::AwaitExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BoxExpr {
     pub attrs: Vec<Attr>,
     pub box_token: bool,
     pub expr: Box<Expr>,
+    pub cst: Option<super::nodes::BoxExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BreakExpr {
@@ -597,12 +670,14 @@ pub struct BreakExpr {
     pub break_token: bool,
     pub lifetime: Option<Box<Lifetime>>,
     pub expr: Option<Box<Expr>>,
+    pub cst: Option<super::nodes::BreakExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CallExpr {
     pub attrs: Vec<Attr>,
     pub expr: Box<Expr>,
     pub arg_list: Box<ArgList>,
+    pub cst: Option<super::nodes::CallExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CastExpr {
@@ -610,6 +685,7 @@ pub struct CastExpr {
     pub expr: Box<Expr>,
     pub as_token: bool,
     pub ty: Box<Type>,
+    pub cst: Option<super::nodes::CastExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClosureExpr {
@@ -625,12 +701,14 @@ pub struct ClosureExpr {
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
     pub body: Box<Expr>,
+    pub cst: Option<super::nodes::ClosureExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ContinueExpr {
     pub attrs: Vec<Attr>,
     pub continue_token: bool,
     pub lifetime: Option<Box<Lifetime>>,
+    pub cst: Option<super::nodes::ContinueExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FieldExpr {
@@ -638,6 +716,7 @@ pub struct FieldExpr {
     pub expr: Box<Expr>,
     pub dot_token: bool,
     pub name_ref: Box<NameRef>,
+    pub cst: Option<super::nodes::FieldExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ForExpr {
@@ -647,12 +726,14 @@ pub struct ForExpr {
     pub pat: Option<Box<Pat>>,
     pub in_token: bool,
     pub loop_body: Box<BlockExpr>,
+    pub cst: Option<super::nodes::ForExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IndexExpr {
     pub attrs: Vec<Attr>,
     pub l_brack_token: bool,
     pub r_brack_token: bool,
+    pub cst: Option<super::nodes::IndexExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LoopExpr {
@@ -660,10 +741,12 @@ pub struct LoopExpr {
     pub label: Option<Box<Label>>,
     pub loop_token: bool,
     pub loop_body: Box<BlockExpr>,
+    pub cst: Option<super::nodes::LoopExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroExpr {
     pub macro_call: Box<MacroCall>,
+    pub cst: Option<super::nodes::MacroExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchExpr {
@@ -671,6 +754,7 @@ pub struct MatchExpr {
     pub match_token: bool,
     pub expr: Box<Expr>,
     pub match_arm_list: Box<MatchArmList>,
+    pub cst: Option<super::nodes::MatchExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MethodCallExpr {
@@ -680,6 +764,7 @@ pub struct MethodCallExpr {
     pub name_ref: Box<NameRef>,
     pub generic_arg_list: Option<Box<GenericArgList>>,
     pub arg_list: Box<ArgList>,
+    pub cst: Option<super::nodes::MethodCallExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParenExpr {
@@ -687,25 +772,30 @@ pub struct ParenExpr {
     pub l_paren_token: bool,
     pub expr: Box<Expr>,
     pub r_paren_token: bool,
+    pub cst: Option<super::nodes::ParenExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathExpr {
     pub attrs: Vec<Attr>,
     pub path: Box<Path>,
+    pub cst: Option<super::nodes::PathExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PrefixExpr {
     pub attrs: Vec<Attr>,
     pub expr: Box<Expr>,
+    pub cst: Option<super::nodes::PrefixExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RangeExpr {
     pub attrs: Vec<Attr>,
+    pub cst: Option<super::nodes::RangeExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordExpr {
     pub path: Box<Path>,
     pub record_expr_field_list: Box<RecordExprFieldList>,
+    pub cst: Option<super::nodes::RecordExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefExpr {
@@ -715,18 +805,21 @@ pub struct RefExpr {
     pub mut_token: bool,
     pub const_token: bool,
     pub expr: Box<Expr>,
+    pub cst: Option<super::nodes::RefExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReturnExpr {
     pub attrs: Vec<Attr>,
     pub return_token: bool,
     pub expr: Option<Box<Expr>>,
+    pub cst: Option<super::nodes::ReturnExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TryExpr {
     pub attrs: Vec<Attr>,
     pub expr: Box<Expr>,
     pub question_mark_token: bool,
+    pub cst: Option<super::nodes::TryExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleExpr {
@@ -734,6 +827,7 @@ pub struct TupleExpr {
     pub l_paren_token: bool,
     pub fields: Vec<Expr>,
     pub r_paren_token: bool,
+    pub cst: Option<super::nodes::TupleExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WhileExpr {
@@ -743,12 +837,14 @@ pub struct WhileExpr {
     pub invariant_clause: Option<Box<InvariantClause>>,
     pub decreases_clause: Option<Box<DecreasesClause>>,
     pub loop_body: Box<BlockExpr>,
+    pub cst: Option<super::nodes::WhileExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct YieldExpr {
     pub attrs: Vec<Attr>,
     pub yield_token: bool,
     pub expr: Option<Box<Expr>>,
+    pub cst: Option<super::nodes::YieldExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct YeetExpr {
@@ -756,6 +852,7 @@ pub struct YeetExpr {
     pub do_token: bool,
     pub yeet_token: bool,
     pub expr: Option<Box<Expr>>,
+    pub cst: Option<super::nodes::YeetExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LetExpr {
@@ -764,17 +861,20 @@ pub struct LetExpr {
     pub pat: Option<Box<Pat>>,
     pub eq_token: bool,
     pub expr: Box<Expr>,
+    pub cst: Option<super::nodes::LetExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UnderscoreExpr {
     pub attrs: Vec<Attr>,
     pub underscore_token: bool,
+    pub cst: Option<super::nodes::UnderscoreExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ViewExpr {
     pub attrs: Vec<Attr>,
     pub expr: Box<Expr>,
     pub at_token: bool,
+    pub cst: Option<super::nodes::ViewExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssertExpr {
@@ -787,6 +887,7 @@ pub struct AssertExpr {
     pub name: Option<Box<Name>>,
     pub requires_clause: Option<Box<RequiresClause>>,
     pub block_expr: Option<Box<BlockExpr>>,
+    pub cst: Option<super::nodes::AssertExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssumeExpr {
@@ -795,6 +896,7 @@ pub struct AssumeExpr {
     pub l_paren_token: bool,
     pub expr: Box<Expr>,
     pub r_paren_token: bool,
+    pub cst: Option<super::nodes::AssumeExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AssertForallExpr {
@@ -806,6 +908,7 @@ pub struct AssertForallExpr {
     pub expr: Option<Box<Expr>>,
     pub by_token: bool,
     pub block_expr: Box<BlockExpr>,
+    pub cst: Option<super::nodes::AssertForallExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StmtList {
@@ -814,11 +917,13 @@ pub struct StmtList {
     pub statements: Vec<Stmt>,
     pub tail_expr: Option<Box<Expr>>,
     pub r_curly_token: bool,
+    pub cst: Option<super::nodes::StmtList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Label {
     pub lifetime: Box<Lifetime>,
     pub colon_token: bool,
+    pub cst: Option<super::nodes::Label>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordExprFieldList {
@@ -828,6 +933,7 @@ pub struct RecordExprFieldList {
     pub dotdot_token: bool,
     pub spread: Option<Box<Expr>>,
     pub r_curly_token: bool,
+    pub cst: Option<super::nodes::RecordExprFieldList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordExprField {
@@ -835,17 +941,20 @@ pub struct RecordExprField {
     pub name_ref: Option<Box<NameRef>>,
     pub colon_token: bool,
     pub expr: Box<Expr>,
+    pub cst: Option<super::nodes::RecordExprField>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArgList {
     pub l_paren_token: bool,
     pub args: Vec<Expr>,
     pub r_paren_token: bool,
+    pub cst: Option<super::nodes::ArgList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct InvariantClause {
     pub invariant_token: bool,
     pub exprs: Vec<Expr>,
+    pub cst: Option<super::nodes::InvariantClause>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchArmList {
@@ -853,6 +962,7 @@ pub struct MatchArmList {
     pub attrs: Vec<Attr>,
     pub arms: Vec<MatchArm>,
     pub r_curly_token: bool,
+    pub cst: Option<super::nodes::MatchArmList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchArm {
@@ -862,10 +972,12 @@ pub struct MatchArm {
     pub fat_arrow_token: bool,
     pub expr: Box<Expr>,
     pub comma_token: bool,
+    pub cst: Option<super::nodes::MatchArm>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchGuard {
     pub if_token: bool,
+    pub cst: Option<super::nodes::MatchGuard>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayType {
@@ -874,11 +986,13 @@ pub struct ArrayType {
     pub semicolon_token: bool,
     pub expr: Box<Expr>,
     pub r_brack_token: bool,
+    pub cst: Option<super::nodes::ArrayType>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DynTraitType {
     pub dyn_token: bool,
     pub type_bound_list: Box<TypeBoundList>,
+    pub cst: Option<super::nodes::DynTraitType>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FnPtrType {
@@ -889,35 +1003,42 @@ pub struct FnPtrType {
     pub fn_token: bool,
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
+    pub cst: Option<super::nodes::FnPtrType>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ForType {
     pub for_token: bool,
     pub generic_param_list: Box<GenericParamList>,
     pub ty: Box<Type>,
+    pub cst: Option<super::nodes::ForType>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ImplTraitType {
     pub impl_token: bool,
     pub type_bound_list: Box<TypeBoundList>,
+    pub cst: Option<super::nodes::ImplTraitType>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct InferType {
     pub underscore_token: bool,
+    pub cst: Option<super::nodes::InferType>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroType {
     pub macro_call: Box<MacroCall>,
+    pub cst: Option<super::nodes::MacroType>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NeverType {
     pub excl_token: bool,
+    pub cst: Option<super::nodes::NeverType>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParenType {
     pub l_paren_token: bool,
     pub ty: Box<Type>,
     pub r_paren_token: bool,
+    pub cst: Option<super::nodes::ParenType>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PtrType {
@@ -925,6 +1046,7 @@ pub struct PtrType {
     pub const_token: bool,
     pub mut_token: bool,
     pub ty: Box<Type>,
+    pub cst: Option<super::nodes::PtrType>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefType {
@@ -932,18 +1054,21 @@ pub struct RefType {
     pub lifetime: Option<Box<Lifetime>>,
     pub mut_token: bool,
     pub ty: Box<Type>,
+    pub cst: Option<super::nodes::RefType>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SliceType {
     pub l_brack_token: bool,
     pub ty: Box<Type>,
     pub r_brack_token: bool,
+    pub cst: Option<super::nodes::SliceType>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleType {
     pub l_paren_token: bool,
     pub fields: Vec<Type>,
     pub r_paren_token: bool,
+    pub cst: Option<super::nodes::TupleType>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeBound {
@@ -952,6 +1077,7 @@ pub struct TypeBound {
     pub tilde_token: bool,
     pub const_token: bool,
     pub ty: Box<Type>,
+    pub cst: Option<super::nodes::TypeBound>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IdentPat {
@@ -961,68 +1087,83 @@ pub struct IdentPat {
     pub name: Box<Name>,
     pub at_token: bool,
     pub pat: Option<Box<Pat>>,
+    pub cst: Option<super::nodes::IdentPat>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BoxPat {
     pub box_token: bool,
     pub pat: Option<Box<Pat>>,
+    pub cst: Option<super::nodes::BoxPat>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RestPat {
     pub attrs: Vec<Attr>,
     pub dotdot_token: bool,
+    pub cst: Option<super::nodes::RestPat>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LiteralPat {
     pub minus_token: bool,
     pub literal: Box<Literal>,
+    pub cst: Option<super::nodes::LiteralPat>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroPat {
     pub macro_call: Box<MacroCall>,
+    pub cst: Option<super::nodes::MacroPat>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OrPat {
     pub pats: Vec<Pat>,
+    pub cst: Option<super::nodes::OrPat>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParenPat {
     pub l_paren_token: bool,
     pub pat: Option<Box<Pat>>,
     pub r_paren_token: bool,
+    pub cst: Option<super::nodes::ParenPat>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathPat {
     pub path: Box<Path>,
+    pub cst: Option<super::nodes::PathPat>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WildcardPat {
     pub underscore_token: bool,
+    pub cst: Option<super::nodes::WildcardPat>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct RangePat {}
+pub struct RangePat {
+    pub cst: Option<super::nodes::RangePat>,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordPat {
     pub path: Box<Path>,
     pub record_pat_field_list: Box<RecordPatFieldList>,
+    pub cst: Option<super::nodes::RecordPat>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefPat {
     pub amp_token: bool,
     pub mut_token: bool,
     pub pat: Option<Box<Pat>>,
+    pub cst: Option<super::nodes::RefPat>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SlicePat {
     pub l_brack_token: bool,
     pub pats: Vec<Pat>,
     pub r_brack_token: bool,
+    pub cst: Option<super::nodes::SlicePat>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TuplePat {
     pub l_paren_token: bool,
     pub fields: Vec<Pat>,
     pub r_paren_token: bool,
+    pub cst: Option<super::nodes::TuplePat>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleStructPat {
@@ -1030,11 +1171,13 @@ pub struct TupleStructPat {
     pub l_paren_token: bool,
     pub fields: Vec<Pat>,
     pub r_paren_token: bool,
+    pub cst: Option<super::nodes::TupleStructPat>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConstBlockPat {
     pub const_token: bool,
     pub block_expr: Box<BlockExpr>,
+    pub cst: Option<super::nodes::ConstBlockPat>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordPatFieldList {
@@ -1042,6 +1185,7 @@ pub struct RecordPatFieldList {
     pub fields: Vec<RecordPatField>,
     pub rest_pat: Option<Box<RestPat>>,
     pub r_curly_token: bool,
+    pub cst: Option<super::nodes::RecordPatFieldList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordPatField {
@@ -1049,6 +1193,7 @@ pub struct RecordPatField {
     pub name_ref: Option<Box<NameRef>>,
     pub colon_token: bool,
     pub pat: Option<Box<Pat>>,
+    pub cst: Option<super::nodes::RecordPatField>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ModeSpecChecked {
@@ -1056,6 +1201,7 @@ pub struct ModeSpecChecked {
     pub l_paren_token: bool,
     pub checked_token: bool,
     pub r_paren_token: bool,
+    pub cst: Option<super::nodes::ModeSpecChecked>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SignatureDecreases {
@@ -1063,6 +1209,7 @@ pub struct SignatureDecreases {
     pub when_token: bool,
     pub expr: Option<Box<Expr>>,
     pub via_token: bool,
+    pub cst: Option<super::nodes::SignatureDecreases>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Prover {
@@ -1070,6 +1217,7 @@ pub struct Prover {
     pub l_paren_token: bool,
     pub name: Box<Name>,
     pub r_paren_token: bool,
+    pub cst: Option<super::nodes::Prover>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TriggerAttribute {
@@ -1079,6 +1227,7 @@ pub struct TriggerAttribute {
     pub trigger_token: bool,
     pub exprs: Vec<Expr>,
     pub r_brack_token: bool,
+    pub cst: Option<super::nodes::TriggerAttribute>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GenericArg {
@@ -1226,6 +1375,7 @@ impl TryFrom<super::nodes::Name> for Name {
         Ok(Self {
             ident_token: item.ident_token().map(|it| it.text().to_string()),
             self_token: item.self_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1238,6 +1388,7 @@ impl TryFrom<super::nodes::NameRef> for NameRef {
             super_token: item.super_token().is_some(),
             crate_token: item.crate_token().is_some(),
             Self_token: item.Self_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1246,6 +1397,7 @@ impl TryFrom<super::nodes::Lifetime> for Lifetime {
     fn try_from(item: super::nodes::Lifetime) -> Result<Self, Self::Error> {
         Ok(Self {
             lifetime_ident_token: item.lifetime_ident_token().map(|it| it.text().to_string()),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1263,6 +1415,7 @@ impl TryFrom<super::nodes::Path> for Path {
                     .ok_or(format!("{}", stringify!(segment)))
                     .map(|it| PathSegment::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1295,6 +1448,7 @@ impl TryFrom<super::nodes::PathSegment> for PathSegment {
             },
             as_token: item.as_token().is_some(),
             r_angle_token: item.r_angle_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1310,6 +1464,7 @@ impl TryFrom<super::nodes::GenericArgList> for GenericArgList {
                 .map(GenericArg::try_from)
                 .collect::<Result<Vec<GenericArg>, String>>()?,
             r_angle_token: item.r_angle_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1330,6 +1485,7 @@ impl TryFrom<super::nodes::ParamList> for ParamList {
                 .collect::<Result<Vec<Param>, String>>()?,
             r_paren_token: item.r_paren_token().is_some(),
             pipe_token: item.pipe_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1349,6 +1505,7 @@ impl TryFrom<super::nodes::RetType> for RetType {
                 item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
             ),
             r_paren_token: item.r_paren_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1361,6 +1518,7 @@ impl TryFrom<super::nodes::PathType> for PathType {
                     .ok_or(format!("{}", stringify!(path)))
                     .map(|it| Path::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1371,6 +1529,7 @@ impl TryFrom<super::nodes::TypeArg> for TypeArg {
             ty: Box::new(
                 item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1409,6 +1568,7 @@ impl TryFrom<super::nodes::AssocTypeArg> for AssocTypeArg {
                 Some(it) => Some(Box::new(ConstArg::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1421,6 +1581,7 @@ impl TryFrom<super::nodes::LifetimeArg> for LifetimeArg {
                     .ok_or(format!("{}", stringify!(lifetime)))
                     .map(|it| Lifetime::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1433,6 +1594,7 @@ impl TryFrom<super::nodes::ConstArg> for ConstArg {
                     .ok_or(format!("{}", stringify!(expr)))
                     .map(|it| Expr::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1445,6 +1607,7 @@ impl TryFrom<super::nodes::TypeBoundList> for TypeBoundList {
                 .into_iter()
                 .map(TypeBound::try_from)
                 .collect::<Result<Vec<TypeBound>, String>>()?,
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1469,6 +1632,7 @@ impl TryFrom<super::nodes::MacroCall> for MacroCall {
                     .map(|it| TokenTree::try_from(it))??,
             ),
             semicolon_token: item.semicolon_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1485,6 +1649,7 @@ impl TryFrom<super::nodes::Attr> for Attr {
                     .map(|it| Meta::try_from(it))??,
             ),
             r_brack_token: item.r_brack_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1498,6 +1663,7 @@ impl TryFrom<super::nodes::TokenTree> for TokenTree {
             r_curly_token: item.r_curly_token().is_some(),
             l_brack_token: item.l_brack_token().is_some(),
             r_brack_token: item.r_brack_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1510,6 +1676,7 @@ impl TryFrom<super::nodes::MacroItems> for MacroItems {
                 .into_iter()
                 .map(Item::try_from)
                 .collect::<Result<Vec<Item>, String>>()?,
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1526,6 +1693,7 @@ impl TryFrom<super::nodes::MacroStmts> for MacroStmts {
                 Some(it) => Some(Box::new(Expr::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1544,6 +1712,7 @@ impl TryFrom<super::nodes::SourceFile> for SourceFile {
                 .into_iter()
                 .map(Item::try_from)
                 .collect::<Result<Vec<Item>, String>>()?,
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1577,6 +1746,7 @@ impl TryFrom<super::nodes::Const> for Const {
                 None => None,
             },
             semicolon_token: item.semicolon_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1612,6 +1782,7 @@ impl TryFrom<super::nodes::Enum> for Enum {
                     .ok_or(format!("{}", stringify!(variant_list)))
                     .map(|it| VariantList::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1633,6 +1804,7 @@ impl TryFrom<super::nodes::ExternBlock> for ExternBlock {
                     .ok_or(format!("{}", stringify!(extern_item_list)))
                     .map(|it| ExternItemList::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1661,6 +1833,7 @@ impl TryFrom<super::nodes::ExternCrate> for ExternCrate {
                 None => None,
             },
             semicolon_token: item.semicolon_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1736,6 +1909,7 @@ impl TryFrom<super::nodes::Fn> for Fn {
                 None => None,
             },
             semicolon_token: item.semicolon_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1771,6 +1945,7 @@ impl TryFrom<super::nodes::Impl> for Impl {
                     .ok_or(format!("{}", stringify!(assoc_item_list)))
                     .map(|it| AssocItemList::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1799,6 +1974,7 @@ impl TryFrom<super::nodes::MacroRules> for MacroRules {
                     .ok_or(format!("{}", stringify!(token_tree)))
                     .map(|it| TokenTree::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1830,6 +2006,7 @@ impl TryFrom<super::nodes::MacroDef> for MacroDef {
                     .ok_or(format!("{}", stringify!(body)))
                     .map(|it| TokenTree::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1857,6 +2034,7 @@ impl TryFrom<super::nodes::Module> for Module {
                 None => None,
             },
             semicolon_token: item.semicolon_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1890,6 +2068,7 @@ impl TryFrom<super::nodes::Static> for Static {
                 None => None,
             },
             semicolon_token: item.semicolon_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1929,6 +2108,7 @@ impl TryFrom<super::nodes::Struct> for Struct {
                 Some(it) => Some(Box::new(FieldList::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -1971,6 +2151,7 @@ impl TryFrom<super::nodes::Trait> for Trait {
                     .ok_or(format!("{}", stringify!(assoc_item_list)))
                     .map(|it| AssocItemList::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2007,6 +2188,7 @@ impl TryFrom<super::nodes::TraitAlias> for TraitAlias {
                 None => None,
             },
             semicolon_token: item.semicolon_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2049,6 +2231,7 @@ impl TryFrom<super::nodes::TypeAlias> for TypeAlias {
                 None => None,
             },
             semicolon_token: item.semicolon_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2084,6 +2267,7 @@ impl TryFrom<super::nodes::Union> for Union {
                     .ok_or(format!("{}", stringify!(record_field_list)))
                     .map(|it| RecordFieldList::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2107,6 +2291,7 @@ impl TryFrom<super::nodes::Use> for Use {
                     .map(|it| UseTree::try_from(it))??,
             ),
             semicolon_token: item.semicolon_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2122,6 +2307,7 @@ impl TryFrom<super::nodes::Visibility> for Visibility {
                 None => None,
             },
             r_paren_token: item.r_paren_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2141,6 +2327,7 @@ impl TryFrom<super::nodes::ItemList> for ItemList {
                 .map(Item::try_from)
                 .collect::<Result<Vec<Item>, String>>()?,
             r_curly_token: item.r_curly_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2154,6 +2341,7 @@ impl TryFrom<super::nodes::Rename> for Rename {
                 None => None,
             },
             underscore_token: item.underscore_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2175,6 +2363,7 @@ impl TryFrom<super::nodes::UseTree> for UseTree {
                 Some(it) => Some(Box::new(Rename::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2189,6 +2378,7 @@ impl TryFrom<super::nodes::UseTreeList> for UseTreeList {
                 .map(UseTree::try_from)
                 .collect::<Result<Vec<UseTree>, String>>()?,
             r_curly_token: item.r_curly_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2198,13 +2388,14 @@ impl TryFrom<super::nodes::Publish> for Publish {
         Ok(Self {
             closed_token: item.closed_token().is_some(),
             open_token: item.open_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
 impl TryFrom<super::nodes::Abi> for Abi {
     type Error = String;
     fn try_from(item: super::nodes::Abi) -> Result<Self, Self::Error> {
-        Ok(Self { extern_token: item.extern_token().is_some() })
+        Ok(Self { extern_token: item.extern_token().is_some(), cst: Some(item.clone()) })
     }
 }
 impl TryFrom<super::nodes::FnMode> for FnMode {
@@ -2218,6 +2409,7 @@ impl TryFrom<super::nodes::FnMode> for FnMode {
                 Some(it) => Some(Box::new(ModeSpecChecked::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2232,6 +2424,7 @@ impl TryFrom<super::nodes::GenericParamList> for GenericParamList {
                 .map(GenericParam::try_from)
                 .collect::<Result<Vec<GenericParam>, String>>()?,
             r_angle_token: item.r_angle_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2245,6 +2438,7 @@ impl TryFrom<super::nodes::WhereClause> for WhereClause {
                 .into_iter()
                 .map(WherePred::try_from)
                 .collect::<Result<Vec<WherePred>, String>>()?,
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2258,6 +2452,7 @@ impl TryFrom<super::nodes::RequiresClause> for RequiresClause {
                 .into_iter()
                 .map(Expr::try_from)
                 .collect::<Result<Vec<Expr>, String>>()?,
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2276,6 +2471,7 @@ impl TryFrom<super::nodes::RecommendsClause> for RecommendsClause {
                 Some(it) => Some(Box::new(Expr::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2289,6 +2485,7 @@ impl TryFrom<super::nodes::EnsuresClause> for EnsuresClause {
                 .into_iter()
                 .map(Expr::try_from)
                 .collect::<Result<Vec<Expr>, String>>()?,
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2302,6 +2499,7 @@ impl TryFrom<super::nodes::DecreasesClause> for DecreasesClause {
                 .into_iter()
                 .map(Expr::try_from)
                 .collect::<Result<Vec<Expr>, String>>()?,
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2327,6 +2525,7 @@ impl TryFrom<super::nodes::BlockExpr> for BlockExpr {
                     .ok_or(format!("{}", stringify!(stmt_list)))
                     .map(|it| StmtList::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2354,6 +2553,7 @@ impl TryFrom<super::nodes::SelfParam> for SelfParam {
             ty: Box::new(
                 item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2377,6 +2577,7 @@ impl TryFrom<super::nodes::Param> for Param {
                 None => None,
             },
             dotdotdot_token: item.dotdotdot_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2386,6 +2587,7 @@ impl TryFrom<super::nodes::DataMode> for DataMode {
         Ok(Self {
             ghost_token: item.ghost_token().is_some(),
             tracked_token: item.tracked_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2400,6 +2602,7 @@ impl TryFrom<super::nodes::RecordFieldList> for RecordFieldList {
                 .map(RecordField::try_from)
                 .collect::<Result<Vec<RecordField>, String>>()?,
             r_curly_token: item.r_curly_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2414,6 +2617,7 @@ impl TryFrom<super::nodes::TupleFieldList> for TupleFieldList {
                 .map(TupleField::try_from)
                 .collect::<Result<Vec<TupleField>, String>>()?,
             r_paren_token: item.r_paren_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2443,6 +2647,7 @@ impl TryFrom<super::nodes::RecordField> for RecordField {
             ty: Box::new(
                 item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2462,6 +2667,7 @@ impl TryFrom<super::nodes::TupleField> for TupleField {
             ty: Box::new(
                 item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2476,6 +2682,7 @@ impl TryFrom<super::nodes::VariantList> for VariantList {
                 .map(Variant::try_from)
                 .collect::<Result<Vec<Variant>, String>>()?,
             r_curly_token: item.r_curly_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2506,6 +2713,7 @@ impl TryFrom<super::nodes::Variant> for Variant {
                 Some(it) => Some(Box::new(Expr::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2525,6 +2733,7 @@ impl TryFrom<super::nodes::AssocItemList> for AssocItemList {
                 .map(AssocItem::try_from)
                 .collect::<Result<Vec<AssocItem>, String>>()?,
             r_curly_token: item.r_curly_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2544,6 +2753,7 @@ impl TryFrom<super::nodes::ExternItemList> for ExternItemList {
                 .map(ExternItem::try_from)
                 .collect::<Result<Vec<ExternItem>, String>>()?,
             r_curly_token: item.r_curly_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2571,6 +2781,7 @@ impl TryFrom<super::nodes::ConstParam> for ConstParam {
                 Some(it) => Some(Box::new(Expr::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2593,6 +2804,7 @@ impl TryFrom<super::nodes::LifetimeParam> for LifetimeParam {
                 Some(it) => Some(Box::new(TypeBoundList::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2620,6 +2832,7 @@ impl TryFrom<super::nodes::TypeParam> for TypeParam {
                 Some(it) => Some(Box::new(Type::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2645,6 +2858,7 @@ impl TryFrom<super::nodes::WherePred> for WherePred {
                 Some(it) => Some(Box::new(TypeBoundList::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2666,6 +2880,7 @@ impl TryFrom<super::nodes::Meta> for Meta {
                 Some(it) => Some(Box::new(TokenTree::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2679,6 +2894,7 @@ impl TryFrom<super::nodes::ExprStmt> for ExprStmt {
                     .map(|it| Expr::try_from(it))??,
             ),
             semicolon_token: item.semicolon_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2714,6 +2930,7 @@ impl TryFrom<super::nodes::LetStmt> for LetStmt {
                 None => None,
             },
             semicolon_token: item.semicolon_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2727,6 +2944,7 @@ impl TryFrom<super::nodes::LetElse> for LetElse {
                     .ok_or(format!("{}", stringify!(block_expr)))
                     .map(|it| BlockExpr::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2752,6 +2970,7 @@ impl TryFrom<super::nodes::ArrayExpr> for ArrayExpr {
             ),
             semicolon_token: item.semicolon_token().is_some(),
             r_brack_token: item.r_brack_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2771,6 +2990,7 @@ impl TryFrom<super::nodes::AwaitExpr> for AwaitExpr {
             ),
             dot_token: item.dot_token().is_some(),
             await_token: item.await_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2789,6 +3009,7 @@ impl TryFrom<super::nodes::BoxExpr> for BoxExpr {
                     .ok_or(format!("{}", stringify!(expr)))
                     .map(|it| Expr::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2810,6 +3031,7 @@ impl TryFrom<super::nodes::BreakExpr> for BreakExpr {
                 Some(it) => Some(Box::new(Expr::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2832,6 +3054,7 @@ impl TryFrom<super::nodes::CallExpr> for CallExpr {
                     .ok_or(format!("{}", stringify!(arg_list)))
                     .map(|it| ArgList::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2853,6 +3076,7 @@ impl TryFrom<super::nodes::CastExpr> for CastExpr {
             ty: Box::new(
                 item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2889,6 +3113,7 @@ impl TryFrom<super::nodes::ClosureExpr> for ClosureExpr {
                     .ok_or(format!("{}", stringify!(body)))
                     .map(|it| Expr::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2906,6 +3131,7 @@ impl TryFrom<super::nodes::ContinueExpr> for ContinueExpr {
                 Some(it) => Some(Box::new(Lifetime::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2929,6 +3155,7 @@ impl TryFrom<super::nodes::FieldExpr> for FieldExpr {
                     .ok_or(format!("{}", stringify!(name_ref)))
                     .map(|it| NameRef::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2956,6 +3183,7 @@ impl TryFrom<super::nodes::ForExpr> for ForExpr {
                     .ok_or(format!("{}", stringify!(loop_body)))
                     .map(|it| BlockExpr::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2970,6 +3198,7 @@ impl TryFrom<super::nodes::IndexExpr> for IndexExpr {
                 .collect::<Result<Vec<Attr>, String>>()?,
             l_brack_token: item.l_brack_token().is_some(),
             r_brack_token: item.r_brack_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -2992,6 +3221,7 @@ impl TryFrom<super::nodes::LoopExpr> for LoopExpr {
                     .ok_or(format!("{}", stringify!(loop_body)))
                     .map(|it| BlockExpr::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3004,6 +3234,7 @@ impl TryFrom<super::nodes::MacroExpr> for MacroExpr {
                     .ok_or(format!("{}", stringify!(macro_call)))
                     .map(|it| MacroCall::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3027,6 +3258,7 @@ impl TryFrom<super::nodes::MatchExpr> for MatchExpr {
                     .ok_or(format!("{}", stringify!(match_arm_list)))
                     .map(|it| MatchArmList::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3059,6 +3291,7 @@ impl TryFrom<super::nodes::MethodCallExpr> for MethodCallExpr {
                     .ok_or(format!("{}", stringify!(arg_list)))
                     .map(|it| ArgList::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3078,6 +3311,7 @@ impl TryFrom<super::nodes::ParenExpr> for ParenExpr {
                     .map(|it| Expr::try_from(it))??,
             ),
             r_paren_token: item.r_paren_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3095,6 +3329,7 @@ impl TryFrom<super::nodes::PathExpr> for PathExpr {
                     .ok_or(format!("{}", stringify!(path)))
                     .map(|it| Path::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3112,6 +3347,7 @@ impl TryFrom<super::nodes::PrefixExpr> for PrefixExpr {
                     .ok_or(format!("{}", stringify!(expr)))
                     .map(|it| Expr::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3124,6 +3360,7 @@ impl TryFrom<super::nodes::RangeExpr> for RangeExpr {
                 .into_iter()
                 .map(Attr::try_from)
                 .collect::<Result<Vec<Attr>, String>>()?,
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3141,6 +3378,7 @@ impl TryFrom<super::nodes::RecordExpr> for RecordExpr {
                     .ok_or(format!("{}", stringify!(record_expr_field_list)))
                     .map(|it| RecordExprFieldList::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3162,6 +3400,7 @@ impl TryFrom<super::nodes::RefExpr> for RefExpr {
                     .ok_or(format!("{}", stringify!(expr)))
                     .map(|it| Expr::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3179,6 +3418,7 @@ impl TryFrom<super::nodes::ReturnExpr> for ReturnExpr {
                 Some(it) => Some(Box::new(Expr::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3197,6 +3437,7 @@ impl TryFrom<super::nodes::TryExpr> for TryExpr {
                     .map(|it| Expr::try_from(it))??,
             ),
             question_mark_token: item.question_mark_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3216,6 +3457,7 @@ impl TryFrom<super::nodes::TupleExpr> for TupleExpr {
                 .map(Expr::try_from)
                 .collect::<Result<Vec<Expr>, String>>()?,
             r_paren_token: item.r_paren_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3246,6 +3488,7 @@ impl TryFrom<super::nodes::WhileExpr> for WhileExpr {
                     .ok_or(format!("{}", stringify!(loop_body)))
                     .map(|it| BlockExpr::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3263,6 +3506,7 @@ impl TryFrom<super::nodes::YieldExpr> for YieldExpr {
                 Some(it) => Some(Box::new(Expr::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3281,6 +3525,7 @@ impl TryFrom<super::nodes::YeetExpr> for YeetExpr {
                 Some(it) => Some(Box::new(Expr::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3304,6 +3549,7 @@ impl TryFrom<super::nodes::LetExpr> for LetExpr {
                     .ok_or(format!("{}", stringify!(expr)))
                     .map(|it| Expr::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3317,6 +3563,7 @@ impl TryFrom<super::nodes::UnderscoreExpr> for UnderscoreExpr {
                 .map(Attr::try_from)
                 .collect::<Result<Vec<Attr>, String>>()?,
             underscore_token: item.underscore_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3335,6 +3582,7 @@ impl TryFrom<super::nodes::ViewExpr> for ViewExpr {
                     .map(|it| Expr::try_from(it))??,
             ),
             at_token: item.at_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3368,6 +3616,7 @@ impl TryFrom<super::nodes::AssertExpr> for AssertExpr {
                 Some(it) => Some(Box::new(BlockExpr::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3388,6 +3637,7 @@ impl TryFrom<super::nodes::AssumeExpr> for AssumeExpr {
                     .map(|it| Expr::try_from(it))??,
             ),
             r_paren_token: item.r_paren_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3418,6 +3668,7 @@ impl TryFrom<super::nodes::AssertForallExpr> for AssertForallExpr {
                     .ok_or(format!("{}", stringify!(block_expr)))
                     .map(|it| BlockExpr::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3441,6 +3692,7 @@ impl TryFrom<super::nodes::StmtList> for StmtList {
                 None => None,
             },
             r_curly_token: item.r_curly_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3454,6 +3706,7 @@ impl TryFrom<super::nodes::Label> for Label {
                     .map(|it| Lifetime::try_from(it))??,
             ),
             colon_token: item.colon_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3478,6 +3731,7 @@ impl TryFrom<super::nodes::RecordExprFieldList> for RecordExprFieldList {
                 None => None,
             },
             r_curly_token: item.r_curly_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3500,6 +3754,7 @@ impl TryFrom<super::nodes::RecordExprField> for RecordExprField {
                     .ok_or(format!("{}", stringify!(expr)))
                     .map(|it| Expr::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3514,6 +3769,7 @@ impl TryFrom<super::nodes::ArgList> for ArgList {
                 .map(Expr::try_from)
                 .collect::<Result<Vec<Expr>, String>>()?,
             r_paren_token: item.r_paren_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3527,6 +3783,7 @@ impl TryFrom<super::nodes::InvariantClause> for InvariantClause {
                 .into_iter()
                 .map(Expr::try_from)
                 .collect::<Result<Vec<Expr>, String>>()?,
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3546,6 +3803,7 @@ impl TryFrom<super::nodes::MatchArmList> for MatchArmList {
                 .map(MatchArm::try_from)
                 .collect::<Result<Vec<MatchArm>, String>>()?,
             r_curly_token: item.r_curly_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3573,13 +3831,14 @@ impl TryFrom<super::nodes::MatchArm> for MatchArm {
                     .map(|it| Expr::try_from(it))??,
             ),
             comma_token: item.comma_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
 impl TryFrom<super::nodes::MatchGuard> for MatchGuard {
     type Error = String;
     fn try_from(item: super::nodes::MatchGuard) -> Result<Self, Self::Error> {
-        Ok(Self { if_token: item.if_token().is_some() })
+        Ok(Self { if_token: item.if_token().is_some(), cst: Some(item.clone()) })
     }
 }
 impl TryFrom<super::nodes::ArrayType> for ArrayType {
@@ -3597,6 +3856,7 @@ impl TryFrom<super::nodes::ArrayType> for ArrayType {
                     .map(|it| Expr::try_from(it))??,
             ),
             r_brack_token: item.r_brack_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3610,6 +3870,7 @@ impl TryFrom<super::nodes::DynTraitType> for DynTraitType {
                     .ok_or(format!("{}", stringify!(type_bound_list)))
                     .map(|it| TypeBoundList::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3633,6 +3894,7 @@ impl TryFrom<super::nodes::FnPtrType> for FnPtrType {
                 Some(it) => Some(Box::new(RetType::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3649,6 +3911,7 @@ impl TryFrom<super::nodes::ForType> for ForType {
             ty: Box::new(
                 item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3662,13 +3925,14 @@ impl TryFrom<super::nodes::ImplTraitType> for ImplTraitType {
                     .ok_or(format!("{}", stringify!(type_bound_list)))
                     .map(|it| TypeBoundList::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
 impl TryFrom<super::nodes::InferType> for InferType {
     type Error = String;
     fn try_from(item: super::nodes::InferType) -> Result<Self, Self::Error> {
-        Ok(Self { underscore_token: item.underscore_token().is_some() })
+        Ok(Self { underscore_token: item.underscore_token().is_some(), cst: Some(item.clone()) })
     }
 }
 impl TryFrom<super::nodes::MacroType> for MacroType {
@@ -3680,13 +3944,14 @@ impl TryFrom<super::nodes::MacroType> for MacroType {
                     .ok_or(format!("{}", stringify!(macro_call)))
                     .map(|it| MacroCall::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
 impl TryFrom<super::nodes::NeverType> for NeverType {
     type Error = String;
     fn try_from(item: super::nodes::NeverType) -> Result<Self, Self::Error> {
-        Ok(Self { excl_token: item.excl_token().is_some() })
+        Ok(Self { excl_token: item.excl_token().is_some(), cst: Some(item.clone()) })
     }
 }
 impl TryFrom<super::nodes::ParenType> for ParenType {
@@ -3698,6 +3963,7 @@ impl TryFrom<super::nodes::ParenType> for ParenType {
                 item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
             ),
             r_paren_token: item.r_paren_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3711,6 +3977,7 @@ impl TryFrom<super::nodes::PtrType> for PtrType {
             ty: Box::new(
                 item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3727,6 +3994,7 @@ impl TryFrom<super::nodes::RefType> for RefType {
             ty: Box::new(
                 item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3739,6 +4007,7 @@ impl TryFrom<super::nodes::SliceType> for SliceType {
                 item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
             ),
             r_brack_token: item.r_brack_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3753,6 +4022,7 @@ impl TryFrom<super::nodes::TupleType> for TupleType {
                 .map(Type::try_from)
                 .collect::<Result<Vec<Type>, String>>()?,
             r_paren_token: item.r_paren_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3770,6 +4040,7 @@ impl TryFrom<super::nodes::TypeBound> for TypeBound {
             ty: Box::new(
                 item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3794,6 +4065,7 @@ impl TryFrom<super::nodes::IdentPat> for IdentPat {
                 Some(it) => Some(Box::new(Pat::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3806,6 +4078,7 @@ impl TryFrom<super::nodes::BoxPat> for BoxPat {
                 Some(it) => Some(Box::new(Pat::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3819,6 +4092,7 @@ impl TryFrom<super::nodes::RestPat> for RestPat {
                 .map(Attr::try_from)
                 .collect::<Result<Vec<Attr>, String>>()?,
             dotdot_token: item.dotdot_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3832,6 +4106,7 @@ impl TryFrom<super::nodes::LiteralPat> for LiteralPat {
                     .ok_or(format!("{}", stringify!(literal)))
                     .map(|it| Literal::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3844,6 +4119,7 @@ impl TryFrom<super::nodes::MacroPat> for MacroPat {
                     .ok_or(format!("{}", stringify!(macro_call)))
                     .map(|it| MacroCall::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3856,6 +4132,7 @@ impl TryFrom<super::nodes::OrPat> for OrPat {
                 .into_iter()
                 .map(Pat::try_from)
                 .collect::<Result<Vec<Pat>, String>>()?,
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3869,6 +4146,7 @@ impl TryFrom<super::nodes::ParenPat> for ParenPat {
                 None => None,
             },
             r_paren_token: item.r_paren_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3881,18 +4159,21 @@ impl TryFrom<super::nodes::PathPat> for PathPat {
                     .ok_or(format!("{}", stringify!(path)))
                     .map(|it| Path::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
 impl TryFrom<super::nodes::WildcardPat> for WildcardPat {
     type Error = String;
     fn try_from(item: super::nodes::WildcardPat) -> Result<Self, Self::Error> {
-        Ok(Self { underscore_token: item.underscore_token().is_some() })
+        Ok(Self { underscore_token: item.underscore_token().is_some(), cst: Some(item.clone()) })
     }
 }
 impl TryFrom<super::nodes::RangePat> for RangePat {
     type Error = String;
-    fn try_from(item: super::nodes::RangePat) -> Result<Self, Self::Error> { Ok(Self {}) }
+    fn try_from(item: super::nodes::RangePat) -> Result<Self, Self::Error> {
+        Ok(Self { cst: Some(item.clone()) })
+    }
 }
 impl TryFrom<super::nodes::RecordPat> for RecordPat {
     type Error = String;
@@ -3908,6 +4189,7 @@ impl TryFrom<super::nodes::RecordPat> for RecordPat {
                     .ok_or(format!("{}", stringify!(record_pat_field_list)))
                     .map(|it| RecordPatFieldList::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3921,6 +4203,7 @@ impl TryFrom<super::nodes::RefPat> for RefPat {
                 Some(it) => Some(Box::new(Pat::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3935,6 +4218,7 @@ impl TryFrom<super::nodes::SlicePat> for SlicePat {
                 .map(Pat::try_from)
                 .collect::<Result<Vec<Pat>, String>>()?,
             r_brack_token: item.r_brack_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3949,6 +4233,7 @@ impl TryFrom<super::nodes::TuplePat> for TuplePat {
                 .map(Pat::try_from)
                 .collect::<Result<Vec<Pat>, String>>()?,
             r_paren_token: item.r_paren_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3968,6 +4253,7 @@ impl TryFrom<super::nodes::TupleStructPat> for TupleStructPat {
                 .map(Pat::try_from)
                 .collect::<Result<Vec<Pat>, String>>()?,
             r_paren_token: item.r_paren_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3981,6 +4267,7 @@ impl TryFrom<super::nodes::ConstBlockPat> for ConstBlockPat {
                     .ok_or(format!("{}", stringify!(block_expr)))
                     .map(|it| BlockExpr::try_from(it))??,
             ),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -3999,6 +4286,7 @@ impl TryFrom<super::nodes::RecordPatFieldList> for RecordPatFieldList {
                 None => None,
             },
             r_curly_token: item.r_curly_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -4020,6 +4308,7 @@ impl TryFrom<super::nodes::RecordPatField> for RecordPatField {
                 Some(it) => Some(Box::new(Pat::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -4031,6 +4320,7 @@ impl TryFrom<super::nodes::ModeSpecChecked> for ModeSpecChecked {
             l_paren_token: item.l_paren_token().is_some(),
             checked_token: item.checked_token().is_some(),
             r_paren_token: item.r_paren_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -4049,6 +4339,7 @@ impl TryFrom<super::nodes::SignatureDecreases> for SignatureDecreases {
                 None => None,
             },
             via_token: item.via_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -4064,6 +4355,7 @@ impl TryFrom<super::nodes::Prover> for Prover {
                     .map(|it| Name::try_from(it))??,
             ),
             r_paren_token: item.r_paren_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -4081,6 +4373,7 @@ impl TryFrom<super::nodes::TriggerAttribute> for TriggerAttribute {
                 .map(Expr::try_from)
                 .collect::<Result<Vec<Expr>, String>>()?,
             r_brack_token: item.r_brack_token().is_some(),
+            cst: Some(item.clone()),
         })
     }
 }
@@ -5790,7 +6083,9 @@ impl std::fmt::Display for RecordFieldList {
             s.push_str(token_ascii(&tmp));
             s.push_str(" ");
         }
-        s.push_str(&self.fields.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(
+            &self.fields.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(", "),
+        );
         if self.r_curly_token {
             let mut tmp = stringify!(r_curly_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -5809,7 +6104,9 @@ impl std::fmt::Display for TupleFieldList {
             s.push_str(token_ascii(&tmp));
             s.push_str(" ");
         }
-        s.push_str(&self.fields.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(
+            &self.fields.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(", "),
+        );
         if self.r_paren_token {
             let mut tmp = stringify!(r_paren_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -5867,7 +6164,7 @@ impl std::fmt::Display for VariantList {
             s.push_str(" ");
         }
         s.push_str(
-            &self.variants.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
+            &self.variants.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(", "),
         );
         if self.r_curly_token {
             let mut tmp = stringify!(r_curly_token).to_string();
@@ -7889,6 +8186,229 @@ impl std::fmt::Display for GenericParam {
             GenericParam::ConstParam(it) => write!(f, "{}", it.to_string()),
             GenericParam::LifetimeParam(it) => write!(f, "{}", it.to_string()),
             GenericParam::TypeParam(it) => write!(f, "{}", it.to_string()),
+        }
+    }
+}
+impl GenericArg {
+    pub fn cst(&self) -> Option<super::nodes::GenericArg> {
+        match self {
+            GenericArg::TypeArg(it) => {
+                Some(super::nodes::GenericArg::TypeArg(it.cst.as_ref()?.clone()))
+            }
+            GenericArg::AssocTypeArg(it) => {
+                Some(super::nodes::GenericArg::AssocTypeArg(it.cst.as_ref()?.clone()))
+            }
+            GenericArg::LifetimeArg(it) => {
+                Some(super::nodes::GenericArg::LifetimeArg(it.cst.as_ref()?.clone()))
+            }
+            GenericArg::ConstArg(it) => {
+                Some(super::nodes::GenericArg::ConstArg(it.cst.as_ref()?.clone()))
+            }
+        }
+    }
+}
+impl Type {
+    pub fn cst(&self) -> Option<super::nodes::Type> {
+        match self {
+            Type::ArrayType(it) => Some(super::nodes::Type::ArrayType(it.cst.as_ref()?.clone())),
+            Type::DynTraitType(it) => {
+                Some(super::nodes::Type::DynTraitType(it.cst.as_ref()?.clone()))
+            }
+            Type::FnPtrType(it) => Some(super::nodes::Type::FnPtrType(it.cst.as_ref()?.clone())),
+            Type::ForType(it) => Some(super::nodes::Type::ForType(it.cst.as_ref()?.clone())),
+            Type::ImplTraitType(it) => {
+                Some(super::nodes::Type::ImplTraitType(it.cst.as_ref()?.clone()))
+            }
+            Type::InferType(it) => Some(super::nodes::Type::InferType(it.cst.as_ref()?.clone())),
+            Type::MacroType(it) => Some(super::nodes::Type::MacroType(it.cst.as_ref()?.clone())),
+            Type::NeverType(it) => Some(super::nodes::Type::NeverType(it.cst.as_ref()?.clone())),
+            Type::ParenType(it) => Some(super::nodes::Type::ParenType(it.cst.as_ref()?.clone())),
+            Type::PathType(it) => Some(super::nodes::Type::PathType(it.cst.as_ref()?.clone())),
+            Type::PtrType(it) => Some(super::nodes::Type::PtrType(it.cst.as_ref()?.clone())),
+            Type::RefType(it) => Some(super::nodes::Type::RefType(it.cst.as_ref()?.clone())),
+            Type::SliceType(it) => Some(super::nodes::Type::SliceType(it.cst.as_ref()?.clone())),
+            Type::TupleType(it) => Some(super::nodes::Type::TupleType(it.cst.as_ref()?.clone())),
+        }
+    }
+}
+impl Expr {
+    pub fn cst(&self) -> Option<super::nodes::Expr> {
+        match self {
+            Expr::ArrayExpr(it) => Some(super::nodes::Expr::ArrayExpr(it.cst.as_ref()?.clone())),
+            Expr::AwaitExpr(it) => Some(super::nodes::Expr::AwaitExpr(it.cst.as_ref()?.clone())),
+            Expr::BinExpr(it) => Some(super::nodes::Expr::BinExpr(it.cst.as_ref()?.clone())),
+            Expr::BlockExpr(it) => Some(super::nodes::Expr::BlockExpr(it.cst.as_ref()?.clone())),
+            Expr::BoxExpr(it) => Some(super::nodes::Expr::BoxExpr(it.cst.as_ref()?.clone())),
+            Expr::BreakExpr(it) => Some(super::nodes::Expr::BreakExpr(it.cst.as_ref()?.clone())),
+            Expr::CallExpr(it) => Some(super::nodes::Expr::CallExpr(it.cst.as_ref()?.clone())),
+            Expr::CastExpr(it) => Some(super::nodes::Expr::CastExpr(it.cst.as_ref()?.clone())),
+            Expr::ClosureExpr(it) => {
+                Some(super::nodes::Expr::ClosureExpr(it.cst.as_ref()?.clone()))
+            }
+            Expr::ContinueExpr(it) => {
+                Some(super::nodes::Expr::ContinueExpr(it.cst.as_ref()?.clone()))
+            }
+            Expr::FieldExpr(it) => Some(super::nodes::Expr::FieldExpr(it.cst.as_ref()?.clone())),
+            Expr::ForExpr(it) => Some(super::nodes::Expr::ForExpr(it.cst.as_ref()?.clone())),
+            Expr::IfExpr(it) => Some(super::nodes::Expr::IfExpr(it.cst.as_ref()?.clone())),
+            Expr::IndexExpr(it) => Some(super::nodes::Expr::IndexExpr(it.cst.as_ref()?.clone())),
+            Expr::Literal(it) => Some(super::nodes::Expr::Literal(it.cst.as_ref()?.clone())),
+            Expr::LoopExpr(it) => Some(super::nodes::Expr::LoopExpr(it.cst.as_ref()?.clone())),
+            Expr::MacroExpr(it) => Some(super::nodes::Expr::MacroExpr(it.cst.as_ref()?.clone())),
+            Expr::MatchExpr(it) => Some(super::nodes::Expr::MatchExpr(it.cst.as_ref()?.clone())),
+            Expr::MethodCallExpr(it) => {
+                Some(super::nodes::Expr::MethodCallExpr(it.cst.as_ref()?.clone()))
+            }
+            Expr::ParenExpr(it) => Some(super::nodes::Expr::ParenExpr(it.cst.as_ref()?.clone())),
+            Expr::PathExpr(it) => Some(super::nodes::Expr::PathExpr(it.cst.as_ref()?.clone())),
+            Expr::PrefixExpr(it) => Some(super::nodes::Expr::PrefixExpr(it.cst.as_ref()?.clone())),
+            Expr::RangeExpr(it) => Some(super::nodes::Expr::RangeExpr(it.cst.as_ref()?.clone())),
+            Expr::RecordExpr(it) => Some(super::nodes::Expr::RecordExpr(it.cst.as_ref()?.clone())),
+            Expr::RefExpr(it) => Some(super::nodes::Expr::RefExpr(it.cst.as_ref()?.clone())),
+            Expr::ReturnExpr(it) => Some(super::nodes::Expr::ReturnExpr(it.cst.as_ref()?.clone())),
+            Expr::TryExpr(it) => Some(super::nodes::Expr::TryExpr(it.cst.as_ref()?.clone())),
+            Expr::TupleExpr(it) => Some(super::nodes::Expr::TupleExpr(it.cst.as_ref()?.clone())),
+            Expr::WhileExpr(it) => Some(super::nodes::Expr::WhileExpr(it.cst.as_ref()?.clone())),
+            Expr::YieldExpr(it) => Some(super::nodes::Expr::YieldExpr(it.cst.as_ref()?.clone())),
+            Expr::YeetExpr(it) => Some(super::nodes::Expr::YeetExpr(it.cst.as_ref()?.clone())),
+            Expr::LetExpr(it) => Some(super::nodes::Expr::LetExpr(it.cst.as_ref()?.clone())),
+            Expr::UnderscoreExpr(it) => {
+                Some(super::nodes::Expr::UnderscoreExpr(it.cst.as_ref()?.clone()))
+            }
+            Expr::ViewExpr(it) => Some(super::nodes::Expr::ViewExpr(it.cst.as_ref()?.clone())),
+            Expr::AssertExpr(it) => Some(super::nodes::Expr::AssertExpr(it.cst.as_ref()?.clone())),
+            Expr::AssumeExpr(it) => Some(super::nodes::Expr::AssumeExpr(it.cst.as_ref()?.clone())),
+            Expr::AssertForallExpr(it) => {
+                Some(super::nodes::Expr::AssertForallExpr(it.cst.as_ref()?.clone()))
+            }
+        }
+    }
+}
+impl Item {
+    pub fn cst(&self) -> Option<super::nodes::Item> {
+        match self {
+            Item::Const(it) => Some(super::nodes::Item::Const(it.cst.as_ref()?.clone())),
+            Item::Enum(it) => Some(super::nodes::Item::Enum(it.cst.as_ref()?.clone())),
+            Item::ExternBlock(it) => {
+                Some(super::nodes::Item::ExternBlock(it.cst.as_ref()?.clone()))
+            }
+            Item::ExternCrate(it) => {
+                Some(super::nodes::Item::ExternCrate(it.cst.as_ref()?.clone()))
+            }
+            Item::Fn(it) => Some(super::nodes::Item::Fn(it.cst.as_ref()?.clone())),
+            Item::Impl(it) => Some(super::nodes::Item::Impl(it.cst.as_ref()?.clone())),
+            Item::MacroCall(it) => Some(super::nodes::Item::MacroCall(it.cst.as_ref()?.clone())),
+            Item::MacroRules(it) => Some(super::nodes::Item::MacroRules(it.cst.as_ref()?.clone())),
+            Item::MacroDef(it) => Some(super::nodes::Item::MacroDef(it.cst.as_ref()?.clone())),
+            Item::Module(it) => Some(super::nodes::Item::Module(it.cst.as_ref()?.clone())),
+            Item::Static(it) => Some(super::nodes::Item::Static(it.cst.as_ref()?.clone())),
+            Item::Struct(it) => Some(super::nodes::Item::Struct(it.cst.as_ref()?.clone())),
+            Item::Trait(it) => Some(super::nodes::Item::Trait(it.cst.as_ref()?.clone())),
+            Item::TraitAlias(it) => Some(super::nodes::Item::TraitAlias(it.cst.as_ref()?.clone())),
+            Item::TypeAlias(it) => Some(super::nodes::Item::TypeAlias(it.cst.as_ref()?.clone())),
+            Item::Union(it) => Some(super::nodes::Item::Union(it.cst.as_ref()?.clone())),
+            Item::Use(it) => Some(super::nodes::Item::Use(it.cst.as_ref()?.clone())),
+        }
+    }
+}
+impl Stmt {
+    pub fn cst(&self) -> Option<super::nodes::Stmt> {
+        match self {
+            Stmt::ExprStmt(it) => Some(super::nodes::Stmt::ExprStmt(it.cst.as_ref()?.clone())),
+            Stmt::Item(it) => Some(super::nodes::Stmt::Item(it.cst()?.clone())),
+            Stmt::LetStmt(it) => Some(super::nodes::Stmt::LetStmt(it.cst.as_ref()?.clone())),
+        }
+    }
+}
+impl Pat {
+    pub fn cst(&self) -> Option<super::nodes::Pat> {
+        match self {
+            Pat::IdentPat(it) => Some(super::nodes::Pat::IdentPat(it.cst.as_ref()?.clone())),
+            Pat::BoxPat(it) => Some(super::nodes::Pat::BoxPat(it.cst.as_ref()?.clone())),
+            Pat::RestPat(it) => Some(super::nodes::Pat::RestPat(it.cst.as_ref()?.clone())),
+            Pat::LiteralPat(it) => Some(super::nodes::Pat::LiteralPat(it.cst.as_ref()?.clone())),
+            Pat::MacroPat(it) => Some(super::nodes::Pat::MacroPat(it.cst.as_ref()?.clone())),
+            Pat::OrPat(it) => Some(super::nodes::Pat::OrPat(it.cst.as_ref()?.clone())),
+            Pat::ParenPat(it) => Some(super::nodes::Pat::ParenPat(it.cst.as_ref()?.clone())),
+            Pat::PathPat(it) => Some(super::nodes::Pat::PathPat(it.cst.as_ref()?.clone())),
+            Pat::WildcardPat(it) => Some(super::nodes::Pat::WildcardPat(it.cst.as_ref()?.clone())),
+            Pat::RangePat(it) => Some(super::nodes::Pat::RangePat(it.cst.as_ref()?.clone())),
+            Pat::RecordPat(it) => Some(super::nodes::Pat::RecordPat(it.cst.as_ref()?.clone())),
+            Pat::RefPat(it) => Some(super::nodes::Pat::RefPat(it.cst.as_ref()?.clone())),
+            Pat::SlicePat(it) => Some(super::nodes::Pat::SlicePat(it.cst.as_ref()?.clone())),
+            Pat::TuplePat(it) => Some(super::nodes::Pat::TuplePat(it.cst.as_ref()?.clone())),
+            Pat::TupleStructPat(it) => {
+                Some(super::nodes::Pat::TupleStructPat(it.cst.as_ref()?.clone()))
+            }
+            Pat::ConstBlockPat(it) => {
+                Some(super::nodes::Pat::ConstBlockPat(it.cst.as_ref()?.clone()))
+            }
+        }
+    }
+}
+impl FieldList {
+    pub fn cst(&self) -> Option<super::nodes::FieldList> {
+        match self {
+            FieldList::RecordFieldList(it) => {
+                Some(super::nodes::FieldList::RecordFieldList(it.cst.as_ref()?.clone()))
+            }
+            FieldList::TupleFieldList(it) => {
+                Some(super::nodes::FieldList::TupleFieldList(it.cst.as_ref()?.clone()))
+            }
+        }
+    }
+}
+impl Adt {
+    pub fn cst(&self) -> Option<super::nodes::Adt> {
+        match self {
+            Adt::Enum(it) => Some(super::nodes::Adt::Enum(it.cst.as_ref()?.clone())),
+            Adt::Struct(it) => Some(super::nodes::Adt::Struct(it.cst.as_ref()?.clone())),
+            Adt::Union(it) => Some(super::nodes::Adt::Union(it.cst.as_ref()?.clone())),
+        }
+    }
+}
+impl AssocItem {
+    pub fn cst(&self) -> Option<super::nodes::AssocItem> {
+        match self {
+            AssocItem::Const(it) => Some(super::nodes::AssocItem::Const(it.cst.as_ref()?.clone())),
+            AssocItem::Fn(it) => Some(super::nodes::AssocItem::Fn(it.cst.as_ref()?.clone())),
+            AssocItem::MacroCall(it) => {
+                Some(super::nodes::AssocItem::MacroCall(it.cst.as_ref()?.clone()))
+            }
+            AssocItem::TypeAlias(it) => {
+                Some(super::nodes::AssocItem::TypeAlias(it.cst.as_ref()?.clone()))
+            }
+        }
+    }
+}
+impl ExternItem {
+    pub fn cst(&self) -> Option<super::nodes::ExternItem> {
+        match self {
+            ExternItem::Fn(it) => Some(super::nodes::ExternItem::Fn(it.cst.as_ref()?.clone())),
+            ExternItem::MacroCall(it) => {
+                Some(super::nodes::ExternItem::MacroCall(it.cst.as_ref()?.clone()))
+            }
+            ExternItem::Static(it) => {
+                Some(super::nodes::ExternItem::Static(it.cst.as_ref()?.clone()))
+            }
+            ExternItem::TypeAlias(it) => {
+                Some(super::nodes::ExternItem::TypeAlias(it.cst.as_ref()?.clone()))
+            }
+        }
+    }
+}
+impl GenericParam {
+    pub fn cst(&self) -> Option<super::nodes::GenericParam> {
+        match self {
+            GenericParam::ConstParam(it) => {
+                Some(super::nodes::GenericParam::ConstParam(it.cst.as_ref()?.clone()))
+            }
+            GenericParam::LifetimeParam(it) => {
+                Some(super::nodes::GenericParam::LifetimeParam(it.cst.as_ref()?.clone()))
+            }
+            GenericParam::TypeParam(it) => {
+                Some(super::nodes::GenericParam::TypeParam(it.cst.as_ref()?.clone()))
+            }
         }
     }
 }
