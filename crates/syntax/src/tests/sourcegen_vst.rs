@@ -33,6 +33,13 @@ const HAND_WRITTEN_PRINT_ONLY: &[&str] = &[
     "ArgList",
 ];
 
+const LIST_AUTO_GEN_SEP_COMMA: &[&str] = &[
+    "VariantList",
+    "RecordFieldList",
+    "TupleFieldList",
+];
+
+
 #[test]
 fn sourcegen_vst() {
     let grammar =
@@ -192,8 +199,14 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
                 let ty = field.ty();
 
                 if field.is_many() {
+                    let sep;
+                    if LIST_AUTO_GEN_SEP_COMMA.contains(&node.name.as_str()) {
+                        sep = ", ";
+                    } else {
+                        sep = " ";
+                    }
                     quote! {
-                        s.push_str(&self.#name.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+                        s.push_str(&self.#name.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(#sep));
                     }
                 } else if let Some(token_kind) = field.token_kind() {
                     // hacky for now
