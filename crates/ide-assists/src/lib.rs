@@ -221,6 +221,9 @@ mod handlers {
     mod unwrap_tuple;
     mod wrap_return_type_in_result;
     mod wrap_unwrap_cfg_attr;
+    // verus
+    mod assert_by;
+    mod intro_match;
 
     pub(crate) fn all() -> &'static [Handler] {
         &[
@@ -377,6 +380,10 @@ mod handlers {
             inline_macro::inline_macro,
             // Are you sure you want to add new assist here, and not to the
             // sorted list above?
+            //
+            // Verus
+            assert_by::assert_by,
+            intro_match::intro_match,
         ]
     }
 }

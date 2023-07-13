@@ -1,20 +1,14 @@
-// defines VST's Expr
+// defines VST handwritten nodes
 
-use rustc_lexer::LiteralKind;
-
-use crate::{
+pub use crate::{
     ast::{
         self,
-        operators::{ArithOp, BinaryOp, CmpOp, LogicOp, Ordering, RangeOp, UnaryOp},
+        operators::{BinaryOp},
         generated::vst_nodes::*,
-        support, AstChildren, AstNode,
     },
-    AstToken,
-    SyntaxKind::*,
-    SyntaxNode, SyntaxToken, T,
 };
 
-use super::{generated, HasAttrs};
+pub use super::{generated, HasAttrs};
 
 pub(crate) fn token_ascii(name: &String) -> &str {
     match name.as_str() {

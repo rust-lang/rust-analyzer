@@ -50,7 +50,7 @@ pub(crate) struct AssistContext<'a> {
     pub(crate) sema: Semantics<'a, RootDatabase>,
     frange: FileRange,
     trimmed_range: TextRange,
-    source_file: SourceFile,
+    pub source_file: SourceFile,
 }
 
 impl<'a> AssistContext<'a> {
