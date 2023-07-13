@@ -112,6 +112,7 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
                     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
                     pub struct #name {
                         #(#fields)*
+                        pub cst: Option<super::nodes::#name>,
                     }
                 }
             }
@@ -180,6 +181,7 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
                         fn try_from(item: super::nodes::#name) -> Result<Self, Self::Error>  {
                             Ok(Self {
                                 #(#fields)*
+                                cst: Some(item.clone()),
                             })
                         }
                     }
@@ -359,6 +361,37 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
     })
     .collect_vec();
 
+    // .cst impl for enum
+    let get_cst_impls_enum:  Vec<_> = grammar
+    .enums
+    .iter()
+    .map(|en| {
+        let name = format_ident!("{}", en.name);
+        let variants: Vec<_> = en.variants.iter().map(|var| format_ident!("{}", var)).collect();
+        let vars = variants.iter().map(|v| {
+            if grammar.enums.iter().any(|en| en.name == v.to_string()) {
+                quote! {
+                    #name::#v(it) => Some(super::nodes::#name::#v(it.cst()?.clone())),
+                }
+            } else {
+                quote! {
+                    #name::#v(it) => Some(super::nodes::#name::#v(it.cst.as_ref()?.clone())),
+                }
+            }
+        });
+
+        quote! {
+            impl #name {
+                pub fn cst(&self) -> Option<super::nodes::#name> {
+                    match self {
+                        #(#vars)*
+                    }
+                }
+            }
+        }  
+    })
+    .collect_vec();
+
     let ast = quote! {
         #![allow(non_snake_case)]
         use crate::{
@@ -373,6 +406,7 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         #(#from_node_to_vnode_enum)*
         #(#display_impls_struct)*
         #(#display_impls_enum)*
+        #(#get_cst_impls_enum)*
     };
 
     // TODO: expr_ext
@@ -385,6 +419,19 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
 
     sourcegen::add_preamble("sourcegen_vst", sourcegen::reformat(ast.to_string()))
 }
+
+
+/*
+impl Stmt {
+    pub fn cst(&self) -> Option<super::nodes::Stmt> {
+        match self {
+            Stmt::ExprStmt(it) => Some(super::nodes::Stmt::ExprStmt(it.cst.as_ref()?.clone())),
+            Stmt::Item(it) => Some(super::nodes::Stmt::Item(it.cst()?.clone())),
+            Stmt::LetStmt(it) => Some(super::nodes::Stmt::LetStmt(it.cst.as_ref()?.clone())),
+        }
+    }
+}
+*/
 
 /*
 below stuff are removed in "sourcege_ast" with "remove_field"

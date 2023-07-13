@@ -19,12 +19,13 @@ fn resolve_enum_def(sema: &Semantics<'_, RootDatabase>, expr: &ast::Expr) -> Opt
 
 // get vst node and return vst node
 // to do that, we need pointer from vst node to cst nodes
-fn type_of_expr_adt(sema: &Semantics<'_, RootDatabase>, expr: &ast::Expr) -> Option<ast::Adt> {
+fn type_of_expr_adt(sema: &Semantics<'_, RootDatabase>, expr: &ast::Expr) -> Option<vst::Adt> {
+    // let expr = expr.cst?;
     let hir_ty: Vec<hir::Type> = sema.type_of_expr(expr)?.adjusted().autoderef(sema.db).collect::<Vec<_>>();
     let hir_ty = hir_ty.first()?;
     if let Some(t) = hir_ty.as_adt() {
         let ast_ty: ast::Adt = sema.source(t)?.value;
-        return Some(ast_ty);
+        return ast_ty.try_into().ok();
     }
     None
 }

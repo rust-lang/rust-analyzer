@@ -51,6 +51,7 @@ pub struct BinExpr {
     pub lhs: Box<Expr>,
     pub op: BinaryOp,
     pub rhs: Box<Expr>,
+    pub cst: Option<generated::nodes::BinExpr>,
 }
 
 impl std::fmt::Display for BinExpr {
@@ -74,6 +75,7 @@ pub struct IfExpr {
     pub then_branch: Box<BlockExpr>,
     else_token: bool,
     pub else_branch: Option<Box<ElseBranch>>,
+    pub cst: Option<generated::nodes::IfExpr>,
 }
 
 impl std::fmt::Display for IfExpr {
@@ -112,10 +114,23 @@ impl std::fmt::Display for ElseBranch {
     }
 }
 
+impl ElseBranch {
+    pub fn cst(&self) -> Option<crate::ast::ElseBranch> {
+        match self {
+            // Stmt::ExprStmt(it) => Some(super::nodes::Stmt::ExprStmt(it.cst.as_ref()?.clone())),
+            // Stmt::Item(it) => Some(super::nodes::Stmt::Item(it.cst()?.clone())),
+            // Stmt::LetStmt(it) => Some(super::nodes::Stmt::LetStmt(it.cst.as_ref()?.clone())),
+            ElseBranch::Block(it) => Some(crate::ast::ElseBranch::Block(it.cst.as_ref()?.clone())),
+            ElseBranch::IfExpr(it) => Some(crate::ast::ElseBranch::IfExpr(it.cst.as_ref()?.clone())),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Literal {
     pub attrs: Vec<Attr>,
-    pub literal: String
+    pub literal: String,
+    pub cst: Option<generated::nodes::Literal>,
 }
 
 impl std::fmt::Display for Literal {
@@ -150,6 +165,7 @@ impl TryFrom<generated::nodes::Literal> for Literal {
                 LiteralKind::Byte(it) => it.to_string(),
                 LiteralKind::Bool(it) => it.to_string(),
             },
+            cst: Some(item.clone()),
         })
     }
 }
@@ -171,7 +187,9 @@ impl TryFrom<generated::nodes::BinExpr> for BinExpr {
             rhs: Box::new(
                 item.rhs()
                     .ok_or(format!("{}", stringify!(rhs)))
-                    .map(|it| Expr::try_from(it))??),        })
+                    .map(|it| Expr::try_from(it))??),        
+            cst: Some(item.clone()),
+        })
     }
 }
 
@@ -212,6 +230,7 @@ impl TryFrom<generated::nodes::IfExpr> for IfExpr {
                 Some(it) => Some(Box::new(ElseBranch::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
         })
     }
 }

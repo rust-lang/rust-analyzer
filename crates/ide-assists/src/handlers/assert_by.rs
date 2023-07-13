@@ -61,6 +61,7 @@ pub(crate) fn code_transformer_assert_to_assert_by(
     let exprstmt: vst::ExprStmt = vst::ExprStmt{
         expr: Box::new(vst::Expr::AssertExpr(Box::new(new_assert))),
         semicolon_token: true,
+        cst: None,
     };
     let stmt = vst::StmtList {
         l_curly_token: true,
@@ -68,6 +69,7 @@ pub(crate) fn code_transformer_assert_to_assert_by(
         statements: vec![vst::Stmt::ExprStmt(Box::new(exprstmt))],
         tail_expr: None,
         r_curly_token: true,
+        cst: None,
     };
     let blk_expr: vst::BlockExpr = vst::BlockExpr {
         stmt_list: Box::new(stmt),
@@ -77,6 +79,7 @@ pub(crate) fn code_transformer_assert_to_assert_by(
         unsafe_token: false,
         async_token: false,
         const_token: false,
+        cst: None,
     };
     assert.by_token = true;
     assert.block_expr = Some(Box::new(blk_expr));
