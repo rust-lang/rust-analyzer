@@ -1,27 +1,19 @@
 use std::vec;
 
 use crate::{AssistContext, AssistId, AssistKind, Assists};
-use hir::{Adt, HasSource, Semantics};
-use ide_db::{syntax_helpers::{node_ext::walk_expr, vst_ext::vst_walk_expr}, RootDatabase};
+use hir::Semantics;
+use ide_db::{syntax_helpers::vst_ext::vst_walk_expr, RootDatabase};
 
 use syntax::{
-    ast::{self, edit_in_place::Indent, Expr, HasName, vst},
+    ast::{self, vst},
     AstNode, T,
 };
 
-// referenced `add_missing_match_arms`
-fn resolve_enum_def(sema: &Semantics<'_, RootDatabase>, expr: &ast::Expr) -> Option<hir::Enum> {
-    sema.type_of_expr(expr)?.adjusted().autoderef(sema.db).find_map(|ty| match ty.as_adt() {
-        Some(Adt::Enum(e)) => Some(e),
-        _ => None,
-    })
-}
-
 // get vst node and return vst node
 // to do that, we need pointer from vst node to cst nodes
-fn type_of_expr_adt(sema: &Semantics<'_, RootDatabase>, expr: &ast::Expr) -> Option<vst::Adt> {
-    // let expr = expr.cst?;
-    let hir_ty: Vec<hir::Type> = sema.type_of_expr(expr)?.adjusted().autoderef(sema.db).collect::<Vec<_>>();
+fn type_of_expr_adt(sema: &Semantics<'_, RootDatabase>, expr: &vst::Expr) -> Option<vst::Adt> {
+    let expr = expr.cst()?;
+    let hir_ty: Vec<hir::Type> = sema.type_of_expr(&expr)?.adjusted().autoderef(sema.db).collect::<Vec<_>>();
     let hir_ty = hir_ty.first()?;
     if let Some(t) = hir_ty.as_adt() {
         let ast_ty: ast::Adt = sema.source(t)?.value;
@@ -30,19 +22,13 @@ fn type_of_expr_adt(sema: &Semantics<'_, RootDatabase>, expr: &ast::Expr) -> Opt
     None
 }
 
-// fn get_enum_type(expr: &vst::Expr, items: &Vec<vst::Item>) -> Option<vst::Enum> {
-//     for it in items {
-//         match it {
-//             vst::Item::Enum(e) => {
-//                 if e.name.to_string() == expr {
-//                     return Some(e.clone());
-//                 }
-//             }
-//             _ => (),
-//         }
-//     }
-//     None
-// }
+fn get_enum_type(sema: &Semantics<'_, RootDatabase>, expr: &vst::Expr) -> Option<vst::Enum> {
+    let typename = type_of_expr_adt(sema, expr)?;
+    if let vst::Adt::Enum(e) = typename {
+        return Some(*e.clone());
+    }
+    None
+}
 
 // fn goto_definition
  
@@ -57,8 +43,7 @@ pub(crate) fn intro_match(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
     //     dbg!(&v_item);
     //     println!("{}", &v_item);
     // }
-    return None;
-/* 
+
     let assert_keyword = ctx.find_token_syntax_at_offset(T![assert])?;
     let assert_expr = ast::AssertExpr::cast(assert_keyword.parent()?)?;
     let assert_range = assert_keyword.text_range();
@@ -67,42 +52,9 @@ pub(crate) fn intro_match(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
         return None;
     }
 
-
-    // walk over the assertion's predicate, to get expressions of `enum` type.
-    let assert_goal = assert_expr.expr()?;
-    let mut v = vec![];
-    let cb = &mut |e: vst::Expr| {
-        if type_of_expr_adt(&ctx.sema, &e).is_some() {
-            v.push(e.clone());
-            ()
-        } else {
-        }
-    };
-    let assert_vst = vst::Expr::try_from(assert_goal.clone()).ok()?;
-    vst_walk_expr(&assert_vst, cb);
-
-    code_transformer_intro_match(assert_expr.clone());
-
-
-    // now gather code snippet
-    let var_of_enum = &v[0];
-    let enum_def = resolve_enum_def(&ctx.sema, var_of_enum)?;
-    let enum_variants = enum_def.variants(ctx.sema.db).into_iter().collect::<Vec<_>>();
-    let enum_name = enum_def.source(ctx.sema.db)?.value.name()?;
-
-    let mut cases = vec![];
-    for variant in enum_variants {
-        let variant_name = variant.source(ctx.sema.db)?.value.name()?;
-        cases.push(format!("{enum_name}::{variant_name}(..) => assert({assert_goal}),"));
-    }
-
-    // handle formatting
-    let indent = var_of_enum.indent_level();
-    let more_indent = indent + 1;
-    let seperator = format!("\n{more_indent}");
-    let match_cases = cases.join(&seperator);
-    let result = format!("match {var_of_enum} {{\n{more_indent}{match_cases}\n{indent}}}");
-
+    let assert: vst::AssertExpr = vst::AssertExpr::try_from(assert_expr.clone()).ok()?;
+    let result = code_transformer_intro_match(ctx, assert.clone())?;
+    
     // register code change to `acc`
     acc.add(
         AssistId("intro_match", AssistKind::RefactorRewrite),
@@ -112,16 +64,72 @@ pub(crate) fn intro_match(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
             edit.replace(assert_expr.syntax().text_range(), result);
         },
     )
-*/
+
 }
 
 
 pub(crate) fn code_transformer_intro_match(
-    assert: ast::AssertExpr,
+    ctx: &AssistContext<'_>,
+    assert: vst::AssertExpr,
 ) -> Option<String> {
-    let mut assert: vst::AssertExpr = vst::AssertExpr::try_from(assert).ok()?;
-    dbg!(&assert);
-    None
+    println!("{}", &assert);
+    
+    let mut v = vec![];
+    let cb = &mut |e: vst::Expr| {
+        if let Some(_) = get_enum_type(&ctx.sema, &e) {
+            v.push(e.clone());
+        } 
+    };
+    let exp_assert = vst::Expr::AssertExpr(Box::new(assert.clone()));
+    // walk over the assertion's predicate, to get expressions of `enum` type.
+    vst_walk_expr(&exp_assert, cb);
+    dbg!(&v);
+    println!("match assertion on: {}", &v[0]);
+    let enum_expr_inside_assertion = &v[0];
+    let en = get_enum_type(&ctx.sema, enum_expr_inside_assertion)?;
+    println!("{}", en);
+
+    let mut match_arms = vec![];
+    
+    for variant in &en.variant_list.variants {
+        println!("{}", variant);
+        let vst_path: vst::Path = ast::make::path_from_text(&format!("{}::{}(..)", en.name, variant.name)).try_into().ok()?;
+        let path_pat = vst::PathPat {
+            path: Box::new(vst_path),
+            cst: None,
+        };
+        let vst_pat = vst::Pat::PathPat(Box::new(path_pat));
+
+        let arm = vst::MatchArm{
+            attrs: vec![],
+            pat: Some(Box::new(vst_pat)),
+            guard: None,
+            fat_arrow_token: true,
+            expr: Box::new(enum_expr_inside_assertion.clone()),
+            comma_token: true,
+            cst: None,
+        };
+        println!("{}", &arm);
+        match_arms.push(arm);
+    }
+
+    let match_stmt = vst::MatchExpr {
+        match_token: true,
+        expr: Box::new(enum_expr_inside_assertion.clone()),
+        match_arm_list: Box::new(vst::MatchArmList {
+            attrs: vec![],
+            l_curly_token: true,
+            arms: match_arms,
+            r_curly_token: true,
+            cst: None,
+        }),
+        attrs: vec![],
+        cst: None,
+    };
+
+    println!("{}", &match_stmt);
+
+    Some(match_stmt.to_string())
 }
 
 

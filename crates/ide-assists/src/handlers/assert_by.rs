@@ -1,5 +1,3 @@
-use std::process::Command;
-
 // use ide_db::syntax_helpers::node_ext::is_pattern_cond;
 use crate::{
     assist_context::{AssistContext, Assists},
@@ -7,10 +5,8 @@ use crate::{
     AssistId,
     AssistKind,
 };
-use syntax::{ast::edit::IndentLevel, Parse};
 use syntax::{
-    ast::{self, make::ext::empty_block_expr, AstNode, vst},
-    ted, T,
+    ast::{self, AstNode, vst}, T,
 };
 
 pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
@@ -24,17 +20,14 @@ pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()
 
     let string = code_transformer_assert_to_assert_by(expr.clone())?;
 
-
-    let formatter = "/home/chanhee/.cargo/bin/rustfmt";
-
-    let formatted_string = Command::new("echo")
-        .arg(string.clone())
-        .arg("|")
-        .arg(formatter)
-        .spawn()
-        .expect("echo command failed to start").stdout.unwrap();
-
-    dbg!(formatted_string);
+    // let formatter = "/home/chanhee/.cargo/bin/rustfmt";
+    // let formatted_string = Command::new("echo")
+    //     .arg(string.clone())
+    //     .arg("|")
+    //     .arg(formatter)
+    //     .spawn()
+    //     .expect("echo command failed to start").stdout.unwrap();
+    // dbg!(formatted_string);
     
 
     acc.add(

@@ -29,9 +29,7 @@ use syntax::{
 // /// Preorder walk all the expression's child expressions.
 pub fn vst_walk_expr(expr: &vst::Expr, cb: &mut dyn FnMut(vst::Expr)) {
     vst_preorder_expr(expr, &mut |ev| {
-        if let WalkEvent::Enter(expr) = ev {
-            cb(expr);
-        }
+        cb(ev);
         false
     })
 }
@@ -40,7 +38,7 @@ pub fn vst_walk_expr(expr: &vst::Expr, cb: &mut dyn FnMut(vst::Expr)) {
 /// Preorder walk all the expression's child expressions preserving events.
 /// If the callback returns true on an [`WalkEvent::Enter`], the subtree of the expression will be skipped.
 /// Note that the subtree may already be skipped due to the context analysis this function does.
-pub fn vst_preorder_expr(exp: &vst::Expr, cb: &mut dyn FnMut(WalkEvent<vst::Expr>) -> bool) {
+pub fn vst_preorder_expr(exp: &vst::Expr, cb: &mut dyn FnMut(vst::Expr) -> bool) {
     match exp {
         vst::Expr::ArrayExpr(e) => {
             for expr in &e.exprs {
@@ -56,7 +54,12 @@ pub fn vst_preorder_expr(exp: &vst::Expr, cb: &mut dyn FnMut(WalkEvent<vst::Expr
         // vst::Expr::BlockExpr(e) => todo!(),
         // vst::Expr::BoxExpr(e) => todo!(),
         // vst::Expr::BreakExpr(e) => todo!(),
-        // vst::Expr::CallExpr(_) => todo!(),
+        vst::Expr::CallExpr(e) => {
+            vst_preorder_expr(&e.expr, cb);
+            for arg in &e.arg_list.args {
+                vst_preorder_expr(&arg, cb);
+            }
+        },
         // vst::Expr::CastExpr(_) => todo!(),
         // vst::Expr::ClosureExpr(_) => todo!(),
         // vst::Expr::ContinueExpr(_) => todo!(),
@@ -90,7 +93,10 @@ pub fn vst_preorder_expr(exp: &vst::Expr, cb: &mut dyn FnMut(WalkEvent<vst::Expr
         }
         // vst::Expr::AssumeExpr(e) => todo!(),
         // vst::Expr::AssertForallExpr(_) => todo!(),
-        _ => todo!(),
+        _ => {
+            dbg!("warning: basecase walk expr incomplete");
+            cb(exp.clone());
+        }
     }
     // let mut preorder = start.syntax().preorder();
     // while let Some(event) = preorder.next() {
