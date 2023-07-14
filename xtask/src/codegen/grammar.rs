@@ -776,7 +776,7 @@ fn deduplicate_fields(ast: &mut AstSrc) {
                 }
                 // verus
                 match (f1,f2) {
-                    (Field::Node { name: n1, ty: t1, .. }, Field::Node { name: n2, ty: t2, .. }) => {
+                    (Field::Node { name: n1, ty: _, .. }, Field::Node { name: n2, ty: _, .. }) => {
                         if n1 == n2 {
                             node.fields.remove(i);
                             continue 'outer;

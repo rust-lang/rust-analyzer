@@ -11,7 +11,7 @@ use crate::tests::ast_src::{
 use crate::tests::sourcegen_ast::*;
 
 // From sourcegen_ast::extract_struct_traits
-const special_items: &[(&str, &[&str])] = &[
+const SPECIAL_ITEMS: &[(&str, &[&str])] = &[
     ("HasAttrs", &["attrs"]),
     ("HasName", &["name"]),
     ("HasVisibility", &["visibility"]),
@@ -51,7 +51,7 @@ fn sourcegen_vst() {
     sourcegen::ensure_file_contents(ast_nodes_file.as_path(), &ast_nodes);
 }
 
-pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
+pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
     // TODO: add "Comment" item
 
     // generate struct definitions
@@ -198,7 +198,7 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
             let name = format_ident!("{}", node.name);
             let fields = node.fields.iter().map(|field| {
                 let name = field.method_name();
-                let ty = field.ty();
+                // let ty = field.ty();
 
                 if field.is_many() {
                     let sep;
@@ -277,16 +277,6 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         .map(|en| {
             let variants: Vec<_> = en.variants.iter().map(|var| format_ident!("{}", var)).collect();
             let name = format_ident!("{}", en.name);
-            let kinds: Vec<_> = variants
-                .iter()
-                .map(|name| format_ident!("{}", to_upper_snake_case(&name.to_string())))
-                .collect();
-
-            let traits = en.traits.iter().map(|trait_name| {
-                let trait_name = format_ident!("{}", trait_name);
-                quote!(impl ast::#trait_name for #name {})
-            });
-
             quote! {
                 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
                 pub enum #name {
@@ -304,16 +294,6 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
     .map(|en| {
         let variants: Vec<_> = en.variants.iter().map(|var| format_ident!("{}", var)).collect();
         let name = format_ident!("{}", en.name);
-        let kinds: Vec<_> = variants
-            .iter()
-            .map(|name| format_ident!("{}", to_upper_snake_case(&name.to_string())))
-            .collect();
-        
-        let traits = en.traits.iter().map(|trait_name| {
-            let trait_name = format_ident!("{}", trait_name);
-            quote!(impl ast::#trait_name for #name {})
-        });
-
         quote! {
             impl TryFrom<super::nodes::#name> for #name {
                 type Error = String;
@@ -336,17 +316,6 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
     .map(|en| {
         let variants: Vec<_> = en.variants.iter().map(|var| format_ident!("{}", var)).collect();
         let name = format_ident!("{}", en.name);
-        let kinds: Vec<_> = variants
-            .iter()
-            .map(|name| format_ident!("{}", to_upper_snake_case(&name.to_string())))
-            .collect();
-        
-        let traits = en.traits.iter().map(|trait_name| {
-            let trait_name = format_ident!("{}", trait_name);
-            quote!(impl ast::#trait_name for #name {})
-        });
-        
-
         quote! {
             impl std::fmt::Display for #name {
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -395,9 +364,7 @@ pub(crate) fn generate_vst(kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
     let ast = quote! {
         #![allow(non_snake_case)]
         use crate::{
-            SyntaxNode, SyntaxToken, SyntaxKind::{self, *},
-            ast::{self, AstNode, AstChildren, support, traits::*, vst::*},
-            T,
+            ast::{traits::*, vst::*},
         };
 
         #(#node_defs)*

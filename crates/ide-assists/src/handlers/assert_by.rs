@@ -18,7 +18,7 @@ pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()
         return None;
     }
 
-    let string = code_transformer_assert_to_assert_by(expr.clone())?;
+    let string = vst_transformer_assert_to_assert_by(expr.clone())?;
 
     // let formatter = "/home/chanhee/.cargo/bin/rustfmt";
     // let formatted_string = Command::new("echo")
@@ -43,7 +43,7 @@ pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()
     )
 }
 
-pub(crate) fn code_transformer_assert_to_assert_by(
+pub(crate) fn vst_transformer_assert_to_assert_by(
     assert: ast::AssertExpr,
 ) -> Option<String> {
     if assert.by_token().is_some() {
