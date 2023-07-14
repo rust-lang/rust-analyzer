@@ -1149,7 +1149,6 @@ export function viewMemoryLayout(ctx: CtxInit): Cmd {
             "memory_layout",
             "[Memory Layout]",
             vscode.ViewColumn.Two,
-            { enableScripts: true },
             { enableScripts: true, localResourceRoots: [webviewModulePath] },
         );
 
