@@ -3,10 +3,9 @@
 use itertools::Itertools;
 use parser::T;
 use syntax::{
-    ast::{self, HasLoopBody, MacroCall, PathSegmentKind, VisibilityKind, vst},
+    ast::{self, vst, HasLoopBody, MacroCall, PathSegmentKind, VisibilityKind},
     AstNode, AstToken, Preorder, RustLanguage, WalkEvent,
 };
-
 
 /// Preorder walk all the expression's child expressions.
 pub fn vst_walk_expr(expr: &vst::Expr, cb: &mut dyn FnMut(vst::Expr)) {
@@ -87,7 +86,6 @@ where
     Ok(res)
 }
 
-
 /// Preorder walk all the expression's child expressions
 pub fn vst_preorder_expr(exp: &vst::Expr, cb: &mut dyn FnMut(vst::Expr) -> bool) {
     match exp {
@@ -110,7 +108,7 @@ pub fn vst_preorder_expr(exp: &vst::Expr, cb: &mut dyn FnMut(vst::Expr) -> bool)
             for arg in &e.arg_list.args {
                 vst_preorder_expr(&arg, cb);
             }
-        },
+        }
         // vst::Expr::CastExpr(_) => todo!(),
         // vst::Expr::ClosureExpr(_) => todo!(),
         // vst::Expr::ContinueExpr(_) => todo!(),
@@ -150,4 +148,3 @@ pub fn vst_preorder_expr(exp: &vst::Expr, cb: &mut dyn FnMut(vst::Expr) -> bool)
         }
     }
 }
-

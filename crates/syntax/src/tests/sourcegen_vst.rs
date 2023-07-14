@@ -2,11 +2,9 @@
 //!
 //! The VST datatype is generated from the ungrammar file.
 
+use crate::tests::ast_src::{AstSrc, KindsSrc, KINDS_SRC};
 use itertools::Itertools;
 use quote::{format_ident, quote};
-use crate::tests::ast_src::{
-    AstSrc, KindsSrc, KINDS_SRC,
-};
 
 use crate::tests::sourcegen_ast::*;
 
@@ -22,23 +20,11 @@ const SPECIAL_ITEMS: &[(&str, &[&str])] = &[
     ("HasArgList", &["arg_list"]),
 ];
 
-const HAND_WRITTEN: &[&str] = &[
-    "BinExpr",
-    "IfExpr",
-    "Literal",
-];
+const HAND_WRITTEN: &[&str] = &["BinExpr", "IfExpr", "Literal"];
 
-const HAND_WRITTEN_PRINT_ONLY: &[&str] = &[
-    "ParamList",
-    "ArgList",
-];
+const HAND_WRITTEN_PRINT_ONLY: &[&str] = &["ParamList", "ArgList"];
 
-const LIST_AUTO_GEN_SEP_COMMA: &[&str] = &[
-    "VariantList",
-    "RecordFieldList",
-    "TupleFieldList",
-];
-
+const LIST_AUTO_GEN_SEP_COMMA: &[&str] = &["VariantList", "RecordFieldList", "TupleFieldList"];
 
 #[test]
 fn sourcegen_vst() {
@@ -47,7 +33,8 @@ fn sourcegen_vst() {
     let ast = lower(&grammar, true);
 
     let ast_nodes = generate_vst(KINDS_SRC, &ast);
-    let ast_nodes_file = sourcegen::project_root().join("crates/syntax/src/ast/generated/vst_nodes.rs");
+    let ast_nodes_file =
+        sourcegen::project_root().join("crates/syntax/src/ast/generated/vst_nodes.rs");
     sourcegen::ensure_file_contents(ast_nodes_file.as_path(), &ast_nodes);
 }
 
@@ -104,9 +91,7 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
             });
 
             if HAND_WRITTEN.contains(&node.name.as_str()) {
-                quote! {
-
-                }
+                quote! {}
             } else {
                 quote! {
                     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -116,8 +101,6 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
                     }
                 }
             }
-
-
         })
         .collect_vec();
 
@@ -190,8 +173,8 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         })
         .collect_vec();
 
-        // display struct
-        let display_impls_struct: Vec<_> = grammar
+    // display struct
+    let display_impls_struct: Vec<_> = grammar
         .nodes
         .iter()
         .map(|node| {
@@ -269,7 +252,6 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         })
         .collect_vec();
 
-
     // generate enum definitions
     let enum_defs: Vec<_> = grammar
         .enums
@@ -285,7 +267,6 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
             }
         })
         .collect_vec();
-
 
     // CST to VST
     let from_node_to_vnode_enum:  Vec<_> = grammar
@@ -310,56 +291,56 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
     .collect_vec();
 
     // display
-    let display_impls_enum:  Vec<_> = grammar
-    .enums
-    .iter()
-    .map(|en| {
-        let variants: Vec<_> = en.variants.iter().map(|var| format_ident!("{}", var)).collect();
-        let name = format_ident!("{}", en.name);
-        quote! {
-            impl std::fmt::Display for #name {
-                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    match self {
-                        #(
-                            #name::#variants(it) => write!(f, "{}", it.to_string()),
-                        )*
+    let display_impls_enum: Vec<_> = grammar
+        .enums
+        .iter()
+        .map(|en| {
+            let variants: Vec<_> = en.variants.iter().map(|var| format_ident!("{}", var)).collect();
+            let name = format_ident!("{}", en.name);
+            quote! {
+                impl std::fmt::Display for #name {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        match self {
+                            #(
+                                #name::#variants(it) => write!(f, "{}", it.to_string()),
+                            )*
+                        }
                     }
                 }
             }
-        }  
-    })
-    .collect_vec();
+        })
+        .collect_vec();
 
     // .cst impl for enum
-    let get_cst_impls_enum:  Vec<_> = grammar
-    .enums
-    .iter()
-    .map(|en| {
-        let name = format_ident!("{}", en.name);
-        let variants: Vec<_> = en.variants.iter().map(|var| format_ident!("{}", var)).collect();
-        let vars = variants.iter().map(|v| {
-            if grammar.enums.iter().any(|en| en.name == v.to_string()) {
-                quote! {
-                    #name::#v(it) => Some(super::nodes::#name::#v(it.cst()?.clone())),
+    let get_cst_impls_enum: Vec<_> = grammar
+        .enums
+        .iter()
+        .map(|en| {
+            let name = format_ident!("{}", en.name);
+            let variants: Vec<_> = en.variants.iter().map(|var| format_ident!("{}", var)).collect();
+            let vars = variants.iter().map(|v| {
+                if grammar.enums.iter().any(|en| en.name == v.to_string()) {
+                    quote! {
+                        #name::#v(it) => Some(super::nodes::#name::#v(it.cst()?.clone())),
+                    }
+                } else {
+                    quote! {
+                        #name::#v(it) => Some(super::nodes::#name::#v(it.cst.as_ref()?.clone())),
+                    }
                 }
-            } else {
-                quote! {
-                    #name::#v(it) => Some(super::nodes::#name::#v(it.cst.as_ref()?.clone())),
-                }
-            }
-        });
+            });
 
-        quote! {
-            impl #name {
-                pub fn cst(&self) -> Option<super::nodes::#name> {
-                    match self {
-                        #(#vars)*
+            quote! {
+                impl #name {
+                    pub fn cst(&self) -> Option<super::nodes::#name> {
+                        match self {
+                            #(#vars)*
+                        }
                     }
                 }
             }
-        }  
-    })
-    .collect_vec();
+        })
+        .collect_vec();
 
     let ast = quote! {
         #![allow(non_snake_case)]
@@ -382,11 +363,10 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
 
     // VST -> CST
     // TODO: generate display impls (this is to print VST and parse into CST)
-    // 
+    //
 
     sourcegen::add_preamble("sourcegen_vst", sourcegen::reformat(ast.to_string()))
 }
-
 
 /*
 impl Stmt {
@@ -525,7 +505,7 @@ impl TryFrom<super::nodes::AssertExpr> for AssertExpr {
         Ok (Self {
             attrs,
             assert_token,
-            l_paren_token, 
+            l_paren_token,
             expr,
             r_paren_token,
             by_token,

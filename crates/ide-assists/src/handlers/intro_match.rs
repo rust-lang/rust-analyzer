@@ -20,7 +20,7 @@ pub(crate) fn intro_match(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
 
     let assert: vst::AssertExpr = vst::AssertExpr::try_from(assert_expr.clone()).ok()?;
     let result = vst_transformer_intro_match(ctx, assert.clone())?;
-    
+
     // register code change to `acc`
     acc.add(
         AssistId("intro_match", AssistKind::RefactorRewrite),
@@ -30,7 +30,6 @@ pub(crate) fn intro_match(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
             edit.replace(assert_expr.syntax().text_range(), result);
         },
     )
-
 }
 
 pub(crate) fn vst_transformer_intro_match(
@@ -41,7 +40,7 @@ pub(crate) fn vst_transformer_intro_match(
     let cb = &mut |e: vst::Expr| {
         if let Some(_) = ctx.type_of_expr_enum(&e) {
             v.push(e.clone());
-        } 
+        }
     };
     let exp_assert = vst::Expr::AssertExpr(Box::new(assert.clone()));
     // walk over the assertion's predicate, to get expressions of `enum` type.
@@ -56,17 +55,17 @@ pub(crate) fn vst_transformer_intro_match(
     println!("{}", en);
 
     let mut match_arms = vec![];
-    
+
     for variant in &en.variant_list.variants {
         println!("{}", variant);
-        let vst_path: vst::Path = ast::make::path_from_text(&format!("{}::{}(..)", en.name, variant.name)).try_into().ok()?;
-        let path_pat = vst::PathPat {
-            path: Box::new(vst_path),
-            cst: None,
-        };
+        let vst_path: vst::Path =
+            ast::make::path_from_text(&format!("{}::{}(..)", en.name, variant.name))
+                .try_into()
+                .ok()?;
+        let path_pat = vst::PathPat { path: Box::new(vst_path), cst: None };
         let vst_pat = vst::Pat::PathPat(Box::new(path_pat));
 
-        let arm = vst::MatchArm{
+        let arm = vst::MatchArm {
             attrs: vec![],
             pat: Some(Box::new(vst_pat)),
             guard: None,
@@ -97,8 +96,6 @@ pub(crate) fn vst_transformer_intro_match(
 
     Some(match_stmt.to_string())
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -151,11 +148,6 @@ proof fn good_move(m: Movement)
 "#,
         );
     }
-
-
-
-
-
 
     #[test]
     fn intro_failing_ensures_easy2() {

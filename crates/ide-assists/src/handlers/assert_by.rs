@@ -6,7 +6,8 @@ use crate::{
     AssistKind,
 };
 use syntax::{
-    ast::{self, AstNode, vst}, T,
+    ast::{self, vst, AstNode},
+    T,
 };
 
 pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
@@ -28,30 +29,24 @@ pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()
     //     .spawn()
     //     .expect("echo command failed to start").stdout.unwrap();
     // dbg!(formatted_string);
-    
 
     acc.add(
         AssistId("assert_by", AssistKind::RefactorRewrite),
         "Add proof block for this assert",
         assert_range,
         |edit| {
-            edit.replace(
-                expr.syntax().text_range(),
-                string,
-            );
+            edit.replace(expr.syntax().text_range(), string);
         },
     )
 }
 
-pub(crate) fn vst_transformer_assert_to_assert_by(
-    assert: ast::AssertExpr,
-) -> Option<String> {
+pub(crate) fn vst_transformer_assert_to_assert_by(assert: ast::AssertExpr) -> Option<String> {
     if assert.by_token().is_some() {
         return None;
     }
     let mut assert: vst::AssertExpr = vst::AssertExpr::try_from(assert).ok()?;
     let new_assert = assert.clone();
-    let exprstmt: vst::ExprStmt = vst::ExprStmt{
+    let exprstmt: vst::ExprStmt = vst::ExprStmt {
         expr: Box::new(vst::Expr::AssertExpr(Box::new(new_assert))),
         semicolon_token: true,
         cst: None,
@@ -76,7 +71,7 @@ pub(crate) fn vst_transformer_assert_to_assert_by(
     };
     assert.by_token = true;
     assert.block_expr = Some(Box::new(blk_expr));
-    
+
     Some(assert.to_string())
 }
 

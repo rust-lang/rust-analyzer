@@ -1,12 +1,6 @@
 // defines VST handwritten nodes
 
-pub use crate::{
-    ast::{
-        self,
-        operators::{BinaryOp},
-        generated::vst_nodes::*,
-    },
-};
+pub use crate::ast::{self, generated::vst_nodes::*, operators::BinaryOp};
 
 pub use super::{generated, HasAttrs};
 
@@ -57,9 +51,7 @@ pub struct BinExpr {
 impl std::fmt::Display for BinExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = String::new();
-        s.push_str(
-            &self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
-        );
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
         s.push_str(&self.lhs.to_string());
         s.push_str(&self.op.to_string());
         s.push_str(&self.rhs.to_string());
@@ -81,9 +73,7 @@ pub struct IfExpr {
 impl std::fmt::Display for IfExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = String::new();
-        s.push_str(
-            &self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
-        );
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
         if self.if_token {
             s.push_str("if ");
         }
@@ -121,7 +111,9 @@ impl ElseBranch {
             // Stmt::Item(it) => Some(super::nodes::Stmt::Item(it.cst()?.clone())),
             // Stmt::LetStmt(it) => Some(super::nodes::Stmt::LetStmt(it.cst.as_ref()?.clone())),
             ElseBranch::Block(it) => Some(crate::ast::ElseBranch::Block(it.cst.as_ref()?.clone())),
-            ElseBranch::IfExpr(it) => Some(crate::ast::ElseBranch::IfExpr(it.cst.as_ref()?.clone())),
+            ElseBranch::IfExpr(it) => {
+                Some(crate::ast::ElseBranch::IfExpr(it.cst.as_ref()?.clone()))
+            }
         }
     }
 }
@@ -136,25 +128,22 @@ pub struct Literal {
 impl std::fmt::Display for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = String::new();
-        s.push_str(
-            &self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
-        );
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
         s.push_str(&self.literal);
         write!(f, "{s}")
     }
 }
 
-
 impl TryFrom<generated::nodes::Literal> for Literal {
     type Error = String;
     fn try_from(item: generated::nodes::Literal) -> Result<Self, Self::Error> {
         use ast::expr_ext::LiteralKind;
-        Ok(Self { 
-            attrs:item
-            .attrs()
-            .into_iter()
-            .map(Attr::try_from)
-            .collect::<Result<Vec<Attr>, String>>()?,
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             literal: match item.kind() {
                 LiteralKind::String(it) => it.to_string(),
                 LiteralKind::ByteString(it) => it.to_string(),
@@ -173,21 +162,19 @@ impl TryFrom<generated::nodes::Literal> for Literal {
 impl TryFrom<generated::nodes::BinExpr> for BinExpr {
     type Error = String;
     fn try_from(item: generated::nodes::BinExpr) -> Result<Self, Self::Error> {
-        Ok(Self { 
-            attrs:item
-            .attrs()
-            .into_iter()
-            .map(Attr::try_from)
-            .collect::<Result<Vec<Attr>, String>>()?,
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             lhs: Box::new(
-                item.lhs()
-                    .ok_or(format!("{}", stringify!(lhs)))
-                    .map(|it| Expr::try_from(it))??),
+                item.lhs().ok_or(format!("{}", stringify!(lhs))).map(|it| Expr::try_from(it))??,
+            ),
             op: item.op_details().ok_or(format!("{}", stringify!(op_details))).map(|it| it.1)?,
             rhs: Box::new(
-                item.rhs()
-                    .ok_or(format!("{}", stringify!(rhs)))
-                    .map(|it| Expr::try_from(it))??),        
+                item.rhs().ok_or(format!("{}", stringify!(rhs))).map(|it| Expr::try_from(it))??,
+            ),
             cst: Some(item.clone()),
         })
     }
@@ -197,12 +184,8 @@ impl TryFrom<super::expr_ext::ElseBranch> for ElseBranch {
     type Error = String;
     fn try_from(item: super::expr_ext::ElseBranch) -> Result<Self, Self::Error> {
         match item {
-            super::expr_ext::ElseBranch::Block(it) => {
-                Ok(Self::Block(Box::new(it.try_into()?)))
-            }
-            super::expr_ext::ElseBranch::IfExpr(it) => {
-                Ok(Self::IfExpr(Box::new(it.try_into()?)))
-            }
+            super::expr_ext::ElseBranch::Block(it) => Ok(Self::Block(Box::new(it.try_into()?))),
+            super::expr_ext::ElseBranch::IfExpr(it) => Ok(Self::IfExpr(Box::new(it.try_into()?))),
         }
     }
 }
@@ -210,21 +193,23 @@ impl TryFrom<super::expr_ext::ElseBranch> for ElseBranch {
 impl TryFrom<generated::nodes::IfExpr> for IfExpr {
     type Error = String;
     fn try_from(item: generated::nodes::IfExpr) -> Result<Self, Self::Error> {
-        Ok(Self { 
-            attrs:item
-            .attrs()
-            .into_iter()
-            .map(Attr::try_from)
-            .collect::<Result<Vec<Attr>, String>>()?,
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
             if_token: item.if_token().is_some(),
             condition: Box::new(
                 item.condition()
                     .ok_or(format!("{}", stringify!(condition)))
-                    .map(|it| Expr::try_from(it))??),
+                    .map(|it| Expr::try_from(it))??,
+            ),
             then_branch: Box::new(
                 item.then_branch()
                     .ok_or(format!("{}", stringify!(then_branch)))
-                    .map(|it| BlockExpr::try_from(it))??),
+                    .map(|it| BlockExpr::try_from(it))??,
+            ),
             else_token: item.else_token().is_some(),
             else_branch: match item.else_branch() {
                 Some(it) => Some(Box::new(ElseBranch::try_from(it)?)),
@@ -255,7 +240,9 @@ impl std::fmt::Display for ParamList {
             s.push_str(token_ascii(&tmp));
             s.push_str(" ");
         }
-        s.push_str(&self.params.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(", "));
+        s.push_str(
+            &self.params.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(", "),
+        );
         if self.r_paren_token {
             let mut tmp = stringify!(r_paren_token).to_string();
             tmp.truncate(tmp.len() - 6);
