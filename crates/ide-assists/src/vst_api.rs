@@ -29,12 +29,15 @@ impl<'a> AssistContext<'a> {
         None
     }
 
-    pub(crate) fn vst_find_node_at_offset<N, TT>(&self) -> Option<N>
+    /// Get VST node from the current cursor position
+    /// This is a wrapper around `find_node_at_offset` that returns a VST node
+    /// REVIEW: to remove type annotation, consider auto-generating all sorts of this function
+    pub(crate) fn vst_find_node_at_offset<VSTT, CSTT>(&self) -> Option<VSTT>
     where
-        N: TryFrom<TT>,
-        TT: AstNode,
+        VSTT: TryFrom<CSTT>,
+        CSTT: AstNode,
     {
-        let cst_node: TT = self.find_node_at_offset()?;
-        N::try_from(cst_node).ok()
+        let cst_node: CSTT = self.find_node_at_offset()?;
+        VSTT::try_from(cst_node).ok()
     }
 }

@@ -28,8 +28,8 @@ where
         // }
         // vst::Expr::AwaitExpr(e) => todo!(),
         vst::Expr::BinExpr(mut e) => {
-            let new_lhs = cb(&mut e.lhs.clone())?;
-            let new_rhs = cb(&mut e.rhs.clone())?;
+            let new_lhs = vst_map_expr_visitor(*e.lhs.clone(), cb)?;
+            let new_rhs = vst_map_expr_visitor(*e.rhs.clone(), cb)?;
             e.lhs = Box::new(new_lhs);
             e.rhs = Box::new(new_rhs);
             vst::Expr::BinExpr(e)
@@ -72,15 +72,16 @@ where
         // vst::Expr::UnderscoreExpr(_) => todo!(),
         // vst::Expr::ViewExpr(_) => todo!(),
         vst::Expr::AssertExpr(mut e) => {
-            let new_exp = cb(&mut e.expr.clone())?;
+            let new_exp = vst_map_expr_visitor(*e.expr.clone(), cb)?;
             e.expr = Box::new(new_exp);
             vst::Expr::AssertExpr(e)
         }
         // vst::Expr::AssumeExpr(e) => todo!(),
         // vst::Expr::AssertForallExpr(_) => todo!(),
         _ => {
-            dbg!("warning: basecase map expr incomplete");
-            exp.clone()
+            dbg!("warning: map expr incomplete");
+            dbg!(&exp.to_string());
+            cb(&mut exp.clone())?
         }
     };
     Ok(res)
