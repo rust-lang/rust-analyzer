@@ -133,7 +133,9 @@ impl LineIndex {
 
     /// Transforms the `LineCol` into a `TextSize`.
     pub fn offset(&self, line_col: LineCol) -> Option<TextSize> {
-        self.start_offset(line_col.line as usize).map(|start| start + TextSize::from(line_col.col))
+        self.start_offset(line_col.line as usize)
+            .map(|start| start + TextSize::from(line_col.col))
+            .filter(|size| *size <= self.len)
     }
 
     fn start_offset(&self, line: usize) -> Option<TextSize> {
@@ -207,6 +209,11 @@ fn analyze_source_file(src: &str) -> (Vec<TextSize>, IntMap<u32, Box<[WideChar]>
 
     // Calls the right implementation, depending on hardware support available.
     analyze_source_file_dispatch(src, &mut lines, &mut line_wide_chars);
+
+    let src_size = TextSize::from(src.len() as u32);
+    if lines.last().map_or(src.len() > 0, |l| *l < src_size) {
+        lines.push(src_size)
+    }
 
     (lines, line_wide_chars.into_iter().map(|(k, v)| (k, v.into_boxed_slice())).collect())
 }
