@@ -131,6 +131,32 @@ pub(crate) fn vst_transformer_wp_move_assertion(
                     newer.expr = Box::new(new_exp);
                     new_assert = vst::Expr::AssertExpr(Box::new(newer));
                 }
+                vst::Expr::IfExpr(if_expr) => {
+                    let mut new_if = if_expr.clone();
+
+                    let new_assert = vst::Stmt::ExprStmt(Box::new(
+                        vst::ExprStmt::new(
+                                vst::Expr::AssertExpr(Box::new(assertion.clone()))
+                            )
+                    ));
+
+                    new_if.then_branch.stmt_list.statements.push(new_assert.clone());
+                    let mut new_stmt_list = stmt_list.clone();
+
+                    match new_if.else_branch.as_mut() {
+                        Some(vv) => {
+                            match &mut **vv {
+                                vst::ElseBranch::Block(b) => {    
+                                    b.stmt_list.statements.push(new_assert);
+                                }
+                                vst::ElseBranch::IfExpr(_) => todo!(),
+                            }
+                        }
+                        None => (),
+                    }
+                    new_stmt_list.statements[index - 1] = vst::Stmt::ExprStmt(Box::new(vst::ExprStmt::new(vst::Expr::IfExpr(new_if))));
+                    return Some(new_stmt_list.to_string());
+                }
                 // for lemma calls, do  `(inlined ensures clauses) ==> assertion`
                 // CallExpr{e, args} => {
                 //     let function = ctx.to_def(e); // get function node from call expression
@@ -253,6 +279,33 @@ fn foo()
     assert(true ==> a > 10 && a < 100);
     assert(true);
     assert(a > 10 && a < 100);
+}
+"#,
+        );
+    }
+    #[test]
+    fn wp_ifelse_easy() {
+        check_assist(
+            wp_move_assertion,
+            r#"
+fn foo()
+{
+    let mut a:u32 = 1;
+    if  (a  > 10) {
+        a = 2;
+    }
+    ass$0ert(a > 10 && a < 100);
+}
+"#,
+            r#"
+fn foo()
+{
+    let mut a:u32 = 1;
+    if  (a  > 10) {
+        a = 2;
+        assert(a > 10 && a < 100);
+    }
+    ass$0ert(a > 10 && a < 100);
 }
 "#,
         );

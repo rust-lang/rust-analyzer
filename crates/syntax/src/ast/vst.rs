@@ -278,3 +278,13 @@ impl std::fmt::Display for ArgList {
         write!(f, "{s}")
     }
 }
+
+impl ExprStmt {
+    pub fn new(expr: Expr) -> Self {
+        Self {
+            expr: Box::new(expr),
+            semicolon_token: true,
+            cst: None,
+        }
+    } 
+}
