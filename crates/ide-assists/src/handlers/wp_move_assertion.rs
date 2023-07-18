@@ -134,11 +134,12 @@ pub(crate) fn vst_transformer_wp_move_assertion(
                 vst::Expr::IfExpr(if_expr) => {
                     let mut new_if = if_expr.clone();
 
-                    let new_assert = vst::Stmt::ExprStmt(Box::new(
-                        vst::ExprStmt::new(
-                                vst::Expr::AssertExpr(Box::new(assertion.clone()))
-                            )
-                    ));
+                    // let new_assert = vst::Stmt::ExprStmt(Box::new(
+                    //     vst::ExprStmt::new(
+                    //             vst::Expr::AssertExpr(Box::new(assertion.clone()))
+                    //         )
+                    // ));
+                    let new_assert = vst::Stmt::from(vst::ExprStmt::new(vst::Expr::from(assertion.clone())));
 
                     new_if.then_branch.stmt_list.statements.push(new_assert.clone());
                     let mut new_stmt_list = stmt_list.clone();
@@ -321,8 +322,10 @@ fn foo()
     let mut a:u32 = 1;
     if  (a  > 10) {
         a = 2;
-    } else {
+    } else if (a > 100) {
         a = 3;
+    } else {
+        a = 4;
     }
     ass$0ert(a > 10 && a < 100);
 }
@@ -334,8 +337,11 @@ fn foo()
     if  (a  > 10) {
         a = 2;
         assert(a > 10 && a < 100);
-    } else {
+    } else if (a > 100) {
         a = 3;
+        assert(a > 10 && a < 100);
+    } else {
+        a = 4;
         assert(a > 10 && a < 100);
     }
     ass$0ert(a > 10 && a < 100);

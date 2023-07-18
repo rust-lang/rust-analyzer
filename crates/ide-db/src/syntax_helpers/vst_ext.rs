@@ -48,7 +48,41 @@ where
         // vst::Expr::ContinueExpr(_) => todo!(),
         // vst::Expr::FieldExpr(_) => todo!(),
         // vst::Expr::ForExpr(_) => todo!(),
-        // vst::Expr::IfExpr(_) => todo!(),
+
+        // note that vst_map_expr_visitor cannot map ifexpr to another thing
+        vst::Expr::IfExpr(mut e) => {
+            let new_cond = vst_map_expr_visitor(*e.condition.clone(), cb)?;
+            let new_then = vst_map_expr_visitor(vst::Expr::BlockExpr(Box::new(*e.then_branch.clone())), cb)?;
+            let new_else = match e.else_branch.clone() {
+                Some(el) => {
+                    match *el {
+                        vst::ElseBranch::Block(blk) => Some(Box::new(vst_map_expr_visitor(vst::Expr::BlockExpr(Box::new(*blk)), cb)?)),
+                        vst::ElseBranch::IfExpr(ife) => Some(Box::new(vst_map_expr_visitor(vst::Expr::IfExpr(Box::new(*ife)), cb)?)),
+                    }
+                }
+                None => None,
+            };
+            e.condition = Box::new(new_cond);
+            if let vst::Expr::BlockExpr(bb) = new_then {
+                e.then_branch = bb;
+            } else {
+                return Err("if then branch is not a block".to_string());
+            }
+
+            match new_else {
+                Some(vv) => {
+                    if let vst::Expr::BlockExpr(bb) = *vv {
+                        e.else_branch = Some(Box::new(vst::ElseBranch::Block(bb)));
+                    } else if let vst::Expr::IfExpr(ife) = *vv {
+                        e.else_branch = Some(Box::new(vst::ElseBranch::IfExpr(ife)));
+                    } else {
+                        return Err("if else branch is not a block".to_string());
+                    }
+                }
+                None => (),
+            }
+            vst::Expr::IfExpr(e)
+        }
         // vst::Expr::IndexExpr(_) => todo!(),
         // vst::Expr::Literal(_) => todo!(),
         // vst::Expr::LoopExpr(_) => todo!(),
