@@ -7170,9 +7170,16 @@ impl std::fmt::Display for StmtList {
             s.push_str(token_ascii(&tmp));
             s.push_str(" ");
         }
-        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
         s.push_str(
-            &self.statements.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
+            &self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join("\n    "),
+        );
+        s.push_str(
+            &self
+                .statements
+                .iter()
+                .map(|it| it.to_string())
+                .collect::<Vec<String>>()
+                .join("\n    "),
         );
         if let Some(it) = &self.tail_expr {
             s.push_str(&it.to_string());
@@ -8407,4 +8414,325 @@ impl GenericParam {
             }
         }
     }
+}
+impl From<TypeArg> for GenericArg {
+    fn from(item: TypeArg) -> Self { GenericArg::TypeArg(Box::new(item)) }
+}
+impl From<AssocTypeArg> for GenericArg {
+    fn from(item: AssocTypeArg) -> Self { GenericArg::AssocTypeArg(Box::new(item)) }
+}
+impl From<LifetimeArg> for GenericArg {
+    fn from(item: LifetimeArg) -> Self { GenericArg::LifetimeArg(Box::new(item)) }
+}
+impl From<ConstArg> for GenericArg {
+    fn from(item: ConstArg) -> Self { GenericArg::ConstArg(Box::new(item)) }
+}
+impl From<ArrayType> for Type {
+    fn from(item: ArrayType) -> Self { Type::ArrayType(Box::new(item)) }
+}
+impl From<DynTraitType> for Type {
+    fn from(item: DynTraitType) -> Self { Type::DynTraitType(Box::new(item)) }
+}
+impl From<FnPtrType> for Type {
+    fn from(item: FnPtrType) -> Self { Type::FnPtrType(Box::new(item)) }
+}
+impl From<ForType> for Type {
+    fn from(item: ForType) -> Self { Type::ForType(Box::new(item)) }
+}
+impl From<ImplTraitType> for Type {
+    fn from(item: ImplTraitType) -> Self { Type::ImplTraitType(Box::new(item)) }
+}
+impl From<InferType> for Type {
+    fn from(item: InferType) -> Self { Type::InferType(Box::new(item)) }
+}
+impl From<MacroType> for Type {
+    fn from(item: MacroType) -> Self { Type::MacroType(Box::new(item)) }
+}
+impl From<NeverType> for Type {
+    fn from(item: NeverType) -> Self { Type::NeverType(Box::new(item)) }
+}
+impl From<ParenType> for Type {
+    fn from(item: ParenType) -> Self { Type::ParenType(Box::new(item)) }
+}
+impl From<PathType> for Type {
+    fn from(item: PathType) -> Self { Type::PathType(Box::new(item)) }
+}
+impl From<PtrType> for Type {
+    fn from(item: PtrType) -> Self { Type::PtrType(Box::new(item)) }
+}
+impl From<RefType> for Type {
+    fn from(item: RefType) -> Self { Type::RefType(Box::new(item)) }
+}
+impl From<SliceType> for Type {
+    fn from(item: SliceType) -> Self { Type::SliceType(Box::new(item)) }
+}
+impl From<TupleType> for Type {
+    fn from(item: TupleType) -> Self { Type::TupleType(Box::new(item)) }
+}
+impl From<ArrayExpr> for Expr {
+    fn from(item: ArrayExpr) -> Self { Expr::ArrayExpr(Box::new(item)) }
+}
+impl From<AwaitExpr> for Expr {
+    fn from(item: AwaitExpr) -> Self { Expr::AwaitExpr(Box::new(item)) }
+}
+impl From<BinExpr> for Expr {
+    fn from(item: BinExpr) -> Self { Expr::BinExpr(Box::new(item)) }
+}
+impl From<BlockExpr> for Expr {
+    fn from(item: BlockExpr) -> Self { Expr::BlockExpr(Box::new(item)) }
+}
+impl From<BoxExpr> for Expr {
+    fn from(item: BoxExpr) -> Self { Expr::BoxExpr(Box::new(item)) }
+}
+impl From<BreakExpr> for Expr {
+    fn from(item: BreakExpr) -> Self { Expr::BreakExpr(Box::new(item)) }
+}
+impl From<CallExpr> for Expr {
+    fn from(item: CallExpr) -> Self { Expr::CallExpr(Box::new(item)) }
+}
+impl From<CastExpr> for Expr {
+    fn from(item: CastExpr) -> Self { Expr::CastExpr(Box::new(item)) }
+}
+impl From<ClosureExpr> for Expr {
+    fn from(item: ClosureExpr) -> Self { Expr::ClosureExpr(Box::new(item)) }
+}
+impl From<ContinueExpr> for Expr {
+    fn from(item: ContinueExpr) -> Self { Expr::ContinueExpr(Box::new(item)) }
+}
+impl From<FieldExpr> for Expr {
+    fn from(item: FieldExpr) -> Self { Expr::FieldExpr(Box::new(item)) }
+}
+impl From<ForExpr> for Expr {
+    fn from(item: ForExpr) -> Self { Expr::ForExpr(Box::new(item)) }
+}
+impl From<IfExpr> for Expr {
+    fn from(item: IfExpr) -> Self { Expr::IfExpr(Box::new(item)) }
+}
+impl From<IndexExpr> for Expr {
+    fn from(item: IndexExpr) -> Self { Expr::IndexExpr(Box::new(item)) }
+}
+impl From<Literal> for Expr {
+    fn from(item: Literal) -> Self { Expr::Literal(Box::new(item)) }
+}
+impl From<LoopExpr> for Expr {
+    fn from(item: LoopExpr) -> Self { Expr::LoopExpr(Box::new(item)) }
+}
+impl From<MacroExpr> for Expr {
+    fn from(item: MacroExpr) -> Self { Expr::MacroExpr(Box::new(item)) }
+}
+impl From<MatchExpr> for Expr {
+    fn from(item: MatchExpr) -> Self { Expr::MatchExpr(Box::new(item)) }
+}
+impl From<MethodCallExpr> for Expr {
+    fn from(item: MethodCallExpr) -> Self { Expr::MethodCallExpr(Box::new(item)) }
+}
+impl From<ParenExpr> for Expr {
+    fn from(item: ParenExpr) -> Self { Expr::ParenExpr(Box::new(item)) }
+}
+impl From<PathExpr> for Expr {
+    fn from(item: PathExpr) -> Self { Expr::PathExpr(Box::new(item)) }
+}
+impl From<PrefixExpr> for Expr {
+    fn from(item: PrefixExpr) -> Self { Expr::PrefixExpr(Box::new(item)) }
+}
+impl From<RangeExpr> for Expr {
+    fn from(item: RangeExpr) -> Self { Expr::RangeExpr(Box::new(item)) }
+}
+impl From<RecordExpr> for Expr {
+    fn from(item: RecordExpr) -> Self { Expr::RecordExpr(Box::new(item)) }
+}
+impl From<RefExpr> for Expr {
+    fn from(item: RefExpr) -> Self { Expr::RefExpr(Box::new(item)) }
+}
+impl From<ReturnExpr> for Expr {
+    fn from(item: ReturnExpr) -> Self { Expr::ReturnExpr(Box::new(item)) }
+}
+impl From<TryExpr> for Expr {
+    fn from(item: TryExpr) -> Self { Expr::TryExpr(Box::new(item)) }
+}
+impl From<TupleExpr> for Expr {
+    fn from(item: TupleExpr) -> Self { Expr::TupleExpr(Box::new(item)) }
+}
+impl From<WhileExpr> for Expr {
+    fn from(item: WhileExpr) -> Self { Expr::WhileExpr(Box::new(item)) }
+}
+impl From<YieldExpr> for Expr {
+    fn from(item: YieldExpr) -> Self { Expr::YieldExpr(Box::new(item)) }
+}
+impl From<YeetExpr> for Expr {
+    fn from(item: YeetExpr) -> Self { Expr::YeetExpr(Box::new(item)) }
+}
+impl From<LetExpr> for Expr {
+    fn from(item: LetExpr) -> Self { Expr::LetExpr(Box::new(item)) }
+}
+impl From<UnderscoreExpr> for Expr {
+    fn from(item: UnderscoreExpr) -> Self { Expr::UnderscoreExpr(Box::new(item)) }
+}
+impl From<ViewExpr> for Expr {
+    fn from(item: ViewExpr) -> Self { Expr::ViewExpr(Box::new(item)) }
+}
+impl From<AssertExpr> for Expr {
+    fn from(item: AssertExpr) -> Self { Expr::AssertExpr(Box::new(item)) }
+}
+impl From<AssumeExpr> for Expr {
+    fn from(item: AssumeExpr) -> Self { Expr::AssumeExpr(Box::new(item)) }
+}
+impl From<AssertForallExpr> for Expr {
+    fn from(item: AssertForallExpr) -> Self { Expr::AssertForallExpr(Box::new(item)) }
+}
+impl From<Const> for Item {
+    fn from(item: Const) -> Self { Item::Const(Box::new(item)) }
+}
+impl From<Enum> for Item {
+    fn from(item: Enum) -> Self { Item::Enum(Box::new(item)) }
+}
+impl From<ExternBlock> for Item {
+    fn from(item: ExternBlock) -> Self { Item::ExternBlock(Box::new(item)) }
+}
+impl From<ExternCrate> for Item {
+    fn from(item: ExternCrate) -> Self { Item::ExternCrate(Box::new(item)) }
+}
+impl From<Fn> for Item {
+    fn from(item: Fn) -> Self { Item::Fn(Box::new(item)) }
+}
+impl From<Impl> for Item {
+    fn from(item: Impl) -> Self { Item::Impl(Box::new(item)) }
+}
+impl From<MacroCall> for Item {
+    fn from(item: MacroCall) -> Self { Item::MacroCall(Box::new(item)) }
+}
+impl From<MacroRules> for Item {
+    fn from(item: MacroRules) -> Self { Item::MacroRules(Box::new(item)) }
+}
+impl From<MacroDef> for Item {
+    fn from(item: MacroDef) -> Self { Item::MacroDef(Box::new(item)) }
+}
+impl From<Module> for Item {
+    fn from(item: Module) -> Self { Item::Module(Box::new(item)) }
+}
+impl From<Static> for Item {
+    fn from(item: Static) -> Self { Item::Static(Box::new(item)) }
+}
+impl From<Struct> for Item {
+    fn from(item: Struct) -> Self { Item::Struct(Box::new(item)) }
+}
+impl From<Trait> for Item {
+    fn from(item: Trait) -> Self { Item::Trait(Box::new(item)) }
+}
+impl From<TraitAlias> for Item {
+    fn from(item: TraitAlias) -> Self { Item::TraitAlias(Box::new(item)) }
+}
+impl From<TypeAlias> for Item {
+    fn from(item: TypeAlias) -> Self { Item::TypeAlias(Box::new(item)) }
+}
+impl From<Union> for Item {
+    fn from(item: Union) -> Self { Item::Union(Box::new(item)) }
+}
+impl From<Use> for Item {
+    fn from(item: Use) -> Self { Item::Use(Box::new(item)) }
+}
+impl From<ExprStmt> for Stmt {
+    fn from(item: ExprStmt) -> Self { Stmt::ExprStmt(Box::new(item)) }
+}
+impl From<Item> for Stmt {
+    fn from(item: Item) -> Self { Stmt::Item(Box::new(item)) }
+}
+impl From<LetStmt> for Stmt {
+    fn from(item: LetStmt) -> Self { Stmt::LetStmt(Box::new(item)) }
+}
+impl From<IdentPat> for Pat {
+    fn from(item: IdentPat) -> Self { Pat::IdentPat(Box::new(item)) }
+}
+impl From<BoxPat> for Pat {
+    fn from(item: BoxPat) -> Self { Pat::BoxPat(Box::new(item)) }
+}
+impl From<RestPat> for Pat {
+    fn from(item: RestPat) -> Self { Pat::RestPat(Box::new(item)) }
+}
+impl From<LiteralPat> for Pat {
+    fn from(item: LiteralPat) -> Self { Pat::LiteralPat(Box::new(item)) }
+}
+impl From<MacroPat> for Pat {
+    fn from(item: MacroPat) -> Self { Pat::MacroPat(Box::new(item)) }
+}
+impl From<OrPat> for Pat {
+    fn from(item: OrPat) -> Self { Pat::OrPat(Box::new(item)) }
+}
+impl From<ParenPat> for Pat {
+    fn from(item: ParenPat) -> Self { Pat::ParenPat(Box::new(item)) }
+}
+impl From<PathPat> for Pat {
+    fn from(item: PathPat) -> Self { Pat::PathPat(Box::new(item)) }
+}
+impl From<WildcardPat> for Pat {
+    fn from(item: WildcardPat) -> Self { Pat::WildcardPat(Box::new(item)) }
+}
+impl From<RangePat> for Pat {
+    fn from(item: RangePat) -> Self { Pat::RangePat(Box::new(item)) }
+}
+impl From<RecordPat> for Pat {
+    fn from(item: RecordPat) -> Self { Pat::RecordPat(Box::new(item)) }
+}
+impl From<RefPat> for Pat {
+    fn from(item: RefPat) -> Self { Pat::RefPat(Box::new(item)) }
+}
+impl From<SlicePat> for Pat {
+    fn from(item: SlicePat) -> Self { Pat::SlicePat(Box::new(item)) }
+}
+impl From<TuplePat> for Pat {
+    fn from(item: TuplePat) -> Self { Pat::TuplePat(Box::new(item)) }
+}
+impl From<TupleStructPat> for Pat {
+    fn from(item: TupleStructPat) -> Self { Pat::TupleStructPat(Box::new(item)) }
+}
+impl From<ConstBlockPat> for Pat {
+    fn from(item: ConstBlockPat) -> Self { Pat::ConstBlockPat(Box::new(item)) }
+}
+impl From<RecordFieldList> for FieldList {
+    fn from(item: RecordFieldList) -> Self { FieldList::RecordFieldList(Box::new(item)) }
+}
+impl From<TupleFieldList> for FieldList {
+    fn from(item: TupleFieldList) -> Self { FieldList::TupleFieldList(Box::new(item)) }
+}
+impl From<Enum> for Adt {
+    fn from(item: Enum) -> Self { Adt::Enum(Box::new(item)) }
+}
+impl From<Struct> for Adt {
+    fn from(item: Struct) -> Self { Adt::Struct(Box::new(item)) }
+}
+impl From<Union> for Adt {
+    fn from(item: Union) -> Self { Adt::Union(Box::new(item)) }
+}
+impl From<Const> for AssocItem {
+    fn from(item: Const) -> Self { AssocItem::Const(Box::new(item)) }
+}
+impl From<Fn> for AssocItem {
+    fn from(item: Fn) -> Self { AssocItem::Fn(Box::new(item)) }
+}
+impl From<MacroCall> for AssocItem {
+    fn from(item: MacroCall) -> Self { AssocItem::MacroCall(Box::new(item)) }
+}
+impl From<TypeAlias> for AssocItem {
+    fn from(item: TypeAlias) -> Self { AssocItem::TypeAlias(Box::new(item)) }
+}
+impl From<Fn> for ExternItem {
+    fn from(item: Fn) -> Self { ExternItem::Fn(Box::new(item)) }
+}
+impl From<MacroCall> for ExternItem {
+    fn from(item: MacroCall) -> Self { ExternItem::MacroCall(Box::new(item)) }
+}
+impl From<Static> for ExternItem {
+    fn from(item: Static) -> Self { ExternItem::Static(Box::new(item)) }
+}
+impl From<TypeAlias> for ExternItem {
+    fn from(item: TypeAlias) -> Self { ExternItem::TypeAlias(Box::new(item)) }
+}
+impl From<ConstParam> for GenericParam {
+    fn from(item: ConstParam) -> Self { GenericParam::ConstParam(Box::new(item)) }
+}
+impl From<LifetimeParam> for GenericParam {
+    fn from(item: LifetimeParam) -> Self { GenericParam::LifetimeParam(Box::new(item)) }
+}
+impl From<TypeParam> for GenericParam {
+    fn from(item: TypeParam) -> Self { GenericParam::TypeParam(Box::new(item)) }
 }
