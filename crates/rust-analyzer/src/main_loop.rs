@@ -867,6 +867,15 @@ impl GlobalState {
                             result.err().map(|err| format!("cargo check failed to start: {err}"));
                         (Progress::End, None)
                     }
+                    flycheck::Progress::VerusResult(res) => {
+                        self.send_notification::<lsp_types::notification::ShowMessage>(
+                            lsp_types::ShowMessageParams {
+                                typ: lsp_types::MessageType::INFO,
+                                message: res,
+                            },
+                        );
+                        (Progress::End, None)
+                    }
                 };
 
                 // When we're running multiple flychecks, we have to include a disambiguator in

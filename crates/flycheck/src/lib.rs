@@ -8,7 +8,11 @@
 
 #![warn(rust_2018_idioms, unused_lifetimes)]
 
-use std::{fmt, io, process::Command, time::Duration};
+use std::{
+    fmt, io,
+    process::{ChildStderr, ChildStdout, Command, Stdio},
+    time::Duration, path::Path,
+};
 
 use crossbeam_channel::{never, select, unbounded, Receiver, Sender};
 use paths::{AbsPath, AbsPathBuf, Utf8PathBuf};
@@ -149,6 +153,12 @@ impl FlycheckHandle {
             .unwrap();
     }
 
+    /// Schedule a re-start of the cargo check worker.
+    pub fn restart_verus(&self, file: String) {
+        tracing::debug!("restart verus for {:?}", file);
+        self.sender.send(StateChange::RestartVerus(file)).unwrap();
+    }
+
     /// Stop this cargo check worker.
     pub fn cancel(&self) {
         self.sender.send(StateChange::Cancel).unwrap();
@@ -200,11 +210,13 @@ pub enum Progress {
     DidFinish(io::Result<()>),
     DidCancel,
     DidFailToRestart(String),
+    VerusResult(String),
 }
 
 enum StateChange {
     Restart { package: Option<String>, saved_file: Option<AbsPathBuf> },
     Cancel,
+    RestartVerus(String),
 }
 
 /// A [`FlycheckActor`] is a single check instance of a workspace.
@@ -324,6 +336,40 @@ impl FlycheckActor {
                         }
                     }
                 }
+                Event::RequestStateChange(StateChange::RestartVerus(filename)) => {
+                    // verus: copied from above `Event::RequestStateChange(StateChange::Restart)`
+                    // Cancel the previously spawned process
+                    self.cancel_check_process();
+                    while let Ok(restart) = inbox.recv_timeout(Duration::from_millis(50)) {
+                        // restart chained with a stop, so just cancel
+                        if let StateChange::Cancel = restart {
+                            continue 'event;
+                        }
+                    }
+
+                    let command = self.run_verus(filename.clone());
+                    match CargoHandle::spawn(command) {
+                        Ok(cargo_handle) => {
+                            tracing::error!(
+                                "did  restart Verus"
+                            );
+
+                            self.cargo_handle = Some(cargo_handle);
+                            self.report_progress(Progress::VerusResult(format!(
+                                "Started running the following Verus command: {:?}",
+                                self.run_verus(filename),
+                            )));
+                            self.report_progress(Progress::DidStart); // this is important -- otherewise, previous diagnostic does not disappear
+                        }
+                        Err(error) => {
+                            self.report_progress(Progress::VerusResult(format!(
+                                "Failed to run the following Verus command: {:?} error={}",
+                                self.run_verus(filename),
+                                error
+                            )));
+                        }
+                    }
+                }
                 Event::CheckEvent(None) => {
                     tracing::debug!(flycheck_id = self.id, "flycheck finished");
 
@@ -372,6 +418,9 @@ impl FlycheckActor {
                         });
                         self.status = FlycheckStatus::DiagnosticSent;
                     }
+                    CargoMessage::VerusResult(res) => {
+                        self.report_progress(Progress::VerusResult(res));
+                    },
                 },
             }
         }
@@ -488,8 +537,252 @@ impl FlycheckActor {
         Some(cmd)
     }
 
+    // copied from above check_command
+    fn run_verus(&self, file: String) -> Command {
+        let (mut cmd, args) = match &self.config {
+            FlycheckConfig::CargoCommand {..} => panic!("verus: please set cargo override command"),
+            FlycheckConfig::CustomCommand {
+                command,
+                args,
+                extra_env,
+                invocation_strategy,
+                invocation_location,
+            } => {
+                tracing::error!(?command, ?args, ?extra_env, "run_verus");
+                let mut cmd = Command::new(command);
+
+                let file = Path::new(&file);
+                let mut file_as_module = None;
+                let mut root: Option<std::path::PathBuf> = None;
+                let mut extra_args_from_toml = None;
+                for ans in file.ancestors() {
+                    if ans.join("Cargo.toml").exists() {
+                        let toml = std::fs::read_to_string(ans.join("Cargo.toml")).unwrap();
+                        let mut found_verus_settings = false;
+                        for line in toml.lines() {
+                            if found_verus_settings {
+                                if line.contains("extra_args") {
+                                    let start = "extra_args".len() + 1;
+                                    let mut arguments = line[start..line.len()-1].trim().to_string();
+                                    if arguments.starts_with("=") {
+                                        arguments.remove(0);
+                                        arguments = arguments.trim().to_string();
+                                    }
+                                    if arguments.starts_with("\"") {
+                                        arguments.remove(0);
+                                    }
+                                    if arguments.ends_with("\"") {
+                                        arguments.remove(arguments.len()-1);
+                                    }
+
+                                    let arguments_vec = arguments.split(" ").map(|it| it.to_string()).collect::<Vec<_>>();
+                                    extra_args_from_toml = Some(arguments_vec);
+                                }
+                                break;
+                            }
+                            if line.contains("[package.metadata.verus.ide]") {
+                                found_verus_settings = true;
+                            }
+                        }
+
+                        if ans.join("src/main.rs").exists() {
+                            root = Some(ans.join("src/main.rs"));
+                            file_as_module = Some(file.strip_prefix(ans.join("src")).unwrap().to_str().unwrap().replace("/", "::").replace(".rs", ""));
+                        } else if ans.join("src/lib.rs").exists() {
+                            root = Some(ans.join("src/lib.rs"));
+                            file_as_module = Some(file.strip_prefix(ans.join("src")).unwrap().to_str().unwrap().replace("/", "::").replace(".rs", ""));
+                        } else {
+                            continue;
+                        }
+                        break;
+                    }
+                }
+
+
+                let mut args = args.to_vec();
+
+                let root = root.unwrap(); // FIXME
+                args.insert(0, root.to_str().unwrap().to_string());
+                if root == file {
+                    tracing::error!("root == file");
+                } else {
+                    tracing::error!(?root, "root");
+                    args.insert(1, "--verify-module".to_string());
+                    args.insert(2, file_as_module.unwrap().to_string());
+                }
+
+                args.append(&mut extra_args_from_toml.unwrap_or_default());
+                args.push("--".to_string());
+                args.push("--error-format=json".to_string());
+                cmd.envs(extra_env);
+
+                match invocation_location {
+                    InvocationLocation::Workspace => {
+                        match invocation_strategy {
+                            InvocationStrategy::Once => {
+                                cmd.current_dir(&self.root);
+                            }
+                            InvocationStrategy::PerWorkspace => {
+                                // FIXME: cmd.current_dir(&affected_workspace);
+                                cmd.current_dir(&self.root);
+                            }
+                        }
+                    }
+                    InvocationLocation::Root(root) => {
+                        cmd.current_dir(root);
+                    }
+                }
+
+                (cmd, args)
+            }
+        };
+
+        cmd.args(args);
+        dbg!(&cmd);
+        cmd
+    }
+
     fn send(&self, check_task: Message) {
         (self.sender)(check_task);
+    }
+}
+
+struct JodGroupChild(GroupChild);
+
+impl Drop for JodGroupChild {
+    fn drop(&mut self) {
+        _ = self.0.kill();
+        _ = self.0.wait();
+    }
+}
+
+/// A handle to a cargo process used for fly-checking.
+struct CargoHandle {
+    /// The handle to the actual cargo process. As we cannot cancel directly from with
+    /// a read syscall dropping and therefore terminating the process is our best option.
+    child: JodGroupChild,
+    thread: stdx::thread::JoinHandle<io::Result<(bool, String)>>,
+    receiver: Receiver<CargoMessage>,
+}
+
+impl CargoHandle {
+    fn spawn(mut command: Command) -> std::io::Result<CargoHandle> {
+        command.stdout(Stdio::piped()).stderr(Stdio::piped()).stdin(Stdio::null());
+        let mut child = command.group_spawn().map(JodGroupChild)?;
+
+        let stdout = child.0.inner().stdout.take().unwrap();
+        let stderr = child.0.inner().stderr.take().unwrap();
+
+        let (sender, receiver) = unbounded();
+        let actor = CargoActor::new(sender, stdout, stderr);
+        let thread = stdx::thread::Builder::new(stdx::thread::QoSClass::Utility)
+            .name("CargoHandle".to_owned())
+            .spawn(move || actor.run())
+            .expect("failed to spawn thread");
+        Ok(CargoHandle { child, thread, receiver })
+    }
+
+    fn cancel(mut self) {
+        let _ = self.child.0.kill();
+        let _ = self.child.0.wait();
+    }
+
+    fn join(mut self) -> io::Result<()> {
+        let _ = self.child.0.kill();
+        let exit_status = self.child.0.wait()?;
+        let (read_at_least_one_message, error) = self.thread.join()?;
+        if read_at_least_one_message || exit_status.success() {
+            Ok(())
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, format!(
+                "Cargo watcher failed, the command produced no valid metadata (exit code: {exit_status:?}):\n{error}"
+            )))
+        }
+    }
+}
+
+struct CargoActor {
+    sender: Sender<CargoMessage>,
+    stdout: ChildStdout,
+    stderr: ChildStderr,
+}
+
+impl CargoActor {
+    fn new(sender: Sender<CargoMessage>, stdout: ChildStdout, stderr: ChildStderr) -> CargoActor {
+        CargoActor { sender, stdout, stderr }
+    }
+
+    fn run(self) -> io::Result<(bool, String)> {
+        // We manually read a line at a time, instead of using serde's
+        // stream deserializers, because the deserializer cannot recover
+        // from an error, resulting in it getting stuck, because we try to
+        // be resilient against failures.
+        //
+        // Because cargo only outputs one JSON object per line, we can
+        // simply skip a line if it doesn't parse, which just ignores any
+        // erroneous output.
+
+        let mut stdout_errors = String::new();
+        let mut stderr_errors = String::new();
+        let mut read_at_least_one_stdout_message = false;
+        let mut read_at_least_one_stderr_message = false;
+        let process_line = |line: &str, error: &mut String| {
+            // Try to deserialize a message from Cargo or Rustc.
+            let mut deserializer = serde_json::Deserializer::from_str(line);
+            deserializer.disable_recursion_limit();
+            if let Ok(message) = JsonMessage::deserialize(&mut deserializer) {
+                match message {
+                    // Skip certain kinds of messages to only spend time on what's useful
+                    JsonMessage::Cargo(message) => match message {
+                        cargo_metadata::Message::CompilerArtifact(artifact) if !artifact.fresh => {
+                            self.sender.send(CargoMessage::CompilerArtifact(artifact)).unwrap();
+                        }
+                        cargo_metadata::Message::CompilerMessage(msg) => {
+                            self.sender.send(CargoMessage::Diagnostic(msg.message)).unwrap();
+                        }
+                        _ => (),
+                    },
+                    JsonMessage::Rustc(message) => {
+                        self.sender.send(CargoMessage::Diagnostic(message)).unwrap();
+                    }
+                }
+                return true;
+            } else {
+                // verus
+                // forward verification result
+                tracing::error!("deserialize error: {:?}", line);
+                if line.contains("verification results::") {
+                    self.sender.send(CargoMessage::VerusResult(line.to_string())).unwrap();
+                }
+            }
+
+            error.push_str(line);
+            error.push('\n');
+            false
+        };
+        let output = streaming_output(
+            self.stdout,
+            self.stderr,
+            &mut |line| {
+                if process_line(line, &mut stdout_errors) {
+                    read_at_least_one_stdout_message = true;
+                }
+            },
+            &mut |line| {
+                if process_line(line, &mut stderr_errors) {
+                    read_at_least_one_stderr_message = true;
+                }
+            },
+        );
+
+        let read_at_least_one_message =
+            read_at_least_one_stdout_message || read_at_least_one_stderr_message;
+        let mut error: String = stdout_errors;
+        error.push_str(&stderr_errors);
+        match output {
+            Ok(_) => Ok((read_at_least_one_message, error)),
+            Err(e) => Err(io::Error::new(e.kind(), format!("{e:?}: {error}"))),
+        }
     }
 }
 
@@ -497,6 +790,7 @@ impl FlycheckActor {
 enum CargoCheckMessage {
     CompilerArtifact(cargo_metadata::Artifact),
     Diagnostic(Diagnostic),
+    VerusResult(String),
 }
 
 impl ParseFromLine for CargoCheckMessage {

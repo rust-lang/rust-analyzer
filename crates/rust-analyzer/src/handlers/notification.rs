@@ -326,6 +326,7 @@ fn run_flycheck(state: &mut GlobalState, vfs_path: VfsPath) -> bool {
                 for (id, package) in workspace_ids.clone() {
                     if id == flycheck.id() {
                         updated = true;
+                        flycheck.restart_verus(vfs_path.to_string());
                         match package.filter(|_| !world.config.flycheck_workspace()) {
                             Some(package) => flycheck.restart_for_package(package),
                             None => flycheck.restart_workspace(saved_file.clone()),
@@ -337,6 +338,7 @@ fn run_flycheck(state: &mut GlobalState, vfs_path: VfsPath) -> bool {
             // No specific flycheck was triggered, so let's trigger all of them.
             if !updated {
                 for flycheck in world.flycheck.iter() {
+                    flycheck.restart_verus(vfs_path.to_string());
                     flycheck.restart_workspace(saved_file.clone());
                 }
             }
