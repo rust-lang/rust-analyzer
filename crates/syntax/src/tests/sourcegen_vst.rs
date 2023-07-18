@@ -189,7 +189,7 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
                     if LIST_AUTO_GEN_SEP_COMMA.contains(&node.name.as_str()) {
                         sep = ", ";
                     } else if LIST_AUTO_GEN_SEP_NEWLINE.contains(&node.name.as_str()) {
-                        sep = "\n";
+                        sep = "\n    ";
                     } else {
                         sep = " ";
                     }
