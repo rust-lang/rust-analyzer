@@ -105,7 +105,7 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         })
         .collect_vec();
 
-    // CST -> VST
+    // CST -> VST for struct
     // impl From (eventually `TryFrom` to remove all the options around every fields) for each node
     let from_node_to_vnode_struct: Vec<_> = grammar
         .nodes
@@ -174,7 +174,7 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         })
         .collect_vec();
 
-    // display struct
+    // impl display for struct
     let display_impls_struct: Vec<_> = grammar
         .nodes
         .iter()
@@ -271,7 +271,7 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         })
         .collect_vec();
 
-    // CST to VST
+    // CST to VST for enum
     let from_node_to_vnode_enum:  Vec<_> = grammar
     .enums
     .iter()
@@ -293,7 +293,7 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
     })
     .collect_vec();
 
-    // display
+    // impl display for enum
     let display_impls_enum: Vec<_> = grammar
         .enums
         .iter()
@@ -314,7 +314,7 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         })
         .collect_vec();
 
-    // .cst impl for enum
+    // .cst impl for enum .cst is pointer to the corresponding CST from VST
     let get_cst_impls_enum: Vec<_> = grammar
         .enums
         .iter()
@@ -345,6 +345,32 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         })
         .collect_vec();
 
+    // impl from for each variant of enum
+    let from_variant_to_enum: Vec<_> = grammar
+        .enums
+        .iter()
+        .map(|en| {
+            let name = format_ident!("{}", en.name);
+            let variants: Vec<_> = en.variants.iter().map(|var| format_ident!("{}", var)).collect();
+            let vars = variants.iter().map(|v| {
+                quote! {
+                    impl From<#v> for #name {
+                        fn from(item: #v) -> Self {
+                            #name::#v(Box::new(item))
+                        }
+                    }
+                }
+            });
+
+            quote! {
+                #(#vars)*
+            }
+        })
+        .collect_vec();
+
+
+
+    // collect auto generated code
     let ast = quote! {
         #![allow(non_snake_case)]
         use crate::{
@@ -358,15 +384,17 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         #(#display_impls_struct)*
         #(#display_impls_enum)*
         #(#get_cst_impls_enum)*
+        #(#from_variant_to_enum)*
     };
+
+
+
+
+
 
     // TODO: expr_ext
     // this file contains manual `impl`s that are not auto-generated.
     // VST should have all corresponding `impl`s
-
-    // VST -> CST
-    // TODO: generate display impls (this is to print VST and parse into CST)
-    //
 
     sourcegen::add_preamble("sourcegen_vst", sourcegen::reformat(ast.to_string()))
 }
@@ -409,6 +437,12 @@ impl From<super::nodes::AssertExpr> for AssertExpr {
             requires_clause: item.requires_clause().map(RequiresClause::from).map(Box::new),
             block_expr: item.block_expr().map(BlockExpr::from).map(Box::new),
         }
+    }
+}
+
+impl From<AssertExpr> for Expr {
+    fn from(item: AssertExpr) -> Self {
+        Expr::AssertExpr(Box::new(item))
     }
 }
 
