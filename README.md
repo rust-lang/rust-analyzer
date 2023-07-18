@@ -8,13 +8,13 @@ The steps below walk you through compiling a Verus-specific version of rust-anal
 
 ## Quick Start
 
-### 1. Compile custom rust-analyzer
+### 1. Compile binary
 
 1. Clone the repository: `git clone https://github.com/verus-lang/verus-analyzer.git`
 2. `cd verus-analyzer`
 3. Compile the rust-analyzer binary: `cargo xtask dist`
-4. Unzip the generated file (e.g., `gunzip ./dist/rust-analyzer-x86_64-apple-darwin.gz`)
-5. Make it executable (e.g., `chmod +x ./dist/rust-analyzer-x86_64-apple-darwin`)
+4. Unzip the generated file (e.g., `gunzip ./dist/verus-analyzer-x86_64-apple-darwin.gz`)
+5. Make it executable (e.g., `chmod +x ./dist/verus-analyzer-x86_64-apple-darwin`)
 
 
 
@@ -60,11 +60,33 @@ For VS Code in Remote Machine, we need to set up the entire above process in the
 
 
 ### 3. Requirements for IDE functionalities
-There is a requirement for the IDE functionalities to work. The requirement is that Rust-analyzer expects a standard Rust project layout and the metadata(`cargo.toml`) file.
+There is a requirement for the IDE functionalities to work. The requirement is that Rust-analyzer expects a standard Rust project layout and the metadata(`Cargo.toml`) file.
 
 Rust-analyzer scans the project root(`lib.rs` or `main.rs`) and all files that are reachable from the root. If the file you are working on is not reachable from the project root, most of the IDE functionalities like "goto definition" will not work. For example, when you have a file named `foo.rs` next to `main.rs`, and did not import `foo.rs` in `main.rs`(i.e., did not add `mod foo` on top of `main.rs`), the IDE functionalities will not work for `foo.rs`.
 
-We also need `cargo.toml` files as in standard Rust projects. For a small project, you could start with `cargo new`, and it automatically generated the `cargo.toml` file. For a larger project, you could use [workspace](https://doc.rust-lang.org/cargo/reference/workspaces.html) to manage multiple crates.
+We also need `Cargo.toml` files as in standard Rust projects. For a small project, you could start with `cargo new`, and it automatically generated the `Cargo.toml` file. For a larger project, you could use [workspace](https://doc.rust-lang.org/cargo/reference/workspaces.html) to manage multiple crates.
+
+
+### 4. Running Verus in VS Code (optional)
+This is an experimemntal feature that allows you to run Verus inside VS Code by saving a file.  To run Verus inside VS Code, please remove `"rust-analyzer.checkOnSave": false` from the `.code-workspace` file, and add `"rust-analyzer.checkOnSave.overrideCommand"`.  The value of `"rust-analyzer.checkOnSave.overrideCommand"` should be a list that contains the Verus binary.  Please use the absolute path to the Verus binary that is built by `vargo`.
+
+For example, the "settings" in the `.code-workspace` file could now look the following:
+```json
+"settings": {
+        "rust-analyzer.server.path": "ABSOLUTE-PATH-TO-THE-VERUS-ANALYZER-BINARY",
+        "rust-analyzer.checkOnSave.overrideCommand": [
+            "ABSOLUTE-PATH-TO-VERUS-BINARY", //  e.g., /home/verus-username/verus/source/target-verus/(debug|release)/verus
+        ],
+}
+```
+
+To provide extra arguments, add `extra_args` at `[package.metadata.verus.ide]` inside your `Cargo.toml` file. For example, if you want to run Verus with `--crate-type=dylib --expand-errors`, you could add the following at the bottom of your `Cargo.toml` file.
+```toml
+[package.metadata.verus.ide]
+extra_args = "--crate-type=dylib --expand-errors"
+```
+
+Please set only one of `rust-analyzer.checkOnSave.overrideCommand` and `rust-analyzer.checkOnSave` in the `.code-workspace` file, depending as to whether you want to run Verus inside VS Code or not.
 
 ---
 ## Functionalities and Details
@@ -81,26 +103,26 @@ You can find more documents for IDE functionalities on the following links.
 - [Hover](https://rust-analyzer.github.io/manual.html#hover)
 
 #### 2.1 TODOs for IDE functionalities
-- requires/ensures/decreases/invariant/assert-by-block/assert-forall-block are not fully scanned for IDE purposes(e.g. might not be able to "goto definition" of the function used in requires/ensures)
+- Code scanning is incomplete for Verus-specific items. To be specific, requires/ensures/decreases/invariant/assert-by-block/assert-forall-block are not fully scanned for IDE purposes.(e.g., might not be able to "goto definition" of the function used in requires/ensures, "find all references" might omit occurences inside requires/ensures)
 
 - Although Verus' custom operators are parsed, those are not registered for IDE purposes. For example, type inference around those operators might not work. (e.g., `A ==> B` is parsed as `implies(A, B)`, but the IDE might not be able to infer that `A` and `B` are boolean)
 
 - `builtin` and `vstd` are not scanned. For example, the builtin types like `int` and `nat` could be shown as `unknown`. Auto completion for `vstd` might not work.
 
 
+---
+### Limitations
+- This is experimental software and subject to change.
+- It is intended to be used only for Verus code. (For Rust code, you can use the original binary by opening the project without the `.code-workspace` file, which is just using "open folder" in VS Code)
+- Multiple features of rust-analyzer might be broken or missing.
+- Syntax might not be updated to the latest version of Verus.
+<!-- - An issue was reported while compiling this custom rust-analyzer on Apple Silicon Mac. As a temporary measure, running `rustup target add x86_64-apple-darwin` might help bypass the problem. -->
+
+
 #### Misc
 - `rust-analyzer: Clear flycheck diagnostics` command can be used to clear the error messages in VS Code
 - `Developer: Reload Window` can be used to reload VS Code and the verus-analyzer server instead of closing and reopening VS Code
 - Setting `"rust-analyzer.diagnostics.disabled": ["syntax-error"]` in the workspace setting can disable the syntax error messages in VS Code. You could also add `unresolved-module` to the above list to disable the error message for unresolved modules.
-
-
----
-### Limitations
-- This is currently experimental and subject to change.
-- It is intended to be used only for Verus code. (For Rust code, you can use the original binary by opening the project without the `.code-workspace` file, which is just using "open folder" in VS Code)
-- Multiple features of rust-analyzer might be broken or missing.
-<!-- - An issue was reported while compiling this custom rust-analyzer on Apple Silicon Mac. As a temporary measure, running `rustup target add x86_64-apple-darwin` might help bypass the problem. -->
-
 
 
 
