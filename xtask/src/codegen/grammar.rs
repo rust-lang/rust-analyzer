@@ -517,9 +517,12 @@ impl Field {
     pub(crate) fn is_one(&self) -> bool {
         matches!(self, Field::Node { cardinality: Cardinality::One, .. })
     }
+    pub(crate) fn is_token_one(&self) -> bool {
+        matches!(self, Field::Token { cardinality: Cardinality::One, .. })
+    }
     pub(crate) fn token_kind(&self) -> Option<proc_macro2::TokenStream> {
         match self {
-            Field::Token(token) => {
+            Field::Token{name: token, cardinality: _} => {
                 let token: proc_macro2::TokenStream = token.parse().unwrap();
                 Some(quote! { T![#token] })
             }
@@ -528,7 +531,7 @@ impl Field {
     }
     pub(crate) fn method_name(&self) -> proc_macro2::Ident {
         match self {
-            Field::Token(name) => {
+            Field::Token{name, cardinality: _} => {
                 let name = match name.as_str() {
                     ";" => "semicolon",
                     "->" => "thin_arrow",
@@ -574,7 +577,7 @@ impl Field {
     }
     pub(crate) fn ty(&self) -> proc_macro2::Ident {
         match self {
-            Field::Token(_) => format_ident!("SyntaxToken"),
+            Field::Token{..} => format_ident!("SyntaxToken"),
             Field::Node { ty, .. } => format_ident!("{}", ty),
         }
     }
@@ -696,7 +699,12 @@ fn lower_rule(
                 if "[]{}()".contains(&name) {
                     name = format!("'{name}'");
                 }
-                let field = Field::Token(name);
+                let cardinality =  if inside_opt || inside_alt {
+                    Cardinality::Optional
+                } else {
+                    Cardinality::One
+                };
+                let field = Field::Token{name, cardinality};
                 acc.push(field);
             }
         }
@@ -795,6 +803,12 @@ fn deduplicate_fields(ast: &mut AstSrc) {
                 // verus
                 match (f1, f2) {
                     (Field::Node { name: n1, ty: _, .. }, Field::Node { name: n2, ty: _, .. }) => {
+                        if n1 == n2 {
+                            node.fields.remove(i);
+                            continue 'outer;
+                        }
+                    }
+                    (Field::Token { name: n1, .. }, Field::Token { name: n2, .. }) => {
                         if n1 == n2 {
                             node.fields.remove(i);
                             continue 'outer;

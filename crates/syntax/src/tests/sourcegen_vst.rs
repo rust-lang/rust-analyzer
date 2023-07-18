@@ -105,6 +105,99 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         })
         .collect_vec();
 
+
+    // impl new for struct 
+    let impl_new_for_struct: Vec<_> = grammar
+        .nodes
+        .iter()
+        .map(|node| {
+            let name = format_ident!("{}", node.name);
+            let (fields, args): (Vec<_>, Vec<_>)  = node.fields.iter().map(|field| {
+                let name = field.method_name();
+                let lowercase_name = format_ident!("{}", field.method_name().to_string().to_lowercase());
+                let ty = field.ty();
+
+                if field.is_many() {
+                    (
+                        quote! {
+                            #name : vec![],
+                        },
+                        quote! {
+                        },
+                    )
+                } else if let Some(token_kind) = field.token_kind() {
+                    // hacky for now
+                    // maybe special-case identifier to "#name : Option<String>"
+                    // 'ident, 'int_number', and 'lifetime_ident'.
+                    if token_kind.to_string() == "T ! [ident]"
+                        || token_kind.to_string() == "T ! [int_number]"
+                        || token_kind.to_string() == "T ! [lifetime_ident]"
+                    {
+                        (
+                            quote! {
+                                #name : None,
+                            },
+                            quote! {
+                            },
+                        )
+                    } else if field.is_token_one() {
+                        (
+                            quote! {
+                                #name : true,
+                            },
+                            quote! {
+                            },
+                        )
+                    } else {
+                        (
+                            quote! {
+                                #name : false,
+                            },
+                            quote! {
+                            },
+                        )
+                    }
+                } else {
+                    if field.is_one() {
+                        (
+                            quote! {
+                                #name : Box::new(#lowercase_name),
+                            },
+                            quote! {
+                                #lowercase_name : #ty,
+                            }
+                        )
+                    } else {
+                        (
+                            quote! {
+                               #name : None,
+                            },
+                            quote! {
+                            }
+                        )
+                    }
+                }
+            }).unzip();
+
+            if HAND_WRITTEN.contains(&node.name.as_str()) {
+                quote! {}
+            } else {
+                quote! {
+                    impl #name {
+                        pub fn new(
+                            #(#args)*
+                        ) -> Self {
+                            Self {
+                                #(#fields)*
+                                cst: None,
+                            }
+                        } 
+                    }
+                }
+            }
+        })
+        .collect_vec();
+
     // CST -> VST for struct
     // impl From (eventually `TryFrom` to remove all the options around every fields) for each node
     let from_node_to_vnode_struct: Vec<_> = grammar
@@ -385,6 +478,7 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         #(#display_impls_enum)*
         #(#get_cst_impls_enum)*
         #(#from_variant_to_enum)*
+        #(#impl_new_for_struct)*
     };
 
 

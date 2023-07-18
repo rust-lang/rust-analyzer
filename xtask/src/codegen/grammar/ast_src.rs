@@ -308,7 +308,7 @@ pub(crate) struct AstNodeSrc {
 
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) enum Field {
-    Token(String),
+    Token{ name: String, cardinality: Cardinality},
     Node { name: String, ty: String, cardinality: Cardinality },
 }
 
