@@ -183,7 +183,7 @@ impl Target {
             (String::new(), None)
         };
         let server_path = out_path.join(format!("rust-analyzer{exe_suffix}"));
-        let artifact_name = format!("rust-analyzer-{name}{exe_suffix}");
+        let artifact_name = format!("verus-analyzer-{name}{exe_suffix}");
         Self { name, server_path, symbols_path, artifact_name }
     }
 }
