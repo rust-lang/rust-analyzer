@@ -310,4 +310,37 @@ fn foo()
 "#,
         );
     }
+
+    #[test]
+    fn wp_if_else_rec() {
+        check_assist(
+            wp_move_assertion,
+            r#"
+fn foo()
+{
+    let mut a:u32 = 1;
+    if  (a  > 10) {
+        a = 2;
+    } else {
+        a = 3;
+    }
+    ass$0ert(a > 10 && a < 100);
+}
+"#,
+            r#"
+fn foo()
+{
+    let mut a:u32 = 1;
+    if  (a  > 10) {
+        a = 2;
+        assert(a > 10 && a < 100);
+    } else {
+        a = 3;
+        assert(a > 10 && a < 100);
+    }
+    ass$0ert(a > 10 && a < 100);
+}
+"#,
+        );
+    }
 }

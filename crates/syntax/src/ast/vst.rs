@@ -279,6 +279,7 @@ impl std::fmt::Display for ArgList {
     }
 }
 
+/// helper function for generating ExprStmt from Expr
 impl ExprStmt {
     pub fn new(expr: Expr) -> Self {
         Self {
