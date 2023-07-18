@@ -37,7 +37,7 @@ Suppose you have a new project with `cargo new`. After you open this project in 
 
 
 #### 2.2. Adding settings variables
-We will modify the "settings" section of the `.code-workspace` file. To be specific, we will add two entries in the "settings" section of the file. These are `rust-analyzer.server.path` and `rust-analyzer.check.command`.
+We will modify the "settings" section of the `.code-workspace` file. To be specific, we will add two entries in the "settings" section of the file. These are `rust-analyzer.server.path` and `rust-analyzer.checkOnSave`.
 
 - `rust-analyzer.server.path` should be set to the path of the verus-analyzer binary produced in step 1 above (e.g., the full path to `./dist/rust-analyzer-x86_64-apple-darwin`)
 - `rust-analyzer.checkOnSave` to disable `cargo check`.
