@@ -25,6 +25,7 @@ const HAND_WRITTEN: &[&str] = &["BinExpr", "IfExpr", "Literal"];
 const HAND_WRITTEN_PRINT_ONLY: &[&str] = &["ParamList", "ArgList"];
 
 const LIST_AUTO_GEN_SEP_COMMA: &[&str] = &["VariantList", "RecordFieldList", "TupleFieldList"];
+const LIST_AUTO_GEN_SEP_NEWLINE: &[&str] = &["StmtList"];
 
 #[test]
 fn sourcegen_vst() {
@@ -187,6 +188,8 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
                     let sep;
                     if LIST_AUTO_GEN_SEP_COMMA.contains(&node.name.as_str()) {
                         sep = ", ";
+                    } else if LIST_AUTO_GEN_SEP_NEWLINE.contains(&node.name.as_str()) {
+                        sep = "\n";
                     } else {
                         sep = " ";
                     }
