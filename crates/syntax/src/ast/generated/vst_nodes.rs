@@ -8736,3 +8736,1247 @@ impl From<LifetimeParam> for GenericParam {
 impl From<TypeParam> for GenericParam {
     fn from(item: TypeParam) -> Self { GenericParam::TypeParam(Box::new(item)) }
 }
+impl Name {
+    pub fn new() -> Self { Self { ident_token: None, self_token: false, cst: None } }
+}
+impl NameRef {
+    pub fn new() -> Self {
+        Self {
+            ident_token: None,
+            self_token: false,
+            super_token: false,
+            crate_token: false,
+            Self_token: false,
+            cst: None,
+        }
+    }
+}
+impl Lifetime {
+    pub fn new() -> Self { Self { lifetime_ident_token: None, cst: None } }
+}
+impl Path {
+    pub fn new(segment: PathSegment) -> Self {
+        Self { qualifier: None, coloncolon_token: false, segment: Box::new(segment), cst: None }
+    }
+}
+impl PathSegment {
+    pub fn new(name_ref: NameRef) -> Self {
+        Self {
+            coloncolon_token: false,
+            name_ref: Box::new(name_ref),
+            generic_arg_list: None,
+            param_list: None,
+            ret_type: None,
+            l_angle_token: true,
+            path_type: None,
+            as_token: false,
+            r_angle_token: true,
+            cst: None,
+        }
+    }
+}
+impl GenericArgList {
+    pub fn new() -> Self {
+        Self {
+            coloncolon_token: false,
+            l_angle_token: true,
+            generic_args: vec![],
+            r_angle_token: true,
+            cst: None,
+        }
+    }
+}
+impl ParamList {
+    pub fn new() -> Self {
+        Self {
+            l_paren_token: true,
+            self_param: None,
+            comma_token: false,
+            params: vec![],
+            r_paren_token: true,
+            pipe_token: true,
+            cst: None,
+        }
+    }
+}
+impl RetType {
+    pub fn new(ty: Type) -> Self {
+        Self {
+            thin_arrow_token: true,
+            tracked_token: false,
+            l_paren_token: true,
+            pat: None,
+            colon_token: true,
+            ty: Box::new(ty),
+            r_paren_token: true,
+            cst: None,
+        }
+    }
+}
+impl PathType {
+    pub fn new(path: Path) -> Self { Self { path: Box::new(path), cst: None } }
+}
+impl TypeArg {
+    pub fn new(ty: Type) -> Self { Self { ty: Box::new(ty), cst: None } }
+}
+impl AssocTypeArg {
+    pub fn new(name_ref: NameRef, type_bound_list: TypeBoundList, ty: Type) -> Self {
+        Self {
+            name_ref: Box::new(name_ref),
+            generic_arg_list: None,
+            param_list: None,
+            ret_type: None,
+            colon_token: true,
+            type_bound_list: Box::new(type_bound_list),
+            eq_token: true,
+            ty: Box::new(ty),
+            const_arg: None,
+            cst: None,
+        }
+    }
+}
+impl LifetimeArg {
+    pub fn new(lifetime: Lifetime) -> Self { Self { lifetime: Box::new(lifetime), cst: None } }
+}
+impl ConstArg {
+    pub fn new(expr: Expr) -> Self { Self { expr: Box::new(expr), cst: None } }
+}
+impl TypeBoundList {
+    pub fn new() -> Self { Self { bounds: vec![], cst: None } }
+}
+impl MacroCall {
+    pub fn new(path: Path, token_tree: TokenTree) -> Self {
+        Self {
+            attrs: vec![],
+            path: Box::new(path),
+            excl_token: true,
+            token_tree: Box::new(token_tree),
+            semicolon_token: false,
+            cst: None,
+        }
+    }
+}
+impl Attr {
+    pub fn new(meta: Meta) -> Self {
+        Self {
+            pound_token: true,
+            excl_token: false,
+            l_brack_token: true,
+            meta: Box::new(meta),
+            r_brack_token: true,
+            cst: None,
+        }
+    }
+}
+impl TokenTree {
+    pub fn new() -> Self {
+        Self {
+            l_paren_token: true,
+            r_paren_token: true,
+            l_curly_token: true,
+            r_curly_token: true,
+            l_brack_token: true,
+            r_brack_token: true,
+            cst: None,
+        }
+    }
+}
+impl MacroItems {
+    pub fn new() -> Self { Self { items: vec![], cst: None } }
+}
+impl MacroStmts {
+    pub fn new() -> Self { Self { statements: vec![], expr: None, cst: None } }
+}
+impl SourceFile {
+    pub fn new() -> Self { Self { shebang_token: false, attrs: vec![], items: vec![], cst: None } }
+}
+impl Const {
+    pub fn new(ty: Type) -> Self {
+        Self {
+            attrs: vec![],
+            visibility: None,
+            default_token: false,
+            const_token: true,
+            name: None,
+            underscore_token: false,
+            colon_token: true,
+            ty: Box::new(ty),
+            eq_token: false,
+            body: None,
+            semicolon_token: true,
+            cst: None,
+        }
+    }
+}
+impl Enum {
+    pub fn new(name: Name, variant_list: VariantList) -> Self {
+        Self {
+            attrs: vec![],
+            visibility: None,
+            enum_token: true,
+            name: Box::new(name),
+            generic_param_list: None,
+            where_clause: None,
+            variant_list: Box::new(variant_list),
+            cst: None,
+        }
+    }
+}
+impl ExternBlock {
+    pub fn new(abi: Abi, extern_item_list: ExternItemList) -> Self {
+        Self {
+            attrs: vec![],
+            unsafe_token: false,
+            abi: Box::new(abi),
+            extern_item_list: Box::new(extern_item_list),
+            cst: None,
+        }
+    }
+}
+impl ExternCrate {
+    pub fn new(name_ref: NameRef) -> Self {
+        Self {
+            attrs: vec![],
+            visibility: None,
+            extern_token: true,
+            crate_token: true,
+            name_ref: Box::new(name_ref),
+            rename: None,
+            semicolon_token: true,
+            cst: None,
+        }
+    }
+}
+impl Fn {
+    pub fn new(name: Name) -> Self {
+        Self {
+            attrs: vec![],
+            visibility: None,
+            publish: None,
+            default_token: false,
+            const_token: false,
+            async_token: false,
+            unsafe_token: false,
+            abi: None,
+            fn_mode: None,
+            fn_token: true,
+            name: Box::new(name),
+            generic_param_list: None,
+            param_list: None,
+            ret_type: None,
+            where_clause: None,
+            requires_clause: None,
+            recommends_clause: None,
+            ensures_clause: None,
+            decreases_clause: None,
+            body: None,
+            semicolon_token: false,
+            cst: None,
+        }
+    }
+}
+impl Impl {
+    pub fn new(assoc_item_list: AssocItemList) -> Self {
+        Self {
+            attrs: vec![],
+            visibility: None,
+            default_token: false,
+            unsafe_token: false,
+            impl_token: true,
+            generic_param_list: None,
+            const_token: false,
+            excl_token: false,
+            for_token: false,
+            where_clause: None,
+            assoc_item_list: Box::new(assoc_item_list),
+            cst: None,
+        }
+    }
+}
+impl MacroRules {
+    pub fn new(name: Name, token_tree: TokenTree) -> Self {
+        Self {
+            attrs: vec![],
+            visibility: None,
+            macro_rules_token: true,
+            excl_token: true,
+            name: Box::new(name),
+            token_tree: Box::new(token_tree),
+            cst: None,
+        }
+    }
+}
+impl MacroDef {
+    pub fn new(name: Name, body: TokenTree) -> Self {
+        Self {
+            attrs: vec![],
+            visibility: None,
+            macro_token: true,
+            name: Box::new(name),
+            args: None,
+            body: Box::new(body),
+            cst: None,
+        }
+    }
+}
+impl Module {
+    pub fn new(name: Name) -> Self {
+        Self {
+            attrs: vec![],
+            visibility: None,
+            mod_token: true,
+            name: Box::new(name),
+            item_list: None,
+            semicolon_token: false,
+            cst: None,
+        }
+    }
+}
+impl Static {
+    pub fn new(name: Name, ty: Type) -> Self {
+        Self {
+            attrs: vec![],
+            visibility: None,
+            static_token: true,
+            mut_token: false,
+            name: Box::new(name),
+            colon_token: true,
+            ty: Box::new(ty),
+            eq_token: false,
+            body: None,
+            semicolon_token: true,
+            cst: None,
+        }
+    }
+}
+impl Struct {
+    pub fn new(name: Name) -> Self {
+        Self {
+            attrs: vec![],
+            visibility: None,
+            data_mode: None,
+            struct_token: true,
+            name: Box::new(name),
+            generic_param_list: None,
+            where_clause: None,
+            semicolon_token: false,
+            field_list: None,
+            cst: None,
+        }
+    }
+}
+impl Trait {
+    pub fn new(name: Name, assoc_item_list: AssocItemList) -> Self {
+        Self {
+            attrs: vec![],
+            visibility: None,
+            unsafe_token: false,
+            auto_token: false,
+            trait_token: true,
+            name: Box::new(name),
+            generic_param_list: None,
+            colon_token: false,
+            type_bound_list: None,
+            where_clause: None,
+            assoc_item_list: Box::new(assoc_item_list),
+            cst: None,
+        }
+    }
+}
+impl TraitAlias {
+    pub fn new(name: Name) -> Self {
+        Self {
+            attrs: vec![],
+            visibility: None,
+            trait_token: true,
+            name: Box::new(name),
+            generic_param_list: None,
+            eq_token: true,
+            type_bound_list: None,
+            where_clause: None,
+            semicolon_token: true,
+            cst: None,
+        }
+    }
+}
+impl TypeAlias {
+    pub fn new(name: Name) -> Self {
+        Self {
+            attrs: vec![],
+            visibility: None,
+            default_token: false,
+            type_token: true,
+            name: Box::new(name),
+            generic_param_list: None,
+            colon_token: false,
+            type_bound_list: None,
+            where_clause: None,
+            eq_token: false,
+            ty: None,
+            semicolon_token: true,
+            cst: None,
+        }
+    }
+}
+impl Union {
+    pub fn new(name: Name, record_field_list: RecordFieldList) -> Self {
+        Self {
+            attrs: vec![],
+            visibility: None,
+            union_token: true,
+            name: Box::new(name),
+            generic_param_list: None,
+            where_clause: None,
+            record_field_list: Box::new(record_field_list),
+            cst: None,
+        }
+    }
+}
+impl Use {
+    pub fn new(use_tree: UseTree) -> Self {
+        Self {
+            attrs: vec![],
+            visibility: None,
+            use_token: true,
+            use_tree: Box::new(use_tree),
+            semicolon_token: true,
+            cst: None,
+        }
+    }
+}
+impl Visibility {
+    pub fn new() -> Self {
+        Self {
+            pub_token: true,
+            l_paren_token: false,
+            in_token: false,
+            path: None,
+            r_paren_token: false,
+            cst: None,
+        }
+    }
+}
+impl ItemList {
+    pub fn new() -> Self {
+        Self { l_curly_token: true, attrs: vec![], items: vec![], r_curly_token: true, cst: None }
+    }
+}
+impl Rename {
+    pub fn new() -> Self { Self { as_token: true, name: None, underscore_token: false, cst: None } }
+}
+impl UseTree {
+    pub fn new() -> Self {
+        Self {
+            path: None,
+            coloncolon_token: false,
+            star_token: false,
+            use_tree_list: None,
+            rename: None,
+            cst: None,
+        }
+    }
+}
+impl UseTreeList {
+    pub fn new() -> Self {
+        Self { l_curly_token: true, use_trees: vec![], r_curly_token: true, cst: None }
+    }
+}
+impl Publish {
+    pub fn new() -> Self { Self { closed_token: false, open_token: false, cst: None } }
+}
+impl Abi {
+    pub fn new() -> Self { Self { extern_token: true, cst: None } }
+}
+impl FnMode {
+    pub fn new() -> Self {
+        Self {
+            spec_token: false,
+            proof_token: false,
+            exec_token: false,
+            mode_spec_checked: None,
+            cst: None,
+        }
+    }
+}
+impl GenericParamList {
+    pub fn new() -> Self {
+        Self { l_angle_token: true, generic_params: vec![], r_angle_token: true, cst: None }
+    }
+}
+impl WhereClause {
+    pub fn new() -> Self { Self { where_token: true, predicates: vec![], cst: None } }
+}
+impl RequiresClause {
+    pub fn new() -> Self { Self { requires_token: true, exprs: vec![], cst: None } }
+}
+impl RecommendsClause {
+    pub fn new() -> Self {
+        Self { recommends_token: true, exprs: vec![], via_token: false, expr: None, cst: None }
+    }
+}
+impl EnsuresClause {
+    pub fn new() -> Self { Self { ensures_token: true, exprs: vec![], cst: None } }
+}
+impl DecreasesClause {
+    pub fn new() -> Self { Self { decreases_token: true, exprs: vec![], cst: None } }
+}
+impl BlockExpr {
+    pub fn new(stmt_list: StmtList) -> Self {
+        Self {
+            attrs: vec![],
+            label: None,
+            try_token: false,
+            unsafe_token: false,
+            async_token: false,
+            const_token: false,
+            stmt_list: Box::new(stmt_list),
+            cst: None,
+        }
+    }
+}
+impl SelfParam {
+    pub fn new(name: Name, ty: Type) -> Self {
+        Self {
+            attrs: vec![],
+            amp_token: false,
+            lifetime: None,
+            mut_token: false,
+            name: Box::new(name),
+            colon_token: true,
+            ty: Box::new(ty),
+            cst: None,
+        }
+    }
+}
+impl Param {
+    pub fn new() -> Self {
+        Self {
+            attrs: vec![],
+            tracked_token: false,
+            pat: None,
+            colon_token: false,
+            ty: None,
+            dotdotdot_token: false,
+            cst: None,
+        }
+    }
+}
+impl DataMode {
+    pub fn new() -> Self { Self { ghost_token: false, tracked_token: false, cst: None } }
+}
+impl RecordFieldList {
+    pub fn new() -> Self {
+        Self { l_curly_token: true, fields: vec![], r_curly_token: true, cst: None }
+    }
+}
+impl TupleFieldList {
+    pub fn new() -> Self {
+        Self { l_paren_token: true, fields: vec![], r_paren_token: true, cst: None }
+    }
+}
+impl RecordField {
+    pub fn new(name: Name, ty: Type) -> Self {
+        Self {
+            attrs: vec![],
+            visibility: None,
+            data_mode: None,
+            name: Box::new(name),
+            colon_token: true,
+            ty: Box::new(ty),
+            cst: None,
+        }
+    }
+}
+impl TupleField {
+    pub fn new(ty: Type) -> Self {
+        Self { attrs: vec![], visibility: None, ty: Box::new(ty), cst: None }
+    }
+}
+impl VariantList {
+    pub fn new() -> Self {
+        Self { l_curly_token: true, variants: vec![], r_curly_token: true, cst: None }
+    }
+}
+impl Variant {
+    pub fn new(name: Name) -> Self {
+        Self {
+            attrs: vec![],
+            visibility: None,
+            name: Box::new(name),
+            field_list: None,
+            eq_token: false,
+            expr: None,
+            cst: None,
+        }
+    }
+}
+impl AssocItemList {
+    pub fn new() -> Self {
+        Self {
+            l_curly_token: true,
+            attrs: vec![],
+            assoc_items: vec![],
+            r_curly_token: true,
+            cst: None,
+        }
+    }
+}
+impl ExternItemList {
+    pub fn new() -> Self {
+        Self {
+            l_curly_token: true,
+            attrs: vec![],
+            extern_items: vec![],
+            r_curly_token: true,
+            cst: None,
+        }
+    }
+}
+impl ConstParam {
+    pub fn new(name: Name, ty: Type) -> Self {
+        Self {
+            attrs: vec![],
+            const_token: true,
+            name: Box::new(name),
+            colon_token: true,
+            ty: Box::new(ty),
+            eq_token: false,
+            default_val: None,
+            cst: None,
+        }
+    }
+}
+impl LifetimeParam {
+    pub fn new(lifetime: Lifetime) -> Self {
+        Self {
+            attrs: vec![],
+            lifetime: Box::new(lifetime),
+            colon_token: false,
+            type_bound_list: None,
+            cst: None,
+        }
+    }
+}
+impl TypeParam {
+    pub fn new(name: Name) -> Self {
+        Self {
+            attrs: vec![],
+            name: Box::new(name),
+            colon_token: false,
+            type_bound_list: None,
+            eq_token: false,
+            default_type: None,
+            cst: None,
+        }
+    }
+}
+impl WherePred {
+    pub fn new() -> Self {
+        Self {
+            for_token: false,
+            generic_param_list: None,
+            lifetime: None,
+            ty: None,
+            colon_token: true,
+            type_bound_list: None,
+            cst: None,
+        }
+    }
+}
+impl Meta {
+    pub fn new(path: Path) -> Self {
+        Self { path: Box::new(path), eq_token: false, expr: None, token_tree: None, cst: None }
+    }
+}
+impl ExprStmt {
+    pub fn new(expr: Expr) -> Self {
+        Self { expr: Box::new(expr), semicolon_token: false, cst: None }
+    }
+}
+impl LetStmt {
+    pub fn new(initializer: Expr) -> Self {
+        Self {
+            attrs: vec![],
+            let_token: true,
+            ghost_token: false,
+            tracked_token: false,
+            pat: None,
+            colon_token: false,
+            ty: None,
+            eq_token: true,
+            initializer: Box::new(initializer),
+            let_else: None,
+            semicolon_token: true,
+            cst: None,
+        }
+    }
+}
+impl LetElse {
+    pub fn new(block_expr: BlockExpr) -> Self {
+        Self { else_token: true, block_expr: Box::new(block_expr), cst: None }
+    }
+}
+impl ArrayExpr {
+    pub fn new(expr: Expr) -> Self {
+        Self {
+            attrs: vec![],
+            l_brack_token: true,
+            exprs: vec![],
+            expr: Box::new(expr),
+            semicolon_token: true,
+            r_brack_token: true,
+            cst: None,
+        }
+    }
+}
+impl AwaitExpr {
+    pub fn new(expr: Expr) -> Self {
+        Self { attrs: vec![], expr: Box::new(expr), dot_token: true, await_token: true, cst: None }
+    }
+}
+impl BoxExpr {
+    pub fn new(expr: Expr) -> Self {
+        Self { attrs: vec![], box_token: true, expr: Box::new(expr), cst: None }
+    }
+}
+impl BreakExpr {
+    pub fn new() -> Self {
+        Self { attrs: vec![], break_token: true, lifetime: None, expr: None, cst: None }
+    }
+}
+impl CallExpr {
+    pub fn new(expr: Expr, arg_list: ArgList) -> Self {
+        Self { attrs: vec![], expr: Box::new(expr), arg_list: Box::new(arg_list), cst: None }
+    }
+}
+impl CastExpr {
+    pub fn new(expr: Expr, ty: Type) -> Self {
+        Self { attrs: vec![], expr: Box::new(expr), as_token: true, ty: Box::new(ty), cst: None }
+    }
+}
+impl ClosureExpr {
+    pub fn new(body: Expr) -> Self {
+        Self {
+            attrs: vec![],
+            for_token: false,
+            generic_param_list: None,
+            const_token: false,
+            static_token: false,
+            async_token: false,
+            move_token: false,
+            forall_token: false,
+            exists_token: false,
+            param_list: None,
+            ret_type: None,
+            body: Box::new(body),
+            cst: None,
+        }
+    }
+}
+impl ContinueExpr {
+    pub fn new() -> Self { Self { attrs: vec![], continue_token: true, lifetime: None, cst: None } }
+}
+impl FieldExpr {
+    pub fn new(expr: Expr, name_ref: NameRef) -> Self {
+        Self {
+            attrs: vec![],
+            expr: Box::new(expr),
+            dot_token: true,
+            name_ref: Box::new(name_ref),
+            cst: None,
+        }
+    }
+}
+impl ForExpr {
+    pub fn new(loop_body: BlockExpr) -> Self {
+        Self {
+            attrs: vec![],
+            label: None,
+            for_token: true,
+            pat: None,
+            in_token: true,
+            loop_body: Box::new(loop_body),
+            cst: None,
+        }
+    }
+}
+impl IndexExpr {
+    pub fn new() -> Self {
+        Self { attrs: vec![], l_brack_token: true, r_brack_token: true, cst: None }
+    }
+}
+impl LoopExpr {
+    pub fn new(loop_body: BlockExpr) -> Self {
+        Self {
+            attrs: vec![],
+            label: None,
+            loop_token: true,
+            loop_body: Box::new(loop_body),
+            cst: None,
+        }
+    }
+}
+impl MacroExpr {
+    pub fn new(macro_call: MacroCall) -> Self {
+        Self { macro_call: Box::new(macro_call), cst: None }
+    }
+}
+impl MatchExpr {
+    pub fn new(expr: Expr, match_arm_list: MatchArmList) -> Self {
+        Self {
+            attrs: vec![],
+            match_token: true,
+            expr: Box::new(expr),
+            match_arm_list: Box::new(match_arm_list),
+            cst: None,
+        }
+    }
+}
+impl MethodCallExpr {
+    pub fn new(receiver: Expr, name_ref: NameRef, arg_list: ArgList) -> Self {
+        Self {
+            attrs: vec![],
+            receiver: Box::new(receiver),
+            dot_token: true,
+            name_ref: Box::new(name_ref),
+            generic_arg_list: None,
+            arg_list: Box::new(arg_list),
+            cst: None,
+        }
+    }
+}
+impl ParenExpr {
+    pub fn new(expr: Expr) -> Self {
+        Self {
+            attrs: vec![],
+            l_paren_token: true,
+            expr: Box::new(expr),
+            r_paren_token: true,
+            cst: None,
+        }
+    }
+}
+impl PathExpr {
+    pub fn new(path: Path) -> Self { Self { attrs: vec![], path: Box::new(path), cst: None } }
+}
+impl PrefixExpr {
+    pub fn new(expr: Expr) -> Self { Self { attrs: vec![], expr: Box::new(expr), cst: None } }
+}
+impl RangeExpr {
+    pub fn new() -> Self { Self { attrs: vec![], cst: None } }
+}
+impl RecordExpr {
+    pub fn new(path: Path, record_expr_field_list: RecordExprFieldList) -> Self {
+        Self {
+            path: Box::new(path),
+            record_expr_field_list: Box::new(record_expr_field_list),
+            cst: None,
+        }
+    }
+}
+impl RefExpr {
+    pub fn new(expr: Expr) -> Self {
+        Self {
+            attrs: vec![],
+            amp_token: true,
+            raw_token: false,
+            mut_token: false,
+            const_token: false,
+            expr: Box::new(expr),
+            cst: None,
+        }
+    }
+}
+impl ReturnExpr {
+    pub fn new() -> Self { Self { attrs: vec![], return_token: true, expr: None, cst: None } }
+}
+impl TryExpr {
+    pub fn new(expr: Expr) -> Self {
+        Self { attrs: vec![], expr: Box::new(expr), question_mark_token: true, cst: None }
+    }
+}
+impl TupleExpr {
+    pub fn new() -> Self {
+        Self { attrs: vec![], l_paren_token: true, fields: vec![], r_paren_token: true, cst: None }
+    }
+}
+impl WhileExpr {
+    pub fn new(loop_body: BlockExpr) -> Self {
+        Self {
+            attrs: vec![],
+            label: None,
+            while_token: true,
+            invariant_clause: None,
+            decreases_clause: None,
+            loop_body: Box::new(loop_body),
+            cst: None,
+        }
+    }
+}
+impl YieldExpr {
+    pub fn new() -> Self { Self { attrs: vec![], yield_token: true, expr: None, cst: None } }
+}
+impl YeetExpr {
+    pub fn new() -> Self {
+        Self { attrs: vec![], do_token: true, yeet_token: true, expr: None, cst: None }
+    }
+}
+impl LetExpr {
+    pub fn new(expr: Expr) -> Self {
+        Self {
+            attrs: vec![],
+            let_token: true,
+            pat: None,
+            eq_token: true,
+            expr: Box::new(expr),
+            cst: None,
+        }
+    }
+}
+impl UnderscoreExpr {
+    pub fn new() -> Self { Self { attrs: vec![], underscore_token: true, cst: None } }
+}
+impl ViewExpr {
+    pub fn new(expr: Expr) -> Self {
+        Self { attrs: vec![], expr: Box::new(expr), at_token: true, cst: None }
+    }
+}
+impl AssertExpr {
+    pub fn new(expr: Expr) -> Self {
+        Self {
+            attrs: vec![],
+            assert_token: true,
+            l_paren_token: true,
+            expr: Box::new(expr),
+            r_paren_token: true,
+            by_token: false,
+            name: None,
+            requires_clause: None,
+            block_expr: None,
+            cst: None,
+        }
+    }
+}
+impl AssumeExpr {
+    pub fn new(expr: Expr) -> Self {
+        Self {
+            attrs: vec![],
+            assume_token: true,
+            l_paren_token: true,
+            expr: Box::new(expr),
+            r_paren_token: true,
+            cst: None,
+        }
+    }
+}
+impl AssertForallExpr {
+    pub fn new(closure_expr: ClosureExpr, block_expr: BlockExpr) -> Self {
+        Self {
+            attrs: vec![],
+            assert_token: true,
+            forall_token: true,
+            closure_expr: Box::new(closure_expr),
+            implies_token: false,
+            expr: None,
+            by_token: true,
+            block_expr: Box::new(block_expr),
+            cst: None,
+        }
+    }
+}
+impl StmtList {
+    pub fn new() -> Self {
+        Self {
+            l_curly_token: true,
+            attrs: vec![],
+            statements: vec![],
+            tail_expr: None,
+            r_curly_token: true,
+            cst: None,
+        }
+    }
+}
+impl Label {
+    pub fn new(lifetime: Lifetime) -> Self {
+        Self { lifetime: Box::new(lifetime), colon_token: true, cst: None }
+    }
+}
+impl RecordExprFieldList {
+    pub fn new() -> Self {
+        Self {
+            l_curly_token: true,
+            attrs: vec![],
+            fields: vec![],
+            dotdot_token: false,
+            spread: None,
+            r_curly_token: true,
+            cst: None,
+        }
+    }
+}
+impl RecordExprField {
+    pub fn new(expr: Expr) -> Self {
+        Self { attrs: vec![], name_ref: None, colon_token: false, expr: Box::new(expr), cst: None }
+    }
+}
+impl ArgList {
+    pub fn new() -> Self {
+        Self { l_paren_token: true, args: vec![], r_paren_token: true, cst: None }
+    }
+}
+impl InvariantClause {
+    pub fn new() -> Self { Self { invariant_token: true, exprs: vec![], cst: None } }
+}
+impl MatchArmList {
+    pub fn new() -> Self {
+        Self { l_curly_token: true, attrs: vec![], arms: vec![], r_curly_token: true, cst: None }
+    }
+}
+impl MatchArm {
+    pub fn new(expr: Expr) -> Self {
+        Self {
+            attrs: vec![],
+            pat: None,
+            guard: None,
+            fat_arrow_token: true,
+            expr: Box::new(expr),
+            comma_token: false,
+            cst: None,
+        }
+    }
+}
+impl MatchGuard {
+    pub fn new() -> Self { Self { if_token: true, cst: None } }
+}
+impl ArrayType {
+    pub fn new(ty: Type, expr: Expr) -> Self {
+        Self {
+            l_brack_token: true,
+            ty: Box::new(ty),
+            semicolon_token: true,
+            expr: Box::new(expr),
+            r_brack_token: true,
+            cst: None,
+        }
+    }
+}
+impl DynTraitType {
+    pub fn new(type_bound_list: TypeBoundList) -> Self {
+        Self { dyn_token: false, type_bound_list: Box::new(type_bound_list), cst: None }
+    }
+}
+impl FnPtrType {
+    pub fn new() -> Self {
+        Self {
+            const_token: false,
+            async_token: false,
+            unsafe_token: false,
+            abi: None,
+            fn_token: true,
+            param_list: None,
+            ret_type: None,
+            cst: None,
+        }
+    }
+}
+impl ForType {
+    pub fn new(generic_param_list: GenericParamList, ty: Type) -> Self {
+        Self {
+            for_token: true,
+            generic_param_list: Box::new(generic_param_list),
+            ty: Box::new(ty),
+            cst: None,
+        }
+    }
+}
+impl ImplTraitType {
+    pub fn new(type_bound_list: TypeBoundList) -> Self {
+        Self { impl_token: true, type_bound_list: Box::new(type_bound_list), cst: None }
+    }
+}
+impl InferType {
+    pub fn new() -> Self { Self { underscore_token: true, cst: None } }
+}
+impl MacroType {
+    pub fn new(macro_call: MacroCall) -> Self {
+        Self { macro_call: Box::new(macro_call), cst: None }
+    }
+}
+impl NeverType {
+    pub fn new() -> Self { Self { excl_token: true, cst: None } }
+}
+impl ParenType {
+    pub fn new(ty: Type) -> Self {
+        Self { l_paren_token: true, ty: Box::new(ty), r_paren_token: true, cst: None }
+    }
+}
+impl PtrType {
+    pub fn new(ty: Type) -> Self {
+        Self { star_token: true, const_token: false, mut_token: false, ty: Box::new(ty), cst: None }
+    }
+}
+impl RefType {
+    pub fn new(ty: Type) -> Self {
+        Self { amp_token: true, lifetime: None, mut_token: false, ty: Box::new(ty), cst: None }
+    }
+}
+impl SliceType {
+    pub fn new(ty: Type) -> Self {
+        Self { l_brack_token: true, ty: Box::new(ty), r_brack_token: true, cst: None }
+    }
+}
+impl TupleType {
+    pub fn new() -> Self {
+        Self { l_paren_token: true, fields: vec![], r_paren_token: true, cst: None }
+    }
+}
+impl TypeBound {
+    pub fn new(ty: Type) -> Self {
+        Self {
+            lifetime: None,
+            question_mark_token: false,
+            tilde_token: false,
+            const_token: false,
+            ty: Box::new(ty),
+            cst: None,
+        }
+    }
+}
+impl IdentPat {
+    pub fn new(name: Name) -> Self {
+        Self {
+            attrs: vec![],
+            ref_token: false,
+            mut_token: false,
+            name: Box::new(name),
+            at_token: false,
+            pat: None,
+            cst: None,
+        }
+    }
+}
+impl BoxPat {
+    pub fn new() -> Self { Self { box_token: true, pat: None, cst: None } }
+}
+impl RestPat {
+    pub fn new() -> Self { Self { attrs: vec![], dotdot_token: true, cst: None } }
+}
+impl LiteralPat {
+    pub fn new(literal: Literal) -> Self {
+        Self { minus_token: false, literal: Box::new(literal), cst: None }
+    }
+}
+impl MacroPat {
+    pub fn new(macro_call: MacroCall) -> Self {
+        Self { macro_call: Box::new(macro_call), cst: None }
+    }
+}
+impl OrPat {
+    pub fn new() -> Self { Self { pats: vec![], cst: None } }
+}
+impl ParenPat {
+    pub fn new() -> Self { Self { l_paren_token: true, pat: None, r_paren_token: true, cst: None } }
+}
+impl PathPat {
+    pub fn new(path: Path) -> Self { Self { path: Box::new(path), cst: None } }
+}
+impl WildcardPat {
+    pub fn new() -> Self { Self { underscore_token: true, cst: None } }
+}
+impl RangePat {
+    pub fn new() -> Self { Self { cst: None } }
+}
+impl RecordPat {
+    pub fn new(path: Path, record_pat_field_list: RecordPatFieldList) -> Self {
+        Self {
+            path: Box::new(path),
+            record_pat_field_list: Box::new(record_pat_field_list),
+            cst: None,
+        }
+    }
+}
+impl RefPat {
+    pub fn new() -> Self { Self { amp_token: true, mut_token: false, pat: None, cst: None } }
+}
+impl SlicePat {
+    pub fn new() -> Self {
+        Self { l_brack_token: true, pats: vec![], r_brack_token: true, cst: None }
+    }
+}
+impl TuplePat {
+    pub fn new() -> Self {
+        Self { l_paren_token: true, fields: vec![], r_paren_token: true, cst: None }
+    }
+}
+impl TupleStructPat {
+    pub fn new(path: Path) -> Self {
+        Self {
+            path: Box::new(path),
+            l_paren_token: true,
+            fields: vec![],
+            r_paren_token: true,
+            cst: None,
+        }
+    }
+}
+impl ConstBlockPat {
+    pub fn new(block_expr: BlockExpr) -> Self {
+        Self { const_token: true, block_expr: Box::new(block_expr), cst: None }
+    }
+}
+impl RecordPatFieldList {
+    pub fn new() -> Self {
+        Self { l_curly_token: true, fields: vec![], rest_pat: None, r_curly_token: true, cst: None }
+    }
+}
+impl RecordPatField {
+    pub fn new() -> Self {
+        Self { attrs: vec![], name_ref: None, colon_token: false, pat: None, cst: None }
+    }
+}
+impl ModeSpecChecked {
+    pub fn new() -> Self {
+        Self {
+            spec_token: true,
+            l_paren_token: true,
+            checked_token: true,
+            r_paren_token: true,
+            cst: None,
+        }
+    }
+}
+impl SignatureDecreases {
+    pub fn new(decreases_clause: DecreasesClause) -> Self {
+        Self {
+            decreases_clause: Box::new(decreases_clause),
+            when_token: false,
+            expr: None,
+            via_token: false,
+            cst: None,
+        }
+    }
+}
+impl Prover {
+    pub fn new(name: Name) -> Self {
+        Self {
+            by_token: true,
+            l_paren_token: true,
+            name: Box::new(name),
+            r_paren_token: true,
+            cst: None,
+        }
+    }
+}
+impl TriggerAttribute {
+    pub fn new() -> Self {
+        Self {
+            pound_token: true,
+            excl_token: true,
+            l_brack_token: true,
+            trigger_token: true,
+            exprs: vec![],
+            r_brack_token: true,
+            cst: None,
+        }
+    }
+}
