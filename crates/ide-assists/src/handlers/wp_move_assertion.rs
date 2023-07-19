@@ -1,15 +1,12 @@
 use crate::{AssistContext, Assists};
-use hir::{HasCrate, PathResolution};
 use ide_db::{
     assists::{AssistId, AssistKind},
-    syntax_helpers::node_ext::walk_expr,
     syntax_helpers::vst_ext::*,
 };
-use syntax::ted;
 
 use syntax::{
-    ast::{self, vst, Expr},
-    AstNode, SyntaxToken, T,
+    ast::{self, vst},
+    AstNode, T,
 };
 
 // fn reoslve_local(e: &Expr, ctx: &AssistContext<'_>) -> Option<hir::Local> {
@@ -131,34 +128,28 @@ pub(crate) fn vst_transformer_wp_move_assertion(
                     newer.expr = Box::new(new_exp);
                     new_assert = vst::Expr::AssertExpr(Box::new(newer));
                 }
-                vst::Expr::IfExpr(if_expr) => {
-                    let mut new_if = if_expr.clone();
-
-                    // let new_assert = vst::Stmt::ExprStmt(Box::new(
-                    //     vst::ExprStmt::new(
-                    //             vst::Expr::AssertExpr(Box::new(assertion.clone()))
-                    //         )
-                    // ));
-                    let new_assert = vst::Stmt::from(vst::ExprStmt::new(vst::Expr::from(assertion.clone())));
-
-                    new_if.then_branch.stmt_list.statements.push(new_assert.clone());
+                // prev is if-else. For each branch, insert assertion
+                // recursively insert for nested if-else
+                vst::Expr::IfExpr(_if_expr) => {
+                    let cb = |exp : &mut vst::Expr|  {
+                        match exp {
+                            vst::Expr::BlockExpr(bb) => {
+                                bb.stmt_list.statements.push(vst::Stmt::from(vst::ExprStmt::new(vst::Expr::from(assertion.clone()))));
+                            },
+                            _ => (),
+                        };
+                        return Ok::<vst::Expr, String>(exp.clone());
+                    };
+                    let new_if_expr = vst_map_expr_visitor(exp.clone(), &cb).ok()?;
                     let mut new_stmt_list = stmt_list.clone();
-
-                    match new_if.else_branch.as_mut() {
-                        Some(vv) => {
-                            match &mut **vv {
-                                vst::ElseBranch::Block(b) => {    
-                                    b.stmt_list.statements.push(new_assert);
-                                }
-                                vst::ElseBranch::IfExpr(_) => todo!(),
-                            }
-                        }
-                        None => (),
-                    }
-                    new_stmt_list.statements[index - 1] = vst::Stmt::ExprStmt(Box::new(vst::ExprStmt::new(vst::Expr::IfExpr(new_if))));
+                    new_stmt_list.statements[index - 1] = vst::Stmt::ExprStmt(Box::new(vst::ExprStmt::new(new_if_expr)));
                     return Some(new_stmt_list.to_string());
                 }
                 // for lemma calls, do  `(inlined ensures clauses) ==> assertion`
+                vst::Expr::CallExpr(_call_expr) => {
+                    // call_expr.
+                    return None;
+                }
                 // CallExpr{e, args} => {
                 //     let function = ctx.to_def(e); // get function node from call expression
                 //     if function.fn_mode == FnMode::Proof {
@@ -170,7 +161,6 @@ pub(crate) fn vst_transformer_wp_move_assertion(
                 //         return None;
                 //     }
                 // }
-                // IfElse(...)
                 _ => return None,
             }
         }
