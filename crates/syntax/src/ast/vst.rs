@@ -89,6 +89,27 @@ impl std::fmt::Display for IfExpr {
     }
 }
 
+impl IfExpr {
+    pub fn new<ET0>(condition: ET0, then_branch: BlockExpr) -> Self
+    where ET0: Into<Expr>,
+    {
+        IfExpr {
+            attrs: vec![],
+            if_token: true,
+            condition: Box::new(condition.into()),
+            then_branch: Box::new(then_branch),
+            else_token: false,
+            else_branch: None,
+            cst: None,
+        }
+    }
+
+    pub fn set_else_branch(&mut self, else_branch: ElseBranch) {
+        self.else_token = true;
+        self.else_branch = Some(Box::new(else_branch));
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ElseBranch {
     Block(Box<BlockExpr>),
@@ -131,6 +152,17 @@ impl std::fmt::Display for Literal {
         s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
         s.push_str(&self.literal);
         write!(f, "{s}")
+    }
+}
+
+impl Literal {
+    pub fn new(id: String) -> Self {
+        Literal
+        {
+            attrs: vec![],
+            literal: id.clone(),
+            cst: None,
+        }
     }
 }
 
@@ -177,6 +209,20 @@ impl TryFrom<generated::nodes::BinExpr> for BinExpr {
             ),
             cst: Some(item.clone()),
         })
+    }
+}
+
+impl BinExpr {
+    pub fn new<ET0, ET1>(lhs: ET0, op: BinaryOp, rhs: ET1) -> Self 
+        where ET0: Into<Expr>, ET1: Into<Expr>
+    {
+        BinExpr {
+            attrs: vec![],
+            lhs: Box::new(lhs.into()),
+            op,
+            rhs: Box::new(rhs.into()),
+            cst: None,
+        }
     }
 }
 

@@ -51,7 +51,6 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
             let fields = node.fields.iter().map(|field| {
                 let name = field.method_name();
                 let ty = field.ty();
-
                 if field.is_many() {
                     quote! {
                         pub #name : Vec<#ty>,
@@ -111,11 +110,18 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         .nodes
         .iter()
         .map(|node| {
-            let name = format_ident!("{}", node.name);
-            let (fields, args): (Vec<_>, Vec<_>)  = node.fields.iter().map(|field| {
+            let sname = format_ident!("{}", node.name);
+            let mut count:u32 = 0;
+            let (fields, args): (Vec<_>, Vec<proc_macro2::TokenStream>)  = node.fields.iter().map(|field| {
                 let name = field.method_name();
                 let lowercase_name = format_ident!("{}", field.method_name().to_string().to_lowercase());
-                let ty = field.ty();
+                let mut ty = field.ty();
+                let is_expr = ty.to_string() == "Expr";
+
+                if is_expr && field.is_one() {
+                    ty = format_ident!("ET{}", count);
+                    count += 1;
+                }
 
                 if field.is_many() {
                     (
@@ -159,14 +165,11 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
                     }
                 } else {
                     if field.is_one() {
-                        (
-                            quote! {
-                                #name : Box::new(#lowercase_name),
-                            },
-                            quote! {
-                                #lowercase_name : #ty,
-                            }
-                        )
+                        if is_expr {
+                            (quote! { #name : Box::new(#lowercase_name . into() ) ,}, quote! { #lowercase_name : #ty, })
+                        } else {
+                            (quote! { #name : Box::new(#lowercase_name),}, quote! { #lowercase_name : #ty, })
+                        }
                     } else {
                         (
                             quote! {
@@ -182,16 +185,44 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
             if HAND_WRITTEN.contains(&node.name.as_str()) {
                 quote! {}
             } else {
-                quote! {
-                    impl #name {
-                        pub fn new(
-                            #(#args)*
-                        ) -> Self {
-                            Self {
-                                #(#fields)*
-                                cst: None,
-                            }
-                        } 
+                if count != 0 {
+                    let ets: Vec<proc_macro2::TokenStream> = (0..count).map(|i| {
+                        let ty = format_ident!("ET{}", i);
+                        quote! { #ty, }
+                    }).collect_vec();
+
+                    let traits: Vec<proc_macro2::TokenStream> = (0..count).map(|i| {
+                        let ty = format_ident!("ET{}", i);
+                        quote! { #ty: Into<Expr>, }
+                    }).collect_vec();
+
+                    quote! {
+                        impl #sname {                            
+                            pub fn new< #(#ets)* >(
+                                #(#args)*
+                            ) -> Self 
+                        where 
+                            #(#traits)*
+                            {
+                                Self {
+                                    #(#fields)*
+                                    cst: None,
+                                }
+                            } 
+                        }
+                    }
+                } else {
+                    quote! {
+                        impl #sname {
+                            pub fn new(
+                                #(#args)*
+                            ) -> Self {
+                                Self {
+                                    #(#fields)*
+                                    cst: None,
+                                }
+                            } 
+                        }
                     }
                 }
             }
