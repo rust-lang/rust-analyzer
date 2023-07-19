@@ -7749,7 +7749,7 @@ impl std::fmt::Display for WildcardPat {
 }
 impl std::fmt::Display for RangePat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut s = String::new();
+        let s = String::new();
         write!(f, "{s}")
     }
 }
@@ -8839,7 +8839,12 @@ impl LifetimeArg {
     pub fn new(lifetime: Lifetime) -> Self { Self { lifetime: Box::new(lifetime), cst: None } }
 }
 impl ConstArg {
-    pub fn new(expr: Expr) -> Self { Self { expr: Box::new(expr), cst: None } }
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
+        Self { expr: Box::new(expr.into()), cst: None }
+    }
 }
 impl TypeBoundList {
     pub fn new() -> Self { Self { bounds: vec![], cst: None } }
@@ -9389,12 +9394,18 @@ impl Meta {
     }
 }
 impl ExprStmt {
-    pub fn new(expr: Expr) -> Self {
-        Self { expr: Box::new(expr), semicolon_token: false, cst: None }
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
+        Self { expr: Box::new(expr.into()), semicolon_token: false, cst: None }
     }
 }
 impl LetStmt {
-    pub fn new(initializer: Expr) -> Self {
+    pub fn new<ET0>(initializer: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
         Self {
             attrs: vec![],
             let_token: true,
@@ -9404,7 +9415,7 @@ impl LetStmt {
             colon_token: false,
             ty: None,
             eq_token: true,
-            initializer: Box::new(initializer),
+            initializer: Box::new(initializer.into()),
             let_else: None,
             semicolon_token: true,
             cst: None,
@@ -9417,12 +9428,15 @@ impl LetElse {
     }
 }
 impl ArrayExpr {
-    pub fn new(expr: Expr) -> Self {
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
         Self {
             attrs: vec![],
             l_brack_token: true,
             exprs: vec![],
-            expr: Box::new(expr),
+            expr: Box::new(expr.into()),
             semicolon_token: true,
             r_brack_token: true,
             cst: None,
@@ -9430,13 +9444,25 @@ impl ArrayExpr {
     }
 }
 impl AwaitExpr {
-    pub fn new(expr: Expr) -> Self {
-        Self { attrs: vec![], expr: Box::new(expr), dot_token: true, await_token: true, cst: None }
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
+        Self {
+            attrs: vec![],
+            expr: Box::new(expr.into()),
+            dot_token: true,
+            await_token: true,
+            cst: None,
+        }
     }
 }
 impl BoxExpr {
-    pub fn new(expr: Expr) -> Self {
-        Self { attrs: vec![], box_token: true, expr: Box::new(expr), cst: None }
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
+        Self { attrs: vec![], box_token: true, expr: Box::new(expr.into()), cst: None }
     }
 }
 impl BreakExpr {
@@ -9445,17 +9471,32 @@ impl BreakExpr {
     }
 }
 impl CallExpr {
-    pub fn new(expr: Expr, arg_list: ArgList) -> Self {
-        Self { attrs: vec![], expr: Box::new(expr), arg_list: Box::new(arg_list), cst: None }
+    pub fn new<ET0>(expr: ET0, arg_list: ArgList) -> Self
+    where
+        ET0: Into<Expr>,
+    {
+        Self { attrs: vec![], expr: Box::new(expr.into()), arg_list: Box::new(arg_list), cst: None }
     }
 }
 impl CastExpr {
-    pub fn new(expr: Expr, ty: Type) -> Self {
-        Self { attrs: vec![], expr: Box::new(expr), as_token: true, ty: Box::new(ty), cst: None }
+    pub fn new<ET0>(expr: ET0, ty: Type) -> Self
+    where
+        ET0: Into<Expr>,
+    {
+        Self {
+            attrs: vec![],
+            expr: Box::new(expr.into()),
+            as_token: true,
+            ty: Box::new(ty),
+            cst: None,
+        }
     }
 }
 impl ClosureExpr {
-    pub fn new(body: Expr) -> Self {
+    pub fn new<ET0>(body: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
         Self {
             attrs: vec![],
             for_token: false,
@@ -9468,7 +9509,7 @@ impl ClosureExpr {
             exists_token: false,
             param_list: None,
             ret_type: None,
-            body: Box::new(body),
+            body: Box::new(body.into()),
             cst: None,
         }
     }
@@ -9477,10 +9518,13 @@ impl ContinueExpr {
     pub fn new() -> Self { Self { attrs: vec![], continue_token: true, lifetime: None, cst: None } }
 }
 impl FieldExpr {
-    pub fn new(expr: Expr, name_ref: NameRef) -> Self {
+    pub fn new<ET0>(expr: ET0, name_ref: NameRef) -> Self
+    where
+        ET0: Into<Expr>,
+    {
         Self {
             attrs: vec![],
-            expr: Box::new(expr),
+            expr: Box::new(expr.into()),
             dot_token: true,
             name_ref: Box::new(name_ref),
             cst: None,
@@ -9522,21 +9566,27 @@ impl MacroExpr {
     }
 }
 impl MatchExpr {
-    pub fn new(expr: Expr, match_arm_list: MatchArmList) -> Self {
+    pub fn new<ET0>(expr: ET0, match_arm_list: MatchArmList) -> Self
+    where
+        ET0: Into<Expr>,
+    {
         Self {
             attrs: vec![],
             match_token: true,
-            expr: Box::new(expr),
+            expr: Box::new(expr.into()),
             match_arm_list: Box::new(match_arm_list),
             cst: None,
         }
     }
 }
 impl MethodCallExpr {
-    pub fn new(receiver: Expr, name_ref: NameRef, arg_list: ArgList) -> Self {
+    pub fn new<ET0>(receiver: ET0, name_ref: NameRef, arg_list: ArgList) -> Self
+    where
+        ET0: Into<Expr>,
+    {
         Self {
             attrs: vec![],
-            receiver: Box::new(receiver),
+            receiver: Box::new(receiver.into()),
             dot_token: true,
             name_ref: Box::new(name_ref),
             generic_arg_list: None,
@@ -9546,11 +9596,14 @@ impl MethodCallExpr {
     }
 }
 impl ParenExpr {
-    pub fn new(expr: Expr) -> Self {
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
         Self {
             attrs: vec![],
             l_paren_token: true,
-            expr: Box::new(expr),
+            expr: Box::new(expr.into()),
             r_paren_token: true,
             cst: None,
         }
@@ -9560,7 +9613,12 @@ impl PathExpr {
     pub fn new(path: Path) -> Self { Self { attrs: vec![], path: Box::new(path), cst: None } }
 }
 impl PrefixExpr {
-    pub fn new(expr: Expr) -> Self { Self { attrs: vec![], expr: Box::new(expr), cst: None } }
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
+        Self { attrs: vec![], expr: Box::new(expr.into()), cst: None }
+    }
 }
 impl RangeExpr {
     pub fn new() -> Self { Self { attrs: vec![], cst: None } }
@@ -9575,14 +9633,17 @@ impl RecordExpr {
     }
 }
 impl RefExpr {
-    pub fn new(expr: Expr) -> Self {
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
         Self {
             attrs: vec![],
             amp_token: true,
             raw_token: false,
             mut_token: false,
             const_token: false,
-            expr: Box::new(expr),
+            expr: Box::new(expr.into()),
             cst: None,
         }
     }
@@ -9591,8 +9652,11 @@ impl ReturnExpr {
     pub fn new() -> Self { Self { attrs: vec![], return_token: true, expr: None, cst: None } }
 }
 impl TryExpr {
-    pub fn new(expr: Expr) -> Self {
-        Self { attrs: vec![], expr: Box::new(expr), question_mark_token: true, cst: None }
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
+        Self { attrs: vec![], expr: Box::new(expr.into()), question_mark_token: true, cst: None }
     }
 }
 impl TupleExpr {
@@ -9622,13 +9686,16 @@ impl YeetExpr {
     }
 }
 impl LetExpr {
-    pub fn new(expr: Expr) -> Self {
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
         Self {
             attrs: vec![],
             let_token: true,
             pat: None,
             eq_token: true,
-            expr: Box::new(expr),
+            expr: Box::new(expr.into()),
             cst: None,
         }
     }
@@ -9637,17 +9704,23 @@ impl UnderscoreExpr {
     pub fn new() -> Self { Self { attrs: vec![], underscore_token: true, cst: None } }
 }
 impl ViewExpr {
-    pub fn new(expr: Expr) -> Self {
-        Self { attrs: vec![], expr: Box::new(expr), at_token: true, cst: None }
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
+        Self { attrs: vec![], expr: Box::new(expr.into()), at_token: true, cst: None }
     }
 }
 impl AssertExpr {
-    pub fn new(expr: Expr) -> Self {
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
         Self {
             attrs: vec![],
             assert_token: true,
             l_paren_token: true,
-            expr: Box::new(expr),
+            expr: Box::new(expr.into()),
             r_paren_token: true,
             by_token: false,
             name: None,
@@ -9658,12 +9731,15 @@ impl AssertExpr {
     }
 }
 impl AssumeExpr {
-    pub fn new(expr: Expr) -> Self {
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
         Self {
             attrs: vec![],
             assume_token: true,
             l_paren_token: true,
-            expr: Box::new(expr),
+            expr: Box::new(expr.into()),
             r_paren_token: true,
             cst: None,
         }
@@ -9715,8 +9791,17 @@ impl RecordExprFieldList {
     }
 }
 impl RecordExprField {
-    pub fn new(expr: Expr) -> Self {
-        Self { attrs: vec![], name_ref: None, colon_token: false, expr: Box::new(expr), cst: None }
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
+        Self {
+            attrs: vec![],
+            name_ref: None,
+            colon_token: false,
+            expr: Box::new(expr.into()),
+            cst: None,
+        }
     }
 }
 impl ArgList {
@@ -9733,13 +9818,16 @@ impl MatchArmList {
     }
 }
 impl MatchArm {
-    pub fn new(expr: Expr) -> Self {
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
         Self {
             attrs: vec![],
             pat: None,
             guard: None,
             fat_arrow_token: true,
-            expr: Box::new(expr),
+            expr: Box::new(expr.into()),
             comma_token: false,
             cst: None,
         }
@@ -9749,12 +9837,15 @@ impl MatchGuard {
     pub fn new() -> Self { Self { if_token: true, cst: None } }
 }
 impl ArrayType {
-    pub fn new(ty: Type, expr: Expr) -> Self {
+    pub fn new<ET0>(ty: Type, expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
         Self {
             l_brack_token: true,
             ty: Box::new(ty),
             semicolon_token: true,
-            expr: Box::new(expr),
+            expr: Box::new(expr.into()),
             r_brack_token: true,
             cst: None,
         }
