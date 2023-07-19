@@ -1,4 +1,4 @@
-use crate::{AssistContext, Assists};
+use crate::{AssistContext, Assists, vst_api};
 use ide_db::{
     assists::{AssistId, AssistKind},
     syntax_helpers::vst_ext::*,
@@ -134,7 +134,7 @@ pub(crate) fn vst_transformer_wp_move_assertion(
                     let cb = |exp : &mut vst::Expr|  {
                         match exp {
                             vst::Expr::BlockExpr(bb) => {
-                                bb.stmt_list.statements.push(vst::Stmt::from(vst::ExprStmt::new(vst::Expr::from(assertion.clone()))));
+                                bb.stmt_list.statements.push(vst::Stmt::from(vst::ExprStmt::new(assertion.clone())));
                             },
                             _ => (),
                         };
@@ -146,7 +146,18 @@ pub(crate) fn vst_transformer_wp_move_assertion(
                     return Some(new_stmt_list.to_string());
                 }
                 // for lemma calls, do  `(inlined ensures clauses) ==> assertion`
-                vst::Expr::CallExpr(_call_expr) => {
+                vst::Expr::CallExpr(call_expr) => {
+                    if let vst::Expr::PathExpr(pp) = *call_expr.expr.clone() {
+                        let func = ctx.vst_find_fn(*call_expr.clone())?;
+                        if !func.fn_mode.as_ref().unwrap().proof_token {
+                            return None;
+                        }
+                        let vst_name_ref: vst::NameRef = *pp.path.segment.name_ref;
+                        println!("vst_name_ref: {}", vst_name_ref);
+                        let ensures0 = ctx.vst_inline_call(vst_name_ref, func.ensures_clause?.exprs[0].clone())?;
+                        println!("ensures0: {}", ensures0);
+                    }
+                    
                     // call_expr.
                     return None;
                 }
@@ -338,5 +349,42 @@ fn foo()
 }
 "#,
         );
+    }
+
+    #[test]
+    fn wp_lemma_call() {
+        check_assist(
+            wp_move_assertion,
+            r#"
+proof fn commutative(a: int, b: int)
+    ensures a*b == b*a,
+{
+    assume(false);
+}
+
+fn foo()
+{
+    let v1 = 100;
+    let v2 = 200;
+    commutative(v1, v2);
+    ass$0ert(false);
+}
+"#,
+            r#"
+proof fn commutative(a: int, b: int)
+    ensures a*b == b*a,
+{
+    assume(false);
+}
+
+fn foo()
+{
+    let v1 = 100;
+    let v2 = 200;
+    assert(v1*v2 == v2*v1 ==> false);
+    commutative(v1, v2);
+    ass$0ert(false);
+}
+"#)
     }
 }
