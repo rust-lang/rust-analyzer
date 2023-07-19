@@ -7749,7 +7749,7 @@ impl std::fmt::Display for WildcardPat {
 }
 impl std::fmt::Display for RangePat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = String::new();
+        let mut s = String::new();
         write!(f, "{s}")
     }
 }
