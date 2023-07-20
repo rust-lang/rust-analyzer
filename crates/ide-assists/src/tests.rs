@@ -18,7 +18,7 @@ use crate::{
     AssistResolveStrategy, Assists, SingleResolve,
 };
 
-pub(crate) const TEST_CONFIG: AssistConfig = AssistConfig {
+pub const TEST_CONFIG: AssistConfig = AssistConfig {
     snippet_cap: SnippetCap::new(true),
     allowed: None,
     insert_use: InsertUseConfig {

@@ -60,12 +60,12 @@
 
 #![warn(rust_2018_idioms, unused_lifetimes)]
 
-mod assist_config;
+pub(crate) mod assist_config;
 mod assist_context;
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+pub(crate) mod tests;
 pub mod utils;
-pub mod vst_api;
+pub(crate) mod vst_api;
 
 use hir::Semantics;
 use ide_db::{base_db::FileRange, RootDatabase};

@@ -26,7 +26,7 @@ text-edit.workspace = true
 ide-db.workspace = true
 hir.workspace = true
 
-[dev-dependencies]
+#[dev-dependencies]
 expect-test = "1.4.0"
 
 # local deps

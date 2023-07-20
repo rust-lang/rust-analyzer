@@ -96,8 +96,8 @@ impl<'a> AssistContext<'a> {
             <ide_db::RootDatabase as ide_db::base_db::fixture::WithFixture>::with_range_or_offset(&temp_fn_str);
         db.enable_proc_attr_macros();
         let frange = ide_db::base_db::FileRange { file_id: file_with_caret_id, range: range_or_offset.into() };
-        let sema = Semantics::new(&db);
-        let config = super::tests::TEST_CONFIG;
+        let sema: Semantics<'_, ide_db::RootDatabase> = Semantics::new(&db);
+        let config = crate::tests::TEST_CONFIG;
         let tmp_ctx = AssistContext::new(sema, &config, frange);
         let tmp_foo = tmp_ctx.find_node_at_offset::<ast::Fn>()?;
         let tmp_body = tmp_foo.body()?;
