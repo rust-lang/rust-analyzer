@@ -324,3 +324,12 @@ impl std::fmt::Display for ArgList {
         write!(f, "{s}")
     }
 }
+
+impl ExprStmt {
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
+        Self { expr: Box::new(expr.into()), semicolon_token: true, cst: None } // semicolon default to true, where ungram has it optional
+    }
+}

@@ -23,6 +23,7 @@ const SPECIAL_ITEMS: &[(&str, &[&str])] = &[
 const HAND_WRITTEN: &[&str] = &["BinExpr", "IfExpr", "Literal"];
 
 const HAND_WRITTEN_PRINT_ONLY: &[&str] = &["ParamList", "ArgList"];
+const HAND_WRITTEN_NEW_ONLY: &[&str] = &["ExprStmt"];
 
 const LIST_AUTO_GEN_SEP_COMMA: &[&str] = &["VariantList", "RecordFieldList", "TupleFieldList"];
 const LIST_AUTO_GEN_SEP_NEWLINE: &[&str] = &["StmtList"];
@@ -182,7 +183,7 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
                 }
             }).unzip();
 
-            if HAND_WRITTEN.contains(&node.name.as_str()) {
+            if HAND_WRITTEN.contains(&node.name.as_str()) || HAND_WRITTEN_NEW_ONLY.contains(&node.name.as_str()) {
                 quote! {}
             } else {
                 if count != 0 {
