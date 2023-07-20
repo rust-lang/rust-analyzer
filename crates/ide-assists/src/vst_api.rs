@@ -58,7 +58,6 @@ impl<'a> AssistContext<'a> {
 
     /// inline function call
     /// for now, assume one file only
-    /// 
     pub fn vst_inline_call(&self, name_ref: vst::NameRef, expr_to_inline: vst::Expr) -> Option<vst::Expr> {
         use crate::handlers::inline_call::*;
         let name_ref: ast::NameRef = name_ref.cst?;

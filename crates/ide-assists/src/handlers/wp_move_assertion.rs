@@ -9,32 +9,17 @@ use syntax::{
     AstNode, T,
 };
 
-// fn reoslve_local(e: &Expr, ctx: &AssistContext<'_>) -> Option<hir::Local> {
-//     let pexpr = ast::PathExpr::cast(e.syntax().clone())?;
-//     let pres = ctx.sema.resolve_path(&pexpr.path()?)?;
-//     if let PathResolution::Local(local) = pres {
-//         Some(local)
-//     } else {
-//         None
-//     }
-// }
+/*
+"move up assertion"
 
-// fn local_usages(
-//     expr: &ast::Expr,
-//     target: &hir::Local,
-//     ctx: &AssistContext<'_>,
-// ) -> Vec<syntax::SyntaxElement> {
-//     let mut vec = vec![];
-//     let cb = &mut |e: Expr| {
-//         if let Some(current) = reoslve_local(&e, ctx) {
-//             if current == *target {
-//                 vec.push(ted::Element::syntax_element(e.syntax()));
-//             }
-//         }
-//     };
-//     walk_expr(&expr, cb);
-//     vec
-// }
+Previous statement =  
+Let-binding | IF-else |  Match-statement | Assert | Assume | Lemma/Function-Call 
+
+Let-binding:  assert(X)  TO  assert( (x == y) ==> X) —- (careful with variable name shadowing)
+IF-else , Match-statement  :  simply move assertion into each cases
+Assert/assume : simple “=>”
+Lemma/Function-call :   inline ensures clause and make implication 
+*/
 
 pub(crate) fn wp_move_assertion(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     let assert_keyword = ctx.find_token_syntax_at_offset(T![assert])?;
@@ -75,8 +60,8 @@ pub(crate) fn vst_transformer_wp_move_assertion(
         // assertion is already at the top
         return None;
     }
-    let prev = stmt_list.statements.get(index - 1)?;
-    let new_assert;
+    let prev: &vst::Stmt = stmt_list.statements.get(index - 1)?;
+    let (new_stmt, is_insert) =
     match prev {
         vst::Stmt::LetStmt(l) => {
             dbg!("prev is let stmt");
@@ -84,7 +69,8 @@ pub(crate) fn vst_transformer_wp_move_assertion(
             let init_expr = l.initializer.as_ref();
 
             // when `prev` is let-binding, do subsitution (replace `pat` with `init`)
-            new_assert = vst_map_expr_visitor(
+            // TODO: careful with variable name shadowing
+            let new_assert = vst_map_expr_visitor(
                 vst::Expr::AssertExpr(Box::new(assertion.clone())),
                 &mut |e| {
                     dbg!(format!("e: {}, pat: {}", e, pat));
@@ -108,7 +94,8 @@ pub(crate) fn vst_transformer_wp_move_assertion(
                 },
             )
             .ok()?;
-            dbg!(format!("new_assert: {}", new_assert));
+            let new_stmt = vst::Stmt::from(vst::ExprStmt::new(new_assert));
+            (new_stmt, true)
         }
         vst::Stmt::ExprStmt(exp_stmt) => {
             let exp = exp_stmt.expr.as_ref();
@@ -126,7 +113,7 @@ pub(crate) fn vst_transformer_wp_move_assertion(
                     };
                     let new_exp = vst::Expr::BinExpr(Box::new(bin_expr));
                     newer.expr = Box::new(new_exp);
-                    new_assert = vst::Expr::AssertExpr(Box::new(newer));
+                    (vst::Stmt::from(vst::ExprStmt::new(vst::AssertExpr::new(newer))), true)
                 }
                 // prev is if-else. For each branch, insert assertion
                 // recursively insert for nested if-else
@@ -141,37 +128,38 @@ pub(crate) fn vst_transformer_wp_move_assertion(
                         return Ok::<vst::Expr, String>(exp.clone());
                     };
                     let new_if_expr = vst_map_expr_visitor(exp.clone(), &cb).ok()?;
-                    let mut new_stmt_list = stmt_list.clone();
-                    new_stmt_list.statements[index - 1] = vst::Stmt::ExprStmt(Box::new(vst::ExprStmt::new(new_if_expr)));
-                    return Some(new_stmt_list.to_string());
+                    (vst::Stmt::from(vst::ExprStmt::new(new_if_expr)), false)
                 }
                 // for lemma calls, do  `(inlined ensures clauses) ==> assertion`
                 vst::Expr::CallExpr(call_expr) => {
                     if let vst::Expr::PathExpr(pp) = *call_expr.expr.clone() {
                         let func = ctx.vst_find_fn(*call_expr.clone())?;
+                        // TODO: exec functions
                         if !func.fn_mode.as_ref().unwrap().proof_token {
                             return None;
                         }
                         let vst_name_ref: vst::NameRef = *pp.path.segment.name_ref;
                         println!("vst_name_ref: {}", vst_name_ref);
-                        let ensures0 = ctx.vst_inline_call(vst_name_ref, func.ensures_clause?.exprs[0].clone())?;
-                        println!("ensures0: {}", ensures0);
+                        let ensures: Option<Vec<vst::Expr>> = func.ensures_clause?.clone().exprs.into_iter().map(|e| ctx.vst_inline_call(vst_name_ref.clone(), e)).collect();
+                        let ensures = ensures?;
+                        let inlined_ensures : vst::Expr = ensures.into_iter().reduce(|acc,e| {
+                            vst::Expr::BinExpr(Box::new(vst::BinExpr::new(
+                                acc,
+                                vst::BinaryOp::LogicOp(ast::LogicOp::And),
+                                e,
+                            )))
+                            
+                        })?;
+                        let final_assert = vst::AssertExpr::new(vst::BinExpr::new(
+                            inlined_ensures.clone(),
+                            vst::BinaryOp::LogicOp(ast::LogicOp::Imply),
+                            *assertion.expr.clone(),
+                        ));
+                        (vst::Stmt::from(vst::ExprStmt::new(vst::Expr::from(final_assert))), true)
+                    } else {
+                        return None;
                     }
-                    
-                    // call_expr.
-                    return None;
                 }
-                // CallExpr{e, args} => {
-                //     let function = ctx.to_def(e); // get function node from call expression
-                //     if function.fn_mode == FnMode::Proof {
-                //         let inlined_ensures = function.ensures.into_iter().map(|e| ctx.inline(e, args));
-                //         let ensures_combined = inlined_ensures.fold(|e1, e2| Expr::BinExpr(Op::And, e1, e2));
-                //         new_assert = AssertExpr{e: Expr::BinExpr(Op::Imply, ensures_combined, assertion.e), requires: assertion.requires, block: assertion.block};
-                //     } else {
-                //         // if this is not a lemma call, do nothing
-                //         return None;
-                //     }
-                // }
                 _ => return None,
             }
         }
@@ -179,10 +167,13 @@ pub(crate) fn vst_transformer_wp_move_assertion(
     };
 
     // insert new assertion in the right place and return
-    let new_assert_stmt =
-        vst::ExprStmt { expr: Box::new(new_assert), semicolon_token: true, cst: None };
     let mut new_stmt_list = stmt_list.clone();
-    new_stmt_list.statements.insert(index - 1, vst::Stmt::ExprStmt(Box::new(new_assert_stmt)));
+    if is_insert {
+        new_stmt_list.statements.insert(index - 1, new_stmt);
+    } else {
+        // this is replace
+        new_stmt_list.statements[index - 1] = new_stmt;
+    }
     return Some(new_stmt_list.to_string());
 }
 
