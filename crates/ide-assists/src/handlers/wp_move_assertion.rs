@@ -130,6 +130,28 @@ pub(crate) fn vst_transformer_wp_move_assertion(
                     let new_if_expr = vst_map_expr_visitor(exp.clone(), &cb).ok()?;
                     (vst::Stmt::from(vst::ExprStmt::new(new_if_expr)), false)
                 }
+                vst::Expr::MatchExpr(match_expr) => {
+                    let adding_assert = vst::Stmt::from(vst::ExprStmt::new(assertion.clone()));
+                    let mut new_match_expr = match_expr.clone();
+                    new_match_expr.match_arm_list.arms.iter_mut().for_each(|arm: &mut vst::MatchArm| {
+                        let existing_expr = arm.expr.clone();
+                        match *existing_expr {
+                            // when match arm is a block, insert assertion at the end
+                            vst::Expr::BlockExpr(mut bb) => {
+                                bb.stmt_list.statements.push(adding_assert.clone());
+                                arm.expr = Box::new(vst::Expr::BlockExpr(bb));
+                            }
+                            // when match arm is a single expression, convert it to a block and insert the assertion before it
+                            _ => {
+                                let mut new_blk = vst::BlockExpr::new(vst::StmtList::new());
+                                new_blk.stmt_list.statements = vec![adding_assert.clone()];
+                                new_blk.stmt_list.tail_expr = Some(existing_expr.clone());
+                                arm.expr = Box::new(vst::Expr::BlockExpr(Box::new(new_blk)));
+                            }
+                        }
+                    });
+                    (vst::Stmt::from(vst::ExprStmt::new(*new_match_expr)), false)
+                }
                 // for lemma calls, do  `(inlined ensures clauses) ==> assertion`
                 vst::Expr::CallExpr(call_expr) => {
                     if let vst::Expr::PathExpr(pp) = *call_expr.expr.clone() {
@@ -378,4 +400,53 @@ fn foo()
 }
 "#)
     }
+
+
+
+    #[test]
+    fn wp_match_easy() {
+        check_assist(
+            wp_move_assertion,
+            r#"
+enum Movement {
+    Up(u32),
+    Down(u32),
+}
+
+proof fn good_move(m: Movement)
+{
+    match m {
+        Movement::Up(v) => v > a,
+        Movement::Down(v) => {
+            let foo = 1;
+            foo > 100
+        },
+    }
+    ass$0ert(true);
+}
+"#,
+            r#"
+enum Movement {
+    Up(u32),
+    Down(u32),
+}
+
+proof fn good_move(m: Movement)
+{
+    match m {
+        Movement::Up(v) => {
+            assert(true);
+            v > a
+        },
+        Movement::Down(v) => {
+            assert(true);
+            v > 100
+        },
+    }
+    assert(true);
+}
+"#,
+        );
+    }
+
 }
