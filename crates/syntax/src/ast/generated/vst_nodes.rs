@@ -9393,14 +9393,6 @@ impl Meta {
         Self { path: Box::new(path), eq_token: false, expr: None, token_tree: None, cst: None }
     }
 }
-impl ExprStmt {
-    pub fn new<ET0>(expr: ET0) -> Self
-    where
-        ET0: Into<Expr>,
-    {
-        Self { expr: Box::new(expr.into()), semicolon_token: false, cst: None }
-    }
-}
 impl LetStmt {
     pub fn new<ET0>(initializer: ET0) -> Self
     where
