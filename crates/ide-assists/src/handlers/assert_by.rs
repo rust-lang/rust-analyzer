@@ -71,14 +71,11 @@ proof fn f() {
     }
 }
 
-
-
-
-    // let formatter = "/home/chanhee/.cargo/bin/rustfmt";
-    // let formatted_string = Command::new("echo")
-    //     .arg(string.clone())
-    //     .arg("|")
-    //     .arg(formatter)
-    //     .spawn()
-    //     .expect("echo command failed to start").stdout.unwrap();
-    // dbg!(formatted_string);
+// let formatter = "/home/chanhee/.cargo/bin/rustfmt";
+// let formatted_string = Command::new("echo")
+//     .arg(string.clone())
+//     .arg("|")
+//     .arg(formatter)
+//     .spawn()
+//     .expect("echo command failed to start").stdout.unwrap();
+// dbg!(formatted_string);

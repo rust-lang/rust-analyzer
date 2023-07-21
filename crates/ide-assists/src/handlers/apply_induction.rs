@@ -22,15 +22,17 @@ pub(crate) fn apply_induction(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
             && p.cst.as_ref().unwrap().syntax().text_range().contains_range(ctx.selection_trimmed())
     })?;
 
-    let param_names = param_list.iter().map(|p| {
-        let p = p.pat.as_ref().unwrap().as_ref();
-        if let Pat::IdentPat(pat) = p {
-            (&pat.as_ref().name.ident_token).as_ref().unwrap().clone()
-        } else {
-            panic!("not supported yet");
-        }
-    }
-    ).collect::<Vec<_>>();
+    let param_names = param_list
+        .iter()
+        .map(|p| {
+            let p = p.pat.as_ref().unwrap().as_ref();
+            if let Pat::IdentPat(pat) = p {
+                (&pat.as_ref().name.ident_token).as_ref().unwrap().clone()
+            } else {
+                panic!("not supported yet");
+            }
+        })
+        .collect::<Vec<_>>();
 
     let fn_name = func.name.to_string();
 
@@ -44,7 +46,12 @@ pub(crate) fn apply_induction(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     );
 }
 
-fn apply_induction_on_nat(ctx: &AssistContext<'_>, fn_name: String, param_names: Vec<String>, index: usize) -> Option<String> {
+fn apply_induction_on_nat(
+    ctx: &AssistContext<'_>,
+    fn_name: String,
+    param_names: Vec<String>,
+    index: usize,
+) -> Option<String> {
     let id = param_names[index].clone();
     let cond = BinExpr::new(
         Literal::new(id.clone()),

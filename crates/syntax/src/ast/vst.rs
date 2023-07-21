@@ -91,7 +91,8 @@ impl std::fmt::Display for IfExpr {
 
 impl IfExpr {
     pub fn new<ET0>(condition: ET0, then_branch: BlockExpr) -> Self
-    where ET0: Into<Expr>,
+    where
+        ET0: Into<Expr>,
     {
         IfExpr {
             attrs: vec![],
@@ -157,12 +158,7 @@ impl std::fmt::Display for Literal {
 
 impl Literal {
     pub fn new(id: String) -> Self {
-        Literal
-        {
-            attrs: vec![],
-            literal: id.clone(),
-            cst: None,
-        }
+        Literal { attrs: vec![], literal: id.clone(), cst: None }
     }
 }
 
@@ -213,8 +209,10 @@ impl TryFrom<generated::nodes::BinExpr> for BinExpr {
 }
 
 impl BinExpr {
-    pub fn new<ET0, ET1>(lhs: ET0, op: BinaryOp, rhs: ET1) -> Self 
-        where ET0: Into<Expr>, ET1: Into<Expr>
+    pub fn new<ET0, ET1>(lhs: ET0, op: BinaryOp, rhs: ET1) -> Self
+    where
+        ET0: Into<Expr>,
+        ET1: Into<Expr>,
     {
         BinExpr {
             attrs: vec![],
@@ -335,8 +333,8 @@ impl ExprStmt {
 }
 
 impl From<Expr> for Stmt {
-    fn from(item: Expr) -> Self { 
-        Stmt::from(ExprStmt::new(item)) 
+    fn from(item: Expr) -> Self {
+        Stmt::from(ExprStmt::new(item))
     }
 }
 
@@ -348,24 +346,24 @@ impl From<Expr> for Stmt {
 // }
 
 // impl From<Expr> for Stmt {
-//     fn from(item: Expr) -> Self { 
-//         Stmt::ExprStmt(Box::new(ExprStmt::new(item))) 
+//     fn from(item: Expr) -> Self {
+//         Stmt::ExprStmt(Box::new(ExprStmt::new(item)))
 //     }
 // }
 
 // impl From<AssertExpr> for Stmt {
-//     fn from(item: AssertExpr) -> Self { 
-//         Stmt::from((Expr::from(item))) 
+//     fn from(item: AssertExpr) -> Self {
+//         Stmt::from((Expr::from(item)))
 //     }
 // }
 // impl From<IfExpr> for Stmt {
-//     fn from(item: IfExpr) -> Self { 
-//         Stmt::from(ExprStmt::new(Expr::from(item))) 
+//     fn from(item: IfExpr) -> Self {
+//         Stmt::from(ExprStmt::new(Expr::from(item)))
 //     }
 // }
 
 // impl Stmt {
-//     pub fn from<ET>(item: ET) -> Self 
+//     pub fn from<ET>(item: ET) -> Self
 //     where
 //         ET: Into<Expr>,
 //     {

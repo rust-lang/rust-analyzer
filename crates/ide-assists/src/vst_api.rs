@@ -49,8 +49,8 @@ impl<'a> AssistContext<'a> {
                     if call.expr.to_string().trim() == f.name.to_string().trim() {
                         return Some(*f);
                     }
-                },
-                _ => {},
+                }
+                _ => {}
             }
         }
         return None;
@@ -58,7 +58,11 @@ impl<'a> AssistContext<'a> {
 
     /// inline function call
     /// for now, assume one file only
-    pub fn vst_inline_call(&self, name_ref: vst::NameRef, expr_to_inline: vst::Expr) -> Option<vst::Expr> {
+    pub fn vst_inline_call(
+        &self,
+        name_ref: vst::NameRef,
+        expr_to_inline: vst::Expr,
+    ) -> Option<vst::Expr> {
         use crate::handlers::inline_call::*;
         let name_ref: ast::NameRef = name_ref.cst?;
         let call_info = CallInfo::from_name_ref(name_ref.clone())?;
@@ -78,9 +82,9 @@ impl<'a> AssistContext<'a> {
                 (self.sema.resolve_method_call(call)?, format!("Inline `{name_ref}`"))
             }
         };
-    
+
         let fn_source: hir::InFile<ast::Fn> = self.sema.source(function)?;
-        
+
         // let fn_body = fn_source.value.body()?;
         let fn_body = expr_to_inline.cst()?;
         let fn_body = ast::make::tail_only_block_expr(fn_body);
@@ -93,9 +97,14 @@ impl<'a> AssistContext<'a> {
         let mut temp_fn_str = temp_fn.to_string();
         temp_fn_str.insert_str(0, "$0");
         let (mut db, file_with_caret_id, range_or_offset) =
-            <ide_db::RootDatabase as ide_db::base_db::fixture::WithFixture>::with_range_or_offset(&temp_fn_str);
+            <ide_db::RootDatabase as ide_db::base_db::fixture::WithFixture>::with_range_or_offset(
+                &temp_fn_str,
+            );
         db.enable_proc_attr_macros();
-        let frange = ide_db::base_db::FileRange { file_id: file_with_caret_id, range: range_or_offset.into() };
+        let frange = ide_db::base_db::FileRange {
+            file_id: file_with_caret_id,
+            range: range_or_offset.into(),
+        };
         let sema: Semantics<'_, ide_db::RootDatabase> = Semantics::new(&db);
         let config = crate::tests::TEST_CONFIG;
         let tmp_ctx = AssistContext::new(sema, &config, frange);
@@ -115,7 +124,6 @@ impl<'a> AssistContext<'a> {
         let vst_replacement = vst::Expr::try_from(replacement).ok()?;
         return Some(vst_replacement);
     }
-
 
     pub fn vst_path_from_text(&self, text: &str) -> Option<vst::Path> {
         let path = ast::make::path_from_text(text);

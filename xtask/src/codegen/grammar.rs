@@ -522,7 +522,7 @@ impl Field {
     }
     pub(crate) fn token_kind(&self) -> Option<proc_macro2::TokenStream> {
         match self {
-            Field::Token{name: token, cardinality: _} => {
+            Field::Token { name: token, cardinality: _ } => {
                 let token: proc_macro2::TokenStream = token.parse().unwrap();
                 Some(quote! { T![#token] })
             }
@@ -531,7 +531,7 @@ impl Field {
     }
     pub(crate) fn method_name(&self) -> proc_macro2::Ident {
         match self {
-            Field::Token{name, cardinality: _} => {
+            Field::Token { name, cardinality: _ } => {
                 let name = match name.as_str() {
                     ";" => "semicolon",
                     "->" => "thin_arrow",
@@ -577,7 +577,7 @@ impl Field {
     }
     pub(crate) fn ty(&self) -> proc_macro2::Ident {
         match self {
-            Field::Token{..} => format_ident!("SyntaxToken"),
+            Field::Token { .. } => format_ident!("SyntaxToken"),
             Field::Node { ty, .. } => format_ident!("{}", ty),
         }
     }
@@ -699,12 +699,9 @@ fn lower_rule(
                 if "[]{}()".contains(&name) {
                     name = format!("'{name}'");
                 }
-                let cardinality =  if inside_opt || inside_alt {
-                    Cardinality::Optional
-                } else {
-                    Cardinality::One
-                };
-                let field = Field::Token{name, cardinality};
+                let cardinality =
+                    if inside_opt || inside_alt { Cardinality::Optional } else { Cardinality::One };
+                let field = Field::Token { name, cardinality };
                 acc.push(field);
             }
         }

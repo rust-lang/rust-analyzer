@@ -1,4 +1,4 @@
-use crate::{AssistContext, Assists, vst_api};
+use crate::{vst_api, AssistContext, Assists};
 use ide_db::{
     assists::{AssistId, AssistKind},
     syntax_helpers::vst_ext::*,
@@ -87,5 +87,4 @@ fn foo()
 "#,
         );
     }
-
 }

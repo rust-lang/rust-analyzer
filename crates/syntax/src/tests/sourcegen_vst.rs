@@ -105,112 +105,123 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         })
         .collect_vec();
 
-
-    // impl new for struct 
+    // impl new for struct
     // For Expr, we specify arguemtns with type bound using `into<Expr>`
     let impl_new_for_struct: Vec<_> = grammar
         .nodes
         .iter()
         .map(|node| {
             let sname = format_ident!("{}", node.name);
-            let mut count:u32 = 0;
-            let (fields, args): (Vec<_>, Vec<proc_macro2::TokenStream>)  = node.fields.iter().map(|field| {
-                let name = field.method_name();
-                let lowercase_name = format_ident!("{}", field.method_name().to_string().to_lowercase());
-                let mut ty = field.ty();
-                let is_expr = ty.to_string() == "Expr";
+            let mut count: u32 = 0;
+            let (fields, args): (Vec<_>, Vec<proc_macro2::TokenStream>) = node
+                .fields
+                .iter()
+                .map(|field| {
+                    let name = field.method_name();
+                    let lowercase_name =
+                        format_ident!("{}", field.method_name().to_string().to_lowercase());
+                    let mut ty = field.ty();
+                    let is_expr = ty.to_string() == "Expr";
 
-                if is_expr && field.is_one() {
-                    ty = format_ident!("ET{}", count);
-                    count += 1;
-                }
-
-                if field.is_many() {
-                    (
-                        quote! {
-                            #name : vec![],
-                        },
-                        quote! {
-                        },
-                    )
-                } else if let Some(token_kind) = field.token_kind() {
-                    // hacky for now
-                    // maybe special-case identifier to "#name : Option<String>"
-                    // 'ident, 'int_number', and 'lifetime_ident'.
-                    if token_kind.to_string() == "T ! [ident]"
-                        || token_kind.to_string() == "T ! [int_number]"
-                        || token_kind.to_string() == "T ! [lifetime_ident]"
-                    {
-                        (
-                            quote! {
-                                #name : None,
-                            },
-                            quote! {
-                            },
-                        )
-                    } else if field.is_token_one() {
-                        (
-                            quote! {
-                                #name : true,
-                            },
-                            quote! {
-                            },
-                        )
-                    } else {
-                        (
-                            quote! {
-                                #name : false,
-                            },
-                            quote! {
-                            },
-                        )
+                    if is_expr && field.is_one() {
+                        ty = format_ident!("ET{}", count);
+                        count += 1;
                     }
-                } else {
-                    if field.is_one() {
-                        if is_expr {
-                            (quote! { #name : Box::new(#lowercase_name . into() ) ,}, quote! { #lowercase_name : #ty, })
+
+                    if field.is_many() {
+                        (
+                            quote! {
+                                #name : vec![],
+                            },
+                            quote! {},
+                        )
+                    } else if let Some(token_kind) = field.token_kind() {
+                        // hacky for now
+                        // maybe special-case identifier to "#name : Option<String>"
+                        // 'ident, 'int_number', and 'lifetime_ident'.
+                        if token_kind.to_string() == "T ! [ident]"
+                            || token_kind.to_string() == "T ! [int_number]"
+                            || token_kind.to_string() == "T ! [lifetime_ident]"
+                        {
+                            (
+                                quote! {
+                                    #name : None,
+                                },
+                                quote! {},
+                            )
+                        } else if field.is_token_one() {
+                            (
+                                quote! {
+                                    #name : true,
+                                },
+                                quote! {},
+                            )
                         } else {
-                            (quote! { #name : Box::new(#lowercase_name),}, quote! { #lowercase_name : #ty, })
+                            (
+                                quote! {
+                                    #name : false,
+                                },
+                                quote! {},
+                            )
                         }
                     } else {
-                        (
-                            quote! {
-                               #name : None,
-                            },
-                            quote! {
+                        if field.is_one() {
+                            if is_expr {
+                                (
+                                    quote! { #name : Box::new(#lowercase_name . into() ) ,},
+                                    quote! { #lowercase_name : #ty, },
+                                )
+                            } else {
+                                (
+                                    quote! { #name : Box::new(#lowercase_name),},
+                                    quote! { #lowercase_name : #ty, },
+                                )
                             }
-                        )
+                        } else {
+                            (
+                                quote! {
+                                   #name : None,
+                                },
+                                quote! {},
+                            )
+                        }
                     }
-                }
-            }).unzip();
+                })
+                .unzip();
 
-            if HAND_WRITTEN.contains(&node.name.as_str()) || HAND_WRITTEN_NEW_ONLY.contains(&node.name.as_str()) {
+            if HAND_WRITTEN.contains(&node.name.as_str())
+                || HAND_WRITTEN_NEW_ONLY.contains(&node.name.as_str())
+            {
                 quote! {}
             } else {
                 if count != 0 {
-                    let ets: Vec<proc_macro2::TokenStream> = (0..count).map(|i| {
-                        let ty = format_ident!("ET{}", i);
-                        quote! { #ty, }
-                    }).collect_vec();
+                    let ets: Vec<proc_macro2::TokenStream> = (0..count)
+                        .map(|i| {
+                            let ty = format_ident!("ET{}", i);
+                            quote! { #ty, }
+                        })
+                        .collect_vec();
 
-                    let traits: Vec<proc_macro2::TokenStream> = (0..count).map(|i| {
-                        let ty = format_ident!("ET{}", i);
-                        quote! { #ty: Into<Expr>, }
-                    }).collect_vec();
+                    let traits: Vec<proc_macro2::TokenStream> = (0..count)
+                        .map(|i| {
+                            let ty = format_ident!("ET{}", i);
+                            quote! { #ty: Into<Expr>, }
+                        })
+                        .collect_vec();
 
                     quote! {
-                        impl #sname {                            
+                        impl #sname {
                             pub fn new< #(#ets)* >(
                                 #(#args)*
-                            ) -> Self 
-                        where 
+                            ) -> Self
+                        where
                             #(#traits)*
                             {
                                 Self {
                                     #(#fields)*
                                     cst: None,
                                 }
-                            } 
+                            }
                         }
                     }
                 } else {
@@ -223,7 +234,7 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
                                     #(#fields)*
                                     cst: None,
                                 }
-                            } 
+                            }
                         }
                     }
                 }
@@ -496,30 +507,30 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
 
     // impl from for each variant of Expr to Stmt
     let from_expr_variant_to_stmt: Vec<_> = grammar
-    .enums
-    .iter()
-    .map(|en| {
-        let name = format_ident!("{}", en.name);
-        let variants: Vec<_> = en.variants.iter().map(|var| format_ident!("{}", var)).collect();
-        let vars = variants.iter().map(|v| {
-            if name.to_string().trim() == "Expr" {
-                quote! {
-                    impl From<#v> for Stmt {
-                        fn from(item: #v) -> Self {
-                            Stmt::from(Expr::from(item))
+        .enums
+        .iter()
+        .map(|en| {
+            let name = format_ident!("{}", en.name);
+            let variants: Vec<_> = en.variants.iter().map(|var| format_ident!("{}", var)).collect();
+            let vars = variants.iter().map(|v| {
+                if name.to_string().trim() == "Expr" {
+                    quote! {
+                        impl From<#v> for Stmt {
+                            fn from(item: #v) -> Self {
+                                Stmt::from(Expr::from(item))
+                            }
                         }
                     }
+                } else {
+                    quote! {}
                 }
-            } else {
-                quote! {}
-            }
-        });
+            });
 
-        quote! {
-            #(#vars)*
-        }
-    })
-    .collect_vec();
+            quote! {
+                #(#vars)*
+            }
+        })
+        .collect_vec();
 
     // collect auto generated code
     let ast = quote! {
@@ -539,11 +550,6 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         #(#impl_new_for_struct)*
         #(#from_expr_variant_to_stmt)*
     };
-
-
-
-
-
 
     // TODO: expr_ext
     // this file contains manual `impl`s that are not auto-generated.

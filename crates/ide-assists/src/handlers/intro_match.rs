@@ -52,7 +52,8 @@ pub(crate) fn vst_rewriter_intro_match(
     let en = ctx.type_of_expr_enum(enum_expr_inside_assertion)?;
     let mut match_arms = vec![];
     for variant in &en.variant_list.variants {
-        let vst_path: vst::Path = ctx.vst_path_from_text(&format!("{}::{}(..)", en.name, variant.name))?;
+        let vst_path: vst::Path =
+            ctx.vst_path_from_text(&format!("{}::{}(..)", en.name, variant.name))?;
         let path_pat = vst::PathPat { path: Box::new(vst_path), cst: None };
         let vst_pat = vst::Pat::PathPat(Box::new(path_pat));
 

@@ -15,7 +15,7 @@ pub fn vst_walk_expr(expr: &vst::Expr, cb: &mut dyn FnMut(vst::Expr)) {
     })
 }
 
-pub fn vst_map_expr_visitor<EE,FF>(exp: EE, cb: &FF) -> Result<vst::Expr, String>
+pub fn vst_map_expr_visitor<EE, FF>(exp: EE, cb: &FF) -> Result<vst::Expr, String>
 where
     EE: Into<vst::Expr>,
     FF: Fn(&mut vst::Expr) -> Result<vst::Expr, String>,
@@ -54,14 +54,18 @@ where
         // note that vst_map_expr_visitor cannot map ifexpr to another thing
         vst::Expr::IfExpr(mut e) => {
             let new_cond = vst_map_expr_visitor(*e.condition.clone(), cb)?;
-            let new_then = vst_map_expr_visitor(vst::Expr::BlockExpr(Box::new(*e.then_branch.clone())), cb)?;
+            let new_then =
+                vst_map_expr_visitor(vst::Expr::BlockExpr(Box::new(*e.then_branch.clone())), cb)?;
             let new_else = match e.else_branch.clone() {
-                Some(el) => {
-                    match *el {
-                        vst::ElseBranch::Block(blk) => Some(Box::new(vst_map_expr_visitor(vst::Expr::BlockExpr(Box::new(*blk)), cb)?)),
-                        vst::ElseBranch::IfExpr(ife) => Some(Box::new(vst_map_expr_visitor(vst::Expr::IfExpr(Box::new(*ife)), cb)?)),
+                Some(el) => match *el {
+                    vst::ElseBranch::Block(blk) => Some(Box::new(vst_map_expr_visitor(
+                        vst::Expr::BlockExpr(Box::new(*blk)),
+                        cb,
+                    )?)),
+                    vst::ElseBranch::IfExpr(ife) => {
+                        Some(Box::new(vst_map_expr_visitor(vst::Expr::IfExpr(Box::new(*ife)), cb)?))
                     }
-                }
+                },
                 None => None,
             };
             e.condition = Box::new(new_cond);
