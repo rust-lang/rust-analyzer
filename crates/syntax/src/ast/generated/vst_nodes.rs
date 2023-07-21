@@ -10063,3 +10063,114 @@ impl TriggerAttribute {
         }
     }
 }
+impl From<ArrayExpr> for Stmt {
+    fn from(item: ArrayExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<AwaitExpr> for Stmt {
+    fn from(item: AwaitExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<BinExpr> for Stmt {
+    fn from(item: BinExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<BlockExpr> for Stmt {
+    fn from(item: BlockExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<BoxExpr> for Stmt {
+    fn from(item: BoxExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<BreakExpr> for Stmt {
+    fn from(item: BreakExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<CallExpr> for Stmt {
+    fn from(item: CallExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<CastExpr> for Stmt {
+    fn from(item: CastExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<ClosureExpr> for Stmt {
+    fn from(item: ClosureExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<ContinueExpr> for Stmt {
+    fn from(item: ContinueExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<FieldExpr> for Stmt {
+    fn from(item: FieldExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<ForExpr> for Stmt {
+    fn from(item: ForExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<IfExpr> for Stmt {
+    fn from(item: IfExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<IndexExpr> for Stmt {
+    fn from(item: IndexExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<Literal> for Stmt {
+    fn from(item: Literal) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<LoopExpr> for Stmt {
+    fn from(item: LoopExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<MacroExpr> for Stmt {
+    fn from(item: MacroExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<MatchExpr> for Stmt {
+    fn from(item: MatchExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<MethodCallExpr> for Stmt {
+    fn from(item: MethodCallExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<ParenExpr> for Stmt {
+    fn from(item: ParenExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<PathExpr> for Stmt {
+    fn from(item: PathExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<PrefixExpr> for Stmt {
+    fn from(item: PrefixExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<RangeExpr> for Stmt {
+    fn from(item: RangeExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<RecordExpr> for Stmt {
+    fn from(item: RecordExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<RefExpr> for Stmt {
+    fn from(item: RefExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<ReturnExpr> for Stmt {
+    fn from(item: ReturnExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<TryExpr> for Stmt {
+    fn from(item: TryExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<TupleExpr> for Stmt {
+    fn from(item: TupleExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<WhileExpr> for Stmt {
+    fn from(item: WhileExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<YieldExpr> for Stmt {
+    fn from(item: YieldExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<YeetExpr> for Stmt {
+    fn from(item: YeetExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<LetExpr> for Stmt {
+    fn from(item: LetExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<UnderscoreExpr> for Stmt {
+    fn from(item: UnderscoreExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<ViewExpr> for Stmt {
+    fn from(item: ViewExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<AssertExpr> for Stmt {
+    fn from(item: AssertExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<AssumeExpr> for Stmt {
+    fn from(item: AssumeExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<AssertForallExpr> for Stmt {
+    fn from(item: AssertForallExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
