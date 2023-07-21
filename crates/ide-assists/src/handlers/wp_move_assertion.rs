@@ -105,7 +105,7 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                     );
                     let new_exp = vst::Expr::from(bin_expr);
                     new_assertion.expr = Box::new(new_exp);
-                    (vst::Expr::from(new_assertion).into(), true)
+                    (new_assertion.into(), true)
                     // (vst::Stmt::from(vst::Expr::from(new_assertion)), true)
                     // let x = new_assertion.into();
                     // dbg!(foo(x));
@@ -117,7 +117,7 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                     let cb = |exp : &mut vst::Expr|  {
                         match exp {
                             vst::Expr::BlockExpr(bb) => {
-                                bb.stmt_list.statements.push(vst::Stmt::from(vst::Expr::from(assertion.clone())));
+                                bb.stmt_list.statements.push(vst::Stmt::from(assertion.clone()));
                             },
                             _ => (),
                         };
@@ -127,7 +127,7 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                     (new_if_expr.into(), false)
                 }
                 vst::Expr::MatchExpr(match_expr) => {
-                    let adding_assert = vst::Stmt::from(vst::Expr::from(assertion.clone()));
+                    let adding_assert = vst::Stmt::from(assertion.clone());
                     let mut new_match_expr = match_expr.clone();
                     new_match_expr.match_arm_list.arms.iter_mut().for_each(|arm: &mut vst::MatchArm| {
                         let existing_expr = arm.expr.clone();
@@ -146,7 +146,7 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                             }
                         }
                     });
-                    (vst::Stmt::from(vst::Expr::from(*new_match_expr)), false)
+                    (vst::Stmt::from(*new_match_expr), false)
                 }
                 // for lemma calls, do  `(inlined ensures clauses) ==> assertion`
                 vst::Expr::CallExpr(call_expr) => {
@@ -173,7 +173,7 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                             vst::BinaryOp::LogicOp(ast::LogicOp::Imply),
                             *assertion.expr.clone(),
                         ));
-                        (vst::Stmt::from(vst::Expr::from(final_assert)), true)
+                        (final_assert.into(), true)
                     } else {
                         return None;
                     }
