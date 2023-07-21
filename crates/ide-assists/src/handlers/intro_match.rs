@@ -19,7 +19,7 @@ pub(crate) fn intro_match(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
     }
 
     let assert: vst::AssertExpr = vst::AssertExpr::try_from(assert_expr.clone()).ok()?;
-    let result = vst_transformer_intro_match(ctx, assert.clone())?;
+    let result = vst_rewriter_intro_match(ctx, assert.clone())?;
 
     // register code change to `acc`
     acc.add(
@@ -32,7 +32,7 @@ pub(crate) fn intro_match(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
     )
 }
 
-pub(crate) fn vst_transformer_intro_match(
+pub(crate) fn vst_rewriter_intro_match(
     ctx: &AssistContext<'_>,
     assert: vst::AssertExpr,
 ) -> Option<String> {
@@ -48,20 +48,11 @@ pub(crate) fn vst_transformer_intro_match(
     if v.len() == 0 {
         return None;
     }
-    dbg!(&v);
-    println!("match assertion on: {}", &v[0]);
     let enum_expr_inside_assertion = &v[0];
     let en = ctx.type_of_expr_enum(enum_expr_inside_assertion)?;
-    println!("{}", en);
-
     let mut match_arms = vec![];
-
     for variant in &en.variant_list.variants {
-        println!("{}", variant);
-        let vst_path: vst::Path =
-            ast::make::path_from_text(&format!("{}::{}(..)", en.name, variant.name)) // TODO
-                .try_into()
-                .ok()?;
+        let vst_path: vst::Path = ctx.vst_path_from_text(&format!("{}::{}(..)", en.name, variant.name))?;
         let path_pat = vst::PathPat { path: Box::new(vst_path), cst: None };
         let vst_pat = vst::Pat::PathPat(Box::new(path_pat));
 

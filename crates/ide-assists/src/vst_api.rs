@@ -116,6 +116,10 @@ impl<'a> AssistContext<'a> {
         return Some(vst_replacement);
     }
 
-       
-    
+
+    pub fn vst_path_from_text(&self, text: &str) -> Option<vst::Path> {
+        let path = ast::make::path_from_text(text);
+        let vst_path = vst::Path::try_from(path).ok()?;
+        return Some(vst_path);
+    }
 }

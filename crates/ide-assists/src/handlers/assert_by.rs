@@ -18,17 +18,8 @@ pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()
     if !cursor_in_range {
         return None;
     }
-
-    let string = vst_transformer_assert_to_assert_by(expr.clone())?;
-
-    // let formatter = "/home/chanhee/.cargo/bin/rustfmt";
-    // let formatted_string = Command::new("echo")
-    //     .arg(string.clone())
-    //     .arg("|")
-    //     .arg(formatter)
-    //     .spawn()
-    //     .expect("echo command failed to start").stdout.unwrap();
-    // dbg!(formatted_string);
+    let assert: vst::AssertExpr = vst::AssertExpr::try_from(expr.clone()).ok()?;
+    let string = vst_rewriter_assert_to_assert_by(assert.clone())?; // TODO: verusfmt
 
     acc.add(
         AssistId("assert_by", AssistKind::RefactorRewrite),
@@ -40,38 +31,17 @@ pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()
     )
 }
 
-pub(crate) fn vst_transformer_assert_to_assert_by(assert: ast::AssertExpr) -> Option<String> {
-    if assert.by_token().is_some() {
+pub(crate) fn vst_rewriter_assert_to_assert_by(mut assert: vst::AssertExpr) -> Option<String> {
+    // if is already has a "by block", return None
+    if assert.by_token {
         return None;
     }
-    let mut assert: vst::AssertExpr = vst::AssertExpr::try_from(assert).ok()?;
-    let new_assert = assert.clone();
-    let exprstmt: vst::ExprStmt = vst::ExprStmt {
-        expr: Box::new(vst::Expr::AssertExpr(Box::new(new_assert))),
-        semicolon_token: true,
-        cst: None,
-    };
-    let stmt = vst::StmtList {
-        l_curly_token: true,
-        attrs: vec![],
-        statements: vec![vst::Stmt::ExprStmt(Box::new(exprstmt))],
-        tail_expr: None,
-        r_curly_token: true,
-        cst: None,
-    };
-    let blk_expr: vst::BlockExpr = vst::BlockExpr {
-        stmt_list: Box::new(stmt),
-        attrs: vec![],
-        label: None,
-        try_token: false,
-        unsafe_token: false,
-        async_token: false,
-        const_token: false,
-        cst: None,
-    };
+    let new_assert_as_stmt: vst::Stmt = assert.clone().into();
+    let mut stmt = vst::StmtList::new();
+    stmt.statements.push(new_assert_as_stmt);
+    let blk_expr: vst::BlockExpr = vst::BlockExpr::new(stmt);
     assert.by_token = true;
     assert.block_expr = Some(Box::new(blk_expr));
-
     Some(assert.to_string())
 }
 
@@ -100,3 +70,15 @@ proof fn f() {
         )
     }
 }
+
+
+
+
+    // let formatter = "/home/chanhee/.cargo/bin/rustfmt";
+    // let formatted_string = Command::new("echo")
+    //     .arg(string.clone())
+    //     .arg("|")
+    //     .arg(formatter)
+    //     .spawn()
+    //     .expect("echo command failed to start").stdout.unwrap();
+    // dbg!(formatted_string);

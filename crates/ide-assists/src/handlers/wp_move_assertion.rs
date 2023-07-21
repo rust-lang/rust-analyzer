@@ -106,10 +106,6 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                     let new_exp = vst::Expr::from(bin_expr);
                     new_assertion.expr = Box::new(new_exp);
                     (new_assertion.into(), true)
-                    // (vst::Stmt::from(vst::Expr::from(new_assertion)), true)
-                    // let x = new_assertion.into();
-                    // dbg!(foo(x));
-                    // (vst::Stmt::from(vst::ExprStmt::from(vst::Expr::from(new_assertion))), true)
                 }
                 // prev is if-else. For each branch, insert assertion
                 // recursively insert for nested if-else
@@ -157,7 +153,6 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                             return None;
                         }
                         let vst_name_ref: vst::NameRef = *pp.path.segment.name_ref;
-                        println!("vst_name_ref: {}", vst_name_ref);
                         let ensures: Option<Vec<vst::Expr>> = func.ensures_clause?.clone().exprs.into_iter().map(|e| ctx.vst_inline_call(vst_name_ref.clone(), e)).collect();
                         let ensures = ensures?;
                         let inlined_ensures : vst::Expr = ensures.into_iter().reduce(|acc,e| {
