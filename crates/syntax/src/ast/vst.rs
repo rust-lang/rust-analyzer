@@ -355,7 +355,7 @@ impl From<Expr> for Stmt {
 
 // impl From<AssertExpr> for Stmt {
 //     fn from(item: AssertExpr) -> Self { 
-//         Stmt::from(ExprStmt::new(Expr::from(item))) 
+//         Stmt::from((Expr::from(item))) 
 //     }
 // }
 // impl From<IfExpr> for Stmt {

@@ -107,6 +107,7 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
 
 
     // impl new for struct 
+    // For Expr, we specify arguemtns with type bound using `into<Expr>`
     let impl_new_for_struct: Vec<_> = grammar
         .nodes
         .iter()
@@ -493,7 +494,32 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         })
         .collect_vec();
 
+    // impl from for each variant of Expr to Stmt
+    let from_expr_variant_to_stmt: Vec<_> = grammar
+    .enums
+    .iter()
+    .map(|en| {
+        let name = format_ident!("{}", en.name);
+        let variants: Vec<_> = en.variants.iter().map(|var| format_ident!("{}", var)).collect();
+        let vars = variants.iter().map(|v| {
+            if name.to_string().trim() == "Expr" {
+                quote! {
+                    impl From<#v> for Stmt {
+                        fn from(item: #v) -> Self {
+                            Stmt::from(Expr::from(item))
+                        }
+                    }
+                }
+            } else {
+                quote! {}
+            }
+        });
 
+        quote! {
+            #(#vars)*
+        }
+    })
+    .collect_vec();
 
     // collect auto generated code
     let ast = quote! {
@@ -511,6 +537,7 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         #(#get_cst_impls_enum)*
         #(#from_variant_to_enum)*
         #(#impl_new_for_struct)*
+        #(#from_expr_variant_to_stmt)*
     };
 
 
