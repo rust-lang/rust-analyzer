@@ -15,10 +15,12 @@ pub fn vst_walk_expr(expr: &vst::Expr, cb: &mut dyn FnMut(vst::Expr)) {
     })
 }
 
-pub fn vst_map_expr_visitor<FF>(exp: vst::Expr, cb: &FF) -> Result<vst::Expr, String>
+pub fn vst_map_expr_visitor<EE,FF>(exp: EE, cb: &FF) -> Result<vst::Expr, String>
 where
+    EE: Into<vst::Expr>,
     FF: Fn(&mut vst::Expr) -> Result<vst::Expr, String>,
 {
+    let exp: vst::Expr = exp.into();
     let res = match exp {
         // vst::Expr::ArrayExpr(e) => {
         //     for expr in &e.exprs {

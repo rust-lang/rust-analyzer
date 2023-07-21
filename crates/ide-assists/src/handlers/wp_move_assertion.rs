@@ -22,6 +22,7 @@ Lemma/Function-call :   inline ensures clause and make implication
 */
 
 pub(crate) fn wp_move_assertion(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+    // trigger on assert keyword
     let assert_keyword = ctx.find_token_syntax_at_offset(T![assert])?;
     let assert_range = assert_keyword.text_range();
     let cursor_in_range = assert_range.contains_range(ctx.selection_trimmed());
@@ -29,9 +30,11 @@ pub(crate) fn wp_move_assertion(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
         return None;
     }
 
+    // locate the part we want to modify
+    // in this case, let's modify statement_list that contains the assertion
     let stmt_list = ctx.find_node_at_offset::<ast::StmtList>()?;
     let v_stmt_list = vst::StmtList::try_from(stmt_list.clone()).ok()?;
-    let result = vst_transformer_wp_move_assertion(ctx, v_stmt_list.clone())?;
+    let result = vst_rewriter_wp_move_assertion(ctx, v_stmt_list.clone())?;
 
     acc.add(
         AssistId("move_up_assertion", AssistKind::RefactorRewrite),
@@ -43,12 +46,13 @@ pub(crate) fn wp_move_assertion(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
     )
 }
 
-pub(crate) fn vst_transformer_wp_move_assertion(
+pub(crate) fn vst_rewriter_wp_move_assertion(
     ctx: &AssistContext<'_>,
     stmt_list: vst::StmtList,
 ) -> Option<String> {
+    // find the assertion of interest
     let assertion = ctx.vst_find_node_at_offset::<vst::AssertExpr, ast::AssertExpr>()?;
-    println!("assertion: {}", assertion);
+    // find the index of the assertion in the statement list
     let index = stmt_list.statements.iter().position(|s| match s {
         vst::Stmt::ExprStmt(e) => match e.expr.as_ref() {
             vst::Expr::AssertExpr(a) => **a == assertion,
@@ -56,64 +60,56 @@ pub(crate) fn vst_transformer_wp_move_assertion(
         },
         _ => false,
     })?;
+
+    // Not applicable when the assertion is already at the top
     if index == 0 {
-        // assertion is already at the top
         return None;
     }
+
+    // now match on previous statement to decide how to modify the assertion
     let prev: &vst::Stmt = stmt_list.statements.get(index - 1)?;
-    let (new_stmt, is_insert) =
+    // when is_insert, insert the assertion before the previous statement
+    // when !is_insert, replace the previous statement with `new_stmt`
+    let (new_stmt, is_insert) : (vst::Stmt, bool) =     
     match prev {
         vst::Stmt::LetStmt(l) => {
-            dbg!("prev is let stmt");
             let pat = &**l.pat.as_ref()?;
             let init_expr = l.initializer.as_ref();
-
             // when `prev` is let-binding, do subsitution (replace `pat` with `init`)
             // TODO: careful with variable name shadowing
             let new_assert = vst_map_expr_visitor(
-                vst::Expr::AssertExpr(Box::new(assertion.clone())),
+                assertion.clone(),
                 &mut |e| {
-                    dbg!(format!("e: {}, pat: {}", e, pat));
-                    // TODO: do proper usage check in semantic level
-                    if e.to_string().trim() == pat.to_string().trim() {
-                        // TODO: trim() is a hack
+                    // TODO: do proper usage check in semantic level instead of string match
+                    if e.to_string().trim() == pat.to_string().trim() { 
                         Ok(init_expr.clone())
                     } else {
                         Ok(e.clone())
                     }
-                    // match e {
-                    // vst::Expr::PathExpr(p) => {
-                    //     if p.to_string() == pat.to_string() {
-                    //         Ok(init_expr.clone())
-                    //     } else {
-                    //         Ok(e.clone())
-                    //     }
-                    // }
-                    // _ => Ok(e.clone()),
-                    // }
                 },
             )
             .ok()?;
-            let new_stmt = vst::Stmt::from(vst::ExprStmt::new(new_assert));
-            (new_stmt, true)
+            (new_assert.into(), true)
         }
         vst::Stmt::ExprStmt(exp_stmt) => {
             let exp = exp_stmt.expr.as_ref();
             match exp {
                 // prev is another assertion. Generate `(prev) ==> assertion`
                 vst::Expr::AssertExpr(prev) => {
-                    let mut newer = assertion.clone();
+                    let mut new_assertion = assertion.clone();
                     let e = assertion.expr.clone();
-                    let bin_expr = vst::BinExpr {
-                        attrs: vec![],
-                        op: vst::BinaryOp::LogicOp(ast::LogicOp::Imply),
-                        lhs: prev.expr.clone(),
-                        rhs: e,
-                        cst: None,
-                    };
-                    let new_exp = vst::Expr::BinExpr(Box::new(bin_expr));
-                    newer.expr = Box::new(new_exp);
-                    (vst::Stmt::from(vst::ExprStmt::new(vst::AssertExpr::new(newer))), true)
+                    let bin_expr = vst::BinExpr::new(
+                        *prev.expr.clone(),
+                        vst::BinaryOp::LogicOp(ast::LogicOp::Imply),
+                        *e,
+                    );
+                    let new_exp = vst::Expr::from(bin_expr);
+                    new_assertion.expr = Box::new(new_exp);
+                    (vst::Expr::from(new_assertion).into(), true)
+                    // (vst::Stmt::from(vst::Expr::from(new_assertion)), true)
+                    // let x = new_assertion.into();
+                    // dbg!(foo(x));
+                    // (vst::Stmt::from(vst::ExprStmt::from(vst::Expr::from(new_assertion))), true)
                 }
                 // prev is if-else. For each branch, insert assertion
                 // recursively insert for nested if-else
@@ -121,17 +117,17 @@ pub(crate) fn vst_transformer_wp_move_assertion(
                     let cb = |exp : &mut vst::Expr|  {
                         match exp {
                             vst::Expr::BlockExpr(bb) => {
-                                bb.stmt_list.statements.push(vst::Stmt::from(vst::ExprStmt::new(assertion.clone())));
+                                bb.stmt_list.statements.push(vst::Stmt::from(vst::Expr::from(assertion.clone())));
                             },
                             _ => (),
                         };
                         return Ok::<vst::Expr, String>(exp.clone());
                     };
                     let new_if_expr = vst_map_expr_visitor(exp.clone(), &cb).ok()?;
-                    (vst::Stmt::from(vst::ExprStmt::new(new_if_expr)), false)
+                    (new_if_expr.into(), false)
                 }
                 vst::Expr::MatchExpr(match_expr) => {
-                    let adding_assert = vst::Stmt::from(vst::ExprStmt::new(assertion.clone()));
+                    let adding_assert = vst::Stmt::from(vst::Expr::from(assertion.clone()));
                     let mut new_match_expr = match_expr.clone();
                     new_match_expr.match_arm_list.arms.iter_mut().for_each(|arm: &mut vst::MatchArm| {
                         let existing_expr = arm.expr.clone();
@@ -146,11 +142,11 @@ pub(crate) fn vst_transformer_wp_move_assertion(
                                 let mut new_blk = vst::BlockExpr::new(vst::StmtList::new());
                                 new_blk.stmt_list.statements = vec![adding_assert.clone()];
                                 new_blk.stmt_list.tail_expr = Some(existing_expr.clone());
-                                arm.expr = Box::new(vst::Expr::BlockExpr(Box::new(new_blk)));
+                                arm.expr = Box::new(vst::Expr::from(new_blk));
                             }
                         }
                     });
-                    (vst::Stmt::from(vst::ExprStmt::new(*new_match_expr)), false)
+                    (vst::Stmt::from(vst::Expr::from(*new_match_expr)), false)
                 }
                 // for lemma calls, do  `(inlined ensures clauses) ==> assertion`
                 vst::Expr::CallExpr(call_expr) => {
@@ -177,7 +173,7 @@ pub(crate) fn vst_transformer_wp_move_assertion(
                             vst::BinaryOp::LogicOp(ast::LogicOp::Imply),
                             *assertion.expr.clone(),
                         ));
-                        (vst::Stmt::from(vst::ExprStmt::new(vst::Expr::from(final_assert))), true)
+                        (vst::Stmt::from(vst::Expr::from(final_assert)), true)
                     } else {
                         return None;
                     }
@@ -450,3 +446,16 @@ proof fn good_move(m: Movement)
     }
 
 }
+
+
+// let stmt
+// match e {
+// vst::Expr::PathExpr(p) => {
+//     if p.to_string() == pat.to_string() {
+//         Ok(init_expr.clone())
+//     } else {
+//         Ok(e.clone())
+//     }
+// }
+// _ => Ok(e.clone()),
+// }
