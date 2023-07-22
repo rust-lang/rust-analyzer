@@ -78,6 +78,9 @@ fn try_merge_trees_mut(lhs: &ast::UseTree, rhs: &ast::UseTree, merge: MergeBehav
     {
         lhs.split_prefix(&lhs_prefix);
         rhs.split_prefix(&rhs_prefix);
+    } else {
+        ted::replace(lhs.syntax(), rhs.syntax());
+        // *lhs = rhs;
     }
     recursive_merge(lhs, rhs, merge)
 }
@@ -123,6 +126,12 @@ fn recursive_merge(lhs: &ast::UseTree, rhs: &ast::UseTree, merge: MergeBehavior)
                             // so they need to be handled explicitly
                             .or_else(|| tree.star_token().map(|_| false))
                     };
+
+                    if lhs_t.rename().and_then(|x| x.underscore_token()).is_some() {
+                        ted::replace(lhs_t.syntax(), rhs_t.syntax());
+                        // *lhs_t = rhs_t;
+                    }
+
                     match (tree_contains_self(lhs_t), tree_contains_self(&rhs_t)) {
                         (Some(true), None) => continue,
                         (None, Some(true)) => {
