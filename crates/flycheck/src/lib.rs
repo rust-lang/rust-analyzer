@@ -55,6 +55,7 @@ pub enum FlycheckConfig {
         extra_env: FxHashMap<String, String>,
         invocation_strategy: InvocationStrategy,
         invocation_location: InvocationLocation,
+        invoke_with_saved_file: bool,
     },
 }
 
@@ -65,6 +66,15 @@ impl fmt::Display for FlycheckConfig {
             FlycheckConfig::CustomCommand { command, args, .. } => {
                 write!(f, "{command} {}", args.join(" "))
             }
+        }
+    }
+}
+
+impl FlycheckConfig {
+    pub fn invoke_with_saved_file(&self) -> bool {
+        match self {
+            FlycheckConfig::CustomCommand { invoke_with_saved_file, .. } => *invoke_with_saved_file,
+            _ => false,
         }
     }
 }
@@ -98,8 +108,8 @@ impl FlycheckHandle {
     }
 
     /// Schedule a re-start of the cargo check worker.
-    pub fn restart(&self) {
-        self.sender.send(StateChange::Restart).unwrap();
+    pub fn restart(&self, saved_file: Option<AbsPathBuf>) {
+        self.sender.send(StateChange::Restart { saved_file }).unwrap();
     }
 
     /// Stop this cargo check worker.
@@ -150,7 +160,7 @@ pub enum Progress {
 }
 
 enum StateChange {
-    Restart,
+    Restart { saved_file: Option<AbsPathBuf> },
     Cancel,
 }
 
@@ -210,7 +220,7 @@ impl FlycheckActor {
                     tracing::debug!(flycheck_id = self.id, "flycheck cancelled");
                     self.cancel_check_process();
                 }
-                Event::RequestStateChange(StateChange::Restart) => {
+                Event::RequestStateChange(StateChange::Restart { saved_file }) => {
                     // Cancel the previously spawned process
                     self.cancel_check_process();
                     while let Ok(restart) = inbox.recv_timeout(Duration::from_millis(50)) {
@@ -220,12 +230,15 @@ impl FlycheckActor {
                         }
                     }
 
-                    let command = self.check_command();
-                    tracing::debug!(?command, "will restart flycheck");
+                    let command = self.check_command(saved_file);
+                    let command_string = format!("{:?}", command);
+
+                    tracing::debug!(?command, "restarting flycheck");
+
                     match CargoHandle::spawn(command) {
                         Ok(cargo_handle) => {
                             tracing::debug!(
-                                command = ?self.check_command(),
+                                command = ?command_string,
                                 "did  restart flycheck"
                             );
                             self.cargo_handle = Some(cargo_handle);
@@ -234,8 +247,7 @@ impl FlycheckActor {
                         Err(error) => {
                             self.report_progress(Progress::DidFailToRestart(format!(
                                 "Failed to run the following command: {:?} error={}",
-                                self.check_command(),
-                                error
+                                command_string, error
                             )));
                         }
                     }
@@ -249,7 +261,7 @@ impl FlycheckActor {
                     if res.is_err() {
                         tracing::error!(
                             "Flycheck failed to run the following command: {:?}",
-                            self.check_command()
+                            self.check_command(None)
                         );
                     }
                     self.report_progress(Progress::DidFinish(res));
@@ -285,16 +297,13 @@ impl FlycheckActor {
 
     fn cancel_check_process(&mut self) {
         if let Some(cargo_handle) = self.cargo_handle.take() {
-            tracing::debug!(
-                command = ?self.check_command(),
-                "did  cancel flycheck"
-            );
+            tracing::debug!(command = ?self.check_command(None), "did  cancel flycheck");
             cargo_handle.cancel();
             self.report_progress(Progress::DidCancel);
         }
     }
 
-    fn check_command(&self) -> Command {
+    fn check_command(&self, saved_file: Option<AbsPathBuf>) -> Command {
         let (mut cmd, args) = match &self.config {
             FlycheckConfig::CargoCommand {
                 command,
@@ -339,7 +348,7 @@ impl FlycheckActor {
                     }
                 }
                 cmd.envs(extra_env);
-                (cmd, extra_args)
+                (cmd, extra_args.clone())
             }
             FlycheckConfig::CustomCommand {
                 command,
@@ -347,6 +356,7 @@ impl FlycheckActor {
                 extra_env,
                 invocation_strategy,
                 invocation_location,
+                invoke_with_saved_file,
             } => {
                 let mut cmd = Command::new(command);
                 cmd.envs(extra_env);
@@ -368,11 +378,23 @@ impl FlycheckActor {
                     }
                 }
 
-                (cmd, args)
+                if *invoke_with_saved_file {
+                    match (args.iter().position(|arg| arg == "$saved_file"), saved_file) {
+                        (Some(i), Some(saved_file)) => {
+                            let mut args = args.clone();
+                            args[i] = saved_file.to_string();
+                            (cmd, args)
+                        },
+                        _ => unreachable!("this code should not be reachable. An invariant inside of rust-analyzer has been broken.")
+                    }
+                } else {
+                    (cmd, args.clone())
+                }
             }
         };
 
         cmd.args(args);
+
         cmd
     }
 
@@ -464,23 +486,28 @@ impl CargoActor {
             // Try to deserialize a message from Cargo or Rustc.
             let mut deserializer = serde_json::Deserializer::from_str(line);
             deserializer.disable_recursion_limit();
-            if let Ok(message) = JsonMessage::deserialize(&mut deserializer) {
-                match message {
-                    // Skip certain kinds of messages to only spend time on what's useful
-                    JsonMessage::Cargo(message) => match message {
-                        cargo_metadata::Message::CompilerArtifact(artifact) if !artifact.fresh => {
-                            self.sender.send(CargoMessage::CompilerArtifact(artifact)).unwrap();
+            match JsonMessage::deserialize(&mut deserializer) {
+                Ok(message) => {
+                    match message {
+                        // Skip certain kinds of messages to only spend time on what's useful
+                        JsonMessage::Cargo(message) => match message {
+                            cargo_metadata::Message::CompilerArtifact(artifact)
+                                if !artifact.fresh =>
+                            {
+                                self.sender.send(CargoMessage::CompilerArtifact(artifact)).unwrap();
+                            }
+                            cargo_metadata::Message::CompilerMessage(msg) => {
+                                self.sender.send(CargoMessage::Diagnostic(msg.message)).unwrap();
+                            }
+                            _ => (),
+                        },
+                        JsonMessage::Rustc(message) => {
+                            self.sender.send(CargoMessage::Diagnostic(message)).unwrap();
                         }
-                        cargo_metadata::Message::CompilerMessage(msg) => {
-                            self.sender.send(CargoMessage::Diagnostic(msg.message)).unwrap();
-                        }
-                        _ => (),
-                    },
-                    JsonMessage::Rustc(message) => {
-                        self.sender.send(CargoMessage::Diagnostic(message)).unwrap();
                     }
+                    return true;
                 }
-                return true;
+                Err(e) => tracing::error!(?e, "unable to deserialize message"),
             }
 
             error.push_str(line);

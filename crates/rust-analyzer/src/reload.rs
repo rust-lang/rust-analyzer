@@ -577,6 +577,7 @@ impl GlobalState {
     fn reload_flycheck(&mut self) {
         let _p = profile::span("GlobalState::reload_flycheck");
         let config = self.config.flycheck();
+
         let sender = self.flycheck_sender.clone();
         let invocation_strategy = match config {
             FlycheckConfig::CargoCommand { .. } => flycheck::InvocationStrategy::PerWorkspace,

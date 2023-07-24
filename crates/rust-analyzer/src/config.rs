@@ -181,6 +181,10 @@ config_data! {
         /// each of them, with the working directory being the project root
         /// (i.e., the folder containing the `Cargo.toml`).
         ///
+        /// If `$saved_file` is part of the command, rust-analyzer will pass
+        /// the absolute path of the saved file to the provided command. This is
+        /// intended to be used with non-Cargo build systems.
+        ///
         /// An example command would be:
         ///
         /// ```bash
@@ -1264,6 +1268,9 @@ impl Config {
             Some(args) if !args.is_empty() => {
                 let mut args = args.clone();
                 let command = args.remove(0);
+
+                let use_saved_file = args.contains(&"$saved_file".to_string());
+
                 FlycheckConfig::CustomCommand {
                     command,
                     args,
@@ -1280,6 +1287,7 @@ impl Config {
                         }
                         InvocationLocation::Workspace => flycheck::InvocationLocation::Workspace,
                     },
+                    invoke_with_saved_file: use_saved_file,
                 }
             }
             Some(_) | None => FlycheckConfig::CargoCommand {
