@@ -1,4 +1,4 @@
-use crate::AssistContext;
+use crate::{AssistContext, verus_error::*};
 use hir::Semantics;
 use syntax::{
     ast::{self, vst, HasModuleItem},
@@ -129,5 +129,21 @@ impl<'a> AssistContext<'a> {
         let path = ast::make::path_from_text(text);
         let vst_path = vst::Path::try_from(path).ok()?;
         return Some(vst_path);
+    }
+
+    pub(crate) fn verus_errors(&self) -> Vec<VerusError> {
+        self.verus_errors.clone()
+    }
+    pub(crate) fn pre_failures(&self) -> Vec<PreFailure> {
+        filter_pre_failuires(&self.verus_errors)
+    }
+    pub(crate) fn post_failures(&self) -> Vec<PostFailure> {
+        filter_post_failuires(&self.verus_errors)
+    }
+    pub(crate) fn expr_from_pre_failure(&self, pre: PreFailure) -> Option<vst::Expr> {
+        self.find_node_at_given_range::<syntax::ast::Expr>(pre.failing_pre)?.try_into().ok()
+    }
+    pub(crate) fn expr_from_post_failure(&self, post: PostFailure) -> Option<vst::Expr> {
+        self.find_node_at_given_range::<syntax::ast::Expr>(post.failing_post)?.try_into().ok()
     }
 }
