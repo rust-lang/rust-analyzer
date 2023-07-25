@@ -10,15 +10,27 @@ use syntax::{
 };
 
 /*
-"move up assertion"
+"Move up assertion"
+This proof action allows users to step thourgh an assertion through statements, utilizing the following rules:
 
 Previous statement =
-Let-binding | IF-else |  Match-statement | Assert | Assume | Lemma/Function-Call
+Let-binding | If-else |  Match-statement | Assert | Assume | Lemma/Function-Call
 
-Let-binding:  assert(X)  TO  assert( (x == y) ==> X) —- (careful with variable name shadowing)
-IF-else , Match-statement  :  simply move assertion into each cases
-Assert/assume : simple “=>”
-Lemma/Function-call :   inline ensures clause and make implication
+(TODO: Assume/function-call)
+
+Let-binding:  
+{let x = e; assert(Y);}
+rewrites to
+{assert(Y[e/x]);} 
+
+If-else and match-statement:
+simply copy the assertion into each branch/match-arms
+
+Assert and assume: 
+simple “==>”
+
+Lemma-call and function-call:   
+inline ensures clause and make implication
 */
 
 pub(crate) fn wp_move_assertion(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
@@ -30,7 +42,8 @@ pub(crate) fn wp_move_assertion(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
         return None;
     }
 
-    // locate the part we want to modify
+    // at high level, we 
+    // 1) locate the VST node we want to modify(flexible granularity), 2) apply the rewriter for it, and 3) replace the original node with the new node
     // in this case, let's modify statement_list that contains the assertion
     let stmt_list = ctx.find_node_at_offset::<ast::StmtList>()?;
     let v_stmt_list = StmtList::try_from(stmt_list.clone()).ok()?;
@@ -46,10 +59,11 @@ pub(crate) fn wp_move_assertion(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
     )
 }
 
+// use only VST in the rewriter
 pub(crate) fn vst_rewriter_wp_move_assertion(
     ctx: &AssistContext<'_>,
     stmt_list: StmtList,
-) -> Option<String> {
+) -> Option<String> { // TODO: return VST Node instead of string, to make it easier to use in other places
     // find the assertion of interest
     let assertion = ctx.vst_find_node_at_offset::<AssertExpr, ast::AssertExpr>()?;
     // find the index of the assertion in the statement list
@@ -75,9 +89,10 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
             let pat = &**l.pat.as_ref()?;
             let init_expr = l.initializer.as_ref();
             // when `prev` is let-binding, do subsitution (replace `pat` with `init`)
-            // TODO: careful with variable name shadowing
             let new_assert = vst_map_expr_visitor(assertion.clone(), &mut |e| {
-                // TODO: do proper usage check in semantic level instead of string match
+                // TODO: do proper usage check in semantic level instead of string match             
+                // TODO: careful with variable name shadowing
+            
                 if e.to_string().trim() == pat.to_string().trim() {
                     Ok(init_expr.clone())
                 } else {
@@ -94,13 +109,12 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                 Expr::AssertExpr(prev) => {
                     let mut new_assertion = assertion.clone();
                     let e = assertion.expr.clone();
-                    let bin_expr = BinExpr::new(
+                    let bin_expr: Expr = BinExpr::new(
                         *prev.expr.clone(),
                         BinaryOp::LogicOp(ast::LogicOp::Imply),
                         *e,
-                    );
-                    let new_exp = Expr::from(bin_expr);
-                    new_assertion.expr = Box::new(new_exp);
+                    ).into();
+                    new_assertion.expr = Box::new(bin_expr);
                     (new_assertion.into(), true)
                 }
                 // prev is if-else. For each branch, insert assertion
@@ -131,6 +145,7 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                             }
                             // when match arm is a single expression, convert it to a block and insert the assertion before it
                             _ => {
+                                // FIXME: let binding 
                                 let mut new_blk = BlockExpr::new(StmtList::new());
                                 new_blk.stmt_list.statements = vec![adding_assert.clone()];
                                 new_blk.stmt_list.tail_expr = Some(existing_expr.clone());
@@ -145,10 +160,11 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                     if let Expr::PathExpr(pp) = *call_expr.expr.clone() {
                         let func = ctx.vst_find_fn(*call_expr.clone())?;
                         // TODO: exec functions
-                        if !func.fn_mode.as_ref().unwrap().proof_token {
+                        if !func.fn_mode.as_ref()?.proof_token {
                             return None;
                         }
                         let vst_name_ref: NameRef = *pp.path.segment.name_ref;
+                        // inline every ensures clause
                         let ensures: Option<Vec<Expr>> = func
                             .ensures_clause?
                             .clone()
@@ -157,6 +173,7 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                             .map(|e| ctx.vst_inline_call(vst_name_ref.clone(), e))
                             .collect();
                         let ensures = ensures?;
+                        // apply `&&` for all ensures clauses
                         let inlined_ensures: Expr = ensures.into_iter().reduce(|acc, e| {
                             Expr::BinExpr(Box::new(BinExpr::new(
                                 acc,
@@ -164,6 +181,7 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                                 e,
                             )))
                         })?;
+                        // generate `ensures ==> assertion`
                         let final_assert = AssertExpr::new(BinExpr::new(
                             inlined_ensures.clone(),
                             BinaryOp::LogicOp(ast::LogicOp::Imply),
@@ -227,6 +245,7 @@ fn foo()
 {
     let a:u32 = 1;
     assert(true);
+    // some comment 
     ass$0ert(a > 10 && a < 100);
 }
 "#,
@@ -236,6 +255,7 @@ fn foo()
     let a:u32 = 1;
     assert(true ==> a > 10 && a < 100);
     assert(true);
+    // some comment 
     assert(a > 10 && a < 100);
 }
 "#,
