@@ -24,7 +24,7 @@ pub(crate) fn localize_error(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
 
     let stmt_list = ctx.find_node_at_offset::<ast::StmtList>()?;
     let v_stmt_list = vst::StmtList::try_from(stmt_list.clone()).ok()?;
-    let result = vst_transformer_wp_move_assertion(ctx, v_stmt_list.clone())?;
+    let result = vst_rewriter_localize_error(ctx, v_stmt_list.clone())?;
 
     acc.add(
         AssistId("move_up_assertion", AssistKind::RefactorRewrite),
@@ -36,7 +36,7 @@ pub(crate) fn localize_error(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
     )
 }
 
-pub(crate) fn vst_transformer_wp_move_assertion(
+pub(crate) fn vst_rewriter_localize_error(
     ctx: &AssistContext<'_>,
     stmt_list: vst::StmtList,
 ) -> Option<String> {

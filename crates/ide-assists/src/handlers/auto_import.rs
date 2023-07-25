@@ -302,7 +302,7 @@ mod tests {
 
         let sema = Semantics::new(&db);
         let config = TEST_CONFIG;
-        let ctx = AssistContext::new(sema, &config, frange);
+        let ctx = AssistContext::new(sema, &config, frange, vec![]);
         let mut acc = Assists::new(&ctx, AssistResolveStrategy::All);
         auto_import(&mut acc, &ctx);
         let assists = acc.finish();

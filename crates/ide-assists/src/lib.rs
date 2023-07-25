@@ -66,10 +66,12 @@ mod assist_context;
 pub(crate) mod tests;
 pub mod utils;
 pub(crate) mod vst_api;
+pub mod verus_error;
 
 use hir::Semantics;
 use ide_db::{base_db::FileRange, RootDatabase};
 use syntax::TextRange;
+use verus_error::VerusError;
 
 pub(crate) use crate::assist_context::{AssistContext, Assists};
 
@@ -89,7 +91,23 @@ pub fn assists(
     range: FileRange,
 ) -> Vec<Assist> {
     let sema = Semantics::new(db);
-    let ctx = AssistContext::new(sema, config, range);
+    let ctx = AssistContext::new(sema, config, range, vec![]); // verus: return no verus error here
+    let mut acc = Assists::new(&ctx, resolve);
+    handlers::all().iter().for_each(|handler| {
+        handler(&mut acc, &ctx);
+    });
+    acc.finish()
+}
+
+pub fn assists_with_verus_error(
+    db: &RootDatabase,
+    config: &AssistConfig,
+    resolve: AssistResolveStrategy,
+    range: FileRange,
+    verus_error: Vec<VerusError>,
+) -> Vec<Assist> {
+    let sema = Semantics::new(db);
+    let ctx = AssistContext::new(sema, config, range, verus_error); 
     let mut acc = Assists::new(&ctx, resolve);
     handlers::all().iter().for_each(|handler| {
         handler(&mut acc, &ctx);
@@ -223,11 +241,9 @@ pub(crate) mod handlers {
     mod wrap_return_type_in_result;
     mod wrap_unwrap_cfg_attr;
     // verus
-    mod assert_by;
-    mod intro_match;
     mod wp_move_assertion;
     mod apply_induction;
-    mod localize_error;
+    mod proof_action;
 
     pub(crate) fn all() -> &'static [Handler] {
         &[
@@ -386,11 +402,12 @@ pub(crate) mod handlers {
             // sorted list above?
             //
             // Verus
-            assert_by::assert_by,
-            intro_match::intro_match,
+            proof_action::assert_by::assert_by,
+            proof_action::intro_failing_ensures::intro_failing_ensures,
+            proof_action::intro_match::intro_match,
             wp_move_assertion::wp_move_assertion,
             apply_induction::apply_induction,
-            localize_error::localize_error,
+            proof_action::localize_error::localize_error,
         ]
     }
 }

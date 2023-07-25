@@ -12,6 +12,7 @@
 #![warn(rust_2018_idioms, unused_lifetimes)]
 
 pub mod cli;
+mod verus_interaction;
 
 mod caps;
 mod diagnostics;

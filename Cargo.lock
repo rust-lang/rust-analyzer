@@ -1674,6 +1674,7 @@ version = "0.0.0"
 dependencies = [
  "always-assert",
  "anyhow",
+ "cargo_metadata",
  "cfg",
  "crossbeam-channel",
  "dirs",
@@ -1684,6 +1685,7 @@ dependencies = [
  "hir-def",
  "hir-ty",
  "ide",
+ "ide-assists",
  "ide-db",
  "ide-ssr",
  "indexmap",

@@ -9,6 +9,7 @@ use syntax::{
     TextSize, TokenAtOffset,
 };
 
+use crate::verus_error::VerusError;
 use crate::{
     assist_config::AssistConfig, Assist, AssistId, AssistKind, AssistResolveStrategy, GroupLabel,
 };
@@ -51,6 +52,7 @@ pub(crate) struct AssistContext<'a> {
     frange: FileRange,
     trimmed_range: TextRange,
     pub source_file: SourceFile,
+    pub verus_errors: Vec<VerusError>,
 }
 
 impl<'a> AssistContext<'a> {
@@ -58,6 +60,7 @@ impl<'a> AssistContext<'a> {
         sema: Semantics<'a, RootDatabase>,
         config: &'a AssistConfig,
         frange: FileRange,
+        verus_errors: Vec<VerusError>,
     ) -> AssistContext<'a> {
         let source_file = sema.parse(frange.file_id);
 
@@ -78,7 +81,7 @@ impl<'a> AssistContext<'a> {
             _ => frange.range,
         };
 
-        AssistContext { config, sema, frange, source_file, trimmed_range }
+        AssistContext { config, sema, frange, source_file, trimmed_range, verus_errors }
     }
 
     pub(crate) fn db(&self) -> &RootDatabase {
@@ -125,6 +128,13 @@ impl<'a> AssistContext<'a> {
     /// Returns the element covered by the selection range, this excludes trailing whitespace in the selection.
     pub(crate) fn covering_element(&self) -> SyntaxElement {
         self.source_file.syntax().covering_element(self.selection_trimmed())
+    }
+    // verus
+    pub(crate) fn find_node_at_given_range<N: AstNode>(
+        &self,
+        trimmed_range: TextRange,
+    ) -> Option<N> {
+        find_node_at_range(self.source_file.syntax(), trimmed_range)
     }
 }
 

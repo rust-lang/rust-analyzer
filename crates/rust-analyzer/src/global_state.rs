@@ -150,6 +150,8 @@ pub(crate) struct GlobalState {
     /// this queue should run only *after* [`GlobalState::process_changes`] has
     /// been called.
     pub(crate) deferred_task_queue: TaskQueue,
+    // verus
+    pub(crate) verus_errors: Vec<ide_assists::verus_error::VerusError>,
 }
 
 /// An immutable snapshot of the world's state at a point in time.
@@ -166,6 +168,8 @@ pub(crate) struct GlobalStateSnapshot {
     // FIXME: Can we derive this from somewhere else?
     pub(crate) proc_macros_loaded: bool,
     pub(crate) flycheck: Arc<[FlycheckHandle]>,
+    // verus
+    pub(crate) verus_errors: Vec<ide_assists::verus_error::VerusError>,
 }
 
 impl std::panic::UnwindSafe for GlobalStateSnapshot {}
@@ -249,6 +253,7 @@ impl GlobalState {
             prime_caches_queue: OpQueue::default(),
 
             deferred_task_queue: task_queue,
+            verus_errors: Vec::new(),
         };
         // Apply any required database inputs from the config.
         this.update_configuration(config);
@@ -439,6 +444,7 @@ impl GlobalState {
             proc_macros_loaded: !self.config.expand_proc_macros()
                 || *self.fetch_proc_macros_queue.last_op_result(),
             flycheck: self.flycheck.clone(),
+            verus_errors: self.verus_errors.clone(),
         }
     }
 

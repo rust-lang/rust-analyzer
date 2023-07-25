@@ -223,7 +223,7 @@ fn check_with_config(
     let frange = FileRange { file_id: file_with_caret_id, range: range_or_offset.into() };
 
     let sema = Semantics::new(&db);
-    let ctx = AssistContext::new(sema, &config, frange);
+    let ctx = AssistContext::new(sema, &config, frange, vec![]); // verus: verus_error is empty for testing for now (TODO)
     let resolve = match expected {
         ExpectedResult::Unresolved => AssistResolveStrategy::None,
         _ => AssistResolveStrategy::All,

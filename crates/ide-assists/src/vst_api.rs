@@ -107,7 +107,7 @@ impl<'a> AssistContext<'a> {
         };
         let sema: Semantics<'_, ide_db::RootDatabase> = Semantics::new(&db);
         let config = crate::tests::TEST_CONFIG;
-        let tmp_ctx = AssistContext::new(sema, &config, frange);
+        let tmp_ctx = AssistContext::new(sema, &config, frange, vec![]);
         let tmp_foo = tmp_ctx.find_node_at_offset::<ast::Fn>()?;
         let tmp_body = tmp_foo.body()?;
         let tmp_param_list = tmp_foo.param_list()?;
