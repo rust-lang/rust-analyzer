@@ -408,6 +408,7 @@ pub(crate) mod handlers {
             wp_move_assertion::wp_move_assertion,
             apply_induction::apply_induction,
             proof_action::localize_error::localize_error,
+            proof_action::remove_dead_assertion::remove_dead_assertions,
         ]
     }
 }

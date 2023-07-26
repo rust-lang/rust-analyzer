@@ -32,10 +32,11 @@ pub const TEST_CONFIG: AssistConfig = AssistConfig {
     prefer_prelude: true,
     assist_emit_must_use: false,
     term_search_fuel: 400,
+    verus_path: String::new(), //verus
 };
 
-pub(crate) const TEST_CONFIG_NO_SNIPPET_CAP: AssistConfig = AssistConfig {
-    snippet_cap: None,
+pub(crate) const TEST_CONFIG: AssistConfig = AssistConfig {
+    snippet_cap: SnippetCap::new(true),
     allowed: None,
     insert_use: InsertUseConfig {
         granularity: ImportGranularity::Crate,
@@ -48,22 +49,7 @@ pub(crate) const TEST_CONFIG_NO_SNIPPET_CAP: AssistConfig = AssistConfig {
     prefer_prelude: true,
     assist_emit_must_use: false,
     term_search_fuel: 400,
-};
-
-pub(crate) const TEST_CONFIG_IMPORT_ONE: AssistConfig = AssistConfig {
-    snippet_cap: SnippetCap::new(true),
-    allowed: None,
-    insert_use: InsertUseConfig {
-        granularity: ImportGranularity::One,
-        prefix_kind: hir::PrefixKind::Plain,
-        enforce_granularity: true,
-        group: true,
-        skip_glob_imports: true,
-    },
-    prefer_no_std: false,
-    prefer_prelude: true,
-    assist_emit_must_use: false,
-    term_search_fuel: 400,
+    verus_path: String::new(), //verus
 };
 
 pub(crate) fn with_single_file(text: &str) -> (RootDatabase, FileId) {
