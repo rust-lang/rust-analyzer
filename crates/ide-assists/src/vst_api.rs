@@ -1,6 +1,6 @@
 use std::{process::Command, collections::hash_map::DefaultHasher, time::Instant, env, path::Path, hash::{Hasher, Hash}, fs::File, io::Write};
 
-use crate::{AssistContext, verus_error::*};
+use crate::{AssistContext, verus_error::*, tests::CHANHEE_VERUS_PATH};
 use hir::Semantics;
 use syntax::{
     ast::{self, vst, HasModuleItem, HasName},
@@ -156,28 +156,45 @@ impl<'a> AssistContext<'a> {
     // 3) run verus on the temporary file
     // run Verus on the `vst::Fn` node
     // assume running verus inside vs-code
-    // always assume `--verify-function` flag
-    // TODO: projects with multiple file/module -- `verify-module` flag
+    // TODO: pass the whole project to verus, instead of this single file
+    // TODO: projects with multiple file/module -- `verify-module` flag --verify-function flag
     // output: None -> compile error
-    pub(crate) fn run_verus(
+    pub(crate) fn try_verus(
         &self,
         vst_fn: &vst::Fn,
     ) -> Option<bool> {
         let source_file = &self.source_file;
         let verus_exec_path = &self.config.verus_path;
-        let mut text_string = vst_fn.to_string();
+
+        if verus_exec_path.len() == 0 {
+            dbg!("verus path not set");
+        }
+
+        #[cfg(test)] 
+        let verus_exec_path = CHANHEE_VERUS_PATH.to_string(); // TODO: maybe move this to test config
+
+
+        if verus_exec_path.len() == 0 {
+            dbg!("verus path not set");
+        }
+        let mut text_string  = String::new();
+
         // in VST, we should also be able to "print" and verify
         // display for VST should be correct modulo whitespace
-
         for it in source_file.items() {
             match it {
                 ast::Item::Fn(f) => {
+                    text_string += "\nverus!{\n";
                     if f.name()?.to_string().trim() == vst_fn.name.to_string().trim() {
                         text_string += &vst_fn.to_string();
-                        text_string.push('\n');
+                    } else {
+                        // review: f.cst.to_string?
+                        text_string += &f.to_string();
                     }
-                }
+                    text_string += "\n}\n";
+                },
                 _ => {
+                    // review: it.cst.to_string?
                     text_string += &it.to_string();
                 },
             }
@@ -185,36 +202,20 @@ impl<'a> AssistContext<'a> {
         dbg!(&text_string);
 
         
-        let verify_func_flag = "--verify-function";
-        let verify_root_flag = "--verify-root"; // TODO: figure out the surrounding module of `token`
-        let func_name = vst_fn.name.to_string();
+        // let verify_func_flag = "--verify-function";
+        // let verify_root_flag = "--verify-root"; // TODO: figure out the surrounding module of `token`
+        // let func_name = vst_fn.name.to_string();
 
 
-
-        
-
-        // TODO: pass the whole project to verus, instead of this single file
-        // -    for ancestor in token.parent_ancestors() {
-        //     -        temp_text_string = String::from(ancestor.text());
-        //     -        match ancestor.kind() {
-        //     -            SyntaxKind::FN => {
-        //     -                if func_name.len() > 0 {
-        //     -                    // if already found a function as a parent
-        //     -                    dbg!("Not supported: when invoking verus, found func inside func. ");
-        //     -                    return None;
-        //     -                }
-        //     -                let func = ast::Fn::cast(ancestor)?;
-        //     -                func_name = func.name()?.to_string();
-        //     -            }
-        //     -            _ => (),
 
         // REIVEW: instead of writing to a file in the tmp directory, consider using `memfd_create` for an anonymous file
         // refer to `man memfd_create` or `dev/shm`
         let mut hasher = DefaultHasher::new();
         let now = Instant::now();
         now.hash(&mut hasher);
+        // in linux, set env TMPDIR to set the tmp directory. Otherwise, it fails
         let tmp_dir = env::temp_dir();
-        let tmp_name = format!("{}_verus_assert_comment_{:?}_.rs", tmp_dir.display(), hasher.finish());
+        let tmp_name = format!("{}/_verus_assert_comment_{:?}_.rs", tmp_dir.display(), hasher.finish());
         dbg!(&tmp_name);
         let path = Path::new(&tmp_name);
         let display = path.display();
@@ -237,30 +238,19 @@ impl<'a> AssistContext<'a> {
             Ok(_) => dbg!("successfully wrote to {}", display),
         };
 
-        dbg!(
-            &verus_exec_path,
-            &path,
-            &verify_root_flag,
-            &verify_func_flag,
-            &func_name,
-        );
-
         let output = 
             Command::new(verus_exec_path)
                 .arg(path)
-                .arg(verify_root_flag)
-                .arg(verify_func_flag)
-                .arg(func_name)
                 .output();
 
-        match std::fs::remove_file(path) {
-            Err(why) => {
-                dbg!("couldn't remove file {}: {}", path.display(), why);
-            }
-            Ok(_) => {
-                dbg!("successfully removed {}", path.display());
-            }
-        };
+        // match std::fs::remove_file(path) {
+        //     Err(why) => {
+        //         dbg!("couldn't remove file {}: {}", path.display(), why);
+        //     }
+        //     Ok(_) => {
+        //         dbg!("successfully removed {}", path.display());
+        //     }
+        // };
 
         let output = output.ok()?;
         dbg!(&output);

@@ -17,6 +17,7 @@ use crate::{
     assists, handlers::Handler, Assist, AssistConfig, AssistContext, AssistKind,
     AssistResolveStrategy, Assists, SingleResolve,
 };
+pub const CHANHEE_VERUS_PATH: &str = "/home/chanhee/verus/source/target-verus/debug/verus";
 
 pub const TEST_CONFIG: AssistConfig = AssistConfig {
     snippet_cap: SnippetCap::new(true),
