@@ -338,6 +338,54 @@ impl From<Expr> for Stmt {
     }
 }
 
+impl std::fmt::Display for AssertExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.assert_token {
+            let mut tmp = stringify!(assert_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.by_token {
+            let mut tmp = stringify!(by_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        // paranthesis around prover name
+        if let Some(it) = &self.name {
+            s.push_str(" (");
+            s.push_str(&it.to_string());
+            s.push_str(") ");
+        }
+        if let Some(it) = &self.requires_clause {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.block_expr {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+
 // impl From<Expr> for ExprStmt {
 //     fn from(item: Expr) -> Self
 //     {
