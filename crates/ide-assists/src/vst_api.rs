@@ -31,6 +31,41 @@ impl<'a> AssistContext<'a> {
         None
     }
 
+    pub fn type_of_pat_enum(&self, pat: &vst::Pat) -> Option<vst::Enum> {
+        let sema: &Semantics<'_, ide_db::RootDatabase> = &self.sema;
+        let hir_ty: Vec<hir::Type> =
+            sema.type_of_pat(&pat.cst()?)?.adjusted().autoderef(sema.db).collect::<Vec<_>>();
+        let hir_ty = hir_ty.first()?;
+        if let Some(t) = hir_ty.as_adt() {
+            let ast_ty: ast::Adt = sema.source(t)?.value;
+            let typename = ast_ty.try_into().ok()?;
+            if let vst::Adt::Enum(e) = typename {
+                return Some(*e.clone());
+            }
+        }
+        None
+    }
+
+    pub fn resolve_type_enum(&self, ty: &vst::Type) ->  Option<vst::Enum> {
+        let sema: &Semantics<'_, ide_db::RootDatabase> = &self.sema;
+        let hir_ty: Vec<hir::Type> =
+            sema.resolve_type(&ty.cst()?)?.autoderef(sema.db).collect::<Vec<_>>();
+        let hir_ty = hir_ty.first()?;
+        dbg!(&hir_ty);
+        if let Some(t) = hir_ty.as_adt() {
+            let ast_ty: ast::Adt = sema.source(t)?.value;
+            let typename = ast_ty.try_into().ok()?;
+            if let vst::Adt::Enum(e) = typename {
+                return Some(*e.clone());
+            }
+        } 
+
+        if let Some(t) = hir_ty.as_builtin() {
+            dbg!(t);
+        }
+        None
+    }
+
     /// Get VST node from the current cursor position
     /// This is a wrapper around `find_node_at_offset` that returns a VST node
     /// REVIEW: to remove type annotation, consider auto-generating all sorts of this function

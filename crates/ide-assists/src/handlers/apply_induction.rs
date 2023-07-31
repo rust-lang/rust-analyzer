@@ -1,10 +1,11 @@
 use crate::{AssistContext, Assists};
-use hir::{db, HasCrate, PathResolution};
+use hir::{db, Field, HasCrate, PathResolution};
 use ide_db::{
     assists::{AssistId, AssistKind},
     syntax_helpers::node_ext::walk_expr,
     syntax_helpers::vst_ext::*,
 };
+use itertools::Itertools;
 use syntax::{
     ast::{self, vst::*},
     AstNode, SyntaxToken, T,
@@ -15,12 +16,6 @@ pub(crate) fn apply_induction(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     let body: ast::BlockExpr = func.body()?;
     let func = Fn::try_from(func).ok()?;
     let param_list = &(*func.param_list?).params;
-
-    // TODO: have a more standard way to find the nat param
-    let index = param_list.iter().position(|p| {
-        p.ty.as_ref().unwrap().to_string().trim() == "nat"
-            && p.cst.as_ref().unwrap().syntax().text_range().contains_range(ctx.selection_trimmed())
-    })?;
 
     let param_names = param_list
         .iter()
@@ -34,15 +29,34 @@ pub(crate) fn apply_induction(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
         })
         .collect::<Vec<_>>();
 
+    let index = param_list.iter().position(|p| {
+        p.cst.as_ref().unwrap().syntax().text_range().contains_range(ctx.selection_trimmed())
+    })?;
+
     let fn_name = func.name.to_string();
 
-    let result = apply_induction_on_nat(ctx, fn_name, param_names, index)?;
-    dbg!(&result);
+    let pty = param_list[index].ty.as_ref().unwrap();
+    let mut result = None;
+
+    // better way to type check?
+    if pty.to_string().trim() == "nat" {
+        result = apply_induction_on_nat(ctx, fn_name, param_names, index);
+    } else {
+        let p = param_list[index].pat.as_ref().unwrap().as_ref();
+        // check_if_inductive_enum(ctx, p);
+        if let Some(en) = ctx.type_of_pat_enum(p) {
+            let bty = format!("Box<{}>", param_list[index].ty.as_ref().unwrap().to_string().trim());
+            result = apply_induction_on_enum(ctx, fn_name, param_names, index, &en, bty);
+        }
+    }
+
+    let result = result?;
+
     return acc.add(
         AssistId("apply_induction", AssistKind::RefactorRewrite),
         "Apply induction",
         body.syntax().text_range(),
-        |edit| edit.replace(body.syntax().text_range(), result),
+        |edit| edit.replace(body.syntax().text_range(), format!("{{\n{}\n}}", result.trim())),
     );
 }
 
@@ -79,10 +93,67 @@ fn apply_induction_on_nat(
     let mut ifexpr = IfExpr::new(cond, then_branch);
     let mut else_branch = BlockExpr::new(StmtList::new());
 
-    let call = ExprStmt::new(CallExpr::new(Literal::new(fn_name), args));
+    let mut call = ExprStmt::new(CallExpr::new(Literal::new(fn_name), args));
+    call.semicolon_token = true;
     else_branch.stmt_list.statements.push(Stmt::from(call));
     ifexpr.set_else_branch(ElseBranch::Block(Box::new(else_branch)));
     Some(ifexpr.to_string())
+}
+
+fn apply_induction_on_enum(
+    ctx: &AssistContext<'_>,
+    fn_name: String,
+    param_names: Vec<String>,
+    index: usize,
+    en: &Enum,
+    bty: String,
+) -> Option<String> {
+    let mut match_arms = vec![];
+    for variant in &en.variant_list.variants {
+        let fields = variant.field_list.as_ref();
+
+        if fields == None {
+            let arm = format!("{}::{} => {{}}", en.name, variant.name);
+            match_arms.push(arm);
+            continue;
+        }
+
+        match &**fields.unwrap() {
+            FieldList::RecordFieldList(fields) => {
+                let names =
+                    fields.as_ref().fields.iter().map(|f| f.name.as_ref().to_string()).join(",");
+
+                let calls = fields
+                    .as_ref()
+                    .fields
+                    .iter()
+                    .filter(|f| {
+                        // TODO: this is awful
+                        let fty = f.ty.as_ref().to_string().replace(" ", "");
+                        fty == bty
+                    })
+                    .map(|f| {
+                        let mut args = vec![];
+                        param_names.iter().enumerate().for_each(|(i, name)| {
+                            if i == index {
+                                args.push(format!("*{}", f.name.as_ref().to_string()));
+                            } else {
+                                args.push(name.clone());
+                            }
+                        });
+                        format!("{}({})", fn_name, args.join(","))
+                    })
+                    .collect::<Vec<_>>()
+                    .join(";");
+                let arm = format!("{}::{}{{{}}} => {{{};}}", en.name, variant.name, names, calls);
+                match_arms.push(arm);
+            }
+            FieldList::TupleFieldList(_) => panic!("not supported yet"),
+        }
+    }
+    let m = format!("match {} {{\n{}\n}}", param_names[index], match_arms.join(",\n"));
+    // print!("{}", &m);
+    return Some(m);
 }
 
 #[cfg(test)]
@@ -112,7 +183,7 @@ spec fn triangle(n: nat) -> nat
 }
 
 #[verifier(nonlinear)]
-proof fn sum_equal($0n: nat, m: nat) 
+proof fn sum_equal($0n: nat, m: nat)
     ensures sum(n) == triangle(n),
     decreases n,
 {
@@ -139,11 +210,8 @@ proof fn sum_equal(n: nat, m: nat)
     ensures sum(n) == triangle(n),
     decreases n,
 {
-    if n == 0 {}
-    else {
-        sum_equal(n - 1, m);
-    }
-}            
+if n==0{ }  else { sum_equal  ( n-1, m)   ; }
+}
 "#,
         );
     }
@@ -154,59 +222,22 @@ proof fn sum_equal(n: nat, m: nat)
         check_assist(
             apply_induction,
             r#"
-use core::ops::Deref;
-
-struct Box<T>(T);
-
-impl<T> Deref for Box<T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target;
-}
-
-struct Foo<T>(T);
-
-impl<T> Foo<T> {
-    fn get_inner<'a>(self: &'a Box<Self>) -> &'a T {}
-
-    fn get_self<'a>(self: &'a Box<Self>) -> &'a Self {}
-
-    fn into_inner(self: Box<Self>) -> Self {}
-}
-            
 #[is_variant] #[derive(PartialEq, Eq)] 
 enum Tree {
     Nil,
     Node { value: i64, left: Box<Tree>, right: Box<Tree> },
 }
 
-proof fn$0 sorted_tree_means_sorted_sequence(tree: Tree)
+proof fn sorted_tree_means_sorted_sequence(tr$0ee: Tree)
     requires
         tree.is_sorted(),
     ensures
         sequence_is_sorted(tree@),
+    decreases tree
 {
 }
 "#,
             r#"
-use core::ops::Deref;
-
-struct Box<T>(T);
-
-impl<T> Deref for Box<T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target;
-}
-
-struct Foo<T>(T);
-
-impl<T> Foo<T> {
-    fn get_inner<'a>(self: &'a Box<Self>) -> &'a T {}
-
-    fn get_self<'a>(self: &'a Box<Self>) -> &'a Self {}
-
-    fn into_inner(self: Box<Self>) -> Self {}
-}
-            
 #[is_variant] #[derive(PartialEq, Eq)] 
 enum Tree {
     Nil,
@@ -218,13 +249,13 @@ proof fn sorted_tree_means_sorted_sequence(tree: Tree)
         tree.is_sorted(),
     ensures
         sequence_is_sorted(tree@),
-    decreases tree // guessed by Dafny
+    decreases tree
 {
-    if let Tree::Node { left, right, value: _ } = tree {
-        sorted_tree_means_sorted_sequence(*left); // guessed by Dafny
-        sorted_tree_means_sorted_sequence(*right); // guessed by Dafny
-    }
-}    
+match tree {
+Tree ::Nil  => {},
+Tree ::Node {value ,left ,right } => {sorted_tree_means_sorted_sequence (*left );sorted_tree_means_sorted_sequence (*right );}
+}
+}
 "#,
         );
     }
