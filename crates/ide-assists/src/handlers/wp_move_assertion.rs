@@ -158,7 +158,7 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                 // for lemma calls, do  `(inlined ensures clauses) ==> assertion`
                 Expr::CallExpr(call_expr) => {
                     if let Expr::PathExpr(pp) = *call_expr.expr.clone() {
-                        let func = ctx.vst_find_fn(*call_expr.clone())?;
+                        let func = ctx.vst_find_fn(&call_expr)?;
                         // TODO: exec functions
                         if !func.fn_mode.as_ref()?.proof_token {
                             return None;

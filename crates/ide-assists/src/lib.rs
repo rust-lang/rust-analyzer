@@ -404,6 +404,7 @@ pub(crate) mod handlers {
             // Verus
             proof_action::assert_by::assert_by,
             proof_action::intro_failing_ensures::intro_failing_ensures,
+            proof_action::intro_failing_requires::intro_failing_requires,
             proof_action::intro_match::intro_match,
             wp_move_assertion::wp_move_assertion,
             apply_induction::apply_induction,

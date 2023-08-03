@@ -78,7 +78,7 @@ impl<'a> AssistContext<'a> {
         VSTT::try_from(cst_node).ok()
     }
 
-    pub(crate) fn vst_find_fn(&self, call: vst::CallExpr) -> Option<vst::Fn> {
+    pub(crate) fn vst_find_fn(&self, call: &vst::CallExpr) -> Option<vst::Fn> {
         for item in self.source_file.items() {
             let v_item: ast::generated::vst_nodes::Item = item.try_into().unwrap();
             match v_item {
@@ -93,8 +93,20 @@ impl<'a> AssistContext<'a> {
         return None;
     }
 
+    pub fn name_ref_from_call_expr(&self, call: &vst::CallExpr) -> Option<vst::NameRef> {
+        let path = match &*call.expr {
+            vst::Expr::PathExpr(path) => &path.path,
+            _ => return None,
+        };
+        let name_ref =  &path.segment.name_ref;
+        Some(*name_ref.clone())
+    }
+
     /// inline function call
     /// for now, assume one file only
+    /// TODO: handle Verus builtin types -- for example, `type_of_expr` panics for `int`
+    /// TODO: properly register req/ens/etc in semantics db
+    /// TODO: currently inline can panic when the inlining expr does not fully use all the parameters
     pub fn vst_inline_call(
         &self,
         name_ref: vst::NameRef,
@@ -171,12 +183,46 @@ impl<'a> AssistContext<'a> {
     pub(crate) fn verus_errors(&self) -> Vec<VerusError> {
         self.verus_errors.clone()
     }
+
+    // note that `pre` uses `pre.callsite` instead of `pre.failing_pre`.
+    // technically, the failing pre condition is not the error of that function.
+    // it is error of the callsite
+    pub(crate) fn verus_errors_inside_fn(&self, func: &vst::Fn) -> Option<Vec<VerusError>> {
+        let surrounding_fn: &ast::Fn = func.cst.as_ref()?;
+        let surrounding_range = surrounding_fn.syntax().text_range();
+        let filtered_verus_errs = self
+            .verus_errors()
+            .into_iter()
+            .filter(|verr| match verr {
+                VerusError::Pre(pre) => surrounding_range.contains_range(pre.callsite),
+                VerusError::Post(post) => surrounding_range.contains_range(post.failing_post),
+                VerusError::Assert(assert) => surrounding_range.contains_range(assert.range),
+            })
+            .collect();
+        Some(filtered_verus_errs)
+    }
+
+    pub(crate) fn pre_failures_by_calling_this_fn(&self, func: &vst::Fn) -> Option<Vec<PreFailure>> {
+        let surrounding_fn: &ast::Fn = func.cst.as_ref()?;
+        let surrounding_range: text_edit::TextRange = surrounding_fn.syntax().text_range();
+        let filtered_verus_errs: Vec<VerusError> = self
+            .verus_errors()
+            .into_iter()
+            .filter(|verr| match verr {
+                VerusError::Pre(pre) => surrounding_range.contains_range(pre.failing_pre),
+                _ => false,
+            })
+            .collect();
+        Some(filter_pre_failuires(&filtered_verus_errs))
+    }
+
     pub(crate) fn pre_failures(&self) -> Vec<PreFailure> {
         filter_pre_failuires(&self.verus_errors)
     }
     pub(crate) fn post_failures(&self) -> Vec<PostFailure> {
         filter_post_failuires(&self.verus_errors)
     }
+
     pub(crate) fn expr_from_pre_failure(&self, pre: PreFailure) -> Option<vst::Expr> {
         self.find_node_at_given_range::<syntax::ast::Expr>(pre.failing_pre)?.try_into().ok()
     }

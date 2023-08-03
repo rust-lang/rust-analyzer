@@ -34,6 +34,8 @@ pub(crate) fn remove_dead_assertions(acc: &mut Assists, ctx: &AssistContext<'_>)
     )
 }
 
+// TODO: refactor verus interaction parts, and send it to the user using closure
+// that way, it does not run before user explicitly wants it
 pub(crate) fn vst_rewriter_remove_dead_assertions(ctx: &AssistContext<'_>, func: vst::Fn) -> Option<String> {
     // if is already has a "by block", return None
     let mut redundant_assertions: Vec<vst::Stmt> = vec![];
