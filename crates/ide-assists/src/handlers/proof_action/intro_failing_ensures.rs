@@ -1,9 +1,9 @@
 use crate::{AssistContext, AssistId, AssistKind, Assists};
 use crate::verus_error::*;
-use ide_db::syntax_helpers::node_ext::for_each_tail_expr;
 
+use ide_db::syntax_helpers::vst_ext;
 use syntax::{
-    ast::{self, edit::AstNodeEdit},
+    ast::{self,  vst::*},
      AstNode, 
 };
 
@@ -21,53 +21,63 @@ pub(crate) fn intro_failing_ensures(acc: &mut Assists, ctx: &AssistContext<'_>) 
         return None;
     }
 
-    // collect failing post-conditions
-    let mut failed_posts = vec![];
+    let v_body = BlockExpr::try_from(body.clone()).ok()?;
+    let result = vst_rewriter_intro_failing_ensures(ctx, v_body.clone())?;
+
+    acc.add(
+        AssistId("intro_failing_ensures", AssistKind::RefactorRewrite),
+        "Insert failing ensures clauses to the end",
+        body.syntax().text_range(),
+        |edit| {
+            edit.replace(body.syntax().text_range(), result);
+        },
+    )
+}
+
+pub(crate) fn vst_rewriter_intro_failing_ensures(
+    ctx: &AssistContext<'_>,
+    mut blk: BlockExpr,
+) -> Option<String> {
     let post_fails = filter_post_failuires(&ctx.verus_errors);
-    for post in post_fails{
-        let post_cond = ctx.find_node_at_given_range::<ast::Expr>(post.failing_post)?;
-        let post_assert = format!("assert({post_cond});");
-        failed_posts.push(post_assert);
-    }
-    if failed_posts.len() == 0 {
-        return None;
-    }
-
-    // Check if the function returns something (to confirm if we need to introduce let-binding)
-    let mut ret_name: String = String::new();
-    let mut has_ret: bool = false;
-    if let Some(ret) = func.ret_type() {
-        let ret_pat = ret.pat()?;
-        ret_name = format!("{ret_pat}");
-        has_ret = true;
-    };
-
-    let exit_range = func.body()?.syntax().text_range().end();
-    acc.add(AssistId("intro_failing_ensures", AssistKind::RefactorRewrite), "Insert failing ensures clauses to the end", ensures_keyword.text_range(), |edit| {
-        if !has_ret {
-            let failed_post_concat = failed_posts.join("\n    ");
-            edit.insert(exit_range, failed_post_concat);
-        } else {
-            // when it returns a value, we need to introduce let-binding for each tailing expression
-            // when the return expression is if-else or match-statement, we need to introduce let-binding for each cases
-            // TODO: do this for "return" (see `wrap_return_type_in_result`)
-            
-            // collect tail expressions
-            let body = ast::Expr::BlockExpr(body);
-            let mut exprs_to_bind = Vec::new();
-            let tail_cb = &mut |e: &ast::Expr| exprs_to_bind.push(e.clone());
-            for_each_tail_expr(&body, tail_cb);
-
-            // for all tail expressions, let-bind and then insert failing postcondition as assertion
-            for ret_expr_arg in exprs_to_bind {
-                let indent = ret_expr_arg.indent_level();
-                let sep = format!("\n{indent}");
-                let failed_post_concat = failed_posts.join(&sep);
-                let binded = format!("let {ret_name} = {ret_expr_arg};\n{indent}{failed_post_concat}\n{indent}{ret_expr_arg}");
-                edit.replace(ret_expr_arg.syntax().text_range(), binded);
-            }
+    let failed_exprs: Option<Vec<Expr>> = post_fails.into_iter().map(|p| ctx.expr_from_post_failure(p)).collect(); 
+    let asserts_failed_exprs = failed_exprs?.into_iter().map(|e| {
+        AssertExpr::new(e).into()
+    }).collect::<Vec<Stmt>>();
+    
+    let foo = ctx.vst_find_node_at_offset::<Fn, ast::Fn>()?;
+    if foo.ret_type.is_some() {
+        // need to map in-place for each tail expression
+        // when the function has a returning expression `e`
+        // `e` into
+        // ```
+        // let ret = e;
+        // assert(failing_stuff);
+        // ret
+        // ```
+        let pat = foo.ret_type?.pat?.clone();
+        let tail = foo.body?.stmt_list.tail_expr?;
+        let cb = &mut |e: &mut Expr| {
+            let mut new_binding = LetExpr::new(e.clone());
+            new_binding.pat = Some(pat.clone());
+            let new_let_stmt: Stmt = new_binding.into();
+            let mut stmt_list = StmtList::new();
+            let mut stmts = asserts_failed_exprs.clone();
+            stmts.insert(0, new_let_stmt);
+            stmt_list.statements = stmts;
+            stmt_list.tail_expr = Some(Box::new(Literal::new(pat.to_string()).into()));
+            let new_block_expr = BlockExpr::new(stmt_list);
+            Ok(new_block_expr.into())
         };
-    })
+        let new_tail = vst_ext::vst_map_each_tail_expr(*tail.clone(), cb).ok()?;
+        blk.stmt_list.tail_expr = Some(Box::new(new_tail));
+        Some(blk.to_string())
+    } else {
+        // just append the assertions
+        let mut stmt_list = blk.stmt_list.clone();
+        stmt_list.statements.extend(asserts_failed_exprs);
+        blk.stmt_list = stmt_list;
+        Some(blk.to_string())
+    }
 }
 
 #[cfg(test)]
@@ -87,7 +97,7 @@ proof fn my_proof_fun(x: int, y: int)
         y < 100,
     ens$0ures
         x + y < 200,
-        x + y < 400,
+        x + y < 100,
 {
     assert(x + y < 600);
 }
@@ -103,7 +113,7 @@ proof fn my_proof_fun(x: int, y: int)
 {
     assert(x + y < 600);
 
-    assert(x + y < 400); 
+    assert(x + y < 100); 
 }
 "#,
         );
@@ -119,9 +129,9 @@ proof fn my_proof_fun(x: int, y: int) -> (sum: int)
         x < 100,
         y < 100,
     ens$0ures
+        sum < 100,
         sum < 200,
         sum < 300,
-        sum < 400,
 {
     x + y
 }
@@ -132,19 +142,64 @@ proof fn my_proof_fun(x: int, y: int) -> (sum: int)
         x < 100,
         y < 100,
     ensures
+        sum < 100,
         sum < 200,
         sum < 300,
-        sum < 400,
 {
     let sum = x + y; 
-    assert(sum < 200); 
-    assert(sum < 300); 
-    assert(sum < 400); 
+    assert(sum < 100); 
     sum
 }
 "#,
         );
     }
+
+
+    #[test]
+    fn intro_ensure_multiple_ret_arg() {
+        check_assist(
+            intro_failing_ensures,
+            r#"
+proof fn my_proof_fun(x: int, y: int) -> (sum: int)
+    requires
+        x < 100,
+        y < 100,
+    ens$0ures
+        sum < 100,
+        sum < 200,
+        sum < 300,
+{
+    if x > 0 {
+        x + y + 1
+    } else {
+        x + y
+    }
+}
+"#,
+            r#"
+proof fn my_proof_fun(x: int, y: int) -> (sum: int)
+    requires
+        x < 100,
+        y < 100,
+    ensures
+        sum < 100,
+        sum < 200,
+        sum < 300,
+{
+    if x > 0 {
+        let sum = x + y + 1;
+        assert(sum < 100);
+        sum
+    } else {
+        let sum = x + y;
+        assert(sum < 100);
+        sum
+    }
+}
+"#,
+        );
+    }
+
 
     #[test]
     fn intro_ensure_fibo() {
