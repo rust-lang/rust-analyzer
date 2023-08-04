@@ -5,12 +5,27 @@ use ide_db::{
 };
 
 use syntax::{
-    ast::{self, vst},
+    ast::{self, vst::*, LogicOp},
     AstNode, T,
 };
 
 /*
-TODO: fill in
+Localize error by splitting assertion
+
+assert(exp)
+
+into
+
+1) &&
+assert(e1);
+assert(e2);
+assert(exp);
+
+where exp = e1 && e2
+
+2) match
+assuming #[is_variant]
+
 
 */
 
@@ -22,41 +37,44 @@ pub(crate) fn localize_error(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
         return None;
     }
 
-    let stmt_list = ctx.find_node_at_offset::<ast::StmtList>()?;
-    let v_stmt_list = vst::StmtList::try_from(stmt_list.clone()).ok()?;
-    let result = vst_rewriter_localize_error(ctx, v_stmt_list.clone())?;
+    let assertion = ctx.find_node_at_offset::<ast::AssertExpr>()?;
+    let v_assertion = AssertExpr::try_from(assertion.clone()).ok()?;
+    let result = vst_rewriter_localize_error(ctx, v_assertion.clone())?;
 
     acc.add(
-        AssistId("move_up_assertion", AssistKind::RefactorRewrite),
-        "Move up assertion through statements ",
-        stmt_list.syntax().text_range(),
+        AssistId("localize_error", AssistKind::RefactorRewrite),
+        "Split assertion to localize error",
+        assertion.syntax().text_range(),
         |edit| {
-            edit.replace(stmt_list.syntax().text_range(), result);
+            edit.replace(assertion.syntax().text_range(), result);
         },
     )
 }
 
 pub(crate) fn vst_rewriter_localize_error(
     ctx: &AssistContext<'_>,
-    stmt_list: vst::StmtList,
+    assertion: AssertExpr,
 ) -> Option<String> {
-    let assertion = ctx.vst_find_node_at_offset::<vst::AssertExpr, ast::AssertExpr>()?;
-    println!("assertion: {}", assertion);
-    let index = stmt_list.statements.iter().position(|s| match s {
-        vst::Stmt::ExprStmt(e) => match e.expr.as_ref() {
-            vst::Expr::AssertExpr(a) => **a == assertion,
-            _ => false,
-        },
-        _ => false,
-    })?;
-    if index == 0 {
-        // assertion is already at the top
-        return None;
-    }
-    None
-    // insert new assertion in the right place and return
-    // new_stmt_list.statements.insert(index - 1, new_stmt);
-    // return Some(new_stmt_list.to_string());
+    let exp = &assertion.expr;
+    match &**exp {
+        Expr::BinExpr(be) => {
+            match be.op {
+                BinaryOp::LogicOp(LogicOp::And) => {
+                    let left_assert = AssertExpr::new(*be.lhs.clone());
+                    let right_assert = AssertExpr::new(*be.rhs.clone());
+                    let mut stmts: StmtList = StmtList::new();
+                    stmts.statements.push(left_assert.into());
+                    stmts.statements.push(right_assert.into());
+                    stmts.statements.push(assertion.into());
+                    let blk = BlockExpr::new(stmts);
+                    return Some(blk.to_string());
+                }
+                _ => return None,
+            }
+
+        }            
+        _ => return None,
+    };
 }
 
 #[cfg(test)]
@@ -72,14 +90,14 @@ mod tests {
             r#"
 fn foo()
 {
-    let mut a:u32 = 1;
+    let a:u32 = 1;
     ass$0ert(a > 10 && a < 100);
 }
 "#,
             r#"
 fn foo()
 {
-    let mut a:u32 = 1;
+    let a:u32 = 1;
     assert(a > 10);
     assert(a < 100);
     assert(a > 10 && a < 100);

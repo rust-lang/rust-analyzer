@@ -36,6 +36,7 @@ pub(crate) fn vst_rewriter_intro_match(
     ctx: &AssistContext<'_>,
     assert: vst::AssertExpr,
 ) -> Option<String> {
+    dbg!("vst_rewriter_intro_match");
     let mut v = vec![];
     let cb = &mut |e: vst::Expr| {
         if let Some(_) = ctx.type_of_expr_enum(&e) {
@@ -96,7 +97,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn intro_failing_ensures_easy() {
+    fn intro_match1() {
         check_assist(
             intro_match,
             r#"
@@ -142,7 +143,7 @@ proof fn good_move(m: Movement)
     }
 
     #[test]
-    fn intro_failing_ensures_easy2() {
+    fn intro_match2() {
         check_assist(
             intro_match,
             r#"
@@ -184,6 +185,76 @@ proof fn good_move(m: Movement)
     };
 }
 "#,
+        );
+    }
+
+
+// TODO: this test is failing, but it should work
+    #[test]
+    fn intro_match3() {
+        check_assist(
+            intro_match,
+            r#"
+verus!{
+    #[derive(PartialEq, Eq)] 
+    pub enum Message {
+        Quit(bool),
+        Move { x: i32, y: i32 },
+        Write(bool),
+    }
+    
+    spec fn is_good_integer_3(x: int) -> bool 
+    {
+        x >= 0 && x != 5
+    }
+    
+    spec fn is_good_message(msg:Message) -> bool {
+        match msg {
+            Message::Quit(b) => b,
+            Message::Move{x, y} => is_good_integer_3( (x as int)  - (y as int)),
+            Message::Write(b) => b,
+        }
+    }
+    
+    proof fn test_expansion_multiple_call() {
+      let x = Message::Move{x: 5, y:6};
+      as$0sert(is_good_message(x));
+    }
+}
+"#,
+
+r#"
+verus!{
+    #[derive(PartialEq, Eq)] 
+    pub enum Message {
+        Quit(bool),
+        Move { x: i32, y: i32 },
+        Write(bool),
+    }
+    
+    spec fn is_good_integer_3(x: int) -> bool 
+    {
+        x >= 0 && x != 5
+    }
+    
+    spec fn is_good_message(msg:Message) -> bool {
+        match msg {
+            Message::Quit(b) => b,
+            Message::Move{x, y} => is_good_integer_3( (x as int)  - (y as int)),
+            Message::Write(b) => b,
+        }
+    }
+    
+    proof fn test_expansion_multiple_call() {
+      let x = Message::Move{x: 5, y:6};
+      match x {
+        Message::Quit(..) => assert(is_good_message(x)),
+        Message::Move{..} => assert(is_good_message(x)),
+        Message::Write(..) => assert(is_good_message(x)),
+      };
+    }
+}
+"#
         );
     }
 }
