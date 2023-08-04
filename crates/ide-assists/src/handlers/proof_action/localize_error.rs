@@ -51,30 +51,53 @@ pub(crate) fn localize_error(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
     )
 }
 
+// TODO: match, if, not, quant(forall)
+fn split_expr(exp: &Expr) -> Option<Vec<Expr>> {
+    match exp {
+        Expr::BinExpr(be) => {
+            match be.op {
+                BinaryOp::LogicOp(LogicOp::And) => {
+                    // REVIEW: instead of A and B, consider split into A and A => B
+                    // Logically this makes more sense, but it might be confusing to the user
+                    Some(vec![*be.lhs.clone(), *be.rhs.clone()])
+                }
+                BinaryOp::LogicOp(LogicOp::Imply) => {
+                    let split_exprs: Vec<Expr> = split_expr(be.lhs.as_ref())?;
+                    let implied_exprs: Vec<Expr> = split_exprs.into_iter().map(|e| {
+                        BinExpr::new(
+                            be.rhs.as_ref().clone(),
+                            BinaryOp::LogicOp(LogicOp::Imply),
+                            e,
+                        ).into()
+                    }).collect();
+                    Some(implied_exprs)
+                }
+                _ => return None,
+            }
+        },
+        Expr::MatchExpr(me) => {
+            // assume #[is_variant]
+            return None;
+        },            
+        _ => return None,
+    }
+}
+
+
 pub(crate) fn vst_rewriter_localize_error(
     ctx: &AssistContext<'_>,
     assertion: AssertExpr,
 ) -> Option<String> {
     let exp = &assertion.expr;
-    match &**exp {
-        Expr::BinExpr(be) => {
-            match be.op {
-                BinaryOp::LogicOp(LogicOp::And) => {
-                    let left_assert = AssertExpr::new(*be.lhs.clone());
-                    let right_assert = AssertExpr::new(*be.rhs.clone());
-                    let mut stmts: StmtList = StmtList::new();
-                    stmts.statements.push(left_assert.into());
-                    stmts.statements.push(right_assert.into());
-                    stmts.statements.push(assertion.into());
-                    let blk = BlockExpr::new(stmts);
-                    return Some(blk.to_string());
-                }
-                _ => return None,
-            }
-
-        }            
-        _ => return None,
-    };
+    let split_exprs = split_expr(exp)?;
+    let mut stmts: StmtList = StmtList::new();
+    for e in split_exprs {
+        let assert_expr = AssertExpr::new(e);
+        stmts.statements.push(assert_expr.into());
+    }
+    stmts.statements.push(assertion.into());
+    let blk = BlockExpr::new(stmts);
+    return Some(blk.to_string());
 }
 
 #[cfg(test)]
@@ -84,7 +107,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn wp_assign_easy() {
+    fn localize_simple_conjunct() {
         check_assist(
             localize_error,
             r#"
