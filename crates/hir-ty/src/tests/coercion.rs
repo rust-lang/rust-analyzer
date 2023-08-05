@@ -504,8 +504,8 @@ fn test() {
                                 //^ S<i8, i16>
     let obj: &dyn Bar<_, i8, i16> = &S;
                                    //^ S<i8, i16>
-    let obj: &dyn Foo<i8, _> = &S;
-                              //^ S<i8, {unknown}>
+    let obj: &dyn Foo<i8, _> = &S::<_, i16>;
+                              //^^^^^^^^^^^ S<i8, i16>
 }"#,
     );
 }
@@ -535,7 +535,8 @@ fn test() {
 }
 
 #[test]
-fn coerce_unsize_generic() {
+fn coerce_unsize_struct_tail() {
+    // FIXME: This should work.
     check(
         r#"
 //- minicore: coerce_unsized
@@ -739,6 +740,26 @@ fn test() {
     let _: B<[isize]> = B::new({ [1, 2, 3] });
 }
         "#,
+    );
+}
+
+#[test]
+fn no_unsizing_coercion_on_ambig_definite() {
+    check_types(
+        r#"
+//- minicore: coerce_unsized
+use core::ops::CoerceUnsized;
+use core::marker::Unsize;
+
+struct Box<T, A = i32>(T, A);
+impl<T: Unsize<U>, U> CoerceUnsized<Box<U>> for Box<T> {}
+fn foo<T, U>() -> Box<T, U> { loop {} }
+
+fn test() {
+    let a: Box<i32> = foo();
+                    //^^^ fn foo<i32, i32>() -> Box<i32, i32>
+}
+"#,
     );
 }
 

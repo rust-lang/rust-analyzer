@@ -329,9 +329,8 @@ impl InferenceContext<'_> {
                 };
                 // if the function is unresolved, we use is_varargs=true to
                 // suppress the arg count diagnostic here
-                let is_varargs =
-                    derefed_callee.callable_sig(self.db).map_or(false, |sig| sig.is_varargs)
-                        || res.is_none();
+                let is_varargs = res.is_none()
+                    || derefed_callee.callable_sig(self.db).is_some_and(|sig| sig.is_varargs);
                 let (param_tys, ret_ty) = match res {
                     Some((func, params, ret_ty)) => {
                         let mut adjustments = auto_deref_adjust_steps(&derefs);

@@ -24,8 +24,8 @@ use crate::{
     },
     static_lifetime,
     utils::ClosureSubst,
-    Canonical, DomainGoal, FnPointer, FnSig, Guidance, InEnvironment, Interner, Solution,
-    Substitution, TraitEnvironment, Ty, TyBuilder, TyExt,
+    Canonical, DomainGoal, FnPointer, FnSig, InEnvironment, Interner, Solution, Substitution,
+    TraitEnvironment, Ty, TyBuilder, TyExt,
 };
 
 use super::unify::InferenceTable;
@@ -651,8 +651,11 @@ impl InferenceTable<'_> {
 
         // FIXME: rustc's coerce_unsized is more specialized -- it only tries to
         // solve `CoerceUnsized` and `Unsize` goals at this point and leaves the
-        // rest for later. Also, there's some logic about sized type variables.
-        // Need to find out in what cases this is necessary
+        // rest for later. This is necessary for unsizing coercion to succeed even
+        // when the trait solver reports ambiguity due to some goals of the form
+        // `?var: Unsize<dyn Trait>`, but we have no way of knowing what subgoal
+        // the ambiguity originates in currently due to lack of selection (see
+        // https://rustc-dev-guide.rust-lang.org/traits/resolution.html#selection).
         let solution = self
             .db
             .trait_solve(krate, self.trait_env.block, canonicalized.value.clone().cast(Interner))
@@ -669,12 +672,8 @@ impl InferenceTable<'_> {
                     },
                 );
             }
-            Solution::Ambig(Guidance::Definite(subst)) => {
-                // FIXME need to record an obligation here
-                canonicalized.apply_solution(self, subst)
-            }
-            // FIXME actually we maybe should also accept unknown guidance here
-            _ => return Err(TypeError),
+            // This is wrong. See FIXME above.
+            Solution::Ambig(_) => return Err(TypeError),
         };
         let unsize =
             Adjustment { kind: Adjust::Pointer(PointerCast::Unsize), target: to_ty.clone() };
