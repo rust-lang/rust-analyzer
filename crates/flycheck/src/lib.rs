@@ -239,7 +239,7 @@ impl FlycheckActor {
                         Ok(cargo_handle) => {
                             tracing::debug!(
                                 command = ?command_string,
-                                "did  restart flycheck"
+                                "did restart flycheck"
                             );
                             self.cargo_handle = Some(cargo_handle);
                             self.report_progress(Progress::DidStart);
@@ -384,8 +384,19 @@ impl FlycheckActor {
                             let mut args = args.clone();
                             args[i] = saved_file.to_string();
                             (cmd, args)
-                        },
-                        _ => unreachable!("this code should not be reachable. An invariant inside of rust-analyzer has been broken.")
+                        }
+                        (None, Some(saved_file)) => {
+                            dbg!("no index, saved file included: {}", &saved_file);
+                            unreachable!()
+                        }
+                        (Some(i), None) => {
+                            dbg!("index, no saved file included: {}", &i);
+                            unreachable!()
+                        }
+                        (None, None) => {
+                            dbg!("No index or no saved file included");
+                            unreachable!()
+                        }
                     }
                 } else {
                     (cmd, args.clone())
