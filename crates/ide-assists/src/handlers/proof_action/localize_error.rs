@@ -24,8 +24,8 @@ assert(exp);
 where exp = e1 && e2
 
 2) match
-assuming #[is_variant]
-
+if the enum has #[is_variant],
+split each match arm into a separate assertion
 
 */
 
@@ -76,7 +76,8 @@ fn split_expr(exp: &Expr) -> Option<Vec<Expr>> {
             }
         },
         Expr::MatchExpr(me) => {
-            // assume #[is_variant]
+            // is the enum does not have #[is_variant], return None
+            // for now, assume #[is_variant]
             return None;
         },            
         _ => return None,
@@ -124,6 +125,53 @@ fn foo()
     assert(a > 10);
     assert(a < 100);
     assert(a > 10 && a < 100);
+}
+"#,
+        );
+    }
+    #[test]
+    fn localize_simple_match() {
+        check_assist(
+            localize_error,
+// before
+            r#"
+#[derive(PartialEq, Eq)] 
+#[is_variant]
+pub enum Message {
+    Quit(bool),
+    Move { x: i32, y: i32 },
+    Write(bool),
+}
+
+proof fn test_expansion_multiple_call() {
+    let x = Message::Move{x: 5, y:6};
+    as$0sert(match x {
+        Message::Quit(b) => b,
+        Message::Move{x, y} => false,
+        Message::Write(b) => b,
+    });
+}            
+"#,
+// after
+            r#"
+#[derive(PartialEq, Eq)] 
+#[is_variant]
+pub enum Message {
+    Quit(bool),
+    Move { x: i32, y: i32 },
+    Write(bool),
+}
+
+proof fn test_expansion_multiple_call() {
+    let x = Message::Move{x: 5, y:6};
+    assert(x.is_Quit() ==> x.get_Quit_0());
+    assert(x.is_Move() ==> x.get_Move_x() > x.get_Move_y());
+    assert(x.is_Write() ==> x.get_Write_0());
+    assert(match x {
+        Message::Quit(b) => b,
+        Message::Move{x, y} => x > y,
+        Message::Write(b) => b,
+    });
 }
 "#,
         );
