@@ -63,16 +63,16 @@ pub(crate) fn generate_default_from_new(acc: &mut Assists, ctx: &AssistContext<'
     }
 
     let insert_location = impl_.syntax().text_range();
+    let default_code = "    fn default() -> Self {
+        Self::new()
+    }";
+    let code = generate_trait_impl_text_from_impl(&impl_, self_ty, "Default", default_code)?;
 
     acc.add(
         AssistId("generate_default_from_new", crate::AssistKind::Generate),
         "Generate a Default impl from a new fn",
         insert_location,
         move |builder| {
-            let default_code = "    fn default() -> Self {
-        Self::new()
-    }";
-            let code = generate_trait_impl_text_from_impl(&impl_, self_ty, "Default", default_code);
             builder.insert(insert_location.end(), code);
         },
     )
@@ -84,7 +84,8 @@ fn generate_trait_impl_text_from_impl(
     self_ty: ast::Type,
     trait_text: &str,
     code: &str,
-) -> String {
+) -> Option<String> {
+    let impl_ty = impl_.self_ty()?;
     let generic_params = impl_.generic_param_list().map(|generic_params| {
         let lifetime_params =
             generic_params.lifetime_params().map(ast::GenericParam::LifetimeParam);
@@ -126,7 +127,7 @@ fn generate_trait_impl_text_from_impl(
         }
     }
 
-    buf
+    Some(buf)
 }
 
 fn is_default_implemented(ctx: &AssistContext<'_>, impl_: &Impl) -> bool {
