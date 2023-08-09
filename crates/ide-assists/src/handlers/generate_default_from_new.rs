@@ -85,7 +85,6 @@ fn generate_trait_impl_text_from_impl(
     trait_text: &str,
     code: &str,
 ) -> Option<String> {
-    let impl_ty = impl_.self_ty()?;
     let generic_params = impl_.generic_param_list().map(|generic_params| {
         let lifetime_params =
             generic_params.lifetime_params().map(ast::GenericParam::LifetimeParam);
