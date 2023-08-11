@@ -5,6 +5,7 @@
 #![warn(rust_2018_idioms, unused_lifetimes, semicolon_in_expressions_from_macros)]
 
 use std::{
+    cell::OnceCell,
     fmt, io,
     process::{ChildStderr, ChildStdout, Command, Stdio},
     time::Duration,
@@ -12,7 +13,7 @@ use std::{
 
 use command_group::{CommandGroup, GroupChild};
 use crossbeam_channel::{never, select, unbounded, Receiver, Sender};
-use paths::AbsPathBuf;
+use paths::{AbsPath, AbsPathBuf};
 use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use stdx::process::streaming_output;
@@ -173,12 +174,18 @@ struct FlycheckActor {
     /// Either the workspace root of the workspace we are flychecking,
     /// or the project root of the project.
     root: AbsPathBuf,
+    state: OnceCell<FlycheckState>,
     /// CargoHandle exists to wrap around the communication needed to be able to
     /// run `cargo check` without blocking. Currently the Rust standard library
     /// doesn't provide a way to read sub-process output without blocking, so we
     /// have to wrap sub-processes output handling in a thread and pass messages
     /// back over a channel.
     cargo_handle: Option<CargoHandle>,
+}
+
+#[derive(Debug)]
+struct FlycheckState {
+    command: Command,
 }
 
 enum Event {
@@ -194,7 +201,14 @@ impl FlycheckActor {
         workspace_root: AbsPathBuf,
     ) -> FlycheckActor {
         tracing::info!(%id, ?workspace_root, "Spawning flycheck");
-        FlycheckActor { id, sender, config, root: workspace_root, cargo_handle: None }
+        FlycheckActor {
+            id,
+            sender,
+            config,
+            root: workspace_root,
+            state: OnceCell::new(),
+            cargo_handle: None,
+        }
     }
 
     fn report_progress(&self, progress: Progress) {
@@ -230,15 +244,25 @@ impl FlycheckActor {
                         }
                     }
 
-                    let command = self.check_command(saved_file);
-                    let command_string = format!("{:?}", command);
+                    let command = self.make_check_command(saved_file.as_deref());
+                    let state = FlycheckState { command };
+                    match self.state.get_mut() {
+                        Some(old_state) => *old_state = state,
+                        None => {
+                            self.state.set(state).expect(
+                                "Unreachable code, as the state of the OnceCell was checked.",
+                            );
+                        }
+                    };
 
-                    tracing::debug!(?command, "restarting flycheck");
+                    tracing::debug!(state = ?self.config, "restarting flycheck");
 
-                    match CargoHandle::spawn(command) {
+                    let command = self.state.get_mut().unwrap();
+
+                    match CargoHandle::spawn(&mut command.command) {
                         Ok(cargo_handle) => {
                             tracing::debug!(
-                                command = ?command_string,
+                                command = ?self.state,
                                 "did restart flycheck"
                             );
                             self.cargo_handle = Some(cargo_handle);
@@ -247,7 +271,7 @@ impl FlycheckActor {
                         Err(error) => {
                             self.report_progress(Progress::DidFailToRestart(format!(
                                 "Failed to run the following command: {:?} error={}",
-                                command_string, error
+                                &self.state, error
                             )));
                         }
                     }
@@ -261,7 +285,7 @@ impl FlycheckActor {
                     if res.is_err() {
                         tracing::error!(
                             "Flycheck failed to run the following command: {:?}",
-                            self.check_command(None)
+                            self.config
                         );
                     }
                     self.report_progress(Progress::DidFinish(res));
@@ -297,13 +321,13 @@ impl FlycheckActor {
 
     fn cancel_check_process(&mut self) {
         if let Some(cargo_handle) = self.cargo_handle.take() {
-            tracing::debug!(command = ?self.check_command(None), "did  cancel flycheck");
+            tracing::debug!(command = ?self.config, "did  cancel flycheck");
             cargo_handle.cancel();
             self.report_progress(Progress::DidCancel);
         }
     }
 
-    fn check_command(&self, saved_file: Option<AbsPathBuf>) -> Command {
+    fn make_check_command(&self, saved_file: Option<&AbsPath>) -> Command {
         let (mut cmd, args) = match &self.config {
             FlycheckConfig::CargoCommand {
                 command,
@@ -385,18 +409,7 @@ impl FlycheckActor {
                             args[i] = saved_file.to_string();
                             (cmd, args)
                         }
-                        (None, Some(saved_file)) => {
-                            dbg!("no index, saved file included: {}", &saved_file);
-                            unreachable!()
-                        }
-                        (Some(i), None) => {
-                            dbg!("index, no saved file included: {}", &i);
-                            unreachable!()
-                        }
-                        (None, None) => {
-                            dbg!("No index or no saved file included");
-                            unreachable!()
-                        }
+                        _ => unreachable!("This is a broken invariant inside of rust-analyzer"),
                     }
                 } else {
                     (cmd, args.clone())
@@ -433,7 +446,7 @@ struct CargoHandle {
 }
 
 impl CargoHandle {
-    fn spawn(mut command: Command) -> std::io::Result<CargoHandle> {
+    fn spawn(command: &mut Command) -> std::io::Result<CargoHandle> {
         command.stdout(Stdio::piped()).stderr(Stdio::piped()).stdin(Stdio::null());
         let mut child = command.group_spawn().map(JodGroupChild)?;
 
