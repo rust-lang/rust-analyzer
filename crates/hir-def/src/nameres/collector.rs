@@ -53,9 +53,9 @@ use crate::{
     visibility::{RawVisibility, Visibility},
     AdtId, AstId, AstIdWithPath, ConstLoc, CrateRootModuleId, EnumLoc, EnumVariantId,
     ExternBlockLoc, ExternCrateId, ExternCrateLoc, FunctionId, FunctionLoc, ImplLoc, Intern,
-    ItemContainerId, LocalModuleId, Macro2Id, Macro2Loc, MacroExpander, MacroId, MacroRulesId,
-    MacroRulesLoc, ModuleDefId, ModuleId, ProcMacroId, ProcMacroLoc, StaticLoc, StructLoc,
-    TraitAliasLoc, TraitLoc, TypeAliasLoc, UnionLoc, UnresolvedMacro, UseId, UseLoc,
+    ItemContainerId, LocalModuleId, Lookup, Macro2Id, Macro2Loc, MacroExpander, MacroId,
+    MacroRulesId, MacroRulesLoc, ModuleDefId, ModuleId, ProcMacroId, ProcMacroLoc, StaticLoc,
+    StructLoc, TraitAliasLoc, TraitLoc, TypeAliasLoc, UnionLoc, UnresolvedMacro, UseId, UseLoc,
 };
 
 static GLOB_RECURSION_LIMIT: Limit = Limit::new(100);
@@ -157,8 +157,6 @@ struct Import {
     visibility: RawVisibility,
     kind: ImportKind,
     source: ImportSource,
-    is_prelude: bool,
-    is_macro_use: bool,
 }
 
 impl Import {
@@ -168,12 +166,12 @@ impl Import {
         tree: &ItemTree,
         item_tree_id: ItemTreeId<item_tree::Use>,
         id: UseId,
+        is_prelude: bool,
         mut cb: impl FnMut(Self),
     ) {
-        let it = &tree[item_tree_id.value];
-        let attrs = &tree.attrs(db, krate, ModItem::from(item_tree_id.value).into());
+        let it = &tree[id.value];
+        let attrs = &tree.attrs(db, krate, ModItem::from(id.value).into());
         let visibility = &tree[it.visibility];
-        let is_prelude = attrs.by_key("prelude_import").exists();
         it.use_tree.expand(|idx, path, kind, alias| {
             cb(Self {
                 path,
@@ -186,14 +184,12 @@ impl Import {
     }
 
     fn from_extern_crate(
-        db: &dyn DefDatabase,
-        krate: CrateId,
         tree: &ItemTree,
         item_tree_id: ItemTreeId<item_tree::ExternCrate>,
         id: ExternCrateId,
     ) -> Self {
-        let it = &tree[item_tree_id.value];
-        let attrs = &tree.attrs(db, krate, ModItem::from(item_tree_id.value).into());
+        let it = &tree[id.value];
+        let attrs = &tree.attrs(db, krate, ModItem::from(id.value).into());
         let visibility = &tree[it.visibility];
         Self {
             path: ModPath::from_segments(PathKind::Plain, iter::once(it.name.clone())),
@@ -888,17 +884,11 @@ impl DefCollector<'_> {
                 tracing::debug!("glob import: {:?}", import);
                 match def.take_types() {
                     Some(ModuleDefId::ModuleId(m)) => {
-                        if import.is_prelude {
+                        if let ImportSource::Use { id, is_prelude: true, .. } = import.source {
                             // Note: This dodgily overrides the injected prelude. The rustc
                             // implementation seems to work the same though.
                             cov_mark::hit!(std_prelude);
-                            self.def_map.prelude = Some((
-                                m,
-                                match import.source {
-                                    ImportSource::Use { id, .. } => Some(id),
-                                    ImportSource::ExternCrate { .. } => None,
-                                },
-                            ));
+                            self.def_map.prelude = Some(m);
                         } else if m.krate != self.def_map.krate {
                             cov_mark::hit!(glob_across_crates);
                             // glob import from other crate => we can just import everything once
@@ -1474,10 +1464,9 @@ impl DefCollector<'_> {
         // heuristic, but it works in practice.
         let mut diagnosed_extern_crates = FxHashSet::default();
         for directive in &self.unresolved_imports {
-            if let ImportSource::ExternCrate { id } = directive.import.source {
-                let item_tree_id = self.db.lookup_intern_extern_crate(id).id;
-                let item_tree = item_tree_id.item_tree(self.db);
-                let extern_crate = &item_tree[item_tree_id.value];
+            if let ImportSource::ExternCrate(krate) = directive.import.source {
+                let item_tree = krate.item_tree(self.db);
+                let extern_crate = &item_tree[krate.value];
 
                 diagnosed_extern_crates.insert(extern_crate.name.clone());
 
@@ -1496,7 +1485,7 @@ impl DefCollector<'_> {
                 ) {
                     continue;
                 }
-                let item_tree_id = self.db.lookup_intern_use(id).id;
+
                 self.def_map.diagnostics.push(DefDiagnostic::unresolved_import(
                     directive.module_id,
                     item_tree_id,
@@ -1582,18 +1571,13 @@ impl ModCollector<'_, '_> {
 
             match item {
                 ModItem::Mod(m) => self.collect_module(m, &attrs),
-                ModItem::Use(item_tree_id) => {
-                    let id = UseLoc {
-                        container: module,
-                        id: ItemTreeId::new(self.tree_id, item_tree_id),
-                    }
-                    .intern(db);
+                ModItem::Use(import_id) => {
+                    let _import_id =
+                        UseLoc { container: module, id: ItemTreeId::new(self.tree_id, import_id) }
+                            .intern(db);
                     Import::from_use(
-                        db,
-                        krate,
                         self.item_tree,
-                        ItemTreeId::new(self.tree_id, item_tree_id),
-                        id,
+                        ItemTreeId::new(self.tree_id, import_id),
                         |import| {
                             self.def_collector.unresolved_imports.push(ImportDirective {
                                 module_id: self.module_id,
@@ -1609,18 +1593,12 @@ impl ModCollector<'_, '_> {
                         id: ItemTreeId::new(self.tree_id, item_tree_id),
                     }
                     .intern(db);
-                    if is_crate_root {
-                        self.process_macro_use_extern_crate(item_tree_id, id);
-                    }
-
                     self.def_collector.def_map.modules[self.module_id]
                         .scope
                         .define_extern_crate_decl(id);
                     self.def_collector.unresolved_imports.push(ImportDirective {
                         module_id: self.module_id,
                         import: Import::from_extern_crate(
-                            db,
-                            krate,
                             self.item_tree,
                             ItemTreeId::new(self.tree_id, item_tree_id),
                             id,
@@ -1803,22 +1781,8 @@ impl ModCollector<'_, '_> {
         }
     }
 
-    fn process_macro_use_extern_crate(
-        &mut self,
-        extern_crate: FileItemTreeId<ExternCrate>,
-        extern_crate_id: ExternCrateId,
-    ) {
+    fn process_macro_use_extern_crate(&mut self, extern_crate: FileItemTreeId<ExternCrate>) {
         let db = self.def_collector.db;
-        let attrs = self.item_tree.attrs(
-            db,
-            self.def_collector.def_map.krate,
-            ModItem::from(extern_crate).into(),
-        );
-        if let Some(cfg) = attrs.cfg() {
-            if !self.is_cfg_enabled(&cfg) {
-                return;
-            }
-        }
 
         let target_crate =
             match self.def_collector.resolve_extern_crate(&self.item_tree[extern_crate].name) {
@@ -1834,7 +1798,7 @@ impl ModCollector<'_, '_> {
 
         let mut single_imports = Vec::new();
         let hygiene = Hygiene::new_unhygienic();
-        for attr in attrs.by_key("macro_use").attrs() {
+        for attr in macro_use_attrs {
             let Some(paths) = attr.parse_path_comma_token_tree(db.upcast(), &hygiene) else {
                 // `#[macro_use]` (without any paths) found, forget collected names and just import
                 // all visible macros.
@@ -1864,7 +1828,7 @@ impl ModCollector<'_, '_> {
             ModKind::Inline { items } => {
                 let module_id = self.push_child_module(
                     module.name.clone(),
-                    AstId::new(self.file_id(), module.ast_id),
+                    module.ast_id,
                     None,
                     &self.item_tree[module.visibility],
                     module_id,
@@ -1902,7 +1866,7 @@ impl ModCollector<'_, '_> {
                         if is_enabled {
                             let module_id = self.push_child_module(
                                 module.name.clone(),
-                                ast_id,
+                                ast_id.value,
                                 Some((file_id, is_mod_rs)),
                                 &self.item_tree[module.visibility],
                                 module_id,
@@ -1929,7 +1893,7 @@ impl ModCollector<'_, '_> {
                     Err(candidates) => {
                         self.push_child_module(
                             module.name.clone(),
-                            ast_id,
+                            ast_id.value,
                             None,
                             &self.item_tree[module.visibility],
                             module_id,
@@ -1946,7 +1910,7 @@ impl ModCollector<'_, '_> {
     fn push_child_module(
         &mut self,
         name: Name,
-        declaration: AstId<ast::Module>,
+        declaration: FileAstId<ast::Module>,
         definition: Option<(FileId, bool)>,
         visibility: &crate::visibility::RawVisibility,
         mod_tree_id: FileItemTreeId<Mod>,
