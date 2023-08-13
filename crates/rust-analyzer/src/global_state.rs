@@ -14,7 +14,9 @@ use lsp_types::{SemanticTokens, Url};
 use nohash_hasher::IntMap;
 use parking_lot::{Mutex, RwLock};
 use proc_macro_api::ProcMacroServer;
-use project_model::{CargoWorkspace, ProjectWorkspace, Target, WorkspaceBuildScripts};
+use project_model::{
+    CargoScriptTomls, CargoWorkspace, ProjectWorkspace, Target, WorkspaceBuildScripts,
+};
 use rustc_hash::{FxHashMap, FxHashSet};
 use triomphe::Arc;
 use vfs::AnchoredPathBuf;
@@ -121,6 +123,7 @@ pub(crate) struct GlobalState {
         OpQueue<(), (Arc<Vec<ProjectWorkspace>>, Vec<anyhow::Result<WorkspaceBuildScripts>>)>,
     pub(crate) fetch_proc_macros_queue: OpQueue<Vec<ProcMacroPaths>, bool>,
     pub(crate) prime_caches_queue: OpQueue,
+    pub(crate) cargo_script_tomls: Arc<Mutex<CargoScriptTomls>>,
 }
 
 /// An immutable snapshot of the world's state at a point in time.
@@ -204,6 +207,7 @@ impl GlobalState {
             fetch_proc_macros_queue: OpQueue::default(),
 
             prime_caches_queue: OpQueue::default(),
+            cargo_script_tomls: Arc::new(Mutex::new(CargoScriptTomls(FxHashMap::default()))),
         };
         // Apply any required database inputs from the config.
         this.update_configuration(config);
@@ -276,7 +280,11 @@ impl GlobalState {
                 let vfs_path = &vfs.file_path(file.file_id);
                 if let Some(path) = vfs_path.as_path() {
                     let path = path.to_path_buf();
-                    if reload::should_refresh_for_change(&path, file.change_kind) {
+                    if reload::should_refresh_for_change(
+                        &path,
+                        file.change_kind,
+                        &mut self.cargo_script_tomls.lock(),
+                    ) {
                         workspace_structure_change = Some((path.clone(), false));
                     }
                     if file.is_created_or_deleted() {
