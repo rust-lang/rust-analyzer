@@ -409,7 +409,13 @@ impl FlycheckActor {
                             args[i] = saved_file.to_string();
                             (cmd, args)
                         }
-                        _ => unreachable!("This is a broken invariant inside of rust-analyzer"),
+                        _ => {
+                            tracing::error!(
+                                ?saved_file,
+                                "the saved file is missing. This is likely a bug."
+                            );
+                            (cmd, args.clone())
+                        }
                     }
                 } else {
                     (cmd, args.clone())
