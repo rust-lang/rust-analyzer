@@ -381,9 +381,9 @@ impl FlycheckActor {
     }
 }
 
-struct JodGroupChild(GroupChild);
+struct JobGroupChild(GroupChild);
 
-impl Drop for JodGroupChild {
+impl Drop for JobGroupChild {
     fn drop(&mut self) {
         _ = self.0.kill();
         _ = self.0.wait();
@@ -394,7 +394,7 @@ impl Drop for JodGroupChild {
 struct CargoHandle {
     /// The handle to the actual cargo process. As we cannot cancel directly from with
     /// a read syscall dropping and therefore terminating the process is our best option.
-    child: JodGroupChild,
+    child: JobGroupChild,
     thread: stdx::thread::JoinHandle<io::Result<(bool, String)>>,
     receiver: Receiver<CargoMessage>,
 }
@@ -402,7 +402,7 @@ struct CargoHandle {
 impl CargoHandle {
     fn spawn(mut command: Command) -> std::io::Result<CargoHandle> {
         command.stdout(Stdio::piped()).stderr(Stdio::piped()).stdin(Stdio::null());
-        let mut child = command.group_spawn().map(JodGroupChild)?;
+        let mut child = command.group_spawn().map(JobGroupChild)?;
 
         let stdout = child.0.inner().stdout.take().unwrap();
         let stderr = child.0.inner().stderr.take().unwrap();
