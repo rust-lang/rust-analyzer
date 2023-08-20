@@ -178,10 +178,93 @@ impl GenericParamsOwnerEdit for ast::Enum {
         self.where_clause().unwrap()
     }
 }
+impl GenericParamsOwnerEdit for ast::Union {
+    fn get_or_create_generic_param_list(&self) -> ast::GenericParamList {
+        self.generic_param_list().unwrap_or_else(|| {
+            let position = if let Some(name) = self.name() {
+                Position::after(name.syntax)
+            } else if let Some(union_token) = self.union_token() {
+                Position::after(union_token)
+            } else {
+                Position::last_child_of(self.syntax())
+            };
+            create_generic_param_list(position)
+        })
+    }
 
-fn create_where_clause(position: Position) {
+    fn get_or_create_where_clause(&self) -> ast::WhereClause {
+        self.where_clause().unwrap_or_else(|| {
+            let position = if let Some(gpl) = self.generic_param_list() {
+                Position::after(gpl.syntax())
+            } else if let Some(name) = self.name() {
+                Position::after(name.syntax())
+            } else {
+                Position::last_child_of(self.syntax())
+            };
+            create_where_clause(position)
+        })
+    }
+}
+impl GenericParamsOwnerEdit for ast::TypeAlias {
+    fn get_or_create_generic_param_list(&self) -> ast::GenericParamList {
+        self.generic_param_list().unwrap_or_else(|| {
+            let position = if let Some(name) = self.name() {
+                Position::after(name.syntax)
+            } else if let Some(type_token) = self.type_token() {
+                Position::after(type_token)
+            } else {
+                Position::last_child_of(self.syntax())
+            };
+            create_generic_param_list(position)
+        })
+    }
+
+    fn get_or_create_where_clause(&self) -> ast::WhereClause {
+        self.where_clause().unwrap_or_else(|| {
+            let position = if let Some(gpl) = self.generic_param_list() {
+                Position::after(gpl.syntax())
+            } else if let Some(name) = self.name() {
+                Position::after(name.syntax())
+            } else {
+                Position::last_child_of(self.syntax())
+            };
+            create_where_clause(position)
+        })
+    }
+}
+
+impl GenericParamsOwnerEdit for ast::TraitAlias {
+    fn get_or_create_generic_param_list(&self) -> ast::GenericParamList {
+        self.generic_param_list().unwrap_or_else(|| {
+            let position = if let Some(name) = self.name() {
+                Position::after(name.syntax)
+            } else if let Some(trait_token) = self.trait_token() {
+                Position::after(trait_token)
+            } else {
+                Position::last_child_of(self.syntax())
+            };
+            create_generic_param_list(position)
+        })
+    }
+
+    fn get_or_create_where_clause(&self) -> ast::WhereClause {
+        self.where_clause().unwrap_or_else(|| {
+            let position = if let Some(gpl) = self.generic_param_list() {
+                Position::after(gpl.syntax())
+            } else if let Some(name) = self.name() {
+                Position::after(name.syntax())
+            } else {
+                Position::last_child_of(self.syntax())
+            };
+            create_where_clause(position)
+        })
+    }
+}
+
+fn create_where_clause(position: Position) -> ast::WhereClause {
     let where_clause = make::where_clause(empty()).clone_for_update();
     ted::insert(position, where_clause.syntax());
+    where_clause
 }
 
 fn create_generic_param_list(position: Position) -> ast::GenericParamList {
@@ -977,6 +1060,13 @@ mod tests {
 
         check_create_gpl::<ast::Enum>("enum E", "enum E<>");
         check_create_gpl::<ast::Enum>("enum E {", "enum E<> {");
+
+        check_create_gpl::<ast::Union>("union A", "union A<>");
+        check_create_gpl::<ast::Union>("union A {}", "union A<> {}");
+
+        check_create_gpl::<ast::TypeAlias>("type A = B;", "type A<> = B;");
+
+        check_create_gpl::<ast::TraitAlias>("trait A = B;", "trait A<> = B;");
     }
 
     #[test]
