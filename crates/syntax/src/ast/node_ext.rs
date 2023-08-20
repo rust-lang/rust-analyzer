@@ -442,7 +442,7 @@ impl ast::RecordExprField {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum NameLike {
     NameRef(ast::NameRef),
     Name(ast::Name),
