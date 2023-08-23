@@ -112,6 +112,7 @@ mod handlers {
     mod add_lifetime_to_type;
     mod add_missing_impl_members;
     mod add_turbo_fish;
+    mod add_generic_parameter;
     mod apply_demorgan;
     mod auto_import;
     mod bind_unused_param;
@@ -228,6 +229,7 @@ mod handlers {
             add_lifetime_to_type::add_lifetime_to_type,
             add_return_type::add_return_type,
             add_turbo_fish::add_turbo_fish,
+            add_generic_parameter::add_generic_parameter,
             apply_demorgan::apply_demorgan,
             apply_demorgan::apply_demorgan_iterator,
             auto_import::auto_import,

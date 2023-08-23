@@ -376,6 +376,7 @@ impl Definition {
             def: self,
             assoc_item_container: self.as_assoc_item(sema.db).map(|a| a.container(sema.db)),
             sema,
+            override_name: None,
             scope: None,
             include_self_kw_refs: None,
             search_self_mod: false,
@@ -394,9 +395,16 @@ pub struct FindUsages<'a> {
     include_self_kw_refs: Option<hir::Type>,
     /// whether to search for the `self` module
     search_self_mod: bool,
+    /// whether to use an override name, e.g. find usages through a `use`
+    override_name: Option<&'a str>,
 }
 
 impl<'a> FindUsages<'a> {
+    /// whether to use an override name, e.g. find usages through a `use`
+    pub fn with_override_name(mut self, override_name: &'a str) -> Self {
+        self.override_name = Some(override_name);
+        self
+    }
     /// Enable searching for `Self` when the definition is a type or `self` for modules.
     pub fn include_self_refs(mut self) -> Self {
         self.include_self_kw_refs = def_to_ty(self.sema, &self.def);
@@ -437,7 +445,6 @@ impl<'a> FindUsages<'a> {
     pub fn search(&self, sink: &mut dyn FnMut(FileId, FileReference) -> bool) {
         let _p = profile::span("FindUsages:search");
         let sema = self.sema;
-
         let search_scope = {
             // FIXME: Is the trait scope needed for trait impl assoc items?
             let base =
@@ -447,36 +454,41 @@ impl<'a> FindUsages<'a> {
                 Some(scope) => base.intersection(scope),
             }
         };
+        let name = self.override_name.map(either::Left).or_else(|| {
+            match self.def {
+                // special case crate modules as these do not have a proper name
+                Definition::Module(module) if module.is_crate_root() => {
+                    // FIXME: This assumes the crate name is always equal to its display name when it really isn't
+                    let name = module
+                        .krate()
+                        .display_name(self.sema.db)
+                        .map(|crate_name| crate_name.crate_name().as_smol_str().clone())?;
+                    Some(either::Right(name))
+                }
+                _ => {
+                    let self_kw_refs = || {
+                        self.include_self_kw_refs.as_ref().and_then(|ty| {
+                            ty.as_adt()
+                                .map(|adt| adt.name(self.sema.db))
+                                .or_else(|| ty.as_builtin().map(|builtin| builtin.name()))
+                        })
+                    };
+                    // We need to unescape the name in case it is written without "r#" in earlier
+                    // editions of Rust where it isn't a keyword.
 
-        let name = match self.def {
-            // special case crate modules as these do not have a proper name
-            Definition::Module(module) if module.is_crate_root() => {
-                // FIXME: This assumes the crate name is always equal to its display name when it
-                // really isn't
-                // we should instead look at the dependency edge name and recursively search our way
-                // up the ancestors
-                module
-                    .krate()
-                    .display_name(self.sema.db)
-                    .map(|crate_name| crate_name.crate_name().as_smol_str().clone())
+                    let name = self
+                        .def
+                        .name(sema.db)
+                        .or_else(self_kw_refs)
+                        .map(|it| it.unescaped().to_smol_str())?;
+                    Some(either::Right(name))
+                }
             }
-            _ => {
-                let self_kw_refs = || {
-                    self.include_self_kw_refs.as_ref().and_then(|ty| {
-                        ty.as_adt()
-                            .map(|adt| adt.name(self.sema.db))
-                            .or_else(|| ty.as_builtin().map(|builtin| builtin.name()))
-                    })
-                };
-                // We need to unescape the name in case it is written without "r#" in earlier
-                // editions of Rust where it isn't a keyword.
-                self.def.name(sema.db).or_else(self_kw_refs).map(|it| it.unescaped().to_smol_str())
-            }
+        });
+        let Some(name) = name else {
+            return;
         };
-        let name = match &name {
-            Some(s) => s.as_str(),
-            None => return,
-        };
+        let name = either::for_both!(&name, x => x.as_ref());
         let finder = &Finder::new(name);
         let include_self_kw_refs =
             self.include_self_kw_refs.as_ref().map(|ty| (ty, Finder::new("Self")));
