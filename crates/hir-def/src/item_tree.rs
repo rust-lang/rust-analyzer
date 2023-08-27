@@ -696,9 +696,33 @@ pub struct TraitAlias {
     pub ast_id: FileAstId<ast::TraitAlias>,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct GenericParamGroups {
+    // pub target_trait: Option<Vec<String>>,
+    pub self_ty: Option<Vec<String>>,
+}
+
+impl GenericParamGroups {
+    fn from_impl(impl_: &ast::Impl) -> Self {
+        Self {
+            // target_trait: Self::get_arg_list(impl_.trait_()),
+            self_ty: Self::get_arg_list(impl_.self_ty()),
+        }
+    }
+
+    fn get_arg_list(ty: Option<ast::Type>) -> Option<Vec<String>> {
+        let list = match ty? {
+            ast::Type::PathType(p) => p.path()?.segment()?.generic_arg_list(),
+            _ => None,
+        };
+        Some(list?.generic_args().map(|arg| arg.syntax().text().to_string()).collect())
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Impl {
     pub generic_params: Interned<GenericParams>,
+    pub generic_param_groups: GenericParamGroups,
     pub target_trait: Option<Interned<TraitRef>>,
     pub self_ty: Interned<TypeRef>,
     pub is_negative: bool,

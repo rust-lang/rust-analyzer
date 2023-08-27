@@ -33,6 +33,7 @@ pub mod symbols;
 
 mod display;
 
+use rustc_hash::FxHashMap;
 use std::{iter, ops::ControlFlow};
 
 use arrayvec::ArrayVec;
@@ -3354,6 +3355,21 @@ impl Impl {
     pub fn as_builtin_derive(self, db: &dyn HirDatabase) -> Option<InFile<ast::Attr>> {
         let src = self.source(db)?;
         src.file_id.as_builtin_derive_attr_node(db.upcast())
+    }
+
+    pub fn filter_self_ty_params(
+        &self,
+        params: &Vec<TypeOrConstParam>,
+        db: &dyn HirDatabase,
+    ) -> Option<Vec<TypeOrConstParam>> {
+        let id = self.id.lookup(db.upcast()).id;
+        let tree = id.item_tree(db.upcast());
+        let names = (&tree[id.value].generic_param_groups.self_ty).as_ref()?;
+        let name_to_param: FxHashMap<_, _> = params
+            .iter()
+            .map(|param| (param.name(db).display(db.upcast()).to_string(), param))
+            .collect();
+        Some(names.iter().map(|n| *name_to_param[n]).collect())
     }
 }
 

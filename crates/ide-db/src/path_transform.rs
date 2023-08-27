@@ -2,12 +2,17 @@
 
 use crate::helpers::mod_path_to_ast;
 use either::Either;
-use hir::{AsAssocItem, HirDisplay, SemanticsScope};
+use hir::{AsAssocItem, GenericDef, HirDisplay, SemanticsScope};
 use rustc_hash::FxHashMap;
 use syntax::{
     ast::{self, make, AstNode},
     ted, SyntaxNode,
 };
+
+enum ParamsToSubstitute {
+    All,
+    SelfTyOnly,
+}
 
 #[derive(Default)]
 struct AstSubsts {
@@ -48,6 +53,7 @@ type DefaultedParam = Either<hir::TypeParam, hir::ConstParam>;
 /// ```
 pub struct PathTransform<'a> {
     generic_def: Option<hir::GenericDef>,
+    params_to_substitute: ParamsToSubstitute,
     substs: AstSubsts,
     target_scope: &'a SemanticsScope<'a>,
     source_scope: &'a SemanticsScope<'a>,
@@ -63,8 +69,24 @@ impl<'a> PathTransform<'a> {
         PathTransform {
             source_scope,
             target_scope,
+            params_to_substitute: ParamsToSubstitute::All,
             generic_def: Some(trait_.into()),
-            substs: get_syntactic_substs(impl_).unwrap_or_default(),
+            substs: get_substs_from_impl(impl_).unwrap_or_default(),
+        }
+    }
+
+    pub fn delegate_trait(
+        target_scope: &'a SemanticsScope<'a>,
+        source_scope: &'a SemanticsScope<'a>,
+        source: hir::Impl,
+        type_with_trait: &ast::Type,
+    ) -> PathTransform<'a> {
+        PathTransform {
+            source_scope,
+            target_scope,
+            params_to_substitute: ParamsToSubstitute::SelfTyOnly,
+            generic_def: Some(source.into()),
+            substs: get_substs_from_ty(type_with_trait).unwrap_or_default(),
         }
     }
 
@@ -77,6 +99,7 @@ impl<'a> PathTransform<'a> {
         PathTransform {
             source_scope,
             target_scope,
+            params_to_substitute: ParamsToSubstitute::All,
             generic_def: Some(function.into()),
             substs: get_type_args_from_arg_list(generic_arg_list).unwrap_or_default(),
         }
@@ -89,6 +112,7 @@ impl<'a> PathTransform<'a> {
         PathTransform {
             source_scope,
             target_scope,
+            params_to_substitute: ParamsToSubstitute::All,
             generic_def: None,
             substs: AstSubsts::default(),
         }
@@ -117,9 +141,20 @@ impl<'a> PathTransform<'a> {
         let mut type_substs: FxHashMap<hir::TypeParam, ast::Type> = Default::default();
         let mut const_substs: FxHashMap<hir::ConstParam, SyntaxNode> = Default::default();
         let mut defaulted_params: Vec<DefaultedParam> = Default::default();
-        self.generic_def
-            .into_iter()
-            .flat_map(|it| it.type_params(db))
+
+        // FIXME: get parameter list within a separate function
+        // FIXME: get default values (`ParamsToSubstitute::SelfTyOnly` case)
+        let mut params = self.generic_def.and_then(|it| Some(it.type_params(db)));
+        match (&self.params_to_substitute, &self.generic_def, &params) {
+            (ParamsToSubstitute::SelfTyOnly, Some(GenericDef::Impl(impl_)), Some(all_params)) => {
+                params = impl_.filter_self_ty_params(all_params, db);
+            }
+            _ => (),
+        }
+        let params = params.unwrap_or(vec![]);
+
+        params
+            .iter()
             .skip(skip)
             // The actual list of trait type parameters may be longer than the one
             // used in the `impl` block due to trailing default type parameters.
@@ -338,16 +373,19 @@ impl Ctx<'_> {
     }
 }
 
+fn get_substs_from_impl(impl_def: ast::Impl) -> Option<AstSubsts> {
+    let target_trait = impl_def.trait_()?;
+    get_substs_from_ty(&target_trait)
+}
+
 // FIXME: It would probably be nicer if we could get this via HIR (i.e. get the
 // trait ref, and then go from the types in the substs back to the syntax).
-fn get_syntactic_substs(impl_def: ast::Impl) -> Option<AstSubsts> {
-    let target_trait = impl_def.trait_()?;
-    let path_type = match target_trait {
+fn get_substs_from_ty(ty: &ast::Type) -> Option<AstSubsts> {
+    let path_type = match ty {
         ast::Type::PathType(path) => path,
         _ => return None,
     };
     let generic_arg_list = path_type.path()?.segment()?.generic_arg_list()?;
-
     get_type_args_from_arg_list(generic_arg_list)
 }
 

@@ -244,9 +244,9 @@ fn generate_impl(
     let source: ast::Impl;
     let genpar: Option<ast::GenericParamList>;
     let db = ctx.db();
-    let base_path = make::path_from_text(&field_ty.to_string().as_str());
     let s_path = make::ext::ident_path(&strukt.name.to_string());
 
+    // FIXME: deduplicate the code below
     match delegee {
         Delegee::Bound(delegee) => {
             let in_file = ctx.sema.source(delegee.0.to_owned())?;
@@ -275,7 +275,7 @@ fn generate_impl(
             // Goto link : https://doc.rust-lang.org/reference/paths.html#qualified-paths
             let qualified_path_type = make::path_from_text(&format!(
                 "<{} as {}{}>",
-                base_path.to_string(),
+                field_ty.to_string(),
                 delegee.0.name(db).to_smol_str(),
                 gen_args.to_string()
             ));
@@ -319,19 +319,15 @@ fn generate_impl(
                 None,
             )
             .clone_for_update();
-            genpar = source.generic_param_list();
-            let delegate_assoc_items = delegate.get_or_create_assoc_item_list();
-            let gen_args: String =
-                genpar.map_or_else(String::new, |params| params.to_generic_args().to_string());
 
             // Goto link : https://doc.rust-lang.org/reference/paths.html#qualified-paths
             let qualified_path_type = make::path_from_text(&format!(
-                "<{} as {}{}>",
-                base_path.to_string().as_str(),
-                delegee.0.name(db).to_smol_str(),
-                gen_args.to_string().as_str()
+                "<{} as {}>",
+                field_ty.to_string(),
+                source.trait_().map_or_else(String::new, |t| t.syntax().text().to_string())
             ));
 
+            let delegate_assoc_items = delegate.get_or_create_assoc_item_list();
             source
                 .get_or_create_assoc_item_list()
                 .assoc_items()
@@ -343,11 +339,16 @@ fn generate_impl(
                     }
                 });
 
-            let target = ctx.sema.scope(strukt.strukt.syntax())?;
-            let source = ctx.sema.scope(source.syntax())?;
-
+            let target_scope = ctx.sema.scope(strukt.strukt.syntax())?;
+            let source_scope = match source.get_or_create_assoc_item_list().assoc_items().next() {
+                // Scopes of all assoc items are identical, so one can be used for them all;
+                // moreover, the same scope can be used with the `impl` signature to resolve
+                // generic params, though it's a kind of cheating.
+                Some(item) => ctx.sema.scope(&item.syntax())?,
+                None => ctx.sema.scope(source.syntax())?,
+            };
             let transform =
-                PathTransform::trait_impl(&target, &source, delegee.0, delegate.clone());
+                PathTransform::delegate_trait(&target_scope, &source_scope, delegee.1, &field_ty);
             transform.apply(&delegate.syntax());
         }
     }
@@ -1044,6 +1045,56 @@ impl some_module::SomeTrait for B {
 
     fn method_(&mut self) -> bool {
         <some_module::A as some_module::SomeTrait>::method_( &mut self.a )
+    }
+}"#,
+        )
+    }
+
+    #[test]
+    fn test_generic_substitution() {
+        // FIXME: the `impl ... ` line still has invalid params
+        check_assist(
+            generate_delegate_trait,
+            r#"
+struct S(Foo<i32, bool>$0);
+struct Foo<T, V> {
+    one: T,
+    another: V
+}
+
+trait Trait<T, V> {
+    type Ty;
+    fn f(self) -> Self::Ty;
+}
+impl<A, B, C> Trait<A, B> for Foo<C, B> {
+    type Ty = B;
+    fn f(self) -> Self::Ty {
+        self.another
+    }
+}"#,
+            r#"
+struct S(Foo<i32, bool>);
+
+impl<A, B, C> Trait<A, bool, i32> for S {
+    type Ty = <Foo<i32, bool> as Trait<A, bool>>::Ty;
+
+    fn f(self) -> Self::Ty {
+        <Foo<i32, bool> as Trait<A, bool>>::f( self.0 )
+    }
+}
+struct Foo<T, V> {
+    one: T,
+    another: V
+}
+
+trait Trait<T, V> {
+    type Ty;
+    fn f(self) -> Self::Ty;
+}
+impl<A, B, C> Trait<A, B> for Foo<C, B> {
+    type Ty = B;
+    fn f(self) -> Self::Ty {
+        self.another
     }
 }"#,
         )
