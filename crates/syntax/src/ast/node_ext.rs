@@ -380,6 +380,16 @@ impl StructKind {
     }
 }
 
+impl ast::Type {
+    pub fn generic_arg_list(&self) -> Option<ast::GenericArgList> {
+        let path_type = match self {
+            ast::Type::PathType(path) => path,
+            _ => return None,
+        };
+        path_type.path()?.segment()?.generic_arg_list()
+    }
+}
+
 impl ast::Struct {
     pub fn kind(&self) -> StructKind {
         StructKind::from_node(self)

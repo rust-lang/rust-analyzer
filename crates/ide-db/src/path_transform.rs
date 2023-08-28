@@ -2,7 +2,7 @@
 
 use crate::helpers::mod_path_to_ast;
 use either::Either;
-use hir::{AsAssocItem, GenericDef, HirDisplay, SemanticsScope};
+use hir::{AsAssocItem, GenericDef, HirDisplay, SemanticsScope, TypeOrConstParam};
 use rustc_hash::FxHashMap;
 use syntax::{
     ast::{self, make, AstNode},
@@ -86,7 +86,10 @@ impl<'a> PathTransform<'a> {
             target_scope,
             params_to_substitute: ParamsToSubstitute::SelfTyOnly,
             generic_def: Some(source.into()),
-            substs: get_substs_from_ty(type_with_trait).unwrap_or_default(),
+            substs: type_with_trait
+                .generic_arg_list()
+                .and_then(|list| get_substs_from_arg_list(list))
+                .unwrap_or_default(),
         }
     }
 
@@ -101,7 +104,7 @@ impl<'a> PathTransform<'a> {
             target_scope,
             params_to_substitute: ParamsToSubstitute::All,
             generic_def: Some(function.into()),
-            substs: get_type_args_from_arg_list(generic_arg_list).unwrap_or_default(),
+            substs: get_substs_from_arg_list(generic_arg_list).unwrap_or_default(),
         }
     }
 
@@ -129,6 +132,17 @@ impl<'a> PathTransform<'a> {
         }
     }
 
+    fn type_or_const_param(&self) -> Option<Vec<TypeOrConstParam>> {
+        let params = self.generic_def?.type_params(self.source_scope.db);
+        match (&self.params_to_substitute, &self.generic_def) {
+            (ParamsToSubstitute::SelfTyOnly, Some(GenericDef::Impl(impl_))) => {
+                // FIXME: as params are derived from the `impl` block, their default values are lost
+                impl_.filter_self_ty_params(&params, self.source_scope.db)
+            }
+            _ => Some(params),
+        }
+    }
+
     fn build_ctx(&self) -> Ctx<'a> {
         let db = self.source_scope.db;
         let target_module = self.target_scope.module();
@@ -142,17 +156,7 @@ impl<'a> PathTransform<'a> {
         let mut const_substs: FxHashMap<hir::ConstParam, SyntaxNode> = Default::default();
         let mut defaulted_params: Vec<DefaultedParam> = Default::default();
 
-        // FIXME: get parameter list within a separate function
-        // FIXME: get default values (`ParamsToSubstitute::SelfTyOnly` case)
-        let mut params = self.generic_def.and_then(|it| Some(it.type_params(db)));
-        match (&self.params_to_substitute, &self.generic_def, &params) {
-            (ParamsToSubstitute::SelfTyOnly, Some(GenericDef::Impl(impl_)), Some(all_params)) => {
-                params = impl_.filter_self_ty_params(all_params, db);
-            }
-            _ => (),
-        }
-        let params = params.unwrap_or(vec![]);
-
+        let params = self.type_or_const_param().unwrap_or_default();
         params
             .iter()
             .skip(skip)
@@ -375,21 +379,10 @@ impl Ctx<'_> {
 
 fn get_substs_from_impl(impl_def: ast::Impl) -> Option<AstSubsts> {
     let target_trait = impl_def.trait_()?;
-    get_substs_from_ty(&target_trait)
+    get_substs_from_arg_list(target_trait.generic_arg_list()?)
 }
 
-// FIXME: It would probably be nicer if we could get this via HIR (i.e. get the
-// trait ref, and then go from the types in the substs back to the syntax).
-fn get_substs_from_ty(ty: &ast::Type) -> Option<AstSubsts> {
-    let path_type = match ty {
-        ast::Type::PathType(path) => path,
-        _ => return None,
-    };
-    let generic_arg_list = path_type.path()?.segment()?.generic_arg_list()?;
-    get_type_args_from_arg_list(generic_arg_list)
-}
-
-fn get_type_args_from_arg_list(generic_arg_list: ast::GenericArgList) -> Option<AstSubsts> {
+fn get_substs_from_arg_list(generic_arg_list: ast::GenericArgList) -> Option<AstSubsts> {
     let mut result = AstSubsts::default();
     generic_arg_list.generic_args().for_each(|generic_arg| match generic_arg {
         // Const params are marked as consts on definition only,

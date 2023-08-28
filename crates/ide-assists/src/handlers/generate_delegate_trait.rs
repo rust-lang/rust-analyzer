@@ -254,7 +254,7 @@ fn generate_impl(
 
             delegate = make::impl_trait(
                 delegee.0.is_unsafe(db),
-                None,
+                None, // FIXME: trait params are missing
                 None,
                 strukt.strukt.generic_param_list(),
                 None,
@@ -298,6 +298,7 @@ fn generate_impl(
             let target = ctx.sema.scope(strukt.strukt.syntax())?;
             let source = ctx.sema.scope(source.syntax())?;
 
+            // FIXME: get trait generic args from its AST and substitute them
             let transform =
                 PathTransform::trait_impl(&target, &source, delegee.0, delegate.clone());
             transform.apply(&delegate.syntax());
@@ -307,9 +308,9 @@ fn generate_impl(
             source = in_file.value;
             delegate = make::impl_trait(
                 delegee.0.is_unsafe(db),
-                source.generic_param_list(),
+                source.generic_param_list(), // FIXME: these are params of both the trait and the type
                 None,
-                None,
+                None, // FIXME: the type's params are missing
                 None,
                 delegee.0.is_auto(db),
                 make::ty(&delegee.0.name(db).to_smol_str()),
@@ -319,6 +320,12 @@ fn generate_impl(
                 None,
             )
             .clone_for_update();
+
+            let target_scope = ctx.sema.scope(strukt.strukt.syntax())?;
+            let mut source_scope = ctx.sema.scope(source.syntax())?;
+            let impl_block_transformation =
+                PathTransform::generic_transformation(&target_scope, &source_scope);
+            impl_block_transformation.apply(&delegate.syntax());
 
             // Goto link : https://doc.rust-lang.org/reference/paths.html#qualified-paths
             let qualified_path_type = make::path_from_text(&format!(
@@ -339,17 +346,16 @@ fn generate_impl(
                     }
                 });
 
-            let target_scope = ctx.sema.scope(strukt.strukt.syntax())?;
-            let source_scope = match source.get_or_create_assoc_item_list().assoc_items().next() {
+            if let Some(item) = source.get_or_create_assoc_item_list().assoc_items().next() {
                 // Scopes of all assoc items are identical, so one can be used for them all;
                 // moreover, the same scope can be used with the `impl` signature to resolve
                 // generic params, though it's a kind of cheating.
-                Some(item) => ctx.sema.scope(&item.syntax())?,
-                None => ctx.sema.scope(source.syntax())?,
+                source_scope = ctx.sema.scope(&item.syntax())?;
             };
             let transform =
                 PathTransform::delegate_trait(&target_scope, &source_scope, delegee.1, &field_ty);
-            transform.apply(&delegate.syntax());
+            let items: Vec<_> = delegate.get_or_create_assoc_item_list().assoc_items().collect();
+            transform.apply_all(items.iter().map(AssocItem::syntax));
         }
     }
 
@@ -1075,7 +1081,7 @@ impl<A, B, C> Trait<A, B> for Foo<C, B> {
             r#"
 struct S(Foo<i32, bool>);
 
-impl<A, B, C> Trait<A, bool, i32> for S {
+impl<A, B, C> Trait<A, B, C> for S {
     type Ty = <Foo<i32, bool> as Trait<A, bool>>::Ty;
 
     fn f(self) -> Self::Ty {
