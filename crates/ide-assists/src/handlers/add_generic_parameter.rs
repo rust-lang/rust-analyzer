@@ -959,7 +959,7 @@ const _: () = {
 // I copied this from edit_in_place.rs::add_generic_param
 // I'm not sure why this didnt exist already
 // FIXME: add to crates/syntax/src/ast/edit_in_place.rs
-pub fn add_generic_arg(self_: ast::GenericArgList, generic_arg: ast::GenericArg) {
+fn add_generic_arg(self_: ast::GenericArgList, generic_arg: ast::GenericArg) {
     match self_.generic_args().last() {
         Some(last) => {
             let position = Position::after(last.syntax());
