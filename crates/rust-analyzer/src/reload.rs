@@ -24,7 +24,7 @@ use ide_db::{
 };
 use load_cargo::{load_proc_macro, ProjectFolders};
 use proc_macro_api::ProcMacroServer;
-use project_model::{ProjectWorkspace, WorkspaceBuildScripts};
+use project_model::{CargoScriptTomls, ProjectWorkspace, WorkspaceBuildScripts};
 use rustc_hash::FxHashSet;
 use stdx::{format_to, thread::ThreadIntent};
 use triomphe::Arc;
@@ -190,6 +190,7 @@ impl GlobalState {
             let linked_projects = self.config.linked_projects();
             let detached_files = self.config.detached_files().to_vec();
             let cargo_config = self.config.cargo();
+            let cargo_script_tomls = self.cargo_script_tomls.clone();
 
             move |sender| {
                 let progress = {
@@ -246,6 +247,7 @@ impl GlobalState {
                     workspaces.push(project_model::ProjectWorkspace::load_detached_files(
                         detached_files,
                         &cargo_config,
+                        &mut cargo_script_tomls.lock(),
                     ));
                 }
 
@@ -623,7 +625,15 @@ impl GlobalState {
     }
 }
 
-pub(crate) fn should_refresh_for_change(path: &AbsPath, change_kind: ChangeKind) -> bool {
+pub(crate) fn should_refresh_for_change(
+    path: &AbsPath,
+    change_kind: ChangeKind,
+    cargo_script_tomls: &mut CargoScriptTomls,
+) -> bool {
+    if cargo_script_tomls.need_reload(path) {
+        return true;
+    }
+
     const IMPLICIT_TARGET_FILES: &[&str] = &["build.rs", "src/main.rs", "src/lib.rs"];
     const IMPLICIT_TARGET_DIRS: &[&str] = &["src/bin", "examples", "tests", "benches"];
 
