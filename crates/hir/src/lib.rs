@@ -3357,19 +3357,30 @@ impl Impl {
         src.file_id.as_builtin_derive_attr_node(db.upcast())
     }
 
+    // Filters the impl's generic arguments pertaining to self_ty
+    // (e.g. for `impl<A, B, C> Trait<A, B> for Foo<C, B>` it returns C and B only)
     pub fn filter_self_ty_params(
         &self,
         params: &Vec<TypeOrConstParam>,
         db: &dyn HirDatabase,
     ) -> Option<Vec<TypeOrConstParam>> {
-        let id = self.id.lookup(db.upcast()).id;
-        let tree = id.item_tree(db.upcast());
-        let names = (&tree[id.value].generic_param_groups.self_ty).as_ref()?;
+        let ty = self.self_ty(db).ty;
+        let names =
+            ty.as_adt().into_iter().flat_map(|(_, substs)| substs.iter(Interner)).filter_map(
+                |arg| {
+                    if let Some(ty) = arg.ty(Interner) {
+                        if let TyKind::Placeholder(placeholder) = ty.data(Interner).kind {
+                            return Some(placeholder.to_ty(Interner).display(db).to_string());
+                        }
+                    };
+                    None
+                },
+            );
         let name_to_param: FxHashMap<_, _> = params
             .iter()
             .map(|param| (param.name(db).display(db.upcast()).to_string(), param))
             .collect();
-        Some(names.iter().map(|n| *name_to_param[n]).collect())
+        Some(names.map(|n| *name_to_param[&n]).collect())
     }
 }
 

@@ -390,15 +390,8 @@ impl Printer<'_> {
                 wln!(self);
             }
             ModItem::Impl(it) => {
-                let Impl {
-                    target_trait,
-                    generic_param_groups: _,
-                    self_ty,
-                    is_negative,
-                    items,
-                    generic_params,
-                    ast_id: _,
-                } = &self.tree[it];
+                let Impl { target_trait, self_ty, is_negative, items, generic_params, ast_id: _ } =
+                    &self.tree[it];
                 w!(self, "impl");
                 self.print_generic_params(generic_params);
                 w!(self, " ");

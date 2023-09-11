@@ -501,15 +501,7 @@ impl<'a> Ctx<'a> {
             })
             .collect();
         let ast_id = self.source_ast_id_map.ast_id(impl_def);
-        let res = Impl {
-            generic_params,
-            generic_param_groups: GenericParamGroups::from_impl(impl_def),
-            target_trait,
-            self_ty,
-            is_negative,
-            items,
-            ast_id,
-        };
+        let res = Impl { generic_params, target_trait, self_ty, is_negative, items, ast_id };
         Some(id(self.data().impls.alloc(res)))
     }
 
