@@ -284,7 +284,7 @@ fn parse_adt(tm: &TokenMap, adt: &ast::Adt) -> Result<BasicAdtInfo, ExpandError>
         })
         .map(|it| mbe::syntax_node_to_token_tree(it.syntax()).0)
         .collect();
-    let name_token = name_to_token(&tm, name)?;
+    let name_token = name_to_token(tm, name)?;
     Ok(BasicAdtInfo { name: name_token, shape, param_types, associated_types })
 }
 
@@ -434,7 +434,7 @@ fn clone_expand(
         let name = &adt.name;
         let patterns = adt.shape.as_pattern(name);
         let exprs = adt.shape.as_pattern_map(name, |it| quote! { #it .clone() });
-        let arms = patterns.into_iter().zip(exprs.into_iter()).map(|(pat, expr)| {
+        let arms = patterns.into_iter().zip(exprs).map(|(pat, expr)| {
             let fat_arrow = fat_arrow();
             quote! {
                 #pat #fat_arrow #expr,

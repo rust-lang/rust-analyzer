@@ -575,7 +575,7 @@ fn macro_expand(db: &dyn ExpandDatabase, id: MacroCallId) -> ExpandResult<Arc<tt
                 MacroDefKind::Declarative(id) => {
                     db.decl_macro_expander(loc.def.krate, id).expand(arg.clone())
                 }
-                MacroDefKind::BuiltIn(it, _) => it.expand(db, id, &arg).map_err(Into::into),
+                MacroDefKind::BuiltIn(it, _) => it.expand(db, id, arg).map_err(Into::into),
                 // This might look a bit odd, but we do not expand the inputs to eager macros here.
                 // Eager macros inputs are expanded, well, eagerly when we collect the macro calls.
                 // That kind of expansion uses the ast id map of an eager macros input though which goes through

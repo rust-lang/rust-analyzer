@@ -106,7 +106,7 @@ struct PrInfo {
 }
 
 fn unescape(s: &str) -> String {
-    s.replace(r#"\""#, "").replace(r#"\n"#, "\n").replace(r#"\r"#, "")
+    s.replace(r#"\""#, "").replace(r"\n", "\n").replace(r"\r", "")
 }
 
 fn parse_pr_number(s: &str) -> Option<u32> {

@@ -30,7 +30,7 @@ impl ops::Deref for RawAttrs {
 
     fn deref(&self) -> &[Attr] {
         match &self.entries {
-            Some(it) => &*it,
+            Some(it) => it,
             None => &[],
         }
     }
@@ -76,7 +76,7 @@ impl RawAttrs {
                             .cloned()
                             .chain(b.iter().map(|it| {
                                 let mut it = it.clone();
-                                it.id.id = it.id.ast_index() as u32 + last_ast_index
+                                it.id.id = (it.id.ast_index() as u32 + last_ast_index)
                                     | (it.id.cfg_attr_index().unwrap_or(0) as u32)
                                         << AttrId::AST_INDEX_BITS;
                                 it
@@ -293,7 +293,7 @@ impl Attr {
                 // FIXME: This is necessarily a hack. It'd be nice if we could avoid allocation here.
                 let subtree = tt::Subtree {
                     delimiter: tt::Delimiter::unspecified(),
-                    token_trees: tts.into_iter().cloned().collect(),
+                    token_trees: tts.to_vec(),
                 };
                 let (parse, _) =
                     mbe::token_tree_to_syntax_node(&subtree, mbe::TopEntryPoint::MetaItem);
