@@ -22,7 +22,7 @@ pub const CURRENT_API_VERSION: u32 = ENCODE_CLOSE_SPAN_VERSION;
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Request {
     ListMacros { dylib_path: PathBuf },
-    ExpandMacro(ExpandMacro),
+    ExpandMacro(Box<ExpandMacro>),
     ApiVersionCheck {},
 }
 

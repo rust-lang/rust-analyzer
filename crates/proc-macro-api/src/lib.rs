@@ -155,7 +155,7 @@ impl ProcMacro {
             current_dir,
         };
 
-        let request = msg::Request::ExpandMacro(task);
+        let request = msg::Request::ExpandMacro(Box::new(task));
         let response = self.process.lock().unwrap_or_else(|e| e.into_inner()).send_task(request)?;
         match response {
             msg::Response::ExpandMacro(it) => {
