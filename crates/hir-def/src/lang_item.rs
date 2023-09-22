@@ -234,7 +234,7 @@ macro_rules! language_item_table {
 impl LangItem {
     /// Opposite of [`LangItem::name`]
     pub fn from_name(name: &hir_expand::name::Name) -> Option<Self> {
-        Self::from_str(name.as_str()?)
+        Self::from_str(name.as_str())
     }
 
     pub fn path(&self, db: &dyn DefDatabase, start_crate: CrateId) -> Option<Path> {

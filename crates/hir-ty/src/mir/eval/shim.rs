@@ -56,7 +56,7 @@ impl Evaluator<'_> {
         };
         if is_intrinsic {
             self.exec_intrinsic(
-                function_data.name.as_text().unwrap_or_default().as_str(),
+                function_data.name.as_str(),
                 args,
                 generic_args,
                 destination,
@@ -78,7 +78,7 @@ impl Evaluator<'_> {
         };
         if is_platform_intrinsic {
             self.exec_platform_intrinsic(
-                function_data.name.as_text().unwrap_or_default().as_str(),
+                function_data.name.as_str(),
                 args,
                 generic_args,
                 destination,
@@ -96,7 +96,7 @@ impl Evaluator<'_> {
         };
         if is_extern_c {
             self.exec_extern_c(
-                function_data.name.as_text().unwrap_or_default().as_str(),
+                function_data.name.as_str(),
                 args,
                 generic_args,
                 destination,
@@ -109,7 +109,7 @@ impl Evaluator<'_> {
             .attrs
             .iter()
             .filter_map(|it| it.path().as_ident())
-            .filter_map(|it| it.as_str())
+            .map(|it| it.as_str())
             .find(|it| {
                 [
                     "rustc_allocator",

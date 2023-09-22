@@ -309,7 +309,7 @@ impl DefCollector<'_> {
                 continue;
             }
 
-            if attr_name.as_text().as_deref() == Some("rustc_coherence_is_core") {
+            if attr_name.as_str() == "rustc_coherence_is_core" {
                 crate_data.rustc_coherence_is_core = true;
                 continue;
             }

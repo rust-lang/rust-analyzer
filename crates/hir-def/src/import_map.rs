@@ -64,7 +64,7 @@ impl ImportMap {
         let mut importables: Vec<_> = map
             .iter()
             // We've only collected items, whose name cannot be tuple field.
-            .map(|(&item, info)| (item, info.name.as_str().unwrap().to_ascii_lowercase()))
+            .map(|(&item, info)| (item, info.name.as_str().to_ascii_lowercase()))
             .collect();
         importables.sort_by(|(_, lhs_name), (_, rhs_name)| lhs_name.cmp(rhs_name));
 
@@ -410,8 +410,7 @@ pub fn search_dependencies(
             }
 
             // Name shared by the importable items in this group.
-            let common_importable_name =
-                common_importable_data.name.to_smol_str().to_ascii_lowercase();
+            let common_importable_name = common_importable_data.name.as_str().to_ascii_lowercase();
             // Add the items from this name group. Those are all subsequent items in
             // `importables` whose name match `common_importable_name`.
             let iter = importables
@@ -419,7 +418,7 @@ pub fn search_dependencies(
                 .copied()
                 .take_while(|item| {
                     common_importable_name
-                        == import_map.map[item].name.to_smol_str().to_ascii_lowercase()
+                        == import_map.map[item].name.as_str().to_ascii_lowercase()
                 })
                 .filter(|item| {
                     !query.case_sensitive // we've already checked the common importables name case-insensitively

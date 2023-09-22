@@ -502,6 +502,7 @@ impl ExternCrateDeclData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConstData {
     /// `None` for `const _: () = ();`
+    // FIXME: Consider making this required, using interned `_` as the name
     pub name: Option<Name>,
     pub type_ref: Interned<TypeRef>,
     pub visibility: RawVisibility,

@@ -192,11 +192,7 @@ impl CapturedItem {
                     }
                     let variant_data = f.parent.variant_data(db.upcast());
                     let field = match &*variant_data {
-                        VariantData::Record(fields) => fields[f.local_id]
-                            .name
-                            .as_str()
-                            .unwrap_or("[missing field]")
-                            .to_string(),
+                        VariantData::Record(fields) => fields[f.local_id].name.as_str().to_string(),
                         VariantData::Tuple(fields) => fields
                             .iter()
                             .position(|it| it.0 == f.local_id)

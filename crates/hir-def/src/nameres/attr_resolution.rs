@@ -75,8 +75,8 @@ impl DefMap {
         let segments = path.segments();
 
         if let Some(name) = segments.first() {
-            let name = name.to_smol_str();
-            let pred = |n: &_| *n == name;
+            let name = name.as_str();
+            let pred = |n: &_| n == name;
 
             let registered = self.data.registered_tools.iter().map(SmolStr::as_str);
             let is_tool = TOOL_MODULES.iter().copied().chain(registered).any(pred);
