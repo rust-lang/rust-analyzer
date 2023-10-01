@@ -15,7 +15,7 @@ pub fn is_rust_fence(s: &str) -> bool {
 
     for token in tokens {
         match token {
-            "should_panic" | "no_run" | "ignore" | "allow_fail" => {
+            "should_panic" | "no_run" | "ignore" | "allow_fail" | "no_test" => {
                 seen_rust_tags = !seen_other_tags
             }
             "rust" => seen_rust_tags = true,
@@ -199,5 +199,11 @@ let s = "foo
 ## A second-level heading
 ```"#;
         assert_eq!(format_docs_(comment), "```markdown\n## A second-level heading\n```");
+    }
+
+    #[test]
+    fn test_format_docs_handles_no_test() {
+        let comment = "```no_test\nlet x = 1;\n```";
+        assert_eq!(format_docs_(comment), "```rust\nlet x = 1;\n```");
     }
 }
