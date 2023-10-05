@@ -65,15 +65,13 @@ enum RunnableTestKind {
 
 impl Runnable {
     // test package::module::testname
-    pub fn label(&self, target: Option<String>) -> String {
+    pub fn label(&self, target: String) -> String {
         match &self.kind {
             RunnableKind::Test { test_id, .. } => format!("test {test_id}"),
             RunnableKind::TestMod { path } => format!("test-mod {path}"),
             RunnableKind::Bench { test_id } => format!("bench {test_id}"),
             RunnableKind::DocTest { test_id, .. } => format!("doctest {test_id}"),
-            RunnableKind::Bin => {
-                target.map_or_else(|| "run binary".to_owned(), |t| format!("run {t}"))
-            }
+            RunnableKind::Bin => target,
         }
     }
 

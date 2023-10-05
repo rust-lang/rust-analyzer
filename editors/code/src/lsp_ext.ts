@@ -223,16 +223,25 @@ export type OpenCargoTomlParams = {
 export type Runnable = {
     label: string;
     location?: lc.LocationLink;
-    kind: "cargo";
-    args: {
-        workspaceRoot?: string;
-        cargoArgs: string[];
-        cargoExtraArgs: string[];
-        executableArgs: string[];
-        expectTest?: boolean;
-        overrideCargo?: string;
-    };
+    kind: "cargo" | "jsonproject";
+    args: CargoRunnable | ProjectJsonRunnable;
 };
+
+export type ProjectJsonRunnable = {
+    workspaceRoot: string;
+    args: string[];
+    expectTest?: boolean;
+};
+
+export type CargoRunnable = {
+    workspaceRoot?: string;
+    cargoArgs: string[];
+    cargoExtraArgs: string[];
+    executableArgs: string[];
+    expectTest?: boolean;
+    overrideCargo?: string;
+};
+
 export type RunnablesParams = {
     textDocument: lc.TextDocumentIdentifier;
     position: lc.Position | null;

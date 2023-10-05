@@ -2,6 +2,7 @@
 
 #![allow(clippy::disallowed_types)]
 
+use std::path::Path;
 use std::path::PathBuf;
 
 use ide_db::line_index::WideEncoding;
@@ -424,13 +425,31 @@ pub struct Runnable {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub location: Option<lsp_types::LocationLink>,
     pub kind: RunnableKind,
-    pub args: CargoRunnable,
+    pub args: RunnableData,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+#[serde(untagged)]
+pub enum RunnableData {
+    Cargo(CargoRunnable),
+    ProjectJson(ProjectJsonRunnable),
+}
+
+impl RunnableData {
+    pub fn workspace_root(&self) -> Option<&Path> {
+        match self {
+            RunnableData::Cargo(cargo) => cargo.workspace_root.as_deref(),
+            RunnableData::ProjectJson(project_json) => Some(&project_json.workspace_root),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum RunnableKind {
     Cargo,
+    ProjectJson,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -448,6 +467,14 @@ pub struct CargoRunnable {
     pub executable_args: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expect_test: Option<bool>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectJsonRunnable {
+    pub build_command: String,
+    pub workspace_root: PathBuf,
+    pub args: Vec<String>,
 }
 
 pub enum RelatedTests {}

@@ -21,16 +21,17 @@ use serde_json::to_value;
 use vfs::AbsPath;
 
 use crate::{
-    cargo_target_spec::CargoTargetSpec,
     config::{CallInfoConfig, Config},
-    global_state::GlobalStateSnapshot,
+    global_state::{GlobalStateSnapshot, TargetForCrateRoot},
     line_index::{LineEndings, LineIndex, PositionEncoding},
     lsp::{
+        ext::ProjectJsonRunnable,
         semantic_tokens::{self, standard_fallback_type},
         utils::invalid_params_error,
         LspError,
     },
     lsp_ext::{self, SnippetTextEdit},
+    target_spec::{CargoTargetSpec, ProjectJsonSpec, TargetSpec},
 };
 
 pub(crate) fn position(line_index: &LineIndex, offset: TextSize) -> lsp_types::Position {
@@ -1345,29 +1346,52 @@ pub(crate) fn code_action(
 pub(crate) fn runnable(
     snap: &GlobalStateSnapshot,
     runnable: Runnable,
-) -> Cancellable<lsp_ext::Runnable> {
+) -> Cancellable<Option<lsp_ext::Runnable>> {
     let config = snap.config.runnables();
-    let spec = CargoTargetSpec::for_file(snap, runnable.nav.file_id)?;
-    let workspace_root = spec.as_ref().map(|it| it.workspace_root.clone());
-    let target = spec.as_ref().map(|s| s.target.clone());
-    let (cargo_args, executable_args) =
-        CargoTargetSpec::runnable_args(snap, spec, &runnable.kind, &runnable.cfg);
-    let label = runnable.label(target);
-    let location = location_link(snap, None, runnable.nav)?;
+    let spec = TargetSpec::for_file(snap, runnable.nav.file_id)?;
+    let workspace_root = spec.as_ref().map(|it| it.workspace_root().to_owned());
 
-    Ok(lsp_ext::Runnable {
-        label,
-        location: Some(location),
-        kind: lsp_ext::RunnableKind::Cargo,
-        args: lsp_ext::CargoRunnable {
-            workspace_root: workspace_root.map(|it| it.into()),
-            override_cargo: config.override_cargo,
-            cargo_args,
-            cargo_extra_args: config.cargo_extra_args,
-            executable_args,
-            expect_test: None,
-        },
-    })
+    match spec {
+        Some(TargetSpec::Cargo(spec)) => {
+            let (cargo_args, executable_args) =
+                CargoTargetSpec::runnable_args(snap, spec.clone(), &runnable.kind, &runnable.cfg);
+            let label = runnable.label(spec.target.clone());
+            let location = location_link(snap, None, runnable.nav)?;
+
+            let runnable = lsp_ext::Runnable {
+                label,
+                location: Some(location),
+                kind: lsp_ext::RunnableKind::Cargo,
+                args: lsp_ext::RunnableData::Cargo(lsp_ext::CargoRunnable {
+                    workspace_root: workspace_root.map(|it| it.to_owned().into()),
+                    override_cargo: config.override_cargo,
+                    cargo_args,
+                    cargo_extra_args: config.cargo_extra_args,
+                    executable_args,
+                    expect_test: None,
+                }),
+            };
+            Ok(Some(runnable))
+        }
+        Some(TargetSpec::ProjectJson(spec)) => {
+            let label = runnable.label(spec.target_label.clone());
+            let location = location_link(snap, None, runnable.nav)?;
+            let args = ProjectJsonSpec::runnable_args(spec.clone(), &runnable.kind);
+
+            let runnable = lsp_ext::Runnable {
+                label,
+                location: Some(location),
+                kind: lsp_ext::RunnableKind::ProjectJson,
+                args: lsp_ext::RunnableData::ProjectJson(ProjectJsonRunnable {
+                    build_command: config.override_cargo.unwrap(),
+                    args,
+                    workspace_root: spec.workspace_root.clone().into(),
+                }),
+            };
+            Ok(Some(runnable))
+        }
+        None => Ok(None),
+    }
 }
 
 pub(crate) fn code_lens(
@@ -1391,33 +1415,35 @@ pub(crate) fn code_lens(
             };
             let r = runnable(snap, run)?;
 
-            let lens_config = snap.config.lens();
-            if lens_config.run
-                && client_commands_config.run_single
-                && r.args.workspace_root.is_some()
-            {
-                let command = command::run_single(&r, &title);
-                acc.push(lsp_types::CodeLens {
-                    range: annotation_range,
-                    command: Some(command),
-                    data: None,
-                })
-            }
-            if lens_config.debug && can_debug && client_commands_config.debug_single {
-                let command = command::debug_single(&r);
-                acc.push(lsp_types::CodeLens {
-                    range: annotation_range,
-                    command: Some(command),
-                    data: None,
-                })
-            }
-            if lens_config.interpret {
-                let command = command::interpret_single(&r);
-                acc.push(lsp_types::CodeLens {
-                    range: annotation_range,
-                    command: Some(command),
-                    data: None,
-                })
+            if let Some(r) = r {
+                let lens_config = snap.config.lens();
+                if lens_config.run
+                    && client_commands_config.run_single
+                    && r.args.workspace_root().is_some()
+                {
+                    let command = command::run_single(&r, &title);
+                    acc.push(lsp_types::CodeLens {
+                        range: annotation_range,
+                        command: Some(command),
+                        data: None,
+                    })
+                }
+                if lens_config.debug && can_debug && client_commands_config.debug_single {
+                    let command = command::debug_single(&r);
+                    acc.push(lsp_types::CodeLens {
+                        range: annotation_range,
+                        command: Some(command),
+                        data: None,
+                    })
+                }
+                if lens_config.interpret {
+                    let command = command::interpret_single(&r);
+                    acc.push(lsp_types::CodeLens {
+                        range: annotation_range,
+                        command: Some(command),
+                        data: None,
+                    })
+                }
             }
         }
         AnnotationKind::HasImpls { pos, data } => {
@@ -1523,7 +1549,9 @@ pub(crate) fn test_item(
         label: test_item.label,
         kind: match test_item.kind {
             ide::TestItemKind::Crate(id) => 'b: {
-                let Some((cargo_ws, target)) = snap.cargo_target_for_crate_root(id) else {
+                let Some(TargetForCrateRoot::Cargo(cargo_ws, target)) =
+                    snap.target_for_crate_root(id)
+                else {
                     break 'b lsp_ext::TestItemKind::Package;
                 };
                 let target = &cargo_ws[target];
@@ -1550,7 +1578,7 @@ pub(crate) fn test_item(
             .file
             .map(|f| lsp_types::TextDocumentIdentifier { uri: url(snap, f) }),
         range: line_index.and_then(|l| Some(range(l, test_item.text_range?))),
-        runnable: test_item.runnable.and_then(|r| runnable(snap, r).ok()),
+        runnable: test_item.runnable.and_then(|r| runnable(snap, r).ok()).flatten(),
     })
 }
 

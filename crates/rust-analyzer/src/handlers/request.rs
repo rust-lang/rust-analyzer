@@ -35,13 +35,13 @@ use triomphe::Arc;
 use vfs::{AbsPath, AbsPathBuf, FileId, VfsPath};
 
 use crate::{
-    cargo_target_spec::CargoTargetSpec,
     config::{Config, RustfmtConfig, WorkspaceSymbolConfig},
     diff::diff,
     global_state::{GlobalState, GlobalStateSnapshot},
     hack_recover_crate_name,
     line_index::LineEndings,
     lsp::{
+        ext::{CargoRunnable, RunnableData},
         from_proto, to_proto,
         utils::{all_edits_are_disjoint, invalid_params_error},
         LspError,
@@ -50,6 +50,7 @@ use crate::{
         self, CrateInfoResult, ExternalDocsPair, ExternalDocsResponse, FetchDependencyListParams,
         FetchDependencyListResult, PositionOrRange, ViewCrateGraphParams, WorkspaceSymbolParams,
     },
+    target_spec::TargetSpec,
 };
 
 pub(crate) fn handle_workspace_reload(state: &mut GlobalState, _: ()) -> anyhow::Result<()> {
@@ -775,13 +776,13 @@ pub(crate) fn handle_parent_module(
             Some(&crate_id) => crate_id,
             None => return Ok(None),
         };
-        let cargo_spec = match CargoTargetSpec::for_file(&snap, file_id)? {
+        let cargo_spec = match TargetSpec::for_file(&snap, file_id)? {
             Some(it) => it,
             None => return Ok(None),
         };
 
         if snap.analysis.crate_root(crate_id)? == file_id {
-            let cargo_toml_url = to_proto::url_from_abs_path(&cargo_spec.cargo_toml);
+            let cargo_toml_url = to_proto::url_from_abs_path(cargo_spec.project_manifest());
             let res = vec![LocationLink {
                 origin_selection_range: None,
                 target_uri: cargo_toml_url,
@@ -808,7 +809,7 @@ pub(crate) fn handle_runnables(
     let file_id = from_proto::file_id(&snap, &params.text_document.uri)?;
     let line_index = snap.file_line_index(file_id)?;
     let offset = params.position.and_then(|it| from_proto::offset(&line_index, it).ok());
-    let cargo_spec = CargoTargetSpec::for_file(&snap, file_id)?;
+    let target_spec = TargetSpec::for_file(&snap, file_id)?;
 
     let expect_test = match offset {
         Some(offset) => {
@@ -825,45 +826,50 @@ pub(crate) fn handle_runnables(
         if should_skip_for_offset(&runnable, offset) {
             continue;
         }
-        if should_skip_target(&runnable, cargo_spec.as_ref()) {
+        if should_skip_target(&runnable, target_spec.as_ref()) {
             continue;
         }
-        let mut runnable = to_proto::runnable(&snap, runnable)?;
-        if expect_test {
-            runnable.label = format!("{} + expect", runnable.label);
-            runnable.args.expect_test = Some(true);
+        if let Some(mut runnable) = to_proto::runnable(&snap, runnable)? {
+            if expect_test {
+                if let lsp_ext::RunnableData::Cargo(r) = &mut runnable.args {
+                    runnable.label = format!("{} + expect", runnable.label);
+                    r.expect_test = Some(true);
+                }
+            }
+            res.push(runnable);
         }
-        res.push(runnable);
     }
 
     // Add `cargo check` and `cargo test` for all targets of the whole package
     let config = snap.config.runnables();
-    match cargo_spec {
+    match target_spec {
         Some(spec) => {
-            let all_targets = !snap.analysis.is_crate_no_std(spec.crate_id)?;
-            for cmd in ["check", "test"] {
-                let mut cargo_args =
-                    vec![cmd.to_owned(), "--package".to_owned(), spec.package.clone()];
-                if all_targets {
-                    cargo_args.push("--all-targets".to_owned());
+            if let TargetSpec::Cargo(spec) = spec {
+                let all_targets = !snap.analysis.is_crate_no_std(spec.crate_id)?;
+                for cmd in ["check", "test"] {
+                    let mut cargo_args =
+                        vec![cmd.to_owned(), "--package".to_owned(), spec.package.clone()];
+                    if all_targets {
+                        cargo_args.push("--all-targets".to_owned());
+                    }
+                    res.push(lsp_ext::Runnable {
+                        label: format!(
+                            "cargo {cmd} -p {}{all_targets}",
+                            spec.package,
+                            all_targets = if all_targets { " --all-targets" } else { "" }
+                        ),
+                        location: None,
+                        kind: lsp_ext::RunnableKind::Cargo,
+                        args: RunnableData::Cargo(CargoRunnable {
+                            workspace_root: Some(spec.workspace_root.clone().into()),
+                            override_cargo: config.override_cargo.clone(),
+                            cargo_args,
+                            cargo_extra_args: config.cargo_extra_args.clone(),
+                            executable_args: Vec::new(),
+                            expect_test: None,
+                        }),
+                    })
                 }
-                res.push(lsp_ext::Runnable {
-                    label: format!(
-                        "cargo {cmd} -p {}{all_targets}",
-                        spec.package,
-                        all_targets = if all_targets { " --all-targets" } else { "" }
-                    ),
-                    location: None,
-                    kind: lsp_ext::RunnableKind::Cargo,
-                    args: lsp_ext::CargoRunnable {
-                        workspace_root: Some(spec.workspace_root.clone().into()),
-                        override_cargo: config.override_cargo.clone(),
-                        cargo_args,
-                        cargo_extra_args: config.cargo_extra_args.clone(),
-                        executable_args: Vec::new(),
-                        expect_test: None,
-                    },
-                })
             }
         }
         None => {
@@ -872,14 +878,14 @@ pub(crate) fn handle_runnables(
                     label: "cargo check --workspace".to_owned(),
                     location: None,
                     kind: lsp_ext::RunnableKind::Cargo,
-                    args: lsp_ext::CargoRunnable {
+                    args: RunnableData::Cargo(lsp_ext::CargoRunnable {
                         workspace_root: None,
                         override_cargo: config.override_cargo,
                         cargo_args: vec!["check".to_owned(), "--workspace".to_owned()],
                         cargo_extra_args: config.cargo_extra_args,
                         executable_args: Vec::new(),
                         expect_test: None,
-                    },
+                    }),
                 });
             }
         }
@@ -905,7 +911,7 @@ pub(crate) fn handle_related_tests(
     let tests = snap.analysis.related_tests(position, None)?;
     let mut res = Vec::new();
     for it in tests {
-        if let Ok(runnable) = to_proto::runnable(&snap, it) {
+        if let Ok(Some(runnable)) = to_proto::runnable(&snap, it) {
             res.push(lsp_ext::TestInfo { runnable })
         }
     }
@@ -1355,14 +1361,14 @@ pub(crate) fn handle_code_lens(
     }
 
     let file_id = from_proto::file_id(&snap, &params.text_document.uri)?;
-    let cargo_target_spec = CargoTargetSpec::for_file(&snap, file_id)?;
+    let cargo_target_spec = TargetSpec::for_file(&snap, file_id)?;
 
     let annotations = snap.analysis.annotations(
         &AnnotationConfig {
             binary_target: cargo_target_spec
                 .map(|spec| {
                     matches!(
-                        spec.target_kind,
+                        spec.target_kind(),
                         TargetKind::Bin | TargetKind::Example | TargetKind::Test
                     )
                 })
@@ -1769,12 +1775,12 @@ pub(crate) fn handle_open_cargo_toml(
     let _p = tracing::span!(tracing::Level::INFO, "handle_open_cargo_toml").entered();
     let file_id = from_proto::file_id(&snap, &params.text_document.uri)?;
 
-    let cargo_spec = match CargoTargetSpec::for_file(&snap, file_id)? {
+    let cargo_spec = match TargetSpec::for_file(&snap, file_id)? {
         Some(it) => it,
         None => return Ok(None),
     };
 
-    let cargo_toml_url = to_proto::url_from_abs_path(&cargo_spec.cargo_toml);
+    let cargo_toml_url = to_proto::url_from_abs_path(cargo_spec.project_manifest());
     let res: lsp_types::GotoDefinitionResponse =
         Location::new(cargo_toml_url, Range::default()).into();
     Ok(Some(res))
@@ -1899,7 +1905,7 @@ fn runnable_action_links(
         return None;
     }
 
-    let cargo_spec = CargoTargetSpec::for_file(snap, runnable.nav.file_id).ok()?;
+    let cargo_spec = TargetSpec::for_file(snap, runnable.nav.file_id).ok()?;
     if should_skip_target(&runnable, cargo_spec.as_ref()) {
         return None;
     }
@@ -1910,7 +1916,7 @@ fn runnable_action_links(
     }
 
     let title = runnable.title();
-    let r = to_proto::runnable(snap, runnable).ok()?;
+    let r = to_proto::runnable(snap, runnable).ok()??;
 
     let mut group = lsp_ext::CommandLinkGroup::default();
 
@@ -1965,13 +1971,13 @@ fn prepare_hover_actions(
         .collect()
 }
 
-fn should_skip_target(runnable: &Runnable, cargo_spec: Option<&CargoTargetSpec>) -> bool {
+fn should_skip_target(runnable: &Runnable, cargo_spec: Option<&TargetSpec>) -> bool {
     match runnable.kind {
         RunnableKind::Bin => {
             // Do not suggest binary run on other target than binary
             match &cargo_spec {
                 Some(spec) => !matches!(
-                    spec.target_kind,
+                    spec.target_kind(),
                     TargetKind::Bin | TargetKind::Example | TargetKind::Test
                 ),
                 None => true,
@@ -2048,7 +2054,7 @@ fn run_rustfmt(
         }
         RustfmtConfig::CustomCommand { command, args } => {
             let cmd = Utf8PathBuf::from(&command);
-            let workspace = CargoTargetSpec::for_file(snap, file_id)?;
+            let workspace = TargetSpec::for_file(snap, file_id)?;
             let mut cmd = match workspace {
                 Some(spec) => {
                     // approach: if the command name contains a path separator, join it with the workspace root.
@@ -2057,7 +2063,7 @@ fn run_rustfmt(
                     let cmd_path = if command.contains(std::path::MAIN_SEPARATOR)
                         || (cfg!(windows) && command.contains('/'))
                     {
-                        spec.workspace_root.join(cmd).into()
+                        spec.workspace_root().join(cmd).into()
                     } else {
                         cmd
                     };

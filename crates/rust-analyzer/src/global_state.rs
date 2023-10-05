@@ -18,7 +18,7 @@ use parking_lot::{
     RwLockWriteGuard,
 };
 use proc_macro_api::ProcMacroServer;
-use project_model::{CargoWorkspace, ProjectWorkspace, Target, WorkspaceBuildScripts};
+use project_model::{CargoWorkspace, ProjectJson, ProjectWorkspace, Target, WorkspaceBuildScripts};
 use rustc_hash::{FxHashMap, FxHashSet};
 use triomphe::Arc;
 use vfs::{AnchoredPathBuf, ChangedFile, Vfs};
@@ -502,18 +502,20 @@ impl GlobalStateSnapshot {
         self.vfs_read().file_path(file_id).clone()
     }
 
-    pub(crate) fn cargo_target_for_crate_root(
+    pub(crate) fn target_for_crate_root(
         &self,
         crate_id: CrateId,
-    ) -> Option<(&CargoWorkspace, Target)> {
+    ) -> Option<TargetForCrateRoot<'_>> {
         let file_id = self.analysis.crate_root(crate_id).ok()?;
         let path = self.vfs_read().file_path(file_id).clone();
         let path = path.as_path()?;
         self.workspaces.iter().find_map(|ws| match ws {
             ProjectWorkspace::Cargo { cargo, .. } => {
-                cargo.target_by_root(path).map(|it| (cargo, it))
+                cargo.target_by_root(path).map(|it| TargetForCrateRoot::Cargo(cargo, it))
             }
-            ProjectWorkspace::Json { .. } => None,
+            ProjectWorkspace::Json { project, .. } => {
+                project.crate_by_root(path).map(|it| TargetForCrateRoot::JsonProject(project, it))
+            }
             ProjectWorkspace::DetachedFiles { .. } => None,
         })
     }
@@ -521,6 +523,11 @@ impl GlobalStateSnapshot {
     pub(crate) fn file_exists(&self, file_id: FileId) -> bool {
         self.vfs.read().0.exists(file_id)
     }
+}
+
+pub(crate) enum TargetForCrateRoot<'a> {
+    Cargo(&'a CargoWorkspace, Target),
+    JsonProject(&'a ProjectJson, project_model::project_json::Crate),
 }
 
 pub(crate) fn file_id_to_url(vfs: &vfs::Vfs, id: FileId) -> Url {
