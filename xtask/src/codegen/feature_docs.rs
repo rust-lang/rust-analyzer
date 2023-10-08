@@ -18,7 +18,7 @@ pub(crate) fn generate(_check: bool) {
 ",
         contents.trim()
     );
-    let dst = project_root().join("docs/user/generated_features.adoc");
+    let dst = project_root().join("docs/book/src/features/generated.md");
     fs::write(dst, contents).unwrap();
 }
 
@@ -80,6 +80,6 @@ fn is_valid_feature_name(feature: &str) -> Result<(), String> {
 
 impl fmt::Display for Feature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "=== {}\n**Source:** {}\n{}", self.id, self.location, self.doc)
+        writeln!(f, "### {}\n**Source:** {}\n{}", self.id, self.location, self.doc)
     }
 }
