@@ -347,7 +347,7 @@ config_data! {
         imports_granularity_enforce: bool              = "false",
         /// How imports should be grouped into use statements.
         imports_granularity_group: ImportGranularityDef  = "\"crate\"",
-        /// Group inserted imports by the https://rust-analyzer.github.io/manual.html#auto-import[following order]. Groups are separated by newlines.
+        /// Group inserted imports by the [following order](https://rust-analyzer.github.io/manual.html#auto-import). Groups are separated by newlines.
         imports_group_enable: bool                           = "true",
         /// Whether to allow import insertion to merge new imports into single path glob imports like `use std::fmt::*;`.
         imports_merge_glob: bool           = "true",
@@ -2525,20 +2525,9 @@ fn manual(fields: &[(&'static str, &'static str, &[&str], &str)]) -> String {
             let name = format!("rust-analyzer.{}", field.replace('_', "."));
             let doc = doc_comment_to_string(doc);
             if default.contains('\n') {
-                format!(
-                    r#"[[{name}]]{name}::
-+
---
-Default:
-----
-{default}
-----
-{doc}
---
-"#
-                )
+                format!(" **{name}**\n\nDefault:\n\n```{default}\n\n```\n\n {doc}\n\n ")
             } else {
-                format!("[[{name}]]{name} (default: `{default}`)::\n+\n--\n{doc}--\n")
+                format!("**{name}** (default: {default})\n\n {doc}\n\n")
             }
         })
         .collect::<String>()
@@ -2612,7 +2601,7 @@ mod tests {
 
     #[test]
     fn generate_config_documentation() {
-        let docs_path = project_root().join("docs/user/generated_config.adoc");
+        let docs_path = project_root().join("docs/book/src/configuration/generated.md");
         let expected = ConfigData::manual();
         ensure_file_contents(&docs_path, &expected);
     }
