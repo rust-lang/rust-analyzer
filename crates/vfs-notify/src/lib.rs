@@ -12,6 +12,7 @@
 use std::fs;
 
 use crossbeam_channel::{never, select, unbounded, Receiver, Sender};
+pub use notify;
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 use paths::{AbsPath, AbsPathBuf};
 use vfs::loader;

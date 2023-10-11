@@ -27,6 +27,7 @@ mod global_state;
 mod line_index;
 mod main_loop;
 mod mem_docs;
+mod git_lock;
 mod op_queue;
 mod reload;
 mod task_pool;

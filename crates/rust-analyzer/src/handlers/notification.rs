@@ -75,6 +75,10 @@ pub(crate) fn handle_did_change_text_document(
 ) -> anyhow::Result<()> {
     let _p = profile::span("handle_did_change_text_document");
 
+    if crate::git_lock::check_git_lock(state) {
+        todo!("what to do with this request?");
+    }
+
     if let Ok(path) = from_proto::vfs_path(&params.text_document.uri) {
         match state.mem_docs.get_mut(&path) {
             Some(doc) => {

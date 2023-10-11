@@ -684,6 +684,15 @@ impl GlobalState {
 
     /// Handles a request.
     fn on_request(&mut self, req: Request) {
+        if crate::git_lock::has_git_lock(self) {
+            self.respond(lsp_server::Response::new_err(
+                req.id.clone(),
+                lsp_server::ErrorCode::RequestFailed as i32,
+                "Git operation pending.".to_owned(),
+            ));
+            return;
+        }
+
         let mut dispatcher = RequestDispatcher { req: Some(req), global_state: self };
         dispatcher.on_sync_mut::<lsp_types::request::Shutdown>(|s, ()| {
             s.shutdown_requested = true;

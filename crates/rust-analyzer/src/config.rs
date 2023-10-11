@@ -890,6 +890,10 @@ impl Config {
     pub fn detached_files(&self) -> &[AbsPathBuf] {
         &self.detached_files
     }
+
+    pub fn get_primary_workspace_roots(&self) -> Option<&AbsPathBuf> {
+        self.workspace_roots.get(0)
+    }
 }
 
 macro_rules! try_ {
