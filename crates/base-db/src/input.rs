@@ -11,6 +11,7 @@ use std::{fmt, mem, ops};
 use cfg::CfgOptions;
 use la_arena::{Arena, Idx, RawIdx};
 use rustc_hash::{FxHashMap, FxHashSet};
+use serde::Serialize;
 use span::Edition;
 use syntax::SmolStr;
 use triomphe::Arc;
@@ -19,6 +20,10 @@ use vfs::{file_set::FileSet, AbsPathBuf, AnchoredPath, FileId, VfsPath};
 // Map from crate id to the name of the crate and path of the proc-macro. If the value is `None`,
 // then the crate for the proc-macro hasn't been build yet as the build data is missing.
 pub type ProcMacroPaths = FxHashMap<CrateId, Result<(Option<String>, AbsPathBuf), String>>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct SourceRootId(pub u32);
+
 /// Files are grouped into source roots. A source root is a directory on the
 /// file systems which is watched for changes. Typically it corresponds to a
 /// Rust crate. Source roots *might* be nested: in this case, a file belongs to
@@ -26,9 +31,6 @@ pub type ProcMacroPaths = FxHashMap<CrateId, Result<(Option<String>, AbsPathBuf)
 /// source root, and the analyzer does not know the root path of the source root at
 /// all. So, a file from one source root can't refer to a file in another source
 /// root by path.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct SourceRootId(pub u32);
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SourceRoot {
     /// Sysroot or crates.io library.
@@ -36,16 +38,23 @@ pub struct SourceRoot {
     /// Libraries are considered mostly immutable, this assumption is used to
     /// optimize salsa's query structure
     pub is_library: bool,
+    cargo_file_id: Option<FileId>,
+    /// FIXME : @alibektas We know that this is wrong.
+    /// base-db must stay as a level of abstraction
+    /// that has no knowledge of such specific files
+    /// so this should be moved somewhere else.
+    ratoml_file_id: Option<FileId>,
     file_set: FileSet,
 }
 
 impl SourceRoot {
     pub fn new_local(file_set: FileSet) -> SourceRoot {
-        SourceRoot { is_library: false, file_set }
+        eprintln!("{:#?}", file_set);
+        SourceRoot { is_library: false, file_set, cargo_file_id: None, ratoml_file_id: None }
     }
 
     pub fn new_library(file_set: FileSet) -> SourceRoot {
-        SourceRoot { is_library: true, file_set }
+        SourceRoot { is_library: true, file_set, cargo_file_id: None, ratoml_file_id: None }
     }
 
     pub fn path_for_file(&self, file: &FileId) -> Option<&VfsPath> {
@@ -62,6 +71,16 @@ impl SourceRoot {
 
     pub fn iter(&self) -> impl Iterator<Item = FileId> + '_ {
         self.file_set.iter()
+    }
+
+    /// Get `FileId` of the `Cargo.toml` if one present in `SourceRoot`
+    pub fn cargo_toml(&self) -> Option<FileId> {
+        self.cargo_file_id
+    }
+
+    /// Get `FileId` of the `rust-analyzer.toml` if one present in `SourceRoot`
+    pub fn ratoml(&self) -> Option<FileId> {
+        self.ratoml_file_id
     }
 }
 
@@ -100,6 +119,15 @@ pub type CrateId = Idx<CrateData>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct CrateName(SmolStr);
+
+impl Serialize for CrateName {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self)
+    }
+}
 
 impl CrateName {
     /// Creates a crate name, checking for dashes in the string provided.

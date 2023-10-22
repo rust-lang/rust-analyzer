@@ -53,7 +53,7 @@ use base_db::{CrateDisplayName, CrateId, CrateName, Dependency};
 use la_arena::RawIdx;
 use paths::{AbsPath, AbsPathBuf, Utf8PathBuf};
 use rustc_hash::FxHashMap;
-use serde::{de, Deserialize};
+use serde::{de, Deserialize, Serialize};
 use span::Edition;
 
 use crate::cfg_flag::CfgFlag;
@@ -174,14 +174,14 @@ impl ProjectJson {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProjectJsonData {
     sysroot: Option<Utf8PathBuf>,
     sysroot_src: Option<Utf8PathBuf>,
     crates: Vec<CrateData>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct CrateData {
     display_name: Option<String>,
     root_module: Utf8PathBuf,
@@ -203,7 +203,7 @@ struct CrateData {
     repository: Option<String>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename = "edition")]
 enum EditionData {
     #[serde(rename = "2015")]
@@ -227,7 +227,7 @@ impl From<EditionData> for Edition {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct DepData {
     /// Identifies a crate by position in the crates array.
     #[serde(rename = "crate")]
@@ -236,7 +236,7 @@ struct DepData {
     name: CrateName,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct CrateSource {
     include_dirs: Vec<Utf8PathBuf>,
     exclude_dirs: Vec<Utf8PathBuf>,

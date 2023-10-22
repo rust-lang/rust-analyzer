@@ -351,8 +351,8 @@ pub(crate) fn handle_join_lines(
 ) -> anyhow::Result<Vec<lsp_types::TextEdit>> {
     let _p = tracing::span!(tracing::Level::INFO, "handle_join_lines").entered();
 
-    let config = snap.config.join_lines();
     let file_id = from_proto::file_id(&snap, &params.text_document.uri)?;
+    let config = snap.config.localize_by_file_id(file_id).join_lines();
     let line_index = snap.file_line_index(file_id)?;
 
     let mut res = TextEdit::default();
@@ -919,7 +919,7 @@ pub(crate) fn handle_completion(
     let completion_trigger_character =
         params.context.and_then(|ctx| ctx.trigger_character).and_then(|s| s.chars().next());
 
-    let completion_config = &snap.config.completion();
+    let completion_config = &snap.config.localize_by_file_id(position.file_id).completion();
     let items = match snap.analysis.completions(
         completion_config,
         position,
@@ -964,7 +964,7 @@ pub(crate) fn handle_completion_resolve(
     let additional_edits = snap
         .analysis
         .resolve_completion_edits(
-            &snap.config.completion(),
+            &snap.config.localize_by_file_id(file_id).completion(),
             FilePosition { file_id, offset },
             resolve_data
                 .imports
@@ -1034,16 +1034,17 @@ pub(crate) fn handle_hover(
         PositionOrRange::Position(position) => Range::new(position, position),
         PositionOrRange::Range(range) => range,
     };
-
     let file_range = from_proto::file_range(&snap, &params.text_document, range)?;
-    let info = match snap.analysis.hover(&snap.config.hover(), file_range)? {
+    let local_conf = snap.config.localize_by_file_id(file_range.file_id);
+    let hover = local_conf.hover();
+    let info = match snap.analysis.hover(&hover, file_range)? {
         None => return Ok(None),
         Some(info) => info,
     };
 
     let line_index = snap.file_line_index(file_range.file_id)?;
     let range = to_proto::range(&line_index, info.range);
-    let markup_kind = snap.config.hover().format;
+    let markup_kind = hover.format;
     let hover = lsp_ext::Hover {
         hover: lsp_types::Hover {
             contents: HoverContents::Markup(to_proto::markup_content(
@@ -1052,7 +1053,7 @@ pub(crate) fn handle_hover(
             )),
             range: Some(range),
         },
-        actions: if snap.config.hover_actions().none() {
+        actions: if local_conf.hover_actions().none() {
             Vec::new()
         } else {
             prepare_hover_actions(&snap, &info.info.actions)
@@ -1187,11 +1188,12 @@ pub(crate) fn handle_code_action(
         return Ok(None);
     }
 
-    let line_index =
-        snap.file_line_index(from_proto::file_id(&snap, &params.text_document.uri)?)?;
+    let file_id = from_proto::file_id(&snap, &params.text_document.uri)?;
+    let line_index = snap.file_line_index(file_id)?;
     let frange = from_proto::file_range(&snap, &params.text_document, params.range)?;
 
-    let mut assists_config = snap.config.assist();
+    let local_config = snap.config.localize_by_file_id(file_id);
+    let mut assists_config = local_config.assist();
     assists_config.allowed = params
         .context
         .only
@@ -1208,7 +1210,7 @@ pub(crate) fn handle_code_action(
     };
     let assists = snap.analysis.assists_with_fixes(
         &assists_config,
-        &snap.config.diagnostics(),
+        &local_config.diagnostics(),
         resolve,
         frange,
     )?;
@@ -1263,7 +1265,9 @@ pub(crate) fn handle_code_action_resolve(
     let range = from_proto::text_range(&line_index, params.code_action_params.range)?;
     let frange = FileRange { file_id, range };
 
-    let mut assists_config = snap.config.assist();
+    let local_config = snap.config.localize_by_file_id(file_id);
+
+    let mut assists_config = local_config.assist();
     assists_config.allowed = params
         .code_action_params
         .context
@@ -1286,7 +1290,7 @@ pub(crate) fn handle_code_action_resolve(
 
     let assists = snap.analysis.assists_with_fixes(
         &assists_config,
-        &snap.config.diagnostics(),
+        &local_config.diagnostics(),
         AssistResolveStrategy::Single(assist_resolve),
         frange,
     )?;
@@ -1416,7 +1420,10 @@ pub(crate) fn handle_document_highlight(
     let position = from_proto::file_position(&snap, params.text_document_position_params)?;
     let line_index = snap.file_line_index(position.file_id)?;
 
-    let refs = match snap.analysis.highlight_related(snap.config.highlight_related(), position)? {
+    let refs = match snap.analysis.highlight_related(
+        snap.config.localize_by_file_id(position.file_id).highlight_related(),
+        position,
+    )? {
         None => return Ok(None),
         Some(refs) => refs,
     };
@@ -1462,7 +1469,7 @@ pub(crate) fn handle_inlay_hints(
         params.range,
     )?;
     let line_index = snap.file_line_index(file_id)?;
-    let inlay_hints_config = snap.config.inlay_hints();
+    let inlay_hints_config = snap.config.localize_by_file_id(file_id).inlay_hints();
     Ok(Some(
         snap.analysis
             .inlay_hints(&inlay_hints_config, file_id, Some(range))?
@@ -1497,7 +1504,8 @@ pub(crate) fn handle_inlay_hints_resolve(
 
     let line_index = snap.file_line_index(file_id)?;
     let hint_position = from_proto::offset(&line_index, original_hint.position)?;
-    let mut forced_resolve_inlay_hints_config = snap.config.inlay_hints();
+    let mut forced_resolve_inlay_hints_config =
+        snap.config.localize_by_file_id(file_id).inlay_hints();
     forced_resolve_inlay_hints_config.fields_to_resolve = InlayFieldsToResolve::empty();
     let resolve_hints = snap.analysis.inlay_hints_resolve(
         &forced_resolve_inlay_hints_config,
@@ -1630,7 +1638,7 @@ pub(crate) fn handle_semantic_tokens_full(
     let text = snap.analysis.file_text(file_id)?;
     let line_index = snap.file_line_index(file_id)?;
 
-    let mut highlight_config = snap.config.highlighting_config();
+    let mut highlight_config = snap.config.localize_by_file_id(file_id).highlighting_config();
     // Avoid flashing a bunch of unresolved references when the proc-macro servers haven't been spawned yet.
     highlight_config.syntactic_name_ref_highlighting =
         snap.workspaces.is_empty() || !snap.proc_macros_loaded;
@@ -1641,7 +1649,7 @@ pub(crate) fn handle_semantic_tokens_full(
         &line_index,
         highlights,
         snap.config.semantics_tokens_augments_syntax_tokens(),
-        snap.config.highlighting_non_standard_tokens(),
+        snap.config.localize_by_file_id(file_id).highlighting_non_standard_tokens(),
     );
 
     // Unconditionally cache the tokens
@@ -1660,7 +1668,7 @@ pub(crate) fn handle_semantic_tokens_full_delta(
     let text = snap.analysis.file_text(file_id)?;
     let line_index = snap.file_line_index(file_id)?;
 
-    let mut highlight_config = snap.config.highlighting_config();
+    let mut highlight_config = snap.config.localize_by_file_id(file_id).highlighting_config();
     // Avoid flashing a bunch of unresolved references when the proc-macro servers haven't been spawned yet.
     highlight_config.syntactic_name_ref_highlighting =
         snap.workspaces.is_empty() || !snap.proc_macros_loaded;
@@ -1671,7 +1679,7 @@ pub(crate) fn handle_semantic_tokens_full_delta(
         &line_index,
         highlights,
         snap.config.semantics_tokens_augments_syntax_tokens(),
-        snap.config.highlighting_non_standard_tokens(),
+        snap.config.localize_by_file_id(file_id).highlighting_non_standard_tokens(),
     );
 
     let cached_tokens = snap.semantic_tokens_cache.lock().remove(&params.text_document.uri);
@@ -1703,7 +1711,8 @@ pub(crate) fn handle_semantic_tokens_range(
     let text = snap.analysis.file_text(frange.file_id)?;
     let line_index = snap.file_line_index(frange.file_id)?;
 
-    let mut highlight_config = snap.config.highlighting_config();
+    let mut highlight_config =
+        snap.config.localize_by_file_id(frange.file_id).highlighting_config();
     // Avoid flashing a bunch of unresolved references when the proc-macro servers haven't been spawned yet.
     highlight_config.syntactic_name_ref_highlighting =
         snap.workspaces.is_empty() || !snap.proc_macros_loaded;
@@ -1714,7 +1723,7 @@ pub(crate) fn handle_semantic_tokens_range(
         &line_index,
         highlights,
         snap.config.semantics_tokens_augments_syntax_tokens(),
-        snap.config.highlighting_non_standard_tokens(),
+        snap.config.localize_by_file_id(frange.file_id).highlighting_non_standard_tokens(),
     );
     Ok(Some(semantic_tokens.into()))
 }
@@ -1834,7 +1843,9 @@ fn show_impl_command_link(
     snap: &GlobalStateSnapshot,
     position: &FilePosition,
 ) -> Option<lsp_ext::CommandLinkGroup> {
-    if snap.config.hover_actions().implementations && snap.config.client_commands().show_reference {
+    if snap.config.localize_by_file_id(position.file_id).hover_actions().implementations
+        && snap.config.client_commands().show_reference
+    {
         if let Some(nav_data) = snap.analysis.goto_implementation(*position).unwrap_or(None) {
             let uri = to_proto::url(snap, position.file_id);
             let line_index = snap.file_line_index(position.file_id).ok()?;
@@ -1860,7 +1871,9 @@ fn show_ref_command_link(
     snap: &GlobalStateSnapshot,
     position: &FilePosition,
 ) -> Option<lsp_ext::CommandLinkGroup> {
-    if snap.config.hover_actions().references && snap.config.client_commands().show_reference {
+    if snap.config.localize_by_file_id(position.file_id).hover_actions().references
+        && snap.config.client_commands().show_reference
+    {
         if let Some(ref_search_res) = snap.analysis.find_all_refs(*position, None).unwrap_or(None) {
             let uri = to_proto::url(snap, position.file_id);
             let line_index = snap.file_line_index(position.file_id).ok()?;
@@ -1890,12 +1903,14 @@ fn runnable_action_links(
     snap: &GlobalStateSnapshot,
     runnable: Runnable,
 ) -> Option<lsp_ext::CommandLinkGroup> {
-    let hover_actions_config = snap.config.hover_actions();
+    let cargo_spec = CargoTargetSpec::for_file(snap, runnable.nav.file_id).ok()?;
+
+    let hover_actions_config =
+        snap.config.localize_by_file_id(runnable.nav.file_id).hover_actions();
     if !hover_actions_config.runnable() {
         return None;
     }
 
-    let cargo_spec = CargoTargetSpec::for_file(snap, runnable.nav.file_id).ok()?;
     if should_skip_target(&runnable, cargo_spec.as_ref()) {
         return None;
     }
@@ -1927,8 +1942,12 @@ fn goto_type_action_links(
     snap: &GlobalStateSnapshot,
     nav_targets: &[HoverGotoTypeData],
 ) -> Option<lsp_ext::CommandLinkGroup> {
-    if !snap.config.hover_actions().goto_type_def
-        || nav_targets.is_empty()
+    if nav_targets.is_empty()
+        || !snap
+            .config
+            .localize_by_file_id(nav_targets[0].nav.file_id)
+            .hover_actions()
+            .goto_type_def
         || !snap.config.client_commands().goto_location
     {
         return None;
