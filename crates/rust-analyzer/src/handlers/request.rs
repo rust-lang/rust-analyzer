@@ -288,8 +288,8 @@ pub(crate) fn handle_join_lines(
 ) -> anyhow::Result<Vec<lsp_types::TextEdit>> {
     let _p = profile::span("handle_join_lines");
 
-    let config = snap.config.join_lines();
     let file_id = from_proto::file_id(&snap, &params.text_document.uri)?;
+    let config = snap.config.localize_by_file_id(file_id).join_lines();
     let line_index = snap.file_line_index(file_id)?;
 
     let mut res = TextEdit::default();

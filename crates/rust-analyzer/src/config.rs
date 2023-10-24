@@ -391,14 +391,6 @@ config_data! {
         /// Enables the experimental support for interpreting tests.
         interpret_tests: bool                                      = "false",
 
-        /// Join lines merges consecutive declaration and initialization of an assignment.
-        joinLines_joinAssignments: bool = "true",
-        /// Join lines inserts else between consecutive ifs.
-        joinLines_joinElseIf: bool = "true",
-        /// Join lines removes trailing commas.
-        joinLines_removeTrailingComma: bool = "true",
-        /// Join lines unwraps trivial blocks.
-        joinLines_unwrapTrivialBlock: bool = "true",
 
 
         /// Whether to show `Debug` lens. Only applies when
@@ -571,6 +563,16 @@ config_data! {
         imports_prefer_no_std: bool                     = "false",
         /// The path structure for newly inserted paths to use.
         imports_prefix: ImportPrefixDef               = "\"plain\"",
+
+
+        /// Join lines merges consecutive declaration and initialization of an assignment.
+        joinLines_joinAssignments: bool = "true",
+        /// Join lines inserts else between consecutive ifs.
+        joinLines_joinElseIf: bool = "true",
+        /// Join lines removes trailing commas.
+        joinLines_removeTrailingComma: bool = "true",
+        /// Join lines unwraps trivial blocks.
+        joinLines_unwrapTrivialBlock: bool = "true",
     }
 }
 
@@ -718,6 +720,15 @@ impl<'a> LocalConfigView<'a> {
 
     fn experimental(&self, index: &'static str) -> bool {
         try_or_def!(self.caps.experimental.as_ref()?.get(index)?.as_bool()?)
+    }
+
+    pub fn join_lines(&self) -> JoinLinesConfig {
+        JoinLinesConfig {
+            join_else_if: self.local.joinLines_joinElseIf,
+            remove_trailing_comma: self.local.joinLines_removeTrailingComma,
+            unwrap_trivial_blocks: self.local.joinLines_unwrapTrivialBlock,
+            join_assignments: self.local.joinLines_joinAssignments,
+        }
     }
 }
 
@@ -1659,15 +1670,6 @@ impl Config {
 
     pub fn snippet_cap(&self) -> bool {
         self.experimental("snippetTextEdit")
-    }
-
-    pub fn join_lines(&self) -> JoinLinesConfig {
-        JoinLinesConfig {
-            join_else_if: self.root_config.global.joinLines_joinElseIf,
-            remove_trailing_comma: self.root_config.global.joinLines_removeTrailingComma,
-            unwrap_trivial_blocks: self.root_config.global.joinLines_unwrapTrivialBlock,
-            join_assignments: self.root_config.global.joinLines_joinAssignments,
-        }
     }
 
     pub fn call_info(&self) -> CallInfoConfig {
