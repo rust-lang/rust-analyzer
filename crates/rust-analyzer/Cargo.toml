@@ -72,6 +72,7 @@ parser.workspace = true
 toolchain.workspace = true
 vfs-notify.workspace = true
 vfs.workspace = true
+la-arena.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"

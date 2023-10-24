@@ -859,7 +859,7 @@ pub(crate) fn handle_completion(
     let completion_trigger_character =
         params.context.and_then(|ctx| ctx.trigger_character).and_then(|s| s.chars().next());
 
-    let completion_config = &snap.config.completion();
+    let completion_config = &snap.config.localize_by_file_id(position.file_id).completion();
     let items = match snap.analysis.completions(
         completion_config,
         position,
@@ -904,7 +904,7 @@ pub(crate) fn handle_completion_resolve(
     let additional_edits = snap
         .analysis
         .resolve_completion_edits(
-            &snap.config.completion(),
+            &snap.config.localize_by_file_id(file_id).completion(),
             FilePosition { file_id, offset },
             resolve_data
                 .imports
@@ -1129,11 +1129,12 @@ pub(crate) fn handle_code_action(
         return Ok(None);
     }
 
-    let line_index =
-        snap.file_line_index(from_proto::file_id(&snap, &params.text_document.uri)?)?;
+    let file_id = from_proto::file_id(&snap, &params.text_document.uri)?;
+    let line_index = snap.file_line_index(file_id)?;
     let frange = from_proto::file_range(&snap, &params.text_document, params.range)?;
 
-    let mut assists_config = snap.config.assist();
+    let local_config = snap.config.localize_by_file_id(file_id);
+    let mut assists_config = local_config.assist();
     assists_config.allowed = params
         .context
         .only
@@ -1150,7 +1151,7 @@ pub(crate) fn handle_code_action(
     };
     let assists = snap.analysis.assists_with_fixes(
         &assists_config,
-        &snap.config.diagnostics(),
+        &local_config.diagnostics(),
         resolve,
         frange,
     )?;
@@ -1209,7 +1210,9 @@ pub(crate) fn handle_code_action_resolve(
     let range = from_proto::text_range(&line_index, params.code_action_params.range)?;
     let frange = FileRange { file_id, range };
 
-    let mut assists_config = snap.config.assist();
+    let local_config = snap.config.localize_by_file_id(file_id);
+
+    let mut assists_config = local_config.assist();
     assists_config.allowed = params
         .code_action_params
         .context
@@ -1232,7 +1235,7 @@ pub(crate) fn handle_code_action_resolve(
 
     let assists = snap.analysis.assists_with_fixes(
         &assists_config,
-        &snap.config.diagnostics(),
+        &local_config.diagnostics(),
         AssistResolveStrategy::Single(assist_resolve),
         frange,
     )?;

@@ -226,7 +226,7 @@ pub(crate) fn completion_items(
         completion_item(&mut res, config, line_index, &tdpp, max_relevance, item);
     }
 
-    if let Some(limit) = config.completion().limit {
+    if let Some(limit) = config.localize_to_root_view().completion().limit {
         res.sort_by(|item1, item2| item1.sort_text.cmp(&item2.sort_text));
         res.truncate(limit);
     }
@@ -308,7 +308,7 @@ fn completion_item(
 
     set_score(&mut lsp_item, max_relevance, item.relevance);
 
-    if config.completion().enable_imports_on_the_fly {
+    if config.localize_to_root_view().completion().enable_imports_on_the_fly {
         if !item.import_to_add.is_empty() {
             let imports: Vec<_> = item
                 .import_to_add

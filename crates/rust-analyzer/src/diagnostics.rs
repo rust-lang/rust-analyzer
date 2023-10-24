@@ -136,7 +136,7 @@ pub(crate) fn fetch_native_diagnostics(
             let diagnostics = snapshot
                 .analysis
                 .diagnostics(
-                    &snapshot.config.diagnostics(),
+                    &snapshot.config.localize_by_file_id(file_id).diagnostics(),
                     ide::AssistResolveStrategy::None,
                     file_id,
                 )
