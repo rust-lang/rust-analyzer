@@ -344,50 +344,6 @@ config_data! {
         /// How to render the size information in a memory layout hover.
         hover_memoryLayout_size: Option<MemoryLayoutHoverRenderKindDef> = "\"both\"",
 
-        /// Whether to show inlay type hints for binding modes.
-        inlayHints_bindingModeHints_enable: bool                   = "false",
-        /// Whether to show inlay type hints for method chains.
-        inlayHints_chainingHints_enable: bool                      = "true",
-        /// Whether to show inlay hints after a closing `}` to indicate what item it belongs to.
-        inlayHints_closingBraceHints_enable: bool                  = "true",
-        /// Minimum number of lines required before the `}` until the hint is shown (set to 0 or 1
-        /// to always show them).
-        inlayHints_closingBraceHints_minLines: usize               = "25",
-        /// Whether to show inlay hints for closure captures.
-        inlayHints_closureCaptureHints_enable: bool                          = "false",
-        /// Whether to show inlay type hints for return types of closures.
-        inlayHints_closureReturnTypeHints_enable: ClosureReturnTypeHintsDef  = "\"never\"",
-        /// Closure notation in type and chaining inlay hints.
-        inlayHints_closureStyle: ClosureStyle                                = "\"impl_fn\"",
-        /// Whether to show enum variant discriminant hints.
-        inlayHints_discriminantHints_enable: DiscriminantHintsDef            = "\"never\"",
-        /// Whether to show inlay hints for type adjustments.
-        inlayHints_expressionAdjustmentHints_enable: AdjustmentHintsDef = "\"never\"",
-        /// Whether to hide inlay hints for type adjustments outside of `unsafe` blocks.
-        inlayHints_expressionAdjustmentHints_hideOutsideUnsafe: bool = "false",
-        /// Whether to show inlay hints as postfix ops (`.*` instead of `*`, etc).
-        inlayHints_expressionAdjustmentHints_mode: AdjustmentHintsModeDef = "\"prefix\"",
-        /// Whether to show inlay type hints for elided lifetimes in function signatures.
-        inlayHints_lifetimeElisionHints_enable: LifetimeElisionDef = "\"never\"",
-        /// Whether to prefer using parameter names as the name for elided lifetime hints if possible.
-        inlayHints_lifetimeElisionHints_useParameterNames: bool    = "false",
-        /// Maximum length for inlay hints. Set to null to have an unlimited length.
-        inlayHints_maxLength: Option<usize>                        = "25",
-        /// Whether to show function parameter name inlay hints at the call
-        /// site.
-        inlayHints_parameterHints_enable: bool                     = "true",
-        /// Whether to show inlay hints for compiler inserted reborrows.
-        /// This setting is deprecated in favor of #rust-analyzer.inlayHints.expressionAdjustmentHints.enable#.
-        inlayHints_reborrowHints_enable: ReborrowHintsDef          = "\"never\"",
-        /// Whether to render leading colons for type hints, and trailing colons for parameter hints.
-        inlayHints_renderColons: bool                              = "true",
-        /// Whether to show inlay type hints for variables.
-        inlayHints_typeHints_enable: bool                          = "true",
-        /// Whether to hide inlay type hints for `let` statements that initialize to a closure.
-        /// Only applies to closures with blocks, same as `#rust-analyzer.inlayHints.closureReturnTypeHints.enable#`.
-        inlayHints_typeHints_hideClosureInitialization: bool       = "false",
-        /// Whether to hide inlay type hints for constructors.
-        inlayHints_typeHints_hideNamedConstructor: bool            = "false",
         /// Enables the experimental support for interpreting tests.
         interpret_tests: bool                                      = "false",
 
@@ -551,6 +507,51 @@ config_data! {
 config_data! {
     struct LocalConfigData {
 
+        /// Whether to show inlay type hints for binding modes.
+        inlayHints_bindingModeHints_enable: bool                   = "false",
+        /// Whether to show inlay type hints for method chains.
+        inlayHints_chainingHints_enable: bool                      = "true",
+        /// Whether to show inlay hints after a closing `}` to indicate what item it belongs to.
+        inlayHints_closingBraceHints_enable: bool                  = "true",
+        /// Minimum number of lines required before the `}` until the hint is shown (set to 0 or 1
+        /// to always show them).
+        inlayHints_closingBraceHints_minLines: usize               = "25",
+        /// Whether to show inlay hints for closure captures.
+        inlayHints_closureCaptureHints_enable: bool                          = "false",
+        /// Whether to show inlay type hints for return types of closures.
+        inlayHints_closureReturnTypeHints_enable: ClosureReturnTypeHintsDef  = "\"never\"",
+        /// Closure notation in type and chaining inlay hints.
+        inlayHints_closureStyle: ClosureStyle                                = "\"impl_fn\"",
+        /// Whether to show enum variant discriminant hints.
+        inlayHints_discriminantHints_enable: DiscriminantHintsDef            = "\"never\"",
+        /// Whether to show inlay hints for type adjustments.
+        inlayHints_expressionAdjustmentHints_enable: AdjustmentHintsDef = "\"never\"",
+        /// Whether to hide inlay hints for type adjustments outside of `unsafe` blocks.
+        inlayHints_expressionAdjustmentHints_hideOutsideUnsafe: bool = "false",
+        /// Whether to show inlay hints as postfix ops (`.*` instead of `*`, etc).
+        inlayHints_expressionAdjustmentHints_mode: AdjustmentHintsModeDef = "\"prefix\"",
+        /// Whether to show inlay type hints for elided lifetimes in function signatures.
+        inlayHints_lifetimeElisionHints_enable: LifetimeElisionDef = "\"never\"",
+        /// Whether to prefer using parameter names as the name for elided lifetime hints if possible.
+        inlayHints_lifetimeElisionHints_useParameterNames: bool    = "false",
+        /// Maximum length for inlay hints. Set to null to have an unlimited length.
+        inlayHints_maxLength: Option<usize>                        = "25",
+        /// Whether to show function parameter name inlay hints at the call
+        /// site.
+        inlayHints_parameterHints_enable: bool                     = "true",
+        /// Whether to show inlay hints for compiler inserted reborrows.
+        /// This setting is deprecated in favor of #rust-analyzer.inlayHints.expressionAdjustmentHints.enable#.
+        inlayHints_reborrowHints_enable: ReborrowHintsDef          = "\"never\"",
+        /// Whether to render leading colons for type hints, and trailing colons for parameter hints.
+        inlayHints_renderColons: bool                              = "true",
+        /// Whether to show inlay type hints for variables.
+        inlayHints_typeHints_enable: bool                          = "true",
+        /// Whether to hide inlay type hints for `let` statements that initialize to a closure.
+        /// Only applies to closures with blocks, same as `#rust-analyzer.inlayHints.closureReturnTypeHints.enable#`.
+        inlayHints_typeHints_hideClosureInitialization: bool       = "false",
+        /// Whether to hide inlay type hints for constructors.
+        inlayHints_typeHints_hideNamedConstructor: bool            = "false",
+
         /// Whether to enforce the import granularity setting for all files. If set to false rust-analyzer will try to keep import styles consistent per file.
         imports_granularity_enforce: bool              = "false",
         /// How imports should be grouped into use statements.
@@ -711,6 +712,88 @@ impl<'a> LocalConfigView<'a> {
             },
             group: self.local.imports_group_enable,
             skip_glob_imports: !self.local.imports_merge_glob,
+        }
+    }
+    pub fn inlay_hints(&self) -> InlayHintsConfig {
+        let client_capability_fields = self
+            .caps
+            .text_document
+            .as_ref()
+            .and_then(|text| text.inlay_hint.as_ref())
+            .and_then(|inlay_hint_caps| inlay_hint_caps.resolve_support.as_ref())
+            .map(|inlay_resolve| inlay_resolve.properties.iter())
+            .into_iter()
+            .flatten()
+            .cloned()
+            .collect::<FxHashSet<_>>();
+
+        InlayHintsConfig {
+            render_colons: self.local.inlayHints_renderColons,
+            type_hints: self.local.inlayHints_typeHints_enable,
+            parameter_hints: self.local.inlayHints_parameterHints_enable,
+            chaining_hints: self.local.inlayHints_chainingHints_enable,
+            discriminant_hints: match self.local.inlayHints_discriminantHints_enable {
+                DiscriminantHintsDef::Always => ide::DiscriminantHints::Always,
+                DiscriminantHintsDef::Never => ide::DiscriminantHints::Never,
+                DiscriminantHintsDef::Fieldless => ide::DiscriminantHints::Fieldless,
+            },
+            closure_return_type_hints: match self.local.inlayHints_closureReturnTypeHints_enable {
+                ClosureReturnTypeHintsDef::Always => ide::ClosureReturnTypeHints::Always,
+                ClosureReturnTypeHintsDef::Never => ide::ClosureReturnTypeHints::Never,
+                ClosureReturnTypeHintsDef::WithBlock => ide::ClosureReturnTypeHints::WithBlock,
+            },
+            lifetime_elision_hints: match self.local.inlayHints_lifetimeElisionHints_enable {
+                LifetimeElisionDef::Always => ide::LifetimeElisionHints::Always,
+                LifetimeElisionDef::Never => ide::LifetimeElisionHints::Never,
+                LifetimeElisionDef::SkipTrivial => ide::LifetimeElisionHints::SkipTrivial,
+            },
+            hide_named_constructor_hints: self.local.inlayHints_typeHints_hideNamedConstructor,
+            hide_closure_initialization_hints: self
+                .local
+                .inlayHints_typeHints_hideClosureInitialization,
+            closure_style: match self.local.inlayHints_closureStyle {
+                ClosureStyle::ImplFn => hir::ClosureStyle::ImplFn,
+                ClosureStyle::RustAnalyzer => hir::ClosureStyle::RANotation,
+                ClosureStyle::WithId => hir::ClosureStyle::ClosureWithId,
+                ClosureStyle::Hide => hir::ClosureStyle::Hide,
+            },
+            closure_capture_hints: self.local.inlayHints_closureCaptureHints_enable,
+            adjustment_hints: match self.local.inlayHints_expressionAdjustmentHints_enable {
+                AdjustmentHintsDef::Always => ide::AdjustmentHints::Always,
+                AdjustmentHintsDef::Never => match self.local.inlayHints_reborrowHints_enable {
+                    ReborrowHintsDef::Always | ReborrowHintsDef::Mutable => {
+                        ide::AdjustmentHints::ReborrowOnly
+                    }
+                    ReborrowHintsDef::Never => ide::AdjustmentHints::Never,
+                },
+                AdjustmentHintsDef::Reborrow => ide::AdjustmentHints::ReborrowOnly,
+            },
+            adjustment_hints_mode: match self.local.inlayHints_expressionAdjustmentHints_mode {
+                AdjustmentHintsModeDef::Prefix => ide::AdjustmentHintsMode::Prefix,
+                AdjustmentHintsModeDef::Postfix => ide::AdjustmentHintsMode::Postfix,
+                AdjustmentHintsModeDef::PreferPrefix => ide::AdjustmentHintsMode::PreferPrefix,
+                AdjustmentHintsModeDef::PreferPostfix => ide::AdjustmentHintsMode::PreferPostfix,
+            },
+            adjustment_hints_hide_outside_unsafe: self
+                .local
+                .inlayHints_expressionAdjustmentHints_hideOutsideUnsafe,
+            binding_mode_hints: self.local.inlayHints_bindingModeHints_enable,
+            param_names_for_lifetime_elision_hints: self
+                .local
+                .inlayHints_lifetimeElisionHints_useParameterNames,
+            max_length: self.local.inlayHints_maxLength,
+            closing_brace_hints_min_lines: if self.local.inlayHints_closingBraceHints_enable {
+                Some(self.local.inlayHints_closingBraceHints_minLines)
+            } else {
+                None
+            },
+            fields_to_resolve: InlayFieldsToResolve {
+                resolve_text_edits: client_capability_fields.contains("textEdits"),
+                resolve_hint_tooltip: client_capability_fields.contains("tooltip"),
+                resolve_label_tooltip: client_capability_fields.contains("label.tooltip"),
+                resolve_label_location: client_capability_fields.contains("label.location"),
+                resolve_label_command: client_capability_fields.contains("label.command"),
+            },
         }
     }
 
@@ -1606,127 +1689,6 @@ impl Config {
         RunnablesConfig {
             override_cargo: self.root_config.global.0.runnables_command.clone(),
             cargo_extra_args: self.root_config.global.0.runnables_extraArgs.clone(),
-        }
-    }
-
-    pub fn inlay_hints(&self) -> InlayHintsConfig {
-        let client_capability_fields = self
-            .caps
-            .text_document
-            .as_ref()
-            .and_then(|text| text.inlay_hint.as_ref())
-            .and_then(|inlay_hint_caps| inlay_hint_caps.resolve_support.as_ref())
-            .map(|inlay_resolve| inlay_resolve.properties.iter())
-            .into_iter()
-            .flatten()
-            .cloned()
-            .collect::<FxHashSet<_>>();
-
-        InlayHintsConfig {
-            render_colons: self.root_config.global.0.inlayHints_renderColons,
-            type_hints: self.root_config.global.0.inlayHints_typeHints_enable,
-            parameter_hints: self.root_config.global.0.inlayHints_parameterHints_enable,
-            chaining_hints: self.root_config.global.0.inlayHints_chainingHints_enable,
-            discriminant_hints: match self.root_config.global.0.inlayHints_discriminantHints_enable
-            {
-                DiscriminantHintsDef::Always => ide::DiscriminantHints::Always,
-                DiscriminantHintsDef::Never => ide::DiscriminantHints::Never,
-                DiscriminantHintsDef::Fieldless => ide::DiscriminantHints::Fieldless,
-            },
-            closure_return_type_hints: match self
-                .root_config
-                .global
-                .0
-                .inlayHints_closureReturnTypeHints_enable
-            {
-                ClosureReturnTypeHintsDef::Always => ide::ClosureReturnTypeHints::Always,
-                ClosureReturnTypeHintsDef::Never => ide::ClosureReturnTypeHints::Never,
-                ClosureReturnTypeHintsDef::WithBlock => ide::ClosureReturnTypeHints::WithBlock,
-            },
-            lifetime_elision_hints: match self
-                .root_config
-                .global
-                .0
-                .inlayHints_lifetimeElisionHints_enable
-            {
-                LifetimeElisionDef::Always => ide::LifetimeElisionHints::Always,
-                LifetimeElisionDef::Never => ide::LifetimeElisionHints::Never,
-                LifetimeElisionDef::SkipTrivial => ide::LifetimeElisionHints::SkipTrivial,
-            },
-            hide_named_constructor_hints: self
-                .root_config
-                .global
-                .0
-                .inlayHints_typeHints_hideNamedConstructor,
-            hide_closure_initialization_hints: self
-                .root_config
-                .global
-                .0
-                .inlayHints_typeHints_hideClosureInitialization,
-            closure_style: match self.root_config.global.0.inlayHints_closureStyle {
-                ClosureStyle::ImplFn => hir::ClosureStyle::ImplFn,
-                ClosureStyle::RustAnalyzer => hir::ClosureStyle::RANotation,
-                ClosureStyle::WithId => hir::ClosureStyle::ClosureWithId,
-                ClosureStyle::Hide => hir::ClosureStyle::Hide,
-            },
-            closure_capture_hints: self.root_config.global.0.inlayHints_closureCaptureHints_enable,
-            adjustment_hints: match self
-                .root_config
-                .global
-                .0
-                .inlayHints_expressionAdjustmentHints_enable
-            {
-                AdjustmentHintsDef::Always => ide::AdjustmentHints::Always,
-                AdjustmentHintsDef::Never => {
-                    match self.root_config.global.0.inlayHints_reborrowHints_enable {
-                        ReborrowHintsDef::Always | ReborrowHintsDef::Mutable => {
-                            ide::AdjustmentHints::ReborrowOnly
-                        }
-                        ReborrowHintsDef::Never => ide::AdjustmentHints::Never,
-                    }
-                }
-                AdjustmentHintsDef::Reborrow => ide::AdjustmentHints::ReborrowOnly,
-            },
-            adjustment_hints_mode: match self
-                .root_config
-                .global
-                .0
-                .inlayHints_expressionAdjustmentHints_mode
-            {
-                AdjustmentHintsModeDef::Prefix => ide::AdjustmentHintsMode::Prefix,
-                AdjustmentHintsModeDef::Postfix => ide::AdjustmentHintsMode::Postfix,
-                AdjustmentHintsModeDef::PreferPrefix => ide::AdjustmentHintsMode::PreferPrefix,
-                AdjustmentHintsModeDef::PreferPostfix => ide::AdjustmentHintsMode::PreferPostfix,
-            },
-            adjustment_hints_hide_outside_unsafe: self
-                .root_config
-                .global
-                .0
-                .inlayHints_expressionAdjustmentHints_hideOutsideUnsafe,
-            binding_mode_hints: self.root_config.global.0.inlayHints_bindingModeHints_enable,
-            param_names_for_lifetime_elision_hints: self
-                .root_config
-                .global
-                .0
-                .inlayHints_lifetimeElisionHints_useParameterNames,
-            max_length: self.root_config.global.0.inlayHints_maxLength,
-            closing_brace_hints_min_lines: if self
-                .root_config
-                .global
-                .0
-                .inlayHints_closingBraceHints_enable
-            {
-                Some(self.root_config.global.0.inlayHints_closingBraceHints_minLines)
-            } else {
-                None
-            },
-            fields_to_resolve: InlayFieldsToResolve {
-                resolve_text_edits: client_capability_fields.contains("textEdits"),
-                resolve_hint_tooltip: client_capability_fields.contains("tooltip"),
-                resolve_label_tooltip: client_capability_fields.contains("label.tooltip"),
-                resolve_label_location: client_capability_fields.contains("label.location"),
-                resolve_label_command: client_capability_fields.contains("label.command"),
-            },
         }
     }
 

@@ -1411,7 +1411,7 @@ pub(crate) fn handle_inlay_hints(
         params.range,
     )?;
     let line_index = snap.file_line_index(file_id)?;
-    let inlay_hints_config = snap.config.inlay_hints();
+    let inlay_hints_config = snap.config.localize_by_file_id(file_id).inlay_hints();
     Ok(Some(
         snap.analysis
             .inlay_hints(&inlay_hints_config, file_id, Some(range))?
@@ -1455,7 +1455,8 @@ pub(crate) fn handle_inlay_hints_resolve(
         range_start.checked_sub(1.into()).unwrap_or(range_start),
         range_end.checked_add(1.into()).unwrap_or(range_end),
     );
-    let mut forced_resolve_inlay_hints_config = snap.config.inlay_hints();
+    let mut forced_resolve_inlay_hints_config =
+        snap.config.localize_by_file_id(file_id).inlay_hints();
     forced_resolve_inlay_hints_config.fields_to_resolve = InlayFieldsToResolve::empty();
     let resolve_hints = snap.analysis.inlay_hints(
         &forced_resolve_inlay_hints_config,
