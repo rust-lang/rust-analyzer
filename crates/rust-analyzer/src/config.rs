@@ -297,16 +297,6 @@ config_data! {
         /// Controls file watching implementation.
         files_watcher: FilesWatcherDef = "\"client\"",
 
-        /// Enables highlighting of related references while the cursor is on `break`, `loop`, `while`, or `for` keywords.
-        highlightRelated_breakPoints_enable: bool = "true",
-        /// Enables highlighting of all captures of a closure while the cursor is on the `|` or move keyword of a closure.
-        highlightRelated_closureCaptures_enable: bool = "true",
-        /// Enables highlighting of all exit points while the cursor is on any `return`, `?`, `fn`, or return type arrow (`->`).
-        highlightRelated_exitPoints_enable: bool = "true",
-        /// Enables highlighting of related references while the cursor is on any identifier.
-        highlightRelated_references_enable: bool = "true",
-        /// Enables highlighting of all break points for a loop or block context while the cursor is on any `async` or `await` keywords.
-        highlightRelated_yieldPoints_enable: bool = "true",
 
         /// Whether to show `Debug` action. Only applies when
         /// `#rust-analyzer.hover.actions.enable#` is set.
@@ -506,6 +496,16 @@ config_data! {
 
 config_data! {
     struct LocalConfigData {
+        /// Enables highlighting of related references while the cursor is on `break`, `loop`, `while`, or `for` keywords.
+        highlightRelated_breakPoints_enable: bool = "true",
+        /// Enables highlighting of all captures of a closure while the cursor is on the `|` or move keyword of a closure.
+        highlightRelated_closureCaptures_enable: bool = "true",
+        /// Enables highlighting of all exit points while the cursor is on any `return`, `?`, `fn`, or return type arrow (`->`).
+        highlightRelated_exitPoints_enable: bool = "true",
+        /// Enables highlighting of related references while the cursor is on any identifier.
+        highlightRelated_references_enable: bool = "true",
+        /// Enables highlighting of all break points for a loop or block context while the cursor is on any `async` or `await` keywords.
+        highlightRelated_yieldPoints_enable: bool = "true",
 
         /// Whether to show inlay type hints for binding modes.
         inlayHints_bindingModeHints_enable: bool                   = "false",
@@ -670,6 +670,46 @@ pub struct LocalConfigView<'a> {
 }
 
 impl<'a> LocalConfigView<'a> {
+    pub fn assist(&self) -> AssistConfig {
+        AssistConfig {
+            snippet_cap: SnippetCap::new(self.experimental("snippetTextEdit")),
+            allowed: None,
+            insert_use: self.insert_use_config(),
+            prefer_no_std: self.local.imports_prefer_no_std,
+            assist_emit_must_use: self.global.0.assist_emitMustUse,
+        }
+    }
+
+    pub fn completion(&self) -> CompletionConfig {
+        CompletionConfig {
+            enable_postfix_completions: self.global.0.completion_postfix_enable,
+            enable_imports_on_the_fly: self.global.0.completion_autoimport_enable
+                && completion_item_edit_resolve(&self.caps),
+            enable_self_on_the_fly: self.global.0.completion_autoself_enable,
+            enable_private_editable: self.global.0.completion_privateEditable_enable,
+            full_function_signatures: self.global.0.completion_fullFunctionSignatures_enable,
+            callable: match self.global.0.completion_callable_snippets {
+                CallableCompletionDef::FillArguments => Some(CallableSnippets::FillArguments),
+                CallableCompletionDef::AddParentheses => Some(CallableSnippets::AddParentheses),
+                CallableCompletionDef::None => None,
+            },
+            insert_use: self.insert_use_config(),
+            prefer_no_std: self.local.imports_prefer_no_std,
+            snippet_cap: SnippetCap::new(try_or_def!(
+                self.caps
+                    .text_document
+                    .as_ref()?
+                    .completion
+                    .as_ref()?
+                    .completion_item
+                    .as_ref()?
+                    .snippet_support?
+            )),
+            snippets: self.snippets.clone().to_vec(),
+            limit: self.global.0.completion_limit,
+        }
+    }
+
     pub fn diagnostics(&self) -> DiagnosticsConfig {
         DiagnosticsConfig {
             enabled: self.global.0.diagnostics_enable,
@@ -685,35 +725,24 @@ impl<'a> LocalConfigView<'a> {
             prefer_no_std: self.local.imports_prefer_no_std,
         }
     }
+    pub fn expand_proc_attr_macros(&self) -> bool {
+        self.global.0.procMacro_enable && self.global.0.procMacro_attributes_enable
+    }
 
-    pub fn assist(&self) -> AssistConfig {
-        AssistConfig {
-            snippet_cap: SnippetCap::new(self.experimental("snippetTextEdit")),
-            allowed: None,
-            insert_use: self.insert_use_config(),
-            prefer_no_std: self.local.imports_prefer_no_std,
-            assist_emit_must_use: self.global.0.assist_emitMustUse,
+    fn experimental(&self, index: &'static str) -> bool {
+        try_or_def!(self.caps.experimental.as_ref()?.get(index)?.as_bool()?)
+    }
+
+    pub fn highlight_related(&self) -> HighlightRelatedConfig {
+        HighlightRelatedConfig {
+            references: self.local.highlightRelated_references_enable,
+            break_points: self.local.highlightRelated_breakPoints_enable,
+            exit_points: self.local.highlightRelated_exitPoints_enable,
+            yield_points: self.local.highlightRelated_yieldPoints_enable,
+            closure_captures: self.local.highlightRelated_closureCaptures_enable,
         }
     }
 
-    fn insert_use_config(&self) -> InsertUseConfig {
-        InsertUseConfig {
-            granularity: match self.local.imports_granularity_group {
-                ImportGranularityDef::Preserve => ImportGranularity::Preserve,
-                ImportGranularityDef::Item => ImportGranularity::Item,
-                ImportGranularityDef::Crate => ImportGranularity::Crate,
-                ImportGranularityDef::Module => ImportGranularity::Module,
-            },
-            enforce_granularity: self.local.imports_granularity_enforce,
-            prefix_kind: match self.local.imports_prefix {
-                ImportPrefixDef::Plain => PrefixKind::Plain,
-                ImportPrefixDef::ByCrate => PrefixKind::ByCrate,
-                ImportPrefixDef::BySelf => PrefixKind::BySelf,
-            },
-            group: self.local.imports_group_enable,
-            skip_glob_imports: !self.local.imports_merge_glob,
-        }
-    }
     pub fn inlay_hints(&self) -> InlayHintsConfig {
         let client_capability_fields = self
             .caps
@@ -797,42 +826,23 @@ impl<'a> LocalConfigView<'a> {
         }
     }
 
-    pub fn expand_proc_attr_macros(&self) -> bool {
-        self.global.0.procMacro_enable && self.global.0.procMacro_attributes_enable
-    }
-
-    pub fn completion(&self) -> CompletionConfig {
-        CompletionConfig {
-            enable_postfix_completions: self.global.0.completion_postfix_enable,
-            enable_imports_on_the_fly: self.global.0.completion_autoimport_enable
-                && completion_item_edit_resolve(&self.caps),
-            enable_self_on_the_fly: self.global.0.completion_autoself_enable,
-            enable_private_editable: self.global.0.completion_privateEditable_enable,
-            full_function_signatures: self.global.0.completion_fullFunctionSignatures_enable,
-            callable: match self.global.0.completion_callable_snippets {
-                CallableCompletionDef::FillArguments => Some(CallableSnippets::FillArguments),
-                CallableCompletionDef::AddParentheses => Some(CallableSnippets::AddParentheses),
-                CallableCompletionDef::None => None,
+    fn insert_use_config(&self) -> InsertUseConfig {
+        InsertUseConfig {
+            granularity: match self.local.imports_granularity_group {
+                ImportGranularityDef::Preserve => ImportGranularity::Preserve,
+                ImportGranularityDef::Item => ImportGranularity::Item,
+                ImportGranularityDef::Crate => ImportGranularity::Crate,
+                ImportGranularityDef::Module => ImportGranularity::Module,
             },
-            insert_use: self.insert_use_config(),
-            prefer_no_std: self.local.imports_prefer_no_std,
-            snippet_cap: SnippetCap::new(try_or_def!(
-                self.caps
-                    .text_document
-                    .as_ref()?
-                    .completion
-                    .as_ref()?
-                    .completion_item
-                    .as_ref()?
-                    .snippet_support?
-            )),
-            snippets: self.snippets.clone().to_vec(),
-            limit: self.global.0.completion_limit,
+            enforce_granularity: self.local.imports_granularity_enforce,
+            prefix_kind: match self.local.imports_prefix {
+                ImportPrefixDef::Plain => PrefixKind::Plain,
+                ImportPrefixDef::ByCrate => PrefixKind::ByCrate,
+                ImportPrefixDef::BySelf => PrefixKind::BySelf,
+            },
+            group: self.local.imports_group_enable,
+            skip_glob_imports: !self.local.imports_merge_glob,
         }
-    }
-
-    fn experimental(&self, index: &'static str) -> bool {
-        try_or_def!(self.caps.experimental.as_ref()?.get(index)?.as_bool()?)
     }
 
     pub fn join_lines(&self) -> JoinLinesConfig {
@@ -1873,16 +1883,6 @@ impl Config {
             show_reference: get("rust-analyzer.showReferences"),
             goto_location: get("rust-analyzer.gotoLocation"),
             trigger_parameter_hints: get("editor.action.triggerParameterHints"),
-        }
-    }
-
-    pub fn highlight_related(&self) -> HighlightRelatedConfig {
-        HighlightRelatedConfig {
-            references: self.root_config.global.0.highlightRelated_references_enable,
-            break_points: self.root_config.global.0.highlightRelated_breakPoints_enable,
-            exit_points: self.root_config.global.0.highlightRelated_exitPoints_enable,
-            yield_points: self.root_config.global.0.highlightRelated_yieldPoints_enable,
-            closure_captures: self.root_config.global.0.highlightRelated_closureCaptures_enable,
         }
     }
 
