@@ -342,42 +342,6 @@ config_data! {
         /// available on a nightly build.
         rustfmt_rangeFormatting_enable: bool = "false",
 
-        /// Inject additional highlighting into doc comments.
-        ///
-        /// When enabled, rust-analyzer will highlight rust source in doc comments as well as intra
-        /// doc links.
-        semanticHighlighting_doc_comment_inject_enable: bool = "true",
-        /// Whether the server is allowed to emit non-standard tokens and modifiers.
-        semanticHighlighting_nonStandardTokens: bool = "true",
-        /// Use semantic tokens for operators.
-        ///
-        /// When disabled, rust-analyzer will emit semantic tokens only for operator tokens when
-        /// they are tagged with modifiers.
-        semanticHighlighting_operator_enable: bool = "true",
-        /// Use specialized semantic tokens for operators.
-        ///
-        /// When enabled, rust-analyzer will emit special token types for operator tokens instead
-        /// of the generic `operator` token type.
-        semanticHighlighting_operator_specialization_enable: bool = "false",
-        /// Use semantic tokens for punctuation.
-        ///
-        /// When disabled, rust-analyzer will emit semantic tokens only for punctuation tokens when
-        /// they are tagged with modifiers or have a special role.
-        semanticHighlighting_punctuation_enable: bool = "false",
-        /// When enabled, rust-analyzer will emit a punctuation semantic token for the `!` of macro
-        /// calls.
-        semanticHighlighting_punctuation_separate_macro_bang: bool = "false",
-        /// Use specialized semantic tokens for punctuation.
-        ///
-        /// When enabled, rust-analyzer will emit special token types for punctuation tokens instead
-        /// of the generic `punctuation` token type.
-        semanticHighlighting_punctuation_specialization_enable: bool = "false",
-        /// Use semantic tokens for strings.
-        ///
-        /// In some editors (e.g. vscode) semantic tokens override other highlighting grammars.
-        /// By disabling semantic tokens for strings, other grammars can be used to highlight
-        /// their contents.
-        semanticHighlighting_strings_enable: bool = "true",
 
         /// Show full signature of the callable. Only shows parameters if disabled.
         signatureInfo_detail: SignatureDetail                           = "\"full\"",
@@ -575,6 +539,43 @@ config_data! {
         joinLines_removeTrailingComma: bool = "true",
         /// Join lines unwraps trivial blocks.
         joinLines_unwrapTrivialBlock: bool = "true",
+
+        /// Inject additional highlighting into doc comments.
+        ///
+        /// When enabled, rust-analyzer will highlight rust source in doc comments as well as intra
+        /// doc links.
+        semanticHighlighting_doc_comment_inject_enable: bool = "true",
+        /// Whether the server is allowed to emit non-standard tokens and modifiers.
+        semanticHighlighting_nonStandardTokens: bool = "true",
+        /// Use semantic tokens for operators.
+        ///
+        /// When disabled, rust-analyzer will emit semantic tokens only for operator tokens when
+        /// they are tagged with modifiers.
+        semanticHighlighting_operator_enable: bool = "true",
+        /// Use specialized semantic tokens for operators.
+        ///
+        /// When enabled, rust-analyzer will emit special token types for operator tokens instead
+        /// of the generic `operator` token type.
+        semanticHighlighting_operator_specialization_enable: bool = "false",
+        /// Use semantic tokens for punctuation.
+        ///
+        /// When disabled, rust-analyzer will emit semantic tokens only for punctuation tokens when
+        /// they are tagged with modifiers or have a special role.
+        semanticHighlighting_punctuation_enable: bool = "false",
+        /// When enabled, rust-analyzer will emit a punctuation semantic token for the `!` of macro
+        /// calls.
+        semanticHighlighting_punctuation_separate_macro_bang: bool = "false",
+        /// Use specialized semantic tokens for punctuation.
+        ///
+        /// When enabled, rust-analyzer will emit special token types for punctuation tokens instead
+        /// of the generic `punctuation` token type.
+        semanticHighlighting_punctuation_specialization_enable: bool = "false",
+        /// Use semantic tokens for strings.
+        ///
+        /// In some editors (e.g. vscode) semantic tokens override other highlighting grammars.
+        /// By disabling semantic tokens for strings, other grammars can be used to highlight
+        /// their contents.
+        semanticHighlighting_strings_enable: bool = "true",
     }
 }
 
@@ -901,6 +902,25 @@ impl<'a> LocalConfigView<'a> {
             remove_trailing_comma: self.local.joinLines_removeTrailingComma,
             unwrap_trivial_blocks: self.local.joinLines_unwrapTrivialBlock,
             join_assignments: self.local.joinLines_joinAssignments,
+        }
+    }
+
+    pub fn highlighting_non_standard_tokens(&self) -> bool {
+        self.local.semanticHighlighting_nonStandardTokens
+    }
+
+    pub fn highlighting_config(&self) -> HighlightConfig {
+        HighlightConfig {
+            strings: self.local.semanticHighlighting_strings_enable,
+            punctuation: self.local.semanticHighlighting_punctuation_enable,
+            specialize_punctuation: self
+                .local
+                .semanticHighlighting_punctuation_specialization_enable,
+            macro_bang: self.local.semanticHighlighting_punctuation_separate_macro_bang,
+            operator: self.local.semanticHighlighting_operator_enable,
+            specialize_operator: self.local.semanticHighlighting_operator_specialization_enable,
+            inject_doc_comment: self.local.semanticHighlighting_doc_comment_inject_enable,
+            syntactic_name_ref_highlighting: false,
         }
     }
 }
@@ -1789,39 +1809,6 @@ impl Config {
             enum_variant_refs: self.root_config.global.0.lens_enable
                 && self.root_config.global.0.lens_references_enumVariant_enable,
             location: self.root_config.global.0.lens_location,
-        }
-    }
-
-    pub fn highlighting_non_standard_tokens(&self) -> bool {
-        self.root_config.global.0.semanticHighlighting_nonStandardTokens
-    }
-
-    pub fn highlighting_config(&self) -> HighlightConfig {
-        HighlightConfig {
-            strings: self.root_config.global.0.semanticHighlighting_strings_enable,
-            punctuation: self.root_config.global.0.semanticHighlighting_punctuation_enable,
-            specialize_punctuation: self
-                .root_config
-                .global
-                .0
-                .semanticHighlighting_punctuation_specialization_enable,
-            macro_bang: self
-                .root_config
-                .global
-                .0
-                .semanticHighlighting_punctuation_separate_macro_bang,
-            operator: self.root_config.global.0.semanticHighlighting_operator_enable,
-            specialize_operator: self
-                .root_config
-                .global
-                .0
-                .semanticHighlighting_operator_specialization_enable,
-            inject_doc_comment: self
-                .root_config
-                .global
-                .0
-                .semanticHighlighting_doc_comment_inject_enable,
-            syntactic_name_ref_highlighting: false,
         }
     }
 
