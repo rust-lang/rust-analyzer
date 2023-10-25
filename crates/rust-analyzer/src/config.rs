@@ -596,13 +596,46 @@ impl Default for ConfigData {
 }
 
 #[derive(Debug, Clone)]
+struct RootLocalConfigData(LocalConfigData);
+#[derive(Debug, Clone)]
+struct RootGlobalConfigData(GlobalConfigData);
+#[derive(Debug, Clone)]
+struct RootClientConfigData(ClientConfigData);
+
+#[derive(Debug, Clone)]
+struct RootConfigData {
+    local: RootLocalConfigData,
+    global: RootGlobalConfigData,
+    client: RootClientConfigData,
+}
+
+impl Default for RootConfigData {
+    fn default() -> Self {
+        RootConfigData {
+            local: RootLocalConfigData(LocalConfigData::from_json(
+                serde_json::Value::Null,
+                &mut Vec::new(),
+            )),
+            global: RootGlobalConfigData(GlobalConfigData::from_json(
+                serde_json::Value::Null,
+                &mut Vec::new(),
+            )),
+            client: RootClientConfigData(ClientConfigData::from_json(
+                serde_json::Value::Null,
+                &mut Vec::new(),
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Config {
     discovered_projects: Vec<ProjectManifest>,
     /// The workspace roots as registered by the LSP client
     workspace_roots: Vec<AbsPathBuf>,
     caps: lsp_types::ClientCapabilities,
     root_path: AbsPathBuf,
-    root_config: ConfigData,
+    root_config: RootConfigData,
     config_arena: Arena<ConfigData>,
     detached_files: Vec<AbsPathBuf>,
     snippets: Vec<Snippet>,
@@ -629,7 +662,8 @@ macro_rules! try_or_def {
 #[derive(Debug, Clone)]
 pub struct LocalConfigView<'a> {
     local: &'a LocalConfigData,
-    root_config: &'a ConfigData,
+    global: &'a RootGlobalConfigData,
+    client: &'a RootClientConfigData,
     caps: &'a lsp_types::ClientCapabilities,
     snippets: &'a Vec<Snippet>,
 }
@@ -637,12 +671,12 @@ pub struct LocalConfigView<'a> {
 impl<'a> LocalConfigView<'a> {
     pub fn diagnostics(&self) -> DiagnosticsConfig {
         DiagnosticsConfig {
-            enabled: self.root_config.global.diagnostics_enable,
+            enabled: self.global.0.diagnostics_enable,
             proc_attr_macros_enabled: self.expand_proc_attr_macros(),
-            proc_macros_enabled: self.root_config.global.procMacro_enable,
-            disable_experimental: !self.root_config.global.diagnostics_experimental_enable,
-            disabled: self.root_config.global.diagnostics_disabled.clone(),
-            expr_fill_default: match self.root_config.global.assist_expressionFillDefault {
+            proc_macros_enabled: self.global.0.procMacro_enable,
+            disable_experimental: !self.global.0.diagnostics_experimental_enable,
+            disabled: self.global.0.diagnostics_disabled.clone(),
+            expr_fill_default: match self.global.0.assist_expressionFillDefault {
                 ExprFillDefaultDef::Todo => ExprFillDefaultMode::Todo,
                 ExprFillDefaultDef::Default => ExprFillDefaultMode::Default,
             },
@@ -657,7 +691,7 @@ impl<'a> LocalConfigView<'a> {
             allowed: None,
             insert_use: self.insert_use_config(),
             prefer_no_std: self.local.imports_prefer_no_std,
-            assist_emit_must_use: self.root_config.global.assist_emitMustUse,
+            assist_emit_must_use: self.global.0.assist_emitMustUse,
         }
     }
 
@@ -681,22 +715,18 @@ impl<'a> LocalConfigView<'a> {
     }
 
     pub fn expand_proc_attr_macros(&self) -> bool {
-        self.root_config.global.procMacro_enable
-            && self.root_config.global.procMacro_attributes_enable
+        self.global.0.procMacro_enable && self.global.0.procMacro_attributes_enable
     }
 
     pub fn completion(&self) -> CompletionConfig {
         CompletionConfig {
-            enable_postfix_completions: self.root_config.global.completion_postfix_enable,
-            enable_imports_on_the_fly: self.root_config.global.completion_autoimport_enable
+            enable_postfix_completions: self.global.0.completion_postfix_enable,
+            enable_imports_on_the_fly: self.global.0.completion_autoimport_enable
                 && completion_item_edit_resolve(&self.caps),
-            enable_self_on_the_fly: self.root_config.global.completion_autoself_enable,
-            enable_private_editable: self.root_config.global.completion_privateEditable_enable,
-            full_function_signatures: self
-                .root_config
-                .global
-                .completion_fullFunctionSignatures_enable,
-            callable: match self.root_config.global.completion_callable_snippets {
+            enable_self_on_the_fly: self.global.0.completion_autoself_enable,
+            enable_private_editable: self.global.0.completion_privateEditable_enable,
+            full_function_signatures: self.global.0.completion_fullFunctionSignatures_enable,
+            callable: match self.global.0.completion_callable_snippets {
                 CallableCompletionDef::FillArguments => Some(CallableSnippets::FillArguments),
                 CallableCompletionDef::AddParentheses => Some(CallableSnippets::AddParentheses),
                 CallableCompletionDef::None => None,
@@ -714,7 +744,7 @@ impl<'a> LocalConfigView<'a> {
                     .snippet_support?
             )),
             snippets: self.snippets.clone().to_vec(),
-            limit: self.root_config.global.completion_limit,
+            limit: self.global.0.completion_limit,
         }
     }
 
@@ -929,7 +959,7 @@ impl Config {
         workspace_roots: Vec<AbsPathBuf>,
         is_visual_studio_code: bool,
     ) -> Self {
-        let root_config = ConfigData::default();
+        let root_config = RootConfigData::default();
         let config_arena = Arena::new();
 
         Config {
@@ -951,8 +981,9 @@ impl Config {
     /// because we need to query fields that are essentially global.
     pub fn localize_to_root_view(&self) -> LocalConfigView<'_> {
         LocalConfigView {
-            local: &self.root_config.local,
-            root_config: &self.root_config,
+            local: &self.root_config.local.0,
+            global: &self.root_config.global,
+            client: &self.root_config.client,
             caps: &self.caps,
             snippets: &self.snippets,
         }
@@ -961,16 +992,17 @@ impl Config {
     pub fn localize_by_file_id(&self, file_id: FileId) -> LocalConfigView<'_> {
         // FIXME : Plain wrong
         LocalConfigView {
-            local: &self.root_config.local,
-            root_config: &self.root_config,
+            local: &self.root_config.local.0,
+            global: &self.root_config.global,
+            client: &self.root_config.client,
             caps: &self.caps,
             snippets: &self.snippets,
         }
     }
 
     pub fn expand_proc_attr_macros(&self) -> bool {
-        self.root_config.global.procMacro_enable
-            && self.root_config.global.procMacro_attributes_enable
+        self.root_config.global.0.procMacro_enable
+            && self.root_config.global.0.procMacro_attributes_enable
     }
 
     pub fn rediscover_workspaces(&mut self) {
@@ -1004,10 +1036,11 @@ impl Config {
                 .map(AbsPathBuf::assert)
                 .collect();
         patch_old_style::patch_json_for_outdated_configs(&mut json);
-        self.root_config.global = GlobalConfigData::from_json(json, &mut errors);
+        self.root_config.global =
+            RootGlobalConfigData(GlobalConfigData::from_json(json, &mut errors));
         tracing::debug!("deserialized config data: {:#?}", self.root_config.global);
         self.snippets.clear();
-        for (name, def) in self.root_config.global.completion_snippets_custom.iter() {
+        for (name, def) in self.root_config.global.0.completion_snippets_custom.iter() {
             if def.prefix.is_empty() && def.postfix.is_empty() {
                 continue;
             }
@@ -1045,7 +1078,7 @@ impl Config {
 
     fn validate(&self, error_sink: &mut Vec<(String, serde_json::Error)>) {
         use serde::de::Error;
-        if self.root_config.global.check_command.is_empty() {
+        if self.root_config.global.0.check_command.is_empty() {
             error_sink.push((
                 "/check/command".to_string(),
                 serde_json::Error::custom("expected a non-empty string"),
@@ -1072,14 +1105,15 @@ impl Config {
 
 impl Config {
     pub fn has_linked_projects(&self) -> bool {
-        !self.root_config.global.linkedProjects.is_empty()
+        !self.root_config.global.0.linkedProjects.is_empty()
     }
     pub fn linked_projects(&self) -> Vec<LinkedProject> {
-        match self.root_config.global.linkedProjects.as_slice() {
+        match self.root_config.global.0.linkedProjects.as_slice() {
             [] => {
                 let exclude_dirs: Vec<_> = self
                     .root_config
                     .global
+                    .0
                     .files_excludeDirs
                     .iter()
                     .map(|p| self.root_path.join(p))
@@ -1120,7 +1154,7 @@ impl Config {
             .map(ManifestOrProjectJson::ProjectJson)
             .collect::<Vec<ManifestOrProjectJson>>();
 
-        self.root_config.global.linkedProjects.append(&mut linked_projects);
+        self.root_config.global.0.linkedProjects.append(&mut linked_projects);
     }
 
     pub fn did_save_text_document_dynamic_registration(&self) -> bool {
@@ -1135,7 +1169,7 @@ impl Config {
     }
 
     pub fn prefill_caches(&self) -> bool {
-        self.root_config.global.cachePriming_enable
+        self.root_config.global.0.cachePriming_enable
     }
 
     pub fn location_link(&self) -> bool {
@@ -1268,67 +1302,68 @@ impl Config {
     }
 
     pub fn publish_diagnostics(&self) -> bool {
-        self.root_config.global.diagnostics_enable
+        self.root_config.global.0.diagnostics_enable
     }
 
     pub fn diagnostics_map(&self) -> DiagnosticsMapConfig {
         DiagnosticsMapConfig {
-            remap_prefix: self.root_config.global.diagnostics_remapPrefix.clone(),
-            warnings_as_info: self.root_config.global.diagnostics_warningsAsInfo.clone(),
-            warnings_as_hint: self.root_config.global.diagnostics_warningsAsHint.clone(),
-            check_ignore: self.root_config.global.check_ignore.clone(),
+            remap_prefix: self.root_config.global.0.diagnostics_remapPrefix.clone(),
+            warnings_as_info: self.root_config.global.0.diagnostics_warningsAsInfo.clone(),
+            warnings_as_hint: self.root_config.global.0.diagnostics_warningsAsHint.clone(),
+            check_ignore: self.root_config.global.0.check_ignore.clone(),
         }
     }
 
     pub fn extra_args(&self) -> &Vec<String> {
-        &self.root_config.global.cargo_extraArgs
+        &self.root_config.global.0.cargo_extraArgs
     }
 
     pub fn extra_env(&self) -> &FxHashMap<String, String> {
-        &self.root_config.global.cargo_extraEnv
+        &self.root_config.global.0.cargo_extraEnv
     }
 
     pub fn check_extra_args(&self) -> Vec<String> {
         let mut extra_args = self.extra_args().clone();
-        extra_args.extend_from_slice(&self.root_config.global.check_extraArgs);
+        extra_args.extend_from_slice(&self.root_config.global.0.check_extraArgs);
         extra_args
     }
 
     pub fn check_extra_env(&self) -> FxHashMap<String, String> {
-        let mut extra_env = self.root_config.global.cargo_extraEnv.clone();
-        extra_env.extend(self.root_config.global.check_extraEnv.clone());
+        let mut extra_env = self.root_config.global.0.cargo_extraEnv.clone();
+        extra_env.extend(self.root_config.global.0.check_extraEnv.clone());
         extra_env
     }
 
     pub fn lru_parse_query_capacity(&self) -> Option<usize> {
-        self.root_config.global.lru_capacity
+        self.root_config.global.0.lru_capacity
     }
 
     pub fn lru_query_capacities(&self) -> Option<&FxHashMap<Box<str>, usize>> {
         self.root_config
             .global
+            .0
             .lru_query_capacities
             .is_empty()
             .not()
-            .then(|| &self.root_config.global.lru_query_capacities)
+            .then(|| &self.root_config.global.0.lru_query_capacities)
     }
 
     pub fn proc_macro_srv(&self) -> Option<AbsPathBuf> {
-        let path = self.root_config.global.procMacro_server.clone()?;
+        let path = self.root_config.global.0.procMacro_server.clone()?;
         Some(AbsPathBuf::try_from(path).unwrap_or_else(|path| self.root_path.join(&path)))
     }
 
     pub fn dummy_replacements(&self) -> &FxHashMap<Box<str>, Box<[Box<str>]>> {
-        &self.root_config.global.procMacro_ignored
+        &self.root_config.global.0.procMacro_ignored
     }
 
     pub fn expand_proc_macros(&self) -> bool {
-        self.root_config.global.procMacro_enable
+        self.root_config.global.0.procMacro_enable
     }
 
     pub fn files(&self) -> FilesConfig {
         FilesConfig {
-            watcher: match self.root_config.global.files_watcher {
+            watcher: match self.root_config.global.0.files_watcher {
                 FilesWatcherDef::Client if self.did_change_watched_files_dynamic_registration() => {
                     FilesWatcher::Client
                 }
@@ -1337,6 +1372,7 @@ impl Config {
             exclude: self
                 .root_config
                 .global
+                .0
                 .files_excludeDirs
                 .iter()
                 .map(|it| self.root_path.join(it))
@@ -1346,28 +1382,28 @@ impl Config {
 
     pub fn notifications(&self) -> NotificationsConfig {
         NotificationsConfig {
-            cargo_toml_not_found: self.root_config.global.notifications_cargoTomlNotFound,
+            cargo_toml_not_found: self.root_config.global.0.notifications_cargoTomlNotFound,
         }
     }
 
     pub fn cargo_autoreload(&self) -> bool {
-        self.root_config.global.cargo_autoreload
+        self.root_config.global.0.cargo_autoreload
     }
 
     pub fn run_build_scripts(&self) -> bool {
-        self.root_config.global.cargo_buildScripts_enable
-            || self.root_config.global.procMacro_enable
+        self.root_config.global.0.cargo_buildScripts_enable
+            || self.root_config.global.0.procMacro_enable
     }
 
     pub fn cargo(&self) -> CargoConfig {
-        let rustc_source = self.root_config.global.rustc_source.as_ref().map(|rustc_src| {
+        let rustc_source = self.root_config.global.0.rustc_source.as_ref().map(|rustc_src| {
             if rustc_src == "discover" {
                 RustLibSource::Discover
             } else {
                 RustLibSource::Path(self.root_path.join(rustc_src))
             }
         });
-        let sysroot = self.root_config.global.cargo_sysroot.as_ref().map(|sysroot| {
+        let sysroot = self.root_config.global.0.cargo_sysroot.as_ref().map(|sysroot| {
             if sysroot == "discover" {
                 RustLibSource::Discover
             } else {
@@ -1377,19 +1413,20 @@ impl Config {
         let sysroot_src = self
             .root_config
             .global
+            .0
             .cargo_sysrootSrc
             .as_ref()
             .map(|sysroot| self.root_path.join(sysroot));
 
         CargoConfig {
-            features: match &self.root_config.global.cargo_features {
+            features: match &self.root_config.global.0.cargo_features {
                 CargoFeaturesDef::All => CargoFeatures::All,
                 CargoFeaturesDef::Selected(features) => CargoFeatures::Selected {
                     features: features.clone(),
-                    no_default_features: self.root_config.global.cargo_noDefaultFeatures,
+                    no_default_features: self.root_config.global.0.cargo_noDefaultFeatures,
                 },
             },
-            target: self.root_config.global.cargo_target.clone(),
+            target: self.root_config.global.0.cargo_target.clone(),
             sysroot,
             sysroot_src,
             rustc_source,
@@ -1397,6 +1434,7 @@ impl Config {
                 global: CfgDiff::new(
                     self.root_config
                         .global
+                        .0
                         .cargo_cfgs
                         .iter()
                         .map(|(key, val)| {
@@ -1413,6 +1451,7 @@ impl Config {
                 selective: self
                     .root_config
                     .global
+                    .0
                     .cargo_unsetTest
                     .iter()
                     .map(|it| {
@@ -1423,13 +1462,25 @@ impl Config {
                     })
                     .collect(),
             },
-            wrap_rustc_in_build_scripts: self.root_config.global.cargo_buildScripts_useRustcWrapper,
-            invocation_strategy: match self.root_config.global.cargo_buildScripts_invocationStrategy
+            wrap_rustc_in_build_scripts: self
+                .root_config
+                .global
+                .0
+                .cargo_buildScripts_useRustcWrapper,
+            invocation_strategy: match self
+                .root_config
+                .global
+                .0
+                .cargo_buildScripts_invocationStrategy
             {
                 InvocationStrategy::Once => project_model::InvocationStrategy::Once,
                 InvocationStrategy::PerWorkspace => project_model::InvocationStrategy::PerWorkspace,
             },
-            invocation_location: match self.root_config.global.cargo_buildScripts_invocationLocation
+            invocation_location: match self
+                .root_config
+                .global
+                .0
+                .cargo_buildScripts_invocationLocation
             {
                 InvocationLocation::Root => {
                     project_model::InvocationLocation::Root(self.root_path.clone())
@@ -1439,30 +1490,31 @@ impl Config {
             run_build_script_command: self
                 .root_config
                 .global
+                .0
                 .cargo_buildScripts_overrideCommand
                 .clone(),
-            extra_args: self.root_config.global.cargo_extraArgs.clone(),
-            extra_env: self.root_config.global.cargo_extraEnv.clone(),
+            extra_args: self.root_config.global.0.cargo_extraArgs.clone(),
+            extra_env: self.root_config.global.0.cargo_extraEnv.clone(),
             target_dir: self.target_dir_from_config(),
         }
     }
 
     pub fn rustfmt(&self) -> RustfmtConfig {
-        match &self.root_config.global.rustfmt_overrideCommand {
+        match &self.root_config.global.0.rustfmt_overrideCommand {
             Some(args) if !args.is_empty() => {
                 let mut args = args.clone();
                 let command = args.remove(0);
                 RustfmtConfig::CustomCommand { command, args }
             }
             Some(_) | None => RustfmtConfig::Rustfmt {
-                extra_args: self.root_config.global.rustfmt_extraArgs.clone(),
-                enable_range_formatting: self.root_config.global.rustfmt_rangeFormatting_enable,
+                extra_args: self.root_config.global.0.rustfmt_extraArgs.clone(),
+                enable_range_formatting: self.root_config.global.0.rustfmt_rangeFormatting_enable,
             },
         }
     }
 
     pub fn flycheck(&self) -> FlycheckConfig {
-        match &self.root_config.global.check_overrideCommand {
+        match &self.root_config.global.0.check_overrideCommand {
             Some(args) if !args.is_empty() => {
                 let mut args = args.clone();
                 let command = args.remove(0);
@@ -1470,13 +1522,13 @@ impl Config {
                     command,
                     args,
                     extra_env: self.check_extra_env(),
-                    invocation_strategy: match self.root_config.global.check_invocationStrategy {
+                    invocation_strategy: match self.root_config.global.0.check_invocationStrategy {
                         InvocationStrategy::Once => flycheck::InvocationStrategy::Once,
                         InvocationStrategy::PerWorkspace => {
                             flycheck::InvocationStrategy::PerWorkspace
                         }
                     },
-                    invocation_location: match self.root_config.global.check_invocationLocation {
+                    invocation_location: match self.root_config.global.0.check_invocationLocation {
                         InvocationLocation::Root => {
                             flycheck::InvocationLocation::Root(self.root_path.clone())
                         }
@@ -1485,10 +1537,11 @@ impl Config {
                 }
             }
             Some(_) | None => FlycheckConfig::CargoCommand {
-                command: self.root_config.global.check_command.clone(),
+                command: self.root_config.global.0.check_command.clone(),
                 target_triples: self
                     .root_config
                     .global
+                    .0
                     .check_targets
                     .clone()
                     .and_then(|targets| match &targets.0[..] {
@@ -1496,28 +1549,31 @@ impl Config {
                         targets => Some(targets.into()),
                     })
                     .unwrap_or_else(|| {
-                        self.root_config.global.cargo_target.clone().into_iter().collect()
+                        self.root_config.global.0.cargo_target.clone().into_iter().collect()
                     }),
-                all_targets: self.root_config.global.check_allTargets,
+                all_targets: self.root_config.global.0.check_allTargets,
                 no_default_features: self
                     .root_config
                     .global
+                    .0
                     .check_noDefaultFeatures
-                    .unwrap_or(self.root_config.global.cargo_noDefaultFeatures),
+                    .unwrap_or(self.root_config.global.0.cargo_noDefaultFeatures),
                 all_features: matches!(
                     self.root_config
                         .global
+                        .0
                         .check_features
                         .as_ref()
-                        .unwrap_or(&self.root_config.global.cargo_features),
+                        .unwrap_or(&self.root_config.global.0.cargo_features),
                     CargoFeaturesDef::All
                 ),
                 features: match self
                     .root_config
                     .global
+                    .0
                     .check_features
                     .clone()
-                    .unwrap_or_else(|| self.root_config.global.cargo_features.clone())
+                    .unwrap_or_else(|| self.root_config.global.0.cargo_features.clone())
                 {
                     CargoFeaturesDef::All => vec![],
                     CargoFeaturesDef::Selected(it) => it,
@@ -1531,7 +1587,7 @@ impl Config {
     }
 
     fn target_dir_from_config(&self) -> Option<PathBuf> {
-        self.root_config.global.rust_analyzerTargetDir.as_ref().and_then(|target_dir| {
+        self.root_config.global.0.rust_analyzerTargetDir.as_ref().and_then(|target_dir| {
             match target_dir {
                 TargetDirectory::UseSubdirectory(yes) if *yes => {
                     Some(PathBuf::from("target/rust-analyzer"))
@@ -1543,13 +1599,13 @@ impl Config {
     }
 
     pub fn check_on_save(&self) -> bool {
-        self.root_config.global.checkOnSave
+        self.root_config.global.0.checkOnSave
     }
 
     pub fn runnables(&self) -> RunnablesConfig {
         RunnablesConfig {
-            override_cargo: self.root_config.global.runnables_command.clone(),
-            cargo_extra_args: self.root_config.global.runnables_extraArgs.clone(),
+            override_cargo: self.root_config.global.0.runnables_command.clone(),
+            cargo_extra_args: self.root_config.global.0.runnables_extraArgs.clone(),
         }
     }
 
@@ -1567,11 +1623,12 @@ impl Config {
             .collect::<FxHashSet<_>>();
 
         InlayHintsConfig {
-            render_colons: self.root_config.global.inlayHints_renderColons,
-            type_hints: self.root_config.global.inlayHints_typeHints_enable,
-            parameter_hints: self.root_config.global.inlayHints_parameterHints_enable,
-            chaining_hints: self.root_config.global.inlayHints_chainingHints_enable,
-            discriminant_hints: match self.root_config.global.inlayHints_discriminantHints_enable {
+            render_colons: self.root_config.global.0.inlayHints_renderColons,
+            type_hints: self.root_config.global.0.inlayHints_typeHints_enable,
+            parameter_hints: self.root_config.global.0.inlayHints_parameterHints_enable,
+            chaining_hints: self.root_config.global.0.inlayHints_chainingHints_enable,
+            discriminant_hints: match self.root_config.global.0.inlayHints_discriminantHints_enable
+            {
                 DiscriminantHintsDef::Always => ide::DiscriminantHints::Always,
                 DiscriminantHintsDef::Never => ide::DiscriminantHints::Never,
                 DiscriminantHintsDef::Fieldless => ide::DiscriminantHints::Fieldless,
@@ -1579,6 +1636,7 @@ impl Config {
             closure_return_type_hints: match self
                 .root_config
                 .global
+                .0
                 .inlayHints_closureReturnTypeHints_enable
             {
                 ClosureReturnTypeHintsDef::Always => ide::ClosureReturnTypeHints::Always,
@@ -1588,6 +1646,7 @@ impl Config {
             lifetime_elision_hints: match self
                 .root_config
                 .global
+                .0
                 .inlayHints_lifetimeElisionHints_enable
             {
                 LifetimeElisionDef::Always => ide::LifetimeElisionHints::Always,
@@ -1597,26 +1656,29 @@ impl Config {
             hide_named_constructor_hints: self
                 .root_config
                 .global
+                .0
                 .inlayHints_typeHints_hideNamedConstructor,
             hide_closure_initialization_hints: self
                 .root_config
                 .global
+                .0
                 .inlayHints_typeHints_hideClosureInitialization,
-            closure_style: match self.root_config.global.inlayHints_closureStyle {
+            closure_style: match self.root_config.global.0.inlayHints_closureStyle {
                 ClosureStyle::ImplFn => hir::ClosureStyle::ImplFn,
                 ClosureStyle::RustAnalyzer => hir::ClosureStyle::RANotation,
                 ClosureStyle::WithId => hir::ClosureStyle::ClosureWithId,
                 ClosureStyle::Hide => hir::ClosureStyle::Hide,
             },
-            closure_capture_hints: self.root_config.global.inlayHints_closureCaptureHints_enable,
+            closure_capture_hints: self.root_config.global.0.inlayHints_closureCaptureHints_enable,
             adjustment_hints: match self
                 .root_config
                 .global
+                .0
                 .inlayHints_expressionAdjustmentHints_enable
             {
                 AdjustmentHintsDef::Always => ide::AdjustmentHints::Always,
                 AdjustmentHintsDef::Never => {
-                    match self.root_config.global.inlayHints_reborrowHints_enable {
+                    match self.root_config.global.0.inlayHints_reborrowHints_enable {
                         ReborrowHintsDef::Always | ReborrowHintsDef::Mutable => {
                             ide::AdjustmentHints::ReborrowOnly
                         }
@@ -1628,6 +1690,7 @@ impl Config {
             adjustment_hints_mode: match self
                 .root_config
                 .global
+                .0
                 .inlayHints_expressionAdjustmentHints_mode
             {
                 AdjustmentHintsModeDef::Prefix => ide::AdjustmentHintsMode::Prefix,
@@ -1638,19 +1701,22 @@ impl Config {
             adjustment_hints_hide_outside_unsafe: self
                 .root_config
                 .global
+                .0
                 .inlayHints_expressionAdjustmentHints_hideOutsideUnsafe,
-            binding_mode_hints: self.root_config.global.inlayHints_bindingModeHints_enable,
+            binding_mode_hints: self.root_config.global.0.inlayHints_bindingModeHints_enable,
             param_names_for_lifetime_elision_hints: self
                 .root_config
                 .global
+                .0
                 .inlayHints_lifetimeElisionHints_useParameterNames,
-            max_length: self.root_config.global.inlayHints_maxLength,
+            max_length: self.root_config.global.0.inlayHints_maxLength,
             closing_brace_hints_min_lines: if self
                 .root_config
                 .global
+                .0
                 .inlayHints_closingBraceHints_enable
             {
-                Some(self.root_config.global.inlayHints_closingBraceHints_minLines)
+                Some(self.root_config.global.0.inlayHints_closingBraceHints_minLines)
             } else {
                 None
             },
@@ -1665,7 +1731,7 @@ impl Config {
     }
 
     pub fn find_all_refs_exclude_imports(&self) -> bool {
-        self.root_config.global.references_excludeImports
+        self.root_config.global.0.references_excludeImports
     }
 
     pub fn snippet_cap(&self) -> bool {
@@ -1675,70 +1741,76 @@ impl Config {
     pub fn call_info(&self) -> CallInfoConfig {
         CallInfoConfig {
             params_only: matches!(
-                self.root_config.global.signatureInfo_detail,
+                self.root_config.global.0.signatureInfo_detail,
                 SignatureDetail::Parameters
             ),
-            docs: self.root_config.global.signatureInfo_documentation_enable,
+            docs: self.root_config.global.0.signatureInfo_documentation_enable,
         }
     }
 
     pub fn lens(&self) -> LensConfig {
         LensConfig {
-            run: self.root_config.global.lens_enable && self.root_config.global.lens_run_enable,
-            debug: self.root_config.global.lens_enable && self.root_config.global.lens_debug_enable,
-            interpret: self.root_config.global.lens_enable
-                && self.root_config.global.lens_run_enable
-                && self.root_config.global.interpret_tests,
-            implementations: self.root_config.global.lens_enable
-                && self.root_config.global.lens_implementations_enable,
-            method_refs: self.root_config.global.lens_enable
-                && self.root_config.global.lens_references_method_enable,
-            refs_adt: self.root_config.global.lens_enable
-                && self.root_config.global.lens_references_adt_enable,
-            refs_trait: self.root_config.global.lens_enable
-                && self.root_config.global.lens_references_trait_enable,
-            enum_variant_refs: self.root_config.global.lens_enable
-                && self.root_config.global.lens_references_enumVariant_enable,
-            location: self.root_config.global.lens_location,
+            run: self.root_config.global.0.lens_enable && self.root_config.global.0.lens_run_enable,
+            debug: self.root_config.global.0.lens_enable
+                && self.root_config.global.0.lens_debug_enable,
+            interpret: self.root_config.global.0.lens_enable
+                && self.root_config.global.0.lens_run_enable
+                && self.root_config.global.0.interpret_tests,
+            implementations: self.root_config.global.0.lens_enable
+                && self.root_config.global.0.lens_implementations_enable,
+            method_refs: self.root_config.global.0.lens_enable
+                && self.root_config.global.0.lens_references_method_enable,
+            refs_adt: self.root_config.global.0.lens_enable
+                && self.root_config.global.0.lens_references_adt_enable,
+            refs_trait: self.root_config.global.0.lens_enable
+                && self.root_config.global.0.lens_references_trait_enable,
+            enum_variant_refs: self.root_config.global.0.lens_enable
+                && self.root_config.global.0.lens_references_enumVariant_enable,
+            location: self.root_config.global.0.lens_location,
         }
     }
 
     pub fn hover_actions(&self) -> HoverActionsConfig {
         let enable =
-            self.experimental("hoverActions") && self.root_config.global.hover_actions_enable;
+            self.experimental("hoverActions") && self.root_config.global.0.hover_actions_enable;
         HoverActionsConfig {
-            implementations: enable && self.root_config.global.hover_actions_implementations_enable,
-            references: enable && self.root_config.global.hover_actions_references_enable,
-            run: enable && self.root_config.global.hover_actions_run_enable,
-            debug: enable && self.root_config.global.hover_actions_debug_enable,
-            goto_type_def: enable && self.root_config.global.hover_actions_gotoTypeDef_enable,
+            implementations: enable
+                && self.root_config.global.0.hover_actions_implementations_enable,
+            references: enable && self.root_config.global.0.hover_actions_references_enable,
+            run: enable && self.root_config.global.0.hover_actions_run_enable,
+            debug: enable && self.root_config.global.0.hover_actions_debug_enable,
+            goto_type_def: enable && self.root_config.global.0.hover_actions_gotoTypeDef_enable,
         }
     }
 
     pub fn highlighting_non_standard_tokens(&self) -> bool {
-        self.root_config.global.semanticHighlighting_nonStandardTokens
+        self.root_config.global.0.semanticHighlighting_nonStandardTokens
     }
 
     pub fn highlighting_config(&self) -> HighlightConfig {
         HighlightConfig {
-            strings: self.root_config.global.semanticHighlighting_strings_enable,
-            punctuation: self.root_config.global.semanticHighlighting_punctuation_enable,
+            strings: self.root_config.global.0.semanticHighlighting_strings_enable,
+            punctuation: self.root_config.global.0.semanticHighlighting_punctuation_enable,
             specialize_punctuation: self
                 .root_config
                 .global
+                .0
                 .semanticHighlighting_punctuation_specialization_enable,
             macro_bang: self
                 .root_config
                 .global
+                .0
                 .semanticHighlighting_punctuation_separate_macro_bang,
-            operator: self.root_config.global.semanticHighlighting_operator_enable,
+            operator: self.root_config.global.0.semanticHighlighting_operator_enable,
             specialize_operator: self
                 .root_config
                 .global
+                .0
                 .semanticHighlighting_operator_specialization_enable,
             inject_doc_comment: self
                 .root_config
                 .global
+                .0
                 .semanticHighlighting_doc_comment_inject_enable,
             syntactic_name_ref_highlighting: false,
         }
@@ -1751,16 +1823,16 @@ impl Config {
             MemoryLayoutHoverRenderKindDef::Hexadecimal => MemoryLayoutHoverRenderKind::Hexadecimal,
         };
         HoverConfig {
-            links_in_hover: self.root_config.global.hover_links_enable,
-            memory_layout: self.root_config.global.hover_memoryLayout_enable.then_some(
+            links_in_hover: self.root_config.global.0.hover_links_enable,
+            memory_layout: self.root_config.global.0.hover_memoryLayout_enable.then_some(
                 MemoryLayoutHoverConfig {
-                    size: self.root_config.global.hover_memoryLayout_size.map(mem_kind),
-                    offset: self.root_config.global.hover_memoryLayout_offset.map(mem_kind),
-                    alignment: self.root_config.global.hover_memoryLayout_alignment.map(mem_kind),
-                    niches: self.root_config.global.hover_memoryLayout_niches.unwrap_or_default(),
+                    size: self.root_config.global.0.hover_memoryLayout_size.map(mem_kind),
+                    offset: self.root_config.global.0.hover_memoryLayout_offset.map(mem_kind),
+                    alignment: self.root_config.global.0.hover_memoryLayout_alignment.map(mem_kind),
+                    niches: self.root_config.global.0.hover_memoryLayout_niches.unwrap_or_default(),
                 },
             ),
-            documentation: self.root_config.global.hover_documentation_enable,
+            documentation: self.root_config.global.0.hover_documentation_enable,
             format: {
                 let is_markdown = try_or_def!(self
                     .caps
@@ -1778,23 +1850,23 @@ impl Config {
                     HoverDocFormat::PlainText
                 }
             },
-            keywords: self.root_config.global.hover_documentation_keywords_enable,
+            keywords: self.root_config.global.0.hover_documentation_keywords_enable,
         }
     }
 
     pub fn workspace_symbol(&self) -> WorkspaceSymbolConfig {
         WorkspaceSymbolConfig {
-            search_scope: match self.root_config.global.workspace_symbol_search_scope {
+            search_scope: match self.root_config.global.0.workspace_symbol_search_scope {
                 WorkspaceSymbolSearchScopeDef::Workspace => WorkspaceSymbolSearchScope::Workspace,
                 WorkspaceSymbolSearchScopeDef::WorkspaceAndDependencies => {
                     WorkspaceSymbolSearchScope::WorkspaceAndDependencies
                 }
             },
-            search_kind: match self.root_config.global.workspace_symbol_search_kind {
+            search_kind: match self.root_config.global.0.workspace_symbol_search_kind {
                 WorkspaceSymbolSearchKindDef::OnlyTypes => WorkspaceSymbolSearchKind::OnlyTypes,
                 WorkspaceSymbolSearchKindDef::AllSymbols => WorkspaceSymbolSearchKind::AllSymbols,
             },
-            search_limit: self.root_config.global.workspace_symbol_search_limit,
+            search_limit: self.root_config.global.0.workspace_symbol_search_limit,
         }
     }
 
@@ -1828,7 +1900,7 @@ impl Config {
             try_or!(self.caps.experimental.as_ref()?.get("commands")?, &serde_json::Value::Null);
         let commands: Option<lsp_ext::ClientCommandOptions> =
             serde_json::from_value(commands.clone()).ok();
-        let force = commands.is_none() && self.root_config.global.lens_forceCustomCommands;
+        let force = commands.is_none() && self.root_config.global.0.lens_forceCustomCommands;
         let commands = commands.map(|it| it.commands).unwrap_or_default();
 
         let get = |name: &str| commands.iter().any(|it| it == name) || force;
@@ -1844,16 +1916,16 @@ impl Config {
 
     pub fn highlight_related(&self) -> HighlightRelatedConfig {
         HighlightRelatedConfig {
-            references: self.root_config.global.highlightRelated_references_enable,
-            break_points: self.root_config.global.highlightRelated_breakPoints_enable,
-            exit_points: self.root_config.global.highlightRelated_exitPoints_enable,
-            yield_points: self.root_config.global.highlightRelated_yieldPoints_enable,
-            closure_captures: self.root_config.global.highlightRelated_closureCaptures_enable,
+            references: self.root_config.global.0.highlightRelated_references_enable,
+            break_points: self.root_config.global.0.highlightRelated_breakPoints_enable,
+            exit_points: self.root_config.global.0.highlightRelated_exitPoints_enable,
+            yield_points: self.root_config.global.0.highlightRelated_yieldPoints_enable,
+            closure_captures: self.root_config.global.0.highlightRelated_closureCaptures_enable,
         }
     }
 
     pub fn prime_caches_num_threads(&self) -> u8 {
-        match self.root_config.global.cachePriming_numThreads {
+        match self.root_config.global.0.cachePriming_numThreads {
             0 => num_cpus::get_physical().try_into().unwrap_or(u8::MAX),
             n => n,
         }
@@ -1862,12 +1934,13 @@ impl Config {
     pub fn main_loop_num_threads(&self) -> usize {
         self.root_config
             .global
+            .0
             .numThreads
             .unwrap_or(num_cpus::get_physical().try_into().unwrap_or(1))
     }
 
     pub fn typing_autoclose_angle(&self) -> bool {
-        self.root_config.global.typing_autoClosingAngleBrackets_enable
+        self.root_config.global.0.typing_autoClosingAngleBrackets_enable
     }
 
     // FIXME: VSCode seems to work wrong sometimes, see https://github.com/microsoft/vscode/issues/193124
@@ -2847,7 +2920,7 @@ mod tests {
                 "rust": { "analyzerTargetDir": null }
             }))
             .unwrap();
-        assert_eq!(config.root_config.global.rust_analyzerTargetDir, None);
+        assert_eq!(config.root_config.global.0.rust_analyzerTargetDir, None);
         assert!(
             matches!(config.flycheck(), FlycheckConfig::CargoCommand { target_dir, .. } if target_dir == None)
         );
@@ -2867,7 +2940,7 @@ mod tests {
             }))
             .unwrap();
         assert_eq!(
-            config.root_config.global.rust_analyzerTargetDir,
+            config.root_config.global.0.rust_analyzerTargetDir,
             Some(TargetDirectory::UseSubdirectory(true))
         );
         assert!(
@@ -2889,7 +2962,7 @@ mod tests {
             }))
             .unwrap();
         assert_eq!(
-            config.root_config.global.rust_analyzerTargetDir,
+            config.root_config.global.0.rust_analyzerTargetDir,
             Some(TargetDirectory::Directory(PathBuf::from("other_folder")))
         );
         assert!(
