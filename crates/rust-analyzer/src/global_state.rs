@@ -330,7 +330,6 @@ impl GlobalState {
             }
             (change, changed_files, workspace_structure_change)
         };
-
         self.analysis_host.apply_change(change);
 
         {

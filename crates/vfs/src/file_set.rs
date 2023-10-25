@@ -11,7 +11,7 @@ use rustc_hash::FxHashMap;
 use crate::{AnchoredPath, FileId, Vfs, VfsPath};
 
 /// A set of [`VfsPath`]s identified by [`FileId`]s.
-#[derive(Default, Clone, Eq, PartialEq)]
+#[derive(Default, Debug, Clone, Eq, PartialEq)]
 pub struct FileSet {
     files: FxHashMap<VfsPath, FileId>,
     paths: IntMap<FileId, VfsPath>,
@@ -59,11 +59,11 @@ impl FileSet {
     }
 }
 
-impl fmt::Debug for FileSet {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("FileSet").field("n_files", &self.files.len()).finish()
-    }
-}
+// impl fmt::Debug for FileSet {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         f.debug_struct("FileSet").field("n_files", &self.files.len()).finish()
+//     }
+// }
 
 /// This contains path prefixes to partition a [`Vfs`] into [`FileSet`]s.
 ///

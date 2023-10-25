@@ -131,6 +131,7 @@ impl GlobalState {
                 Event::Lsp(lsp_server::Message::Notification(Notification { method, .. }))
                 if method == lsp_types::notification::Exit::METHOD
             ) {
+                dbg!("EXIT");
                 return Ok(());
             }
             self.handle_event(event)?;
@@ -158,6 +159,11 @@ impl GlobalState {
                         language: None,
                         scheme: None,
                         pattern: Some("**/Cargo.lock".into()),
+                    },
+                    lsp_types::DocumentFilter {
+                        language: None,
+                        scheme: None,
+                        pattern: Some("**/.rust-analyzer.toml".into()),
                     },
                 ]),
             },

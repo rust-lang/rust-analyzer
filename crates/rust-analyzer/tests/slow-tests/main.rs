@@ -1131,3 +1131,42 @@ version = "0.0.0"
 
     server.request::<WorkspaceSymbolRequest>(Default::default(), json!([]));
 }
+
+#[test]
+fn test_ratoml_exists() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let server = Project::with_fixture(
+        r#"
+//- /foo/Cargo.toml
+[package]
+name = "foo"
+version = "0.0.0"
+
+[dependencies]
+bar.path = "./bar"
+
+//- /foo/src/lib.rs
+pub fn foo() {}
+
+//- /foo/src/abc/mod.rs
+pub fn bar() {}
+
+//- /foo/.rust-analyzer.toml
+ABC
+
+//- /foo/bar/Cargo.toml
+[package]
+name = "bar"
+version = "0.0.0"
+
+//- /foo/bar/src/lib.rs
+pub fn bar() {}
+"#,
+    )
+    .root("foo")
+    .server()
+    .wait_until_workspace_is_loaded();
+}

@@ -172,7 +172,8 @@ impl GlobalState {
             }
         }
 
-        if let Err(_) = self.fetch_workspace_error() {
+        if let Err(k) = self.fetch_workspace_error() {
+            dbg!(&k);
             status.health = lsp_ext::Health::Error;
             message.push_str("Failed to load workspaces.\n\n");
         }
@@ -414,6 +415,8 @@ impl GlobalState {
                                 format!("{it}/**/*.rs"),
                                 format!("{it}/**/Cargo.toml"),
                                 format!("{it}/**/Cargo.lock"),
+                                // FIXME @alibektas : WS may not have to be local for RATOML to be included.
+                                format!("{it}/**/.rust-analyzer.toml"),
                             ]
                         })
                     })
@@ -526,6 +529,7 @@ impl GlobalState {
         change.set_crate_graph(crate_graph);
         self.analysis_host.apply_change(change);
         self.crate_graph_file_dependencies = crate_graph_file_dependencies;
+        eprintln!("Recreate crate graph");
         self.process_changes();
 
         self.reload_flycheck();
