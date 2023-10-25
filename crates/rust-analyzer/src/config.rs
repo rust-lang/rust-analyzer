@@ -298,42 +298,6 @@ config_data! {
         files_watcher: FilesWatcherDef = "\"client\"",
 
 
-        /// Whether to show `Debug` action. Only applies when
-        /// `#rust-analyzer.hover.actions.enable#` is set.
-        hover_actions_debug_enable: bool           = "true",
-        /// Whether to show HoverActions in Rust files.
-        hover_actions_enable: bool          = "true",
-        /// Whether to show `Go to Type Definition` action. Only applies when
-        /// `#rust-analyzer.hover.actions.enable#` is set.
-        hover_actions_gotoTypeDef_enable: bool     = "true",
-        /// Whether to show `Implementations` action. Only applies when
-        /// `#rust-analyzer.hover.actions.enable#` is set.
-        hover_actions_implementations_enable: bool = "true",
-        /// Whether to show `References` action. Only applies when
-        /// `#rust-analyzer.hover.actions.enable#` is set.
-        hover_actions_references_enable: bool      = "false",
-        /// Whether to show `Run` action. Only applies when
-        /// `#rust-analyzer.hover.actions.enable#` is set.
-        hover_actions_run_enable: bool             = "true",
-
-        /// Whether to show documentation on hover.
-        hover_documentation_enable: bool           = "true",
-        /// Whether to show keyword hover popups. Only applies when
-        /// `#rust-analyzer.hover.documentation.enable#` is set.
-        hover_documentation_keywords_enable: bool  = "true",
-        /// Use markdown syntax for links on hover.
-        hover_links_enable: bool = "true",
-        /// How to render the align information in a memory layout hover.
-        hover_memoryLayout_alignment: Option<MemoryLayoutHoverRenderKindDef> = "\"hexadecimal\"",
-        /// Whether to show memory layout data on hover.
-        hover_memoryLayout_enable: bool = "true",
-        /// How to render the niche information in a memory layout hover.
-        hover_memoryLayout_niches: Option<bool> = "false",
-        /// How to render the offset information in a memory layout hover.
-        hover_memoryLayout_offset: Option<MemoryLayoutHoverRenderKindDef> = "\"hexadecimal\"",
-        /// How to render the size information in a memory layout hover.
-        hover_memoryLayout_size: Option<MemoryLayoutHoverRenderKindDef> = "\"both\"",
-
         /// Enables the experimental support for interpreting tests.
         interpret_tests: bool                                      = "false",
 
@@ -506,6 +470,42 @@ config_data! {
         highlightRelated_references_enable: bool = "true",
         /// Enables highlighting of all break points for a loop or block context while the cursor is on any `async` or `await` keywords.
         highlightRelated_yieldPoints_enable: bool = "true",
+
+        /// Whether to show `Debug` action. Only applies when
+        /// `#rust-analyzer.hover.actions.enable#` is set.
+        hover_actions_debug_enable: bool           = "true",
+        /// Whether to show HoverActions in Rust files.
+        hover_actions_enable: bool          = "true",
+        /// Whether to show `Go to Type Definition` action. Only applies when
+        /// `#rust-analyzer.hover.actions.enable#` is set.
+        hover_actions_gotoTypeDef_enable: bool     = "true",
+        /// Whether to show `Implementations` action. Only applies when
+        /// `#rust-analyzer.hover.actions.enable#` is set.
+        hover_actions_implementations_enable: bool = "true",
+        /// Whether to show `References` action. Only applies when
+        /// `#rust-analyzer.hover.actions.enable#` is set.
+        hover_actions_references_enable: bool      = "false",
+        /// Whether to show `Run` action. Only applies when
+        /// `#rust-analyzer.hover.actions.enable#` is set.
+        hover_actions_run_enable: bool             = "true",
+
+        /// Whether to show documentation on hover.
+        hover_documentation_enable: bool           = "true",
+        /// Whether to show keyword hover popups. Only applies when
+        /// `#rust-analyzer.hover.documentation.enable#` is set.
+        hover_documentation_keywords_enable: bool  = "true",
+        /// Use markdown syntax for links on hover.
+        hover_links_enable: bool = "true",
+        /// How to render the align information in a memory layout hover.
+        hover_memoryLayout_alignment: Option<MemoryLayoutHoverRenderKindDef> = "\"hexadecimal\"",
+        /// Whether to show memory layout data on hover.
+        hover_memoryLayout_enable: bool = "true",
+        /// How to render the niche information in a memory layout hover.
+        hover_memoryLayout_niches: Option<bool> = "false",
+        /// How to render the offset information in a memory layout hover.
+        hover_memoryLayout_offset: Option<MemoryLayoutHoverRenderKindDef> = "\"hexadecimal\"",
+        /// How to render the size information in a memory layout hover.
+        hover_memoryLayout_size: Option<MemoryLayoutHoverRenderKindDef> = "\"both\"",
 
         /// Whether to show inlay type hints for binding modes.
         inlayHints_bindingModeHints_enable: bool                   = "false",
@@ -740,6 +740,55 @@ impl<'a> LocalConfigView<'a> {
             exit_points: self.local.highlightRelated_exitPoints_enable,
             yield_points: self.local.highlightRelated_yieldPoints_enable,
             closure_captures: self.local.highlightRelated_closureCaptures_enable,
+        }
+    }
+
+    pub fn hover_actions(&self) -> HoverActionsConfig {
+        let enable = self.experimental("hoverActions") && self.local.hover_actions_enable;
+        HoverActionsConfig {
+            implementations: enable && self.local.hover_actions_implementations_enable,
+            references: enable && self.local.hover_actions_references_enable,
+            run: enable && self.local.hover_actions_run_enable,
+            debug: enable && self.local.hover_actions_debug_enable,
+            goto_type_def: enable && self.local.hover_actions_gotoTypeDef_enable,
+        }
+    }
+
+    pub fn hover(&self) -> HoverConfig {
+        let mem_kind = |kind| match kind {
+            MemoryLayoutHoverRenderKindDef::Both => MemoryLayoutHoverRenderKind::Both,
+            MemoryLayoutHoverRenderKindDef::Decimal => MemoryLayoutHoverRenderKind::Decimal,
+            MemoryLayoutHoverRenderKindDef::Hexadecimal => MemoryLayoutHoverRenderKind::Hexadecimal,
+        };
+        HoverConfig {
+            links_in_hover: self.local.hover_links_enable,
+            memory_layout: self.local.hover_memoryLayout_enable.then_some(
+                MemoryLayoutHoverConfig {
+                    size: self.local.hover_memoryLayout_size.map(mem_kind),
+                    offset: self.local.hover_memoryLayout_offset.map(mem_kind),
+                    alignment: self.local.hover_memoryLayout_alignment.map(mem_kind),
+                    niches: self.local.hover_memoryLayout_niches.unwrap_or_default(),
+                },
+            ),
+            documentation: self.local.hover_documentation_enable,
+            format: {
+                let is_markdown = try_or_def!(self
+                    .caps
+                    .text_document
+                    .as_ref()?
+                    .hover
+                    .as_ref()?
+                    .content_format
+                    .as_ref()?
+                    .as_slice())
+                .contains(&MarkupKind::Markdown);
+                if is_markdown {
+                    HoverDocFormat::Markdown
+                } else {
+                    HoverDocFormat::PlainText
+                }
+            },
+            keywords: self.local.hover_documentation_keywords_enable,
         }
     }
 
@@ -1742,19 +1791,6 @@ impl Config {
         }
     }
 
-    pub fn hover_actions(&self) -> HoverActionsConfig {
-        let enable =
-            self.experimental("hoverActions") && self.root_config.global.0.hover_actions_enable;
-        HoverActionsConfig {
-            implementations: enable
-                && self.root_config.global.0.hover_actions_implementations_enable,
-            references: enable && self.root_config.global.0.hover_actions_references_enable,
-            run: enable && self.root_config.global.0.hover_actions_run_enable,
-            debug: enable && self.root_config.global.0.hover_actions_debug_enable,
-            goto_type_def: enable && self.root_config.global.0.hover_actions_gotoTypeDef_enable,
-        }
-    }
-
     pub fn highlighting_non_standard_tokens(&self) -> bool {
         self.root_config.global.0.semanticHighlighting_nonStandardTokens
     }
@@ -1785,44 +1821,6 @@ impl Config {
                 .0
                 .semanticHighlighting_doc_comment_inject_enable,
             syntactic_name_ref_highlighting: false,
-        }
-    }
-
-    pub fn hover(&self) -> HoverConfig {
-        let mem_kind = |kind| match kind {
-            MemoryLayoutHoverRenderKindDef::Both => MemoryLayoutHoverRenderKind::Both,
-            MemoryLayoutHoverRenderKindDef::Decimal => MemoryLayoutHoverRenderKind::Decimal,
-            MemoryLayoutHoverRenderKindDef::Hexadecimal => MemoryLayoutHoverRenderKind::Hexadecimal,
-        };
-        HoverConfig {
-            links_in_hover: self.root_config.global.0.hover_links_enable,
-            memory_layout: self.root_config.global.0.hover_memoryLayout_enable.then_some(
-                MemoryLayoutHoverConfig {
-                    size: self.root_config.global.0.hover_memoryLayout_size.map(mem_kind),
-                    offset: self.root_config.global.0.hover_memoryLayout_offset.map(mem_kind),
-                    alignment: self.root_config.global.0.hover_memoryLayout_alignment.map(mem_kind),
-                    niches: self.root_config.global.0.hover_memoryLayout_niches.unwrap_or_default(),
-                },
-            ),
-            documentation: self.root_config.global.0.hover_documentation_enable,
-            format: {
-                let is_markdown = try_or_def!(self
-                    .caps
-                    .text_document
-                    .as_ref()?
-                    .hover
-                    .as_ref()?
-                    .content_format
-                    .as_ref()?
-                    .as_slice())
-                .contains(&MarkupKind::Markdown);
-                if is_markdown {
-                    HoverDocFormat::Markdown
-                } else {
-                    HoverDocFormat::PlainText
-                }
-            },
-            keywords: self.root_config.global.0.hover_documentation_keywords_enable,
         }
     }
 

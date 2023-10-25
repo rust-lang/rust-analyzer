@@ -974,16 +974,17 @@ pub(crate) fn handle_hover(
         PositionOrRange::Position(position) => Range::new(position, position),
         PositionOrRange::Range(range) => range,
     };
-
     let file_range = from_proto::file_range(&snap, &params.text_document, range)?;
-    let info = match snap.analysis.hover(&snap.config.hover(), file_range)? {
+    let local_conf = snap.config.localize_by_file_id(file_range.file_id);
+    let hover = local_conf.hover();
+    let info = match snap.analysis.hover(&hover, file_range)? {
         None => return Ok(None),
         Some(info) => info,
     };
 
     let line_index = snap.file_line_index(file_range.file_id)?;
     let range = to_proto::range(&line_index, info.range);
-    let markup_kind = snap.config.hover().format;
+    let markup_kind = hover.format;
     let hover = lsp_ext::Hover {
         hover: lsp_types::Hover {
             contents: HoverContents::Markup(to_proto::markup_content(
@@ -992,7 +993,7 @@ pub(crate) fn handle_hover(
             )),
             range: Some(range),
         },
-        actions: if snap.config.hover_actions().none() {
+        actions: if local_conf.hover_actions().none() {
             Vec::new()
         } else {
             prepare_hover_actions(&snap, &info.info.actions)
@@ -1795,7 +1796,9 @@ fn show_impl_command_link(
     snap: &GlobalStateSnapshot,
     position: &FilePosition,
 ) -> Option<lsp_ext::CommandLinkGroup> {
-    if snap.config.hover_actions().implementations && snap.config.client_commands().show_reference {
+    if snap.config.localize_by_file_id(position.file_id).hover_actions().implementations
+        && snap.config.client_commands().show_reference
+    {
         if let Some(nav_data) = snap.analysis.goto_implementation(*position).unwrap_or(None) {
             let uri = to_proto::url(snap, position.file_id);
             let line_index = snap.file_line_index(position.file_id).ok()?;
@@ -1821,7 +1824,9 @@ fn show_ref_command_link(
     snap: &GlobalStateSnapshot,
     position: &FilePosition,
 ) -> Option<lsp_ext::CommandLinkGroup> {
-    if snap.config.hover_actions().references && snap.config.client_commands().show_reference {
+    if snap.config.localize_by_file_id(position.file_id).hover_actions().references
+        && snap.config.client_commands().show_reference
+    {
         if let Some(ref_search_res) = snap.analysis.find_all_refs(*position, None).unwrap_or(None) {
             let uri = to_proto::url(snap, position.file_id);
             let line_index = snap.file_line_index(position.file_id).ok()?;
@@ -1851,12 +1856,14 @@ fn runnable_action_links(
     snap: &GlobalStateSnapshot,
     runnable: Runnable,
 ) -> Option<lsp_ext::CommandLinkGroup> {
-    let hover_actions_config = snap.config.hover_actions();
+    let cargo_spec = CargoTargetSpec::for_file(snap, runnable.nav.file_id).ok()?;
+
+    let hover_actions_config =
+        snap.config.localize_by_file_id(runnable.nav.file_id).hover_actions();
     if !hover_actions_config.runnable() {
         return None;
     }
 
-    let cargo_spec = CargoTargetSpec::for_file(snap, runnable.nav.file_id).ok()?;
     if should_skip_target(&runnable, cargo_spec.as_ref()) {
         return None;
     }
@@ -1888,8 +1895,12 @@ fn goto_type_action_links(
     snap: &GlobalStateSnapshot,
     nav_targets: &[HoverGotoTypeData],
 ) -> Option<lsp_ext::CommandLinkGroup> {
-    if !snap.config.hover_actions().goto_type_def
-        || nav_targets.is_empty()
+    if nav_targets.is_empty()
+        || !snap
+            .config
+            .localize_by_file_id(nav_targets[0].nav.file_id)
+            .hover_actions()
+            .goto_type_def
         || !snap.config.client_commands().goto_location
     {
         return None;
