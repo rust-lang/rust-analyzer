@@ -27,6 +27,32 @@ where exp = e1 && e2
 if the enum has #[is_variant],
 split each match arm into a separate assertion
 
+
+option1:
+  if let Message::Move{x, y} = x {
+    assert(x > y);
+  }
+  if let Message::Quit(b) = y {
+    assert(b);
+  }
+  if let Message::Write(b) = x {
+    assert(b);
+  }
+
+option2:
+assert(x.is_Quit() ==> x.get_Quit_0());
+assert(x.is_Move() ==> x.get_Move_x() > x.get_Move_y());
+assert(x.is_Write() ==> x.get_Write_0());
+
+
+assert(match x {
+    Message::Quit(b) => b,
+    Message::Move{x, y} => x > y,
+    Message::Write(b) => b,
+});
+
+
+
 */
 
 pub(crate) fn localize_error(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
