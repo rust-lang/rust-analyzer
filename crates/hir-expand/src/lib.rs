@@ -713,6 +713,7 @@ impl ExpansionInfo {
         &self,
         db: &dyn db::ExpandDatabase,
         token: InFile<&SyntaxToken>,
+        ignore_included_file: bool,
     ) -> Option<(InFile<SyntaxToken>, Origin)> {
         assert_eq!(token.file_id, self.expanded.file_id.into());
         // Fetch the id through its text range,
@@ -724,7 +725,7 @@ impl ExpansionInfo {
         let loc = db.lookup_intern_macro_call(call_id);
 
         // Special case: map tokens from `include!` expansions to the included file
-        if loc.def.is_include() {
+        if loc.def.is_include() && !ignore_included_file {
             if let Ok((tt_and_map, file_id)) = db.include_expand(call_id) {
                 let range = tt_and_map.1.first_range_by_token(token_id, token.value.kind())?;
                 let source = db.parse(file_id);
@@ -954,6 +955,23 @@ impl InFile<&SyntaxNode> {
         }
     }
 
+    pub fn original_file_range_ignore_included_file(
+        self,
+        db: &dyn db::ExpandDatabase,
+    ) -> FileRange {
+        match self.file_id.repr() {
+            HirFileIdRepr::FileId(file_id) => FileRange { file_id, range: self.value.text_range() },
+            HirFileIdRepr::MacroFile(mac_file) => {
+                if let Some(res) = self.original_file_range_opt_ignore_included_file(db) {
+                    return res;
+                }
+                // Fall back to whole macro call.
+                let loc = db.lookup_intern_macro_call(mac_file.macro_call_id);
+                loc.kind.original_call_range(db)
+            }
+        }
+    }
+
     /// Falls back to the macro call range if the node cannot be mapped up fully.
     pub fn original_file_range_full(self, db: &dyn db::ExpandDatabase) -> FileRange {
         match self.file_id.repr() {
@@ -971,7 +989,29 @@ impl InFile<&SyntaxNode> {
 
     /// Attempts to map the syntax node back up its macro calls.
     pub fn original_file_range_opt(self, db: &dyn db::ExpandDatabase) -> Option<FileRange> {
-        match ascend_node_border_tokens(db, self) {
+        match ascend_node_border_tokens(db, self, false) {
+            Some(InFile { file_id, value: (first, last) }) => {
+                let original_file = file_id.original_file(db);
+                let range = first.text_range().cover(last.text_range());
+                if file_id != original_file.into() {
+                    tracing::error!("Failed mapping up more for {:?}", range);
+                    return None;
+                }
+                Some(FileRange { file_id: original_file, range })
+            }
+            _ if !self.file_id.is_macro() => Some(FileRange {
+                file_id: self.file_id.original_file(db),
+                range: self.value.text_range(),
+            }),
+            _ => None,
+        }
+    }
+
+    pub fn original_file_range_opt_ignore_included_file(
+        self,
+        db: &dyn db::ExpandDatabase,
+    ) -> Option<FileRange> {
+        match ascend_node_border_tokens(db, self, true) {
             Some(InFile { file_id, value: (first, last) }) => {
                 let original_file = file_id.original_file(db);
                 let range = first.text_range().cover(last.text_range());
@@ -998,7 +1038,8 @@ impl InFile<&SyntaxNode> {
             return None;
         }
 
-        if let Some(InFile { file_id, value: (first, last) }) = ascend_node_border_tokens(db, self)
+        if let Some(InFile { file_id, value: (first, last) }) =
+            ascend_node_border_tokens(db, self, false)
         {
             if file_id.is_macro() {
                 let range = first.text_range().cover(last.text_range());
@@ -1018,7 +1059,7 @@ impl InFile<&SyntaxNode> {
 impl InFile<SyntaxToken> {
     pub fn upmap(self, db: &dyn db::ExpandDatabase) -> Option<InFile<SyntaxToken>> {
         let expansion = self.file_id.expansion_info(db)?;
-        expansion.map_token_up(db, self.as_ref()).map(|(it, _)| it)
+        expansion.map_token_up(db, self.as_ref(), false).map(|(it, _)| it)
     }
 
     /// Falls back to the macro call range if the node cannot be mapped up fully.
@@ -1044,7 +1085,7 @@ impl InFile<SyntaxToken> {
             }
             HirFileIdRepr::MacroFile(_) => {
                 let expansion = self.file_id.expansion_info(db)?;
-                let InFile { file_id, value } = ascend_call_token(db, &expansion, self)?;
+                let InFile { file_id, value } = ascend_call_token(db, &expansion, self, false)?;
                 let original_file = file_id.original_file(db);
                 if file_id != original_file.into() {
                     return None;
@@ -1070,6 +1111,7 @@ impl<T> From<InMacroFile<T>> for InFile<T> {
 fn ascend_node_border_tokens(
     db: &dyn db::ExpandDatabase,
     InFile { file_id, value: node }: InFile<&SyntaxNode>,
+    ignore_included_file: bool,
 ) -> Option<InFile<(SyntaxToken, SyntaxToken)>> {
     let expansion = file_id.expansion_info(db)?;
 
@@ -1079,8 +1121,9 @@ fn ascend_node_border_tokens(
     // FIXME: Once the token map rewrite is done, this shouldnt need to rely on syntax nodes and tokens anymore
     let first = first_token(node)?;
     let last = last_token(node)?;
-    let first = ascend_call_token(db, &expansion, InFile::new(file_id, first))?;
-    let last = ascend_call_token(db, &expansion, InFile::new(file_id, last))?;
+    let first =
+        ascend_call_token(db, &expansion, InFile::new(file_id, first), ignore_included_file)?;
+    let last = ascend_call_token(db, &expansion, InFile::new(file_id, last), ignore_included_file)?;
     (first.file_id == last.file_id).then(|| InFile::new(first.file_id, (first.value, last.value)))
 }
 
@@ -1088,11 +1131,12 @@ fn ascend_call_token(
     db: &dyn db::ExpandDatabase,
     expansion: &ExpansionInfo,
     token: InFile<SyntaxToken>,
+    ignore_included_file: bool,
 ) -> Option<InFile<SyntaxToken>> {
-    let mut mapping = expansion.map_token_up(db, token.as_ref())?;
+    let mut mapping = expansion.map_token_up(db, token.as_ref(), ignore_included_file)?;
     while let (mapped, Origin::Call) = mapping {
         match mapped.file_id.expansion_info(db) {
-            Some(info) => mapping = info.map_token_up(db, mapped.as_ref())?,
+            Some(info) => mapping = info.map_token_up(db, mapped.as_ref(), ignore_included_file)?,
             None => return Some(mapped),
         }
     }
@@ -1115,7 +1159,7 @@ impl<N: AstNode> InFile<N> {
         }
 
         if let Some(InFile { file_id, value: (first, last) }) =
-            ascend_node_border_tokens(db, self.syntax())
+            ascend_node_border_tokens(db, self.syntax(), false)
         {
             if file_id.is_macro() {
                 let range = first.text_range().cover(last.text_range());

@@ -733,6 +733,11 @@ impl<'db> SemanticsImpl<'db> {
         node.original_file_range(self.db.upcast())
     }
 
+    pub fn original_range_ignore_included_file(&self, node: &SyntaxNode) -> FileRange {
+        let node = self.find_file(node);
+        node.original_file_range_ignore_included_file(self.db.upcast())
+    }
+
     /// Attempts to map the node out of macro expanded files returning the original file range.
     pub fn original_range_opt(&self, node: &SyntaxNode) -> Option<FileRange> {
         let node = self.find_file(node);

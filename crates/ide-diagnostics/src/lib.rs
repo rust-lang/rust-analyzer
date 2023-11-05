@@ -268,7 +268,9 @@ impl DiagnosticsContext<'_> {
             let precise_location = precise_location?;
             let root = sema.parse_or_expand(node.file_id);
             match root.covering_element(precise_location) {
-                syntax::NodeOrToken::Node(it) => Some(sema.original_range(&it)),
+                syntax::NodeOrToken::Node(it) => {
+                    Some(sema.original_range_ignore_included_file(&it))
+                }
                 syntax::NodeOrToken::Token(it) => {
                     node.with_value(it).original_file_range_opt(sema.db)
                 }
