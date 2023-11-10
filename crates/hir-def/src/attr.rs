@@ -238,7 +238,7 @@ impl Attrs {
                 .iter()
                 .rev()
                 .zip(["core", "prelude", "v1", "test"].iter().rev())
-                .all(|it| it.0.as_str() == Some(it.1))
+                .all(|(name, path_segment)| name.as_str() == *path_segment)
         })
     }
 
@@ -608,7 +608,7 @@ impl<'attr> AttrQuery<'attr> {
         let key = self.key;
         self.attrs
             .iter()
-            .filter(move |attr| attr.path.as_ident().map_or(false, |s| s.to_smol_str() == key))
+            .filter(move |attr| attr.path.as_ident().map_or(false, |s| s.as_str() == key))
     }
 
     /// Find string value for a specific key inside token tree

@@ -276,9 +276,9 @@ fn crate_supports_no_std(db: &dyn DefDatabase, crate_id: CrateId) -> bool {
     let item_tree = db.file_item_tree(file.into());
     let attrs = item_tree.raw_attrs(AttrOwner::TopLevel);
     for attr in &**attrs {
-        match attr.path().as_ident().and_then(|id| id.as_text()) {
-            Some(ident) if ident == "no_std" => return true,
-            Some(ident) if ident == "cfg_attr" => {}
+        match attr.path().as_ident().map(|id| id.as_str()) {
+            Some("no_std") => return true,
+            Some("cfg_attr") => {}
             _ => continue,
         }
 
