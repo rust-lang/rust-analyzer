@@ -1158,6 +1158,7 @@ fn here_we_go() {
             sn dbg               dbg!(expr)
             sn dbgr              dbg!(&expr)
             sn let               let
+            sn lete              let pat = expr else {}
             sn letm              let mut
             sn match             match expr {}
             sn ref               &expr

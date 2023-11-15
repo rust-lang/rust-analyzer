@@ -30,6 +30,7 @@ fn main() {
             sn dbg    dbg!(expr)
             sn dbgr   dbg!(&expr)
             sn let    let
+            sn lete   let pat = expr else {}
             sn letm   let mut
             sn match  match expr {}
             sn ref    &expr
@@ -61,6 +62,7 @@ fn main() {
             sn dbg    dbg!(expr)
             sn dbgr   dbg!(&expr)
             sn let    let
+            sn lete   let pat = expr else {}
             sn letm   let mut
             sn match  match expr {}
             sn ref    &expr
@@ -94,6 +96,7 @@ fn main() {}
             sn dbg    dbg!(expr)
             sn dbgr   dbg!(&expr)
             sn let    let
+            sn lete   let pat = expr else {}
             sn letm   let mut
             sn match  match expr {}
             sn ref    &expr
@@ -127,6 +130,7 @@ fn main() {}
             sn dbg    dbg!(expr)
             sn dbgr   dbg!(&expr)
             sn let    let
+            sn lete   let pat = expr else {}
             sn letm   let mut
             sn match  match expr {}
             sn ref    &expr

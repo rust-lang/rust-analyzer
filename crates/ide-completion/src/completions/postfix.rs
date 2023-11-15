@@ -167,6 +167,13 @@ pub(crate) fn complete_postfix(
                     &format!("match {receiver_text} {{\n    Ok(${{1:_}}) => {{$2}},\n    Err(${{3:_}}) => {{$0}},\n}}"),
                 )
                 .add_to(acc, ctx.db);
+
+                postfix_snippet(
+                    "lete",
+                    "let Ok = expr else {}",
+                    &format!("let Ok($1) = {receiver_text} else {{\n    $0\n}};"),
+                )
+                .add_to(acc, ctx.db);
             }
             TryEnum::Option => {
                 postfix_snippet(
@@ -177,6 +184,13 @@ pub(crate) fn complete_postfix(
                     ),
                 )
                 .add_to(acc, ctx.db);
+
+                postfix_snippet(
+                    "lete",
+                    "let Some = expr else {}",
+                    &format!("let Some($1) = {receiver_text} else {{\n    $0\n}};"),
+                )
+                .add_to(acc, ctx.db);
             }
         },
         None => {
@@ -184,6 +198,13 @@ pub(crate) fn complete_postfix(
                 "match",
                 "match expr {}",
                 &format!("match {receiver_text} {{\n    ${{1:_}} => {{$0}},\n}}"),
+            )
+            .add_to(acc, ctx.db);
+
+            postfix_snippet(
+                "lete",
+                "let pat = expr else {}",
+                &format!("let $1 = {receiver_text} else {{\n    $0\n}};"),
             )
             .add_to(acc, ctx.db);
         }
@@ -358,6 +379,7 @@ fn main() {
                 sn dbgr   dbg!(&expr)
                 sn if     if expr {}
                 sn let    let
+                sn lete   let pat = expr else {}
                 sn letm   let mut
                 sn match  match expr {}
                 sn not    !expr
@@ -388,6 +410,7 @@ fn main() {
                 sn dbg    dbg!(expr)
                 sn dbgr   dbg!(&expr)
                 sn if     if expr {}
+                sn lete   let pat = expr else {}
                 sn match  match expr {}
                 sn not    !expr
                 sn ref    &expr
@@ -413,6 +436,7 @@ fn main() {
                 sn dbg    dbg!(expr)
                 sn dbgr   dbg!(&expr)
                 sn let    let
+                sn lete   let pat = expr else {}
                 sn letm   let mut
                 sn match  match expr {}
                 sn ref    &expr
@@ -438,6 +462,7 @@ fn main() {
                 sn dbgr   dbg!(&expr)
                 sn if     if expr {}
                 sn let    let
+                sn lete   let pat = expr else {}
                 sn letm   let mut
                 sn match  match expr {}
                 sn not    !expr
@@ -489,6 +514,50 @@ fn main() {
     Ok(${1:_}) => {$2},
     Err(${3:_}) => {$0},
 }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn option_lete() {
+        check_edit(
+            "lete",
+            r#"
+//- minicore: option
+fn main() {
+    let bar = Some(true);
+    bar.$0
+}
+"#,
+            r#"
+fn main() {
+    let bar = Some(true);
+    let Some($1) = bar else {
+    $0
+};
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn result_lete() {
+        check_edit(
+            "lete",
+            r#"
+//- minicore: result
+fn main() {
+    let bar = Ok(true);
+    bar.$0
+}
+"#,
+            r#"
+fn main() {
+    let bar = Ok(true);
+    let Ok($1) = bar else {
+    $0
+};
 }
 "#,
         );

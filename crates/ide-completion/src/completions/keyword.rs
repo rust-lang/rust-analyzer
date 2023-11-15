@@ -82,6 +82,7 @@ fn foo(a: A) { a.$0 }
                 sn dbg                    dbg!(expr)
                 sn dbgr                   dbg!(&expr)
                 sn let                    let
+                sn lete                   let pat = expr else {}
                 sn letm                   let mut
                 sn match                  match expr {}
                 sn ref                    &expr
@@ -107,6 +108,7 @@ fn foo() {
                 sn dbg                    dbg!(expr)
                 sn dbgr                   dbg!(&expr)
                 sn let                    let
+                sn lete                   let pat = expr else {}
                 sn letm                   let mut
                 sn match                  match expr {}
                 sn ref                    &expr
@@ -134,6 +136,7 @@ fn foo(a: A) { a.$0 }
                 sn dbg                    dbg!(expr)
                 sn dbgr                   dbg!(&expr)
                 sn let                    let
+                sn lete                   let pat = expr else {}
                 sn letm                   let mut
                 sn match                  match expr {}
                 sn ref                    &expr
