@@ -483,6 +483,9 @@ Then click on apply, and restart the LSP server for your rust project.
 
 https://gitlab.com/cppit/jucipp[juCi++] has built-in support for the language server protocol, and since version 1.7.0 offers installation of both Rust and rust-analyzer when opening a Rust file.
 
+=== multilspy
+https://github.com/microsoft/monitors4codegen[microsoft/monitors4codegen] provides `multilspy`, a lsp client library in Python intended to be used to build applications around language servers and communicate programatically with language servers. It offers installation and usage bindings for rust-analyzer. Example usage can be found in https://github.com/microsoft/monitors4codegen/blob/main/tests/multilspy/test_sync_multilspy_rust.py[multilspy-rust-unittest].
+
 === Kakoune
 
 https://kakoune.org/[Kakoune] supports LSP with the help of https://github.com/kak-lsp/kak-lsp[`kak-lsp`].
