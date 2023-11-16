@@ -57,6 +57,11 @@ pub(crate) fn highlight_related(
     let _p = profile::span("highlight_related");
     let syntax = sema.parse(file_id).syntax().clone();
 
+    // Sometimes .token_at_offset's precondition cannot be met. See #15907 for an example
+    if !syntax.text_range().contains(offset) {
+        return None;
+    }
+
     let token = pick_best_token(syntax.token_at_offset(offset), |kind| match kind {
         T![?] => 4, // prefer `?` when the cursor is sandwiched like in `await$0?`
         T![->] => 4,
