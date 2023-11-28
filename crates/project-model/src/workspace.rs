@@ -2,7 +2,13 @@
 //! metadata` or `rust-project.json`) into representation stored in the salsa
 //! database -- `CrateGraph`.
 
-use std::{collections::VecDeque, fmt, fs, iter, process::Command, str::FromStr, sync};
+use std::{
+    collections::{hash_map::Entry, VecDeque},
+    fmt, fs, iter,
+    process::Command,
+    str::FromStr,
+    sync,
+};
 
 use anyhow::{format_err, Context};
 use base_db::{
@@ -1018,6 +1024,7 @@ fn cargo_to_crate_graph(
         // If the user provided a path to rustc sources, we add all the rustc_private crates
         // and create dependencies on them for the crates which opt-in to that
         if let Some((rustc_workspace, rustc_build_scripts)) = rustc {
+            let is_rustc_workspace = rustc_workspace.workspace_root() == cargo.workspace_root();
             handle_rustc_crates(
                 crate_graph,
                 proc_macros,
@@ -1030,7 +1037,7 @@ fn cargo_to_crate_graph(
                 &pkg_crates,
                 &cfg_options,
                 override_cfg,
-                if rustc_workspace.workspace_root() == cargo.workspace_root() {
+                if is_rustc_workspace {
                     // the rustc workspace does not use the installed toolchain's proc-macro server
                     // so we need to make sure we don't use the pre compiled proc-macros there either
                     build_scripts
@@ -1039,6 +1046,7 @@ fn cargo_to_crate_graph(
                 },
                 target_layout,
                 channel,
+                is_rustc_workspace,
             );
         }
     }
@@ -1118,8 +1126,9 @@ fn handle_rustc_crates(
     build_scripts: &WorkspaceBuildScripts,
     target_layout: TargetLayoutLoadResult,
     channel: Option<ReleaseChannel>,
+    is_rustc_workspace: bool,
 ) {
-    let mut rustc_pkg_crates = FxHashMap::default();
+    let mut rustc_pkg_new_crates = FxHashMap::default();
     // The root package of the rustc-dev component is rustc_driver, so we match that
     let root_pkg =
         rustc_workspace.packages().find(|&package| rustc_workspace[package].name == "rustc_driver");
@@ -1130,12 +1139,13 @@ fn handle_rustc_crates(
         let mut queue = VecDeque::new();
         queue.push_back(root_pkg);
         while let Some(pkg) = queue.pop_front() {
-            // Don't duplicate packages if they are dependent on a diamond pattern
-            // N.B. if this line is omitted, we try to analyze over 4_800_000 crates
-            // which is not ideal
-            if rustc_pkg_crates.contains_key(&pkg) {
-                continue;
-            }
+            let new_crates = match rustc_pkg_new_crates.entry(pkg) {
+                // Don't duplicate packages if they are dependent on a diamond pattern
+                // N.B. if this line is omitted, we try to analyze over 4_800_000 crates
+                // which is not ideal
+                Entry::Occupied(_) => continue,
+                Entry::Vacant(vacant) => vacant.insert(Vec::new()),
+            };
             for dep in &rustc_workspace[pkg].dependencies {
                 queue.push_back(dep.pkg);
             }
@@ -1161,42 +1171,51 @@ fn handle_rustc_crates(
                     continue;
                 }
                 if let Some(file_id) = load(&rustc_workspace[tgt].root) {
-                    let crate_id = add_target_crate_root(
-                        crate_graph,
-                        proc_macros,
-                        &rustc_workspace[pkg],
-                        build_scripts.get_output(pkg),
-                        cfg_options.clone(),
-                        file_id,
-                        &rustc_workspace[tgt].name,
-                        rustc_workspace[tgt].is_proc_macro,
-                        target_layout.clone(),
-                        true,
-                        channel,
-                    );
+                    let crate_id = is_rustc_workspace
+                        .then(|| crate_graph.crate_id_for_crate_root(file_id))
+                        .flatten()
+                        .unwrap_or_else(|| {
+                            let crate_id = add_target_crate_root(
+                                crate_graph,
+                                proc_macros,
+                                &rustc_workspace[pkg],
+                                build_scripts.get_output(pkg),
+                                cfg_options.clone(),
+                                file_id,
+                                &rustc_workspace[tgt].name,
+                                rustc_workspace[tgt].is_proc_macro,
+                                target_layout.clone(),
+                                true,
+                                channel,
+                            );
+                            // Add dependencies on core / std / alloc for this crate
+                            public_deps.add_to_crate_graph(crate_graph, crate_id);
+                            if let Some(proc_macro) = libproc_macro {
+                                add_proc_macro_dep(
+                                    crate_graph,
+                                    crate_id,
+                                    proc_macro,
+                                    rustc_workspace[tgt].is_proc_macro,
+                                );
+                            }
+                            new_crates.push(crate_id);
+                            crate_id
+                        });
                     pkg_to_lib_crate.insert(pkg, crate_id);
-                    // Add dependencies on core / std / alloc for this crate
-                    public_deps.add_to_crate_graph(crate_graph, crate_id);
-                    if let Some(proc_macro) = libproc_macro {
-                        add_proc_macro_dep(
-                            crate_graph,
-                            crate_id,
-                            proc_macro,
-                            rustc_workspace[tgt].is_proc_macro,
-                        );
-                    }
-                    rustc_pkg_crates.entry(pkg).or_insert_with(Vec::new).push(crate_id);
                 }
             }
         }
     }
-    // Now add a dep edge from all targets of upstream to the lib
+    // Now add a dep edge from all targets of upstream to any newly-added lib
     // target of downstream.
-    for pkg in rustc_pkg_crates.keys().copied() {
+    for (pkg, new_crates) in rustc_pkg_new_crates {
+        if new_crates.is_empty() {
+            continue;
+        }
         for dep in rustc_workspace[pkg].dependencies.iter() {
             let name = CrateName::new(&dep.name).unwrap();
             if let Some(&to) = pkg_to_lib_crate.get(&dep.pkg) {
-                for &from in rustc_pkg_crates.get(&pkg).into_iter().flatten() {
+                for &from in &new_crates {
                     add_dep(
                         crate_graph,
                         from,
