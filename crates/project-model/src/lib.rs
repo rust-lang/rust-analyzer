@@ -50,7 +50,7 @@ pub use crate::{
     manifest_path::ManifestPath,
     project_json::{ProjectJson, ProjectJsonData},
     sysroot::Sysroot,
-    workspace::{CfgOverrides, PackageRoot, ProjectWorkspace},
+    workspace::{CfgOverrides, PackageRoot, ProjectWorkspace, RustcWorkspace},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]

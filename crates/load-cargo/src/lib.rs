@@ -40,7 +40,7 @@ pub fn load_workspace_at(
 ) -> anyhow::Result<(AnalysisHost, vfs::Vfs, Option<ProcMacroServer>)> {
     let root = AbsPathBuf::assert(std::env::current_dir()?.join(root));
     let root = ProjectManifest::discover_single(&root)?;
-    let mut workspace = ProjectWorkspace::load(root, cargo_config, progress)?;
+    let mut workspace = ProjectWorkspace::load(root, cargo_config, progress, false)?;
 
     if load_config.load_out_dirs_from_check {
         let build_scripts = workspace.run_build_scripts(cargo_config, progress)?;
@@ -81,6 +81,7 @@ pub fn load_workspace(
             vfs.file_id(&path)
         },
         extra_env,
+        None,
     );
     let proc_macros = {
         let proc_macro_server = match &proc_macro_server {

@@ -23,8 +23,8 @@ use crate::{
     project_json::Crate,
     rustc_cfg::{self, RustcCfgConfig},
     sysroot::SysrootCrate,
-    target_data_layout, utf8_stdout, CargoConfig, CargoWorkspace, InvocationStrategy, ManifestPath,
-    Package, ProjectJson, ProjectManifest, Sysroot, TargetData, TargetKind, WorkspaceBuildScripts,
+    target_data_layout, utf8_stdout, CargoConfig, CargoWorkspace, InvocationStrategy, Package,
+    ProjectJson, ProjectManifest, Sysroot, TargetData, TargetKind, WorkspaceBuildScripts,
 };
 
 /// A set of cfg-overrides per crate.
@@ -53,6 +53,26 @@ pub struct PackageRoot {
     pub exclude: Vec<AbsPathBuf>,
 }
 
+#[derive(Clone, PartialEq)]
+pub enum RustcWorkspace {
+    /// A globally-configured rustc source location is being opened as a rust-analyzer workspace
+    Opening,
+    /// The rustc source is loaded, e.g. from sysroot, but is not a rust-analyzer workspace
+    Loaded(Result<(CargoWorkspace, WorkspaceBuildScripts), Option<String>>),
+}
+
+impl RustcWorkspace {
+    /// Returns the loaded `CargoWorkspace` of the rustc source.
+    /// Will be `None` if either the rustc source is opened as a rust-analyzer workspace
+    /// or its loading failed.
+    fn loaded(&self) -> Option<&(CargoWorkspace, WorkspaceBuildScripts)> {
+        match self {
+            Self::Opening => None,
+            Self::Loaded(res) => res.as_ref().ok(),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub enum ProjectWorkspace {
     /// Project workspace was discovered by running `cargo metadata` and `rustc --print sysroot`.
@@ -60,7 +80,7 @@ pub enum ProjectWorkspace {
         cargo: CargoWorkspace,
         build_scripts: WorkspaceBuildScripts,
         sysroot: Result<Sysroot, Option<String>>,
-        rustc: Result<(CargoWorkspace, WorkspaceBuildScripts), Option<String>>,
+        rustc: RustcWorkspace,
         /// Holds cfg flags for the current target. We get those by running
         /// `rustc --print cfg`.
         ///
@@ -119,7 +139,7 @@ impl fmt::Debug for ProjectWorkspace {
                 .field("sysroot", &sysroot.is_ok())
                 .field(
                     "n_rustc_compiler_crates",
-                    &rustc.as_ref().map_or(0, |(rc, _)| rc.packages().len()),
+                    &rustc.loaded().map_or(0, |(rc, _)| rc.packages().len()),
                 )
                 .field("n_rustc_cfg", &rustc_cfg.len())
                 .field("n_cfg_overrides", &cfg_overrides.len())
@@ -151,8 +171,9 @@ impl ProjectWorkspace {
         manifest: ProjectManifest,
         config: &CargoConfig,
         progress: &dyn Fn(String),
+        opening_rustc_workspace: bool,
     ) -> anyhow::Result<ProjectWorkspace> {
-        ProjectWorkspace::load_inner(&manifest, config, progress)
+        ProjectWorkspace::load_inner(&manifest, config, progress, opening_rustc_workspace)
             .with_context(|| format!("Failed to load the project at {manifest}"))
     }
 
@@ -160,6 +181,7 @@ impl ProjectWorkspace {
         manifest: &ProjectManifest,
         config: &CargoConfig,
         progress: &dyn Fn(String),
+        opening_rustc_workspace: bool,
     ) -> anyhow::Result<ProjectWorkspace> {
         let version = |current_dir, cmd_path, prefix: &str| {
             let cargo_version = utf8_stdout({
@@ -236,48 +258,56 @@ impl ProjectWorkspace {
                     tracing::info!(workspace = %cargo_toml, src_root = %sysroot.src_root(), root = %sysroot.root(), "Using sysroot");
                 }
 
-                let rustc_dir = match &config.rustc_source {
-                    Some(RustLibSource::Path(path)) => ManifestPath::try_from(path.clone())
-                        .map_err(|p| Some(format!("rustc source path is not absolute: {p}"))),
-                    Some(RustLibSource::Discover) => {
-                        sysroot.as_ref().ok().and_then(Sysroot::discover_rustc_src).ok_or_else(
-                            || Some(format!("Failed to discover rustc source for sysroot.")),
-                        )
-                    }
-                    None => Err(None),
-                };
+                let rustc = if opening_rustc_workspace {
+                    RustcWorkspace::Opening
+                } else {
+                    let rustc_dir = match &config.rustc_source {
+                        // `config.rustc_source == Some(Path(...))` while `!opening_rustc_workspace` should only occur if
+                        // `ManifestPath::try_from(rustc_dir)` failed in `fetch_workspaces`, so no need to attempt it here
+                        // again.
+                        Some(RustLibSource::Path(path)) => {
+                            Err(Some(format!("rustc source path is not absolute: {path}")))
+                        }
+                        Some(RustLibSource::Discover) => {
+                            sysroot.as_ref().ok().and_then(Sysroot::discover_rustc_src).ok_or_else(
+                                || Some(format!("Failed to discover rustc source for sysroot.")),
+                            )
+                        }
+                        None => Err(None),
+                    };
 
-                let rustc =  rustc_dir.and_then(|rustc_dir| {
-                    tracing::info!(workspace = %cargo_toml, rustc_dir = %rustc_dir, "Using rustc source");
-                    match CargoWorkspace::fetch_metadata(
-                        &rustc_dir,
-                        cargo_toml.parent(),
-                        &CargoConfig {
-                            features: crate::CargoFeatures::default(),
-                            ..config.clone()
-                        },
-                        progress,
-                    ) {
-                        Ok(meta) => {
-                            let workspace = CargoWorkspace::new(meta);
-                            let buildscripts = WorkspaceBuildScripts::rustc_crates(
-                                &workspace,
-                                cargo_toml.parent(),
-                                &config.extra_env,
-                            );
-                            Ok((workspace, buildscripts))
+                    RustcWorkspace::Loaded(rustc_dir.and_then(|rustc_dir| {
+                        tracing::info!(workspace = %cargo_toml, rustc_dir = %rustc_dir, "Using rustc source");
+                        match CargoWorkspace::fetch_metadata(
+                            &rustc_dir,
+                            cargo_toml.parent(),
+                            &CargoConfig {
+                                features: crate::CargoFeatures::default(),
+                                ..config.clone()
+                            },
+                            progress,
+                        ) {
+                            Ok(meta) => {
+                                let workspace = CargoWorkspace::new(meta);
+                                let buildscripts = WorkspaceBuildScripts::rustc_crates(
+                                    &workspace,
+                                    cargo_toml.parent(),
+                                    &config.extra_env,
+                                );
+                                Ok((workspace, buildscripts))
+                            }
+                            Err(e) => {
+                                tracing::error!(
+                                    %e,
+                                    "Failed to read Cargo metadata from rustc source at {rustc_dir}",
+                                );
+                                Err(Some(format!(
+                                    "Failed to read Cargo metadata from rustc source at {rustc_dir}: {e}"
+                                )))
+                            }
                         }
-                        Err(e) => {
-                            tracing::error!(
-                                %e,
-                                "Failed to read Cargo metadata from rustc source at {rustc_dir}",
-                            );
-                            Err(Some(format!(
-                                "Failed to read Cargo metadata from rustc source at {rustc_dir}: {e}"
-                            )))
-                        }
-                    }
-                });
+                    }))
+                };
 
                 let rustc_cfg = rustc_cfg::get(
                     config.target.as_deref(),
@@ -564,7 +594,7 @@ impl ProjectWorkspace {
                         PackageRoot { is_local, include, exclude }
                     })
                     .chain(mk_sysroot(sysroot.as_ref(), Some(cargo.workspace_root())))
-                    .chain(rustc.iter().flat_map(|(rustc, _)| {
+                    .chain(rustc.loaded().iter().flat_map(|(rustc, _)| {
                         rustc.packages().map(move |krate| PackageRoot {
                             is_local: false,
                             include: vec![rustc[krate].manifest.parent().to_path_buf()],
@@ -592,7 +622,7 @@ impl ProjectWorkspace {
                 sysroot_package_len + project.n_crates()
             }
             ProjectWorkspace::Cargo { cargo, sysroot, rustc, .. } => {
-                let rustc_package_len = rustc.as_ref().map_or(0, |(it, _)| it.packages().len());
+                let rustc_package_len = rustc.loaded().map_or(0, |(it, _)| it.packages().len());
                 let sysroot_package_len = sysroot.as_ref().map_or(0, |it| it.crates().len());
                 cargo.packages().len() + sysroot_package_len + rustc_package_len
             }
@@ -607,6 +637,7 @@ impl ProjectWorkspace {
         &self,
         load: &mut dyn FnMut(&AbsPath) -> Option<FileId>,
         extra_env: &FxHashMap<String, String>,
+        opened_rustc_workspace: Option<(&CargoWorkspace, &WorkspaceBuildScripts)>,
     ) -> (CrateGraph, ProcMacroPaths) {
         let _p = profile::span("ProjectWorkspace::to_crate_graph");
 
@@ -633,7 +664,10 @@ impl ProjectWorkspace {
                 target_layout,
             } => cargo_to_crate_graph(
                 load,
-                rustc.as_ref().ok(),
+                match rustc {
+                    RustcWorkspace::Opening => opened_rustc_workspace,
+                    RustcWorkspace::Loaded(res) => res.as_ref().ok().map(|(a, b)| (a, b)),
+                },
                 cargo,
                 sysroot.as_ref().ok(),
                 rustc_cfg.clone(),
@@ -844,7 +878,7 @@ fn project_json_to_crate_graph(
 
 fn cargo_to_crate_graph(
     load: &mut dyn FnMut(&AbsPath) -> Option<FileId>,
-    rustc: Option<&(CargoWorkspace, WorkspaceBuildScripts)>,
+    rustc: Option<(&CargoWorkspace, &WorkspaceBuildScripts)>,
     cargo: &CargoWorkspace,
     sysroot: Option<&Sysroot>,
     rustc_cfg: Vec<CfgFlag>,
@@ -1030,13 +1064,7 @@ fn cargo_to_crate_graph(
                 &pkg_crates,
                 &cfg_options,
                 override_cfg,
-                if rustc_workspace.workspace_root() == cargo.workspace_root() {
-                    // the rustc workspace does not use the installed toolchain's proc-macro server
-                    // so we need to make sure we don't use the pre compiled proc-macros there either
-                    build_scripts
-                } else {
-                    rustc_build_scripts
-                },
+                rustc_build_scripts,
                 target_layout,
                 channel,
             );

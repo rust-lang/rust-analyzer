@@ -11,8 +11,8 @@ use rustc_hash::FxHashMap;
 use serde::de::DeserializeOwned;
 
 use crate::{
-    CargoWorkspace, CfgOverrides, ProjectJson, ProjectJsonData, ProjectWorkspace, Sysroot,
-    WorkspaceBuildScripts,
+    CargoWorkspace, CfgOverrides, ProjectJson, ProjectJsonData, ProjectWorkspace, RustcWorkspace,
+    Sysroot, WorkspaceBuildScripts,
 };
 
 fn load_cargo(file: &str) -> (CrateGraph, ProcMacroPaths) {
@@ -29,7 +29,7 @@ fn load_cargo_with_overrides(
         cargo: cargo_workspace,
         build_scripts: WorkspaceBuildScripts::default(),
         sysroot: Err(None),
-        rustc: Err(None),
+        rustc: RustcWorkspace::Loaded(Err(None)),
         rustc_cfg: Vec::new(),
         cfg_overrides,
         toolchain: None,
@@ -48,7 +48,7 @@ fn load_cargo_with_sysroot(
         cargo: cargo_workspace,
         build_scripts: WorkspaceBuildScripts::default(),
         sysroot: Ok(get_fake_sysroot()),
-        rustc: Err(None),
+        rustc: RustcWorkspace::Loaded(Err(None)),
         rustc_cfg: Vec::new(),
         cfg_overrides: Default::default(),
         toolchain: None,
@@ -62,6 +62,7 @@ fn load_cargo_with_sysroot(
             }
         },
         &Default::default(),
+        None,
     )
 }
 
@@ -146,6 +147,7 @@ fn to_crate_graph(project_workspace: ProjectWorkspace) -> (CrateGraph, ProcMacro
             }
         },
         &Default::default(),
+        None,
     )
 }
 

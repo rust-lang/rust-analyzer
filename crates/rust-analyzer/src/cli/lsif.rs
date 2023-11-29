@@ -299,7 +299,7 @@ impl flags::Lsif {
         let path = AbsPathBuf::assert(env::current_dir()?.join(&self.path));
         let manifest = ProjectManifest::discover_single(&path)?;
 
-        let workspace = ProjectWorkspace::load(manifest, &cargo_config, no_progress)?;
+        let workspace = ProjectWorkspace::load(manifest, &cargo_config, no_progress, false)?;
 
         let (host, vfs, _proc_macro) =
             load_workspace(workspace, &cargo_config.extra_env, &load_cargo_config)?;

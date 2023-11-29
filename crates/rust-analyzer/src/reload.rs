@@ -25,7 +25,10 @@ use ide_db::{
 use itertools::Itertools;
 use load_cargo::{load_proc_macro, ProjectFolders};
 use proc_macro_api::ProcMacroServer;
-use project_model::{ProjectWorkspace, WorkspaceBuildScripts};
+use project_model::{
+    ManifestPath, ProjectManifest, ProjectWorkspace, RustLibSource, RustcWorkspace,
+    WorkspaceBuildScripts,
+};
 use rustc_hash::FxHashSet;
 use stdx::{format_to, thread::ThreadIntent};
 use triomphe::Arc;
@@ -166,7 +169,8 @@ impl GlobalState {
                     }
                 }
             }
-            if let ProjectWorkspace::Cargo { rustc: Err(Some(e)), .. } = ws {
+            if let ProjectWorkspace::Cargo { rustc: RustcWorkspace::Loaded(Err(Some(e))), .. } = ws
+            {
                 status.health = lsp_ext::Health::Warning;
                 message.push_str(e);
                 message.push_str("\n\n");
@@ -188,7 +192,7 @@ impl GlobalState {
         tracing::info!(%cause, "will fetch workspaces");
 
         self.task_pool.handle.spawn_with_sender(ThreadIntent::Worker, {
-            let linked_projects = self.config.linked_projects();
+            let mut linked_projects = self.config.linked_projects();
             let detached_files = self.config.detached_files().to_vec();
             let cargo_config = self.config.cargo();
 
@@ -204,6 +208,25 @@ impl GlobalState {
 
                 sender.send(Task::FetchWorkspace(ProjectWorkspaceProgress::Begin)).unwrap();
 
+                let mut opening_rustc_workspace = false;
+                if let Some(RustLibSource::Path(rustc_dir)) = &cargo_config.rustc_source {
+                    if let Ok(rustc_manifest) = ManifestPath::try_from(rustc_dir.clone()) {
+                        if let Some(rustc_index) =
+                            linked_projects.iter().position(|project| match project {
+                                LinkedProject::ProjectManifest(ProjectManifest::CargoToml(
+                                    project_manifest,
+                                )) => *project_manifest == rustc_manifest,
+                                _ => false,
+                            })
+                        {
+                            // move to the front so that the ensuing workspace's build scripts will be built and available
+                            // to other workspaces (in particular, any that have packages using rustc_private crates)
+                            linked_projects.swap(0, rustc_index);
+                            opening_rustc_workspace = true;
+                        }
+                    }
+                }
+
                 let mut workspaces = linked_projects
                     .iter()
                     .map(|project| match project {
@@ -212,6 +235,7 @@ impl GlobalState {
                                 manifest.clone(),
                                 &cargo_config,
                                 &progress,
+                                opening_rustc_workspace,
                             )
                         }
                         LinkedProject::InlineJsonProject(it) => {
@@ -506,9 +530,21 @@ impl GlobalState {
 
             let mut crate_graph = CrateGraph::default();
             let mut proc_macros = Vec::default();
+
+            // if the first workspace is `RustcWorkspace::Opening` then it is guaranteed to be the rustc source
+            // by virtue of the sorting in `fetch_workspaces`.
+            let opened_rustc_workspace = match self.workspaces.first() {
+                Some(ProjectWorkspace::Cargo {
+                    rustc: RustcWorkspace::Opening,
+                    cargo,
+                    build_scripts,
+                    ..
+                }) => Some((cargo, build_scripts)),
+                _ => None,
+            };
             for ws in &**self.workspaces {
                 let (other, mut crate_proc_macros) =
-                    ws.to_crate_graph(&mut load, &self.config.extra_env());
+                    ws.to_crate_graph(&mut load, &self.config.extra_env(), opened_rustc_workspace);
                 crate_graph.extend(other, &mut crate_proc_macros);
                 proc_macros.push(crate_proc_macros);
             }
