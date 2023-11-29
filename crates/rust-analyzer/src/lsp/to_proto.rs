@@ -301,9 +301,11 @@ fn completion_item(
 
     if config.completion_label_details_support() {
         lsp_item.label_details = Some(lsp_types::CompletionItemLabelDetails {
-            detail: None,
+            detail: item.label_detail.as_ref().map(ToString::to_string),
             description: lsp_item.detail.clone(),
         });
+    } else if let Some(label_detail) = item.label_detail {
+        lsp_item.label.push_str(label_detail.as_str());
     }
 
     set_score(&mut lsp_item, max_relevance, item.relevance);
