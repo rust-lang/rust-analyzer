@@ -8,11 +8,9 @@ use syntax::{algo::find_node_at_offset, ast, AstNode};
 
 // Feature: Interpret Function
 //
-// |===
-// | Editor  | Action Name
-//
-// | VS Code | **rust-analyzer: Interpret Function**
-// |===
+// | Editor  | Action Name  |
+// |---------|--------------|
+// | VS Code | **rust-analyzer: Interpret Function** |
 pub(crate) fn interpret_function(db: &RootDatabase, position: FilePosition) -> String {
     let start_time = Instant::now();
     let mut result = find_and_interpret(db, position)
