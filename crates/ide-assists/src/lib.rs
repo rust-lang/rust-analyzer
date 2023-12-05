@@ -195,6 +195,7 @@ mod handlers {
     mod reorder_impl_items;
     mod replace_try_expr_with_match;
     mod replace_derive_with_manual_impl;
+    mod replace_if_let_else_option_with_map_or_else;
     mod replace_if_let_with_match;
     mod replace_is_method_with_if_let_method;
     mod replace_method_eager_lazy;
@@ -314,6 +315,7 @@ mod handlers {
             reorder_impl_items::reorder_impl_items,
             replace_try_expr_with_match::replace_try_expr_with_match,
             replace_derive_with_manual_impl::replace_derive_with_manual_impl,
+            replace_if_let_else_option_with_map_or_else::replace_if_let_else_option_with_map_or_else,
             replace_if_let_with_match::replace_if_let_with_match,
             replace_if_let_with_match::replace_match_with_if_let,
             replace_is_method_with_if_let_method::replace_is_method_with_if_let_method,

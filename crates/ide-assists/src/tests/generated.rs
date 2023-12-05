@@ -2567,6 +2567,37 @@ impl Debug for S {
 }
 
 #[test]
+fn doctest_replace_if_let_else_option_with_map_or_else() {
+    check_doc_test(
+        "replace_if_let_else_option_with_map_or_else",
+        r#####"
+fn do_complicated_function() -> i32 { 1 }
+
+let optional = Some(1);
+
+let _ = $0if let Some(foo) = optional {
+    foo
+} else {
+    let y = do_complicated_function();
+    y*y
+};
+"#####,
+        r#####"
+fn do_complicated_function() -> i32 { 1 }
+
+let optional = Some(1);
+
+let _ = optional.map_or_else(|| {
+    let y = do_complicated_function();
+    y*y
+}, |foo| {
+    foo
+});
+"#####,
+    )
+}
+
+#[test]
 fn doctest_replace_if_let_with_match() {
     check_doc_test(
         "replace_if_let_with_match",

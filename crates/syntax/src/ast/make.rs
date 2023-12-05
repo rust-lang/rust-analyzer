@@ -844,8 +844,12 @@ pub fn item_const(
     ast_from_text(&format!("{visibility} const {name}: {ty} = {expr};"))
 }
 
-pub fn param(pat: ast::Pat, ty: ast::Type) -> ast::Param {
-    ast_from_text(&format!("fn f({pat}: {ty}) {{ }}"))
+pub fn param(pat: ast::Pat, ty: Option<ast::Type>) -> ast::Param {
+    if let Some(ty) = ty {
+        ast_from_text(&format!("fn f({pat}: {ty}) {{ }}"))
+    } else {
+        ast_from_text(&format!("fn f({pat}) {{ }}"))
+    }
 }
 
 pub fn self_param() -> ast::SelfParam {

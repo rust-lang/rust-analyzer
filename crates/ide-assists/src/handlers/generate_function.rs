@@ -554,7 +554,7 @@ fn fn_args(
     }
     deduplicate_arg_names(&mut arg_names);
     let params = arg_names.into_iter().zip(arg_types).map(|(name, ty)| {
-        make::param(make::ext::simple_ident_pat(make::name(&name)).into(), make::ty(&ty))
+        make::param(make::ext::simple_ident_pat(make::name(&name)).into(), Some(make::ty(&ty)))
     });
 
     Some(make::param_list(
