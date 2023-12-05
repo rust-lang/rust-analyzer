@@ -150,6 +150,7 @@ impl Assists {
         self.buf
     }
 
+    #[track_caller]
     pub(crate) fn add(
         &mut self,
         id: AssistId,
@@ -173,6 +174,7 @@ impl Assists {
         self.add_impl(Some(group), id, label.into(), target, &mut |it| f.take().unwrap()(it))
     }
 
+    #[track_caller]
     fn add_impl(
         &mut self,
         group: Option<&GroupLabel>,

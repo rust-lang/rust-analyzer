@@ -29,6 +29,7 @@ impl From<Label> for String {
 }
 
 impl Label {
+    #[track_caller]
     pub fn new(label: String) -> Label {
         assert!(label.starts_with(char::is_uppercase) && !label.ends_with('.'));
         Label(label)
