@@ -155,11 +155,17 @@ mod tests {
     use expect_test::{expect, Expect};
 
     use crate::tests::{
-        check_edit, completion_list_no_kw, completion_list_no_kw_with_private_editable,
+        check_edit, completion_list_exact_order, completion_list_no_kw,
+        completion_list_no_kw_with_private_editable,
     };
 
     fn check(ra_fixture: &str, expect: Expect) {
         let actual = completion_list_no_kw(ra_fixture);
+        expect.assert_eq(&actual);
+    }
+
+    fn check_exact_order(ra_fixture: &str, expect: Expect) {
+        let actual = completion_list_exact_order(ra_fixture);
         expect.assert_eq(&actual);
     }
 
@@ -262,6 +268,32 @@ struct A { the_field: u32 }
 fn foo(a: A) { a.$0() }
 "#,
             expect![[r#""#]],
+        );
+    }
+
+    #[test]
+    fn test_usable_types_first() {
+        check_exact_order(
+            r#"
+struct A;
+impl A {
+    fn foo(&self) {}
+    fn new_1(input: u32) -> Self { A }
+    fn new_2() -> A { A }
+}
+
+fn test() {
+    let a = A::$0;
+}
+"#,
+            // preference:
+            // fn with no param that returns itself
+            // fn with param that returns itself
+            expect![[r#"
+                fn new_2()  fn() -> A
+                fn new_1(…) fn(u32) -> A
+                me foo(…)   fn(&self)
+            "#]],
         );
     }
 

@@ -88,6 +88,11 @@ pub(crate) fn completion_list_no_kw(ra_fixture: &str) -> String {
     completion_list_with_config(TEST_CONFIG, ra_fixture, false, None)
 }
 
+pub(crate) fn completion_list_exact_order(ra_fixture: &str) -> String {
+    let items = get_all_items(TEST_CONFIG, ra_fixture, None);
+    render_completion_list(items)
+}
+
 pub(crate) fn completion_list_no_kw_with_private_editable(ra_fixture: &str) -> String {
     let mut config = TEST_CONFIG;
     config.enable_private_editable = true;
