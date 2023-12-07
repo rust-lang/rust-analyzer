@@ -178,7 +178,9 @@ impl ProcMacro {
             msg::Response::ExpandMacro(it) => {
                 Ok(it.map(|tree| FlatTree::to_subtree_resolved(tree, version, &span_data_table)))
             }
-            msg::Response::ListMacros(..) | msg::Response::ApiVersionCheck(..) => {
+            msg::Response::ListMacros(..)
+            | msg::Response::ApiVersionCheck(..)
+            | msg::Response::SetExpanderSettings { .. } => {
                 Err(ServerError { message: "unexpected response".to_string(), io: None })
             }
         }

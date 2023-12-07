@@ -14,6 +14,7 @@
 #![feature(proc_macro_internals, proc_macro_diagnostic, proc_macro_span)]
 #![warn(rust_2018_idioms, unused_lifetimes)]
 #![allow(unreachable_pub)]
+#![allow(internal_features)]
 
 extern crate proc_macro;
 

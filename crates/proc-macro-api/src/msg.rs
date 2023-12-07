@@ -17,14 +17,16 @@ pub const NO_VERSION_CHECK_VERSION: u32 = 0;
 pub const VERSION_CHECK_VERSION: u32 = 1;
 pub const ENCODE_CLOSE_SPAN_VERSION: u32 = 2;
 pub const HAS_GLOBAL_SPANS: u32 = 3;
+pub const EXPAND_MACRO_RESPONSE_PREFIX: u32 = 4;
 
-pub const CURRENT_API_VERSION: u32 = HAS_GLOBAL_SPANS;
+pub const CURRENT_API_VERSION: u32 = EXPAND_MACRO_RESPONSE_PREFIX;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Request {
     ListMacros { dylib_path: PathBuf },
     ExpandMacro(ExpandMacro),
     ApiVersionCheck {},
+    SetExpanderSettings { response_prefix: String },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -32,6 +34,7 @@ pub enum Response {
     ListMacros(Result<Vec<(String, ProcMacroKind)>, String>),
     ExpandMacro(Result<FlatTree, PanicMessage>),
     ApiVersionCheck(u32),
+    SetExpanderSettings {},
 }
 
 #[derive(Debug, Serialize, Deserialize)]

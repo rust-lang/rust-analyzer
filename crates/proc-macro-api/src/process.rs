@@ -62,7 +62,9 @@ impl ProcMacroProcessSrv {
 
         match response {
             Response::ApiVersionCheck(version) => Ok(version),
-            Response::ExpandMacro { .. } | Response::ListMacros { .. } => {
+            Response::ExpandMacro { .. }
+            | Response::ListMacros { .. }
+            | Response::SetExpanderSettings { .. } => {
                 Err(ServerError { message: "unexpected response".to_string(), io: None })
             }
         }
@@ -78,7 +80,9 @@ impl ProcMacroProcessSrv {
 
         match response {
             Response::ListMacros(it) => Ok(it),
-            Response::ExpandMacro { .. } | Response::ApiVersionCheck { .. } => {
+            Response::ExpandMacro { .. }
+            | Response::ApiVersionCheck { .. }
+            | Response::SetExpanderSettings { .. } => {
                 Err(ServerError { message: "unexpected response".to_string(), io: None })
             }
         }
