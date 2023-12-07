@@ -8,7 +8,7 @@ use std::{
 
 use hir::{
     db::{DefDatabase, ExpandDatabase, HirDatabase},
-    Adt, AssocItem, Crate, DefWithBody, HasSource, HirDisplay, ModuleDef, Name,
+    Adt, AssocItem, Crate, DefWithBody, HasSource, HirDisplay, HirFileIdExt, ModuleDef, Name,
 };
 use hir_def::{
     body::{BodySourceMap, SyntheticSyntax},
@@ -783,6 +783,7 @@ impl flags::AnalysisStats {
                     closure_return_type_hints: ide::ClosureReturnTypeHints::Always,
                     closure_capture_hints: true,
                     binding_mode_hints: true,
+                    implicit_drop_hints: true,
                     lifetime_elision_hints: ide::LifetimeElisionHints::Always,
                     param_names_for_lifetime_elision_hints: true,
                     hide_named_constructor_hints: false,

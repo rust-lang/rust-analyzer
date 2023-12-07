@@ -608,6 +608,7 @@ dependencies = [
 name = "ide"
 version = "0.0.0"
 dependencies = [
+ "arrayvec",
  "cfg",
  "cov-mark",
  "crossbeam-channel",
@@ -938,23 +939,23 @@ checksum = "b06a4cde4c0f271a446782e3eff8de789548ce57dbc8eca9292c27f4a42004b4"
 [[package]]
 name = "lsp-server"
 version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b52dccdf3302eefab8c8a1273047f0a3c3dca4b527c8458d00c09484c8371928"
 dependencies = [
  "crossbeam-channel",
- "ctrlc",
  "log",
- "lsp-types",
  "serde",
  "serde_json",
 ]
 
 [[package]]
 name = "lsp-server"
-version = "0.7.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b52dccdf3302eefab8c8a1273047f0a3c3dca4b527c8458d00c09484c8371928"
+version = "0.7.5"
 dependencies = [
  "crossbeam-channel",
+ "ctrlc",
  "log",
+ "lsp-types",
  "serde",
  "serde_json",
 ]
@@ -1255,6 +1256,9 @@ checksum = "e0a7ae3ac2f1173085d398531c705756c94a4c56843785df85a60c1a0afac116"
 name = "proc-macro-api"
 version = "0.0.0"
 dependencies = [
+ "base-db",
+ "indexmap",
+ "la-arena 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "memmap2",
  "object 0.32.0",
  "paths",
@@ -1263,6 +1267,7 @@ dependencies = [
  "serde_json",
  "snap",
  "stdx",
+ "text-size",
  "tracing",
  "triomphe",
  "tt",
@@ -1402,9 +1407,9 @@ dependencies = [
 
 [[package]]
 name = "ra-ap-rustc_abi"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5f38444d48da534b3bb612713fce9b0aeeffb2e0dfa242764f55482acc5b52d"
+checksum = "7816f980fab89e878ff2e916e2077d484e3aa1c619a3cc982c8a417c3dfe45fa"
 dependencies = [
  "bitflags 1.3.2",
  "ra-ap-rustc_index",
@@ -1413,9 +1418,9 @@ dependencies = [
 
 [[package]]
 name = "ra-ap-rustc_index"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69fb5da07e1a39222d9c311203123c3b6a86420fa06dc695aa1661b0aecf8d16"
+checksum = "8352918d61aa4afab9f2ed7314cf638976b20949b3d61d2f468c975b0d251f24"
 dependencies = [
  "arrayvec",
  "ra-ap-rustc_index_macros",
@@ -1424,9 +1429,9 @@ dependencies = [
 
 [[package]]
 name = "ra-ap-rustc_index_macros"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d69f9f6af58124f2da0cb8b0c3d8494e0d883a5fe0c6732258bde81ac5a87cc"
+checksum = "66a9424018828155a3e3596515598f90e68427d8f35eff6df7f0856c73fc58a8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1436,19 +1441,25 @@ dependencies = [
 
 [[package]]
 name = "ra-ap-rustc_lexer"
+<<<<<<< HEAD
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d5e8650195795c4023d8321846466994a975bc457cb8a91c0b3b17a5fc8ba40"
-dependencies = [
- "unicode-properties",
+=======
+version = "0.21.0"
  "unicode-xid",
 ]
 
-[[package]]
 name = "ra-ap-rustc_parse_format"
+<<<<<<< HEAD
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a6b325ee1ec90e4dbd4394913adf4ef32e4fcf2b311ec9563a0fa50cd549af6"
+=======
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d557201d71792487bd2bab637ab5be9aa6fff59b88e25e12de180b0f9d2df60f"
+>>>>>>> master
 dependencies = [
  "ra-ap-rustc_index",
  "ra-ap-rustc_lexer",
@@ -1524,7 +1535,7 @@ dependencies = [
  "ide-ssr",
  "itertools",
  "load-cargo",
- "lsp-server 0.7.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lsp-server 0.7.4",
  "lsp-types",
  "mbe",
  "mimalloc",
@@ -1751,6 +1762,7 @@ dependencies = [
  "always-assert",
  "backtrace",
  "crossbeam-channel",
+ "itertools",
  "jod-thread",
  "libc",
  "miow",
@@ -2010,6 +2022,7 @@ version = "0.0.0"
 dependencies = [
  "smol_str",
  "stdx",
+ "text-size",
 ]
 
 [[package]]
