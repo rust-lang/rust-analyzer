@@ -272,7 +272,7 @@ fn foo(a: A) { a.$0() }
     }
 
     #[test]
-    fn test_usable_types_first() {
+    fn test_suggest_new_first() {
         check_exact_order(
             r#"
 struct A;

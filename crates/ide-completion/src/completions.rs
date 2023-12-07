@@ -593,6 +593,28 @@ impl Completions {
         }
         self.add_opt(render_struct_pat(RenderContext::new(ctx), pattern_ctx, strukt, local_name));
     }
+
+    /// Sort the suggestions with `new` like functions first.
+    /// That means:
+    /// fn with no param that returns itself
+    /// fn with param that returns itself
+    pub(crate) fn sort_new_first(&mut self) {
+        fn creates_self(item: &CompletionItem) -> Option<bool> {
+            item.detail.as_ref().filter(|d| d.starts_with("fn() -> ")).map(|_| false)
+        }
+        fn creates_self_given_args(item: &CompletionItem) -> Option<bool> {
+            item.detail
+                .as_ref()
+                .filter(|d| d.starts_with("fn(") && d.contains("->") && !d.contains("&self"))
+                .map(|_| false)
+        }
+
+        self.buf.sort_by(|a, b| {
+            creates_self(b)
+                .cmp(&creates_self(a))
+                .then(creates_self_given_args(b).cmp(&creates_self_given_args(a)))
+        });
+    }
 }
 
 /// Calls the callback for each variant of the provided enum with the path to the variant.
@@ -694,6 +716,7 @@ pub(super) fn complete_name_ref(
                     dot::complete_undotted_self(acc, ctx, path_ctx, expr_ctx);
                     item_list::complete_item_list_in_expr(acc, ctx, path_ctx, expr_ctx);
                     snippet::complete_expr_snippet(acc, ctx, path_ctx, expr_ctx);
+                    acc.sort_new_first();
                 }
                 PathKind::Type { location } => {
                     r#type::complete_type_path(acc, ctx, path_ctx, location);
