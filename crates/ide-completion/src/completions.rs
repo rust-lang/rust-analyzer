@@ -599,6 +599,7 @@ impl Completions {
     /// fn with no param that returns itself
     /// fn with param that returns itself
     pub(crate) fn sort_new_first(&mut self) {
+        // ToDo: Ensure these fn returns Self
         fn creates_self(item: &CompletionItem) -> Option<bool> {
             item.detail.as_ref().filter(|d| d.starts_with("fn() -> ")).map(|_| false)
         }
