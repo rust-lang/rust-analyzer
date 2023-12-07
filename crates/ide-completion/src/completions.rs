@@ -717,7 +717,10 @@ pub(super) fn complete_name_ref(
                     dot::complete_undotted_self(acc, ctx, path_ctx, expr_ctx);
                     item_list::complete_item_list_in_expr(acc, ctx, path_ctx, expr_ctx);
                     snippet::complete_expr_snippet(acc, ctx, path_ctx, expr_ctx);
-                    acc.sort_new_first();
+
+                    if matches!(ctx.token.kind(), syntax::SyntaxKind::COLON2) {
+                        acc.sort_new_first();
+                    }
                 }
                 PathKind::Type { location } => {
                     r#type::complete_type_path(acc, ctx, path_ctx, location);
