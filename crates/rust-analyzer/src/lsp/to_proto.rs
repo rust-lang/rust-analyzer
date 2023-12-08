@@ -308,7 +308,7 @@ fn completion_item(
         lsp_item.label.push_str(label_detail.as_str());
     }
 
-    set_score(&mut lsp_item, max_relevance, item.relevance); // TODO: copy sort_text from CompletionItem if present (+1 instance below)
+    set_score(&mut lsp_item, max_relevance, item.relevance);
 
     if config.completion().enable_imports_on_the_fly {
         if !item.import_to_add.is_empty() {

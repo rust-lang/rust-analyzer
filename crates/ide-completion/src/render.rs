@@ -1633,6 +1633,32 @@ fn main() {
     }
 
     #[test]
+    fn new_like_fns() {
+        check_relevance(
+            r#"
+struct A;
+impl A {
+    fn foo(&self) {}
+    fn new_1(input: u32) -> A { A }
+    fn new_2() -> Self { A }
+}
+
+fn test() {
+    let a = A::$0;
+}
+"#,
+            // preference:
+            // fn with no param that returns itself
+            // fn with param that returns itself
+            expect![[r#"
+                fn new_2() [name]
+                fn new_1(…) [name+local]
+                me foo(…) [type_could_unify]
+            "#]],
+        );
+    }
+
+    #[test]
     fn struct_field_method_ref() {
         check_kinds(
             r#"

@@ -45,7 +45,7 @@ use crate::{
         union_literal::render_union_literal,
         RenderContext,
     },
-    CompletionContext, CompletionItem, CompletionItemKind,
+    CompletionContext, CompletionItem, CompletionItemKind, CompletionRelevance,
 };
 
 /// Represents an in-progress set of completions being built.
@@ -600,29 +600,33 @@ impl Completions {
     /// fn with param that returns itself
     pub(crate) fn sort_new_first(&mut self) {
         // ToDo: Ensure these fn returns Self
-        fn creates_self(item: &CompletionItem) -> Option<bool> {
-            item.detail.as_ref().filter(|d| d.starts_with("fn() -> ")).map(|_| false)
+        fn creates_self(item: &CompletionItem) -> bool {
+            item.detail.as_ref().map(|d| d.starts_with("fn() -> ")).unwrap_or_default()
         }
-        fn creates_self_given_args(item: &CompletionItem) -> Option<bool> {
+        fn creates_self_given_args(item: &CompletionItem) -> bool {
             item.detail
                 .as_ref()
-                .filter(|d| d.starts_with("fn(") && d.contains("->") && !d.contains("&self"))
-                .map(|_| false)
+                .map(|d| d.starts_with("fn(") && d.contains("->") && !d.contains("&self"))
+                .unwrap_or_default()
         }
 
         for item in self.buf.iter_mut() {
-            if creates_self(&item) == Some(true) {
-                item.sort_text = Some(format!("{0:08x}", 0));
-            } else if creates_self_given_args(&item) == Some(true) {
-                item.sort_text = Some(format!("{0:08x}", 1));
+            if creates_self(&item) {
+                //item.sort_text = Some(format!("{0:08x}", 0));
+                item.relevance = CompletionRelevance {
+                    exact_name_match: true,
+                    is_definite: true,
+                    ..Default::default()
+                };
+            } else if creates_self_given_args(&item) {
+                //item.sort_text = Some(format!("{0:08x}", 1));
+                item.relevance = CompletionRelevance {
+                    exact_name_match: true,
+                    is_local: true,
+                    ..Default::default()
+                };
             }
         }
-
-        self.buf.sort_by(|a, b| {
-            creates_self(b)
-                .cmp(&creates_self(a))
-                .then(creates_self_given_args(b).cmp(&creates_self_given_args(a)))
-        });
     }
 }
 
