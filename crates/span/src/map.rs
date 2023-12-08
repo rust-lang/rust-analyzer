@@ -13,14 +13,18 @@ use crate::{ErasedFileAstId, Span, SpanAnchor, SyntaxContextId, ROOT_ERASED_FILE
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct SpanMap<S> {
     spans: Vec<(TextSize, S)>,
+<<<<<<< HEAD:crates/span/src/map.rs
     // FIXME: Should be
     // spans: Vec<(TextSize, crate::SyntaxContextId)>,
+=======
+    pub matched_arm: Option<u32>,
+>>>>>>> 310502596 (Render matched macro arm on hover of macro calls):crates/mbe/src/token_map.rs
 }
 
 impl<S: Copy> SpanMap<S> {
     /// Creates a new empty [`SpanMap`].
     pub fn empty() -> Self {
-        Self { spans: Vec::new() }
+        Self { spans: Vec::new(), matched_arm: None }
     }
 
     /// Finalizes the [`SpanMap`], shrinking its backing storage and validating that the offsets are

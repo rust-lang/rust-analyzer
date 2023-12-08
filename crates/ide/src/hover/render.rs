@@ -390,11 +390,18 @@ pub(super) fn definition(
     db: &RootDatabase,
     def: Definition,
     famous_defs: Option<&FamousDefs<'_, '_>>,
+    macro_arm: Option<u32>,
     config: &HoverConfig,
 ) -> Option<Markup> {
     let mod_path = definition_mod_path(db, &def);
     let (label, docs) = match def {
-        Definition::Macro(it) => label_and_docs(db, it),
+        Definition::Macro(it) => {
+            let (mut label, docs) = label_and_docs(db, it);
+            if let Some(macro_arm) = macro_arm {
+                format_to!(label, " // matched arm #{}", macro_arm);
+            }
+            (label, docs)
+        }
         Definition::Field(it) => label_and_layout_info_and_docs(
             db,
             it,
