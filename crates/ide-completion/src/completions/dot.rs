@@ -278,8 +278,8 @@ fn foo(a: A) { a.$0() }
 struct A;
 impl A {
     fn foo(&self) {}
-    fn new_1(input: u32) -> Self { A }
-    fn new_2() -> A { A }
+    fn new_1(input: u32) -> A { A }
+    fn new_2() -> Self { A }
 }
 
 fn test() {

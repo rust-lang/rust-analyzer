@@ -308,7 +308,7 @@ fn completion_item(
         lsp_item.label.push_str(label_detail.as_str());
     }
 
-    set_score(&mut lsp_item, max_relevance, item.relevance);
+    set_score(&mut lsp_item, max_relevance, item.relevance); // TODO: copy sort_text from CompletionItem if present (+1 instance below)
 
     if config.completion().enable_imports_on_the_fly {
         if !item.import_to_add.is_empty() {
@@ -349,6 +349,7 @@ fn completion_item(
         if relevance.is_relevant() && relevance.score() == max_relevance {
             res.preselect = Some(true);
         }
+
         // The relevance needs to be inverted to come up with a sort score
         // because the client will sort ascending.
         let sort_score = relevance.score() ^ 0xFF_FF_FF_FF;

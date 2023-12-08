@@ -85,6 +85,8 @@ pub struct CompletionItem {
     /// The import data to add to completion's edits.
     /// (ImportPath, LastSegment)
     pub import_to_add: SmallVec<[(String, String); 1]>,
+
+    pub sort_text: Option<String>,
 }
 
 // We use custom debug for CompletionItem to make snapshot tests more readable.
@@ -503,6 +505,7 @@ impl Builder {
             relevance: self.relevance,
             ref_match: self.ref_match,
             import_to_add,
+            sort_text: None,
         }
     }
     pub(crate) fn lookup_by(&mut self, lookup: impl Into<SmolStr>) -> &mut Builder {

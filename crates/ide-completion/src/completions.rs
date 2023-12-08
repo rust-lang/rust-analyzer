@@ -610,6 +610,14 @@ impl Completions {
                 .map(|_| false)
         }
 
+        for item in self.buf.iter_mut() {
+            if creates_self(&item) == Some(true) {
+                item.sort_text = Some(format!("{0:08x}", 0));
+            } else if creates_self_given_args(&item) == Some(true) {
+                item.sort_text = Some(format!("{0:08x}", 1));
+            }
+        }
+
         self.buf.sort_by(|a, b| {
             creates_self(b)
                 .cmp(&creates_self(a))
