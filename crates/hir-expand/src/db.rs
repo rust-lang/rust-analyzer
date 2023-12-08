@@ -49,10 +49,10 @@ impl DeclarativeMacroExpander {
         db: &dyn ExpandDatabase,
         tt: tt::Subtree,
         call_id: MacroCallId,
-    ) -> ExpandResult<tt::Subtree> {
+    ) -> ExpandResult<(tt::Subtree, Option<u32>)> {
         match self.mac.err() {
             Some(e) => ExpandResult::new(
-                tt::Subtree::empty(tt::DelimSpan::DUMMY),
+                (tt::Subtree::empty(tt::DelimSpan::DUMMY), None),
                 ExpandError::other(format!("invalid macro definition: {e}")),
             ),
             None => self
@@ -68,7 +68,7 @@ impl DeclarativeMacroExpander {
                 tt::Subtree::empty(tt::DelimSpan::DUMMY),
                 ExpandError::other(format!("invalid macro definition: {e}")),
             ),
-            None => self.mac.expand(&tt, |_| ()).map_err(Into::into),
+            None => self.mac.expand(&tt, |_| ()).map_err(Into::into).map(|(v, _)| v),
         }
     }
 }
@@ -320,9 +320,11 @@ fn parse_macro_expansion(
     let _p = profile::span("parse_macro_expansion");
     let loc = db.lookup_intern_macro_call(macro_file.macro_call_id);
     let expand_to = loc.expand_to();
-    let mbe::ValueResult { value: tt, err } = macro_expand(db, macro_file.macro_call_id, loc);
+    let mbe::ValueResult { value: (tt, matched_arm), err } =
+        macro_expand(db, macro_file.macro_call_id, loc);
 
-    let (parse, rev_token_map) = token_tree_to_syntax_node(&tt, expand_to);
+    let (parse, mut rev_token_map) = token_tree_to_syntax_node(&tt, expand_to);
+    rev_token_map.matched_arm = matched_arm;
 
     ExpandResult { value: (parse, Arc::new(rev_token_map)), err }
 }
@@ -573,11 +575,12 @@ fn macro_expand(
     db: &dyn ExpandDatabase,
     macro_call_id: MacroCallId,
     loc: MacroCallLoc,
-) -> ExpandResult<Arc<tt::Subtree>> {
+    // FIXME: The Arc is no longer needed here
+) -> ExpandResult<(Arc<tt::Subtree>, Option<u32>)> {
     let _p = profile::span("macro_expand");
 
-    let ExpandResult { value: tt, mut err } = match loc.def.kind {
-        MacroDefKind::ProcMacro(..) => return db.expand_proc_macro(macro_call_id),
+    let ExpandResult { value: (tt, matched_arm), mut err } = match loc.def.kind {
+        MacroDefKind::ProcMacro(..) => return db.expand_proc_macro(macro_call_id).zip_val(None),
         MacroDefKind::BuiltInDerive(expander, ..) => {
             let (root, map) = parse_with_map(db, loc.kind.file_id());
             let root = root.syntax_node();
@@ -586,16 +589,19 @@ fn macro_expand(
 
             // FIXME: Use censoring
             let _censor = censor_for_macro_input(&loc, node.syntax());
-            expander.expand(db, macro_call_id, &node, map.as_ref())
+            expander.expand(db, macro_call_id, &node, map.as_ref()).zip_val(None)
         }
         _ => {
             let ValueResult { value, err } = db.macro_arg(macro_call_id);
             let Some((macro_arg, undo_info)) = value else {
                 return ExpandResult {
-                    value: Arc::new(tt::Subtree {
-                        delimiter: tt::Delimiter::DUMMY_INVISIBLE,
-                        token_trees: Vec::new(),
-                    }),
+                    value: (
+                        Arc::new(tt::Subtree {
+                            delimiter: tt::Delimiter::DUMMY_INVISIBLE,
+                            token_trees: Vec::new(),
+                        }),
+                        None,
+                    ),
                     // FIXME: We should make sure to enforce an invariant that invalid macro
                     // calls do not reach this call path!
                     err: Some(ExpandError::other("invalid token tree")),
@@ -608,7 +614,7 @@ fn macro_expand(
                     db.decl_macro_expander(loc.def.krate, id).expand(db, arg.clone(), macro_call_id)
                 }
                 MacroDefKind::BuiltIn(it, _) => {
-                    it.expand(db, macro_call_id, &arg).map_err(Into::into)
+                    it.expand(db, macro_call_id, &arg).map_err(Into::into).zip_val(None)
                 }
                 // This might look a bit odd, but we do not expand the inputs to eager macros here.
                 // Eager macros inputs are expanded, well, eagerly when we collect the macro calls.
@@ -618,7 +624,7 @@ fn macro_expand(
                 // As such we just return the input subtree here.
                 MacroDefKind::BuiltInEager(..) if loc.eager.is_none() => {
                     return ExpandResult {
-                        value: macro_arg.clone(),
+                        value: (macro_arg.clone(), None),
                         err: err.map(|err| {
                             let mut buf = String::new();
                             for err in &**err {
@@ -632,12 +638,12 @@ fn macro_expand(
                     };
                 }
                 MacroDefKind::BuiltInEager(it, _) => {
-                    it.expand(db, macro_call_id, &arg).map_err(Into::into)
+                    it.expand(db, macro_call_id, &arg).map_err(Into::into).zip_val(None)
                 }
                 MacroDefKind::BuiltInAttr(it, _) => {
                     let mut res = it.expand(db, macro_call_id, &arg);
                     fixup::reverse_fixups(&mut res.value, &undo_info);
-                    res
+                    res.zip_val(None)
                 }
                 _ => unreachable!(),
             }
@@ -653,11 +659,11 @@ fn macro_expand(
     if !loc.def.is_include() {
         // Set a hard limit for the expanded tt
         if let Err(value) = check_tt_count(&tt) {
-            return value;
+            return value.zip_val(matched_arm);
         }
     }
 
-    ExpandResult { value: Arc::new(tt), err }
+    ExpandResult { value: (Arc::new(tt), matched_arm), err }
 }
 
 fn expand_proc_macro(db: &dyn ExpandDatabase, id: MacroCallId) -> ExpandResult<Arc<tt::Subtree>> {
