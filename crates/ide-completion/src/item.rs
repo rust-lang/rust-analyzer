@@ -164,6 +164,9 @@ pub struct CompletionRelevance {
     pub postfix_match: Option<CompletionRelevancePostfixMatch>,
     /// This is set for type inference results
     pub is_definite: bool,
+    /// Any other bonuses we want to add,
+    /// eg. bonus for good behavior!
+    pub bonus_score: u32,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -228,6 +231,7 @@ impl CompletionRelevance {
             is_private_editable,
             postfix_match,
             is_definite,
+            bonus_score,
         } = self;
 
         // lower rank private things
@@ -269,7 +273,8 @@ impl CompletionRelevance {
         if is_definite {
             score += 10;
         }
-        score
+
+        score + bonus_score
     }
 
     /// Returns true when the score for this threshold is above
@@ -385,6 +390,10 @@ impl CompletionItem {
                 relevance,
             )
         })
+    }
+
+    pub fn bump_relevance_by(&mut self, bonus: u32) {
+        self.relevance.bonus_score += bonus;
     }
 }
 

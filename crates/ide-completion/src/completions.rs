@@ -45,7 +45,7 @@ use crate::{
         union_literal::render_union_literal,
         RenderContext,
     },
-    CompletionContext, CompletionItem, CompletionItemKind, CompletionRelevance,
+    CompletionContext, CompletionItem, CompletionItemKind,
 };
 
 /// Represents an in-progress set of completions being built.
@@ -600,31 +600,30 @@ impl Completions {
     /// fn with param that returns itself
     pub(crate) fn sort_new_first(&mut self) {
         // ToDo: Ensure these fn returns Self
-        fn creates_self(item: &CompletionItem) -> bool {
+        fn maybe_new(item: &CompletionItem) -> bool {
             item.detail.as_ref().map(|d| d.starts_with("fn() -> ")).unwrap_or_default()
         }
-        fn creates_self_given_args(item: &CompletionItem) -> bool {
+        fn maybe_new_with_args(item: &CompletionItem) -> bool {
             item.detail
                 .as_ref()
                 .map(|d| d.starts_with("fn(") && d.contains("->") && !d.contains("&self"))
                 .unwrap_or_default()
         }
 
+        fn maybe_builder(item: &CompletionItem) -> bool {
+            item.detail
+                .as_ref()
+                .map(|d| d.starts_with("fn() -> ") && d.contains("Builder"))
+                .unwrap_or_default()
+        }
+
         for item in self.buf.iter_mut() {
-            if creates_self(&item) {
-                //item.sort_text = Some(format!("{0:08x}", 0));
-                item.relevance = CompletionRelevance {
-                    exact_name_match: true,
-                    is_definite: true,
-                    ..Default::default()
-                };
-            } else if creates_self_given_args(&item) {
-                //item.sort_text = Some(format!("{0:08x}", 1));
-                item.relevance = CompletionRelevance {
-                    exact_name_match: true,
-                    is_local: true,
-                    ..Default::default()
-                };
+            if maybe_new(&item) {
+                item.bump_relevance_by(30);
+            } else if maybe_builder(&item) {
+                item.bump_relevance_by(20);
+            } else if maybe_new_with_args(&item) {
+                item.bump_relevance_by(10);
             }
         }
     }

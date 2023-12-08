@@ -1637,10 +1637,12 @@ fn main() {
         check_relevance(
             r#"
 struct A;
+struct ABuilder;
 impl A {
     fn foo(&self) {}
     fn new_1(input: u32) -> A { A }
     fn new_2() -> Self { A }
+    fn aaaabuilder() -> ABuilder { A }
 }
 
 fn test() {
@@ -1649,10 +1651,12 @@ fn test() {
 "#,
             // preference:
             // fn with no param that returns itself
+            // builder like fn
             // fn with param that returns itself
             expect![[r#"
-                fn new_2() [name]
-                fn new_1(…) [name+local]
+                fn new_2() [type_could_unify]
+                fn aaaabuilder() [type_could_unify]
+                fn new_1(…) [type_could_unify]
                 me foo(…) [type_could_unify]
             "#]],
         );
