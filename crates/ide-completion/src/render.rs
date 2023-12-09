@@ -2033,6 +2033,33 @@ fn test() {
                 me foo(…) [type_could_unify]
             "#]],
         );
+
+        check_relevance(
+            r#"
+struct A;
+struct ABuilder;
+impl A {
+    fn foo(&self) {}
+    fn new_1(input: u32) -> A { A }
+    fn new_2() -> Self { A }
+    fn aaaabuilder() -> ABuilder { A }
+    fn test() {
+        Self::$0;
+    }
+}
+"#,
+            // preference:
+            // fn with no param that returns itself
+            // builder like fn
+            // fn with param that returns itself
+            expect![[r#"
+                fn new_2() []
+                fn aaaabuilder() []
+                fn new_1(…) []
+                me foo(…) []
+                fn test() []
+            "#]],
+        );
     }
 
     #[test]
