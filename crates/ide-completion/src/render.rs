@@ -1203,9 +1203,9 @@ fn main() { let _: m::Spam = S$0 }
                             is_private_editable: false,
                             postfix_match: None,
                             is_definite: false,
+                            bonus_score: 0,
                         },
                         trigger_call_info: true,
-                        bonus_score: 0,
                     },
                 ]
             "#]],
@@ -1282,6 +1282,7 @@ fn foo() { A { the$0 } }
                             is_private_editable: false,
                             postfix_match: None,
                             is_definite: false,
+                            bonus_score: 0,
                         },
                     },
                 ]
