@@ -1176,6 +1176,7 @@ fn main() { let _: m::Spam = S$0 }
                             is_private_editable: false,
                             postfix_match: None,
                             is_definite: false,
+                            bonus_score: 0,
                         },
                         trigger_call_info: true,
                     },
@@ -1204,6 +1205,7 @@ fn main() { let _: m::Spam = S$0 }
                             is_definite: false,
                         },
                         trigger_call_info: true,
+                        bonus_score: 0,
                     },
                 ]
             "#]],
@@ -2125,6 +2127,7 @@ fn foo() {
                             is_private_editable: false,
                             postfix_match: None,
                             is_definite: false,
+                            bonus_score: 0,
                         },
                     },
                 ]
@@ -2162,6 +2165,19 @@ fn main() {
                         ),
                         lookup: "foo",
                         detail: "fn() -> S",
+                        relevance: CompletionRelevance {
+                            exact_name_match: false,
+                            type_match: None,
+                            is_local: false,
+                            is_item_from_trait: false,
+                            is_name_already_imported: false,
+                            requires_import: false,
+                            is_op_method: false,
+                            is_private_editable: false,
+                            postfix_match: None,
+                            is_definite: false,
+                            bonus_score: 30,
+                        },
                         ref_match: "&@92",
                     },
                 ]
