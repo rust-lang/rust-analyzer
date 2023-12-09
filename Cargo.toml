@@ -12,7 +12,7 @@ authors = ["rust-analyzer team"]
 [profile.dev]
 # Disabling debug info speeds up builds a bunch,
 # and we don't rely on it for debugging that much.
-debug = 2
+debug = 0
 
 [profile.dev.package]
 # These speed up local tests.
@@ -117,9 +117,9 @@ text-size = "1.1.1"
 tracing = "0.1.40"
 tracing-tree = "0.3.0"
 tracing-subscriber = { version = "0.3.18", default-features = false, features = [
-    "registry",
-    "fmt",
-    "tracing-log",
+  "registry",
+  "fmt",
+  "tracing-log",
 ] }
 triomphe = { version = "0.1.10", default-features = false, features = ["std"] }
 xshell = "0.2.5"
