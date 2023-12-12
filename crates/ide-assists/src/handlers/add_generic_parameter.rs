@@ -1606,6 +1606,33 @@ mod tmp{ use super::ColorImpl as Color2; struct Image2<T1>(Vec<Color2<T1>>); }
         );
     }
     #[test]
+    fn use_alias_in_different_modules_multi_file() {
+        check_assist(
+            add_generic_parameter,
+            r#"
+//- /main.rs
+pub mod foo;
+use foo::ColorImpl;
+use ColorImpl as Color;
+struct Image(Vec<Color>);
+mod tmp{ use super::ColorImpl as Color2; struct Image2(Vec<Color2>); }
+//- /foo.rs
+pub(crate) struct ColorImpl$0(u8);
+"#,
+            r#"
+//- /main.rs
+pub mod foo;
+use foo::ColorImpl;
+use ColorImpl as Color;
+struct Image<T1>(Vec<Color<T1>>);
+mod tmp{ use super::ColorImpl as Color2; struct Image2<T1>(Vec<Color2<T1>>); }
+//- /foo.rs
+pub(crate) struct ColorImpl<T1>(u8);
+"#,
+        );
+    }
+
+    #[test]
     fn non_generic_impl_has_fn_returns_generic() {
         check_assist(
             add_generic_parameter,
