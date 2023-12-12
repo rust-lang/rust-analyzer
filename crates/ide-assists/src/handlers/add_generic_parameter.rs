@@ -110,8 +110,8 @@ fn assist_impl(
     };
     let mut processing_queue = ProcessingQueue::default();
     let mut acc = ChangeAccumulator::default();
-    // FIXME: possibly recompute the definitions?
-    // to make sure they haven't changed since the user last touched anything
+    // FIXME: Possibly recompute the definitions?
+    // (to make sure they haven't changed since the user last touched anything)
     let r = (|| -> R {
         let acc = &mut acc;
         let processing_queue = &mut processing_queue;
@@ -345,7 +345,10 @@ impl<'b, 'sema_a, 'sema> AssistState<'b, 'sema_a, 'sema> {
         // usages will include name, so ignore name
         let _ = name;
         usages.search(&mut |file_id, file_ref| {
-            let r = self.on_usage(acc, processing_queue, file_id, file_ref.name, definition);
+            let Some(name) = file_ref.name.into_name_like() else {
+                return false;
+            };
+            let r = self.on_usage(acc, processing_queue, file_id, name, definition);
             match r {
                 Ok(()) => false,
                 Err(_x) => {
