@@ -2010,7 +2010,7 @@ fn main() {
     }
 
     #[test]
-    fn new_like_fns() {
+    fn colon_complete_preferred_order_relevances() {
         check_relevance(
             r#"
 struct A;
@@ -2020,6 +2020,34 @@ impl A {
     fn new_1(input: u32) -> A { A }
     fn new_2() -> Self { A }
     fn aaaabuilder() -> ABuilder { A }
+}
+
+fn test() {
+    let a = A::$0;
+}
+"#,
+            // preference:
+            // fn with no param that returns itself
+            // builder like fn
+            // fn with param that returns itself
+            expect![[r#"
+                fn new_2() [type_could_unify]
+                fn aaaabuilder() [type_could_unify]
+                fn new_1(…) [type_could_unify]
+                me foo(…) [type_could_unify]
+            "#]],
+        );
+
+        // Generic
+        check_relevance(
+            r#"
+struct A<T>{item: T}
+struct ABuilder;
+impl A {
+    fn foo(&self) {}
+    fn new_1<T>(input: u32, l: T) -> A<T> { A }
+    fn new_2<T>() -> Self { A { item: <_>::default()} }
+    fn aaaabuilder<T>() -> ABuilder<T> { A }
 }
 
 fn test() {
