@@ -156,8 +156,8 @@ fn render(
 
 /// When typing `::` of a type, the preferred order is:
 /// * Constructors: new like functions to be able to create the type,
+/// * Builder Methods,
 /// * Constructors that take args: Any other function that creates Self
-/// * Builder Methods: any builder methods available
 /// * Regular methods & Associated functions
 ///
 fn calculate_bonus(ctx: &RenderContext<'_>, func: hir::Function, db: &dyn HirDatabase) -> u32 {

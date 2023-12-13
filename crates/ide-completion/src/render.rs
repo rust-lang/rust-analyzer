@@ -2054,10 +2054,6 @@ fn test() {
     let a = A::$0;
 }
 "#,
-            // preference:
-            // fn with no param that returns itself
-            // builder like fn
-            // fn with param that returns itself
             expect![[r#"
                 fn new_2() [type_could_unify]
                 fn aaaabuilder() [type_could_unify]
