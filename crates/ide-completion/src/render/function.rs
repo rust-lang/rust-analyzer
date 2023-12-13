@@ -105,6 +105,7 @@ fn render(
         },
         exact_name_match: compute_exact_name_match(completion, &call),
         is_op_method,
+        bonus_score: calculate_bonus(&ctx, func, db),
         ..ctx.completion_relevance()
     });
 
@@ -151,6 +152,33 @@ fn render(
 
     item.doc_aliases(ctx.doc_aliases);
     item
+}
+
+/// When typing `::` of a type, the preferred orderer is:
+/// * Constructors: new like functions to be able to create the type,
+/// * Constructors that take args: Any other function that creates Self
+/// * Builder Methods: any builder methods available
+/// * Regular methods
+fn calculate_bonus(ctx: &RenderContext<'_>, func: hir::Function, db: &dyn HirDatabase) -> u32 {
+    if ctx.token().kind() != syntax::SyntaxKind::COLON2 || func.self_param(db).is_some() {
+        return 0;
+    }
+
+    let mut bonus = 0;
+
+    let has_args = !func.assoc_fn_params(db).is_empty();
+    let ret_type = func.ret_type(db);
+    if !has_args && !ret_type.is_unit() {
+        // fn() -> A
+        bonus += 30;
+    } else if has_args && !ret_type.is_unit() {
+        // fn(..) -> A
+        bonus += 20;
+    } else if !has_args && ret_type.display(db).to_string().ends_with("Builder") {
+        // -> [..]Builder
+        bonus += 10;
+    }
+    bonus
 }
 
 pub(super) fn add_call_parens<'b>(
@@ -213,6 +241,7 @@ pub(super) fn add_call_parens<'b>(
 
         (snippet, "(…)")
     };
+
     builder.label(SmolStr::from_iter([&name, label_suffix])).insert_snippet(cap, snippet)
 }
 
@@ -256,6 +285,7 @@ fn detail(db: &dyn HirDatabase, func: hir::Function) -> String {
     if !ret_ty.is_unit() {
         format_to!(detail, " -> {}", ret_ty.display(db));
     }
+
     detail
 }
 

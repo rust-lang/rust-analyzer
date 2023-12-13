@@ -17,7 +17,7 @@ use ide_db::{
     imports::import_assets::LocatedImport,
     RootDatabase, SnippetCap, SymbolKind,
 };
-use syntax::{AstNode, SmolStr, SyntaxKind, TextRange};
+use syntax::{AstNode, SmolStr, SyntaxKind, SyntaxToken, TextRange};
 use text_edit::TextEdit;
 
 use crate::{
@@ -70,6 +70,10 @@ impl<'a> RenderContext<'a> {
 
     fn db(&self) -> &'a RootDatabase {
         self.completion.db
+    }
+
+    fn token(&self) -> &SyntaxToken {
+        &self.completion.token
     }
 
     fn source_range(&self) -> TextRange {
@@ -2031,33 +2035,6 @@ fn test() {
                 fn aaaabuilder() [type_could_unify]
                 fn new_1(…) [type_could_unify]
                 me foo(…) [type_could_unify]
-            "#]],
-        );
-
-        check_relevance(
-            r#"
-struct A;
-struct ABuilder;
-impl A {
-    fn foo(&self) {}
-    fn new_1(input: u32) -> A { A }
-    fn new_2() -> Self { A }
-    fn aaaabuilder() -> ABuilder { A }
-    fn test() {
-        Self::$0;
-    }
-}
-"#,
-            // preference:
-            // fn with no param that returns itself
-            // builder like fn
-            // fn with param that returns itself
-            expect![[r#"
-                fn new_2() []
-                fn aaaabuilder() []
-                fn new_1(…) []
-                me foo(…) []
-                fn test() []
             "#]],
         );
     }

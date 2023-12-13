@@ -694,10 +694,6 @@ pub(super) fn complete_name_ref(
                     dot::complete_undotted_self(acc, ctx, path_ctx, expr_ctx);
                     item_list::complete_item_list_in_expr(acc, ctx, path_ctx, expr_ctx);
                     snippet::complete_expr_snippet(acc, ctx, path_ctx, expr_ctx);
-
-                    if matches!(ctx.token.kind(), syntax::SyntaxKind::COLON2) {
-                        bump_relevance_for_new_like_fns(acc);
-                    }
                 }
                 PathKind::Type { location } => {
                     r#type::complete_type_path(acc, ctx, path_ctx, location);
@@ -770,38 +766,4 @@ fn complete_patterns(
     fn_param::complete_fn_param(acc, ctx, pattern_ctx);
     pattern::complete_pattern(acc, ctx, pattern_ctx);
     record::complete_record_pattern_fields(acc, ctx, pattern_ctx);
-}
-
-/// Sort the suggestions with `new` like functions first.
-/// That means:
-/// fn with no param that returns itself
-/// fn with param that returns itself
-pub(crate) fn bump_relevance_for_new_like_fns(acc: &mut Completions) {
-    // ToDo: Ensure these fn returns Self
-    fn maybe_new(item: &CompletionItem) -> bool {
-        item.detail.as_ref().map(|d| d.starts_with("fn() -> ")).unwrap_or_default()
-    }
-    fn maybe_new_with_args(item: &CompletionItem) -> bool {
-        item.detail
-            .as_ref()
-            .map(|d| d.starts_with("fn(") && d.contains("->") && !d.contains("&self"))
-            .unwrap_or_default()
-    }
-
-    fn maybe_builder(item: &CompletionItem) -> bool {
-        item.detail
-            .as_ref()
-            .map(|d| d.starts_with("fn() -> ") && d.contains("Builder"))
-            .unwrap_or_default()
-    }
-
-    for item in acc.buf.iter_mut() {
-        if maybe_new(&item) {
-            item.bump_relevance_by(30);
-        } else if maybe_builder(&item) {
-            item.bump_relevance_by(20);
-        } else if maybe_new_with_args(&item) {
-            item.bump_relevance_by(10);
-        }
-    }
 }
