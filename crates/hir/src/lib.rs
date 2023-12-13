@@ -59,7 +59,7 @@ use hir_def::{
     Lookup, MacroExpander, MacroId, ModuleId, StaticId, StructId, TraitAliasId, TraitId,
     TypeAliasId, TypeOrConstParamId, TypeParamId, UnionId,
 };
-use hir_expand::{name::name, MacroCallKind};
+use hir_expand::{attrs::collect_attrs, name::name, MacroCallKind};
 use hir_ty::{
     all_super_traits, autoderef, check_orphan_rules,
     consteval::{try_const_usize, unknown_const_as_generic, ConstEvalError, ConstExt},
@@ -81,7 +81,7 @@ use once_cell::unsync::Lazy;
 use rustc_hash::FxHashSet;
 use stdx::{impl_from, never};
 use syntax::{
-    ast::{self, HasAttrs as _, HasDocComments, HasName},
+    ast::{self, HasAttrs as _, HasName},
     AstNode, AstPtr, SmolStr, SyntaxNode, SyntaxNodePtr, TextRange, T,
 };
 use triomphe::Arc;
@@ -671,7 +671,8 @@ impl Module {
                 _ => (),
             };
 
-            if let Some(trait_) = trait_ {
+            // Negative impls can't have items, don't emit missing items diagnostic for them
+            if let (false, Some(trait_)) = (impl_is_negative, trait_) {
                 let items = &db.trait_data(trait_.into()).items;
                 let required_items = items.iter().filter(|&(_, assoc)| match *assoc {
                     AssocItemId::FunctionId(it) => !db.function_data(it).has_body(),
@@ -974,10 +975,9 @@ fn precise_macro_call_location(
             // Compute the precise location of the macro name's token in the derive
             // list.
             let token = (|| {
-                let derive_attr = node
-                    .doc_comments_and_attrs()
+                let derive_attr = collect_attrs(&node)
                     .nth(derive_attr_index.ast_index())
-                    .and_then(Either::left)?;
+                    .and_then(|x| Either::left(x.1))?;
                 let token_tree = derive_attr.meta()?.token_tree()?;
                 let group_by = token_tree
                     .syntax()
@@ -1002,10 +1002,9 @@ fn precise_macro_call_location(
         }
         MacroCallKind::Attr { ast_id, invoc_attr_index, .. } => {
             let node = ast_id.to_node(db.upcast());
-            let attr = node
-                .doc_comments_and_attrs()
+            let attr = collect_attrs(&node)
                 .nth(invoc_attr_index.ast_index())
-                .and_then(Either::left)
+                .and_then(|x| Either::left(x.1))
                 .unwrap_or_else(|| {
                     panic!("cannot find attribute #{}", invoc_attr_index.ast_index())
                 });
