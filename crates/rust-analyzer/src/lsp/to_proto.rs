@@ -349,7 +349,6 @@ fn completion_item(
         if relevance.is_relevant() && relevance.score() == max_relevance {
             res.preselect = Some(true);
         }
-
         // The relevance needs to be inverted to come up with a sort score
         // because the client will sort ascending.
         let sort_score = relevance.score() ^ 0xFF_FF_FF_FF;

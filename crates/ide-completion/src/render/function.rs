@@ -241,7 +241,6 @@ pub(super) fn add_call_parens<'b>(
 
         (snippet, "(…)")
     };
-
     builder.label(SmolStr::from_iter([&name, label_suffix])).insert_snippet(cap, snippet)
 }
 
@@ -285,7 +284,6 @@ fn detail(db: &dyn HirDatabase, func: hir::Function) -> String {
     if !ret_ty.is_unit() {
         format_to!(detail, " -> {}", ret_ty.display(db));
     }
-
     detail
 }
 

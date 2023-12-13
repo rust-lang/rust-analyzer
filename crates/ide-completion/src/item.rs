@@ -391,10 +391,6 @@ impl CompletionItem {
             )
         })
     }
-
-    pub fn bump_relevance_by(&mut self, bonus: u32) {
-        self.relevance.bonus_score += bonus;
-    }
 }
 
 /// A helper to make `CompletionItem`s.
