@@ -154,11 +154,12 @@ fn render(
     item
 }
 
-/// When typing `::` of a type, the preferred orderer is:
+/// When typing `::` of a type, the preferred order is:
 /// * Constructors: new like functions to be able to create the type,
 /// * Constructors that take args: Any other function that creates Self
 /// * Builder Methods: any builder methods available
-/// * Regular methods
+/// * Regular methods & Associated functions
+///
 fn calculate_bonus(ctx: &RenderContext<'_>, func: hir::Function, db: &dyn HirDatabase) -> u32 {
     if ctx.token().kind() != syntax::SyntaxKind::COLON2 || func.self_param(db).is_some() {
         return 0;
