@@ -10,12 +10,13 @@ use tt::Span;
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct SpanMap<S: Span> {
     spans: Vec<(TextSize, S)>,
+    pub matched_arm: Option<u32>,
 }
 
 impl<S: Span> SpanMap<S> {
     /// Creates a new empty [`SpanMap`].
     pub fn empty() -> Self {
-        Self { spans: Vec::new() }
+        Self { spans: Vec::new(), matched_arm: None }
     }
 
     /// Finalizes the [`SpanMap`], shrinking its backing storage and validating that the offsets are

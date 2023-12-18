@@ -1232,21 +1232,21 @@ fn y() {
 fn test_hover_macro_invocation() {
     check(
         r#"
-macro_rules! foo { () => {} }
+macro_rules! foo { (a) => {}; () => {} }
 
 fn f() { fo$0o!(); }
 "#,
         expect![[r#"
-                *foo*
+            *foo*
 
-                ```rust
-                test
-                ```
+            ```rust
+            test
+            ```
 
-                ```rust
-                macro_rules! foo
-                ```
-            "#]],
+            ```rust
+            macro_rules! foo // matched arm #1
+            ```
+        "#]],
     )
 }
 
@@ -1262,22 +1262,22 @@ macro foo() {}
 fn f() { fo$0o!(); }
 "#,
         expect![[r#"
-                *foo*
+            *foo*
 
-                ```rust
-                test
-                ```
+            ```rust
+            test
+            ```
 
-                ```rust
-                macro foo
-                ```
+            ```rust
+            macro foo // matched arm #0
+            ```
 
-                ---
+            ---
 
-                foo bar
+            foo bar
 
-                foo bar baz
-            "#]],
+            foo bar baz
+        "#]],
     )
 }
 

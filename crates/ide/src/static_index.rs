@@ -166,7 +166,7 @@ impl StaticIndex<'_> {
                 *it
             } else {
                 let it = self.tokens.insert(TokenStaticData {
-                    hover: hover_for_definition(&sema, file_id, def, &node, &hover_config),
+                    hover: hover_for_definition(&sema, file_id, def, &node, None, &hover_config),
                     definition: def.try_to_nav(self.db).map(UpmappingResult::call_site).map(|it| {
                         FileRange { file_id: it.file_id, range: it.focus_or_full_range() }
                     }),
