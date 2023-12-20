@@ -272,6 +272,9 @@ impl Printer<'_> {
                 if flags.contains(FnFlags::HAS_ASYNC_KW) {
                     w!(self, "async ");
                 }
+                if flags.contains(FnFlags::HAS_GEN_KW) {
+                    w!(self, "gen ");
+                }
                 if flags.contains(FnFlags::HAS_UNSAFE_KW) {
                     w!(self, "unsafe ");
                 }

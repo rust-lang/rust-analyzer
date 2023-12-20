@@ -1037,7 +1037,7 @@ impl Foo {
             r#"
 //- /lib.rs
 $0
-macro_rules! gen {
+macro_rules! r#gen {
     () => {
         #[test]
         fn foo_test() {}
@@ -1057,19 +1057,19 @@ macro_rules! gen_main {
     }
 }
 mod tests {
-    gen!();
+    r#gen!();
 }
 gen2!();
 gen_main!();
 "#,
             expect![[r#"
                 [
-                    "(TestMod, NavigationTarget { file_id: FileId(0), full_range: 0..315, name: \"\", kind: Module })",
-                    "(TestMod, NavigationTarget { file_id: FileId(0), full_range: 267..292, focus_range: 271..276, name: \"tests\", kind: Module, description: \"mod tests\" })",
-                    "(Test, NavigationTarget { file_id: FileId(0), full_range: 283..290, name: \"foo_test\", kind: Function })",
-                    "(Test, NavigationTarget { file_id: FileId(0), full_range: 293..301, name: \"foo_test2\", kind: Function }, true)",
-                    "(TestMod, NavigationTarget { file_id: FileId(0), full_range: 293..301, name: \"tests2\", kind: Module, description: \"mod tests2\" }, true)",
-                    "(Bin, NavigationTarget { file_id: FileId(0), full_range: 302..314, name: \"main\", kind: Function })",
+                    "(TestMod, NavigationTarget { file_id: FileId(0), full_range: 0..319, name: \"\", kind: Module })",
+                    "(TestMod, NavigationTarget { file_id: FileId(0), full_range: 269..296, focus_range: 273..278, name: \"tests\", kind: Module, description: \"mod tests\" })",
+                    "(Test, NavigationTarget { file_id: FileId(0), full_range: 285..294, name: \"foo_test\", kind: Function })",
+                    "(Test, NavigationTarget { file_id: FileId(0), full_range: 297..305, name: \"foo_test2\", kind: Function }, true)",
+                    "(TestMod, NavigationTarget { file_id: FileId(0), full_range: 297..305, name: \"tests2\", kind: Module, description: \"mod tests2\" }, true)",
+                    "(Bin, NavigationTarget { file_id: FileId(0), full_range: 306..318, name: \"main\", kind: Function })",
                 ]
             "#]],
         );

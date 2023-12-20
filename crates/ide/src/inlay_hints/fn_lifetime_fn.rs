@@ -77,11 +77,11 @@ pub(super) fn hints(
 
     // allocate names
     let mut gen_idx_name = {
-        let mut gen = (0u8..).map(|idx| match idx {
+        let mut r#gen = (0u8..).map(|idx| match idx {
             idx if idx < 10 => SmolStr::from_iter(['\'', (idx + 48) as char]),
             idx => format_smolstr!("'{idx}"),
         });
-        move || gen.next().unwrap_or_default()
+        move || r#gen.next().unwrap_or_default()
     };
     let mut allocated_lifetimes = vec![];
 

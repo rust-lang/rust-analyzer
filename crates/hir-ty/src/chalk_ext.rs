@@ -269,6 +269,47 @@ impl TyExt for Ty {
                             None
                         }
                     }
+                    ImplTraitId::GenBlockTypeImplTrait(def, _expr) => {
+                        let krate = def.module(db.upcast()).krate();
+                        if let Some(iterator_trait) =
+                            db.lang_item(krate, LangItem::Iterator).and_then(|item| item.as_trait())
+                        {
+                            // This is only used by type walking.
+                            // Parameters will be walked outside, and projection predicate is not used.
+                            // So just provide the Future trait.
+                            let impl_bound = Binders::empty(
+                                Interner,
+                                WhereClause::Implemented(TraitRef {
+                                    trait_id: to_chalk_trait_id(iterator_trait),
+                                    substitution: Substitution::empty(Interner),
+                                }),
+                            );
+                            Some(vec![impl_bound])
+                        } else {
+                            None
+                        }
+                    }
+                    ImplTraitId::AsyncGenBlockTypeImplTrait(def, _expr) => {
+                        let krate = def.module(db.upcast()).krate();
+                        if let Some(async_iterator_trait) = db
+                            .lang_item(krate, LangItem::AsyncIterator)
+                            .and_then(|item| item.as_trait())
+                        {
+                            // This is only used by type walking.
+                            // Parameters will be walked outside, and projection predicate is not used.
+                            // So just provide the Future trait.
+                            let impl_bound = Binders::empty(
+                                Interner,
+                                WhereClause::Implemented(TraitRef {
+                                    trait_id: to_chalk_trait_id(async_iterator_trait),
+                                    substitution: Substitution::empty(Interner),
+                                }),
+                            );
+                            Some(vec![impl_bound])
+                        } else {
+                            None
+                        }
+                    }
                     ImplTraitId::ReturnTypeImplTrait(func, idx) => {
                         db.return_type_impl_traits(func).map(|it| {
                             let data =
@@ -303,7 +344,9 @@ impl TyExt for Ty {
                         })
                     }
                     // It always has an parameter for Future::Output type.
-                    ImplTraitId::AsyncBlockTypeImplTrait(..) => unreachable!(),
+                    ImplTraitId::AsyncBlockTypeImplTrait(..)
+                    | ImplTraitId::GenBlockTypeImplTrait(..)
+                    | ImplTraitId::AsyncGenBlockTypeImplTrait(..) => unreachable!(),
                 };
 
                 predicates.map(|it| it.into_value_and_skipped_binders().0)

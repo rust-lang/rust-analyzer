@@ -394,7 +394,9 @@ pub fn layout_of_ty_query(
                 crate::ImplTraitId::AssociatedTypeImplTrait(..) => {
                     return Err(LayoutError::NotImplemented);
                 }
-                crate::ImplTraitId::AsyncBlockTypeImplTrait(_, _) => {
+                crate::ImplTraitId::AsyncBlockTypeImplTrait(_, _)
+                | crate::ImplTraitId::GenBlockTypeImplTrait(_, _)
+                | crate::ImplTraitId::AsyncGenBlockTypeImplTrait(_, _) => {
                     return Err(LayoutError::NotImplemented)
                 }
             }

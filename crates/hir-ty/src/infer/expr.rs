@@ -9,7 +9,8 @@ use chalk_ir::{cast::Cast, fold::Shift, DebruijnIndex, Mutability, TyVariableKin
 use either::Either;
 use hir_def::{
     hir::{
-        ArithOp, Array, BinaryOp, ClosureKind, Expr, ExprId, LabelId, Literal, Statement, UnaryOp,
+        ArithOp, Array, BinaryOp, ClosureKind, CoroutineDesugaring, CoroutineKind, Expr, ExprId,
+        LabelId, Literal, Statement, UnaryOp,
     },
     lang_item::{LangItem, LangItemTarget},
     path::{GenericArgs, Path},
@@ -179,9 +180,6 @@ impl InferenceContext<'_> {
                 })
                 .1
             }
-            Expr::Async { id, statements, tail } => {
-                self.infer_async_block(tgt_expr, id, statements, tail)
-            }
             &Expr::Loop { body, label } => {
                 // FIXME: should be:
                 // let ty = expected.coercion_target_type(&mut self.table);
@@ -218,10 +216,26 @@ impl InferenceContext<'_> {
                     Some(type_ref) => self.make_ty(type_ref),
                     None => self.table.new_type_var(),
                 };
-                if let ClosureKind::Async = closure_kind {
-                    sig_tys.push(self.lower_async_block_type_impl_trait(ret_ty.clone(), *body));
-                } else {
-                    sig_tys.push(ret_ty.clone());
+                match closure_kind {
+                    ClosureKind::Coroutine(
+                        CoroutineKind::Desugared(CoroutineDesugaring::Async, _),
+                        _,
+                    ) => {
+                        sig_tys.push(self.lower_async_block_type_impl_trait(ret_ty.clone(), *body));
+                    }
+                    ClosureKind::Coroutine(
+                        CoroutineKind::Desugared(CoroutineDesugaring::Gen, _),
+                        _,
+                    ) => {
+                        sig_tys.push(self.lower_async_block_type_impl_trait(ret_ty.clone(), *body));
+                    }
+                    ClosureKind::Coroutine(
+                        CoroutineKind::Desugared(CoroutineDesugaring::AsyncGen, _),
+                        _,
+                    ) => {
+                        sig_tys.push(self.lower_async_block_type_impl_trait(ret_ty.clone(), *body));
+                    }
+                    _ => sig_tys.push(ret_ty.clone()),
                 }
 
                 let sig_ty = TyKind::Function(FnPointer {
@@ -239,7 +253,7 @@ impl InferenceContext<'_> {
                 .intern(Interner);
 
                 let (id, ty, resume_yield_tys) = match closure_kind {
-                    ClosureKind::Coroutine(_) => {
+                    ClosureKind::Coroutine(coroutine_kind, _) => {
                         // FIXME: report error when there are more than 1 parameter.
                         let resume_ty = match sig_tys.first() {
                             // When `sig_tys.len() == 1` the first type is the return type, not the
@@ -249,21 +263,47 @@ impl InferenceContext<'_> {
                         };
                         let yield_ty = self.table.new_type_var();
 
-                        let subst = TyBuilder::subst_for_coroutine(self.db, self.owner)
-                            .push(resume_ty.clone())
-                            .push(yield_ty.clone())
-                            .push(ret_ty.clone())
-                            .build();
+                        // FIXME if async create future, etc#
+                        match coroutine_kind {
+                            CoroutineKind::Desugared(CoroutineDesugaring::Async, _) => {
+                                let ty = self
+                                    .lower_async_block_type_impl_trait(ret_ty.clone(), tgt_expr);
 
-                        let coroutine_id = self
-                            .db
-                            .intern_coroutine(InternedCoroutine(self.owner, tgt_expr))
-                            .into();
-                        let coroutine_ty = TyKind::Coroutine(coroutine_id, subst).intern(Interner);
+                                (None, ty, Some((resume_ty, yield_ty)))
+                            }
+                            CoroutineKind::Desugared(CoroutineDesugaring::Gen, _) => {
+                                let ty = self
+                                    .lower_gen_block_type_impl_trait(yield_ty.clone(), tgt_expr);
 
-                        (None, coroutine_ty, Some((resume_ty, yield_ty)))
+                                (None, ty, Some((resume_ty, yield_ty)))
+                            }
+                            CoroutineKind::Desugared(CoroutineDesugaring::AsyncGen, _) => {
+                                let ty = self.lower_async_gen_block_type_impl_trait(
+                                    yield_ty.clone(),
+                                    tgt_expr,
+                                );
+
+                                (None, ty, Some((resume_ty, yield_ty)))
+                            }
+                            CoroutineKind::Coroutine => {
+                                let subst = TyBuilder::subst_for_coroutine(self.db, self.owner)
+                                    .push(resume_ty.clone())
+                                    .push(yield_ty.clone())
+                                    .push(ret_ty.clone())
+                                    .build();
+
+                                let coroutine_id = self
+                                    .db
+                                    .intern_coroutine(InternedCoroutine(self.owner, tgt_expr))
+                                    .into();
+                                let coroutine_ty =
+                                    TyKind::Coroutine(coroutine_id, subst).intern(Interner);
+
+                                (None, coroutine_ty, Some((resume_ty, yield_ty)))
+                            }
+                        }
                     }
-                    ClosureKind::Closure | ClosureKind::Async => {
+                    ClosureKind::Closure => {
                         let closure_id =
                             self.db.intern_closure(InternedClosure(self.owner, tgt_expr)).into();
                         let closure_ty = TyKind::Closure(
@@ -926,46 +966,6 @@ impl InferenceContext<'_> {
         ty
     }
 
-    fn infer_async_block(
-        &mut self,
-        tgt_expr: ExprId,
-        id: &Option<BlockId>,
-        statements: &[Statement],
-        tail: &Option<ExprId>,
-    ) -> Ty {
-        let ret_ty = self.table.new_type_var();
-        let prev_diverges = mem::replace(&mut self.diverges, Diverges::Maybe);
-        let prev_ret_ty = mem::replace(&mut self.return_ty, ret_ty.clone());
-        let prev_ret_coercion =
-            mem::replace(&mut self.return_coercion, Some(CoerceMany::new(ret_ty.clone())));
-
-        // FIXME: We should handle async blocks like we handle closures
-        let expected = &Expectation::has_type(ret_ty);
-        let (_, inner_ty) = self.with_breakable_ctx(BreakableKind::Border, None, None, |this| {
-            let ty = this.infer_block(tgt_expr, *id, statements, *tail, None, expected);
-            if let Some(target) = expected.only_has_type(&mut this.table) {
-                match this.coerce(Some(tgt_expr), &ty, &target) {
-                    Ok(res) => res,
-                    Err(_) => {
-                        this.result.type_mismatches.insert(
-                            tgt_expr.into(),
-                            TypeMismatch { expected: target.clone(), actual: ty.clone() },
-                        );
-                        target
-                    }
-                }
-            } else {
-                ty
-            }
-        });
-
-        self.diverges = prev_diverges;
-        self.return_ty = prev_ret_ty;
-        self.return_coercion = prev_ret_coercion;
-
-        self.lower_async_block_type_impl_trait(inner_ty, tgt_expr)
-    }
-
     pub(crate) fn lower_async_block_type_impl_trait(
         &mut self,
         inner_ty: Ty,
@@ -974,6 +974,26 @@ impl InferenceContext<'_> {
         // Use the first type parameter as the output type of future.
         // existential type AsyncBlockImplTrait<InnerType>: Future<Output = InnerType>
         let impl_trait_id = crate::ImplTraitId::AsyncBlockTypeImplTrait(self.owner, tgt_expr);
+        let opaque_ty_id = self.db.intern_impl_trait_id(impl_trait_id).into();
+        TyKind::OpaqueType(opaque_ty_id, Substitution::from1(Interner, inner_ty)).intern(Interner)
+    }
+
+    pub(crate) fn lower_gen_block_type_impl_trait(&mut self, inner_ty: Ty, tgt_expr: ExprId) -> Ty {
+        // Use the first type parameter as the output type of future.
+        // existential type AsyncBlockImplTrait<InnerType>: Future<Output = InnerType>
+        let impl_trait_id = crate::ImplTraitId::GenBlockTypeImplTrait(self.owner, tgt_expr);
+        let opaque_ty_id = self.db.intern_impl_trait_id(impl_trait_id).into();
+        TyKind::OpaqueType(opaque_ty_id, Substitution::from1(Interner, inner_ty)).intern(Interner)
+    }
+
+    pub(crate) fn lower_async_gen_block_type_impl_trait(
+        &mut self,
+        inner_ty: Ty,
+        tgt_expr: ExprId,
+    ) -> Ty {
+        // Use the first type parameter as the output type of future.
+        // existential type AsyncBlockImplTrait<InnerType>: Future<Output = InnerType>
+        let impl_trait_id = crate::ImplTraitId::AsyncGenBlockTypeImplTrait(self.owner, tgt_expr);
         let opaque_ty_id = self.db.intern_impl_trait_id(impl_trait_id).into();
         TyKind::OpaqueType(opaque_ty_id, Substitution::from1(Interner, inner_ty)).intern(Interner)
     }

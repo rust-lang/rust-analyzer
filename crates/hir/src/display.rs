@@ -78,6 +78,9 @@ impl HirDisplay for Function {
         if data.has_async_kw() {
             f.write_str("async ")?;
         }
+        if data.has_gen_kw() {
+            f.write_str("gen ")?;
+        }
         if self.is_unsafe_to_call(db) {
             f.write_str("unsafe ")?;
         }
@@ -125,10 +128,9 @@ impl HirDisplay for Function {
         // `FunctionData::ret_type` will be `::core::future::Future<Output = ...>` for async fns.
         // Use ugly pattern match to strip the Future trait.
         // Better way?
-        let ret_type = if !data.has_async_kw() {
-            &data.ret_type
-        } else {
-            match &*data.ret_type {
+        let ret_type = match (data.has_async_kw(), data.has_gen_kw()) {
+            (false, false) => &data.ret_type,
+            _ => match &*data.ret_type {
                 TypeRef::ImplTrait(bounds) => match bounds[0].as_ref() {
                     TypeBound::Path(path, _) => {
                         path.segments().iter().last().unwrap().args_and_bindings.unwrap().bindings

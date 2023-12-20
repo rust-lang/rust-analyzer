@@ -57,6 +57,7 @@ pub(super) fn lower(
     body: Option<ast::Expr>,
     krate: CrateId,
     is_async_fn: bool,
+    is_gen_fn: bool,
 ) -> (Body, BodySourceMap) {
     ExprCollector {
         db,
@@ -73,7 +74,7 @@ pub(super) fn lower(
         label_ribs: Vec::new(),
         current_binding_owner: None,
     }
-    .collect(params, body, is_async_fn)
+    .collect(params, body, is_async_fn, is_gen_fn)
 }
 
 struct ExprCollector<'a> {
@@ -179,6 +180,7 @@ impl ExprCollector<'_> {
         param_list: Option<(ast::ParamList, impl Iterator<Item = bool>)>,
         body: Option<ast::Expr>,
         is_async_fn: bool,
+        is_gen_fn: bool,
     ) -> (Body, BodySourceMap) {
         if let Some((param_list, mut attr_enabled)) = param_list {
             let mut params = vec![];
@@ -202,23 +204,76 @@ impl ExprCollector<'_> {
             }
             self.body.params = params.into_boxed_slice();
         };
-        self.body.body_expr = self.with_label_rib(RibKind::Closure, |this| {
-            if is_async_fn {
-                match body {
+        self.body.body_expr =
+            self.with_label_rib(RibKind::Closure, |this| match (is_async_fn, is_gen_fn) {
+                (false, false) => this.collect_expr_opt(body),
+                // gen fn
+                (false, true) => match body {
                     Some(e) => {
-                        let syntax_ptr = AstPtr::new(&e);
                         let expr = this.collect_expr(e);
-                        this.alloc_expr_desugared_with_ptr(
-                            Expr::Async { id: None, statements: Box::new([]), tail: Some(expr) },
-                            syntax_ptr,
-                        )
+
+                        this.alloc_expr_desugared(Expr::Closure {
+                            args: Box::new([]),
+                            arg_types: Box::new([]),
+                            ret_type: None, // FIXME maybe unspecified?
+                            body: expr,
+                            closure_kind: ClosureKind::Coroutine(
+                                crate::hir::CoroutineKind::Desugared(
+                                    crate::hir::CoroutineDesugaring::Gen,
+                                    crate::hir::CoroutineSource::Fn,
+                                ),
+                                Movability::Movable,
+                            ),
+                            capture_by: CaptureBy::Ref,
+                        })
                     }
                     None => this.missing_expr(),
-                }
-            } else {
-                this.collect_expr_opt(body)
-            }
-        });
+                },
+                // async fn
+                (true, false) => match body {
+                    Some(e) => {
+                        let expr = this.collect_expr(e);
+
+                        this.alloc_expr_desugared(Expr::Closure {
+                            args: Box::new([]),
+                            arg_types: Box::new([]),
+                            ret_type: None, // FIXME maybe unspecified?
+                            body: expr,
+                            closure_kind: ClosureKind::Coroutine(
+                                crate::hir::CoroutineKind::Desugared(
+                                    crate::hir::CoroutineDesugaring::Async,
+                                    crate::hir::CoroutineSource::Fn,
+                                ),
+                                Movability::Movable,
+                            ),
+                            capture_by: CaptureBy::Ref,
+                        })
+                    }
+                    None => this.missing_expr(),
+                },
+                // async gen fn
+                (true, true) => match body {
+                    Some(e) => {
+                        let expr = this.collect_expr(e);
+
+                        this.alloc_expr_desugared(Expr::Closure {
+                            args: Box::new([]),
+                            arg_types: Box::new([]),
+                            ret_type: None, // FIXME maybe unspecified?
+                            body: expr,
+                            closure_kind: ClosureKind::Coroutine(
+                                crate::hir::CoroutineKind::Desugared(
+                                    crate::hir::CoroutineDesugaring::AsyncGen,
+                                    crate::hir::CoroutineSource::Fn,
+                                ),
+                                Movability::Movable,
+                            ),
+                            capture_by: CaptureBy::Ref,
+                        })
+                    }
+                    None => this.missing_expr(),
+                },
+            });
 
         (self.body, self.source_map)
     }
@@ -258,6 +313,7 @@ impl ExprCollector<'_> {
                 let expr = self.collect_expr_opt(e.expr());
                 self.alloc_expr(Expr::Let { pat, expr }, syntax_ptr)
             }
+            // https://github.com/compiler-errors/rust/blob/bd0eec74026d5f967afeadc3611bdb674a7b9de4/compiler/rustc_ast/src/ast.rs#L1430
             ast::Expr::BlockExpr(e) => match e.modifier() {
                 Some(ast::BlockModifier::Try(_)) => self.desugar_try_block(e),
                 Some(ast::BlockModifier::Unsafe(_)) => {
@@ -278,13 +334,76 @@ impl ExprCollector<'_> {
                         })
                     })
                 }
+                // https://github.com/compiler-errors/rust/blob/closure-kind/compiler/rustc_ast/src/ast.rs#L1430
+                // https://github.com/compiler-errors/rust/blob/bd0eec74026d5f967afeadc3611bdb674a7b9de4/compiler/rustc_ast_lowering/src/expr.rs#L186
                 Some(ast::BlockModifier::Async(_)) => {
                     self.with_label_rib(RibKind::Closure, |this| {
-                        this.collect_block_(e, |id, statements, tail| Expr::Async {
-                            id,
-                            statements,
-                            tail,
-                        })
+                        let (result_expr_id, _) = this.initialize_binding_owner(syntax_ptr);
+
+                        let body = this.collect_block(e);
+
+                        this.body.exprs[result_expr_id] = Expr::Closure {
+                            args: Box::new([]),
+                            arg_types: Box::new([]),
+                            ret_type: None, // FIXME maybe unspecified?
+                            body,
+                            closure_kind: ClosureKind::Coroutine(
+                                crate::hir::CoroutineKind::Desugared(
+                                    crate::hir::CoroutineDesugaring::Async,
+                                    crate::hir::CoroutineSource::Block,
+                                ),
+                                Movability::Movable,
+                            ),
+                            capture_by: CaptureBy::Ref,
+                        };
+
+                        result_expr_id
+                    })
+                }
+                Some(ast::BlockModifier::Gen(_)) => self.with_label_rib(RibKind::Closure, |this| {
+                    let (result_expr_id, _) = this.initialize_binding_owner(syntax_ptr);
+
+                    let body = this.collect_block(e);
+
+                    this.body.exprs[result_expr_id] = Expr::Closure {
+                        args: Box::new([]),
+                        arg_types: Box::new([]),
+                        ret_type: None, // FIXME maybe unspecified?
+                        body,
+                        closure_kind: ClosureKind::Coroutine(
+                            crate::hir::CoroutineKind::Desugared(
+                                crate::hir::CoroutineDesugaring::Gen,
+                                crate::hir::CoroutineSource::Block,
+                            ),
+                            Movability::Movable,
+                        ),
+                        capture_by: CaptureBy::Ref,
+                    };
+
+                    result_expr_id
+                }),
+                Some(ast::BlockModifier::AsyncGen(_)) => {
+                    self.with_label_rib(RibKind::Closure, |this| {
+                        let (result_expr_id, _) = this.initialize_binding_owner(syntax_ptr);
+
+                        let body = this.collect_block(e);
+
+                        this.body.exprs[result_expr_id] = Expr::Closure {
+                            args: Box::new([]),
+                            arg_types: Box::new([]),
+                            ret_type: None, // FIXME maybe unspecified?
+                            body,
+                            closure_kind: ClosureKind::Coroutine(
+                                crate::hir::CoroutineKind::Desugared(
+                                    crate::hir::CoroutineDesugaring::AsyncGen,
+                                    crate::hir::CoroutineSource::Block,
+                                ),
+                                Movability::Movable,
+                            ),
+                            capture_by: CaptureBy::Ref,
+                        };
+
+                        result_expr_id
                     })
                 }
                 Some(ast::BlockModifier::Const(_)) => {
@@ -301,10 +420,7 @@ impl ExprCollector<'_> {
                         result_expr_id
                     })
                 }
-                // FIXME
-                Some(ast::BlockModifier::AsyncGen(_)) | Some(ast::BlockModifier::Gen(_)) | None => {
-                    self.collect_block(e)
-                }
+                None => self.collect_block(e),
             },
             ast::Expr::LoopExpr(e) => {
                 let label = e.label().map(|label| self.collect_label(label));
@@ -503,6 +619,7 @@ impl ExprCollector<'_> {
                 }
             }
             ast::Expr::ClosureExpr(e) => self.with_label_rib(RibKind::Closure, |this| {
+                // here
                 let (result_expr_id, prev_binding_owner) =
                     this.initialize_binding_owner(syntax_ptr);
                 let mut args = Vec::new();
@@ -535,9 +652,39 @@ impl ExprCollector<'_> {
                     } else {
                         Movability::Movable
                     };
-                    ClosureKind::Coroutine(movability)
+                    ClosureKind::Coroutine(crate::hir::CoroutineKind::Coroutine, movability)
                 } else if e.async_token().is_some() {
-                    ClosureKind::Async
+                    // https://github.com/compiler-errors/rust/blob/bd0eec74026d5f967afeadc3611bdb674a7b9de4/compiler/rustc_ast_lowering/src/expr.rs#L1199 ?
+
+                    let capture_by =
+                        if e.move_token().is_some() { CaptureBy::Value } else { CaptureBy::Ref };
+
+                    let inner = Expr::Closure {
+                        args: Box::new([]),
+                        arg_types: Box::new([]),
+                        ret_type: ret_type.clone(),
+                        body,
+                        closure_kind: ClosureKind::Coroutine(
+                            crate::hir::CoroutineKind::Desugared(
+                                crate::hir::CoroutineDesugaring::Async,
+                                crate::hir::CoroutineSource::Closure,
+                            ),
+                            Movability::Movable,
+                        ),
+                        capture_by,
+                    };
+                    this.is_lowering_coroutine = prev_is_lowering_coroutine;
+                    this.current_binding_owner = prev_binding_owner;
+                    this.current_try_block_label = prev_try_block_label;
+                    this.body.exprs[result_expr_id] = Expr::Closure {
+                        args: args.into(),
+                        arg_types: arg_types.into(),
+                        ret_type,
+                        body: this.alloc_expr_desugared(inner),
+                        closure_kind: ClosureKind::Closure,
+                        capture_by,
+                    };
+                    return result_expr_id;
                 } else {
                     ClosureKind::Closure
                 };

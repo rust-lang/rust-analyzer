@@ -859,9 +859,22 @@ impl FunctionBody {
                     ast::Fn(fn_) => {
                         let func = sema.to_def(&fn_)?;
                         let mut ret_ty = func.ret_type(sema.db);
-                        if func.is_async(sema.db) {
-                            if let Some(async_ret) = func.async_ret_type(sema.db) {
-                                ret_ty = async_ret;
+                        match (func.is_async(sema.db), func.is_gen(sema.db)) {
+                            (false, false) => {}
+                            (false, true) => {
+                                if let Some(gen_ret) = func.gen_ret_type(sema.db) {
+                                    ret_ty = gen_ret;
+                                }
+                            }
+                            (true, false) => {
+                                if let Some(async_ret) = func.async_ret_type(sema.db) {
+                                    ret_ty = async_ret;
+                                }
+                            }
+                            (true, true) => {
+                                if let Some(async_gen_ret) = func.async_gen_ret_type(sema.db) {
+                                    ret_ty = async_gen_ret;
+                                }
                             }
                         }
                         (fn_.const_token().is_some(), fn_.body().map(ast::Expr::BlockExpr), Some(ret_ty))
@@ -1597,6 +1610,7 @@ fn format_function(
         fun.control_flow.is_async,
         fun.mods.is_const,
         fun.control_flow.is_unsafe,
+        false,
     )
 }
 

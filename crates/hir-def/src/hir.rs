@@ -185,11 +185,6 @@ pub enum Expr {
         tail: Option<ExprId>,
         label: Option<LabelId>,
     },
-    Async {
-        id: Option<BlockId>,
-        statements: Box<[Statement]>,
-        tail: Option<ExprId>,
-    },
     Const(ConstBlockId),
     // FIXME: Fold this into Block with an unsafe flag?
     Unsafe {
@@ -310,11 +305,59 @@ pub struct InlineAsm {
     pub e: ExprId,
 }
 
+// https://github.com/compiler-errors/rust/blob/bd0eec74026d5f967afeadc3611bdb674a7b9de4/compiler/rustc_hir/src/hir.rs#L952
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClosureKind {
+    /// This is a plain closure expression.
     Closure,
-    Coroutine(Movability),
+    /// This is a coroutine expression -- i.e. a closure expression in which
+    /// we've found a `yield`. These can arise either from "plain" coroutine
+    ///  usage (e.g. `let x = || { yield (); }`) or from a desugared expression
+    /// (e.g. `async` and `gen` blocks).
+    // FIXME(coroutines): We could probably remove movability here -- it can be deduced
+    // from the `CoroutineKind` in all cases (except for "plain" coroutines, which could
+    // carry the movability in the variant).
+    Coroutine(CoroutineKind, Movability),
+}
+
+/// The type of source expression that caused this coroutine to be created.
+#[derive(Clone, PartialEq, Eq, Debug, Copy, Hash)]
+pub enum CoroutineKind {
+    /// A coroutine that comes from a desugaring.
+    Desugared(CoroutineDesugaring, CoroutineSource),
+
+    /// A coroutine literal created via a `yield` inside a closure.
+    Coroutine,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Copy, Hash)]
+pub enum CoroutineDesugaring {
+    /// An explicit `async` block or the body of an `async` function.
     Async,
+
+    /// An explicit `gen` block or the body of a `gen` function.
+    Gen,
+
+    /// An explicit `async gen` block or the body of an `async gen` function,
+    /// which is able to both `yield` and `.await`.
+    AsyncGen,
+}
+
+/// In the case of a coroutine created as part of an async/gen construct,
+/// which kind of async/gen construct caused it to be created?
+///
+/// This helps error messages but is also used to drive coercions in
+/// type-checking (see #60424).
+#[derive(Clone, PartialEq, Eq, Hash, Debug, Copy)]
+pub enum CoroutineSource {
+    /// An explicit `async`/`gen` block written by the user.
+    Block,
+
+    /// An explicit `async`/`gen` closure written by the user.
+    Closure,
+
+    /// The `async`/`gen` block generated as the body of an async/gen function.
+    Fn,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -384,9 +427,7 @@ impl Expr {
                 f(*expr);
             }
             Expr::Const(_) => (),
-            Expr::Block { statements, tail, .. }
-            | Expr::Unsafe { statements, tail, .. }
-            | Expr::Async { statements, tail, .. } => {
+            Expr::Block { statements, tail, .. } | Expr::Unsafe { statements, tail, .. } => {
                 for stmt in statements.iter() {
                     match stmt {
                         Statement::Let { initializer, else_branch, .. } => {

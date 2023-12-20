@@ -370,6 +370,168 @@ impl chalk_solve::RustIrDatabase<Interner> for ChalkContext<'_> {
                     make_single_type_binders(bound)
                 }
             }
+            crate::ImplTraitId::GenBlockTypeImplTrait(..) => {
+                if let Some((iterator_trait, iterator_item)) = self
+                    .db
+                    .lang_item(self.krate, LangItem::Iterator)
+                    .and_then(|item| item.as_trait())
+                    .and_then(|trait_| {
+                        let alias =
+                            self.db.trait_data(trait_).associated_type_by_name(&sym::Item)?;
+                        Some((trait_, alias))
+                    })
+                {
+                    // Making up Symbol’s value as variable is void: AsyncBlock<T>:
+                    //
+                    // |--------------------OpaqueTyDatum-------------------|
+                    //        |-------------OpaqueTyDatumBound--------------|
+                    // for<T> <Self> [Future<Self>, Future::Output<Self> = T]
+                    //     ^1  ^0            ^0                    ^0      ^1
+                    let impl_bound = WhereClause::Implemented(TraitRef {
+                        trait_id: to_chalk_trait_id(iterator_trait),
+                        // Self type as the first parameter.
+                        substitution: Substitution::from1(
+                            Interner,
+                            TyKind::BoundVar(BoundVar {
+                                debruijn: DebruijnIndex::INNERMOST,
+                                index: 0,
+                            })
+                            .intern(Interner),
+                        ),
+                    });
+                    let mut binder = vec![];
+                    binder.push(crate::wrap_empty_binders(impl_bound));
+                    let sized_trait = self
+                        .db
+                        .lang_item(self.krate, LangItem::Sized)
+                        .and_then(|item| item.as_trait());
+                    if let Some(sized_trait_) = sized_trait {
+                        let sized_bound = WhereClause::Implemented(TraitRef {
+                            trait_id: to_chalk_trait_id(sized_trait_),
+                            // Self type as the first parameter.
+                            substitution: Substitution::from1(
+                                Interner,
+                                TyKind::BoundVar(BoundVar {
+                                    debruijn: DebruijnIndex::INNERMOST,
+                                    index: 0,
+                                })
+                                .intern(Interner),
+                            ),
+                        });
+                        binder.push(crate::wrap_empty_binders(sized_bound));
+                    }
+                    let proj_bound = WhereClause::AliasEq(AliasEq {
+                        alias: AliasTy::Projection(ProjectionTy {
+                            associated_ty_id: to_assoc_type_id(iterator_item),
+                            // Self type as the first parameter.
+                            substitution: Substitution::from1(
+                                Interner,
+                                TyKind::BoundVar(BoundVar::new(DebruijnIndex::INNERMOST, 0))
+                                    .intern(Interner),
+                            ),
+                        }),
+                        // The parameter of the opaque type.
+                        ty: TyKind::BoundVar(BoundVar { debruijn: DebruijnIndex::ONE, index: 0 })
+                            .intern(Interner),
+                    });
+                    binder.push(crate::wrap_empty_binders(proj_bound));
+                    let bound = OpaqueTyDatumBound {
+                        bounds: make_single_type_binders(binder),
+                        where_clauses: chalk_ir::Binders::empty(Interner, vec![]),
+                    };
+                    // The opaque type has 1 parameter.
+                    make_single_type_binders(bound)
+                } else {
+                    // If failed to find Symbol’s value as variable is void: Iterator::Item, return empty bounds as fallback.
+                    let bound = OpaqueTyDatumBound {
+                        bounds: chalk_ir::Binders::empty(Interner, vec![]),
+                        where_clauses: chalk_ir::Binders::empty(Interner, vec![]),
+                    };
+                    // The opaque type has 1 parameter.
+                    make_single_type_binders(bound)
+                }
+            }
+            crate::ImplTraitId::AsyncGenBlockTypeImplTrait(..) => {
+                if let Some((async_iterator_trait, async_iterator_item)) = self
+                    .db
+                    .lang_item(self.krate, LangItem::AsyncIterator)
+                    .and_then(|item| item.as_trait())
+                    .and_then(|trait_| {
+                        let alias =
+                            self.db.trait_data(trait_).associated_type_by_name(&sym::Item)?;
+                        Some((trait_, alias))
+                    })
+                {
+                    // Making up Symbol’s value as variable is void: AsyncBlock<T>:
+                    //
+                    // |--------------------OpaqueTyDatum-------------------|
+                    //        |-------------OpaqueTyDatumBound--------------|
+                    // for<T> <Self> [Future<Self>, Future::Output<Self> = T]
+                    //     ^1  ^0            ^0                    ^0      ^1
+                    let impl_bound = WhereClause::Implemented(TraitRef {
+                        trait_id: to_chalk_trait_id(async_iterator_trait),
+                        // Self type as the first parameter.
+                        substitution: Substitution::from1(
+                            Interner,
+                            TyKind::BoundVar(BoundVar {
+                                debruijn: DebruijnIndex::INNERMOST,
+                                index: 0,
+                            })
+                            .intern(Interner),
+                        ),
+                    });
+                    let mut binder = vec![];
+                    binder.push(crate::wrap_empty_binders(impl_bound));
+                    let sized_trait = self
+                        .db
+                        .lang_item(self.krate, LangItem::Sized)
+                        .and_then(|item| item.as_trait());
+                    if let Some(sized_trait_) = sized_trait {
+                        let sized_bound = WhereClause::Implemented(TraitRef {
+                            trait_id: to_chalk_trait_id(sized_trait_),
+                            // Self type as the first parameter.
+                            substitution: Substitution::from1(
+                                Interner,
+                                TyKind::BoundVar(BoundVar {
+                                    debruijn: DebruijnIndex::INNERMOST,
+                                    index: 0,
+                                })
+                                .intern(Interner),
+                            ),
+                        });
+                        binder.push(crate::wrap_empty_binders(sized_bound));
+                    }
+                    let proj_bound = WhereClause::AliasEq(AliasEq {
+                        alias: AliasTy::Projection(ProjectionTy {
+                            associated_ty_id: to_assoc_type_id(async_iterator_item),
+                            // Self type as the first parameter.
+                            substitution: Substitution::from1(
+                                Interner,
+                                TyKind::BoundVar(BoundVar::new(DebruijnIndex::INNERMOST, 0))
+                                    .intern(Interner),
+                            ),
+                        }),
+                        // The parameter of the opaque type.
+                        ty: TyKind::BoundVar(BoundVar { debruijn: DebruijnIndex::ONE, index: 0 })
+                            .intern(Interner),
+                    });
+                    binder.push(crate::wrap_empty_binders(proj_bound));
+                    let bound = OpaqueTyDatumBound {
+                        bounds: make_single_type_binders(binder),
+                        where_clauses: chalk_ir::Binders::empty(Interner, vec![]),
+                    };
+                    // The opaque type has 1 parameter.
+                    make_single_type_binders(bound)
+                } else {
+                    // If failed to find Symbol’s value as variable is void: Future::Output, return empty bounds as fallback.
+                    let bound = OpaqueTyDatumBound {
+                        bounds: chalk_ir::Binders::empty(Interner, vec![]),
+                        where_clauses: chalk_ir::Binders::empty(Interner, vec![]),
+                    };
+                    // The opaque type has 1 parameter.
+                    make_single_type_binders(bound)
+                }
+            }
         };
 
         Arc::new(OpaqueTyDatum { opaque_ty_id: id, bound })
@@ -482,7 +644,7 @@ impl chalk_solve::RustIrDatabase<Interner> for ChalkContext<'_> {
 
         let movability = match self.db.body(parent)[expr] {
             hir_def::hir::Expr::Closure {
-                closure_kind: hir_def::hir::ClosureKind::Coroutine(movability),
+                closure_kind: hir_def::hir::ClosureKind::Coroutine(_, movability),
                 ..
             } => movability,
             _ => unreachable!("non coroutine expression interned as coroutine"),

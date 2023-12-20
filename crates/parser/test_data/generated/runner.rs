@@ -281,6 +281,13 @@ mod ok {
         );
     }
     #[test]
+    fn gen_fn() {
+        run_and_expect_no_errors_with_edition(
+            "test_data/parser/inline/ok/gen_fn.rs",
+            crate::Edition::Edition2024,
+        );
+    }
+    #[test]
     fn generic_arg() { run_and_expect_no_errors("test_data/parser/inline/ok/generic_arg.rs"); }
     #[test]
     fn generic_param_attribute() {
@@ -727,8 +734,6 @@ mod err {
     fn fn_pointer_type_missing_fn() {
         run_and_expect_errors("test_data/parser/inline/err/fn_pointer_type_missing_fn.rs");
     }
-    #[test]
-    fn gen_fn() { run_and_expect_errors("test_data/parser/inline/err/gen_fn.rs"); }
     #[test]
     fn generic_arg_list_recover() {
         run_and_expect_errors("test_data/parser/inline/err/generic_arg_list_recover.rs");

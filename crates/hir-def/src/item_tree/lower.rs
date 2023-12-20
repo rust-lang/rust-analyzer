@@ -409,12 +409,26 @@ impl<'a> Ctx<'a> {
             None => TypeRef::unit(),
         };
 
-        let ret_type = if func.async_token().is_some() {
-            let future_impl = desugar_future_path(ret_type);
-            let ty_bound = Interned::new(TypeBound::Path(future_impl, TraitBoundModifier::None));
-            TypeRef::ImplTrait(vec![ty_bound])
-        } else {
-            ret_type
+        let ret_type = match (func.async_token(), func.gen_token()) {
+            (None, None) => ret_type,
+            (None, Some(_)) => {
+                let iterator_impl = desugar_iterator_path(ret_type);
+                let ty_bound =
+                    Interned::new(TypeBound::Path(iterator_impl, TraitBoundModifier::None));
+                TypeRef::ImplTrait(vec![ty_bound])
+            }
+            (Some(_), None) => {
+                let future_impl = desugar_future_path(ret_type);
+                let ty_bound =
+                    Interned::new(TypeBound::Path(future_impl, TraitBoundModifier::None));
+                TypeRef::ImplTrait(vec![ty_bound])
+            }
+            (Some(_), Some(_)) => {
+                let async_iterator_impl = desugar_async_iterator_path(ret_type);
+                let ty_bound =
+                    Interned::new(TypeBound::Path(async_iterator_impl, TraitBoundModifier::None));
+                TypeRef::ImplTrait(vec![ty_bound])
+            }
         };
 
         let abi = func.abi().map(lower_abi);
@@ -439,6 +453,9 @@ impl<'a> Ctx<'a> {
         }
         if func.unsafe_token().is_some() {
             flags |= FnFlags::HAS_UNSAFE_KW;
+        }
+        if func.gen_token().is_some() {
+            flags |= FnFlags::HAS_GEN_KW;
         }
         if has_var_args {
             flags |= FnFlags::IS_VARARGS;
@@ -767,6 +784,42 @@ fn desugar_future_path(orig: TypeRef) -> Path {
         std::iter::repeat(None).take(path.segments().len() - 1).collect();
     let binding = AssociatedTypeBinding {
         name: Name::new_symbol_root(sym::Output.clone()),
+        args: None,
+        type_ref: Some(orig),
+        bounds: Box::default(),
+    };
+    generic_args.push(Some(Interned::new(GenericArgs {
+        bindings: Box::new([binding]),
+        ..GenericArgs::empty()
+    })));
+
+    Path::from_known_path(path, generic_args)
+}
+
+fn desugar_iterator_path(orig: TypeRef) -> Path {
+    let path = path![core::iter::Iterator];
+    let mut generic_args: Vec<_> =
+        std::iter::repeat(None).take(path.segments().len() - 1).collect();
+    let binding = AssociatedTypeBinding {
+        name: Name::new_symbol_root(sym::Item.clone()),
+        args: None,
+        type_ref: Some(orig),
+        bounds: Box::default(),
+    };
+    generic_args.push(Some(Interned::new(GenericArgs {
+        bindings: Box::new([binding]),
+        ..GenericArgs::empty()
+    })));
+
+    Path::from_known_path(path, generic_args)
+}
+
+fn desugar_async_iterator_path(orig: TypeRef) -> Path {
+    let path = path![core::async_iter::AsyncIterator];
+    let mut generic_args: Vec<_> =
+        std::iter::repeat(None).take(path.segments().len() - 1).collect();
+    let binding = AssociatedTypeBinding {
+        name: Name::new_symbol_root(sym::Item.clone()),
         args: None,
         type_ref: Some(orig),
         bounds: Box::default(),

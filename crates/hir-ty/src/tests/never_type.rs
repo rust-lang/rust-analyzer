@@ -18,10 +18,10 @@ fn test() {
 fn infer_never2() {
     check_types(
         r#"
-fn gen<T>() -> T { loop {} }
+fn r#gen<T>() -> T { loop {} }
 
 fn test() {
-    let a = gen();
+    let a = r#gen();
     if false { a } else { loop {} };
     a;
 } //^ !
@@ -33,10 +33,10 @@ fn test() {
 fn infer_never3() {
     check_types(
         r#"
-fn gen<T>() -> T { loop {} }
+fn r#gen<T>() -> T { loop {} }
 
 fn test() {
-    let a = gen();
+    let a = r#gen();
     if false { loop {} } else { a };
     a;
   //^ !
@@ -63,10 +63,10 @@ fn test() {
 fn never_type_can_be_reinferred1() {
     check_types(
         r#"
-fn gen<T>() -> T { loop {} }
+fn r#gen<T>() -> T { loop {} }
 
 fn test() {
-    let a = gen();
+    let a = r#gen();
     if false { loop {} } else { a };
     a;
   //^ ()

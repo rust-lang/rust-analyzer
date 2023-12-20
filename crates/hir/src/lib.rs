@@ -2078,6 +2078,40 @@ impl Function {
         None
     }
 
+    pub fn gen_ret_type(self, db: &dyn HirDatabase) -> Option<Type> {
+        if !self.is_gen(db) {
+            return None;
+        }
+        let resolver = self.id.resolver(db.upcast());
+        let substs = TyBuilder::placeholder_subst(db, self.id);
+        let callable_sig = db.callable_item_signature(self.id.into()).substitute(Interner, &substs);
+        let ret_ty = callable_sig.ret().clone();
+        for pred in ret_ty.impl_trait_bounds(db).into_iter().flatten() {
+            if let WhereClause::AliasEq(output_eq) = pred.into_value_and_skipped_binders().0 {
+                return Type::new_with_resolver_inner(db, &resolver, output_eq.ty).into();
+            }
+        }
+        never!("gen fn ret_type should be impl Iterator");
+        None
+    }
+
+    pub fn async_gen_ret_type(self, db: &dyn HirDatabase) -> Option<Type> {
+        if !(self.is_async(db) && self.is_gen(db)) {
+            return None;
+        }
+        let resolver = self.id.resolver(db.upcast());
+        let substs = TyBuilder::placeholder_subst(db, self.id);
+        let callable_sig = db.callable_item_signature(self.id.into()).substitute(Interner, &substs);
+        let ret_ty = callable_sig.ret().clone();
+        for pred in ret_ty.impl_trait_bounds(db).into_iter().flatten() {
+            if let WhereClause::AliasEq(output_eq) = pred.into_value_and_skipped_binders().0 {
+                return Type::new_with_resolver_inner(db, &resolver, output_eq.ty).into();
+            }
+        }
+        never!("async gen fn ret_type should be impl AsyncIterator");
+        None
+    }
+
     pub fn has_self_param(self, db: &dyn HirDatabase) -> bool {
         db.function_data(self.id).has_self_param()
     }
@@ -2179,6 +2213,10 @@ impl Function {
 
     pub fn is_async(self, db: &dyn HirDatabase) -> bool {
         db.function_data(self.id).has_async_kw()
+    }
+
+    pub fn is_gen(self, db: &dyn HirDatabase) -> bool {
+        db.function_data(self.id).has_gen_kw()
     }
 
     /// Does this function have `#[test]` attribute?

@@ -145,6 +145,10 @@ impl FunctionData {
     pub fn is_varargs(&self) -> bool {
         self.flags.contains(FnFlags::IS_VARARGS)
     }
+
+    pub fn has_gen_kw(&self) -> bool {
+        self.flags.contains(FnFlags::HAS_GEN_KW)
+    }
 }
 
 fn parse_rustc_legacy_const_generics(tt: &crate::tt::Subtree) -> Box<[u32]> {
@@ -295,9 +299,12 @@ impl TraitData {
         })
     }
 
-    pub fn associated_type_by_name(&self, name: &Name) -> Option<TypeAliasId> {
+    pub fn associated_type_by_name<S>(&self, sym: &S) -> Option<TypeAliasId>
+    where
+        Name: PartialEq<S>,
+    {
         self.items.iter().find_map(|(item_name, item)| match item {
-            AssocItemId::TypeAliasId(t) if item_name == name => Some(*t),
+            AssocItemId::TypeAliasId(t) if *item_name == *sym => Some(*t),
             _ => None,
         })
     }

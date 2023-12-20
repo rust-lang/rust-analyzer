@@ -121,6 +121,7 @@ pub(crate) fn generate_delegate_methods(acc: &mut Assists, ctx: &AssistContext<'
                 let is_async = method_source.async_token().is_some();
                 let is_const = method_source.const_token().is_some();
                 let is_unsafe = method_source.unsafe_token().is_some();
+                let is_gen = method_source.gen_token().is_some();
 
                 let fn_name = make::name(&name);
 
@@ -153,6 +154,7 @@ pub(crate) fn generate_delegate_methods(acc: &mut Assists, ctx: &AssistContext<'
                     is_async,
                     is_const,
                     is_unsafe,
+                    is_gen,
                 )
                 .clone_for_update();
 
@@ -712,6 +714,41 @@ impl Person {
     fn age(&self) -> u8 { 0 }
 }
 "#,
+        );
+    }
+
+    #[test]
+    fn test_gen_fn() {
+        check_assist(
+            generate_delegate_methods,
+            r#"
+struct Age(u8);
+impl Age {
+    gen fn age(&self) -> u8 {
+        self.0
+    }
+}
+
+struct Person {
+    ag$0e: Age,
+}"#,
+            r#"
+struct Age(u8);
+impl Age {
+    gen fn age(&self) -> u8 {
+        self.0
+    }
+}
+
+struct Person {
+    age: Age,
+}
+
+impl Person {
+    $0gen fn age(&self) -> u8 {
+        self.age.age()
+    }
+}"#,
         );
     }
 }

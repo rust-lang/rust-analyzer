@@ -88,6 +88,12 @@ impl FallibleTypeFolder<Interner> for Filler<'_> {
                     crate::ImplTraitId::AsyncBlockTypeImplTrait(_, _) => {
                         not_supported!("async block impl trait");
                     }
+                    crate::ImplTraitId::GenBlockTypeImplTrait(_, _) => {
+                        not_supported!("gen block impl trait");
+                    }
+                    crate::ImplTraitId::AsyncGenBlockTypeImplTrait(_, _) => {
+                        not_supported!("async gen block impl trait");
+                    }
                 }
             }
             _ => ty.try_super_fold_with(self.as_dyn(), outer_binder),

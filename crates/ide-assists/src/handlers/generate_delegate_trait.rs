@@ -735,6 +735,7 @@ fn func_assoc_item(
         item.async_token().is_some(),
         item.const_token().is_some(),
         item.unsafe_token().is_some(),
+        item.gen_token().is_some(),
     )
     .clone_for_update();
 
@@ -1718,6 +1719,42 @@ impl some_module::SomeTrait for B {
 }"#,
         )
     }
+    #[test]
+    fn test_gen_fn() {
+        check_assist(
+            generate_delegate_trait,
+            r#"
+struct Base;
+struct S {
+    ba$0se: Base,
+}
+
+trait Trait {
+    gen fn a_func();
+}
+impl Trait for Base {
+    gen fn a_func() {}
+}
+"#,
+            r#"
+struct Base;
+struct S {
+    base: Base,
+}
+
+impl Trait for S {
+    gen fn a_func() {
+        <Base as Trait>::a_func()
+    }
+}
+
+trait Trait {
+    gen fn a_func();
+}
+impl Trait for Base {
+    gen fn a_func() {}
+"#)
+}
 
     #[test]
     fn test_fn_with_attrs() {

@@ -22,9 +22,9 @@ struct S<T> { a: T }
 fn f<T>(_: &[T]) -> T { loop {} }
 fn g<T>(_: S<&[T]>) -> T { loop {} }
 
-fn gen<T>() -> *mut [T; 2] { loop {} }
+fn r#gen<T>() -> *mut [T; 2] { loop {} }
 fn test1<U>() -> *mut [U] {
-    gen()
+    r#gen()
 }
 
 fn test2() {
@@ -339,6 +339,54 @@ fn test() {
             return &1u32;
         }
         &&1u32
+    };
+}
+        "#,
+    );
+}
+
+#[test]
+fn gen_yield_coerce() {
+    check_no_mismatches(
+        r#"
+fn test() {
+    let g = gen {
+        yield &1u32;
+        yield &&1u32;
+    };
+}
+        "#,
+    );
+    check_no_mismatches(
+        r#"
+fn test() {
+    let g = gen move {
+        yield &1u32;
+        yield &&1u32;
+    };
+}
+        "#,
+    );
+}
+
+#[test]
+fn async_gen_yield_coerce() {
+    check_no_mismatches(
+        r#"
+fn test() {
+    let g = async gen {
+        yield &1u32;
+        yield &&1u32;
+    };
+}
+        "#,
+    );
+    check_no_mismatches(
+        r#"
+fn test() {
+    let g = async gen move {
+        yield &1u32;
+        yield &&1u32;
     };
 }
         "#,

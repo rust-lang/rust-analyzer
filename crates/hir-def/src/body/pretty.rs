@@ -6,8 +6,8 @@ use itertools::Itertools;
 
 use crate::{
     hir::{
-        Array, BindingAnnotation, CaptureBy, ClosureKind, Literal, LiteralOrConst, Movability,
-        Statement,
+        Array, BindingAnnotation, BindingId, CaptureBy, ClosureKind, CoroutineDesugaring,
+        CoroutineKind, Literal, LiteralOrConst, Movability, Statement,
     },
     pretty::{print_generic_args, print_path, print_type_ref},
     type_ref::TypeRef,
@@ -400,14 +400,29 @@ impl Printer<'_> {
                 w!(self, "]");
             }
             Expr::Closure { args, arg_types, ret_type, body, closure_kind, capture_by } => {
+                if let ClosureKind::Coroutine(_, Movability::Static) = closure_kind {
+                    w!(self, "static ");
+                }
                 match closure_kind {
-                    ClosureKind::Coroutine(Movability::Static) => {
-                        w!(self, "static ");
-                    }
-                    ClosureKind::Async => {
+                    ClosureKind::Coroutine(
+                        CoroutineKind::Desugared(CoroutineDesugaring::Async, _),
+                        _,
+                    ) => {
                         w!(self, "async ");
                     }
-                    _ => (),
+                    ClosureKind::Coroutine(
+                        CoroutineKind::Desugared(CoroutineDesugaring::AsyncGen, _),
+                        _,
+                    ) => {
+                        w!(self, "async gen ");
+                    }
+                    ClosureKind::Coroutine(
+                        CoroutineKind::Desugared(CoroutineDesugaring::Gen, _),
+                        _,
+                    ) => {
+                        w!(self, "gen ");
+                    }
+                    _ => {}
                 }
                 match capture_by {
                     CaptureBy::Value => {
@@ -415,23 +430,25 @@ impl Printer<'_> {
                     }
                     CaptureBy::Ref => (),
                 }
-                w!(self, "|");
-                for (i, (pat, ty)) in args.iter().zip(arg_types.iter()).enumerate() {
-                    if i != 0 {
-                        w!(self, ", ");
+                if let ClosureKind::Closure = closure_kind {
+                    w!(self, "|");
+                    for (i, (pat, ty)) in args.iter().zip(arg_types.iter()).enumerate() {
+                        if i != 0 {
+                            w!(self, ", ");
+                        }
+                        self.print_pat(*pat);
+                        if let Some(ty) = ty {
+                            w!(self, ": ");
+                            self.print_type_ref(ty);
+                        }
                     }
-                    self.print_pat(*pat);
-                    if let Some(ty) = ty {
-                        w!(self, ": ");
-                        self.print_type_ref(ty);
+                    w!(self, "|");
+                    if let Some(ret_ty) = ret_type {
+                        w!(self, " -> ");
+                        self.print_type_ref(ret_ty);
                     }
+                    self.whitespace();
                 }
-                w!(self, "|");
-                if let Some(ret_ty) = ret_type {
-                    w!(self, " -> ");
-                    self.print_type_ref(ret_ty);
-                }
-                self.whitespace();
                 self.print_expr(*body);
             }
             Expr::Tuple { exprs, is_assignee_expr: _ } => {
@@ -470,9 +487,6 @@ impl Printer<'_> {
             }
             Expr::Unsafe { id: _, statements, tail } => {
                 self.print_block(Some("unsafe "), statements, tail);
-            }
-            Expr::Async { id: _, statements, tail } => {
-                self.print_block(Some("async "), statements, tail);
             }
             Expr::Const(id) => {
                 w!(self, "const {{ /* {id:?} */ }}");

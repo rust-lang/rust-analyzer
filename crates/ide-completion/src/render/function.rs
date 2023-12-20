@@ -283,10 +283,25 @@ fn detail(db: &dyn HirDatabase, func: hir::Function) -> String {
     if func.is_const(db) {
         format_to!(detail, "const ");
     }
-    if func.is_async(db) {
-        format_to!(detail, "async ");
-        if let Some(async_ret) = func.async_ret_type(db) {
-            ret_ty = async_ret;
+    match (func.is_async(db), func.is_gen(db)) {
+        (false, false) => {}
+        (false, true) => {
+            format_to!(detail, "gen ");
+            if let Some(gen_ret) = func.gen_ret_type(db) {
+                ret_ty = gen_ret;
+            }
+        }
+        (true, false) => {
+            format_to!(detail, "async ");
+            if let Some(async_ret) = func.async_ret_type(db) {
+                ret_ty = async_ret;
+            }
+        }
+        (true, true) => {
+            format_to!(detail, "async gen ");
+            if let Some(async_gen_ret) = func.async_gen_ret_type(db) {
+                ret_ty = async_gen_ret;
+            }
         }
     }
     if func.is_unsafe_to_call(db) {

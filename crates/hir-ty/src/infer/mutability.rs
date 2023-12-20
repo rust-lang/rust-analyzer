@@ -51,7 +51,6 @@ impl InferenceContext<'_> {
             }
             Expr::Let { pat, expr } => self.infer_mut_expr(*expr, self.pat_bound_mutability(*pat)),
             Expr::Block { id: _, statements, tail, label: _ }
-            | Expr::Async { id: _, statements, tail }
             | Expr::Unsafe { id: _, statements, tail } => {
                 for st in statements.iter() {
                     match st {

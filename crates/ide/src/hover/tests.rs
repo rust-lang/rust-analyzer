@@ -2252,6 +2252,34 @@ fn test_hover_function_show_qualifiers() {
             ```
         "#]],
     );
+    check(
+        r#"async gen fn foo$0() {}"#,
+        expect![[r#"
+                *foo*
+
+                ```rust
+                test
+                ```
+
+                ```rust
+                async gen fn foo()
+                ```
+            "#]],
+    );
+    check(
+        r#"gen fn foo$0() {}"#,
+        expect![[r#"
+                *foo*
+
+                ```rust
+                test
+                ```
+
+                ```rust
+                gen fn foo()
+                ```
+            "#]],
+    );
 }
 
 #[test]
@@ -8479,8 +8507,8 @@ impl Iterator for S {
                                 file_id: FileId(
                                     1,
                                 ),
-                                full_range: 8638..9104,
-                                focus_range: 8682..8690,
+                                full_range: 6851..7356,
+                                focus_range: 6934..6942,
                                 name: "Iterator",
                                 kind: Trait,
                                 container_name: "iterator",

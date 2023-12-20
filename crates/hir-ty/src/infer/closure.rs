@@ -529,9 +529,7 @@ impl InferenceContext<'_> {
                     self.consume_expr(expr);
                 }
             }
-            Expr::Async { statements, tail, .. }
-            | Expr::Unsafe { statements, tail, .. }
-            | Expr::Block { statements, tail, .. } => {
+            Expr::Unsafe { statements, tail, .. } | Expr::Block { statements, tail, .. } => {
                 for s in statements.iter() {
                     match s {
                         Statement::Let { pat, type_ref: _, initializer, else_branch } => {
@@ -679,7 +677,6 @@ impl InferenceContext<'_> {
             Expr::Closure { .. } => {
                 let ty = self.expr_ty(tgt_expr);
                 let TyKind::Closure(id, _) = ty.kind(Interner) else {
-                    never!("closure type is always closure");
                     return;
                 };
                 let (captures, _) =

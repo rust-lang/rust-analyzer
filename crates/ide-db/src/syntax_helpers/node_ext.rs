@@ -277,8 +277,11 @@ pub fn for_each_tail_expr(expr: &ast::Expr, cb: &mut dyn FnMut(&ast::Expr)) {
     match expr {
         ast::Expr::BlockExpr(b) => {
             match b.modifier() {
+                // here?
                 Some(
                     ast::BlockModifier::Async(_)
+                    | ast::BlockModifier::Gen(_)
+                    | ast::BlockModifier::AsyncGen(_)
                     | ast::BlockModifier::Try(_)
                     | ast::BlockModifier::Const(_),
                 ) => return cb(expr),
@@ -289,8 +292,6 @@ pub fn for_each_tail_expr(expr: &ast::Expr, cb: &mut dyn FnMut(&ast::Expr)) {
                     });
                 }
                 Some(ast::BlockModifier::Unsafe(_)) => (),
-                Some(ast::BlockModifier::Gen(_)) => (),
-                Some(ast::BlockModifier::AsyncGen(_)) => (),
                 None => (),
             }
             if let Some(stmt_list) = b.stmt_list() {

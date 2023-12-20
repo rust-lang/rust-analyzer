@@ -378,6 +378,7 @@ pub use crate::name as __name;
 
 #[macro_export]
 macro_rules! __known_path {
+    (core::async_iter::AsyncIterator) => {};
     (core::iter::IntoIterator) => {};
     (core::iter::Iterator) => {};
     (core::result::Result) => {};

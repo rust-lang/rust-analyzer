@@ -432,3 +432,20 @@ pub(self) struct S;
         "#]],
     )
 }
+
+#[test]
+fn gen_fn() {
+    check(
+        r#"
+gen fn test1() {}
+async gen fn test2() {}
+        "#,
+        expect![[r#"
+            // AstId: 1
+            pub(self) gen fn test1() -> impl ::core::iter::Iterator::<Item = ()> { ... }
+
+            // AstId: 2
+            pub(self) async gen fn test2() -> impl ::core::async_iter::AsyncIterator::<Item = ()> { ... }
+        "#]],
+    )
+}
