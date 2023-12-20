@@ -251,6 +251,9 @@ fn detail(db: &dyn HirDatabase, func: hir::Function) -> String {
             ret_ty = async_ret;
         }
     }
+    if func.is_gen(db) {
+        format_to!(detail, "gen ");
+    }
     if func.is_unsafe_to_call(db) {
         format_to!(detail, "unsafe ");
     }

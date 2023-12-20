@@ -2114,6 +2114,10 @@ impl Function {
         db.function_data(self.id).has_async_kw()
     }
 
+    pub fn is_gen(self, db: &dyn HirDatabase) -> bool {
+        db.function_data(self.id).has_gen_kw()
+    }
+
     /// Does this function have `#[test]` attribute?
     pub fn is_test(self, db: &dyn HirDatabase) -> bool {
         db.function_data(self.id).attrs.is_test()

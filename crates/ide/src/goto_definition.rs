@@ -1605,8 +1605,8 @@ where T : Bound
 struct A;
 impl Bound for A{}
 fn f() {
-    let gen = Gen::<A>(A);
-    gen.g$0();
+    let r#gen = Gen::<A>(A);
+    r#gen.g$0();
 }
                 "#,
             );
@@ -1631,8 +1631,8 @@ where T : Bound
 struct A;
 impl Bound for A{}
 fn f() {
-    let gen = Gen::<A>(A);
-    gen.g$0();
+    let r#gen = Gen::<A>(A);
+    r#gen.g$0();
 }
 "#,
             );

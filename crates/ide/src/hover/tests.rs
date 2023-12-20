@@ -1559,6 +1559,34 @@ fn test_hover_function_show_qualifiers() {
             ```
         "#]],
     );
+    check(
+        r#"async gen fn foo$0() {}"#,
+        expect![[r#"
+                *foo*
+
+                ```rust
+                test
+                ```
+
+                ```rust
+                async gen fn foo()
+                ```
+            "#]],
+    );
+    check(
+        r#"gen fn foo$0() {}"#,
+        expect![[r#"
+                *foo*
+
+                ```rust
+                test
+                ```
+
+                ```rust
+                gen fn foo()
+                ```
+            "#]],
+    );
 }
 
 #[test]

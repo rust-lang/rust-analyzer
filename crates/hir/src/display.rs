@@ -44,6 +44,9 @@ impl HirDisplay for Function {
         if data.has_async_kw() {
             f.write_str("async ")?;
         }
+        if data.has_gen_kw() {
+            f.write_str("gen ")?;
+        }
         if self.is_unsafe_to_call(db) {
             f.write_str("unsafe ")?;
         }

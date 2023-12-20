@@ -22,9 +22,9 @@ struct S<T> { a: T }
 fn f<T>(_: &[T]) -> T { loop {} }
 fn g<T>(_: S<&[T]>) -> T { loop {} }
 
-fn gen<T>() -> *mut [T; 2] { loop {} }
+fn r#gen<T>() -> *mut [T; 2] { loop {} }
 fn test1<U>() -> *mut [U] {
-    gen()
+    r#gen()
 }
 
 fn test2() {

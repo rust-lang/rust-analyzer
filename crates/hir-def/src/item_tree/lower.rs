@@ -387,6 +387,9 @@ impl<'a> Ctx<'a> {
         if func.unsafe_token().is_some() {
             flags |= FnFlags::HAS_UNSAFE_KW;
         }
+        if func.gen_token().is_some() {
+            flags |= FnFlags::HAS_GEN_KW;
+        }
 
         let res = Function {
             name,

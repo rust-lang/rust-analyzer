@@ -628,6 +628,36 @@ fn main() {
 }
 
 #[test]
+fn detail_gen_fn() {
+    check_empty(
+        r#"
+//- minicore: future, sized
+gen fn foo() -> u8 {}
+fn main() {
+    self::$0
+}
+"#,
+        expect![[r#"
+            fn foo()  gen fn() -> u8
+            fn main() fn()
+        "#]],
+    );
+    check_empty(
+        r#"
+//- minicore: future, sized
+async gen fn foo() -> u8 {}
+fn main() {
+    self::$0
+}
+"#,
+        expect![[r#"
+            fn foo()  async gen fn() -> u8
+            fn main() fn()
+        "#]],
+    );
+}
+
+#[test]
 fn detail_impl_trait_in_argument_position() {
     check_empty(
         r"

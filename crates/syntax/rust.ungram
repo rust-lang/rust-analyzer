@@ -148,7 +148,7 @@ UseTreeList =
 
 Fn =
  Attr* Visibility?
- 'default'? 'const'? 'async'? 'unsafe'? Abi?
+ 'default'? 'const'? 'async'? 'gen'? 'unsafe'? Abi?
  'fn' Name GenericParamList? ParamList RetType? WhereClause?
  (body:BlockExpr | ';')
 
@@ -419,7 +419,7 @@ TryExpr =
   Attr* Expr '?'
 
 BlockExpr =
-  Attr* Label? ('try' | 'unsafe' | 'async' | 'const') StmtList
+  Attr* Label? ('try' | 'unsafe' | ('async' 'gen'? 'move'?) | ('gen' 'move'?) | 'const') StmtList
 
 PrefixExpr =
   Attr* op:('-' | '!' | '*') Expr
