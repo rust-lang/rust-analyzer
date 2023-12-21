@@ -145,14 +145,24 @@ pub enum CrateOrigin {
     /// Crates that are from the rustc workspace.
     Rustc { name: String },
     /// Crates that are workspace members.
+    Member { repo: Option<String>, name: Option<String> },
+    /// Crates that are non member user libraries.
     Local { repo: Option<String>, name: Option<String> },
-    /// Crates that are non member libraries.
+    /// Crates that are non member external libraries.
     Library { repo: Option<String>, name: String },
     /// Crates that are provided by the language, like std, core, proc-macro, ...
     Lang(LangCrateOrigin),
 }
 
 impl CrateOrigin {
+    pub fn is_user(&self) -> bool {
+        matches!(self, CrateOrigin::Member { .. } | CrateOrigin::Local { .. })
+    }
+
+    pub fn is_member(&self) -> bool {
+        matches!(self, CrateOrigin::Member { .. })
+    }
+
     pub fn is_local(&self) -> bool {
         matches!(self, CrateOrigin::Local { .. })
     }
@@ -672,8 +682,7 @@ impl CrateGraph {
                             return Some((id, false));
                         }
                     }
-                    (a @ CrateOrigin::Local { .. }, CrateOrigin::Library { .. })
-                    | (a @ CrateOrigin::Library { .. }, CrateOrigin::Local { .. }) => {
+                    (a, b) if a.is_user() && b.is_lib() || a.is_member() && b.is_local() => {
                         // If the origins differ, check if the two crates are equal without
                         // considering the dev dependencies, if they are, they most likely are in
                         // different loaded workspaces which may cause issues. We keep the local
@@ -681,7 +690,12 @@ impl CrateGraph {
                         // dev-dependencies that we want to keep resolving. See #15656 for more
                         // information.
                         if data.eq_ignoring_origin_and_deps(&crate_data, true) {
-                            return Some((id, if a.is_local() { false } else { true }));
+                            return Some((id, false));
+                        }
+                    }
+                    (b, a) if a.is_user() && b.is_lib() || a.is_member() && b.is_local() => {
+                        if data.eq_ignoring_origin_and_deps(&crate_data, true) {
+                            return Some((id, true));
                         }
                     }
                     (_, _) => return None,
@@ -693,8 +707,7 @@ impl CrateGraph {
             if let Some((res, should_update_lib_to_local)) = res {
                 id_map.insert(topo, res);
                 if should_update_lib_to_local {
-                    assert!(self.arena[res].origin.is_lib());
-                    assert!(crate_data.origin.is_local());
+                    assert!(crate_data.origin.is_user());
                     self.arena[res].origin = crate_data.origin.clone();
 
                     // Move local's dev dependencies into the newly-local-formerly-lib crate.
@@ -888,7 +901,7 @@ mod tests {
             Default::default(),
             Env::default(),
             false,
-            CrateOrigin::Local { repo: None, name: None },
+            CrateOrigin::Member { repo: None, name: None },
             Err("".into()),
             None,
         );
@@ -901,7 +914,7 @@ mod tests {
             Default::default(),
             Env::default(),
             false,
-            CrateOrigin::Local { repo: None, name: None },
+            CrateOrigin::Member { repo: None, name: None },
             Err("".into()),
             None,
         );
@@ -914,7 +927,7 @@ mod tests {
             Default::default(),
             Env::default(),
             false,
-            CrateOrigin::Local { repo: None, name: None },
+            CrateOrigin::Member { repo: None, name: None },
             Err("".into()),
             None,
         );
@@ -950,7 +963,7 @@ mod tests {
             Default::default(),
             Env::default(),
             false,
-            CrateOrigin::Local { repo: None, name: None },
+            CrateOrigin::Member { repo: None, name: None },
             Err("".into()),
             None,
         );
@@ -963,7 +976,7 @@ mod tests {
             Default::default(),
             Env::default(),
             false,
-            CrateOrigin::Local { repo: None, name: None },
+            CrateOrigin::Member { repo: None, name: None },
             Err("".into()),
             None,
         );
@@ -993,7 +1006,7 @@ mod tests {
             Default::default(),
             Env::default(),
             false,
-            CrateOrigin::Local { repo: None, name: None },
+            CrateOrigin::Member { repo: None, name: None },
             Err("".into()),
             None,
         );
@@ -1006,7 +1019,7 @@ mod tests {
             Default::default(),
             Env::default(),
             false,
-            CrateOrigin::Local { repo: None, name: None },
+            CrateOrigin::Member { repo: None, name: None },
             Err("".into()),
             None,
         );
@@ -1019,7 +1032,7 @@ mod tests {
             Default::default(),
             Env::default(),
             false,
-            CrateOrigin::Local { repo: None, name: None },
+            CrateOrigin::Member { repo: None, name: None },
             Err("".into()),
             None,
         );
@@ -1049,7 +1062,7 @@ mod tests {
             Default::default(),
             Env::default(),
             false,
-            CrateOrigin::Local { repo: None, name: None },
+            CrateOrigin::Member { repo: None, name: None },
             Err("".into()),
             None,
         );
@@ -1062,7 +1075,7 @@ mod tests {
             Default::default(),
             Env::default(),
             false,
-            CrateOrigin::Local { repo: None, name: None },
+            CrateOrigin::Member { repo: None, name: None },
             Err("".into()),
             None,
         );

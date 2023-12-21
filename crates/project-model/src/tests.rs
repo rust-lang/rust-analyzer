@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use base_db::{CrateGraph, FileId, ProcMacroPaths};
+use base_db::{CrateGraph, CrateOrigin, FileId, ProcMacroPaths};
 use cfg::{CfgAtom, CfgDiff};
 use expect_test::{expect_file, ExpectFile};
 use paths::{AbsPath, AbsPathBuf};
@@ -273,7 +273,7 @@ fn test_deduplicate_origin_dev() {
 
     assert!(crates_named_p2.len() == 1);
     let p2 = crates_named_p2[0];
-    assert!(p2.origin.is_local());
+    assert!(p2.origin.is_member());
 }
 
 #[test]
@@ -299,5 +299,58 @@ fn test_deduplicate_origin_dev_rev() {
 
     assert!(crates_named_p2.len() == 1);
     let p2 = crates_named_p2[0];
-    assert!(p2.origin.is_local());
+    assert!(p2.origin.is_member());
+}
+
+#[test]
+fn test_local_origin_for_complex_workspaces() {
+    let path_map = &mut Default::default();
+
+    let (mut crate_graph, _proc_macros) = load_cargo_with_sysroot(path_map, "proj1.json");
+
+    let (mut crate_graph_1, mut _proc_macros_1) = load_cargo_with_sysroot(path_map, "proj2.json");
+    crate_graph_1.sort_deps();
+    crate_graph.extend(crate_graph_1, &mut _proc_macros_1);
+
+    let (mut crate_graph_2, mut _proc_macros_2) = load_cargo_with_sysroot(path_map, "proj3.json");
+    crate_graph_2.sort_deps();
+    crate_graph.extend(crate_graph_2, &mut _proc_macros_2);
+
+    let (mut crate_graph_3, mut _proc_macros_3) = load_cargo_with_sysroot(path_map, "proj4.json");
+    crate_graph_3.sort_deps();
+    crate_graph.extend(crate_graph_3, &mut _proc_macros_3);
+
+    // Each crate named following the pattern "example.*" gets to have exactly one edge on the crate graph
+    // whose origin is `CrateOrigin::Member`
+    let mut example_1 = false;
+    let mut example_1_macro = false;
+    let mut example_2 = false;
+    let mut example_2_macro = false;
+
+    for idx in crate_graph.crates_in_topological_order() {
+        let cr = &crate_graph[idx];
+        if let Some(name) = &cr.display_name {
+            if cr.origin.is_member() {
+                match name.canonical_name() {
+                    "example1" => {
+                        assert!(!example_1);
+                        example_1 = true;
+                    }
+                    "example1-macros" => {
+                        assert!(!example_1_macro);
+                        example_1_macro = true;
+                    }
+                    "example2" => {
+                        assert!(!example_2);
+                        example_2 = true;
+                    }
+                    "example2-macros" => {
+                        assert!(!example_2_macro);
+                        example_2_macro = true;
+                    }
+                    _ => (),
+                }
+            }
+        }
+    }
 }

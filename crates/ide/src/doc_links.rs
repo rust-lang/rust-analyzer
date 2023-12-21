@@ -512,7 +512,7 @@ fn get_doc_base_urls(
         CrateOrigin::Rustc { name: _ } => {
             (Some(format!("https://doc.rust-lang.org/{channel}/nightly-rustc/")), None)
         }
-        CrateOrigin::Local { repo: _, name: _ } => {
+        CrateOrigin::Local { repo: _, name: _ } | CrateOrigin::Member { .. } => {
             // FIXME: These should not attempt to link to docs.rs!
             let weblink = krate.get_html_root_url(db).or_else(|| {
                 let version = krate.version(db);

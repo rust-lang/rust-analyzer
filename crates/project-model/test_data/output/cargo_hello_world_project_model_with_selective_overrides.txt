@@ -52,7 +52,7 @@
                 prelude: true,
             },
         ],
-        origin: Local {
+        origin: Member {
             repo: None,
             name: Some(
                 "hello-world",
@@ -125,7 +125,7 @@
                 prelude: true,
             },
         ],
-        origin: Local {
+        origin: Member {
             repo: None,
             name: Some(
                 "hello-world",
@@ -198,7 +198,7 @@
                 prelude: true,
             },
         ],
-        origin: Local {
+        origin: Member {
             repo: None,
             name: Some(
                 "hello-world",
@@ -271,7 +271,7 @@
                 prelude: true,
             },
         ],
-        origin: Local {
+        origin: Member {
             repo: None,
             name: Some(
                 "hello-world",

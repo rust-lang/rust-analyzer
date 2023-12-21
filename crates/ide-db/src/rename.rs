@@ -76,7 +76,7 @@ impl Definition {
         // it is not allowed for these defs to be renamed.
         // cases where self.krate() is None is handled below.
         if let Some(krate) = self.krate(sema.db) {
-            if !krate.origin(sema.db).is_local() {
+            if !krate.origin(sema.db).is_user() {
                 bail!("Cannot rename a non-local definition.")
             }
         }

@@ -275,7 +275,7 @@ pub(crate) fn def_to_moniker(
         package_information: {
             let (name, repo, version) = match krate.origin(db) {
                 CrateOrigin::Library { repo, name } => (name, repo, krate.version(db)),
-                CrateOrigin::Local { repo, name } => (
+                CrateOrigin::Local { repo, name } | CrateOrigin::Member { repo, name } => (
                     name.unwrap_or(krate.display_name(db)?.canonical_name().to_string()),
                     repo,
                     krate.version(db),

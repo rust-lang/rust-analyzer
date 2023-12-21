@@ -225,7 +225,7 @@ impl ChangeFixture {
                 Some(default_cfg),
                 default_env,
                 false,
-                CrateOrigin::Local { repo: None, name: None },
+                CrateOrigin::Member { repo: None, name: None },
                 default_target_data_layout
                     .map(|it| it.into())
                     .ok_or_else(|| "target_data_layout unset".into()),
@@ -319,7 +319,7 @@ impl ChangeFixture {
                 Default::default(),
                 Env::new_for_test_fixture(),
                 true,
-                CrateOrigin::Local { repo: None, name: None },
+                CrateOrigin::Member { repo: None, name: None },
                 target_layout,
                 Some(toolchain),
             );
@@ -524,7 +524,7 @@ fn parse_crate(
             if non_workspace_member {
                 CrateOrigin::Library { repo, name }
             } else {
-                CrateOrigin::Local { repo, name: Some(name) }
+                CrateOrigin::Member { repo, name: Some(name) }
             }
         }
         origin => CrateOrigin::Lang(origin),

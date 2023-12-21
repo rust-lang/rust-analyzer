@@ -1299,7 +1299,9 @@ fn add_target_crate_root(
         if rustc_crate {
             CrateOrigin::Rustc { name: pkg.name.clone() }
         } else if pkg.is_member {
-            CrateOrigin::Local { repo: pkg.repository.clone(), name: Some(pkg.name.clone()) }
+            CrateOrigin::Member { repo: None, name: Some(pkg.name.clone()) }
+        } else if pkg.id.contains("path+file") {
+            CrateOrigin::Local { repo: None, name: Some(pkg.name.clone()) }
         } else {
             CrateOrigin::Library { repo: pkg.repository.clone(), name: pkg.name.clone() }
         },

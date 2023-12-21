@@ -251,7 +251,7 @@ impl Analysis {
             None,
             Env::default(),
             false,
-            CrateOrigin::Local { repo: None, name: None },
+            CrateOrigin::Member { repo: None, name: None },
             Err("Analysis::from_single_file has no target layout".into()),
             None,
         );
