@@ -323,6 +323,7 @@ fn highlight_exit_points(
                     closure.param_list().map_or([None; 2], |p| [p.l_paren_token().map(|it| it.text_range()), p.r_paren_token().map(|it| it.text_range())]),
                     closure.body()
                 ),
+                // here?
                 ast::BlockExpr(block_expr) => if matches!(block_expr.modifier(), Some(ast::BlockModifier::Async(_) | ast::BlockModifier::Try(_)| ast::BlockModifier::Const(_))) {
                     hl(
                         sema,
@@ -448,6 +449,7 @@ fn highlight_yield_points(token: SyntaxToken) -> Option<Vec<HighlightedRange>> {
         return match_ast! {
             match anc {
                 ast::Fn(fn_) => hl(fn_.async_token(), fn_.body().map(ast::Expr::BlockExpr)),
+                // here?
                 ast::BlockExpr(block_expr) => {
                     if block_expr.async_token().is_none() {
                         continue;

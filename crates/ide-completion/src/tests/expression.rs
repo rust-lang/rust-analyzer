@@ -631,8 +631,21 @@ fn main() {
 fn detail_gen_fn() {
     check_empty(
         r#"
-//- minicore: future, sized
-gen fn foo() -> u8 {}
+//- minicore: iterator, async_iterator, future, sized
+async fn foo() -> u8 { }
+fn main() {
+    self::$0
+}
+"#,
+        expect![[r#"
+            fn foo()  async fn() -> u8
+            fn main() fn()
+        "#]],
+    );
+    check_empty(
+        r#"
+//- minicore: iterator, async_iterator, future, sized
+gen fn foo() -> u8 { }
 fn main() {
     self::$0
 }
@@ -644,8 +657,8 @@ fn main() {
     );
     check_empty(
         r#"
-//- minicore: future, sized
-async gen fn foo() -> u8 {}
+//- minicore: iterator, async_iterator, future, sized
+        async gen fn foo() -> u8 {}
 fn main() {
     self::$0
 }

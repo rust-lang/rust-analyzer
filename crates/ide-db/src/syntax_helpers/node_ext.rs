@@ -265,8 +265,11 @@ pub fn for_each_tail_expr(expr: &ast::Expr, cb: &mut dyn FnMut(&ast::Expr)) {
     match expr {
         ast::Expr::BlockExpr(b) => {
             match b.modifier() {
+                // here?
                 Some(
                     ast::BlockModifier::Async(_)
+                    | ast::BlockModifier::Gen(_)
+                    | ast::BlockModifier::AsyncGen(_)
                     | ast::BlockModifier::Try(_)
                     | ast::BlockModifier::Const(_),
                 ) => return cb(expr),

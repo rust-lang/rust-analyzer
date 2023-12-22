@@ -457,10 +457,10 @@ async gen fn test2() {}
         "#,
         expect![[r#"
             // AstId: 1
-            pub(self) gen fn test1() -> () { ... }
+            pub(self) gen fn test1() -> impl ::core::iter::Iterator::<Item = ()> { ... }
 
             // AstId: 2
-            pub(self) async gen fn test2() -> impl ::core::future::Future::<Output = ()> { ... }
+            pub(self) async gen fn test2() -> impl ::core::async_iter::AsyncIterator::<Item = ()> { ... }
         "#]],
     )
 }

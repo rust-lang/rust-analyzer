@@ -447,6 +447,7 @@ pub fn block_expr(
     ast_from_text(&format!("fn f() {buf}"))
 }
 
+// interesting
 pub fn async_move_block_expr(
     stmts: impl IntoIterator<Item = ast::Stmt>,
     tail_expr: Option<ast::Expr>,

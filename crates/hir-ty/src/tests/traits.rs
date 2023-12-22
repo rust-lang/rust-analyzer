@@ -55,6 +55,36 @@ fn test() {
 }
 
 #[test]
+fn infer_desugar_gen() {
+    check_types(
+        r#"
+//- minicore: iterator, future, sized
+gen fn foo() -> u64 { yield 128; }
+
+fn test() {
+    let r = foo();
+    r;
+} //^ impl Iterator<Item = u64>
+"#,
+    );
+}
+
+#[test]
+fn infer_desugar_async_gen() {
+    check_types(
+        r#"
+//- minicore: async_iterator, future, sized
+async gen fn foo() -> u64 { yield 128; }
+
+fn test() {
+    let r = foo();
+    r;
+} //^ impl AsyncIterator<Item = u64>
+"#,
+    );
+}
+
+#[test]
 fn infer_async_block() {
     check_types(
         r#"
@@ -77,6 +107,31 @@ async fn test() {
     let _: Option<u64> = c.await;
     c;
 //  ^ impl Future<Output = Option<u64>>
+}
+"#,
+    );
+}
+
+#[test]
+fn infer_gen_block() {
+    check_types(
+        r#"
+//- minicore: iterators, future, option
+async fn test2() {
+    let mut a = gen { yield 42; };
+    let x = a.next().unwrap();
+    a;
+//  ^ impl Iterator<Item = i32>
+    x;
+//  ^ i32
+    let mut c = gen {
+        let y = None;
+        //  ^ Option<u64>
+        yield y;
+    };
+    let _: Option<u64> = c.next().unwrap();
+    c;
+//  ^ impl Iterator<Item = Option<u64>>
 }
 "#,
     );

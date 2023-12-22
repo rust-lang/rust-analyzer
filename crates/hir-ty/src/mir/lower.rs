@@ -860,7 +860,6 @@ impl<'ctx> MirLowerCtx<'ctx> {
             }
             Expr::Await { .. } => not_supported!("await"),
             Expr::Yeet { .. } => not_supported!("yeet"),
-            Expr::Async { .. } => not_supported!("async block"),
             &Expr::Const(id) => {
                 let subst = self.placeholder_subst();
                 self.lower_const(

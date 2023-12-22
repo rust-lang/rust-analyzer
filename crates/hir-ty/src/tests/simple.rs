@@ -1949,6 +1949,39 @@ fn closure_return_inferred() {
 }
 
 #[test]
+fn coroutine_types_fully_inferred() {
+    check_infer(
+        r#"
+//- minicore: coroutine, deref
+use core::pin::Pin;
+use core::ops::Coroutine;
+
+pub fn test() {
+    let mut coroutine = || {
+        yield 1i32;
+    };
+    let _result = Pin::new(&mut coroutine).resume(());
+}
+        "#,
+        expect![[r#"
+        61..175 '{     ...()); }': ()
+        71..84 'mut coroutine': |()| yields i32 -> ()
+        87..117 '|| {  ...     }': |()| yields i32 -> ()
+        90..117 '{     ...     }': ()
+        100..110 'yield 1i32': ()
+        106..110 '1i32': i32
+        127..134 '_result': CoroutineState<i32, ()>
+        137..145 'Pin::new': fn new<&mut |()| yields i32 -> ()>(&mut |()| yields i32 -> ()) -> Pin<&mut |()| yields i32 -> ()>
+        137..161 'Pin::n...utine)': Pin<&mut |()| yields i32 -> ()>
+        137..172 'Pin::n...me(())': CoroutineState<i32, ()>
+        146..160 '&mut coroutine': &mut |()| yields i32 -> ()
+        151..160 'coroutine': |()| yields i32 -> ()
+        169..171 '()': ()
+        "#]],
+    );
+}
+
+#[test]
 fn coroutine_types_inferred() {
     check_infer(
         r#"
@@ -2010,6 +2043,115 @@ fn test() {
 }
 
 #[test]
+fn gen_types_inferred() {
+    check_infer(
+        r#"
+//- minicore: iterator, deref
+use core::iter::Iterator;
+
+fn f(v: i64) {}
+fn test() {
+    let mut g = gen {
+        let a = yield 0;
+        let a = yield 1;
+        let a = yield 2;
+    };
+
+    match g.next() {
+        Some(y) => { f(y); }
+        None => {}
+    }
+}
+        "#,
+        expect![[r#"
+            32..33 'v': i64
+            40..42 '{}': ()
+            53..236 '{     ...   } }': ()
+            63..68 'mut g': impl Iterator<Item = i64>
+            71..157 'gen { ...     }': impl Iterator<Item = i64>
+            71..157 'gen { ...     }': ()
+            89..90 'a': ()
+            93..100 'yield 0': ()
+            99..100 '0': i64
+            114..115 'a': ()
+            118..125 'yield 1': ()
+            124..125 '1': i64
+            139..140 'a': ()
+            143..150 'yield 2': ()
+            149..150 '2': i64
+            164..234 'match ...     }': ()
+            170..171 'g': impl Iterator<Item = i64>
+            170..178 'g.next()': Option<i64>
+            189..196 'Some(y)': Option<i64>
+            194..195 'y': i64
+            200..209 '{ f(y); }': ()
+            202..203 'f': fn f(i64)
+            202..206 'f(y)': ()
+            204..205 'y': i64
+            218..222 'None': Option<i64>
+            226..228 '{}': ()
+        "#]],
+    );
+}
+
+#[test]
+fn async_gen_types_inferred() {
+    check_infer(
+        r#"
+//- minicore: async_iterator, future, deref
+use core::task::{Context, Poll};
+use core::async_iter::AsyncIterator;
+
+fn f(v: i64) {}
+fn test(mut context: Context) {
+    let mut g = async gen {
+        let a = yield 0;
+        let a = yield 1;
+        let a = yield 2;
+    };
+
+    match g.poll_next(&mut context) {
+        Poll::Ready(Some(y)) => { f(y); } // FIXME test with 1 there I think this infers stuff it should not
+        Poll::Pending => {}
+    }
+}
+        "#,
+        expect![[r#"
+            76..77 'v': i64
+            84..86 '{}': ()
+            95..106 'mut context': Context<'_>
+            117..412 '{     ...   } }': ()
+            127..132 'mut g': impl AsyncIterator<Item = i32>
+            135..227 'async ...     }': impl AsyncIterator<Item = i32>
+            135..227 'async ...     }': ()
+            159..160 'a': ()
+            163..170 'yield 0': ()
+            169..170 '0': i32
+            184..185 'a': ()
+            188..195 'yield 1': ()
+            194..195 '1': i32
+            209..210 'a': ()
+            213..220 'yield 2': ()
+            219..220 '2': i32
+            234..410 'match ...     }': ()
+            240..241 'g': impl AsyncIterator<Item = i32>
+            240..265 'g.poll...ntext)': Poll<Option<i64>>
+            252..264 '&mut context': &mut Context<'_>
+            257..264 'context': Context<'_>
+            276..296 'Poll::...me(y))': Poll<Option<i64>>
+            288..295 'Some(y)': Option<i64>
+            293..294 'y': i64
+            300..309 '{ f(y); }': ()
+            302..303 'f': fn f(i64)
+            302..306 'f(y)': ()
+            304..305 'y': i64
+            385..398 'Poll::Pending': Poll<Option<i64>>
+            402..404 '{}': ()
+        "#]],
+    );
+}
+
+#[test]
 fn coroutine_resume_yield_return_unit() {
     check_no_mismatches(
         r#"
@@ -2027,6 +2169,84 @@ fn test() {
     }
 }
         "#,
+    );
+}
+
+#[test]
+fn gen_yield_return_unit() {
+    check_infer(
+        r#"
+        //- minicore: iterator, deref
+        use core::iter::Iterator;
+        fn test() {
+            let mut g = gen {
+                let () = yield;
+            };
+
+            match g.next() {
+                Some(()) => {}
+                None => {}
+            }
+        }
+"#,
+        expect![[r#"
+            36..162 '{     ...   } }': ()
+            46..51 'mut g': impl Iterator<Item = ()>
+            54..89 'gen { ...     }': impl Iterator<Item = ()>
+            54..89 'gen { ...     }': ()
+            72..74 '()': ()
+            77..82 'yield': ()
+            96..160 'match ...     }': ()
+            102..103 'g': impl Iterator<Item = ()>
+            102..110 'g.next()': Option<()>
+            121..129 'Some(())': Option<()>
+            126..128 '()': ()
+            133..135 '{}': ()
+            144..148 'None': Option<()>
+            152..154 '{}': ()
+        "#]],
+    );
+}
+
+#[test]
+fn async_gen_yield_return_unit() {
+    check_infer(
+        r#"
+        //- minicore: async_iterator, future, deref
+        use core::task::{Context, Poll};
+        use core::async_iter::AsyncIterator;
+        fn test(mut context: Context) {
+            let mut g = async gen {
+                let () = yield;
+            };
+
+            match g.poll_next(&mut context) {
+                Poll::Ready(()) => {} // FIXME test with 1 there I think this infers stuff it should not
+                Poll::Pending => {}
+            }
+            g
+        }
+"#,
+        expect![[r#"
+            78..89 'mut context': Context<'_>
+            100..338 '{     ...   g }': ()
+            110..115 'mut g': impl AsyncIterator<Item = ()>
+            118..159 'async ...     }': impl AsyncIterator<Item = ()>
+            118..159 'async ...     }': ()
+            142..144 '()': ()
+            147..152 'yield': ()
+            166..330 'match ...     }': ()
+            172..173 'g': impl AsyncIterator<Item = ()>
+            172..197 'g.poll...ntext)': Poll<()>
+            184..196 '&mut context': &mut Context<'_>
+            189..196 'context': Context<'_>
+            208..223 'Poll::Ready(())': Poll<()>
+            220..222 '()': ()
+            227..229 '{}': ()
+            305..318 'Poll::Pending': Poll<()>
+            322..324 '{}': ()
+            335..336 'g': impl AsyncIterator<Item = ()>
+        "#]],
     );
 }
 
@@ -2126,7 +2346,9 @@ async fn main() {
             39..41 '92': i32
             53..54 'y': impl Future<Output = ()>
             57..85 'async ...wait }': impl Future<Output = ()>
+            57..85 'async ...wait }': ()
             65..77 'async { () }': impl Future<Output = ()>
+            65..77 'async { () }': ()
             65..83 'async ....await': ()
             73..75 '()': ()
             95..96 'z': ControlFlow<(), ()>
@@ -2183,6 +2405,7 @@ fn main() {
             89..91 '{}': ()
             103..231 '{     ... }); }': ()
             109..161 'async ...     }': impl Future<Output = Result<(), ()>>
+            109..161 'async ...     }': Result<(), ()>
             125..139 'return Err(())': !
             132..135 'Err': extern "rust-call" Err<(), ()>(()) -> Result<(), ()>
             132..139 'Err(())': Result<(), ()>
@@ -2194,6 +2417,7 @@ fn main() {
             167..228 'test(|...    })': ()
             172..227 '|| asy...     }': impl Fn() -> impl Future<Output = Result<(), ()>>
             175..227 'async ...     }': impl Future<Output = Result<(), ()>>
+            175..227 'async ...     }': Result<(), ()>
             191..205 'return Err(())': !
             198..201 'Err': extern "rust-call" Err<(), ()>(()) -> Result<(), ()>
             198..205 'Err(())': Result<(), ()>
