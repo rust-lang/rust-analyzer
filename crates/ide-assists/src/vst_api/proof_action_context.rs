@@ -69,4 +69,13 @@ impl<'a> AssistContext<'a> {
     pub(crate) fn expr_from_post_failure(&self, post: PostFailure) -> Option<vst::Expr> {
         self.find_node_at_given_range::<syntax::ast::Expr>(post.failing_post)?.try_into().ok()
     }
+
+    pub(crate) fn at_this_token(&self, token: SyntaxKind) -> Option<()> {
+        let assert_keyword = self.find_token_syntax_at_offset(token)?;
+        let cursor_in_range = assert_keyword.text_range().contains_range(self.selection_trimmed());
+        if !cursor_in_range {
+            return None;
+        }
+        Some(())
+    }
 }

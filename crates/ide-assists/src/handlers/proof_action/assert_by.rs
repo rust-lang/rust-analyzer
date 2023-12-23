@@ -1,48 +1,36 @@
-// use ide_db::syntax_helpers::node_ext::is_pattern_cond;
-use crate::{
-    assist_context::{AssistContext, Assists},
-    // utils::invert_boolean_expression,
-    AssistId,
-    AssistKind,
-};
-use syntax::{
-    ast::{self, vst, AstNode},
-    T,
-};
+use crate::{assist_context::{AssistContext, Assists}, AssistId, AssistKind};
+use syntax::{ast::{self, vst::*, AstNode},T,};
 
 pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
-    let assert_keyword = ctx.find_token_syntax_at_offset(T![assert])?;
-    let expr = ast::AssertExpr::cast(assert_keyword.parent()?)?;
-    let assert_range = assert_keyword.text_range();
-    let cursor_in_range = assert_range.contains_range(ctx.selection_trimmed());
-    if !cursor_in_range {
-        return None;
-    }
-    let assert: vst::AssertExpr = vst::AssertExpr::try_from(expr.clone()).ok()?;
-    let string = vst_rewriter_assert_to_assert_by(assert.clone())?; // TODO: verusfmt
+    // trigger on "assert"
+    let _ = ctx.at_this_token(T![assert])?;
 
+    let expr: ast::AssertExpr = ctx.find_node_at_offset()?;
+    let assert: AssertExpr = AssertExpr::try_from(expr.clone()).ok()?;
+    let result = vst_rewriter_assert_by(assert.clone())?; // TODO: verusfmt
     acc.add(
         AssistId("assert_by", AssistKind::RefactorRewrite),
         "Add proof block for this assert",
-        assert_range,
+        expr.syntax().text_range(),
         |edit| {
-            edit.replace(expr.syntax().text_range(), string);
+            edit.replace(expr.syntax().text_range(), result.to_string());
         },
     )
 }
 
-pub(crate) fn vst_rewriter_assert_to_assert_by(mut assert: vst::AssertExpr) -> Option<String> {
+pub(crate) fn vst_rewriter_assert_by(mut assert: AssertExpr) -> Option<AssertExpr> {
     // if is already has a "by block", return None
     if assert.by_token {
         return None;
     }
-    let new_assert_as_stmt: vst::Stmt = assert.clone().into();
-    let mut stmt = vst::StmtList::new();
-    stmt.statements.push(new_assert_as_stmt);
-    let blk_expr: vst::BlockExpr = vst::BlockExpr::new(stmt);
     assert.by_token = true;
+
+    // generate empty proof block and put the same assertion in it
+    let mut stmt = StmtList::new();
+    stmt.statements.push(assert.clone().into());
+    let blk_expr: BlockExpr = BlockExpr::new(stmt);
     assert.block_expr = Some(Box::new(blk_expr));
-    Some(assert.to_string())
+    Some(assert)
 }
 
 #[cfg(test)]
