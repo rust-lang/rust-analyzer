@@ -412,6 +412,7 @@ pub(crate) mod handlers {
             proof_action::insert_reveal::insert_reveal,
             proof_action::imply_to_if::imply_to_if,
             proof_action::split_imply_ensures::split_imply_ensures,
+            proof_action::intro_forall::intro_forall,   
         ]
     }
 }

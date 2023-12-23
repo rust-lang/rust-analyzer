@@ -10,3 +10,4 @@ pub(crate) mod assert_by_reveal;
 pub(crate) mod insert_reveal;
 pub(crate) mod imply_to_if;
 pub(crate) mod split_imply_ensures;
+pub(crate) mod intro_forall;

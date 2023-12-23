@@ -9,30 +9,7 @@ use syntax::{
     ast::{self, vst::*, AstNode, LogicOp},
     T,
 };
-    // // setup basic variables
-    // let func: ast::Fn = ctx.find_node_at_offset::<ast::Fn>()?;
-    // let body: ast::BlockExpr = func.body()?;
-    // let ensures: ast::EnsuresClause = func.ensures_clause()?;
 
-    // // trigger on "ensures"
-    // // check if cursor is on "ensures" keyword
-    // let ensures_keyword = ensures.ensures_token()?;
-    // let cursor_in_range = ensures_keyword.text_range().contains_range(ctx.selection_trimmed());
-    // if !cursor_in_range {
-    //     return None;
-    // }
-
-    // let v_body = BlockExpr::try_from(body.clone()).ok()?;
-    // let result = vst_rewriter_intro_failing_ensures(ctx, v_body.clone())?;
-
-    // acc.add(
-    //     AssistId("intro_failing_ensures", AssistKind::RefactorRewrite),
-    //     "Insert failing ensures clauses to the end",
-    //     body.syntax().text_range(),
-    //     |edit| {
-    //         edit.replace(body.syntax().text_range(), result);
-    //     },
-    // )
 pub(crate) fn split_imply_ensures(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
    // setup basic variables
     let func: ast::Fn = ctx.find_node_at_offset::<ast::Fn>()?;
