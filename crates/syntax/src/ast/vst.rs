@@ -274,6 +274,12 @@ impl std::fmt::Display for ParamList {
             s.push_str(token_ascii(&tmp));
             s.push_str(" ");
         }
+        if self.pipe_token {
+            let mut tmp = stringify!(pipe_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
         if let Some(it) = &self.self_param {
             s.push_str(&it.to_string());
             s.push_str(" ");
