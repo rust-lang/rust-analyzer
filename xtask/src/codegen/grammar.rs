@@ -628,7 +628,7 @@ pub(crate) fn lower(grammar: &Grammar, is_vst: bool) -> AstSrc {
     res.nodes.iter_mut().for_each(|it| {
         it.traits.sort();
         it.fields.sort_by_key(|it| match it {
-            Field::Token(name) => (true, name.clone()),
+            Field::Token { name, .. } => (true, name.clone()),
             Field::Node { name, .. } => (false, name.clone()),
         });
     });

@@ -23,7 +23,6 @@ path = "src/bin/main.rs"
 anyhow.workspace = true
 ide-assists = { path = "../ide-assists", version = "0.0.0" }
 cargo_metadata = "0.15.0"
-anyhow = "1.0.62"
 crossbeam-channel = "0.5.5"
 dirs = "5.0.1"
 dissimilar.workspace = true

@@ -121,6 +121,20 @@ dependencies = [
 
 [[package]]
 name = "cargo_metadata"
+version = "0.15.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eee4243f1f26fc7a42710e7439c149e2b10b05472f88090acce52632f231a73a"
+dependencies = [
+ "camino",
+ "cargo-platform",
+ "semver",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "cargo_metadata"
 version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d886547e41f740c616ae73108f6eb70afe6d940c7bc697cb30f13daec073037"
@@ -430,7 +444,7 @@ dependencies = [
 name = "flycheck"
 version = "0.0.0"
 dependencies = [
- "cargo_metadata",
+ "cargo_metadata 0.18.1",
  "crossbeam-channel",
  "paths",
  "process-wrap",
@@ -1375,7 +1389,7 @@ dependencies = [
 name = "proc-macro-test"
 version = "0.0.0"
 dependencies = [
- "cargo_metadata",
+ "cargo_metadata 0.18.1",
 ]
 
 [[package]]
@@ -1420,7 +1434,7 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "base-db",
- "cargo_metadata",
+ "cargo_metadata 0.18.1",
  "cfg",
  "expect-test",
  "itertools",
@@ -1674,7 +1688,7 @@ version = "0.0.0"
 dependencies = [
  "always-assert",
  "anyhow",
- "cargo_metadata",
+ "cargo_metadata 0.15.4",
  "cfg",
  "crossbeam-channel",
  "dirs",
