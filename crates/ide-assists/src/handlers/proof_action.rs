@@ -8,3 +8,4 @@ pub(crate) mod apply_induction;
 pub(crate) mod wp_move_assertion;
 pub(crate) mod assert_by_reveal;
 pub(crate) mod insert_reveal;
+pub(crate) mod imply_to_if;

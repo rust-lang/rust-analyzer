@@ -410,6 +410,7 @@ pub(crate) mod handlers {
             proof_action::remove_dead_assertion::remove_dead_assertions,
             proof_action::assert_by_reveal::assert_by_reveal,
             proof_action::insert_reveal::insert_reveal,
+            proof_action::imply_to_if::imply_to_if,
         ]
     }
 }
