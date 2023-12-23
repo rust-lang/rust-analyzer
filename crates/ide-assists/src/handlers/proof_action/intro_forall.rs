@@ -38,23 +38,17 @@ pub(crate) fn intro_forall(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option
 
 pub(crate) fn vst_rewriter_intro_forall(assert: AssertExpr) -> Option<String> {
     // if assertion's expression's top level is not implication, return None
-    let ifstmt = match *assert.expr {
+    let assert_forall_expr = match *assert.expr {
         Expr::ClosureExpr(c) => {
-
+          if !c.forall_token {
+            dbg!("not a forall");
+            return None;
+          }
+          AssertForallExpr::new(*c.clone(), *assert.block_expr.unwrap_or(Box::new(BlockExpr::new(StmtList::new()))))
         }
-        // Expr::BinExpr(b) => {
-        //     if b.op != BinaryOp::LogicOp(LogicOp::Imply) {
-        //         dbg!("not an implication");
-        //         return None;
-        //     }
-        //     let rhs_as_assertion = AssertExpr::new(*b.rhs.clone());
-        //     let mut blockexpr = BlockExpr::new(StmtList::new());
-        //     blockexpr.stmt_list.statements.push(rhs_as_assertion.into());
-        //     IfExpr::new(*b.lhs, blockexpr)
-        // }
         _ => {dbg!("not a ClosureExpr"); return None;},
     };
-    Some(ifstmt.to_string())    
+    Some(assert_forall_expr.to_string()) 
 }
 
 #[cfg(test)]
@@ -68,32 +62,30 @@ mod tests {
         check_assist(
           intro_forall,
 "
-fn test_imply_to_if(b: bool) -> (ret: u32) 
-  ensures 
-    b ==> ret == 2 && !b ==> ret == 1,
+#[verifier::opaque]
+spec fn twice(x: int) -> int
 {
-  let mut ret: u32 = 1;
-  if b {
-    ret = ret + 1;
-  }  
-  ass$0ert(b ==> ret == 2);
-  ret
-}  
+  x * 2
+} 
+
+proof fn test_intro_forall() {
+  assert(for$0all|x: int, y: int| twice(x) + twice(y) == x*2 + y*2) by {
+    reveal(twice);
+  }
+}
 ",
 "
-fn test_imply_to_if(b: bool) -> (ret: u32) 
-  ensures 
-    b ==> ret == 2 && !b ==> ret == 1,
+#[verifier::opaque]
+spec fn twice(x: int) -> int
 {
-  let mut ret: u32 = 1;
-  if b {
-    ret = ret + 1;
-  }  
-  if b {
-    assert(ret == 2);
+  x * 2
+}
+
+proof fn test_intro_forall() {
+  assert forall|x: int, y: int| twice(x) + twice(y) == x*2 + y*2 by {
+    reveal(twice);
   }
-  ret
-}  
+}
 ",
 
         )
