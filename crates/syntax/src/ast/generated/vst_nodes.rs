@@ -898,7 +898,6 @@ pub struct AssumeExpr {
 pub struct AssertForallExpr {
     pub attrs: Vec<Attr>,
     pub assert_token: bool,
-    pub forall_token: bool,
     pub closure_expr: Box<ClosureExpr>,
     pub implies_token: bool,
     pub expr: Option<Box<Expr>>,
@@ -3647,7 +3646,6 @@ impl TryFrom<super::nodes::AssertForallExpr> for AssertForallExpr {
                 .map(Attr::try_from)
                 .collect::<Result<Vec<Attr>, String>>()?,
             assert_token: item.assert_token().is_some(),
-            forall_token: item.forall_token().is_some(),
             closure_expr: Box::new(
                 item.closure_expr()
                     .ok_or(format!("{}", stringify!(closure_expr)))
@@ -7087,12 +7085,6 @@ impl std::fmt::Display for AssertForallExpr {
             s.push_str(token_ascii(&tmp));
             s.push_str(" ");
         }
-        if self.forall_token {
-            let mut tmp = stringify!(forall_token).to_string();
-            tmp.truncate(tmp.len() - 6);
-            s.push_str(token_ascii(&tmp));
-            s.push_str(" ");
-        }
         s.push_str(&self.closure_expr.to_string());
         s.push_str(" ");
         if self.implies_token {
@@ -9697,7 +9689,6 @@ impl AssertForallExpr {
         Self {
             attrs: vec![],
             assert_token: true,
-            forall_token: true,
             closure_expr: Box::new(closure_expr),
             implies_token: false,
             expr: None,
