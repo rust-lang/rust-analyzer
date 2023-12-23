@@ -408,6 +408,7 @@ pub(crate) mod handlers {
             proof_action::apply_induction::apply_induction,
             proof_action::localize_error::localize_error,
             proof_action::remove_dead_assertion::remove_dead_assertions,
+            proof_action::assert_by_reveal::assert_by_reveal,
         ]
     }
 }

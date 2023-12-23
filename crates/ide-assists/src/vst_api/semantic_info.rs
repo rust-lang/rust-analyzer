@@ -90,4 +90,13 @@ impl<'a> AssistContext<'a> {
         return None;
     }
 
+    pub(crate) fn is_opaque(&self, func: &vst::Fn) -> bool {
+        for attr in &func.attrs {
+            if attr.to_string().contains("opaque") {
+                return true;
+            }
+        }
+        return false;
+    }
+
 }

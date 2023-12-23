@@ -1,4 +1,4 @@
-use std::{process::Command, collections::hash_map::DefaultHasher, time::Instant, env, path::Path, hash::{Hasher, Hash}, fs::File, io::Write};
+use std::{process::Command, collections::hash_map::DefaultHasher, time::Instant, env::{self, Args}, path::Path, hash::{Hasher, Hash}, fs::File, io::Write};
 
 use crate::{AssistContext, verus_error::*, tests::CHANHEE_VERUS_PATH};
 use hir::Semantics;
@@ -12,5 +12,12 @@ impl<'a> AssistContext<'a> {
         let path = ast::make::path_from_text(text);
         let vst_path = vst::Path::try_from(path).ok()?;
         return Some(vst_path);
+    }
+
+    pub fn vst_call_expr_from_text(&self, fn_name: &str, arglist: vst::ArgList) -> Option<vst::CallExpr> {
+        let fn_name_as_path: vst::Path = self.vst_path_from_text(fn_name)?;
+        let fn_name_as_pathexpr: vst::PathExpr = vst::PathExpr::new(fn_name_as_path);
+        let vst_call_expr = vst::CallExpr::new(fn_name_as_pathexpr, arglist);
+        return Some(vst_call_expr);
     }
 }
