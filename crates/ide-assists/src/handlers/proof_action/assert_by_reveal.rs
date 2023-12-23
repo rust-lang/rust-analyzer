@@ -14,13 +14,14 @@ pub(crate) fn assert_by_reveal(acc: &mut Assists, ctx: &AssistContext<'_>) -> Op
     // trigger on function name
     let call: ast::CallExpr = ctx.find_node_at_offset()?;
     // if the function name is not inside an assertExpr, return None
-    dbg!("get assertion");
     let assert_expr: ast::AssertExpr = ctx.find_node_at_offset()?;
+
+    // now convert to vst nodes    
     let v_call = CallExpr::try_from(call.clone()).ok()?;
     let v_assert_expr = AssertExpr::try_from(assert_expr.clone()).ok()?;
-    dbg!("now rewrite vst");
-    let result = vst_rewriter_assert_to_assert_by_reveal(ctx, &v_call, v_assert_expr.clone())?;
 
+    // now do the rewrite
+    let result = vst_rewriter_assert_to_assert_by_reveal(ctx, &v_call, v_assert_expr.clone())?;
 
     acc.add(
         AssistId("assert_by_reveal", AssistKind::RefactorRewrite),
@@ -38,13 +39,12 @@ pub(crate) fn vst_rewriter_assert_to_assert_by_reveal(
     mut assert: AssertExpr,
 ) -> Option<String> 
 {
-    dbg!(&call.clone().cst?);
     // if is already has a "by block", return None
     if assert.by_token {
         return None;
     }
+
     // get func
-    let name_ref = ctx.name_ref_from_call_expr(&call)?;
     let func = ctx.vst_find_fn(&call)?;
     // if func is not opaque, return None
     if ctx.is_opaque(&func) == false {
