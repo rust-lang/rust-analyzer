@@ -12,3 +12,4 @@ pub(crate) mod imply_to_if;
 pub(crate) mod split_imply_ensures;
 pub(crate) mod intro_forall;
 pub(crate) mod intro_forall_implies;
+pub(crate) mod by_assume_false;

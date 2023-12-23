@@ -20,4 +20,5 @@ impl<'a> AssistContext<'a> {
         let vst_call_expr = vst::CallExpr::new(fn_name_as_pathexpr, arglist);
         return Some(vst_call_expr);
     }
+
 }
