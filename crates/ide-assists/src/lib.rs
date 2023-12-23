@@ -409,6 +409,7 @@ pub(crate) mod handlers {
             proof_action::localize_error::localize_error,
             proof_action::remove_dead_assertion::remove_dead_assertions,
             proof_action::assert_by_reveal::assert_by_reveal,
+            proof_action::insert_reveal::insert_reveal,
         ]
     }
 }
