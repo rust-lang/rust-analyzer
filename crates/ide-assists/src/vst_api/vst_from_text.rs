@@ -21,4 +21,10 @@ impl<'a> AssistContext<'a> {
         return Some(vst_call_expr);
     }
 
+    pub fn vst_nameref_from_text(&self, s: &str) -> Option<vst::NameRef> {
+        let mut name = vst::NameRef::new();
+        name.ident_token = Some(String::from(s));
+        Some(name)
+    }
+
 }

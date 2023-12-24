@@ -1,10 +1,9 @@
-use std::{process::Command, collections::hash_map::DefaultHasher, time::Instant, env, path::Path, hash::{Hasher, Hash}, fs::File, io::Write};
 
 use crate::{AssistContext, verus_error::*, tests::CHANHEE_VERUS_PATH};
 use hir::Semantics;
 use syntax::{
-    ast::{self, vst, HasModuleItem, HasName},
-    AstNode, SyntaxToken, SyntaxKind,
+    ast::{self, vst},
+    AstNode,
 };
 
 impl<'a> AssistContext<'a> {
@@ -15,8 +14,8 @@ impl<'a> AssistContext<'a> {
     /// TODO: currently inline can panic when the inlining expr does not fully use all the parameters
     pub fn vst_inline_call(
         &self,
-        name_ref: vst::NameRef,
-        expr_to_inline: vst::Expr,
+        name_ref: vst::NameRef,     // the name of the function to inline **at the callsite**. from `name_ref`, we get its arguments
+        expr_to_inline: vst::Expr,  // the expression to inline --- this expression will replace the function body
     ) -> Option<vst::Expr> {
         use crate::handlers::inline_call::*;
         let name_ref: ast::NameRef = name_ref.cst?;
@@ -41,6 +40,7 @@ impl<'a> AssistContext<'a> {
         let fn_source: hir::InFile<ast::Fn> = self.sema.source(function)?;
 
         // let fn_body = fn_source.value.body()?;
+        // We will use 'inline_call', making the requires clause as the function body
         let fn_body = expr_to_inline.cst()?;
         let fn_body = ast::make::tail_only_block_expr(fn_body);
 

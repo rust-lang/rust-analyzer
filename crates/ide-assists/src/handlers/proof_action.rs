@@ -14,3 +14,5 @@ pub(crate) mod intro_forall;
 pub(crate) mod intro_forall_implies;
 pub(crate) mod by_assume_false;
 pub(crate) mod split_smaller_or_equal_to;
+pub(crate) mod seq_index_inbound;
+

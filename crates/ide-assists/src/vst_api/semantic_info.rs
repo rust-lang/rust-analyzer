@@ -12,8 +12,11 @@ impl<'a> AssistContext<'a> {
     pub fn type_of_expr_adt(&self, expr: &vst::Expr) -> Option<vst::Adt> {
         let sema: &Semantics<'_, ide_db::RootDatabase> = &self.sema;
         let expr = expr.cst()?;
+        dbg!("call type_of_expr");
         let hir_ty: Vec<hir::Type> =
             sema.type_of_expr(&expr)?.adjusted().autoderef(sema.db).collect::<Vec<_>>();
+            
+        dbg!("end type_of_expr");
         let hir_ty = hir_ty.first()?;
         if let Some(t) = hir_ty.as_adt() {
             let ast_ty: ast::Adt = sema.source(t)?.value;
@@ -41,6 +44,29 @@ impl<'a> AssistContext<'a> {
             let typename = ast_ty.try_into().ok()?;
             if let vst::Adt::Enum(e) = typename {
                 return Some(*e.clone());
+            }
+        }
+        None
+    }
+
+    pub fn type_of_expr_struct(&self, expr: &vst::Expr) -> Option<vst::Struct> {
+        let typename = self.type_of_expr_adt(expr)?;
+        if let vst::Adt::Struct(e) = typename {
+            return Some(*e.clone());
+        }
+        None
+    }
+
+    pub fn type_of_pat_struct(&self, pat: &vst::Pat) -> Option<vst::Struct> {
+        let sema: &Semantics<'_, ide_db::RootDatabase> = &self.sema;
+        let hir_ty: Vec<hir::Type> =
+            sema.type_of_pat(&pat.cst()?)?.adjusted().autoderef(sema.db).collect::<Vec<_>>();
+        let hir_ty = hir_ty.first()?;
+        if let Some(t) = hir_ty.as_adt() {
+            let ast_ty: ast::Adt = sema.source(t)?.value;
+            let typename = ast_ty.try_into().ok()?;
+            if let vst::Adt::Struct(s) = typename {
+                return Some(*s.clone());
             }
         }
         None
