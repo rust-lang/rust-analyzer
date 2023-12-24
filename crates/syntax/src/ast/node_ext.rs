@@ -1142,3 +1142,7 @@ impl From<ast::TupleField> for ast::AnyHasAttrs {
         Self::new(node)
     }
 }
+
+impl ast::AssertForallExpr {
+    pub fn exprs(&self) -> ast::AstChildren<ast::Expr> { support::children(&self.syntax) } 
+}

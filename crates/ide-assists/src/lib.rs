@@ -415,6 +415,7 @@ pub(crate) mod handlers {
             proof_action::intro_forall::intro_forall,   
             proof_action::intro_forall_implies::intro_forall_implies,
             proof_action::by_assume_false::by_assume_false,
+            proof_action::split_smaller_or_equal_to::split_smaller_or_equal_to,
         ]
     }
 }

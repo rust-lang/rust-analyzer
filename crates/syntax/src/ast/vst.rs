@@ -392,6 +392,42 @@ impl std::fmt::Display for AssertExpr {
     }
 }
 
+
+// TODO: bug for expr
+// impl TryFrom<generated::nodes::AssertForallExpr> for AssertForallExpr {
+//     type Error = String;
+//     fn try_from(item: generated::nodes::AssertForallExpr) -> Result<Self, Self::Error> {
+//         Ok(Self {
+//             attrs: item
+//                 .attrs()
+//                 .into_iter()
+//                 .map(Attr::try_from)
+//                 .collect::<Result<Vec<Attr>, String>>()?,
+//             assert_token: item.assert_token().is_some(),
+//             closure_expr: Box::new(
+//                 item.closure_expr()
+//                     .ok_or(format!("{}", stringify!(closure_expr)))
+//                     .map(|it| ClosureExpr::try_from(it))??,
+//             ),
+//             implies_token: item.implies_token().is_some(),
+//             expr: match item.expr() {      // TODO: bug in item.expr() it gives closure_expr
+//                 Some(it) => {
+//                     dbg!(&it);
+//                     Some(Box::new(Expr::try_from(it)?))
+//                 }
+//                 None => None,
+//             },
+//             by_token: item.by_token().is_some(),
+//             block_expr: Box::new(
+//                 item.block_expr()
+//                     .ok_or(format!("{}", stringify!(block_expr)))
+//                     .map(|it| BlockExpr::try_from(it))??,
+//             ),
+//             cst: Some(item.clone()),
+//         })
+//     }
+// }
+
 // impl From<Expr> for ExprStmt {
 //     fn from(item: Expr) -> Self
 //     {
