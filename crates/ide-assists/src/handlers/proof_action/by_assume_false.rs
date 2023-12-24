@@ -27,7 +27,7 @@ pub(crate) fn vst_rewriter_by_assume_false(ctx: &AssistContext<'_>, mut assert: 
 
     // generate empty proof block and put the "assume(false)" in it
     let mut stmt = StmtList::new();
-    let false_: Expr = Literal::new("false".to_owned()).into();
+    let false_: Expr = ctx.vst_expr_from_text("false")?;
     let assume_false = AssumeExpr::new(false_,);
     stmt.statements.push(assume_false.into());
     let blk_expr: BlockExpr = BlockExpr::new(stmt);

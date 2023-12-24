@@ -1,11 +1,5 @@
-use std::{process::Command, collections::hash_map::DefaultHasher, time::Instant, env::{self, Args}, path::Path, hash::{Hasher, Hash}, fs::File, io::Write};
-
-use crate::{AssistContext, verus_error::*, tests::CHANHEE_VERUS_PATH};
-use hir::Semantics;
-use syntax::{
-    ast::{self, vst, HasModuleItem, HasName},
-    AstNode, SyntaxToken, SyntaxKind,
-};
+use crate::AssistContext;
+use syntax::ast::{self, vst};
 
 impl<'a> AssistContext<'a> {
     pub fn vst_path_from_text(&self, text: &str) -> Option<vst::Path> {
@@ -25,6 +19,11 @@ impl<'a> AssistContext<'a> {
         let mut name = vst::NameRef::new();
         name.ident_token = Some(String::from(s));
         Some(name)
+    }
+
+    pub fn vst_expr_from_text(&self, s: &str) -> Option<vst::Expr> {
+        let ret: vst::Expr = vst::Literal::new(s.to_string()).into();
+        Some(ret)
     }
 
 }
