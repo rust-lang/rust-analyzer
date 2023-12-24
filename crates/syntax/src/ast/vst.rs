@@ -393,40 +393,113 @@ impl std::fmt::Display for AssertExpr {
 }
 
 
-// TODO: bug for expr
-// impl TryFrom<generated::nodes::AssertForallExpr> for AssertForallExpr {
-//     type Error = String;
-//     fn try_from(item: generated::nodes::AssertForallExpr) -> Result<Self, Self::Error> {
-//         Ok(Self {
-//             attrs: item
-//                 .attrs()
-//                 .into_iter()
-//                 .map(Attr::try_from)
-//                 .collect::<Result<Vec<Attr>, String>>()?,
-//             assert_token: item.assert_token().is_some(),
-//             closure_expr: Box::new(
-//                 item.closure_expr()
-//                     .ok_or(format!("{}", stringify!(closure_expr)))
-//                     .map(|it| ClosureExpr::try_from(it))??,
-//             ),
-//             implies_token: item.implies_token().is_some(),
-//             expr: match item.expr() {      // TODO: bug in item.expr() it gives closure_expr
-//                 Some(it) => {
-//                     dbg!(&it);
-//                     Some(Box::new(Expr::try_from(it)?))
-//                 }
-//                 None => None,
-//             },
-//             by_token: item.by_token().is_some(),
-//             block_expr: Box::new(
-//                 item.block_expr()
-//                     .ok_or(format!("{}", stringify!(block_expr)))
-//                     .map(|it| BlockExpr::try_from(it))??,
-//             ),
-//             cst: Some(item.clone()),
-//         })
-//     }
-// }
+impl TryFrom<generated::nodes::AssertForallExpr> for AssertForallExpr {
+    type Error = String;
+    fn try_from(item: generated::nodes::AssertForallExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            assert_token: item.assert_token().is_some(),
+            closure_expr: Box::new(
+                item.closure_expr()
+                    .ok_or(format!("{}", stringify!(closure_expr)))
+                    .map(|it| ClosureExpr::try_from(it))??,
+            ),
+            implies_token: item.implies_token().is_some(),
+            expr: match item.exprs().nth(1) {      // TODO: bug in item.expr() it gives closure_expr
+                Some(it) => {
+                    dbg!(&it);
+                    Some(Box::new(Expr::try_from(it)?))
+                }
+                None => None,
+            },
+            by_token: item.by_token().is_some(),
+            block_expr: Box::new(
+                item.block_expr()
+                    .ok_or(format!("{}", stringify!(block_expr)))
+                    .map(|it| BlockExpr::try_from(it))??,
+            ),
+            cst: Some(item.clone()),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct IndexExpr {
+    pub attrs: Vec<Attr>,
+    pub base: Box<Expr>,
+    pub l_brack_token: bool,
+    pub index: Box<Expr>,
+    pub r_brack_token: bool,
+    pub cst: Option<generated::nodes::IndexExpr>,
+}
+
+impl std::fmt::Display for IndexExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(" ");
+        s.push_str(&self.base.to_string());
+        if self.l_brack_token {
+            let mut tmp = stringify!(l_brack_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.index.to_string());
+        if self.r_brack_token {
+            let mut tmp = stringify!(r_brack_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+
+impl TryFrom<generated::nodes::IndexExpr> for IndexExpr {
+    type Error = String;
+    fn try_from(item: generated::nodes::IndexExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            base: match item.base() {
+                Some(it) => Box::new(Expr::try_from(it)?),
+                None => return Err(String::from("no base for indexExpr")),
+            },
+            l_brack_token: item.l_brack_token().is_some(),
+            index: match item.index() {
+                Some(it) => Box::new(Expr::try_from(it)?),
+                None => return Err(String::from("no index for indexExpr")),
+            },
+            r_brack_token: item.r_brack_token().is_some(),
+            cst: Some(item.clone()),
+        })
+    }
+}
+
+impl IndexExpr {
+    pub fn new<ET0, ET1>(base: ET0, index: ET1) -> Self
+    where
+        ET0: Into<Expr>,
+        ET1: Into<Expr>,
+    {
+        IndexExpr {
+            attrs: vec![],
+            base: Box::new(base.into()),
+            l_brack_token: true,
+            index: Box::new(index.into()),
+            r_brack_token: true,
+            cst: None,
+        }
+    }
+}
 
 // impl From<Expr> for ExprStmt {
 //     fn from(item: Expr) -> Self
