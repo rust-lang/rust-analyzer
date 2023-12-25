@@ -1958,25 +1958,89 @@ use core::ops::Coroutine;
 
 pub fn test() {
     let mut coroutine = || {
-        yield 1i32;
+        yield 1i8;
+        2u8
     };
     let _result = Pin::new(&mut coroutine).resume(());
 }
         "#,
         expect![[r#"
-        61..175 '{     ...()); }': ()
-        71..84 'mut coroutine': |()| yields i32 -> ()
-        87..117 '|| {  ...     }': |()| yields i32 -> ()
-        90..117 '{     ...     }': ()
-        100..110 'yield 1i32': ()
-        106..110 '1i32': i32
-        127..134 '_result': CoroutineState<i32, ()>
-        137..145 'Pin::new': fn new<&mut |()| yields i32 -> ()>(&mut |()| yields i32 -> ()) -> Pin<&mut |()| yields i32 -> ()>
-        137..161 'Pin::n...utine)': Pin<&mut |()| yields i32 -> ()>
-        137..172 'Pin::n...me(())': CoroutineState<i32, ()>
-        146..160 '&mut coroutine': &mut |()| yields i32 -> ()
-        151..160 'coroutine': |()| yields i32 -> ()
-        169..171 '()': ()
+        61..186 '{     ...()); }': ()
+        71..84 'mut coroutine': |()| yields i8 -> u8
+        87..128 '|| {  ...     }': |()| yields i8 -> u8
+        90..128 '{     ...     }': u8
+        100..109 'yield 1i8': ()
+        106..109 '1i8': i8
+        119..122 '2u8': u8
+        138..145 '_result': CoroutineState<i8, u8>
+        148..156 'Pin::new': fn new<&mut |()| yields i8 -> u8>(&mut |()| yields i8 -> u8) -> Pin<&mut |()| yields i8 -> u8>
+        148..172 'Pin::n...utine)': Pin<&mut |()| yields i8 -> u8>
+        148..183 'Pin::n...me(())': CoroutineState<i8, u8>
+        157..171 '&mut coroutine': &mut |()| yields i8 -> u8
+        162..171 'coroutine': |()| yields i8 -> u8
+        180..182 '()': ()
+        "#]],
+    );
+}
+
+
+#[test]
+fn gen_types_fully_inferred() {
+    check_infer(
+        r#"
+//- minicore: iterator, deref
+use core::iter::Iterator;
+
+pub fn test() {
+    let mut generator = gen {
+        yield 1i8;
+    };
+    let _result = generator.next();
+}
+        "#,
+        expect![[r#"
+        41..136 '{     ...t(); }': ()
+        51..64 'mut generator': impl Iterator<Item = i8>
+        67..97 'gen { ...     }': impl Iterator<Item = i8>
+        67..97 'gen { ...     }': ()
+        81..90 'yield 1i8': ()
+        87..90 '1i8': i8
+        107..114 '_result': Option<i8>
+        117..126 'generator': impl Iterator<Item = i8>
+        117..133 'genera...next()': Option<i8>
+        "#]],
+    );
+}
+
+
+#[test]
+fn async_gen_types_fully_inferred() {
+    check_infer(
+        r#"
+//- minicore: async_iterator, future, deref
+use core::task::{Context, Poll};
+use core::async_iter::AsyncIterator;
+
+pub fn test(mut context: Context) {
+    let mut async_generator = async gen {
+        yield 1i8;
+    };
+    let _result = async_generator.poll_next(&mut context);
+}
+        "#,
+        expect![[r#"
+        83..94 'mut context': Context<'_>
+        105..235 '{     ...xt); }': ()
+        115..134 'mut as...erator': impl AsyncIterator<Item = i8>
+        137..173 'async ...     }': impl AsyncIterator<Item = i8>
+        137..173 'async ...     }': ()
+        157..166 'yield 1i8': ()
+        163..166 '1i8': i8
+        183..190 '_result': {unknown}
+        193..208 'async_generator': impl AsyncIterator<Item = i8>
+        193..232 'async_...ntext)': {unknown}
+        219..231 '&mut context': &mut Context<'_>
+        224..231 'context': Context<'_>
         "#]],
     );
 }
@@ -2048,114 +2112,7 @@ fn test() {
     );
 }
 
-#[test]
-fn gen_types_inferred() {
-    check_infer(
-        r#"
-//- minicore: iterator, deref
-use core::iter::Iterator;
 
-fn f(v: i64) {}
-fn test() {
-    let mut g = gen {
-        let a = yield 0;
-        let a = yield 1;
-        let a = yield 2;
-    };
-
-    match g.next() {
-        Some(y) => { f(y); }
-        None => {}
-    }
-}
-        "#,
-        expect![[r#"
-            32..33 'v': i64
-            40..42 '{}': ()
-            53..236 '{     ...   } }': ()
-            63..68 'mut g': impl Iterator<Item = i64>
-            71..157 'gen { ...     }': impl Iterator<Item = i64>
-            71..157 'gen { ...     }': ()
-            89..90 'a': ()
-            93..100 'yield 0': ()
-            99..100 '0': i64
-            114..115 'a': ()
-            118..125 'yield 1': ()
-            124..125 '1': i64
-            139..140 'a': ()
-            143..150 'yield 2': ()
-            149..150 '2': i64
-            164..234 'match ...     }': ()
-            170..171 'g': impl Iterator<Item = i64>
-            170..178 'g.next()': Option<i64>
-            189..196 'Some(y)': Option<i64>
-            194..195 'y': i64
-            200..209 '{ f(y); }': ()
-            202..203 'f': fn f(i64)
-            202..206 'f(y)': ()
-            204..205 'y': i64
-            218..222 'None': Option<i64>
-            226..228 '{}': ()
-        "#]],
-    );
-}
-
-#[test]
-fn async_gen_types_inferred() {
-    check_infer(
-        r#"
-//- minicore: async_iterator, future, deref
-use core::task::{Context, Poll};
-use core::async_iter::AsyncIterator;
-
-fn f(v: i64) {}
-fn test(mut context: Context) {
-    let mut g = async gen {
-        let a = yield 0;
-        let a = yield 1;
-        let a = yield 2;
-    };
-
-    match g.poll_next(&mut context) {
-        Poll::Ready(Some(y)) => { f(y); } // FIXME test with 1 there I think this infers stuff it should not
-        Poll::Pending => {}
-    }
-}
-        "#,
-        expect![[r#"
-            76..77 'v': i64
-            84..86 '{}': ()
-            95..106 'mut context': Context<'_>
-            117..412 '{     ...   } }': ()
-            127..132 'mut g': impl AsyncIterator<Item = i32>
-            135..227 'async ...     }': impl AsyncIterator<Item = i32>
-            135..227 'async ...     }': ()
-            159..160 'a': ()
-            163..170 'yield 0': ()
-            169..170 '0': i32
-            184..185 'a': ()
-            188..195 'yield 1': ()
-            194..195 '1': i32
-            209..210 'a': ()
-            213..220 'yield 2': ()
-            219..220 '2': i32
-            234..410 'match ...     }': ()
-            240..241 'g': impl AsyncIterator<Item = i32>
-            240..265 'g.poll...ntext)': Poll<Option<i64>>
-            252..264 '&mut context': &mut Context<'_>
-            257..264 'context': Context<'_>
-            276..296 'Poll::...me(y))': Poll<Option<i64>>
-            288..295 'Some(y)': Option<i64>
-            293..294 'y': i64
-            300..309 '{ f(y); }': ()
-            302..303 'f': fn f(i64)
-            302..306 'f(y)': ()
-            304..305 'y': i64
-            385..398 'Poll::Pending': Poll<Option<i64>>
-            402..404 '{}': ()
-        "#]],
-    );
-}
 
 #[test]
 fn coroutine_resume_yield_return_unit() {
