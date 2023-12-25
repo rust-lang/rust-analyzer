@@ -2000,8 +2000,8 @@ fn test() {
     };
 
     match Pin::new(&mut coroutine).resume(0i8) {
-        CoroutineState::Yielded(y) => { as_u8(y); }
-        CoroutineState::Complete(r) => { as_u16(y); }
+        CoroutineState::Yielded(yielded) => { as_u8(yielded); }
+        CoroutineState::Complete(return_value) => { as_u16(return_value); }
     }
 }
         "#,
@@ -2010,11 +2010,11 @@ fn test() {
         81..83 '{}': ()
         94..95 'v': u16
         102..104 '{}': ()
-        115..402 '{     ...   } }': ()
-        125..138 'mut coroutine': |i8| yields u8 -> i32
-        141..237 '|r| { ...     }': |i8| yields u8 -> i32
+        115..436 '{     ...   } }': ()
+        125..138 'mut coroutine': |i8| yields u8 -> u16
+        141..237 '|r| { ...     }': |i8| yields u8 -> u16
         142..143 'r': i8
-        145..237 '{     ...     }': i32
+        145..237 '{     ...     }': u16
         159..160 'a': i8
         163..170 'yield 0': i8
         169..170 '0': u8
@@ -2024,26 +2024,26 @@ fn test() {
         209..210 'a': i8
         213..220 'yield 2': i8
         219..220 '2': u8
-        230..231 '3': i32
-        244..400 'match ...     }': ()
-        250..258 'Pin::new': fn new<&mut |i8| yields u8 -> i32>(&mut |i8| yields u8 -> i32) -> Pin<&mut |i8| yields u8 -> i32>
-        250..274 'Pin::n...utine)': Pin<&mut |i8| yields u8 -> i32>
-        250..286 'Pin::n...e(0i8)': CoroutineState<u8, i32>
-        259..273 '&mut coroutine': &mut |i8| yields u8 -> i32
-        264..273 'coroutine': |i8| yields u8 -> i32
+        230..231 '3': u16
+        244..434 'match ...     }': ()
+        250..258 'Pin::new': fn new<&mut |i8| yields u8 -> u16>(&mut |i8| yields u8 -> u16) -> Pin<&mut |i8| yields u8 -> u16>
+        250..274 'Pin::n...utine)': Pin<&mut |i8| yields u8 -> u16>
+        250..286 'Pin::n...e(0i8)': CoroutineState<u8, u16>
+        259..273 '&mut coroutine': &mut |i8| yields u8 -> u16
+        264..273 'coroutine': |i8| yields u8 -> u16
         282..285 '0i8': i8
-        297..323 'Corout...ded(y)': CoroutineState<u8, i32>
-        321..322 'y': u8
-        327..340 '{ as_u8(y); }': ()
-        329..334 'as_u8': fn as_u8(u8)
-        329..337 'as_u8(y)': ()
-        335..336 'y': u8
-        349..376 'Corout...ete(r)': CoroutineState<u8, i32>
-        374..375 'r': i32
-        380..394 '{ as_u16(y); }': ()
-        382..388 'as_u16': fn as_u16(u16)
-        382..391 'as_u16(y)': ()
-        389..390 'y': u16
+        297..329 'Corout...elded)': CoroutineState<u8, u16>
+        321..328 'yielded': u8
+        333..352 '{ as_u...ed); }': ()
+        335..340 'as_u8': fn as_u8(u8)
+        335..349 'as_u8(yielded)': ()
+        341..348 'yielded': u8
+        361..399 'Corout...value)': CoroutineState<u8, u16>
+        386..398 'return_value': u16
+        403..428 '{ as_u...ue); }': ()
+        405..411 'as_u16': fn as_u16(u16)
+        405..425 'as_u16...value)': ()
+        412..424 'return_value': u16
         "#]],
     );
 }
