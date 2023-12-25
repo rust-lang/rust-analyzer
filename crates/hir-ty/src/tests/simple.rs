@@ -2020,27 +2020,31 @@ fn async_gen_types_fully_inferred() {
 //- minicore: async_iterator, future, deref
 use core::task::{Context, Poll};
 use core::async_iter::AsyncIterator;
+use core::pin::Pin;
 
 pub fn test(mut context: Context) {
     let mut async_generator = async gen {
         yield 1i8;
     };
-    let _result = async_generator.poll_next(&mut context);
+    let _result = Pin::new(&mut async_generator).poll_next(&mut context);
 }
         "#,
         expect![[r#"
-        83..94 'mut context': Context<'_>
-        105..235 '{     ...xt); }': ()
-        115..134 'mut as...erator': impl AsyncIterator<Item = i8>
-        137..173 'async ...     }': impl AsyncIterator<Item = i8>
-        137..173 'async ...     }': ()
-        157..166 'yield 1i8': ()
-        163..166 '1i8': i8
-        183..190 '_result': {unknown}
-        193..208 'async_generator': impl AsyncIterator<Item = i8>
-        193..232 'async_...ntext)': {unknown}
-        219..231 '&mut context': &mut Context<'_>
-        224..231 'context': Context<'_>
+        103..114 'mut context': Context<'_>
+        125..270 '{     ...xt); }': ()
+        135..154 'mut as...erator': impl AsyncIterator<Item = i8>
+        157..193 'async ...     }': impl AsyncIterator<Item = i8>
+        157..193 'async ...     }': ()
+        177..186 'yield 1i8': ()
+        183..186 '1i8': i8
+        203..210 '_result': Poll<Option<i8>>
+        213..221 'Pin::new': fn new<&mut impl AsyncIterator<Item = i8>>(&mut impl AsyncIterator<Item = i8>) -> Pin<&mut impl AsyncIterator<Item = i8>>
+        213..243 'Pin::n...rator)': Pin<&mut impl AsyncIterator<Item = i8>>
+        213..267 'Pin::n...ntext)': Poll<Option<i8>>
+        222..242 '&mut a...erator': &mut impl AsyncIterator<Item = i8>
+        227..242 'async_generator': impl AsyncIterator<Item = i8>
+        254..266 '&mut context': &mut Context<'_>
+        259..266 'context': Context<'_>
         "#]],
     );
 }
@@ -2178,37 +2182,45 @@ fn async_gen_yield_return_unit() {
         //- minicore: async_iterator, future, deref
         use core::task::{Context, Poll};
         use core::async_iter::AsyncIterator;
+        use core::pin::Pin;
+       
         fn test(mut context: Context) {
             let mut g = async gen {
                 let () = yield;
             };
-
-            match g.poll_next(&mut context) {
-                Poll::Ready(()) => {} // FIXME test with 1 there I think this infers stuff it should not
+       
+            match Pin::new(&mut g).poll_next(&mut context) {
+                Poll::Ready(Some(())) => {}
+                Poll::Ready(None) => {}
                 Poll::Pending => {}
             }
-            g
         }
 "#,
         expect![[r#"
-            78..89 'mut context': Context<'_>
-            100..338 '{     ...   g }': ()
-            110..115 'mut g': impl AsyncIterator<Item = ()>
-            118..159 'async ...     }': impl AsyncIterator<Item = ()>
-            118..159 'async ...     }': ()
-            142..144 '()': ()
-            147..152 'yield': ()
-            166..330 'match ...     }': ()
-            172..173 'g': impl AsyncIterator<Item = ()>
-            172..197 'g.poll...ntext)': Poll<()>
-            184..196 '&mut context': &mut Context<'_>
-            189..196 'context': Context<'_>
-            208..223 'Poll::Ready(())': Poll<()>
-            220..222 '()': ()
-            227..229 '{}': ()
-            305..318 'Poll::Pending': Poll<()>
-            322..324 '{}': ()
-            335..336 'g': impl AsyncIterator<Item = ()>
+        99..110 'mut context': Context<'_>
+        121..339 '{     ...   } }': ()
+        131..136 'mut g': impl AsyncIterator<Item = ()>
+        139..180 'async ...     }': impl AsyncIterator<Item = ()>
+        139..180 'async ...     }': ()
+        163..165 '()': ()
+        168..173 'yield': ()
+        187..337 'match ...     }': ()
+        193..201 'Pin::new': fn new<&mut impl AsyncIterator<Item = ()>>(&mut impl AsyncIterator<Item = ()>) -> Pin<&mut impl AsyncIterator<Item = ()>>
+        193..209 'Pin::n...mut g)': Pin<&mut impl AsyncIterator<Item = ()>>
+        193..233 'Pin::n...ntext)': Poll<Option<()>>
+        202..208 '&mut g': &mut impl AsyncIterator<Item = ()>
+        207..208 'g': impl AsyncIterator<Item = ()>
+        220..232 '&mut context': &mut Context<'_>
+        225..232 'context': Context<'_>
+        244..265 'Poll::...e(()))': Poll<Option<()>>
+        256..264 'Some(())': Option<()>
+        261..263 '()': ()
+        269..271 '{}': ()
+        280..297 'Poll::...(None)': Poll<Option<()>>
+        292..296 'None': Option<()>
+        301..303 '{}': ()
+        312..325 'Poll::Pending': Poll<Option<()>>
+        329..331 '{}': ()
         "#]],
     );
 }
