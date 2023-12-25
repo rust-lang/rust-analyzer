@@ -1983,7 +1983,6 @@ pub fn test() {
     );
 }
 
-
 #[test]
 fn gen_types_fully_inferred() {
     check_infer(
@@ -2011,7 +2010,6 @@ pub fn test() {
         "#]],
     );
 }
-
 
 #[test]
 fn async_gen_types_fully_inferred() {
@@ -2115,8 +2113,6 @@ fn test() {
         "#]],
     );
 }
-
-
 
 #[test]
 fn coroutine_resume_yield_return_unit() {
