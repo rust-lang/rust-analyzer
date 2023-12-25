@@ -1,6 +1,6 @@
 use std::{process::Command, collections::hash_map::DefaultHasher, time::Instant, env, path::Path, hash::{Hasher, Hash}, fs::File, io::Write};
 
-use crate::{AssistContext, verus_error::*, tests::CHANHEE_VERUS_PATH};
+use crate::{AssistContext, verus_error::*, tests::HARDCODED_VERUS_PATH_FOR_TEST};
 use hir::Semantics;
 use syntax::{
     ast::{self, vst, HasModuleItem, HasName},

@@ -1,11 +1,7 @@
 use std::{process::Command, collections::hash_map::DefaultHasher, time::Instant, env, path::Path, hash::{Hasher, Hash}, fs::File, io::Write};
 
-use crate::{AssistContext, verus_error::*, tests::CHANHEE_VERUS_PATH};
-use hir::Semantics;
-use syntax::{
-    ast::{self, vst, HasModuleItem, HasName},
-    AstNode, SyntaxToken, SyntaxKind,
-};
+use crate::{AssistContext, tests::HARDCODED_VERUS_PATH_FOR_TEST};
+use syntax::ast::{self, vst, HasModuleItem, HasName};
 
 impl<'a> AssistContext<'a> {
     // for now, assume one file only
@@ -28,8 +24,8 @@ impl<'a> AssistContext<'a> {
             dbg!("verus path not set");
         }
 
-        #[cfg(test)] 
-        let verus_exec_path = CHANHEE_VERUS_PATH.to_string(); // TODO: maybe move this to test config
+        #[cfg(test)] // We get verus path from config of editor. In test, we use a hardcoded path
+        let verus_exec_path = HARDCODED_VERUS_PATH_FOR_TEST.to_string(); // TODO: maybe move this to test config
 
 
         if verus_exec_path.len() == 0 {

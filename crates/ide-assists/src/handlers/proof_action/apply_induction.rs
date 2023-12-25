@@ -1,15 +1,7 @@
 use crate::{AssistContext, Assists};
-use hir::{db, Field, HasCrate, PathResolution};
-use ide_db::{
-    assists::{AssistId, AssistKind},
-    syntax_helpers::node_ext::walk_expr,
-    syntax_helpers::vst_ext::*,
-};
+use ide_db::assists::{AssistId, AssistKind};
 use itertools::Itertools;
-use syntax::{
-    ast::{self, vst::*},
-    AstNode, SyntaxToken, T,
-};
+use syntax::{ast::{self, vst::*}, AstNode,};
 
 pub(crate) fn apply_induction(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     let func: ast::Fn = ctx.find_node_at_offset::<ast::Fn>()?;

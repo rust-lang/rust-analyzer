@@ -1,10 +1,8 @@
-use std::{process::Command, collections::hash_map::DefaultHasher, time::Instant, env, path::Path, hash::{Hasher, Hash}, fs::File, io::Write};
 
-use crate::{AssistContext, verus_error::*, tests::CHANHEE_VERUS_PATH};
-use hir::Semantics;
+use crate::{AssistContext, verus_error::*};
 use syntax::{
-    ast::{self, vst, HasModuleItem, HasName},
-    AstNode, SyntaxToken, SyntaxKind,
+    ast::{self, vst},
+    AstNode, SyntaxKind,
 };
 
 impl<'a> AssistContext<'a> {

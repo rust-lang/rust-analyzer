@@ -1,5 +1,5 @@
 
-use crate::{AssistContext, verus_error::*, tests::CHANHEE_VERUS_PATH};
+use crate::AssistContext;
 use hir::Semantics;
 use syntax::{
     ast::{self, vst},
