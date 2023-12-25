@@ -1989,55 +1989,61 @@ fn coroutine_types_inferred() {
 use core::ops::{Coroutine, CoroutineState};
 use core::pin::Pin;
 
-fn f(v: i64) {}
+fn as_u8(v: u8) {}
+fn as_u16(v: u16) {}
 fn test() {
-    let mut g = |r| {
+    let mut coroutine = |r| {
         let a = yield 0;
         let a = yield 1;
         let a = yield 2;
-        "return value"
+        3
     };
 
-    match Pin::new(&mut g).resume(0usize) {
-        CoroutineState::Yielded(y) => { f(y); }
-        CoroutineState::Complete(r) => {}
+    match Pin::new(&mut coroutine).resume(0i8) {
+        CoroutineState::Yielded(y) => { as_u8(y); }
+        CoroutineState::Complete(r) => { as_u16(y); }
     }
 }
         "#,
         expect![[r#"
-            70..71 'v': i64
-            78..80 '{}': ()
-            91..362 '{     ...   } }': ()
-            101..106 'mut g': |usize| yields i64 -> &str
-            109..218 '|r| { ...     }': |usize| yields i64 -> &str
-            110..111 'r': usize
-            113..218 '{     ...     }': &str
-            127..128 'a': usize
-            131..138 'yield 0': usize
-            137..138 '0': i64
-            152..153 'a': usize
-            156..163 'yield 1': usize
-            162..163 '1': i64
-            177..178 'a': usize
-            181..188 'yield 2': usize
-            187..188 '2': i64
-            198..212 '"return value"': &str
-            225..360 'match ...     }': ()
-            231..239 'Pin::new': fn new<&mut |usize| yields i64 -> &str>(&mut |usize| yields i64 -> &str) -> Pin<&mut |usize| yields i64 -> &str>
-            231..247 'Pin::n...mut g)': Pin<&mut |usize| yields i64 -> &str>
-            231..262 'Pin::n...usize)': CoroutineState<i64, &str>
-            240..246 '&mut g': &mut |usize| yields i64 -> &str
-            245..246 'g': |usize| yields i64 -> &str
-            255..261 '0usize': usize
-            273..299 'Corout...ded(y)': CoroutineState<i64, &str>
-            297..298 'y': i64
-            303..312 '{ f(y); }': ()
-            305..306 'f': fn f(i64)
-            305..309 'f(y)': ()
-            307..308 'y': i64
-            321..348 'Corout...ete(r)': CoroutineState<i64, &str>
-            346..347 'r': &str
-            352..354 '{}': ()
+        74..75 'v': u8
+        81..83 '{}': ()
+        94..95 'v': u16
+        102..104 '{}': ()
+        115..402 '{     ...   } }': ()
+        125..138 'mut coroutine': |i8| yields u8 -> i32
+        141..237 '|r| { ...     }': |i8| yields u8 -> i32
+        142..143 'r': i8
+        145..237 '{     ...     }': i32
+        159..160 'a': i8
+        163..170 'yield 0': i8
+        169..170 '0': u8
+        184..185 'a': i8
+        188..195 'yield 1': i8
+        194..195 '1': u8
+        209..210 'a': i8
+        213..220 'yield 2': i8
+        219..220 '2': u8
+        230..231 '3': i32
+        244..400 'match ...     }': ()
+        250..258 'Pin::new': fn new<&mut |i8| yields u8 -> i32>(&mut |i8| yields u8 -> i32) -> Pin<&mut |i8| yields u8 -> i32>
+        250..274 'Pin::n...utine)': Pin<&mut |i8| yields u8 -> i32>
+        250..286 'Pin::n...e(0i8)': CoroutineState<u8, i32>
+        259..273 '&mut coroutine': &mut |i8| yields u8 -> i32
+        264..273 'coroutine': |i8| yields u8 -> i32
+        282..285 '0i8': i8
+        297..323 'Corout...ded(y)': CoroutineState<u8, i32>
+        321..322 'y': u8
+        327..340 '{ as_u8(y); }': ()
+        329..334 'as_u8': fn as_u8(u8)
+        329..337 'as_u8(y)': ()
+        335..336 'y': u8
+        349..376 'Corout...ete(r)': CoroutineState<u8, i32>
+        374..375 'r': i32
+        380..394 '{ as_u16(y); }': ()
+        382..388 'as_u16': fn as_u16(u16)
+        382..391 'as_u16(y)': ()
+        389..390 'y': u16
         "#]],
     );
 }
