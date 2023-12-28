@@ -4657,6 +4657,29 @@ impl Callable {
     pub fn return_type(&self) -> Type {
         self.ty.derived(self.sig.ret().clone())
     }
+
+    /// Compute if this `Callable` is unifiable with a `other`. Two callables are
+    /// considered unifiable if all of there parameters and the return type are equal
+    /// or unifiable.
+    pub fn is_unifiable(&self, other: Callable, db: &dyn HirDatabase) -> bool {
+        // We compute a vec of self's and other's parameters + the return type.
+        // This allows for matching all of the types in one iterator.
+
+        let self_types = self.params(db).into_iter().map(|param| param.1);
+        let other_types = other.params(db).into_iter().map(|param| param.1);
+
+        if self_types.len() != other_types.len() {
+            return false;
+        }
+
+        self_types
+            .zip(other_types)
+            .chain([(self.return_type(), other.return_type())])
+            .map(|(expected_type, actual_type)| {
+                expected_type == actual_type || expected_type.could_unify_with(db, &actual_type)
+            })
+            .all(|type_match| type_match)
+    }
 }
 
 fn closure_source(db: &dyn HirDatabase, closure: ClosureId) -> Option<ast::ClosureExpr> {

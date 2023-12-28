@@ -519,6 +519,15 @@ fn compute_type_match(
 ) -> Option<CompletionRelevanceTypeMatch> {
     let expected_type = ctx.expected_type.as_ref()?;
 
+    if let (Some(expected), Some(actual)) =
+        (expected_type.as_callable(ctx.db), completion_ty.as_callable(ctx.db))
+    {
+        return if expected.is_unifiable(actual, ctx.db) {
+            Some(CompletionRelevanceTypeMatch::CouldUnify)
+        } else {
+            None
+        };
+    }
     // We don't ever consider unit type to be an exact type match, since
     // nearly always this is not meaningful to the user.
     if expected_type.is_unit() {

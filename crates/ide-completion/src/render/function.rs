@@ -98,11 +98,7 @@ fn render(
         .and_then(|cap| Some((cap, params(ctx.completion, func, &func_kind, has_dot_receiver)?)));
 
     item.set_relevance(CompletionRelevance {
-        type_match: if has_call_parens || complete_call_parens.is_some() {
-            compute_type_match(completion, &ret_type)
-        } else {
-            compute_type_match(completion, &func.ty(db))
-        },
+        type_match: compute_type_match(ctx.completion, &func.ty(db)),
         exact_name_match: compute_exact_name_match(completion, &call),
         is_op_method,
         ..ctx.completion_relevance()
