@@ -941,3 +941,48 @@ fn main() {
 "#,
     )
 }
+
+#[test]
+fn coerce_unsized_impl_trait() {
+    check_no_mismatches(
+        r#"
+//- minicore: coerce_unsized
+struct Sender<T>;
+
+impl<T> Sender<T> {
+    fn send(&self, msg: T) {}
+}
+
+trait SelectHandle {}
+
+impl<T> SelectHandle for Sender<T> {}
+
+impl<T: SelectHandle> SelectHandle for &T {}
+
+fn foo() {
+    let sender = Sender;
+
+    let _handle: &dyn SelectHandle = &sender;
+
+    sender.send(0_usize);
+}
+    "#,
+    );
+}
+
+#[test]
+fn coerce_unsized_impl_trait2() {
+    check_no_mismatches(
+        r#"
+//- minicore: fmt, coerce_unsized
+fn print_me_later(x: &dyn Debug) -> impl FnOnce() + '_ {
+    move || println!("{x:?}")
+}
+
+fn main() {
+    let f = print_me_later(&22);
+    f()
+}
+    "#,
+    );
+}

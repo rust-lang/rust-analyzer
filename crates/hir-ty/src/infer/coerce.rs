@@ -7,7 +7,7 @@
 
 use std::iter;
 
-use chalk_ir::{cast::Cast, BoundVar, Goal, Mutability, TyKind, TyVariableKind};
+use chalk_ir::{cast::Cast, BoundVar, Mutability, TyKind, TyVariableKind};
 use hir_def::{
     hir::ExprId,
     lang_item::{LangItem, LangItemTarget},
@@ -24,8 +24,8 @@ use crate::{
     },
     static_lifetime,
     utils::ClosureSubst,
-    Canonical, DomainGoal, FnPointer, FnSig, Guidance, InEnvironment, Interner, Solution,
-    Substitution, TraitEnvironment, Ty, TyBuilder, TyExt,
+    Canonical, FnPointer, FnSig, Goal, Guidance, InEnvironment, Interner, Solution, Substitution,
+    TraitEnvironment, Ty, TyBuilder, TyExt,
 };
 
 use super::unify::InferenceTable;
@@ -42,11 +42,7 @@ fn simple(kind: Adjust) -> impl FnOnce(Ty) -> Vec<Adjustment> {
 }
 
 /// This always returns `Ok(...)`.
-fn success(
-    adj: Vec<Adjustment>,
-    target: Ty,
-    goals: Vec<InEnvironment<Goal<Interner>>>,
-) -> CoerceResult {
+fn success(adj: Vec<Adjustment>, target: Ty, goals: Vec<InEnvironment<Goal>>) -> CoerceResult {
     Ok(InferOk { goals, value: (adj, target) })
 }
 
@@ -229,8 +225,6 @@ impl InferenceContext<'_> {
         from_ty: &Ty,
         to_ty: &Ty,
     ) -> Result<Ty, TypeError> {
-        let from_ty = self.resolve_ty_shallow(from_ty);
-        let to_ty = self.resolve_ty_shallow(to_ty);
         let (adjustments, ty) = self.table.coerce(&from_ty, &to_ty)?;
         if let Some(expr) = expr {
             self.write_expr_adj(expr, adjustments);
@@ -411,10 +405,10 @@ impl InferenceTable<'_> {
             // mutability [1], since it may be that we are coercing
             // from `&mut T` to `&U`.
             let lt = static_lifetime(); // FIXME: handle lifetimes correctly, see rustc
-            let derefd_from_ty = TyKind::Ref(to_mt, lt, referent_ty).intern(Interner);
-            match autoderef.table.try_unify(&derefd_from_ty, to_ty) {
+            let derefed_from_ty = TyKind::Ref(to_mt, lt, referent_ty).intern(Interner);
+            match autoderef.table.try_unify(&derefed_from_ty, to_ty) {
                 Ok(result) => {
-                    found = Some(result.map(|()| derefd_from_ty));
+                    found = Some(result.map(|()| derefed_from_ty));
                     break;
                 }
                 Err(err) => {
@@ -626,6 +620,7 @@ impl InferenceTable<'_> {
             }
             _ => None,
         };
+        let must_be_unsized = must_be_coerce_unsized(from_ty, to_ty);
         let coerce_from =
             reborrow.as_ref().map_or_else(|| from_ty.clone(), |(_, adj)| adj.target.clone());
 
@@ -644,7 +639,7 @@ impl InferenceTable<'_> {
             b.push(coerce_from).push(to_ty.clone()).build()
         };
 
-        let goal: InEnvironment<DomainGoal> =
+        let goal: InEnvironment<Goal> =
             InEnvironment::new(&self.trait_env.env, coerce_unsized_tref.cast(Interner));
 
         let canonicalized = self.canonicalize(goal);
@@ -673,7 +668,10 @@ impl InferenceTable<'_> {
                 // FIXME need to record an obligation here
                 canonicalized.apply_solution(self, subst)
             }
-            // FIXME actually we maybe should also accept unknown guidance here
+            // FIXME workaround for #11847 and #15984, maybe removed after new trait solver
+            Solution::Ambig(Guidance::Unknown) if must_be_unsized => {
+                // FIXME need to record an obligation here too
+            }
             _ => return Err(TypeError),
         };
         let unsize =
@@ -712,6 +710,19 @@ fn coerce_mutabilities(from: Mutability, to: Mutability) -> Result<(), TypeError
         (Mutability::Mut, Mutability::Mut | Mutability::Not)
         | (Mutability::Not, Mutability::Not) => Ok(()),
         (Mutability::Not, Mutability::Mut) => Err(TypeError),
+    }
+}
+
+// a temporary workaroud for coerce_unsized
+fn must_be_coerce_unsized(from_ty: &Ty, to_ty: &Ty) -> bool {
+    // FIXME: many other cases
+    match (from_ty.kind(Interner), to_ty.kind(Interner)) {
+        (TyKind::Ref(_, _, from_ty), TyKind::Ref(_, _, to_ty)) => {
+            must_be_coerce_unsized(from_ty, to_ty)
+        }
+        (_, TyKind::Dyn(_)) => true,
+        (TyKind::Array(_, _), TyKind::Slice(_)) => true,
+        (_, _) => false,
     }
 }
 
