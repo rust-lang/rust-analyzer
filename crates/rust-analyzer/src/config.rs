@@ -28,6 +28,10 @@ use project_model::{
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{de::DeserializeOwned, Deserialize};
+use taplo::{
+    dom::{node::Key, KeyOrIndex, Keys},
+    parser,
+};
 use vfs::{AbsPath, AbsPathBuf};
 
 use crate::{
@@ -38,6 +42,17 @@ use crate::{
 };
 
 mod patch_old_style;
+
+/// Where are configurations coming from?
+/// There are two sources :
+/// 1. Client sends them in its `InitializationOptions` in JSON format.
+/// 2. .rust-analyzer.toml in TOML format.
+enum ConfigSource {
+    Client(serde_json::Value),
+    RATOML(TomlContent),
+}
+
+struct TomlContent(String);
 
 // Conventions for configuration keys to preserve maximal extendability without breakage:
 //  - Toggles (be it binary true/false or with more options in-between) should almost always suffix as `_enable`
@@ -2119,6 +2134,43 @@ macro_rules! _config_data {
                     },)*
                 ])
             }
+
+
+        }
+
+
+        impl TryFrom<TomlContent> for ConfigData {
+            type Error = Vec<taplo::parser::Error>;
+
+            fn try_from(value: TomlContent) -> Result<Self, Self::Error> {
+                let content = value.0.as_str();
+                let parsed = parser::parse(content);
+
+                if !parsed.errors.is_empty() {
+                    eprintln!("There are errors.");
+                    return Err(parsed.errors)
+                }
+
+                let dom = parsed.into_dom();
+                $({
+                    let subkeys = stringify!($field)
+                        .split("_")
+                        .into_iter()
+                        .map(|sfix| KeyOrIndex::Key(Key::new(sfix)));
+                    let keys = Keys::new(subkeys);
+                    let matches = dom.find_all_matches(keys , true);
+
+                    if let Ok(o) = matches {
+                        o.into_iter().for_each(|elem| {
+                            dbg!(&elem.0);
+                            dbg!(&elem.1);
+                        });
+                    }
+
+                })*
+
+                Ok(ConfigData::default())
+            }
         }
 
         #[test]
@@ -2737,5 +2789,32 @@ mod tests {
         assert!(
             matches!(config.flycheck(), FlycheckConfig::CargoCommand { target_dir, .. } if target_dir == Some(PathBuf::from("other_folder")))
         );
+    }
+
+    mod ratoml {
+        use crate::config::{ConfigData, ConfigSource, TomlContent};
+
+        #[test]
+        fn test_1() {
+            let toml_file: &'static str = r#"
+[assist]
+emitMustUse = true
+expressionFillDefault = "todo"
+
+[cargo]
+buildScripts.enable = true
+
+[cargo.buildScripts]
+invocationLocation = "workspace"                
+"#;
+            let config = TomlContent(toml_file.to_string());
+            let data: Result<ConfigData, _> = config.try_into();
+
+            if let Ok(config) = data {
+                eprintln!("YUPPI");
+            } else {
+                eprintln!("Oh no it failed.");
+            }
+        }
     }
 }
