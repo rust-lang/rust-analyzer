@@ -1278,11 +1278,10 @@ impl Config {
             assist_emit_must_use: self.assist_emitMustUse(source_root).to_owned(),
             prefer_prelude: self.imports_preferPrelude(source_root).to_owned(),
             term_search_fuel: self.assist_termSearch_fuel(source_root).to_owned() as u64,
-            verus_path
+            verus_path,
+            fmt_path: String::from("/home/chanhee/verusfmt/target/debug/verusfmt"),  // TODO: get this from user config file
         }
     }
-}
-
 
     pub fn completion(&self, source_root: Option<SourceRootId>) -> CompletionConfig {
         CompletionConfig {

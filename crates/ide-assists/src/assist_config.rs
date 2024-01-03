@@ -19,4 +19,5 @@ pub struct AssistConfig {
     pub term_search_fuel: u64,
     // verus
     pub verus_path: String,
+    pub fmt_path: String,
 }
