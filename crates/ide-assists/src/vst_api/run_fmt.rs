@@ -20,7 +20,7 @@ proof fn f() {
 
 */
 impl<'a> AssistContext<'a> {
-    pub(crate) fn run_fmt<N: AstNode>(
+    pub(crate) fn run_fmt_replacing<N: AstNode>(
         &self,
         func: &ast::Fn,
         sth_to_remove: N,

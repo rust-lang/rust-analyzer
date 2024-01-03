@@ -14,7 +14,7 @@ pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()
     // verusfmt
     // assume an fn is including the lightbulb
     let func: ast::Fn = ctx.find_node_at_offset::<ast::Fn>()?.clone();
-    let result = ctx.run_fmt(&func, expr.clone(),result.to_string())?;
+    let result = ctx.run_fmt_replacing(&func, expr.clone(),result.to_string())?;
     
     
     acc.add(
