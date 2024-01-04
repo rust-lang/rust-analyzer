@@ -22,6 +22,8 @@ pub struct CompletionConfig {
     pub prefer_prelude: bool,
     pub snippets: Vec<Snippet>,
     pub limit: Option<usize>,
+    pub query_search_limit: Option<usize>,
+    pub always_allow_fuzzy: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

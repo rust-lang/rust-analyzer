@@ -1,6 +1,7 @@
 use std::iter;
 
 use hir::AsAssocItem;
+use ide_db::items_locator::DEFAULT_QUERY_SEARCH_LIMIT;
 use ide_db::RootDatabase;
 use ide_db::{
     helpers::mod_path_to_ast,
@@ -38,8 +39,14 @@ use crate::{
 pub(crate) fn qualify_path(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     let (import_assets, syntax_under_caret) = find_importable_node(ctx)?;
     let mut proposed_imports: Vec<_> = import_assets
-        .search_for_relative_paths(&ctx.sema, ctx.config.prefer_no_std, ctx.config.prefer_prelude)
+        .search_for_relative_paths(
+            &ctx.sema,
+            ctx.config.prefer_no_std,
+            ctx.config.prefer_prelude,
+            Some(DEFAULT_QUERY_SEARCH_LIMIT.inner()),
+        )
         .collect();
+
     if proposed_imports.is_empty() {
         return None;
     }

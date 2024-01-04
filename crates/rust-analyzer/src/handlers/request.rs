@@ -868,7 +868,11 @@ pub(crate) fn handle_completion(
     let items =
         to_proto::completion_items(&snap.config, &line_index, text_document_position, items);
 
-    let completion_list = lsp_types::CompletionList { is_incomplete: true, items };
+    let completion_list = lsp_types::CompletionList {
+        is_incomplete: !completion_config.always_allow_fuzzy
+            || completion_config.query_search_limit.is_some(),
+        items,
+    };
     Ok(Some(completion_list.into()))
 }
 
@@ -1234,11 +1238,13 @@ pub(crate) fn handle_code_action_resolve(
 
     let assist = match assists.get(assist_index) {
         Some(assist) => assist,
-        None => return Err(invalid_params_error(format!(
-            "Failed to find the assist for index {} provided by the resolve request. Resolve request assist id: {}",
-            assist_index, params.id,
-        ))
-        .into())
+        None => {
+            return Err(invalid_params_error(format!(
+                "Failed to find the assist for index {} provided by the resolve request. Resolve request assist id: {}",
+                assist_index, params.id,
+            ))
+            .into())
+        }
     };
     if assist.id.0 != expected_assist_id || assist.id.1 != expected_kind {
         return Err(invalid_params_error(format!(

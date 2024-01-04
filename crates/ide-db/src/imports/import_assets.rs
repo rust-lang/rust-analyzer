@@ -13,7 +13,7 @@ use syntax::{
 
 use crate::{
     helpers::item_name,
-    items_locator::{self, AssocSearchMode, DEFAULT_QUERY_SEARCH_LIMIT},
+    items_locator::{self, AssocSearchMode},
     RootDatabase,
 };
 
@@ -207,9 +207,10 @@ impl ImportAssets {
         prefix_kind: PrefixKind,
         prefer_no_std: bool,
         prefer_prelude: bool,
+        limit: Option<usize>,
     ) -> impl Iterator<Item = LocatedImport> {
         let _p = profile::span("import_assets::search_for_imports");
-        self.search_for(sema, Some(prefix_kind), prefer_no_std, prefer_prelude)
+        self.search_for(sema, Some(prefix_kind), prefer_no_std, prefer_prelude, limit)
     }
 
     /// This may return non-absolute paths if a part of the returned path is already imported into scope.
@@ -218,9 +219,10 @@ impl ImportAssets {
         sema: &Semantics<'_, RootDatabase>,
         prefer_no_std: bool,
         prefer_prelude: bool,
+        limit: Option<usize>,
     ) -> impl Iterator<Item = LocatedImport> {
         let _p = profile::span("import_assets::search_for_relative_paths");
-        self.search_for(sema, None, prefer_no_std, prefer_prelude)
+        self.search_for(sema, None, prefer_no_std, prefer_prelude, limit)
     }
 
     /// Requires imports to by prefix instead of fuzzily.
@@ -259,6 +261,7 @@ impl ImportAssets {
         prefixed: Option<PrefixKind>,
         prefer_no_std: bool,
         prefer_prelude: bool,
+        limit: Option<usize>,
     ) -> impl Iterator<Item = LocatedImport> {
         let _p = profile::span("import_assets::search_for");
 
@@ -282,11 +285,14 @@ impl ImportAssets {
         };
 
         match &self.import_candidate {
-            ImportCandidate::Path(path_candidate) => {
-                path_applicable_imports(sema, krate, path_candidate, mod_path, |item_to_import| {
-                    !scope_definitions.contains(&ScopeDef::from(item_to_import))
-                })
-            }
+            ImportCandidate::Path(path_candidate) => path_applicable_imports(
+                sema,
+                krate,
+                path_candidate,
+                mod_path,
+                |item_to_import| !scope_definitions.contains(&ScopeDef::from(item_to_import)),
+                limit,
+            ),
             ImportCandidate::TraitAssocItem(trait_candidate)
             | ImportCandidate::TraitMethod(trait_candidate) => trait_applicable_items(
                 sema,
@@ -322,6 +328,7 @@ fn path_applicable_imports(
     path_candidate: &PathImportCandidate,
     mod_path: impl Fn(ItemInNs) -> Option<ModPath> + Copy,
     scope_filter: impl Fn(ItemInNs) -> bool + Copy,
+    limit: Option<usize>,
 ) -> FxHashSet<LocatedImport> {
     let _p = profile::span("import_assets::path_applicable_imports");
 
@@ -348,7 +355,7 @@ fn path_applicable_imports(
                 let mod_path = mod_path(item)?;
                 Some(LocatedImport::new(mod_path, item, item))
             })
-            .take(DEFAULT_QUERY_SEARCH_LIMIT.inner())
+            .take(limit.unwrap_or(usize::MAX))
             .collect()
         }
         Some(qualifier) => items_locator::items_with_name(
@@ -358,7 +365,7 @@ fn path_applicable_imports(
             AssocSearchMode::Include,
         )
         .filter_map(|item| import_for_item(sema.db, mod_path, &qualifier, item, scope_filter))
-        .take(DEFAULT_QUERY_SEARCH_LIMIT.inner())
+        .take(limit.unwrap_or(usize::MAX))
         .collect(),
     }
 }
@@ -371,7 +378,9 @@ fn import_for_item(
     scope_filter: impl Fn(ItemInNs) -> bool,
 ) -> Option<LocatedImport> {
     let _p = profile::span("import_assets::import_for_item");
-    let [first_segment, ..] = unresolved_qualifier else { return None };
+    let [first_segment, ..] = unresolved_qualifier else {
+        return None;
+    };
 
     let item_as_assoc = item_as_assoc(db, original_item);
 

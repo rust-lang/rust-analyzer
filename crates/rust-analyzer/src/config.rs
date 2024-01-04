@@ -216,6 +216,8 @@ config_data! {
         /// Aliased as `"checkOnSave.targets"`.
         check_targets | checkOnSave_targets | checkOnSave_target: Option<CheckOnSaveTargets> = "null",
 
+        /// Always allow fuzzy matches for completions, even when the amount of potential completions is very large.
+        completion_alwaysAllowFuzzy: bool = "false",
         /// Toggles the additional completions that automatically add imports when completed.
         /// Note that your client must specify the `additionalTextEdits` LSP client capability to truly have this feature enabled.
         completion_autoimport_enable: bool       = "true",
@@ -232,6 +234,8 @@ config_data! {
         completion_postfix_enable: bool         = "true",
         /// Enables completions of private items and fields that are defined in the current workspace even if they are not visible at the current position.
         completion_privateEditable_enable: bool = "false",
+        /// Maximum of items to search when finding potential completions.
+        completion_querySearchLimit: Option<usize> = "100",
         /// Custom completion snippets.
         // NOTE: Keep this list in sync with the feature docs of user snippets.
         completion_snippets_custom: FxHashMap<String, SnippetDef> = r#"{
@@ -1524,6 +1528,8 @@ impl Config {
             )),
             snippets: self.snippets.clone(),
             limit: self.data.completion_limit,
+            query_search_limit: self.data.completion_querySearchLimit,
+            always_allow_fuzzy: self.data.completion_alwaysAllowFuzzy,
         }
     }
 

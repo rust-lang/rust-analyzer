@@ -798,6 +798,11 @@
                         }
                     ]
                 },
+                "rust-analyzer.completion.alwaysAllowFuzzy": {
+                    "markdownDescription": "Always allow fuzzy matches for completions, even when the amount of potential completions is very large.",
+                    "default": false,
+                    "type": "boolean"
+                },
                 "rust-analyzer.completion.autoimport.enable": {
                     "markdownDescription": "Toggles the additional completions that automatically add imports when completed.\nNote that your client must specify the `additionalTextEdits` LSP client capability to truly have this feature enabled.",
                     "default": true,
@@ -846,6 +851,15 @@
                     "markdownDescription": "Enables completions of private items and fields that are defined in the current workspace even if they are not visible at the current position.",
                     "default": false,
                     "type": "boolean"
+                },
+                "rust-analyzer.completion.querySearchLimit": {
+                    "markdownDescription": "Maximum of items to search when finding potential completions.",
+                    "default": 100,
+                    "type": [
+                        "null",
+                        "integer"
+                    ],
+                    "minimum": 0
                 },
                 "rust-analyzer.completion.snippets.custom": {
                     "markdownDescription": "Custom completion snippets.",

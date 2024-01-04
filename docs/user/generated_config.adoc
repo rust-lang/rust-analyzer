@@ -241,6 +241,11 @@ Can be a single target, e.g. `"x86_64-unknown-linux-gnu"` or a list of targets, 
 
 Aliased as `"checkOnSave.targets"`.
 --
+[[rust-analyzer.completion.alwaysAllowFuzzy]]rust-analyzer.completion.alwaysAllowFuzzy (default: `false`)::
++
+--
+Always allow fuzzy matches for completions, even when the amount of potential completions is very large.
+--
 [[rust-analyzer.completion.autoimport.enable]]rust-analyzer.completion.autoimport.enable (default: `true`)::
 +
 --
@@ -277,6 +282,11 @@ Whether to show postfix snippets like `dbg`, `if`, `not`, etc.
 +
 --
 Enables completions of private items and fields that are defined in the current workspace even if they are not visible at the current position.
+--
+[[rust-analyzer.completion.querySearchLimit]]rust-analyzer.completion.querySearchLimit (default: `100`)::
++
+--
+Maximum of items to search when finding potential completions.
 --
 [[rust-analyzer.completion.snippets.custom]]rust-analyzer.completion.snippets.custom::
 +
