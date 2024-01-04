@@ -1,0 +1,15 @@
+[package]
+name = "toml-sema"
+version = "0.0.0"
+rust-version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+toml-syntax.workspace = true
+semver.workspace = true
+either.workspace = true
+serde.workspace = true

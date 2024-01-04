@@ -75,6 +75,7 @@ stdx = { path = "./crates/stdx", version = "0.0.0" }
 syntax = { path = "./crates/syntax", version = "0.0.0" }
 text-edit = { path = "./crates/text-edit", version = "0.0.0" }
 toolchain = { path = "./crates/toolchain", version = "0.0.0" }
+toml-syntax = { path = "./crates/toml-syntax", version = "0.0.0" }
 tt = { path = "./crates/tt", version = "0.0.0" }
 vfs-notify = { path = "./crates/vfs-notify", version = "0.0.0" }
 vfs = { path = "./crates/vfs", version = "0.0.0" }

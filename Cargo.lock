@@ -2135,6 +2135,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
+name = "toml-sema"
+version = "0.0.0"
+dependencies = [
+ "either",
+ "semver",
+ "serde",
+ "toml-syntax",
+]
+
+[[package]]
+name = "toml-syntax"
+version = "0.0.0"
+dependencies = [
+ "taplo",
+]
+
+[[package]]
 name = "toolchain"
 version = "0.0.0"
 dependencies = [
