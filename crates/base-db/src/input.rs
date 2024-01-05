@@ -11,6 +11,7 @@ use std::{fmt, mem, ops, panic::RefUnwindSafe, str::FromStr, sync};
 use cfg::CfgOptions;
 use la_arena::{Arena, Idx};
 use rustc_hash::{FxHashMap, FxHashSet};
+use serde::Serialize;
 use syntax::SmolStr;
 use triomphe::Arc;
 use tt::token_id::Subtree;
@@ -39,6 +40,10 @@ pub struct SourceRoot {
     /// optimize salsa's query structure
     pub is_library: bool,
     cargo_file_id: Option<FileId>,
+    /// FIXME : @alibektas We know that this is wrong.
+    /// base-db must stay as a level of abstraction
+    /// that has no knowledge of such specific files
+    /// so this should be moved somewhere else.
     ratoml_file_id: Option<FileId>,
     file_set: FileSet,
 }
@@ -115,6 +120,15 @@ pub type CrateId = Idx<CrateData>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct CrateName(SmolStr);
+
+impl Serialize for CrateName {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self)
+    }
+}
 
 impl CrateName {
     /// Creates a crate name, checking for dashes in the string provided.

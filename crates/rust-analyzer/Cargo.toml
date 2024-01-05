@@ -44,6 +44,7 @@ tracing-subscriber = { version = "0.3.16", default-features = false, features = 
 tracing-log = "0.1.3"
 tracing-tree = "0.2.1"
 triomphe.workspace = true
+toml = "0.8.8"
 nohash-hasher.workspace = true
 always-assert = "0.1.2"
 

@@ -131,7 +131,6 @@ impl GlobalState {
                 Event::Lsp(lsp_server::Message::Notification(Notification { method, .. }))
                 if method == lsp_types::notification::Exit::METHOD
             ) {
-                dbg!("EXIT");
                 return Ok(());
             }
             self.handle_event(event)?;

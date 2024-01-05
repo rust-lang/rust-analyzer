@@ -173,7 +173,6 @@ impl GlobalState {
         }
 
         if let Err(k) = self.fetch_workspace_error() {
-            dbg!(&k);
             status.health = lsp_ext::Health::Error;
             message.push_str("Failed to load workspaces.\n\n");
         }
