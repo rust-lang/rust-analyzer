@@ -29,6 +29,8 @@ pub struct ImportInfo {
     pub container: ModuleId,
     /// Whether this item is annotated with `#[doc(hidden)]`.
     pub is_doc_hidden: bool,
+    /// Whether this item is annotated with `#[doc(notable_trait)]`
+    pub is_doc_notable_trait: bool,
     /// Whether this item is annotated with `#[unstable(..)]`.
     pub is_unstable: bool,
 }
@@ -49,6 +51,7 @@ pub struct ImportMap {
     ///
     /// The [`u32`] is the index into the smallvec in the value of [`Self::item_to_info_map`].
     importables: Vec<(ItemInNs, u32)>,
+    notable_traits: Vec<(ItemInNs, u32)>,
     fst: fst::Map<Vec<u8>>,
 }
 
@@ -79,6 +82,16 @@ impl ImportMap {
 
         let map = Self::collect_import_map(db, krate);
 
+        let notable_traits: Vec<_> = map
+            .iter()
+            .flat_map(|(&item, (info, _))| {
+                info.iter().enumerate().map(move |(idx, info)| (item, info, idx as u32))
+            })
+            .filter(|(_, info, _)| info.is_doc_notable_trait)
+            .map(|(item, _, idx)| (item, idx))
+            .collect();
+        dbg!(&notable_traits);
+
         let mut importables: Vec<_> = map
             .iter()
             // We've only collected items, whose name cannot be tuple field so unwrapping is fine.
@@ -105,6 +118,7 @@ impl ImportMap {
             item_to_info_map: map,
             fst: builder.into_map(),
             importables: importables.into_iter().map(|(item, _, idx)| (item, idx)).collect(),
+            notable_traits,
         })
     }
 
@@ -158,15 +172,21 @@ impl ImportMap {
                             ItemInNs::Macros(id) => Some(id.into()),
                         }
                     };
-                    let (is_doc_hidden, is_unstable) = attr_id.map_or((false, false), |attr_id| {
-                        let attrs = db.attrs(attr_id);
-                        (attrs.has_doc_hidden(), attrs.is_unstable())
-                    });
+                    let (is_doc_hidden, is_doc_notable_trait, is_unstable) =
+                        attr_id.map_or((false, false, false), |attr_id| {
+                            let attrs = db.attrs(attr_id);
+                            (
+                                attrs.has_doc_hidden(),
+                                attrs.has_doc_notable_trait(),
+                                attrs.is_unstable(),
+                            )
+                        });
 
                     let import_info = ImportInfo {
                         name: name.clone(),
                         container: module,
                         is_doc_hidden,
+                        is_doc_notable_trait,
                         is_unstable,
                     };
 
@@ -226,6 +246,7 @@ impl ImportMap {
                 container: trait_import_info.container,
                 name: assoc_item_name.clone(),
                 is_doc_hidden: attrs.has_doc_hidden(),
+                is_doc_notable_trait: attrs.has_doc_notable_trait(),
                 is_unstable: attrs.is_unstable(),
             };
 
