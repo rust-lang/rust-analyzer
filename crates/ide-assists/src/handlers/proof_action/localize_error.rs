@@ -1,4 +1,4 @@
-use crate::{vst_api, AssistContext, Assists};
+use crate::{vst_api::*, AssistContext, Assists};
 use ide_db::{
     assists::{AssistId, AssistKind},
     syntax_helpers::vst_ext::*,
@@ -104,13 +104,14 @@ fn split_expr(exp: &Expr) -> Option<Vec<Expr>> {
         Expr::MatchExpr(me) => {
             // is the enum does not have #[is_variant], return None
             // for now, assume #[is_variant]
+            // TODO: check for latest syntax
             return None;
         },            
         _ => return None,
     }
 }
 
-
+// TODO: try changing this to use verus
 pub(crate) fn vst_rewriter_localize_error(
     ctx: &AssistContext<'_>,
     assertion: AssertExpr,
@@ -121,6 +122,28 @@ pub(crate) fn vst_rewriter_localize_error(
     for e in split_exprs {
         let assert_expr = AssertExpr::new(e);
         stmts.statements.push(assert_expr.into());
+    }
+    stmts.statements.push(assertion.into());
+    let blk = BlockExpr::new(stmts);
+    return Some(blk.to_string());
+}
+
+// maybe register another action with minimization
+// TODO: try changing this to use verus
+pub(crate) fn vst_rewriter_localize_error_minimized(
+    ctx: &AssistContext<'_>,
+    assertion: AssertExpr,
+) -> Option<String> {
+    let this_fn = ctx.vst_find_node_at_offset::<Fn, ast::Fn>()?; 
+    let exp = &assertion.expr;
+    let split_exprs = split_expr(exp)?;
+    let mut stmts: StmtList = StmtList::new();
+    for e in split_exprs {
+        let assert_expr = AssertExpr::new(e);
+        let modified_fn = ctx.replace_statement(&this_fn, assertion.clone(), assert_expr.clone())?;
+        if !ctx.try_verus(&modified_fn)? {
+            stmts.statements.push(assert_expr.into());
+        }
     }
     stmts.statements.push(assertion.into());
     let blk = BlockExpr::new(stmts);

@@ -3,6 +3,8 @@ use ide_db::assists::{AssistId, AssistKind};
 use itertools::Itertools;
 use syntax::{ast::{self, vst::*}, AstNode,};
 
+
+// TODO: maybe autogen decreases clause. 
 pub(crate) fn apply_induction(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     let func: ast::Fn = ctx.find_node_at_offset::<ast::Fn>()?;
     let body: ast::BlockExpr = func.body()?;
