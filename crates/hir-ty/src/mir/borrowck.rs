@@ -149,7 +149,9 @@ fn moved_out_of_ref(db: &dyn HirDatabase, body: &MirBody) -> Vec<MovedOutOfRef> 
                 | StatementKind::Deinit(_)
                 | StatementKind::StorageLive(_)
                 | StatementKind::StorageDead(_)
-                | StatementKind::Nop => (),
+                | StatementKind::Nop
+                | StatementKind::TraitEnvBlockEnter(_)
+                | StatementKind::TraitEnvBlockExit => (),
             }
         }
         match &block.terminator {
@@ -269,7 +271,9 @@ fn ever_initialized_map(
                 StatementKind::Deinit(_)
                 | StatementKind::FakeRead(_)
                 | StatementKind::Nop
-                | StatementKind::StorageLive(_) => (),
+                | StatementKind::StorageLive(_)
+                | StatementKind::TraitEnvBlockEnter(_)
+                | StatementKind::TraitEnvBlockExit => (),
             }
         }
         let Some(terminator) = &block.terminator else {
@@ -424,7 +428,11 @@ fn mutability_of_locals(
                 StatementKind::StorageDead(p) => {
                     ever_init_map.insert(*p, false);
                 }
-                StatementKind::Deinit(_) | StatementKind::StorageLive(_) | StatementKind::Nop => (),
+                StatementKind::Deinit(_)
+                | StatementKind::StorageLive(_)
+                | StatementKind::Nop
+                | StatementKind::TraitEnvBlockEnter(_)
+                | StatementKind::TraitEnvBlockExit => (),
             }
         }
         let Some(terminator) = &block.terminator else {

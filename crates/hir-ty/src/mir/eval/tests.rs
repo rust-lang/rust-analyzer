@@ -833,3 +833,38 @@ fn main() {
 "#,
     );
 }
+
+#[test]
+fn regression_block_def_map() {
+    check_pass(
+        r#"
+//- minicore: sized
+
+trait Write {
+    fn write(&mut self) {
+        trait SpecWriteFmt {
+            fn spec_write_fmt(self);
+        }
+
+        impl<W: Write + ?Sized> SpecWriteFmt for &mut W {
+            #[inline]
+            default fn spec_write_fmt(self) {}
+        }
+
+        impl<W: Write> SpecWriteFmt for &mut W {
+            #[inline]
+            fn spec_write_fmt(self) {}
+        }
+        self.spec_write_fmt()
+    }
+}
+
+struct C;
+impl Write for C {}
+
+fn main() {
+    C.write();
+}
+"#,
+    );
+}

@@ -2,7 +2,7 @@
 //! For details about how this works in rustc, see the method lookup page in the
 //! [rustc guide](https://rust-lang.github.io/rustc-guide/method-lookup.html)
 //! and the corresponding code mostly in rustc_hir_analysis/check/method/probe.rs.
-use std::ops::ControlFlow;
+use std::{iter, ops::ControlFlow};
 
 use base_db::{CrateId, Edition};
 use chalk_ir::{cast::Cast, Mutability, TyKind, UniverseIndex, WhereClause};
@@ -705,15 +705,13 @@ pub(crate) fn lookup_impl_method_query(
     };
 
     let name = &db.function_data(func).name;
-    let Some((impl_fn, impl_subst)) =
-        lookup_impl_assoc_item_for_trait_ref(trait_ref, db, env, name).and_then(|assoc| {
-            if let (AssocItemId::FunctionId(id), subst) = assoc {
-                Some((id, subst))
-            } else {
-                None
-            }
-        })
-    else {
+    let Some((impl_fn, impl_subst)) = lookup_impl_assoc_item_for_trait_ref(
+        trait_ref, db, env, name,
+    )
+    .and_then(|assoc| match assoc {
+        (AssocItemId::FunctionId(id), subst) => Some((id, subst)),
+        _ => None,
+    }) else {
         return (func, fn_subst);
     };
     (
@@ -734,21 +732,54 @@ fn lookup_impl_assoc_item_for_trait_ref(
     let hir_trait_id = trait_ref.hir_trait_id();
     let self_ty = trait_ref.self_type_parameter(Interner);
     let self_ty_fp = TyFingerprint::for_trait_impl(&self_ty)?;
-    let impls = db.trait_impls_in_deps(env.krate);
-    let self_impls = match self_ty.kind(Interner) {
-        TyKind::Adt(id, _) => {
-            id.0.module(db.upcast()).containing_block().map(|it| db.trait_impls_in_block(it))
+
+    let trait_module = hir_trait_id.module(db.upcast());
+    let type_module = match self_ty_fp {
+        TyFingerprint::Adt(adt_id) => Some(adt_id.module(db.upcast())),
+        TyFingerprint::ForeignType(type_id) => {
+            Some(from_foreign_def_id(type_id).module(db.upcast()))
         }
+        TyFingerprint::Dyn(trait_id) => Some(trait_id.module(db.upcast())),
         _ => None,
     };
-    let impls = impls
-        .iter()
-        .chain(self_impls.as_ref())
-        .flat_map(|impls| impls.for_trait_and_self_ty(hir_trait_id, self_ty_fp));
 
-    let table = InferenceTable::new(db, env);
+    let mut def_blocks =
+        [trait_module.containing_block(), type_module.and_then(|it| it.containing_block())];
 
-    let (impl_data, impl_subst) = find_matching_impl(impls, table, trait_ref)?;
+    let impls = db.trait_impls_in_deps(env.krate);
+    let in_self = db.trait_impls_in_crate(env.krate);
+    let block_impls = iter::successors(env.block, |&block_id| {
+        db.block_def_map(block_id).parent().and_then(|module| module.containing_block())
+    })
+    .inspect(|&block_id| {
+        // make sure we don't search the same block twice
+        def_blocks.iter_mut().for_each(|block| {
+            if *block == Some(block_id) {
+                *block = None;
+            }
+        });
+    })
+    .map(|block_id| db.trait_impls_in_block(block_id));
+
+    let impls = block_impls.chain(iter::once(in_self).chain(impls.iter().cloned()));
+
+    let mut table = InferenceTable::new(db, env);
+
+    let (impl_data, impl_subst) =
+        match find_matching_impl(impls, &mut table, trait_ref.clone(), self_ty_fp) {
+            Some(it) => it,
+            None => {
+                if def_blocks.iter().all(Option::is_none) {
+                    return None;
+                }
+                find_matching_impl(
+                    def_blocks.into_iter().flatten().map(|b| db.trait_impls_in_block(b)),
+                    &mut table,
+                    trait_ref,
+                    self_ty_fp,
+                )?
+            }
+        };
     let item = impl_data.items.iter().find_map(|&it| match it {
         AssocItemId::FunctionId(f) => {
             (db.function_data(f).name == *name).then_some(AssocItemId::FunctionId(f))
@@ -765,33 +796,38 @@ fn lookup_impl_assoc_item_for_trait_ref(
 }
 
 fn find_matching_impl(
-    mut impls: impl Iterator<Item = ImplId>,
-    mut table: InferenceTable<'_>,
+    mut impls: impl Iterator<Item = Arc<TraitImpls>>,
+    table: &mut InferenceTable<'_>,
     actual_trait_ref: TraitRef,
+    self_ty_fp: TyFingerprint,
 ) -> Option<(Arc<ImplData>, Substitution)> {
     let db = table.db;
-    impls.find_map(|impl_| {
-        table.run_in_snapshot(|table| {
-            let impl_data = db.impl_data(impl_);
-            let impl_substs =
-                TyBuilder::subst_for_def(db, impl_, None).fill_with_inference_vars(table).build();
-            let trait_ref = db
-                .impl_trait(impl_)
-                .expect("non-trait method in find_matching_impl")
-                .substitute(Interner, &impl_substs);
+    let hir_trait_id = actual_trait_ref.hir_trait_id();
+    impls.find_map(|impls| {
+        for impl_ in impls.for_trait_and_self_ty(hir_trait_id, self_ty_fp) {
+            return table.run_in_snapshot(|table| {
+                let impl_substs = TyBuilder::subst_for_def(db, impl_, None)
+                    .fill_with_inference_vars(table)
+                    .build();
+                let trait_ref = db
+                    .impl_trait(impl_)
+                    .expect("non-trait method in find_matching_impl")
+                    .substitute(Interner, &impl_substs);
 
-            if !table.unify(&trait_ref, &actual_trait_ref) {
-                return None;
-            }
+                if !table.unify(&trait_ref, &actual_trait_ref) {
+                    return None;
+                }
 
-            let wcs = crate::chalk_db::convert_where_clauses(db, impl_.into(), &impl_substs)
-                .into_iter()
-                .map(|b| b.cast(Interner));
-            let goal = crate::Goal::all(Interner, wcs);
-            table.try_obligation(goal.clone())?;
-            table.register_obligation(goal);
-            Some((impl_data, table.resolve_completely(impl_substs)))
-        })
+                let wcs = crate::chalk_db::convert_where_clauses(db, impl_.into(), &impl_substs)
+                    .into_iter()
+                    .map(|b| b.cast(Interner));
+                let goal = crate::Goal::all(Interner, wcs);
+                table.try_obligation(goal.clone())?;
+                table.register_obligation(goal);
+                Some((db.impl_data(impl_), table.resolve_completely(impl_substs)))
+            });
+        }
+        None
     })
 }
 

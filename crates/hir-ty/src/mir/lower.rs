@@ -14,8 +14,8 @@ use hir_def::{
     lang_item::{LangItem, LangItemTarget},
     path::Path,
     resolver::{resolver_for_expr, HasResolver, ResolveValueResult, ValueNs},
-    AdtId, DefWithBodyId, EnumVariantId, GeneralConstId, HasModule, ItemContainerId, LocalFieldId,
-    Lookup, TraitId, TupleId, TypeOrConstParamId,
+    AdtId, BlockId, DefWithBodyId, EnumVariantId, GeneralConstId, HasModule, ItemContainerId,
+    LocalFieldId, Lookup, TraitId, TupleId, TypeOrConstParamId,
 };
 use hir_expand::name::Name;
 use la_arena::ArenaMap;
@@ -51,10 +51,17 @@ struct LoopBlocks {
     drop_scope_index: usize,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 struct DropScope {
     /// locals, in order of definition (so we should run drop glues in reverse order)
     locals: Vec<LocalId>,
+    pop_trait_env_block: bool,
+}
+
+impl DropScope {
+    fn new(pop_trait_env_block: bool) -> Self {
+        Self { locals: Default::default(), pop_trait_env_block }
+    }
 }
 
 struct MirLowerCtx<'a> {
@@ -119,9 +126,9 @@ impl DropScopeToken {
     /// code. Either when the control flow is diverging (so drop code doesn't reached) or when drop is handled
     /// for us (for example a block that ended with a return statement. Return will drop everything, so the block shouldn't
     /// do anything)
-    fn pop_assume_dropped(self, ctx: &mut MirLowerCtx<'_>) {
+    fn pop_assume_dropped(self, ctx: &mut MirLowerCtx<'_>, current: BasicBlockId, span: MirSpan) {
         std::mem::forget(self);
-        ctx.pop_drop_scope_assume_dropped_internal();
+        ctx.pop_drop_scope_assume_dropped_internal(current, span);
     }
 }
 
@@ -267,7 +274,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
             current_loop_blocks: None,
             labeled_loop_blocks: Default::default(),
             discr_temp: None,
-            drop_scopes: vec![DropScope::default()],
+            drop_scopes: vec![DropScope::new(false)],
         };
         ctx
     }
@@ -555,10 +562,10 @@ impl<'ctx> MirLowerCtx<'ctx> {
                 }
                 Ok(self.merge_blocks(Some(then_target), else_target, expr_id.into()))
             }
-            Expr::Unsafe { id: _, statements, tail } => {
-                self.lower_block_to_place(statements, current, *tail, place, expr_id.into())
+            Expr::Unsafe { id, statements, tail } => {
+                self.lower_block_to_place(statements, *id, current, *tail, place, expr_id.into())
             }
-            Expr::Block { id: _, statements, tail, label } => {
+            Expr::Block { id, statements, tail, label } => {
                 if let Some(label) = label {
                     self.lower_loop(
                         current,
@@ -568,6 +575,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
                         |this, begin| {
                             if let Some(current) = this.lower_block_to_place(
                                 statements,
+                                *id,
                                 begin,
                                 *tail,
                                 place,
@@ -580,17 +588,24 @@ impl<'ctx> MirLowerCtx<'ctx> {
                         },
                     )
                 } else {
-                    self.lower_block_to_place(statements, current, *tail, place, expr_id.into())
+                    self.lower_block_to_place(
+                        statements,
+                        *id,
+                        current,
+                        *tail,
+                        place,
+                        expr_id.into(),
+                    )
                 }
             }
             Expr::Loop { body, label } => {
                 self.lower_loop(current, place, *label, expr_id.into(), |this, begin| {
-                    let scope = this.push_drop_scope();
+                    let scope = this.push_drop_scope(false);
                     if let Some((_, mut current)) = this.lower_expr_as_place(begin, *body, true)? {
                         current = scope.pop_and_drop(this, current, body.into());
                         this.set_goto(current, begin, expr_id.into());
                     } else {
-                        scope.pop_assume_dropped(this);
+                        scope.pop_assume_dropped(this, current, body.into());
                     }
                     Ok(())
                 })
@@ -1590,6 +1605,14 @@ impl<'ctx> MirLowerCtx<'ctx> {
         self.result.basic_blocks[block].statements.push(statement);
     }
 
+    fn push_enter_trait_block(&mut self, block: BasicBlockId, id: hir_def::BlockId, span: MirSpan) {
+        self.push_statement(block, StatementKind::TraitEnvBlockEnter(id).with_span(span));
+    }
+
+    fn push_exit_trait_block(&mut self, block: BasicBlockId, span: MirSpan) {
+        self.push_statement(block, StatementKind::TraitEnvBlockExit.with_span(span));
+    }
+
     fn push_fake_read(&mut self, block: BasicBlockId, p: Place, span: MirSpan) {
         self.push_statement(block, StatementKind::FakeRead(p).with_span(span));
     }
@@ -1740,12 +1763,16 @@ impl<'ctx> MirLowerCtx<'ctx> {
     fn lower_block_to_place(
         &mut self,
         statements: &[hir_def::hir::Statement],
+        id: Option<BlockId>,
         mut current: BasicBlockId,
         tail: Option<ExprId>,
         place: Place,
         span: MirSpan,
     ) -> Result<Option<Idx<BasicBlock>>> {
-        let scope = self.push_drop_scope();
+        let scope = self.push_drop_scope(id.is_some());
+        if let Some(id) = id {
+            self.push_enter_trait_block(current, id, span);
+        }
         for statement in statements.iter() {
             match statement {
                 hir_def::hir::Statement::Let { pat, initializer, else_branch, type_ref: _ } => {
@@ -1754,7 +1781,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
                         let Some((init_place, c)) =
                             self.lower_expr_as_place(current, *expr_id, true)?
                         else {
-                            scope.pop_assume_dropped(self);
+                            scope.pop_assume_dropped(self, current, span);
                             return Ok(None);
                         };
                         current = c;
@@ -1787,10 +1814,10 @@ impl<'ctx> MirLowerCtx<'ctx> {
                     }
                 }
                 &hir_def::hir::Statement::Expr { expr, has_semi: _ } => {
-                    let scope2 = self.push_drop_scope();
+                    let scope2 = self.push_drop_scope(false);
                     let Some((p, c)) = self.lower_expr_as_place(current, expr, true)? else {
-                        scope2.pop_assume_dropped(self);
-                        scope.pop_assume_dropped(self);
+                        scope2.pop_assume_dropped(self, current, span);
+                        scope.pop_assume_dropped(self, current, span);
                         return Ok(None);
                     };
                     self.push_fake_read(c, p, expr.into());
@@ -1800,7 +1827,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
         }
         if let Some(tail) = tail {
             let Some(c) = self.lower_expr_to_place(tail, place, current)? else {
-                scope.pop_assume_dropped(self);
+                scope.pop_assume_dropped(self, current, span);
                 return Ok(None);
             };
             current = c;
@@ -1897,14 +1924,18 @@ impl<'ctx> MirLowerCtx<'ctx> {
         current
     }
 
-    fn push_drop_scope(&mut self) -> DropScopeToken {
-        self.drop_scopes.push(DropScope::default());
+    fn push_drop_scope(&mut self, pop_trait_env_block: bool) -> DropScopeToken {
+        self.drop_scopes.push(DropScope::new(pop_trait_env_block));
         DropScopeToken
     }
 
     /// Don't call directly
-    fn pop_drop_scope_assume_dropped_internal(&mut self) {
-        self.drop_scopes.pop();
+    fn pop_drop_scope_assume_dropped_internal(&mut self, current: BasicBlockId, span: MirSpan) {
+        if let Some(scope) = self.drop_scopes.pop() {
+            if scope.pop_trait_env_block {
+                self.push_exit_trait_block(current, span);
+            }
+        }
     }
 
     /// Don't call directly
@@ -1915,6 +1946,9 @@ impl<'ctx> MirLowerCtx<'ctx> {
     ) -> BasicBlockId {
         let scope = self.drop_scopes.pop().unwrap();
         self.emit_drop_and_storage_dead_for_scope(&scope, &mut current, span);
+        if scope.pop_trait_env_block {
+            self.push_exit_trait_block(current, span);
+        }
         current
     }
 

@@ -252,7 +252,9 @@ impl Filler<'_> {
                     | StatementKind::FakeRead(_)
                     | StatementKind::StorageLive(_)
                     | StatementKind::StorageDead(_)
-                    | StatementKind::Nop => (),
+                    | StatementKind::Nop
+                    | StatementKind::TraitEnvBlockEnter(_)
+                    | StatementKind::TraitEnvBlockExit => (),
                 }
             }
             if let Some(terminator) = &mut bb.terminator {

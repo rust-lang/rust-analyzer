@@ -240,6 +240,10 @@ impl<'a> MirPrettyCtx<'a> {
                             wln!(this, ");");
                         }
                         StatementKind::Nop => wln!(this, "Nop;"),
+                        StatementKind::TraitEnvBlockEnter(block) => {
+                            w!(this, "EnterItemBlock({block:?});")
+                        }
+                        StatementKind::TraitEnvBlockExit => wln!(this, "ExitItemBlock;"),
                     }
                 }
                 match &block.terminator {

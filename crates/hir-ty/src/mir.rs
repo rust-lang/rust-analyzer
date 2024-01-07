@@ -1016,6 +1016,8 @@ pub enum Rvalue {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum StatementKind {
+    TraitEnvBlockEnter(hir_def::BlockId),
+    TraitEnvBlockExit,
     Assign(Place, Rvalue),
     FakeRead(Place),
     //SetDiscriminant {
@@ -1126,7 +1128,9 @@ impl MirBody {
                     StatementKind::FakeRead(p) | StatementKind::Deinit(p) => {
                         f(p, &mut self.projection_store)
                     }
-                    StatementKind::StorageLive(_)
+                    StatementKind::TraitEnvBlockEnter(_)
+                    | StatementKind::TraitEnvBlockExit
+                    | StatementKind::StorageLive(_)
                     | StatementKind::StorageDead(_)
                     | StatementKind::Nop => (),
                 }

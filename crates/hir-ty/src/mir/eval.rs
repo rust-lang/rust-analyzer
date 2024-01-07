@@ -144,7 +144,7 @@ enum MirOrDynIndex {
 
 pub struct Evaluator<'a> {
     db: &'a dyn HirDatabase,
-    trait_env: Arc<TraitEnvironment>,
+    trait_env: Vec<Arc<TraitEnvironment>>,
     stack: Vec<u8>,
     heap: Vec<u8>,
     code_stack: Vec<StackFrame>,
@@ -578,7 +578,7 @@ impl Evaluator<'_> {
             static_locations: Default::default(),
             db,
             random_state: oorandom::Rand64::new(0),
-            trait_env: trait_env.unwrap_or_else(|| db.trait_environment_for_body(owner)),
+            trait_env: vec![trait_env.unwrap_or_else(|| db.trait_environment_for_body(owner))],
             crate_id,
             stdout: vec![],
             stderr: vec![],
@@ -784,7 +784,7 @@ impl Evaluator<'_> {
         }
         let r = self
             .db
-            .layout_of_ty(ty.clone(), self.trait_env.clone())
+            .layout_of_ty(ty.clone(), self.trait_env.last().unwrap().clone())
             .map_err(|e| MirEvalError::LayoutError(e, ty.clone()))?;
         self.layout_cache.borrow_mut().insert(ty.clone(), r.clone());
         Ok(r)
@@ -861,6 +861,12 @@ impl Evaluator<'_> {
                             | StatementKind::FakeRead(_)
                             | StatementKind::StorageDead(_)
                             | StatementKind::Nop => (),
+                            &StatementKind::TraitEnvBlockEnter(block) => {
+                                let mut with_block = self.trait_env.last().unwrap().clone();
+                                TraitEnvironment::with_block(&mut with_block, block);
+                                self.trait_env.push(with_block);
+                            }
+                            StatementKind::TraitEnvBlockExit => _ = self.trait_env.pop(),
                         }
                     }
                     let Some(terminator) = current_block.terminator.as_ref() else {
@@ -1689,13 +1695,22 @@ impl Evaluator<'_> {
                 let mut const_id = *const_id;
                 let mut subst = subst.clone();
                 if let hir_def::GeneralConstId::ConstId(c) = const_id {
-                    let (c, s) = lookup_impl_const(self.db, self.trait_env.clone(), c, subst);
+                    let (c, s) = lookup_impl_const(
+                        self.db,
+                        self.trait_env.last().unwrap().clone(),
+                        c,
+                        subst,
+                    );
                     const_id = hir_def::GeneralConstId::ConstId(c);
                     subst = s;
                 }
                 result_owner = self
                     .db
-                    .const_eval(const_id.into(), subst, Some(self.trait_env.clone()))
+                    .const_eval(
+                        const_id.into(),
+                        subst,
+                        Some(self.trait_env.last().unwrap().clone()),
+                    )
                     .map_err(|e| {
                         let name = const_id.name(self.db.upcast());
                         MirEvalError::ConstEvalError(name, Box::new(e))
@@ -2015,7 +2030,7 @@ impl Evaluator<'_> {
                         if let Some((v, l)) = detect_variant_from_bytes(
                             &layout,
                             this.db,
-                            this.trait_env.clone(),
+                            this.trait_env.last().unwrap().clone(),
                             bytes,
                             e,
                         ) {
@@ -2096,7 +2111,7 @@ impl Evaluator<'_> {
                     if let Some((variant, layout)) = detect_variant_from_bytes(
                         &layout,
                         self.db,
-                        self.trait_env.clone(),
+                        self.trait_env.last().unwrap().clone(),
                         self.read_memory(addr, layout.size.bytes_usize())?,
                         e,
                     ) {
@@ -2197,7 +2212,7 @@ impl Evaluator<'_> {
             .monomorphized_mir_body_for_closure(
                 closure,
                 generic_args.clone(),
-                self.trait_env.clone(),
+                self.trait_env.last().unwrap().clone(),
             )
             .map_err(|it| MirEvalError::MirLowerErrorForClosure(closure, it))?;
         let closure_data = if mir_body.locals[mir_body.param_locals[0]].ty.as_reference().is_some()
@@ -2295,17 +2310,16 @@ impl Evaluator<'_> {
             return Ok(r.clone());
         }
         let (def, generic_args) = pair;
+        let env = self.trait_env.last().unwrap().clone();
         let r = if let Some(self_ty_idx) =
-            is_dyn_method(self.db, self.trait_env.clone(), def, generic_args.clone())
+            is_dyn_method(self.db, env.clone(), def, generic_args.clone())
         {
             MirOrDynIndex::Dyn(self_ty_idx)
         } else {
             let (imp, generic_args) =
-                self.db.lookup_impl_method(self.trait_env.clone(), def, generic_args.clone());
-            let mir_body = self
-                .db
-                .monomorphized_mir_body(imp.into(), generic_args, self.trait_env.clone())
-                .map_err(|e| {
+                self.db.lookup_impl_method(env.clone(), def, generic_args.clone());
+            let mir_body =
+                self.db.monomorphized_mir_body(imp.into(), generic_args, env).map_err(|e| {
                     MirEvalError::InFunction(
                         Box::new(MirEvalError::MirLowerError(imp, e)),
                         vec![(Either::Left(imp), span, locals.body.owner)],
