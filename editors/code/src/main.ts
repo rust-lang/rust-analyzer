@@ -153,6 +153,7 @@ function createCommands(): Record<string, CommandFactory> {
         },
 
         analyzerStatus: { enabled: commands.analyzerStatus },
+        vfsInfo: { enabled: commands.vfsInfo },
         memoryUsage: { enabled: commands.memoryUsage },
         shuffleCrateGraph: { enabled: commands.shuffleCrateGraph },
         reloadWorkspace: { enabled: commands.reloadWorkspace },

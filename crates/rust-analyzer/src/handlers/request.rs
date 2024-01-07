@@ -18,13 +18,14 @@ use ide::{
 use ide_db::SymbolKind;
 use lsp_server::ErrorCode;
 use lsp_types::{
-    CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
-    CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
-    CodeLens, CompletionItem, FoldingRange, FoldingRangeParams, HoverContents, InlayHint,
-    InlayHintParams, Location, LocationLink, Position, PrepareRenameResponse, Range, RenameParams,
-    ResourceOp, ResourceOperationKind, SemanticTokensDeltaParams, SemanticTokensFullDeltaResult,
-    SemanticTokensParams, SemanticTokensRangeParams, SemanticTokensRangeResult,
-    SemanticTokensResult, SymbolInformation, SymbolTag, TextDocumentIdentifier, Url, WorkspaceEdit,
+    request::Request, CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams,
+    CallHierarchyItem, CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams,
+    CallHierarchyPrepareParams, CodeLens, CompletionItem, FoldingRange, FoldingRangeParams,
+    HoverContents, InlayHint, InlayHintParams, Location, LocationLink, Position,
+    PrepareRenameResponse, Range, RenameParams, ResourceOp, ResourceOperationKind,
+    SemanticTokensDeltaParams, SemanticTokensFullDeltaResult, SemanticTokensParams,
+    SemanticTokensRangeParams, SemanticTokensRangeResult, SemanticTokensResult, SymbolInformation,
+    SymbolTag, TextDocumentIdentifier, Url, WorkspaceEdit,
 };
 use project_model::{ManifestPath, ProjectWorkspace, TargetKind};
 use serde_json::json;
@@ -64,6 +65,13 @@ pub(crate) fn handle_proc_macros_rebuild(state: &mut GlobalState, _: ()) -> anyh
 
     state.fetch_build_data_queue.request_op("rebuild proc macros request".to_string(), ());
     Ok(())
+}
+
+pub(crate) fn handle_vfs_info(
+    snap: GlobalStateSnapshot,
+    (): (),
+) -> anyhow::Result<<lsp_ext::VfsInfo as Request>::Result> {
+    Ok(snap.vfs_info())
 }
 
 pub(crate) fn handle_analyzer_status(

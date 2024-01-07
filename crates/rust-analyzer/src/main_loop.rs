@@ -745,6 +745,7 @@ impl GlobalState {
             // All other request handlers
             .on::<lsp_ext::FetchDependencyList>(handlers::fetch_dependency_list)
             .on::<lsp_ext::AnalyzerStatus>(handlers::handle_analyzer_status)
+            .on::<lsp_ext::VfsInfo>(handlers::handle_vfs_info)
             .on::<lsp_ext::SyntaxTree>(handlers::handle_syntax_tree)
             .on::<lsp_ext::ViewHir>(handlers::handle_view_hir)
             .on::<lsp_ext::ViewMir>(handlers::handle_view_mir)

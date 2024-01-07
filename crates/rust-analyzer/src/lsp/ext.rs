@@ -21,6 +21,14 @@ impl Request for AnalyzerStatus {
     const METHOD: &'static str = "rust-analyzer/analyzerStatus";
 }
 
+pub enum VfsInfo {}
+
+impl Request for VfsInfo {
+    type Params = ();
+    type Result = Vec<(u32, String, Option<u64>)>;
+    const METHOD: &'static str = "rust-analyzer/vfsInfo";
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalyzerStatusParams {

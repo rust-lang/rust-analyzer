@@ -26,6 +26,71 @@ import { log } from "./util";
 export * from "./ast_inspector";
 export * from "./run";
 
+export function vfsInfo(ctx: CtxInit): Cmd {
+    const tdcp = new (class implements vscode.TextDocumentContentProvider {
+        readonly uri = vscode.Uri.parse("rust-analyzer-vfs://info");
+        readonly eventEmitter = new vscode.EventEmitter<vscode.Uri>();
+
+        provideTextDocumentContent(_uri: vscode.Uri): vscode.ProviderResult<string> {
+            return ctx.client
+                .sendRequest(ra.vfsInfo)
+                .then((info: [number, string, number | null][]) => {
+                    // sort info array by last element
+                    info.sort((a, b) => {
+                        let score;
+                        if (a[2] == null && b[2] == null) {
+                            score = 0;
+                        } else if (a[2] == null) {
+                            score = -1;
+                        } else if (b[2] == null) {
+                            score = 1;
+                        } else {
+                            score = a[2] - b[2];
+                        }
+                        if (score == 0) {
+                            score = a[1].localeCompare(b[1]);
+                        }
+                        return -score;
+                    });
+                    let overallMem = 0;
+                    let maxMemString = 0;
+                    const output = info
+                        .map(([file_id, path, memory]): [string, string, number] => {
+                            overallMem += memory ?? 0;
+                            const memorySuffixed =
+                                memory === null
+                                    ? "deleted"
+                                    : memory < 1024 * 1024
+                                    ? `${(memory / 1024).toFixed(1)}K`
+                                    : `${(memory / 1024 / 1024).toFixed(1)}M`;
+                            maxMemString = Math.max(maxMemString, memorySuffixed.length);
+                            return [memorySuffixed, path, file_id];
+                        })
+                        .map(([memorySuffixed, path, file_id]) => {
+                            const padded = memorySuffixed.padStart(maxMemString, " ");
+                            return `${padded}: ${path}(${file_id})`;
+                        })
+                        .join("\n");
+                    return `Overall ${(overallMem / 1024 / 1024).toFixed(1)}M` + output;
+                });
+        }
+
+        get onDidChange(): vscode.Event<vscode.Uri> {
+            return this.eventEmitter.event;
+        }
+    })();
+
+    ctx.pushExtCleanup(
+        vscode.workspace.registerTextDocumentContentProvider("rust-analyzer-vfs", tdcp),
+    );
+
+    return async () => {
+        tdcp.eventEmitter.fire(tdcp.uri);
+        const document = await vscode.workspace.openTextDocument(tdcp.uri);
+        return vscode.window.showTextDocument(document, vscode.ViewColumn.Two, true);
+    };
+}
+
 export function analyzerStatus(ctx: CtxInit): Cmd {
     const tdcp = new (class implements vscode.TextDocumentContentProvider {
         readonly uri = vscode.Uri.parse("rust-analyzer-status://status");

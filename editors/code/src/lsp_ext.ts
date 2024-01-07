@@ -29,6 +29,9 @@ export type CommandLinkGroup = {
 export const analyzerStatus = new lc.RequestType<AnalyzerStatusParams, string, void>(
     "rust-analyzer/analyzerStatus",
 );
+export const vfsInfo = new lc.RequestType0<[number, string, number | null][], void>(
+    "rust-analyzer/vfsInfo",
+);
 export const cancelFlycheck = new lc.NotificationType0("rust-analyzer/cancelFlycheck");
 export const clearFlycheck = new lc.NotificationType0("rust-analyzer/clearFlycheck");
 export const expandMacro = new lc.RequestType<ExpandMacroParams, ExpandedMacro | null, void>(

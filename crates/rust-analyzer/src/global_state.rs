@@ -498,6 +498,19 @@ impl GlobalStateSnapshot {
         self.vfs_read().memory_usage()
     }
 
+    pub(crate) fn vfs_info(&self) -> Vec<(u32, String, Option<u64>)> {
+        self.vfs_read()
+            .iter_all()
+            .map(|(file_id, path, size)| {
+                (
+                    file_id.index(),
+                    path.as_path().unwrap().as_ref().display().to_string(),
+                    size.map(|it| it as u64),
+                )
+            })
+            .collect()
+    }
+
     pub(crate) fn file_exists(&self, file_id: FileId) -> bool {
         self.vfs.read().0.exists(file_id)
     }
@@ -510,7 +523,7 @@ pub(crate) fn file_id_to_url(vfs: &vfs::Vfs, id: FileId) -> Url {
 }
 
 pub(crate) fn url_to_file_id(vfs: &vfs::Vfs, url: &Url) -> anyhow::Result<FileId> {
-    let path = from_proto::vfs_path(url)?;
+    let path: vfs::VfsPath = from_proto::vfs_path(url)?;
     let res = vfs.file_id(&path).ok_or_else(|| anyhow::format_err!("file not found: {path}"))?;
     Ok(res)
 }

@@ -200,6 +200,11 @@
                 "category": "rust-analyzer"
             },
             {
+                "command": "rust-analyzer.vfsInfo",
+                "title": "VFS Info",
+                "category": "rust-analyzer"
+            },
+            {
                 "command": "rust-analyzer.reloadWorkspace",
                 "title": "Reload workspace",
                 "category": "rust-analyzer"

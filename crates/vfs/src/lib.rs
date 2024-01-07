@@ -158,6 +158,14 @@ impl Vfs {
     }
 
     /// Returns an iterator over the stored ids and their corresponding paths.
+    pub fn iter_all(&self) -> impl Iterator<Item = (FileId, &VfsPath, Option<usize>)> {
+        (0..self.data.len()).map(|it| FileId(it as u32)).map(move |file_id| {
+            let path = self.interner.lookup(file_id);
+            (file_id, path, self.get(file_id).as_ref().map(|it| it.len()))
+        })
+    }
+
+    /// Returns an iterator over the stored ids and their corresponding paths.
     ///
     /// This will skip deleted files.
     pub fn iter(&self) -> impl Iterator<Item = (FileId, &VfsPath)> + '_ {
