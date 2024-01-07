@@ -102,6 +102,10 @@ impl GlobalState {
             health: lsp_ext::Health::Ok,
             quiescent: self.is_quiescent(),
             message: None,
+            vfs: {
+                let (memory_usage, num_files) = self.vfs.read().0.memory_usage();
+                Some(lsp_ext::VfsStatus { memory_usage, num_files })
+            },
         };
         let mut message = String::new();
 

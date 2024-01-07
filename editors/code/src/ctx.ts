@@ -402,6 +402,7 @@ export class Ctx implements RustAnalyzerExtensionApi {
         statusBar.show();
         statusBar.tooltip = new vscode.MarkdownString("", true);
         statusBar.tooltip.isTrusted = true;
+        statusBar.tooltip.appendText("Status: ");
         switch (status.health) {
             case "ok":
                 statusBar.tooltip.appendText(status.message ?? "Ready");
@@ -446,6 +447,13 @@ export class Ctx implements RustAnalyzerExtensionApi {
                 statusBar.command = "rust-analyzer.startServer";
                 statusBar.text = "$(stop-circle) rust-analyzer";
                 return;
+        }
+        if (status.vfs) {
+            statusBar.tooltip.appendText(
+                `VFS Memory Usage is ${Math.floor(status.vfs.memoryUsage / 1024 / 1024)} with ${
+                    status.vfs.numFiles
+                } files loaded.\n`,
+            );
         }
         if (statusBar.tooltip.value) {
             statusBar.tooltip.appendMarkdown("\n\n---\n\n");

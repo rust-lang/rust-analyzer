@@ -201,6 +201,11 @@ export type ServerStatusParams = {
     health: "ok" | "warning" | "error";
     quiescent: boolean;
     message?: string;
+    vfs?: VfsStatus;
+};
+export type VfsStatus = {
+    memoryUsage: number;
+    numFiles: number;
 };
 export type SsrParams = {
     query: string;

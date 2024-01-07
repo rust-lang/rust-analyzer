@@ -1,5 +1,5 @@
 <!---
-lsp/ext.rs hash: dff0b009e82ef06a
+lsp/ext.rs hash: 1f196f49b07c5e8a
 
 If you need to change the above hash to make the test pass, please check if you
 need to adjust this doc as well and ping this issue:
@@ -471,6 +471,8 @@ interface ServerStatusParams {
     quiescent: boolean,
     /// Explanatory message to show on hover.
     message?: string,
+    /// Information regarding the VFS
+    vfs?: { memoryUsage: number, numFiles: number}
 }
 ```
 

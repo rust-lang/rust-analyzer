@@ -152,9 +152,9 @@ impl Vfs {
         self.get(file_id).as_deref().unwrap()
     }
 
-    /// Returns the overall memory usage for the stored files.
-    pub fn memory_usage(&self) -> usize {
-        self.data.iter().flatten().map(|d| d.capacity()).sum()
+    /// Returns the overall memory usage for the stored files and the count of files.
+    pub fn memory_usage(&self) -> (usize, usize) {
+        (self.data.iter().flatten().map(|d| d.capacity()).sum(), self.data.len())
     }
 
     /// Returns an iterator over the stored ids and their corresponding paths.

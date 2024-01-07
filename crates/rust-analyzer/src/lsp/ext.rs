@@ -396,10 +396,19 @@ impl Notification for ServerStatusNotification {
 }
 
 #[derive(Deserialize, Serialize, PartialEq, Eq, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ServerStatusParams {
     pub health: Health,
     pub quiescent: bool,
     pub message: Option<String>,
+    pub vfs: Option<VfsStatus>,
+}
+
+#[derive(Deserialize, Serialize, PartialEq, Eq, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct VfsStatus {
+    pub memory_usage: usize,
+    pub num_files: usize,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]

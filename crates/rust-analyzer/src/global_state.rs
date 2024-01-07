@@ -495,7 +495,7 @@ impl GlobalStateSnapshot {
     }
 
     pub(crate) fn vfs_memory_usage(&self) -> usize {
-        self.vfs_read().memory_usage()
+        self.vfs_read().memory_usage().0
     }
 
     pub(crate) fn vfs_info(&self) -> Vec<(u32, String, Option<u64>)> {

@@ -47,7 +47,7 @@ export function vfsInfo(ctx: CtxInit): Cmd {
                         } else {
                             score = a[2] - b[2];
                         }
-                        if (score == 0) {
+                        if (score === 0) {
                             score = a[1].localeCompare(b[1]);
                         }
                         return -score;
@@ -55,7 +55,7 @@ export function vfsInfo(ctx: CtxInit): Cmd {
                     let overallMem = 0;
                     let maxMemString = 0;
                     const output = info
-                        .map(([file_id, path, memory]): [string, string, number] => {
+                        .map(([fileId, path, memory]): [string, string, number] => {
                             overallMem += memory ?? 0;
                             const memorySuffixed =
                                 memory === null
@@ -64,11 +64,11 @@ export function vfsInfo(ctx: CtxInit): Cmd {
                                     ? `${(memory / 1024).toFixed(1)}K`
                                     : `${(memory / 1024 / 1024).toFixed(1)}M`;
                             maxMemString = Math.max(maxMemString, memorySuffixed.length);
-                            return [memorySuffixed, path, file_id];
+                            return [memorySuffixed, path, fileId];
                         })
-                        .map(([memorySuffixed, path, file_id]) => {
+                        .map(([memorySuffixed, path, fileId]) => {
                             const padded = memorySuffixed.padStart(maxMemString, " ");
-                            return `${padded}: ${path}(${file_id})`;
+                            return `${padded}: ${path}(${fileId})`;
                         })
                         .join("\n");
                     return `Overall ${(overallMem / 1024 / 1024).toFixed(1)}M` + output;
