@@ -153,6 +153,7 @@ config_data! {
         /// Check all targets and tests (`--all-targets`).
         check_allTargets | checkOnSave_allTargets: bool                  = "true",
         /// Cargo command to use for `cargo check`.
+        /// Common alternative is `"clippy"`.
         check_command | checkOnSave_command: String                      = "\"check\"",
         /// Extra arguments for `cargo check`.
         check_extraArgs | checkOnSave_extraArgs: Vec<String>             = "[]",
@@ -223,6 +224,7 @@ config_data! {
         /// with `self` prefixed to them when inside a method.
         completion_autoself_enable: bool        = "true",
         /// Whether to add parenthesis and argument snippets when completing function.
+        /// Possible values are: `"fill_arguments"`, `"add_parentheses"`, `"none"`.
         completion_callable_snippets: CallableCompletionDef  = "\"fill_arguments\"",
         /// Whether to show full function/method signatures in completion docs.
         completion_fullFunctionSignatures_enable: bool = "false",
@@ -301,6 +303,7 @@ config_data! {
         /// also need to add the folders to Code's `files.watcherExclude`.
         files_excludeDirs: Vec<PathBuf> = "[]",
         /// Controls file watching implementation.
+        /// Possible values are: `"client"`, `"notify"`, `"server"`.
         files_watcher: FilesWatcherDef = "\"client\"",
 
         /// Enables highlighting of related references while the cursor is on `break`, `loop`, `while`, or `for` keywords.
@@ -340,19 +343,23 @@ config_data! {
         /// Use markdown syntax for links on hover.
         hover_links_enable: bool = "true",
         /// How to render the align information in a memory layout hover.
+        /// Possible values are: `"hexadecimal"`, `"decimal"`, `"both"`.
         hover_memoryLayout_alignment: Option<MemoryLayoutHoverRenderKindDef> = "\"hexadecimal\"",
         /// Whether to show memory layout data on hover.
         hover_memoryLayout_enable: bool = "true",
         /// How to render the niche information in a memory layout hover.
         hover_memoryLayout_niches: Option<bool> = "false",
         /// How to render the offset information in a memory layout hover.
+        /// Possible values are: `"hexadecimal"`, `"decimal"`, `"both"`.
         hover_memoryLayout_offset: Option<MemoryLayoutHoverRenderKindDef> = "\"hexadecimal\"",
         /// How to render the size information in a memory layout hover.
+        /// Possible values are: `"hexadecimal"`, `"decimal"`, `"both"`.
         hover_memoryLayout_size: Option<MemoryLayoutHoverRenderKindDef> = "\"both\"",
 
         /// Whether to enforce the import granularity setting for all files. If set to false rust-analyzer will try to keep import styles consistent per file.
         imports_granularity_enforce: bool              = "false",
         /// How imports should be grouped into use statements.
+        /// Possible values are: `"preserve"`, `"item"`, `"crate"`, `"module"`.
         imports_granularity_group: ImportGranularityDef  = "\"crate\"",
         /// Group inserted imports by the https://rust-analyzer.github.io/manual.html#auto-import[following order]. Groups are separated by newlines.
         imports_group_enable: bool                           = "true",
@@ -363,6 +370,7 @@ config_data! {
         /// Whether to prefer import paths containing a `prelude` module.
         imports_preferPrelude: bool                       = "false",
         /// The path structure for newly inserted paths to use.
+        /// Possible values are: `"plain"`, `"by_self"`, `"by_crate"`.
         imports_prefix: ImportPrefixDef               = "\"plain\"",
 
         /// Whether to show inlay type hints for binding modes.
@@ -377,20 +385,26 @@ config_data! {
         /// Whether to show inlay hints for closure captures.
         inlayHints_closureCaptureHints_enable: bool                          = "false",
         /// Whether to show inlay type hints for return types of closures.
+        /// Possible values are: `"always"`, `"never"`, `"with_block"`.
         inlayHints_closureReturnTypeHints_enable: ClosureReturnTypeHintsDef  = "\"never\"",
         /// Closure notation in type and chaining inlay hints.
+        /// Possible values are: `"impl_fn"`, `"rust_analyzer"`, `"with_id"`, `"hide"`.
         inlayHints_closureStyle: ClosureStyle                                = "\"impl_fn\"",
         /// Whether to show enum variant discriminant hints.
+        /// Possible values are: `"always"`, `"never"`, `"fieldless"`.
         inlayHints_discriminantHints_enable: DiscriminantHintsDef            = "\"never\"",
         /// Whether to show inlay hints for type adjustments.
+        /// Possible values are: `"always"`, `"never"`, `"reborrow"`.
         inlayHints_expressionAdjustmentHints_enable: AdjustmentHintsDef = "\"never\"",
         /// Whether to hide inlay hints for type adjustments outside of `unsafe` blocks.
         inlayHints_expressionAdjustmentHints_hideOutsideUnsafe: bool = "false",
         /// Whether to show inlay hints as postfix ops (`.*` instead of `*`, etc).
+        /// Possible values are: `"prefix"`, `"postfix"`, `"prefer_prefix"`, `"prefer_postfix"`.
         inlayHints_expressionAdjustmentHints_mode: AdjustmentHintsModeDef = "\"prefix\"",
         /// Whether to show implicit drop hints.
         inlayHints_implicitDrops_enable: bool                      = "false",
         /// Whether to show inlay type hints for elided lifetimes in function signatures.
+        /// Possible values are: `"always"`, `"never"`, `"skip_trivial"`.
         inlayHints_lifetimeElisionHints_enable: LifetimeElisionDef = "\"never\"",
         /// Whether to prefer using parameter names as the name for elided lifetime hints if possible.
         inlayHints_lifetimeElisionHints_useParameterNames: bool    = "false",
@@ -438,6 +452,7 @@ config_data! {
         /// `#rust-analyzer.lens.enable#` is set.
         lens_implementations_enable: bool  = "true",
         /// Where to render annotations.
+        /// Possible values are: `"above_name"`, `"above_whole_item"`.
         lens_location: AnnotationLocation = "\"above_name\"",
         /// Whether to show `References` lens for Struct, Enum, and Union.
         /// Only applies when `#rust-analyzer.lens.enable#` is set.
@@ -562,6 +577,7 @@ config_data! {
         semanticHighlighting_strings_enable: bool = "true",
 
         /// Show full signature of the callable. Only shows parameters if disabled.
+        /// Possible values are: `"full"`, `"parameters"`.
         signatureInfo_detail: SignatureDetail                           = "\"full\"",
         /// Show documentation.
         signatureInfo_documentation_enable: bool                       = "true",
@@ -570,12 +586,14 @@ config_data! {
         typing_autoClosingAngleBrackets_enable: bool = "false",
 
         /// Workspace symbol search kind.
+        /// Possible values are: `"only_types"`, `"all_symbols"`.
         workspace_symbol_search_kind: WorkspaceSymbolSearchKindDef = "\"only_types\"",
         /// Limits the number of items returned from a workspace symbol search (Defaults to 128).
         /// Some clients like vs-code issue new searches on result filtering and don't require all results to be returned in the initial search.
         /// Other clients requires all results upfront and might require a higher limit.
         workspace_symbol_search_limit: usize = "128",
         /// Workspace symbol search scope.
+        /// Possible values are: `"workspace"`, `"workspace_and_dependencies"`.
         workspace_symbol_search_scope: WorkspaceSymbolSearchScopeDef = "\"workspace\"",
     }
 }

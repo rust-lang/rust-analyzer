@@ -153,6 +153,7 @@ Check all targets and tests (`--all-targets`).
 +
 --
 Cargo command to use for `cargo check`.
+Common alternative is `"clippy"`.
 --
 [[rust-analyzer.check.extraArgs]]rust-analyzer.check.extraArgs (default: `[]`)::
 +
@@ -257,6 +258,7 @@ with `self` prefixed to them when inside a method.
 +
 --
 Whether to add parenthesis and argument snippets when completing function.
+Possible values are: `"fill_arguments"`, `"add_parentheses"`, `"none"`.
 --
 [[rust-analyzer.completion.fullFunctionSignatures.enable]]rust-analyzer.completion.fullFunctionSignatures.enable (default: `false`)::
 +
@@ -377,6 +379,7 @@ also need to add the folders to Code's `files.watcherExclude`.
 +
 --
 Controls file watching implementation.
+Possible values are: `"client"`, `"notify"`, `"server"`.
 --
 [[rust-analyzer.highlightRelated.breakPoints.enable]]rust-analyzer.highlightRelated.breakPoints.enable (default: `true`)::
 +
@@ -458,6 +461,7 @@ Use markdown syntax for links on hover.
 +
 --
 How to render the align information in a memory layout hover.
+Possible values are: `"hexadecimal"`, `"decimal"`, `"both"`.
 --
 [[rust-analyzer.hover.memoryLayout.enable]]rust-analyzer.hover.memoryLayout.enable (default: `true`)::
 +
@@ -473,11 +477,13 @@ How to render the niche information in a memory layout hover.
 +
 --
 How to render the offset information in a memory layout hover.
+Possible values are: `"hexadecimal"`, `"decimal"`, `"both"`.
 --
 [[rust-analyzer.hover.memoryLayout.size]]rust-analyzer.hover.memoryLayout.size (default: `"both"`)::
 +
 --
 How to render the size information in a memory layout hover.
+Possible values are: `"hexadecimal"`, `"decimal"`, `"both"`.
 --
 [[rust-analyzer.imports.granularity.enforce]]rust-analyzer.imports.granularity.enforce (default: `false`)::
 +
@@ -488,6 +494,7 @@ Whether to enforce the import granularity setting for all files. If set to false
 +
 --
 How imports should be grouped into use statements.
+Possible values are: `"preserve"`, `"item"`, `"crate"`, `"module"`.
 --
 [[rust-analyzer.imports.group.enable]]rust-analyzer.imports.group.enable (default: `true`)::
 +
@@ -513,6 +520,7 @@ Whether to prefer import paths containing a `prelude` module.
 +
 --
 The path structure for newly inserted paths to use.
+Possible values are: `"plain"`, `"by_self"`, `"by_crate"`.
 --
 [[rust-analyzer.inlayHints.bindingModeHints.enable]]rust-analyzer.inlayHints.bindingModeHints.enable (default: `false`)::
 +
@@ -544,21 +552,25 @@ Whether to show inlay hints for closure captures.
 +
 --
 Whether to show inlay type hints for return types of closures.
+Possible values are: `"always"`, `"never"`, `"with_block"`.
 --
 [[rust-analyzer.inlayHints.closureStyle]]rust-analyzer.inlayHints.closureStyle (default: `"impl_fn"`)::
 +
 --
 Closure notation in type and chaining inlay hints.
+Possible values are: `"impl_fn"`, `"rust_analyzer"`, `"with_id"`, `"hide"`.
 --
 [[rust-analyzer.inlayHints.discriminantHints.enable]]rust-analyzer.inlayHints.discriminantHints.enable (default: `"never"`)::
 +
 --
 Whether to show enum variant discriminant hints.
+Possible values are: `"always"`, `"never"`, `"fieldless"`.
 --
 [[rust-analyzer.inlayHints.expressionAdjustmentHints.enable]]rust-analyzer.inlayHints.expressionAdjustmentHints.enable (default: `"never"`)::
 +
 --
 Whether to show inlay hints for type adjustments.
+Possible values are: `"always"`, `"never"`, `"reborrow"`.
 --
 [[rust-analyzer.inlayHints.expressionAdjustmentHints.hideOutsideUnsafe]]rust-analyzer.inlayHints.expressionAdjustmentHints.hideOutsideUnsafe (default: `false`)::
 +
@@ -569,6 +581,7 @@ Whether to hide inlay hints for type adjustments outside of `unsafe` blocks.
 +
 --
 Whether to show inlay hints as postfix ops (`.*` instead of `*`, etc).
+Possible values are: `"prefix"`, `"postfix"`, `"prefer_prefix"`, `"prefer_postfix"`.
 --
 [[rust-analyzer.inlayHints.implicitDrops.enable]]rust-analyzer.inlayHints.implicitDrops.enable (default: `false`)::
 +
@@ -579,6 +592,7 @@ Whether to show implicit drop hints.
 +
 --
 Whether to show inlay type hints for elided lifetimes in function signatures.
+Possible values are: `"always"`, `"never"`, `"skip_trivial"`.
 --
 [[rust-analyzer.inlayHints.lifetimeElisionHints.useParameterNames]]rust-analyzer.inlayHints.lifetimeElisionHints.useParameterNames (default: `false`)::
 +
@@ -680,6 +694,7 @@ Whether to show `Implementations` lens. Only applies when
 +
 --
 Where to render annotations.
+Possible values are: `"above_name"`, `"above_whole_item"`.
 --
 [[rust-analyzer.lens.references.adt.enable]]rust-analyzer.lens.references.adt.enable (default: `false`)::
 +
@@ -885,6 +900,7 @@ their contents.
 +
 --
 Show full signature of the callable. Only shows parameters if disabled.
+Possible values are: `"full"`, `"parameters"`.
 --
 [[rust-analyzer.signatureInfo.documentation.enable]]rust-analyzer.signatureInfo.documentation.enable (default: `true`)::
 +
@@ -900,6 +916,7 @@ Whether to insert closing angle brackets when typing an opening angle bracket of
 +
 --
 Workspace symbol search kind.
+Possible values are: `"only_types"`, `"all_symbols"`.
 --
 [[rust-analyzer.workspace.symbol.search.limit]]rust-analyzer.workspace.symbol.search.limit (default: `128`)::
 +
@@ -912,4 +929,5 @@ Other clients requires all results upfront and might require a higher limit.
 +
 --
 Workspace symbol search scope.
+Possible values are: `"workspace"`, `"workspace_and_dependencies"`.
 --

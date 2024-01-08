@@ -685,7 +685,7 @@
                     "type": "boolean"
                 },
                 "rust-analyzer.check.command": {
-                    "markdownDescription": "Cargo command to use for `cargo check`.",
+                    "markdownDescription": "Cargo command to use for `cargo check`.\nCommon alternative is `\"clippy\"`.",
                     "default": "check",
                     "type": "string"
                 },
@@ -809,7 +809,7 @@
                     "type": "boolean"
                 },
                 "rust-analyzer.completion.callable.snippets": {
-                    "markdownDescription": "Whether to add parenthesis and argument snippets when completing function.",
+                    "markdownDescription": "Whether to add parenthesis and argument snippets when completing function.\nPossible values are: `\"fill_arguments\"`, `\"add_parentheses\"`, `\"none\"`.",
                     "default": "fill_arguments",
                     "type": "string",
                     "enum": [
@@ -941,7 +941,7 @@
                     }
                 },
                 "rust-analyzer.files.watcher": {
-                    "markdownDescription": "Controls file watching implementation.",
+                    "markdownDescription": "Controls file watching implementation.\nPossible values are: `\"client\"`, `\"notify\"`, `\"server\"`.",
                     "default": "client",
                     "type": "string",
                     "enum": [
@@ -1024,7 +1024,7 @@
                     "type": "boolean"
                 },
                 "rust-analyzer.hover.memoryLayout.alignment": {
-                    "markdownDescription": "How to render the align information in a memory layout hover.",
+                    "markdownDescription": "How to render the align information in a memory layout hover.\nPossible values are: `\"hexadecimal\"`, `\"decimal\"`, `\"both\"`.",
                     "default": "hexadecimal",
                     "anyOf": [
                         {
@@ -1059,7 +1059,7 @@
                     ]
                 },
                 "rust-analyzer.hover.memoryLayout.offset": {
-                    "markdownDescription": "How to render the offset information in a memory layout hover.",
+                    "markdownDescription": "How to render the offset information in a memory layout hover.\nPossible values are: `\"hexadecimal\"`, `\"decimal\"`, `\"both\"`.",
                     "default": "hexadecimal",
                     "anyOf": [
                         {
@@ -1081,7 +1081,7 @@
                     ]
                 },
                 "rust-analyzer.hover.memoryLayout.size": {
-                    "markdownDescription": "How to render the size information in a memory layout hover.",
+                    "markdownDescription": "How to render the size information in a memory layout hover.\nPossible values are: `\"hexadecimal\"`, `\"decimal\"`, `\"both\"`.",
                     "default": "both",
                     "anyOf": [
                         {
@@ -1108,7 +1108,7 @@
                     "type": "boolean"
                 },
                 "rust-analyzer.imports.granularity.group": {
-                    "markdownDescription": "How imports should be grouped into use statements.",
+                    "markdownDescription": "How imports should be grouped into use statements.\nPossible values are: `\"preserve\"`, `\"item\"`, `\"crate\"`, `\"module\"`.",
                     "default": "crate",
                     "type": "string",
                     "enum": [
@@ -1145,7 +1145,7 @@
                     "type": "boolean"
                 },
                 "rust-analyzer.imports.prefix": {
-                    "markdownDescription": "The path structure for newly inserted paths to use.",
+                    "markdownDescription": "The path structure for newly inserted paths to use.\nPossible values are: `\"plain\"`, `\"by_self\"`, `\"by_crate\"`.",
                     "default": "plain",
                     "type": "string",
                     "enum": [
@@ -1186,7 +1186,7 @@
                     "type": "boolean"
                 },
                 "rust-analyzer.inlayHints.closureReturnTypeHints.enable": {
-                    "markdownDescription": "Whether to show inlay type hints for return types of closures.",
+                    "markdownDescription": "Whether to show inlay type hints for return types of closures.\nPossible values are: `\"always\"`, `\"never\"`, `\"with_block\"`.",
                     "default": "never",
                     "type": "string",
                     "enum": [
@@ -1201,7 +1201,7 @@
                     ]
                 },
                 "rust-analyzer.inlayHints.closureStyle": {
-                    "markdownDescription": "Closure notation in type and chaining inlay hints.",
+                    "markdownDescription": "Closure notation in type and chaining inlay hints.\nPossible values are: `\"impl_fn\"`, `\"rust_analyzer\"`, `\"with_id\"`, `\"hide\"`.",
                     "default": "impl_fn",
                     "type": "string",
                     "enum": [
@@ -1218,7 +1218,7 @@
                     ]
                 },
                 "rust-analyzer.inlayHints.discriminantHints.enable": {
-                    "markdownDescription": "Whether to show enum variant discriminant hints.",
+                    "markdownDescription": "Whether to show enum variant discriminant hints.\nPossible values are: `\"always\"`, `\"never\"`, `\"fieldless\"`.",
                     "default": "never",
                     "type": "string",
                     "enum": [
@@ -1233,7 +1233,7 @@
                     ]
                 },
                 "rust-analyzer.inlayHints.expressionAdjustmentHints.enable": {
-                    "markdownDescription": "Whether to show inlay hints for type adjustments.",
+                    "markdownDescription": "Whether to show inlay hints for type adjustments.\nPossible values are: `\"always\"`, `\"never\"`, `\"reborrow\"`.",
                     "default": "never",
                     "type": "string",
                     "enum": [
@@ -1253,7 +1253,7 @@
                     "type": "boolean"
                 },
                 "rust-analyzer.inlayHints.expressionAdjustmentHints.mode": {
-                    "markdownDescription": "Whether to show inlay hints as postfix ops (`.*` instead of `*`, etc).",
+                    "markdownDescription": "Whether to show inlay hints as postfix ops (`.*` instead of `*`, etc).\nPossible values are: `\"prefix\"`, `\"postfix\"`, `\"prefer_prefix\"`, `\"prefer_postfix\"`.",
                     "default": "prefix",
                     "type": "string",
                     "enum": [
@@ -1275,7 +1275,7 @@
                     "type": "boolean"
                 },
                 "rust-analyzer.inlayHints.lifetimeElisionHints.enable": {
-                    "markdownDescription": "Whether to show inlay type hints for elided lifetimes in function signatures.",
+                    "markdownDescription": "Whether to show inlay type hints for elided lifetimes in function signatures.\nPossible values are: `\"always\"`, `\"never\"`, `\"skip_trivial\"`.",
                     "default": "never",
                     "type": "string",
                     "enum": [
@@ -1394,7 +1394,7 @@
                     "type": "boolean"
                 },
                 "rust-analyzer.lens.location": {
-                    "markdownDescription": "Where to render annotations.",
+                    "markdownDescription": "Where to render annotations.\nPossible values are: `\"above_name\"`, `\"above_whole_item\"`.",
                     "default": "above_name",
                     "type": "string",
                     "enum": [
@@ -1602,7 +1602,7 @@
                     "type": "boolean"
                 },
                 "rust-analyzer.signatureInfo.detail": {
-                    "markdownDescription": "Show full signature of the callable. Only shows parameters if disabled.",
+                    "markdownDescription": "Show full signature of the callable. Only shows parameters if disabled.\nPossible values are: `\"full\"`, `\"parameters\"`.",
                     "default": "full",
                     "type": "string",
                     "enum": [
@@ -1625,7 +1625,7 @@
                     "type": "boolean"
                 },
                 "rust-analyzer.workspace.symbol.search.kind": {
-                    "markdownDescription": "Workspace symbol search kind.",
+                    "markdownDescription": "Workspace symbol search kind.\nPossible values are: `\"only_types\"`, `\"all_symbols\"`.",
                     "default": "only_types",
                     "type": "string",
                     "enum": [
@@ -1644,7 +1644,7 @@
                     "minimum": 0
                 },
                 "rust-analyzer.workspace.symbol.search.scope": {
-                    "markdownDescription": "Workspace symbol search scope.",
+                    "markdownDescription": "Workspace symbol search scope.\nPossible values are: `\"workspace\"`, `\"workspace_and_dependencies\"`.",
                     "default": "workspace",
                     "type": "string",
                     "enum": [
