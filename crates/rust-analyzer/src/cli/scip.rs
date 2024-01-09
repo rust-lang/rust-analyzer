@@ -1,10 +1,6 @@
 //! SCIP generator
 
-use std::{
-    collections::{HashMap, HashSet},
-    path::PathBuf,
-    time::Instant,
-};
+use std::{collections::HashMap, path::PathBuf, time::Instant};
 
 use ide::{
     LineCol, MonikerDescriptorKind, MonikerResult, StaticIndex, StaticIndexedFile,
@@ -12,6 +8,7 @@ use ide::{
 };
 use ide_db::LineIndexDatabase;
 use load_cargo::{load_workspace_at, LoadCargoConfig, ProcMacroServerChoice};
+use rustc_hash::FxHashSet;
 use scip::types as scip_types;
 
 use crate::{
@@ -76,7 +73,7 @@ impl flags::Scip {
         };
         let mut documents = Vec::new();
 
-        let mut symbols_emitted: HashSet<TokenId> = HashSet::default();
+        let mut symbols_emitted = FxHashSet::default();
         let mut tokens_to_symbol: HashMap<TokenId, String> = HashMap::new();
         let mut tokens_to_enclosing_symbol: HashMap<TokenId, Option<String>> = HashMap::new();
 

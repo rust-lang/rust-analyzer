@@ -1,7 +1,7 @@
 //! Simple hierarchical profiler
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, HashSet},
+    collections::BTreeMap,
     env, fmt,
     io::{stderr, Write},
     sync::{
@@ -12,6 +12,7 @@ use std::{
 };
 
 use once_cell::sync::Lazy;
+use rustc_hash::FxHashSet;
 
 use crate::tree::{Idx, Tree};
 
@@ -139,7 +140,7 @@ fn with_profile_stack<T>(f: impl FnOnce(&mut ProfileStack) -> T) -> T {
 #[derive(Default, Clone, Debug)]
 struct Filter {
     depth: usize,
-    allowed: HashSet<String>,
+    allowed: FxHashSet<String>,
     longer_than: Duration,
     heartbeat_longer_than: Duration,
     version: usize,
@@ -167,8 +168,11 @@ impl Filter {
         } else {
             999
         };
-        let allowed =
-            if spec == "*" { HashSet::new() } else { spec.split('|').map(String::from).collect() };
+        let allowed = if spec == "*" {
+            FxHashSet::default()
+        } else {
+            spec.split('|').map(String::from).collect()
+        };
         Filter { depth, allowed, longer_than, heartbeat_longer_than, version: 0 }
     }
 
