@@ -668,7 +668,7 @@ impl GlobalState {
                 let title = if self.flycheck.len() == 1 {
                     format!("{}", self.config.flycheck())
                 } else {
-                    format!("cargo check (#{})", id + 1)
+                    format!("{} (#{})", self.config.flycheck(), id + 1)
                 };
                 self.report_progress(
                     &title,
