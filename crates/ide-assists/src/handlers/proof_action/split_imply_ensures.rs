@@ -26,7 +26,7 @@ pub(crate) fn split_imply_ensures(acc: &mut Assists, ctx: &AssistContext<'_>) ->
 
     let v_func = Fn::try_from(func.clone()).ok()?;
     let result = vst_rewriter_split_imply_ensures(v_func)?;
-    let result = ctx.run_fmt_replacing(&func, func.clone(),result.to_string())?;
+    let result = ctx.fmt(func.clone(),result.to_string())?;
 
     acc.add(
         AssistId("split_imply_ensures", AssistKind::RefactorRewrite),
@@ -100,7 +100,6 @@ fn test_split_imply_ensures(b: bool) -> (ret: u32)
     }
     ret
 }
-
   
 ",
 

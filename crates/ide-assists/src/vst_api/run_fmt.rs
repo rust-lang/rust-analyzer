@@ -28,7 +28,7 @@ impl<'a> AssistContext<'a> {
         self.run_fmt_replacing(&func, sth_to_remove, text_to_replace)
     }
 
-    pub(crate) fn run_fmt_replacing<N: AstNode>(
+    fn run_fmt_replacing<N: AstNode>(
         &self,
         func: &ast::Fn,          // original
         sth_to_remove: N,        // old
@@ -50,7 +50,7 @@ impl<'a> AssistContext<'a> {
     // 2) run verusfmt on the temporary file
     // 3) return the formatted function as a string
     //
-    pub(crate) fn try_fmt(
+    fn try_fmt(
         &self,
         mut fn_as_text: String, 
         range_to_remove: Range<usize>,

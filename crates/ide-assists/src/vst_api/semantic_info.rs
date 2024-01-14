@@ -121,7 +121,7 @@ impl<'a> AssistContext<'a> {
         return false;
     }
 
-    // pub fn type_of_pat(&self, pat: &vst::Pat) -> Option<String> {
+    // fn type_of_pat(&self, pat: &vst::Pat) -> Option<String> {
     //     let sema: &Semantics<'_, ide_db::RootDatabase> = &self.sema;
     //     let hir_ty: Vec<hir::Type> =
     //         sema.type_of_pat(&pat.cst()?)?.adjusted().autoderef(sema.db).collect::<Vec<_>>();
