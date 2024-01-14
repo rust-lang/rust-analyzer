@@ -39,9 +39,6 @@ impl<'a> AssistContext<'a> {
         let expr_range_in_fn = expr_range.checked_sub(fn_range.start())?;    
         let range: core::ops::Range<usize> = expr_range_in_fn.into();
         let string_result = self.try_fmt(func.to_string(), range, text_to_replace)?;
-        for line in &string_result {
-            dbg!(line);
-        }    
         let result = string_result.join("\n");
         Some(result)
     }
@@ -59,7 +56,7 @@ impl<'a> AssistContext<'a> {
         range_to_remove: Range<usize>,
         mut text_to_replace: String, // from vst
     ) -> Option<Vec<String>> {
-        let source_file = &self.source_file;
+        // let source_file = &self.source_file;
         let fmt_path = &self.config.fmt_path;
 
         let start_marker = "/*marker fmt start*/";
@@ -136,7 +133,9 @@ impl<'a> AssistContext<'a> {
                     // trailing comment
                     let mut new_line = String::from(line);
                     new_line = new_line.replace(end_marker, "");
-                    result.push(new_line.to_string());
+                    if new_line.len() > 0 {
+                        result.push(new_line.to_string());
+                    }
                     break;
                 }
                 if is_line_target {

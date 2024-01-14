@@ -65,6 +65,7 @@ pub(crate) fn wp_move_assertion(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
     let stmt_list = ctx.find_node_at_offset::<ast::StmtList>()?;
     let v_stmt_list = StmtList::try_from(stmt_list.clone()).ok()?;
     let result = vst_rewriter_wp_move_assertion(ctx, v_stmt_list.clone())?;
+    let result = ctx.fmt(stmt_list.clone(),result.to_string())?;
 
     acc.add(
         AssistId("move_up_assertion", AssistKind::RefactorRewrite),
@@ -80,7 +81,7 @@ pub(crate) fn wp_move_assertion(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
 pub(crate) fn vst_rewriter_wp_move_assertion(
     ctx: &AssistContext<'_>,
     stmt_list: StmtList,
-) -> Option<String> { // TODO: return VST Node instead of string, to make it easier to use in other places
+) -> Option<StmtList> { // TODO: return VST Node instead of string, to make it easier to use in other places
     // find the assertion of interest
     let assertion = ctx.vst_find_node_at_offset::<AssertExpr, ast::AssertExpr>()?;
     // find the index of the assertion in the statement list
@@ -223,7 +224,7 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
         // this is replace
         new_stmt_list.statements[index - 1] = new_stmt;
     }
-    return Some(new_stmt_list.to_string());
+    return Some(new_stmt_list);
 }
 
 #[cfg(test)]
@@ -233,13 +234,13 @@ mod tests {
 
     // TEST: let-binding
     #[test]
-    fn wp_let_easy() {
+    fn wp_let_bind() {
         check_assist(
             wp_move_assertion,
             r#"
 fn foo()
 {
-    let a:u32 = 1;
+    let a: u32 = 1;
     ass$0ert(a > 10 && a < 100);
 }
 "#,
@@ -247,9 +248,10 @@ fn foo()
 fn foo()
 {
     assert(1 > 10 && 1 < 100);
-    let a:u32 = 1;
+    let a: u32 = 1;
     assert(a > 10 && a < 100);
 }
+
 "#,
         );
     }
@@ -257,27 +259,26 @@ fn foo()
 
     // TEST: assert
     #[test]
-    fn wp_assertion_easy() {
+    fn wp_assertion_step() {
         check_assist(
             wp_move_assertion,
             r#"
 fn foo()
 {
-    let a:u32 = 1;
+    let a: u32 = 1;
     assert(true);
-    // some comment 
     ass$0ert(a > 10 && a < 100);
 }
 "#,
             r#"
 fn foo()
 {
-    let a:u32 = 1;
+    let a: u32 = 1;
     assert(true ==> a > 10 && a < 100);
     assert(true);
-    // some comment 
     assert(a > 10 && a < 100);
 }
+
 "#,
         );
     }
@@ -285,29 +286,30 @@ fn foo()
 
     // TEST: if-else
     #[test]
-    fn wp_ifelse_easy() {
+    fn wp_if_else() {
         check_assist(
             wp_move_assertion,
             r#"
 fn foo()
 {
-    let mut a:u32 = 1;
-    if  (a  > 10) {
+    let mut a: u32 = 1;
+    if (a > 10) {
         a = 2;
-    }
+    };
     ass$0ert(a > 10 && a < 100);
 }
 "#,
             r#"
 fn foo()
 {
-    let mut a:u32 = 1;
-    if  (a  > 10) {
+    let mut a: u32 = 1;
+    if (a > 10) {
         a = 2;
         assert(a > 10 && a < 100);
-    }
-    ass$0ert(a > 10 && a < 100);
+    };
+    assert(a > 10 && a < 100);
 }
+
 "#,
         );
     }
@@ -315,28 +317,28 @@ fn foo()
 
     // TEST: nested if-else
     #[test]
-    fn wp_if_else_rec() {
+    fn wp_if_else_nested() {
         check_assist(
             wp_move_assertion,
             r#"
 fn foo()
 {
-    let mut a:u32 = 1;
-    if  (a  > 10) {
+    let mut a: u32 = 1;
+    if (a > 10) {
         a = 2;
     } else if (a > 100) {
         a = 3;
     } else {
         a = 4;
-    }
+    };
     ass$0ert(a > 10 && a < 100);
 }
 "#,
             r#"
 fn foo()
 {
-    let mut a:u32 = 1;
-    if  (a  > 10) {
+    let mut a: u32 = 1;
+    if (a > 10) {
         a = 2;
         assert(a > 10 && a < 100);
     } else if (a > 100) {
@@ -345,9 +347,10 @@ fn foo()
     } else {
         a = 4;
         assert(a > 10 && a < 100);
-    }
+    };
     assert(a > 10 && a < 100);
 }
+
 "#,
         );
     }
@@ -383,10 +386,11 @@ fn foo()
 {
     let v1 = 100;
     let v2 = 200;
-    assert(v1*v2 == v2*v1 ==> false);
+    assert(v1 * v2 == v2 * v1 ==> false);
     commutative(v1, v2);
-    ass$0ert(false);
+    assert(false);
 }
+
 "#,
         )
     }
