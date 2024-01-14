@@ -1,13 +1,6 @@
 use crate::{AssistContext, Assists};
-use ide_db::{
-    assists::{AssistId, AssistKind},
-    syntax_helpers::vst_ext::*
-};
-
-use syntax::{
-    ast::{self, vst::*},
-    AstNode, T,
-};
+use ide_db::{assists::{AssistId, AssistKind}, syntax_helpers::vst_ext::*};
+use syntax::{ast::{self, vst::*}, AstNode, T};
 
 /*
 "Weakest Precondition Step" a.k.a. "Move up assertion"
@@ -115,7 +108,6 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                     // TODO: make sure spec function call is directly replaced -- i.e. make sure spec function's ensures is Some; see `?` below
                     if func.ensures_clause.as_ref()?.ensures_token {
                         let mut new_assertion = assertion.clone();
-                        let e = assertion.expr.clone();
                         let ret_var = func_ret_type.pat?;
                         let ensures: Result<Vec<Expr>, String> = func.ensures_clause?.exprs.clone().iter().map(|e1|
                             vst_map_expr_visitor(e1.clone(), &mut |e2| {
@@ -138,15 +130,14 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                         let bin_expr: Expr = BinExpr::new(
                             ensures_anded.clone(),
                             BinaryOp::LogicOp(ast::LogicOp::Imply),
-                            *e,
+                            *assertion.expr.clone(),
                         ).into();
                         new_assertion.expr = Box::new(bin_expr);
                         let new_stmt:Stmt = new_assertion.into();
                         let simple_let: Stmt = ctx.vst_expr_from_text(format!("let {} :{}", pat, func_ret_type.ty).as_ref())?.into();
                         let mut stmt_list = StmtList::new();
                         stmt_list.statements = vec![simple_let, new_stmt];
-                        let blk_expr = BlockExpr::new(stmt_list);
-                        Some(blk_expr.into()) // is_insert = true
+                        Some(BlockExpr::new(stmt_list).into()) // is_insert = true
                     } else {
                         None
                     }
@@ -160,14 +151,12 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                     let new_assert = vst_map_expr_visitor(assertion.clone(), &mut |e| {
                         // TODO: do proper usage check in semantic level instead of string match             
                         // TODO: careful with variable name shadowing
-                    
                         if e.to_string().trim() == pat.to_string().trim() {
                             Ok(init_expr.clone())
                         } else {
                             Ok(e.clone())
                         }
-                    })
-                    .ok()?;
+                    }).ok()?;
                     (new_assert.into(), true)
                 },
             }
@@ -494,7 +483,7 @@ fn use_octuple() {
 
     // TEST: match
     #[test]
-    fn wp_match_easy() {
+    fn wp_match() {
         check_assist(
             wp_move_assertion,
             r#"
@@ -511,7 +500,7 @@ proof fn good_move(m: Movement)
             let foo = 1;
             foo > 100
         },
-    }
+    };
     ass$0ert(true);
 }
 "#,
@@ -529,12 +518,14 @@ proof fn good_move(m: Movement)
             v > a
         },
         Movement::Down(v) => {
+            let foo = 1;
             assert(true);
-            v > 100
+            foo > 100
         },
-    }
+    };
     assert(true);
 }
+
 "#,
         );
     }
