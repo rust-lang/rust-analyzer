@@ -15,7 +15,7 @@ impl<'a> AssistContext<'a> {
     // output: None -> compile error
     pub(crate) fn try_verus(
         &self,
-        vst_fn: &vst::Fn,
+        vst_fn: &vst::Fn, // only replace this function and run 
     ) -> Option<bool> {
         let source_file = &self.source_file;
         let verus_exec_path = &self.config.verus_path;

@@ -78,6 +78,7 @@ pub(crate) fn localize_error(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
 }
 
 // TODO: match, if, not, quant(forall)
+// TODO: if exp is already atom, try inlining function
 fn split_expr(exp: &Expr) -> Option<Vec<Expr>> {
     match exp {
         Expr::BinExpr(be) => {
@@ -142,6 +143,8 @@ pub(crate) fn vst_rewriter_localize_error_minimized(
         let assert_expr = AssertExpr::new(e);
         let modified_fn = ctx.replace_statement(&this_fn, assertion.clone(), assert_expr.clone())?;
         if !ctx.try_verus(&modified_fn)? {
+            // this is not enough -- need to retrieve failing assertions
+            // and check if this split assertion is failing
             stmts.statements.push(assert_expr.into());
         }
     }

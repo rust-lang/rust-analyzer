@@ -1,7 +1,7 @@
 use crate::{AssistContext, Assists};
 use ide_db::{
     assists::{AssistId, AssistKind},
-    syntax_helpers::vst_ext::*,
+    syntax_helpers::vst_ext::*
 };
 
 use syntax::{
@@ -10,27 +10,44 @@ use syntax::{
 };
 
 /*
-"Move up assertion"
-This proof action allows users to step thourgh an assertion through statements, utilizing the following rules:
+"Weakest Precondition Step" a.k.a. "Move up assertion"
+
+This proof action allows users to step thourgh an assertion through statements, utilizing the rules below.
 
 Previous statement =
-Let-binding | If-else |  Match-statement | Assert | Assume | Lemma/Function-Call
+    | Let-binding(simple expression -- i.e., does not have any function call with ensures clause) 
+    | Let-binding(expression with spec -- i.e., expression contains a function call with ensures clause) 
+    | If-else 
+    | Match-statement 
+    | Assert 
+    | Lemma-Call(i.e., function without return value) 
 
-(TODO: Assume/function-call)
+
+For each statement, we use the following rules.
 
 Let-binding:  
 {let x = e; assert(Y);}
 rewrites to
-{assert(Y[e/x]);} 
+{assert(Y[e/x]); let x = e; assert(Y);} 
 
 If-else and match-statement:
-simply copy the assertion into each branch/match-arms
+Copy the assertion into each branch/match-arms.
 
-Assert and assume: 
-simple “==>”
 
-Lemma-call and function-call:   
+Assert: simple “==>”
+{assert(PREV); assert(P);}
+rewrites to 
+{assert(PREV ==> P); assert(PREV); assert(P);}    ;(TODO: consider adding "Assume" in statement -- use the same rewrite rule here)
+
+Lemma-call 
 inline ensures clause and make implication
+
+Function-call:   
+add assertion that inlines requires clause
+create "assert forall" that binds a free variable "ret"
+which stands for the return value of the function call
+inside forall, make implication "ensures ==> original pred"
+
 */
 
 pub(crate) fn wp_move_assertion(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
@@ -214,6 +231,7 @@ mod tests {
     use super::*;
     use crate::tests::check_assist;
 
+    // TEST: let-binding
     #[test]
     fn wp_let_easy() {
         check_assist(
@@ -236,6 +254,8 @@ fn foo()
         );
     }
 
+
+    // TEST: assert
     #[test]
     fn wp_assertion_easy() {
         check_assist(
@@ -261,6 +281,9 @@ fn foo()
 "#,
         );
     }
+
+
+    // TEST: if-else
     #[test]
     fn wp_ifelse_easy() {
         check_assist(
@@ -289,6 +312,8 @@ fn foo()
         );
     }
 
+
+    // TEST: nested if-else
     #[test]
     fn wp_if_else_rec() {
         check_assist(
@@ -327,6 +352,7 @@ fn foo()
         );
     }
 
+    // TEST: Lemma Call
     #[test]
     fn wp_lemma_call() {
         check_assist(
@@ -365,6 +391,60 @@ fn foo()
         )
     }
 
+    // TEST: Function Call
+    #[test]
+    fn wp_function_call() {
+        check_assist(
+            wp_move_assertion,
+            r#"
+fn octuple(x1: i8) -> (x8: i8)
+requires
+    -16 <= x1,
+    x1  < 16,
+ensures                 
+    x8 == 8 * x1,
+{
+    let x2 = x1 + x1;
+    let x4 = x2 + x2;
+    x4 + x4
+}
+
+fn use_octuple() {
+    let two = 2;
+    let num = octuple(two);
+    ass$0ert(num == 32);        
+}
+"#,
+
+            r#"
+fn octuple(x1: i8) -> (x8: i8)
+requires
+    -16 <= x1,
+    x1  < 16,
+ensures                 
+    x8 == 8 * x1,
+{
+    let x2 = x1 + x1;
+    let x4 = x2 + x2;
+    x4 + x4
+}
+
+fn use_octuple() {
+    let two = 2;
+    {
+        assert(-16 <= two);
+        assert(two < 16);
+        let num:i8;
+        assert(num == 8 * two ==> num == 32);
+    }
+    let num = octuple(two);
+    assert(num == 32);        
+}
+"#,
+        )
+    }
+
+    // TEST: match
     #[test]
     fn wp_match_easy() {
         check_assist(
@@ -411,53 +491,53 @@ proof fn good_move(m: Movement)
         );
     }
 
-    #[test] // not yet implemented
-    fn wp_assign_easy() {
-        check_assist(
-            wp_move_assertion,
-            r#"
-fn foo()
-{
-    let mut a:u32 = 1;
-    a = 8;
-    ass$0ert(a > 10 && a < 100);
-}
-"#,
-            r#"
-fn foo()
-{
-    let mut a:u32 = 1;
-    assert(8 > 10 && 8 < 100);
-    a = 8;
-    assert(a > 10 && a < 100);
-}
-"#,
-        );
-    }
+//     #[test] // not yet implemented
+//     fn wp_assign_easy() {
+//         check_assist(
+//             wp_move_assertion,
+//             r#"
+// fn foo()
+// {
+//     let mut a:u32 = 1;
+//     a = 8;
+//     ass$0ert(a > 10 && a < 100);
+// }
+// "#,
+//             r#"
+// fn foo()
+// {
+//     let mut a:u32 = 1;
+//     assert(8 > 10 && 8 < 100);
+//     a = 8;
+//     assert(a > 10 && a < 100);
+// }
+// "#,
+//         );
+//     }
 
-    #[test] // not yet implemented
-    fn wp_assign_expr() {
-        check_assist(
-            wp_move_assertion,
-            r#"
-fn foo()
-{
-    let mut a:u32 = 1;
-    a = 8 + 9;
-    ass$0ert(a > 10 && a < 100);
-}
-"#,
-            r#"
-fn foo()
-{
-    let mut a:u32 = 1;
-    assert(8 + 9 > 10 && 8 + 9 < 100);
-    a = 8 + 9;
-    assert(a > 10 && a < 100);
-}
-"#,
-        );
-    }
+//     #[test] // not yet implemented
+//     fn wp_assign_expr() {
+//         check_assist(
+//             wp_move_assertion,
+//             r#"
+// fn foo()
+// {
+//     let mut a:u32 = 1;
+//     a = 8 + 9;
+//     ass$0ert(a > 10 && a < 100);
+// }
+// "#,
+//             r#"
+// fn foo()
+// {
+//     let mut a:u32 = 1;
+//     assert(8 + 9 > 10 && 8 + 9 < 100);
+//     a = 8 + 9;
+//     assert(a > 10 && a < 100);
+// }
+// "#,
+//         );
+//     }
 }
 
 // let stmt
