@@ -1,8 +1,7 @@
 use std::{process::Command, collections::hash_map::DefaultHasher, time::Instant, env, path::Path, hash::{Hasher, Hash}, fs::{read_to_string, File}, io::Write};
 use core::ops::Range;
 use crate::{AssistContext, tests::HARDCODED_VERUS_FMT_PATH_FOR_TEST};
-use syntax::{ast::{self, vst, HasModuleItem, HasName}, AstNode};
-use text_edit::TextRange;
+use syntax::{ast, AstNode};
 
 
 /*
@@ -20,11 +19,20 @@ proof fn f() {
 
 */
 impl<'a> AssistContext<'a> {
+    pub(crate) fn fmt<N: AstNode>(
+        &self,
+        sth_to_remove: N,        // old
+        text_to_replace: String, // new
+    ) -> Option<String> {
+        let func: ast::Fn = self.find_node_at_offset::<ast::Fn>()?.clone();
+        self.run_fmt_replacing(&func, sth_to_remove, text_to_replace)
+    }
+
     pub(crate) fn run_fmt_replacing<N: AstNode>(
         &self,
-        func: &ast::Fn,
-        sth_to_remove: N,
-        text_to_replace: String,
+        func: &ast::Fn,          // original
+        sth_to_remove: N,        // old
+        text_to_replace: String, // new
     ) -> Option<String> {
         let fn_range = func.syntax().text_range();
         let expr_range = sth_to_remove.syntax().text_range();

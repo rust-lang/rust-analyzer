@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 mod generated;
 
 use expect_test::expect;

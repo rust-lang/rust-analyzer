@@ -1,11 +1,7 @@
-use std::{process::Command, collections::hash_map::DefaultHasher, time::Instant, env, path::Path, hash::{Hasher, Hash}, fs::File, io::Write};
-
-use crate::{AssistContext, verus_error::*, tests::HARDCODED_VERUS_PATH_FOR_TEST};
+#![allow(dead_code)]
+use crate::AssistContext;
 use hir::Semantics;
-use syntax::{
-    ast::{self, vst, HasModuleItem, HasName},
-    AstNode, SyntaxToken, SyntaxKind,
-};
+use syntax::ast::{self, vst, HasModuleItem};
 
 impl<'a> AssistContext<'a> {
     /// From an VST Expr, get the definition VST Adt of that type

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 
 use crate::{AssistContext, verus_error::*};
 use syntax::{
