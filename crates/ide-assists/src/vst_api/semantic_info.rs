@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use crate::AssistContext;
-use hir::Semantics;
+use hir::{Semantics, HirDisplay};
 use syntax::ast::{self, vst, HasModuleItem};
 
 impl<'a> AssistContext<'a> {
@@ -121,4 +121,10 @@ impl<'a> AssistContext<'a> {
         return false;
     }
 
+    // pub fn type_of_pat(&self, pat: &vst::Pat) -> Option<String> {
+    //     let sema: &Semantics<'_, ide_db::RootDatabase> = &self.sema;
+    //     let hir_ty: Vec<hir::Type> =
+    //         sema.type_of_pat(&pat.cst()?)?.adjusted().autoderef(sema.db).collect::<Vec<_>>();
+    //     let hir_ty = hir_ty.first()?.hir_fmt()
+    // }
 }

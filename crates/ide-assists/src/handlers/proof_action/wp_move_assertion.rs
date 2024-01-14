@@ -25,10 +25,18 @@ Previous statement =
 
 For each statement, we use the following rules.
 
-Let-binding:  
+Let-binding with simple expression:  
 {let x = e; assert(Y);}
 rewrites to
 {assert(Y[e/x]); let x = e; assert(Y);} 
+
+
+Let-binding with Function-call:   
+create a local scope and let-binds a free variable
+which stands for the return value of the function call
+inside forall, make implication "ensures ==> original pred".
+Note that we intentionally skip "inlines requires clause" as we have a separate proof action for this
+
 
 If-else and match-statement:
 Copy the assertion into each branch/match-arms.
@@ -39,25 +47,15 @@ Assert: simple “==>”
 rewrites to 
 {assert(PREV ==> P); assert(PREV); assert(P);}    ;(TODO: consider adding "Assume" in statement -- use the same rewrite rule here)
 
+
 Lemma-call 
 inline ensures clause and make implication
-
-Function-call:   
-add assertion that inlines requires clause
-create "assert forall" that binds a free variable "ret"
-which stands for the return value of the function call
-inside forall, make implication "ensures ==> original pred"
 
 */
 
 pub(crate) fn wp_move_assertion(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     // trigger on assert keyword
-    let assert_keyword = ctx.find_token_syntax_at_offset(T![assert])?;
-    let assert_range = assert_keyword.text_range();
-    let cursor_in_range = assert_range.contains_range(ctx.selection_trimmed());
-    if !cursor_in_range {
-        return None;
-    }
+    let _ = ctx.at_this_token(T![assert])?;
 
     // at high level, we 
     // 1) locate the VST node we want to modify(flexible granularity), 2) apply the rewriter for it, and 3) replace the original node with the new node
@@ -106,19 +104,73 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
         Stmt::LetStmt(l) => {
             let pat = &**l.pat.as_ref()?;
             let init_expr = l.initializer.as_ref();
-            // when `prev` is let-binding, do subsitution (replace `pat` with `init`)
-            let new_assert = vst_map_expr_visitor(assertion.clone(), &mut |e| {
-                // TODO: do proper usage check in semantic level instead of string match             
-                // TODO: careful with variable name shadowing
-            
-                if e.to_string().trim() == pat.to_string().trim() {
-                    Ok(init_expr.clone())
-                } else {
-                    Ok(e.clone())
+            let new_stmt: Option<Stmt> = match init_expr {
+                // when `init` is a function call with ensures clause, inline ensures clause
+                Expr::CallExpr(call) => {
+                    let func = ctx.vst_find_fn(call)?;
+                    let func_ret_type = func.ret_type?.clone();
+                    let first_formal_param = func.param_list.as_ref()?.params.first().clone()?;
+                    let first_formal_arg = first_formal_param.pat.as_ref()?;
+                    let first_arg = call.arg_list.args.first()?;
+                    // TODO: make sure spec function call is directly replaced -- i.e. make sure spec function's ensures is Some; see `?` below
+                    if func.ensures_clause.as_ref()?.ensures_token {
+                        let mut new_assertion = assertion.clone();
+                        let e = assertion.expr.clone();
+                        let ret_var = func_ret_type.pat?;
+                        let ensures: Result<Vec<Expr>, String> = func.ensures_clause?.exprs.clone().iter().map(|e1|
+                            vst_map_expr_visitor(e1.clone(), &mut |e2| {
+                                if e2.to_string().trim() == ret_var.to_string().trim() {
+                                    // assume one arg for now
+                                    ctx.vst_expr_from_text(pat.to_string().as_str()).map_or(Err(String::new()), |e| Ok(e))
+                                } else if e2.to_string().trim() == first_formal_arg.to_string().trim(){
+                                    ctx.vst_expr_from_text(first_arg.to_string().as_str()).map_or(Err(String::new()), |e| Ok(e))
+                                }
+                                else {
+                                    Ok(e2.clone())
+                                }
+                            })
+                        ).collect();
+
+                        // reduce ensures clauses into one &&-ed expr
+                        let ensures_anded: Expr = ctx.reduce_exprs(ensures.ok()?)?;
+                
+                        // ensures ==> original predicate
+                        let bin_expr: Expr = BinExpr::new(
+                            ensures_anded.clone(),
+                            BinaryOp::LogicOp(ast::LogicOp::Imply),
+                            *e,
+                        ).into();
+                        new_assertion.expr = Box::new(bin_expr);
+                        let new_stmt:Stmt = new_assertion.into();
+                        let simple_let: Stmt = ctx.vst_expr_from_text(format!("let {} :{}", pat, func_ret_type.ty).as_ref())?.into();
+                        let mut stmt_list = StmtList::new();
+                        stmt_list.statements = vec![simple_let, new_stmt];
+                        let blk_expr = BlockExpr::new(stmt_list);
+                        Some(blk_expr.into()) // is_insert = true
+                    } else {
+                        None
+                    }
                 }
-            })
-            .ok()?;
-            (new_assert.into(), true)
+                _ => None,
+            };
+            match new_stmt {
+                Some(new_stmt) => (new_stmt, true),
+                None => {
+                    // when `prev` is let-binding, do subsitution (replace `pat` with `init`)
+                    let new_assert = vst_map_expr_visitor(assertion.clone(), &mut |e| {
+                        // TODO: do proper usage check in semantic level instead of string match             
+                        // TODO: careful with variable name shadowing
+                    
+                        if e.to_string().trim() == pat.to_string().trim() {
+                            Ok(init_expr.clone())
+                        } else {
+                            Ok(e.clone())
+                        }
+                    })
+                    .ok()?;
+                    (new_assert.into(), true)
+                },
+            }
         }
         Stmt::ExprStmt(exp_stmt) => {
             let exp = exp_stmt.expr.as_ref();
@@ -183,22 +235,15 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                         }
                         let vst_name_ref: NameRef = *pp.path.segment.name_ref;
                         // inline every ensures clause
-                        let ensures: Option<Vec<Expr>> = func
-                            .ensures_clause?
+                        let ensures: Option<Vec<Expr>> = func.ensures_clause?
                             .clone()
                             .exprs
                             .into_iter()
                             .map(|e| ctx.vst_inline_call(vst_name_ref.clone(), e))
                             .collect();
-                        let ensures = ensures?;
                         // apply `&&` for all ensures clauses
-                        let inlined_ensures: Expr = ensures.into_iter().reduce(|acc, e| {
-                            Expr::BinExpr(Box::new(BinExpr::new(
-                                acc,
-                                BinaryOp::LogicOp(ast::LogicOp::And),
-                                e,
-                            )))
-                        })?;
+                        let inlined_ensures = ctx.reduce_exprs(ensures?)?;
+
                         // generate `ensures ==> assertion`
                         let final_assert = AssertExpr::new(BinExpr::new(
                             inlined_ensures.clone(),
@@ -436,14 +481,13 @@ ensures
 fn use_octuple() {
     let two = 2;
     {
-        assert(-16 <= two);
-        assert(two < 16);
-        let num:i8;
+        let num: i8;
         assert(num == 8 * two ==> num == 32);
-    }
+    };
     let num = octuple(two);
-    assert(num == 32);        
+    assert(num == 32);
 }
+
 "#,
         )
     }

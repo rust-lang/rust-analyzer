@@ -78,6 +78,7 @@ impl<'a> AssistContext<'a> {
         Some(())
     }
 
+    // helper routine to replace statement
     pub(crate) fn replace_statement<ST0, ST1>(&self, func: &vst::Fn, old: ST0, new: ST1) -> Option<vst::Fn> 
     where
         ST0: Into<vst::Stmt> + std::clone::Clone,
@@ -90,5 +91,16 @@ impl<'a> AssistContext<'a> {
         let filtered_stmts: Vec<vst::Stmt> = stmts.into_iter().map(|s| if s == old.clone() {new.clone()} else {s}).collect();
         func.body.as_mut()?.stmt_list.statements = filtered_stmts;  
         Some(func)
+    }
+
+    // helper routine to reduce a list of predicate into &&-ed predicate
+    pub(crate) fn reduce_exprs(&self, es: Vec<vst::Expr>) -> Option<vst::Expr> {
+        es.into_iter().reduce(|acc, e| {
+            vst::Expr::BinExpr(Box::new(vst::BinExpr::new(
+                acc,
+                vst::BinaryOp::LogicOp(ast::LogicOp::And),
+                e,
+            )))
+        })
     }
 }
