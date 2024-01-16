@@ -5,17 +5,17 @@ pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()
     // trigger on "assert"
     let _ = ctx.at_this_token(T![assert])?;
 
+    // retrieve the assertion of interest
     let expr: ast::AssertExpr = ctx.find_node_at_offset()?;
+
+    // lift CST into TOST node
     let assert: AssertExpr = AssertExpr::try_from(expr.clone()).ok()?;
-    let result = vst_rewriter_assert_by(assert.clone())?; // TODO: verusfmt
-    dbg!(&result.to_string());
 
+    // edit TOST node
+    let result = rewriter_assert_by(assert.clone())?;
 
-    // verusfmt
-    // assume an fn is including the lightbulb
-    // let func: ast::Fn = ctx.find_node_at_offset::<ast::Fn>()?.clone();
+    // pretty-print
     let result = ctx.fmt(expr.clone(),result.to_string())?;
-    
     
     acc.add(
         AssistId("assert_by", AssistKind::RefactorRewrite),
@@ -29,7 +29,7 @@ pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()
     )
 }
 
-pub(crate) fn vst_rewriter_assert_by(mut assert: AssertExpr) -> Option<AssertExpr> {
+pub(crate) fn rewriter_assert_by(mut assert: AssertExpr) -> Option<AssertExpr> {
     // if is already has a "by block", return None
     if assert.by_token {
         return None;
@@ -51,7 +51,7 @@ mod tests {
     use crate::tests::check_assist;
 
     #[test]
-    fn assert_by_composite_condition() {
+    fn test_assert_by() {
         check_assist(
             assert_by,
             "
@@ -70,12 +70,3 @@ proof fn f() {
         )
     }
 }
-
-// let formatter = "/home/chanhee/.cargo/bin/rustfmt";
-// let formatted_string = Command::new("echo")
-//     .arg(string.clone())
-//     .arg("|")
-//     .arg(formatter)
-//     .spawn()
-//     .expect("echo command failed to start").stdout.unwrap();
-// dbg!(formatted_string);

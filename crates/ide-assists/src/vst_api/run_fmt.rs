@@ -57,7 +57,9 @@ impl<'a> AssistContext<'a> {
         mut text_to_replace: String, // from vst
     ) -> Option<Vec<String>> {
         // let source_file = &self.source_file;
-        let fmt_path = &self.config.fmt_path;
+        // let fmt_path = &self.config.fmt_path;
+        let fmt_path = std::env::var("VERUS_FMT_BINARY_PATH").expect("please set verusfmt environment variable");
+
 
         let start_marker = "/*marker fmt start*/";
         let end_marker = "/*marker fmt end*/";
@@ -72,8 +74,8 @@ impl<'a> AssistContext<'a> {
         fn_as_text.push_str("\n}");
         
 
-        #[cfg(test)] // We get verus path from config of editor. In test, we use a hardcoded path
-        let fmt_path = HARDCODED_VERUS_FMT_PATH_FOR_TEST.to_string(); // TODO: maybe move this to test config
+        // #[cfg(test)] // We get verus path from config of editor. In test, we use a hardcoded path
+        // let fmt_path = HARDCODED_VERUS_FMT_PATH_FOR_TEST.to_string(); // TODO: maybe move this to test config
 
 
         dbg!(&fmt_path);
