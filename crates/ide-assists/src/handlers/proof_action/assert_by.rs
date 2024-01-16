@@ -23,7 +23,7 @@ pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()
         expr.syntax().text_range(),
         |edit| {
             edit.delete(expr.syntax().text_range());
-            edit.insert(expr.syntax().text_range().start(), format!("\n{}", result));
+            edit.insert(expr.syntax().text_range().start(), result);
             // edit.insert(expr.syntax().text_range().end(), result)
         },
     )
@@ -61,7 +61,6 @@ proof fn f() {
             ",
             "
 proof fn f() { 
-    
     assert(x == 3) by {
         assert(x == 3);
     };

@@ -39,8 +39,9 @@ impl<'a> AssistContext<'a> {
         let expr_range_in_fn = expr_range.checked_sub(fn_range.start())?;    
         let range: core::ops::Range<usize> = expr_range_in_fn.into();
         let string_result = self.try_fmt(func.to_string(), range, text_to_replace)?;
-        let result = string_result.join("\n");
-        Some(result)
+        let joined_string = string_result.join("\n");
+        let result = joined_string.trim_start(); // note the indentation at the inserted location
+        Some(String::from(result))
     }
 
 
@@ -131,7 +132,6 @@ impl<'a> AssistContext<'a> {
                     continue;
                 }
                 if line.contains(end_marker) {
-                    is_line_target = false;
                     // trailing comment
                     let mut new_line = String::from(line);
                     new_line = new_line.replace(end_marker, "");

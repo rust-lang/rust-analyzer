@@ -5,9 +5,17 @@ pub(crate) fn by_assume_false(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     // trigger on "assert"
     let _ = ctx.at_this_token(T![assert])?;
 
+    // retrieve the assertion of interest
     let expr: ast::AssertExpr = ctx.find_node_at_offset()?;
+
+    // lift CST into TOST node
     let assert: AssertExpr = AssertExpr::try_from(expr.clone()).ok()?;
-    let result = vst_rewriter_by_assume_false(ctx, assert.clone())?; // TODO: verusfmt
+
+    // edit TOST node
+    let result = vst_rewriter_by_assume_false(ctx, assert.clone())?;
+
+    // pretty-print
+    let result = ctx.fmt(expr.clone(),result.to_string())?;
     acc.add(
         AssistId("by_assume_false", AssistKind::RefactorRewrite),
         "Insert assume false for this assert",
@@ -51,10 +59,10 @@ proof fn f(x: int) {
 }
             ",
             "
-proof fn f() { 
+proof fn f(x: int) { 
     assert(x == 3) by {
         assume(false);
-    } 
+    }; 
 }
             ",
         )
