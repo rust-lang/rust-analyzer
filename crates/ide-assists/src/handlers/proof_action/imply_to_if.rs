@@ -11,29 +11,32 @@ use syntax::{
 };
 
 pub(crate) fn imply_to_if(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
-    let assert_keyword = ctx.find_token_syntax_at_offset(T![assert])?;
-    let expr = ast::AssertExpr::cast(assert_keyword.parent()?)?;
-    let assert_range = assert_keyword.text_range();
-    let cursor_in_range = assert_range.contains_range(ctx.selection_trimmed());
-    if !cursor_in_range {
-        return None;
-    }
-    let assert = AssertExpr::try_from(expr.clone());
-    dbg!(&assert);
-    let assert = assert.ok()?;
-    let string = vst_rewriter_imply_to_if(assert.clone())?; // TODO: verusfmt
+    // trigger on "assert"
+    let _ = ctx.at_this_token(T![assert])?;
+
+    // retrieve the assertion of interest
+    let expr: ast::AssertExpr = ctx.find_node_at_offset()?;
+
+    // lift CST into TOST node
+    let assert: AssertExpr = AssertExpr::try_from(expr.clone()).ok()?;
+
+    // modify TOST node
+    let result = vst_rewriter_imply_to_if(assert.clone())?; 
+
+    // pretty-print
+    let result = ctx.fmt(expr.clone(),result.to_string())?;
 
     acc.add(
         AssistId("imply_to_if", AssistKind::RefactorRewrite),
         "Change implication into if and assert",
-        assert_range,
+        expr.syntax().text_range(),
         |edit| {
-            edit.replace(expr.syntax().text_range(), string);
+            edit.replace(expr.syntax().text_range(), result);
         },
     )
 }
 
-pub(crate) fn vst_rewriter_imply_to_if(assert: AssertExpr) -> Option<String> {
+pub(crate) fn vst_rewriter_imply_to_if(assert: AssertExpr) -> Option<IfExpr> {
     // if assertion's expression's top level is not implication, return None
     let ifstmt = match *assert.expr {
         Expr::BinExpr(b) => {
@@ -48,7 +51,7 @@ pub(crate) fn vst_rewriter_imply_to_if(assert: AssertExpr) -> Option<String> {
         }
         _ => {dbg!("not a binexpr"); return None;},
     };
-    Some(ifstmt.to_string())    
+    Some(ifstmt)    
 }
 
 #[cfg(test)]
@@ -58,35 +61,35 @@ mod tests {
     use crate::tests::check_assist;
 
     #[test]
-    fn test_imply_to_if_1() {
+    fn test_imply_to_if() {
         check_assist(
             imply_to_if,
 "
 fn test_imply_to_if(b: bool) -> (ret: u32) 
-  ensures 
-    b ==> ret == 2 && !b ==> ret == 1,
+    ensures 
+      b ==> ret == 2 && !b ==> ret == 1,
 {
-  let mut ret: u32 = 1;
-  if b {
-    ret = ret + 1;
-  }  
-  ass$0ert(b ==> ret == 2);
-  ret
+    let mut ret: u32 = 1;
+    if b {
+        ret = ret + 1;
+    }  
+    ass$0ert(b ==> ret == 2);
+    ret
 }  
 ",
 "
 fn test_imply_to_if(b: bool) -> (ret: u32) 
-  ensures 
-    b ==> ret == 2 && !b ==> ret == 1,
+    ensures 
+      b ==> ret == 2 && !b ==> ret == 1,
 {
-  let mut ret: u32 = 1;
-  if b {
-    ret = ret + 1;
-  }  
-  if b {
-    assert(ret == 2);
-  }
-  ret
+    let mut ret: u32 = 1;
+    if b {
+        ret = ret + 1;
+    }  
+    if b {
+        assert(ret == 2);
+    };
+    ret
 }  
 ",
 

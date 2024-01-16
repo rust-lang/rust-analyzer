@@ -18,7 +18,6 @@ pub(crate) fn assert_by_reveal(acc: &mut Assists, ctx: &AssistContext<'_>) -> Op
     let assert_expr: ast::AssertExpr = ctx.find_node_at_offset()?;
 
     // lift CST to TOST
-    
     let v_call = CallExpr::try_from(call.clone()).ok()?;
     let v_assert_expr = AssertExpr::try_from(assert_expr.clone()).ok()?;
 
