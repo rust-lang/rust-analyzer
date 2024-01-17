@@ -5,15 +5,11 @@ use crate::{
     AssistId,
     AssistKind,
 };
-use syntax::{
-    ast::{self, vst::*, AstNode, LogicOp},
-    T,
-};
+use syntax::ast::{self, vst::*, AstNode, LogicOp};
 
 pub(crate) fn split_imply_ensures(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
    // setup basic variables
     let func: ast::Fn = ctx.find_node_at_offset::<ast::Fn>()?;
-    let body: ast::BlockExpr = func.body()?;
     let ensures: ast::EnsuresClause = func.ensures_clause()?;
 
     // trigger on "ensures"

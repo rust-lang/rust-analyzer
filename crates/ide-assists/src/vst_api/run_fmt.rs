@@ -59,7 +59,7 @@ impl<'a> AssistContext<'a> {
     ) -> Option<Vec<String>> {
         // let source_file = &self.source_file;
         // let fmt_path = &self.config.fmt_path;
-        let fmt_path = std::env::var("VERUS_FMT_BINARY_PATH").expect("please set verusfmt environment variable");
+        let fmt_path = std::env::var("VERUS_FMT_BINARY_PATH").expect("please set VERUS_FMT_BINARY_PATH environment variable");
 
 
         let start_marker = "/*marker fmt start*/";
@@ -73,7 +73,7 @@ impl<'a> AssistContext<'a> {
 
         fn_as_text.insert_str(0, "verus!{\n");
         fn_as_text.push_str("\n}");
-        dbg!("{}", &fn_as_text);
+        // dbg!("{}", &fn_as_text);
         
 
         // #[cfg(test)] // We get verus path from config of editor. In test, we use a hardcoded path

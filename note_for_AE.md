@@ -16,3 +16,8 @@ verusfmt : 4d878b2de24d5b44bafe8e8bba7677a13433f49e
 verus : 9ec21f08802d33661887b9566c815d5488cda7a5
 rust: 1.68.0-x86_64-unknown-linux-gnu (default)
 
+
+# for VS code
+
+[dependencies]
+vstd = { path = "/home/chanhee/verus/source/pervasive"}

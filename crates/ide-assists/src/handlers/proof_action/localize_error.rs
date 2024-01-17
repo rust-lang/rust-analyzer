@@ -1,15 +1,14 @@
 use crate::{AssistContext, Assists};
-use ide_db::{
-    assists::{AssistId, AssistKind},
-};
-
+use ide_db::assists::{AssistId, AssistKind};
 use syntax::{
     ast::{self, vst::*, LogicOp},
     AstNode, T,
 };
 
 /*
-Localize error by splitting assertion
+
+Localize error by splitting assertion (cf. "--expandn-errors" in Verus)
+
 
 assert(exp)
 
@@ -64,7 +63,8 @@ pub(crate) fn localize_error(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
 
     let assertion = ctx.find_node_at_offset::<ast::AssertExpr>()?;
     let v_assertion = AssertExpr::try_from(assertion.clone()).ok()?;
-    let result = vst_rewriter_localize_error(ctx, v_assertion.clone())?;
+    let result = vst_rewriter_localize_error_minimized(ctx, v_assertion.clone())?;
+    let result = ctx.fmt(assertion.clone(),result.to_string())?;
 
     acc.add(
         AssistId("localize_error", AssistKind::RefactorRewrite),
@@ -77,7 +77,7 @@ pub(crate) fn localize_error(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
 }
 
 // TODO: match, if, not, quant(forall)
-// TODO: if exp is already atom, try inlining function
+// TODO: if exp it a callexpr, first inline *and then* split
 fn split_expr(exp: &Expr) -> Option<Vec<Expr>> {
     match exp {
         Expr::BinExpr(be) => {
@@ -111,29 +111,29 @@ fn split_expr(exp: &Expr) -> Option<Vec<Expr>> {
     }
 }
 
-// TODO: try changing this to use verus
-pub(crate) fn vst_rewriter_localize_error(
-    ctx: &AssistContext<'_>,
-    assertion: AssertExpr,
-) -> Option<String> {
-    let exp = &assertion.expr;
-    let split_exprs = split_expr(exp)?;
-    let mut stmts: StmtList = StmtList::new();
-    for e in split_exprs {
-        let assert_expr = AssertExpr::new(e);
-        stmts.statements.push(assert_expr.into());
-    }
-    stmts.statements.push(assertion.into());
-    let blk = BlockExpr::new(stmts);
-    return Some(blk.to_string());
-}
+// // TODO: try changing this to use verus
+// pub(crate) fn vst_rewriter_localize_error(
+//     ctx: &AssistContext<'_>,
+//     assertion: AssertExpr,
+// ) -> Option<String> {
+//     let exp = &assertion.expr;
+//     let split_exprs = split_expr(exp)?;
+//     let mut stmts: StmtList = StmtList::new();
+//     for e in split_exprs {
+//         let assert_expr = AssertExpr::new(e);
+//         stmts.statements.push(assert_expr.into());
+//     }
+//     stmts.statements.push(assertion.into());
+//     let blk = BlockExpr::new(stmts);
+//     return Some(blk.to_string());
+// }
 
 // maybe register another action with minimization
 // TODO: try changing this to use verus
 pub(crate) fn vst_rewriter_localize_error_minimized(
     ctx: &AssistContext<'_>,
     assertion: AssertExpr,
-) -> Option<String> {
+) -> Option<BlockExpr> {
     let this_fn = ctx.vst_find_node_at_offset::<Fn, ast::Fn>()?; 
     let exp = &assertion.expr;
     let split_exprs = split_expr(exp)?;
@@ -141,7 +141,9 @@ pub(crate) fn vst_rewriter_localize_error_minimized(
     for e in split_exprs {
         let assert_expr = AssertExpr::new(e);
         let modified_fn = ctx.replace_statement(&this_fn, assertion.clone(), assert_expr.clone())?;
-        if !ctx.try_verus(&modified_fn)? {
+        let verif_result = ctx.try_verus(&modified_fn)?;
+        if verif_result.is_failing(&assert_expr) {
+            dbg!(verif_result);
             // this is not enough -- need to retrieve failing assertions
             // and check if this split assertion is failing
             stmts.statements.push(assert_expr.into());
@@ -149,27 +151,31 @@ pub(crate) fn vst_rewriter_localize_error_minimized(
     }
     stmts.statements.push(assertion.into());
     let blk = BlockExpr::new(stmts);
-    return Some(blk.to_string());
+    return Some(blk);
 }
 
 #[cfg(test)]
 mod tests {
     use crate::tests::check_assist;
-
     use super::*;
 
+    // TEST: &&
     #[test]
-    fn localize_simple_conjunct() {
+    fn decompose_conjunct_failure() {
         check_assist(
             localize_error,
             r#"
+use vstd::prelude::*;
 fn foo()
 {
     let a:u32 = 1;
     ass$0ert(a > 10 && a < 100);
 }
+fn main() {}
 "#,
+// after
             r#"
+use vstd::prelude::*;
 fn foo()
 {
     let a:u32 = 1;
@@ -177,15 +183,21 @@ fn foo()
     assert(a < 100);
     assert(a > 10 && a < 100);
 }
+fn main() {}
 "#,
         );
     }
+
+
+    // TEST: match
     #[test]
-    fn localize_simple_match() {
+    fn decompose_match_failure() {
         check_assist(
             localize_error,
 // before
             r#"
+use vstd::prelude::*;
+
 #[derive(PartialEq, Eq)] 
 #[is_variant]
 pub enum Message {
@@ -201,10 +213,14 @@ proof fn test_expansion_multiple_call() {
         Message::Move{x, y} => false,
         Message::Write(b) => b,
     });
-}            
+} 
+
+fn main() {}
 "#,
 // after
             r#"
+use vstd::prelude::*;
+
 #[derive(PartialEq, Eq)] 
 #[is_variant]
 pub enum Message {
@@ -224,6 +240,71 @@ proof fn test_expansion_multiple_call() {
         Message::Write(b) => b,
     });
 }
+
+fn main() {}
+"#,
+        );
+    }
+
+
+    // TEST: inline
+    #[test]
+    fn decompose_function_inline() {
+        check_assist(
+            localize_error,
+            r#"
+use vstd::prelude::*;
+use vstd::seq::*;
+spec fn seq_bounded_by_length(s1: Seq<int>) -> bool 
+{
+    forall|i:int| (0 <= i && i < s1.len())  ==>  (0 <= s1.index(i) && s1.index(i) < s1.len())
+}
+
+spec fn long_seq(s1: Seq<int>) -> bool {
+    s1.len() > 20
+}
+
+spec fn seq_is_long_and_bounded_by_length(s1: Seq<int>) -> bool {
+    seq_bounded_by_length(s1) && long_seq(s1)
+}
+
+proof fn test_expansion_forall()
+{
+    let mut ss: Seq<int> = Seq::empty();
+    ss = ss.push(0);
+    ss = ss.push(1);
+    assert(ss.len() > 20);
+    as$0sert(seq_is_long_and_bounded_by_length(ss));  
+}
+
+fn main() {}
+"#,
+            r#"
+use vstd::prelude::*;
+use vstd::seq::*;
+spec fn seq_bounded_by_length(s1: Seq<int>) -> bool 
+{
+    forall|i:int| (0 <= i && i < s1.len())  ==>  (0 <= s1.index(i) && s1.index(i) < s1.len())
+}
+
+spec fn long_seq(s1: Seq<int>) -> bool {
+    s1.len() > 20
+}
+
+spec fn seq_is_long_and_bounded_by_length(s1: Seq<int>) -> bool {
+    seq_bounded_by_length(s1) && long_seq(s1)
+}
+
+proof fn test_expansion_forall()
+{
+    let mut ss: Seq<int> = Seq::empty();
+    ss = ss.push(0);
+    ss = ss.push(1);
+    assert(long_seq(ss));
+    assert(seq_is_long_and_bounded_by_length(ss));  
+}
+
+fn main() {}
 "#,
         );
     }

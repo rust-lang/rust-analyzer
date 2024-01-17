@@ -47,7 +47,7 @@ pub(crate) fn vst_rewriter_remove_dead_assertions(ctx: &AssistContext<'_>, func:
                 redundant_assertions.push(st.clone());
                 let modified_fn = rewriter_rm_assertions(&func, &redundant_assertions)?;
                 dbg!("trying out on", modified_fn.to_string());
-                if !ctx.try_verus(&modified_fn)? {
+                if !ctx.try_verus(&modified_fn)?.is_success {
                     dbg!("this is essensital");
                     // verification failed without this assertion
                     // remove this assertion from the list

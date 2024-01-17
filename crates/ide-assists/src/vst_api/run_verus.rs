@@ -16,23 +16,21 @@ impl<'a> AssistContext<'a> {
     pub(crate) fn try_verus(
         &self,
         vst_fn: &vst::Fn, // only replace this function and run 
-    ) -> Option<bool> {
+    ) -> Option<VerifResult> {
         let source_file = &self.source_file;
-        let verus_exec_path = &self.config.verus_path;
+        // let verus_exec_path = &self.config.verus_path;
+        // if verus_exec_path.len() == 0 {
+        //     dbg!("verus path not set");
+        // }
+        // #[cfg(test)] // We get verus path from config of editor. In test, we use a hardcoded path
+        // let verus_exec_path = HARDCODED_VERUS_PATH_FOR_TEST.to_string(); // TODO: maybe move this to test config
+        let verus_exec_path = std::env::var("VERUS_BINARY_PATH").expect("please set VERUS_BINARY_PATH environment variable");
+        // if verus_exec_path.len() == 0 {
+        //     dbg!("verus path not set");
+        // }
 
-        if verus_exec_path.len() == 0 {
-            dbg!("verus path not set");
-        }
 
-        #[cfg(test)] // We get verus path from config of editor. In test, we use a hardcoded path
-        let verus_exec_path = HARDCODED_VERUS_PATH_FOR_TEST.to_string(); // TODO: maybe move this to test config
-
-
-        if verus_exec_path.len() == 0 {
-            dbg!("verus path not set");
-        }
         let mut text_string  = String::new();
-
         // in VST, we should also be able to "print" and verify
         // display for VST should be correct modulo whitespace
         for it in source_file.items() {
@@ -107,19 +105,25 @@ impl<'a> AssistContext<'a> {
         // };
 
         let output = output.ok()?;
-        dbg!(&output);
+        // dbg!(&output);
         if output.status.success() {
-            return Some(true);
+            return Some(VerifResult::mk_success());
         } else {
             // disambiguate verification failure     VS    compile error etc
             match std::str::from_utf8(&output.stdout) {
                 Ok(out) => {
+                    dbg!(out);
                     if out.contains("verification results:: verified: 0 errors: 0") {
                         // failure from other errors. (e.g. compile error)
                         return None;
                     } else {
                         // verification failure
-                        return Some(false);
+                        match std::str::from_utf8(&output.stderr) {
+                            Ok(err_msg) => {
+                                return Some(VerifResult::mk_failure(out.into(), err_msg.into()));
+                            },
+                            Err(_) => return None,
+                        }
                     }
                 }
                 Err(_) => return None,
@@ -127,3 +131,27 @@ impl<'a> AssistContext<'a> {
         }
     }
 }
+
+#[derive(Debug)]
+pub(crate) struct VerifResult {
+    pub(crate) is_success: bool,
+    // TODO: properly parse json using serde and store the list of assertion/ensures/requires 
+    pub(crate) stdout: String ,
+    pub(crate) stderr: String,
+}
+
+impl VerifResult {
+    pub fn mk_success() -> Self {
+        VerifResult {is_success: true, stdout: String::new(), stderr: String::new()}
+    }
+
+    pub fn mk_failure(stdout: String, stderr: String) -> Self {
+        VerifResult {is_success: false, stdout, stderr}
+    }
+
+    pub fn is_failing(&self, assertion: &vst::AssertExpr) -> bool {
+        if self.is_success {return false;}
+        self.stderr.contains(&assertion.to_string())
+    }
+}
+

@@ -88,8 +88,8 @@ impl<'a> AssistContext<'a> {
         let new:vst::Stmt = new.into();
         let stmts = func.body.as_ref()?.stmt_list.statements.clone(); 
         let mut func = func.clone();
-        let filtered_stmts: Vec<vst::Stmt> = stmts.into_iter().map(|s| if s == old.clone() {new.clone()} else {s}).collect();
-        func.body.as_mut()?.stmt_list.statements = filtered_stmts;  
+        let replaced_stmts: Vec<vst::Stmt> = stmts.into_iter().map(|s| if s.to_string().trim() == old.to_string().trim() {new.clone()} else {s}).collect();
+        func.body.as_mut()?.stmt_list.statements = replaced_stmts;  
         Some(func)
     }
 
