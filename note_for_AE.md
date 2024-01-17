@@ -9,3 +9,8 @@ export VERUS_BINARY_PATH="/home/chanhee/verus/source/target-verus/debug/verus"
 export VERUS_FMT_BINARY_PATH="/home/chanhee/verusfmt/target/debug/verusfmt"
 ```
 
+
+# commit hash
+
+verusfmt : 4d878b2de24d5b44bafe8e8bba7677a13433f49e
+verus : 9ec21f08802d33661887b9566c815d5488cda7a5
