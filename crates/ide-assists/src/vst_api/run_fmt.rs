@@ -73,6 +73,7 @@ impl<'a> AssistContext<'a> {
 
         fn_as_text.insert_str(0, "verus!{\n");
         fn_as_text.push_str("\n}");
+        dbg!("{}", &fn_as_text);
         
 
         // #[cfg(test)] // We get verus path from config of editor. In test, we use a hardcoded path
