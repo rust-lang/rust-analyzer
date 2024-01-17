@@ -78,7 +78,7 @@ pub(crate) fn localize_error(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
 
 // TODO: match, if, not, quant(forall)
 // TODO: if exp it a callexpr, first inline *and then* split
-fn split_expr(exp: &Expr) -> Option<Vec<Expr>> {
+fn split_expr(ctx: &AssistContext<'_>, exp: &Expr) -> Option<Vec<Expr>> {
     match exp {
         Expr::BinExpr(be) => {
             match be.op {
@@ -88,7 +88,7 @@ fn split_expr(exp: &Expr) -> Option<Vec<Expr>> {
                     Some(vec![*be.lhs.clone(), *be.rhs.clone()])
                 }
                 BinaryOp::LogicOp(LogicOp::Imply) => {
-                    let split_exprs: Vec<Expr> = split_expr(be.lhs.as_ref())?;
+                    let split_exprs: Vec<Expr> = split_expr(ctx, be.lhs.as_ref())?;
                     let implied_exprs: Vec<Expr> = split_exprs.into_iter().map(|e| {
                         BinExpr::new(
                             be.rhs.as_ref().clone(),
@@ -104,29 +104,39 @@ fn split_expr(exp: &Expr) -> Option<Vec<Expr>> {
         Expr::MatchExpr(me) => {
             // is the enum does not have #[is_variant], return None
             // for now, assume #[is_variant]
-            // TODO: check for latest syntax
+            // TODO: update to `is` syntax
             return None;
         },            
+        Expr::CallExpr(call) => {
+            dbg!("inline call for decomposing failing assertion");
+            let name_ref = ctx.name_ref_from_call_expr(call)?;
+            let func = ctx.vst_find_fn(&call)?;
+            let spec_func_body_expr = *func.body?.clone().stmt_list.tail_expr?;
+            let inlined_exp = ctx.vst_inline_call(name_ref.clone(), spec_func_body_expr)?;
+            dbg!("get recursive");
+            dbg!("{}", &inlined_exp.to_string());
+            return split_expr(ctx, &inlined_exp);
+        }
         _ => return None,
     }
 }
 
-// // TODO: try changing this to use verus
-// pub(crate) fn vst_rewriter_localize_error(
-//     ctx: &AssistContext<'_>,
-//     assertion: AssertExpr,
-// ) -> Option<String> {
-//     let exp = &assertion.expr;
-//     let split_exprs = split_expr(exp)?;
-//     let mut stmts: StmtList = StmtList::new();
-//     for e in split_exprs {
-//         let assert_expr = AssertExpr::new(e);
-//         stmts.statements.push(assert_expr.into());
-//     }
-//     stmts.statements.push(assertion.into());
-//     let blk = BlockExpr::new(stmts);
-//     return Some(blk.to_string());
-// }
+// TODO: remove
+pub(crate) fn _vst_rewriter_localize_error(
+    ctx: &AssistContext<'_>,
+    assertion: AssertExpr,
+) -> Option<String> {
+    let exp = &assertion.expr;
+    let split_exprs = split_expr(ctx, exp)?;
+    let mut stmts: StmtList = StmtList::new();
+    for e in split_exprs {
+        let assert_expr = AssertExpr::new(e);
+        stmts.statements.push(assert_expr.into());
+    }
+    stmts.statements.push(assertion.into());
+    let blk = BlockExpr::new(stmts);
+    return Some(blk.to_string());
+}
 
 // maybe register another action with minimization
 // TODO: try changing this to use verus
@@ -136,9 +146,10 @@ pub(crate) fn vst_rewriter_localize_error_minimized(
 ) -> Option<BlockExpr> {
     let this_fn = ctx.vst_find_node_at_offset::<Fn, ast::Fn>()?; 
     let exp = &assertion.expr;
-    let split_exprs = split_expr(exp)?;
+    let split_exprs = split_expr(ctx, exp)?;
     let mut stmts: StmtList = StmtList::new();
     for e in split_exprs {
+        dbg!("{}", &e.to_string());
         let assert_expr = AssertExpr::new(e);
         let modified_fn = ctx.replace_statement(&this_fn, assertion.clone(), assert_expr.clone())?;
         let verif_result = ctx.try_verus(&modified_fn)?;
@@ -179,9 +190,10 @@ use vstd::prelude::*;
 fn foo()
 {
     let a:u32 = 1;
-    assert(a > 10);
-    assert(a < 100);
-    assert(a > 10 && a < 100);
+    {
+        assert(a > 10);
+        assert(a > 10 && a < 100);
+    };
 }
 fn main() {}
 "#,
@@ -268,13 +280,12 @@ spec fn seq_is_long_and_bounded_by_length(s1: Seq<int>) -> bool {
     seq_bounded_by_length(s1) && long_seq(s1)
 }
 
-proof fn test_expansion_forall()
+proof fn test()
 {
     let mut ss: Seq<int> = Seq::empty();
     ss = ss.push(0);
     ss = ss.push(1);
-    assert(ss.len() > 20);
-    as$0sert(seq_is_long_and_bounded_by_length(ss));  
+    as$0sert(seq_is_long_and_bounded_by_length(ss));
 }
 
 fn main() {}
@@ -295,13 +306,15 @@ spec fn seq_is_long_and_bounded_by_length(s1: Seq<int>) -> bool {
     seq_bounded_by_length(s1) && long_seq(s1)
 }
 
-proof fn test_expansion_forall()
+proof fn test()
 {
     let mut ss: Seq<int> = Seq::empty();
     ss = ss.push(0);
     ss = ss.push(1);
-    assert(long_seq(ss));
-    assert(seq_is_long_and_bounded_by_length(ss));  
+    {
+        assert(long_seq(ss));
+        assert(seq_is_long_and_bounded_by_length(ss));
+    };
 }
 
 fn main() {}
