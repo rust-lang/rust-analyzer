@@ -3,7 +3,7 @@
   // Hover to view descriptions of existing attributes.
   // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
 
-  // NOTE: --disable-extensions
+  // NOTE: --disable-extension
   // Disable all installed extensions to increase performance of the debug instance
   // and prevent potential conflicts with other installed extensions.
 
