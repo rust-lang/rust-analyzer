@@ -22,6 +22,7 @@ use ide_db::{
     imports::insert_use::{ImportGranularity, InsertUseConfig, PrefixKind},
     SnippetCap,
 };
+use indexmap::IndexMap;
 use itertools::Itertools;
 use la_arena::Arena;
 use lsp_types::{ClientCapabilities, MarkupKind};
@@ -30,7 +31,6 @@ use project_model::{
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::collections::BTreeMap;
 use toml;
 use vfs::{AbsPath, AbsPathBuf, FileId};
 
@@ -384,8 +384,8 @@ config_data! {
         /// Enables completions of private items and fields that are defined in the current workspace even if they are not visible at the current position.
         completion_privateEditable_enable: bool = false,
         /// Custom completion snippets.
-        // NOTE: we use BTreeMap for deterministic serialization ordering
-        completion_snippets_custom: BTreeMap<String, SnippetDef> = @from_str: r#"{
+        // NOTE: we use IndexMap for deterministic serialization ordering
+        completion_snippets_custom: IndexMap<String, SnippetDef> = serde_json::from_str(r#"{
             "Arc::new": {
                 "postfix": "arc",
                 "body": "Arc::new(${receiver})",
@@ -425,7 +425,7 @@ config_data! {
                 "description": "Wrap the expression in an `Option::Some`",
                 "scope": "expr"
             }
-        }"#,
+        }"#).unwrap(),
 
         /// Enables highlighting of related references while the cursor is on `break`, `loop`, `while`, or `for` keywords.
         highlightRelated_breakPoints_enable: bool = true,
@@ -2560,7 +2560,7 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
         "FxHashMap<Box<str>, Box<[Box<str>]>>" => set! {
             "type": "object",
         },
-        "BTreeMap<String, SnippetDef>" => set! {
+        "IndexMap<String, SnippetDef>" => set! {
             "type": "object",
         },
         "FxHashMap<String, String>" => set! {

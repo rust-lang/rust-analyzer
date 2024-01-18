@@ -52,6 +52,7 @@ always-assert = "0.1.2"
 # in our transitive deps to prevent them from pulling in windows-sys 0.45.0
 mio = "=0.8.5"
 parking_lot_core = "=0.9.6"
+indexmap = { version = "2.0.0", features = ["serde"] }
 
 cfg.workspace = true
 flycheck.workspace = true
