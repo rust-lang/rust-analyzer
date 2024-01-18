@@ -1854,7 +1854,7 @@ impl Config {
 macro_rules! create_bool_or_string_serde {
     ($ident:ident<$bool:literal, $string:literal>) => {
         mod $ident {
-            pub fn deserialize<'de, D>(d: D) -> Result<(), D::Error>
+            pub(super) fn deserialize<'de, D>(d: D) -> Result<(), D::Error>
             where
                 D: serde::Deserializer<'de>,
             {
@@ -1919,7 +1919,7 @@ macro_rules! create_bool_or_string_serde {
                 d.deserialize_any(V)
             }
 
-            pub fn serialize<S>(serializer: S) -> Result<S::Ok, S::Error>
+            pub(super) fn serialize<S>(serializer: S) -> Result<S::Ok, S::Error>
             where
                 S: serde::Serializer,
             {
@@ -1933,25 +1933,33 @@ create_bool_or_string_serde!(false_or_never<false, "never">);
 
 macro_rules! named_unit_variant {
     ($variant:ident) => {
-        pub(super) fn $variant<'de, D>(deserializer: D) -> Result<(), D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            struct V;
-            impl<'de> serde::de::Visitor<'de> for V {
-                type Value = ();
-                fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    f.write_str(concat!("\"", stringify!($variant), "\""))
-                }
-                fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-                    if value == stringify!($variant) {
-                        Ok(())
-                    } else {
-                        Err(E::invalid_value(serde::de::Unexpected::Str(value), &self))
+        pub(super) mod $variant {
+            pub(in super::super) fn deserialize<'de, D>(deserializer: D) -> Result<(), D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct V;
+                impl<'de> serde::de::Visitor<'de> for V {
+                    type Value = ();
+                    fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        f.write_str(concat!("\"", stringify!($variant), "\""))
+                    }
+                    fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
+                        if value == stringify!($variant) {
+                            Ok(())
+                        } else {
+                            Err(E::invalid_value(serde::de::Unexpected::Str(value), &self))
+                        }
                     }
                 }
+                deserializer.deserialize_str(V)
             }
-            deserializer.deserialize_str(V)
+            pub(in super::super) fn serialize<S>(serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                serializer.serialize_str(stringify!($variant))
+            }
         }
     };
 }
@@ -2136,7 +2144,7 @@ enum CallableCompletionDef {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 enum CargoFeaturesDef {
-    #[serde(deserialize_with = "de_unit_v::all")]
+    #[serde(with = "de_unit_v::all")]
     All,
     Selected(Vec<String>),
 }
@@ -2165,7 +2173,7 @@ enum LifetimeElisionDef {
     Always,
     #[serde(with = "false_or_never")]
     Never,
-    #[serde(deserialize_with = "de_unit_v::skip_trivial")]
+    #[serde(with = "de_unit_v::skip_trivial")]
     SkipTrivial,
 }
 
@@ -2176,7 +2184,7 @@ enum ClosureReturnTypeHintsDef {
     Always,
     #[serde(with = "false_or_never")]
     Never,
-    #[serde(deserialize_with = "de_unit_v::with_block")]
+    #[serde(with = "de_unit_v::with_block")]
     WithBlock,
 }
 
@@ -2196,7 +2204,7 @@ enum ReborrowHintsDef {
     Always,
     #[serde(with = "false_or_never")]
     Never,
-    #[serde(deserialize_with = "de_unit_v::mutable")]
+    #[serde(with = "de_unit_v::mutable")]
     Mutable,
 }
 
@@ -2207,7 +2215,7 @@ enum AdjustmentHintsDef {
     Always,
     #[serde(with = "false_or_never")]
     Never,
-    #[serde(deserialize_with = "de_unit_v::reborrow")]
+    #[serde(with = "de_unit_v::reborrow")]
     Reborrow,
 }
 
@@ -2218,7 +2226,7 @@ enum DiscriminantHintsDef {
     Always,
     #[serde(with = "false_or_never")]
     Never,
-    #[serde(deserialize_with = "de_unit_v::fieldless")]
+    #[serde(with = "de_unit_v::fieldless")]
     Fieldless,
 }
 
@@ -2270,16 +2278,27 @@ enum WorkspaceSymbolSearchKindDef {
     AllSymbols,
 }
 
-#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 #[serde(untagged)]
-pub enum MemoryLayoutHoverRenderKindDef {
-    #[serde(deserialize_with = "de_unit_v::decimal")]
+enum MemoryLayoutHoverRenderKindDef {
+    #[serde(with = "de_unit_v::decimal")]
     Decimal,
-    #[serde(deserialize_with = "de_unit_v::hexadecimal")]
+    #[serde(with = "de_unit_v::hexadecimal")]
     Hexadecimal,
-    #[serde(deserialize_with = "de_unit_v::both")]
+    #[serde(with = "de_unit_v::both")]
     Both,
+}
+
+#[test]
+fn untagged_option_hover_render_kind() {
+    let hex = MemoryLayoutHoverRenderKindDef::Hexadecimal;
+
+    let ser = serde_json::to_string(&Some(hex)).unwrap();
+    assert_eq!(&ser, "\"hexadecimal\"");
+
+    let opt: Option<_> = serde_json::from_str("\"hexadecimal\"").unwrap();
+    assert_eq!(opt, Some(hex));
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
