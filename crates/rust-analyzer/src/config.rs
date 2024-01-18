@@ -30,6 +30,7 @@ use project_model::{
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::collections::BTreeMap;
 use toml;
 use vfs::{AbsPath, AbsPathBuf, FileId};
 
@@ -141,7 +142,7 @@ config_data! {
         // than `checkOnSave_target`
         cargo_target: Option<String>     = None,
         /// Unsets the implicit `#[cfg(test)]` for the specified crates.
-        cargo_unsetTest: Vec<String>     = vec!["core".to_string()],
+        cargo_unsetTest: Vec<String>     = @from_str: r#"["core"]"#,
 
         /// Run the check command for diagnostics on save.
         checkOnSave | checkOnSave_enable: bool                         = true,
@@ -383,7 +384,48 @@ config_data! {
         /// Enables completions of private items and fields that are defined in the current workspace even if they are not visible at the current position.
         completion_privateEditable_enable: bool = false,
         /// Custom completion snippets.
-        completion_snippets_custom: FxHashMap<String, SnippetDef> = SnippetDef::default_snippets(),
+        // NOTE: we use BTreeMap for deterministic serialization ordering
+        completion_snippets_custom: BTreeMap<String, SnippetDef> = @from_str: r#"{
+            "Arc::new": {
+                "postfix": "arc",
+                "body": "Arc::new(${receiver})",
+                "requires": "std::sync::Arc",
+                "description": "Put the expression into an `Arc`",
+                "scope": "expr"
+            },
+            "Rc::new": {
+                "postfix": "rc",
+                "body": "Rc::new(${receiver})",
+                "requires": "std::rc::Rc",
+                "description": "Put the expression into an `Rc`",
+                "scope": "expr"
+            },
+            "Box::pin": {
+                "postfix": "pinbox",
+                "body": "Box::pin(${receiver})",
+                "requires": "std::boxed::Box",
+                "description": "Put the expression into a pinned `Box`",
+                "scope": "expr"
+            },
+            "Ok": {
+                "postfix": "ok",
+                "body": "Ok(${receiver})",
+                "description": "Wrap the expression in a `Result::Ok`",
+                "scope": "expr"
+            },
+            "Err": {
+                "postfix": "err",
+                "body": "Err(${receiver})",
+                "description": "Wrap the expression in a `Result::Err`",
+                "scope": "expr"
+            },
+            "Some": {
+                "postfix": "some",
+                "body": "Some(${receiver})",
+                "description": "Wrap the expression in an `Option::Some`",
+                "scope": "expr"
+            }
+        }"#,
 
         /// Enables highlighting of related references while the cursor is on `break`, `loop`, `while`, or `for` keywords.
         highlightRelated_breakPoints_enable: bool = true,
@@ -2015,55 +2057,6 @@ struct SnippetDef {
     scope: SnippetScopeDef,
 }
 
-impl SnippetDef {
-    fn default_snippets() -> FxHashMap<String, SnippetDef> {
-        serde_json::from_str(
-            r#"{
-            "Arc::new": {
-                "postfix": "arc",
-                "body": "Arc::new(${receiver})",
-                "requires": "std::sync::Arc",
-                "description": "Put the expression into an `Arc`",
-                "scope": "expr"
-            },
-            "Rc::new": {
-                "postfix": "rc",
-                "body": "Rc::new(${receiver})",
-                "requires": "std::rc::Rc",
-                "description": "Put the expression into an `Rc`",
-                "scope": "expr"
-            },
-            "Box::pin": {
-                "postfix": "pinbox",
-                "body": "Box::pin(${receiver})",
-                "requires": "std::boxed::Box",
-                "description": "Put the expression into a pinned `Box`",
-                "scope": "expr"
-            },
-            "Ok": {
-                "postfix": "ok",
-                "body": "Ok(${receiver})",
-                "description": "Wrap the expression in a `Result::Ok`",
-                "scope": "expr"
-            },
-            "Err": {
-                "postfix": "err",
-                "body": "Err(${receiver})",
-                "description": "Wrap the expression in a `Result::Err`",
-                "scope": "expr"
-            },
-            "Some": {
-                "postfix": "some",
-                "body": "Some(${receiver})",
-                "description": "Wrap the expression in an `Option::Some`",
-                "scope": "expr"
-            }
-        }"#,
-        )
-        .unwrap()
-    }
-}
-
 mod single_or_array {
     use serde::{Deserialize, Serialize};
 
@@ -2309,12 +2302,33 @@ pub enum TargetDirectory {
     Directory(PathBuf),
 }
 
+macro_rules! _default_val {
+    (@from_str: $s:literal, $ty:ty) => {{
+        let default_: $ty = serde_json::from_str(&$s).unwrap();
+        default_
+    }};
+    ($default:expr, $ty:ty) => {{
+        let default_: $ty = $default;
+        default_
+    }};
+}
+
+macro_rules! _default_str {
+    (@from_str: $s:literal, $_ty:ty) => {
+        $s.to_string()
+    };
+    ($default:expr, $ty:ty) => {{
+        let val = default_val!($default, $ty);
+        serde_json::to_string_pretty(&val).unwrap()
+    }};
+}
+
 macro_rules! _config_data {
     // modname is for the tests
     ($modname:ident: struct $name:ident {
         $(
             $(#[doc=$doc:literal])*
-            $field:ident $(| $alias:ident)*: $ty:ty = $default:expr,
+            $field:ident $(| $alias:ident)*: $ty:ty = $(@$marker:ident: )? $default:expr,
         )*
     }) => {
         #[allow(non_snake_case)]
@@ -2329,7 +2343,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field),
                         None$(.or(Some(stringify!($alias))))*,
-                        { let default_: $ty = $default; default_ },
+                        default_val!($(@$marker:)? $default, $ty),
                     ),
                 )*}
             }
@@ -2342,7 +2356,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field),
                         None$(.or(Some(stringify!($alias))))*,
-                        { let default_: $ty = $default; default_ },
+                        default_val!($(@$marker:)? $default, $ty),
                     ),
                 )*}
             }
@@ -2352,8 +2366,7 @@ macro_rules! _config_data {
                     $({
                         let field = stringify!($field);
                         let ty = stringify!($ty);
-                        let default =
-                            serde_json::to_string_pretty(&{ let default_: $ty = $default; default_ }).unwrap();
+                        let default = default_str!($(@$marker:)? $default, $ty);
 
                         (field, ty, &[$($doc),*], default)
                     },)*
@@ -2371,6 +2384,8 @@ macro_rules! _config_data {
     };
 }
 use _config_data as config_data;
+use _default_str as default_str;
+use _default_val as default_val;
 
 #[derive(Debug, Clone, Serialize)]
 struct ConfigData {
@@ -2545,7 +2560,7 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
         "FxHashMap<Box<str>, Box<[Box<str>]>>" => set! {
             "type": "object",
         },
-        "FxHashMap<String, SnippetDef>" => set! {
+        "BTreeMap<String, SnippetDef>" => set! {
             "type": "object",
         },
         "FxHashMap<String, String>" => set! {
