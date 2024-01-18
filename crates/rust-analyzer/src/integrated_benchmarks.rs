@@ -146,6 +146,8 @@ fn integrated_completion_benchmark() {
             prefer_no_std: false,
             prefer_prelude: true,
             limit: None,
+            query_search_limit: Some(100),
+            always_allow_fuzzy: false,
         };
         let position =
             FilePosition { file_id, offset: TextSize::try_from(completion_offset).unwrap() };
@@ -190,6 +192,8 @@ fn integrated_completion_benchmark() {
             prefer_no_std: false,
             prefer_prelude: true,
             limit: None,
+            query_search_limit: Some(100),
+            always_allow_fuzzy: false,
         };
         let position =
             FilePosition { file_id, offset: TextSize::try_from(completion_offset).unwrap() };
@@ -231,6 +235,8 @@ fn integrated_completion_benchmark() {
             prefer_no_std: false,
             prefer_prelude: true,
             limit: None,
+            query_search_limit: Some(100),
+            always_allow_fuzzy: false,
         };
         let position =
             FilePosition { file_id, offset: TextSize::try_from(completion_offset).unwrap() };
