@@ -45,10 +45,21 @@ impl<'a> AssistContext<'a> {
                     }
                     text_string += "\n}\n";
                 },
-                _ => {
-                    // review: it.cst.to_string?
-                    text_string += &it.to_string();
+                ast::Item::Enum(e) => {
+                    text_string += "\nverus!{\n";
+                    text_string += &e.to_string();
+                    text_string += "\n}\n";
                 },
+                ast::Item::Struct(e) => {
+                    text_string += "\nverus!{\n";
+                    // review: it.cst.to_string?  for now, No -- see is_failing
+                    text_string += &e.to_string();
+                    text_string += "\n}\n";
+                },
+                _ => {
+                    text_string += &it.to_string();
+                    text_string += "\n";
+                 },
             }
         }
         dbg!(&text_string);

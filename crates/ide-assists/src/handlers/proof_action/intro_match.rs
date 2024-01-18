@@ -61,6 +61,7 @@ pub(crate) fn vst_rewriter_intro_match(
 
     // now run verifier and only present failing variants
     // Try each variant --- for the rest(`_`), use "assume false"
+    let mut is_filtered = false;
     let match_arms: Option<Vec<MatchArm>>= match_arms.into_iter().map(|arm| {
         let this_fn = ctx.vst_find_node_at_offset::<Fn, ast::Fn>()?; 
         let wild_card = Literal::new(format!("_"));
@@ -76,12 +77,22 @@ pub(crate) fn vst_rewriter_intro_match(
         if verif_result.is_failing(&assert) {
             Some(arm.clone())
         } else {
+            is_filtered= true;
             None
         }
     }).filter(|x| x.is_some()).collect();
 
+    let mut match_arms = match_arms?;
+    if is_filtered {
+        let wild_card = Literal::new(format!("_"));
+        let wild_pat = LiteralPat::new(wild_card);
+        let empty_stuff = ctx.vst_expr_from_text("{}")?;
+        let wild_arm = MatchArm::new(wild_pat.into(), empty_stuff);
+        match_arms.push(wild_arm);
+    }
+
     let mut match_arm_list = MatchArmList::new();
-    match_arm_list.arms = match_arms?;
+    match_arm_list.arms = match_arms;
     let match_stmt = MatchExpr::new(enum_expr_inside_assertion.clone(), match_arm_list);
 
     
@@ -99,7 +110,9 @@ mod tests {
     fn intro_match1() {
         check_assist(
             intro_match,
+// before
             r#"
+use vstd::prelude::*;
 enum Movement {
     Up(u32),
     Down(u32),
@@ -116,8 +129,11 @@ proof fn good_move(m: Movement)
 {
     ass$0ert(is_good_move(m));
 }
+fn main() {}
 "#,
+// after
             r#"
+use vstd::prelude::*;
 enum Movement {
     Up(u32),
     Down(u32),
@@ -137,6 +153,7 @@ proof fn good_move(m: Movement)
         Movement::Down(..) => assert(is_good_move(m)),
     };
 }
+fn main() {}
 "#,
         );
     }
@@ -147,7 +164,9 @@ proof fn good_move(m: Movement)
     fn intro_match2() {
         check_assist(
             intro_match,
+// Before
             r#"
+use vstd::prelude::*;
 enum Movement {
     Up(u32),
     Down(u32),
@@ -164,8 +183,11 @@ proof fn good_move(m: Movement)
 {
     ass$0ert(is_good_move(m, 100));
 }
+fn main() {}
 "#,
+// After
             r#"
+use vstd::prelude::*;
 enum Movement {
     Up(u32),
     Down(u32),
@@ -185,76 +207,86 @@ proof fn good_move(m: Movement)
         Movement::Down(..) => assert(is_good_move(m, 100)),
     };
 }
+fn main() {}
 "#,
         );
     }
 
 
-//     #[test]
-//     fn intro_match3() {
-//         check_assist(
-//             intro_match,
-//             r#"
-// verus!{
-//     #[derive(PartialEq, Eq)] 
-//     pub enum Message {
-//         Quit(bool),
-//         Move { x: i32, y: i32 },
-//         Write(bool),
-//     }
-    
-//     spec fn is_good_integer_3(x: int) -> bool 
-//     {
-//         x >= 0 && x != 5
-//     }
-    
-//     spec fn is_good_message(msg:Message) -> bool {
-//         match msg {
-//             Message::Quit(b) => b,
-//             Message::Move{x, y} => is_good_integer_3( (x as int)  - (y as int)),
-//             Message::Write(b) => b,
-//         }
-//     }
-    
-//     proof fn test_expansion_multiple_call() {
-//       let x = Message::Move{x: 5, y:6};
-//       as$0sert(is_good_message(x));
-//     }
-// }
-// "#,
+    #[test]
+    fn intro_match3() {
+        check_assist(
+            intro_match,
+r#"
+use vstd::prelude::*;
+#[derive(PartialEq, Eq, Clone)] 
+#[is_variant]
+pub enum Message {
+    Quit(bool),
+    Move { x: i32, y: i32 },
+    Write(bool),
+}
 
-// r#"
-// verus!{
-//     #[derive(PartialEq, Eq)] 
-//     pub enum Message {
-//         Quit(bool),
-//         Move { x: i32, y: i32 },
-//         Write(bool),
-//     }
-    
-//     spec fn is_good_integer_3(x: int) -> bool 
-//     {
-//         x >= 0 && x != 5
-//     }
-    
-//     spec fn is_good_message(msg:Message) -> bool {
-//         match msg {
-//             Message::Quit(b) => b,
-//             Message::Move{x, y} => is_good_integer_3( (x as int)  - (y as int)),
-//             Message::Write(b) => b,
-//         }
-//     }
-    
-//     proof fn test_expansion_multiple_call() {
-//       let x = Message::Move{x: 5, y:6};
-//       match x {
-//         Message::Quit(..) => assert(is_good_message(x)),
-//         Message::Move{..} => assert(is_good_message(x)),
-//         Message::Write(..) => assert(is_good_message(x)),
-//       };
-//     }
-// }
-// "#
-//         );
-//     }
+spec fn message_well_formed(msg:Message) -> bool {
+  match msg {
+      Message::Quit(b) => !b,
+      Message::Move{x, y} => x < y,
+      Message::Write(b) => b,
+  }
+}
+
+fn update_msg(msg: Message) 
+  requires message_well_formed(msg)
+{
+  let new_msg = match msg {
+    Message::Quit(b) => Message::Write(!b),
+    Message::Move{x, y} => Message::Move{x: x+1, y: y-1},
+    Message::Write(b) => Message::Quit(b),
+  };
+
+  as$0sert(message_well_formed(new_msg));
+}
+fn main() {}
+"#,
+
+r#"
+use vstd::prelude::*;
+#[derive(PartialEq, Eq, Clone)] 
+#[is_variant]
+pub enum Message {
+    Quit(bool),
+    Move { x: i32, y: i32 },
+    Write(bool),
+}
+
+spec fn message_well_formed(msg:Message) -> bool {
+  match msg {
+      Message::Quit(b) => !b,
+      Message::Move{x, y} => x < y,
+      Message::Write(b) => b,
+  }
+}
+
+fn update_msg(msg: Message) 
+  requires message_well_formed(msg)
+{
+  let new_msg = match msg {
+    Message::Quit(b) => Message::Write(!b),
+    Message::Move{x, y} => Message::Move{x: x+1, y: y-1},
+    Message::Write(b) => Message::Quit(b),
+  };
+
+  match msg {
+    Message::Move(..) => assert(message_well_formed(new_msg)),
+    Message::Write(..) => assert(message_well_formed(new_msg));
+    _ => {},
+  }
+}
+fn main() {}
+
+
+}
+"#
+        );
+    }
 }
