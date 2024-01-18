@@ -239,9 +239,9 @@ fn update_msg(msg: Message)
   requires message_well_formed(msg)
 {
   let new_msg = match msg {
-    Message::Quit(b) => Message::Write(!b),
+    Message::Quit(b) => Message::Quit(b),
     Message::Move{x, y} => Message::Move{x: x+1, y: y-1},
-    Message::Write(b) => Message::Quit(b),
+    Message::Write(b) => Message::Write(b),
   };
 
   as$0sert(message_well_formed(new_msg));
@@ -271,21 +271,17 @@ fn update_msg(msg: Message)
   requires message_well_formed(msg)
 {
   let new_msg = match msg {
-    Message::Quit(b) => Message::Write(!b),
+    Message::Quit(b) => Message::Quit(b),
     Message::Move{x, y} => Message::Move{x: x+1, y: y-1},
-    Message::Write(b) => Message::Quit(b),
+    Message::Write(b) => Message::Write(b),
   };
 
-  match msg {
-    Message::Move(..) => assert(message_well_formed(new_msg)),
-    Message::Write(..) => assert(message_well_formed(new_msg));
-    _ => {},
-  }
+  match new_msg {
+        Message::Move(..) => assert(message_well_formed(new_msg)),
+        _ => {},
+    };
 }
 fn main() {}
-
-
-}
 "#
         );
     }
