@@ -383,8 +383,7 @@ config_data! {
         /// Enables completions of private items and fields that are defined in the current workspace even if they are not visible at the current position.
         completion_privateEditable_enable: bool = false,
         /// Custom completion snippets.
-        // NOTE: Keep this list in sync with the feature docs of user snippets.
-        completion_snippets_custom: FxHashMap<String, SnippetDef> = FxHashMap::default(),
+        completion_snippets_custom: FxHashMap<String, SnippetDef> = SnippetDef::default_snippets(),
 
         /// Enables highlighting of related references while the cursor is on `break`, `loop`, `while`, or `for` keywords.
         highlightRelated_breakPoints_enable: bool = true,
@@ -1957,7 +1956,7 @@ mod de_unit_v {
     named_unit_variant!(both);
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
 enum SnippetScopeDef {
     Expr,
@@ -1974,47 +1973,121 @@ impl Default for SnippetScopeDef {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default)]
 struct SnippetDef {
-    #[serde(deserialize_with = "single_or_array")]
+    #[serde(with = "single_or_array")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     prefix: Vec<String>,
-    #[serde(deserialize_with = "single_or_array")]
+
+    #[serde(with = "single_or_array")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     postfix: Vec<String>,
-    description: Option<String>,
-    #[serde(deserialize_with = "single_or_array")]
+
+    #[serde(with = "single_or_array")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     body: Vec<String>,
-    #[serde(deserialize_with = "single_or_array")]
+
+    #[serde(with = "single_or_array")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     requires: Vec<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+
     scope: SnippetScopeDef,
 }
 
-fn single_or_array<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    struct SingleOrVec;
+impl SnippetDef {
+    fn default_snippets() -> FxHashMap<String, SnippetDef> {
+        serde_json::from_str(
+            r#"{
+            "Arc::new": {
+                "postfix": "arc",
+                "body": "Arc::new(${receiver})",
+                "requires": "std::sync::Arc",
+                "description": "Put the expression into an `Arc`",
+                "scope": "expr"
+            },
+            "Rc::new": {
+                "postfix": "rc",
+                "body": "Rc::new(${receiver})",
+                "requires": "std::rc::Rc",
+                "description": "Put the expression into an `Rc`",
+                "scope": "expr"
+            },
+            "Box::pin": {
+                "postfix": "pinbox",
+                "body": "Box::pin(${receiver})",
+                "requires": "std::boxed::Box",
+                "description": "Put the expression into a pinned `Box`",
+                "scope": "expr"
+            },
+            "Ok": {
+                "postfix": "ok",
+                "body": "Ok(${receiver})",
+                "description": "Wrap the expression in a `Result::Ok`",
+                "scope": "expr"
+            },
+            "Err": {
+                "postfix": "err",
+                "body": "Err(${receiver})",
+                "description": "Wrap the expression in a `Result::Err`",
+                "scope": "expr"
+            },
+            "Some": {
+                "postfix": "some",
+                "body": "Some(${receiver})",
+                "description": "Wrap the expression in an `Option::Some`",
+                "scope": "expr"
+            }
+        }"#,
+        )
+        .unwrap()
+    }
+}
 
-    impl<'de> serde::de::Visitor<'de> for SingleOrVec {
-        type Value = Vec<String>;
+mod single_or_array {
+    use serde::{Deserialize, Serialize};
 
-        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            formatter.write_str("string or array of strings")
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct SingleOrVec;
+
+        impl<'de> serde::de::Visitor<'de> for SingleOrVec {
+            type Value = Vec<String>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("string or array of strings")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(vec![value.to_owned()])
+            }
+
+            fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                Deserialize::deserialize(serde::de::value::SeqAccessDeserializer::new(seq))
+            }
         }
 
-        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            Ok(vec![value.to_owned()])
-        }
-
-        fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
-        where
-            A: serde::de::SeqAccess<'de>,
-        {
-            Deserialize::deserialize(serde::de::value::SeqAccessDeserializer::new(seq))
-        }
+        deserializer.deserialize_any(SingleOrVec)
     }
 
-    deserializer.deserialize_any(SingleOrVec)
+    pub fn serialize<S>(vec: &Vec<String>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match &vec[..] {
+            // []  case is handled by skip_serializing_if
+            [single] => serializer.serialize_str(&single),
+            slice => slice.serialize(serializer),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -2064,7 +2137,7 @@ enum InvocationStrategy {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct CheckOnSaveTargets(#[serde(deserialize_with = "single_or_array")] Vec<String>);
+struct CheckOnSaveTargets(#[serde(with = "single_or_array")] Vec<String>);
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
@@ -2249,7 +2322,7 @@ macro_rules! _config_data {
                         let field = stringify!($field);
                         let ty = stringify!($ty);
                         let default =
-                            serde_json::to_string(&{ let default_: $ty = $default; default_ }).unwrap();
+                            serde_json::to_string_pretty(&{ let default_: $ty = $default; default_ }).unwrap();
 
                         (field, ty, &[$($doc),*], default)
                     },)*
