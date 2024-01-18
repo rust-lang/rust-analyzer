@@ -1851,73 +1851,85 @@ impl Config {
 }
 // Deserialization definitions
 
-macro_rules! create_bool_or_string_de {
+macro_rules! create_bool_or_string_serde {
     ($ident:ident<$bool:literal, $string:literal>) => {
-        fn $ident<'de, D>(d: D) -> Result<(), D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            struct V;
-            impl<'de> serde::de::Visitor<'de> for V {
-                type Value = ();
+        mod $ident {
+            pub fn deserialize<'de, D>(d: D) -> Result<(), D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct V;
+                impl<'de> serde::de::Visitor<'de> for V {
+                    type Value = ();
 
-                fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                    formatter.write_str(concat!(
-                        stringify!($bool),
-                        " or \"",
-                        stringify!($string),
-                        "\""
-                    ))
-                }
+                    fn expecting(
+                        &self,
+                        formatter: &mut std::fmt::Formatter<'_>,
+                    ) -> std::fmt::Result {
+                        formatter.write_str(concat!(
+                            stringify!($bool),
+                            " or \"",
+                            stringify!($string),
+                            "\""
+                        ))
+                    }
 
-                fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error,
-                {
-                    match v {
-                        $bool => Ok(()),
-                        _ => Err(serde::de::Error::invalid_value(
-                            serde::de::Unexpected::Bool(v),
-                            &self,
-                        )),
+                    fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match v {
+                            $bool => Ok(()),
+                            _ => Err(serde::de::Error::invalid_value(
+                                serde::de::Unexpected::Bool(v),
+                                &self,
+                            )),
+                        }
+                    }
+
+                    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match v {
+                            $string => Ok(()),
+                            _ => Err(serde::de::Error::invalid_value(
+                                serde::de::Unexpected::Str(v),
+                                &self,
+                            )),
+                        }
+                    }
+
+                    fn visit_enum<A>(self, a: A) -> Result<Self::Value, A::Error>
+                    where
+                        A: serde::de::EnumAccess<'de>,
+                    {
+                        use serde::de::VariantAccess;
+                        let (variant, va) = a.variant::<&'de str>()?;
+                        va.unit_variant()?;
+                        match variant {
+                            $string => Ok(()),
+                            _ => Err(serde::de::Error::invalid_value(
+                                serde::de::Unexpected::Str(variant),
+                                &self,
+                            )),
+                        }
                     }
                 }
-
-                fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error,
-                {
-                    match v {
-                        $string => Ok(()),
-                        _ => Err(serde::de::Error::invalid_value(
-                            serde::de::Unexpected::Str(v),
-                            &self,
-                        )),
-                    }
-                }
-
-                fn visit_enum<A>(self, a: A) -> Result<Self::Value, A::Error>
-                where
-                    A: serde::de::EnumAccess<'de>,
-                {
-                    use serde::de::VariantAccess;
-                    let (variant, va) = a.variant::<&'de str>()?;
-                    va.unit_variant()?;
-                    match variant {
-                        $string => Ok(()),
-                        _ => Err(serde::de::Error::invalid_value(
-                            serde::de::Unexpected::Str(variant),
-                            &self,
-                        )),
-                    }
-                }
+                d.deserialize_any(V)
             }
-            d.deserialize_any(V)
+
+            pub fn serialize<S>(serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                serializer.serialize_str($string)
+            }
         }
     };
 }
-create_bool_or_string_de!(true_or_always<true, "always">);
-create_bool_or_string_de!(false_or_never<false, "never">);
+create_bool_or_string_serde!(true_or_always<true, "always">);
+create_bool_or_string_serde!(false_or_never<false, "never">);
 
 macro_rules! named_unit_variant {
     ($variant:ident) => {
@@ -2149,9 +2161,9 @@ enum InvocationLocation {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 enum LifetimeElisionDef {
-    #[serde(deserialize_with = "true_or_always")]
+    #[serde(with = "true_or_always")]
     Always,
-    #[serde(deserialize_with = "false_or_never")]
+    #[serde(with = "false_or_never")]
     Never,
     #[serde(deserialize_with = "de_unit_v::skip_trivial")]
     SkipTrivial,
@@ -2160,9 +2172,9 @@ enum LifetimeElisionDef {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 enum ClosureReturnTypeHintsDef {
-    #[serde(deserialize_with = "true_or_always")]
+    #[serde(with = "true_or_always")]
     Always,
-    #[serde(deserialize_with = "false_or_never")]
+    #[serde(with = "false_or_never")]
     Never,
     #[serde(deserialize_with = "de_unit_v::with_block")]
     WithBlock,
@@ -2180,9 +2192,9 @@ enum ClosureStyle {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 enum ReborrowHintsDef {
-    #[serde(deserialize_with = "true_or_always")]
+    #[serde(with = "true_or_always")]
     Always,
-    #[serde(deserialize_with = "false_or_never")]
+    #[serde(with = "false_or_never")]
     Never,
     #[serde(deserialize_with = "de_unit_v::mutable")]
     Mutable,
@@ -2191,9 +2203,9 @@ enum ReborrowHintsDef {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 enum AdjustmentHintsDef {
-    #[serde(deserialize_with = "true_or_always")]
+    #[serde(with = "true_or_always")]
     Always,
-    #[serde(deserialize_with = "false_or_never")]
+    #[serde(with = "false_or_never")]
     Never,
     #[serde(deserialize_with = "de_unit_v::reborrow")]
     Reborrow,
@@ -2202,9 +2214,9 @@ enum AdjustmentHintsDef {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 enum DiscriminantHintsDef {
-    #[serde(deserialize_with = "true_or_always")]
+    #[serde(with = "true_or_always")]
     Always,
-    #[serde(deserialize_with = "false_or_never")]
+    #[serde(with = "false_or_never")]
     Never,
     #[serde(deserialize_with = "de_unit_v::fieldless")]
     Fieldless,
