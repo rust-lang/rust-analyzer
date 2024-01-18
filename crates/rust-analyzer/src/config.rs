@@ -1964,7 +1964,7 @@ macro_rules! named_unit_variant {
     };
 }
 
-mod de_unit_v {
+mod unit_v {
     named_unit_variant!(all);
     named_unit_variant!(skip_trivial);
     named_unit_variant!(mutable);
@@ -2144,7 +2144,7 @@ enum CallableCompletionDef {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 enum CargoFeaturesDef {
-    #[serde(with = "de_unit_v::all")]
+    #[serde(with = "unit_v::all")]
     All,
     Selected(Vec<String>),
 }
@@ -2173,7 +2173,7 @@ enum LifetimeElisionDef {
     Always,
     #[serde(with = "false_or_never")]
     Never,
-    #[serde(with = "de_unit_v::skip_trivial")]
+    #[serde(with = "unit_v::skip_trivial")]
     SkipTrivial,
 }
 
@@ -2184,7 +2184,7 @@ enum ClosureReturnTypeHintsDef {
     Always,
     #[serde(with = "false_or_never")]
     Never,
-    #[serde(with = "de_unit_v::with_block")]
+    #[serde(with = "unit_v::with_block")]
     WithBlock,
 }
 
@@ -2204,7 +2204,7 @@ enum ReborrowHintsDef {
     Always,
     #[serde(with = "false_or_never")]
     Never,
-    #[serde(with = "de_unit_v::mutable")]
+    #[serde(with = "unit_v::mutable")]
     Mutable,
 }
 
@@ -2215,7 +2215,7 @@ enum AdjustmentHintsDef {
     Always,
     #[serde(with = "false_or_never")]
     Never,
-    #[serde(with = "de_unit_v::reborrow")]
+    #[serde(with = "unit_v::reborrow")]
     Reborrow,
 }
 
@@ -2226,7 +2226,7 @@ enum DiscriminantHintsDef {
     Always,
     #[serde(with = "false_or_never")]
     Never,
-    #[serde(with = "de_unit_v::fieldless")]
+    #[serde(with = "unit_v::fieldless")]
     Fieldless,
 }
 
@@ -2282,11 +2282,11 @@ enum WorkspaceSymbolSearchKindDef {
 #[serde(rename_all = "snake_case")]
 #[serde(untagged)]
 enum MemoryLayoutHoverRenderKindDef {
-    #[serde(with = "de_unit_v::decimal")]
+    #[serde(with = "unit_v::decimal")]
     Decimal,
-    #[serde(with = "de_unit_v::hexadecimal")]
+    #[serde(with = "unit_v::hexadecimal")]
     Hexadecimal,
-    #[serde(with = "de_unit_v::both")]
+    #[serde(with = "unit_v::both")]
     Both,
 }
 
