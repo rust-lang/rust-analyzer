@@ -107,21 +107,21 @@ config_data! {
         /// cargo check --quiet --workspace --message-format=json --all-targets
         /// ```
         /// .
-        cargo_buildScripts_overrideCommand: Option<Vec<String>> = Option::<Vec<String>>::None,
+        cargo_buildScripts_overrideCommand: Option<Vec<String>> = None,
         /// Use `RUSTC_WRAPPER=rust-analyzer` when running build scripts to
         /// avoid checking unnecessary things.
         cargo_buildScripts_useRustcWrapper: bool = true,
         /// List of cfg options to enable with the given values.
-        cargo_cfgs: FxHashMap<String, String> = FxHashMap::<String,String>::default(),
+        cargo_cfgs: FxHashMap<String, String> = FxHashMap::default(),
         /// Extra arguments that are passed to every cargo invocation.
-        cargo_extraArgs: Vec<String> = Vec::<String>::new(),
+        cargo_extraArgs: Vec<String> = vec![],
         /// Extra environment variables that will be set when running cargo, rustc
         /// or other commands within the workspace. Useful for setting RUSTFLAGS.
-        cargo_extraEnv: FxHashMap<String, String> = FxHashMap::<String,String>::default(),
+        cargo_extraEnv: FxHashMap<String, String> = FxHashMap::default(),
         /// List of features to activate.
         ///
         /// Set this to `"all"` to pass `--all-features` to cargo.
-        cargo_features: CargoFeaturesDef      = CargoFeaturesDef::Selected(Vec::<String>::new()),
+        cargo_features: CargoFeaturesDef      = CargoFeaturesDef::Selected(vec![]),
         /// Whether to pass `--no-default-features` to cargo.
         cargo_noDefaultFeatures: bool    = false,
         /// Relative path to the sysroot, or "discover" to try to automatically find it via
@@ -135,11 +135,11 @@ config_data! {
         /// `{cargo.sysroot}/lib/rustlib/src/rust/library`.
         ///
         /// This option does not take effect until rust-analyzer is restarted.
-        cargo_sysrootSrc: Option<String>    = Option::<String>::None,
+        cargo_sysrootSrc: Option<String>    = None,
         /// Compilation target override (target triple).
         // FIXME(@poliorcetics): move to multiple targets here too, but this will need more work
         // than `checkOnSave_target`
-        cargo_target: Option<String>     = Option::<String>::None,
+        cargo_target: Option<String>     = None,
         /// Unsets the implicit `#[cfg(test)]` for the specified crates.
         cargo_unsetTest: Vec<String>     = vec!["core".to_string()],
 
@@ -151,19 +151,19 @@ config_data! {
         /// Cargo command to use for `cargo check`.
         check_command | checkOnSave_command: String                      = "check".to_string(),
         /// Extra arguments for `cargo check`.
-        check_extraArgs | checkOnSave_extraArgs: Vec<String>             = Vec::<String>::new(),
+        check_extraArgs | checkOnSave_extraArgs: Vec<String>             = vec![],
         /// Extra environment variables that will be set when running `cargo check`.
         /// Extends `#rust-analyzer.cargo.extraEnv#`.
-        check_extraEnv | checkOnSave_extraEnv: FxHashMap<String, String> = FxHashMap::<String,String>::default(),
+        check_extraEnv | checkOnSave_extraEnv: FxHashMap<String, String> = FxHashMap::default(),
         /// List of features to activate. Defaults to
         /// `#rust-analyzer.cargo.features#`.
         ///
         /// Set to `"all"` to pass `--all-features` to Cargo.
-        check_features | checkOnSave_features: Option<CargoFeaturesDef>  = Option::<CargoFeaturesDef>::None,
+        check_features | checkOnSave_features: Option<CargoFeaturesDef>  = None,
         /// List of `cargo check` (or other command specified in `check.command`) diagnostics to ignore.
         ///
         /// For example for `cargo check`: `dead_code`, `unused_imports`, `unused_variables`,...
-        check_ignore: FxHashSet<String> = FxHashSet::<String>::default(),
+        check_ignore: FxHashSet<String> = FxHashSet::default(),
         /// Specifies the working directory for running checks.
         /// - "workspace": run checks for workspaces in the corresponding workspaces' root directories.
         // FIXME: Ideally we would support this in some way
@@ -180,7 +180,7 @@ config_data! {
         check_invocationStrategy | checkOnSave_invocationStrategy: InvocationStrategy = InvocationStrategy::PerWorkspace,
         /// Whether to pass `--no-default-features` to Cargo. Defaults to
         /// `#rust-analyzer.cargo.noDefaultFeatures#`.
-        check_noDefaultFeatures | checkOnSave_noDefaultFeatures: Option<bool>         = Option::<bool>::None,
+        check_noDefaultFeatures | checkOnSave_noDefaultFeatures: Option<bool>         = None,
         /// Override the command rust-analyzer uses instead of `cargo check` for
         /// diagnostics on save. The command is required to output json and
         /// should therefore include `--message-format=json` or a similar option
@@ -203,18 +203,18 @@ config_data! {
         /// cargo check --workspace --message-format=json --all-targets
         /// ```
         /// .
-        check_overrideCommand | checkOnSave_overrideCommand: Option<Vec<String>>             = Option::<Vec<String>>::None,
+        check_overrideCommand | checkOnSave_overrideCommand: Option<Vec<String>>             = None,
         /// Check for specific targets. Defaults to `#rust-analyzer.cargo.target#` if empty.
         ///
         /// Can be a single target, e.g. `"x86_64-unknown-linux-gnu"` or a list of targets, e.g.
         /// `["aarch64-apple-darwin", "x86_64-apple-darwin"]`.
         ///
         /// Aliased as `"checkOnSave.targets"`.
-        check_targets | checkOnSave_targets | checkOnSave_target: Option<CheckOnSaveTargets> = Option::<CheckOnSaveTargets>::None,
+        check_targets | checkOnSave_targets | checkOnSave_target: Option<CheckOnSaveTargets> = None,
 
 
         /// List of rust-analyzer diagnostics to disable.
-        diagnostics_disabled: FxHashSet<String> = FxHashSet::<String>::default(),
+        diagnostics_disabled: FxHashSet<String> = FxHashSet::default(),
         /// Whether to show native rust-analyzer diagnostics.
         diagnostics_enable: bool                = true,
         /// Whether to show experimental rust-analyzer diagnostics that might
@@ -222,21 +222,21 @@ config_data! {
         diagnostics_experimental_enable: bool    = false,
         /// Map of prefixes to be substituted when parsing diagnostic file paths.
         /// This should be the reverse mapping of what is passed to `rustc` as `--remap-path-prefix`.
-        diagnostics_remapPrefix: FxHashMap<String, String> = FxHashMap::<String,String>::default(),
+        diagnostics_remapPrefix: FxHashMap<String, String> = FxHashMap::default(),
         /// List of warnings that should be displayed with hint severity.
         ///
         /// The warnings will be indicated by faded text or three dots in code
         /// and will not show up in the `Problems Panel`.
-        diagnostics_warningsAsHint: Vec<String> = Vec::<String>::new(),
+        diagnostics_warningsAsHint: Vec<String> = vec![],
         /// List of warnings that should be displayed with info severity.
         ///
         /// The warnings will be indicated by a blue squiggly underline in code
         /// and a blue icon in the `Problems Panel`.
-        diagnostics_warningsAsInfo: Vec<String> = Vec::<String>::new(),
+        diagnostics_warningsAsInfo: Vec<String> = vec![],
         /// These directories will be ignored by rust-analyzer. They are
         /// relative to the workspace root, and globs are not supported. You may
         /// also need to add the folders to Code's `files.watcherExclude`.
-        files_excludeDirs: Vec<PathBuf> = Vec::<PathBuf>::new(),
+        files_excludeDirs: Vec<PathBuf> = vec![],
         /// Controls file watching implementation.
         files_watcher: FilesWatcherDef = FilesWatcherDef::Client,
 
@@ -280,18 +280,18 @@ config_data! {
         ///
         /// Elements must be paths pointing to `Cargo.toml`,
         /// `rust-project.json`, or JSON objects in `rust-project.json` format.
-        linkedProjects: Vec<ManifestOrProjectJson> = Vec::<ManifestOrProjectJson>::new(),
+        linkedProjects: Vec<ManifestOrProjectJson> = vec![],
 
         /// Number of syntax trees rust-analyzer keeps in memory. Defaults to 128.
-        lru_capacity: Option<usize>                 = Option::<usize>::None,
+        lru_capacity: Option<usize>                 = None,
         /// Sets the LRU capacity of the specified queries.
-        lru_query_capacities: FxHashMap<Box<str>, usize> = FxHashMap::<Box<str>, usize>::default(),
+        lru_query_capacities: FxHashMap<Box<str>, usize> = FxHashMap::default(),
 
         /// Whether to show `can't find Cargo.toml` error message.
         notifications_cargoTomlNotFound: bool      = true,
 
         /// How many worker threads in the main loop. The default `null` means to pick automatically.
-        numThreads: Option<usize> = Option::<usize>::None,
+        numThreads: Option<usize> = None,
 
         /// Expand attribute macros. Requires `#rust-analyzer.procMacro.enable#` to be set.
         procMacro_attributes_enable: bool = true,
@@ -300,18 +300,18 @@ config_data! {
         /// These proc-macros will be ignored when trying to expand them.
         ///
         /// This config takes a map of crate names with the exported proc-macro names to ignore as values.
-        procMacro_ignored: FxHashMap<Box<str>, Box<[Box<str>]>>          = FxHashMap::<Box<str>, Box<[Box<str>]>>::default(),
+        procMacro_ignored: FxHashMap<Box<str>, Box<[Box<str>]>>          = FxHashMap::default(),
         /// Internal config, path to proc-macro server executable.
-        procMacro_server: Option<PathBuf>          = Option::<PathBuf>::None,
+        procMacro_server: Option<PathBuf>          = None,
 
         /// Exclude imports from find-all-references.
         references_excludeImports: bool = false,
 
         /// Command to be executed instead of 'cargo' for runnables.
-        runnables_command: Option<String> = Option::<String>::None,
+        runnables_command: Option<String> = None,
         /// Additional arguments to be passed to cargo for runnables such as
         /// tests or binaries. For example, it may be `--release`.
-        runnables_extraArgs: Vec<String>   = Vec::<String>::new(),
+        runnables_extraArgs: Vec<String>   = vec![],
 
         /// Optional path to a rust-analyzer specific target directory.
         /// This prevents rust-analyzer's `cargo check` from locking the `Cargo.lock`
@@ -319,7 +319,7 @@ config_data! {
         ///
         /// Set to `true` to use a subdirectory of the existing target directory or
         /// set to a path relative to the workspace to use that path.
-        rust_analyzerTargetDir: Option<TargetDirectory> = Option::<TargetDirectory>::None,
+        rust_analyzerTargetDir: Option<TargetDirectory> = None,
 
         /// Path to the Cargo.toml of the rust compiler workspace, for usage in rustc_private
         /// projects, or "discover" to try to automatically find it if the `rustc-dev` component
@@ -329,16 +329,16 @@ config_data! {
         /// crates must set `[package.metadata.rust-analyzer] rustc_private=true` to use it.
         ///
         /// This option does not take effect until rust-analyzer is restarted.
-        rustc_source: Option<String> = Option::<String>::None,
+        rustc_source: Option<String> = None,
 
         /// Additional arguments to `rustfmt`.
-        rustfmt_extraArgs: Vec<String>               = Vec::<String>::new(),
+        rustfmt_extraArgs: Vec<String>               = vec![],
         /// Advanced option, fully override the command rust-analyzer uses for
         /// formatting. This should be the equivalent of `rustfmt` here, and
         /// not that of `cargo fmt`. The file contents will be passed on the
         /// standard input and the formatted result will be read from the
         /// standard output.
-        rustfmt_overrideCommand: Option<Vec<String>> = Option::<Vec<String>>::None,
+        rustfmt_overrideCommand: Option<Vec<String>> = None,
         /// Enables the use of rustfmt's unstable range formatting command for the
         /// `textDocument/rangeFormatting` request. The rustfmt option is unstable and only
         /// available on a nightly build.
@@ -374,14 +374,14 @@ config_data! {
         /// Whether to show full function/method signatures in completion docs.
         completion_fullFunctionSignatures_enable: bool = false,
         /// Maximum number of completions to return. If `None`, the limit is infinite.
-        completion_limit: Option<usize> = Option::<usize>::None,
+        completion_limit: Option<usize> = None,
         /// Whether to show postfix snippets like `dbg`, `if`, `not`, etc.
         completion_postfix_enable: bool         = true,
         /// Enables completions of private items and fields that are defined in the current workspace even if they are not visible at the current position.
         completion_privateEditable_enable: bool = false,
         /// Custom completion snippets.
         // NOTE: Keep this list in sync with the feature docs of user snippets.
-        completion_snippets_custom: FxHashMap<String, SnippetDef> = FxHashMap::<String, SnippetDef>::default() ,
+        completion_snippets_custom: FxHashMap<String, SnippetDef> = FxHashMap::default(),
 
         /// Enables highlighting of related references while the cursor is on `break`, `loop`, `while`, or `for` keywords.
         highlightRelated_breakPoints_enable: bool = true,
@@ -420,15 +420,15 @@ config_data! {
         /// Use markdown syntax for links on hover.
         hover_links_enable: bool = true,
         /// How to render the align information in a memory layout hover.
-        hover_memoryLayout_alignment: Option<MemoryLayoutHoverRenderKindDef> = Option::<MemoryLayoutHoverRenderKindDef>::Some(MemoryLayoutHoverRenderKindDef::Hexadecimal),
+        hover_memoryLayout_alignment: Option<MemoryLayoutHoverRenderKindDef> = Some(MemoryLayoutHoverRenderKindDef::Hexadecimal),
         /// Whether to show memory layout data on hover.
         hover_memoryLayout_enable: bool = true,
         /// How to render the niche information in a memory layout hover.
-        hover_memoryLayout_niches: Option<bool> = Option::<bool>::Some(false),
+        hover_memoryLayout_niches: Option<bool> = Some(false),
         /// How to render the offset information in a memory layout hover.
-        hover_memoryLayout_offset: Option<MemoryLayoutHoverRenderKindDef> = Option::<MemoryLayoutHoverRenderKindDef>::Some(MemoryLayoutHoverRenderKindDef::Hexadecimal),
+        hover_memoryLayout_offset: Option<MemoryLayoutHoverRenderKindDef> = Some(MemoryLayoutHoverRenderKindDef::Hexadecimal),
         /// How to render the size information in a memory layout hover.
-        hover_memoryLayout_size: Option<MemoryLayoutHoverRenderKindDef> =Option::<MemoryLayoutHoverRenderKindDef>::Some(MemoryLayoutHoverRenderKindDef::Both),
+        hover_memoryLayout_size: Option<MemoryLayoutHoverRenderKindDef> = Some(MemoryLayoutHoverRenderKindDef::Both),
 
         /// Whether to enforce the import granularity setting for all files. If set to false rust-analyzer will try to keep import styles consistent per file.
         imports_granularity_enforce: bool              = false,
@@ -472,7 +472,7 @@ config_data! {
         /// Whether to prefer using parameter names as the name for elided lifetime hints if possible.
         inlayHints_lifetimeElisionHints_useParameterNames: bool    = false,
         /// Maximum length for inlay hints. Set to null to have an unlimited length.
-        inlayHints_maxLength: Option<usize>                        = Option::<usize>::Some(25),
+        inlayHints_maxLength: Option<usize>                        = Some(25_usize),
         /// Whether to show function parameter name inlay hints at the call
         /// site.
         inlayHints_parameterHints_enable: bool                     = true,
@@ -2230,7 +2230,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field),
                         None$(.or(Some(stringify!($alias))))*,
-                        $default,
+                        $default as $ty,
                     ),
                 )*}
             }
@@ -2248,7 +2248,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field2),
                         None$(.or(Some(stringify!($alias2))))*,
-                        $default2,
+                        $default2 as $ty2,
                     ),
                 )*}
             }
@@ -2265,7 +2265,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field3),
                         None$(.or(Some(stringify!($alias3))))*,
-                        $default3,
+                        $default3 as $ty3,
                     ),
                 )*}
             }
@@ -2288,7 +2288,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field),
                         None$(.or(Some(stringify!($alias))))*,
-                        $default,
+                        $default as $ty,
                     ),
                 )*
                 $(
@@ -2297,7 +2297,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field2),
                         None$(.or(Some(stringify!($alias2))))*,
-                        $default2,
+                        $default2 as $ty2,
                     ),
                 )*
                 $(
@@ -2306,7 +2306,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field3),
                         None$(.or(Some(stringify!($alias3))))*,
-                        $default3,
+                        $default3 as $ty3,
                     ),
                 )*}
             }
@@ -2318,7 +2318,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field),
                         None$(.or(Some(stringify!($alias))))*,
-                        $default,
+                        $default as $ty,
                     ),
                 )*
                 $(
@@ -2327,7 +2327,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field2),
                         None$(.or(Some(stringify!($alias2))))*,
-                        $default2,
+                        $default2 as $ty2,
                     ),
                 )*
                 $(
@@ -2336,7 +2336,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field3),
                         None$(.or(Some(stringify!($alias3))))*,
-                        $default3,
+                        $default3 as $ty3,
                     ),
                 )*}
             }
@@ -2347,19 +2347,19 @@ macro_rules! _config_data {
                         let field = stringify!($field);
                         let ty = stringify!($ty);
 
-                        (field, ty, &[$($doc),*], serde_json::to_string(&$default).unwrap().as_str())
+                        (field, ty, &[$($doc),*], serde_json::to_string(&($default as $ty)).unwrap().as_str())
                     },)*
                     $({
                         let field = stringify!($field2);
                         let ty = stringify!($ty2);
 
-                        (field, ty, &[$($doc2),*], serde_json::to_string(&$default2).unwrap().as_str())
+                        (field, ty, &[$($doc2),*], serde_json::to_string(&($default2 as $ty2)).unwrap().as_str())
                     },)*
                     $({
                         let field = stringify!($field3);
                         let ty = stringify!($ty3);
 
-                        (field, ty, &[$($doc3),*], serde_json::to_string(&$default3).unwrap().as_str())
+                        (field, ty, &[$($doc3),*], serde_json::to_string(&($default3 as $ty3)).unwrap().as_str())
                     },)*
                 ])
             }
@@ -2371,7 +2371,7 @@ macro_rules! _config_data {
                         let field = stringify!($field3);
                         let ty = stringify!($ty3);
 
-                        (field, ty, &[$($doc3),*], $default3)
+                        (field, ty, &[$($doc3),*], $default3 as $ty3)
                     },)*
                 ])
             }
