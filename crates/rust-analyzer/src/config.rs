@@ -2248,13 +2248,10 @@ macro_rules! _config_data {
                     $({
                         let field = stringify!($field);
                         let ty = stringify!($ty);
+                        let default =
+                            serde_json::to_string(&{ let default_: $ty = $default; default_ }).unwrap();
 
-                        (
-                            field,
-                            ty,
-                            &[$($doc),*],
-                            serde_json::to_string(&{ let default_: $ty = $default; default_ }).unwrap(),
-                        )
+                        (field, ty, &[$($doc),*], default)
                     },)*
                 ])
             }
@@ -2309,6 +2306,8 @@ impl ConfigData {
         GlobalConfigData::schema_fields(&mut fields);
         LocalConfigData::schema_fields(&mut fields);
         ClientConfigData::schema_fields(&mut fields);
+        // HACK: sort the fields, so the diffs on the generated docs/schema are smaller
+        fields.sort_by_key(|&(x, ..)| x);
         fields
     }
 
