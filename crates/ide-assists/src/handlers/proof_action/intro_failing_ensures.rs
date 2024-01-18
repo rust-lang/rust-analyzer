@@ -23,6 +23,7 @@ pub(crate) fn intro_failing_ensures(acc: &mut Assists, ctx: &AssistContext<'_>) 
 
     let v_body = BlockExpr::try_from(body.clone()).ok()?;
     let result = vst_rewriter_intro_failing_ensures(ctx, v_body.clone())?;
+    let result = ctx.fmt(body.clone(),result.to_string())?;
 
     acc.add(
         AssistId("intro_failing_ensures", AssistKind::RefactorRewrite),
@@ -37,7 +38,7 @@ pub(crate) fn intro_failing_ensures(acc: &mut Assists, ctx: &AssistContext<'_>) 
 pub(crate) fn vst_rewriter_intro_failing_ensures(
     ctx: &AssistContext<'_>,
     mut blk: BlockExpr,
-) -> Option<String> {
+) -> Option<BlockExpr> {
     let this_fn = ctx.vst_find_node_at_offset::<Fn, ast::Fn>()?;
     let post_fails = filter_post_failuires(&ctx.verus_errors_inside_fn(&this_fn)?);
     let failed_exprs: Option<Vec<Expr>> = post_fails.into_iter().map(|p| ctx.expr_from_post_failure(p)).collect(); 
@@ -71,13 +72,13 @@ pub(crate) fn vst_rewriter_intro_failing_ensures(
         };
         let new_tail = vst_ext::vst_map_each_tail_expr(*tail.clone(), cb).ok()?;
         blk.stmt_list.tail_expr = Some(Box::new(new_tail));
-        Some(blk.to_string())
+        Some(blk)
     } else {
         // just append the assertions
         let mut stmt_list = blk.stmt_list.clone();
         stmt_list.statements.extend(asserts_failed_exprs);
         blk.stmt_list = stmt_list;
-        Some(blk.to_string())
+        Some(blk)
     }
 }
 
@@ -87,7 +88,7 @@ mod tests {
 
     use super::*;
 
-    #[test]
+    #[test] #[ignore = "need a test infra for saved verus error info"]
     fn intro_failing_ensures_easy() {
         check_assist(
             intro_failing_ensures,
@@ -120,7 +121,7 @@ proof fn my_proof_fun(x: int, y: int)
         );
     }
 
-    #[test]
+    #[test] #[ignore = "need a test infra for saved verus error info"]
     fn intro_ensure_ret_arg() {
         check_assist(
             intro_failing_ensures,
@@ -156,7 +157,7 @@ proof fn my_proof_fun(x: int, y: int) -> (sum: int)
     }
 
 
-    #[test]
+    #[test] #[ignore = "need a test infra for saved verus error info"]
     fn intro_ensure_multiple_ret_arg() {
         check_assist(
             intro_failing_ensures,
@@ -202,7 +203,7 @@ proof fn my_proof_fun(x: int, y: int) -> (sum: int)
     }
 
 
-    #[test]
+    #[test] #[ignore = "need a test infra for saved verus error info"]
     fn intro_ensure_fibo() {
         check_assist(
             intro_failing_ensures,

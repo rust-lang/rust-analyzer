@@ -10,6 +10,7 @@ pub(crate) fn intro_failing_requires(acc: &mut Assists, ctx: &AssistContext<'_>)
     let call: ast::CallExpr = ctx.find_node_at_offset()?;
     let v_call = CallExpr::try_from(call.clone()).ok()?;
     let result = vst_rewriter_intro_failing_requires(ctx, v_call.clone())?;
+    let result = ctx.fmt(call.clone(),result.to_string())?;
 
     acc.add(
         AssistId("intro_failing_requires", AssistKind::RefactorRewrite),
@@ -24,7 +25,7 @@ pub(crate) fn intro_failing_requires(acc: &mut Assists, ctx: &AssistContext<'_>)
 pub(crate) fn vst_rewriter_intro_failing_requires(
     ctx: &AssistContext<'_>,
     call: CallExpr,
-) -> Option<String> {
+) -> Option<BlockExpr> {
     let name_ref = ctx.name_ref_from_call_expr(&call)?;
     let func = ctx.vst_find_fn(&call)?;
     let pre_fails = ctx.pre_failures_by_calling_this_fn(&func)?;
@@ -41,7 +42,7 @@ pub(crate) fn vst_rewriter_intro_failing_requires(
     let mut stmts = StmtList::new();
     stmts.statements = asserts_failed_exprs;
     let blk = BlockExpr::new(stmts);
-    return Some(blk.to_string());
+    return Some(blk);
 }
  
 

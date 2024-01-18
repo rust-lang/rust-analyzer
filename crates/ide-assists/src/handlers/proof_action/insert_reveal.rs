@@ -19,6 +19,8 @@ pub(crate) fn insert_reveal(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
 
     // now do the rewrite
     let result = vst_rewriter_insert_reveal(ctx, &v_call, v_assert_expr.clone())?;
+    let result = ctx.fmt(assert_expr.clone(),result.to_string())?;
+
 
     acc.add(
         AssistId("insert_reveal", AssistKind::RefactorRewrite),
@@ -33,8 +35,8 @@ pub(crate) fn insert_reveal(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
 pub(crate) fn vst_rewriter_insert_reveal(
     ctx: &AssistContext<'_>,
     call: &CallExpr,
-    mut assert: AssertExpr,
-) -> Option<String> 
+    assert: AssertExpr,
+) -> Option<BlockExpr> 
 {
     // backup original assert
     let original_assert = assert.clone();
@@ -66,7 +68,7 @@ pub(crate) fn vst_rewriter_insert_reveal(
     let blk_expr: BlockExpr = BlockExpr::new(stmt);
     // assert.by_token = true;
     // assert.block_expr = Some(Box::new(blk_expr));
-    Some(blk_expr.to_string())
+    Some(blk_expr)
 }
 
 #[cfg(test)]
@@ -103,8 +105,10 @@ spec fn opaque_fibo(n: nat) -> nat
 }
 
 proof fn test_opaque_fibo() {
-  reveal(opaque_fibo);
-  assert(opaque_fibo(2) == 1);
+  {
+        reveal(opaque_fibo);
+        assert(opaque_fibo(2) == 1);
+    };
 }
 "
         )

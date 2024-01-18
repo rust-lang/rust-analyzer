@@ -24,7 +24,8 @@ pub(crate) fn intro_forall_implies(acc: &mut Assists, ctx: &AssistContext<'_>) -
 
     // now convert to vst nodes
     let assert = AssertExpr::try_from(assert_expr.clone()).ok()?;
-    let result = vst_rewriter_intro_forall_implies(assert.clone())?; // TODO: verusfmt
+    let result = vst_rewriter_intro_forall_implies(assert.clone())?;
+    let result = ctx.fmt(assert_expr.clone(),result.to_string())?;
 
     acc.add(
         AssistId("intro_forall_implies", AssistKind::RefactorRewrite),
@@ -36,7 +37,7 @@ pub(crate) fn intro_forall_implies(acc: &mut Assists, ctx: &AssistContext<'_>) -
     )
 }
 
-pub(crate) fn vst_rewriter_intro_forall_implies(assert: AssertExpr) -> Option<String> {
+pub(crate) fn vst_rewriter_intro_forall_implies(assert: AssertExpr) -> Option<AssertForallExpr> {
     // if assertion's expression's top level is not implication, return None
     let assert_forall_expr = match *assert.expr {
         Expr::ClosureExpr(c) => {
@@ -65,7 +66,7 @@ pub(crate) fn vst_rewriter_intro_forall_implies(assert: AssertExpr) -> Option<St
         }
         _ => {dbg!("not a ClosureExpr"); return None;},
     };
-    Some(assert_forall_expr.to_string()) 
+    Some(assert_forall_expr) 
 }
 
 #[cfg(test)]
@@ -96,12 +97,12 @@ proof fn test_intro_forall_implies() {
 spec fn twice(x: int) -> int
 {
   x * 2
-}
+} 
 
 proof fn test_intro_forall_implies() {
-  assert forall |x:int, y:int| x <= y implies twice(x) <= twice(y) by {
-    reveal(twice);
-  }
+  assert forall|x: int, y: int| x <= y implies twice(x) <= twice(y) by {
+        reveal(twice);
+    }
 }
 ",
 
