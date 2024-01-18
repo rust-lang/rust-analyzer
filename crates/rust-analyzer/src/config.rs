@@ -59,7 +59,7 @@ mod patch_old_style;
 // To deprecate an option by replacing it with another name use `new_name | `old_name` so that we keep
 // parsing the old name.
 config_data! {
-    struct GlobalConfigData {
+    global: struct GlobalConfigData {
         /// Whether to insert #[must_use] when generating `as_` methods
         /// for enum variants.
         assist_emitMustUse: bool               = false,
@@ -361,8 +361,11 @@ config_data! {
         workspace_symbol_search_limit: usize = 128,
         /// Workspace symbol search scope.
         workspace_symbol_search_scope: WorkspaceSymbolSearchScopeDef = WorkspaceSymbolSearchScopeDef::Workspace,
-    },
-    struct LocalConfigData {
+    }
+}
+
+config_data! {
+    local: struct LocalConfigData {
         /// Toggles the additional completions that automatically add imports when completed.
         /// Note that your client must specify the `additionalTextEdits` LSP client capability to truly have this feature enabled.
         completion_autoimport_enable: bool       = true,
@@ -535,8 +538,11 @@ config_data! {
         /// By disabling semantic tokens for strings, other grammars can be used to highlight
         /// their contents.
         semanticHighlighting_strings_enable: bool = true,
-    },
-    struct ClientConfigData {}
+    }
+}
+
+config_data! {
+    client: struct ClientConfigData {}
 }
 
 impl Default for ConfigData {
@@ -563,15 +569,15 @@ impl Default for RootConfigData {
     fn default() -> Self {
         RootConfigData {
             local: RootLocalConfigData(LocalConfigData::from_json(
-                serde_json::Value::Null,
+                &mut serde_json::Value::Null,
                 &mut Vec::new(),
             )),
             global: RootGlobalConfigData(GlobalConfigData::from_json(
-                serde_json::Value::Null,
+                &mut serde_json::Value::Null,
                 &mut Vec::new(),
             )),
             client: RootClientConfigData(ClientConfigData::from_json(
-                serde_json::Value::Null,
+                &mut serde_json::Value::Null,
                 &mut Vec::new(),
             )),
         }
@@ -1147,7 +1153,7 @@ impl Config {
                 .collect();
         patch_old_style::patch_json_for_outdated_configs(&mut json);
         self.root_config.global =
-            RootGlobalConfigData(GlobalConfigData::from_json(json, &mut errors));
+            RootGlobalConfigData(GlobalConfigData::from_json(&mut json, &mut errors));
         tracing::debug!("deserialized config data: {:#?}", self.root_config.global);
         self.snippets.clear();
         for (name, def) in self.root_config.local.0.completion_snippets_custom.iter() {
@@ -2200,33 +2206,22 @@ pub enum TargetDirectory {
 }
 
 macro_rules! _config_data {
-    (struct $name:ident {
+    // modname is for the tests
+    ($modname:ident: struct $name:ident {
         $(
             $(#[doc=$doc:literal])*
             $field:ident $(| $alias:ident)*: $ty:ty = $default:expr,
         )*
-    },
-    struct $name2:ident {
-        $(
-            $(#[doc=$doc2:literal])*
-            $field2:ident $(| $alias2:ident)*: $ty2:ty = $default2:expr,
-        )*
-    },
-    struct $name3:ident {
-        $(
-            $(#[doc=$doc3:literal])*
-            $field3:ident $(| $alias3:ident)*: $ty3:ty = $default3:expr,
-        )*
-    }
-    ) => {
+    }) => {
         #[allow(non_snake_case)]
-        #[derive(Debug, Clone)]
+        #[derive(Debug, Clone, Serialize)]
         struct $name { $($field: $ty,)* }
         impl $name {
-            fn from_json(mut json: serde_json::Value, error_sink: &mut Vec<(String, serde_json::Error)>) -> $name {
+            #[allow(unused)]
+            fn from_json(json: &mut serde_json::Value, error_sink: &mut Vec<(String, serde_json::Error)>) -> $name {
                 $name {$(
                     $field: get_field(
-                        &mut json,
+                        json,
                         error_sink,
                         stringify!($field),
                         None$(.or(Some(stringify!($alias))))*,
@@ -2235,157 +2230,97 @@ macro_rules! _config_data {
                 )*}
             }
 
-        }
-
-        #[allow(non_snake_case)]
-        #[derive(Debug, Clone)]
-        struct $name2 { $($field2: $ty2,)* }
-        impl $name2 {
-            fn from_json(mut json: serde_json::Value, error_sink: &mut Vec<(String, serde_json::Error)>) -> $name2 {
-                $name2 {$(
-                    $field2: get_field(
-                        &mut json,
-                        error_sink,
-                        stringify!($field2),
-                        None$(.or(Some(stringify!($alias2))))*,
-                        { let default_: $ty2 = $default2; default_ },
-                    ),
-                )*}
-            }
-        }
-
-        #[allow(non_snake_case)]
-        #[derive(Debug, Clone)]
-        struct $name3 { $($field3: $ty3,)* }
-        impl $name3 {
-            fn from_json(mut json: serde_json::Value, error_sink: &mut Vec<(String, serde_json::Error)>) -> $name3 {
-                $name3 {$(
-                    $field3: get_field(
-                        &mut json,
-                        error_sink,
-                        stringify!($field3),
-                        None$(.or(Some(stringify!($alias3))))*,
-                        { let default_: $ty3 = $default3; default_ },
-                    ),
-                )*}
-            }
-        }
-
-        #[allow(non_snake_case)]
-        #[derive(Debug, Clone, Deserialize, Serialize)]
-        struct ConfigData {
-            $($field: $ty,)*
-            $($field2: $ty2,)*
-            $($field3: $ty3,)*
-        }
-
-        impl ConfigData {
-
-            fn from_toml(mut toml: toml::Table , error_sink: &mut Vec<(String, toml::de::Error)>) -> ConfigData {
-                ConfigData  {$(
+            #[allow(unused)]
+            fn from_toml(toml: &mut toml::Table , error_sink: &mut Vec<(String, toml::de::Error)>) -> $name {
+                $name {$(
                     $field: get_field_toml::<$ty>(
-                        &mut toml,
+                        toml,
                         error_sink,
                         stringify!($field),
                         None$(.or(Some(stringify!($alias))))*,
                         { let default_: $ty = $default; default_ },
                     ),
-                )*
-                $(
-                    $field2: get_field_toml::<$ty2>(
-                        &mut toml,
-                        error_sink,
-                        stringify!($field2),
-                        None$(.or(Some(stringify!($alias2))))*,
-                        { let default_: $ty2 = $default2; default_ },
-                    ),
-                )*
-                $(
-                    $field3: get_field_toml::<$ty3>(
-                        &mut toml,
-                        error_sink,
-                        stringify!($field3),
-                        None$(.or(Some(stringify!($alias3))))*,
-                        { let default_: $ty3 = $default3; default_ },
-                    ),
                 )*}
             }
 
-            fn from_json(mut json: serde_json::Value, error_sink: &mut Vec<(String, serde_json::Error)>) -> ConfigData {
-                ConfigData  {$(
-                    $field: get_field::<$ty>(
-                        &mut json,
-                        error_sink,
-                        stringify!($field),
-                        None$(.or(Some(stringify!($alias))))*,
-                        { let default_: $ty = $default; default_ },
-                    ),
-                )*
-                $(
-                    $field2: get_field::<$ty2>(
-                        &mut json,
-                        error_sink,
-                        stringify!($field2),
-                        None$(.or(Some(stringify!($alias2))))*,
-                        { let default_: $ty2 = $default2; default_ },
-                    ),
-                )*
-                $(
-                    $field3: get_field::<$ty3>(
-                        &mut json,
-                        error_sink,
-                        stringify!($field3),
-                        None$(.or(Some(stringify!($alias3))))*,
-                        { let default_: $ty3 = $default3; default_ },
-                    ),
-                )*}
-            }
-
-            fn json_schema() -> serde_json::Value {
-                schema(&[
+            fn schema_fields(sink: &mut Vec<SchemaField>) {
+                sink.extend_from_slice(&[
                     $({
                         let field = stringify!($field);
                         let ty = stringify!($ty);
 
-                        (field, ty, &[$($doc),*], serde_json::to_string(&{ let default_: $ty = $default; default_ }).unwrap().as_str())
-                    },)*
-                    $({
-                        let field = stringify!($field2);
-                        let ty = stringify!($ty2);
-
-                        (field, ty, &[$($doc2),*], serde_json::to_string(&{ let default_: $ty2 = $default2; default_ }).unwrap().as_str())
-                    },)*
-                    $({
-                        let field = stringify!($field3);
-                        let ty = stringify!($ty3);
-
-                        (field, ty, &[$($doc3),*], serde_json::to_string(&{ let default_: $ty3 = $default3; default_ }).unwrap().as_str())
-                    },)*
-                ])
-            }
-
-            #[cfg(test)]
-            fn manual() -> String {
-                manual(&[
-                    $({
-                        let field = stringify!($field3);
-                        let ty = stringify!($ty3);
-
-                        (field, ty, &[$($doc3),*], $default3 as $ty3)
+                        (
+                            field,
+                            ty,
+                            &[$($doc),*],
+                            serde_json::to_string(&{ let default_: $ty = $default; default_ }).unwrap(),
+                        )
                     },)*
                 ])
             }
         }
 
-        #[test]
-        fn fields_are_sorted() {
-            [$(stringify!($field)),*].windows(2).for_each(|w| assert!(w[0] <= w[1], "{} <= {} does not hold", w[0], w[1]));
-            [$(stringify!($field2)),*].windows(2).for_each(|w| assert!(w[0] <= w[1], "{} <= {} does not hold", w[0], w[1]));
-            // [$(stringify!($field3)),*].windows(2).for_each(|w| assert!(w[0] <= w[1], "{} <= {} does not hold", w[0], w[1]));
+        mod $modname {
+            #[test]
+            fn fields_are_sorted() {
+                let field_names: &'static [&'static str] = &[$(stringify!($field)),*];
+                field_names.windows(2).for_each(|w| assert!(w[0] <= w[1], "{} <= {} does not hold", w[0], w[1]));
+            }
         }
     };
 }
 use _config_data as config_data;
+
+#[derive(Debug, Clone, Serialize)]
+struct ConfigData {
+    #[serde(flatten)]
+    global: GlobalConfigData,
+    #[serde(flatten)]
+    local: LocalConfigData,
+    #[serde(flatten)]
+    client: ClientConfigData,
+}
+
+impl ConfigData {
+    fn from_json(
+        mut json: serde_json::Value,
+        error_sink: &mut Vec<(String, serde_json::Error)>,
+    ) -> ConfigData {
+        ConfigData {
+            global: GlobalConfigData::from_json(&mut json, error_sink),
+            local: LocalConfigData::from_json(&mut json, error_sink),
+            client: ClientConfigData::from_json(&mut json, error_sink),
+        }
+    }
+
+    fn from_toml(
+        mut toml: toml::Table,
+        error_sink: &mut Vec<(String, toml::de::Error)>,
+    ) -> ConfigData {
+        ConfigData {
+            global: GlobalConfigData::from_toml(&mut toml, error_sink),
+            local: LocalConfigData::from_toml(&mut toml, error_sink),
+            client: ClientConfigData::from_toml(&mut toml, error_sink),
+        }
+    }
+
+    fn schema_fields() -> Vec<SchemaField> {
+        let mut fields = Vec::new();
+        GlobalConfigData::schema_fields(&mut fields);
+        LocalConfigData::schema_fields(&mut fields);
+        ClientConfigData::schema_fields(&mut fields);
+        fields
+    }
+
+    fn json_schema() -> serde_json::Value {
+        schema(&Self::schema_fields())
+    }
+
+    #[cfg(test)]
+    fn manual() -> String {
+        manual(&Self::schema_fields())
+    }
+}
 
 fn get_field_toml<T: DeserializeOwned>(
     val: &toml::Table,
@@ -2454,7 +2389,9 @@ fn get_field<T: DeserializeOwned>(
         .unwrap_or(default)
 }
 
-fn schema(fields: &[(&'static str, &'static str, &[&str], &str)]) -> serde_json::Value {
+type SchemaField = (&'static str, &'static str, &'static [&'static str], String);
+
+fn schema(fields: &[SchemaField]) -> serde_json::Value {
     let map = fields
         .iter()
         .map(|(field, ty, doc, default)| {
@@ -2815,7 +2752,7 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
 }
 
 #[cfg(test)]
-fn manual(fields: &[(&'static str, &'static str, &[&str], &str)]) -> String {
+fn manual(fields: &[SchemaField]) -> String {
     fields
         .iter()
         .map(|(field, _ty, doc, default)| {
