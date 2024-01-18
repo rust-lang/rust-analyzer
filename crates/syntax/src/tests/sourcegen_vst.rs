@@ -26,7 +26,7 @@ const HAND_WRITTEN_PRINT_ONLY: &[&str] = &["ParamList", "ArgList", "AssertExpr"]
 const HAND_WRITTEN_NEW_ONLY: &[&str] = &["ExprStmt", "MatchArm"];
 const HAND_WRITTEN_INTO_ONLY: &[&str] = &["AssertForallExpr"];
 
-const LIST_AUTO_GEN_SEP_COMMA: &[&str] = &["VariantList", "RecordFieldList", "TupleFieldList"];
+const LIST_AUTO_GEN_SEP_COMMA: &[&str] = &["VariantList", "RecordFieldList", "TupleFieldList", "RecordExprFieldList", "RecordPatFieldList"];
 const LIST_AUTO_GEN_SEP_NEWLINE: &[&str] = &["StmtList"];
 
 #[test]

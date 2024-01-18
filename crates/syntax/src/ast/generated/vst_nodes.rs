@@ -7093,8 +7093,10 @@ impl std::fmt::Display for RecordExprFieldList {
             s.push_str(token_ascii(&tmp));
             s.push_str(" ");
         }
-        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
-        s.push_str(&self.fields.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(", "));
+        s.push_str(
+            &self.fields.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(", "),
+        );
         if self.dotdot_token {
             let mut tmp = stringify!(dotdot_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -7743,7 +7745,9 @@ impl std::fmt::Display for RecordPatFieldList {
             s.push_str(token_ascii(&tmp));
             s.push_str(" ");
         }
-        s.push_str(&self.fields.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(
+            &self.fields.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(", "),
+        );
         if let Some(it) = &self.rest_pat {
             s.push_str(&it.to_string());
             s.push_str(" ");
