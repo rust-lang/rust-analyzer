@@ -52,7 +52,7 @@ mod tests {
 
     use super::*;
 
-    #[test]
+    #[test] #[ignore = "need a test infra for saved verus error info"]
     fn intro_requires_easy() {
         check_assist(
             intro_failing_requires,
@@ -103,7 +103,7 @@ proof fn call_fun(a: u32, b: u32)
         );
     }
 
-    #[test]
+    #[test] #[ignore = "need a test infra for saved verus error info"]
     fn intro_requires_recursive() {
         check_assist(
             intro_failing_requires,

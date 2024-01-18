@@ -14,28 +14,32 @@ use syntax::{
 pub(crate) fn seq_index_inbound(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     // if the function name is not inside an assertForallExpr, return None
     let assert_forall_expr: ast::AssertForallExpr = ctx.find_node_at_offset()?;
-    dbg!(&assert_forall_expr);
     // trigger on the seq variable
     let seq_path : ast::PathExpr = ctx.find_node_at_offset()?; 
 
     // now convert to vst nodes
     let v_assert_forall_expr = AssertForallExpr::try_from(assert_forall_expr.clone()).ok()?;
-    println!("{}", &v_assert_forall_expr.to_string());
+    // dbg!("{}", &v_assert_forall_expr.to_string());
     let v_seq_path = PathExpr::try_from(seq_path.clone()).ok()?;
 
     let result = vst_rewriter_seq_index_inbound(ctx, v_assert_forall_expr.clone(), v_seq_path.clone())?; // TODO: verusfmt
+    let result = ctx.fmt(assert_forall_expr.clone(),result.to_string())?;
 
     acc.add(
         AssistId("seq_index_inbound", AssistKind::RefactorRewrite),
         "Insert In-bound predicate for selected seq",
         assert_forall_expr.syntax().text_range(),
         |edit| {
-            edit.replace(assert_forall_expr.syntax().text_range(), result);
+            edit.insert(assert_forall_expr.syntax().text_range().start(), format!("{}\n    ",result));
         },
     )
 }
 
-pub(crate) fn vst_rewriter_seq_index_inbound(ctx: &AssistContext<'_>, mut assert_forall: AssertForallExpr, seq_path: PathExpr) -> Option<String> {
+pub(crate) fn vst_rewriter_seq_index_inbound(
+    ctx: &AssistContext<'_>, 
+    mut assert_forall: AssertForallExpr, 
+    seq_path: PathExpr,
+) -> Option<AssertForallExpr> {
     let assert_forall_cp = assert_forall.clone();
     // if assertion's expression's top level is not implication, return None
     if assert_forall.implies_token {
@@ -79,7 +83,7 @@ pub(crate) fn vst_rewriter_seq_index_inbound(ctx: &AssistContext<'_>, mut assert
     assert_forall.expr = Some(assert_forall_cp.closure_expr.body);
     assert_forall.closure_expr.body = Box::new(binexpr.into());
     
-    Some(assert_forall.to_string()) 
+    Some(assert_forall) 
 }
 
 #[cfg(test)]
@@ -97,33 +101,33 @@ mod tests {
 use vstd::seq::*;
 use vstd::seq_lib::*;
 proof fn test_seq_in_bound() {
-  let s1 = Seq::new(6, |i: int|
-    if i == 0 { 10 }
-    else if i == 1 { 20 }
-    else if i == 2 { 30 }
-    else if i == 3 { 45 }
-    else if i == 4 { 55 }
-    else { 70 }
-  );
-  let s2 = s1.filter(|x: int| x < 40);
-  assert forall|i: int| $0s2[i] < 40 by{};
+    let s1 = Seq::new(6, |i: int|
+      if i == 0 { 10 }
+      else if i == 1 { 20 }
+      else if i == 2 { 30 }
+      else if i == 3 { 45 }
+      else if i == 4 { 55 }
+      else { 70 }
+    );
+    let s2 = s1.filter(|x: int| x < 40);
+    assert forall|i: int| $0s2[i] < 40 by{};
 }
 ",
 "
 use vstd::seq::*;
 use vstd::seq_lib::*;
 proof fn test_seq_in_bound() {
-  let s1 = Seq::new(6, |i: int|
-    if i == 0 { 10 }
-    else if i == 1 { 20 }
-    else if i == 2 { 30 }
-    else if i == 3 { 45 }
-    else if i == 4 { 55 }
-    else { 70 }
-  );
-  let s2 = s1.filter(|x: int| x < 40);
-  assert forall|i: int| 0 <= i < s2.len() implies s2[i] < 40 by{};
-  assert forall|i: int| s2[i] < 40 by{};
+    let s1 = Seq::new(6, |i: int|
+      if i == 0 { 10 }
+      else if i == 1 { 20 }
+      else if i == 2 { 30 }
+      else if i == 3 { 45 }
+      else if i == 4 { 55 }
+      else { 70 }
+    );
+    let s2 = s1.filter(|x: int| x < 40);
+    assert forall|i: int| 0 <= i && i < s2.len() implies s2[i] < 40 by {}
+    assert forall|i: int| s2[i] < 40 by{};
 }
 ",
 

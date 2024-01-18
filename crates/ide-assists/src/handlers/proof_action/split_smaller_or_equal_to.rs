@@ -24,22 +24,25 @@ pub(crate) fn split_smaller_or_equal_to(acc: &mut Assists, ctx: &AssistContext<'
     // FIXME: fix AssertForallExpr::try_from. use  .exprs().nth(1) instead of .expr (expr gives earlier closure instead of conclusion)
     let assert = AssertForallExpr::try_from(assert_forall_expr.clone()).ok()?;    
     let conclusion = assert_forall_expr.exprs().nth(1)?;
-    dbg!(&assert);
-    println!("{}", &assert.to_string());
+    // dbg!("{}", &assert.to_string());
     let v_conclusion = Expr::try_from(conclusion).ok()?;
-    let result = vst_rewriter_split_smaller_or_equal_to(assert.clone(), v_conclusion)?; // TODO: verusfmt
+    let result = vst_rewriter_split_smaller_or_equal_to(assert.clone(), v_conclusion)?;
+    let result = ctx.fmt(assert_forall_expr.clone(),result.to_string())?;
 
     acc.add(
         AssistId("split_smaller_or_equal_to", AssistKind::RefactorRewrite),
         "Split smaller or equal to into separate assertions",
         assert_forall_expr.syntax().text_range(),
         |edit| {
-            edit.insert(assert_forall_expr.syntax().text_range().start(), result);
+            edit.replace(assert_forall_expr.syntax().text_range(), result);
         },
     )
 }
 
-pub(crate) fn vst_rewriter_split_smaller_or_equal_to(assert_forall: AssertForallExpr, conclusion: Expr) -> Option<String> {
+pub(crate) fn vst_rewriter_split_smaller_or_equal_to(
+    assert_forall: AssertForallExpr, 
+    conclusion: Expr,
+) -> Option<BlockExpr> {
     println!("{}", &assert_forall.to_string());
 
     if !assert_forall.implies_token {
@@ -84,11 +87,11 @@ pub(crate) fn vst_rewriter_split_smaller_or_equal_to(assert_forall: AssertForall
         let mut stmt = StmtList::new();
         stmt.statements.push(strictly_smaller_assert_forall.into());
         stmt.statements.push(equal_assert_forall.into());
-        // stmt.statements.push(assert_forall.clone().into());
+        stmt.statements.push(assert_forall.clone().into());
         let blk_expr: BlockExpr = BlockExpr::new(stmt);
         blk_expr
     };
-    Some(block_expr.to_string()) 
+    Some(block_expr) 
 }
 
 #[cfg(test)]
@@ -109,8 +112,7 @@ spec fn smaller_than_10(x: int) -> bool
 
 proof fn test_split_smaller_or_equal_to() 
 {
-  assert forall |x:int| x <$0= 10 implies smaller_than_10(x) by {
-  }
+  assert forall |x:int| x <$0= 10 implies smaller_than_10(x) by {}
 }
 ",
 "
@@ -121,12 +123,11 @@ spec fn smaller_than_10(x: int) -> bool
 
 proof fn test_split_smaller_or_equal_to() 
 {
-  assert forall |x:int| x < 10 implies smaller_than_10(x) by {
-  }
-  assert forall |x:int| x == 10 implies smaller_than_10(x) by {
-  }
-  assert forall |x:int| x <= 10 implies smaller_than_10(x) by {
-  }
+  {
+        assert forall|x: int| x < 10 implies smaller_than_10(x) by {};
+        assert forall|x: int| x == 10 implies smaller_than_10(x) by {};
+        assert forall|x: int| x <= 10 implies smaller_than_10(x) by {};
+    }
 }
 ",
 

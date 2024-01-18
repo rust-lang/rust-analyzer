@@ -22,21 +22,22 @@ pub(crate) fn remove_dead_assertions(acc: &mut Assists, ctx: &AssistContext<'_>)
 
     let func: ast::Fn = ctx.find_node_at_offset::<ast::Fn>()?;
     let v_func = vst::Fn::try_from(func.clone()).ok()?;
-    let string = vst_rewriter_remove_dead_assertions(ctx, v_func)?;
+    let result = vst_rewriter_remove_dead_assertions(ctx, v_func)?;
+    let result = ctx.fmt(func.clone(),result.to_string())?;
 
     acc.add(
         AssistId("remove_dead_assertion", AssistKind::RefactorRewrite),
         "Remove dead assertions",
         func.syntax().text_range(),
         |edit| {
-            edit.replace(func.syntax().text_range(),string);
+            edit.replace(func.syntax().text_range(),result);
         },
     )
 }
 
 // TODO: refactor verus interaction parts, and send it to the user using closure
 // that way, it does not run before user explicitly wants it
-pub(crate) fn vst_rewriter_remove_dead_assertions(ctx: &AssistContext<'_>, func: vst::Fn) -> Option<String> {
+pub(crate) fn vst_rewriter_remove_dead_assertions(ctx: &AssistContext<'_>, func: vst::Fn) -> Option<vst::Fn> {
     // if is already has a "by block", return None
     let mut redundant_assertions: Vec<vst::Stmt> = vec![];
     for st in &func.body.as_ref()?.stmt_list.statements {
@@ -59,8 +60,7 @@ pub(crate) fn vst_rewriter_remove_dead_assertions(ctx: &AssistContext<'_>, func:
             }
         }
     }
-    let final_fn = rewriter_rm_assertions(&func, &redundant_assertions)?;
-    Some(final_fn.to_string())
+    rewriter_rm_assertions(&func, &redundant_assertions)
 }
 
 fn rewriter_rm_assertions(func: &vst::Fn, redundant_assertions: &Vec<vst::Stmt>) -> Option<vst::Fn> {
@@ -76,75 +76,66 @@ mod tests {
     use super::*;
     use crate::tests::check_assist;
 
-//     #[test]
-//     fn comment_one() {
-//         check_assist(
-//             remove_dead_assertions,
-//             "
-// verus!{
-// $0proof fn foo() 
-//     ensures true,
-// { 
-//     assert(x == 3); 
-// }
-//             ",
-//             "
-// verus!{
-// proof fn foo() 
-//     ensures true,
-// { 
-//     // assert(x == 3); 
-// }
-//             ",
-//         )
-//     }
+    #[test]
+    fn comment_one() {
+        check_assist(
+            remove_dead_assertions,
+            "
+use vstd::prelude::*;
+pr$0oof fn foo() 
+    ensures 
+        true,
+{ 
+    assert(x == 3); 
+}
+
+fn main() {}
+",
+            "
+use vstd::prelude::*;
+proof fn foo()
+    ensures
+        true,
+{
+}
+
+
+fn main() {}
+",
+        )
+    }
 
     #[test]
     fn assert_comment_success() {
         check_assist(
             remove_dead_assertions,
             r#"
-#[allow(unused_imports)]
-use builtin_macros::*;
-#[allow(unused_imports)]
-use builtin::*;
+use vstd::prelude::*;
+fn main() {}
 
-#[verifier(external)]
-fn main() {
-}
-
-verus! {
-    pr$0oof fn proof_index(a: u16, offset: u16)
+pr$0oof fn proof_index(a: u16, offset: u16)
     requires    
-        offset < 16
+        offset < 16,
     ensures
-        offset < 16
-    {
-        assert(offset < 16);
-        assert(1 == 1);
-        assert(15 < 16);
-    }
-} // verus!
+        offset < 16,
+{
+    assert(offset < 16);
+    assert(1 == 1);
+    assert(15 < 16);
+}
 "#,
             r#"
-#[allow(unused_imports)]
-use builtin_macros::*;
-#[allow(unused_imports)]
-use builtin::*;
+use vstd::prelude::*;
+fn main() {}
 
-#[verifier(external)]
-fn main() {
+proof fn proof_index(a: u16, offset: u16)
+    requires
+        offset < 16,
+    ensures
+        offset < 16,
+{
 }
 
-verus! {
-    proof fn proof_index(a: u16, offset: u16)
-    requires    
-        offset < 16
-    ensures
-        offset < 16
-    {
-    }
-} // verus!
 "#,
         );
     }
@@ -154,50 +145,33 @@ verus! {
         check_assist(
             remove_dead_assertions,
             r#"
-#[allow(unused_imports)]
-use builtin_macros::*;
-#[allow(unused_imports)]
-use builtin::*;
+use vstd::prelude::*;
+fn main() {}
 
-#[verifier(external)]
-fn main() {
-}
-
-verus! {
-    $0proof fn proof_index(a: u16, offset: u16)
+$0proof fn proof_index(a: u16, offset: u16)
     requires    
-        offset < 1000
+        offset < 1000,
     ensures
-        offset & offset < 1000
+        offset & offset < 1000,
     {
         assert(offset < 2000);
         assert(offset & offset == offset) by (bit_vector);
         assert(offset & offset == offset) by(bit_vector);
     }
-} // verus!
 "#,
             r#"
-#[allow(unused_imports)]
-use builtin_macros::*;
-#[allow(unused_imports)]
-use builtin::*;
+use vstd::prelude::*;
+fn main() {}
 
-#[verifier(external)]
-fn main() {
+proof fn proof_index(a: u16, offset: u16)
+    requires
+        offset < 1000,
+    ensures
+        offset & offset < 1000,
+{
+    assert(offset & offset == offset) by (bit_vector);
 }
 
-verus! {
-    proof fn proof_index(a: u16, offset: u16)
-    requires    
-        offset < 1000
-    ensures
-        offset & offset < 1000
-    {
-        /* assert(offset < 2000); */
-        /* assert(offset & offset == offset) by (bit_vector); */
-        assert(offset & offset == offset) by(bit_vector);
-    }
-} // verus!
 "#,
         );
     }
