@@ -142,7 +142,7 @@ config_data! {
         // than `checkOnSave_target`
         cargo_target: Option<String>     = None,
         /// Unsets the implicit `#[cfg(test)]` for the specified crates.
-        cargo_unsetTest: Vec<String>     = @from_str: r#"["core"]"#,
+        cargo_unsetTest: Vec<String>     = @verbatim: r#"["core"]"#,
 
         /// Run the check command for diagnostics on save.
         checkOnSave | checkOnSave_enable: bool                         = true,
@@ -2303,7 +2303,7 @@ pub enum TargetDirectory {
 }
 
 macro_rules! _default_val {
-    (@from_str: $s:literal, $ty:ty) => {{
+    (@verbatim: $s:literal, $ty:ty) => {{
         let default_: $ty = serde_json::from_str(&$s).unwrap();
         default_
     }};
@@ -2314,7 +2314,7 @@ macro_rules! _default_val {
 }
 
 macro_rules! _default_str {
-    (@from_str: $s:literal, $_ty:ty) => {
+    (@verbatim: $s:literal, $_ty:ty) => {
         $s.to_string()
     };
     ($default:expr, $ty:ty) => {{
