@@ -472,7 +472,7 @@ config_data! {
         /// Whether to prefer using parameter names as the name for elided lifetime hints if possible.
         inlayHints_lifetimeElisionHints_useParameterNames: bool    = false,
         /// Maximum length for inlay hints. Set to null to have an unlimited length.
-        inlayHints_maxLength: Option<usize>                        = Some(25_usize),
+        inlayHints_maxLength: Option<usize>                        = Some(25),
         /// Whether to show function parameter name inlay hints at the call
         /// site.
         inlayHints_parameterHints_enable: bool                     = true,
@@ -2230,7 +2230,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field),
                         None$(.or(Some(stringify!($alias))))*,
-                        $default as $ty,
+                        { let default_: $ty = $default; default_ },
                     ),
                 )*}
             }
@@ -2248,7 +2248,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field2),
                         None$(.or(Some(stringify!($alias2))))*,
-                        $default2 as $ty2,
+                        { let default_: $ty2 = $default2; default_ },
                     ),
                 )*}
             }
@@ -2265,7 +2265,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field3),
                         None$(.or(Some(stringify!($alias3))))*,
-                        $default3 as $ty3,
+                        { let default_: $ty3 = $default3; default_ },
                     ),
                 )*}
             }
@@ -2288,7 +2288,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field),
                         None$(.or(Some(stringify!($alias))))*,
-                        $default as $ty,
+                        { let default_: $ty = $default; default_ },
                     ),
                 )*
                 $(
@@ -2297,7 +2297,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field2),
                         None$(.or(Some(stringify!($alias2))))*,
-                        $default2 as $ty2,
+                        { let default_: $ty2 = $default2; default_ },
                     ),
                 )*
                 $(
@@ -2306,7 +2306,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field3),
                         None$(.or(Some(stringify!($alias3))))*,
-                        $default3 as $ty3,
+                        { let default_: $ty3 = $default3; default_ },
                     ),
                 )*}
             }
@@ -2318,7 +2318,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field),
                         None$(.or(Some(stringify!($alias))))*,
-                        $default as $ty,
+                        { let default_: $ty = $default; default_ },
                     ),
                 )*
                 $(
@@ -2327,7 +2327,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field2),
                         None$(.or(Some(stringify!($alias2))))*,
-                        $default2 as $ty2,
+                        { let default_: $ty2 = $default2; default_ },
                     ),
                 )*
                 $(
@@ -2336,7 +2336,7 @@ macro_rules! _config_data {
                         error_sink,
                         stringify!($field3),
                         None$(.or(Some(stringify!($alias3))))*,
-                        $default3 as $ty3,
+                        { let default_: $ty3 = $default3; default_ },
                     ),
                 )*}
             }
@@ -2347,19 +2347,19 @@ macro_rules! _config_data {
                         let field = stringify!($field);
                         let ty = stringify!($ty);
 
-                        (field, ty, &[$($doc),*], serde_json::to_string(&($default as $ty)).unwrap().as_str())
+                        (field, ty, &[$($doc),*], serde_json::to_string(&{ let default_: $ty = $default; default_ }).unwrap().as_str())
                     },)*
                     $({
                         let field = stringify!($field2);
                         let ty = stringify!($ty2);
 
-                        (field, ty, &[$($doc2),*], serde_json::to_string(&($default2 as $ty2)).unwrap().as_str())
+                        (field, ty, &[$($doc2),*], serde_json::to_string(&{ let default_: $ty2 = $default2; default_ }).unwrap().as_str())
                     },)*
                     $({
                         let field = stringify!($field3);
                         let ty = stringify!($ty3);
 
-                        (field, ty, &[$($doc3),*], serde_json::to_string(&($default3 as $ty3)).unwrap().as_str())
+                        (field, ty, &[$($doc3),*], serde_json::to_string(&{ let default_: $ty3 = $default3; default_ }).unwrap().as_str())
                     },)*
                 ])
             }
