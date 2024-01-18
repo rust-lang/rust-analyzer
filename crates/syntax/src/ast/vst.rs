@@ -501,6 +501,23 @@ impl IndexExpr {
     }
 }
 
+impl MatchArm {
+    pub fn new<ET0>(pat:Pat, expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
+        Self {
+            attrs: vec![],
+            pat: Some(Box::new(pat)),
+            guard: None,
+            fat_arrow_token: true,
+            expr: Box::new(expr.into()),
+            comma_token: true,
+            cst: None,
+        }
+    }
+}
+
 // impl From<Expr> for ExprStmt {
 //     fn from(item: Expr) -> Self
 //     {

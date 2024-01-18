@@ -9679,22 +9679,6 @@ impl MatchArmList {
         Self { l_curly_token: true, attrs: vec![], arms: vec![], r_curly_token: true, cst: None }
     }
 }
-impl MatchArm {
-    pub fn new<ET0>(expr: ET0) -> Self
-    where
-        ET0: Into<Expr>,
-    {
-        Self {
-            attrs: vec![],
-            pat: None,
-            guard: None,
-            fat_arrow_token: true,
-            expr: Box::new(expr.into()),
-            comma_token: false,
-            cst: None,
-        }
-    }
-}
 impl MatchGuard {
     pub fn new() -> Self { Self { if_token: true, cst: None } }
 }

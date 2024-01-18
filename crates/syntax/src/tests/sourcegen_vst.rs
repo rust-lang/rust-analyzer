@@ -23,7 +23,7 @@ const SPECIAL_ITEMS: &[(&str, &[&str])] = &[
 const HAND_WRITTEN: &[&str] = &["BinExpr", "IfExpr", "Literal", "IndexExpr"];
 
 const HAND_WRITTEN_PRINT_ONLY: &[&str] = &["ParamList", "ArgList", "AssertExpr"];
-const HAND_WRITTEN_NEW_ONLY: &[&str] = &["ExprStmt"];
+const HAND_WRITTEN_NEW_ONLY: &[&str] = &["ExprStmt", "MatchArm"];
 const HAND_WRITTEN_INTO_ONLY: &[&str] = &["AssertForallExpr"];
 
 const LIST_AUTO_GEN_SEP_COMMA: &[&str] = &["VariantList", "RecordFieldList", "TupleFieldList"];
