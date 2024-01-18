@@ -47,12 +47,12 @@ triomphe.workspace = true
 toml = "0.8.8"
 nohash-hasher.workspace = true
 always-assert = "0.1.2"
+indexmap = { version = "2.0.0", features = ["serde"] }
 
-# These 3 deps are not used by r-a directly, but we list them here to lock in their versions
+# These 2 deps are not used by r-a directly, but we list them here to lock in their versions
 # in our transitive deps to prevent them from pulling in windows-sys 0.45.0
 mio = "=0.8.5"
 parking_lot_core = "=0.9.6"
-indexmap = { version = "2.0.0", features = ["serde"] }
 
 cfg.workspace = true
 flycheck.workspace = true
