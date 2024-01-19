@@ -22,6 +22,7 @@ use ide_db::{
     imports::insert_use::{ImportGranularity, InsertUseConfig, PrefixKind},
     SnippetCap,
 };
+use indexmap::IndexMap;
 use itertools::Itertools;
 use la_arena::Arena;
 use lsp_types::{ClientCapabilities, MarkupKind};
@@ -59,7 +60,7 @@ mod patch_old_style;
 // To deprecate an option by replacing it with another name use `new_name | `old_name` so that we keep
 // parsing the old name.
 config_data! {
-    struct GlobalConfigData {
+    global: struct GlobalConfigData {
         /// Whether to insert #[must_use] when generating `as_` methods
         /// for enum variants.
         assist_emitMustUse: bool               = false,
@@ -107,21 +108,21 @@ config_data! {
         /// cargo check --quiet --workspace --message-format=json --all-targets
         /// ```
         /// .
-        cargo_buildScripts_overrideCommand: Option<Vec<String>> = Option::<Vec<String>>::None,
+        cargo_buildScripts_overrideCommand: Option<Vec<String>> = None,
         /// Use `RUSTC_WRAPPER=rust-analyzer` when running build scripts to
         /// avoid checking unnecessary things.
         cargo_buildScripts_useRustcWrapper: bool = true,
         /// List of cfg options to enable with the given values.
-        cargo_cfgs: FxHashMap<String, String> = FxHashMap::<String,String>::default(),
+        cargo_cfgs: FxHashMap<String, String> = FxHashMap::default(),
         /// Extra arguments that are passed to every cargo invocation.
-        cargo_extraArgs: Vec<String> = Vec::<String>::new(),
+        cargo_extraArgs: Vec<String> = vec![],
         /// Extra environment variables that will be set when running cargo, rustc
         /// or other commands within the workspace. Useful for setting RUSTFLAGS.
-        cargo_extraEnv: FxHashMap<String, String> = FxHashMap::<String,String>::default(),
+        cargo_extraEnv: FxHashMap<String, String> = FxHashMap::default(),
         /// List of features to activate.
         ///
         /// Set this to `"all"` to pass `--all-features` to cargo.
-        cargo_features: CargoFeaturesDef      = CargoFeaturesDef::Selected(Vec::<String>::new()),
+        cargo_features: CargoFeaturesDef      = CargoFeaturesDef::Selected(vec![]),
         /// Whether to pass `--no-default-features` to cargo.
         cargo_noDefaultFeatures: bool    = false,
         /// Relative path to the sysroot, or "discover" to try to automatically find it via
@@ -135,13 +136,13 @@ config_data! {
         /// `{cargo.sysroot}/lib/rustlib/src/rust/library`.
         ///
         /// This option does not take effect until rust-analyzer is restarted.
-        cargo_sysrootSrc: Option<String>    = Option::<String>::None,
+        cargo_sysrootSrc: Option<String>    = None,
         /// Compilation target override (target triple).
         // FIXME(@poliorcetics): move to multiple targets here too, but this will need more work
         // than `checkOnSave_target`
-        cargo_target: Option<String>     = Option::<String>::None,
+        cargo_target: Option<String>     = None,
         /// Unsets the implicit `#[cfg(test)]` for the specified crates.
-        cargo_unsetTest: Vec<String>     = vec!["core".to_string()],
+        cargo_unsetTest: Vec<String>     = @verbatim: r#"["core"]"#,
 
         /// Run the check command for diagnostics on save.
         checkOnSave | checkOnSave_enable: bool                         = true,
@@ -151,19 +152,19 @@ config_data! {
         /// Cargo command to use for `cargo check`.
         check_command | checkOnSave_command: String                      = "check".to_string(),
         /// Extra arguments for `cargo check`.
-        check_extraArgs | checkOnSave_extraArgs: Vec<String>             = Vec::<String>::new(),
+        check_extraArgs | checkOnSave_extraArgs: Vec<String>             = vec![],
         /// Extra environment variables that will be set when running `cargo check`.
         /// Extends `#rust-analyzer.cargo.extraEnv#`.
-        check_extraEnv | checkOnSave_extraEnv: FxHashMap<String, String> = FxHashMap::<String,String>::default(),
+        check_extraEnv | checkOnSave_extraEnv: FxHashMap<String, String> = FxHashMap::default(),
         /// List of features to activate. Defaults to
         /// `#rust-analyzer.cargo.features#`.
         ///
         /// Set to `"all"` to pass `--all-features` to Cargo.
-        check_features | checkOnSave_features: Option<CargoFeaturesDef>  = Option::<CargoFeaturesDef>::None,
+        check_features | checkOnSave_features: Option<CargoFeaturesDef>  = None,
         /// List of `cargo check` (or other command specified in `check.command`) diagnostics to ignore.
         ///
         /// For example for `cargo check`: `dead_code`, `unused_imports`, `unused_variables`,...
-        check_ignore: FxHashSet<String> = FxHashSet::<String>::default(),
+        check_ignore: FxHashSet<String> = FxHashSet::default(),
         /// Specifies the working directory for running checks.
         /// - "workspace": run checks for workspaces in the corresponding workspaces' root directories.
         // FIXME: Ideally we would support this in some way
@@ -180,7 +181,7 @@ config_data! {
         check_invocationStrategy | checkOnSave_invocationStrategy: InvocationStrategy = InvocationStrategy::PerWorkspace,
         /// Whether to pass `--no-default-features` to Cargo. Defaults to
         /// `#rust-analyzer.cargo.noDefaultFeatures#`.
-        check_noDefaultFeatures | checkOnSave_noDefaultFeatures: Option<bool>         = Option::<bool>::None,
+        check_noDefaultFeatures | checkOnSave_noDefaultFeatures: Option<bool>         = None,
         /// Override the command rust-analyzer uses instead of `cargo check` for
         /// diagnostics on save. The command is required to output json and
         /// should therefore include `--message-format=json` or a similar option
@@ -203,18 +204,18 @@ config_data! {
         /// cargo check --workspace --message-format=json --all-targets
         /// ```
         /// .
-        check_overrideCommand | checkOnSave_overrideCommand: Option<Vec<String>>             = Option::<Vec<String>>::None,
+        check_overrideCommand | checkOnSave_overrideCommand: Option<Vec<String>>             = None,
         /// Check for specific targets. Defaults to `#rust-analyzer.cargo.target#` if empty.
         ///
         /// Can be a single target, e.g. `"x86_64-unknown-linux-gnu"` or a list of targets, e.g.
         /// `["aarch64-apple-darwin", "x86_64-apple-darwin"]`.
         ///
         /// Aliased as `"checkOnSave.targets"`.
-        check_targets | checkOnSave_targets | checkOnSave_target: Option<CheckOnSaveTargets> = Option::<CheckOnSaveTargets>::None,
+        check_targets | checkOnSave_targets | checkOnSave_target: Option<CheckOnSaveTargets> = None,
 
 
         /// List of rust-analyzer diagnostics to disable.
-        diagnostics_disabled: FxHashSet<String> = FxHashSet::<String>::default(),
+        diagnostics_disabled: FxHashSet<String> = FxHashSet::default(),
         /// Whether to show native rust-analyzer diagnostics.
         diagnostics_enable: bool                = true,
         /// Whether to show experimental rust-analyzer diagnostics that might
@@ -222,21 +223,21 @@ config_data! {
         diagnostics_experimental_enable: bool    = false,
         /// Map of prefixes to be substituted when parsing diagnostic file paths.
         /// This should be the reverse mapping of what is passed to `rustc` as `--remap-path-prefix`.
-        diagnostics_remapPrefix: FxHashMap<String, String> = FxHashMap::<String,String>::default(),
+        diagnostics_remapPrefix: FxHashMap<String, String> = FxHashMap::default(),
         /// List of warnings that should be displayed with hint severity.
         ///
         /// The warnings will be indicated by faded text or three dots in code
         /// and will not show up in the `Problems Panel`.
-        diagnostics_warningsAsHint: Vec<String> = Vec::<String>::new(),
+        diagnostics_warningsAsHint: Vec<String> = vec![],
         /// List of warnings that should be displayed with info severity.
         ///
         /// The warnings will be indicated by a blue squiggly underline in code
         /// and a blue icon in the `Problems Panel`.
-        diagnostics_warningsAsInfo: Vec<String> = Vec::<String>::new(),
+        diagnostics_warningsAsInfo: Vec<String> = vec![],
         /// These directories will be ignored by rust-analyzer. They are
         /// relative to the workspace root, and globs are not supported. You may
         /// also need to add the folders to Code's `files.watcherExclude`.
-        files_excludeDirs: Vec<PathBuf> = Vec::<PathBuf>::new(),
+        files_excludeDirs: Vec<PathBuf> = vec![],
         /// Controls file watching implementation.
         files_watcher: FilesWatcherDef = FilesWatcherDef::Client,
 
@@ -280,18 +281,18 @@ config_data! {
         ///
         /// Elements must be paths pointing to `Cargo.toml`,
         /// `rust-project.json`, or JSON objects in `rust-project.json` format.
-        linkedProjects: Vec<ManifestOrProjectJson> = Vec::<ManifestOrProjectJson>::new(),
+        linkedProjects: Vec<ManifestOrProjectJson> = vec![],
 
         /// Number of syntax trees rust-analyzer keeps in memory. Defaults to 128.
-        lru_capacity: Option<usize>                 = Option::<usize>::None,
+        lru_capacity: Option<usize>                 = None,
         /// Sets the LRU capacity of the specified queries.
-        lru_query_capacities: FxHashMap<Box<str>, usize> = FxHashMap::<Box<str>, usize>::default(),
+        lru_query_capacities: FxHashMap<Box<str>, usize> = FxHashMap::default(),
 
         /// Whether to show `can't find Cargo.toml` error message.
         notifications_cargoTomlNotFound: bool      = true,
 
         /// How many worker threads in the main loop. The default `null` means to pick automatically.
-        numThreads: Option<usize> = Option::<usize>::None,
+        numThreads: Option<usize> = None,
 
         /// Expand attribute macros. Requires `#rust-analyzer.procMacro.enable#` to be set.
         procMacro_attributes_enable: bool = true,
@@ -300,18 +301,18 @@ config_data! {
         /// These proc-macros will be ignored when trying to expand them.
         ///
         /// This config takes a map of crate names with the exported proc-macro names to ignore as values.
-        procMacro_ignored: FxHashMap<Box<str>, Box<[Box<str>]>>          = FxHashMap::<Box<str>, Box<[Box<str>]>>::default(),
+        procMacro_ignored: FxHashMap<Box<str>, Box<[Box<str>]>>          = FxHashMap::default(),
         /// Internal config, path to proc-macro server executable.
-        procMacro_server: Option<PathBuf>          = Option::<PathBuf>::None,
+        procMacro_server: Option<PathBuf>          = None,
 
         /// Exclude imports from find-all-references.
         references_excludeImports: bool = false,
 
         /// Command to be executed instead of 'cargo' for runnables.
-        runnables_command: Option<String> = Option::<String>::None,
+        runnables_command: Option<String> = None,
         /// Additional arguments to be passed to cargo for runnables such as
         /// tests or binaries. For example, it may be `--release`.
-        runnables_extraArgs: Vec<String>   = Vec::<String>::new(),
+        runnables_extraArgs: Vec<String>   = vec![],
 
         /// Optional path to a rust-analyzer specific target directory.
         /// This prevents rust-analyzer's `cargo check` from locking the `Cargo.lock`
@@ -319,7 +320,7 @@ config_data! {
         ///
         /// Set to `true` to use a subdirectory of the existing target directory or
         /// set to a path relative to the workspace to use that path.
-        rust_analyzerTargetDir: Option<TargetDirectory> = Option::<TargetDirectory>::None,
+        rust_analyzerTargetDir: Option<TargetDirectory> = None,
 
         /// Path to the Cargo.toml of the rust compiler workspace, for usage in rustc_private
         /// projects, or "discover" to try to automatically find it if the `rustc-dev` component
@@ -329,16 +330,16 @@ config_data! {
         /// crates must set `[package.metadata.rust-analyzer] rustc_private=true` to use it.
         ///
         /// This option does not take effect until rust-analyzer is restarted.
-        rustc_source: Option<String> = Option::<String>::None,
+        rustc_source: Option<String> = None,
 
         /// Additional arguments to `rustfmt`.
-        rustfmt_extraArgs: Vec<String>               = Vec::<String>::new(),
+        rustfmt_extraArgs: Vec<String>               = vec![],
         /// Advanced option, fully override the command rust-analyzer uses for
         /// formatting. This should be the equivalent of `rustfmt` here, and
         /// not that of `cargo fmt`. The file contents will be passed on the
         /// standard input and the formatted result will be read from the
         /// standard output.
-        rustfmt_overrideCommand: Option<Vec<String>> = Option::<Vec<String>>::None,
+        rustfmt_overrideCommand: Option<Vec<String>> = None,
         /// Enables the use of rustfmt's unstable range formatting command for the
         /// `textDocument/rangeFormatting` request. The rustfmt option is unstable and only
         /// available on a nightly build.
@@ -361,8 +362,11 @@ config_data! {
         workspace_symbol_search_limit: usize = 128,
         /// Workspace symbol search scope.
         workspace_symbol_search_scope: WorkspaceSymbolSearchScopeDef = WorkspaceSymbolSearchScopeDef::Workspace,
-    },
-    struct LocalConfigData {
+    }
+}
+
+config_data! {
+    local: struct LocalConfigData {
         /// Toggles the additional completions that automatically add imports when completed.
         /// Note that your client must specify the `additionalTextEdits` LSP client capability to truly have this feature enabled.
         completion_autoimport_enable: bool       = true,
@@ -374,14 +378,54 @@ config_data! {
         /// Whether to show full function/method signatures in completion docs.
         completion_fullFunctionSignatures_enable: bool = false,
         /// Maximum number of completions to return. If `None`, the limit is infinite.
-        completion_limit: Option<usize> = Option::<usize>::None,
+        completion_limit: Option<usize> = None,
         /// Whether to show postfix snippets like `dbg`, `if`, `not`, etc.
         completion_postfix_enable: bool         = true,
         /// Enables completions of private items and fields that are defined in the current workspace even if they are not visible at the current position.
         completion_privateEditable_enable: bool = false,
         /// Custom completion snippets.
-        // NOTE: Keep this list in sync with the feature docs of user snippets.
-        completion_snippets_custom: FxHashMap<String, SnippetDef> = FxHashMap::<String, SnippetDef>::default() ,
+        // NOTE: we use IndexMap for deterministic serialization ordering
+        completion_snippets_custom: IndexMap<String, SnippetDef> = serde_json::from_str(r#"{
+            "Arc::new": {
+                "postfix": "arc",
+                "body": "Arc::new(${receiver})",
+                "requires": "std::sync::Arc",
+                "description": "Put the expression into an `Arc`",
+                "scope": "expr"
+            },
+            "Rc::new": {
+                "postfix": "rc",
+                "body": "Rc::new(${receiver})",
+                "requires": "std::rc::Rc",
+                "description": "Put the expression into an `Rc`",
+                "scope": "expr"
+            },
+            "Box::pin": {
+                "postfix": "pinbox",
+                "body": "Box::pin(${receiver})",
+                "requires": "std::boxed::Box",
+                "description": "Put the expression into a pinned `Box`",
+                "scope": "expr"
+            },
+            "Ok": {
+                "postfix": "ok",
+                "body": "Ok(${receiver})",
+                "description": "Wrap the expression in a `Result::Ok`",
+                "scope": "expr"
+            },
+            "Err": {
+                "postfix": "err",
+                "body": "Err(${receiver})",
+                "description": "Wrap the expression in a `Result::Err`",
+                "scope": "expr"
+            },
+            "Some": {
+                "postfix": "some",
+                "body": "Some(${receiver})",
+                "description": "Wrap the expression in an `Option::Some`",
+                "scope": "expr"
+            }
+        }"#).unwrap(),
 
         /// Enables highlighting of related references while the cursor is on `break`, `loop`, `while`, or `for` keywords.
         highlightRelated_breakPoints_enable: bool = true,
@@ -420,15 +464,15 @@ config_data! {
         /// Use markdown syntax for links on hover.
         hover_links_enable: bool = true,
         /// How to render the align information in a memory layout hover.
-        hover_memoryLayout_alignment: Option<MemoryLayoutHoverRenderKindDef> = Option::<MemoryLayoutHoverRenderKindDef>::Some(MemoryLayoutHoverRenderKindDef::Hexadecimal),
+        hover_memoryLayout_alignment: Option<MemoryLayoutHoverRenderKindDef> = Some(MemoryLayoutHoverRenderKindDef::Hexadecimal),
         /// Whether to show memory layout data on hover.
         hover_memoryLayout_enable: bool = true,
         /// How to render the niche information in a memory layout hover.
-        hover_memoryLayout_niches: Option<bool> = Option::<bool>::Some(false),
+        hover_memoryLayout_niches: Option<bool> = Some(false),
         /// How to render the offset information in a memory layout hover.
-        hover_memoryLayout_offset: Option<MemoryLayoutHoverRenderKindDef> = Option::<MemoryLayoutHoverRenderKindDef>::Some(MemoryLayoutHoverRenderKindDef::Hexadecimal),
+        hover_memoryLayout_offset: Option<MemoryLayoutHoverRenderKindDef> = Some(MemoryLayoutHoverRenderKindDef::Hexadecimal),
         /// How to render the size information in a memory layout hover.
-        hover_memoryLayout_size: Option<MemoryLayoutHoverRenderKindDef> =Option::<MemoryLayoutHoverRenderKindDef>::Some(MemoryLayoutHoverRenderKindDef::Both),
+        hover_memoryLayout_size: Option<MemoryLayoutHoverRenderKindDef> = Some(MemoryLayoutHoverRenderKindDef::Both),
 
         /// Whether to enforce the import granularity setting for all files. If set to false rust-analyzer will try to keep import styles consistent per file.
         imports_granularity_enforce: bool              = false,
@@ -472,7 +516,7 @@ config_data! {
         /// Whether to prefer using parameter names as the name for elided lifetime hints if possible.
         inlayHints_lifetimeElisionHints_useParameterNames: bool    = false,
         /// Maximum length for inlay hints. Set to null to have an unlimited length.
-        inlayHints_maxLength: Option<usize>                        = Option::<usize>::Some(25),
+        inlayHints_maxLength: Option<usize>                        = Some(25),
         /// Whether to show function parameter name inlay hints at the call
         /// site.
         inlayHints_parameterHints_enable: bool                     = true,
@@ -535,8 +579,11 @@ config_data! {
         /// By disabling semantic tokens for strings, other grammars can be used to highlight
         /// their contents.
         semanticHighlighting_strings_enable: bool = true,
-    },
-    struct ClientConfigData {}
+    }
+}
+
+config_data! {
+    client: struct ClientConfigData {}
 }
 
 impl Default for ConfigData {
@@ -563,15 +610,15 @@ impl Default for RootConfigData {
     fn default() -> Self {
         RootConfigData {
             local: RootLocalConfigData(LocalConfigData::from_json(
-                serde_json::Value::Null,
+                &mut serde_json::Value::Null,
                 &mut Vec::new(),
             )),
             global: RootGlobalConfigData(GlobalConfigData::from_json(
-                serde_json::Value::Null,
+                &mut serde_json::Value::Null,
                 &mut Vec::new(),
             )),
             client: RootClientConfigData(ClientConfigData::from_json(
-                serde_json::Value::Null,
+                &mut serde_json::Value::Null,
                 &mut Vec::new(),
             )),
         }
@@ -1147,7 +1194,7 @@ impl Config {
                 .collect();
         patch_old_style::patch_json_for_outdated_configs(&mut json);
         self.root_config.global =
-            RootGlobalConfigData(GlobalConfigData::from_json(json, &mut errors));
+            RootGlobalConfigData(GlobalConfigData::from_json(&mut json, &mut errors));
         tracing::debug!("deserialized config data: {:#?}", self.root_config.global);
         self.snippets.clear();
         for (name, def) in self.root_config.local.0.completion_snippets_custom.iter() {
@@ -1846,100 +1893,120 @@ impl Config {
 }
 // Deserialization definitions
 
-macro_rules! create_bool_or_string_de {
+macro_rules! create_bool_or_string_serde {
     ($ident:ident<$bool:literal, $string:literal>) => {
-        fn $ident<'de, D>(d: D) -> Result<(), D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            struct V;
-            impl<'de> serde::de::Visitor<'de> for V {
-                type Value = ();
+        mod $ident {
+            pub(super) fn deserialize<'de, D>(d: D) -> Result<(), D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct V;
+                impl<'de> serde::de::Visitor<'de> for V {
+                    type Value = ();
 
-                fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                    formatter.write_str(concat!(
-                        stringify!($bool),
-                        " or \"",
-                        stringify!($string),
-                        "\""
-                    ))
-                }
+                    fn expecting(
+                        &self,
+                        formatter: &mut std::fmt::Formatter<'_>,
+                    ) -> std::fmt::Result {
+                        formatter.write_str(concat!(
+                            stringify!($bool),
+                            " or \"",
+                            stringify!($string),
+                            "\""
+                        ))
+                    }
 
-                fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error,
-                {
-                    match v {
-                        $bool => Ok(()),
-                        _ => Err(serde::de::Error::invalid_value(
-                            serde::de::Unexpected::Bool(v),
-                            &self,
-                        )),
+                    fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match v {
+                            $bool => Ok(()),
+                            _ => Err(serde::de::Error::invalid_value(
+                                serde::de::Unexpected::Bool(v),
+                                &self,
+                            )),
+                        }
+                    }
+
+                    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match v {
+                            $string => Ok(()),
+                            _ => Err(serde::de::Error::invalid_value(
+                                serde::de::Unexpected::Str(v),
+                                &self,
+                            )),
+                        }
+                    }
+
+                    fn visit_enum<A>(self, a: A) -> Result<Self::Value, A::Error>
+                    where
+                        A: serde::de::EnumAccess<'de>,
+                    {
+                        use serde::de::VariantAccess;
+                        let (variant, va) = a.variant::<&'de str>()?;
+                        va.unit_variant()?;
+                        match variant {
+                            $string => Ok(()),
+                            _ => Err(serde::de::Error::invalid_value(
+                                serde::de::Unexpected::Str(variant),
+                                &self,
+                            )),
+                        }
                     }
                 }
-
-                fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error,
-                {
-                    match v {
-                        $string => Ok(()),
-                        _ => Err(serde::de::Error::invalid_value(
-                            serde::de::Unexpected::Str(v),
-                            &self,
-                        )),
-                    }
-                }
-
-                fn visit_enum<A>(self, a: A) -> Result<Self::Value, A::Error>
-                where
-                    A: serde::de::EnumAccess<'de>,
-                {
-                    use serde::de::VariantAccess;
-                    let (variant, va) = a.variant::<&'de str>()?;
-                    va.unit_variant()?;
-                    match variant {
-                        $string => Ok(()),
-                        _ => Err(serde::de::Error::invalid_value(
-                            serde::de::Unexpected::Str(variant),
-                            &self,
-                        )),
-                    }
-                }
+                d.deserialize_any(V)
             }
-            d.deserialize_any(V)
+
+            pub(super) fn serialize<S>(serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                serializer.serialize_str($string)
+            }
         }
     };
 }
-create_bool_or_string_de!(true_or_always<true, "always">);
-create_bool_or_string_de!(false_or_never<false, "never">);
+create_bool_or_string_serde!(true_or_always<true, "always">);
+create_bool_or_string_serde!(false_or_never<false, "never">);
 
 macro_rules! named_unit_variant {
     ($variant:ident) => {
-        pub(super) fn $variant<'de, D>(deserializer: D) -> Result<(), D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            struct V;
-            impl<'de> serde::de::Visitor<'de> for V {
-                type Value = ();
-                fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    f.write_str(concat!("\"", stringify!($variant), "\""))
-                }
-                fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-                    if value == stringify!($variant) {
-                        Ok(())
-                    } else {
-                        Err(E::invalid_value(serde::de::Unexpected::Str(value), &self))
+        pub(super) mod $variant {
+            pub(in super::super) fn deserialize<'de, D>(deserializer: D) -> Result<(), D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct V;
+                impl<'de> serde::de::Visitor<'de> for V {
+                    type Value = ();
+                    fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        f.write_str(concat!("\"", stringify!($variant), "\""))
+                    }
+                    fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
+                        if value == stringify!($variant) {
+                            Ok(())
+                        } else {
+                            Err(E::invalid_value(serde::de::Unexpected::Str(value), &self))
+                        }
                     }
                 }
+                deserializer.deserialize_str(V)
             }
-            deserializer.deserialize_str(V)
+            pub(in super::super) fn serialize<S>(serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                serializer.serialize_str(stringify!($variant))
+            }
         }
     };
 }
 
-mod de_unit_v {
+mod unit_v {
     named_unit_variant!(all);
     named_unit_variant!(skip_trivial);
     named_unit_variant!(mutable);
@@ -1951,7 +2018,7 @@ mod de_unit_v {
     named_unit_variant!(both);
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
 enum SnippetScopeDef {
     Expr,
@@ -1968,47 +2035,72 @@ impl Default for SnippetScopeDef {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(default)]
 struct SnippetDef {
-    #[serde(deserialize_with = "single_or_array")]
+    #[serde(with = "single_or_array")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     prefix: Vec<String>,
-    #[serde(deserialize_with = "single_or_array")]
+
+    #[serde(with = "single_or_array")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     postfix: Vec<String>,
-    description: Option<String>,
-    #[serde(deserialize_with = "single_or_array")]
+
+    #[serde(with = "single_or_array")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     body: Vec<String>,
-    #[serde(deserialize_with = "single_or_array")]
+
+    #[serde(with = "single_or_array")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     requires: Vec<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+
     scope: SnippetScopeDef,
 }
 
-fn single_or_array<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    struct SingleOrVec;
+mod single_or_array {
+    use serde::{Deserialize, Serialize};
 
-    impl<'de> serde::de::Visitor<'de> for SingleOrVec {
-        type Value = Vec<String>;
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct SingleOrVec;
 
-        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            formatter.write_str("string or array of strings")
+        impl<'de> serde::de::Visitor<'de> for SingleOrVec {
+            type Value = Vec<String>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("string or array of strings")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(vec![value.to_owned()])
+            }
+
+            fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                Deserialize::deserialize(serde::de::value::SeqAccessDeserializer::new(seq))
+            }
         }
 
-        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            Ok(vec![value.to_owned()])
-        }
-
-        fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
-        where
-            A: serde::de::SeqAccess<'de>,
-        {
-            Deserialize::deserialize(serde::de::value::SeqAccessDeserializer::new(seq))
-        }
+        deserializer.deserialize_any(SingleOrVec)
     }
 
-    deserializer.deserialize_any(SingleOrVec)
+    pub fn serialize<S>(vec: &Vec<String>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match &vec[..] {
+            // []  case is handled by skip_serializing_if
+            [single] => serializer.serialize_str(&single),
+            slice => slice.serialize(serializer),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -2045,7 +2137,7 @@ enum CallableCompletionDef {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 enum CargoFeaturesDef {
-    #[serde(deserialize_with = "de_unit_v::all")]
+    #[serde(with = "unit_v::all")]
     All,
     Selected(Vec<String>),
 }
@@ -2058,7 +2150,7 @@ enum InvocationStrategy {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct CheckOnSaveTargets(#[serde(deserialize_with = "single_or_array")] Vec<String>);
+struct CheckOnSaveTargets(#[serde(with = "single_or_array")] Vec<String>);
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
@@ -2070,22 +2162,22 @@ enum InvocationLocation {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 enum LifetimeElisionDef {
-    #[serde(deserialize_with = "true_or_always")]
+    #[serde(with = "true_or_always")]
     Always,
-    #[serde(deserialize_with = "false_or_never")]
+    #[serde(with = "false_or_never")]
     Never,
-    #[serde(deserialize_with = "de_unit_v::skip_trivial")]
+    #[serde(with = "unit_v::skip_trivial")]
     SkipTrivial,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 enum ClosureReturnTypeHintsDef {
-    #[serde(deserialize_with = "true_or_always")]
+    #[serde(with = "true_or_always")]
     Always,
-    #[serde(deserialize_with = "false_or_never")]
+    #[serde(with = "false_or_never")]
     Never,
-    #[serde(deserialize_with = "de_unit_v::with_block")]
+    #[serde(with = "unit_v::with_block")]
     WithBlock,
 }
 
@@ -2101,33 +2193,33 @@ enum ClosureStyle {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 enum ReborrowHintsDef {
-    #[serde(deserialize_with = "true_or_always")]
+    #[serde(with = "true_or_always")]
     Always,
-    #[serde(deserialize_with = "false_or_never")]
+    #[serde(with = "false_or_never")]
     Never,
-    #[serde(deserialize_with = "de_unit_v::mutable")]
+    #[serde(with = "unit_v::mutable")]
     Mutable,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 enum AdjustmentHintsDef {
-    #[serde(deserialize_with = "true_or_always")]
+    #[serde(with = "true_or_always")]
     Always,
-    #[serde(deserialize_with = "false_or_never")]
+    #[serde(with = "false_or_never")]
     Never,
-    #[serde(deserialize_with = "de_unit_v::reborrow")]
+    #[serde(with = "unit_v::reborrow")]
     Reborrow,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 enum DiscriminantHintsDef {
-    #[serde(deserialize_with = "true_or_always")]
+    #[serde(with = "true_or_always")]
     Always,
-    #[serde(deserialize_with = "false_or_never")]
+    #[serde(with = "false_or_never")]
     Never,
-    #[serde(deserialize_with = "de_unit_v::fieldless")]
+    #[serde(with = "unit_v::fieldless")]
     Fieldless,
 }
 
@@ -2179,16 +2271,27 @@ enum WorkspaceSymbolSearchKindDef {
     AllSymbols,
 }
 
-#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 #[serde(untagged)]
-pub enum MemoryLayoutHoverRenderKindDef {
-    #[serde(deserialize_with = "de_unit_v::decimal")]
+enum MemoryLayoutHoverRenderKindDef {
+    #[serde(with = "unit_v::decimal")]
     Decimal,
-    #[serde(deserialize_with = "de_unit_v::hexadecimal")]
+    #[serde(with = "unit_v::hexadecimal")]
     Hexadecimal,
-    #[serde(deserialize_with = "de_unit_v::both")]
+    #[serde(with = "unit_v::both")]
     Both,
+}
+
+#[test]
+fn untagged_option_hover_render_kind() {
+    let hex = MemoryLayoutHoverRenderKindDef::Hexadecimal;
+
+    let ser = serde_json::to_string(&Some(hex)).unwrap();
+    assert_eq!(&ser, "\"hexadecimal\"");
+
+    let opt: Option<_> = serde_json::from_str("\"hexadecimal\"").unwrap();
+    assert_eq!(opt, Some(hex));
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -2199,193 +2302,143 @@ pub enum TargetDirectory {
     Directory(PathBuf),
 }
 
+macro_rules! _default_val {
+    (@verbatim: $s:literal, $ty:ty) => {{
+        let default_: $ty = serde_json::from_str(&$s).unwrap();
+        default_
+    }};
+    ($default:expr, $ty:ty) => {{
+        let default_: $ty = $default;
+        default_
+    }};
+}
+
+macro_rules! _default_str {
+    (@verbatim: $s:literal, $_ty:ty) => {
+        $s.to_string()
+    };
+    ($default:expr, $ty:ty) => {{
+        let val = default_val!($default, $ty);
+        serde_json::to_string_pretty(&val).unwrap()
+    }};
+}
+
 macro_rules! _config_data {
-    (struct $name:ident {
+    // modname is for the tests
+    ($modname:ident: struct $name:ident {
         $(
             $(#[doc=$doc:literal])*
-            $field:ident $(| $alias:ident)*: $ty:ty = $default:expr,
+            $field:ident $(| $alias:ident)*: $ty:ty = $(@$marker:ident: )? $default:expr,
         )*
-    },
-    struct $name2:ident {
-        $(
-            $(#[doc=$doc2:literal])*
-            $field2:ident $(| $alias2:ident)*: $ty2:ty = $default2:expr,
-        )*
-    },
-    struct $name3:ident {
-        $(
-            $(#[doc=$doc3:literal])*
-            $field3:ident $(| $alias3:ident)*: $ty3:ty = $default3:expr,
-        )*
-    }
-    ) => {
+    }) => {
         #[allow(non_snake_case)]
-        #[derive(Debug, Clone)]
+        #[derive(Debug, Clone, Serialize)]
         struct $name { $($field: $ty,)* }
         impl $name {
-            fn from_json(mut json: serde_json::Value, error_sink: &mut Vec<(String, serde_json::Error)>) -> $name {
+            #[allow(unused)]
+            fn from_json(json: &mut serde_json::Value, error_sink: &mut Vec<(String, serde_json::Error)>) -> $name {
                 $name {$(
                     $field: get_field(
-                        &mut json,
+                        json,
                         error_sink,
                         stringify!($field),
                         None$(.or(Some(stringify!($alias))))*,
-                        $default,
+                        default_val!($(@$marker:)? $default, $ty),
                     ),
                 )*}
             }
 
-        }
-
-        #[allow(non_snake_case)]
-        #[derive(Debug, Clone)]
-        struct $name2 { $($field2: $ty2,)* }
-        impl $name2 {
-            fn from_json(mut json: serde_json::Value, error_sink: &mut Vec<(String, serde_json::Error)>) -> $name2 {
-                $name2 {$(
-                    $field2: get_field(
-                        &mut json,
-                        error_sink,
-                        stringify!($field2),
-                        None$(.or(Some(stringify!($alias2))))*,
-                        $default2,
-                    ),
-                )*}
-            }
-        }
-
-        #[allow(non_snake_case)]
-        #[derive(Debug, Clone)]
-        struct $name3 { $($field3: $ty3,)* }
-        impl $name3 {
-            fn from_json(mut json: serde_json::Value, error_sink: &mut Vec<(String, serde_json::Error)>) -> $name3 {
-                $name3 {$(
-                    $field3: get_field(
-                        &mut json,
-                        error_sink,
-                        stringify!($field3),
-                        None$(.or(Some(stringify!($alias3))))*,
-                        $default3,
-                    ),
-                )*}
-            }
-        }
-
-        #[allow(non_snake_case)]
-        #[derive(Debug, Clone, Deserialize, Serialize)]
-        struct ConfigData {
-            $($field: $ty,)*
-            $($field2: $ty2,)*
-            $($field3: $ty3,)*
-        }
-
-        impl ConfigData {
-
-            fn from_toml(mut toml: toml::Table , error_sink: &mut Vec<(String, toml::de::Error)>) -> ConfigData {
-                ConfigData  {$(
+            #[allow(unused)]
+            fn from_toml(toml: &mut toml::Table , error_sink: &mut Vec<(String, toml::de::Error)>) -> $name {
+                $name {$(
                     $field: get_field_toml::<$ty>(
-                        &mut toml,
+                        toml,
                         error_sink,
                         stringify!($field),
                         None$(.or(Some(stringify!($alias))))*,
-                        $default,
-                    ),
-                )*
-                $(
-                    $field2: get_field_toml::<$ty2>(
-                        &mut toml,
-                        error_sink,
-                        stringify!($field2),
-                        None$(.or(Some(stringify!($alias2))))*,
-                        $default2,
-                    ),
-                )*
-                $(
-                    $field3: get_field_toml::<$ty3>(
-                        &mut toml,
-                        error_sink,
-                        stringify!($field3),
-                        None$(.or(Some(stringify!($alias3))))*,
-                        $default3,
+                        default_val!($(@$marker:)? $default, $ty),
                     ),
                 )*}
             }
 
-            fn from_json(mut json: serde_json::Value, error_sink: &mut Vec<(String, serde_json::Error)>) -> ConfigData {
-                ConfigData  {$(
-                    $field: get_field::<$ty>(
-                        &mut json,
-                        error_sink,
-                        stringify!($field),
-                        None$(.or(Some(stringify!($alias))))*,
-                        $default,
-                    ),
-                )*
-                $(
-                    $field2: get_field::<$ty2>(
-                        &mut json,
-                        error_sink,
-                        stringify!($field2),
-                        None$(.or(Some(stringify!($alias2))))*,
-                        $default2,
-                    ),
-                )*
-                $(
-                    $field3: get_field::<$ty3>(
-                        &mut json,
-                        error_sink,
-                        stringify!($field3),
-                        None$(.or(Some(stringify!($alias3))))*,
-                        $default3,
-                    ),
-                )*}
-            }
-
-            fn json_schema() -> serde_json::Value {
-                schema(&[
+            fn schema_fields(sink: &mut Vec<SchemaField>) {
+                sink.extend_from_slice(&[
                     $({
                         let field = stringify!($field);
                         let ty = stringify!($ty);
+                        let default = default_str!($(@$marker:)? $default, $ty);
 
-                        (field, ty, &[$($doc),*], serde_json::to_string(&$default).unwrap().as_str())
-                    },)*
-                    $({
-                        let field = stringify!($field2);
-                        let ty = stringify!($ty2);
-
-                        (field, ty, &[$($doc2),*], serde_json::to_string(&$default2).unwrap().as_str())
-                    },)*
-                    $({
-                        let field = stringify!($field3);
-                        let ty = stringify!($ty3);
-
-                        (field, ty, &[$($doc3),*], serde_json::to_string(&$default3).unwrap().as_str())
-                    },)*
-                ])
-            }
-
-            #[cfg(test)]
-            fn manual() -> String {
-                manual(&[
-                    $({
-                        let field = stringify!($field3);
-                        let ty = stringify!($ty3);
-
-                        (field, ty, &[$($doc3),*], $default3)
+                        (field, ty, &[$($doc),*], default)
                     },)*
                 ])
             }
         }
 
-        #[test]
-        fn fields_are_sorted() {
-            [$(stringify!($field)),*].windows(2).for_each(|w| assert!(w[0] <= w[1], "{} <= {} does not hold", w[0], w[1]));
-            [$(stringify!($field2)),*].windows(2).for_each(|w| assert!(w[0] <= w[1], "{} <= {} does not hold", w[0], w[1]));
-            // [$(stringify!($field3)),*].windows(2).for_each(|w| assert!(w[0] <= w[1], "{} <= {} does not hold", w[0], w[1]));
+        mod $modname {
+            #[test]
+            fn fields_are_sorted() {
+                let field_names: &'static [&'static str] = &[$(stringify!($field)),*];
+                field_names.windows(2).for_each(|w| assert!(w[0] <= w[1], "{} <= {} does not hold", w[0], w[1]));
+            }
         }
     };
 }
 use _config_data as config_data;
+use _default_str as default_str;
+use _default_val as default_val;
+
+#[derive(Debug, Clone, Serialize)]
+struct ConfigData {
+    #[serde(flatten)]
+    global: GlobalConfigData,
+    #[serde(flatten)]
+    local: LocalConfigData,
+    #[serde(flatten)]
+    client: ClientConfigData,
+}
+
+impl ConfigData {
+    fn from_json(
+        mut json: serde_json::Value,
+        error_sink: &mut Vec<(String, serde_json::Error)>,
+    ) -> ConfigData {
+        ConfigData {
+            global: GlobalConfigData::from_json(&mut json, error_sink),
+            local: LocalConfigData::from_json(&mut json, error_sink),
+            client: ClientConfigData::from_json(&mut json, error_sink),
+        }
+    }
+
+    fn from_toml(
+        mut toml: toml::Table,
+        error_sink: &mut Vec<(String, toml::de::Error)>,
+    ) -> ConfigData {
+        ConfigData {
+            global: GlobalConfigData::from_toml(&mut toml, error_sink),
+            local: LocalConfigData::from_toml(&mut toml, error_sink),
+            client: ClientConfigData::from_toml(&mut toml, error_sink),
+        }
+    }
+
+    fn schema_fields() -> Vec<SchemaField> {
+        let mut fields = Vec::new();
+        GlobalConfigData::schema_fields(&mut fields);
+        LocalConfigData::schema_fields(&mut fields);
+        ClientConfigData::schema_fields(&mut fields);
+        // HACK: sort the fields, so the diffs on the generated docs/schema are smaller
+        fields.sort_by_key(|&(x, ..)| x);
+        fields
+    }
+
+    fn json_schema() -> serde_json::Value {
+        schema(&Self::schema_fields())
+    }
+
+    #[cfg(test)]
+    fn manual() -> String {
+        manual(&Self::schema_fields())
+    }
+}
 
 fn get_field_toml<T: DeserializeOwned>(
     val: &toml::Table,
@@ -2454,7 +2507,9 @@ fn get_field<T: DeserializeOwned>(
         .unwrap_or(default)
 }
 
-fn schema(fields: &[(&'static str, &'static str, &[&str], &str)]) -> serde_json::Value {
+type SchemaField = (&'static str, &'static str, &'static [&'static str], String);
+
+fn schema(fields: &[SchemaField]) -> serde_json::Value {
     let map = fields
         .iter()
         .map(|(field, ty, doc, default)| {
@@ -2505,7 +2560,7 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
         "FxHashMap<Box<str>, Box<[Box<str>]>>" => set! {
             "type": "object",
         },
-        "FxHashMap<String, SnippetDef>" => set! {
+        "IndexMap<String, SnippetDef>" => set! {
             "type": "object",
         },
         "FxHashMap<String, String>" => set! {
@@ -2815,7 +2870,7 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
 }
 
 #[cfg(test)]
-fn manual(fields: &[(&'static str, &'static str, &[&str], &str)]) -> String {
+fn manual(fields: &[SchemaField]) -> String {
     fields
         .iter()
         .map(|(field, _ty, doc, default)| {
