@@ -2179,12 +2179,12 @@ fn async_gen_yield_return_unit() {
         use core::task::{Context, Poll};
         use core::async_iter::AsyncIterator;
         use core::pin::Pin;
-       
+
         fn test(mut context: Context) {
             let mut g = async gen {
                 let () = yield;
             };
-       
+
             match Pin::new(&mut g).poll_next(&mut context) {
                 Poll::Ready(Some(())) => {}
                 Poll::Ready(None) => {}
