@@ -60,7 +60,7 @@ mod patch_old_style;
 // To deprecate an option by replacing it with another name use `new_name | `old_name` so that we keep
 // parsing the old name.
 config_data! {
-    global: struct GlobalConfigData {
+    global: struct GlobalConfigData <- GlobalConfigInput {
         /// Whether to insert #[must_use] when generating `as_` methods
         /// for enum variants.
         assist_emitMustUse: bool               = false,
@@ -366,7 +366,7 @@ config_data! {
 }
 
 config_data! {
-    local: struct LocalConfigData {
+    local: struct LocalConfigData <- LocalConfigInput {
         /// Toggles the additional completions that automatically add imports when completed.
         /// Note that your client must specify the `additionalTextEdits` LSP client capability to truly have this feature enabled.
         completion_autoimport_enable: bool       = true,
@@ -583,7 +583,7 @@ config_data! {
 }
 
 config_data! {
-    client: struct ClientConfigData {}
+    client: struct ClientConfigData <- ClientConfigInput {}
 }
 
 impl Default for ConfigData {
@@ -2325,7 +2325,7 @@ macro_rules! _default_str {
 
 macro_rules! _config_data {
     // modname is for the tests
-    ($modname:ident: struct $name:ident {
+    ($modname:ident: struct $name:ident <- $input:ident {
         $(
             $(#[doc=$doc:literal])*
             $field:ident $(| $alias:ident)*: $ty:ty = $(@$marker:ident: )? $default:expr,
@@ -2334,6 +2334,11 @@ macro_rules! _config_data {
         #[allow(non_snake_case)]
         #[derive(Debug, Clone, Serialize)]
         struct $name { $($field: $ty,)* }
+
+        #[allow(non_snake_case)]
+        #[derive(Debug, Clone, Serialize)]
+        struct $input { $($field: Option<$ty>,)* }
+
         impl $name {
             #[allow(unused)]
             fn from_json(json: &mut serde_json::Value, error_sink: &mut Vec<(String, serde_json::Error)>) -> $name {
@@ -2371,6 +2376,14 @@ macro_rules! _config_data {
                         (field, ty, &[$($doc),*], default)
                     },)*
                 ])
+            }
+
+            fn apply_input(&mut self, input: $input) {
+                $(
+                    if let Some(value) = input.$field {
+                        self.$field = value;
+                    }
+                )*
             }
         }
 
