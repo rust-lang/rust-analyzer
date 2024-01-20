@@ -2361,6 +2361,13 @@ macro_rules! _config_data {
                     }
                 )*
             }
+
+            #[allow(unused)]
+            fn clone_with_overrides(&self, input: $input) -> Self {
+                Self {$(
+                    $field: input.$field.unwrap_or_else(|| self.$field.clone()),
+                )*}
+            }
         }
 
         impl $input {
