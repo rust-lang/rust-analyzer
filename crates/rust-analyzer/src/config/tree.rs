@@ -24,7 +24,47 @@ pub enum ConfigTreeError {
 /// Some rust-analyzer.toml files have changed, and/or the LSP client sent a new configuration.
 pub struct ConfigChanges {
     ra_toml_changes: Vec<vfs::ChangedFile>,
+    xdg_config_change: Option<Arc<ConfigInput>>,
     client_change: Option<Arc<ConfigInput>>,
+    parent_changes: Vec<ConfigParentChange>,
+}
+
+pub struct ConfigParentChange {
+    /// The config node in question
+    pub node: FileId,
+    pub parent: ConfigParent,
+}
+
+pub enum ConfigParent {
+    /// The node is now a root in its own right, but still inherits from the config in XDG_CONFIG_HOME
+    /// etc
+    UserDefault,
+    /// The node is now a child of another rust-analyzer.toml. Even if that one is a non-existent
+    /// file, it's fine.
+    ///
+    ///
+    /// ```ignore,text
+    /// /project_root/
+    ///   rust-analyzer.toml
+    ///   crate_a/
+    ///      crate_b/
+    ///        rust-analyzer.toml
+    ///
+    /// ```
+    ///
+    /// ```ignore
+    /// // imagine set_file_contents = vfs.set_file_contents() and then get the vfs.file_id()
+    ///
+    /// let root = vfs.set_file_contents("/project_root/rust-analyzer.toml", Some("..."));
+    /// let crate_a = vfs.set_file_contents("/project_root/crate_a/rust-analyzer.toml", None);
+    /// let crate_b = vfs.set_file_contents("/project_root/crate_a/crate_b/rust-analyzer.toml", Some("..."));
+    /// let config_parent_changes = [
+    ///   ConfigParentChange { node: root, parent: ConfigParent::UserDefault },
+    ///   ConfigParentChange { node: crate_a, parent: ConfigParent::Parent(root) },
+    ///   ConfigParentChange { node: crate_b, parent: ConfigParent::Parent(crate_a) }
+    /// ];
+    /// ```
+    Parent(FileId),
 }
 
 impl ConcurrentConfigTree {
@@ -56,13 +96,15 @@ slotmap::new_key_type! {
 
 struct ConfigNode {
     src: ConfigSource,
+    // TODO: make option
     input: Arc<ConfigInput>,
     computed: ComputedIdx,
 }
 
 struct ConfigTree {
     tree: indextree::Arena<ConfigNode>,
-    client_config: NodeId,
+    client_config: Arc<ConfigInput>,
+    xdg_config_node_id: NodeId,
     ra_file_id_map: FxHashMap<FileId, NodeId>,
     computed: SlotMap<ComputedIdx, Option<Arc<LocalConfigData>>>,
 }
@@ -98,15 +140,24 @@ fn parse_toml(
 }
 
 impl ConfigTree {
-    fn new() -> Self {
+    fn new(xdg_config_file_id: FileId) -> Self {
         let mut tree = indextree::Arena::new();
         let mut computed = SlotMap::default();
-        let client_config = tree.new_node(ConfigNode {
-            src: ConfigSource::ClientConfig,
+        let mut ra_file_id_map = FxHashMap::default();
+        let xdg_config = tree.new_node(ConfigNode {
+            src: ConfigSource::RaToml(xdg_config_file_id),
             input: Arc::new(ConfigInput::default()),
             computed: computed.insert(Option::<Arc<LocalConfigData>>::None),
         });
-        Self { client_config, ra_file_id_map: FxHashMap::default(), tree, computed }
+        ra_file_id_map.insert(xdg_config_file_id, xdg_config);
+
+        Self {
+            client_config: Arc::new(Default::default()),
+            xdg_config_node_id: xdg_config,
+            ra_file_id_map,
+            tree,
+            computed,
+        }
     }
 
     fn read_only(&self, file_id: FileId) -> Result<Option<Arc<LocalConfigData>>, ConfigTreeError> {
@@ -205,18 +256,27 @@ impl ConfigTree {
 
     fn apply_changes(
         &mut self,
-        changes: ConfigChanges,
+        mut changes: ConfigChanges,
         vfs: &Vfs,
         errors: &mut Vec<ConfigTreeError>,
     ) {
         let mut scratch_errors = Vec::new();
-        let ConfigChanges { client_change, ra_toml_changes } = changes;
+        let ConfigChanges { client_change, ra_toml_changes, xdg_config_change, parent_changes } =
+            changes;
+
         if let Some(change) = client_change {
-            let node =
-                self.tree.get_mut(self.client_config).expect("client_config node should exist");
-            node.get_mut().input = change;
-            self.invalidate_subtree(self.client_config);
+            self.client_config = change;
         }
+
+        if let Some(change) = xdg_config_change {
+            let node = self
+                .tree
+                .get_mut(self.xdg_config_node_id)
+                .expect("client_config node should exist");
+            node.get_mut().input = change;
+            self.invalidate_subtree(self.xdg_config_node_id);
+        }
+
         for change in ra_toml_changes {
             // turn and face the strain
             match change.change_kind {
