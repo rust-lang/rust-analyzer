@@ -24,8 +24,14 @@ pub enum ConfigTreeError {
 /// Some rust-analyzer.toml files have changed, and/or the LSP client sent a new configuration.
 pub struct ConfigChanges {
     ra_toml_changes: Vec<vfs::ChangedFile>,
-    xdg_config_change: Option<Arc<ConfigInput>>,
-    client_change: Option<Arc<ConfigInput>>,
+    /// - `None` => no change
+    /// - `Some(None)` => the XDG_CONFIG_HOME rust-analyzer.toml file was deleted
+    /// - `Some(Some(...))` => the XDG_CONFIG_HOME rust-analyzer.toml file was updated
+    xdg_config_change: Option<Option<Arc<ConfigInput>>>,
+    /// - `None` => no change
+    /// - `Some(None)` => the client config was removed / reset or something
+    /// - `Some(Some(...))` => the client config was updated
+    client_change: Option<Option<Arc<ConfigInput>>>,
     parent_changes: Vec<ConfigParentChange>,
 }
 
@@ -96,14 +102,13 @@ slotmap::new_key_type! {
 
 struct ConfigNode {
     src: ConfigSource,
-    // TODO: make option
-    input: Arc<ConfigInput>,
+    input: Option<Arc<ConfigInput>>,
     computed: ComputedIdx,
 }
 
 struct ConfigTree {
     tree: indextree::Arena<ConfigNode>,
-    client_config: Arc<ConfigInput>,
+    client_config: Option<Arc<ConfigInput>>,
     xdg_config_node_id: NodeId,
     ra_file_id_map: FxHashMap<FileId, NodeId>,
     computed: SlotMap<ComputedIdx, Option<Arc<LocalConfigData>>>,
@@ -117,6 +122,9 @@ fn parse_toml(
 ) -> Option<Arc<ConfigInput>> {
     let content = vfs.file_contents(file_id);
     let path = vfs.file_path(file_id);
+    if content.is_empty() {
+        return None;
+    }
     let content_str = match std::str::from_utf8(content) {
         Err(e) => {
             tracing::error!("non-UTF8 TOML content for {path}: {e}");
@@ -146,18 +154,12 @@ impl ConfigTree {
         let mut ra_file_id_map = FxHashMap::default();
         let xdg_config = tree.new_node(ConfigNode {
             src: ConfigSource::RaToml(xdg_config_file_id),
-            input: Arc::new(ConfigInput::default()),
+            input: None,
             computed: computed.insert(Option::<Arc<LocalConfigData>>::None),
         });
         ra_file_id_map.insert(xdg_config_file_id, xdg_config);
 
-        Self {
-            client_config: Arc::new(Default::default()),
-            xdg_config_node_id: xdg_config,
-            ra_file_id_map,
-            tree,
-            computed,
-        }
+        Self { client_config: None, xdg_config_node_id: xdg_config, ra_file_id_map, tree, computed }
     }
 
     fn read_only(&self, file_id: FileId) -> Result<Option<Arc<LocalConfigData>>, ConfigTreeError> {
@@ -190,12 +192,20 @@ impl ConfigTree {
             {
                 let self_input = node.input.clone();
                 let parent_computed = self.compute_inner(parent)?;
-                Arc::new(parent_computed.clone_with_overrides(self_input.local.clone()))
+                if let Some(input) = self_input.as_deref() {
+                    Arc::new(parent_computed.clone_with_overrides(input.local.clone()))
+                } else {
+                    parent_computed
+                }
             } else {
                 // We have hit a root node
                 let self_input = node.input.clone();
-                let root_local = RootLocalConfigData::from_root_input(self_input.local.clone());
-                Arc::new(root_local.0)
+                if let Some(input) = self_input.as_deref() {
+                    let root_local = RootLocalConfigData::from_root_input(input.local.clone());
+                    Arc::new(root_local.0)
+                } else {
+                    Arc::new(LocalConfigData::default())
+                }
             };
             // Get a new &mut slot because self.compute(parent) also gets mut access
             let slot = &mut self.computed[idx];
@@ -204,7 +214,7 @@ impl ConfigTree {
         }
     }
 
-    fn insert_toml(&mut self, file_id: FileId, input: Arc<ConfigInput>) -> NodeId {
+    fn insert_toml(&mut self, file_id: FileId, input: Option<Arc<ConfigInput>>) -> NodeId {
         let computed = self.computed.insert(None);
         let node =
             self.tree.new_node(ConfigNode { src: ConfigSource::RaToml(file_id), input, computed });
@@ -215,7 +225,7 @@ impl ConfigTree {
     fn update_toml(
         &mut self,
         file_id: FileId,
-        input: Arc<ConfigInput>,
+        input: Option<Arc<ConfigInput>>,
     ) -> Result<(), ConfigTreeError> {
         let Some(node_id) = self.ra_file_id_map.get(&file_id).cloned() else {
             return Err(ConfigTreeError::NonExistent);
@@ -281,13 +291,11 @@ impl ConfigTree {
             // turn and face the strain
             match change.change_kind {
                 vfs::ChangeKind::Create => {
-                    let input = parse_toml(change.file_id, vfs, &mut scratch_errors, errors)
-                        .unwrap_or_default();
+                    let input = parse_toml(change.file_id, vfs, &mut scratch_errors, errors);
                     let _new_node = self.insert_toml(change.file_id, input);
                 }
                 vfs::ChangeKind::Modify => {
-                    let input = parse_toml(change.file_id, vfs, &mut scratch_errors, errors)
-                        .unwrap_or_default();
+                    let input = parse_toml(change.file_id, vfs, &mut scratch_errors, errors);
                     if let Err(e) = self.update_toml(change.file_id, input) {
                         errors.push(e);
                     }
