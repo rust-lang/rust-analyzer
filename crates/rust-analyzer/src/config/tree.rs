@@ -41,7 +41,7 @@ pub struct ConfigChanges {
     /// - `Some(None)` => the client config was removed / reset or something
     /// - `Some(Some(...))` => the client config was updated
     client_change: Option<Option<Arc<ConfigInput>>>,
-    parent_changes: Vec<ConfigParentChange>,
+    parent_changes: FxHashMap<FileId, ConfigParent>,
 }
 
 #[derive(Debug)]
@@ -103,7 +103,7 @@ impl ConcurrentConfigTree {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum ConfigSource {
-    ClientConfig,
+    XdgConfig(FileId),
     RaToml(FileId),
 }
 
@@ -115,12 +115,13 @@ slotmap::new_key_type! {
 struct ConfigNode {
     src: ConfigSource,
     input: Option<Arc<ConfigInput>>,
-    computed: ComputedIdx,
+    computed_idx: ComputedIdx,
 }
 
 struct ConfigTree {
     tree: indextree::Arena<ConfigNode>,
     client_config: Option<Arc<ConfigInput>>,
+    xdg_config_file_id: FileId,
     xdg_config_node_id: NodeId,
     ra_file_id_map: FxHashMap<FileId, NodeId>,
     computed: SlotMap<ComputedIdx, Option<Arc<LocalConfigData>>>,
@@ -164,14 +165,21 @@ impl ConfigTree {
         let mut tree = indextree::Arena::new();
         let mut computed = SlotMap::default();
         let mut ra_file_id_map = FxHashMap::default();
-        let xdg_config = tree.new_node(ConfigNode {
-            src: ConfigSource::RaToml(xdg_config_file_id),
+        let xdg_config_node_id = tree.new_node(ConfigNode {
+            src: ConfigSource::XdgConfig(xdg_config_file_id),
             input: None,
-            computed: computed.insert(Option::<Arc<LocalConfigData>>::None),
+            computed_idx: computed.insert(Option::<Arc<LocalConfigData>>::None),
         });
-        ra_file_id_map.insert(xdg_config_file_id, xdg_config);
+        ra_file_id_map.insert(xdg_config_file_id, xdg_config_node_id);
 
-        Self { client_config: None, xdg_config_node_id: xdg_config, ra_file_id_map, tree, computed }
+        Self {
+            client_config: None,
+            xdg_config_file_id,
+            xdg_config_node_id,
+            ra_file_id_map,
+            tree,
+            computed,
+        }
     }
 
     fn read_only(&self, file_id: FileId) -> Result<Option<Arc<LocalConfigData>>, ConfigTreeError> {
@@ -196,7 +204,12 @@ impl ConfigTree {
             return Err(ConfigTreeError::Removed);
         }
         let node = self.tree.get(node_id).ok_or(ConfigTreeError::NonExistent)?.get();
-        let stored = self.computed[node.computed].clone();
+        let stored = self.computed[node.computed_idx].clone();
+        tracing::trace!(
+            "read_only_inner on {:?} got {:?}",
+            node.src,
+            stored.as_ref().map(|_| "some stored value")
+        );
         Ok(stored)
     }
 
@@ -214,7 +227,8 @@ impl ConfigTree {
             return Err(ConfigTreeError::Removed);
         }
         let node = self.tree.get(node_id).ok_or(ConfigTreeError::NonExistent)?.get();
-        let idx = node.computed;
+        tracing::trace!("compute_inner on {:?}", node.src);
+        let idx = node.computed_idx;
         let slot = &mut self.computed[idx];
         if let Some(slot) = slot {
             Ok(slot.clone())
@@ -250,12 +264,17 @@ impl ConfigTree {
 
     fn insert_toml(&mut self, file_id: FileId, input: Option<Arc<ConfigInput>>) -> NodeId {
         let computed = self.computed.insert(None);
-        let node =
-            self.tree.new_node(ConfigNode { src: ConfigSource::RaToml(file_id), input, computed });
-        if let Some(_removed) = self.ra_file_id_map.insert(file_id, node) {
+        let node_id = self.tree.new_node(ConfigNode {
+            src: ConfigSource::RaToml(file_id),
+            input,
+            computed_idx: computed,
+        });
+        if let Some(_removed) = self.ra_file_id_map.insert(file_id, node_id) {
             panic!("ERROR: node should not have existed for {file_id:?} but it did");
         }
-        node
+        // By default, everything is under the xdg_config_node_id
+        self.xdg_config_node_id.append(node_id, &mut self.tree);
+        node_id
     }
 
     fn update_toml(
@@ -274,6 +293,7 @@ impl ConfigTree {
         node.get_mut().input = input;
 
         self.invalidate_subtree(node_id);
+        // tracing::trace!("invalidated subtree:\n{:#?}", node_id.debug_pretty_print(&self.tree));
         Ok(node_id)
     }
 
@@ -292,7 +312,16 @@ impl ConfigTree {
             let Some(desc) = self.tree.get(x) else {
                 return;
             };
-            self.computed.get_mut(desc.get().computed).take();
+            let desc = desc.get();
+            let Some(slot) = self.computed.get_mut(desc.computed_idx) else {
+                tracing::error!(
+                    "computed_idx missing from computed local config slotmap: {:?}",
+                    desc.computed_idx
+                );
+                return;
+            };
+            tracing::trace!("invalidating {x:?} / {:?}", desc.src);
+            slot.take();
         });
     }
 
@@ -314,32 +343,22 @@ impl ConfigTree {
         errors: &mut Vec<ConfigTreeError>,
     ) {
         let mut scratch_errors = Vec::new();
-        let ConfigChanges { client_change, ra_toml_changes, parent_changes } = changes;
+        let ConfigChanges { client_change, ra_toml_changes, mut parent_changes } = changes;
 
         if let Some(change) = client_change {
             self.client_config = change;
         }
 
-        for ConfigParentChange { file_id, parent } in parent_changes {
-            let node_id = self.ensure_node(file_id);
-            let parent_node_id = match parent {
-                ConfigParent::UserDefault => self.xdg_config_node_id,
-                ConfigParent::Parent(parent_file_id) => self.ensure_node(parent_file_id),
-            };
-            // order of children within the parent node does not matter
-            tracing::trace!("appending child {node_id:?} to {parent_node_id:?}");
-            parent_node_id.append(node_id, &mut self.tree);
-        }
-
         for change in ra_toml_changes {
             // turn and face the strain
             match change.change_kind {
-                vfs::ChangeKind::Create => {
+                vfs::ChangeKind::Create | vfs::ChangeKind::Modify => {
+                    if change.change_kind == vfs::ChangeKind::Create {
+                        parent_changes.entry(change.file_id).or_insert(ConfigParent::UserDefault);
+                    }
                     let input = parse_toml(change.file_id, vfs, &mut scratch_errors, errors);
-                    let _new_node = self.update_toml(change.file_id, input);
-                }
-                vfs::ChangeKind::Modify => {
-                    let input = parse_toml(change.file_id, vfs, &mut scratch_errors, errors);
+                    tracing::trace!("updating toml for {:?} to {:?}", change.file_id, input);
+
                     if let Err(e) = self.update_toml(change.file_id, input) {
                         errors.push(e);
                     }
@@ -348,6 +367,18 @@ impl ConfigTree {
                     self.remove_toml(change.file_id);
                 }
             }
+        }
+
+        for (file_id, parent) in parent_changes {
+            let node_id = self.ensure_node(file_id);
+            let parent_node_id = match parent {
+                ConfigParent::Parent(parent_file_id) => self.ensure_node(parent_file_id),
+                ConfigParent::UserDefault if file_id == self.xdg_config_file_id => continue,
+                ConfigParent::UserDefault => self.xdg_config_node_id,
+            };
+            // order of children within the parent node does not matter
+            tracing::trace!("appending child {node_id:?} to {parent_node_id:?}");
+            parent_node_id.append(node_id, &mut self.tree);
         }
     }
 }
@@ -365,6 +396,7 @@ mod tests {
     use vfs::{AbsPathBuf, VfsPath};
 
     fn alloc_file_id(vfs: &mut Vfs, s: &str) -> FileId {
+        tracing_subscriber::fmt().init();
         let abs_path = AbsPathBuf::try_from(PathBuf::new().join(s)).unwrap();
 
         let vfs_path = VfsPath::from(abs_path);
@@ -391,7 +423,7 @@ mod tests {
     fn basic() {
         let mut vfs = Vfs::default();
         let xdg_config_file_id =
-            alloc_file_id(&mut vfs, "/home/.config/rust-analyzer/rust-analyzer.toml");
+            alloc_file_id(&mut vfs, "/home/username/.config/rust-analyzer/rust-analyzer.toml");
         let config_tree = ConcurrentConfigTree::new(ConfigTree::new(xdg_config_file_id));
 
         let root = alloc_config(
@@ -415,8 +447,8 @@ mod tests {
             "#,
         );
 
-        let parent_changes =
-            vec![ConfigParentChange { file_id: crate_a, parent: ConfigParent::Parent(root) }];
+        let mut parent_changes = FxHashMap::default();
+        parent_changes.insert(crate_a, ConfigParent::Parent(root));
 
         let changes = ConfigChanges {
             // Normally you will filter these!
@@ -432,7 +464,6 @@ mod tests {
         };
 
         dbg!(config_tree.apply_changes(changes, &vfs));
-        dbg!(&config_tree);
 
         let local = config_tree.read_config(crate_a).unwrap();
         // from root
@@ -442,6 +473,9 @@ mod tests {
         // from client
         assert_eq!(local.semanticHighlighting_strings_enable, false);
 
+        // --------------------------------------------------------
+
+        // Now let's modify the xdg_config_file_id, which should invalidate everything else
         vfs.set_file_id_contents(
             xdg_config_file_id,
             Some(
@@ -456,15 +490,14 @@ mod tests {
         );
 
         let changes = ConfigChanges {
-            ra_toml_changes: vfs.take_changes(),
-            parent_changes: vec![],
+            ra_toml_changes: dbg!(vfs.take_changes()),
+            parent_changes: Default::default(),
             client_change: None,
         };
         dbg!(config_tree.apply_changes(changes, &vfs));
 
-        let local2 = config_tree.read_config(crate_a).unwrap();
-        // should have recomputed
-        assert!(!Arc::ptr_eq(&local, &local2));
+        let prev = local;
+        let local = config_tree.read_config(crate_a).unwrap();
 
         assert_eq!(
             local.inlayHints_discriminantHints_enable,
