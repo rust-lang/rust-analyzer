@@ -38,10 +38,6 @@ pub enum ConfigTreeError {
 pub struct ConfigChanges {
     ra_toml_changes: Vec<vfs::ChangedFile>,
     /// - `None` => no change
-    /// - `Some(None)` => the XDG_CONFIG_HOME rust-analyzer.toml file was deleted
-    /// - `Some(Some(...))` => the XDG_CONFIG_HOME rust-analyzer.toml file was updated
-    xdg_config_change: Option<Option<Arc<ConfigInput>>>,
-    /// - `None` => no change
     /// - `Some(None)` => the client config was removed / reset or something
     /// - `Some(Some(...))` => the client config was updated
     client_change: Option<Option<Arc<ConfigInput>>>,
@@ -318,20 +314,10 @@ impl ConfigTree {
         errors: &mut Vec<ConfigTreeError>,
     ) {
         let mut scratch_errors = Vec::new();
-        let ConfigChanges { client_change, ra_toml_changes, xdg_config_change, parent_changes } =
-            changes;
+        let ConfigChanges { client_change, ra_toml_changes, parent_changes } = changes;
 
         if let Some(change) = client_change {
             self.client_config = change;
-        }
-
-        if let Some(change) = xdg_config_change {
-            let node = self
-                .tree
-                .get_mut(self.xdg_config_node_id)
-                .expect("client_config node should exist");
-            node.get_mut().input = change;
-            self.invalidate_subtree(self.xdg_config_node_id);
         }
 
         for ConfigParentChange { file_id, parent } in parent_changes {
@@ -455,5 +441,34 @@ mod tests {
         assert_eq!(local.completion_autoimport_enable, false);
         // from client
         assert_eq!(local.semanticHighlighting_strings_enable, false);
+
+        vfs.set_file_id_contents(
+            xdg_config_file_id,
+            Some(
+                r#"
+        # default is "never"
+        [inlayHints.discriminantHints]
+        enable = "always"
+        "#
+                .to_string()
+                .into_bytes(),
+            ),
+        );
+
+        let changes = ConfigChanges {
+            ra_toml_changes: vfs.take_changes(),
+            parent_changes: vec![],
+            client_change: None,
+        };
+        dbg!(config_tree.apply_changes(changes, &vfs));
+
+        let local2 = config_tree.read_config(crate_a).unwrap();
+        // should have recomputed
+        assert!(!Arc::ptr_eq(&local, &local2));
+
+        assert_eq!(
+            local.inlayHints_discriminantHints_enable,
+            crate::config::DiscriminantHintsDef::Always
+        );
     }
 }

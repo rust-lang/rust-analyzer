@@ -2195,7 +2195,7 @@ enum AdjustmentHintsDef {
     Reborrow,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(untagged)]
 enum DiscriminantHintsDef {
     #[serde(with = "true_or_always")]
