@@ -2321,11 +2321,23 @@ macro_rules! _config_data {
 
         /// All fields `Option<T>`, `None` representing fields not set in a particular JSON/TOML blob.
         #[allow(non_snake_case)]
-        #[derive(Debug, Clone, Serialize, Default)]
+        #[derive(Clone, Serialize, Default)]
         struct $input { $(
             #[serde(skip_serializing_if = "Option::is_none")]
             $field: Option<$ty>,
         )* }
+
+        impl std::fmt::Debug for $input {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                let mut s = f.debug_struct(stringify!($input));
+                $(
+                    if let Some(val) = self.$field.as_ref() {
+                        s.field(stringify!($field), val);
+                    }
+                )*
+                s.finish()
+            }
+        }
 
         /// Newtype of
         #[doc = stringify!($name)]
