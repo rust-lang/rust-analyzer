@@ -180,18 +180,38 @@ impl ConfigTree {
 
     fn read_only(&self, file_id: FileId) -> Result<Option<Arc<LocalConfigData>>, ConfigTreeError> {
         let node_id = *self.ra_file_id_map.get(&file_id).ok_or(ConfigTreeError::NonExistent)?;
+        let stored = self.read_only_inner(node_id)?;
+        Ok(stored.map(|stored| {
+            if let Some(client_config) = self.client_config.as_deref() {
+                stored.clone_with_overrides(client_config.local.clone()).into()
+            } else {
+                stored
+            }
+        }))
+    }
+
+    fn read_only_inner(
+        &self,
+        node_id: NodeId,
+    ) -> Result<Option<Arc<LocalConfigData>>, ConfigTreeError> {
         // indextree does not check this during get(), probably for perf reasons?
         // get() is apparently only a bounds check
         if node_id.is_removed(&self.tree) {
             return Err(ConfigTreeError::Removed);
         }
         let node = self.tree.get(node_id).ok_or(ConfigTreeError::NonExistent)?.get();
-        Ok(self.computed[node.computed].clone())
+        let stored = self.computed[node.computed].clone();
+        Ok(stored)
     }
 
     fn compute(&mut self, file_id: FileId) -> Result<Arc<LocalConfigData>, ConfigTreeError> {
         let node_id = *self.ra_file_id_map.get(&file_id).ok_or(ConfigTreeError::NonExistent)?;
-        self.compute_inner(node_id)
+        let computed = self.compute_inner(node_id)?;
+        Ok(if let Some(client_config) = self.client_config.as_deref() {
+            computed.clone_with_overrides(client_config.local.clone()).into()
+        } else {
+            computed
+        })
     }
     fn compute_inner(&mut self, node_id: NodeId) -> Result<Arc<LocalConfigData>, ConfigTreeError> {
         if node_id.is_removed(&self.tree) {
@@ -403,6 +423,9 @@ mod tests {
             r#"
             [completion.autoimport]
             enable = false
+            # will be overridden by client
+            [semanticHighlighting.strings]
+            enable = true
             "#,
         );
 
@@ -413,8 +436,13 @@ mod tests {
             // Normally you will filter these!
             ra_toml_changes: vfs.take_changes(),
             parent_changes,
-            xdg_config_change: None,
-            client_change: None,
+            client_change: Some(Some(Arc::new(ConfigInput {
+                local: crate::config::LocalConfigInput {
+                    semanticHighlighting_strings_enable: Some(false),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }))),
         };
 
         dbg!(config_tree.apply_changes(changes, &vfs));
@@ -425,5 +453,7 @@ mod tests {
         assert_eq!(local.completion_autoself_enable, false);
         // from crate_a
         assert_eq!(local.completion_autoimport_enable, false);
+        // from client
+        assert_eq!(local.semanticHighlighting_strings_enable, false);
     }
 }
