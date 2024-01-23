@@ -45,13 +45,6 @@ pub struct ConfigChanges {
 }
 
 #[derive(Debug)]
-pub struct ConfigParentChange {
-    /// The config node in question
-    pub file_id: FileId,
-    pub parent: ConfigParent,
-}
-
-#[derive(Debug)]
 pub enum ConfigParent {
     /// The node is now a root in its own right, but still inherits from the config in XDG_CONFIG_HOME
     /// etc
@@ -75,11 +68,11 @@ pub enum ConfigParent {
     /// let root = vfs.set_file_contents("/project_root/rust-analyzer.toml", Some("..."));
     /// let crate_a = vfs.set_file_contents("/project_root/crate_a/rust-analyzer.toml", None);
     /// let crate_b = vfs.set_file_contents("/project_root/crate_a/crate_b/rust-analyzer.toml", Some("..."));
-    /// let config_parent_changes = [
-    ///   ConfigParentChange { node: root, parent: ConfigParent::UserDefault },
-    ///   ConfigParentChange { node: crate_a, parent: ConfigParent::Parent(root) },
-    ///   ConfigParentChange { node: crate_b, parent: ConfigParent::Parent(crate_a) }
-    /// ];
+    /// let parent_changes = FxHashMap::from_iter([
+    ///   (root, ConfigParent::UserDefault),
+    ///   (crate_a, ConfigParent::Parent(root)),
+    ///   (crate_b, ConfigParent::Parent(crate_a)),
+    /// ]);
     /// ```
     Parent(FileId),
 }
