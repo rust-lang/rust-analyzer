@@ -90,7 +90,7 @@ impl ConcurrentConfigTree {
         self.rwlock.write().apply_changes(changes, vfs, &mut errors);
         errors
     }
-    pub fn read_config(&self, file_id: FileId) -> Result<Arc<LocalConfigData>, ConfigTreeError> {
+    pub fn local_config(&self, file_id: FileId) -> Result<Arc<LocalConfigData>, ConfigTreeError> {
         let reader = self.rwlock.upgradable_read();
         if let Some(computed) = reader.read_only(file_id)? {
             return Ok(computed);
@@ -480,7 +480,7 @@ mod tests {
 
         dbg!(config_tree.apply_changes(changes, &vfs));
 
-        let local = config_tree.read_config(crate_a).unwrap();
+        let local = config_tree.local_config(crate_a).unwrap();
         // from root
         assert_eq!(local.completion_autoself_enable, false);
         // from crate_a
@@ -518,11 +518,11 @@ mod tests {
         dbg!(config_tree.apply_changes(changes, &vfs));
 
         let prev = local;
-        let local = config_tree.read_config(crate_a).unwrap();
+        let local = config_tree.local_config(crate_a).unwrap();
         // Should have been recomputed
         assert!(!Arc::ptr_eq(&prev, &local));
         // But without changes in between, should give the same Arc back
-        assert!(Arc::ptr_eq(&local, &config_tree.read_config(crate_a).unwrap()));
+        assert!(Arc::ptr_eq(&local, &config_tree.local_config(crate_a).unwrap()));
 
         // The newly added xdg_config_file_id should affect the output if nothing else touches
         // this key
