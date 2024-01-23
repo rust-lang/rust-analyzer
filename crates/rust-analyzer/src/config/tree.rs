@@ -2,7 +2,7 @@ use indextree::NodeId;
 use parking_lot::{RwLock, RwLockUpgradableReadGuard};
 use rustc_hash::FxHashMap;
 use slotmap::SlotMap;
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 use vfs::{FileId, Vfs};
 
 use super::{ConfigInput, LocalConfigData, RootLocalConfigData};
@@ -13,6 +13,19 @@ pub struct ConcurrentConfigTree {
     rwlock: RwLock<ConfigTree>,
 }
 
+impl ConcurrentConfigTree {
+    fn new(config_tree: ConfigTree) -> Self {
+        Self { rwlock: RwLock::new(config_tree) }
+    }
+}
+
+impl fmt::Debug for ConcurrentConfigTree {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.rwlock.read().fmt(f)
+    }
+}
+
+#[derive(Debug)]
 pub enum ConfigTreeError {
     Removed,
     NonExistent,
@@ -35,12 +48,14 @@ pub struct ConfigChanges {
     parent_changes: Vec<ConfigParentChange>,
 }
 
+#[derive(Debug)]
 pub struct ConfigParentChange {
     /// The config node in question
-    pub node: FileId,
+    pub file_id: FileId,
     pub parent: ConfigParent,
 }
 
+#[derive(Debug)]
 pub enum ConfigParent {
     /// The node is now a root in its own right, but still inherits from the config in XDG_CONFIG_HOME
     /// etc
@@ -100,6 +115,7 @@ slotmap::new_key_type! {
     struct ComputedIdx;
 }
 
+#[derive(Debug)]
 struct ConfigNode {
     src: ConfigSource,
     input: Option<Arc<ConfigInput>>,
@@ -190,6 +206,7 @@ impl ConfigTree {
             let self_computed = if let Some(parent) =
                 self.tree.get(node_id).ok_or(ConfigTreeError::NonExistent)?.parent()
             {
+                tracing::trace!("looking at parent of {node_id:?} -> {parent:?}");
                 let self_input = node.input.clone();
                 let parent_computed = self.compute_inner(parent)?;
                 if let Some(input) = self_input.as_deref() {
@@ -198,6 +215,7 @@ impl ConfigTree {
                     parent_computed
                 }
             } else {
+                tracing::trace!("{node_id:?} is a root node");
                 // We have hit a root node
                 let self_input = node.input.clone();
                 if let Some(input) = self_input.as_deref() {
@@ -218,7 +236,9 @@ impl ConfigTree {
         let computed = self.computed.insert(None);
         let node =
             self.tree.new_node(ConfigNode { src: ConfigSource::RaToml(file_id), input, computed });
-        self.ra_file_id_map.insert(file_id, node);
+        if let Some(_removed) = self.ra_file_id_map.insert(file_id, node) {
+            panic!("ERROR: node should not have existed for {file_id:?} but it did");
+        }
         node
     }
 
@@ -226,9 +246,10 @@ impl ConfigTree {
         &mut self,
         file_id: FileId,
         input: Option<Arc<ConfigInput>>,
-    ) -> Result<(), ConfigTreeError> {
+    ) -> Result<NodeId, ConfigTreeError> {
         let Some(node_id) = self.ra_file_id_map.get(&file_id).cloned() else {
-            return Err(ConfigTreeError::NonExistent);
+            let node_id = self.insert_toml(file_id, input);
+            return Ok(node_id);
         };
         if node_id.is_removed(&self.tree) {
             return Err(ConfigTreeError::Removed);
@@ -237,7 +258,14 @@ impl ConfigTree {
         node.get_mut().input = input;
 
         self.invalidate_subtree(node_id);
-        Ok(())
+        Ok(node_id)
+    }
+
+    fn ensure_node(&mut self, file_id: FileId) -> NodeId {
+        let Some(&node_id) = self.ra_file_id_map.get(&file_id) else {
+            return self.insert_toml(file_id, None);
+        };
+        node_id
     }
 
     fn invalidate_subtree(&mut self, node_id: NodeId) {
@@ -253,20 +281,19 @@ impl ConfigTree {
     }
 
     fn remove_toml(&mut self, file_id: FileId) -> Option<()> {
-        let node_id = self.ra_file_id_map.remove(&file_id)?;
+        let node_id = *self.ra_file_id_map.get(&file_id)?;
         if node_id.is_removed(&self.tree) {
             return None;
         }
-        let node = self.tree.get(node_id)?;
-        let idx = node.get().computed;
-        let _ = self.computed.remove(idx);
+        let node = self.tree.get_mut(node_id)?.get_mut();
+        node.input = None;
         self.invalidate_subtree(node_id);
         Some(())
     }
 
     fn apply_changes(
         &mut self,
-        mut changes: ConfigChanges,
+        changes: ConfigChanges,
         vfs: &Vfs,
         errors: &mut Vec<ConfigTreeError>,
     ) {
@@ -287,12 +314,23 @@ impl ConfigTree {
             self.invalidate_subtree(self.xdg_config_node_id);
         }
 
+        for ConfigParentChange { file_id, parent } in parent_changes {
+            let node_id = self.ensure_node(file_id);
+            let parent_node_id = match parent {
+                ConfigParent::UserDefault => self.xdg_config_node_id,
+                ConfigParent::Parent(parent_file_id) => self.ensure_node(parent_file_id),
+            };
+            // order of children within the parent node does not matter
+            tracing::trace!("appending child {node_id:?} to {parent_node_id:?}");
+            parent_node_id.append(node_id, &mut self.tree);
+        }
+
         for change in ra_toml_changes {
             // turn and face the strain
             match change.change_kind {
                 vfs::ChangeKind::Create => {
                     let input = parse_toml(change.file_id, vfs, &mut scratch_errors, errors);
-                    let _new_node = self.insert_toml(change.file_id, input);
+                    let _new_node = self.update_toml(change.file_id, input);
                 }
                 vfs::ChangeKind::Modify => {
                     let input = parse_toml(change.file_id, vfs, &mut scratch_errors, errors);
@@ -305,5 +343,87 @@ impl ConfigTree {
                 }
             }
         }
+    }
+}
+
+impl fmt::Debug for ConfigTree {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.tree.fmt(f)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use vfs::{AbsPathBuf, VfsPath};
+
+    fn alloc_file_id(vfs: &mut Vfs, s: &str) -> FileId {
+        let abs_path = AbsPathBuf::try_from(PathBuf::new().join(s)).unwrap();
+
+        let vfs_path = VfsPath::from(abs_path);
+        // FIXME: the vfs should expose this functionality more simply.
+        // We shouldn't have to clone the vfs path just to get a FileId.
+        let file_id = vfs.alloc_file_id(vfs_path);
+        vfs.set_file_id_contents(file_id, None);
+        file_id
+    }
+
+    fn alloc_config(vfs: &mut Vfs, s: &str, config: &str) -> FileId {
+        let abs_path = AbsPathBuf::try_from(PathBuf::new().join(s)).unwrap();
+
+        let vfs_path = VfsPath::from(abs_path);
+        // FIXME: the vfs should expose this functionality more simply.
+        // We shouldn't have to clone the vfs path just to get a FileId.
+        let file_id = vfs.alloc_file_id(vfs_path);
+        vfs.set_file_id_contents(file_id, Some(config.to_string().into_bytes()));
+        file_id
+    }
+
+    use super::*;
+    #[test]
+    fn basic() {
+        let mut vfs = Vfs::default();
+        let xdg_config_file_id =
+            alloc_file_id(&mut vfs, "/home/.config/rust-analyzer/rust-analyzer.toml");
+        let config_tree = ConcurrentConfigTree::new(ConfigTree::new(xdg_config_file_id));
+
+        let root = alloc_config(
+            &mut vfs,
+            "/root/rust-analyzer.toml",
+            r#"
+            [completion.autoself]
+            enable = false
+            "#,
+        );
+
+        let crate_a = alloc_config(
+            &mut vfs,
+            "/root/crate_a/rust-analyzer.toml",
+            r#"
+            [completion.autoimport]
+            enable = false
+            "#,
+        );
+
+        let parent_changes =
+            vec![ConfigParentChange { file_id: crate_a, parent: ConfigParent::Parent(root) }];
+
+        let changes = ConfigChanges {
+            // Normally you will filter these!
+            ra_toml_changes: vfs.take_changes(),
+            parent_changes,
+            xdg_config_change: None,
+            client_change: None,
+        };
+
+        dbg!(config_tree.apply_changes(changes, &vfs));
+        dbg!(&config_tree);
+
+        let local = config_tree.read_config(crate_a).unwrap();
+        // from root
+        assert_eq!(local.completion_autoself_enable, false);
+        // from crate_a
+        assert_eq!(local.completion_autoimport_enable, false);
     }
 }

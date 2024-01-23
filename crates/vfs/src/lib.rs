@@ -133,6 +133,11 @@ impl Vfs {
         self.get(file_id).as_deref().unwrap()
     }
 
+    /// File content, but returns None if the file was deleted.
+    pub fn file_contents_opt(&self, file_id: FileId) -> Option<&[u8]> {
+        self.get(file_id).as_deref()
+    }
+
     /// Returns the overall memory usage for the stored files.
     pub fn memory_usage(&self) -> usize {
         self.data.iter().flatten().map(|d| d.capacity()).sum()
@@ -157,8 +162,12 @@ impl Vfs {
     ///
     /// If the path does not currently exists in the `Vfs`, allocates a new
     /// [`FileId`] for it.
-    pub fn set_file_contents(&mut self, path: VfsPath, mut contents: Option<Vec<u8>>) -> bool {
+    pub fn set_file_contents(&mut self, path: VfsPath, contents: Option<Vec<u8>>) -> bool {
         let file_id = self.alloc_file_id(path);
+        self.set_file_id_contents(file_id, contents)
+    }
+
+    pub fn set_file_id_contents(&mut self, file_id: FileId, mut contents: Option<Vec<u8>>) -> bool {
         let change_kind = match (self.get(file_id), &contents) {
             (None, None) => return false,
             (Some(old), Some(new)) if old == new => return false,
@@ -196,7 +205,7 @@ impl Vfs {
     /// - Else, returns `path`'s id.
     ///
     /// Does not record a change.
-    fn alloc_file_id(&mut self, path: VfsPath) -> FileId {
+    pub fn alloc_file_id(&mut self, path: VfsPath) -> FileId {
         let file_id = self.interner.intern(path);
         let idx = file_id.0 as usize;
         let len = self.data.len().max(idx + 1);
