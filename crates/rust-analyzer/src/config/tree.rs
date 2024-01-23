@@ -125,6 +125,7 @@ struct ConfigTree {
     xdg_config_node_id: NodeId,
     ra_file_id_map: FxHashMap<FileId, NodeId>,
     computed: SlotMap<ComputedIdx, Option<Arc<LocalConfigData>>>,
+    with_client_config: slotmap::SecondaryMap<ComputedIdx, Arc<LocalConfigData>>,
 }
 
 fn parse_toml(
@@ -179,19 +180,13 @@ impl ConfigTree {
             ra_file_id_map,
             tree,
             computed,
+            with_client_config: Default::default(),
         }
     }
 
     fn read_only(&self, file_id: FileId) -> Result<Option<Arc<LocalConfigData>>, ConfigTreeError> {
         let node_id = *self.ra_file_id_map.get(&file_id).ok_or(ConfigTreeError::NonExistent)?;
-        let stored = self.read_only_inner(node_id)?;
-        Ok(stored.map(|stored| {
-            if let Some(client_config) = self.client_config.as_deref() {
-                stored.clone_with_overrides(client_config.local.clone()).into()
-            } else {
-                stored
-            }
-        }))
+        self.read_only_inner(node_id)
     }
 
     fn read_only_inner(
@@ -204,7 +199,7 @@ impl ConfigTree {
             return Err(ConfigTreeError::Removed);
         }
         let node = self.tree.get(node_id).ok_or(ConfigTreeError::NonExistent)?.get();
-        let stored = self.computed[node.computed_idx].clone();
+        let stored = self.with_client_config.get(node.computed_idx).cloned();
         tracing::trace!(
             "read_only_inner on {:?} got {:?}",
             node.src,
@@ -215,14 +210,19 @@ impl ConfigTree {
 
     fn compute(&mut self, file_id: FileId) -> Result<Arc<LocalConfigData>, ConfigTreeError> {
         let node_id = *self.ra_file_id_map.get(&file_id).ok_or(ConfigTreeError::NonExistent)?;
-        let computed = self.compute_inner(node_id)?;
-        Ok(if let Some(client_config) = self.client_config.as_deref() {
-            computed.clone_with_overrides(client_config.local.clone()).into()
+        let (computed, idx) = self.compute_recursive(node_id)?;
+        let out = if let Some(client_config) = self.client_config.as_deref() {
+            Arc::new(computed.clone_with_overrides(client_config.local.clone()))
         } else {
             computed
-        })
+        };
+        self.with_client_config.insert(idx, out.clone());
+        Ok(out)
     }
-    fn compute_inner(&mut self, node_id: NodeId) -> Result<Arc<LocalConfigData>, ConfigTreeError> {
+    fn compute_recursive(
+        &mut self,
+        node_id: NodeId,
+    ) -> Result<(Arc<LocalConfigData>, ComputedIdx), ConfigTreeError> {
         if node_id.is_removed(&self.tree) {
             return Err(ConfigTreeError::Removed);
         }
@@ -231,14 +231,14 @@ impl ConfigTree {
         let idx = node.computed_idx;
         let slot = &mut self.computed[idx];
         if let Some(slot) = slot {
-            Ok(slot.clone())
+            Ok((slot.clone(), idx))
         } else {
             let self_computed = if let Some(parent) =
                 self.tree.get(node_id).ok_or(ConfigTreeError::NonExistent)?.parent()
             {
                 tracing::trace!("looking at parent of {node_id:?} -> {parent:?}");
                 let self_input = node.input.clone();
-                let parent_computed = self.compute_inner(parent)?;
+                let (parent_computed, _) = self.compute_recursive(parent)?;
                 if let Some(input) = self_input.as_deref() {
                     Arc::new(parent_computed.clone_with_overrides(input.local.clone()))
                 } else {
@@ -258,7 +258,7 @@ impl ConfigTree {
             // Get a new &mut slot because self.compute(parent) also gets mut access
             let slot = &mut self.computed[idx];
             slot.replace(self_computed.clone());
-            Ok(self_computed)
+            Ok((self_computed, idx))
         }
     }
 
@@ -322,6 +322,9 @@ impl ConfigTree {
             };
             tracing::trace!("invalidating {x:?} / {:?}", desc.src);
             slot.take();
+
+            // Also invalidate the secondary data
+            self.with_client_config.remove(desc.computed_idx);
         });
     }
 
@@ -346,7 +349,16 @@ impl ConfigTree {
         let ConfigChanges { client_change, ra_toml_changes, mut parent_changes } = changes;
 
         if let Some(change) = client_change {
-            self.client_config = change;
+            match (self.client_config.as_ref(), change.as_ref()) {
+                (None, None) => {}
+                (Some(a), Some(b)) if Arc::ptr_eq(a, b) => {}
+                _ => {
+                    // invalidate the output table only, don't immediately need to recompute
+                    // everything from scratch
+                    self.with_client_config.clear();
+                    self.client_config = change;
+                }
+            }
         }
 
         for change in ra_toml_changes {
@@ -498,6 +510,9 @@ mod tests {
 
         let prev = local;
         let local = config_tree.read_config(crate_a).unwrap();
+        assert!(!Arc::ptr_eq(&prev, &local));
+        let local2 = config_tree.read_config(crate_a).unwrap();
+        assert!(Arc::ptr_eq(&local, &local2));
 
         assert_eq!(
             local.inlayHints_discriminantHints_enable,
