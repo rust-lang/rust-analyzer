@@ -292,6 +292,9 @@ impl ConfigTree {
         let node = self.tree.get_mut(node_id).ok_or(ConfigTreeError::NonExistent)?;
         node.get_mut().input = input;
 
+        // We won't do any funny business comparing the previous input to the new one, because
+        // that would require implementing PartialEq on the dozens and dozens of types that make
+        // up ConfigInput.
         self.invalidate_subtree(node_id);
         // tracing::trace!("invalidated subtree:\n{:#?}", node_id.debug_pretty_print(&self.tree));
         Ok(node_id)
@@ -495,6 +498,12 @@ mod tests {
         # default is "never"
         [inlayHints.discriminantHints]
         enable = "always"
+        [completion.autoself]
+        enable = true
+        [completion.autoimport]
+        enable = true
+        [semanticHighlighting.strings]
+        enable = true
         "#
                 .to_string()
                 .into_bytes(),
@@ -510,13 +519,20 @@ mod tests {
 
         let prev = local;
         let local = config_tree.read_config(crate_a).unwrap();
+        // Should have been recomputed
         assert!(!Arc::ptr_eq(&prev, &local));
-        let local2 = config_tree.read_config(crate_a).unwrap();
-        assert!(Arc::ptr_eq(&local, &local2));
+        // But without changes in between, should give the same Arc back
+        assert!(Arc::ptr_eq(&local, &config_tree.read_config(crate_a).unwrap()));
 
+        // The newly added xdg_config_file_id should affect the output if nothing else touches
+        // this key
         assert_eq!(
             local.inlayHints_discriminantHints_enable,
             crate::config::DiscriminantHintsDef::Always
         );
+        // But it should not win
+        assert_eq!(local.completion_autoself_enable, false);
+        assert_eq!(local.completion_autoimport_enable, false);
+        assert_eq!(local.semanticHighlighting_strings_enable, false);
     }
 }
