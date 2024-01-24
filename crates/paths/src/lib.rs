@@ -194,6 +194,10 @@ impl AbsPath {
         self.0.ends_with(&suffix.0)
     }
 
+    pub fn ancestors(&self) -> impl Iterator<Item = &AbsPath> {
+        self.0.ancestors().map(AbsPath::assert)
+    }
+
     pub fn name_and_extension(&self) -> Option<(&str, Option<&str>)> {
         Some((
             self.file_stem()?.to_str()?,
