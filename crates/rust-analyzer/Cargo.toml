@@ -75,8 +75,7 @@ toolchain.workspace = true
 vfs-notify.workspace = true
 vfs.workspace = true
 la-arena.workspace = true
-indextree = "4.6.0"
-slotmap = "1.0.7"
+salsa.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"

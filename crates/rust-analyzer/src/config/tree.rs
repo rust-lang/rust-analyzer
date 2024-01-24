@@ -1,37 +1,16 @@
-use indextree::NodeId;
-use parking_lot::{RwLock, RwLockUpgradableReadGuard};
-use rustc_hash::FxHashMap;
-use slotmap::SlotMap;
-use std::{fmt, sync::Arc};
+use rustc_hash::{FxHashMap, FxHashSet};
+use std::sync::Arc;
 use vfs::{FileId, Vfs};
 
 use super::{ConfigInput, LocalConfigData, RootLocalConfigData};
-
-pub struct ConcurrentConfigTree {
-    // One rwlock on the whole thing is probably fine.
-    // If you have 40,000 crates and you need to edit your config 200x/second, let us know.
-    rwlock: RwLock<ConfigTree>,
-}
-
-impl ConcurrentConfigTree {
-    fn new(config_tree: ConfigTree) -> Self {
-        Self { rwlock: RwLock::new(config_tree) }
-    }
-}
-
-impl fmt::Debug for ConcurrentConfigTree {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.rwlock.read().fmt(f)
-    }
-}
 
 #[derive(Debug)]
 pub enum ConfigTreeError {
     Removed,
     NonExistent,
-    Utf8(vfs::VfsPath, std::str::Utf8Error),
-    TomlParse(vfs::VfsPath, toml::de::Error),
-    TomlDeserialize { path: vfs::VfsPath, field: String, error: toml::de::Error },
+    Utf8(FileId, std::str::Utf8Error),
+    TomlParse(FileId, toml::de::Error),
+    TomlDeserialize { file_id: FileId, field: String, error: toml::de::Error },
 }
 
 /// Some rust-analyzer.toml files have changed, and/or the LSP client sent a new configuration.
@@ -77,282 +56,116 @@ pub enum ConfigParent {
     Parent(FileId),
 }
 
-impl ConcurrentConfigTree {
-    pub fn apply_changes(&self, changes: ConfigChanges, vfs: &Vfs) -> Vec<ConfigTreeError> {
-        let mut errors = Vec::new();
-        self.rwlock.write().apply_changes(changes, vfs, &mut errors);
-        errors
-    }
-    pub fn local_config(&self, file_id: FileId) -> Result<Arc<LocalConfigData>, ConfigTreeError> {
-        let reader = self.rwlock.upgradable_read();
-        if let Some(computed) = reader.read_only(file_id)? {
-            return Ok(computed);
-        } else {
-            let mut writer = RwLockUpgradableReadGuard::upgrade(reader);
-            return writer.compute(file_id);
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum ConfigSource {
-    XdgConfig(FileId),
-    RaToml(FileId),
-}
-
-slotmap::new_key_type! {
-    struct ComputedIdx;
-}
-
+/// Easier and probably more performant than making ConfigInput implement Eq
 #[derive(Debug)]
-struct ConfigNode {
-    src: ConfigSource,
-    input: Option<Arc<ConfigInput>>,
-    computed_idx: ComputedIdx,
+struct PointerCmp<T>(Arc<T>);
+impl<T> PointerCmp<T> {
+    fn new(t: T) -> Self {
+        Self(Arc::new(t))
+    }
+}
+impl<T> Clone for PointerCmp<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+impl<T> PartialEq for PointerCmp<T> {
+    fn eq(&self, other: &Self) -> bool {
+        (Arc::as_ptr(&self.0) as *const ()).eq(&Arc::as_ptr(&other.0).cast())
+    }
+}
+impl<T> Eq for PointerCmp<T> {}
+impl<T> std::ops::Deref for PointerCmp<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        self.0.deref()
+    }
 }
 
-struct ConfigTree {
-    tree: indextree::Arena<ConfigNode>,
-    client_config: Option<Arc<ConfigInput>>,
-    xdg_config_file_id: FileId,
-    xdg_config_node_id: NodeId,
-    ra_file_id_map: FxHashMap<FileId, NodeId>,
-    computed: SlotMap<ComputedIdx, Option<Arc<LocalConfigData>>>,
-    with_client_config: slotmap::SecondaryMap<ComputedIdx, Arc<LocalConfigData>>,
+#[salsa::query_group(ConfigTreeStorage)]
+trait ConfigTreeQueries {
+    #[salsa::input]
+    fn client_config(&self) -> Option<PointerCmp<ConfigInput>>;
+
+    #[salsa::input]
+    fn config_parent(&self, file_id: FileId) -> Option<FileId>;
+
+    #[salsa::input]
+    fn config_input(&self, file_id: FileId) -> Option<PointerCmp<ConfigInput>>;
+
+    fn compute_recursive(&self, file_id: FileId) -> PointerCmp<LocalConfigData>;
+
+    fn local_config(&self, file_id: FileId) -> PointerCmp<LocalConfigData>;
 }
 
-fn parse_toml(
-    file_id: FileId,
-    vfs: &Vfs,
-    scratch: &mut Vec<(String, toml::de::Error)>,
-    errors: &mut Vec<ConfigTreeError>,
-) -> Option<Arc<ConfigInput>> {
-    let content = vfs.file_contents(file_id);
-    let path = vfs.file_path(file_id);
-    if content.is_empty() {
-        return None;
-    }
-    let content_str = match std::str::from_utf8(content) {
-        Err(e) => {
-            tracing::error!("non-UTF8 TOML content for {path}: {e}");
-            errors.push(ConfigTreeError::Utf8(path, e));
-            return None;
-        }
-        Ok(str) => str,
-    };
-    let table = match toml::from_str(content_str) {
-        Ok(table) => table,
-        Err(e) => {
-            errors.push(ConfigTreeError::TomlParse(path, e));
-            return None;
-        }
-    };
-    let input = Arc::new(ConfigInput::from_toml(table, scratch));
-    scratch.drain(..).for_each(|(field, error)| {
-        errors.push(ConfigTreeError::TomlDeserialize { path: path.clone(), field, error });
-    });
-    Some(input)
-}
-
-impl ConfigTree {
-    fn new(xdg_config_file_id: FileId) -> Self {
-        let mut tree = indextree::Arena::new();
-        let mut computed = SlotMap::default();
-        let mut ra_file_id_map = FxHashMap::default();
-        let xdg_config_node_id = tree.new_node(ConfigNode {
-            src: ConfigSource::XdgConfig(xdg_config_file_id),
-            input: None,
-            computed_idx: computed.insert(Option::<Arc<LocalConfigData>>::None),
-        });
-        ra_file_id_map.insert(xdg_config_file_id, xdg_config_node_id);
-
-        Self {
-            client_config: None,
-            xdg_config_file_id,
-            xdg_config_node_id,
-            ra_file_id_map,
-            tree,
-            computed,
-            with_client_config: Default::default(),
-        }
-    }
-
-    fn read_only(&self, file_id: FileId) -> Result<Option<Arc<LocalConfigData>>, ConfigTreeError> {
-        let node_id = *self.ra_file_id_map.get(&file_id).ok_or(ConfigTreeError::NonExistent)?;
-        self.read_only_inner(node_id)
-    }
-
-    fn read_only_inner(
-        &self,
-        node_id: NodeId,
-    ) -> Result<Option<Arc<LocalConfigData>>, ConfigTreeError> {
-        // indextree does not check this during get(), probably for perf reasons?
-        // get() is apparently only a bounds check
-        if node_id.is_removed(&self.tree) {
-            return Err(ConfigTreeError::Removed);
-        }
-        let node = self.tree.get(node_id).ok_or(ConfigTreeError::NonExistent)?.get();
-        let stored = self.with_client_config.get(node.computed_idx).cloned();
-        tracing::trace!(
-            "read_only_inner on {:?} got {:?}",
-            node.src,
-            stored.as_ref().map(|_| "some stored value")
-        );
-        Ok(stored)
-    }
-
-    fn compute(&mut self, file_id: FileId) -> Result<Arc<LocalConfigData>, ConfigTreeError> {
-        let node_id = *self.ra_file_id_map.get(&file_id).ok_or(ConfigTreeError::NonExistent)?;
-        let (computed, idx) = self.compute_recursive(node_id)?;
-        let out = if let Some(client_config) = self.client_config.as_deref() {
-            Arc::new(computed.clone_with_overrides(client_config.local.clone()))
-        } else {
-            computed
-        };
-        self.with_client_config.insert(idx, out.clone());
-        Ok(out)
-    }
-    fn compute_recursive(
-        &mut self,
-        node_id: NodeId,
-    ) -> Result<(Arc<LocalConfigData>, ComputedIdx), ConfigTreeError> {
-        if node_id.is_removed(&self.tree) {
-            return Err(ConfigTreeError::Removed);
-        }
-        let node = self.tree.get(node_id).ok_or(ConfigTreeError::NonExistent)?.get();
-        tracing::trace!("compute_inner on {:?}", node.src);
-        let idx = node.computed_idx;
-        let slot = &mut self.computed[idx];
-        if let Some(slot) = slot {
-            Ok((slot.clone(), idx))
-        } else {
-            let self_computed = if let Some(parent) =
-                self.tree.get(node_id).ok_or(ConfigTreeError::NonExistent)?.parent()
-            {
-                tracing::trace!("looking at parent of {node_id:?} -> {parent:?}");
-                let self_input = node.input.clone();
-                let (parent_computed, _) = self.compute_recursive(parent)?;
-                if let Some(input) = self_input.as_deref() {
-                    Arc::new(parent_computed.clone_with_overrides(input.local.clone()))
-                } else {
-                    parent_computed
-                }
+fn compute_recursive(db: &dyn ConfigTreeQueries, file_id: FileId) -> PointerCmp<LocalConfigData> {
+    let self_input = db.config_input(file_id);
+    tracing::trace!(?self_input, ?file_id);
+    match db.config_parent(file_id) {
+        Some(parent) if parent != file_id => {
+            let parent_computed = db.compute_recursive(parent);
+            if let Some(input) = self_input.as_deref() {
+                PointerCmp::new(parent_computed.clone_with_overrides(input.local.clone()))
             } else {
-                tracing::trace!("{node_id:?} is a root node");
-                // We have hit a root node
-                let self_input = node.input.clone();
-                if let Some(input) = self_input.as_deref() {
-                    let root_local = RootLocalConfigData::from_root_input(input.local.clone());
-                    Arc::new(root_local.0)
-                } else {
-                    Arc::new(LocalConfigData::default())
-                }
-            };
-            // Get a new &mut slot because self.compute(parent) also gets mut access
-            let slot = &mut self.computed[idx];
-            slot.replace(self_computed.clone());
-            Ok((self_computed, idx))
+                parent_computed
+            }
+        }
+        _ => {
+            // this is a root node, or we just broke a cycle
+            if let Some(input) = self_input.as_deref() {
+                let root_local = RootLocalConfigData::from_root_input(input.local.clone());
+                PointerCmp::new(root_local.0)
+            } else {
+                PointerCmp::new(LocalConfigData::default())
+            }
         }
     }
+}
 
-    fn insert_toml(&mut self, file_id: FileId, input: Option<Arc<ConfigInput>>) -> NodeId {
-        let computed = self.computed.insert(None);
-        let node_id = self.tree.new_node(ConfigNode {
-            src: ConfigSource::RaToml(file_id),
-            input,
-            computed_idx: computed,
-        });
-        if let Some(_removed) = self.ra_file_id_map.insert(file_id, node_id) {
-            panic!("ERROR: node should not have existed for {file_id:?} but it did");
-        }
-        // By default, everything is under the xdg_config_node_id
-        self.xdg_config_node_id.append(node_id, &mut self.tree);
-        node_id
+fn local_config(db: &dyn ConfigTreeQueries, file_id: FileId) -> PointerCmp<LocalConfigData> {
+    let computed = db.compute_recursive(file_id);
+    if let Some(client) = db.client_config() {
+        PointerCmp::new(computed.clone_with_overrides(client.local.clone()))
+    } else {
+        computed
     }
+}
 
-    fn update_toml(
-        &mut self,
-        file_id: FileId,
-        input: Option<Arc<ConfigInput>>,
-    ) -> Result<NodeId, ConfigTreeError> {
-        let Some(node_id) = self.ra_file_id_map.get(&file_id).cloned() else {
-            let node_id = self.insert_toml(file_id, input);
-            return Ok(node_id);
+#[salsa::database(ConfigTreeStorage)]
+pub struct ConfigDb {
+    storage: salsa::Storage<Self>,
+    known_file_ids: FxHashSet<FileId>,
+    xdg_config_file_id: FileId,
+}
+
+impl salsa::Database for ConfigDb {}
+
+impl ConfigDb {
+    pub fn new(xdg_config_file_id: FileId) -> Self {
+        let mut this = Self {
+            storage: Default::default(),
+            known_file_ids: FxHashSet::default(),
+            xdg_config_file_id,
         };
-        if node_id.is_removed(&self.tree) {
-            return Err(ConfigTreeError::Removed);
-        }
-        let node = self.tree.get_mut(node_id).ok_or(ConfigTreeError::NonExistent)?;
-        node.get_mut().input = input;
-
-        // We won't do any funny business comparing the previous input to the new one, because
-        // that would require implementing PartialEq on the dozens and dozens of types that make
-        // up ConfigInput.
-        self.invalidate_subtree(node_id);
-        // tracing::trace!("invalidated subtree:\n{:#?}", node_id.debug_pretty_print(&self.tree));
-        Ok(node_id)
+        this.set_client_config(None);
+        this.ensure_node(xdg_config_file_id);
+        this.set_config_parent(xdg_config_file_id, None);
+        this
     }
 
-    fn ensure_node(&mut self, file_id: FileId) -> NodeId {
-        let Some(&node_id) = self.ra_file_id_map.get(&file_id) else {
-            return self.insert_toml(file_id, None);
-        };
-        node_id
-    }
-
-    fn invalidate_subtree(&mut self, node_id: NodeId) {
-        //
-        // This is why we need the computed values outside the indextree: we iterate immutably
-        // over the tree while holding a &mut self.computed.
-        node_id.descendants(&self.tree).for_each(|x| {
-            let Some(desc) = self.tree.get(x) else {
-                return;
-            };
-            let desc = desc.get();
-            let Some(slot) = self.computed.get_mut(desc.computed_idx) else {
-                tracing::error!(
-                    "computed_idx missing from computed local config slotmap: {:?}",
-                    desc.computed_idx
-                );
-                return;
-            };
-            tracing::trace!("invalidating {x:?} / {:?}", desc.src);
-            slot.take();
-
-            // Also invalidate the secondary data
-            self.with_client_config.remove(desc.computed_idx);
-        });
-    }
-
-    fn remove_toml(&mut self, file_id: FileId) -> Option<()> {
-        let node_id = *self.ra_file_id_map.get(&file_id)?;
-        if node_id.is_removed(&self.tree) {
-            return None;
-        }
-        let node = self.tree.get_mut(node_id)?.get_mut();
-        node.input = None;
-        self.invalidate_subtree(node_id);
-        Some(())
-    }
-
-    fn apply_changes(
-        &mut self,
-        changes: ConfigChanges,
-        vfs: &Vfs,
-        errors: &mut Vec<ConfigTreeError>,
-    ) {
+    pub fn apply_changes(&mut self, changes: ConfigChanges, vfs: &Vfs) -> Vec<ConfigTreeError> {
         let mut scratch_errors = Vec::new();
+        let mut errors = Vec::new();
         let ConfigChanges { client_change, ra_toml_changes, mut parent_changes } = changes;
 
         if let Some(change) = client_change {
-            match (self.client_config.as_ref(), change.as_ref()) {
+            let current = self.client_config();
+            let change = change.map(PointerCmp);
+            match (current.as_ref(), change.as_ref()) {
                 (None, None) => {}
-                (Some(a), Some(b)) if Arc::ptr_eq(a, b) => {}
+                (Some(a), Some(b)) if a == b => {}
                 _ => {
-                    // invalidate the output table only, don't immediately need to recompute
-                    // everything from scratch
-                    self.with_client_config.clear();
-                    self.client_config = change;
+                    self.set_client_config(change);
                 }
             }
         }
@@ -364,37 +177,75 @@ impl ConfigTree {
                     if change.change_kind == vfs::ChangeKind::Create {
                         parent_changes.entry(change.file_id).or_insert(ConfigParent::UserDefault);
                     }
-                    let input = parse_toml(change.file_id, vfs, &mut scratch_errors, errors);
+                    let input = parse_toml(change.file_id, vfs, &mut scratch_errors, &mut errors)
+                        .map(PointerCmp);
                     tracing::trace!("updating toml for {:?} to {:?}", change.file_id, input);
 
-                    if let Err(e) = self.update_toml(change.file_id, input) {
-                        errors.push(e);
-                    }
+                    self.ensure_node(change.file_id);
+                    self.set_config_input(change.file_id, input);
                 }
                 vfs::ChangeKind::Delete => {
-                    self.remove_toml(change.file_id);
+                    self.ensure_node(change.file_id);
+                    self.set_config_input(change.file_id, None);
                 }
             }
         }
 
         for (file_id, parent) in parent_changes {
-            let node_id = self.ensure_node(file_id);
+            self.ensure_node(file_id);
             let parent_node_id = match parent {
-                ConfigParent::Parent(parent_file_id) => self.ensure_node(parent_file_id),
+                ConfigParent::Parent(parent_file_id) => {
+                    self.ensure_node(parent_file_id);
+                    parent_file_id
+                }
                 ConfigParent::UserDefault if file_id == self.xdg_config_file_id => continue,
-                ConfigParent::UserDefault => self.xdg_config_node_id,
+                ConfigParent::UserDefault => self.xdg_config_file_id,
             };
             // order of children within the parent node does not matter
-            tracing::trace!("appending child {node_id:?} to {parent_node_id:?}");
-            parent_node_id.append(node_id, &mut self.tree);
+            tracing::trace!("appending child {file_id:?} to {parent_node_id:?}");
+            self.set_config_parent(file_id, Some(parent_node_id))
+        }
+
+        errors
+    }
+
+    fn ensure_node(&mut self, file_id: FileId) {
+        if self.known_file_ids.insert(file_id) {
+            self.set_config_input(file_id, None);
         }
     }
 }
 
-impl fmt::Debug for ConfigTree {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.tree.fmt(f)
+fn parse_toml(
+    file_id: FileId,
+    vfs: &Vfs,
+    scratch: &mut Vec<(String, toml::de::Error)>,
+    errors: &mut Vec<ConfigTreeError>,
+) -> Option<Arc<ConfigInput>> {
+    let content = vfs.file_contents(file_id);
+    let content_str = match std::str::from_utf8(content) {
+        Err(e) => {
+            tracing::error!("non-UTF8 TOML content for {file_id:?}: {e}");
+            errors.push(ConfigTreeError::Utf8(file_id, e));
+            return None;
+        }
+        Ok(str) => str,
+    };
+    if content_str.is_empty() {
+        return None;
     }
+    let table = match toml::from_str(content_str) {
+        Ok(table) => table,
+        Err(e) => {
+            errors.push(ConfigTreeError::TomlParse(file_id, e));
+            return None;
+        }
+    };
+    let input = Arc::new(ConfigInput::from_toml(table, scratch));
+    scratch.drain(..).for_each(|(field, error)| {
+        errors.push(ConfigTreeError::TomlDeserialize { file_id, field, error });
+    });
+    Some(input)
 }
 
 #[cfg(test)]
@@ -432,7 +283,7 @@ mod tests {
         let mut vfs = Vfs::default();
         let xdg_config_file_id =
             alloc_file_id(&mut vfs, "/home/username/.config/rust-analyzer/rust-analyzer.toml");
-        let config_tree = ConcurrentConfigTree::new(ConfigTree::new(xdg_config_file_id));
+        let mut config_tree = ConfigDb::new(xdg_config_file_id);
 
         let root = alloc_config(
             &mut vfs,
@@ -473,7 +324,7 @@ mod tests {
 
         dbg!(config_tree.apply_changes(changes, &vfs));
 
-        let local = config_tree.local_config(crate_a).unwrap();
+        let local = config_tree.local_config(crate_a);
         // from root
         assert_eq!(local.completion_autoself_enable, false);
         // from crate_a
@@ -511,11 +362,11 @@ mod tests {
         dbg!(config_tree.apply_changes(changes, &vfs));
 
         let prev = local;
-        let local = config_tree.local_config(crate_a).unwrap();
+        let local = config_tree.local_config(crate_a);
         // Should have been recomputed
-        assert!(!Arc::ptr_eq(&prev, &local));
+        assert_ne!(prev, local);
         // But without changes in between, should give the same Arc back
-        assert!(Arc::ptr_eq(&local, &config_tree.local_config(crate_a).unwrap()));
+        assert_eq!(local, config_tree.local_config(crate_a));
 
         // The newly added xdg_config_file_id should affect the output if nothing else touches
         // this key
