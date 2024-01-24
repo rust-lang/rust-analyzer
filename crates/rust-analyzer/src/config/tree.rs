@@ -1,6 +1,7 @@
+use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::sync::Arc;
-use vfs::{FileId, Vfs};
+use vfs::{AbsPathBuf, FileId, Vfs};
 
 use super::{ConfigInput, LocalConfigData, RootLocalConfigData};
 
@@ -15,12 +16,23 @@ pub enum ConfigTreeError {
 
 /// Some rust-analyzer.toml files have changed, and/or the LSP client sent a new configuration.
 pub struct ConfigChanges {
+    /// - `None` => no change
+    /// - `Some(None)` => the client config was removed / reset or something
+    /// - `Some(Some(...))` => the client config was updated
+    client_change: Option<Option<Arc<ConfigInput>>>,
+    set_project_root: Option<AbsPathBuf>,
+    set_source_roots: Option<FxHashSet<AbsPathBuf>>,
     ra_toml_changes: Vec<vfs::ChangedFile>,
+}
+
+/// Internal version
+struct ConfigChangesInner {
     /// - `None` => no change
     /// - `Some(None)` => the client config was removed / reset or something
     /// - `Some(Some(...))` => the client config was updated
     client_change: Option<Option<Arc<ConfigInput>>>,
     parent_changes: FxHashMap<FileId, ConfigParent>,
+    ra_toml_changes: Vec<vfs::ChangedFile>,
 }
 
 #[derive(Debug)]
@@ -140,16 +152,20 @@ pub struct ConfigDb {
     storage: salsa::Storage<Self>,
     known_file_ids: FxHashSet<FileId>,
     xdg_config_file_id: FileId,
+    source_roots: FxHashSet<AbsPathBuf>,
+    project_root: AbsPathBuf,
 }
 
 impl salsa::Database for ConfigDb {}
 
 impl ConfigDb {
-    pub fn new(xdg_config_file_id: FileId) -> Self {
+    pub fn new(xdg_config_file_id: FileId, project_root: AbsPathBuf) -> Self {
         let mut this = Self {
             storage: Default::default(),
             known_file_ids: FxHashSet::default(),
             xdg_config_file_id,
+            source_roots: FxHashSet::default(),
+            project_root,
         };
         this.set_client_config(None);
         this.ensure_node(xdg_config_file_id);
@@ -176,12 +192,68 @@ impl ConfigDb {
     }
 
     /// Applies a bunch of [`ConfigChanges`]. The FileIds referred to in `ConfigChanges` do not
-    /// need to exist. You can generate the `parent_changes` hashmap by iterating ancestors of all
-    /// of the [`ide::SourceRoot`]s, slapping `.map(|path| path.join("rust-analyzer.toml"))`.
-    pub fn apply_changes(&mut self, changes: ConfigChanges, vfs: &Vfs) -> Vec<ConfigTreeError> {
+    /// need to exist.
+    pub fn apply_changes(&mut self, changes: ConfigChanges, vfs: &mut Vfs) -> Vec<ConfigTreeError> {
+        if let Some(new_project_root) = &changes.set_project_root {
+            self.project_root = new_project_root.clone();
+        }
+        let source_root_change = changes.set_source_roots.as_ref().or_else(|| {
+            if changes.set_project_root.is_some() {
+                Some(&self.source_roots)
+            } else {
+                None
+            }
+        });
+        let parent_changes = if let Some(source_roots) = source_root_change {
+            source_roots
+                .iter()
+                .flat_map(|path: &AbsPathBuf| {
+                    path.ancestors()
+                        .take_while(|x| x.starts_with(&self.project_root))
+                        .map(|dir| dir.join("rust-analyzer.toml"))
+                        .map(|path| vfs.alloc_file_id(path.into()))
+                        .collect_vec()
+                        // immediately get tuple_windows before returning from flat_map
+                        .into_iter()
+                        .tuple_windows()
+                        .map(|(a, b)| (a, ConfigParent::Parent(b)))
+                })
+                .collect::<FxHashMap<_, _>>()
+        } else {
+            Default::default()
+        };
+
+        if tracing::enabled!(tracing::Level::TRACE) {
+            for (&a, parent) in &parent_changes {
+                tracing::trace!(
+                    "{a:?} ({:?}): parent = {parent:?} ({:?})",
+                    vfs.file_path(a),
+                    match parent {
+                        ConfigParent::Parent(p) => vfs.file_path(*p).to_string(),
+                        ConfigParent::UserDefault => "xdg".to_string(),
+                    }
+                );
+            }
+        }
+
+        // Could delete (self.known_file_ids - parent_changes.keys) here.
+
+        let inner = ConfigChangesInner {
+            ra_toml_changes: changes.ra_toml_changes,
+            client_change: changes.client_change,
+            parent_changes,
+        };
+        self.apply_changes_inner(inner, vfs)
+    }
+
+    fn apply_changes_inner(
+        &mut self,
+        changes: ConfigChangesInner,
+        vfs: &Vfs,
+    ) -> Vec<ConfigTreeError> {
         let mut scratch_errors = Vec::new();
         let mut errors = Vec::new();
-        let ConfigChanges { client_change, ra_toml_changes, parent_changes } = changes;
+        let ConfigChangesInner { client_change, ra_toml_changes, parent_changes } = changes;
 
         if let Some(change) = client_change {
             let current = self.client_config();
@@ -285,7 +357,7 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use itertools::Itertools;
-    use vfs::{AbsPathBuf, VfsPath};
+    use vfs::{AbsPath, AbsPathBuf, VfsPath};
 
     fn alloc_file_id(vfs: &mut Vfs, s: &str) -> FileId {
         let abs_path = AbsPathBuf::try_from(PathBuf::new().join(s)).unwrap();
@@ -310,11 +382,14 @@ mod tests {
     fn basic() {
         tracing_subscriber::fmt().try_init().ok();
         let mut vfs = Vfs::default();
+        let project_root = AbsPath::assert(Path::new("/root"));
         let xdg_config_file_id =
             alloc_file_id(&mut vfs, "/home/username/.config/rust-analyzer/rust-analyzer.toml");
-        let mut config_tree = ConfigDb::new(xdg_config_file_id);
+        let mut config_tree = ConfigDb::new(xdg_config_file_id, project_root.to_path_buf());
 
-        let root = alloc_config(
+        let source_roots = ["/root/crate_a"].map(Path::new).map(AbsPath::assert);
+
+        let _root = alloc_config(
             &mut vfs,
             "/root/rust-analyzer.toml",
             r#"
@@ -335,13 +410,12 @@ mod tests {
             "#,
         );
 
-        let mut parent_changes = FxHashMap::default();
-        parent_changes.insert(crate_a, ConfigParent::Parent(root));
-
+        let new_source_roots = source_roots.into_iter().map(|abs| abs.to_path_buf()).collect();
         let changes = ConfigChanges {
             // Normally you will filter these!
             ra_toml_changes: vfs.take_changes(),
-            parent_changes,
+            set_project_root: None,
+            set_source_roots: Some(new_source_roots),
             client_change: Some(Some(Arc::new(ConfigInput {
                 local: crate::config::LocalConfigInput {
                     semanticHighlighting_strings_enable: Some(false),
@@ -351,7 +425,7 @@ mod tests {
             }))),
         };
 
-        dbg!(config_tree.apply_changes(changes, &vfs));
+        dbg!(config_tree.apply_changes(changes, &mut vfs));
 
         let local = config_tree.local_config(crate_a);
         // from root
@@ -384,11 +458,12 @@ mod tests {
         );
 
         let changes = ConfigChanges {
-            ra_toml_changes: dbg!(vfs.take_changes()),
-            parent_changes: Default::default(),
             client_change: None,
+            set_project_root: None,
+            set_source_roots: None,
+            ra_toml_changes: dbg!(vfs.take_changes()),
         };
-        dbg!(config_tree.apply_changes(changes, &vfs));
+        dbg!(config_tree.apply_changes(changes, &mut vfs));
 
         let prev = local;
         let local = config_tree.local_config(crate_a);
@@ -410,52 +485,26 @@ mod tests {
     }
 
     #[test]
-    fn generated_parent_changes() {
+    fn set_source_roots() {
         tracing_subscriber::fmt().try_init().ok();
         let mut vfs = Vfs::default();
 
+        let project_root = AbsPath::assert(Path::new("/root"));
         let xdg =
             alloc_file_id(&mut vfs, "/home/username/.config/rust-analyzer/rust-analyzer.toml");
-        let mut config_tree = ConfigDb::new(xdg);
+        let mut config_tree = ConfigDb::new(xdg, project_root.to_path_buf());
 
-        let project_root = Path::new("/root");
-        let sourceroots =
-            [PathBuf::new().join("/root/crate_a"), PathBuf::new().join("/root/crate_a/crate_b")];
-        let sourceroot_tomls = sourceroots
+        let source_roots =
+            ["/root/crate_a", "/root/crate_a/crate_b"].map(Path::new).map(AbsPath::assert);
+        let source_root_tomls = source_roots
             .iter()
             .map(|dir| dir.join("rust-analyzer.toml"))
             .map(|path| AbsPathBuf::try_from(path).unwrap())
             .map(|path| vfs.alloc_file_id(path.into()))
             .collect_vec();
-        let &[crate_a, crate_b] = &sourceroot_tomls[..] else {
+        let &[crate_a, crate_b] = &source_root_tomls[..] else {
             panic!();
         };
-
-        let parent_changes = sourceroots
-            .iter()
-            .flat_map(|path| {
-                path.ancestors()
-                    .take_while(|x| x.starts_with(project_root))
-                    .map(|dir| dir.join("rust-analyzer.toml"))
-                    .map(|path| AbsPathBuf::try_from(path).unwrap())
-                    .map(|path| vfs.alloc_file_id(path.into()))
-                    .collect_vec()
-                    .into_iter()
-                    .tuple_windows()
-                    .map(|(a, b)| (a, ConfigParent::Parent(b)))
-            })
-            .collect::<FxHashMap<_, _>>();
-
-        for (&a, parent) in &parent_changes {
-            eprintln!(
-                "{a:?} ({:?}): parent = {parent:?} ({:?})",
-                vfs.file_path(a),
-                match parent {
-                    ConfigParent::Parent(p) => vfs.file_path(*p).to_string(),
-                    ConfigParent::UserDefault => "xdg".to_string(),
-                }
-            );
-        }
 
         vfs.set_file_id_contents(
             xdg,
@@ -464,13 +513,15 @@ mod tests {
         vfs.set_file_id_contents(crate_a, Some(b"[completion.autoself]\nenable = false".to_vec()));
         // note that crate_b's rust-analyzer.toml doesn't exist
 
+        let new_source_roots = source_roots.into_iter().map(|abs| abs.to_path_buf()).collect();
         let changes = ConfigChanges {
-            ra_toml_changes: dbg!(vfs.take_changes()),
-            parent_changes,
             client_change: None,
+            set_project_root: None, // already set in ConfigDb::new(...)
+            set_source_roots: Some(new_source_roots),
+            ra_toml_changes: dbg!(vfs.take_changes()),
         };
 
-        dbg!(config_tree.apply_changes(changes, &vfs));
+        dbg!(config_tree.apply_changes(changes, &mut vfs));
         let local = config_tree.local_config(crate_b);
 
         assert_eq!(
