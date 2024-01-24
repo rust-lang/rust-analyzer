@@ -60,7 +60,7 @@ mod patch_old_style;
 // To deprecate an option by replacing it with another name use `new_name | `old_name` so that we keep
 // parsing the old name.
 config_data! {
-    global: struct GlobalConfigData {
+    global: struct GlobalConfigData <- GlobalConfigInput -> RootGlobalConfigData {
         /// Whether to insert #[must_use] when generating `as_` methods
         /// for enum variants.
         assist_emitMustUse: bool               = false,
@@ -366,7 +366,7 @@ config_data! {
 }
 
 config_data! {
-    local: struct LocalConfigData {
+    local: struct LocalConfigData <- LocalConfigInput -> RootLocalConfigData {
         /// Toggles the additional completions that automatically add imports when completed.
         /// Note that your client must specify the `additionalTextEdits` LSP client capability to truly have this feature enabled.
         completion_autoimport_enable: bool       = true,
@@ -583,44 +583,25 @@ config_data! {
 }
 
 config_data! {
-    client: struct ClientConfigData {}
+    client: struct ClientConfigData <- ClientConfigInput -> RootClientConfigData {}
 }
 
-impl Default for ConfigData {
-    fn default() -> Self {
-        ConfigData::from_json(serde_json::Value::Null, &mut Vec::new())
-    }
-}
-
-#[derive(Debug, Clone)]
-struct RootLocalConfigData(LocalConfigData);
-#[derive(Debug, Clone)]
-struct RootGlobalConfigData(GlobalConfigData);
-#[derive(Debug, Clone)]
-struct RootClientConfigData(ClientConfigData);
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 struct RootConfigData {
     local: RootLocalConfigData,
     global: RootGlobalConfigData,
     client: RootClientConfigData,
 }
 
-impl Default for RootConfigData {
-    fn default() -> Self {
-        RootConfigData {
-            local: RootLocalConfigData(LocalConfigData::from_json(
-                &mut serde_json::Value::Null,
-                &mut Vec::new(),
-            )),
-            global: RootGlobalConfigData(GlobalConfigData::from_json(
-                &mut serde_json::Value::Null,
-                &mut Vec::new(),
-            )),
-            client: RootClientConfigData(ClientConfigData::from_json(
-                &mut serde_json::Value::Null,
-                &mut Vec::new(),
-            )),
+impl RootConfigData {
+    /// Reads a single root config blob. All fields are either set by the config blob, or to the
+    /// default value.
+    fn from_root_input(input: ConfigInput) -> Self {
+        let ConfigInput { global, local, client } = input;
+        Self {
+            global: RootGlobalConfigData::from_root_input(global),
+            local: RootLocalConfigData::from_root_input(local),
+            client: RootClientConfigData::from_root_input(client),
         }
     }
 }
@@ -1188,13 +1169,14 @@ impl Config {
         }
         let mut errors = Vec::new();
         self.detached_files =
-            get_field::<Vec<PathBuf>>(&mut json, &mut errors, "detachedFiles", None, vec![])
+            get_field::<Vec<PathBuf>>(&mut json, &mut errors, "detachedFiles", None)
+                .unwrap_or_default()
                 .into_iter()
                 .map(AbsPathBuf::assert)
                 .collect();
         patch_old_style::patch_json_for_outdated_configs(&mut json);
-        self.root_config.global =
-            RootGlobalConfigData(GlobalConfigData::from_json(&mut json, &mut errors));
+        let input = ConfigInput::from_json(json, &mut errors);
+        self.root_config = RootConfigData::from_root_input(input);
         tracing::debug!("deserialized config data: {:#?}", self.root_config.global);
         self.snippets.clear();
         for (name, def) in self.root_config.local.0.completion_snippets_custom.iter() {
@@ -1244,7 +1226,7 @@ impl Config {
     }
 
     pub fn json_schema() -> serde_json::Value {
-        ConfigData::json_schema()
+        ConfigInput::json_schema()
     }
 
     pub fn root_path(&self) -> &AbsPathBuf {
@@ -2325,38 +2307,102 @@ macro_rules! _default_str {
 
 macro_rules! _config_data {
     // modname is for the tests
-    ($modname:ident: struct $name:ident {
+    ($modname:ident: struct $name:ident <- $input:ident -> $root:ident {
         $(
             $(#[doc=$doc:literal])*
             $field:ident $(| $alias:ident)*: $ty:ty = $(@$marker:ident: )? $default:expr,
         )*
     }) => {
+        /// All fields raw `T`, representing either a root config, or a root config + overrides from
+        /// some distal configuration blob(s).
         #[allow(non_snake_case)]
         #[derive(Debug, Clone, Serialize)]
         struct $name { $($field: $ty,)* }
-        impl $name {
-            #[allow(unused)]
-            fn from_json(json: &mut serde_json::Value, error_sink: &mut Vec<(String, serde_json::Error)>) -> $name {
+
+        /// All fields `Option<T>`, `None` representing fields not set in a particular JSON/TOML blob.
+        #[allow(non_snake_case)]
+        #[derive(Clone, Serialize, Default)]
+        struct $input { $(
+            #[serde(skip_serializing_if = "Option::is_none")]
+            $field: Option<$ty>,
+        )* }
+
+        impl std::fmt::Debug for $input {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                let mut s = f.debug_struct(stringify!($input));
+                $(
+                    if let Some(val) = self.$field.as_ref() {
+                        s.field(stringify!($field), val);
+                    }
+                )*
+                s.finish()
+            }
+        }
+
+        /// Newtype of
+        #[doc = stringify!($name)]
+        /// expressing that this was read directly from a single, root config blob.
+        #[derive(Debug, Clone, Default)]
+        struct $root($name);
+
+        impl $root {
+            /// Reads a single root config blob. All fields are either set by the config blob, or to the
+            /// default value.
+            fn from_root_input(input: $input) -> Self {
+                let mut data = $name::default();
+                data.apply_input(input);
+                Self(data)
+            }
+        }
+
+        impl Default for $name {
+            fn default() -> Self {
                 $name {$(
+                    $field: default_val!($(@$marker:)? $default, $ty),
+                )*}
+            }
+        }
+
+        impl $name {
+            /// Applies overrides from some more local config blob, to self.
+            #[allow(unused)]
+            fn apply_input(&mut self, input: $input) {
+                $(
+                    if let Some(value) = input.$field {
+                        self.$field = value;
+                    }
+                )*
+            }
+
+            #[allow(unused)]
+            fn clone_with_overrides(&self, input: $input) -> Self {
+                Self {$(
+                    $field: input.$field.unwrap_or_else(|| self.$field.clone()),
+                )*}
+            }
+        }
+
+        impl $input {
+            #[allow(unused)]
+            fn from_json(json: &mut serde_json::Value, error_sink: &mut Vec<(String, serde_json::Error)>) -> Self {
+                Self {$(
                     $field: get_field(
                         json,
                         error_sink,
                         stringify!($field),
                         None$(.or(Some(stringify!($alias))))*,
-                        default_val!($(@$marker:)? $default, $ty),
                     ),
                 )*}
             }
 
             #[allow(unused)]
-            fn from_toml(toml: &mut toml::Table , error_sink: &mut Vec<(String, toml::de::Error)>) -> $name {
-                $name {$(
+            fn from_toml(toml: &mut toml::Table , error_sink: &mut Vec<(String, toml::de::Error)>) -> Self {
+                Self {$(
                     $field: get_field_toml::<$ty>(
                         toml,
                         error_sink,
                         stringify!($field),
                         None$(.or(Some(stringify!($alias))))*,
-                        default_val!($(@$marker:)? $default, $ty),
                     ),
                 )*}
             }
@@ -2387,7 +2433,8 @@ use _config_data as config_data;
 use _default_str as default_str;
 use _default_val as default_val;
 
-#[derive(Debug, Clone, Serialize)]
+/// All of the config levels, all fields raw `T`. Represents a root configuration, or a config set
+#[derive(Debug, Clone, Serialize, Default)]
 struct ConfigData {
     #[serde(flatten)]
     global: GlobalConfigData,
@@ -2397,34 +2444,47 @@ struct ConfigData {
     client: ClientConfigData,
 }
 
-impl ConfigData {
+/// All of the config levels, all fields `Option<T>`, to describe fields that are actually set by
+/// some rust-analyzer.toml file or JSON blob. An empty rust-analyzer.toml corresponds to
+/// all fields being None.
+#[derive(Debug, Clone, Serialize, Default)]
+struct ConfigInput {
+    #[serde(flatten)]
+    global: GlobalConfigInput,
+    #[serde(flatten)]
+    local: LocalConfigInput,
+    #[serde(flatten)]
+    client: ClientConfigInput,
+}
+
+impl ConfigInput {
     fn from_json(
         mut json: serde_json::Value,
         error_sink: &mut Vec<(String, serde_json::Error)>,
-    ) -> ConfigData {
-        ConfigData {
-            global: GlobalConfigData::from_json(&mut json, error_sink),
-            local: LocalConfigData::from_json(&mut json, error_sink),
-            client: ClientConfigData::from_json(&mut json, error_sink),
+    ) -> ConfigInput {
+        ConfigInput {
+            global: GlobalConfigInput::from_json(&mut json, error_sink),
+            local: LocalConfigInput::from_json(&mut json, error_sink),
+            client: ClientConfigInput::from_json(&mut json, error_sink),
         }
     }
 
     fn from_toml(
         mut toml: toml::Table,
         error_sink: &mut Vec<(String, toml::de::Error)>,
-    ) -> ConfigData {
-        ConfigData {
-            global: GlobalConfigData::from_toml(&mut toml, error_sink),
-            local: LocalConfigData::from_toml(&mut toml, error_sink),
-            client: ClientConfigData::from_toml(&mut toml, error_sink),
+    ) -> ConfigInput {
+        ConfigInput {
+            global: GlobalConfigInput::from_toml(&mut toml, error_sink),
+            local: LocalConfigInput::from_toml(&mut toml, error_sink),
+            client: ClientConfigInput::from_toml(&mut toml, error_sink),
         }
     }
 
     fn schema_fields() -> Vec<SchemaField> {
         let mut fields = Vec::new();
-        GlobalConfigData::schema_fields(&mut fields);
-        LocalConfigData::schema_fields(&mut fields);
-        ClientConfigData::schema_fields(&mut fields);
+        GlobalConfigInput::schema_fields(&mut fields);
+        LocalConfigInput::schema_fields(&mut fields);
+        ClientConfigInput::schema_fields(&mut fields);
         // HACK: sort the fields, so the diffs on the generated docs/schema are smaller
         fields.sort_by_key(|&(x, ..)| x);
         fields
@@ -2445,8 +2505,7 @@ fn get_field_toml<T: DeserializeOwned>(
     error_sink: &mut Vec<(String, toml::de::Error)>,
     field: &'static str,
     alias: Option<&'static str>,
-    default: T,
-) -> T {
+) -> Option<T> {
     alias
         .into_iter()
         .chain(iter::once(field))
@@ -2474,7 +2533,6 @@ fn get_field_toml<T: DeserializeOwned>(
                 None
             }
         })
-        .unwrap_or(default)
 }
 
 fn get_field<T: DeserializeOwned>(
@@ -2482,8 +2540,7 @@ fn get_field<T: DeserializeOwned>(
     error_sink: &mut Vec<(String, serde_json::Error)>,
     field: &'static str,
     alias: Option<&'static str>,
-    default: T,
-) -> T {
+) -> Option<T> {
     // XXX: check alias first, to work around the VS Code where it pre-fills the
     // defaults instead of sending an empty object.
     alias
@@ -2504,7 +2561,6 @@ fn get_field<T: DeserializeOwned>(
                 None
             }
         })
-        .unwrap_or(default)
 }
 
 type SchemaField = (&'static str, &'static str, &'static [&'static str], String);
@@ -2965,7 +3021,7 @@ mod tests {
     #[test]
     fn generate_config_documentation() {
         let docs_path = project_root().join("docs/user/generated_config.adoc");
-        let expected = ConfigData::manual();
+        let expected = ConfigInput::manual();
         ensure_file_contents(&docs_path, &expected);
     }
 
