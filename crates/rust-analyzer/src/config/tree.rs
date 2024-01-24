@@ -356,7 +356,6 @@ fn parse_toml(
 mod tests {
     use std::path::{Path, PathBuf};
 
-    use itertools::Itertools;
     use vfs::{AbsPath, AbsPathBuf, VfsPath};
 
     fn alloc_file_id(vfs: &mut Vfs, s: &str) -> FileId {
@@ -496,15 +495,9 @@ mod tests {
 
         let source_roots =
             ["/root/crate_a", "/root/crate_a/crate_b"].map(Path::new).map(AbsPath::assert);
-        let source_root_tomls = source_roots
-            .iter()
+        let [crate_a, crate_b] = source_roots
             .map(|dir| dir.join("rust-analyzer.toml"))
-            .map(|path| AbsPathBuf::try_from(path).unwrap())
-            .map(|path| vfs.alloc_file_id(path.into()))
-            .collect_vec();
-        let &[crate_a, crate_b] = &source_root_tomls[..] else {
-            panic!();
-        };
+            .map(|path| vfs.alloc_file_id(path.into()));
 
         vfs.set_file_id_contents(
             xdg,
