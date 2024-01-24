@@ -88,22 +88,23 @@ trait ConfigTreeQueries {
     fn client_config(&self) -> Option<PointerCmp<ConfigInput>>;
 
     #[salsa::input]
-    fn config_parent(&self, file_id: FileId) -> Option<FileId>;
+    fn parent(&self, file_id: FileId) -> Option<FileId>;
 
     #[salsa::input]
     fn config_input(&self, file_id: FileId) -> Option<PointerCmp<ConfigInput>>;
 
-    fn compute_recursive(&self, file_id: FileId) -> PointerCmp<LocalConfigData>;
+    fn recursive_local(&self, file_id: FileId) -> PointerCmp<LocalConfigData>;
 
-    fn local_config(&self, file_id: FileId) -> PointerCmp<LocalConfigData>;
+    /// The output
+    fn computed_local_config(&self, file_id: FileId) -> PointerCmp<LocalConfigData>;
 }
 
-fn compute_recursive(db: &dyn ConfigTreeQueries, file_id: FileId) -> PointerCmp<LocalConfigData> {
+fn recursive_local(db: &dyn ConfigTreeQueries, file_id: FileId) -> PointerCmp<LocalConfigData> {
     let self_input = db.config_input(file_id);
     tracing::trace!(?self_input, ?file_id);
-    match db.config_parent(file_id) {
+    match db.parent(file_id) {
         Some(parent) if parent != file_id => {
-            let parent_computed = db.compute_recursive(parent);
+            let parent_computed = db.recursive_local(parent);
             if let Some(input) = self_input.as_deref() {
                 PointerCmp::new(parent_computed.clone_with_overrides(input.local.clone()))
             } else {
@@ -122,8 +123,11 @@ fn compute_recursive(db: &dyn ConfigTreeQueries, file_id: FileId) -> PointerCmp<
     }
 }
 
-fn local_config(db: &dyn ConfigTreeQueries, file_id: FileId) -> PointerCmp<LocalConfigData> {
-    let computed = db.compute_recursive(file_id);
+fn computed_local_config(
+    db: &dyn ConfigTreeQueries,
+    file_id: FileId,
+) -> PointerCmp<LocalConfigData> {
+    let computed = db.recursive_local(file_id);
     if let Some(client) = db.client_config() {
         PointerCmp::new(computed.clone_with_overrides(client.local.clone()))
     } else {
@@ -149,14 +153,35 @@ impl ConfigDb {
         };
         this.set_client_config(None);
         this.ensure_node(xdg_config_file_id);
-        this.set_config_parent(xdg_config_file_id, None);
         this
     }
 
+    /// Gets the value of LocalConfigData for a given `rust-analyzer.toml` FileId.
+    ///
+    /// The rust-analyzer.toml does not need to exist on disk. All values are the expression of
+    /// overriding the parent `rust-analyzer.toml`, set by adding an entry in
+    /// `ConfigChanges.parent_changes`.
+    ///
+    /// If the db is not aware of the given `rust-analyzer.toml` FileId, then the config is read
+    /// from the user's system-wide default config.
+    ///
+    /// Note that the client config overrides all configs.
+    pub fn local_config(&self, ra_toml_file_id: FileId) -> Arc<LocalConfigData> {
+        if self.known_file_ids.contains(&ra_toml_file_id) {
+            self.computed_local_config(ra_toml_file_id).0
+        } else {
+            tracing::warn!(?ra_toml_file_id, "called local_config with unknown file id");
+            self.computed_local_config(self.xdg_config_file_id).0
+        }
+    }
+
+    /// Applies a bunch of [`ConfigChanges`]. The FileIds referred to in `ConfigChanges` do not
+    /// need to exist. You can generate the `parent_changes` hashmap by iterating ancestors of all
+    /// of the [`ide::SourceRoot`]s, slapping `.map(|path| path.join("rust-analyzer.toml"))`.
     pub fn apply_changes(&mut self, changes: ConfigChanges, vfs: &Vfs) -> Vec<ConfigTreeError> {
         let mut scratch_errors = Vec::new();
         let mut errors = Vec::new();
-        let ConfigChanges { client_change, ra_toml_changes, mut parent_changes } = changes;
+        let ConfigChanges { client_change, ra_toml_changes, parent_changes } = changes;
 
         if let Some(change) = client_change {
             let current = self.client_config();
@@ -174,9 +199,6 @@ impl ConfigDb {
             // turn and face the strain
             match change.change_kind {
                 vfs::ChangeKind::Create | vfs::ChangeKind::Modify => {
-                    if change.change_kind == vfs::ChangeKind::Create {
-                        parent_changes.entry(change.file_id).or_insert(ConfigParent::UserDefault);
-                    }
                     let input = parse_toml(change.file_id, vfs, &mut scratch_errors, &mut errors)
                         .map(PointerCmp);
                     tracing::trace!("updating toml for {:?} to {:?}", change.file_id, input);
@@ -203,15 +225,25 @@ impl ConfigDb {
             };
             // order of children within the parent node does not matter
             tracing::trace!("appending child {file_id:?} to {parent_node_id:?}");
-            self.set_config_parent(file_id, Some(parent_node_id))
+            self.set_parent(file_id, Some(parent_node_id))
         }
 
         errors
     }
 
+    /// Inserts default values into the salsa inputs for the given file_id
+    /// if it's never been seen before
     fn ensure_node(&mut self, file_id: FileId) {
         if self.known_file_ids.insert(file_id) {
             self.set_config_input(file_id, None);
+            self.set_parent(
+                file_id,
+                if file_id == self.xdg_config_file_id {
+                    None
+                } else {
+                    Some(self.xdg_config_file_id)
+                },
+            );
         }
     }
 }
@@ -250,17 +282,15 @@ fn parse_toml(
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
+    use itertools::Itertools;
     use vfs::{AbsPathBuf, VfsPath};
 
     fn alloc_file_id(vfs: &mut Vfs, s: &str) -> FileId {
-        tracing_subscriber::fmt().init();
         let abs_path = AbsPathBuf::try_from(PathBuf::new().join(s)).unwrap();
 
         let vfs_path = VfsPath::from(abs_path);
-        // FIXME: the vfs should expose this functionality more simply.
-        // We shouldn't have to clone the vfs path just to get a FileId.
         let file_id = vfs.alloc_file_id(vfs_path);
         vfs.set_file_id_contents(file_id, None);
         file_id
@@ -270,8 +300,6 @@ mod tests {
         let abs_path = AbsPathBuf::try_from(PathBuf::new().join(s)).unwrap();
 
         let vfs_path = VfsPath::from(abs_path);
-        // FIXME: the vfs should expose this functionality more simply.
-        // We shouldn't have to clone the vfs path just to get a FileId.
         let file_id = vfs.alloc_file_id(vfs_path);
         vfs.set_file_id_contents(file_id, Some(config.to_string().into_bytes()));
         file_id
@@ -280,6 +308,7 @@ mod tests {
     use super::*;
     #[test]
     fn basic() {
+        tracing_subscriber::fmt().try_init().ok();
         let mut vfs = Vfs::default();
         let xdg_config_file_id =
             alloc_file_id(&mut vfs, "/home/username/.config/rust-analyzer/rust-analyzer.toml");
@@ -364,9 +393,9 @@ mod tests {
         let prev = local;
         let local = config_tree.local_config(crate_a);
         // Should have been recomputed
-        assert_ne!(prev, local);
+        assert!(!Arc::ptr_eq(&prev, &local));
         // But without changes in between, should give the same Arc back
-        assert_eq!(local, config_tree.local_config(crate_a));
+        assert!(Arc::ptr_eq(&local, &config_tree.local_config(crate_a)));
 
         // The newly added xdg_config_file_id should affect the output if nothing else touches
         // this key
@@ -378,5 +407,76 @@ mod tests {
         assert_eq!(local.completion_autoself_enable, false);
         assert_eq!(local.completion_autoimport_enable, false);
         assert_eq!(local.semanticHighlighting_strings_enable, false);
+    }
+
+    #[test]
+    fn generated_parent_changes() {
+        tracing_subscriber::fmt().try_init().ok();
+        let mut vfs = Vfs::default();
+
+        let xdg =
+            alloc_file_id(&mut vfs, "/home/username/.config/rust-analyzer/rust-analyzer.toml");
+        let mut config_tree = ConfigDb::new(xdg);
+
+        let project_root = Path::new("/root");
+        let sourceroots =
+            [PathBuf::new().join("/root/crate_a"), PathBuf::new().join("/root/crate_a/crate_b")];
+        let sourceroot_tomls = sourceroots
+            .iter()
+            .map(|dir| dir.join("rust-analyzer.toml"))
+            .map(|path| AbsPathBuf::try_from(path).unwrap())
+            .map(|path| vfs.alloc_file_id(path.into()))
+            .collect_vec();
+        let &[crate_a, crate_b] = &sourceroot_tomls[..] else {
+            panic!();
+        };
+
+        let parent_changes = sourceroots
+            .iter()
+            .flat_map(|path| {
+                path.ancestors()
+                    .take_while(|x| x.starts_with(project_root))
+                    .map(|dir| dir.join("rust-analyzer.toml"))
+                    .map(|path| AbsPathBuf::try_from(path).unwrap())
+                    .map(|path| vfs.alloc_file_id(path.into()))
+                    .collect_vec()
+                    .into_iter()
+                    .tuple_windows()
+                    .map(|(a, b)| (a, ConfigParent::Parent(b)))
+            })
+            .collect::<FxHashMap<_, _>>();
+
+        for (&a, parent) in &parent_changes {
+            eprintln!(
+                "{a:?} ({:?}): parent = {parent:?} ({:?})",
+                vfs.file_path(a),
+                match parent {
+                    ConfigParent::Parent(p) => vfs.file_path(*p).to_string(),
+                    ConfigParent::UserDefault => "xdg".to_string(),
+                }
+            );
+        }
+
+        vfs.set_file_id_contents(
+            xdg,
+            Some(b"[inlayHints.discriminantHints]\nenable = \"always\"".to_vec()),
+        );
+        vfs.set_file_id_contents(crate_a, Some(b"[completion.autoself]\nenable = false".to_vec()));
+        // note that crate_b's rust-analyzer.toml doesn't exist
+
+        let changes = ConfigChanges {
+            ra_toml_changes: dbg!(vfs.take_changes()),
+            parent_changes,
+            client_change: None,
+        };
+
+        dbg!(config_tree.apply_changes(changes, &vfs));
+        let local = config_tree.local_config(crate_b);
+
+        assert_eq!(
+            local.inlayHints_discriminantHints_enable,
+            crate::config::DiscriminantHintsDef::Always
+        );
+        assert_eq!(local.completion_autoself_enable, false);
     }
 }
