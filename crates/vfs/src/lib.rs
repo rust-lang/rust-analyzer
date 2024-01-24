@@ -133,11 +133,6 @@ impl Vfs {
         self.get(file_id).as_deref().unwrap()
     }
 
-    /// File content, but returns None if the file was deleted.
-    pub fn file_contents_opt(&self, file_id: FileId) -> Option<&[u8]> {
-        self.get(file_id).as_deref()
-    }
-
     /// Returns the overall memory usage for the stored files.
     pub fn memory_usage(&self) -> usize {
         self.data.iter().flatten().map(|d| d.capacity()).sum()
@@ -167,6 +162,12 @@ impl Vfs {
         self.set_file_id_contents(file_id, contents)
     }
 
+    /// Update the given `file_id` with the given `contents`. `None` means the file was deleted.
+    ///
+    /// Returns `true` if the file was modified, and saves the [change](ChangedFile).
+    ///
+    /// If the path does not currently exists in the `Vfs`, allocates a new
+    /// [`FileId`] for it.
     pub fn set_file_id_contents(&mut self, file_id: FileId, mut contents: Option<Vec<u8>>) -> bool {
         let change_kind = match (self.get(file_id), &contents) {
             (None, None) => return false,
