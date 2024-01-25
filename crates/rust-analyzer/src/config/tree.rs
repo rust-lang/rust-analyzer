@@ -280,24 +280,6 @@ impl ConfigDb {
             }
         }
 
-        for change in ra_toml_changes {
-            // turn and face the strain
-            match change.change_kind {
-                vfs::ChangeKind::Create | vfs::ChangeKind::Modify => {
-                    let input = parse_toml(change.file_id, vfs, &mut scratch_errors, &mut errors)
-                        .map(PointerCmp);
-                    tracing::trace!("updating toml for {:?} to {:?}", change.file_id, input);
-
-                    self.ensure_node(change.file_id);
-                    self.set_config_input(change.file_id, input);
-                }
-                vfs::ChangeKind::Delete => {
-                    self.ensure_node(change.file_id);
-                    self.set_config_input(change.file_id, None);
-                }
-            }
-        }
-
         for (file_id, parent) in parent_changes {
             self.ensure_node(file_id);
             let parent_node_id = match parent {
@@ -308,9 +290,28 @@ impl ConfigDb {
                 ConfigParent::UserDefault if file_id == self.xdg_config_file_id => continue,
                 ConfigParent::UserDefault => self.xdg_config_file_id,
             };
-            // order of children within the parent node does not matter
-            tracing::trace!("appending child {file_id:?} to {parent_node_id:?}");
             self.set_parent(file_id, Some(parent_node_id))
+        }
+
+        for change in ra_toml_changes {
+            if !self.known_file_ids.contains(&change.file_id) {
+                // Irrelevant Vfs change. Ideally you would not pass these in at all, but it's not
+                // a problem to filter them out here.
+                continue;
+            }
+            // turn and face the strain
+            match change.change_kind {
+                vfs::ChangeKind::Create | vfs::ChangeKind::Modify => {
+                    let input = parse_toml(change.file_id, vfs, &mut scratch_errors, &mut errors)
+                        .map(PointerCmp);
+                    tracing::trace!("updating toml for {:?} to {:?}", change.file_id, input);
+
+                    self.set_config_input(change.file_id, input);
+                }
+                vfs::ChangeKind::Delete => {
+                    self.set_config_input(change.file_id, None);
+                }
+            }
         }
 
         errors
