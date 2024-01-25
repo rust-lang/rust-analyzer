@@ -609,4 +609,52 @@ mod tests {
         let local = config_tree.local_config(crate_a);
         assert_eq!(local.completion_autoself_enable, true);
     }
+
+    #[test]
+    fn no_change_to_source_roots() {
+        tracing_subscriber::fmt().try_init().ok();
+        let mut vfs = Vfs::default();
+
+        let project_root = AbsPath::assert(Path::new("/root"));
+        let xdg =
+            alloc_file_id(&mut vfs, "/home/username/.config/rust-analyzer/rust-analyzer.toml");
+        let mut config_tree = ConfigDb::new(xdg, project_root.to_path_buf());
+
+        let source_roots = ["/root/crate_a"].map(Path::new).map(AbsPath::assert);
+        let crate_a = vfs.alloc_file_id(source_roots[0].join("rust-analyzer.toml").into());
+
+        let _root = alloc_config(
+            &mut vfs,
+            "/root/rust-analyzer.toml",
+            r#"
+            [completion.autoself]
+            enable = false
+            "#,
+        );
+
+        let new_source_roots = source_roots.into_iter().map(|abs| abs.to_path_buf()).collect();
+        let changes = ConfigChanges {
+            client_change: None,
+            set_project_root: None, // already set in ConfigDb::new(...)
+            set_source_roots: Some(new_source_roots),
+            ra_toml_changes: dbg!(vfs.take_changes()),
+        };
+        config_tree.apply_changes(changes, &mut vfs);
+        let local = config_tree.local_config(crate_a);
+        // initially crate_a is part of the project root, so it does inherit
+        // from /root/rust-analyzer.toml
+        assert_eq!(local.completion_autoself_enable, false);
+
+        let changes = ConfigChanges {
+            client_change: None,
+            set_project_root: None,
+            set_source_roots: None,
+            ra_toml_changes: dbg!(vfs.take_changes()),
+        };
+        config_tree.apply_changes(changes, &mut vfs);
+        let local = config_tree.local_config(crate_a);
+        // initially crate_a is part of the project root, so it does inherit
+        // from /root/rust-analyzer.toml
+        assert_eq!(local.completion_autoself_enable, false);
+    }
 }
