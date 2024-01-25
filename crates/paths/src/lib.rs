@@ -136,7 +136,8 @@ impl AbsPath {
     /// # Panics
     ///
     /// Panics if `path` is not absolute.
-    pub fn assert(path: &Path) -> &AbsPath {
+    pub fn assert<P: AsRef<Path> + ?Sized>(path: &P) -> &AbsPath {
+        let path = path.as_ref();
         assert!(path.is_absolute());
         unsafe { &*(path as *const Path as *const AbsPath) }
     }

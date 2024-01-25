@@ -367,13 +367,12 @@ fn parse_toml(
 
 #[cfg(test)]
 mod tests {
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
 
     use vfs::{AbsPath, AbsPathBuf, VfsPath};
 
     fn alloc_file_id(vfs: &mut Vfs, s: &str) -> FileId {
-        let abs_path = AbsPathBuf::try_from(PathBuf::new().join(s)).unwrap();
-
+        let abs_path = AbsPath::assert(s).to_path_buf();
         let vfs_path = VfsPath::from(abs_path);
         let file_id = vfs.alloc_file_id(vfs_path);
         vfs.set_file_id_contents(file_id, None);
@@ -381,25 +380,26 @@ mod tests {
     }
 
     fn alloc_config(vfs: &mut Vfs, s: &str, config: &str) -> FileId {
-        let abs_path = AbsPathBuf::try_from(PathBuf::new().join(s)).unwrap();
-
+        let abs_path = AbsPath::assert(s).to_path_buf();
         let vfs_path = VfsPath::from(abs_path);
         let file_id = vfs.alloc_file_id(vfs_path);
         vfs.set_file_id_contents(file_id, Some(config.to_string().into_bytes()));
         file_id
     }
 
+    const XDG_CONFIG_HOME_RATOML: &'static str =
+        "/home/username/.config/rust-analyzer/rust-analyzer.toml";
+
     use super::*;
     #[test]
     fn basic() {
         tracing_subscriber::fmt().try_init().ok();
         let mut vfs = Vfs::default();
-        let project_root = AbsPath::assert(Path::new("/root"));
-        let xdg_config_file_id =
-            alloc_file_id(&mut vfs, "/home/username/.config/rust-analyzer/rust-analyzer.toml");
+        let project_root = AbsPath::assert("/root");
+        let xdg_config_file_id = alloc_file_id(&mut vfs, XDG_CONFIG_HOME_RATOML);
         let mut config_tree = ConfigDb::new(xdg_config_file_id, project_root.to_path_buf());
 
-        let source_roots = ["/root/crate_a"].map(Path::new).map(AbsPath::assert);
+        let source_roots = ["/root/crate_a"].map(AbsPath::assert);
 
         let _root = alloc_config(
             &mut vfs,
@@ -501,13 +501,11 @@ mod tests {
         tracing_subscriber::fmt().try_init().ok();
         let mut vfs = Vfs::default();
 
-        let project_root = AbsPath::assert(Path::new("/root"));
-        let xdg =
-            alloc_file_id(&mut vfs, "/home/username/.config/rust-analyzer/rust-analyzer.toml");
+        let project_root = AbsPath::assert("/root");
+        let xdg = alloc_file_id(&mut vfs, XDG_CONFIG_HOME_RATOML);
         let mut config_tree = ConfigDb::new(xdg, project_root.to_path_buf());
 
-        let source_roots =
-            ["/root/crate_a", "/root/crate_a/crate_b"].map(Path::new).map(AbsPath::assert);
+        let source_roots = ["/root/crate_a", "/root/crate_a/crate_b"].map(AbsPath::assert);
         let [crate_a, crate_b] = source_roots
             .map(|dir| dir.join("rust-analyzer.toml"))
             .map(|path| vfs.alloc_file_id(path.into()));
@@ -539,7 +537,7 @@ mod tests {
         // ----
 
         // Now move crate b to the root. This gives a new FileId for crate_b/ra.toml.
-        let source_roots = ["/root/crate_a", "/root/crate_b"].map(Path::new).map(AbsPath::assert);
+        let source_roots = ["/root/crate_a", "/root/crate_b"].map(AbsPath::assert);
         let [_crate_a, crate_b] = source_roots
             .map(|dir| dir.join("rust-analyzer.toml"))
             .map(|path| vfs.alloc_file_id(path.into()));
@@ -568,12 +566,11 @@ mod tests {
         tracing_subscriber::fmt().try_init().ok();
         let mut vfs = Vfs::default();
 
-        let project_root = AbsPath::assert(Path::new("/root"));
-        let xdg =
-            alloc_file_id(&mut vfs, "/home/username/.config/rust-analyzer/rust-analyzer.toml");
+        let project_root = AbsPath::assert("/root");
+        let xdg = alloc_file_id(&mut vfs, XDG_CONFIG_HOME_RATOML);
         let mut config_tree = ConfigDb::new(xdg, project_root.to_path_buf());
 
-        let source_roots = ["/root/crate_a"].map(Path::new).map(AbsPath::assert);
+        let source_roots = ["/root/crate_a"].map(AbsPath::assert);
         let crate_a = vfs.alloc_file_id(source_roots[0].join("rust-analyzer.toml").into());
 
         let _root = alloc_config(
@@ -601,7 +598,7 @@ mod tests {
         // change project root
         let changes = ConfigChanges {
             client_change: None,
-            set_project_root: Some(AbsPath::assert(Path::new("/ro")).to_path_buf()),
+            set_project_root: Some(AbsPath::assert("/ro").to_path_buf()),
             set_source_roots: None,
             ra_toml_changes: dbg!(vfs.take_changes()),
         };
@@ -617,12 +614,11 @@ mod tests {
         tracing_subscriber::fmt().try_init().ok();
         let mut vfs = Vfs::default();
 
-        let project_root = AbsPath::assert(Path::new("/root"));
-        let xdg =
-            alloc_file_id(&mut vfs, "/home/username/.config/rust-analyzer/rust-analyzer.toml");
+        let project_root = AbsPath::assert("/root");
+        let xdg = alloc_file_id(&mut vfs, XDG_CONFIG_HOME_RATOML);
         let mut config_tree = ConfigDb::new(xdg, project_root.to_path_buf());
 
-        let source_roots = ["/root/crate_a"].map(Path::new).map(AbsPath::assert);
+        let source_roots = ["/root/crate_a"].map(AbsPath::assert);
         let crate_a = vfs.alloc_file_id(source_roots[0].join("rust-analyzer.toml").into());
 
         let _root = alloc_config(
