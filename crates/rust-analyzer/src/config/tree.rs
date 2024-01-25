@@ -205,7 +205,7 @@ impl ConfigDb {
             }
         });
         let parent_changes = if let Some(source_roots) = source_root_change {
-            source_roots
+            let parent_changes = source_roots
                 .iter()
                 .flat_map(|path: &AbsPathBuf| {
                     path.ancestors()
@@ -219,7 +219,21 @@ impl ConfigDb {
                         .tuple_windows()
                         .map(|(a, b)| (a, ConfigParent::Parent(b)))
                 })
-                .collect::<FxHashMap<_, _>>()
+                .collect::<FxHashMap<_, _>>();
+
+            // Remove source roots (& their parent config files) that are no longer part of the project root
+            self.known_file_ids
+                .iter()
+                .cloned()
+                .filter(|&x| x != self.xdg_config_file_id && !parent_changes.contains_key(&x))
+                .collect_vec()
+                .into_iter()
+                .for_each(|deleted| {
+                    self.known_file_ids.remove(&deleted);
+                    self.reset_node(deleted);
+                });
+
+            parent_changes
         } else {
             Default::default()
         };
@@ -236,18 +250,6 @@ impl ConfigDb {
                 );
             }
         }
-
-        // Remove source roots (& their parent config files) that are no longer part of the project root
-        self.known_file_ids
-            .iter()
-            .cloned()
-            .filter(|&x| x != self.xdg_config_file_id && !parent_changes.contains_key(&x))
-            .collect_vec()
-            .into_iter()
-            .for_each(|deleted| {
-                self.known_file_ids.remove(&deleted);
-                self.reset_node(deleted);
-            });
 
         let inner = ConfigChangesInner {
             ra_toml_changes: changes.ra_toml_changes,
