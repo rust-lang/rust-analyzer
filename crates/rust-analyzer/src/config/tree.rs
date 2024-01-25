@@ -522,5 +522,31 @@ mod tests {
             crate::config::DiscriminantHintsDef::Always
         );
         assert_eq!(local.completion_autoself_enable, false);
+
+        // ----
+
+        // Now move crate b to the root. This gives a new FileId for crate_b/ra.toml.
+        let source_roots = ["/root/crate_a", "/root/crate_b"].map(Path::new).map(AbsPath::assert);
+        let [crate_a, crate_b] = source_roots
+            .map(|dir| dir.join("rust-analyzer.toml"))
+            .map(|path| vfs.alloc_file_id(path.into()));
+        let new_source_roots = source_roots.into_iter().map(|abs| abs.to_path_buf()).collect();
+        let changes = ConfigChanges {
+            client_change: None,
+            set_project_root: None, // already set in ConfigDb::new(...)
+            set_source_roots: Some(new_source_roots),
+            ra_toml_changes: dbg!(vfs.take_changes()),
+        };
+
+        dbg!(config_tree.apply_changes(changes, &mut vfs));
+        let local = config_tree.local_config(crate_b);
+
+        // Still inherits from xdg
+        assert_eq!(
+            local.inlayHints_discriminantHints_enable,
+            crate::config::DiscriminantHintsDef::Always
+        );
+        // new crate_b does not inherit from crate_a
+        assert_eq!(local.completion_autoself_enable, true);
     }
 }
