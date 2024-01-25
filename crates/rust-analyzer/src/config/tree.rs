@@ -209,6 +209,7 @@ impl ConfigDb {
                 .iter()
                 .flat_map(|path: &AbsPathBuf| {
                     path.ancestors()
+                        // Note that Path::new("/root2/abc").starts_with(Path::new("/root")) is false
                         .take_while(|x| x.starts_with(&self.project_root))
                         .map(|dir| dir.join("rust-analyzer.toml"))
                         .map(|path| vfs.alloc_file_id(path.into()))
@@ -236,7 +237,17 @@ impl ConfigDb {
             }
         }
 
-        // Could delete (self.known_file_ids - parent_changes.keys) here.
+        // Remove source roots (& their parent config files) that are no longer part of the project root
+        self.known_file_ids
+            .iter()
+            .cloned()
+            .filter(|&x| x != self.xdg_config_file_id && !parent_changes.contains_key(&x))
+            .collect_vec()
+            .into_iter()
+            .for_each(|deleted| {
+                self.known_file_ids.remove(&deleted);
+                self.reset_node(deleted);
+            });
 
         let inner = ConfigChangesInner {
             ra_toml_changes: changes.ra_toml_changes,
@@ -307,16 +318,16 @@ impl ConfigDb {
     /// if it's never been seen before
     fn ensure_node(&mut self, file_id: FileId) {
         if self.known_file_ids.insert(file_id) {
-            self.set_config_input(file_id, None);
-            self.set_parent(
-                file_id,
-                if file_id == self.xdg_config_file_id {
-                    None
-                } else {
-                    Some(self.xdg_config_file_id)
-                },
-            );
+            self.reset_node(file_id);
         }
+    }
+
+    fn reset_node(&mut self, file_id: FileId) {
+        self.set_config_input(file_id, None);
+        self.set_parent(
+            file_id,
+            if file_id == self.xdg_config_file_id { None } else { Some(self.xdg_config_file_id) },
+        );
     }
 }
 
@@ -527,7 +538,7 @@ mod tests {
 
         // Now move crate b to the root. This gives a new FileId for crate_b/ra.toml.
         let source_roots = ["/root/crate_a", "/root/crate_b"].map(Path::new).map(AbsPath::assert);
-        let [crate_a, crate_b] = source_roots
+        let [_crate_a, crate_b] = source_roots
             .map(|dir| dir.join("rust-analyzer.toml"))
             .map(|path| vfs.alloc_file_id(path.into()));
         let new_source_roots = source_roots.into_iter().map(|abs| abs.to_path_buf()).collect();
@@ -547,6 +558,55 @@ mod tests {
             crate::config::DiscriminantHintsDef::Always
         );
         // new crate_b does not inherit from crate_a
+        assert_eq!(local.completion_autoself_enable, true);
+    }
+
+    #[test]
+    fn change_project_root() {
+        tracing_subscriber::fmt().try_init().ok();
+        let mut vfs = Vfs::default();
+
+        let project_root = AbsPath::assert(Path::new("/root"));
+        let xdg =
+            alloc_file_id(&mut vfs, "/home/username/.config/rust-analyzer/rust-analyzer.toml");
+        let mut config_tree = ConfigDb::new(xdg, project_root.to_path_buf());
+
+        let source_roots = ["/root/crate_a"].map(Path::new).map(AbsPath::assert);
+        let crate_a = vfs.alloc_file_id(source_roots[0].join("rust-analyzer.toml").into());
+
+        let _root = alloc_config(
+            &mut vfs,
+            "/root/rust-analyzer.toml",
+            r#"
+            [completion.autoself]
+            enable = false
+            "#,
+        );
+
+        let new_source_roots = source_roots.into_iter().map(|abs| abs.to_path_buf()).collect();
+        let changes = ConfigChanges {
+            client_change: None,
+            set_project_root: None, // already set in ConfigDb::new(...)
+            set_source_roots: Some(new_source_roots),
+            ra_toml_changes: dbg!(vfs.take_changes()),
+        };
+        config_tree.apply_changes(changes, &mut vfs);
+        let local = config_tree.local_config(crate_a);
+        // initially crate_a is part of the project root, so it does inherit
+        // from /root/rust-analyzer.toml
+        assert_eq!(local.completion_autoself_enable, false);
+
+        // change project root
+        let changes = ConfigChanges {
+            client_change: None,
+            set_project_root: Some(AbsPath::assert(Path::new("/ro")).to_path_buf()),
+            set_source_roots: None,
+            ra_toml_changes: dbg!(vfs.take_changes()),
+        };
+        config_tree.apply_changes(changes, &mut vfs);
+        // crate_a is now outside the project root and hence inherit (1) xdg (2)
+        // crate_a/ra.toml, but not /root/rust-analyzer.toml any more
+        let local = config_tree.local_config(crate_a);
         assert_eq!(local.completion_autoself_enable, true);
     }
 }
