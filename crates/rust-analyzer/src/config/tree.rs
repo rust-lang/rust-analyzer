@@ -647,6 +647,7 @@ mod tests {
         // from /root/rust-analyzer.toml
         assert_eq!(local.completion_autoself_enable, false);
 
+        // Send in an empty change, should have no effect
         let changes = ConfigChanges {
             client_change: None,
             set_project_root: None,
@@ -655,8 +656,6 @@ mod tests {
         };
         config_tree.apply_changes(changes, &mut vfs);
         let local = config_tree.local_config(crate_a);
-        // initially crate_a is part of the project root, so it does inherit
-        // from /root/rust-analyzer.toml
         assert_eq!(local.completion_autoself_enable, false);
     }
 }
