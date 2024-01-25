@@ -5,7 +5,7 @@ use vfs::{AbsPathBuf, FileId, Vfs};
 
 use super::{ConfigInput, LocalConfigData, RootLocalConfigData};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ConfigTreeError {
     Removed,
     NonExistent,
@@ -653,5 +653,32 @@ mod tests {
         config_tree.apply_changes(changes, &mut vfs);
         let local = config_tree.local_config(crate_a);
         assert_eq!(local.completion_autoself_enable, false);
+    }
+
+    #[test]
+    fn ignore_irrelevant_vfs_changes() {
+        tracing_subscriber::fmt().try_init().ok();
+        let mut vfs = Vfs::default();
+
+        let project_root = AbsPath::assert("/root");
+        let xdg = alloc_file_id(&mut vfs, XDG_CONFIG_HOME_RATOML);
+        let mut config_tree = ConfigDb::new(xdg, project_root.to_path_buf());
+
+        // The main way an irrelevant vfs file change is going to show up is in TOML parse errors.
+        let invalid_utf8 = b"\xc3\x28";
+        vfs.set_file_contents(
+            AbsPath::assert("/irrelevant/file.bin").to_path_buf().into(),
+            Some(invalid_utf8.to_vec()),
+        );
+        let errors = config_tree.apply_changes(
+            ConfigChanges {
+                client_change: None,
+                set_project_root: None,
+                set_source_roots: None,
+                ra_toml_changes: vfs.take_changes(),
+            },
+            &mut vfs,
+        );
+        assert_eq!(errors, vec![]);
     }
 }
