@@ -42,6 +42,7 @@ use crate::{
 };
 
 mod patch_old_style;
+mod tree;
 
 // Conventions for configuration keys to preserve maximal extendability without breakage:
 //  - Toggles (be it binary true/false or with more options in-between) should almost always suffix as `_enable`
@@ -2194,7 +2195,7 @@ enum AdjustmentHintsDef {
     Reborrow,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(untagged)]
 enum DiscriminantHintsDef {
     #[serde(with = "true_or_always")]

@@ -157,8 +157,18 @@ impl Vfs {
     ///
     /// If the path does not currently exists in the `Vfs`, allocates a new
     /// [`FileId`] for it.
-    pub fn set_file_contents(&mut self, path: VfsPath, mut contents: Option<Vec<u8>>) -> bool {
+    pub fn set_file_contents(&mut self, path: VfsPath, contents: Option<Vec<u8>>) -> bool {
         let file_id = self.alloc_file_id(path);
+        self.set_file_id_contents(file_id, contents)
+    }
+
+    /// Update the given `file_id` with the given `contents`. `None` means the file was deleted.
+    ///
+    /// Returns `true` if the file was modified, and saves the [change](ChangedFile).
+    ///
+    /// If the path does not currently exists in the `Vfs`, allocates a new
+    /// [`FileId`] for it.
+    pub fn set_file_id_contents(&mut self, file_id: FileId, mut contents: Option<Vec<u8>>) -> bool {
         let change_kind = match (self.get(file_id), &contents) {
             (None, None) => return false,
             (Some(old), Some(new)) if old == new => return false,
@@ -196,7 +206,7 @@ impl Vfs {
     /// - Else, returns `path`'s id.
     ///
     /// Does not record a change.
-    fn alloc_file_id(&mut self, path: VfsPath) -> FileId {
+    pub fn alloc_file_id(&mut self, path: VfsPath) -> FileId {
         let file_id = self.interner.intern(path);
         let idx = file_id.0 as usize;
         let len = self.data.len().max(idx + 1);

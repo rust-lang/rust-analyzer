@@ -136,7 +136,8 @@ impl AbsPath {
     /// # Panics
     ///
     /// Panics if `path` is not absolute.
-    pub fn assert(path: &Path) -> &AbsPath {
+    pub fn assert<P: AsRef<Path> + ?Sized>(path: &P) -> &AbsPath {
+        let path = path.as_ref();
         assert!(path.is_absolute());
         unsafe { &*(path as *const Path as *const AbsPath) }
     }
@@ -192,6 +193,10 @@ impl AbsPath {
     }
     pub fn ends_with(&self, suffix: &RelPath) -> bool {
         self.0.ends_with(&suffix.0)
+    }
+
+    pub fn ancestors(&self) -> impl Iterator<Item = &AbsPath> {
+        self.0.ancestors().map(AbsPath::assert)
     }
 
     pub fn name_and_extension(&self) -> Option<(&str, Option<&str>)> {

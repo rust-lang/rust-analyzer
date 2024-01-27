@@ -1606,6 +1606,7 @@ dependencies = [
  "rayon",
  "rustc-dependencies",
  "rustc-hash",
+ "salsa",
  "scip",
  "serde",
  "serde_json",
