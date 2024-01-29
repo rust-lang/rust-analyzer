@@ -395,12 +395,10 @@ impl ProjectWorkspace {
         progress: &dyn Fn(String),
     ) -> anyhow::Result<WorkspaceBuildScripts> {
         match self {
-            ProjectWorkspace::Cargo { cargo, toolchain, .. } => {
-                WorkspaceBuildScripts::run_for_workspace(config, cargo, progress, toolchain)
-                    .with_context(|| {
-                        format!("Failed to run build scripts for {}", cargo.workspace_root())
-                    })
-            }
+            ProjectWorkspace::Cargo { cargo, .. } => WorkspaceBuildScripts::run_for_workspace(
+                config, cargo, progress,
+            )
+            .with_context(|| format!("Failed to run build scripts for {}", cargo.workspace_root())),
             ProjectWorkspace::Json { .. } | ProjectWorkspace::DetachedFiles { .. } => {
                 Ok(WorkspaceBuildScripts::default())
             }

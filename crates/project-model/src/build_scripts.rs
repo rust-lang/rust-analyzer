@@ -18,7 +18,6 @@ use itertools::Itertools;
 use la_arena::ArenaMap;
 use paths::{AbsPath, AbsPathBuf};
 use rustc_hash::{FxHashMap, FxHashSet};
-use semver::Version;
 use serde::Deserialize;
 
 use crate::{
@@ -110,6 +109,8 @@ impl WorkspaceBuildScripts {
                     }
                 }
 
+                cmd.arg("--keep-going");
+
                 cmd
             }
         };
@@ -132,10 +133,7 @@ impl WorkspaceBuildScripts {
         config: &CargoConfig,
         workspace: &CargoWorkspace,
         progress: &dyn Fn(String),
-        toolchain: &Option<Version>,
     ) -> io::Result<WorkspaceBuildScripts> {
-        const RUST_1_62: Version = Version::new(1, 62, 0);
-
         let current_dir = match &config.invocation_location {
             InvocationLocation::Root(root) if config.run_build_script_command.is_some() => {
                 root.as_path()
@@ -146,7 +144,7 @@ impl WorkspaceBuildScripts {
 
         let allowed_features = workspace.workspace_features();
 
-        match Self::run_per_ws(
+        Self::run_per_ws(
             Self::build_command(
                 config,
                 &allowed_features,
@@ -155,24 +153,7 @@ impl WorkspaceBuildScripts {
             workspace,
             current_dir,
             progress,
-        ) {
-            Ok(WorkspaceBuildScripts { error: Some(error), .. })
-                if toolchain.as_ref().map_or(false, |it| *it >= RUST_1_62) =>
-            {
-                // building build scripts failed, attempt to build with --keep-going so
-                // that we potentially get more build data
-                let mut cmd = Self::build_command(
-                    config,
-                    &allowed_features,
-                    &workspace.workspace_root().to_path_buf(),
-                )?;
-                cmd.args(["-Z", "unstable-options", "--keep-going"]).env("RUSTC_BOOTSTRAP", "1");
-                let mut res = Self::run_per_ws(cmd, workspace, current_dir, progress)?;
-                res.error = Some(error);
-                Ok(res)
-            }
-            res => res,
-        }
+        )
     }
 
     /// Runs the build scripts by invoking the configured command *once*.
