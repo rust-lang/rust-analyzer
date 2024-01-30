@@ -121,6 +121,7 @@ where
 pub fn token_tree_to_syntax_node<Ctx>(
     tt: &tt::Subtree<SpanData<Ctx>>,
     entry_point: parser::TopEntryPoint,
+    edition: parser::Edition,
 ) -> (Parse<SyntaxNode>, SpanMap<SpanData<Ctx>>)
 where
     SpanData<Ctx>: Span,
@@ -134,7 +135,7 @@ where
         _ => TokenBuffer::from_subtree(tt),
     };
     let parser_input = to_parser_input(&buffer);
-    let parser_output = entry_point.parse(&parser_input, parser::Edition::Edition2021);
+    let parser_output = entry_point.parse(&parser_input, edition);
     let mut tree_sink = TtTreeSink::new(buffer.begin());
     for event in parser_output.iter() {
         match event {
@@ -198,7 +199,8 @@ pub fn parse_exprs_with_sep<S: Span>(
     let mut res = Vec::new();
 
     while iter.peek_n(0).is_some() {
-        let expanded = iter.expect_fragment(parser::PrefixEntryPoint::Expr);
+        let expanded =
+            iter.expect_fragment(parser::PrefixEntryPoint::Expr, parser::Edition::Edition2021);
 
         res.push(match expanded.value {
             None => break,
