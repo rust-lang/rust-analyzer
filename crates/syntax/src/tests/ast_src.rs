@@ -66,7 +66,7 @@ pub(crate) const KINDS_SRC: KindsSrc<'_> = KindsSrc {
     ],
     keywords: &[
         "as", "async", "await", "box", "break", "const", "continue", "crate", "do", "dyn", "else",
-        "enum", "extern", "false", "fn", "for", "if", "impl", "in", "let", "loop", "macro",
+        "enum", "extern", "false", "fn", "for", "gen", "if", "impl", "in", "let", "loop", "macro",
         "match", "mod", "move", "mut", "pub", "ref", "return", "self", "Self", "static", "struct",
         "super", "trait", "true", "try", "type", "unsafe", "use", "where", "while", "yield",
     ],

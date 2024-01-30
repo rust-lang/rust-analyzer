@@ -473,7 +473,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
                         let Some(def) = self.owner.as_generic_def_id() else {
                             not_supported!("owner without generic def id");
                         };
-                        let gen = generics(self.db.upcast(), def);
+                        let r#gen = generics(self.db.upcast(), def);
                         let ty = self.expr_ty_without_adjust(expr_id);
                         self.push_assignment(
                             current,
@@ -483,9 +483,11 @@ impl<'ctx> MirLowerCtx<'ctx> {
                                     ty,
                                     value: chalk_ir::ConstValue::BoundVar(BoundVar::new(
                                         DebruijnIndex::INNERMOST,
-                                        gen.param_idx(p.into()).ok_or(MirLowerError::TypeError(
-                                            "fail to lower const generic param",
-                                        ))?,
+                                        r#gen.param_idx(p.into()).ok_or(
+                                            MirLowerError::TypeError(
+                                                "fail to lower const generic param",
+                                            ),
+                                        )?,
                                     )),
                                 }
                                 .intern(Interner),
@@ -855,7 +857,6 @@ impl<'ctx> MirLowerCtx<'ctx> {
             }
             Expr::Await { .. } => not_supported!("await"),
             Expr::Yeet { .. } => not_supported!("yeet"),
-            Expr::Async { .. } => not_supported!("async block"),
             &Expr::Const(id) => {
                 let subst = self.placeholder_subst();
                 self.lower_const(

@@ -126,6 +126,7 @@ impl Body {
         let mut params = None;
 
         let mut is_async_fn = false;
+        let mut is_gen_fn = false;
         let InFile { file_id, value: body } = {
             match def {
                 DefWithBodyId::FunctionId(f) => {
@@ -146,7 +147,9 @@ impl Body {
                             }),
                         )
                     });
+                    // FIXME from here we know this only happens for functions, so maybe we can get the blockexpr directly and also onlive provide the keyword values then
                     is_async_fn = data.has_async_kw();
+                    is_gen_fn = data.has_gen_kw();
                     src.map(|it| it.body().map(ast::Expr::from))
                 }
                 DefWithBodyId::ConstId(c) => {
@@ -170,7 +173,7 @@ impl Body {
         let module = def.module(db);
         let expander = Expander::new(db, file_id, module);
         let (mut body, mut source_map) =
-            Body::new(db, def, expander, params, body, module.krate, is_async_fn);
+            Body::new(db, def, expander, params, body, module.krate, is_async_fn, is_gen_fn);
         body.shrink_to_fit();
         source_map.shrink_to_fit();
 
@@ -210,8 +213,9 @@ impl Body {
         body: Option<ast::Expr>,
         krate: CrateId,
         is_async_fn: bool,
+        is_gen_fn: bool,
     ) -> (Body, BodySourceMap) {
-        lower::lower(db, owner, expander, params, body, krate, is_async_fn)
+        lower::lower(db, owner, expander, params, body, krate, is_async_fn, is_gen_fn)
     }
 
     fn shrink_to_fit(&mut self) {

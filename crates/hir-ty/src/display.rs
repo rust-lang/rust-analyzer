@@ -1058,6 +1058,60 @@ impl HirDisplay for Ty {
                         parameters.at(Interner, 0).hir_fmt(f)?;
                         write!(f, ">")?;
                     }
+                    ImplTraitId::GenBlockTypeImplTrait(body, ..) => {
+                        let iterator_trait = db
+                            .lang_item(body.module(db.upcast()).krate(), LangItem::Iterator)
+                            .and_then(LangItemTarget::as_trait);
+                        let item = iterator_trait.and_then(|t| {
+                            db.trait_data(t).associated_type_by_name(&hir_expand::name!(Item))
+                        });
+                        write!(f, "impl ")?;
+                        if let Some(t) = iterator_trait {
+                            f.start_location_link(t.into());
+                        }
+                        write!(f, "Iterator")?;
+                        if let Some(_) = iterator_trait {
+                            f.end_location_link();
+                        }
+                        write!(f, "<")?;
+                        if let Some(t) = item {
+                            f.start_location_link(t.into());
+                        }
+                        write!(f, "Item")?;
+                        if let Some(_) = item {
+                            f.end_location_link();
+                        }
+                        write!(f, " = ")?;
+                        parameters.at(Interner, 0).hir_fmt(f)?;
+                        write!(f, ">")?;
+                    }
+                    ImplTraitId::AsyncGenBlockTypeImplTrait(body, ..) => {
+                        let future_trait = db
+                            .lang_item(body.module(db.upcast()).krate(), LangItem::AsyncIterator)
+                            .and_then(LangItemTarget::as_trait);
+                        let output = future_trait.and_then(|t| {
+                            db.trait_data(t).associated_type_by_name(&hir_expand::name!(Item))
+                        });
+                        write!(f, "impl ")?;
+                        if let Some(t) = future_trait {
+                            f.start_location_link(t.into());
+                        }
+                        write!(f, "AsyncIterator")?;
+                        if let Some(_) = future_trait {
+                            f.end_location_link();
+                        }
+                        write!(f, "<")?;
+                        if let Some(t) = output {
+                            f.start_location_link(t.into());
+                        }
+                        write!(f, "Item")?;
+                        if let Some(_) = output {
+                            f.end_location_link();
+                        }
+                        write!(f, " = ")?;
+                        parameters.at(Interner, 0).hir_fmt(f)?;
+                        write!(f, ">")?;
+                    }
                 }
             }
             TyKind::Closure(id, substs) => {
@@ -1198,6 +1252,12 @@ impl HirDisplay for Ty {
                     }
                     ImplTraitId::AsyncBlockTypeImplTrait(..) => {
                         write!(f, "{{async block}}")?;
+                    }
+                    ImplTraitId::GenBlockTypeImplTrait(..) => {
+                        write!(f, "{{gen block}}")?;
+                    }
+                    ImplTraitId::AsyncGenBlockTypeImplTrait(..) => {
+                        write!(f, "{{async gen block}}")?;
                     }
                 };
             }

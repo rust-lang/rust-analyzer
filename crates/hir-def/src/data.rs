@@ -144,6 +144,10 @@ impl FunctionData {
     pub fn is_varargs(&self) -> bool {
         self.flags.contains(FnFlags::IS_VARARGS)
     }
+
+    pub fn has_gen_kw(&self) -> bool {
+        self.flags.contains(FnFlags::HAS_GEN_KW)
+    }
 }
 
 fn parse_rustc_legacy_const_generics(tt: &crate::tt::Subtree) -> Box<[u32]> {

@@ -586,6 +586,8 @@ impl TypeFoldable<Interner> for CallableSig {
 pub enum ImplTraitId {
     ReturnTypeImplTrait(hir_def::FunctionId, RpitId),
     AsyncBlockTypeImplTrait(hir_def::DefWithBodyId, ExprId),
+    GenBlockTypeImplTrait(hir_def::DefWithBodyId, ExprId),
+    AsyncGenBlockTypeImplTrait(hir_def::DefWithBodyId, ExprId),
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]

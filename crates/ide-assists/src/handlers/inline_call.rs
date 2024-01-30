@@ -511,6 +511,7 @@ fn inline(
         }
     }
 
+    // HERE?
     let is_async_fn = function.is_async(sema.db);
     if is_async_fn {
         cov_mark::hit!(inline_call_async_fn);
