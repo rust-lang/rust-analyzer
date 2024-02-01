@@ -2744,6 +2744,29 @@ impl B for Astruct {}
 }
 
 #[test]
+fn closures_kinds_with_predicates() {
+    check_types(
+        r#"
+//- minicore: fn
+struct A<F: FnOnce()>(F);
+struct B<'a, F: FnMut()>(&'a F);
+
+fn f() {
+    let c1 = || {};
+      //^^ impl Fn()
+    let a1 = A(|| {});
+    let c2 = a1.0;
+      //^^ impl FnOnce()
+    let c3 = || {};
+      //^^ impl FnMut()
+    let a2 = A(c3);
+    let b1 = B(&a2.0);
+}
+        "#,
+    )
+}
+
+#[test]
 fn capture_kinds_simple() {
     check_types(
         r#"
