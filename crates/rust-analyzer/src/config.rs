@@ -901,6 +901,16 @@ impl Config {
                 serde_json::Error::custom("expected a non-empty string"),
             ));
         }
+        if self.has_linked_projects() {
+            for path in self.linked_manifests() {
+                if let Err(e) = ProjectManifest::from_manifest_file(self.root_path.join(path)) {
+                    error_sink.push((
+                        "linkedProjects".to_string(),
+                        serde_json::Error::custom(format!("failed to load linked project: {}", e)),
+                    ));
+                }
+            }
+        }
     }
 
     pub fn json_schema() -> serde_json::Value {
