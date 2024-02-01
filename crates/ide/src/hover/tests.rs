@@ -353,9 +353,9 @@ fn main() {
         expect![[r#"
             ```rust
             {closure#0} // size = 8, align = 8, niches = 1
-            impl FnOnce() -> S2
+            impl Fn() -> S2
             ```
-            Coerced to: &impl FnOnce() -> S2
+            Coerced to: &impl Fn() -> S2
 
             ## Captures
             * `x` by move"#]],
@@ -401,17 +401,17 @@ fn main() {
                             },
                         },
                         HoverGotoTypeData {
-                            mod_path: "core::ops::function::FnOnce",
+                            mod_path: "core::ops::function::Fn",
                             nav: NavigationTarget {
                                 file_id: FileId(
                                     1,
                                 ),
-                                full_range: 632..867,
-                                focus_range: 693..699,
-                                name: "FnOnce",
+                                full_range: 254..425,
+                                focus_range: 310..312,
+                                name: "Fn",
                                 kind: Trait,
                                 container_name: "function",
-                                description: "pub trait FnOnce<Args>\nwhere\n    Args: Tuple,",
+                                description: "pub trait Fn<Args>\nwhere\n    Self: FnMut<Args>,\n    Args: Tuple,",
                             },
                         },
                     ],

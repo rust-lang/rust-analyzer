@@ -1,10 +1,10 @@
 //! Unification and canonicalization logic.
 
-use std::{fmt, iter, mem};
+use std::{cmp, fmt, iter, mem};
 
 use chalk_ir::{
     cast::Cast, fold::TypeFoldable, interner::HasInterner, zip::Zip, CanonicalVarKind, FloatTy,
-    IntTy, TyVariableKind, UniverseIndex,
+    IntTy, TyVariableKind, UniverseIndex, WhereClause,
 };
 use chalk_solve::infer::ParameterEnaVariableExt;
 use either::Either;
@@ -14,11 +14,12 @@ use triomphe::Arc;
 
 use super::{InferOk, InferResult, InferenceContext, TypeError};
 use crate::{
-    consteval::unknown_const, db::HirDatabase, fold_tys_and_consts, static_lifetime,
-    to_chalk_trait_id, traits::FnTrait, AliasEq, AliasTy, BoundVar, Canonical, Const, ConstValue,
-    DebruijnIndex, GenericArg, GenericArgData, Goal, Guidance, InEnvironment, InferenceVar,
-    Interner, Lifetime, ParamKind, ProjectionTy, ProjectionTyExt, Scalar, Solution, Substitution,
-    TraitEnvironment, Ty, TyBuilder, TyExt, TyKind, VariableKind,
+    chalk_db::TraitId, consteval::unknown_const, db::HirDatabase, fold_tys_and_consts,
+    static_lifetime, to_chalk_trait_id, traits::FnTrait, AliasEq, AliasTy, BoundVar, Canonical,
+    ClosureId, Const, ConstValue, DebruijnIndex, DomainGoal, GenericArg, GenericArgData, Goal,
+    GoalData, Guidance, InEnvironment, InferenceVar, Interner, Lifetime, ParamKind, ProjectionTy,
+    ProjectionTyExt, Scalar, Solution, Substitution, TraitEnvironment, Ty, TyBuilder, TyExt,
+    TyKind, VariableKind,
 };
 
 impl InferenceContext<'_> {
@@ -181,6 +182,8 @@ pub(crate) struct InferenceTable<'a> {
     /// Double buffer used in [`Self::resolve_obligations_as_possible`] to cut down on
     /// temporary allocations.
     resolve_obligations_buffer: Vec<Canonicalized<InEnvironment<Goal>>>,
+    fn_trait_predicates: Vec<(Ty, FnTrait)>,
+    cached_fn_trait_ids: Option<CachedFnTraitIds>,
 }
 
 pub(crate) struct InferenceTableSnapshot {
@@ -189,8 +192,25 @@ pub(crate) struct InferenceTableSnapshot {
     type_variable_table_snapshot: Vec<TypeVariableFlags>,
 }
 
+#[derive(Clone)]
+struct CachedFnTraitIds {
+    fn_trait: TraitId,
+    fn_mut_trait: TraitId,
+    fn_once_trait: TraitId,
+}
+
+impl CachedFnTraitIds {
+    fn new(db: &dyn HirDatabase, trait_env: &Arc<TraitEnvironment>) -> Option<Self> {
+        let fn_trait = FnTrait::Fn.get_id(db, trait_env.krate).map(to_chalk_trait_id)?;
+        let fn_mut_trait = FnTrait::FnMut.get_id(db, trait_env.krate).map(to_chalk_trait_id)?;
+        let fn_once_trait = FnTrait::FnOnce.get_id(db, trait_env.krate).map(to_chalk_trait_id)?;
+        Some(Self { fn_trait, fn_mut_trait, fn_once_trait })
+    }
+}
+
 impl<'a> InferenceTable<'a> {
     pub(crate) fn new(db: &'a dyn HirDatabase, trait_env: Arc<TraitEnvironment>) -> Self {
+        let cached_fn_trait_ids = CachedFnTraitIds::new(db, &trait_env);
         InferenceTable {
             db,
             trait_env,
@@ -198,6 +218,8 @@ impl<'a> InferenceTable<'a> {
             type_variable_table: Vec::new(),
             pending_obligations: Vec::new(),
             resolve_obligations_buffer: Vec::new(),
+            fn_trait_predicates: Vec::new(),
+            cached_fn_trait_ids,
         }
     }
 
@@ -547,6 +569,22 @@ impl<'a> InferenceTable<'a> {
     }
 
     fn register_obligation_in_env(&mut self, goal: InEnvironment<Goal>) {
+        if let Some(fn_trait_ids) = &self.cached_fn_trait_ids {
+            if let GoalData::DomainGoal(DomainGoal::Holds(WhereClause::Implemented(trait_ref))) =
+                goal.goal.data(Interner)
+            {
+                if let Some(ty) = trait_ref.substitution.type_parameters(Interner).next() {
+                    if trait_ref.trait_id == fn_trait_ids.fn_trait {
+                        self.fn_trait_predicates.push((ty, FnTrait::Fn));
+                    } else if trait_ref.trait_id == fn_trait_ids.fn_mut_trait {
+                        self.fn_trait_predicates.push((ty, FnTrait::FnMut));
+                    } else if trait_ref.trait_id == fn_trait_ids.fn_once_trait {
+                        self.fn_trait_predicates.push((ty, FnTrait::FnOnce));
+                    }
+                }
+            }
+        }
+
         let canonicalized = self.canonicalize(goal);
         let solution = self.try_resolve_obligation(&canonicalized);
         if matches!(solution, Some(Solution::Ambig(_))) {
@@ -837,6 +875,23 @@ impl<'a> InferenceTable<'a> {
             },
             _ => c,
         }
+    }
+
+    pub(super) fn get_closure_fn_trait_predicate(
+        &mut self,
+        closure_id: ClosureId,
+    ) -> Option<FnTrait> {
+        let predicates = mem::take(&mut self.fn_trait_predicates);
+        let res = predicates.iter().filter_map(|(ty, fn_trait)| {
+            if matches!(self.resolve_completely(ty.clone()).kind(Interner), TyKind::Closure(c, ..) if *c == closure_id) {
+                Some(*fn_trait)
+            } else {
+                None
+            }
+        }).fold(None, |acc, x| Some(cmp::max(acc.unwrap_or(FnTrait::FnOnce), x)));
+        self.fn_trait_predicates = predicates;
+
+        res
     }
 }
 

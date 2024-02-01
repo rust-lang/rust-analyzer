@@ -924,7 +924,7 @@ impl InferenceContext<'_> {
         }
     }
 
-    fn closure_kind(&self) -> FnTrait {
+    fn closure_kind_from_capture(&self) -> FnTrait {
         let mut r = FnTrait::Fn;
         for it in &self.current_captures {
             r = cmp::min(
@@ -941,7 +941,7 @@ impl InferenceContext<'_> {
         r
     }
 
-    fn analyze_closure(&mut self, closure: ClosureId) -> FnTrait {
+    fn analyze_closure(&mut self, closure: ClosureId, predicate: Option<FnTrait>) -> FnTrait {
         let InternedClosure(_, root) = self.db.lookup_intern_closure(closure.into());
         self.current_closure = Some(closure);
         let Expr::Closure { body, capture_by, .. } = &self.body[root] else {
@@ -959,7 +959,14 @@ impl InferenceContext<'_> {
         }
         self.restrict_precision_for_unsafe();
         // closure_kind should be done before adjust_for_move_closure
-        let closure_kind = self.closure_kind();
+        let closure_kind = {
+            let from_capture = self.closure_kind_from_capture();
+            // if predicate.unwrap_or(FnTrait::Fn) < from_capture {
+            //     // Diagnostics here, like compiler does in
+            //     // https://github.com/rust-lang/rust/blob/11f32b73e0dc9287e305b5b9980d24aecdc8c17f/compiler/rustc_hir_typeck/src/upvar.rs#L264
+            // }
+            predicate.unwrap_or(from_capture)
+        };
         match capture_by {
             CaptureBy::Value => self.adjust_for_move_closure(),
             CaptureBy::Ref => (),
@@ -975,7 +982,9 @@ impl InferenceContext<'_> {
         let deferred_closures = self.sort_closures();
         for (closure, exprs) in deferred_closures.into_iter().rev() {
             self.current_captures = vec![];
-            let kind = self.analyze_closure(closure);
+
+            let predicate = self.table.get_closure_fn_trait_predicate(closure);
+            let kind = self.analyze_closure(closure, predicate);
 
             for (derefed_callee, callee_ty, params, expr) in exprs {
                 if let &Expr::Call { callee, .. } = &self.body[expr] {
