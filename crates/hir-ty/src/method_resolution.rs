@@ -1167,7 +1167,17 @@ fn iterate_trait_method_candidates(
         // trait, but if we find out it doesn't, we'll skip the rest of the
         // iteration
         let mut known_implemented = false;
-        for &(_, item) in data.items.iter() {
+        'items: for &(_, item) in data.items.iter() {
+            if let AssocItemId::TypeAliasId(_) = item {
+                continue 'items;
+            }
+
+            if !known_implemented {
+                let goal = generic_implements_goal(db, env.clone(), t, &canonical_self_ty);
+                if db.trait_solve(env.krate, env.block, goal.cast(Interner)).is_none() {
+                    continue 'traits;
+                }
+            }
             // Don't pass a `visible_from_module` down to `is_valid_candidate`,
             // since only inherent methods should be included into visibility checking.
             let visible = match is_valid_candidate(table, name, receiver_ty, item, self_ty, None) {
@@ -1175,12 +1185,6 @@ fn iterate_trait_method_candidates(
                 IsValidCandidate::NotVisible => false,
                 IsValidCandidate::No => continue,
             };
-            if !known_implemented {
-                let goal = generic_implements_goal(db, env.clone(), t, &canonical_self_ty);
-                if db.trait_solve(env.krate, env.block, goal.cast(Interner)).is_none() {
-                    continue 'traits;
-                }
-            }
             known_implemented = true;
             callback(receiver_adjustments.clone().unwrap_or_default(), item, visible)?;
         }
