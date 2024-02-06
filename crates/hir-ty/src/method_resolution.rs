@@ -1178,14 +1178,16 @@ fn iterate_trait_method_candidates(
                     continue 'traits;
                 }
             }
+            known_implemented = true;
+
             // Don't pass a `visible_from_module` down to `is_valid_candidate`,
             // since only inherent methods should be included into visibility checking.
-            let visible = match is_valid_candidate(table, name, receiver_ty, item, self_ty, None) {
+            let visible = match is_valid_method_candidate(table, name, receiver_ty, item, self_ty) {
                 IsValidCandidate::Yes => true,
                 IsValidCandidate::NotVisible => false,
                 IsValidCandidate::No => continue,
             };
-            known_implemented = true;
+
             callback(receiver_adjustments.clone().unwrap_or_default(), item, visible)?;
         }
     }
@@ -1412,6 +1414,75 @@ fn is_valid_candidate(
                     return IsValidCandidate::No;
                 }
             }
+            IsValidCandidate::Yes
+        }
+        _ => IsValidCandidate::No,
+    }
+}
+
+/// Checks whether a given `AssocItemId` is applicable for `receiver_ty`.
+///
+/// This method should *only* be called by [`iterate_trait_method_candidates`],
+/// as it is responsible for determining applicability in completions.
+#[tracing::instrument(skip_all, fields(name))]
+fn is_valid_method_candidate(
+    table: &mut InferenceTable<'_>,
+    name: Option<&Name>,
+    receiver_ty: Option<&Ty>,
+    item: AssocItemId,
+    self_ty: &Ty,
+) -> IsValidCandidate {
+    let db = table.db;
+    match item {
+        AssocItemId::FunctionId(fn_id) => {
+            let db = table.db;
+            let data = db.function_data(fn_id);
+
+            check_that!(name.map_or(true, |n| n == &data.name));
+
+            table.run_in_snapshot(|table| {
+                let container = fn_id.lookup(db.upcast()).container;
+                let (impl_subst, expect_self_ty) = match container {
+                    ItemContainerId::ImplId(it) => {
+                        let subst = TyBuilder::subst_for_def(db, it, None)
+                            .fill_with_inference_vars(table)
+                            .build();
+                        let self_ty = db.impl_self_ty(it).substitute(Interner, &subst);
+                        (subst, self_ty)
+                    }
+                    ItemContainerId::TraitId(it) => {
+                        let subst = TyBuilder::subst_for_def(db, it, None)
+                            .fill_with_inference_vars(table)
+                            .build();
+                        let self_ty = subst.at(Interner, 0).assert_ty_ref(Interner).clone();
+                        (subst, self_ty)
+                    }
+                    _ => unreachable!(),
+                };
+
+                check_that!(table.unify(&expect_self_ty, self_ty));
+
+                if let Some(receiver_ty) = receiver_ty {
+                    check_that!(data.has_self_param());
+
+                    let fn_subst = TyBuilder::subst_for_def(db, fn_id, Some(impl_subst.clone()))
+                        .fill_with_inference_vars(table)
+                        .build();
+
+                    let sig = db.callable_item_signature(fn_id.into());
+                    let expected_receiver =
+                        sig.map(|s| s.params()[0].clone()).substitute(Interner, &fn_subst);
+
+                    check_that!(table.unify(receiver_ty, &expected_receiver));
+                }
+
+                IsValidCandidate::Yes
+            })
+        }
+        AssocItemId::ConstId(c) => {
+            check_that!(receiver_ty.is_none());
+            check_that!(name.map_or(true, |n| db.const_data(c).name.as_ref() == Some(n)));
+
             IsValidCandidate::Yes
         }
         _ => IsValidCandidate::No,
