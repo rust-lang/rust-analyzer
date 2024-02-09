@@ -166,6 +166,9 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && needs.changes.outputs.typescript == 'true'
         run: sudo apt-get install -y xvfb
 
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
       - run: npm ci
         working-directory: ./editors/code
         if: needs.changes.outputs.typescript == 'true'

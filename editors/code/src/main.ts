@@ -7,6 +7,7 @@ import * as diagnostics from "./diagnostics";
 import { activateTaskProvider } from "./tasks";
 import { setContextValue } from "./util";
 import type { JsonProject } from "./rust_project";
+import { check_conflicting_extensions } from "../wasm/pkg/vscode_ra_wasm";
 
 const RUST_PROJECT_CONTEXT_NAME = "inRustProject";
 
@@ -22,10 +23,15 @@ export async function deactivate() {
     await setContextValue(RUST_PROJECT_CONTEXT_NAME, undefined);
 }
 
+// @ts-ignore
+globalThis.vscode_window = vscode.window;
+// @ts-ignore
+globalThis.vscode_extensions = vscode.extensions;
+
 export async function activate(
     context: vscode.ExtensionContext,
 ): Promise<RustAnalyzerExtensionApi> {
-    checkConflictingExtensions();
+    check_conflicting_extensions();
 
     const ctx = new Ctx(context, createCommands(), fetchWorkspace());
     // VS Code doesn't show a notification when an extension fails to activate
@@ -190,27 +196,4 @@ function createCommands(): Record<string, CommandFactory> {
         openLogs: { enabled: commands.openLogs },
         revealDependency: { enabled: commands.revealDependency },
     };
-}
-
-function checkConflictingExtensions() {
-    if (vscode.extensions.getExtension("rust-lang.rust")) {
-        vscode.window
-            .showWarningMessage(
-                `You have both the rust-analyzer (rust-lang.rust-analyzer) and Rust (rust-lang.rust) ` +
-                    "plugins enabled. These are known to conflict and cause various functions of " +
-                    "both plugins to not work correctly. You should disable one of them.",
-                "Got it",
-            )
-            .then(() => {}, console.error);
-    }
-
-    if (vscode.extensions.getExtension("panicbit.cargo")) {
-        vscode.window
-            .showWarningMessage(
-                `You have both the rust-analyzer (rust-lang.rust-analyzer) and Cargo (panicbit.cargo) plugins enabled, ` +
-                    'you can disable it or set {"cargo.automaticCheck": false} in settings.json to avoid invoking cargo twice',
-                "Got it",
-            )
-            .then(() => {}, console.error);
-    }
 }

@@ -12,7 +12,7 @@ module.exports = {
     },
     plugins: ["@typescript-eslint"],
     rules: {
-        camelcase: ["error"],
+        camelcase: ["off"], // This lint causes more trouble than good when mixing Rust and TS
         eqeqeq: ["error", "always", { null: "ignore" }],
         curly: ["error", "multi-line"],
         "no-console": ["error", { allow: ["warn", "error"] }],
