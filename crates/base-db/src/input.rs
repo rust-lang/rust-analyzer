@@ -38,23 +38,16 @@ pub struct SourceRoot {
     /// Libraries are considered mostly immutable, this assumption is used to
     /// optimize salsa's query structure
     pub is_library: bool,
-    cargo_file_id: Option<FileId>,
-    /// FIXME : @alibektas We know that this is wrong.
-    /// base-db must stay as a level of abstraction
-    /// that has no knowledge of such specific files
-    /// so this should be moved somewhere else.
-    ratoml_file_id: Option<FileId>,
     file_set: FileSet,
 }
 
 impl SourceRoot {
     pub fn new_local(file_set: FileSet) -> SourceRoot {
-        eprintln!("{:#?}", file_set);
-        SourceRoot { is_library: false, file_set, cargo_file_id: None, ratoml_file_id: None }
+        SourceRoot { is_library: false, file_set }
     }
 
     pub fn new_library(file_set: FileSet) -> SourceRoot {
-        SourceRoot { is_library: true, file_set, cargo_file_id: None, ratoml_file_id: None }
+        SourceRoot { is_library: true, file_set }
     }
 
     pub fn path_for_file(&self, file: &FileId) -> Option<&VfsPath> {
@@ -71,16 +64,6 @@ impl SourceRoot {
 
     pub fn iter(&self) -> impl Iterator<Item = FileId> + '_ {
         self.file_set.iter()
-    }
-
-    /// Get `FileId` of the `Cargo.toml` if one present in `SourceRoot`
-    pub fn cargo_toml(&self) -> Option<FileId> {
-        self.cargo_file_id
-    }
-
-    /// Get `FileId` of the `rust-analyzer.toml` if one present in `SourceRoot`
-    pub fn ratoml(&self) -> Option<FileId> {
-        self.ratoml_file_id
     }
 }
 

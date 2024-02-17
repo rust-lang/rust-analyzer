@@ -24,8 +24,7 @@ impl fmt::Debug for FileChange {
             d.field("roots", roots);
         }
         if !self.files_changed.is_empty() {
-            d.field("files_changed", &self.files_changed);
-            // d.field("files_changed", &self.files_changed.len());
+            d.field("files_changed", &self.files_changed.len());
         }
         if self.crate_graph.is_some() {
             d.field("crate_graph", &self.crate_graph);
