@@ -505,6 +505,11 @@ config_data! {
         /// Internal config, path to proc-macro server executable.
         procMacro_server: Option<PathBuf>          = "null",
 
+        /// Configures the level of detail rust-analyzer will report while scanning files.
+        ///
+        /// If not set, this will default to including parent directories while scanning.
+        progressReporting_verbosity: Vec<ProgressReportingConfig> = "[]",
+
         /// Exclude imports from find-all-references.
         references_excludeImports: bool = "false",
 
@@ -1237,6 +1242,10 @@ impl Config {
         }
     }
 
+    pub fn progress_reporting(&self) -> &[ProgressReportingConfig] {
+        &self.data.progressReporting_verbosity
+    }
+
     pub fn cargo_autoreload(&self) -> bool {
         self.data.cargo_autoreload
     }
@@ -1882,6 +1891,7 @@ mod de_unit_v {
     named_unit_variant!(decimal);
     named_unit_variant!(hexadecimal);
     named_unit_variant!(both);
+    named_unit_variant!(include_directory);
 }
 
 #[derive(Deserialize, Debug, Clone, Copy)]
@@ -2119,6 +2129,14 @@ pub enum MemoryLayoutHoverRenderKindDef {
     Hexadecimal,
     #[serde(deserialize_with = "de_unit_v::both")]
     Both,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "snake_case")]
+#[serde(untagged)]
+pub enum ProgressReportingConfig {
+    #[serde(deserialize_with = "de_unit_v::include_directory")]
+    IncludeDirectory,
 }
 
 #[derive(Deserialize, Debug, Clone, PartialEq)]
@@ -2570,6 +2588,13 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
                     "type": "string"
                 },
             ],
+        },
+        "Vec<ProgressReportingConfig>" => set! {
+            "type": "string",
+            "enum": ["include_directory", ],
+            "enumDescriptions": [
+                "`include_directory`: Include the directory of the files being indexed",
+            ]
         },
         _ => panic!("missing entry for {ty}: {default}"),
     }

@@ -1517,6 +1517,17 @@
                         "string"
                     ]
                 },
+                "rust-analyzer.progressReporting.verbosity": {
+                    "markdownDescription": "Configures the level of detail rust-analyzer will report while scanning files.\n\nIf not set, this will default to including parent directories while scanning.",
+                    "default": [],
+                    "type": "string",
+                    "enum": [
+                        "include_directory"
+                    ],
+                    "enumDescriptions": [
+                        "`include_directory`: Include the directory of the files being indexed"
+                    ]
+                },
                 "rust-analyzer.references.excludeImports": {
                     "markdownDescription": "Exclude imports from find-all-references.",
                     "default": false,

@@ -793,6 +793,13 @@ This config takes a map of crate names with the exported proc-macro names to ign
 --
 Internal config, path to proc-macro server executable.
 --
+[[rust-analyzer.progressReporting.verbosity]]rust-analyzer.progressReporting.verbosity (default: `[]`)::
++
+--
+Configures the level of detail rust-analyzer will report while scanning files.
+
+If not set, this will default to including parent directories while scanning.
+--
 [[rust-analyzer.references.excludeImports]]rust-analyzer.references.excludeImports (default: `false`)::
 +
 --
