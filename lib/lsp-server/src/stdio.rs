@@ -13,8 +13,7 @@ use crate::Message;
 pub(crate) fn stdio_transport() -> (Sender<Message>, Receiver<Message>, IoThreads) {
     let (writer_sender, writer_receiver) = bounded::<Message>(0);
     let writer = thread::spawn(move || {
-        let stdout = stdout();
-        let mut stdout = stdout.lock();
+        let mut stdout = stdout();
         writer_receiver.into_iter().try_for_each(|it| it.write(&mut stdout))
     });
     let (reader_sender, reader_receiver) = bounded::<Message>(0);
