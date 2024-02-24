@@ -32,7 +32,6 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use semver::Version;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use stdx::format_to_acc;
-use toml;
 use vfs::{AbsPath, AbsPathBuf};
 
 use crate::{
@@ -135,7 +134,7 @@ config_data! {
         /// Unsetting this disables sysroot loading.
         ///
         /// This option does not take effect until rust-analyzer is restarted.
-        cargo_sysroot: Option<String>    = Some("discover".to_string()),
+        cargo_sysroot: Option<String>    = Some("discover".to_owned()),
         /// Whether to run cargo metadata on the sysroot library allowing rust-analyzer to analyze
         /// third-party dependencies of the standard libraries.
         ///
@@ -168,7 +167,7 @@ config_data! {
         /// Check all targets and tests (`--all-targets`).
         check_allTargets | checkOnSave_allTargets: bool                  = true,
         /// Cargo command to use for `cargo check`.
-        check_command | checkOnSave_command: String                      = "check".to_string(),
+        check_command | checkOnSave_command: String                      = "check".to_owned(),
         /// Extra arguments for `cargo check`.
         check_extraArgs | checkOnSave_extraArgs: Vec<String>             = vec![],
         /// Extra environment variables that will be set when running `cargo check`.
@@ -1468,16 +1467,16 @@ impl Config {
     }
 
     pub fn extra_args(&self) -> &Vec<String> {
-        &self.cargo_extraArgs()
+        self.cargo_extraArgs()
     }
 
     pub fn extra_env(&self) -> &FxHashMap<String, String> {
-        &self.cargo_extraEnv()
+        self.cargo_extraEnv()
     }
 
     pub fn check_extra_args(&self) -> Vec<String> {
         let mut extra_args = self.extra_args().clone();
-        extra_args.extend_from_slice(&self.check_extraArgs());
+        extra_args.extend_from_slice(self.check_extraArgs());
         extra_args
     }
 
@@ -1497,11 +1496,11 @@ impl Config {
 
     pub fn proc_macro_srv(&self) -> Option<AbsPathBuf> {
         let path = self.procMacro_server().clone()?;
-        Some(AbsPathBuf::try_from(path).unwrap_or_else(|path| self.root_path.join(&path)))
+        Some(AbsPathBuf::try_from(path).unwrap_or_else(|path| self.root_path.join(path)))
     }
 
     pub fn ignored_proc_macros(&self) -> &FxHashMap<Box<str>, Box<[Box<str>]>> {
-        &self.procMacro_ignored()
+        self.procMacro_ignored()
     }
 
     pub fn expand_proc_macros(&self) -> bool {
@@ -1667,7 +1666,7 @@ impl Config {
                     .check_noDefaultFeatures()
                     .unwrap_or(*self.cargo_noDefaultFeatures()),
                 all_features: matches!(
-                    self.check_features().as_ref().unwrap_or(&self.cargo_features()),
+                    self.check_features().as_ref().unwrap_or(self.cargo_features()),
                     CargoFeaturesDef::All
                 ),
                 features: match self
@@ -2022,13 +2021,13 @@ mod single_or_array {
         deserializer.deserialize_any(SingleOrVec)
     }
 
-    pub(super) fn serialize<S>(vec: &Vec<String>, serializer: S) -> Result<S::Ok, S::Error>
+    pub(super) fn serialize<S>(vec: &[String], serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        match &vec[..] {
+        match vec {
             // []  case is handled by skip_serializing_if
-            [single] => serializer.serialize_str(&single),
+            [single] => serializer.serialize_str(single),
             slice => slice.serialize(serializer),
         }
     }
@@ -2247,7 +2246,7 @@ macro_rules! _default_val {
 
 macro_rules! _default_str {
     (@verbatim: $s:literal, $_ty:ty) => {
-        $s.to_string()
+        $s.to_owned()
     };
     ($default:expr, $ty:ty) => {{
         let val = default_val!($default, $ty);
