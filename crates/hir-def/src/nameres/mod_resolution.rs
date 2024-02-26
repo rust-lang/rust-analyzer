@@ -154,6 +154,14 @@ impl DirPath {
     fn join_attr(&self, mut attr: &str, relative_to_parent: bool) -> String {
         let base = if relative_to_parent { self.parent().unwrap() } else { &self.0 };
 
+        if cfg!(windows) {
+            for dos_prefix in ["\\\\?\\", "\\\\.\\"] {
+                if attr.starts_with(dos_prefix) {
+                    attr = &attr[dos_prefix.len()..];
+                    break;
+                }
+            }
+        }
         if attr.starts_with("./") {
             attr = &attr["./".len()..];
         }
