@@ -309,10 +309,6 @@ fn load_crate_graph(
     vfs: &mut vfs::Vfs,
     receiver: &Receiver<vfs::loader::Message>,
 ) -> AnalysisHost {
-    let (ProjectWorkspace::Cargo { toolchain, target_layout, .. }
-    | ProjectWorkspace::Json { toolchain, target_layout, .. }
-    | ProjectWorkspace::DetachedFiles { toolchain, target_layout, .. }) = ws;
-
     let lru_cap = std::env::var("RA_LRU_CAP").ok().and_then(|it| it.parse::<usize>().ok());
     let mut host = AnalysisHost::new(lru_cap);
     let mut analysis_change = Change::new();
@@ -348,9 +344,17 @@ fn load_crate_graph(
     let num_crates = crate_graph.len();
     analysis_change.set_crate_graph(crate_graph);
     analysis_change.set_proc_macros(proc_macros);
-    analysis_change
-        .set_target_data_layouts(iter::repeat(target_layout.clone()).take(num_crates).collect());
-    analysis_change.set_toolchains(iter::repeat(toolchain.clone()).take(num_crates).collect());
+    match ws {
+        ProjectWorkspace::Cargo { toolchain, target_layout, .. }
+        | ProjectWorkspace::Json { toolchain, target_layout, .. } => {
+            analysis_change.set_target_data_layouts(
+                iter::repeat(target_layout.clone()).take(num_crates).collect(),
+            );
+            analysis_change
+                .set_toolchains(iter::repeat(toolchain.clone()).take(num_crates).collect());
+        }
+        _ => {}
+    };
 
     host.apply_change(analysis_change);
     host
