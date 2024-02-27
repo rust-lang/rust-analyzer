@@ -312,6 +312,11 @@
                 "command": "rust-analyzer.joinLines",
                 "key": "ctrl+shift+j",
                 "when": "editorTextFocus && editorLangId == rust"
+            },
+            {
+                "command": "rust-analyzer.onBackspace",
+                "key": "backspace",
+                "when": "editorTextFocus && editorLangId == rust"
             }
         ],
         "configuration": {

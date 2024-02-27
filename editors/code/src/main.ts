@@ -116,6 +116,9 @@ function createCommands(): Record<string, CommandFactory> {
             enabled: commands.onEnter,
             disabled: (_) => () => vscode.commands.executeCommand("default:type", { text: "\n" }),
         },
+        onBackspace: {
+            enabled: commands.onBackspace,
+        },
         restartServer: {
             enabled: (ctx) => async () => {
                 await ctx.restart();

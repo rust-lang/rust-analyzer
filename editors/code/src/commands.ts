@@ -223,6 +223,43 @@ export function onEnter(ctx: CtxInit): Cmd {
     };
 }
 
+export function onBackspace(): Cmd {
+    return async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) return;
+
+        // if user select something and press backspace, we just remove the selected range
+        const selection = editor.selection;
+        if (!selection.isEmpty) {
+            await editor.edit((editBuilder) => {
+                editBuilder.delete(selection);
+            });
+        }
+        else {
+            const currentPosition = editor.selection.active;
+            const currentLine = editor.document.lineAt(currentPosition.line);
+
+            // if current line isn't empty line, we just delete one char(default behavior when press backspace)
+            if (!currentLine.isEmptyOrWhitespace) {
+                const previousCharRange = new vscode.Range(currentPosition, currentPosition.translate(0, -1));
+                await editor.edit((editBuilder) => {
+                    editBuilder.delete(previousCharRange);
+                });
+            } else {
+                await editor.edit((editBuilder) => {
+                    editBuilder.delete(currentLine.rangeIncludingLineBreak);
+                });
+
+                // go to the end of the previous line
+                let previousLine = currentPosition.with(currentPosition.line - 1);
+                let newPosition = previousLine.with(previousLine.line, editor.document.lineAt(previousLine.line).text.length);
+
+                editor.selection = new vscode.Selection(newPosition, newPosition);
+            }
+        }
+    };
+}
+
 export function parentModule(ctx: CtxInit): Cmd {
     return async () => {
         const editor = vscode.window.activeTextEditor;
