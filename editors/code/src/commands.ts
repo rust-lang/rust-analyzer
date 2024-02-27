@@ -1058,8 +1058,9 @@ export function resolveCodeAction(ctx: CtxInit): Cmd {
             ...itemEdit,
             documentChanges: itemEdit.documentChanges?.filter((change) => "kind" in change),
         };
-        const fileSystemEdit =
-            await client.protocol2CodeConverter.asWorkspaceEdit(lcFileSystemEdit);
+        const fileSystemEdit = await client.protocol2CodeConverter.asWorkspaceEdit(
+            lcFileSystemEdit,
+        );
         await vscode.workspace.applyEdit(fileSystemEdit);
 
         // replace all text edits so that we can convert snippet text edits into `vscode.SnippetTextEdit`s

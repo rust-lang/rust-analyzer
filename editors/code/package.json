@@ -515,6 +515,11 @@
                     "default": true,
                     "type": "boolean"
                 },
+                "rust-analyzer.enableBackspaceListener": {
+                    "markdownDescription": "Enable the automatically remove whilespace functionality when press backspace key",
+                    "type": "boolean",
+                    "default": true
+                },
                 "$generated-start": {},
                 "rust-analyzer.assist.emitMustUse": {
                     "markdownDescription": "Whether to insert #[must_use] when generating `as_` methods\nfor enum variants.",
@@ -953,11 +958,6 @@
                     "items": {
                         "type": "string"
                     }
-                },
-                "rust-analyzer.enableBackspaceListener": {
-                    "markdownDescription": "Enable the automatically remove whilespace functionality when press backspace key",
-                    "type": "boolean",
-                    "default": true
                 },
                 "rust-analyzer.files.excludeDirs": {
                     "markdownDescription": "These directories will be ignored by rust-analyzer. They are\nrelative to the workspace root, and globs are not supported. You may\nalso need to add the folders to Code's `files.watcherExclude`.",
