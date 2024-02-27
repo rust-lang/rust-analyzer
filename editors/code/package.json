@@ -316,7 +316,7 @@
             {
                 "command": "rust-analyzer.onBackspace",
                 "key": "backspace",
-                "when": "editorTextFocus && editorLangId == rust"
+                "when": "config.rust-analyzer.enableBackspaceListener && editorTextFocus && editorLangId == rust"
             }
         ],
         "configuration": {
@@ -953,6 +953,11 @@
                     "items": {
                         "type": "string"
                     }
+                },
+                "rust-analyzer.enableBackspaceListener": {
+                    "markdownDescription": "Enable the automatically remove whilespace functionality when press backspace key",
+                    "type": "boolean",
+                    "default": true
                 },
                 "rust-analyzer.files.excludeDirs": {
                     "markdownDescription": "These directories will be ignored by rust-analyzer. They are\nrelative to the workspace root, and globs are not supported. You may\nalso need to add the folders to Code's `files.watcherExclude`.",
