@@ -518,7 +518,7 @@
                 "rust-analyzer.enableBackspaceListener": {
                     "markdownDescription": "Enable the automatically remove whilespace functionality when press backspace key",
                     "type": "boolean",
-                    "default": true
+                    "default": false
                 },
                 "$generated-start": {},
                 "rust-analyzer.assist.emitMustUse": {
