@@ -234,14 +234,16 @@ export function onBackspace(): Cmd {
             await editor.edit((editBuilder) => {
                 editBuilder.delete(selection);
             });
-        }
-        else {
+        } else {
             const currentPosition = editor.selection.active;
             const currentLine = editor.document.lineAt(currentPosition.line);
 
             // if current line isn't empty line, we just delete one char(default behavior when press backspace)
             if (!currentLine.isEmptyOrWhitespace) {
-                const previousCharRange = new vscode.Range(currentPosition, currentPosition.translate(0, -1));
+                const previousCharRange = new vscode.Range(
+                    currentPosition,
+                    currentPosition.translate(0, -1),
+                );
                 await editor.edit((editBuilder) => {
                     editBuilder.delete(previousCharRange);
                 });
@@ -251,8 +253,11 @@ export function onBackspace(): Cmd {
                 });
 
                 // go to the end of the previous line
-                let previousLine = currentPosition.with(currentPosition.line - 1);
-                let newPosition = previousLine.with(previousLine.line, editor.document.lineAt(previousLine.line).text.length);
+                const previousLine = currentPosition.with(currentPosition.line - 1);
+                const newPosition = previousLine.with(
+                    previousLine.line,
+                    editor.document.lineAt(previousLine.line).text.length,
+                );
 
                 editor.selection = new vscode.Selection(newPosition, newPosition);
             }
@@ -1053,9 +1058,8 @@ export function resolveCodeAction(ctx: CtxInit): Cmd {
             ...itemEdit,
             documentChanges: itemEdit.documentChanges?.filter((change) => "kind" in change),
         };
-        const fileSystemEdit = await client.protocol2CodeConverter.asWorkspaceEdit(
-            lcFileSystemEdit,
-        );
+        const fileSystemEdit =
+            await client.protocol2CodeConverter.asWorkspaceEdit(lcFileSystemEdit);
         await vscode.workspace.applyEdit(fileSystemEdit);
 
         // replace all text edits so that we can convert snippet text edits into `vscode.SnippetTextEdit`s
