@@ -965,6 +965,12 @@ impl Param {
     }
 }
 
+/// This is the list of fields in the kind of struct that is defined as a record:
+/// ```
+/// struct S {
+///   field: Type
+/// }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordFieldList {
     pub(crate) syntax: SyntaxNode,
@@ -981,6 +987,10 @@ impl RecordFieldList {
     }
 }
 
+/// This is the list of fields in the kind of struct that is defined as a tuple:
+/// ```
+/// struct S(Type);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleFieldList {
     pub(crate) syntax: SyntaxNode,
@@ -997,6 +1007,7 @@ impl TupleFieldList {
     }
 }
 
+/// Each of the records of a [RecordFieldList]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordField {
     pub(crate) syntax: SyntaxNode,
@@ -1014,6 +1025,7 @@ impl RecordField {
     }
 }
 
+/// Each of the records of a [TupleFieldList]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleField {
     pub(crate) syntax: SyntaxNode,
@@ -1027,6 +1039,7 @@ impl TupleField {
     }
 }
 
+/// List of variants in an enum
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VariantList {
     pub(crate) syntax: SyntaxNode,
