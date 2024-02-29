@@ -1125,13 +1125,12 @@ pub(crate) fn handle_code_action_for_specified_diagnostic(
     snap: GlobalStateSnapshot,
     params: lsp_types::CodeActionParams,
 ) -> anyhow::Result<Option<Vec<lsp_ext::CodeAction>>> {
-    let _p =
-        tracing::span!(tracing::Level::INFO, "handle_code_action_for_specified_diagnostic")
-            .entered();
+    let _p = tracing::span!(tracing::Level::INFO, "handle_code_action_for_specified_diagnostic")
+        .entered();
 
     let mut assists_config = snap.config.assist();
     assists_config.specified_diagnostic_code =
-        params.context.diagnostics.first().map_or(None, |it| match it.code.clone()? {
+        params.context.diagnostics.first().and_then(|it| match it.code.clone()? {
             NumberOrString::String(code) => Some(code),
             _ => None,
         });

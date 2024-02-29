@@ -655,7 +655,7 @@ impl Analysis {
                     .into_iter()
                     .filter(|it| {
                         specific_diagnostic_code.map_or(true, |specific_diagnostic_code| {
-                            &it.code.as_str() == specific_diagnostic_code
+                            it.code.as_str() == specific_diagnostic_code
                         })
                     })
                     .flat_map(|it| it.fixes.unwrap_or_default())
