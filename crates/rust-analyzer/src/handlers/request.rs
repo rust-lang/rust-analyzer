@@ -22,10 +22,11 @@ use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
     CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
     CodeLens, CompletionItem, FoldingRange, FoldingRangeParams, HoverContents, InlayHint,
-    InlayHintParams, Location, LocationLink, Position, PrepareRenameResponse, Range, RenameParams,
-    ResourceOp, ResourceOperationKind, SemanticTokensDeltaParams, SemanticTokensFullDeltaResult,
-    SemanticTokensParams, SemanticTokensRangeParams, SemanticTokensRangeResult,
-    SemanticTokensResult, SymbolInformation, SymbolTag, TextDocumentIdentifier, Url, WorkspaceEdit,
+    InlayHintParams, Location, LocationLink, NumberOrString, Position, PrepareRenameResponse,
+    Range, RenameParams, ResourceOp, ResourceOperationKind, SemanticTokensDeltaParams,
+    SemanticTokensFullDeltaResult, SemanticTokensParams, SemanticTokensRangeParams,
+    SemanticTokensRangeResult, SemanticTokensResult, SymbolInformation, SymbolTag,
+    TextDocumentIdentifier, Url, WorkspaceEdit,
 };
 use project_model::{ManifestPath, ProjectWorkspace, TargetKind};
 use serde_json::json;
@@ -1115,6 +1116,34 @@ pub(crate) fn handle_code_action(
 ) -> anyhow::Result<Option<Vec<lsp_ext::CodeAction>>> {
     let _p = tracing::span!(tracing::Level::INFO, "handle_code_action").entered();
 
+    let assists_config = snap.config.assist();
+
+    fetch_assist(snap, params, assists_config)
+}
+
+pub(crate) fn handle_code_action_for_specified_diagnostic(
+    snap: GlobalStateSnapshot,
+    params: lsp_types::CodeActionParams,
+) -> anyhow::Result<Option<Vec<lsp_ext::CodeAction>>> {
+    let _p =
+        tracing::span!(tracing::Level::INFO, "handle_code_action_for_specified_diagnostic")
+            .entered();
+
+    let mut assists_config = snap.config.assist();
+    assists_config.specified_diagnostic_code =
+        params.context.diagnostics.first().map_or(None, |it| match it.code.clone()? {
+            NumberOrString::String(code) => Some(code),
+            _ => None,
+        });
+
+    fetch_assist(snap, params, assists_config)
+}
+
+fn fetch_assist(
+    snap: GlobalStateSnapshot,
+    params: lsp_types::CodeActionParams,
+    mut assists_config: ide::AssistConfig,
+) -> anyhow::Result<Option<Vec<lsp_ext::CodeAction>>> {
     if !snap.config.code_action_literals() {
         // We intentionally don't support command-based actions, as those either
         // require either custom client-code or server-initiated edits. Server
@@ -1126,7 +1155,6 @@ pub(crate) fn handle_code_action(
         snap.file_line_index(from_proto::file_id(&snap, &params.text_document.uri)?)?;
     let frange = from_proto::file_range(&snap, &params.text_document, params.range)?;
 
-    let mut assists_config = snap.config.assist();
     assists_config.allowed = params
         .context
         .only
@@ -1165,6 +1193,12 @@ pub(crate) fn handle_code_action(
         res.push(code_action)
     }
 
+    // FIXME: currently we only support native diagnostic fix from rust-analyzer(crates/ide-diagnostics/src/handlers/), ideally we should support fix from `cargo check` also.
+    if assists_config.specified_diagnostic_code.is_some() {
+        return Ok(Some(res));
+    }
+
+    // FIXME: need to filter out fixes(from `cargo check`) which not corresponding to `assists_config.specified_diagnostic_code`.
     // Fixes from `cargo check`.
     for fix in snap.check_fixes.values().filter_map(|it| it.get(&frange.file_id)).flatten() {
         // FIXME: this mapping is awkward and shouldn't exist. Refactor

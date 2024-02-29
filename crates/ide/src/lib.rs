@@ -649,23 +649,34 @@ impl Analysis {
         };
 
         self.with_db(|db| {
+            let specific_diagnostic_code = assist_config.specified_diagnostic_code.as_ref();
             let diagnostic_assists = if diagnostics_config.enabled && include_fixes {
                 ide_diagnostics::diagnostics(db, diagnostics_config, &resolve, frange.file_id)
                     .into_iter()
+                    .filter(|it| {
+                        specific_diagnostic_code.map_or(true, |specific_diagnostic_code| {
+                            &it.code.as_str() == specific_diagnostic_code
+                        })
+                    })
                     .flat_map(|it| it.fixes.unwrap_or_default())
                     .filter(|it| it.target.intersect(frange.range).is_some())
                     .collect()
             } else {
                 Vec::new()
             };
-            let ssr_assists = ssr::ssr_assists(db, &resolve, frange);
-            let assists = ide_assists::assists(db, assist_config, resolve, frange);
 
-            let mut res = diagnostic_assists;
-            res.extend(ssr_assists);
-            res.extend(assists);
+            if specific_diagnostic_code.is_some() {
+                diagnostic_assists
+            } else {
+                let ssr_assists = ssr::ssr_assists(db, &resolve, frange);
+                let assists = ide_assists::assists(db, assist_config, resolve, frange);
 
-            res
+                let mut res = diagnostic_assists;
+                res.extend(ssr_assists);
+                res.extend(assists);
+
+                res
+            }
         })
     }
 
