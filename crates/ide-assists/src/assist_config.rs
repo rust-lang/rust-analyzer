@@ -16,4 +16,6 @@ pub struct AssistConfig {
     pub prefer_no_std: bool,
     pub prefer_prelude: bool,
     pub assist_emit_must_use: bool,
+    // If set to `Some(...)`, we just get the only assist corresponding to this diagnostic code.
+    pub specified_diagnostic_code: Option<String>,
 }
