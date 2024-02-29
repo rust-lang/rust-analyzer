@@ -7,6 +7,7 @@ import * as diagnostics from "./diagnostics";
 import { activateTaskProvider } from "./tasks";
 import { setContextValue } from "./util";
 import type { JsonProject } from "./rust_project";
+import * as ra from "./lsp_ext";
 
 const RUST_PROJECT_CONTEXT_NAME = "inRustProject";
 
@@ -105,6 +106,15 @@ async function activateServer(ctx: Ctx): Promise<RustAnalyzerExtensionApi> {
         null,
         ctx.subscriptions,
     );
+    vscode.workspace.onWillSaveTextDocument(async (event) => {
+        const client = ctx.client;
+        let document = event.document;
+        if (document.languageId === 'rust' && client) {
+            // get 'rust-analyzer.autoFixDiagnostics' configuration, empty by default
+            const diagnosticsToFix = vscode.workspace.getConfiguration('rust-analyzer').get<string[]>('autoFixDiagnostics') || [];
+            event.waitUntil(autoFixDiagnostics(document, diagnosticsToFix, client));
+        }
+    });
 
     await ctx.start();
     return ctx;
@@ -213,4 +223,53 @@ function checkConflictingExtensions() {
             )
             .then(() => {}, console.error);
     }
+}
+
+async function autoFixDiagnostics(document: vscode.TextDocument, diagnosticsToFix: string[], client: lc.LanguageClient) {
+
+    // get the diagnosis specified by the user for the current document
+    let getDiagnostics = () => {
+        const isInclude = (diagnostic: vscode.Diagnostic) => {
+            const diagnosticCode =
+                typeof diagnostic.code === "string" || typeof diagnostic.code === "number"
+                    ? diagnostic.code
+                    : diagnostic.code?.value || "";
+            return diagnosticsToFix.includes(diagnosticCode.toString());
+        };
+
+        let diagnostics = vscode.languages.getDiagnostics(document.uri);
+        return diagnostics.filter(diagnostic => isInclude(diagnostic))
+    }
+
+    let diagnostics = getDiagnostics();
+
+    while (diagnostics.length != 0) {
+        let currentDiagnostic = diagnostics.at(0);
+        if (!currentDiagnostic) return;
+        let params: lc.CodeActionParams = {
+            textDocument: { uri: document.uri.toString() },
+            range: currentDiagnostic.range,
+            context: {
+                diagnostics: [client.code2ProtocolConverter.asDiagnostic(currentDiagnostic)],
+            }
+        };
+
+        let actions = await client.sendRequest(ra.codeActionForDiagnostic, params);
+        let action = actions?.at(0);
+        if (lc.CodeAction.is(action) && action.edit) {
+            const edit = await client.protocol2CodeConverter.asWorkspaceEdit(action.edit);
+            await vscode.workspace.applyEdit(edit);
+        }
+        else if (action) {
+            let resolvedCodeAction = await client.sendRequest(lc.CodeActionResolveRequest.type, action);
+            if (resolvedCodeAction.edit) {
+                const edit = await client.protocol2CodeConverter.asWorkspaceEdit(resolvedCodeAction.edit);
+                await vscode.workspace.applyEdit(edit);
+            }
+        }
+
+        // after the above `applyEdit(edit)`, source code changed, so we refresh the diagnostics
+        diagnostics = getDiagnostics();
+    }
+
 }
