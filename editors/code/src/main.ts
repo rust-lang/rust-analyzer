@@ -108,10 +108,13 @@ async function activateServer(ctx: Ctx): Promise<RustAnalyzerExtensionApi> {
     );
     vscode.workspace.onWillSaveTextDocument(async (event) => {
         const client = ctx.client;
-        let document = event.document;
-        if (document.languageId === 'rust' && client) {
+        const document = event.document;
+        if (document.languageId === "rust" && client) {
             // get 'rust-analyzer.autoFixDiagnostics' configuration, empty by default
-            const diagnosticsToFix = vscode.workspace.getConfiguration('rust-analyzer').get<string[]>('autoFixDiagnostics') || [];
+            const diagnosticsToFix =
+                vscode.workspace
+                    .getConfiguration("rust-analyzer")
+                    .get<string[]>("autoFixDiagnostics") || [];
             event.waitUntil(autoFixDiagnostics(document, diagnosticsToFix, client));
         }
     });
@@ -225,10 +228,13 @@ function checkConflictingExtensions() {
     }
 }
 
-async function autoFixDiagnostics(document: vscode.TextDocument, diagnosticsToFix: string[], client: lc.LanguageClient) {
-
+async function autoFixDiagnostics(
+    document: vscode.TextDocument,
+    diagnosticsToFix: string[],
+    client: lc.LanguageClient,
+) {
     // get the diagnosis specified by the user for the current document
-    let getDiagnostics = () => {
+    const getDiagnostics = () => {
         const isInclude = (diagnostic: vscode.Diagnostic) => {
             const diagnosticCode =
                 typeof diagnostic.code === "string" || typeof diagnostic.code === "number"
@@ -237,33 +243,37 @@ async function autoFixDiagnostics(document: vscode.TextDocument, diagnosticsToFi
             return diagnosticsToFix.includes(diagnosticCode.toString());
         };
 
-        let diagnostics = vscode.languages.getDiagnostics(document.uri);
-        return diagnostics.filter(diagnostic => isInclude(diagnostic))
-    }
+        const diagnostics = vscode.languages.getDiagnostics(document.uri);
+        return diagnostics.filter((diagnostic) => isInclude(diagnostic));
+    };
 
     let diagnostics = getDiagnostics();
 
-    while (diagnostics.length != 0) {
-        let currentDiagnostic = diagnostics.at(0);
+    while (diagnostics.length !== 0) {
+        const currentDiagnostic = diagnostics.at(0);
         if (!currentDiagnostic) return;
-        let params: lc.CodeActionParams = {
+        const params: lc.CodeActionParams = {
             textDocument: { uri: document.uri.toString() },
             range: currentDiagnostic.range,
             context: {
                 diagnostics: [client.code2ProtocolConverter.asDiagnostic(currentDiagnostic)],
-            }
+            },
         };
 
-        let actions = await client.sendRequest(ra.codeActionForDiagnostic, params);
-        let action = actions?.at(0);
+        const actions = await client.sendRequest(ra.codeActionForDiagnostic, params);
+        const action = actions?.at(0);
         if (lc.CodeAction.is(action) && action.edit) {
             const edit = await client.protocol2CodeConverter.asWorkspaceEdit(action.edit);
             await vscode.workspace.applyEdit(edit);
-        }
-        else if (action) {
-            let resolvedCodeAction = await client.sendRequest(lc.CodeActionResolveRequest.type, action);
+        } else if (action) {
+            const resolvedCodeAction = await client.sendRequest(
+                lc.CodeActionResolveRequest.type,
+                action,
+            );
             if (resolvedCodeAction.edit) {
-                const edit = await client.protocol2CodeConverter.asWorkspaceEdit(resolvedCodeAction.edit);
+                const edit = await client.protocol2CodeConverter.asWorkspaceEdit(
+                    resolvedCodeAction.edit,
+                );
                 await vscode.workspace.applyEdit(edit);
             }
         }
@@ -271,5 +281,4 @@ async function autoFixDiagnostics(document: vscode.TextDocument, diagnosticsToFi
         // after the above `applyEdit(edit)`, source code changed, so we refresh the diagnostics
         diagnostics = getDiagnostics();
     }
-
 }
