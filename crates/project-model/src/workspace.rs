@@ -42,6 +42,15 @@ impl CfgOverrides {
     pub fn len(&self) -> usize {
         self.global.len() + self.selective.values().map(|it| it.len()).sum::<usize>()
     }
+
+    fn apply(&self, cfg_options: &mut CfgOptions, name: &str) {
+        if !self.global.is_empty() {
+            cfg_options.apply_diff(self.global.clone());
+        };
+        if let Some(diff) = self.selective.get(name) {
+            cfg_options.apply_diff(diff.clone());
+        };
+    }
 }
 
 /// `PackageRoot` describes a package root folder.
@@ -983,25 +992,13 @@ fn cargo_to_crate_graph(
         let cfg_options = {
             let mut cfg_options = cfg_options.clone();
 
-            // Add test cfg for local crates
             if cargo[pkg].is_local {
+                // Add test cfg for local crates
                 cfg_options.insert_atom("test".into());
                 cfg_options.insert_atom("rust_analyzer".into());
             }
 
-            if !override_cfg.global.is_empty() {
-                cfg_options.apply_diff(override_cfg.global.clone());
-            };
-            if let Some(diff) = override_cfg.selective.get(&cargo[pkg].name) {
-                // FIXME: this is sort of a hack to deal with #![cfg(not(test))] vanishing such as seen
-                // in ed25519_dalek (#7243), and libcore (#9203) (although you only hit that one while
-                // working on rust-lang/rust as that's the only time it appears outside sysroot).
-                //
-                // A more ideal solution might be to reanalyze crates based on where the cursor is and
-                // figure out the set of cfgs that would have to apply to make it active.
-
-                cfg_options.apply_diff(diff.clone());
-            };
+            override_cfg.apply(&mut cfg_options, &cargo[pkg].name);
             cfg_options
         };
 
@@ -1115,13 +1112,7 @@ fn cargo_to_crate_graph(
                 &pkg_crates,
                 &cfg_options,
                 override_cfg,
-                if rustc_workspace.workspace_root() == cargo.workspace_root() {
-                    // the rustc workspace does not use the installed toolchain's proc-macro server
-                    // so we need to make sure we don't use the pre compiled proc-macros there either
-                    build_scripts
-                } else {
-                    rustc_build_scripts
-                },
+                rustc_build_scripts,
             );
         }
     }
@@ -1212,20 +1203,7 @@ fn handle_rustc_crates(
             }
 
             let mut cfg_options = cfg_options.clone();
-
-            if !override_cfg.global.is_empty() {
-                cfg_options.apply_diff(override_cfg.global.clone());
-            };
-            if let Some(diff) = override_cfg.selective.get(&rustc_workspace[pkg].name) {
-                // FIXME: this is sort of a hack to deal with #![cfg(not(test))] vanishing such as seen
-                // in ed25519_dalek (#7243), and libcore (#9203) (although you only hit that one while
-                // working on rust-lang/rust as that's the only time it appears outside sysroot).
-                //
-                // A more ideal solution might be to reanalyze crates based on where the cursor is and
-                // figure out the set of cfgs that would have to apply to make it active.
-
-                cfg_options.apply_diff(diff.clone());
-            };
+            override_cfg.apply(&mut cfg_options, &rustc_workspace[pkg].name);
 
             for &tgt in rustc_workspace[pkg].targets.iter() {
                 let kind @ TargetKind::Lib { is_proc_macro } = rustc_workspace[tgt].kind else {
