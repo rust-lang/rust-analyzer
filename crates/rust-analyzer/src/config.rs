@@ -152,8 +152,6 @@ config_data! {
         // FIXME(@poliorcetics): move to multiple targets here too, but this will need more work
         // than `checkOnSave_target`
         cargo_target: Option<String>     = "null",
-        /// Unsets the implicit `#[cfg(test)]` for the specified crates.
-        cargo_unsetTest: Vec<String>     = "[\"core\"]",
 
         /// Run the check command for diagnostics on save.
         checkOnSave | checkOnSave_enable: bool                         = "true",
@@ -1292,18 +1290,11 @@ impl Config {
                         .collect(),
                     vec![],
                 )
-                .unwrap(),
-                selective: self
-                    .data
-                    .cargo_unsetTest
-                    .iter()
-                    .map(|it| {
-                        (
-                            it.clone(),
-                            CfgDiff::new(vec![], vec![CfgAtom::Flag("test".into())]).unwrap(),
-                        )
-                    })
-                    .collect(),
+                .unwrap_or_else(|| {
+                    tracing::error!("`cargo.cfgs` config contains duplicate keys");
+                    Default::default()
+                }),
+                selective: Default::default(),
             },
             wrap_rustc_in_build_scripts: self.data.cargo_buildScripts_useRustcWrapper,
             invocation_strategy: match self.data.cargo_buildScripts_invocationStrategy {
