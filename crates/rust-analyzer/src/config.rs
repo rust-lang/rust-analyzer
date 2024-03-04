@@ -60,6 +60,13 @@ mod patch_old_style;
 // To deprecate an option by replacing it with another name use `new_name | `old_name` so that we keep
 // parsing the old name.
 config_data! {
+    /// Configs that apply on a workspace-wide scope. There are 3 levels on which a global configuration can be configured
+    ///
+    /// 1. `rust-analyzer.toml` file under user's config directory (e.g ~/.config/rust-analyzer.toml)
+    /// 2. Client's own configurations (e.g `settings.json` on VS Code)
+    /// 3. `rust-analyzer.toml` file located at the workspace root
+    ///
+    /// A config is searched for by traversing a "config tree" in a bottom up fashion. It is chosen by the nearest first principle.
     global: struct GlobalConfigData <- GlobalConfigInput  -> {
         /// Whether to insert #[must_use] when generating `as_` methods
         /// for enum variants.
@@ -267,16 +274,51 @@ config_data! {
         /// Controls file watching implementation.
         files_watcher: FilesWatcherDef = FilesWatcherDef::Client,
 
+        /// Whether to show `Debug` action. Only applies when
+        /// `#rust-analyzer.hover.actions.enable#` is set.
+        hover_actions_debug_enable: bool           = true,
+        /// Whether to show HoverActions in Rust files.
+        hover_actions_enable: bool          = true,
+        /// Whether to show `Go to Type Definition` action. Only applies when
+        /// `#rust-analyzer.hover.actions.enable#` is set.
+        hover_actions_gotoTypeDef_enable: bool     = true,
+        /// Whether to show `Implementations` action. Only applies when
+        /// `#rust-analyzer.hover.actions.enable#` is set.
+        hover_actions_implementations_enable: bool = true,
+        /// Whether to show `References` action. Only applies when
+        /// `#rust-analyzer.hover.actions.enable#` is set.
+        hover_actions_references_enable: bool      = false,
+        /// Whether to show `Run` action. Only applies when
+        /// `#rust-analyzer.hover.actions.enable#` is set.
+        hover_actions_run_enable: bool             = true,
+
+        /// Whether to show documentation on hover.
+        hover_documentation_enable: bool           = true,
+        /// Whether to show keyword hover popups. Only applies when
+        /// `#rust-analyzer.hover.documentation.enable#` is set.
+        hover_documentation_keywords_enable: bool  = true,
+        /// Use markdown syntax for links on hover.
+        hover_links_enable: bool = true,
+        /// How to render the align information in a memory layout hover.
+        hover_memoryLayout_alignment: Option<MemoryLayoutHoverRenderKindDef> = Some(MemoryLayoutHoverRenderKindDef::Hexadecimal),
+        /// Whether to show memory layout data on hover.
+        hover_memoryLayout_enable: bool = true,
+        /// How to render the niche information in a memory layout hover.
+        hover_memoryLayout_niches: Option<bool> = Some(false),
+        /// How to render the offset information in a memory layout hover.
+        hover_memoryLayout_offset: Option<MemoryLayoutHoverRenderKindDef> = Some(MemoryLayoutHoverRenderKindDef::Hexadecimal),
+        /// How to render the size information in a memory layout hover.
+        hover_memoryLayout_size: Option<MemoryLayoutHoverRenderKindDef> = Some(MemoryLayoutHoverRenderKindDef::Both),
+        /// How many associated items of a trait to display when hovering a trait.
+        hover_show_traitAssocItems: Option<usize> = None,
 
         /// Enables the experimental support for interpreting tests.
         interpret_tests: bool                                      = false,
 
-
-
         /// Whether to show `Debug` lens. Only applies when
         /// `#rust-analyzer.lens.enable#` is set.
         lens_debug_enable: bool            = true,
-       /// Whether to show CodeLens in Rust files.
+        /// Whether to show CodeLens in Rust files.
         lens_enable: bool           = true,
         /// Internal config: use custom client-side commands even when the
         /// client doesn't set the corresponding capability.
@@ -390,6 +432,8 @@ config_data! {
 }
 
 config_data! {
+    /// Local configurations can be overridden for every crate by placing a `rust-analyzer.toml` on crate root.
+    /// A config is searched for by traversing a "config tree" in a bottom up fashion. It is chosen by the nearest first principle.
     local: struct LocalConfigData <- LocalConfigInput ->  {
         /// Toggles the additional completions that automatically add imports when completed.
         /// Note that your client must specify the `additionalTextEdits` LSP client capability to truly have this feature enabled.
@@ -463,45 +507,6 @@ config_data! {
         highlightRelated_references_enable: bool = true,
         /// Enables highlighting of all break points for a loop or block context while the cursor is on any `async` or `await` keywords.
         highlightRelated_yieldPoints_enable: bool = true,
-
-        /// Whether to show `Debug` action. Only applies when
-        /// `#rust-analyzer.hover.actions.enable#` is set.
-        hover_actions_debug_enable: bool           = true,
-        /// Whether to show HoverActions in Rust files.
-        hover_actions_enable: bool          = true,
-        /// Whether to show `Go to Type Definition` action. Only applies when
-        /// `#rust-analyzer.hover.actions.enable#` is set.
-        hover_actions_gotoTypeDef_enable: bool     = true,
-        /// Whether to show `Implementations` action. Only applies when
-        /// `#rust-analyzer.hover.actions.enable#` is set.
-        hover_actions_implementations_enable: bool = true,
-        /// Whether to show `References` action. Only applies when
-        /// `#rust-analyzer.hover.actions.enable#` is set.
-        hover_actions_references_enable: bool      = false,
-        /// Whether to show `Run` action. Only applies when
-        /// `#rust-analyzer.hover.actions.enable#` is set.
-        hover_actions_run_enable: bool             = true,
-
-        /// Whether to show documentation on hover.
-        hover_documentation_enable: bool           = true,
-        /// Whether to show keyword hover popups. Only applies when
-        /// `#rust-analyzer.hover.documentation.enable#` is set.
-        hover_documentation_keywords_enable: bool  = true,
-        /// Use markdown syntax for links on hover.
-        hover_links_enable: bool = true,
-        /// How to render the align information in a memory layout hover.
-        hover_memoryLayout_alignment: Option<MemoryLayoutHoverRenderKindDef> = Some(MemoryLayoutHoverRenderKindDef::Hexadecimal),
-        /// Whether to show memory layout data on hover.
-        hover_memoryLayout_enable: bool = true,
-        /// How to render the niche information in a memory layout hover.
-        hover_memoryLayout_niches: Option<bool> = Some(false),
-        /// How to render the offset information in a memory layout hover.
-        hover_memoryLayout_offset: Option<MemoryLayoutHoverRenderKindDef> = Some(MemoryLayoutHoverRenderKindDef::Hexadecimal),
-        /// How to render the size information in a memory layout hover.
-        hover_memoryLayout_size: Option<MemoryLayoutHoverRenderKindDef> = Some(MemoryLayoutHoverRenderKindDef::Both),
-
-        /// How many associated items of a trait to display when hovering a trait.
-        hover_show_traitAssocItems: Option<usize> = Option::<usize>::None,
 
         /// Whether to enforce the import granularity setting for all files. If set to false rust-analyzer will try to keep import styles consistent per file.
         imports_granularity_enforce: bool              = false,
@@ -618,6 +623,8 @@ config_data! {
 }
 
 config_data! {
+    /// Configs that only make sense when they are set by a client. As such they can only be defined
+    /// by setting them using client's settings (e.g `settings.json` on VS Code).
     client: struct ClientConfigData <- ClientConfigInput -> {}
 }
 
@@ -634,8 +641,8 @@ pub struct Config {
 
     default_config: ConfigData,
     client_config: ConfigInput,
-    xdg_config: ConfigInput,
-    ratoml_arena: FxHashMap<SourceRootId, RatomlNode>,
+    user_config: ConfigInput,
+    ratoml_files: FxHashMap<SourceRootId, RatomlNode>,
 }
 
 #[derive(Clone, Debug)]
@@ -868,8 +875,8 @@ impl Config {
             workspace_roots,
             visual_studio_code_version,
             client_config: ConfigInput::default(),
-            xdg_config: ConfigInput::default(),
-            ratoml_arena: FxHashMap::default(),
+            user_config: ConfigInput::default(),
+            ratoml_files: FxHashMap::default(),
             default_config: ConfigData::default(),
         }
     }
@@ -906,9 +913,8 @@ impl Config {
                 .map(AbsPathBuf::assert)
                 .collect();
         patch_old_style::patch_json_for_outdated_configs(&mut json);
-        let input = ConfigInput::from_json(json, &mut errors);
-        self.client_config = input;
-        tracing::debug!("deserialized config data: {:#?}", self.client_config);
+        self.client_config = ConfigInput::from_json(json, &mut errors);
+        tracing::debug!(?self.client_config, "deserialized config data");
         self.snippets.clear();
 
         let snips = self.completion_snippets_custom(None).to_owned();
@@ -1053,36 +1059,32 @@ impl Config {
         }
     }
 
-    pub fn hover_actions(&self, source_root: Option<SourceRootId>) -> HoverActionsConfig {
-        let enable =
-            self.experimental("hoverActions") && self.hover_actions_enable(source_root).to_owned();
+    pub fn hover_actions(&self) -> HoverActionsConfig {
+        let enable = self.experimental("hoverActions") && self.hover_actions_enable().to_owned();
         HoverActionsConfig {
-            implementations: enable
-                && self.hover_actions_implementations_enable(source_root).to_owned(),
-            references: enable && self.hover_actions_references_enable(source_root).to_owned(),
-            run: enable && self.hover_actions_run_enable(source_root).to_owned(),
-            debug: enable && self.hover_actions_debug_enable(source_root).to_owned(),
-            goto_type_def: enable && self.hover_actions_gotoTypeDef_enable(source_root).to_owned(),
+            implementations: enable && self.hover_actions_implementations_enable().to_owned(),
+            references: enable && self.hover_actions_references_enable().to_owned(),
+            run: enable && self.hover_actions_run_enable().to_owned(),
+            debug: enable && self.hover_actions_debug_enable().to_owned(),
+            goto_type_def: enable && self.hover_actions_gotoTypeDef_enable().to_owned(),
         }
     }
 
-    pub fn hover(&self, source_root: Option<SourceRootId>) -> HoverConfig {
+    pub fn hover(&self) -> HoverConfig {
         let mem_kind = |kind| match kind {
             MemoryLayoutHoverRenderKindDef::Both => MemoryLayoutHoverRenderKind::Both,
             MemoryLayoutHoverRenderKindDef::Decimal => MemoryLayoutHoverRenderKind::Decimal,
             MemoryLayoutHoverRenderKindDef::Hexadecimal => MemoryLayoutHoverRenderKind::Hexadecimal,
         };
         HoverConfig {
-            links_in_hover: self.hover_links_enable(source_root).to_owned(),
-            memory_layout: self.hover_memoryLayout_enable(source_root).then_some(
-                MemoryLayoutHoverConfig {
-                    size: self.hover_memoryLayout_size(source_root).map(mem_kind),
-                    offset: self.hover_memoryLayout_offset(source_root).map(mem_kind),
-                    alignment: self.hover_memoryLayout_alignment(source_root).map(mem_kind),
-                    niches: self.hover_memoryLayout_niches(source_root).unwrap_or_default(),
-                },
-            ),
-            documentation: self.hover_documentation_enable(source_root).to_owned(),
+            links_in_hover: self.hover_links_enable().to_owned(),
+            memory_layout: self.hover_memoryLayout_enable().then_some(MemoryLayoutHoverConfig {
+                size: self.hover_memoryLayout_size().map(mem_kind),
+                offset: self.hover_memoryLayout_offset().map(mem_kind),
+                alignment: self.hover_memoryLayout_alignment().map(mem_kind),
+                niches: self.hover_memoryLayout_niches().unwrap_or_default(),
+            }),
+            documentation: self.hover_documentation_enable().to_owned(),
             format: {
                 let is_markdown = try_or_def!(self
                     .caps
@@ -1100,8 +1102,8 @@ impl Config {
                     HoverDocFormat::PlainText
                 }
             },
-            keywords: self.hover_documentation_keywords_enable(source_root).to_owned(),
-            max_trait_assoc_items_count: self.hover_show_traitAssocItems(source_root).to_owned(),
+            keywords: self.hover_documentation_keywords_enable().to_owned(),
+            max_trait_assoc_items_count: self.hover_show_traitAssocItems().to_owned(),
         }
     }
 
@@ -2205,7 +2207,7 @@ pub(crate) enum WorkspaceSymbolSearchKindDef {
 #[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 #[serde(untagged)]
-enum MemoryLayoutHoverRenderKindDef {
+pub(crate) enum MemoryLayoutHoverRenderKindDef {
     #[serde(with = "unit_v::decimal")]
     Decimal,
     #[serde(with = "unit_v::hexadecimal")]
@@ -2269,7 +2271,7 @@ macro_rules! _impl_for_config_data {
                         return &v;
                     }
 
-                    if let Some(v) = self.xdg_config.local.$field.as_ref() {
+                    if let Some(v) = self.user_config.local.$field.as_ref() {
                         return &v;
                     }
 
@@ -2292,7 +2294,7 @@ macro_rules! _impl_for_config_data {
                         return &v;
                     }
 
-                    if let Some(v) = self.xdg_config.global.$field.as_ref() {
+                    if let Some(v) = self.user_config.global.$field.as_ref() {
                         return &v;
                     }
 
@@ -2324,7 +2326,7 @@ macro_rules! _impl_for_config_data {
 
 macro_rules! _config_data {
     // modname is for the tests
-    ($modname:ident: struct $name:ident <- $input:ident -> {
+    ($(#[doc=$dox:literal])* $modname:ident: struct $name:ident <- $input:ident -> {
         $(
             $(#[doc=$doc:literal])*
             $field:ident $(| $alias:ident)*: $ty:ty = $(@$marker:ident: )? $default:expr,
@@ -2391,7 +2393,7 @@ macro_rules! _config_data {
         }
 
         impl $input {
-            #[allow(unused)]
+            #[allow(unused, clippy::ptr_arg)]
             fn from_json(json: &mut serde_json::Value, error_sink: &mut Vec<(String, serde_json::Error)>) -> Self {
                 Self {$(
                     $field: get_field(
@@ -2403,7 +2405,7 @@ macro_rules! _config_data {
                 )*}
             }
 
-            #[allow(unused)]
+            #[allow(unused, clippy::ptr_arg)]
             fn from_toml(toml: &mut toml::Table , error_sink: &mut Vec<(String, toml::de::Error)>) -> Self {
                 Self {$(
                     $field: get_field_toml::<$ty>(

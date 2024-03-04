@@ -19,7 +19,6 @@ salsa.workspace = true
 rustc-hash.workspace = true
 triomphe.workspace = true
 semver.workspace = true
-serde.workspace = true
 tracing.workspace = true
 
 # local deps

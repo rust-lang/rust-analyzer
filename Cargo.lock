@@ -75,7 +75,6 @@ dependencies = [
  "rustc-hash",
  "salsa",
  "semver",
- "serde",
  "span",
  "stdx",
  "syntax",

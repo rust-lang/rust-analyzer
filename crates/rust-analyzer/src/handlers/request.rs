@@ -1038,9 +1038,8 @@ pub(crate) fn handle_hover(
         PositionOrRange::Range(range) => range,
     };
     let file_range = from_proto::file_range(&snap, &params.text_document, range)?;
-    let source_root = snap.analysis.source_root(file_range.file_id)?;
 
-    let hover = snap.config.hover(Some(source_root));
+    let hover = snap.config.hover();
     let info = match snap.analysis.hover(&hover, file_range)? {
         None => return Ok(None),
         Some(info) => info,
@@ -1057,7 +1056,7 @@ pub(crate) fn handle_hover(
             )),
             range: Some(range),
         },
-        actions: if snap.config.hover_actions(Some(source_root)).none() {
+        actions: if snap.config.hover_actions().none() {
             Vec::new()
         } else {
             prepare_hover_actions(&snap, &info.info.actions)
@@ -1852,11 +1851,7 @@ fn show_impl_command_link(
     snap: &GlobalStateSnapshot,
     position: &FilePosition,
 ) -> Option<lsp_ext::CommandLinkGroup> {
-    let source_root = snap.analysis.source_root(position.file_id).ok()?;
-
-    if snap.config.hover_actions(Some(source_root)).implementations
-        && snap.config.client_commands().show_reference
-    {
+    if snap.config.hover_actions().implementations && snap.config.client_commands().show_reference {
         if let Some(nav_data) = snap.analysis.goto_implementation(*position).unwrap_or(None) {
             let uri = to_proto::url(snap, position.file_id);
             let line_index = snap.file_line_index(position.file_id).ok()?;
@@ -1882,11 +1877,7 @@ fn show_ref_command_link(
     snap: &GlobalStateSnapshot,
     position: &FilePosition,
 ) -> Option<lsp_ext::CommandLinkGroup> {
-    let source_root = snap.analysis.source_root(position.file_id).ok()?;
-
-    if snap.config.hover_actions(Some(source_root)).references
-        && snap.config.client_commands().show_reference
-    {
+    if snap.config.hover_actions().references && snap.config.client_commands().show_reference {
         if let Some(ref_search_res) = snap.analysis.find_all_refs(*position, None).unwrap_or(None) {
             let uri = to_proto::url(snap, position.file_id);
             let line_index = snap.file_line_index(position.file_id).ok()?;
@@ -1916,14 +1907,12 @@ fn runnable_action_links(
     snap: &GlobalStateSnapshot,
     runnable: Runnable,
 ) -> Option<lsp_ext::CommandLinkGroup> {
-    let cargo_spec = CargoTargetSpec::for_file(snap, runnable.nav.file_id).ok()?;
-    let source_root = snap.analysis.source_root(runnable.nav.file_id).ok()?;
-
-    let hover_actions_config = snap.config.hover_actions(Some(source_root));
+    let hover_actions_config = snap.config.hover_actions();
     if !hover_actions_config.runnable() {
         return None;
     }
 
+    let cargo_spec = CargoTargetSpec::for_file(snap, runnable.nav.file_id).ok()?;
     if should_skip_target(&runnable, cargo_spec.as_ref()) {
         return None;
     }
@@ -1955,11 +1944,8 @@ fn goto_type_action_links(
     snap: &GlobalStateSnapshot,
     nav_targets: &[HoverGotoTypeData],
 ) -> Option<lsp_ext::CommandLinkGroup> {
-    // FIXME @alibektas : Is it justified/logical to base this function's progress on a single nav target?
-    let source_root = snap.analysis.source_root(nav_targets[0].nav.file_id).ok()?;
-
     if nav_targets.is_empty()
-        || !snap.config.hover_actions(Some(source_root)).goto_type_def
+        || !snap.config.hover_actions().goto_type_def
         || !snap.config.client_commands().goto_location
     {
         return None;

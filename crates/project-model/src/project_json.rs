@@ -233,6 +233,7 @@ struct DepData {
     #[serde(rename = "crate")]
     krate: usize,
     #[serde(deserialize_with = "deserialize_crate_name")]
+    #[serde(serialize_with = "serialize_crate_name")]
     name: CrateName,
 }
 
@@ -248,4 +249,11 @@ where
 {
     let name = String::deserialize(de)?;
     CrateName::new(&name).map_err(|err| de::Error::custom(format!("invalid crate name: {err:?}")))
+}
+
+fn serialize_crate_name<S>(name: &CrateName, se: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    se.serialize_str(name)
 }
