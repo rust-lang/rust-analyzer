@@ -413,6 +413,14 @@ impl Request for CodeActionRequest {
     const METHOD: &'static str = "textDocument/codeAction";
 }
 
+pub enum CodeActionForDiagnosticRequest {}
+
+impl Request for CodeActionForDiagnosticRequest {
+    type Params = lsp_types::CodeActionParams;
+    type Result = Option<Vec<CodeAction>>;
+    const METHOD: &'static str = "rust-analyzer/codeActionForDiagnostic";
+}
+
 pub enum CodeActionResolveRequest {}
 
 impl Request for CodeActionResolveRequest {

@@ -1586,6 +1586,7 @@ impl Config {
             prefer_no_std: self.data.imports_preferNoStd,
             prefer_prelude: self.data.imports_preferPrelude,
             assist_emit_must_use: self.data.assist_emitMustUse,
+            specified_diagnostic_code: None,
         }
     }
 

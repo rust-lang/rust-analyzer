@@ -318,6 +318,14 @@
             "type": "object",
             "title": "rust-analyzer",
             "properties": {
+                "rust-analyzer.autoFixDiagnostics": {
+                    "type": "array",
+                    "default": [],
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "List of diagnostic to automatically apply fix."
+                },
                 "rust-analyzer.cargoRunner": {
                     "type": [
                         "null",
