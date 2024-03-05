@@ -1,6 +1,6 @@
 //! The main loop of `rust-analyzer` responsible for dispatching LSP
 //! requests/replies and notifications back to the client.
-use crate::lsp::ext;
+use crate::{config::ProgressReportingConfig, lsp::ext};
 use std::{
     fmt,
     time::{Duration, Instant},
@@ -633,14 +633,20 @@ impl GlobalState {
 
                 let mut message = format!("{n_done}/{n_total}");
                 if let Some(dir) = dir {
-                    message += &format!(
-                        ": {}",
-                        match dir.strip_prefix(self.config.root_path()) {
-                            Some(relative_path) => relative_path.as_ref(),
-                            None => dir.as_ref(),
-                        }
-                        .display()
-                    );
+                    if self
+                        .config
+                        .progress_reporting()
+                        .contains(&ProgressReportingConfig::IncludeDirectory)
+                    {
+                        message += &format!(
+                            ": {}",
+                            match dir.strip_prefix(self.config.root_path()) {
+                                Some(relative_path) => relative_path.as_ref(),
+                                None => dir.as_ref(),
+                            }
+                            .display()
+                        );
+                    }
                 }
 
                 self.report_progress(
