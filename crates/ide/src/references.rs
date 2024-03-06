@@ -319,12 +319,19 @@ fn func() {
 fn test() {
     test_func();
 }
+
+#[tokio::test]
+fn async_test() {
+    test_func();
+}
+
 "#,
             expect![[r#"
                 test_func Function FileId(0) 0..17 3..12
 
                 FileId(0) 35..44
                 FileId(0) 75..84 Test
+                FileId(0) 128..137 Test
             "#]],
         );
 

@@ -202,6 +202,12 @@ impl Attrs {
                 .rev()
                 .zip(["core", "prelude", "v1", "test"].iter().rev())
                 .all(|it| it.0.as_str() == Some(it.1))
+        }) || self.iter().any(|it| {
+            it.path()
+                .segments()
+                .iter()
+                .zip(["tokio", "test"].iter())
+                .all(|it| it.0.as_str() == Some(it.1))
         })
     }
 
