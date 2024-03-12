@@ -21,7 +21,6 @@ use serde_json::to_value;
 use vfs::AbsPath;
 
 use crate::{
-    cargo_target_spec::CargoTargetSpec,
     config::{CallInfoConfig, Config},
     global_state::GlobalStateSnapshot,
     line_index::{LineEndings, LineIndex, PositionEncoding},
@@ -31,6 +30,7 @@ use crate::{
         LspError,
     },
     lsp_ext::{self, SnippetTextEdit},
+    target_spec::{CargoTargetSpec, TargetSpec},
 };
 
 pub(crate) fn position(line_index: &LineIndex, offset: TextSize) -> lsp_types::Position {
@@ -1347,10 +1347,10 @@ pub(crate) fn runnable(
     runnable: Runnable,
 ) -> Cancellable<lsp_ext::Runnable> {
     let config = snap.config.runnables();
-    let target_spec = CargoTargetSpec::for_file(snap, runnable.nav.file_id)?;
+    let target_spec = TargetSpec::for_file(snap, runnable.nav.file_id)?;
 
     match target_spec {
-        Some(spec) => {
+        Some(TargetSpec::Cargo(spec)) => {
             let workspace_root = spec.workspace_root.clone();
             let target = spec.target.clone();
 
@@ -1549,12 +1549,8 @@ pub(crate) fn test_item(
         id: test_item.id,
         label: test_item.label,
         kind: match test_item.kind {
-            ide::TestItemKind::Crate(id) => 'b: {
-                let Some((cargo_ws, target)) = snap.cargo_target_for_crate_root(id) else {
-                    break 'b lsp_ext::TestItemKind::Package;
-                };
-                let target = &cargo_ws[target];
-                match target.kind {
+            ide::TestItemKind::Crate(id) => match snap.target_spec_for_crate(id) {
+                Some(target_spec) => match target_spec.target_kind() {
                     project_model::TargetKind::Bin
                     | project_model::TargetKind::Lib { .. }
                     | project_model::TargetKind::Example
@@ -1563,8 +1559,9 @@ pub(crate) fn test_item(
                     project_model::TargetKind::Test => lsp_ext::TestItemKind::Test,
                     // benches are not tests needed to be shown in the test explorer
                     project_model::TargetKind::Bench => return None,
-                }
-            }
+                },
+                None => lsp_ext::TestItemKind::Package,
+            },
             ide::TestItemKind::Module => lsp_ext::TestItemKind::Module,
             ide::TestItemKind::Function => lsp_ext::TestItemKind::Test,
         },

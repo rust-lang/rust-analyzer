@@ -1,4 +1,4 @@
-//! See `CargoTargetSpec`
+//! See `TargetSpec`
 
 use std::mem;
 
@@ -9,6 +9,35 @@ use rustc_hash::FxHashSet;
 use vfs::AbsPathBuf;
 
 use crate::global_state::GlobalStateSnapshot;
+
+/// A target represents a thing we can build or test.
+///
+/// We use it to calculate the CLI arguments required to build, run or
+/// test the target.
+#[derive(Clone)]
+pub(crate) enum TargetSpec {
+    Cargo(CargoTargetSpec),
+}
+
+impl TargetSpec {
+    pub(crate) fn for_file(
+        global_state_snapshot: &GlobalStateSnapshot,
+        file_id: FileId,
+    ) -> Cancellable<Option<Self>> {
+        let crate_id = match &*global_state_snapshot.analysis.crates_for(file_id)? {
+            &[crate_id, ..] => crate_id,
+            _ => return Ok(None),
+        };
+
+        Ok(global_state_snapshot.target_spec_for_crate(crate_id))
+    }
+
+    pub(crate) fn target_kind(&self) -> TargetKind {
+        match self {
+            TargetSpec::Cargo(cargo) => cargo.target_kind,
+        }
+    }
+}
 
 /// Abstract representation of Cargo target.
 ///
@@ -118,35 +147,6 @@ impl CargoTargetSpec {
             }
         }
         (args, extra_args)
-    }
-
-    pub(crate) fn for_file(
-        global_state_snapshot: &GlobalStateSnapshot,
-        file_id: FileId,
-    ) -> Cancellable<Option<CargoTargetSpec>> {
-        let crate_id = match &*global_state_snapshot.analysis.crates_for(file_id)? {
-            &[crate_id, ..] => crate_id,
-            _ => return Ok(None),
-        };
-        let (cargo_ws, target) = match global_state_snapshot.cargo_target_for_crate_root(crate_id) {
-            Some(it) => it,
-            None => return Ok(None),
-        };
-
-        let target_data = &cargo_ws[target];
-        let package_data = &cargo_ws[target_data.package];
-        let res = CargoTargetSpec {
-            workspace_root: cargo_ws.workspace_root().to_path_buf(),
-            cargo_toml: package_data.manifest.clone(),
-            package: cargo_ws.package_flag(package_data),
-            target: target_data.name.clone(),
-            target_kind: target_data.kind,
-            required_features: target_data.required_features.clone(),
-            features: package_data.features.keys().cloned().collect(),
-            crate_id,
-        };
-
-        Ok(Some(res))
     }
 
     pub(crate) fn push_to(self, buf: &mut Vec<String>, kind: &RunnableKind) {
