@@ -370,7 +370,7 @@ config_data! {
         /// How to render the align information in a memory layout hover.
         hover_memoryLayout_alignment: Option<MemoryLayoutHoverRenderKindDef> = "\"hexadecimal\"",
         /// Whether to show memory layout data on hover.
-        hover_memoryLayout_enable: bool = "true",
+        hover_memoryLayout_enable: bool = "false",
         /// How to render the niche information in a memory layout hover.
         hover_memoryLayout_niches: Option<bool> = "false",
         /// How to render the offset information in a memory layout hover.
