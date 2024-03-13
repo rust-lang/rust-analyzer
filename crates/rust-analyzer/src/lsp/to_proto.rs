@@ -1347,27 +1347,54 @@ pub(crate) fn runnable(
     runnable: Runnable,
 ) -> Cancellable<lsp_ext::Runnable> {
     let config = snap.config.runnables();
-    let spec = CargoTargetSpec::for_file(snap, runnable.nav.file_id)?;
-    let workspace_root = spec.as_ref().map(|it| it.workspace_root.clone());
-    let target = spec.as_ref().map(|s| s.target.clone());
-    let (cargo_args, executable_args) =
-        CargoTargetSpec::runnable_args(snap, spec, &runnable.kind, &runnable.cfg);
-    let label = runnable.label(target);
-    let location = location_link(snap, None, runnable.nav)?;
+    let target_spec = CargoTargetSpec::for_file(snap, runnable.nav.file_id)?;
 
-    Ok(lsp_ext::Runnable {
-        label,
-        location: Some(location),
-        kind: lsp_ext::RunnableKind::Cargo,
-        args: lsp_ext::CargoRunnable {
-            workspace_root: workspace_root.map(|it| it.into()),
-            override_cargo: config.override_cargo,
-            cargo_args,
-            cargo_extra_args: config.cargo_extra_args,
-            executable_args,
-            expect_test: None,
-        },
-    })
+    match target_spec {
+        Some(spec) => {
+            let workspace_root = spec.workspace_root.clone();
+            let target = spec.target.clone();
+
+            let (cargo_args, executable_args) =
+                CargoTargetSpec::runnable_args(snap, Some(spec), &runnable.kind, &runnable.cfg);
+
+            let label = runnable.label(Some(target));
+            let location = location_link(snap, None, runnable.nav)?;
+
+            Ok(lsp_ext::Runnable {
+                label,
+                location: Some(location),
+                kind: lsp_ext::RunnableKind::Cargo,
+                args: lsp_ext::CargoRunnable {
+                    workspace_root: Some(workspace_root.into()),
+                    override_cargo: config.override_cargo,
+                    cargo_args,
+                    cargo_extra_args: config.cargo_extra_args,
+                    executable_args,
+                    expect_test: None,
+                },
+            })
+        }
+        None => {
+            let (cargo_args, executable_args) =
+                CargoTargetSpec::runnable_args(snap, None, &runnable.kind, &runnable.cfg);
+            let label = runnable.label(None);
+            let location = location_link(snap, None, runnable.nav)?;
+
+            Ok(lsp_ext::Runnable {
+                label,
+                location: Some(location),
+                kind: lsp_ext::RunnableKind::Cargo,
+                args: lsp_ext::CargoRunnable {
+                    workspace_root: None,
+                    override_cargo: config.override_cargo,
+                    cargo_args,
+                    cargo_extra_args: config.cargo_extra_args,
+                    executable_args,
+                    expect_test: None,
+                },
+            })
+        }
+    }
 }
 
 pub(crate) fn code_lens(
