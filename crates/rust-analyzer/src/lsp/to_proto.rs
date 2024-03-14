@@ -1364,7 +1364,7 @@ pub(crate) fn runnable(
                 label,
                 location: Some(location),
                 kind: lsp_ext::RunnableKind::Cargo,
-                args: lsp_ext::CargoRunnable {
+                args: lsp_ext::CargoRunnableArgs {
                     workspace_root: Some(workspace_root.into()),
                     override_cargo: config.override_cargo,
                     cargo_args,
@@ -1384,7 +1384,7 @@ pub(crate) fn runnable(
                 label,
                 location: Some(location),
                 kind: lsp_ext::RunnableKind::Cargo,
-                args: lsp_ext::CargoRunnable {
+                args: lsp_ext::CargoRunnableArgs {
                     workspace_root: None,
                     override_cargo: config.override_cargo,
                     cargo_args,

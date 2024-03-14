@@ -423,7 +423,7 @@ pub struct Runnable {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub location: Option<lsp_types::LocationLink>,
     pub kind: RunnableKind,
-    pub args: CargoRunnable,
+    pub args: CargoRunnableArgs,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -434,7 +434,7 @@ pub enum RunnableKind {
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct CargoRunnable {
+pub struct CargoRunnableArgs {
     // command to be executed instead of cargo
     pub override_cargo: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -851,7 +851,7 @@ pub(crate) fn handle_runnables(
                     ),
                     location: None,
                     kind: lsp_ext::RunnableKind::Cargo,
-                    args: lsp_ext::CargoRunnable {
+                    args: lsp_ext::CargoRunnableArgs {
                         workspace_root: Some(spec.workspace_root.clone().into()),
                         override_cargo: config.override_cargo.clone(),
                         cargo_args,
@@ -868,7 +868,7 @@ pub(crate) fn handle_runnables(
                     label: "cargo check --workspace".to_owned(),
                     location: None,
                     kind: lsp_ext::RunnableKind::Cargo,
-                    args: lsp_ext::CargoRunnable {
+                    args: lsp_ext::CargoRunnableArgs {
                         workspace_root: None,
                         override_cargo: config.override_cargo,
                         cargo_args: vec!["check".to_owned(), "--workspace".to_owned()],
