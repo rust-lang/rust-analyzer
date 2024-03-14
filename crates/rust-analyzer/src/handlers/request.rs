@@ -826,8 +826,11 @@ pub(crate) fn handle_runnables(
         }
         let mut runnable = to_proto::runnable(&snap, runnable)?;
         if expect_test {
-            runnable.label = format!("{} + expect", runnable.label);
-            runnable.args.expect_test = Some(true);
+            #[allow(irrefutable_let_patterns)]
+            if let lsp_ext::RunnableArgs::Cargo(r) = &mut runnable.args {
+                runnable.label = format!("{} + expect", runnable.label);
+                r.expect_test = Some(true);
+            }
         }
         res.push(runnable);
     }
@@ -851,14 +854,14 @@ pub(crate) fn handle_runnables(
                     ),
                     location: None,
                     kind: lsp_ext::RunnableKind::Cargo,
-                    args: lsp_ext::CargoRunnableArgs {
+                    args: lsp_ext::RunnableArgs::Cargo(lsp_ext::CargoRunnableArgs {
                         workspace_root: Some(spec.workspace_root.clone().into()),
                         override_cargo: config.override_cargo.clone(),
                         cargo_args,
                         cargo_extra_args: config.cargo_extra_args.clone(),
                         executable_args: Vec::new(),
                         expect_test: None,
-                    },
+                    }),
                 })
             }
         }
@@ -868,14 +871,14 @@ pub(crate) fn handle_runnables(
                     label: "cargo check --workspace".to_owned(),
                     location: None,
                     kind: lsp_ext::RunnableKind::Cargo,
-                    args: lsp_ext::CargoRunnableArgs {
+                    args: lsp_ext::RunnableArgs::Cargo(lsp_ext::CargoRunnableArgs {
                         workspace_root: None,
                         override_cargo: config.override_cargo,
                         cargo_args: vec!["check".to_owned(), "--workspace".to_owned()],
                         cargo_extra_args: config.cargo_extra_args,
                         executable_args: Vec::new(),
                         expect_test: None,
-                    },
+                    }),
                 });
             }
         }

@@ -423,7 +423,14 @@ pub struct Runnable {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub location: Option<lsp_types::LocationLink>,
     pub kind: RunnableKind,
-    pub args: CargoRunnableArgs,
+    pub args: RunnableArgs,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+#[serde(untagged)]
+pub enum RunnableArgs {
+    Cargo(CargoRunnableArgs),
 }
 
 #[derive(Serialize, Deserialize, Debug)]

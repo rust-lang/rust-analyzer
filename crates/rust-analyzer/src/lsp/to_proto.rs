@@ -1364,14 +1364,14 @@ pub(crate) fn runnable(
                 label,
                 location: Some(location),
                 kind: lsp_ext::RunnableKind::Cargo,
-                args: lsp_ext::CargoRunnableArgs {
+                args: lsp_ext::RunnableArgs::Cargo(lsp_ext::CargoRunnableArgs {
                     workspace_root: Some(workspace_root.into()),
                     override_cargo: config.override_cargo,
                     cargo_args,
                     cargo_extra_args: config.cargo_extra_args,
                     executable_args,
                     expect_test: None,
-                },
+                }),
             })
         }
         None => {
@@ -1384,14 +1384,14 @@ pub(crate) fn runnable(
                 label,
                 location: Some(location),
                 kind: lsp_ext::RunnableKind::Cargo,
-                args: lsp_ext::CargoRunnableArgs {
+                args: lsp_ext::RunnableArgs::Cargo(lsp_ext::CargoRunnableArgs {
                     workspace_root: None,
                     override_cargo: config.override_cargo,
                     cargo_args,
                     cargo_extra_args: config.cargo_extra_args,
                     executable_args,
                     expect_test: None,
-                },
+                }),
             })
         }
     }
@@ -1418,11 +1418,12 @@ pub(crate) fn code_lens(
             };
             let r = runnable(snap, run)?;
 
+            let has_root = match &r.args {
+                lsp_ext::RunnableArgs::Cargo(c) => c.workspace_root.is_some(),
+            };
+
             let lens_config = snap.config.lens();
-            if lens_config.run
-                && client_commands_config.run_single
-                && r.args.workspace_root.is_some()
-            {
+            if lens_config.run && client_commands_config.run_single && has_root {
                 let command = command::run_single(&r, &title);
                 acc.push(lsp_types::CodeLens {
                     range: annotation_range,
