@@ -431,12 +431,14 @@ pub struct Runnable {
 #[serde(untagged)]
 pub enum RunnableArgs {
     Cargo(CargoRunnableArgs),
+    Shell(ShellRunnableArgs),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum RunnableKind {
     Cargo,
+    Shell,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -454,6 +456,14 @@ pub struct CargoRunnableArgs {
     pub executable_args: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expect_test: Option<bool>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ShellRunnableArgs {
+    pub program: String,
+    pub args: Vec<String>,
+    pub cwd: PathBuf,
 }
 
 pub enum RelatedTests {}

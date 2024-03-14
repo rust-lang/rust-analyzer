@@ -25,6 +25,7 @@ use crate::{
     global_state::GlobalStateSnapshot,
     line_index::{LineEndings, LineIndex, PositionEncoding},
     lsp::{
+        ext::ShellRunnableArgs,
         semantic_tokens::{self, standard_fallback_type},
         utils::invalid_params_error,
         LspError,
@@ -1374,6 +1375,27 @@ pub(crate) fn runnable(
                 }),
             }))
         }
+        Some(TargetSpec::ProjectJson(spec)) => {
+            let label = runnable.label(Some(spec.label.clone()));
+            let location = location_link(snap, None, runnable.nav)?;
+
+            match spec.runnable_args(&runnable.kind) {
+                Some(json_shell_runnable_args) => {
+                    let runnable_args = ShellRunnableArgs {
+                        program: json_shell_runnable_args.program,
+                        args: json_shell_runnable_args.args,
+                        cwd: json_shell_runnable_args.cwd,
+                    };
+                    Ok(Some(lsp_ext::Runnable {
+                        label,
+                        location: Some(location),
+                        kind: lsp_ext::RunnableKind::Shell,
+                        args: lsp_ext::RunnableArgs::Shell(runnable_args),
+                    }))
+                }
+                None => Ok(None),
+            }
+        }
         None => {
             let (cargo_args, executable_args) =
                 CargoTargetSpec::runnable_args(snap, None, &runnable.kind, &runnable.cfg);
@@ -1421,6 +1443,7 @@ pub(crate) fn code_lens(
             if let Some(r) = r {
                 let has_root = match &r.args {
                     lsp_ext::RunnableArgs::Cargo(c) => c.workspace_root.is_some(),
+                    lsp_ext::RunnableArgs::Shell(_) => true,
                 };
 
                 let lens_config = snap.config.lens();

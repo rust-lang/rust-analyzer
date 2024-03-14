@@ -773,7 +773,7 @@ pub(crate) fn handle_parent_module(
         };
         let cargo_spec = match TargetSpec::for_file(&snap, file_id)? {
             Some(TargetSpec::Cargo(it)) => it,
-            None => return Ok(None),
+            Some(TargetSpec::ProjectJson(_)) | None => return Ok(None),
         };
 
         if snap.analysis.crate_root(crate_id)? == file_id {
@@ -826,7 +826,6 @@ pub(crate) fn handle_runnables(
         }
         if let Some(mut runnable) = to_proto::runnable(&snap, runnable)? {
             if expect_test {
-                #[allow(irrefutable_let_patterns)]
                 if let lsp_ext::RunnableArgs::Cargo(r) = &mut runnable.args {
                     runnable.label = format!("{} + expect", runnable.label);
                     r.expect_test = Some(true);
@@ -866,6 +865,7 @@ pub(crate) fn handle_runnables(
                 })
             }
         }
+        Some(TargetSpec::ProjectJson(_)) => {}
         None => {
             if !snap.config.linked_or_discovered_projects().is_empty() {
                 res.push(lsp_ext::Runnable {
@@ -1771,7 +1771,7 @@ pub(crate) fn handle_open_cargo_toml(
 
     let cargo_spec = match TargetSpec::for_file(&snap, file_id)? {
         Some(TargetSpec::Cargo(it)) => it,
-        None => return Ok(None),
+        Some(TargetSpec::ProjectJson(_)) | None => return Ok(None),
     };
 
     let cargo_toml_url = to_proto::url_from_abs_path(&cargo_spec.cargo_toml);
@@ -2063,7 +2063,7 @@ fn run_rustfmt(
                     };
                     process::Command::new(cmd_path)
                 }
-                None => process::Command::new(cmd),
+                _ => process::Command::new(cmd),
             };
 
             cmd.envs(snap.config.extra_env());

@@ -4,6 +4,8 @@ use std::mem;
 
 use cfg::{CfgAtom, CfgExpr};
 use ide::{Cancellable, CrateId, FileId, RunnableKind, TestId};
+use project_model::project_json::ShellRunnableArgs;
+use project_model::project_json::ShellRunnableKind;
 use project_model::{CargoFeatures, ManifestPath, TargetKind};
 use rustc_hash::FxHashSet;
 use vfs::AbsPathBuf;
@@ -17,6 +19,7 @@ use crate::global_state::GlobalStateSnapshot;
 #[derive(Clone)]
 pub(crate) enum TargetSpec {
     Cargo(CargoTargetSpec),
+    ProjectJson(ProjectJsonTargetSpec),
 }
 
 impl TargetSpec {
@@ -35,6 +38,7 @@ impl TargetSpec {
     pub(crate) fn target_kind(&self) -> TargetKind {
         match self {
             TargetSpec::Cargo(cargo) => cargo.target_kind,
+            TargetSpec::ProjectJson(project_json) => project_json.target_kind,
         }
     }
 }
@@ -53,6 +57,33 @@ pub(crate) struct CargoTargetSpec {
     pub(crate) crate_id: CrateId,
     pub(crate) required_features: Vec<String>,
     pub(crate) features: FxHashSet<String>,
+}
+
+#[derive(Clone)]
+pub(crate) struct ProjectJsonTargetSpec {
+    pub(crate) label: String,
+    pub(crate) target_kind: TargetKind,
+    pub(crate) shell_runnables: Vec<ShellRunnableArgs>,
+}
+
+impl ProjectJsonTargetSpec {
+    pub(crate) fn runnable_args(&self, kind: &RunnableKind) -> Option<ShellRunnableArgs> {
+        match kind {
+            RunnableKind::Bin => {
+                for runnable in &self.shell_runnables {
+                    if matches!(runnable.kind, ShellRunnableKind::Run) {
+                        return Some(runnable.clone());
+                    }
+                }
+
+                None
+            }
+            RunnableKind::Test { .. } => None,
+            RunnableKind::TestMod { .. } => None,
+            RunnableKind::Bench { .. } => None,
+            RunnableKind::DocTest { .. } => None,
+        }
+    }
 }
 
 impl CargoTargetSpec {

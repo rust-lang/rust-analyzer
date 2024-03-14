@@ -33,7 +33,7 @@ use crate::{
     mem_docs::MemDocs,
     op_queue::OpQueue,
     reload,
-    target_spec::{CargoTargetSpec, TargetSpec},
+    target_spec::{CargoTargetSpec, ProjectJsonTargetSpec, TargetSpec},
     task_pool::{TaskPool, TaskQueue},
 };
 
@@ -529,7 +529,20 @@ impl GlobalStateSnapshot {
                         features: package_data.features.keys().cloned().collect(),
                     }));
                 }
-                ProjectWorkspace::Json { .. } => {}
+                ProjectWorkspace::Json { project, .. } => {
+                    let Some(krate) = project.crate_by_root(path) else {
+                        continue;
+                    };
+                    let Some(build_info) = krate.build_info else {
+                        continue;
+                    };
+
+                    return Some(TargetSpec::ProjectJson(ProjectJsonTargetSpec {
+                        target_kind: build_info.target_kind,
+                        label: build_info.label,
+                        shell_runnables: build_info.shell_runnables,
+                    }));
+                }
                 ProjectWorkspace::DetachedFiles { .. } => {}
             }
         }
