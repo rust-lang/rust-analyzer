@@ -78,7 +78,24 @@ impl ProjectJsonTargetSpec {
 
                 None
             }
-            RunnableKind::Test { .. } => None,
+            RunnableKind::Test { test_id, .. } => {
+                for runnable in &self.shell_runnables {
+                    if matches!(runnable.kind, ShellRunnableKind::TestOne) {
+                        let mut runnable = runnable.clone();
+
+                        let replaced_args: Vec<_> = runnable
+                            .args
+                            .iter()
+                            .map(|arg| arg.replace("$$TEST_NAME$$", &test_id.to_string()))
+                            .collect();
+                        runnable.args = replaced_args;
+
+                        return Some(runnable);
+                    }
+                }
+
+                None
+            }
             RunnableKind::TestMod { .. } => None,
             RunnableKind::Bench { .. } => None,
             RunnableKind::DocTest { .. } => None,
