@@ -27,7 +27,7 @@ use intern::{Internable, Interned};
 use itertools::Itertools;
 use la_arena::ArenaMap;
 use smallvec::SmallVec;
-use stdx::never;
+use stdx::{never, IsNoneOr};
 use triomphe::Arc;
 
 use crate::{
@@ -40,10 +40,11 @@ use crate::{
     mir::pad16,
     primitive, to_assoc_type_id,
     utils::{self, detect_variant_from_bytes, generics, ClosureSubst},
-    AdtId, AliasEq, AliasTy, Binders, CallableDefId, CallableSig, Const, ConstScalar, ConstValue,
-    DomainGoal, FnAbi, GenericArg, ImplTraitId, Interner, Lifetime, LifetimeData, LifetimeOutlives,
-    MemoryMap, Mutability, OpaqueTy, ProjectionTy, ProjectionTyExt, QuantifiedWhereClause, Scalar,
-    Substitution, TraitEnvironment, TraitRef, TraitRefExt, Ty, TyExt, WhereClause,
+    AdtId, AliasEq, AliasTy, Binders, CallableDefId, CallableSig, ConcreteConst, Const,
+    ConstScalar, ConstValue, DomainGoal, FnAbi, GenericArg, ImplTraitId, Interner, Lifetime,
+    LifetimeData, LifetimeOutlives, MemoryMap, Mutability, OpaqueTy, ProjectionTy, ProjectionTyExt,
+    QuantifiedWhereClause, Scalar, Substitution, TraitEnvironment, TraitRef, TraitRefExt, Ty,
+    TyExt, WhereClause,
 };
 
 pub trait HirWrite: fmt::Write {
@@ -58,11 +59,18 @@ impl HirWrite for String {}
 impl HirWrite for fmt::Formatter<'_> {}
 
 pub struct HirFormatter<'a> {
+    /// The database handle
     pub db: &'a dyn HirDatabase,
+    /// The sink to write into
     fmt: &'a mut dyn HirWrite,
+    /// A buffer to intercept writes with, this allows us to track the overall size of the formatted output.
     buf: String,
+    /// The current size of the formatted output.
     curr_size: usize,
-    pub(crate) max_size: Option<usize>,
+    /// Size from which we should truncate the output.
+    max_size: Option<usize>,
+    /// When rendering something that has a concept of "children" (like fields in a struct), this limits
+    /// how many should be rendered.
     pub entity_limit: Option<usize>,
     omit_verbose_types: bool,
     closure_style: ClosureStyle,
@@ -302,7 +310,6 @@ impl DisplayTarget {
 #[derive(Debug)]
 pub enum DisplaySourceCodeError {
     PathNotFound,
-    UnknownType,
     Coroutine,
     OpaqueType,
 }
@@ -1263,11 +1270,10 @@ impl HirDisplay for Ty {
             }
             TyKind::Error => {
                 if f.display_target.is_source_code() {
-                    return Err(HirDisplayError::DisplaySourceCodeError(
-                        DisplaySourceCodeError::UnknownType,
-                    ));
+                    f.write_char('_')?;
+                } else {
+                    write!(f, "{{unknown}}")?;
                 }
-                write!(f, "{{unknown}}")?;
             }
             TyKind::InferenceVar(..) => write!(f, "_")?,
             TyKind::Coroutine(_, subst) => {
@@ -1309,78 +1315,89 @@ fn hir_fmt_generics(
 ) -> Result<(), HirDisplayError> {
     let db = f.db;
     let lifetime_args_count = generic_def.map_or(0, |g| db.generic_params(g).lifetimes.len());
-    if parameters.len(Interner) + lifetime_args_count > 0 {
-        let parameters_to_write = if f.display_target.is_source_code() || f.omit_verbose_types() {
-            match generic_def
-                .map(|generic_def_id| db.generic_defaults(generic_def_id))
-                .filter(|defaults| !defaults.is_empty())
-            {
-                None => parameters.as_slice(Interner),
-                Some(default_parameters) => {
-                    fn should_show(
-                        parameter: &GenericArg,
-                        default_parameters: &[Binders<GenericArg>],
-                        i: usize,
-                        parameters: &Substitution,
-                    ) -> bool {
-                        if parameter.ty(Interner).map(|it| it.kind(Interner))
-                            == Some(&TyKind::Error)
-                        {
-                            return true;
-                        }
-                        if let Some(ConstValue::Concrete(c)) =
-                            parameter.constant(Interner).map(|it| &it.data(Interner).value)
-                        {
-                            if c.interned == ConstScalar::Unknown {
-                                return true;
-                            }
-                        }
-                        let default_parameter = match default_parameters.get(i) {
-                            Some(it) => it,
-                            None => return true,
-                        };
-                        let actual_default =
-                            default_parameter.clone().substitute(Interner, &parameters);
-                        parameter != &actual_default
-                    }
-                    let mut default_from = 0;
-                    for (i, parameter) in parameters.iter(Interner).enumerate() {
-                        if should_show(parameter, &default_parameters, i, parameters) {
-                            default_from = i + 1;
-                        }
-                    }
-                    &parameters.as_slice(Interner)[0..default_from]
-                }
-            }
-        } else {
-            parameters.as_slice(Interner)
-        };
-        if !parameters_to_write.is_empty() || lifetime_args_count != 0 {
-            write!(f, "<")?;
-            let mut first = true;
-            for _ in 0..lifetime_args_count {
-                if !first {
-                    write!(f, ", ")?;
-                }
-                first = false;
-                write!(f, "'_")?;
-            }
-            for generic_arg in parameters_to_write {
-                if !first {
-                    write!(f, ", ")?;
-                }
-                first = false;
-                if f.display_target.is_source_code()
-                    && generic_arg.ty(Interner).map(|ty| ty.kind(Interner)) == Some(&TyKind::Error)
-                {
-                    write!(f, "_")?;
-                } else {
-                    generic_arg.hir_fmt(f)?;
-                }
-            }
+    if parameters.len(Interner) + lifetime_args_count == 0 {
+        return Ok(());
+    }
+    let parameters_to_write =
+        generic_args_sans_defaults(f, generic_def, parameters.as_slice(Interner));
+    if !parameters_to_write.is_empty() || lifetime_args_count != 0 {
+        write!(f, "<")?;
+        hir_fmt_generic_arguments(f, parameters_to_write, lifetime_args_count)?;
+        write!(f, ">")?;
+    }
 
-            write!(f, ">")?;
+    Ok(())
+}
+
+fn generic_args_sans_defaults<'ga>(
+    f: &mut HirFormatter<'_>,
+    generic_def: Option<hir_def::GenericDefId>,
+    parameters: &'ga [GenericArg],
+) -> &'ga [GenericArg] {
+    if f.display_target.is_source_code() || f.omit_verbose_types() {
+        match generic_def
+            .map(|generic_def_id| f.db.generic_defaults(generic_def_id))
+            .filter(|it| !it.is_empty())
+        {
+            None => parameters,
+            Some(default_parameters) => {
+                let should_show = |arg: &GenericArg, i: usize| {
+                    let is_err = |arg: &GenericArg| match arg.data(Interner) {
+                        chalk_ir::GenericArgData::Lifetime(_) => false,
+                        chalk_ir::GenericArgData::Ty(it) => *it.kind(Interner) == TyKind::Error,
+                        chalk_ir::GenericArgData::Const(it) => matches!(
+                            it.data(Interner).value,
+                            ConstValue::Concrete(ConcreteConst {
+                                interned: ConstScalar::Unknown,
+                                ..
+                            })
+                        ),
+                    };
+                    // if the arg is error like, render it to inform the user
+                    if is_err(arg) {
+                        return true;
+                    }
+                    // otherwise, if the arg is equal to the param default, hide it (unless the
+                    // default is an error which can happen for the trait Self type)
+                    default_parameters.get(i).is_none_or(|default_parameter| {
+                        // !is_err(default_parameter.skip_binders())
+                        //     &&
+                        arg != &default_parameter.clone().substitute(Interner, &parameters)
+                    })
+                };
+                let mut default_from = 0;
+                for (i, parameter) in parameters.iter().enumerate() {
+                    if should_show(parameter, i) {
+                        default_from = i + 1;
+                    }
+                }
+                &parameters[0..default_from]
+            }
         }
+    } else {
+        parameters
+    }
+}
+
+fn hir_fmt_generic_arguments(
+    f: &mut HirFormatter<'_>,
+    parameters: &[GenericArg],
+    lifetime_args_count: usize,
+) -> Result<(), HirDisplayError> {
+    let mut first = true;
+    for _ in 0..lifetime_args_count {
+        if !first {
+            write!(f, ", ")?;
+        }
+        first = false;
+        write!(f, "'_")?;
+    }
+    for generic_arg in parameters {
+        if !first {
+            write!(f, ", ")?;
+        }
+        first = false;
+        generic_arg.hir_fmt(f)?;
     }
     Ok(())
 }
@@ -1500,20 +1517,29 @@ fn write_bounds_like_dyn_trait(
                 f.start_location_link(trait_.into());
                 write!(f, "{}", f.db.trait_data(trait_).name.display(f.db.upcast()))?;
                 f.end_location_link();
-                if let [_, params @ ..] = trait_ref.substitution.as_slice(Interner) {
-                    if is_fn_trait {
+                if is_fn_trait {
+                    if let [_self, params @ ..] = trait_ref.substitution.as_slice(Interner) {
                         if let Some(args) =
                             params.first().and_then(|it| it.assert_ty_ref(Interner).as_tuple())
                         {
                             write!(f, "(")?;
-                            f.write_joined(args.as_slice(Interner), ", ")?;
+                            hir_fmt_generic_arguments(f, args.as_slice(Interner), 0)?;
                             write!(f, ")")?;
                         }
-                    } else if !params.is_empty() {
-                        write!(f, "<")?;
-                        f.write_joined(params, ", ")?;
-                        // there might be assoc type bindings, so we leave the angle brackets open
-                        angle_open = true;
+                    }
+                } else {
+                    let params = generic_args_sans_defaults(
+                        f,
+                        Some(trait_.into()),
+                        trait_ref.substitution.as_slice(Interner),
+                    );
+                    if let [_self, params @ ..] = params {
+                        if !params.is_empty() {
+                            write!(f, "<")?;
+                            hir_fmt_generic_arguments(f, params, 0)?;
+                            // there might be assoc type bindings, so we leave the angle brackets open
+                            angle_open = true;
+                        }
                     }
                 }
             }
@@ -1543,9 +1569,10 @@ fn write_bounds_like_dyn_trait(
                     let proj_arg_count = generics(f.db.upcast(), assoc_ty_id.into()).len_self();
                     if proj_arg_count > 0 {
                         write!(f, "<")?;
-                        f.write_joined(
+                        hir_fmt_generic_arguments(
+                            f,
                             &proj.substitution.as_slice(Interner)[..proj_arg_count],
-                            ", ",
+                            0,
                         )?;
                         write!(f, ">")?;
                     }
