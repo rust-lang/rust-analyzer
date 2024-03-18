@@ -669,7 +669,9 @@ impl<'a> InferenceContext<'a> {
         // Even though coercion casts provide type hints, we check casts after fallback for
         // backwards compatibility. This makes fallback a stronger type hint than a cast coercion.
         for cast in deferred_cast_checks {
-            cast.check(&mut table);
+            cast.check(&mut table, |expr, adjusts| {
+                expr_adjustments.insert(expr, adjusts);
+            });
         }
 
         // FIXME resolve obligations as well (use Guidance if necessary)
