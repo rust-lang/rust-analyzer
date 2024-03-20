@@ -84,14 +84,15 @@ pub(crate) fn vst_rewriter_intro_failing_ensures(
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::check_assist;
+    use crate::tests::{check_assist, check_assist_with_verus_error};
 
     use super::*;
 
-    #[test] #[ignore = "need a test infra for saved verus error info"]
+    #[test]
     fn intro_failing_ensures_easy() {
-        check_assist(
+        check_assist_with_verus_error(
             intro_failing_ensures,
+            vec![mk_post_failure(126, 137, 139, 167)],
             r#"
 proof fn my_proof_fun(x: int, y: int)
     requires
@@ -111,12 +112,12 @@ proof fn my_proof_fun(x: int, y: int)
         y < 100,
     ensures
         x + y < 200,
-        x + y < 400,
+        x + y < 100,
 {
     assert(x + y < 600);
-
-    assert(x + y < 100); 
+    assert(x + y < 100);
 }
+
 "#,
         );
     }

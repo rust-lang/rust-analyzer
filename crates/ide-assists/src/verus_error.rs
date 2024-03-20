@@ -48,3 +48,14 @@ pub fn filter_post_failuires(verus_errors: &Vec<VerusError>) -> Vec<PostFailure>
     }
     post_errs
 }
+
+// just for writing testcases
+#[cfg(test)]
+pub fn mk_pre_failure(pre_start: u32, pre_end: u32, call_start: u32, call_end: u32) -> VerusError {
+    VerusError::Pre(PreFailure{ failing_pre: TextRange::new(pre_start.into(),pre_end.into()) , callsite: TextRange::new(call_start.into(), call_end.into())})
+}
+// just for writing testcases
+#[cfg(test)]
+pub fn mk_post_failure(post_start: u32, post_end: u32, body_start: u32, body_end: u32) -> VerusError {
+    VerusError::Post(PostFailure{ failing_post: TextRange::new(post_start.into(),post_end.into()) , func_body: TextRange::new(body_start.into(), body_end.into())})
+}
