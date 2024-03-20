@@ -150,14 +150,14 @@ pub(crate) fn vst_rewriter_localize_error_minimized(
     let mut stmts: StmtList = StmtList::new();
     for e in split_exprs {
         dbg!("{}", &e.to_string());
-        let assert_expr = AssertExpr::new(e);
-        let modified_fn = ctx.replace_statement(&this_fn, assertion.clone(), assert_expr.clone())?;
+        let split_assert = AssertExpr::new(e);
+        let modified_fn = ctx.replace_statement(&this_fn, assertion.clone(), split_assert.clone())?;
         let verif_result = ctx.try_verus(&modified_fn)?;
-        if verif_result.is_failing(&assert_expr) {
+        if verif_result.is_failing(&split_assert) {
             dbg!(verif_result);
             // this is not enough -- need to retrieve failing assertions
             // and check if this split assertion is failing
-            stmts.statements.push(assert_expr.into());
+            stmts.statements.push(split_assert.into());
         }
     }
     stmts.statements.push(assertion.into());

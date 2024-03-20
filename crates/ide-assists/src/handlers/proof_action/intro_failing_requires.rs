@@ -28,6 +28,7 @@ pub(crate) fn vst_rewriter_intro_failing_requires(
 ) -> Option<BlockExpr> {
     let name_ref = ctx.name_ref_from_call_expr(&call)?;
     let func = ctx.vst_find_fn(&call)?;
+    dbg!(&func.name);
     let pre_fails = ctx.pre_failures_by_calling_this_fn(&func)?;
     let failed_exprs: Option<Vec<Expr>> = pre_fails.into_iter().map(|p| ctx.expr_from_pre_failure(p)).collect(); 
     let failed_exprs = failed_exprs?;

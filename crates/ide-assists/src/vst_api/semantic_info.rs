@@ -99,7 +99,14 @@ impl<'a> AssistContext<'a> {
 
     pub(crate) fn vst_find_fn(&self, call: &vst::CallExpr) -> Option<vst::Fn> {
         for item in self.source_file.items() {
-            let v_item: ast::generated::vst_nodes::Item = item.try_into().unwrap();
+            let v_item: ast::generated::vst_nodes::Item = 
+                match item.try_into() {
+                    Ok(ii) => ii,
+                    Err(err_msg) => {
+                        dbg!("into_vst failed: {}", err_msg);
+                        continue;
+                    },
+                };
             match v_item {
                 ast::generated::vst_nodes::Item::Fn(f) => {
                     if call.expr.to_string().trim() == f.name.to_string().trim() {

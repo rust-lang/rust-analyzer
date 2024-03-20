@@ -18,6 +18,7 @@ impl<'a> AssistContext<'a> {
         expr_to_inline: vst::Expr,  // the expression to inline --- this expression will replace the function body
     ) -> Option<vst::Expr> {
         use crate::handlers::inline_call::*;
+        dbg!("vst_inline_call");
         let name_ref: ast::NameRef = name_ref.cst?;
         let call_info = CallInfo::from_name_ref(name_ref.clone())?;
         let (function, label) = match &call_info.node {
@@ -68,7 +69,7 @@ impl<'a> AssistContext<'a> {
         let tmp_param_list = tmp_foo.param_list()?;
         let tmp_function = tmp_ctx.sema.to_def(&tmp_foo)?;
         let tmp_params = get_fn_params(tmp_ctx.db(), tmp_function, &tmp_param_list)?;
-        let replacement = inline(
+        let replacement = inline_simple(
             &tmp_ctx.sema,
             file_with_caret_id,
             tmp_function,

@@ -566,6 +566,174 @@ pub(crate) fn inline(
     }
 }
 
+// simpler inline for vst
+pub(crate) fn inline_simple(
+    sema: &Semantics<'_, RootDatabase>,
+    function_def_file_id: FileId,
+    function: hir::Function,
+    fn_body: &ast::BlockExpr,
+    params: &[(ast::Pat, Option<ast::Type>, hir::Param)],
+    CallInfo { node, arguments, generic_arg_list }: &CallInfo,
+) -> ast::Expr {
+    let body = if sema.hir_file_for(fn_body.syntax()).is_macro() {
+        cov_mark::hit!(inline_call_defined_in_macro);
+        if let Some(body) = ast::BlockExpr::cast(insert_ws_into(fn_body.syntax().clone())) {
+            body
+        } else {
+            fn_body.clone_for_update()
+        }
+    } else {
+        fn_body.clone_for_update()
+    };
+    if let Some(imp) = body.syntax().ancestors().find_map(ast::Impl::cast) {
+        if !node.syntax().ancestors().any(|anc| &anc == imp.syntax()) {
+            if let Some(t) = imp.self_ty() {
+                body.syntax()
+                    .descendants_with_tokens()
+                    .filter_map(NodeOrToken::into_token)
+                    .filter(|tok| tok.kind() == SyntaxKind::SELF_TYPE_KW)
+                    .for_each(|tok| ted::replace(tok, t.syntax()));
+            }
+        }
+    }
+    let usages_for_locals = |local| {
+        Definition::Local(local)
+            .usages(sema)
+            .all()
+            .references
+            .remove(&function_def_file_id)
+            .unwrap_or_default()
+            .into_iter()
+    };
+    let param_use_nodes: Vec<Vec<_>> = params
+        .iter()
+        .map(|(pat, _, param)| {
+            if !matches!(pat, ast::Pat::IdentPat(pat) if pat.is_simple_ident()) {
+                return Vec::new();
+            }
+            // FIXME: we need to fetch all locals declared in the parameter here
+            // not only the local if it is a simple binding
+            match param.as_local(sema.db) {
+                Some(l) => usages_for_locals(l)
+                    .map(|FileReference { name, range, .. }| match name {
+                        ast::NameLike::NameRef(_) => body
+                            .syntax()
+                            .covering_element(range)
+                            .ancestors()
+                            .nth(3)
+                            .and_then(ast::PathExpr::cast),
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<_>>>()
+                    .unwrap_or_default(),
+                None => Vec::new(),
+            }
+        })
+        .collect();
+
+    if function.self_param(sema.db).is_some() {
+        let this = || make::name_ref("this").syntax().clone_for_update().first_token().unwrap();
+        if let Some(self_local) = params[0].2.as_local(sema.db) {
+            usages_for_locals(self_local)
+                .filter_map(|FileReference { name, range, .. }| match name {
+                    ast::NameLike::NameRef(_) => Some(body.syntax().covering_element(range)),
+                    _ => None,
+                })
+                .for_each(|it| {
+                    ted::replace(it, &this());
+                })
+        }
+    }
+
+    let mut func_let_vars: BTreeSet<String> = BTreeSet::new();
+
+    // grab all of the local variable declarations in the function
+    for stmt in fn_body.statements() {
+        if let Some(let_stmt) = ast::LetStmt::cast(stmt.syntax().to_owned()) {
+            for has_token in let_stmt.syntax().children_with_tokens() {
+                if let Some(node) = has_token.as_node() {
+                    if let Some(ident_pat) = ast::IdentPat::cast(node.to_owned()) {
+                        func_let_vars.insert(ident_pat.syntax().text().to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    // Inline parameter expressions or generate `let` statements depending on whether inlining works or not.
+    for ((_pat, _param_ty, _), usages, expr) in izip!(params, param_use_nodes, arguments).rev() {
+        // izip confuses RA due to our lack of hygiene info currently losing us type info causing incorrect errors
+        let usages: &[ast::PathExpr] = &usages;
+        let expr: &ast::Expr = expr;
+
+        let inline_direct = |usage, replacement: &ast::Expr| {
+            if let Some(field) = path_expr_as_record_field(usage) {
+                cov_mark::hit!(inline_call_inline_direct_field);
+                field.replace_expr(replacement.clone_for_update());
+            } else {
+                ted::replace(usage.syntax(), &replacement.syntax().clone_for_update());
+            }
+        };
+
+        match usages {
+            // inline single use closure arguments
+            [usage]
+                if matches!(expr, ast::Expr::ClosureExpr(_))
+                    && usage.syntax().parent().and_then(ast::Expr::cast).is_some() =>
+            {
+                cov_mark::hit!(inline_call_inline_closure);
+                let expr = make::expr_paren(expr.clone());
+                inline_direct(usage, &expr);
+            }
+            // inline single use literals
+            [usage] if matches!(expr, ast::Expr::Literal(_)) => {
+                cov_mark::hit!(inline_call_inline_literal);
+                inline_direct(usage, expr);
+            }
+            // inline direct local arguments
+            [_, ..] if expr_as_name_ref(expr).is_some() => {
+                cov_mark::hit!(inline_call_inline_locals);
+                usages.iter().for_each(|usage| inline_direct(usage, expr));
+            }
+            // can't inline, emit a let statement
+            _ => {
+                cov_mark::hit!(inline_call_inline_locals);
+                usages.iter().for_each(|usage| inline_direct(usage, expr));
+            }
+        }
+    }
+
+    if let Some(generic_arg_list) = generic_arg_list.clone() {
+        if let Some((target, source)) = &sema.scope(node.syntax()).zip(sema.scope(fn_body.syntax()))
+        {
+            PathTransform::function_call(target, source, function, generic_arg_list)
+                .apply(body.syntax());
+        }
+    }
+
+    let original_indentation = match node {
+        ast::CallableExpr::Call(it) => it.indent_level(),
+        ast::CallableExpr::MethodCall(it) => it.indent_level(),
+    };
+    body.reindent_to(original_indentation);
+
+    match body.tail_expr() {
+        Some(expr) if body.statements().next().is_none() => expr,
+        _ => match node
+            .syntax()
+            .parent()
+            .and_then(ast::BinExpr::cast)
+            .and_then(|bin_expr| bin_expr.lhs())
+        {
+            Some(lhs) if lhs.syntax() == node.syntax() => {
+                make::expr_paren(ast::Expr::BlockExpr(body)).clone_for_update()
+            }
+            _ => ast::Expr::BlockExpr(body),
+        },
+    }
+}
+
+
 fn path_expr_as_record_field(usage: &PathExpr) -> Option<ast::RecordExprField> {
     let path = usage.path()?;
     let name_ref = path.as_single_name_ref()?;
