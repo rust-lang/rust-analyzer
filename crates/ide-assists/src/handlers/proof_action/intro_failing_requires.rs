@@ -5,6 +5,10 @@ use syntax::{
      AstNode, 
 };
 
+// this proof acion introduces failing precondition in the context of the callsite
+// With the IDE integration, proof action context saves the failing assertion/requires/ensures when it runs Verus 
+// this proof action uses the saved verification error info.
+
 pub(crate) fn intro_failing_requires(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     // setup basic variables
     let call: ast::CallExpr = ctx.find_node_at_offset()?;
@@ -28,7 +32,6 @@ pub(crate) fn vst_rewriter_intro_failing_requires(
 ) -> Option<BlockExpr> {
     let name_ref = ctx.name_ref_from_call_expr(&call)?;
     let func = ctx.vst_find_fn(&call)?;
-    dbg!(&func.name);
     let pre_fails = ctx.pre_failures_by_calling_this_fn(&func)?;
     let failed_exprs: Option<Vec<Expr>> = pre_fails.into_iter().map(|p| ctx.expr_from_pre_failure(p)).collect(); 
     let failed_exprs = failed_exprs?;
@@ -49,7 +52,13 @@ pub(crate) fn vst_rewriter_intro_failing_requires(
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::check_assist;
+    use syntax::TextRange;
+
+    use crate::{tests::{check_assist, check_assist_with_verus_error}, verus_error::{self, PreFailure, VerusError}};
+
+    fn mk_pre_failure(pre_start: u32, pre_end: u32, call_start: u32, call_end: u32) -> VerusError {
+        verus_error::VerusError::Pre(PreFailure{ failing_pre: TextRange::new(pre_start.into(),pre_end.into()) , callsite: TextRange::new(call_start.into(), call_end.into())})
+    }
 
     use super::*;
 
@@ -165,4 +174,47 @@ proof fn lemma_fibo_is_monotonic(i: nat, j: nat)
 "#,
         );
     }
+
+    #[test]
+    fn intro_requires_mul_ineq() {
+        check_assist_with_verus_error(
+            intro_failing_requires,
+            vec![mk_pre_failure(87, 102, 332, 372)], 
+            // `x <= y && z > 0` is at offset (87, 102) 
+            // `lemm$0a_mul_inequality(x, xbound - 1, y)` is at offset (332, 372)
+            r#"
+proof fn lemma_mul_inequality(x: int, y: int, z: int) by(nonlinear_arith)
+    requires x <= y && z > 0
+    ensures  x * z <= y * z    
+{}
+
+proof fn lemma_mul_strict_upper_bound(x: int, xbound: int, y: int, ybound: int)
+    requires x < xbound && y < ybound && 0 <= x && 0 <= y
+    ensures x * y <= (xbound - 1) * (ybound - 1)
+{
+    lemm$0a_mul_inequality(x, xbound - 1, y);
+    lemma_mul_inequality(y, ybound-1, xbound-1);
+}
+"#,
+            r#"
+proof fn lemma_mul_inequality(x: int, y: int, z: int) by(nonlinear_arith)
+    requires x <= y && z > 0
+    ensures  x * z <= y * z    
+{}
+
+proof fn lemma_mul_strict_upper_bound(x: int, xbound: int, y: int, ybound: int)
+    requires x < xbound && y < ybound && 0 <= x && 0 <= y
+    ensures x * y <= (xbound - 1) * (ybound - 1)
+{
+    {
+        assert(x <= xbound - 1 && y > 0);
+        lemma_mul_inequality(x, xbound - 1, y);
+    };
+    lemma_mul_inequality(y, ybound-1, xbound-1);
+}
+"#,
+        );
+    }
+
+
 }

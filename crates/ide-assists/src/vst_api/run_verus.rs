@@ -1,6 +1,6 @@
 use std::{process::Command, collections::hash_map::DefaultHasher, time::Instant, env, path::Path, hash::{Hasher, Hash}, fs::File, io::Write};
 
-use crate::{AssistContext, tests::HARDCODED_VERUS_PATH_FOR_TEST};
+use crate::AssistContext;
 use syntax::ast::{self, vst, HasModuleItem, HasName};
 
 impl<'a> AssistContext<'a> {

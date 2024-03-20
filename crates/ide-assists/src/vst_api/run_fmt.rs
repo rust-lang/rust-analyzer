@@ -1,6 +1,6 @@
 use std::{process::Command, collections::hash_map::DefaultHasher, time::Instant, env, path::Path, hash::{Hasher, Hash}, fs::{read_to_string, File}, io::Write};
 use core::ops::Range;
-use crate::{AssistContext, tests::HARDCODED_VERUS_FMT_PATH_FOR_TEST};
+use crate::AssistContext;
 use syntax::{ast, AstNode};
 
 
