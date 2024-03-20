@@ -122,10 +122,13 @@ proof fn my_proof_fun(x: int, y: int)
         );
     }
 
-    #[test] #[ignore = "need a test infra for saved verus error info"]
+    #[test]
     fn intro_ensure_ret_arg() {
-        check_assist(
+        check_assist_with_verus_error(
             intro_failing_ensures,
+            vec![mk_post_failure(119, 128, 168, 185)],
+            // `sum < 100` is at offset (119, 128)  
+            // note that `$0` is just a marker, and not included in the offset calculation
             r#"
 proof fn my_proof_fun(x: int, y: int) -> (sum: int)
     requires
@@ -136,6 +139,7 @@ proof fn my_proof_fun(x: int, y: int) -> (sum: int)
         sum < 200,
         sum < 300,
 {
+    assert(x + y < 200);
     x + y
 }
 "#,
@@ -149,19 +153,24 @@ proof fn my_proof_fun(x: int, y: int) -> (sum: int)
         sum < 200,
         sum < 300,
 {
-    let sum = x + y; 
-    assert(sum < 100); 
-    sum
+    assert(x + y < 200);
+    {
+        let sum = x + y;
+        assert(sum < 100);
+        sum
+    }
 }
+
 "#,
         );
     }
 
 
-    #[test] #[ignore = "need a test infra for saved verus error info"]
+    #[test]
     fn intro_ensure_multiple_ret_arg() {
-        check_assist(
+        check_assist_with_verus_error(
             intro_failing_ensures,
+            vec![mk_post_failure(119, 128, 168, 237)],
             r#"
 proof fn my_proof_fun(x: int, y: int) -> (sum: int)
     requires
@@ -190,24 +199,26 @@ proof fn my_proof_fun(x: int, y: int) -> (sum: int)
         sum < 300,
 {
     if x > 0 {
-        let sum = x + y + 1;
+        let sum = { x + y + 1 };
         assert(sum < 100);
         sum
     } else {
-        let sum = x + y;
+        let sum = { x + y };
         assert(sum < 100);
         sum
     }
 }
+
 "#,
         );
     }
 
 
-    #[test] #[ignore = "need a test infra for saved verus error info"]
+    #[test]
     fn intro_ensure_fibo() {
-        check_assist(
+        check_assist_with_verus_error(
             intro_failing_ensures,
+            vec![mk_post_failure(98, 116, 138, 425)],
             r#"
 proof fn lemma_fibo_is_monotonic(i: nat, j: nat)
     requires
@@ -224,7 +235,7 @@ proof fn lemma_fibo_is_monotonic(i: nat, j: nat)
     } else {
         lemma_fibo_is_monotonic(i, (j - 1) as nat);
         lemma_fibo_is_monotonic(i, (j - 2) as nat);
-    }
+    };
 }
 "#,
             r#"
@@ -235,7 +246,7 @@ proof fn lemma_fibo_is_monotonic(i: nat, j: nat)
         fibo(i) <= fibo(j),
     decreases j - i
 {
-    let _ = if i < 2 && j < 2 {
+    if i < 2 && j < 2 {
     } else if i == j {
     } else if i == j - 1 {
         reveal_with_fuel(fibo, 2);
@@ -243,10 +254,10 @@ proof fn lemma_fibo_is_monotonic(i: nat, j: nat)
     } else {
         lemma_fibo_is_monotonic(i, (j - 1) as nat);
         lemma_fibo_is_monotonic(i, (j - 2) as nat);
-    }; 
-    assert(fibo(i) <= fibo(j)); 
-    ()
+    };
+    assert(fibo(i) <= fibo(j));
 }
+
 "#,
         );
     }
