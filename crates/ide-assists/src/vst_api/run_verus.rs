@@ -104,6 +104,8 @@ impl<'a> AssistContext<'a> {
         let output = 
             Command::new(verus_exec_path)
                 .arg(path)
+                .arg("--multiple-errors")
+                .arg("10") // we want many errors as proof-action reads this. By default, Verus gives a couple of errors as a human reads those.
                 .output();
 
         // match std::fs::remove_file(path) {

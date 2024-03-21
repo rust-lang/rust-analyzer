@@ -121,22 +121,22 @@ fn split_expr(ctx: &AssistContext<'_>, exp: &Expr) -> Option<Vec<Expr>> {
     }
 }
 
-// TODO: remove
-pub(crate) fn _vst_rewriter_localize_error(
-    ctx: &AssistContext<'_>,
-    assertion: AssertExpr,
-) -> Option<String> {
-    let exp = &assertion.expr;
-    let split_exprs = split_expr(ctx, exp)?;
-    let mut stmts: StmtList = StmtList::new();
-    for e in split_exprs {
-        let assert_expr = AssertExpr::new(e);
-        stmts.statements.push(assert_expr.into());
-    }
-    stmts.statements.push(assertion.into());
-    let blk = BlockExpr::new(stmts);
-    return Some(blk.to_string());
-}
+// TODO: make this a separate proof action
+// pub(crate) fn _vst_rewriter_localize_error(
+//     ctx: &AssistContext<'_>,
+//     assertion: AssertExpr,
+// ) -> Option<String> {
+//     let exp = &assertion.expr;
+//     let split_exprs = split_expr(ctx, exp)?;
+//     let mut stmts: StmtList = StmtList::new();
+//     for e in split_exprs {
+//         let assert_expr = AssertExpr::new(e);
+//         stmts.statements.push(assert_expr.into());
+//     }
+//     stmts.statements.push(assertion.into());
+//     let blk = BlockExpr::new(stmts);
+//     return Some(blk.to_string());
+// }
 
 // maybe register another action with minimization
 // TODO: try changing this to use verus
@@ -147,6 +147,9 @@ pub(crate) fn vst_rewriter_localize_error_minimized(
     let this_fn = ctx.vst_find_node_at_offset::<Fn, ast::Fn>()?; 
     let exp = &assertion.expr;
     let split_exprs = split_expr(ctx, exp)?;
+    for e in &split_exprs {
+        dbg!({}, e.to_string());
+    }
     let mut stmts: StmtList = StmtList::new();
     for e in split_exprs {
         dbg!("{}", &e.to_string());
@@ -170,11 +173,12 @@ mod tests {
     use crate::tests::check_assist;
     use super::*;
 
-    // TEST: &&
+    // TEST: && (1)
     #[test]
     fn decompose_conjunct_failure() {
         check_assist(
             localize_error,
+// before
             r#"
 use vstd::prelude::*;
 fn foo()
@@ -200,6 +204,61 @@ fn main() {}
         );
     }
 
+
+    // TEST: && (2)
+    #[test]
+    fn decompose_conjunct_failure2() {
+        check_assist(
+            localize_error,
+// before
+            r#"
+use vstd::prelude::*;
+
+proof fn lemma_mul_inequality(x: int, y: int, z: int) by(nonlinear_arith)
+    requires x <= y && z > 0
+    ensures  x * z <= y * z    
+{}
+
+proof fn lemma_mul_strict_upper_bound(x: int, xbound: int, y: int, ybound: int)
+    requires x < xbound && y < ybound && 0 <= x && 0 <= y
+    ensures x * y <= (xbound - 1) * (ybound - 1)
+{
+    {
+        as$0sert(x <= xbound - 1 && y > 0);
+        lemma_mul_inequality(x, xbound - 1, y);
+    };
+    lemma_mul_inequality(y, ybound-1, xbound-1);
+}
+
+fn main() {}
+"#,
+// after
+            r#"
+use vstd::prelude::*;
+
+proof fn lemma_mul_inequality(x: int, y: int, z: int) by(nonlinear_arith)
+    requires x <= y && z > 0
+    ensures  x * z <= y * z    
+{}
+
+proof fn lemma_mul_strict_upper_bound(x: int, xbound: int, y: int, ybound: int)
+    requires x < xbound && y < ybound && 0 <= x && 0 <= y
+    ensures x * y <= (xbound - 1) * (ybound - 1)
+{
+    {
+        {
+            assert(y > 0);
+            assert(x <= xbound - 1 && y > 0);
+        };
+        lemma_mul_inequality(x, xbound - 1, y);
+    };
+    lemma_mul_inequality(y, ybound-1, xbound-1);
+}
+
+fn main() {}
+"#,
+        );
+    }
 
     // TEST: match
     #[test]

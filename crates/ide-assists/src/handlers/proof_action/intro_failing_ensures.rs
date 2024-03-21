@@ -84,7 +84,7 @@ pub(crate) fn vst_rewriter_intro_failing_ensures(
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::{check_assist, check_assist_with_verus_error};
+    use crate::tests::check_assist_with_verus_error;
 
     use super::*;
 
