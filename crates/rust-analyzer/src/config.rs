@@ -166,7 +166,7 @@ config_data! {
         /// set to a path relative to the workspace to use that path.
         cargo_targetDir | rust_analyzerTargetDir: Option<TargetDirectory> = None,
         /// Unsets the implicit `#[cfg(test)]` for the specified crates.
-        cargo_unsetTest: Vec<String>     = @verbatim: r#"["core"]"#,
+        cargo_unsetTest: Vec<String>     = vec!["core".to_owned()],
 
         /// Run the check command for diagnostics on save.
         checkOnSave | checkOnSave_enable: bool                         = true,
@@ -2037,7 +2037,7 @@ mod single_or_array {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
-enum ManifestOrProjectJson {
+pub(crate) enum ManifestOrProjectJson {
     Manifest(Utf8PathBuf),
     ProjectJson(ProjectJsonData),
 }
@@ -3140,7 +3140,10 @@ mod tests {
                 "rust": { "analyzerTargetDir": "other_folder" }
             }))
             .unwrap();
-        assert_eq!(&Some(TargetDirectory::Directory(Utf8PathBuf::from("other_folder"))));
+        assert_eq!(
+            config.cargo_targetDir(),
+            &Some(TargetDirectory::Directory(Utf8PathBuf::from("other_folder")))
+        );
         assert!(
             matches!(config.flycheck(), FlycheckConfig::CargoCommand { target_dir, .. } if target_dir == Some(Utf8PathBuf::from("other_folder")))
         );
