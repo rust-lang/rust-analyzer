@@ -220,7 +220,7 @@ pub struct Fn {
     pub requires_clause: Option<Box<RequiresClause>>,
     pub recommends_clause: Option<Box<RecommendsClause>>,
     pub ensures_clause: Option<Box<EnsuresClause>>,
-    pub decreases_clause: Option<Box<DecreasesClause>>,
+    pub signature_decreases: Option<Box<SignatureDecreases>>,
     pub body: Option<Box<BlockExpr>>,
     pub semicolon_token: bool,
     pub cst: Option<super::nodes::Fn>,
@@ -454,10 +454,12 @@ pub struct EnsuresClause {
     pub cst: Option<super::nodes::EnsuresClause>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct DecreasesClause {
-    pub decreases_token: bool,
-    pub exprs: Vec<Expr>,
-    pub cst: Option<super::nodes::DecreasesClause>,
+pub struct SignatureDecreases {
+    pub decreases_clause: Box<DecreasesClause>,
+    pub when_token: bool,
+    pub expr: Option<Box<Expr>>,
+    pub via_token: bool,
+    pub cst: Option<super::nodes::SignatureDecreases>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BlockExpr {
@@ -945,6 +947,12 @@ pub struct InvariantClause {
     pub cst: Option<super::nodes::InvariantClause>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DecreasesClause {
+    pub decreases_token: bool,
+    pub exprs: Vec<Expr>,
+    pub cst: Option<super::nodes::DecreasesClause>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatchArmList {
     pub l_curly_token: bool,
     pub attrs: Vec<Attr>,
@@ -1190,14 +1198,6 @@ pub struct ModeSpecChecked {
     pub checked_token: bool,
     pub r_paren_token: bool,
     pub cst: Option<super::nodes::ModeSpecChecked>,
-}
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct SignatureDecreases {
-    pub decreases_clause: Box<DecreasesClause>,
-    pub when_token: bool,
-    pub expr: Option<Box<Expr>>,
-    pub via_token: bool,
-    pub cst: Option<super::nodes::SignatureDecreases>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Prover {
@@ -1888,8 +1888,8 @@ impl TryFrom<super::nodes::Fn> for Fn {
                 Some(it) => Some(Box::new(EnsuresClause::try_from(it)?)),
                 None => None,
             },
-            decreases_clause: match item.decreases_clause() {
-                Some(it) => Some(Box::new(DecreasesClause::try_from(it)?)),
+            signature_decreases: match item.signature_decreases() {
+                Some(it) => Some(Box::new(SignatureDecreases::try_from(it)?)),
                 None => None,
             },
             body: match item.body() {
@@ -2477,16 +2477,21 @@ impl TryFrom<super::nodes::EnsuresClause> for EnsuresClause {
         })
     }
 }
-impl TryFrom<super::nodes::DecreasesClause> for DecreasesClause {
+impl TryFrom<super::nodes::SignatureDecreases> for SignatureDecreases {
     type Error = String;
-    fn try_from(item: super::nodes::DecreasesClause) -> Result<Self, Self::Error> {
+    fn try_from(item: super::nodes::SignatureDecreases) -> Result<Self, Self::Error> {
         Ok(Self {
-            decreases_token: item.decreases_token().is_some(),
-            exprs: item
-                .exprs()
-                .into_iter()
-                .map(Expr::try_from)
-                .collect::<Result<Vec<Expr>, String>>()?,
+            decreases_clause: Box::new(
+                item.decreases_clause()
+                    .ok_or(format!("{}", stringify!(decreases_clause)))
+                    .map(|it| DecreasesClause::try_from(it))??,
+            ),
+            when_token: item.when_token().is_some(),
+            expr: match item.expr() {
+                Some(it) => Some(Box::new(Expr::try_from(it)?)),
+                None => None,
+            },
+            via_token: item.via_token().is_some(),
             cst: Some(item.clone()),
         })
     }
@@ -3729,6 +3734,20 @@ impl TryFrom<super::nodes::InvariantClause> for InvariantClause {
         })
     }
 }
+impl TryFrom<super::nodes::DecreasesClause> for DecreasesClause {
+    type Error = String;
+    fn try_from(item: super::nodes::DecreasesClause) -> Result<Self, Self::Error> {
+        Ok(Self {
+            decreases_token: item.decreases_token().is_some(),
+            exprs: item
+                .exprs()
+                .into_iter()
+                .map(Expr::try_from)
+                .collect::<Result<Vec<Expr>, String>>()?,
+            cst: Some(item.clone()),
+        })
+    }
+}
 impl TryFrom<super::nodes::MatchArmList> for MatchArmList {
     type Error = String;
     fn try_from(item: super::nodes::MatchArmList) -> Result<Self, Self::Error> {
@@ -4262,25 +4281,6 @@ impl TryFrom<super::nodes::ModeSpecChecked> for ModeSpecChecked {
             l_paren_token: item.l_paren_token().is_some(),
             checked_token: item.checked_token().is_some(),
             r_paren_token: item.r_paren_token().is_some(),
-            cst: Some(item.clone()),
-        })
-    }
-}
-impl TryFrom<super::nodes::SignatureDecreases> for SignatureDecreases {
-    type Error = String;
-    fn try_from(item: super::nodes::SignatureDecreases) -> Result<Self, Self::Error> {
-        Ok(Self {
-            decreases_clause: Box::new(
-                item.decreases_clause()
-                    .ok_or(format!("{}", stringify!(decreases_clause)))
-                    .map(|it| DecreasesClause::try_from(it))??,
-            ),
-            when_token: item.when_token().is_some(),
-            expr: match item.expr() {
-                Some(it) => Some(Box::new(Expr::try_from(it)?)),
-                None => None,
-            },
-            via_token: item.via_token().is_some(),
             cst: Some(item.clone()),
         })
     }
@@ -5160,7 +5160,7 @@ impl std::fmt::Display for Fn {
             s.push_str(&it.to_string());
             s.push_str(" ");
         }
-        if let Some(it) = &self.decreases_clause {
+        if let Some(it) = &self.signature_decreases {
             s.push_str(&it.to_string());
             s.push_str(" ");
         }
@@ -5882,16 +5882,27 @@ impl std::fmt::Display for EnsuresClause {
         write!(f, "{s}")
     }
 }
-impl std::fmt::Display for DecreasesClause {
+impl std::fmt::Display for SignatureDecreases {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = String::new();
-        if self.decreases_token {
-            let mut tmp = stringify!(decreases_token).to_string();
+        s.push_str(&self.decreases_clause.to_string());
+        s.push_str(" ");
+        if self.when_token {
+            let mut tmp = stringify!(when_token).to_string();
             tmp.truncate(tmp.len() - 6);
             s.push_str(token_ascii(&tmp));
             s.push_str(" ");
         }
-        s.push_str(&self.exprs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.expr {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.via_token {
+            let mut tmp = stringify!(via_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
         write!(f, "{s}")
     }
 }
@@ -7148,6 +7159,19 @@ impl std::fmt::Display for InvariantClause {
         write!(f, "{s}")
     }
 }
+impl std::fmt::Display for DecreasesClause {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.decreases_token {
+            let mut tmp = stringify!(decreases_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.exprs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        write!(f, "{s}")
+    }
+}
 impl std::fmt::Display for MatchArmList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = String::new();
@@ -7805,30 +7829,6 @@ impl std::fmt::Display for ModeSpecChecked {
         }
         if self.r_paren_token {
             let mut tmp = stringify!(r_paren_token).to_string();
-            tmp.truncate(tmp.len() - 6);
-            s.push_str(token_ascii(&tmp));
-            s.push_str(" ");
-        }
-        write!(f, "{s}")
-    }
-}
-impl std::fmt::Display for SignatureDecreases {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut s = String::new();
-        s.push_str(&self.decreases_clause.to_string());
-        s.push_str(" ");
-        if self.when_token {
-            let mut tmp = stringify!(when_token).to_string();
-            tmp.truncate(tmp.len() - 6);
-            s.push_str(token_ascii(&tmp));
-            s.push_str(" ");
-        }
-        if let Some(it) = &self.expr {
-            s.push_str(&it.to_string());
-            s.push_str(" ");
-        }
-        if self.via_token {
-            let mut tmp = stringify!(via_token).to_string();
             tmp.truncate(tmp.len() - 6);
             s.push_str(token_ascii(&tmp));
             s.push_str(" ");
@@ -8853,7 +8853,7 @@ impl Fn {
             requires_clause: None,
             recommends_clause: None,
             ensures_clause: None,
-            decreases_clause: None,
+            signature_decreases: None,
             body: None,
             semicolon_token: false,
             cst: None,
@@ -9102,8 +9102,16 @@ impl RecommendsClause {
 impl EnsuresClause {
     pub fn new() -> Self { Self { ensures_token: true, exprs: vec![], cst: None } }
 }
-impl DecreasesClause {
-    pub fn new() -> Self { Self { decreases_token: true, exprs: vec![], cst: None } }
+impl SignatureDecreases {
+    pub fn new(decreases_clause: DecreasesClause) -> Self {
+        Self {
+            decreases_clause: Box::new(decreases_clause),
+            when_token: false,
+            expr: None,
+            via_token: false,
+            cst: None,
+        }
+    }
 }
 impl BlockExpr {
     pub fn new(stmt_list: StmtList) -> Self {
@@ -9678,6 +9686,9 @@ impl ArgList {
 impl InvariantClause {
     pub fn new() -> Self { Self { invariant_token: true, exprs: vec![], cst: None } }
 }
+impl DecreasesClause {
+    pub fn new() -> Self { Self { decreases_token: true, exprs: vec![], cst: None } }
+}
 impl MatchArmList {
     pub fn new() -> Self {
         Self { l_curly_token: true, attrs: vec![], arms: vec![], r_curly_token: true, cst: None }
@@ -9882,17 +9893,6 @@ impl ModeSpecChecked {
             l_paren_token: true,
             checked_token: true,
             r_paren_token: true,
-            cst: None,
-        }
-    }
-}
-impl SignatureDecreases {
-    pub fn new(decreases_clause: DecreasesClause) -> Self {
-        Self {
-            decreases_clause: Box::new(decreases_clause),
-            when_token: false,
-            expr: None,
-            via_token: false,
             cst: None,
         }
     }

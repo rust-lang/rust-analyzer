@@ -425,7 +425,6 @@ impl Fn {
     pub fn abi(&self) -> Option<Abi> { support::child(&self.syntax) }
     pub fn attrs(&self) -> AstChildren<Attr> { support::children(&self.syntax) }
     pub fn body(&self) -> Option<BlockExpr> { support::child(&self.syntax) }
-    pub fn decreases_clause(&self) -> Option<DecreasesClause> { support::child(&self.syntax) }
     pub fn ensures_clause(&self) -> Option<EnsuresClause> { support::child(&self.syntax) }
     pub fn fn_mode(&self) -> Option<FnMode> { support::child(&self.syntax) }
     pub fn generic_param_list(&self) -> Option<GenericParamList> { support::child(&self.syntax) }
@@ -435,6 +434,7 @@ impl Fn {
     pub fn recommends_clause(&self) -> Option<RecommendsClause> { support::child(&self.syntax) }
     pub fn requires_clause(&self) -> Option<RequiresClause> { support::child(&self.syntax) }
     pub fn ret_type(&self) -> Option<RetType> { support::child(&self.syntax) }
+    pub fn signature_decreases(&self) -> Option<SignatureDecreases> { support::child(&self.syntax) }
     pub fn visibility(&self) -> Option<Visibility> { support::child(&self.syntax) }
     pub fn where_clause(&self) -> Option<WhereClause> { support::child(&self.syntax) }
     pub fn semicolon_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![;]) }
