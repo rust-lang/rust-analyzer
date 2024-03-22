@@ -6,7 +6,7 @@ use crate::{
     AssistKind,
 };
 use syntax::{
-    ast::{self, vst::*, AstNode, LogicOp, CmpOp, Ordering,  },
+    ast::{self, vst::*, AstNode, CmpOp, Ordering},
     T,
 };
 

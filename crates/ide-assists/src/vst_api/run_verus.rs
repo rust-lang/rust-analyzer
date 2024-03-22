@@ -1,5 +1,4 @@
 use std::{process::Command, collections::hash_map::DefaultHasher, time::Instant, env, path::Path, hash::{Hasher, Hash}, fs::File, io::Write};
-
 use crate::AssistContext;
 use syntax::ast::{self, vst, HasModuleItem, HasName};
 
@@ -56,6 +55,11 @@ impl<'a> AssistContext<'a> {
                     text_string += &e.to_string();
                     text_string += "\n}\n";
                 },
+                ast::Item::Impl(e) => {
+                    text_string += "\nverus!{\n";
+                    text_string += &e.to_string();
+                    text_string += "\n}\n";
+                }
                 _ => {
                     text_string += &it.to_string();
                     text_string += "\n";
@@ -101,26 +105,20 @@ impl<'a> AssistContext<'a> {
             Ok(_) => dbg!("successfully wrote to {}", display),
         };
 
+        let now = Instant::now();
         let output = 
             Command::new(verus_exec_path)
                 .arg(path)
                 .arg("--multiple-errors")
                 .arg("10") // we want many errors as proof-action reads this. By default, Verus gives a couple of errors as a human reads those.
                 .output();
+        let elapsed = now.elapsed().as_secs();
 
-        // match std::fs::remove_file(path) {
-        //     Err(why) => {
-        //         dbg!("couldn't remove file {}: {}", path.display(), why);
-        //     }
-        //     Ok(_) => {
-        //         dbg!("successfully removed {}", path.display());
-        //     }
-        // };
 
         let output = output.ok()?;
         // dbg!(&output);
         if output.status.success() {
-            return Some(VerifResult::mk_success());
+            return Some(VerifResult::mk_success(elapsed));
         } else {
             // disambiguate verification failure     VS    compile error etc
             match std::str::from_utf8(&output.stdout) {
@@ -133,7 +131,7 @@ impl<'a> AssistContext<'a> {
                         // verification failure
                         match std::str::from_utf8(&output.stderr) {
                             Ok(err_msg) => {
-                                return Some(VerifResult::mk_failure(out.into(), err_msg.into()));
+                                return Some(VerifResult::mk_failure(out.into(), err_msg.into(), elapsed));
                             },
                             Err(_) => return None,
                         }
@@ -151,15 +149,16 @@ pub(crate) struct VerifResult {
     // TODO: properly parse json using serde and store the list of assertion/ensures/requires 
     pub(crate) stdout: String ,
     pub(crate) stderr: String,
+    pub(crate) time: u64,
 }
 
 impl VerifResult {
-    pub fn mk_success() -> Self {
-        VerifResult {is_success: true, stdout: String::new(), stderr: String::new()}
+    pub fn mk_success(time: u64) -> Self {
+        VerifResult {is_success: true, stdout: String::new(), stderr: String::new(), time}
     }
 
-    pub fn mk_failure(stdout: String, stderr: String) -> Self {
-        VerifResult {is_success: false, stdout, stderr}
+    pub fn mk_failure(stdout: String, stderr: String, time: u64) -> Self {
+        VerifResult {is_success: false, stdout, stderr, time}
     }
 
     pub fn is_failing(&self, assertion: &vst::AssertExpr) -> bool {

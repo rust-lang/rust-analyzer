@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use crate::AssistContext;
-use hir::{Semantics, HirDisplay};
+use hir::Semantics;
 use syntax::ast::{self, vst, HasModuleItem};
 
 impl<'a> AssistContext<'a> {

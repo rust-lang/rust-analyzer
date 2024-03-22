@@ -38,7 +38,12 @@ pub(crate) fn remove_dead_assertions(acc: &mut Assists, ctx: &AssistContext<'_>)
 // TODO: refactor verus interaction parts, and send it to the user using closure
 // that way, it does not run before user explicitly wants it
 pub(crate) fn vst_rewriter_remove_dead_assertions(ctx: &AssistContext<'_>, func: vst::Fn) -> Option<vst::Fn> {
-    // if is already has a "by block", return None
+    let initial_verif_result = ctx.try_verus(&func)?;
+    // only rewrite succeeding proof
+    if !initial_verif_result.is_success {
+        return None;
+    }
+
     let mut redundant_assertions: Vec<vst::Stmt> = vec![];
     for st in &func.body.as_ref()?.stmt_list.statements {
         if let vst::Stmt::ExprStmt(ref e) = st {
@@ -48,13 +53,18 @@ pub(crate) fn vst_rewriter_remove_dead_assertions(ctx: &AssistContext<'_>, func:
                 redundant_assertions.push(st.clone());
                 let modified_fn = rewriter_rm_assertions(&func, &redundant_assertions)?;
                 dbg!("trying out on", modified_fn.to_string());
-                if !ctx.try_verus(&modified_fn)?.is_success {
-                    dbg!("this is essensital");
+                let verif_result = ctx.try_verus(&modified_fn)?;
+                if !verif_result.is_success {
+                    dbg!("verif fails without this assertion");
                     // verification failed without this assertion
                     // remove this assertion from the list
                     redundant_assertions.pop();
                 } else {
-                    dbg!("this is redundant");
+                    dbg!("verif succeeds without this assertion");
+                    if verif_result.time > initial_verif_result.time * 2 {
+                        dbg!("verification time takes a lot longer without this assertion");
+                        redundant_assertions.pop();
+                    } 
                 }
                 dbg!("redundant assertions", redundant_assertions.len());
             }
@@ -82,20 +92,20 @@ mod tests {
             remove_dead_assertions,
             "
 use vstd::prelude::*;
-pr$0oof fn foo() 
+pr$0oof fn foo(x: nat) 
     ensures 
-        true,
+        x >= 0,
 { 
-    assert(x == 3); 
+    assert(x >= 0); 
 }
 
 fn main() {}
 ",
             "
 use vstd::prelude::*;
-proof fn foo()
+proof fn foo(x: nat)
     ensures
-        true,
+        x >= 0,
 {
 }
 

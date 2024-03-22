@@ -5,10 +5,7 @@ use crate::{
     AssistId,
     AssistKind,
 };
-use syntax::{
-    ast::{self, vst::*, AstNode},
-    T,
-};
+use syntax::ast::{self, vst::*, AstNode};
 
 pub(crate) fn assert_by_reveal(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     // trigger on function call

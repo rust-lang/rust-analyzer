@@ -5,11 +5,7 @@ use crate::{
     AssistId,
     AssistKind,
 };
-use hir::known::assert;
-use syntax::{
-    ast::{self, vst::*, AstNode, LogicOp},
-    T,
-};
+use syntax::ast::{self, vst::*, AstNode, LogicOp};
 
 pub(crate) fn seq_index_inbound(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     // if the function name is not inside an assertForallExpr, return None

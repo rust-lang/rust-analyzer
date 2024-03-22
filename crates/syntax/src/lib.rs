@@ -68,6 +68,7 @@ pub use rowan::{
 pub use rustc_lexer::unescape;
 pub use smol_str::{format_smolstr, SmolStr};
 
+#[cfg(test)]
 use ast::generated::vst_nodes;
 
 /// `Parse` is the result of the parsing: a syntax tree and a collection of

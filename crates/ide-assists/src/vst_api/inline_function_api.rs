@@ -21,7 +21,7 @@ impl<'a> AssistContext<'a> {
         dbg!("vst_inline_call");
         let name_ref: ast::NameRef = name_ref.cst?;
         let call_info = CallInfo::from_name_ref(name_ref.clone())?;
-        let (function, label) = match &call_info.node {
+        let (function, _label) = match &call_info.node {
             ast::CallableExpr::Call(call) => {
                 let path = match call.expr()? {
                     ast::Expr::PathExpr(path) => path.path(),

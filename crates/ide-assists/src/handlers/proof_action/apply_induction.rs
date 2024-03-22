@@ -10,20 +10,29 @@ pub(crate) fn apply_induction(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     let func: ast::Fn = ctx.find_node_at_offset::<ast::Fn>()?;
     let body: ast::BlockExpr = func.body()?;
     let func: Fn = Fn::try_from(func).ok()?;
+    if func.signature_decreases.is_none() {
+        dbg!("no decreases vst");
+        return None;
+    }
+
+
+    let mut new_fn = func.clone();
     let param_list = &(*func.param_list?).params;
 
-    let param_names = param_list
+    let param_names: Option<Vec<String>> = param_list
         .iter()
         .map(|p| {
-            let p = p.pat.as_ref().unwrap().as_ref();
-            if let Pat::IdentPat(pat) = p {
-                (&pat.as_ref().name.ident_token).as_ref().unwrap().clone()
+            let p = p.pat.clone()?;
+            if let Pat::IdentPat(pat) = *p {
+                pat.name.ident_token
             } else {
-                panic!("not supported yet");
+                None
             }
         })
-        .collect::<Vec<_>>();
+        .collect();
+    let param_names = param_names?;
 
+    // get the selected argument
     let index = param_list.iter().position(|p| {
         p.cst.as_ref().unwrap().syntax().text_range().contains_range(ctx.selection_trimmed())
     })?;
@@ -31,21 +40,32 @@ pub(crate) fn apply_induction(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     let fn_name = func.name.to_string();
 
     let pty = param_list[index].ty.as_ref().unwrap();
-    let mut result = String::new();
+    let mut result = BlockExpr::new(StmtList::new());
 
     // better way to type check?
     if pty.to_string().trim() == "nat" {
-        result = apply_induction_on_nat(ctx, fn_name, param_names, index)?.to_string();
+        result = apply_induction_on_nat(ctx, fn_name, param_names, index)?;
     } else {
         let p = param_list[index].pat.as_ref().unwrap().as_ref();
-        // check_if_inductive_enum(ctx, p);
         if let Some(en) = ctx.type_of_pat_enum(p) {
             let bty = format!("Box<{}>", param_list[index].ty.as_ref().unwrap().to_string().trim());
-            result = apply_induction_on_enum(ctx, fn_name, param_names, index, &en, bty)?.to_string();
+            result = apply_induction_on_enum(ctx, fn_name, param_names, index, &en, bty)?;
         }
     }
 
-    dbg!("{}", &result);
+    // now check if proof now goes thorugh, and make sure it is fast
+    new_fn.body = Some(Box::new(result.clone()));
+    let verif_result = ctx.try_verus(&new_fn)?;
+    if !verif_result.is_success {
+        return None;
+    } else {
+        if verif_result.time > 10 {
+            return None;
+        }
+    }
+    
+
+    dbg!("{}", &result.to_string());
     let result = ctx.fmt(body.clone(),result.to_string())?;
 
     return acc.add(
@@ -64,7 +84,7 @@ fn apply_induction_on_nat(
 ) -> Option<BlockExpr> {
     let id = param_names[index].clone();
     let cond = ctx.vst_expr_from_text(format!("{} == 0", id.clone()).as_ref())?;  
-    let sub = ctx.vst_expr_from_text(format!("{} - 1", id.clone()).as_ref())?;  
+    let sub = ctx.vst_expr_from_text(format!("({} - 1) as nat", id.clone()).as_ref())?;  
 
     // build arguments for recursive call
     let mut args = ArgList::new();
@@ -160,6 +180,8 @@ mod tests {
         check_assist(
             apply_induction,
             r#"
+use vstd::prelude::*;
+
 spec fn sum(n: nat) -> nat
 {
     n * (n + 1) / 2
@@ -175,13 +197,16 @@ spec fn triangle(n: nat) -> nat
     }
 }
 
-#[verifier(nonlinear)]
-proof fn sum_equal($0n: nat, m: nat)
+proof fn sum_equal($0n: nat, m: nat) by(nonlinear_arith)
     ensures sum(n) == triangle(n),
     decreases n,
 {}
+
+fn main() {}
 "#,
             r#"
+use vstd::prelude::*;
+
 spec fn sum(n: nat) -> nat
 {
     n * (n + 1) / 2
@@ -197,33 +222,74 @@ spec fn triangle(n: nat) -> nat
     }
 }
 
-#[verifier(nonlinear)]
-proof fn sum_equal(n: nat, m: nat)
+proof fn sum_equal(n: nat, m: nat) by(nonlinear_arith)
     ensures sum(n) == triangle(n),
     decreases n,
 {
     if n == 0 {
     } else {
-        sum_equal(n - 1, m);
+        sum_equal((n - 1) as nat, m);
     };
 }
 
+
+fn main() {}
 "#,
         );
     }
 
 
     #[test]
-    // https://github.com/verus-lang/verus/blob/0088380265ed6e10c5d8034e89ce807a728f98e3/source/rust_verify/example/summer_school/chapter-1-22.rs
+    // from https://github.com/verus-lang/verus/blob/0088380265ed6e10c5d8034e89ce807a728f98e3/source/rust_verify/example/summer_school/chapter-1-22.rs
     fn apply_induction_on_enum1() {
         check_assist(
             apply_induction,
+// before
             r#"
+use vstd::prelude::*;
+
+spec fn sequence_is_sorted(s: Seq<int>) -> bool {
+    forall|i: int, j: int| 0 <= i < j < s.len() ==> s[i] <= s[j]
+}
+
+spec fn sequences_ordered_at_interface(seq1: Seq<int>, seq2: Seq<int>) -> bool {
+    if seq1.len() == 0 || seq2.len() == 0 {
+        true
+    } else {
+        seq1.last() <= seq2[0]
+    }
+}
+
 #[is_variant] #[derive(PartialEq, Eq)] 
 enum Tree {
     Nil,
     Node { value: i64, left: Box<Tree>, right: Box<Tree> },
 }
+impl Tree {
+    spec fn view(&self) -> Seq<int>
+        decreases self
+    {
+        match *self {
+            Tree::Nil => seq![],
+            Tree::Node { value, left, right } => left@.add(seq![value as int]).add(right@),
+        }
+    }
+
+    spec fn is_sorted(&self) -> bool
+        decreases self
+    {
+        match *self {
+            Tree::Nil => true,
+            Tree::Node { value, left, right } => {
+                &&& sequences_ordered_at_interface(left@, seq![value as int])
+                &&& sequences_ordered_at_interface(seq![value as int], right@)
+                &&& left.is_sorted()
+                &&& right.is_sorted()
+            }
+        }
+    }
+}
+
 
 proof fn sorted_tree_means_sorted_sequence(tr$0ee: Tree)
     requires
@@ -233,14 +299,56 @@ proof fn sorted_tree_means_sorted_sequence(tr$0ee: Tree)
     decreases tree
 {
 }
+
+fn main() {}
 "#,
 
+// after
             r#"
+use vstd::prelude::*;
+
+spec fn sequence_is_sorted(s: Seq<int>) -> bool {
+    forall|i: int, j: int| 0 <= i < j < s.len() ==> s[i] <= s[j]
+}
+
+spec fn sequences_ordered_at_interface(seq1: Seq<int>, seq2: Seq<int>) -> bool {
+    if seq1.len() == 0 || seq2.len() == 0 {
+        true
+    } else {
+        seq1.last() <= seq2[0]
+    }
+}
+
 #[is_variant] #[derive(PartialEq, Eq)] 
 enum Tree {
     Nil,
     Node { value: i64, left: Box<Tree>, right: Box<Tree> },
 }
+impl Tree {
+    spec fn view(&self) -> Seq<int>
+        decreases self
+    {
+        match *self {
+            Tree::Nil => seq![],
+            Tree::Node { value, left, right } => left@.add(seq![value as int]).add(right@),
+        }
+    }
+
+    spec fn is_sorted(&self) -> bool
+        decreases self
+    {
+        match *self {
+            Tree::Nil => true,
+            Tree::Node { value, left, right } => {
+                &&& sequences_ordered_at_interface(left@, seq![value as int])
+                &&& sequences_ordered_at_interface(seq![value as int], right@)
+                &&& left.is_sorted()
+                &&& right.is_sorted()
+            }
+        }
+    }
+}
+
 
 proof fn sorted_tree_means_sorted_sequence(tree: Tree)
     requires
@@ -258,6 +366,8 @@ proof fn sorted_tree_means_sorted_sequence(tree: Tree)
     };
 }
 
+
+fn main() {}
 "#,
         );
     }
