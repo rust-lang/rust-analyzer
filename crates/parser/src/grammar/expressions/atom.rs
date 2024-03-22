@@ -101,7 +101,7 @@ pub(super) fn atom_expr(
         T![loop] => loop_expr(p, None),
         T![while] => while_expr(p, None),
         T![try] => try_block_expr(p, None),
-        T![match] => match_expr(p),
+        T![match] => match_expr(p, None),
         T![return] => return_expr(p),
         T![become] => become_expr(p),
         T![yield] => yield_expr(p),
@@ -476,16 +476,30 @@ fn let_expr(p: &mut Parser<'_>) -> CompletedMarker {
 //     match S {};
 //     match { } { _ => () };
 //     match { S {} } {};
+//
+//     S.match { _ => () };
+//     S.match { }.match { };
+//     1.match { };
+//     x.0.match { };
+//     x.0().match { }?.hello();
+//     x.0.0.match { };
+//     x.0. match { };
 // }
-fn match_expr(p: &mut Parser<'_>) -> CompletedMarker {
-    assert!(p.at(T![match]));
-    let m = p.start();
-    p.bump(T![match]);
-    expr_no_struct(p);
+pub(crate) fn match_expr(p: &mut Parser<'_>, postfix: Option<Marker>) -> CompletedMarker {
+    let m;
+    if let Some(mark) = postfix {
+        m = mark;
+        p.bump(T![match]);
+    } else {
+        m = p.start();
+        p.bump(T![match]);
+        expr_no_struct(p);
+    }
+
     if p.at(T!['{']) {
         match_arm_list(p);
     } else {
-        p.error("expected `{`");
+        p.error(format!("expected `{{`, found {:?}", p.current()));
     }
     m.complete(p, MATCH_EXPR)
 }
