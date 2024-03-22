@@ -58,6 +58,7 @@ struct Printer<'a> {
 }
 
 impl Printer<'_> {
+    #[allow(clippy::assigning_clones)]
     fn indented(&mut self, f: impl FnOnce(&mut Self)) {
         self.indent_level += 1;
         wln!(self);
