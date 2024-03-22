@@ -151,7 +151,7 @@ UseTreeList =
 Fn =
  Attr* Visibility? Publish?
  'default'? 'const'? 'async'? 'unsafe'? Abi? FnMode?
- 'fn' Name GenericParamList? ParamList RetType? WhereClause? RequiresClause? RecommendsClause? EnsuresClause? SignatureDecreases?
+ 'fn' Name GenericParamList? ParamList RetType? WhereClause? Prover? RequiresClause? RecommendsClause? EnsuresClause? SignatureDecreases?
  (body:BlockExpr | ';')
 
 Abi =

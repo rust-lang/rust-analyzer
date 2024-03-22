@@ -217,6 +217,7 @@ pub struct Fn {
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
     pub where_clause: Option<Box<WhereClause>>,
+    pub prover: Option<Box<Prover>>,
     pub requires_clause: Option<Box<RequiresClause>>,
     pub recommends_clause: Option<Box<RecommendsClause>>,
     pub ensures_clause: Option<Box<EnsuresClause>>,
@@ -432,6 +433,14 @@ pub struct WhereClause {
     pub where_token: bool,
     pub predicates: Vec<WherePred>,
     pub cst: Option<super::nodes::WhereClause>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Prover {
+    pub by_token: bool,
+    pub l_paren_token: bool,
+    pub name: Box<Name>,
+    pub r_paren_token: bool,
+    pub cst: Option<super::nodes::Prover>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RequiresClause {
@@ -1200,14 +1209,6 @@ pub struct ModeSpecChecked {
     pub cst: Option<super::nodes::ModeSpecChecked>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Prover {
-    pub by_token: bool,
-    pub l_paren_token: bool,
-    pub name: Box<Name>,
-    pub r_paren_token: bool,
-    pub cst: Option<super::nodes::Prover>,
-}
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TriggerAttribute {
     pub pound_token: bool,
     pub excl_token: bool,
@@ -1876,6 +1877,10 @@ impl TryFrom<super::nodes::Fn> for Fn {
                 Some(it) => Some(Box::new(WhereClause::try_from(it)?)),
                 None => None,
             },
+            prover: match item.prover() {
+                Some(it) => Some(Box::new(Prover::try_from(it)?)),
+                None => None,
+            },
             requires_clause: match item.requires_clause() {
                 Some(it) => Some(Box::new(RequiresClause::try_from(it)?)),
                 None => None,
@@ -2426,6 +2431,22 @@ impl TryFrom<super::nodes::WhereClause> for WhereClause {
                 .into_iter()
                 .map(WherePred::try_from)
                 .collect::<Result<Vec<WherePred>, String>>()?,
+            cst: Some(item.clone()),
+        })
+    }
+}
+impl TryFrom<super::nodes::Prover> for Prover {
+    type Error = String;
+    fn try_from(item: super::nodes::Prover) -> Result<Self, Self::Error> {
+        Ok(Self {
+            by_token: item.by_token().is_some(),
+            l_paren_token: item.l_paren_token().is_some(),
+            name: Box::new(
+                item.name()
+                    .ok_or(format!("{}", stringify!(name)))
+                    .map(|it| Name::try_from(it))??,
+            ),
+            r_paren_token: item.r_paren_token().is_some(),
             cst: Some(item.clone()),
         })
     }
@@ -4285,22 +4306,6 @@ impl TryFrom<super::nodes::ModeSpecChecked> for ModeSpecChecked {
         })
     }
 }
-impl TryFrom<super::nodes::Prover> for Prover {
-    type Error = String;
-    fn try_from(item: super::nodes::Prover) -> Result<Self, Self::Error> {
-        Ok(Self {
-            by_token: item.by_token().is_some(),
-            l_paren_token: item.l_paren_token().is_some(),
-            name: Box::new(
-                item.name()
-                    .ok_or(format!("{}", stringify!(name)))
-                    .map(|it| Name::try_from(it))??,
-            ),
-            r_paren_token: item.r_paren_token().is_some(),
-            cst: Some(item.clone()),
-        })
-    }
-}
 impl TryFrom<super::nodes::TriggerAttribute> for TriggerAttribute {
     type Error = String;
     fn try_from(item: super::nodes::TriggerAttribute) -> Result<Self, Self::Error> {
@@ -5148,6 +5153,10 @@ impl std::fmt::Display for Fn {
             s.push_str(&it.to_string());
             s.push_str(" ");
         }
+        if let Some(it) = &self.prover {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if let Some(it) = &self.requires_clause {
             s.push_str(&it.to_string());
             s.push_str(" ");
@@ -5830,6 +5839,32 @@ impl std::fmt::Display for WhereClause {
         s.push_str(
             &self.predicates.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
         );
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for Prover {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.by_token {
+            let mut tmp = stringify!(by_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.l_paren_token {
+            let mut tmp = stringify!(l_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.name.to_string());
+        s.push_str(" ");
+        if self.r_paren_token {
+            let mut tmp = stringify!(r_paren_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
         write!(f, "{s}")
     }
 }
@@ -7836,32 +7871,6 @@ impl std::fmt::Display for ModeSpecChecked {
         write!(f, "{s}")
     }
 }
-impl std::fmt::Display for Prover {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut s = String::new();
-        if self.by_token {
-            let mut tmp = stringify!(by_token).to_string();
-            tmp.truncate(tmp.len() - 6);
-            s.push_str(token_ascii(&tmp));
-            s.push_str(" ");
-        }
-        if self.l_paren_token {
-            let mut tmp = stringify!(l_paren_token).to_string();
-            tmp.truncate(tmp.len() - 6);
-            s.push_str(token_ascii(&tmp));
-            s.push_str(" ");
-        }
-        s.push_str(&self.name.to_string());
-        s.push_str(" ");
-        if self.r_paren_token {
-            let mut tmp = stringify!(r_paren_token).to_string();
-            tmp.truncate(tmp.len() - 6);
-            s.push_str(token_ascii(&tmp));
-            s.push_str(" ");
-        }
-        write!(f, "{s}")
-    }
-}
 impl std::fmt::Display for TriggerAttribute {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = String::new();
@@ -8850,6 +8859,7 @@ impl Fn {
             param_list: None,
             ret_type: None,
             where_clause: None,
+            prover: None,
             requires_clause: None,
             recommends_clause: None,
             ensures_clause: None,
@@ -9090,6 +9100,17 @@ impl GenericParamList {
 }
 impl WhereClause {
     pub fn new() -> Self { Self { where_token: true, predicates: vec![], cst: None } }
+}
+impl Prover {
+    pub fn new(name: Name) -> Self {
+        Self {
+            by_token: true,
+            l_paren_token: true,
+            name: Box::new(name),
+            r_paren_token: true,
+            cst: None,
+        }
+    }
 }
 impl RequiresClause {
     pub fn new() -> Self { Self { requires_token: true, exprs: vec![], cst: None } }
@@ -9892,17 +9913,6 @@ impl ModeSpecChecked {
             spec_token: true,
             l_paren_token: true,
             checked_token: true,
-            r_paren_token: true,
-            cst: None,
-        }
-    }
-}
-impl Prover {
-    pub fn new(name: Name) -> Self {
-        Self {
-            by_token: true,
-            l_paren_token: true,
-            name: Box::new(name),
             r_paren_token: true,
             cst: None,
         }

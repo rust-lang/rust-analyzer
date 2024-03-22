@@ -430,6 +430,7 @@ impl Fn {
     pub fn generic_param_list(&self) -> Option<GenericParamList> { support::child(&self.syntax) }
     pub fn name(&self) -> Option<Name> { support::child(&self.syntax) }
     pub fn param_list(&self) -> Option<ParamList> { support::child(&self.syntax) }
+    pub fn prover(&self) -> Option<Prover> { support::child(&self.syntax) }
     pub fn publish(&self) -> Option<Publish> { support::child(&self.syntax) }
     pub fn recommends_clause(&self) -> Option<RecommendsClause> { support::child(&self.syntax) }
     pub fn requires_clause(&self) -> Option<RequiresClause> { support::child(&self.syntax) }
