@@ -2,11 +2,8 @@ use std::{
     io::{self, stdin, stdout},
     thread,
 };
-
 use log::debug;
-
 use crossbeam_channel::{bounded, Receiver, Sender};
-
 use crate::Message;
 
 /// Creates an LSP connection via stdio.
@@ -20,18 +17,17 @@ pub(crate) fn stdio_transport() -> (Sender<Message>, Receiver<Message>, IoThread
             writer_receiver.into_iter().try_for_each(|it| it.write(&mut stdout))
         })
         .unwrap();
+
     let (reader_sender, reader_receiver) = bounded::<Message>(0);
     let reader = thread::Builder::new()
         .name("LspServerReader".to_owned())
         .spawn(move || {
             let stdin = stdin();
             let mut stdin = stdin.lock();
-            while let Some(msg) = Message::read(&mut stdin)? {
+            while let Ok(msg) = Message::read(&mut stdin) {
                 let is_exit = matches!(&msg, Message::Notification(n) if n.is_exit());
-
                 debug!("sending message {:#?}", msg);
                 reader_sender.send(msg).expect("receiver was dropped, failed to send a message");
-
                 if is_exit {
                     break;
                 }
@@ -39,6 +35,7 @@ pub(crate) fn stdio_transport() -> (Sender<Message>, Receiver<Message>, IoThread
             Ok(())
         })
         .unwrap();
+
     let threads = IoThreads { reader, writer };
     (writer_sender, reader_receiver, threads)
 }
