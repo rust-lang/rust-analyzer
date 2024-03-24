@@ -34,10 +34,10 @@ impl<T, V> ArenaMap<Idx<T>, V> {
 
     /// Shrinks the capacity of the map as much as possible.
     pub fn shrink_to_fit(&mut self) {
-        let min_len = self.v.iter().rposition(|slot| slot.is_some()).map_or(0, |i| i + 1);
-        self.v.truncate(min_len);
-        self.v.shrink_to_fit();
-    }
+    let min_len = self.v.iter().rposition(|slot| slot.is_some()).map_or(0, |i| i + 1);
+    self.v.truncate(min_len);
+    self.v.shrink_to_fit();
+}
 
     /// Returns whether the map contains a value for the specified index.
     pub fn contains_idx(&self, idx: Idx<T>) -> bool {
