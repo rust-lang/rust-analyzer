@@ -1356,18 +1356,36 @@ pub mod iter {
 // region:panic
 mod panic {
     pub macro panic_2021 {
-        () => (
-            $crate::panicking::panic("explicit panic")
-        ),
-        ($($t:tt)+) => (
-            $crate::panicking::panic_fmt($crate::const_format_args!($($t)+))
-        ),
+        () => ({
+            const fn panic_cold_explicit() -> ! {
+                $crate::panicking::panic_explicit()
+            }
+            panic_cold_explicit();
+        }),
+        // Special-case the single-argument case for const_panic.
+        ("{}", $arg:expr $(,)?) => ({
+            #[rustc_const_panic_str] // enforce a &&str argument in const-check and hook this by const-eval
+            const fn panic_cold_display<T: $crate::fmt::Display>(arg: &T) -> ! {
+                loop {}
+            }
+            panic_cold_display(&$arg);
+        }),
+        ($($t:tt)+) => ({
+            // Semicolon to prevent temporaries inside the formatting machinery from
+            // being considered alive in the caller after the panic_fmt call.
+            $crate::panicking::panic_fmt($crate::const_format_args!($($t)+));
+        }),
     }
 }
 
 mod panicking {
-    #[lang = "panic_fmt"]
-    pub const fn panic_fmt(_fmt: crate::fmt::Arguments<'_>) -> ! {
+    #[rustc_const_panic_str] // enforce a &&str argument in const-check and hook this by const-eval
+    pub const fn panic_display<T: fmt::Display>(x: &T) -> ! {
+        panic_fmt(format_args!("{}", *x));
+    }
+
+    #[lang = "panic_fmt"] // needed for const-evaluated panics
+    pub const fn panic_fmt(fmt: fmt::Arguments<'_>) -> ! {
         loop {}
     }
 

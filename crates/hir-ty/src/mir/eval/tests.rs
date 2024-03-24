@@ -31,6 +31,7 @@ fn eval_main(db: &TestDB, file_id: FileId) -> Result<(String, String), MirEvalEr
             db.trait_environment(func_id.into()),
         )
         .map_err(|e| MirEvalError::MirLowerError(func_id, e))?;
+
     let (result, output) = interpret_mir(db, body, false, None);
     result?;
     Ok((output.stdout().into_owned(), output.stderr().into_owned()))
@@ -84,6 +85,42 @@ fn main() {
     let x = foo(2, 3);
 }
         "#,
+    );
+}
+
+#[test]
+fn panic_fmt() {
+    // panic!
+    // -> panic_2021 (builtin macro redirection)
+    //   -> #[lang = "panic_fmt"] core::panicking::panic_fmt (hooked by CTFE for redirection)
+    //   -> core::panicking::const_panic_fmt
+    //     -> #[rustc_const_panic_str] core::panicking::panic_display (hooked by CTFE for builtin panic)
+    //       -> Err(ConstEvalError::Panic)
+    check_pass(
+        r#"
+//- minicore: fmt, panic
+fn main() {
+    panic!("hello, world!");
+}
+    "#,
+    );
+    panic!("a");
+}
+
+#[test]
+fn panic_display() {
+    // panic!
+    // -> panic_2021 (builtin macro redirection)
+    //   -> #[rustc_const_panic_str] core::panicking::panic_display (hooked by CTFE for builtin panic)
+    //     -> Err(ConstEvalError::Panic)
+    check_pass(
+        r#"
+//- minicore: fmt, panic
+
+fn main() {
+    panic!("{}", "hello, world!");
+}
+    "#,
     );
 }
 
