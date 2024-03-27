@@ -146,7 +146,8 @@ impl<'a> AssistContext<'a> {
 #[derive(Debug)]
 pub(crate) struct VerifResult {
     pub(crate) is_success: bool,
-    // TODO: properly parse json using serde and store the list of assertion/ensures/requires 
+    // FIXME: properly parse json using serde and store the list of assertion/ensures/requires 
+    #[allow(dead_code)]
     pub(crate) stdout: String ,
     pub(crate) stderr: String,
     pub(crate) time: u64,

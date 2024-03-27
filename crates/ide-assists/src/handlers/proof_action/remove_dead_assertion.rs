@@ -3,10 +3,8 @@ use crate::{
     assist_context::{AssistContext, Assists}, vst_api::run_verus::VerifResult, AssistId, AssistKind
 };
 use ide_db::syntax_helpers::vst_ext::vst_map_expr_visitor;
-use syntax::{
-    ast::{self, vst::{self, *}, AstNode},
-    T,
-};
+use syntax::{ast::{self, vst::{self, *}, AstNode},T,};
+
 
 // This version does not comment out dead assertions
 // instead, it deletes all of them
@@ -49,24 +47,20 @@ pub(crate) fn vst_rewriter_remove_dead_assertions(ctx: &AssistContext<'_>, func:
         if let vst::Stmt::ExprStmt(ref e) = st {
             if let vst::Expr::AssertExpr(_) = *e.expr {
                 // try if this is redundant
-                dbg!("lets check of this is redundant", st.to_string());
                 redundant_assertions.push(st.clone());
                 let modified_fn = rewriter_rm_assertions(&func, &redundant_assertions)?;
-                dbg!("trying out on", modified_fn.to_string());
                 let verif_result = ctx.try_verus(&modified_fn)?;
                 if !verif_result.is_success {
-                    dbg!("verif fails without this assertion");
                     // verification failed without this assertion
                     // remove this assertion from the list
                     redundant_assertions.pop();
                 } else {
-                    dbg!("verif succeeds without this assertion");
+                    // verif succeeds without this assertion
                     if verif_result.time > initial_verif_result.time * 2 {
-                        dbg!("verification time takes a lot longer without this assertion");
+                        // verification time takes a lot longer without this assertion
                         redundant_assertions.pop();
                     } 
                 }
-                dbg!("redundant assertions", redundant_assertions.len());
             }
         }
     }
