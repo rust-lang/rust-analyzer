@@ -29,7 +29,7 @@ pub(crate) fn intro_forall(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option
 
     acc.add(
         AssistId("intro_forall", AssistKind::RefactorRewrite),
-        "Introduce Assert forall syntax",
+        "Introduce Assert Forall",
         forall_range,
         |edit| {
             edit.replace(assert_expr.syntax().text_range(), result);

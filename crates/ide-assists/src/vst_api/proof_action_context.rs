@@ -52,7 +52,6 @@ impl<'a> AssistContext<'a> {
                 _ => false,
             })
             .collect();
-        // TODO: filter out duplicate.  i.e., when two callsite fails in the same prefailure
         Some(filter_pre_failuires(&filtered_verus_errs))
     }
 

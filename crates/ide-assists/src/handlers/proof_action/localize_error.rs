@@ -68,7 +68,7 @@ pub(crate) fn localize_error(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
 
     acc.add(
         AssistId("localize_error", AssistKind::RefactorRewrite),
-        "Split assertion to localize error",
+        "Decompose Failing Assertion",
         assertion.syntax().text_range(),
         |edit| {
             edit.replace(assertion.syntax().text_range(), result);

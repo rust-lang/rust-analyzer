@@ -33,8 +33,9 @@ pub(crate) fn vst_rewriter_intro_failing_requires(
     let name_ref = ctx.name_ref_from_call_expr(&call)?;
     let func = ctx.vst_find_fn(&call)?;
     let pre_fails = ctx.pre_failures_by_calling_this_fn(&func)?;
-    let failed_exprs: Option<Vec<Expr>> = pre_fails.into_iter().map(|p| ctx.expr_from_pre_failure(p)).collect(); 
-    let failed_exprs = failed_exprs?;
+    let failed_exprs: Option<Vec<Expr>> = pre_fails.into_iter().map(|p| ctx.expr_from_pre_failure(p)).collect();
+    let mut failed_exprs = failed_exprs?;
+    failed_exprs.dedup_by(|e1, e2| e1.to_string() == e2.to_string());
     let requires: Option<Vec<Expr>> = failed_exprs
                             .into_iter()
                             .map(|e| ctx.vst_inline_call(name_ref.clone(), e))

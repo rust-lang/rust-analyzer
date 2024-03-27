@@ -70,7 +70,7 @@ pub(crate) fn apply_induction(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
 
     return acc.add(
         AssistId("apply_induction", AssistKind::RefactorRewrite),
-        "Apply induction",
+        "Apply Induction",
         body.syntax().text_range(),
         |edit| edit.replace(body.syntax().text_range(), result),
     );

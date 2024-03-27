@@ -1,19 +1,6 @@
 //! Various helper functions to work with VST Nodes
 //! Referenced syntax_helpers::node_ext
-use itertools::Itertools;
-use parser::T;
-use syntax::{
-    ast::{vst},
-};
-
-
-// referenced Verus' visitor pattern
-// #[derive(PartialEq, Eq, Debug)]
-// pub(crate) enum VisitorControlFlow<T> {
-//     Recurse,
-//     Return,
-//     Stop(T),
-// }
+use syntax::ast::vst;
 
 
 /// Preorder walk all the expression's child expressions.
@@ -31,13 +18,6 @@ where
 {
     let exp: vst::Expr = exp.into();
     let res = match exp {
-        // vst::Expr::ArrayExpr(e) => {
-        //     for expr in &e.exprs {
-        //         vst_preorder_expr(&expr, cb);
-        //     }
-        //     vst_preorder_expr(&e.expr, cb);
-        // }
-        // vst::Expr::AwaitExpr(e) => todo!(),
         vst::Expr::BinExpr(mut e) => {
             let new_lhs = vst_map_expr_visitor(*e.lhs.clone(), cb)?;
             let new_rhs = vst_map_expr_visitor(*e.rhs.clone(), cb)?;
@@ -45,22 +25,8 @@ where
             e.rhs = Box::new(new_rhs);
             vst::Expr::BinExpr(e)
         }
-        // vst::Expr::BlockExpr(e) => todo!(),
-        // vst::Expr::BoxExpr(e) => todo!(),
-        // vst::Expr::BreakExpr(e) => todo!(),
-        // vst::Expr::CallExpr(e) => {
-        //     vst_preorder_expr(&e.expr, cb);
-        //     for arg in &e.arg_list.args {
-        //         vst_preorder_expr(&arg, cb);
-        //     }
-        // },
-        // vst::Expr::CastExpr(_) => todo!(),
-        // vst::Expr::ClosureExpr(_) => todo!(),
-        // vst::Expr::ContinueExpr(_) => todo!(),
-        // vst::Expr::FieldExpr(_) => todo!(),
-        // vst::Expr::ForExpr(_) => todo!(),
 
-        // note that vst_map_expr_visitor cannot map ifexpr to another thing
+        // note that vst_map_expr_visitor cannot map ifexpr to another Expr variant
         vst::Expr::IfExpr(mut e) => {
             let new_cond = vst_map_expr_visitor(*e.condition.clone(), cb)?;
             let new_then =
@@ -98,37 +64,35 @@ where
             }
             vst::Expr::IfExpr(e)
         }
-        // vst::Expr::IndexExpr(_) => todo!(),
-        // vst::Expr::Literal(_) => todo!(),
-        // vst::Expr::LoopExpr(_) => todo!(),
-        // vst::Expr::MacroExpr(_) => todo!(),
-        // vst::Expr::MatchExpr(_) => todo!(),
-        // vst::Expr::MethodCallExpr(_) => todo!(),
-        // vst::Expr::ParenExpr(_) => todo!(),
-        // vst::Expr::PathExpr(e) => {}
-
-        // vst::Expr::PrefixExpr(_) => todo!(),
-        // vst::Expr::RangeExpr(_) => todo!(),
-        // vst::Expr::RecordExpr(_) => todo!(),
-        // vst::Expr::RefExpr(_) => todo!(),
-        // vst::Expr::ReturnExpr(_) => todo!(),
-        // vst::Expr::TryExpr(_) => todo!(),
-        // vst::Expr::TupleExpr(_) => todo!(),
-        // vst::Expr::WhileExpr(_) => todo!(),
-        // vst::Expr::YieldExpr(_) => todo!(),
-        // vst::Expr::YeetExpr(_) => todo!(),
-        // vst::Expr::LetExpr(_) => todo!(),
-        // vst::Expr::UnderscoreExpr(_) => todo!(),
-        // vst::Expr::ViewExpr(_) => todo!(),
         vst::Expr::AssertExpr(mut e) => {
             let new_exp = vst_map_expr_visitor(*e.expr.clone(), cb)?;
             e.expr = Box::new(new_exp);
             vst::Expr::AssertExpr(e)
         }
-        // vst::Expr::AssumeExpr(e) => todo!(),
-        // vst::Expr::AssertForallExpr(_) => todo!(),
+        vst::Expr::BlockExpr(_) => {
+            let newbe = cb(&mut exp.clone())?;
+            match newbe {
+                vst::Expr::BlockExpr(mut e) => {
+                    let new_stmts: Result<Vec<vst::Stmt>,String> = e.clone().stmt_list.statements.into_iter().map(|s| {
+                        match s {
+                            vst::Stmt::ExprStmt(exprstmt) => {
+                                let new_exp = vst_map_expr_visitor(*exprstmt.expr.clone(), cb);
+                                match new_exp {
+                                    Ok(ne) => Ok(vst::Stmt::ExprStmt(Box::new(vst::ExprStmt::new(ne)))),
+                                    Err(ee) => Err(ee),
+                                }
+                            },
+                            _ => Ok(s),
+                        }
+                    }).collect();
+                    e.stmt_list.statements = new_stmts?;
+                    vst::Expr::BlockExpr(e)
+                }
+                _ => panic!(),
+            }
+        },
         _ => {
-            dbg!("warning: map expr incomplete");
+            dbg!("note(warning): base case map expr");
             dbg!(&exp.to_string());
             cb(&mut exp.clone())?
         }
@@ -145,55 +109,21 @@ pub fn vst_preorder_expr(exp: &vst::Expr, cb: &mut dyn FnMut(vst::Expr) -> bool)
             }
             vst_preorder_expr(&e.expr, cb);
         }
-        // vst::Expr::AwaitExpr(e) => todo!(),
         vst::Expr::BinExpr(e) => {
             vst_preorder_expr(&e.lhs, cb);
             vst_preorder_expr(&e.rhs, cb);
         }
-        // vst::Expr::BlockExpr(e) => todo!(),
-        // vst::Expr::BoxExpr(e) => todo!(),
-        // vst::Expr::BreakExpr(e) => todo!(),
         vst::Expr::CallExpr(e) => {
             vst_preorder_expr(&e.expr, cb);
             for arg in &e.arg_list.args {
                 vst_preorder_expr(&arg, cb);
             }
         }
-        // vst::Expr::CastExpr(_) => todo!(),
-        // vst::Expr::ClosureExpr(_) => todo!(),
-        // vst::Expr::ContinueExpr(_) => todo!(),
-        // vst::Expr::FieldExpr(_) => todo!(),
-        // vst::Expr::ForExpr(_) => todo!(),
-        // vst::Expr::IfExpr(_) => todo!(),
-        // vst::Expr::IndexExpr(_) => todo!(),
-        // vst::Expr::Literal(_) => todo!(),
-        // vst::Expr::LoopExpr(_) => todo!(),
-        // vst::Expr::MacroExpr(_) => todo!(),
-        // vst::Expr::MatchExpr(_) => todo!(),
-        // vst::Expr::MethodCallExpr(_) => todo!(),
-        // vst::Expr::ParenExpr(_) => todo!(),
-        // vst::Expr::PathExpr(e) => {}
-
-        // vst::Expr::PrefixExpr(_) => todo!(),
-        // vst::Expr::RangeExpr(_) => todo!(),
-        // vst::Expr::RecordExpr(_) => todo!(),
-        // vst::Expr::RefExpr(_) => todo!(),
-        // vst::Expr::ReturnExpr(_) => todo!(),
-        // vst::Expr::TryExpr(_) => todo!(),
-        // vst::Expr::TupleExpr(_) => todo!(),
-        // vst::Expr::WhileExpr(_) => todo!(),
-        // vst::Expr::YieldExpr(_) => todo!(),
-        // vst::Expr::YeetExpr(_) => todo!(),
-        // vst::Expr::LetExpr(_) => todo!(),
-        // vst::Expr::UnderscoreExpr(_) => todo!(),
-        // vst::Expr::ViewExpr(_) => todo!(),
         vst::Expr::AssertExpr(e) => {
             vst_preorder_expr(&e.expr, cb);
         }
-        // vst::Expr::AssumeExpr(e) => todo!(),
-        // vst::Expr::AssertForallExpr(_) => todo!(),
         _ => {
-            dbg!("warning: basecase walk expr incomplete");
+            dbg!("note(warning): base case vst_preorder_expr");
             cb(exp.clone());
         }
     }
@@ -246,7 +176,7 @@ where
             vst::Expr::IfExpr(e)
         }
         _ => {
-            dbg!("warning: map each tail expr incomplete");
+            dbg!("note(warning): base case vst_map_each_tail_expr");
             dbg!(&exp.to_string());
             cb(&mut exp.clone())?
         }
