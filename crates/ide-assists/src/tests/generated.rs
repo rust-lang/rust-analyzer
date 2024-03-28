@@ -45,6 +45,23 @@ fn main() {
 }
 
 #[test]
+fn doctest_add_generic_parameter() {
+    check_doc_test(
+        "add_generic_parameter",
+        r#####"
+struct Channel$0(u8);
+struct Color([Channel; 3]);
+struct Image(Vec<Color>);
+"#####,
+        r#####"
+struct Channel<T1>(u8);
+struct Color<T1>([Channel<T1>; 3]);
+struct Image<T1>(Vec<Color<T1>>);
+"#####,
+    )
+}
+
+#[test]
 fn doctest_add_hash() {
     check_doc_test(
         "add_hash",
