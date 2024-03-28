@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["InFileWrapper"],"type":["AstId","ErasedAstId","InFile","InMacroFile","InRealFile"]};

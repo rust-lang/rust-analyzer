@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Applicability","CargoTestMessage","DiagnosticLevel","FlycheckConfig","InvocationLocation","InvocationStrategy","Message","Progress","TestState"],"struct":["CargoTestHandle","Diagnostic","DiagnosticCode","DiagnosticSpan","DiagnosticSpanMacroExpansion","FlycheckHandle"]};

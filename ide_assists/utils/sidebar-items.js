@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["DefaultMethods","IgnoreAssocItems"],"fn":["add_trait_assoc_items_to_impl","extract_trivial_expression","filter_assoc_items","test_related_attribute"]};

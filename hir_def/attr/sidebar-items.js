@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["DocAtom","DocExpr"],"mod":["builtin"],"struct":["AttrQuery","AttrSourceMap","Attrs","AttrsWithOwner"]};

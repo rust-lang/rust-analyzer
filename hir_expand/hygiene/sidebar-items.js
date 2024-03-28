@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Transparency"],"fn":["marks_rev","span_with_call_site_ctxt","span_with_def_site_ctxt","span_with_mixed_site_ctxt"],"trait":["SyntaxContextExt"]};

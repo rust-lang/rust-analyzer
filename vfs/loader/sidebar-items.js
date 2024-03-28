@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Entry","Message"],"struct":["Config","Directories"],"trait":["Handle"],"type":["Sender"]};

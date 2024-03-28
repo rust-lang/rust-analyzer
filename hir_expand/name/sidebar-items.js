@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"macro":["name"],"mod":["known"],"struct":["Name","UnescapedName"],"trait":["AsName"]};

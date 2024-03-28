@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["AssistKind","AssistResolveStrategy"],"struct":["Assist","AssistId","GroupLabel","SingleResolve"]};

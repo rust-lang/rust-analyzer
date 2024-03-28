@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["INERT_ATTRIBUTES","TOOL_MODULES"],"fn":["find_builtin_attr_idx"],"struct":["AttributeTemplate","BuiltinAttribute"]};

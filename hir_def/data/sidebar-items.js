@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["adt"],"struct":["ConstData","ExternCrateDeclData","FunctionData","ImplData","Macro2Data","MacroRulesData","ProcMacroData","StaticData","TraitAliasData","TraitData","TypeAliasData"]};

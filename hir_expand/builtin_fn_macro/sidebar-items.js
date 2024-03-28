@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["BuiltinFnLikeExpander","EagerExpander"],"fn":["find_builtin_macro","include_input_to_file_id"]};

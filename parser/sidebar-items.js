@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["PrefixEntryPoint","Step","StrStep","SyntaxKind","TopEntryPoint"],"macro":["T"],"struct":["Input","LexedStr","Output","Reparser"]};

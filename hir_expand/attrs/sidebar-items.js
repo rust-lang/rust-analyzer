@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["AttrInput"],"fn":["collect_attrs","parse_cfg_attr_input"],"struct":["Attr","AttrId","RawAttrs"]};

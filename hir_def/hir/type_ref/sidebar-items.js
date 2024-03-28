@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ConstRef","LiteralConstRef","Mutability","Rawness","TraitBoundModifier","TypeBound","TypeRef"],"struct":["LifetimeRef","TraitRef"]};

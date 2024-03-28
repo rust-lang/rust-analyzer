@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Entry"],"struct":["Arena","ArenaMap","Idx","IdxRange","IntoIter","OccupiedEntry","RawIdx","VacantEntry"]};

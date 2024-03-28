@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["DelimiterKind","Spacing"],"type":["DelimSpan","Delimiter","Ident","Leaf","Literal","Punct","Span","Subtree","SubtreeBuilder","TokenTree"]};

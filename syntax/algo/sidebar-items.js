@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["ancestors_at_offset","diff","find_node_at_offset","find_node_at_range","has_errors","least_common_ancestor","neighbor","non_trivia_sibling","skip_trivia_token","skip_whitespace_token"],"struct":["TreeDiff"]};
