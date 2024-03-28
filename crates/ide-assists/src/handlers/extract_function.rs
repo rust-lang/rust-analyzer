@@ -516,7 +516,7 @@ impl Param {
             ParamKind::MutRef => make::ty_ref(ty, true),
         };
 
-        make::param(pat.into(), ty)
+        make::param(pat.into(), Some(ty))
     }
 }
 
