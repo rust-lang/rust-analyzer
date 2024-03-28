@@ -10,10 +10,11 @@ import {
     type SnippetTextDocumentEdit,
 } from "./snippets";
 import { spawnSync } from "child_process";
-import { type RunnableQuickPick, selectRunnable, createTask, createArgs } from "./run";
+import { type RunnableQuickPick, selectRunnable, createTask, createCargoArgs } from "./run";
 import { AstInspector } from "./ast_inspector";
 import {
     isRustDocument,
+    isCargoRunnableArgs,
     isCargoTomlDocument,
     sleep,
     isRustEditor,
@@ -1156,8 +1157,8 @@ export function copyRunCommandLine(ctx: CtxInit) {
     let prevRunnable: RunnableQuickPick | undefined;
     return async () => {
         const item = await selectRunnable(ctx, prevRunnable);
-        if (!item) return;
-        const args = createArgs(item.runnable);
+        if (!item || !isCargoRunnableArgs(item.runnable.args)) return;
+        const args = createCargoArgs(item.runnable.args);
         const commandLine = ["cargo", ...args].join(" ");
         await vscode.env.clipboard.writeText(commandLine);
         await vscode.window.showInformationMessage("Cargo invocation copied to the clipboard.");
