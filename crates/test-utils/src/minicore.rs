@@ -913,6 +913,7 @@ pub mod fmt {
     }
 
     mod rt {
+        use super::*;
 
         extern "C" {
             type Opaque;
@@ -930,8 +931,8 @@ pub mod fmt {
                 unsafe { Argument { formatter: transmute(f), value: transmute(x) } }
             }
 
-            pub fn new_display<'b, T: Display>(x: &'b T) -> Argument<'_> {
-                Self::new(x, Display::fmt)
+            pub fn new_display<'b, T: crate::fmt::Display>(x: &'b T) -> Argument<'_> {
+                Self::new(x, crate::fmt::Display::fmt)
             }
         }
 
@@ -968,7 +969,9 @@ pub mod fmt {
                 flags: u32,
                 precision: Count,
                 width: Count,
-            ) -> Self;
+            ) -> Self {
+                Placeholder { position, fill, align, flags, precision, width }
+            }
         }
 
         #[lang = "format_unsafe_arg"]
@@ -977,7 +980,9 @@ pub mod fmt {
         }
 
         impl UnsafeArg {
-            pub unsafe fn new() -> Self;
+            pub unsafe fn new() -> Self {
+                UnsafeArg { _private: () }
+            }
         }
     }
 
@@ -1004,6 +1009,14 @@ pub mod fmt {
             _unsafe_arg: rt::UnsafeArg,
         ) -> Arguments<'a> {
             Arguments { pieces, fmt: Some(fmt), args }
+        }
+
+        pub const fn as_str(&self) -> Option<&'static str> {
+            match (self.pieces, self.args) {
+                ([], []) => Some(""),
+                ([s], []) => Some(s),
+                _ => None,
+            }
         }
     }
 
@@ -1154,8 +1167,8 @@ pub mod pin {
         pointer: P,
     }
     impl<P> Pin<P> {
-        pub fn new(_pointer: P) -> Pin<P> {
-            loop {}
+        pub fn new(pointer: P) -> Pin<P> {
+            Pin { pointer }
         }
     }
     // region:deref
@@ -1356,18 +1369,47 @@ pub mod iter {
 // region:panic
 mod panic {
     pub macro panic_2021 {
-        () => (
-            $crate::panicking::panic("explicit panic")
-        ),
-        ($($t:tt)+) => (
-            $crate::panicking::panic_fmt($crate::const_format_args!($($t)+))
-        ),
+        () => ({
+            const fn panic_cold_explicit() -> ! {
+                $crate::panicking::panic_explicit()
+            }
+            panic_cold_explicit();
+        }),
+        // Special-case the single-argument case for const_panic.
+        ("{}", $arg:expr $(,)?) => ({
+            #[rustc_const_panic_str] // enforce a &&str argument in const-check and hook this by const-eval
+            const fn panic_cold_display<T: $crate::fmt::Display>(arg: &T) -> ! {
+                loop {}
+            }
+            panic_cold_display(&$arg);
+        }),
+        ($($t:tt)+) => ({
+            // Semicolon to prevent temporaries inside the formatting machinery from
+            // being considered alive in the caller after the panic_fmt call.
+            $crate::panicking::panic_fmt($crate::const_format_args!($($t)+));
+        }),
     }
 }
 
 mod panicking {
-    #[lang = "panic_fmt"]
-    pub const fn panic_fmt(_fmt: crate::fmt::Arguments<'_>) -> ! {
+    #[rustc_const_panic_str] // enforce a &&str argument in const-check and hook this by const-eval
+    pub const fn panic_display<T: crate::fmt::Display>(x: &T) -> ! {
+        panic_fmt(crate::format_args!("{}", *x));
+    }
+
+    // This function is used instead of panic_fmt in const eval.
+    #[lang = "const_panic_fmt"]
+    pub const fn const_panic_fmt(fmt: crate::fmt::Arguments<'_>) -> ! {
+        if let Some(msg) = fmt.as_str() {
+            // The panic_display function is hooked by const eval.
+            panic_display(&msg);
+        } else {
+            loop {}
+        }
+    }
+
+    #[lang = "panic_fmt"] // needed for const-evaluated panics
+    pub const fn panic_fmt(fmt: crate::fmt::Arguments<'_>) -> ! {
         loop {}
     }
 
@@ -1469,7 +1511,6 @@ mod macros {
         };
     }
     // endregion:unimplemented
-
 
     // region:derive
     pub(crate) mod builtin {
