@@ -493,7 +493,7 @@ pub(super) fn highlight_def(
                 h |= HlMod::Unsafe;
             }
 
-            h
+            h | HlMod::Static
         }
         Definition::SelfType(_) => Highlight::new(HlTag::Symbol(SymbolKind::Impl)),
         Definition::GenericParam(it) => match it {
