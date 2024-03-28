@@ -7,10 +7,12 @@ import { Cargo, type ExecutableInfo, getRustcId, getSysroot } from "./toolchain"
 import type { Ctx } from "./ctx";
 import { prepareEnv } from "./run";
 import { unwrapUndefinable } from "./undefinable";
+import { isCargoRunnable } from "./util";
 
 const debugOutput = vscode.window.createOutputChannel("Debug");
 type DebugConfigProvider = (
-    config: ra.Runnable,
+    label: string,
+    args: ra.CargoRunnable,
     executable: string,
     cargoWorkspace: string,
     env: Record<string, string>,
@@ -77,6 +79,10 @@ async function getDebugConfiguration(
     ctx: Ctx,
     runnable: ra.Runnable,
 ): Promise<vscode.DebugConfiguration | undefined> {
+    if (!isCargoRunnable(runnable.args)) {
+        return;
+    }
+
     const editor = ctx.activeRustEditor;
     if (!editor) return;
 
@@ -134,7 +140,11 @@ async function getDebugConfiguration(
     }
 
     const env = prepareEnv(runnable, ctx.config.runnablesExtraEnv);
-    const { executable, workspace: cargoWorkspace } = await getDebugExecutableInfo(runnable, env);
+    const { executable, workspace: cargoWorkspace } = await getDebugExecutableInfo(
+        runnable.args.workspaceRoot,
+        runnable.args.cargoArgs,
+        env,
+    );
     let sourceFileMap = debugOptions.sourceFileMap;
     if (sourceFileMap === "auto") {
         // let's try to use the default toolchain
@@ -149,7 +159,8 @@ async function getDebugConfiguration(
 
     const provider = unwrapUndefinable(knownEngines[debugEngine.id]);
     const debugConfig = provider(
-        runnable,
+        runnable.label,
+        runnable.args,
         simplifyPath(executable),
         cargoWorkspace,
         env,
@@ -177,18 +188,20 @@ async function getDebugConfiguration(
 }
 
 async function getDebugExecutableInfo(
-    runnable: ra.Runnable,
+    workspaceRoot: string | undefined,
+    cargoArgs: string[],
     env: Record<string, string>,
 ): Promise<ExecutableInfo> {
-    const cargo = new Cargo(runnable.args.workspaceRoot || ".", debugOutput, env);
-    const executableInfo = await cargo.executableInfoFromArgs(runnable.args.cargoArgs);
+    const cargo = new Cargo(workspaceRoot || ".", debugOutput, env);
+    const executableInfo = await cargo.executableInfoFromArgs(cargoArgs);
 
     // if we are here, there were no compilation errors.
     return executableInfo;
 }
 
 function getCCppDebugConfig(
-    runnable: ra.Runnable,
+    label: string,
+    args: ra.CargoRunnable,
     executable: string,
     cargoWorkspace: string,
     env: Record<string, string>,
@@ -197,17 +210,18 @@ function getCCppDebugConfig(
     return {
         type: os.platform() === "win32" ? "cppvsdbg" : "cppdbg",
         request: "launch",
-        name: runnable.label,
+        name: label,
         program: executable,
-        args: runnable.args.executableArgs,
-        cwd: cargoWorkspace || runnable.args.workspaceRoot,
+        args: args.executableArgs,
+        cwd: cargoWorkspace || args.workspaceRoot,
         sourceFileMap,
         env,
     };
 }
 
 function getCodeLldbDebugConfig(
-    runnable: ra.Runnable,
+    label: string,
+    args: ra.CargoRunnable,
     executable: string,
     cargoWorkspace: string,
     env: Record<string, string>,
@@ -216,10 +230,10 @@ function getCodeLldbDebugConfig(
     return {
         type: "lldb",
         request: "launch",
-        name: runnable.label,
+        name: label,
         program: executable,
-        args: runnable.args.executableArgs,
-        cwd: cargoWorkspace || runnable.args.workspaceRoot,
+        args: args.executableArgs,
+        cwd: cargoWorkspace || args.workspaceRoot,
         sourceMap: sourceFileMap,
         sourceLanguages: ["rust"],
         env,
