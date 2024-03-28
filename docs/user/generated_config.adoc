@@ -500,7 +500,7 @@ Use markdown syntax for links on hover.
 --
 How to render the align information in a memory layout hover.
 --
-[[rust-analyzer.hover.memoryLayout.enable]]rust-analyzer.hover.memoryLayout.enable (default: `true`)::
+[[rust-analyzer.hover.memoryLayout.enable]]rust-analyzer.hover.memoryLayout.enable (default: `false`)::
 +
 --
 Whether to show memory layout data on hover.
