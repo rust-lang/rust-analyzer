@@ -177,6 +177,18 @@ fn main() {
     }
 
     #[test]
+    fn no_false_positive_cast_into_const_ptr() {
+        check_diagnostics(
+            r#"
+//- minicore: copy
+fn test() {
+    let _x = (&(&mut (),)).0 as *const ();
+}
+            "#,
+        )
+    }
+
+    #[test]
     fn regression_15787() {
         check_diagnostics(
             r#"
