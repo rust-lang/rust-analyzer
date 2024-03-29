@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::{AssistContext, vst_api::verus_error::*};
+use crate::{AssistContext, proof_plumber_api::verus_error::*};
 use syntax::{
     ast::{self, vst},
     AstNode, SyntaxKind,

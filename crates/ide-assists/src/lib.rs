@@ -65,12 +65,12 @@ mod assist_context;
 // #[cfg(test)]
 pub(crate) mod tests;
 pub mod utils;
-pub mod vst_api;
+pub mod proof_plumber_api;
 
 use hir::Semantics;
 use ide_db::{base_db::FileRange, RootDatabase};
 use syntax::TextRange;
-use vst_api::verus_error::VerusError;
+use proof_plumber_api::verus_error::VerusError;
 
 pub(crate) use crate::assist_context::{AssistContext, Assists};
 

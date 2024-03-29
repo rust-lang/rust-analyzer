@@ -1,5 +1,5 @@
 use syntax::{TextRange, TextSize};
-use ide_assists::vst_api::verus_error::{AssertFailure, PostFailure, PreFailure, VerusError};
+use ide_assists::proof_plumber_api::verus_error::{AssertFailure, PostFailure, PreFailure, VerusError};
 
 pub(crate) fn diagnostic_to_verus_err(
     diagnostic: &cargo_metadata::diagnostic::Diagnostic,

@@ -1,3 +1,9 @@
+//! ProofPlumber APIs
+//! 
+//! ProofPlumber APIs include functions inside this module
+//! 
+//! For further referece, see `syntax/src/tests/sourcegen_vst.rs` and `ungram` file at syntax crate.
+//!
 pub(crate) mod run_verus;
 pub(crate) mod inline_function_api;
 pub(crate) mod semantic_info;

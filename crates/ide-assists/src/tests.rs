@@ -16,7 +16,7 @@ use test_fixture::WithFixture;
 use test_utils::{assert_eq_text, extract_offset};
 
 use crate::{
-    assists, handlers::Handler, vst_api::verus_error::VerusError, Assist, AssistConfig, AssistContext, AssistKind, AssistResolveStrategy, Assists, SingleResolve
+    assists, handlers::Handler, proof_plumber_api::verus_error::VerusError, Assist, AssistConfig, AssistContext, AssistKind, AssistResolveStrategy, Assists, SingleResolve
 };
 
 

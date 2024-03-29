@@ -1,7 +1,7 @@
 use crate::{AssistContext, AssistId, AssistKind, Assists};
-use crate::vst_api::verus_error::*;
+use crate::proof_plumber_api::verus_error::*;
 
-use crate::vst_api::vst_ext;
+use crate::proof_plumber_api::vst_ext;
 use syntax::{
     ast::{self,  vst::*},
      AstNode, 

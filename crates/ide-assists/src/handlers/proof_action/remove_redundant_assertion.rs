@@ -1,8 +1,8 @@
 // use ide_db::syntax_helpers::node_ext::is_pattern_cond;
 use crate::{
-    assist_context::{AssistContext, Assists}, vst_api::run_verus::VerifResult, AssistId, AssistKind
+    assist_context::{AssistContext, Assists}, proof_plumber_api::run_verus::VerifResult, AssistId, AssistKind
 };
-use crate::vst_api::vst_ext::vst_map_expr_visitor;
+use crate::proof_plumber_api::vst_ext::vst_map_expr_visitor;
 use syntax::{ast::{self, vst::{self, *}, AstNode},T,};
 
 
