@@ -1,3 +1,8 @@
+//! Various helper functions related to type resolution to work with TOST Nodes (VST Nodes)
+//! 
+//! 
+//! Utilizes Rust-analyzer's type `hir` implementation
+//! 
 #![allow(dead_code)]
 use crate::AssistContext;
 use hir::Semantics;

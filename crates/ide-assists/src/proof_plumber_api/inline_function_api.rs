@@ -1,3 +1,9 @@
+//! ProofPlumber API for inline
+//! 
+//! Used for inlining a precondition at the callsite
+//! See `insert_failing_precondtion.rs` for usage.
+//! 
+//!
 
 use crate::AssistContext;
 use hir::Semantics;

@@ -1,4 +1,7 @@
-//! Various helper functions to work with VST Nodes
+//! Various helper functions to work with TOST Nodes (VST Nodes)
+//! 
+//! Visitor patterns available to map an expression recursively
+//! 
 //! Referenced syntax_helpers::node_ext
 use syntax::ast::vst;
 

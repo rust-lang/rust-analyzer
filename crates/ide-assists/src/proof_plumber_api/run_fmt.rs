@@ -1,3 +1,15 @@
+//! ProofPlumber API for formatting
+//! 
+//! Uses verusfmt at https://github.com/verus-lang/verusfmt
+//! 
+//! Since TOST node (VST node) abstracts away whitespace, indentation, newline and stuff
+//! for easier manipulation, we need to restore those
+//! before we send the proof code back to the IDE user
+//! 
+//! It creates a temporary file for formatting at $TMPDIR
+//!
+
+
 use std::{process::Command, collections::hash_map::DefaultHasher, time::Instant, env, path::Path, hash::{Hasher, Hash}, fs::{read_to_string, File}, io::Write};
 use core::ops::Range;
 use crate::AssistContext;
@@ -19,6 +31,11 @@ proof fn f() {
 
 */
 impl<'a> AssistContext<'a> {
+    /// Format a function
+    /// Internally does the following
+    /// 1) print the function into a temporary file (ugly, but syntactically correct one)
+    /// 2) run verusfmt on the temporary file
+    /// 3) return the formatted function as a string
     pub(crate) fn fmt<N: AstNode>(
         &self,
         sth_to_remove: N,        // old
