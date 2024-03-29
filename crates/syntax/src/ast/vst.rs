@@ -518,35 +518,4 @@ impl MatchArm {
     }
 }
 
-// impl From<Expr> for ExprStmt {
-//     fn from(item: Expr) -> Self
-//     {
-//         Self { expr: Box::new(item), semicolon_token: true, cst: None } // semicolon default to true, where ungram has it optional
-//     }
-// }
 
-// impl From<Expr> for Stmt {
-//     fn from(item: Expr) -> Self {
-//         Stmt::ExprStmt(Box::new(ExprStmt::new(item)))
-//     }
-// }
-
-// impl From<AssertExpr> for Stmt {
-//     fn from(item: AssertExpr) -> Self {
-//         Stmt::from((Expr::from(item)))
-//     }
-// }
-// impl From<IfExpr> for Stmt {
-//     fn from(item: IfExpr) -> Self {
-//         Stmt::from(ExprStmt::new(Expr::from(item)))
-//     }
-// }
-
-// impl Stmt {
-//     pub fn from<ET>(item: ET) -> Self
-//     where
-//         ET: Into<Expr>,
-//     {
-//         Stmt::ExprStmt(Box::new(ExprStmt::new(item.into())))
-//     }
-// }
