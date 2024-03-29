@@ -151,7 +151,7 @@ pub(crate) struct GlobalState {
     /// been called.
     pub(crate) deferred_task_queue: TaskQueue,
     // verus
-    pub(crate) verus_errors: Vec<ide_assists::verus_error::VerusError>,
+    pub(crate) verus_errors: Vec<ide_assists::vst_api::verus_error::VerusError>,
 }
 
 /// An immutable snapshot of the world's state at a point in time.
@@ -169,7 +169,7 @@ pub(crate) struct GlobalStateSnapshot {
     pub(crate) proc_macros_loaded: bool,
     pub(crate) flycheck: Arc<[FlycheckHandle]>,
     // verus
-    pub(crate) verus_errors: Vec<ide_assists::verus_error::VerusError>,
+    pub(crate) verus_errors: Vec<ide_assists::vst_api::verus_error::VerusError>,
 }
 
 impl std::panic::UnwindSafe for GlobalStateSnapshot {}

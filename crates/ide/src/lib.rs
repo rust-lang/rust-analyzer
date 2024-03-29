@@ -63,7 +63,7 @@ use std::panic::UnwindSafe;
 use cfg::CfgOptions;
 use fetch_crates::CrateInfo;
 use hir::ChangeWithProcMacros;
-use ide_assists::verus_error::VerusError;
+use ide_assists::vst_api::verus_error::VerusError;
 use ide_db::{
     base_db::{
         salsa::{self, ParallelDatabase},

@@ -65,13 +65,12 @@ mod assist_context;
 // #[cfg(test)]
 pub(crate) mod tests;
 pub mod utils;
-pub(crate) mod vst_api;
-pub mod verus_error;
+pub mod vst_api;
 
 use hir::Semantics;
 use ide_db::{base_db::FileRange, RootDatabase};
 use syntax::TextRange;
-use verus_error::VerusError;
+use vst_api::verus_error::VerusError;
 
 pub(crate) use crate::assist_context::{AssistContext, Assists};
 

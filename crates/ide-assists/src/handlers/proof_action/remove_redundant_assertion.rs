@@ -2,7 +2,7 @@
 use crate::{
     assist_context::{AssistContext, Assists}, vst_api::run_verus::VerifResult, AssistId, AssistKind
 };
-use ide_db::syntax_helpers::vst_ext::vst_map_expr_visitor;
+use crate::vst_api::vst_ext::vst_map_expr_visitor;
 use syntax::{ast::{self, vst::{self, *}, AstNode},T,};
 
 

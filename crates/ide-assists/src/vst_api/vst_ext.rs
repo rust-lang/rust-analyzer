@@ -189,6 +189,7 @@ where
 /// referenced from syntax_helpers::node_ext::for_each_tail_expr
 /// Calls `cb` on each expression inside `expr` that is at "tail position".
 /// Does not walk into `break` or `return` expressions.
+#[allow(dead_code)]
 pub fn for_each_tail_expr(expr: &vst::Expr, cb: &mut dyn FnMut(&vst::Expr)) {
     match expr {
         vst::Expr::IfExpr(e) => {

@@ -1,7 +1,7 @@
 use std::vec;
 
 use crate::{AssistContext, AssistId, AssistKind, Assists};
-use ide_db::syntax_helpers::vst_ext::vst_walk_expr;
+use crate::vst_api::vst_ext::vst_walk_expr;
 
 use syntax::{
     ast::{self, vst::*},

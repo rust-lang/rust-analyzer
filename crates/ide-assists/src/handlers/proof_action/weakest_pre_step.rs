@@ -1,5 +1,6 @@
 use crate::{AssistContext, Assists};
-use ide_db::{assists::{AssistId, AssistKind}, syntax_helpers::vst_ext::*};
+use ide_db::assists::{AssistId, AssistKind};
+use crate::vst_api::vst_ext::*;
 use syntax::{ast::{self, vst::*}, AstNode, T};
 
 /*

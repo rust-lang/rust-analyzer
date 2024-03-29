@@ -9,7 +9,7 @@ use syntax::{
     TextSize, TokenAtOffset,
 };
 
-use crate::verus_error::VerusError;
+use crate::vst_api::verus_error::VerusError;
 use crate::{
     assist_config::AssistConfig, Assist, AssistId, AssistKind, AssistResolveStrategy, GroupLabel,
 };

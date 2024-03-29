@@ -1,7 +1,7 @@
 use crate::{AssistContext, AssistId, AssistKind, Assists};
-use crate::verus_error::*;
+use crate::vst_api::verus_error::*;
 
-use ide_db::syntax_helpers::vst_ext;
+use crate::vst_api::vst_ext;
 use syntax::{
     ast::{self,  vst::*},
      AstNode, 

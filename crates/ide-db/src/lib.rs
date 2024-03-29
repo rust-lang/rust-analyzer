@@ -40,9 +40,6 @@ pub mod syntax_helpers {
     pub mod format_string_exprs;
     pub mod insert_whitespace_into_node;
     pub mod node_ext;
-    // verus
-    pub mod vst_ext;
-
     pub use parser::LexedStr;
 }
 
