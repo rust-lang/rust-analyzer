@@ -1,6 +1,9 @@
 //! Trait solving using Chalk.
 
-use std::env::var;
+use std::{
+    env::var,
+    time::{Duration, Instant},
+};
 
 use chalk_ir::{fold::TypeFoldable, DebruijnIndex, GoalData};
 use chalk_recursive::Cache;
@@ -22,7 +25,7 @@ use crate::{
 };
 
 /// This controls how much 'time' we give the Chalk solver before giving up.
-const CHALK_SOLVER_FUEL: i32 = 1000;
+const CHALK_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct ChalkContext<'a> {
@@ -144,16 +147,16 @@ fn solve(
     tracing::debug!("solve goal: {:?}", goal);
     let mut solver = create_chalk_solver();
 
-    let fuel = std::cell::Cell::new(CHALK_SOLVER_FUEL);
-
+    let start = Instant::now();
     let should_continue = || {
         db.unwind_if_cancelled();
-        let remaining = fuel.get();
-        fuel.set(remaining - 1);
-        if remaining == 0 {
-            tracing::debug!("fuel exhausted");
+
+        let elapsed = start.elapsed();
+        if elapsed > CHALK_TIMEOUT {
+            tracing::warn!("chalk solver timed out ({elapsed:.1?})");
+            return false;
         }
-        remaining > 0
+        true
     };
 
     let mut solve = || {
