@@ -14,6 +14,7 @@ pub fn vst_walk_expr(expr: &vst::Expr, cb: &mut dyn FnMut(vst::Expr)) {
     })
 }
 
+/// Map a VST Node recursively
 pub fn vst_map_expr_visitor<EE, FF>(exp: EE, cb: &FF) -> Result<vst::Expr, String>
 where
     EE: Into<vst::Expr>,
@@ -132,9 +133,10 @@ pub fn vst_preorder_expr(exp: &vst::Expr, cb: &mut dyn FnMut(vst::Expr) -> bool)
     }
 }
 
+/// Map each tail expressions
 // For now, just gather each returning expression 
 // TODO: `match` 
-// TODO: `return`
+// TODO: `return` 
 pub fn vst_map_each_tail_expr<EE, FF>(exp: EE, cb: &FF) -> Result<vst::Expr, String>
 where
     EE: Into<vst::Expr>,

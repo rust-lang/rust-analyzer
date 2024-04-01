@@ -16,6 +16,12 @@ use crate::{
 
 pub(crate) use ide_db::source_change::{SourceChangeBuilder, TreeMutator};
 
+///
+/// Majority of Proof action APIs are associated with AssistContext as its `impl`,
+/// as those need broader information (e.g., info for the whole project)
+/// 
+/// 
+/// 
 /// `AssistContext` allows to apply an assist or check if it could be applied.
 ///
 /// Assists use a somewhat over-engineered approach, given the current needs.
@@ -46,7 +52,7 @@ pub(crate) use ide_db::source_change::{SourceChangeBuilder, TreeMutator};
 /// Note, however, that we don't actually use such two-phase logic at the
 /// moment, because the LSP API is pretty awkward in this place, and it's much
 /// easier to just compute the edit eagerly :-)
-pub(crate) struct AssistContext<'a> {
+pub struct AssistContext<'a> {
     pub(crate) config: &'a AssistConfig,
     pub(crate) sema: Semantics<'a, RootDatabase>,
     frange: FileRange,

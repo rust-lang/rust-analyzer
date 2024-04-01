@@ -1,6 +1,6 @@
 //! ProofPlumber API for formatting
 //! 
-//! Uses verusfmt at https://github.com/verus-lang/verusfmt
+//! Uses verusfmt at <https://github.com/verus-lang/verusfmt>
 //! 
 //! Since TOST node (VST node) abstracts away whitespace, indentation, newline and stuff
 //! for easier manipulation, we need to restore those
@@ -36,7 +36,7 @@ impl<'a> AssistContext<'a> {
     /// 1) print the function into a temporary file (ugly, but syntactically correct one)
     /// 2) run verusfmt on the temporary file
     /// 3) return the formatted function as a string
-    pub(crate) fn fmt<N: AstNode>(
+    pub fn fmt<N: AstNode>(
         &self,
         sth_to_remove: N,        // old
         text_to_replace: String, // new

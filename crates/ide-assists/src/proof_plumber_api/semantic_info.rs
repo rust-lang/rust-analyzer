@@ -1,6 +1,5 @@
 //! Various helper functions related to type resolution to work with TOST Nodes (VST Nodes)
 //! 
-//! 
 //! Utilizes Rust-analyzer's type `hir` implementation
 //! 
 #![allow(dead_code)]
@@ -35,6 +34,7 @@ impl<'a> AssistContext<'a> {
         None
     }
 
+    /// From a pattern, get the Enum definition of that pat.
     pub fn type_of_pat_enum(&self, pat: &vst::Pat) -> Option<vst::Enum> {
         let sema: &Semantics<'_, ide_db::RootDatabase> = &self.sema;
         let hir_ty: Vec<hir::Type> =
@@ -50,6 +50,7 @@ impl<'a> AssistContext<'a> {
         None
     }
 
+    /// Get the Struct definition of an expression
     pub fn type_of_expr_struct(&self, expr: &vst::Expr) -> Option<vst::Struct> {
         let typename = self.type_of_expr_adt(expr)?;
         if let vst::Adt::Struct(e) = typename {
@@ -58,6 +59,7 @@ impl<'a> AssistContext<'a> {
         None
     }
 
+    /// Get the struct deinition of a pat
     pub fn type_of_pat_struct(&self, pat: &vst::Pat) -> Option<vst::Struct> {
         let sema: &Semantics<'_, ide_db::RootDatabase> = &self.sema;
         let hir_ty: Vec<hir::Type> =
@@ -73,6 +75,7 @@ impl<'a> AssistContext<'a> {
         None
     }
 
+    /// From a Type usage, get the definition of the enum
     pub fn resolve_type_enum(&self, ty: &vst::Type) ->  Option<vst::Enum> {
         let sema: &Semantics<'_, ide_db::RootDatabase> = &self.sema;
         let hir_ty: Vec<hir::Type> =
@@ -93,6 +96,7 @@ impl<'a> AssistContext<'a> {
         None
     }
 
+    /// Get the NameRef at the callsite
     pub fn name_ref_from_call_expr(&self, call: &vst::CallExpr) -> Option<vst::NameRef> {
         let path = match &*call.expr {
             vst::Expr::PathExpr(path) => &path.path,
@@ -102,7 +106,8 @@ impl<'a> AssistContext<'a> {
         Some(*name_ref.clone())
     }
 
-    pub(crate) fn vst_find_fn(&self, call: &vst::CallExpr) -> Option<vst::Fn> {
+    /// Get function definition from the callsite
+    pub fn vst_find_fn(&self, call: &vst::CallExpr) -> Option<vst::Fn> {
         for item in self.source_file.items() {
             let v_item: ast::generated::vst_nodes::Item = 
                 match item.try_into() {
@@ -124,7 +129,8 @@ impl<'a> AssistContext<'a> {
         return None;
     }
 
-    pub(crate) fn is_opaque(&self, func: &vst::Fn) -> bool {
+    /// Query if this function is opaque (non-visible to the solver)
+    pub fn is_opaque(&self, func: &vst::Fn) -> bool {
         for attr in &func.attrs {
             if attr.to_string().contains("opaque") {
                 return true;
@@ -133,10 +139,4 @@ impl<'a> AssistContext<'a> {
         return false;
     }
 
-    // fn type_of_pat(&self, pat: &vst::Pat) -> Option<String> {
-    //     let sema: &Semantics<'_, ide_db::RootDatabase> = &self.sema;
-    //     let hir_ty: Vec<hir::Type> =
-    //         sema.type_of_pat(&pat.cst()?)?.adjusted().autoderef(sema.db).collect::<Vec<_>>();
-    //     let hir_ty = hir_ty.first()?.hir_fmt()
-    // }
 }

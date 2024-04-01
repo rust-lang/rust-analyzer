@@ -61,7 +61,7 @@
 #![warn(rust_2018_idioms, unused_lifetimes)]
 
 pub(crate) mod assist_config;
-mod assist_context;
+pub mod assist_context;
 // #[cfg(test)]
 pub(crate) mod tests;
 pub mod utils;

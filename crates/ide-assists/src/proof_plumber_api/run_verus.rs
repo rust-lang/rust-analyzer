@@ -1,3 +1,6 @@
+//! Run Verus and return the verification result
+
+
 use std::{process::Command, collections::hash_map::DefaultHasher, time::Instant, env, path::Path, hash::{Hasher, Hash}, fs::File, io::Write};
 use crate::AssistContext;
 use syntax::ast::{self, vst, HasModuleItem, HasName};
@@ -12,23 +15,15 @@ impl<'a> AssistContext<'a> {
     // TODO: pass the whole project to verus, instead of this single file
     // TODO: projects with multiple file/module -- `verify-module` flag --verify-function flag
     // output: None -> compile error
+    /// We only replace the function in the input
+    /// we use the remaining codebase when invoking Verus
+    /// Output None when Verus fails to start (e.g., compile error on the modified function)
     pub(crate) fn try_verus(
         &self,
         vst_fn: &vst::Fn, // only replace this function and run 
     ) -> Option<VerifResult> {
         let source_file = &self.source_file;
-        // let verus_exec_path = &self.config.verus_path;
-        // if verus_exec_path.len() == 0 {
-        //     dbg!("verus path not set");
-        // }
-        // #[cfg(test)] // We get verus path from config of editor. In test, we use a hardcoded path
-        // let verus_exec_path = HARDCODED_VERUS_PATH_FOR_TEST.to_string(); // TODO: maybe move this to test config
         let verus_exec_path = std::env::var("VERUS_BINARY_PATH").expect("please set VERUS_BINARY_PATH environment variable");
-        // if verus_exec_path.len() == 0 {
-        //     dbg!("verus path not set");
-        // }
-
-
         let mut text_string  = String::new();
         // in VST, we should also be able to "print" and verify
         // display for VST should be correct modulo whitespace

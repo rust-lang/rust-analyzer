@@ -15,9 +15,9 @@ use syntax::{
 impl<'a> AssistContext<'a> {
     /// inline function call
     /// for now, assume one file only
-    /// TODO: handle Verus builtin types -- for example, `type_of_expr` panics for `int`
-    /// TODO: properly register req/ens/etc in semantics db
-    /// TODO: currently inline can panic when the inlining expr does not fully use all the parameters
+    // TODO: handle Verus builtin types -- for example, `type_of_expr` panics for `int`
+    // TODO: properly register req/ens/etc in semantics db
+    // TODO: currently inline can panic when the inlining expr does not fully use all the parameters
     pub fn vst_inline_call(
         &self,
         name_ref: vst::NameRef,     // the name of the function to inline **at the callsite**. from `name_ref`, we get its arguments
