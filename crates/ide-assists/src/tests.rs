@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 #![allow(unused)]
+#![allow(unused_imports)]
 mod generated;
 
 use expect_test::expect;

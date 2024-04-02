@@ -1,6 +1,7 @@
 //! Defines [`SyntaxKind`] -- a fieldless enum of all possible syntactic
 //! constructs of the Rust language.
 
+#[allow(unused_imports)]
 mod generated;
 
 #[allow(unreachable_pub)]

@@ -36,7 +36,7 @@
 //!   selection. Example: `sort_items` sorts items alphabetically. Naively, it
 //!   should be available more or less everywhere, which isn't useful. So
 //!   instead we only show it if the user *selects* the items they want to sort.
-//! * Consider grouping related assists together (see [`Assists::add_group`]).
+//! * Consider grouping related assists together (see Assists::add_group).
 //! * Make assists robust. If the assist depends on results of type-inference too
 //!   much, it might only fire in fully-correct code. This makes assist less
 //!   useful and (worse) less predictable. The user should have a clear
