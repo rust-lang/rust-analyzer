@@ -24,7 +24,6 @@ pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()
         |edit| {
             edit.delete(expr.syntax().text_range());
             edit.insert(expr.syntax().text_range().start(), result);
-            // edit.insert(expr.syntax().text_range().end(), result)
         },
     )
 }
@@ -53,12 +52,15 @@ mod tests {
     #[test]
     fn test_assert_by() {
         check_assist(
-            assert_by,
+            assert_by, // the proof action to be used
+// proof to be modified below
+// `$0` indicates the cursor location
             "
 proof fn f() { 
     ass$0ert(x == 3);
 }
             ",
+// modified proof below
             "
 proof fn f() { 
     assert(x == 3) by {

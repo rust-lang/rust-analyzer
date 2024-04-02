@@ -96,12 +96,3 @@ fn test_imply_to_if(b: bool) -> (ret: u32)
         )
     }
 }
-
-// let formatter = "/home/chanhee/.cargo/bin/rustfmt";
-// let formatted_string = Command::new("echo")
-//     .arg(string.clone())
-//     .arg("|")
-//     .arg(formatter)
-//     .spawn()
-//     .expect("echo command failed to start").stdout.unwrap();
-// dbg!(formatted_string);
