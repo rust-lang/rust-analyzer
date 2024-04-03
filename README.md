@@ -135,10 +135,11 @@ Proof action is an **experimental** feature to assist developers debug proof fai
 ### Prerequisite
 * "4. Running Verus in VS Code (optional)"
 * [verusfmt](https://github.com/verus-lang/verusfmt)
-You can conveniently install verusfmt using the following
+You can install `verusfmt` using the following
 ```
 cargo install verusfmt --locked
 ```
+You can also use `which verusfmt` to get the absolute path to it.
 
 
 ### Configuration
@@ -154,7 +155,7 @@ The "settings" in the `.code-workspace` file need additional configuration to gi
 }
 ```
 
-The final configuration file might look like the following.
+The final configuration for `settings` might look like the following.
 
 ```json
 "settings": {
