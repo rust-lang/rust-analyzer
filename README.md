@@ -125,4 +125,52 @@ You can find more documents for IDE functionalities on the following links.
 - Setting `"rust-analyzer.diagnostics.disabled": ["syntax-error"]` in the workspace setting can disable the syntax error messages in VS Code. You could also add `unresolved-module` to the above list to disable the error message for unresolved modules.
 
 
+---
 
+## Proof Action (Optional)
+
+Proof action is an **experimental** feature to assist developers debug proof failures.
+
+
+### Prerequisite
+* "4. Running Verus in VS Code (optional)"
+* [verusfmt](https://github.com/verus-lang/verusfmt)
+You can conveniently install verusfmt using the following
+```
+cargo install verusfmt --locked
+```
+
+
+### Configuration
+
+The "settings" in the `.code-workspace` file need additional configuration to give environment variable for verus-analyzer binary.
+"VERUS_BINARY_PATH", "TMPDIR", and "VERUS_FMT_BINARY_PATH" are needed.
+
+```json
+"rust-analyzer.server.extraEnv": {
+        "VERUS_BINARY_PATH" : "ABSOLUTE-PATH-TO-VERUS-BINARY", //  e.g., /home/verus-username/verus/source/target-verus/(debug|release)/verus
+        "TMPDIR": "ABSOLUTE-PATH-TO-TMP-DIR", // e.g., "/home/verus-username/.tmpdir"
+        "VERUS_FMT_BINARY_PATH" : "ABSOLUTE-PATH-TO-VERUS-FMT", // e.g., "/home/verus-username/.cargo/bin/verusfmt"
+}
+```
+
+The final configuration file might look like the following.
+
+```json
+"settings": {
+        "rust-analyzer.server.path": "ABSOLUTE-PATH-TO-THE-VERUS-ANALYZER-BINARY",
+        "rust-analyzer.server.extraEnv": {
+                "VERUS_BINARY_PATH" : "ABSOLUTE-PATH-TO-VERUS-BINARY", //  e.g., /home/verus-username/verus/source/target-verus/(debug|release)/verus
+                "TMPDIR": "ABSOLUTE-PATH-TO-TMP-DIR", // e.g., "/home/verus-username/.tmpdir"
+                "VERUS_FMT_BINARY_PATH" : "ABSOLUTE-PATH-TO-VERUS-FMT", // e.g., "/home/verus-username/.cargo/bin/verusfmt"
+        },
+        "rust-analyzer.checkOnSave.overrideCommand": [
+            "ABSOLUTE-PATH-TO-VERUS-BINARY", //  e.g., /home/verus-username/verus/source/target-verus/(debug|release)/verus
+        ],
+}
+```
+
+### Proof Action Demo
+[Source code](https://github.com/chanheec/proof-action-example)
+
+![](demo.gif)
