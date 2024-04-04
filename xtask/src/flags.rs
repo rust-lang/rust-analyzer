@@ -53,6 +53,7 @@ xflags::xflags! {
             /// Use jemalloc allocator for server
             optional --jemalloc
             optional --client-patch-version version: String
+            optional --proof-action
         }
         /// Read a changelog AsciiDoc file and update the GitHub Releases entry in Markdown.
         cmd publish-release-notes {
@@ -133,6 +134,7 @@ pub struct Dist {
     pub mimalloc: bool,
     pub jemalloc: bool,
     pub client_patch_version: Option<String>,
+    pub proof_action: bool,
 }
 
 #[derive(Debug)]

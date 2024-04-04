@@ -131,6 +131,13 @@ You can find more documents for IDE functionalities on the following links.
 
 Proof action is an **experimental** feature to assist developers debug proof failures.
 
+### Compilation
+
+Compile the rust-analyzer binary with `proof-action` flag 
+```
+cargo xtask dist --proof-action
+```
+
 
 ### Prerequisite
 * "4. Running Verus in VS Code (optional)"
@@ -140,6 +147,7 @@ You can install `verusfmt` using the following
 cargo install verusfmt --locked
 ```
 You can also use `which verusfmt` to get the absolute path to it.
+
 
 
 ### Configuration

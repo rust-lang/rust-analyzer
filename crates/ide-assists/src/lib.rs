@@ -58,7 +58,14 @@
 //! See also this post:
 //! <https://rust-analyzer.github.io/blog/2020/09/28/how-to-make-a-light-bulb.html>
 
-#![warn(rust_2018_idioms, unused_lifetimes)]
+#![warn(rust_2018_idioms, unused_lifetimes, semicolon_in_expressions_from_macros)]
+
+#![cfg_attr(not(feature = "proof-action"), allow(unused))]
+
+#[allow(unused)]
+macro_rules! eprintln {
+    ($($tt:tt)*) => { stdx::eprintln!($($tt)*) };
+}
 
 pub(crate) mod assist_config;
 pub mod assist_context;
@@ -106,7 +113,7 @@ pub fn assists_with_verus_error(
     verus_error: Vec<VerusError>,
 ) -> Vec<Assist> {
     let sema = Semantics::new(db);
-    let ctx = AssistContext::new(sema, config, range, verus_error); 
+    let ctx = AssistContext::new(sema, config, range, verus_error);
     let mut acc = Assists::new(&ctx, resolve);
     handlers::all().iter().for_each(|handler| {
         handler(&mut acc, &ctx);
@@ -399,22 +406,39 @@ pub(crate) mod handlers {
             // sorted list above?
             //
             // Verus
+            #[cfg(feature="proof-action")]
             proof_action::insert_assert_by_block::assert_by,
+            #[cfg(feature="proof-action")]
             proof_action::insert_failing_postcondition::intro_failing_ensures,
+            #[cfg(feature="proof-action")]
             proof_action::insert_failing_precondition::intro_failing_requires,
+            #[cfg(feature="proof-action")]
             proof_action::intro_matching_assertions::intro_match,
+            #[cfg(feature="proof-action")]
             proof_action::weakest_pre_step::wp_move_assertion,
+            #[cfg(feature="proof-action")]
             proof_action::apply_induction::apply_induction,
+            #[cfg(feature="proof-action")]
             proof_action::decompose_failing_assert::localize_error,
+            #[cfg(feature="proof-action")]
             proof_action::remove_redundant_assertion::remove_dead_assertions,
+            #[cfg(feature="proof-action")]
             proof_action::reveal_opaque_in_by_block::assert_by_reveal,
+            #[cfg(feature="proof-action")]
             proof_action::reveal_opaque_above::insert_reveal,
+            #[cfg(feature="proof-action")]
             proof_action::convert_imply_to_if::imply_to_if,
+            #[cfg(feature="proof-action")]
             proof_action::split_imply_ensures::split_imply_ensures,
-            proof_action::intro_forall::intro_forall,   
+            #[cfg(feature="proof-action")]
+            proof_action::intro_forall::intro_forall,
+            #[cfg(feature="proof-action")]
             proof_action::intro_forall_implies::intro_forall_implies,
+            #[cfg(feature="proof-action")]
             proof_action::intro_assume_false::by_assume_false,
+            #[cfg(feature="proof-action")]
             proof_action::split_smaller_or_equal_to::split_smaller_or_equal_to,
+            #[cfg(feature="proof-action")]
             proof_action::seq_index_inbound::seq_index_inbound,
         ]
     }

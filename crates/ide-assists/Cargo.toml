@@ -35,3 +35,7 @@ test-fixture.workspace = true
 
 [lints]
 workspace = true
+
+[features]
+in-rust-tree = []
+proof-action = []
