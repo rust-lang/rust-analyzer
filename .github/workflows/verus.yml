@@ -29,8 +29,11 @@ jobs:
       # - name: test proof action
         # run: cargo test --package ide-assists --lib -- handlers::proof_action::wp_move_assertion::tests::wp_lemma_call --exact --nocapture
 
-      - name: build
+      - name: build default
         run: cargo xtask dist
+
+      - name: build proof action version
+        run: cargo xtask dist --proof-action
 
 # TODO: more test
 # TODO: auto-merge upstream
