@@ -123,7 +123,11 @@ You can find more documents for IDE functionalities on the following links.
 - `rust-analyzer: Clear flycheck diagnostics` command can be used to clear the error messages in VS Code
 - `Developer: Reload Window` can be used to reload VS Code and the verus-analyzer server instead of closing and reopening VS Code
 - Setting `"rust-analyzer.diagnostics.disabled": ["syntax-error"]` in the workspace setting can disable the syntax error messages in VS Code. You could also add `unresolved-module` to the above list to disable the error message for unresolved modules.
-
+- There is no proper support for `buildin`/`vstd`. However, at `Cargo.toml` in your project, adding `vstd` in `dependencices` or `dev-dependencies` might make verus-analyzer scan `vstd` and `builtin`. For example,
+``` 
+[dependencies]
+vstd = { path = "../verus/source/vstd"}  # assuming verus and the project are at the same directory
+```
 
 ---
 
