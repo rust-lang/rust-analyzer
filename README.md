@@ -133,14 +133,15 @@ Proof action is an **experimental** feature to assist developers debug proof fai
 
 ### Compilation
 
-Compile the rust-analyzer binary with `proof-action` flag 
+During [1. Compile binary](#1-compile-binary), include the `--proof-action` flag.
+Compile the rust-analyzer binary with `--proof-action` flag
 ```
 cargo xtask dist --proof-action
 ```
 
 
 ### Prerequisite
-* "4. Running Verus in VS Code (optional)"
+* [4. Running Verus in VS Code (optional)](#4-running-verus-in-vs-code-optional)
 * [verusfmt](https://github.com/verus-lang/verusfmt)
 You can install `verusfmt` using the following
 ```
