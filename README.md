@@ -17,7 +17,6 @@ The steps below walk you through compiling a Verus-specific version of rust-anal
 5. Make it executable (e.g., `chmod +x ./dist/verus-analyzer-x86_64-apple-darwin`)
 
 
-
 ### 2. VS Code
 Before starting, please install the original rust-analyzer extension in VS Code's extensions tab.
 
@@ -124,41 +123,40 @@ You can find more documents for IDE functionalities on the following links.
 - `Developer: Reload Window` can be used to reload VS Code and the verus-analyzer server instead of closing and reopening VS Code
 - Setting `"rust-analyzer.diagnostics.disabled": ["syntax-error"]` in the workspace setting can disable the syntax error messages in VS Code. You could also add `unresolved-module` to the above list to disable the error message for unresolved modules.
 - There is no proper support for `buildin`/`vstd`. However, at `Cargo.toml` in your project, adding `vstd` in `dependencices` or `dev-dependencies` might make verus-analyzer scan `vstd` and `builtin`. For example,
-``` 
+```
 [dependencies]
 vstd = { path = "../verus/source/vstd"}  # assuming verus and the project are at the same directory
 ```
 
 ---
 
-## Proof Action (Optional)
+## Proof Actions (Optional)
 
-Proof action is an **experimental** feature to assist developers debug proof failures.
+Proof actions are an **experimental** feature to assist developers when debugging proof failures.
 
 ### Compilation
+Compile Verus analyzer.  These steps are similar to the basic version with the exception
+of the extra flag used in step 3.
 
 During [1. Compile binary](#1-compile-binary), include the `--proof-action` flag.
 Compile the rust-analyzer binary with `--proof-action` flag
 ```
-cargo xtask dist --proof-action
-```
+5. Make it executable (e.g., `chmod +x ./dist/verus-analyzer-x86_64-apple-darwin`)
 
 
-### Prerequisite
-* [4. Running Verus in VS Code (optional)](#4-running-verus-in-vs-code-optional)
+### Prerequisites
+* Follow the directions for [4. Running Verus in VS Code (optional)](#4-running-verus-in-vs-code-optional)
 * [verusfmt](https://github.com/verus-lang/verusfmt)
-You can install `verusfmt` using the following
+You can install `verusfmt` using:
 ```
 cargo install verusfmt --locked
 ```
-You can also use `which verusfmt` to get the absolute path to it.
 
 
 
 ### Configuration
 
-The "settings" in the `.code-workspace` file need additional configuration to give environment variable for verus-analyzer binary.
-"VERUS_BINARY_PATH", "TMPDIR", and "VERUS_FMT_BINARY_PATH" are needed.
+The "settings" entry in the `.code-workspace` file needs some additional configuration to provide environment variables for the verus-analyzer binary.  In particular, we need to define: "VERUS_BINARY_PATH", "TMPDIR", and "VERUS_FMT_BINARY_PATH".
 
 ```json
 "rust-analyzer.server.extraEnv": {
@@ -168,7 +166,7 @@ The "settings" in the `.code-workspace` file need additional configuration to gi
 }
 ```
 
-The final configuration for `settings` might look like the following.
+Hence, the final configuration for `settings` might look like the following.
 
 ```json
 "settings": {
