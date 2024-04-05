@@ -135,7 +135,7 @@ vstd = { path = "../verus/source/vstd"}  # assuming verus and the project are at
 Proof actions are an **experimental** feature to assist developers when debugging proof failures.
 
 ### Compilation
-Compile Verus analyzer.  These steps are similar to the basic version with the exception
+Compile Verus analyzer by following the steps below.  These steps are similar to the basic version with the exception
 of the extra flag used in step 3.
 
 During [1. Compile binary](#1-compile-binary), include the `--proof-action` flag.
