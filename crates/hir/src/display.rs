@@ -188,28 +188,12 @@ impl HirDisplay for Struct {
             StructKind::Record => {
                 let has_where_clause = write_where_clause(def_id, f)?;
                 if let Some(limit) = f.entity_limit {
-                    let fields = self.fields(f.db);
-                    let count = fields.len().min(limit);
-                    f.write_char(if !has_where_clause { ' ' } else { '\n' })?;
-                    if count == 0 {
-                        if fields.is_empty() {
-                            f.write_str("{}")?;
-                        } else {
-                            f.write_str("{ /* … */ }")?;
-                        }
-                    } else {
-                        f.write_str(" {\n")?;
-                        for field in &fields[..count] {
-                            f.write_str("    ")?;
-                            field.hir_fmt(f)?;
-                            f.write_str(",\n")?;
-                        }
-
-                        if fields.len() > count {
-                            f.write_str("    /* … */\n")?;
-                        }
-                        f.write_str("}")?;
-                    }
+                    display_fields_or_variants(
+                        &self.fields(f.db),
+                        has_where_clause,
+                        limit,
+                        f,
+                    )?;
                 }
             }
             StructKind::Unit => _ = write_where_clause(def_id, f)?,
@@ -226,18 +210,15 @@ impl HirDisplay for Enum {
         write!(f, "{}", self.name(f.db).display(f.db.upcast()))?;
         let def_id = GenericDefId::AdtId(AdtId::EnumId(self.id));
         write_generic_params(def_id, f)?;
-        let has_where_clause = write_where_clause(def_id, f)?;
 
-        let variants = self.variants(f.db);
-        if !variants.is_empty() {
-            f.write_char(if !has_where_clause { ' ' } else { '\n' })?;
-            f.write_str("{\n")?;
-            for variant in variants {
-                f.write_str("    ")?;
-                variant.hir_fmt(f)?;
-                f.write_str(",\n")?;
-            }
-            f.write_str("}")?;
+        let has_where_clause = write_where_clause(def_id, f)?;
+        if let Some(limit) = f.entity_limit {
+            display_fields_or_variants(
+                &self.variants(f.db),
+                has_where_clause,
+                limit,
+                f,
+            )?;
         }
 
         Ok(())
@@ -251,22 +232,49 @@ impl HirDisplay for Union {
         write!(f, "{}", self.name(f.db).display(f.db.upcast()))?;
         let def_id = GenericDefId::AdtId(AdtId::UnionId(self.id));
         write_generic_params(def_id, f)?;
+
         let has_where_clause = write_where_clause(def_id, f)?;
-
-        let fields = self.fields(f.db);
-        if !fields.is_empty() {
-            f.write_char(if !has_where_clause { ' ' } else { '\n' })?;
-            f.write_str("{\n")?;
-            for field in self.fields(f.db) {
-                f.write_str("    ")?;
-                field.hir_fmt(f)?;
-                f.write_str(",\n")?;
-            }
-            f.write_str("}")?;
+        if let Some(limit) = f.entity_limit {
+            display_fields_or_variants(
+                &self.fields(f.db),
+                has_where_clause,
+                limit,
+                f,
+            )?;
         }
-
         Ok(())
     }
+}
+
+fn display_fields_or_variants<T: HirDisplay>(
+    fields_or_variants: &[T],
+    has_where_clause: bool,
+    limit: usize,
+    f: &mut HirFormatter<'_>,
+)-> Result<(), HirDisplayError> {
+    let count = fields_or_variants.len().min(limit);
+    f.write_char(if !has_where_clause { ' ' } else { '\n' })?;
+    if count == 0 {
+        if fields_or_variants.is_empty() {
+            f.write_str("{}")?;
+        } else {
+            f.write_str("{ /* … */ }")?;
+        }
+    } else {
+        f.write_str("{\n")?;
+        for field in &fields_or_variants[..count] {
+            f.write_str("    ")?;
+            field.hir_fmt(f)?;
+            f.write_str(",\n")?;
+        }
+
+        if fields_or_variants.len() > count {
+            f.write_str("    /* … */\n")?;
+        }
+        f.write_str("}")?;
+    }
+
+    Ok(())
 }
 
 impl HirDisplay for Field {
