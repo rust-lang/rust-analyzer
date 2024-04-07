@@ -1,6 +1,7 @@
 use crate::{assist_context::{AssistContext, Assists}, AssistId, AssistKind};
 use syntax::{ast::{self, vst::*, AstNode},T,};
 
+// return `None` when this proof action is not applicable
 pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     // trigger on "assert"
     let _ = ctx.at_this_token(T![assert])?;
@@ -17,6 +18,7 @@ pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()
     // pretty-print
     let result = ctx.fmt(expr.clone(),result.to_string())?;
     
+    // register proof action
     acc.add(
         AssistId("assert_by", AssistKind::RefactorRewrite),
         "Add proof block for this assert",
@@ -28,16 +30,19 @@ pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()
     )
 }
 
+// this function does the rewrite
 pub(crate) fn rewriter_assert_by(mut assert: AssertExpr) -> Option<AssertExpr> {
-    // if is already has a "by block", return None
+    // if it already has a "by block", report "not applicable" by returning None
     if assert.by_token {
         return None;
     }
     
-    // generate empty proof block and put the same assertion in it
+    // generate an empty proof block and put the same assertion in it
     let mut stmt = StmtList::new();
     stmt.statements.push(assert.clone().into());
     let blk_expr: BlockExpr = BlockExpr::new(stmt);
+
+    // register the above proof block as our assertion's proof block
     assert.block_expr = Some(Box::new(blk_expr));
     assert.by_token = true; 
     Some(assert)
