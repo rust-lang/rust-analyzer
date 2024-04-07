@@ -15,13 +15,16 @@ pub fn vst_walk_expr(expr: &vst::Expr, cb: &mut dyn FnMut(vst::Expr)) {
 }
 
 /// Map a VST Node recursively
-pub fn vst_map_expr_visitor<EE, FF>(exp: EE, cb: &FF) -> Result<vst::Expr, String>
+pub fn vst_map_expr_visitor<EE, FF>(exp: EE, cb: &mut FF) -> Result<vst::Expr, String>
 where
     EE: Into<vst::Expr>,
-    FF: Fn(&mut vst::Expr) -> Result<vst::Expr, String>,
+    FF: FnMut(&mut vst::Expr) -> Result<vst::Expr, String>,
 {
     let exp: vst::Expr = exp.into();
     let res = match exp {
+        vst::Expr::Literal(_) | vst::Expr::PathExpr(_) => {
+            cb(&mut exp.clone())?
+        }
         vst::Expr::BinExpr(mut e) => {
             let new_lhs = vst_map_expr_visitor(*e.lhs.clone(), cb)?;
             let new_rhs = vst_map_expr_visitor(*e.rhs.clone(), cb)?;
@@ -68,10 +71,16 @@ where
             }
             vst::Expr::IfExpr(e)
         }
-        vst::Expr::AssertExpr(mut e) => {
-            let new_exp = vst_map_expr_visitor(*e.expr.clone(), cb)?;
-            e.expr = Box::new(new_exp);
-            vst::Expr::AssertExpr(e)
+        vst::Expr::AssertExpr(_) => {
+            let assert_exp = cb(&mut exp.clone())?;
+            match assert_exp {
+                vst::Expr::AssertExpr(mut e) => {
+                    let new_exp = vst_map_expr_visitor(*e.expr.clone(), cb)?;
+                    e.expr = Box::new(new_exp);
+                    vst::Expr::AssertExpr(e)
+                }
+                _ => panic!(),
+            }
         }
         vst::Expr::BlockExpr(_) => {
             let newbe = cb(&mut exp.clone())?;
@@ -98,7 +107,7 @@ where
         _ => {
             dbg!("note(warning): base case map expr");
             dbg!(&exp.to_string());
-            cb(&mut exp.clone())?
+            exp.clone()
         }
     };
     Ok(res)
@@ -106,6 +115,7 @@ where
 
 /// Preorder walk all the expression's child expressions
 pub fn vst_preorder_expr(exp: &vst::Expr, cb: &mut dyn FnMut(vst::Expr) -> bool) {
+    cb(exp.clone());
     match exp {
         vst::Expr::ArrayExpr(e) => {
             for expr in &e.exprs {
@@ -118,7 +128,6 @@ pub fn vst_preorder_expr(exp: &vst::Expr, cb: &mut dyn FnMut(vst::Expr) -> bool)
             vst_preorder_expr(&e.rhs, cb);
         }
         vst::Expr::CallExpr(e) => {
-            vst_preorder_expr(&e.expr, cb);
             for arg in &e.arg_list.args {
                 vst_preorder_expr(&arg, cb);
             }
@@ -128,7 +137,7 @@ pub fn vst_preorder_expr(exp: &vst::Expr, cb: &mut dyn FnMut(vst::Expr) -> bool)
         }
         _ => {
             dbg!("note(warning): base case vst_preorder_expr");
-            cb(exp.clone());
+            dbg!(&exp.to_string());
         }
     }
 }

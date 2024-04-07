@@ -82,8 +82,8 @@ impl<'a> AssistContext<'a> {
 
     /// Specify the syntax token to invoke a proof action
     pub fn at_this_token(&self, token: SyntaxKind) -> Option<()> {
-        let assert_keyword = self.find_token_syntax_at_offset(token)?;
-        let cursor_in_range = assert_keyword.text_range().contains_range(self.selection_trimmed());
+        let the_keyword_of_interest = self.find_token_syntax_at_offset(token)?;
+        let cursor_in_range = the_keyword_of_interest.text_range().contains_range(self.selection_trimmed());
         if !cursor_in_range {
             return None;
         }

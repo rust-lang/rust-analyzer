@@ -67,13 +67,63 @@ proof fn f(x: int) {
             ",
         )
     }
+
+    #[test]
+    fn test_by_assume_false2() {
+        check_assist(
+            by_assume_false, // the proof action to be used
+// proof to be modified below
+// `$0` indicates the cursor location
+            "
+spec fn pow2(e: nat) -> nat 
+    decreases(e),
+{
+    if e == 0 { 1 } else { 2 * pow2((e - 1) as nat)}
 }
 
-// let formatter = "/home/chanhee/.cargo/bin/rustfmt";
-// let formatted_string = Command::new("echo")
-//     .arg(string.clone())
-//     .arg("|")
-//     .arg(formatter)
-//     .spawn()
-//     .expect("echo command failed to start").stdout.unwrap();
-// dbg!(formatted_string);
+proof fn lemma_pow2_unfold3(e: nat) 
+    requires e > 3,
+    ensures pow2(e) == pow2((e-3) as nat) * 8,
+{
+    asse$0rt(pow2(e) == pow2((e - 3) as nat) * 8);
+}
+",
+// modified proof below
+            "
+spec fn pow2(e: nat) -> nat 
+    decreases(e),
+{
+    if e == 0 { 1 } else { 2 * pow2((e - 1) as nat)}
+}
+
+proof fn lemma_pow2_unfold3(e: nat) 
+    requires e > 3,
+    ensures pow2(e) == pow2((e-3) as nat) * 8,
+{
+    assert(pow2(e) == pow2((e - 3) as nat) * 8) by {
+        assume(false);
+    };
+}
+",
+        )
+    }
+
+    #[test]
+    fn test_by_assume_false3() {
+        check_assist(
+            by_assume_false,
+            "
+proof fn f(a: u64, b: u64) { 
+    asser$0t((a & (a | b)) == a);
+}
+            ",
+            "
+proof fn f(a: u64, b: u64) { 
+    assert((a & (a | b)) == a) by {
+        assume(false);
+    };
+}
+            ",
+        )
+    }
+}

@@ -70,4 +70,44 @@ proof fn f() {
             ",
         )
     }
+
+    #[test]
+    fn test_assert_by2() {
+        check_assist(
+            assert_by, // the proof action to be used
+// proof to be modified below
+// `$0` indicates the cursor location
+            "
+spec fn pow2(e: nat) -> nat 
+    decreases(e),
+{
+    if e == 0 { 1 } else { 2 * pow2((e - 1) as nat)}
+}
+
+proof fn lemma_pow2_unfold3(e: nat) 
+    requires e > 3,
+    ensures pow2(e) == pow2((e-3) as nat) * 8,
+{
+    asse$0rt(pow2(e) == pow2((e - 3) as nat) * 8);
+}
+",
+// modified proof below
+            "
+spec fn pow2(e: nat) -> nat 
+    decreases(e),
+{
+    if e == 0 { 1 } else { 2 * pow2((e - 1) as nat)}
+}
+
+proof fn lemma_pow2_unfold3(e: nat) 
+    requires e > 3,
+    ensures pow2(e) == pow2((e-3) as nat) * 8,
+{
+    assert(pow2(e) == pow2((e - 3) as nat) * 8) by {
+        assert(pow2(e) == pow2((e - 3) as nat) * 8);
+    };
+}
+",
+        )
+    }
 }

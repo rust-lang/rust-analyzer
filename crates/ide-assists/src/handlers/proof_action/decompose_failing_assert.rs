@@ -76,8 +76,6 @@ pub(crate) fn localize_error(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
     )
 }
 
-// TODO: match, if, not, quant(forall)
-// TODO: if exp it a callexpr, first inline *and then* split
 fn split_expr(ctx: &AssistContext<'_>, exp: &Expr) -> Option<Vec<Expr>> {
     match exp {
         Expr::BinExpr(be) => {
@@ -102,8 +100,7 @@ fn split_expr(ctx: &AssistContext<'_>, exp: &Expr) -> Option<Vec<Expr>> {
             }
         },
         Expr::MatchExpr(_me) => {
-            // #[is_variant] is now deprecated in Verus
-            // TODO: update grammar and parser, and utilize `is` syntax
+            // Note: #[is_variant] is now deprecated in Verus
             return None;
         },            
         Expr::CallExpr(call) => {
@@ -116,6 +113,7 @@ fn split_expr(ctx: &AssistContext<'_>, exp: &Expr) -> Option<Vec<Expr>> {
             dbg!("{}", &inlined_exp.to_string());
             return split_expr(ctx, &inlined_exp);
         }
+        // TODO: match, if, not, quant(forall)
         _ => return None,
     }
 }
@@ -138,7 +136,6 @@ fn split_expr(ctx: &AssistContext<'_>, exp: &Expr) -> Option<Vec<Expr>> {
 // }
 
 // maybe register another action with minimization
-// TODO: try changing this to use verus
 pub(crate) fn vst_rewriter_localize_error_minimized(
     ctx: &AssistContext<'_>,
     assertion: AssertExpr,
@@ -321,63 +318,5 @@ fn main() {}
 "#,
         );
     }
-
-    // TEST: match (deprecated verus syntax)
-//     #[test]
-//     fn decompose_match_failure() {
-//         check_assist(
-//             localize_error,
-// // before
-//             r#"
-// use vstd::prelude::*;
-
-// #[derive(PartialEq, Eq)] 
-// #[is_variant]
-// pub enum Message {
-//     Quit(bool),
-//     Move { x: i32, y: i32 },
-//     Write(bool),
-// }
-
-// proof fn test_expansion_multiple_call() {
-//     let x = Message::Move{x: 5, y:6};
-//     as$0sert(match x {
-//         Message::Quit(b) => b,
-//         Message::Move{x, y} => false,
-//         Message::Write(b) => b,
-//     });
-// } 
-
-// fn main() {}
-// "#,
-// // after
-//             r#"
-// use vstd::prelude::*;
-
-// #[derive(PartialEq, Eq)] 
-// #[is_variant]
-// pub enum Message {
-//     Quit(bool),
-//     Move { x: i32, y: i32 },
-//     Write(bool),
-// }
-
-// proof fn test_expansion_multiple_call() {
-//     let x = Message::Move{x: 5, y:6};
-//     assert(x.is_Quit() ==> x.get_Quit_0());
-//     assert(x.is_Move() ==> x.get_Move_x() > x.get_Move_y());
-//     assert(x.is_Write() ==> x.get_Write_0());
-//     assert(match x {
-//         Message::Quit(b) => b,
-//         Message::Move{x, y} => x > y,
-//         Message::Write(b) => b,
-//     });
-// }
-
-// fn main() {}
-// "#,
-//         );
-//     }
-
 
 }

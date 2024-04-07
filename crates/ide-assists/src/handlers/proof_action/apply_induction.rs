@@ -4,7 +4,6 @@ use itertools::Itertools;
 use syntax::{ast::{self, vst::*}, AstNode,};
 
 
-// TODO: verus-analyzer shouldn't panic on proof-action failure
 pub(crate) fn apply_induction(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     let func: ast::Fn = ctx.find_node_at_offset::<ast::Fn>()?;
     let body: ast::BlockExpr = func.body()?;
@@ -36,7 +35,6 @@ pub(crate) fn apply_induction(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     let pty = param_list[index].ty.as_ref()?;
     let mut result = BlockExpr::new(StmtList::new());
 
-    // better way to type check?
     if pty.to_string().trim() == "nat" {
         result = apply_induction_on_nat(ctx, func.name.to_string(), param_names, index)?;
     } else {

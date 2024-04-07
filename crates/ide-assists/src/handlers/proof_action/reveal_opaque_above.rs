@@ -1,7 +1,5 @@
-// use ide_db::syntax_helpers::node_ext::is_pattern_cond;
 use crate::{
     assist_context::{AssistContext, Assists},
-    // utils::invert_boolean_expression,
     AssistId,
     AssistKind,
 };
@@ -66,8 +64,6 @@ pub(crate) fn vst_rewriter_insert_reveal(
     stmt.statements.push(original_assert.into());
     
     let blk_expr: BlockExpr = BlockExpr::new(stmt);
-    // assert.by_token = true;
-    // assert.block_expr = Some(Box::new(blk_expr));
     Some(blk_expr)
 }
 

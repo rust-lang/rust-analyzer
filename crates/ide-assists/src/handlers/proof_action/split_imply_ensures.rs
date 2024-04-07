@@ -1,7 +1,5 @@
-// use ide_db::syntax_helpers::node_ext::is_pattern_cond;
 use crate::{
     assist_context::{AssistContext, Assists},
-    // utils::invert_boolean_expression,
     AssistId,
     AssistKind,
 };
@@ -101,13 +99,32 @@ fn test_split_imply_ensures(b: bool) -> (ret: u32)
 
         )
     }
+
+    #[test]
+    fn test_split_imply_ensures_2() {
+        check_assist(
+          split_imply_ensures,
+"
+proof fn lemma_mul_inequality(x: int, y: int, z: int) 
+    by(nonlinear_arith)
+    ensu$0res  x <= y && z > 0 ==> x * z <= y * z,
+{
+}
+",
+"
+proof fn lemma_mul_inequality(x: int, y: int, z: int)
+    by (nonlinear_arith)
+    requires
+        x <= y && z > 0,
+    ensures
+        x * z <= y * z,
+{
 }
 
-// let formatter = "/home/chanhee/.cargo/bin/rustfmt";
-// let formatted_string = Command::new("echo")
-//     .arg(string.clone())
-//     .arg("|")
-//     .arg(formatter)
-//     .spawn()
-//     .expect("echo command failed to start").stdout.unwrap();
-// dbg!(formatted_string);
+",
+
+        )
+    }
+}
+
+

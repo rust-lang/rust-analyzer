@@ -151,7 +151,7 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                     // when `prev` is let-binding, do subsitution (replace `pat` with `init`)
                     let new_assert = vst_map_expr_visitor(assertion.clone(), &mut |e| {
                         // TODO: do proper usage check in semantic level instead of string match             
-                        // TODO: careful with variable name shadowing
+                        // TODO: variable name shadowing
                         if e.to_string().trim() == pat.to_string().trim() {
                             Ok(init_expr.clone())
                         } else {
@@ -180,7 +180,7 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                 // prev is if-else. For each branch, insert assertion
                 // recursively insert for nested if-else
                 Expr::IfExpr(_if_expr) => {
-                    let cb = |exp: &mut Expr| {
+                    let mut cb = |exp: &mut Expr| {
                         match exp {
                             Expr::BlockExpr(bb) => {
                                 bb.stmt_list.statements.push(Stmt::from(assertion.clone()));
@@ -189,7 +189,7 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                         };
                         return Ok::<Expr, String>(exp.clone());
                     };
-                    let new_if_expr = vst_map_expr_visitor(exp.clone(), &cb).ok()?;
+                    let new_if_expr = vst_map_expr_visitor(exp.clone(), &mut cb).ok()?;
                     (new_if_expr.into(), false)
                 }
                 Expr::MatchExpr(match_expr) => {
@@ -291,7 +291,53 @@ fn foo()
         );
     }
 
+    // TEST: let-binding2
+        #[test]
+        fn wp_let_bind2() {
+            check_assist(
+                wp_move_assertion,
+                r#"
+fn foo(b: u32)
+{
+    let a: u32 = b;
+    ass$0ert(a > 10 && a < 100);
+}
+"#,
+            r#"
+fn foo(b: u32)
+{
+    assert(b > 10 && b < 100);
+    let a: u32 = b;
+    assert(a > 10 && a < 100);
+}
 
+"#,
+            );
+        }
+    
+    // TEST: let-binding3
+    #[test]
+    fn wp_let_bind3() {
+        check_assist(
+            wp_move_assertion,
+            r#"
+fn foo(b: u32, c: u32)
+{
+    let a: u32 = b + c;
+    ass$0ert(a > 10 && a < 100);
+}
+"#,
+        r#"
+fn foo(b: u32, c: u32)
+{
+    assert(b + c > 10 && b + c < 100);
+    let a: u32 = b + c;
+    assert(a > 10 && a < 100);
+}
+
+"#,
+        );
+    }
     // TEST: assert
     #[test]
     fn wp_assertion_step() {
@@ -592,63 +638,5 @@ proof fn lemma_fibo_is_monotonic(i: nat, j: nat)
         );
     }
 
-//     #[test] // not yet implemented
-//     fn wp_assign_easy() {
-//         check_assist(
-//             wp_move_assertion,
-//             r#"
-// fn foo()
-// {
-//     let mut a:u32 = 1;
-//     a = 8;
-//     ass$0ert(a > 10 && a < 100);
-// }
-// "#,
-//             r#"
-// fn foo()
-// {
-//     let mut a:u32 = 1;
-//     assert(8 > 10 && 8 < 100);
-//     a = 8;
-//     assert(a > 10 && a < 100);
-// }
-// "#,
-//         );
-//     }
-
-//     #[test] // not yet implemented
-//     fn wp_assign_expr() {
-//         check_assist(
-//             wp_move_assertion,
-//             r#"
-// fn foo()
-// {
-//     let mut a:u32 = 1;
-//     a = 8 + 9;
-//     ass$0ert(a > 10 && a < 100);
-// }
-// "#,
-//             r#"
-// fn foo()
-// {
-//     let mut a:u32 = 1;
-//     assert(8 + 9 > 10 && 8 + 9 < 100);
-//     a = 8 + 9;
-//     assert(a > 10 && a < 100);
-// }
-// "#,
-//         );
-//     }
 }
 
-// let stmt
-// match e {
-// Expr::PathExpr(p) => {
-//     if p.to_string() == pat.to_string() {
-//         Ok(init_expr.clone())
-//     } else {
-//         Ok(e.clone())
-//     }
-// }
-// _ => Ok(e.clone()),
-// }

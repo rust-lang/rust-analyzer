@@ -1,7 +1,5 @@
-// use ide_db::syntax_helpers::node_ext::is_pattern_cond;
 use crate::{
     assist_context::{AssistContext, Assists},
-    // utils::invert_boolean_expression,
     AssistId,
     AssistKind,
 };
@@ -10,6 +8,8 @@ use syntax::{
     T,
 };
 
+/// Change `assert(forall || P )` into 
+/// `assert forall || P by {}`
 pub(crate) fn intro_forall(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     // if the function name is not inside an assertExpr, return None
     let assert_expr: ast::AssertExpr = ctx.find_node_at_offset()?;
@@ -86,6 +86,38 @@ proof fn test_intro_forall() {
   assert forall|x: int, y: int| twice(x) + twice(y) == x * 2 + y * 2 by {
         reveal(twice);
     }
+}
+",
+
+        )
+    }
+
+    #[test]
+    fn test_intro_forall_2() {
+        check_assist(
+          intro_forall,
+"
+#[verifier::opaque]
+spec fn f1(x: int, y: int) -> bool
+{
+  x * x * x  ==  y * y * y
+} 
+
+proof fn test_intro_forall_implies() {
+  assert(for$0all|i: int, j: int| i == j ==> f1(i, j) && f1(i, j));
+
+}
+",
+"
+#[verifier::opaque]
+spec fn f1(x: int, y: int) -> bool
+{
+  x * x * x  ==  y * y * y
+} 
+
+proof fn test_intro_forall_implies() {
+  assert forall|i: int, j: int| i == j ==> f1(i, j) && f1(i, j) by {};
+
 }
 ",
 

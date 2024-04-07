@@ -1,7 +1,5 @@
-// use ide_db::syntax_helpers::node_ext::is_pattern_cond;
 use crate::{
     assist_context::{AssistContext, Assists},
-    // utils::invert_boolean_expression,
     AssistId,
     AssistKind,
 };
@@ -10,7 +8,10 @@ use syntax::{
     T,
 };
 
-
+/// assert forall ||  A <= B ==> Q 
+/// into
+/// assert forall ||  A == B ==> Q 
+/// assert forall ||  A <= B ==> Q 
 pub(crate) fn split_smaller_or_equal_to(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     // trigger on "<="
     let _ = ctx.at_this_token(T![<=])?;
@@ -21,10 +22,9 @@ pub(crate) fn split_smaller_or_equal_to(acc: &mut Assists, ctx: &AssistContext<'
 
 
     // now convert to vst nodes
-    // FIXME: fix AssertForallExpr::try_from. use  .exprs().nth(1) instead of .expr (expr gives earlier closure instead of conclusion)
+    // check fix AssertForallExpr::try_from. use  .exprs().nth(1) instead of .expr (expr gives earlier closure instead of conclusion)
     let assert = AssertForallExpr::try_from(assert_forall_expr.clone()).ok()?;    
     let conclusion = assert_forall_expr.exprs().nth(1)?;
-    // dbg!("{}", &assert.to_string());
     let v_conclusion = Expr::try_from(conclusion).ok()?;
     let result = vst_rewriter_split_smaller_or_equal_to(assert.clone(), v_conclusion)?;
     let result = ctx.fmt(assert_forall_expr.clone(),result.to_string())?;
@@ -43,7 +43,6 @@ pub(crate) fn vst_rewriter_split_smaller_or_equal_to(
     assert_forall: AssertForallExpr, 
     conclusion: Expr,
 ) -> Option<BlockExpr> {
-    println!("{}", &assert_forall.to_string());
 
     if !assert_forall.implies_token {
       return None;

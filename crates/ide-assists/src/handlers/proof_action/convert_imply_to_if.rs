@@ -95,4 +95,83 @@ fn test_imply_to_if(b: bool) -> (ret: u32)
 
         )
     }
+    
+    
+    #[test]
+    fn test_imply_to_if_2() {
+        check_assist(
+            imply_to_if,
+"
+fn octuple(x1: i8) -> (x8: i8)
+requires
+    -16 <= x1,
+    x1  < 16,
+ensures                 
+    x8 == 8 * x1,
+{
+    let x2 = x1 + x1;
+    let x4 = x2 + x2;
+    x4 + x4
 }
+
+fn use_octuple() {
+    let two = 2;
+    {
+        let num: i8;
+        ass$0ert(num == 8 * two ==> num == 32);
+    };
+    let num = octuple(two);
+    assert(num == 32);
+}
+",
+"
+fn octuple(x1: i8) -> (x8: i8)
+requires
+    -16 <= x1,
+    x1  < 16,
+ensures                 
+    x8 == 8 * x1,
+{
+    let x2 = x1 + x1;
+    let x4 = x2 + x2;
+    x4 + x4
+}
+
+fn use_octuple() {
+    let two = 2;
+    {
+        let num: i8;
+        if num == 8 * two {
+            assert(num == 32);
+        };
+    };
+    let num = octuple(two);
+    assert(num == 32);
+}
+",
+
+        )
+    }
+
+    #[test]
+    fn test_imply_to_if_3() {
+        check_assist(
+            imply_to_if,
+"
+fn test_if(a: u32, b: u32) {
+    ass$0ert(a == 0xffffffff ==> a & b == b);
+}
+",
+"
+fn test_if(a: u32, b: u32) {
+    if a == 0xffffffff {
+        assert(a & b == b);
+    };
+}
+",
+
+        )
+    }
+}
+
+
