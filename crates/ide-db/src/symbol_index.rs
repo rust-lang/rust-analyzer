@@ -106,10 +106,12 @@ pub trait SymbolsDatabase: HirDatabase + SourceDatabaseExt + Upcast<dyn HirDatab
     fn module_symbols(&self, module: Module) -> Arc<SymbolIndex>;
 
     /// The symbol index for a given source root within library_roots.
+    #[salsa::linear]
     fn library_symbols(&self, source_root_id: SourceRootId) -> Arc<SymbolIndex>;
 
     #[salsa::transparent]
     /// The symbol indices of modules that make up a given crate.
+    // #[salsa::linear] FIXME
     fn crate_symbols(&self, krate: Crate) -> Box<[Arc<SymbolIndex>]>;
 
     /// The set of "local" (that is, from the current workspace) roots.

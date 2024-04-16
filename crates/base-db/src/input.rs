@@ -11,6 +11,7 @@ use std::{fmt, mem, ops};
 use cfg::CfgOptions;
 use la_arena::{Arena, Idx, RawIdx};
 use rustc_hash::{FxHashMap, FxHashSet};
+use salsa::LinearIndex;
 use span::Edition;
 use syntax::SmolStr;
 use triomphe::Arc;
@@ -22,6 +23,16 @@ pub type ProcMacroPaths = FxHashMap<CrateId, Result<(Option<String>, AbsPathBuf)
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SourceRootId(pub u32);
+
+impl LinearIndex for SourceRootId {
+    fn as_u32(&self) -> u32 {
+        self.0
+    }
+
+    fn from_u32(u32: u32) -> Self {
+        SourceRootId(u32)
+    }
+}
 
 /// Files are grouped into source roots. A source root is a directory on the
 /// file systems which is watched for changes. Typically it corresponds to a

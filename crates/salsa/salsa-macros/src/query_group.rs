@@ -52,6 +52,10 @@ pub(crate) fn query_group(args: TokenStream, input: TokenStream) -> TokenStream 
                         storage = QueryStorage::Memoized;
                         num_storages += 1;
                     }
+                    "linear" => {
+                        storage = QueryStorage::Linear;
+                        num_storages += 1;
+                    }
                     "dependencies" => {
                         storage = QueryStorage::Dependencies;
                         num_storages += 1;
@@ -235,7 +239,7 @@ pub(crate) fn query_group(args: TokenStream, input: TokenStream) -> TokenStream 
 
         queries_with_storage.push(fn_name);
 
-        let tracing = if let QueryStorage::Memoized = query.storage {
+        let tracing = if let QueryStorage::Memoized | QueryStorage::Linear = query.storage {
             let s = format!("{trait_name}::{fn_name}");
             Some(quote! {
                 let _p = tracing::span!(tracing::Level::DEBUG, #s, #(#key_names = tracing::field::debug(&#key_names)),*).entered();
@@ -378,6 +382,7 @@ pub(crate) fn query_group(args: TokenStream, input: TokenStream) -> TokenStream 
 
         let storage = match &query.storage {
             QueryStorage::Memoized => quote!(salsa::plumbing::MemoizedStorage<Self>),
+            QueryStorage::Linear => quote!(salsa::plumbing::MemoizedLinearStorage<Self>),
             QueryStorage::Dependencies => {
                 quote!(salsa::plumbing::DependencyStorage<Self>)
             }
@@ -726,6 +731,7 @@ impl Query {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum QueryStorage {
     Memoized,
+    Linear,
     Dependencies,
     Input,
     Interned,
@@ -741,7 +747,7 @@ impl QueryStorage {
             | QueryStorage::Interned
             | QueryStorage::InternedLookup { .. }
             | QueryStorage::Transparent => false,
-            QueryStorage::Memoized | QueryStorage::Dependencies => true,
+            QueryStorage::Linear | QueryStorage::Memoized | QueryStorage::Dependencies => true,
         }
     }
 }

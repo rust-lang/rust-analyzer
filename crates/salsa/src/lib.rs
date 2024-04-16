@@ -38,6 +38,7 @@ use std::hash::Hash;
 use std::panic::AssertUnwindSafe;
 use std::panic::{self, UnwindSafe};
 
+pub use crate::derived::linear::LinearIndex;
 pub use crate::durability::Durability;
 pub use crate::intern_id::InternId;
 pub use crate::interned::{InternKey, InternValue};

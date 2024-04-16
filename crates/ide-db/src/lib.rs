@@ -327,6 +327,7 @@ impl salsa::ParallelDatabase for RootDatabase {
 
 #[salsa::query_group(LineIndexDatabaseStorage)]
 pub trait LineIndexDatabase: base_db::SourceDatabase {
+    // #[salsa::linear] FIXME
     fn line_index(&self, file_id: FileId) -> Arc<LineIndex>;
 }
 

@@ -74,10 +74,12 @@ pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> {
 
     #[salsa::invoke(crate::consteval::const_eval_static_query)]
     #[salsa::cycle(crate::consteval::const_eval_static_recover)]
+    #[salsa::linear]
     fn const_eval_static(&self, def: StaticId) -> Result<Const, ConstEvalError>;
 
     #[salsa::invoke(crate::consteval::const_eval_discriminant_variant)]
     #[salsa::cycle(crate::consteval::const_eval_discriminant_recover)]
+    #[salsa::linear]
     fn const_eval_discriminant(&self, def: EnumVariantId) -> Result<i128, ConstEvalError>;
 
     // endregion:mir
@@ -93,12 +95,14 @@ pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> {
 
     #[salsa::invoke(crate::lower::impl_self_ty_query)]
     #[salsa::cycle(crate::lower::impl_self_ty_recover)]
+    #[salsa::linear]
     fn impl_self_ty(&self, def: ImplId) -> Binders<Ty>;
 
     #[salsa::invoke(crate::lower::const_param_ty_query)]
     fn const_param_ty(&self, def: ConstParamId) -> Ty;
 
     #[salsa::invoke(crate::lower::impl_trait_query)]
+    #[salsa::linear]
     fn impl_trait(&self, def: ImplId) -> Option<Binders<TraitRef>>;
 
     #[salsa::invoke(crate::lower::field_types_query)]
@@ -118,6 +122,7 @@ pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> {
     fn layout_of_ty(&self, ty: Ty, env: Arc<TraitEnvironment>) -> Result<Arc<Layout>, LayoutError>;
 
     #[salsa::invoke(crate::layout::target_data_layout_query)]
+    // #[salsa::linear] FIXME
     fn target_data_layout(&self, krate: CrateId) -> Result<Arc<TargetDataLayout>, Arc<str>>;
 
     #[salsa::invoke(crate::method_resolution::lookup_impl_method_query)]
@@ -132,9 +137,11 @@ pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> {
     fn callable_item_signature(&self, def: CallableDefId) -> PolyFnSig;
 
     #[salsa::invoke(crate::lower::return_type_impl_traits)]
+    #[salsa::linear]
     fn return_type_impl_traits(&self, def: FunctionId) -> Option<Arc<Binders<ImplTraits>>>;
 
     #[salsa::invoke(crate::lower::type_alias_impl_traits)]
+    #[salsa::linear]
     fn type_alias_impl_traits(&self, def: TypeAliasId) -> Option<Arc<Binders<ImplTraits>>>;
 
     #[salsa::invoke(crate::lower::generic_predicates_for_param_query)]
@@ -161,9 +168,11 @@ pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> {
     fn generic_defaults(&self, def: GenericDefId) -> Arc<[Binders<GenericArg>]>;
 
     #[salsa::invoke(InherentImpls::inherent_impls_in_crate_query)]
+    // #[salsa::linear] FIXME
     fn inherent_impls_in_crate(&self, krate: CrateId) -> Arc<InherentImpls>;
 
     #[salsa::invoke(InherentImpls::inherent_impls_in_block_query)]
+    #[salsa::linear]
     fn inherent_impls_in_block(&self, block: BlockId) -> Option<Arc<InherentImpls>>;
 
     /// Collects all crates in the dependency graph that have impls for the
@@ -178,12 +187,15 @@ pub trait HirDatabase: DefDatabase + Upcast<dyn DefDatabase> {
     ) -> SmallVec<[CrateId; 2]>;
 
     #[salsa::invoke(TraitImpls::trait_impls_in_crate_query)]
+    // #[salsa::linear] FIXME
     fn trait_impls_in_crate(&self, krate: CrateId) -> Arc<TraitImpls>;
 
     #[salsa::invoke(TraitImpls::trait_impls_in_block_query)]
+    #[salsa::linear]
     fn trait_impls_in_block(&self, block: BlockId) -> Option<Arc<TraitImpls>>;
 
     #[salsa::invoke(TraitImpls::trait_impls_in_deps_query)]
+    // #[salsa::linear] FIXME
     fn trait_impls_in_deps(&self, krate: CrateId) -> Arc<[Arc<TraitImpls>]>;
 
     // Interned IDs for Chalk integration

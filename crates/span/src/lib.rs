@@ -1,7 +1,7 @@
 //! File and span related types.
 use std::fmt::{self, Write};
 
-use salsa::InternId;
+use salsa::{InternId, LinearIndex};
 
 mod ast_id;
 mod hygiene;
@@ -161,6 +161,16 @@ impl fmt::Debug for HirFileId {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MacroFileId {
     pub macro_call_id: MacroCallId,
+}
+
+impl LinearIndex for MacroFileId {
+    fn from_u32(v: u32) -> Self {
+        MacroFileId { macro_call_id: MacroCallId::from_u32(v) }
+    }
+
+    fn as_u32(&self) -> u32 {
+        self.macro_call_id.as_u32()
+    }
 }
 
 /// `MacroCallId` identifies a particular macro invocation, like

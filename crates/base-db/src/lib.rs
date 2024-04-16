@@ -104,6 +104,7 @@ pub trait SourceDatabaseExt: SourceDatabase {
     #[salsa::input]
     fn source_root(&self, id: SourceRootId) -> Arc<SourceRoot>;
 
+    #[salsa::linear]
     fn source_root_crates(&self, id: SourceRootId) -> Arc<[CrateId]>;
 }
 

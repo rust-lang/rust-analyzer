@@ -7,11 +7,11 @@ use crate::Database;
 use crate::Query;
 use crate::QueryTable;
 use crate::QueryTableMut;
-use std::borrow::Borrow;
 use std::fmt::Debug;
 use std::hash::Hash;
 use triomphe::Arc;
 
+pub use crate::derived::linear::MemoizedLinearStorage;
 pub use crate::derived::DependencyStorage;
 pub use crate::derived::MemoizedStorage;
 pub use crate::input::{InputStorage, UnitInputStorage};
@@ -235,10 +235,7 @@ pub trait DerivedQueryStorageOps<Q>
 where
     Q: Query,
 {
-    fn invalidate<S>(&self, runtime: &mut Runtime, key: &S)
-    where
-        S: Eq + Hash,
-        Q::Key: Borrow<S>;
+    fn invalidate(&self, runtime: &mut Runtime, key: &Q::Key);
 }
 
 pub type CycleParticipants = Arc<Vec<DatabaseKeyIndex>>;

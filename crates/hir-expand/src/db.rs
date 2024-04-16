@@ -66,10 +66,12 @@ pub trait ExpandDatabase: SourceDatabase {
     fn parse_or_expand_with_err(&self, file_id: HirFileId) -> ExpandResult<Parse<SyntaxNode>>;
     /// Implementation for the macro case.
     // This query is LRU cached
+    #[salsa::linear]
     fn parse_macro_expansion(
         &self,
         macro_file: MacroFileId,
     ) -> ExpandResult<(Parse<SyntaxNode>, Arc<ExpansionSpanMap>)>;
+
     #[salsa::transparent]
     #[salsa::invoke(SpanMap::new)]
     fn span_map(&self, file_id: HirFileId) -> SpanMap;
@@ -78,6 +80,7 @@ pub trait ExpandDatabase: SourceDatabase {
     #[salsa::invoke(crate::span_map::expansion_span_map)]
     fn expansion_span_map(&self, file_id: MacroFileId) -> Arc<ExpansionSpanMap>;
     #[salsa::invoke(crate::span_map::real_span_map)]
+    // #[salsa::linear] FIXME
     fn real_span_map(&self, file_id: FileId) -> Arc<RealSpanMap>;
 
     /// Macro ids. That's probably the tricksiest bit in rust-analyzer, and the
@@ -99,6 +102,7 @@ pub trait ExpandDatabase: SourceDatabase {
     /// Lowers syntactic macro call to a token tree representation. That's a firewall
     /// query, only typing in the macro call itself changes the returned
     /// subtree.
+    #[salsa::linear]
     fn macro_arg(&self, id: MacroCallId) -> MacroArgResult;
     #[salsa::transparent]
     fn macro_arg_considering_derives(
@@ -121,6 +125,7 @@ pub trait ExpandDatabase: SourceDatabase {
     /// proc macros, since they are not deterministic in general, and
     /// non-determinism breaks salsa in a very, very, very bad way.
     /// @edwin0cheng heroically debugged this once! See #4315 for details
+    #[salsa::linear]
     fn expand_proc_macro(&self, call: MacroCallId) -> ExpandResult<Arc<tt::Subtree>>;
     /// Retrieves the span to be used for a proc-macro expansions spans.
     /// This is a firewall query as it requires parsing the file, which we don't want proc-macros to
@@ -129,6 +134,7 @@ pub trait ExpandDatabase: SourceDatabase {
     /// user wrote in the file that defines the proc-macro.
     fn proc_macro_span(&self, fun: AstId<ast::Fn>) -> Span;
     /// Firewall query that returns the errors from the `parse_macro_expansion` query.
+    #[salsa::linear]
     fn parse_macro_expansion_error(
         &self,
         macro_call: MacroCallId,
