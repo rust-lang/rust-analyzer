@@ -25,8 +25,6 @@ where
     Q: QueryFunction,
     MP: MemoizationPolicy<Q>,
 {
-    key_index: u32,
-    group_index: u16,
     state: RwLock<QueryState<Q>>,
     policy: PhantomData<MP>,
     lru_index: LruIndex,
@@ -109,21 +107,11 @@ where
     Q: QueryFunction,
     MP: MemoizationPolicy<Q>,
 {
-    pub(super) fn new(database_key_index: DatabaseKeyIndex) -> Self {
+    pub(super) fn new() -> Self {
         Self {
-            key_index: database_key_index.key_index,
-            group_index: database_key_index.group_index,
             state: RwLock::new(QueryState::NotComputed),
             lru_index: LruIndex::default(),
             policy: PhantomData,
-        }
-    }
-
-    pub(super) fn database_key_index(&self) -> DatabaseKeyIndex {
-        DatabaseKeyIndex {
-            group_index: self.group_index,
-            query_index: Q::QUERY_INDEX,
-            key_index: self.key_index,
         }
     }
 
@@ -131,6 +119,7 @@ where
         &self,
         db: &<Q as QueryDb<'_>>::DynDb,
         key: &Q::Key,
+        database_key_index: DatabaseKeyIndex,
     ) -> StampedValue<Q::Value> {
         let runtime = db.salsa_runtime();
 
@@ -145,7 +134,7 @@ where
 
         // First, do a check with a read-lock.
         loop {
-            match self.probe(db, self.state.read(), runtime, revision_now) {
+            match self.probe(db, self.state.read(), runtime, revision_now, database_key_index) {
                 ProbeState::UpToDate(v) => return v,
                 ProbeState::Stale(..) | ProbeState::NoValue(..) | ProbeState::NotComputed(..) => {
                     break
@@ -154,7 +143,7 @@ where
             }
         }
 
-        self.read_upgrade(db, key, revision_now)
+        self.read_upgrade(db, key, revision_now, database_key_index)
     }
 
     /// Second phase of a read operation: acquires an upgradable-read
@@ -166,6 +155,7 @@ where
         db: &<Q as QueryDb<'_>>::DynDb,
         key: &Q::Key,
         revision_now: Revision,
+        database_key_index: DatabaseKeyIndex,
     ) -> StampedValue<Q::Value> {
         let runtime = db.salsa_runtime();
 
@@ -175,7 +165,13 @@ where
         // already. (This permits other readers but prevents anyone
         // else from running `read_upgrade` at the same time.)
         let mut old_memo = loop {
-            match self.probe(db, self.state.upgradable_read(), runtime, revision_now) {
+            match self.probe(
+                db,
+                self.state.upgradable_read(),
+                runtime,
+                revision_now,
+                database_key_index,
+            ) {
                 ProbeState::UpToDate(v) => return v,
                 ProbeState::Stale(state)
                 | ProbeState::NotComputed(state)
@@ -194,8 +190,8 @@ where
             }
         };
 
-        let panic_guard = PanicGuard::new(self, runtime);
-        let active_query = runtime.push_query(self.database_key_index());
+        let panic_guard = PanicGuard::new(self, runtime, database_key_index);
+        let active_query = runtime.push_query(database_key_index);
 
         // If we have an old-value, it *may* now be stale, since there
         // has been a new revision since the last time we checked. So,
@@ -207,9 +203,7 @@ where
 
                 db.salsa_event(Event {
                     runtime_id: runtime.id(),
-                    kind: EventKind::DidValidateMemoizedValue {
-                        database_key: self.database_key_index(),
-                    },
+                    kind: EventKind::DidValidateMemoizedValue { database_key: database_key_index },
                 });
 
                 panic_guard.proceed(old_memo);
@@ -218,7 +212,16 @@ where
             }
         }
 
-        self.execute(db, runtime, revision_now, active_query, panic_guard, old_memo, key)
+        self.execute(
+            db,
+            runtime,
+            revision_now,
+            active_query,
+            panic_guard,
+            old_memo,
+            key,
+            database_key_index,
+        )
     }
 
     fn execute(
@@ -230,12 +233,13 @@ where
         panic_guard: PanicGuard<'_, Q, MP>,
         old_memo: Option<Memo<Q::Value>>,
         key: &Q::Key,
+        database_key_index: DatabaseKeyIndex,
     ) -> StampedValue<Q::Value> {
-        tracing::info!("{:?}: executing query", self.database_key_index().debug(db));
+        tracing::info!("{:?}: executing query", database_key_index.debug(db));
 
         db.salsa_event(Event {
             runtime_id: db.salsa_runtime().id(),
-            kind: EventKind::WillExecute { database_key: self.database_key_index() },
+            kind: EventKind::WillExecute { database_key: database_key_index },
         });
 
         // Query was not previously executed, or value is potentially
@@ -245,7 +249,7 @@ where
             Err(cycle) => {
                 tracing::debug!(
                     "{:?}: caught cycle {:?}, have strategy {:?}",
-                    self.database_key_index().debug(db),
+                    database_key_index.debug(db),
                     cycle,
                     Q::CYCLE_STRATEGY,
                 );
@@ -262,7 +266,7 @@ where
                             // we are not a participant in this cycle
                             debug_assert!(!cycle
                                 .participant_keys()
-                                .any(|k| k == self.database_key_index()));
+                                .any(|k| k == database_key_index));
                             cycle.throw()
                         }
                     }
@@ -338,6 +342,7 @@ where
         state: StateGuard,
         runtime: &Runtime,
         revision_now: Revision,
+        database_key_index: DatabaseKeyIndex,
     ) -> ProbeState<StampedValue<Q::Value>, StateGuard>
     where
         StateGuard: Deref<Target = QueryState<Q>>,
@@ -356,7 +361,7 @@ where
                 // not to gate future atomic reads.
                 anyone_waiting.store(true, Ordering::Relaxed);
 
-                self.block_on_or_unwind(db, runtime, other_id, state);
+                self.block_on_or_unwind(db, runtime, other_id, state, database_key_index);
 
                 // Other thread completely normally, so our value may be available now.
                 ProbeState::Retry
@@ -444,6 +449,7 @@ where
         db: &<Q as QueryDb<'_>>::DynDb,
         revision: Revision,
         key: &Q::Key,
+        database_key_index: DatabaseKeyIndex,
     ) -> bool {
         let runtime = db.salsa_runtime();
         let revision_now = runtime.current_revision();
@@ -461,12 +467,18 @@ where
         // but hasn't been verified in this revision, we'll have to
         // do more.
         loop {
-            match self.maybe_changed_after_probe(db, self.state.read(), runtime, revision_now) {
+            match self.maybe_changed_after_probe(
+                db,
+                self.state.read(),
+                runtime,
+                revision_now,
+                database_key_index,
+            ) {
                 MaybeChangedSinceProbeState::Retry => continue,
                 MaybeChangedSinceProbeState::ChangedAt(changed_at) => return changed_at > revision,
                 MaybeChangedSinceProbeState::Stale(state) => {
                     drop(state);
-                    return self.maybe_changed_after_upgrade(db, revision, key);
+                    return self.maybe_changed_after_upgrade(db, revision, key, database_key_index);
                 }
             }
         }
@@ -478,11 +490,12 @@ where
         state: StateGuard,
         runtime: &Runtime,
         revision_now: Revision,
+        database_key_index: DatabaseKeyIndex,
     ) -> MaybeChangedSinceProbeState<StateGuard>
     where
         StateGuard: Deref<Target = QueryState<Q>>,
     {
-        match self.probe(db, state, runtime, revision_now) {
+        match self.probe(db, state, runtime, revision_now, database_key_index) {
             ProbeState::Retry => MaybeChangedSinceProbeState::Retry,
 
             ProbeState::Stale(state) => MaybeChangedSinceProbeState::Stale(state),
@@ -504,6 +517,7 @@ where
         db: &<Q as QueryDb<'_>>::DynDb,
         revision: Revision,
         key: &Q::Key,
+        database_key_index: DatabaseKeyIndex,
     ) -> bool {
         let runtime = db.salsa_runtime();
         let revision_now = runtime.current_revision();
@@ -516,6 +530,7 @@ where
             self.state.upgradable_read(),
             runtime,
             revision_now,
+            database_key_index,
         ) {
             MaybeChangedSinceProbeState::ChangedAt(changed_at) => return changed_at > revision,
 
@@ -523,7 +538,7 @@ where
             // either verified or cleared out. Just recurse to figure out which.
             // Note that we don't need an upgradable read.
             MaybeChangedSinceProbeState::Retry => {
-                return self.maybe_changed_after(db, revision, key)
+                return self.maybe_changed_after(db, revision, key, database_key_index)
             }
 
             MaybeChangedSinceProbeState::Stale(state) => {
@@ -538,8 +553,8 @@ where
             }
         };
 
-        let panic_guard = PanicGuard::new(self, runtime);
-        let active_query = runtime.push_query(self.database_key_index());
+        let panic_guard = PanicGuard::new(self, runtime, database_key_index);
+        let active_query = runtime.push_query(database_key_index);
 
         if old_memo.verify_revisions(db.ops_database(), revision_now, &active_query) {
             let maybe_changed = old_memo.revisions.changed_at > revision;
@@ -557,6 +572,7 @@ where
                 panic_guard,
                 Some(old_memo),
                 key,
+                database_key_index,
             );
             changed_at > revision
         } else {
@@ -575,13 +591,9 @@ where
         runtime: &Runtime,
         other_id: RuntimeId,
         mutex_guard: MutexGuard,
+        database_key_index: DatabaseKeyIndex,
     ) {
-        runtime.block_on_or_unwind(
-            db.ops_database(),
-            self.database_key_index(),
-            other_id,
-            mutex_guard,
-        )
+        runtime.block_on_or_unwind(db.ops_database(), database_key_index, other_id, mutex_guard)
     }
 
     fn should_memoize_value(&self, key: &Q::Key) -> bool {
@@ -605,6 +617,7 @@ where
 {
     slot: &'me Slot<Q, MP>,
     runtime: &'me Runtime,
+    database_key_index: DatabaseKeyIndex,
 }
 
 impl<'me, Q, MP> PanicGuard<'me, Q, MP>
@@ -612,8 +625,12 @@ where
     Q: QueryFunction,
     MP: MemoizationPolicy<Q>,
 {
-    fn new(slot: &'me Slot<Q, MP>, runtime: &'me Runtime) -> Self {
-        Self { slot, runtime }
+    fn new(
+        slot: &'me Slot<Q, MP>,
+        runtime: &'me Runtime,
+        database_key_index: DatabaseKeyIndex,
+    ) -> Self {
+        Self { slot, runtime, database_key_index }
     }
 
     /// Indicates that we have concluded normally (without panicking).
@@ -652,8 +669,7 @@ where
                 // acquire a mutex; the mutex will guarantee that all writes
                 // we are interested in are visible.
                 if anyone_waiting.load(Ordering::Relaxed) {
-                    self.runtime
-                        .unblock_queries_blocked_on(self.slot.database_key_index(), wait_result);
+                    self.runtime.unblock_queries_blocked_on(self.database_key_index, wait_result);
                 }
             }
             _ => panic!(

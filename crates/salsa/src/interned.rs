@@ -182,8 +182,7 @@ where
     ) -> (Arc<Slot<Q::Key>>, InternId) {
         let revision_now = db.salsa_runtime().current_revision();
 
-        let mut tables = self.tables.write();
-        let tables = &mut *tables;
+        let tables = &mut *self.tables.write();
         let entry = match tables.map.entry(mapped_key) {
             Entry::Vacant(entry) => entry,
             Entry::Occupied(entry) => {

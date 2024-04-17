@@ -80,20 +80,10 @@ where
         match write.get_mut(key_index) {
             Some(entry) => entry.clone(),
             None => {
-                for key_index in write.len()..key_index {
-                    write.push(Arc::new(Slot::new(DatabaseKeyIndex {
-                        group_index: self.group_index,
-                        query_index: Q::QUERY_INDEX,
-                        key_index: key_index as u32,
-                    })));
-                }
-
-                let slot = Arc::new(Slot::new(DatabaseKeyIndex {
-                    group_index: self.group_index,
-                    query_index: Q::QUERY_INDEX,
-                    key_index: key_index as u32,
-                }));
+                write.resize_with(key_index, || Arc::new(Slot::new()));
+                let slot = Arc::new(Slot::new());
                 write.push(slot.clone());
+                debug_assert!(write.len() == key_index + 1);
                 slot
             }
         }
@@ -135,32 +125,53 @@ where
     fn maybe_changed_after(
         &self,
         db: &<Q as QueryDb<'_>>::DynDb,
-        index: u32,
+        key_index: u32,
         revision: Revision,
     ) -> bool {
         debug_assert!(revision < db.salsa_runtime().current_revision());
         let slot = {
             let read = self.slots.read();
-            let Some(slot) = read.get(index as usize) else {
+            let Some(slot) = read.get(key_index as usize) else {
                 return false;
             };
             slot.clone()
         };
-        slot.maybe_changed_after(db, revision, &Q::Key::from_u32(index))
+        slot.maybe_changed_after(
+            db,
+            revision,
+            &Q::Key::from_u32(key_index),
+            DatabaseKeyIndex {
+                group_index: self.group_index,
+                query_index: Q::QUERY_INDEX,
+                key_index,
+            },
+        )
     }
 
     fn fetch(&self, db: &<Q as QueryDb<'_>>::DynDb, key: &Q::Key) -> Q::Value {
         db.unwind_if_cancelled();
 
         let slot = self.slot(key);
-        let StampedValue { value, durability, changed_at } = slot.read(db, key);
+        let StampedValue { value, durability, changed_at } = slot.read(
+            db,
+            key,
+            DatabaseKeyIndex {
+                group_index: self.group_index,
+                query_index: Q::QUERY_INDEX,
+                key_index: key.as_u32(),
+            },
+        );
 
         if let Some(evicted) = self.lru_list.record_use(&slot) {
             evicted.evict();
         }
 
         db.salsa_runtime().report_query_read_and_unwind_if_cycle_resulted(
-            slot.database_key_index(),
+            DatabaseKeyIndex {
+                group_index: self.group_index,
+                query_index: Q::QUERY_INDEX,
+                key_index: key.as_u32(),
+            },
             durability,
             changed_at,
         );
