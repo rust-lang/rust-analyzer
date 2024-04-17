@@ -15,7 +15,6 @@ use crate::plumbing::QueryStorageOps;
 use crate::runtime::StampedValue;
 use crate::Runtime;
 use crate::{Database, DatabaseKeyIndex, QueryDb, Revision};
-use parking_lot::RwLock;
 use std::marker::PhantomData;
 use triomphe::Arc;
 
@@ -51,7 +50,7 @@ where
 {
     group_index: u16,
     lru_list: Lru<Slot<Q, MP>>,
-    slots: RwLock<Vec<Arc<Slot<Q, MP>>>>,
+    slots: boxcar::Vec<Arc<Slot<Q, MP>>>,
     policy: PhantomData<MP>,
 }
 
@@ -72,21 +71,12 @@ where
 {
     fn slot(&self, key: &Q::Key) -> Arc<Slot<Q, MP>> {
         let key_index = key.index();
-        if let Some(v) = self.slots.read().get(key_index) {
+        if let Some(v) = self.slots.get(key_index) {
             return v.clone();
         }
 
-        let mut write = self.slots.write();
-        match write.get_mut(key_index) {
-            Some(entry) => entry.clone(),
-            None => {
-                write.resize_with(key_index, || Arc::new(Slot::new()));
-                let slot = Arc::new(Slot::new());
-                write.push(slot.clone());
-                debug_assert!(write.len() == key_index + 1);
-                slot
-            }
-        }
+        while self.slots.push(Arc::new(Slot::new())) < key_index {}
+        self.slots[key_index].clone()
     }
 }
 
@@ -101,7 +91,7 @@ where
     fn new(group_index: u16) -> Self {
         LinearStorage {
             group_index,
-            slots: RwLock::new(Vec::default()),
+            slots: boxcar::Vec::default(),
             lru_list: Default::default(),
             policy: PhantomData,
         }
@@ -129,12 +119,8 @@ where
         revision: Revision,
     ) -> bool {
         debug_assert!(revision < db.salsa_runtime().current_revision());
-        let slot = {
-            let read = self.slots.read();
-            let Some(slot) = read.get(key_index as usize) else {
-                return false;
-            };
-            slot.clone()
+        let Some(slot) = self.slots.get(key_index as usize) else {
+            return false;
         };
         slot.maybe_changed_after(
             db,
@@ -187,10 +173,8 @@ where
     where
         C: std::iter::FromIterator<TableEntry<Q::Key, Q::Value>>,
     {
-        let slot_map = self.slots.read();
-        slot_map
+        self.slots
             .iter()
-            .enumerate()
             .filter_map(|(idx, slot)| slot.as_table_entry(&Q::Key::from_u32(idx as u32)))
             .collect()
     }
@@ -203,7 +187,7 @@ where
 {
     fn purge(&self) {
         self.lru_list.purge();
-        *self.slots.write() = Default::default();
+        self.slots.iter().for_each(|(_, slot)| slot.evict());
     }
 }
 
@@ -225,9 +209,7 @@ where
 {
     fn invalidate(&self, runtime: &mut Runtime, key: &Q::Key) {
         runtime.with_incremented_revision(|new_revision| {
-            let map_read = self.slots.read();
-
-            if let Some(slot) = map_read.get(key.index()) {
+            if let Some(slot) = self.slots.get(key.index()) {
                 if let Some(durability) = slot.invalidate(new_revision) {
                     return Some(durability);
                 }

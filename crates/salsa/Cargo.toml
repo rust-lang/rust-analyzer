@@ -22,6 +22,7 @@ smallvec = "1.0.0"
 oorandom = "11"
 triomphe = "0.1.11"
 itertools.workspace = true
+boxcar = "*"
 
 salsa-macros = { version = "0.0.0", path = "salsa-macros" }
 
