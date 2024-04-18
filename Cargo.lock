@@ -2255,6 +2255,7 @@ dependencies = [
  "paths",
  "rustc-hash",
  "stdx",
+ "tracing",
 ]
 
 [[package]]

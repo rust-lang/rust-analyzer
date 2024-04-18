@@ -16,6 +16,7 @@ use semver::Version;
 use span::Edition;
 use stdx::always;
 use toolchain::Tool;
+use tracing::instrument;
 use triomphe::Arc;
 
 use crate::{
@@ -863,6 +864,7 @@ impl ProjectWorkspace {
     }
 }
 
+#[instrument(skip_all)]
 fn project_json_to_crate_graph(
     rustc_cfg: Vec<CfgFlag>,
     load: &mut dyn FnMut(&AbsPath) -> Option<FileId>,
