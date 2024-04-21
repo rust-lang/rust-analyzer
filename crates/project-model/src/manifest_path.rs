@@ -1,5 +1,5 @@
 //! See [`ManifestPath`].
-use std::{fmt, ops, path::Path};
+use std::{borrow::Borrow, fmt, ops};
 
 use paths::{AbsPath, AbsPathBuf};
 
@@ -54,8 +54,14 @@ impl ops::Deref for ManifestPath {
     }
 }
 
-impl AsRef<Path> for ManifestPath {
-    fn as_ref(&self) -> &Path {
+impl AsRef<AbsPath> for ManifestPath {
+    fn as_ref(&self) -> &AbsPath {
         self.file.as_ref()
+    }
+}
+
+impl Borrow<AbsPath> for ManifestPath {
+    fn borrow(&self) -> &AbsPath {
+        self.file.borrow()
     }
 }

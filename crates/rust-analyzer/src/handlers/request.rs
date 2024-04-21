@@ -1759,11 +1759,12 @@ pub(crate) fn handle_open_docs(
     let position = from_proto::file_position(&snap, params)?;
 
     let ws_and_sysroot = snap.workspaces.iter().find_map(|ws| match ws {
-        ProjectWorkspace::Cargo { cargo, sysroot, .. } => Some((cargo, sysroot.as_ref().ok())),
-        ProjectWorkspace::Json { .. } => None,
-        ProjectWorkspace::DetachedFile { cargo_script, sysroot, .. } => {
-            cargo_script.as_ref().zip(Some(sysroot.as_ref().ok()))
+        ProjectWorkspace::Cargo { cargo, sysroot, .. }
+        | ProjectWorkspace::DetachedFile { cargo_script: Some((cargo, _)), sysroot, .. } => {
+            Some((cargo, sysroot.as_ref().ok()))
         }
+        ProjectWorkspace::Json { .. } => None,
+        ProjectWorkspace::DetachedFile { .. } => None,
     });
 
     let (cargo, sysroot) = match ws_and_sysroot {

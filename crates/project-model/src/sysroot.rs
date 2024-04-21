@@ -349,7 +349,7 @@ impl Sysroot {
                     .filter(|&package| RELEVANT_SYSROOT_CRATES.contains(&&*package.name))
                     .map(|package| package.id.clone())
                     .collect();
-                let cargo_workspace = CargoWorkspace::new(res);
+                let cargo_workspace = CargoWorkspace::new(res, sysroot_cargo_toml);
                 Some(Sysroot {
                     root: sysroot_dir.clone(),
                     src_root: Some(Ok(sysroot_src_dir.clone())),
@@ -368,7 +368,7 @@ impl Sysroot {
                 .into_iter()
                 .map(|it| sysroot_src_dir.join(it))
                 .filter_map(|it| ManifestPath::try_from(it).ok())
-                .find(|it| fs::metadata(it).is_ok());
+                .find(|it| fs::metadata(it.as_ref()).is_ok());
 
             if let Some(root) = root {
                 stitched.crates.alloc(SysrootCrateData {
@@ -468,7 +468,7 @@ fn get_rustc_src(sysroot_path: &AbsPath) -> Option<ManifestPath> {
     let rustc_src = sysroot_path.join("lib/rustlib/rustc-src/rust/compiler/rustc/Cargo.toml");
     let rustc_src = ManifestPath::try_from(rustc_src).ok()?;
     tracing::debug!("checking for rustc source code: {rustc_src}");
-    if fs::metadata(&rustc_src).is_ok() {
+    if fs::metadata(rustc_src.as_ref()).is_ok() {
         Some(rustc_src)
     } else {
         None
