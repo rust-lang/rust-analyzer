@@ -25,7 +25,7 @@ use ide_db::{
 use itertools::Itertools;
 use load_cargo::{load_proc_macro, ProjectFolders};
 use proc_macro_api::ProcMacroServer;
-use project_model::{ProjectWorkspace, WorkspaceBuildScripts};
+use project_model::{ManifestPath, ProjectWorkspace, WorkspaceBuildScripts};
 use stdx::{format_to, thread::ThreadIntent};
 use triomphe::Arc;
 use vfs::{AbsPath, AbsPathBuf, ChangeKind};
@@ -204,7 +204,14 @@ impl GlobalState {
 
         self.task_pool.handle.spawn_with_sender(ThreadIntent::Worker, {
             let linked_projects = self.config.linked_or_discovered_projects();
-            let detached_files = self.config.detached_files().to_vec();
+            let detached_files: Vec<_> = self
+                .config
+                .detached_files()
+                .iter()
+                .cloned()
+                .map(ManifestPath::try_from)
+                .filter_map(Result::ok)
+                .collect();
             let cargo_config = self.config.cargo();
 
             move |sender| {

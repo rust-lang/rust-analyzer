@@ -18,7 +18,9 @@ use parking_lot::{
     RwLockWriteGuard,
 };
 use proc_macro_api::ProcMacroServer;
-use project_model::{CargoWorkspace, ProjectWorkspace, Target, WorkspaceBuildScripts};
+use project_model::{
+    CargoWorkspace, ManifestPath, ProjectWorkspace, Target, WorkspaceBuildScripts,
+};
 use rustc_hash::{FxHashMap, FxHashSet};
 use triomphe::Arc;
 use vfs::{AnchoredPathBuf, ChangedFile, Vfs};
@@ -125,7 +127,7 @@ pub(crate) struct GlobalState {
     /// to invalidate any salsa caches.
     pub(crate) workspaces: Arc<Vec<ProjectWorkspace>>,
     pub(crate) crate_graph_file_dependencies: FxHashSet<vfs::VfsPath>,
-    pub(crate) detached_files: FxHashSet<vfs::AbsPathBuf>,
+    pub(crate) detached_files: FxHashSet<ManifestPath>,
 
     // op queues
     pub(crate) fetch_workspaces_queue:

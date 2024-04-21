@@ -1,6 +1,7 @@
 use std::ops::Deref;
 
 use base_db::{CrateGraph, FileId, ProcMacroPaths};
+use cargo_metadata::Metadata;
 use cfg::{CfgAtom, CfgDiff};
 use expect_test::{expect_file, ExpectFile};
 use paths::{AbsPath, AbsPathBuf, Utf8Path, Utf8PathBuf};
@@ -9,8 +10,8 @@ use serde::de::DeserializeOwned;
 use triomphe::Arc;
 
 use crate::{
-    CargoWorkspace, CfgOverrides, ProjectJson, ProjectJsonData, ProjectWorkspace, Sysroot,
-    WorkspaceBuildScripts,
+    CargoWorkspace, CfgOverrides, ManifestPath, ProjectJson, ProjectJsonData, ProjectWorkspace,
+    Sysroot, WorkspaceBuildScripts,
 };
 
 fn load_cargo(file: &str) -> (CrateGraph, ProcMacroPaths) {
@@ -21,8 +22,10 @@ fn load_cargo_with_overrides(
     file: &str,
     cfg_overrides: CfgOverrides,
 ) -> (CrateGraph, ProcMacroPaths) {
-    let meta = get_test_json_file(file);
-    let cargo_workspace = CargoWorkspace::new(meta);
+    let meta: Metadata = get_test_json_file(file);
+    let manifest_path =
+        ManifestPath::try_from(AbsPathBuf::try_from(meta.workspace_root.clone()).unwrap()).unwrap();
+    let cargo_workspace = CargoWorkspace::new(meta, manifest_path);
     let project_workspace = ProjectWorkspace::Cargo {
         cargo: cargo_workspace,
         build_scripts: WorkspaceBuildScripts::default(),
@@ -41,8 +44,10 @@ fn load_cargo_with_fake_sysroot(
     file_map: &mut FxHashMap<AbsPathBuf, FileId>,
     file: &str,
 ) -> (CrateGraph, ProcMacroPaths) {
-    let meta = get_test_json_file(file);
-    let cargo_workspace = CargoWorkspace::new(meta);
+    let meta: Metadata = get_test_json_file(file);
+    let manifest_path =
+        ManifestPath::try_from(AbsPathBuf::try_from(meta.workspace_root.clone()).unwrap()).unwrap();
+    let cargo_workspace = CargoWorkspace::new(meta, manifest_path);
     let project_workspace = ProjectWorkspace::Cargo {
         cargo: cargo_workspace,
         build_scripts: WorkspaceBuildScripts::default(),
@@ -268,9 +273,10 @@ fn smoke_test_real_sysroot_cargo() {
         return;
     }
     let file_map = &mut FxHashMap::<AbsPathBuf, FileId>::default();
-    let meta = get_test_json_file("hello-world-metadata.json");
-
-    let cargo_workspace = CargoWorkspace::new(meta);
+    let meta: Metadata = get_test_json_file("hello-world-metadata.json");
+    let manifest_path =
+        ManifestPath::try_from(AbsPathBuf::try_from(meta.workspace_root.clone()).unwrap()).unwrap();
+    let cargo_workspace = CargoWorkspace::new(meta, manifest_path);
     let sysroot = Ok(Sysroot::discover(
         AbsPath::assert(Utf8Path::new(env!("CARGO_MANIFEST_DIR"))),
         &Default::default(),

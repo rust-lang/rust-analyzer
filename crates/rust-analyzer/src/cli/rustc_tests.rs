@@ -10,7 +10,9 @@ use ide::{AnalysisHost, DiagnosticCode, DiagnosticsConfig};
 use itertools::Either;
 use profile::StopWatch;
 use project_model::target_data_layout::RustcDataLayoutConfig;
-use project_model::{target_data_layout, CargoConfig, ProjectWorkspace, RustLibSource, Sysroot};
+use project_model::{
+    target_data_layout, CargoConfig, ManifestPath, ProjectWorkspace, RustLibSource, Sysroot,
+};
 
 use load_cargo::{load_workspace, LoadCargoConfig, ProcMacroServerChoice};
 use rustc_hash::FxHashMap;
@@ -76,7 +78,7 @@ impl Tester {
         );
 
         let workspace = ProjectWorkspace::DetachedFile {
-            file: tmp_file,
+            file: ManifestPath::try_from(tmp_file).unwrap(),
             sysroot,
             rustc_cfg: vec![],
             toolchain: None,

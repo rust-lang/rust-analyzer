@@ -51,6 +51,7 @@ pub trait FileLoader {
     /// Text of the file.
     fn file_text(&self, file_id: FileId) -> Arc<str>;
     fn resolve_path(&self, path: AnchoredPath<'_>) -> Option<FileId>;
+    /// Crates whose root's source root is the same as the source root of `file_id`
     fn relevant_crates(&self, file_id: FileId) -> Arc<[CrateId]>;
 }
 
@@ -104,6 +105,7 @@ pub trait SourceDatabaseExt: SourceDatabase {
     #[salsa::input]
     fn source_root(&self, id: SourceRootId) -> Arc<SourceRoot>;
 
+    /// Crates whose root fool is in `id`.
     fn source_root_crates(&self, id: SourceRootId) -> Arc<[CrateId]>;
 }
 

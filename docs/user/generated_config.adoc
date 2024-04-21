@@ -778,7 +778,8 @@ Disable project auto-discovery in favor of explicitly specified set
 of projects.
 
 Elements must be paths pointing to `Cargo.toml`,
-`rust-project.json`, or JSON objects in `rust-project.json` format.
+`rust-project.json`, `.rs` files (which will be treated as standalone files) or JSON
+objects in `rust-project.json` format.
 --
 [[rust-analyzer.lru.capacity]]rust-analyzer.lru.capacity (default: `null`)::
 +

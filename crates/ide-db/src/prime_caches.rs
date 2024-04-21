@@ -1,6 +1,6 @@
 //! rust-analyzer is lazy and doesn't compute anything unless asked. This
 //! sometimes is counter productive when, for example, the first goto definition
-//! request takes longer to compute. This modules implemented prepopulation of
+//! request takes longer to compute. This module implements prepopulation of
 //! various caches, it's not really advanced at the moment.
 mod topologic_sort;
 

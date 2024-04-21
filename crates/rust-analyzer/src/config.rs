@@ -356,7 +356,8 @@ config_data! {
         /// of projects.
         ///
         /// Elements must be paths pointing to `Cargo.toml`,
-        /// `rust-project.json`, or JSON objects in `rust-project.json` format.
+        /// `rust-project.json`, `.rs` files (which will be treated as standalone files) or JSON
+        /// objects in `rust-project.json` format.
         linkedProjects: Vec<ManifestOrProjectJson> = vec![],
 
         /// Number of syntax trees rust-analyzer keeps in memory. Defaults to 128.
@@ -1301,12 +1302,9 @@ impl Config {
                     self.files_excludeDirs().iter().map(|p| self.root_path.join(p)).collect();
                 self.discovered_projects
                     .iter()
-                    .filter(
-                        |(ProjectManifest::ProjectJson(path)
-                         | ProjectManifest::CargoToml(path))| {
-                            !exclude_dirs.iter().any(|p| path.starts_with(p))
-                        },
-                    )
+                    .filter(|project| {
+                        !exclude_dirs.iter().any(|p| project.manifest_path().starts_with(p))
+                    })
                     .cloned()
                     .map(LinkedProject::from)
                     .collect()

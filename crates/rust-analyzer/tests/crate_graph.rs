@@ -1,14 +1,18 @@
 use std::path::PathBuf;
 
-use project_model::{CargoWorkspace, ProjectWorkspace, Sysroot, WorkspaceBuildScripts};
+use project_model::{
+    CargoWorkspace, ManifestPath, Metadata, ProjectWorkspace, Sysroot, WorkspaceBuildScripts,
+};
 use rust_analyzer::ws_to_crate_graph;
 use rustc_hash::FxHashMap;
 use serde::de::DeserializeOwned;
 use vfs::{AbsPathBuf, FileId};
 
 fn load_cargo_with_fake_sysroot(file: &str) -> ProjectWorkspace {
-    let meta = get_test_json_file(file);
-    let cargo_workspace = CargoWorkspace::new(meta);
+    let meta: Metadata = get_test_json_file(file);
+    let manifest_path =
+        ManifestPath::try_from(AbsPathBuf::try_from(meta.workspace_root.clone()).unwrap()).unwrap();
+    let cargo_workspace = CargoWorkspace::new(meta, manifest_path);
     ProjectWorkspace::Cargo {
         cargo: cargo_workspace,
         build_scripts: WorkspaceBuildScripts::default(),
