@@ -1,6 +1,8 @@
 //! Fully type-check project and print various stats, like the number of type
 //! errors.
 
+use crossbeam_channel::unbounded;
+
 use std::{
     env,
     time::{SystemTime, UNIX_EPOCH},
@@ -22,7 +24,7 @@ use ide::{
 use ide_db::{
     base_db::{
         salsa::{self, debug::DebugQueryTable, ParallelDatabase},
-        SourceDatabase, SourceDatabaseExt,
+        SourceDatabase, SourceDatabaseExt, Upcast,
     },
     LineIndexDatabase,
 };
@@ -132,31 +134,43 @@ impl flags::AnalysisStats {
         report_metric("item tree time", item_tree_time.time.as_millis() as u64, "ms");
 
         let mut crate_def_map_sw = self.stop_watch();
-        let mut num_crates = 0;
-        let mut visited_modules = FxHashSet::default();
-        let mut visit_queue = Vec::new();
-        for krate in krates {
-            let module = krate.root_module();
-            let file_id = module.definition_source_file_id(db);
-            let file_id = file_id.original_file(db);
-            let source_root = db.file_source_root(file_id);
-            let source_root = db.source_root(source_root);
-            if !source_root.is_library || self.with_deps {
-                num_crates += 1;
-                visit_queue.push(module);
-            }
-        }
 
+        let (s, r) = unbounded();
+
+        // Computing the file_id for a module is computationally expensive, because we
+        // need to resolve all the imports in the definition map. Handle each crate in
+        // parallel.
+        krates
+            .into_iter()
+            .map(|krate| (krate, db.snapshot(), s.clone()))
+            .collect::<Vec<_>>()
+            .into_par_iter()
+            .for_each(|(krate, db, s)| {
+                let module = krate.root_module();
+                let file_id = module.definition_source_file_id(db.upcast());
+                let file_id = file_id.original_file(db.upcast());
+                let source_root = db.file_source_root(file_id);
+                let source_root = db.source_root(source_root);
+
+                if !source_root.is_library || self.with_deps {
+                    s.send(module).unwrap();
+                }
+            });
+
+        drop(s);
+        let mut visit_queue = r.iter().collect::<Vec<_>>();
         if self.randomize {
             shuffle(&mut rng, &mut visit_queue);
         }
 
-        eprint!("  crates: {num_crates}");
+        eprint!("  crates: {}", visit_queue.len());
         let mut num_decls = 0;
         let mut bodies = Vec::new();
         let mut adts = Vec::new();
         let mut consts = Vec::new();
         let mut file_ids = Vec::new();
+        let mut visited_modules = FxHashSet::default();
+
         while let Some(module) = visit_queue.pop() {
             if visited_modules.insert(module) {
                 file_ids.extend(module.as_source_file_id(db));
