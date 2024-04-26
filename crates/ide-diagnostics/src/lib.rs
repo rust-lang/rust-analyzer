@@ -408,7 +408,8 @@ pub fn diagnostics(
     }
 
     res.retain(|d| {
-        !(ctx.config.disabled.contains(d.code.as_str())
+        !(matches!(d.code, DiagnosticCode::Ra(..)) && !ctx.config.enabled
+            || ctx.config.disabled.contains(d.code.as_str())
             || ctx.config.disable_experimental && d.experimental)
     });
 

@@ -17,7 +17,7 @@ mod support;
 mod testdir;
 mod tidy;
 
-use std::{collections::HashMap, path::PathBuf, time::Instant};
+use std::{collections::HashMap, path::PathBuf, str::FromStr, time::Instant};
 
 use lsp_types::{
     notification::DidOpenTextDocument,
@@ -28,7 +28,8 @@ use lsp_types::{
     CodeActionContext, CodeActionParams, CompletionParams, DidOpenTextDocumentParams,
     DocumentFormattingParams, FileRename, FormattingOptions, GotoDefinitionParams, HoverParams,
     InlayHint, InlayHintLabel, InlayHintParams, PartialResultParams, Position, Range,
-    RenameFilesParams, TextDocumentItem, TextDocumentPositionParams, WorkDoneProgressParams,
+    RenameFilesParams, TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, Url,
+    WorkDoneProgressParams,
 };
 use rust_analyzer::lsp::ext::{OnEnter, Runnables, RunnablesParams, UnindexedProject};
 use serde_json::json;
@@ -1373,4 +1374,90 @@ version = "0.0.0"
     .wait_until_workspace_is_loaded();
 
     server.request::<WorkspaceSymbolRequest>(Default::default(), json!([]));
+}
+
+/// Issue #17048 reports that setting "rust-analyzer.diagnostics.enable" to false
+/// causes "missing fields" diagnostics to not disappear. This test makes sure that
+/// this is not the case anymore.
+#[test]
+fn test_fill_missing_fields_is_rustc_diagnostic() {
+    if skip_slow_tests() {
+        return;
+    }
+
+    let tmp_dir = TestDir::new();
+    let tmp_dir_path = tmp_dir.path().to_owned();
+    let tmp_dir_str = tmp_dir_path.as_str();
+
+    let server = Project::with_fixture(
+        r#"
+//- /foo/Cargo.toml
+[package]
+name = "sandbox"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+
+//- /foo/src/lib.rs
+struct St {
+    a: u8,
+    b: u8,
+}
+
+fn abc() {
+    let a = St {};
+}
+"#,
+    )
+    .with_config(json!({
+        "hover":  {
+            "documentation" : {
+                "keywords": {
+                    "enable": false
+                }
+            }
+        },
+        "cargo" : {
+            "buildScripts" : {
+                "useRustcWrapper": false
+            }
+        },
+        "workspace" : {
+            "symbol" : {
+                "search" : {
+                    "kind": "all_symbols"
+                }
+            }
+        },
+        "diagnostics" : {
+            "enable": false
+        },
+        "inlayHints" : {
+            "closureStyle" : "rust_analyzer"
+        },
+        "cargo" : {
+            "sysrootQueryMetadata": true
+        },
+    }))
+    .root("foo")
+    .tmp_dir(tmp_dir)
+    .server()
+    .wait_until_workspace_is_loaded();
+
+    let _ = server.send_request::<CodeActionRequest>(CodeActionParams {
+        text_document: TextDocumentIdentifier {
+            uri: Url::from_str(&format!("file://{tmp_dir_str}/foo/src/lib.rs")).unwrap(),
+        },
+        range: Range {
+            start: Position { line: 6, character: 16 },
+            end: Position { line: 6, character: 17 },
+        },
+        context: CodeActionContext::default(),
+        work_done_progress_params: WorkDoneProgressParams::default(),
+        partial_result_params: PartialResultParams::default(),
+    });
 }
