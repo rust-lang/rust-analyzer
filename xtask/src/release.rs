@@ -219,12 +219,12 @@ impl flags::RustcPush {
 /// Used for rustc syncs.
 const JOSH_FILTER: &str =
     ":rev(55d9a533b309119c8acd13061581b43ae8840823:prefix=src/tools/rust-analyzer):/src/tools/rust-analyzer";
-const JOSH_PORT: &str = "42042";
+const JOSH_PORT: &str = "42043";
 
 fn start_josh() -> anyhow::Result<impl Drop> {
     // Determine cache directory.
     let local_dir = {
-        let user_dirs = ProjectDirs::from("org", "rust-lang", "rust-analyzer-josh").unwrap();
+        let user_dirs = ProjectDirs::from("org", "rust-lang", "rust-analyzer-josh-dev").unwrap();
         user_dirs.cache_dir().to_owned()
     };
 
