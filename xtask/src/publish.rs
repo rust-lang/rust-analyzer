@@ -9,6 +9,22 @@ impl flags::PublishReleaseNotes {
     pub(crate) fn run(self, sh: &Shell) -> anyhow::Result<()> {
         let asciidoc = sh.read_file(&self.changelog)?;
         let mut markdown = notes::convert_asciidoc_to_markdown(std::io::Cursor::new(&asciidoc))?;
+
+        // Remove changelog header because GitHub misinterprets the changelog number as issue reference
+        let changelog_header_prefix = "# Changelog #";
+        let mut changelog_header_start =
+            markdown.find(changelog_header_prefix).expect("should contain changelog header");
+        changelog_header_start =
+            markdown[..changelog_header_start].rfind('\n').map_or(0, |i| i + 1);
+        let mut changelog_header_end = changelog_header_start + changelog_header_prefix.len();
+        changelog_header_end += markdown[changelog_header_end..].find('\n').unwrap() + 1;
+        while changelog_header_end < markdown.len()
+            && markdown.as_bytes()[changelog_header_end] == b'\n'
+        {
+            changelog_header_end += 1;
+        }
+        markdown.replace_range(changelog_header_start..changelog_header_end, "");
+
         let file_name = check_file_name(self.changelog)?;
         let tag_name = &file_name[0..10];
         let original_changelog_url = create_original_changelog_url(&file_name);
