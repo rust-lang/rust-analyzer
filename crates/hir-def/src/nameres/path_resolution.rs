@@ -470,7 +470,7 @@ impl DefMap {
         };
 
         let extern_prelude = || {
-            if self.block.is_some() {
+            if self.block.is_some() && !self.is_root_block_in_module() {
                 // Don't resolve extern prelude in block `DefMap`s, defer it to the crate def map so
                 // that blocks can properly shadow them
                 return PerNs::none();
@@ -515,7 +515,7 @@ impl DefMap {
             None => self[Self::ROOT].scope.get(name),
         };
         let from_extern_prelude = || {
-            if self.block.is_some() {
+            if self.block.is_some() && !self.is_root_block_in_module() {
                 // Don't resolve extern prelude in block `DefMap`s.
                 return PerNs::none();
             }

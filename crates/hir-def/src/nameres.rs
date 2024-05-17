@@ -67,7 +67,7 @@ use itertools::Itertools;
 use la_arena::Arena;
 use rustc_hash::{FxHashMap, FxHashSet};
 use span::{Edition, FileAstId, ROOT_ERASED_FILE_AST_ID};
-use stdx::format_to;
+use stdx::{format_to, IsNoneOr};
 use syntax::{ast, SmolStr};
 use triomphe::Arc;
 use tt::TextRange;
@@ -476,6 +476,10 @@ impl DefMap {
 
     pub fn crate_root(&self) -> CrateRootModuleId {
         CrateRootModuleId { krate: self.krate }
+    }
+
+    pub fn is_root_block_in_module(&self) -> bool {
+        self.block.is_none_or(|block| !block.parent.is_block_module())
     }
 
     /// This is the same as [`Self::crate_root`] for crate def maps, but for block def maps, it
