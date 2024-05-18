@@ -616,7 +616,7 @@ dependencies = [
  "oorandom",
  "project-model",
  "ra-ap-rustc_abi",
- "ra-ap-rustc_index",
+ "ra-ap-rustc_index 0.52.0",
  "ra-ap-rustc_pattern_analysis",
  "rustc-hash",
  "scoped-tls",
@@ -1260,7 +1260,7 @@ dependencies = [
  "drop_bomb",
  "expect-test",
  "limit",
- "ra-ap-rustc_lexer",
+ "ra-ap-rustc_lexer 0.52.0",
  "sourcegen",
  "stdx",
  "tracing",
@@ -1367,7 +1367,7 @@ dependencies = [
  "paths",
  "proc-macro-api",
  "proc-macro-test",
- "ra-ap-rustc_lexer",
+ "ra-ap-rustc_lexer 0.52.0",
  "span",
  "stdx",
  "tt",
@@ -1486,12 +1486,12 @@ dependencies = [
 
 [[package]]
 name = "ra-ap-rustc_abi"
-version = "0.44.0"
+version = "0.52.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8709df2a746f055316bc0c62bd30948695a25e734863bf6e1f9755403e010ab"
+checksum = "fe54b7dc88e196597b450ff3e5b7f0ca65ac6108a0075c38b1fa35e8f94ed317"
 dependencies = [
  "bitflags 2.5.0",
- "ra-ap-rustc_index",
+ "ra-ap-rustc_index 0.52.0",
  "tracing",
 ]
 
@@ -1502,7 +1502,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ad68bacffb87dcdbb23a3ce11261375078aaa06b85d348c49f39ffd5510dc20"
 dependencies = [
  "arrayvec",
- "ra-ap-rustc_index_macros",
+ "ra-ap-rustc_index_macros 0.44.0",
+ "smallvec",
+]
+
+[[package]]
+name = "ra-ap-rustc_index"
+version = "0.52.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d909bfc2f9416da6102899496ea73cf2646d411ed28da38f2b95a26c620be32"
+dependencies = [
+ "arrayvec",
+ "ra-ap-rustc_index_macros 0.52.0",
  "smallvec",
 ]
 
@@ -1511,6 +1522,18 @@ name = "ra-ap-rustc_index_macros"
 version = "0.44.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8782aaf3a113837c533dfb1c45df91cd17e1fdd1d2f9a20c2e0d1976025c4f1f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+ "synstructure",
+]
+
+[[package]]
+name = "ra-ap-rustc_index_macros"
+version = "0.52.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5acb12ee148d25b3acb75b30edeb3dd6a123aed8c4cc4fa2521e5829b8ac6c19"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1529,13 +1552,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "ra-ap-rustc_lexer"
+version = "0.52.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "238b016b75284d1614d7b139e3cf6ddf2ccd8278ce8940ac5844bae50b12a45b"
+dependencies = [
+ "unicode-properties",
+ "unicode-xid",
+]
+
+[[package]]
 name = "ra-ap-rustc_parse_format"
 version = "0.44.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bcf9ff5edbf784b67b8ad5e03a068f1300fcc24062c0d476b3018965135d933"
 dependencies = [
- "ra-ap-rustc_index",
- "ra-ap-rustc_lexer",
+ "ra-ap-rustc_index 0.44.0",
+ "ra-ap-rustc_lexer 0.44.0",
 ]
 
 [[package]]
@@ -1544,7 +1577,7 @@ version = "0.44.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d63d1e1d5b2a13273cee1a10011147418f40e12b70f70578ce1dee0f1cafc334"
 dependencies = [
- "ra-ap-rustc_index",
+ "ra-ap-rustc_index 0.44.0",
  "rustc-hash",
  "rustc_apfloat",
  "smallvec",
@@ -1956,7 +1989,7 @@ dependencies = [
  "itertools",
  "once_cell",
  "parser",
- "ra-ap-rustc_lexer",
+ "ra-ap-rustc_lexer 0.52.0",
  "rayon",
  "rowan",
  "rustc-hash",
