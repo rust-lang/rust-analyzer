@@ -151,6 +151,23 @@ fn main() {
 }
 
 #[test]
+fn doctest_add_lifetime_to_function() {
+    check_doc_test(
+        "add_lifetime_to_function",
+        r#####"
+fn print(s: &$0'a str) {
+    println!("{s}");
+}
+"#####,
+        r#####"
+fn print<'a>(s: &'a str) {
+    println!("{s}");
+}
+"#####,
+    )
+}
+
+#[test]
 fn doctest_add_lifetime_to_type() {
     check_doc_test(
         "add_lifetime_to_type",
