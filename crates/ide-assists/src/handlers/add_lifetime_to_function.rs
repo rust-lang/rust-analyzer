@@ -320,6 +320,15 @@ mod tests {
     }
 
     #[test]
+    fn test_add_lifetime_for_where_bound() {
+        check_assist(
+            add_lifetime_to_function,
+            r#"fn f<'a>(s: &str) where 'a: '$0b { }"#,
+            r#"fn f<'a, 'b>(s: &str) where 'a: 'b { }"#,
+        );
+    }
+
+    #[test]
     fn test_add_2_lifetimes_to_function() {
         check_assist(
             add_lifetime_to_function,
