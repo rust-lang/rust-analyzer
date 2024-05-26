@@ -68,7 +68,7 @@ pub(crate) fn move_definition_to_file(acc: &mut Assists, ctx: &AssistContext<'_>
     let target = adt.syntax().text_range();
 
     let parent_module = ctx.sema.file_to_module_def(ctx.file_id()).unwrap();
-    let module_ast = adt.syntax().parent().and_then(ast::Module::cast);
+    let module_ast = adt.syntax().ancestors().find_map(ast::Module::cast);
 
     acc.add(
         AssistId("move_definition_to_file", AssistKind::RefactorExtract),
@@ -93,25 +93,27 @@ pub(crate) fn move_definition_to_file(acc: &mut Assists, ctx: &AssistContext<'_>
             );
             builder.replace(target, mod_and_use_declaration);
 
-            let dst = AnchoredPathBuf { anchor: ctx.file_id(), path };
+            let dst = AnchoredPathBuf { anchor: ctx.file_id(), path: path.display().to_string() };
             builder.create_file(dst, buf);
         },
     )
 }
+
+use std::path::PathBuf;
 
 fn construct_path(
     ctx: &AssistContext<'_>,
     parent_module: &hir::Module,
     module_ast: Option<ast::Module>,
     module_name: &str,
-) -> String {
-    let mut buf = String::from("./");
+) -> PathBuf {
+    let mut path = PathBuf::from("./");
     let db = ctx.db();
     if let Some(name) = parent_module.name(db) {
         if !parent_module.is_mod_rs(db)
             && parent_module.attrs(db).by_key("path").string_value_unescape().is_none()
         {
-            format_to!(buf, "{}/", name.display(db));
+            path.push(name.display(db).to_string());
         }
     }
 
@@ -120,9 +122,11 @@ fn construct_path(
         .map(|name| SmolStr::from(name.text().trim_start_matches("r#")))
         .collect::<Vec<_>>();
 
-    format_to!(buf, "{}", segments.into_iter().rev().format("/"));
-    format_to!(buf, "{}.rs", module_name);
-    buf
+    for segment in segments.into_iter().rev() {
+        path.push(segment.as_str());
+    }
+    path.push(format!("{}.rs", module_name));
+    path
 }
 
 #[cfg(test)]
@@ -217,7 +221,7 @@ impl FooBar {
             r#"
 //- /main.rs
 mod services;
-//- /services.rs
+//- /services/mod.rs
 struct $0Foo {
     id: u32,
 }
@@ -229,7 +233,7 @@ impl Foo {
 }
 "#,
             r#"
-//- /services.rs
+//- /services/mod.rs
 mod foo;
 use foo::*;
 
