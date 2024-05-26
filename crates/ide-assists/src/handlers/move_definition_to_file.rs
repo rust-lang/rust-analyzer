@@ -6,7 +6,7 @@ use ide_db::base_db::AnchoredPathBuf;
 use stdx::to_lower_snake_case;
 use syntax::{
     ast::{self, HasName, HasVisibility},
-    AstNode, SmolStr,
+    AstNode,
 };
 
 // Assist: move_definition_to_file
