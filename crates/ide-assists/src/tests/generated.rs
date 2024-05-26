@@ -2234,6 +2234,27 @@ impl S {
 }
 
 #[test]
+fn doctest_move_definition_to_file() {
+    check_doc_test(
+        "move_definition_to_file",
+        r#####"
+struct $0Foo {
+    x: i32,
+}
+impl Foo {
+    fn new(x: i32) -> Self {
+        Self { x }
+    }
+}
+"#####,
+        r#####"
+mod foo;
+use foo::*;
+"#####,
+    )
+}
+
+#[test]
 fn doctest_move_from_mod_rs() {
     check_doc_test(
         "move_from_mod_rs",
