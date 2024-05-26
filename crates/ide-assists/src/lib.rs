@@ -177,6 +177,7 @@ mod handlers {
     mod merge_nested_if;
     mod move_bounds;
     mod move_const_to_impl;
+    mod move_definition_to_file;
     mod move_from_mod_rs;
     mod move_guard;
     mod move_module_to_file;
@@ -299,6 +300,7 @@ mod handlers {
             merge_nested_if::merge_nested_if,
             move_bounds::move_bounds_to_where_clause,
             move_const_to_impl::move_const_to_impl,
+            move_definition_to_file::move_definition_to_file,
             move_guard::move_arm_cond_to_match_guard,
             move_guard::move_guard_to_arm_body,
             move_module_to_file::move_module_to_file,
