@@ -1,11 +1,15 @@
+use std::iter;
+
+use hir::HasAttrs;
 use ide_db::base_db::AnchoredPathBuf;
-use stdx::to_lower_snake_case;
+use itertools::Itertools;
+use stdx::{format_to, to_lower_snake_case};
 use syntax::{
     ast::{self, HasName, HasVisibility},
-    AstNode,
+    AstNode, SmolStr,
 };
 
-use crate::{utils::find_struct_impl, AssistContext, AssistId, AssistKind, Assists};
+use crate::{AssistContext, AssistId, AssistKind, Assists};
 
 fn find_all_impls(ctx: &AssistContext<'_>, adt: &ast::Adt) -> Vec<ast::Impl> {
     let db = ctx.db();
@@ -63,18 +67,45 @@ pub(crate) fn move_definition_to_file(acc: &mut Assists, ctx: &AssistContext<'_>
     let impls = find_all_impls(ctx, &adt);
     let target = adt.syntax().text_range();
 
+    let parent_module = ctx.sema.file_to_module_def(ctx.file_id()).unwrap();
+    let module_ast = adt.syntax().parent().and_then(ast::Module::cast);
+
     acc.add(
         AssistId("move_definition_to_file", AssistKind::RefactorExtract),
         "Extract definition to file",
         target,
         |builder| {
             let module_name = to_lower_snake_case(&adt_name.text());
-            let path = format!("./{}.rs", module_name);
+            let path = {
+                let mut buf = String::from("./");
+                let db = ctx.db();
+                match parent_module.name(db) {
+                    Some(name)
+                        if !parent_module.is_mod_rs(db)
+                            && parent_module
+                                .attrs(db)
+                                .by_key("path")
+                                .string_value_unescape()
+                                .is_none() =>
+                    {
+                        format_to!(buf, "{}/", name.display(db))
+                    }
+                    _ => (),
+                }
+                let segments = iter::successors(module_ast, |module| module.parent())
+                    .filter_map(|it| it.name())
+                    .map(|name| SmolStr::from(name.text().trim_start_matches("r#")))
+                    .collect::<Vec<_>>();
 
-            let mut content = adt_text.clone();
+                format_to!(buf, "{}", segments.into_iter().rev().format("/"));
+                format_to!(buf, "{}.rs", module_name);
+                buf
+            };
+
+            let mut buf = adt_text.clone();
             for impl_def in impls {
-                content.push_str("\n\n");
-                content.push_str(&impl_def.syntax().text().to_string());
+                buf.push_str("\n\n");
+                buf.push_str(&impl_def.syntax().text().to_string());
                 builder.delete(impl_def.syntax().text_range());
             }
 
@@ -88,7 +119,7 @@ pub(crate) fn move_definition_to_file(acc: &mut Assists, ctx: &AssistContext<'_>
             builder.replace(target, mod_and_use_declaration);
 
             let dst = AnchoredPathBuf { anchor: ctx.file_id(), path };
-            builder.create_file(dst, content);
+            builder.create_file(dst, buf);
         },
     )
 }
@@ -173,6 +204,43 @@ struct FooBar {
 impl FooBar {
     fn new(x: i32) -> Self {
         Self { x }
+    }
+}"#,
+        );
+    }
+
+    #[test]
+    fn extract_struct_from_services_file() {
+        check_assist(
+            move_definition_to_file,
+            r#"
+//- /main.rs
+mod services;
+//- /services.rs
+struct $0Foo {
+    id: u32,
+}
+
+impl Foo {
+    fn new(id: u32) -> Self {
+        Self { id }
+    }
+}
+"#,
+            r#"
+//- /services.rs
+mod foo;
+use foo::*;
+
+
+//- /services/foo.rs
+struct Foo {
+    id: u32,
+}
+
+impl Foo {
+    fn new(id: u32) -> Self {
+        Self { id }
     }
 }"#,
         );
