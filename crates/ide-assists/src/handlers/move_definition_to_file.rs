@@ -3,7 +3,6 @@ use std::iter;
 use crate::{AssistContext, AssistId, AssistKind, Assists};
 use hir::HasAttrs;
 use ide_db::base_db::AnchoredPathBuf;
-use std::path::PathBuf;
 use stdx::to_lower_snake_case;
 use syntax::{
     ast::{self, HasName, HasVisibility},
@@ -64,7 +63,7 @@ pub(crate) fn move_definition_to_file(acc: &mut Assists, ctx: &AssistContext<'_>
             );
             builder.replace(target, mod_and_use_declaration);
 
-            let dst = AnchoredPathBuf { anchor: ctx.file_id(), path: path.display().to_string() };
+            let dst = AnchoredPathBuf { anchor: ctx.file_id(), path };
             builder.create_file(dst, buf);
         },
     )
@@ -75,27 +74,25 @@ fn construct_path(
     parent_module: &hir::Module,
     module_ast: Option<ast::Module>,
     module_name: &str,
-) -> PathBuf {
-    let mut path = PathBuf::from("./");
+) -> String {
     let db = ctx.db();
+    let mut path_segments = vec![".".to_string()];
     if let Some(name) = parent_module.name(db) {
         if !parent_module.is_mod_rs(db)
             && parent_module.attrs(db).by_key("path").string_value_unescape().is_none()
         {
-            path.push(name.display(db).to_string());
+            path_segments.push(name.display(db).to_string());
         }
     }
 
-    let segments = iter::successors(module_ast, |module| module.parent())
+    let module_segments = iter::successors(module_ast, |module| module.parent())
         .filter_map(|it| it.name())
-        .map(|name| SmolStr::from(name.text().trim_start_matches("r#")))
+        .map(|name| name.text().trim_start_matches("r#").to_string())
         .collect::<Vec<_>>();
 
-    for segment in segments.into_iter().rev() {
-        path.push(segment.as_str());
-    }
-    path.push(format!("{}.rs", module_name));
-    path
+    path_segments.extend(module_segments.into_iter().rev());
+    path_segments.push(format!("{}.rs", module_name));
+    path_segments.join("/")
 }
 
 fn find_all_impls(ctx: &AssistContext<'_>, adt: &ast::Adt) -> Vec<ast::Impl> {
