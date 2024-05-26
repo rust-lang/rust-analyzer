@@ -7,6 +7,35 @@ use syntax::{
 
 use crate::{utils::find_struct_impl, AssistContext, AssistId, AssistKind, Assists};
 
+fn find_all_impls(ctx: &AssistContext<'_>, adt: &ast::Adt) -> Vec<ast::Impl> {
+    let db = ctx.db();
+    let module = match adt.syntax().parent() {
+        Some(module) => module,
+        None => return Vec::new(),
+    };
+
+    let struct_def = match ctx.sema.to_def(adt) {
+        Some(def) => def,
+        None => return Vec::new(),
+    };
+
+    module
+        .descendants()
+        .filter_map(ast::Impl::cast)
+        .filter(|impl_blk| {
+            let blk = match ctx.sema.to_def(impl_blk) {
+                Some(def) => def,
+                None => return false,
+            };
+
+            match blk.self_ty(db).as_adt() {
+                Some(def) => def == struct_def,
+                None => false,
+            }
+        })
+        .collect()
+}
+
 // Assist: move_definition_to_file
 //
 // Moves the selected ADT and its impl to a separate file as a new module.
@@ -31,7 +60,7 @@ pub(crate) fn move_definition_to_file(acc: &mut Assists, ctx: &AssistContext<'_>
     let adt_name = adt.name()?;
     let adt_text = adt.syntax().text().to_string();
 
-    let impl_def = find_struct_impl(ctx, &adt, &[]).flatten();
+    let impls = find_all_impls(ctx, &adt);
     let target = adt.syntax().text_range();
 
     acc.add(
@@ -42,18 +71,19 @@ pub(crate) fn move_definition_to_file(acc: &mut Assists, ctx: &AssistContext<'_>
             let module_name = to_lower_snake_case(&adt_name.text());
             let path = format!("./{}.rs", module_name);
 
-            let mut content = adt_text.to_string();
-            if let Some(impl_def) = impl_def {
+            let mut content = adt_text.clone();
+            for impl_def in impls {
                 content.push_str("\n\n");
                 content.push_str(&impl_def.syntax().text().to_string());
                 builder.delete(impl_def.syntax().text_range());
             }
 
-            let visibility = adt.visibility().map(|v| v.to_string() + " ");
-            let visibility = visibility.as_deref().unwrap_or("");
+            // visibilty = "pub ", or "pub(crate) ", or "", etc.
+            let visibility = adt.visibility().map_or_else(String::new, |v| format!("{} ", v));
             let mod_and_use_declaration = format!(
-                "{}mod {};\n{}use {}::*;",
-                visibility, module_name, visibility, module_name
+                "{vis}mod {name};\n{vis}use {name}::*;",
+                vis = visibility,
+                name = module_name
             );
             builder.replace(target, mod_and_use_declaration);
 
@@ -95,19 +125,19 @@ struct Foo {
         check_assist(
             move_definition_to_file,
             r#"
-    //- /main.rs
-    pub(crate) struct $0Foo {
-        x: i32,
-    }
-    "#,
+//- /main.rs
+pub(crate) struct $0Foo {
+    x: i32,
+}
+"#,
             r#"
-    //- /main.rs
-    pub(crate) mod foo;
-    pub(crate) use foo::*;
-    //- /foo.rs
-    pub(crate) struct Foo {
-        x: i32,
-    }"#,
+//- /main.rs
+pub(crate) mod foo;
+pub(crate) use foo::*;
+//- /foo.rs
+pub(crate) struct Foo {
+    x: i32,
+}"#,
         );
     }
 
@@ -143,6 +173,55 @@ struct FooBar {
 impl FooBar {
     fn new(x: i32) -> Self {
         Self { x }
+    }
+}"#,
+        );
+    }
+
+    #[test]
+    fn extract_struct_with_trait_impl() {
+        check_assist(
+            move_definition_to_file,
+            r#"
+//- /main.rs
+struct $0Foo {
+    x: i32,
+}
+
+impl Foo {
+    fn new(x: i32) -> Self {
+        Self { x }
+    }
+}
+
+impl std::fmt::Display for Foo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Foo: {}", self.x)
+    }
+}
+"#,
+            r#"
+//- /main.rs
+mod foo;
+use foo::*;
+
+
+
+
+//- /foo.rs
+struct Foo {
+    x: i32,
+}
+
+impl Foo {
+    fn new(x: i32) -> Self {
+        Self { x }
+    }
+}
+
+impl std::fmt::Display for Foo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Foo: {}", self.x)
     }
 }"#,
         );
