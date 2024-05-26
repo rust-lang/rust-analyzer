@@ -76,31 +76,7 @@ pub(crate) fn move_definition_to_file(acc: &mut Assists, ctx: &AssistContext<'_>
         target,
         |builder| {
             let module_name = to_lower_snake_case(&adt_name.text());
-            let path = {
-                let mut buf = String::from("./");
-                let db = ctx.db();
-                match parent_module.name(db) {
-                    Some(name)
-                        if !parent_module.is_mod_rs(db)
-                            && parent_module
-                                .attrs(db)
-                                .by_key("path")
-                                .string_value_unescape()
-                                .is_none() =>
-                    {
-                        format_to!(buf, "{}/", name.display(db))
-                    }
-                    _ => (),
-                }
-                let segments = iter::successors(module_ast, |module| module.parent())
-                    .filter_map(|it| it.name())
-                    .map(|name| SmolStr::from(name.text().trim_start_matches("r#")))
-                    .collect::<Vec<_>>();
-
-                format_to!(buf, "{}", segments.into_iter().rev().format("/"));
-                format_to!(buf, "{}.rs", module_name);
-                buf
-            };
+            let path = construct_path(ctx, &parent_module, module_ast, &module_name);
 
             let mut buf = adt_text.clone();
             for impl_def in impls {
@@ -109,7 +85,6 @@ pub(crate) fn move_definition_to_file(acc: &mut Assists, ctx: &AssistContext<'_>
                 builder.delete(impl_def.syntax().text_range());
             }
 
-            // visibilty = "pub ", or "pub(crate) ", or "", etc.
             let visibility = adt.visibility().map_or_else(String::new, |v| format!("{} ", v));
             let mod_and_use_declaration = format!(
                 "{vis}mod {name};\n{vis}use {name}::*;",
@@ -122,6 +97,32 @@ pub(crate) fn move_definition_to_file(acc: &mut Assists, ctx: &AssistContext<'_>
             builder.create_file(dst, buf);
         },
     )
+}
+
+fn construct_path(
+    ctx: &AssistContext<'_>,
+    parent_module: &hir::Module,
+    module_ast: Option<ast::Module>,
+    module_name: &str,
+) -> String {
+    let mut buf = String::from("./");
+    let db = ctx.db();
+    if let Some(name) = parent_module.name(db) {
+        if !parent_module.is_mod_rs(db)
+            && parent_module.attrs(db).by_key("path").string_value_unescape().is_none()
+        {
+            format_to!(buf, "{}/", name.display(db));
+        }
+    }
+
+    let segments = iter::successors(module_ast, |module| module.parent())
+        .filter_map(|it| it.name())
+        .map(|name| SmolStr::from(name.text().trim_start_matches("r#")))
+        .collect::<Vec<_>>();
+
+    format_to!(buf, "{}", segments.into_iter().rev().format("/"));
+    format_to!(buf, "{}.rs", module_name);
+    buf
 }
 
 #[cfg(test)]
@@ -243,6 +244,49 @@ impl Foo {
         Self { id }
     }
 }"#,
+        );
+    }
+
+    #[test]
+    fn extract_nested_struct() {
+        check_assist(
+            move_definition_to_file,
+            r#"
+//- /main.rs
+mod foo {
+    mod bar {
+        struct $0Baz {
+            y: i32,
+        }
+
+        impl Baz {
+            fn new(y: i32) -> Self {
+                Self { y }
+            }
+        }
+    }
+}
+"#,
+            r#"
+//- /main.rs
+mod foo {
+    mod bar {
+        mod baz;
+use baz::*;
+
+        
+    }
+}
+//- /foo/bar/baz.rs
+struct Baz {
+            y: i32,
+        }
+
+impl Baz {
+            fn new(y: i32) -> Self {
+                Self { y }
+            }
+        }"#,
         );
     }
 
