@@ -28,6 +28,7 @@ use syntax::{
 // ```
 // mod foo;
 // use foo::*;
+//
 // ```
 pub(crate) fn move_definition_to_file(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     let adt = ctx.find_node_at_offset::<ast::Adt>()?;
@@ -48,7 +49,7 @@ pub(crate) fn move_definition_to_file(acc: &mut Assists, ctx: &AssistContext<'_>
             let module_name = to_lower_snake_case(&adt_name.text());
             let path = construct_path(ctx, &parent_module, module_ast, &module_name);
 
-            let mut buf = adt_text.clone();
+            let mut buf = format!("use super::*;\n{}", adt_text);
             for impl_def in impls {
                 buf.push_str("\n\n");
                 buf.push_str(&impl_def.syntax().text().to_string());
@@ -147,6 +148,7 @@ struct $0Foo {
 mod foo;
 use foo::*;
 //- /foo.rs
+use super::*;
 struct Foo {
     x: i32,
 }"#,
@@ -168,6 +170,7 @@ pub(crate) struct $0Foo {
 pub(crate) mod foo;
 pub(crate) use foo::*;
 //- /foo.rs
+use super::*;
 pub(crate) struct Foo {
     x: i32,
 }"#,
@@ -198,6 +201,7 @@ use foo_bar::*;
 
 
 //- /foo_bar.rs
+use super::*;
 #[derive(Debug)]
 struct FooBar {
     x: i32,
@@ -236,6 +240,7 @@ use foo::*;
 
 
 //- /services/foo.rs
+use super::*;
 struct Foo {
     id: u32,
 }
@@ -279,6 +284,7 @@ use baz::*;
     }
 }
 //- /foo/bar/baz.rs
+use super::*;
 struct Baz {
     y: i32,
 }
@@ -322,6 +328,7 @@ use foo::*;
 
 
 //- /foo.rs
+use super::*;
 struct Foo {
     x: i32,
 }
@@ -356,6 +363,7 @@ enum $0MyEnum {
 mod my_enum;
 use my_enum::*;
 //- /my_enum.rs
+use super::*;
 enum MyEnum {
     Variant1,
     Variant2(i32),
@@ -387,6 +395,7 @@ use my_enum::*;
 
 
 //- /my_enum.rs
+use super::*;
 enum MyEnum {
     Variant1,
     Variant2(i32),
@@ -413,6 +422,7 @@ enum $0EmptyEnum {}
 mod empty_enum;
 use empty_enum::*;
 //- /empty_enum.rs
+use super::*;
 enum EmptyEnum {}"#,
         );
     }

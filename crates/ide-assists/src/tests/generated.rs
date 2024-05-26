@@ -2250,6 +2250,7 @@ impl Foo {
         r#####"
 mod foo;
 use foo::*;
+
 "#####,
     )
 }
