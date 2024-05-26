@@ -76,7 +76,7 @@ fn construct_path(
     module_name: &str,
 ) -> String {
     let db = ctx.db();
-    let mut path_segments = vec![".".to_string()];
+    let mut path_segments = vec![".".to_owned()];
     if let Some(name) = parent_module.name(db) {
         if !parent_module.is_mod_rs(db)
             && parent_module.attrs(db).by_key("path").string_value_unescape().is_none()
@@ -87,7 +87,7 @@ fn construct_path(
 
     let module_segments = iter::successors(module_ast, |module| module.parent())
         .filter_map(|it| it.name())
-        .map(|name| name.text().trim_start_matches("r#").to_string())
+        .map(|name| name.text().trim_start_matches("r#").to_owned())
         .collect::<Vec<_>>();
 
     path_segments.extend(module_segments.into_iter().rev());
