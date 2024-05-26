@@ -1,44 +1,14 @@
 use std::iter;
 
+use crate::{AssistContext, AssistId, AssistKind, Assists};
 use hir::HasAttrs;
 use ide_db::base_db::AnchoredPathBuf;
-use itertools::Itertools;
-use stdx::{format_to, to_lower_snake_case};
+use std::path::PathBuf;
+use stdx::to_lower_snake_case;
 use syntax::{
     ast::{self, HasName, HasVisibility},
     AstNode, SmolStr,
 };
-
-use crate::{AssistContext, AssistId, AssistKind, Assists};
-
-fn find_all_impls(ctx: &AssistContext<'_>, adt: &ast::Adt) -> Vec<ast::Impl> {
-    let db = ctx.db();
-    let module = match adt.syntax().parent() {
-        Some(module) => module,
-        None => return Vec::new(),
-    };
-
-    let struct_def = match ctx.sema.to_def(adt) {
-        Some(def) => def,
-        None => return Vec::new(),
-    };
-
-    module
-        .descendants()
-        .filter_map(ast::Impl::cast)
-        .filter(|impl_blk| {
-            let blk = match ctx.sema.to_def(impl_blk) {
-                Some(def) => def,
-                None => return false,
-            };
-
-            match blk.self_ty(db).as_adt() {
-                Some(def) => def == struct_def,
-                None => false,
-            }
-        })
-        .collect()
-}
 
 // Assist: move_definition_to_file
 //
@@ -99,8 +69,6 @@ pub(crate) fn move_definition_to_file(acc: &mut Assists, ctx: &AssistContext<'_>
     )
 }
 
-use std::path::PathBuf;
-
 fn construct_path(
     ctx: &AssistContext<'_>,
     parent_module: &hir::Module,
@@ -127,6 +95,35 @@ fn construct_path(
     }
     path.push(format!("{}.rs", module_name));
     path
+}
+
+fn find_all_impls(ctx: &AssistContext<'_>, adt: &ast::Adt) -> Vec<ast::Impl> {
+    let db = ctx.db();
+    let module = match adt.syntax().parent() {
+        Some(module) => module,
+        None => return Vec::new(),
+    };
+
+    let struct_def = match ctx.sema.to_def(adt) {
+        Some(def) => def,
+        None => return Vec::new(),
+    };
+
+    module
+        .descendants()
+        .filter_map(ast::Impl::cast)
+        .filter(|impl_blk| {
+            let blk = match ctx.sema.to_def(impl_blk) {
+                Some(def) => def,
+                None => return false,
+            };
+
+            match blk.self_ty(db).as_adt() {
+                Some(def) => def == struct_def,
+                None => false,
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -182,7 +179,7 @@ pub(crate) struct Foo {
         check_assist(
             move_definition_to_file,
             r#"
-//- /main.rs
+//- /lib.rs
 #[derive(Debug)]
 struct $0FooBar {
     x: i32,
@@ -195,7 +192,7 @@ impl FooBar {
 }
 "#,
             r#"
-//- /main.rs
+//- /lib.rs
 mod foo_bar;
 use foo_bar::*;
 
@@ -259,15 +256,15 @@ impl Foo {
 //- /main.rs
 mod foo {
     mod bar {
-        struct $0Baz {
-            y: i32,
-        }
+struct $0Baz {
+    y: i32,
+}
 
-        impl Baz {
-            fn new(y: i32) -> Self {
-                Self { y }
-            }
-        }
+impl Baz {
+    fn new(y: i32) -> Self {
+        Self { y }
+    }
+}
     }
 }
 "#,
@@ -275,22 +272,22 @@ mod foo {
 //- /main.rs
 mod foo {
     mod bar {
-        mod baz;
+mod baz;
 use baz::*;
 
-        
+
     }
 }
 //- /foo/bar/baz.rs
 struct Baz {
-            y: i32,
-        }
+    y: i32,
+}
 
 impl Baz {
-            fn new(y: i32) -> Self {
-                Self { y }
-            }
-        }"#,
+    fn new(y: i32) -> Self {
+        Self { y }
+    }
+}"#,
         );
     }
 
