@@ -242,6 +242,7 @@ fn eager_macro_recur(
 
                 ExpandResult { value, err }
             }
+            MacroDefKind::Inert(_) => continue,
         };
         if err.is_some() {
             error = err;

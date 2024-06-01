@@ -244,6 +244,11 @@ enum MacroDirectiveKind {
         mod_item: ModItem,
         /* is this needed? */ tree: TreeId,
     },
+    InertAttr {
+        inert_idx: usize,
+        ast_id: AstIdWithPath<ast::Item>,
+        attr: Attr,
+    },
 }
 
 /// Walks the tree of module recursively
@@ -270,6 +275,7 @@ struct DefCollector<'a> {
     ///
     /// This also stores the attributes to skip when we resolve derive helpers and non-macro
     /// non-builtin attributes in general.
+    // FIXME: There has to be a better way to do this
     skip_attrs: FxHashMap<InFile<ModItem>, AttrId>,
 }
 
@@ -1132,9 +1138,9 @@ impl DefCollector<'_> {
         let mut retain = |directive: &MacroDirective| {
             let subns = match &directive.kind {
                 MacroDirectiveKind::FnLike { .. } => MacroSubNs::Bang,
-                MacroDirectiveKind::Attr { .. } | MacroDirectiveKind::Derive { .. } => {
-                    MacroSubNs::Attr
-                }
+                MacroDirectiveKind::Attr { .. }
+                | MacroDirectiveKind::InertAttr { .. }
+                | MacroDirectiveKind::Derive { .. } => MacroSubNs::Attr,
             };
             let resolver = |path| {
                 let resolved_res = self.def_map.resolve_path_fp_with_macro(
@@ -1216,6 +1222,22 @@ impl DefCollector<'_> {
                         return Resolved::Yes;
                     }
                 }
+                MacroDirectiveKind::InertAttr { inert_idx, ast_id: file_ast_id, attr } => {
+                    attr_macro_as_call_id(
+                        self.db,
+                        file_ast_id,
+                        attr,
+                        self.def_map.krate,
+                        MacroDefId {
+                            krate: self.def_map.krate,
+                            edition: self.def_map.data.edition,
+                            kind: MacroDefKind::Inert(*inert_idx),
+                            local_inner: false,
+                            allow_internal_unsafe: false,
+                        },
+                    );
+                    return Resolved::Yes;
+                }
                 MacroDirectiveKind::Attr { ast_id: file_ast_id, mod_item, attr, tree } => {
                     let &AstIdWithPath { ast_id, ref path } = file_ast_id;
                     let file_id = ast_id.file_id;
@@ -1255,13 +1277,24 @@ impl DefCollector<'_> {
                         _ => return Resolved::No,
                     };
 
-                    let call_id =
-                        attr_macro_as_call_id(self.db, file_ast_id, attr, self.def_map.krate, def);
+                    // Skip #[test]/#[bench] expansion, which would merely result in more memory usage
+                    // due to duplicating functions into macro expansions
+                    if matches!(
+                        def.kind,
+                        MacroDefKind::BuiltInAttr(_, expander)
+                        if expander.is_test() || expander.is_bench()
+                    ) {
+                        return recollect_without(self);
+                    }
+
+                    let call_id = || {
+                        attr_macro_as_call_id(self.db, file_ast_id, attr, self.def_map.krate, def)
+                    };
                     if let MacroDefId {
                         kind:
                             MacroDefKind::BuiltInAttr(
-                                BuiltinAttrExpander::Derive | BuiltinAttrExpander::DeriveConst,
                                 _,
+                                BuiltinAttrExpander::Derive | BuiltinAttrExpander::DeriveConst,
                             ),
                         ..
                     } = def
@@ -1290,6 +1323,7 @@ impl DefCollector<'_> {
 
                         match attr.parse_path_comma_token_tree(self.db.upcast()) {
                             Some(derive_macros) => {
+                                let call_id = call_id();
                                 let mut len = 0;
                                 for (idx, (path, call_site)) in derive_macros.enumerate() {
                                     let ast_id = AstIdWithPath::new(file_id, ast_id.value, path);
@@ -1312,13 +1346,6 @@ impl DefCollector<'_> {
                                 // This is just a trick to be able to resolve the input to derives
                                 // as proper paths in `Semantics`.
                                 // Check the comment in [`builtin_attr_macro`].
-                                let call_id = attr_macro_as_call_id(
-                                    self.db,
-                                    file_ast_id,
-                                    attr,
-                                    self.def_map.krate,
-                                    def,
-                                );
                                 self.def_map.modules[directive.module_id]
                                     .scope
                                     .init_derive_attribute(ast_id, attr.id, call_id, len + 1);
@@ -1336,17 +1363,9 @@ impl DefCollector<'_> {
                         return recollect_without(self);
                     }
 
-                    // Skip #[test]/#[bench] expansion, which would merely result in more memory usage
-                    // due to duplicating functions into macro expansions
-                    if matches!(
-                        def.kind,
-                        MacroDefKind::BuiltInAttr(expander, _)
-                        if expander.is_test() || expander.is_bench()
-                    ) {
-                        return recollect_without(self);
-                    }
+                    let call_id = call_id();
 
-                    if let MacroDefKind::ProcMacro(exp, ..) = def.kind {
+                    if let MacroDefKind::ProcMacro(_, exp, _) = def.kind {
                         // If proc attribute macro expansion is disabled, skip expanding it here
                         if !self.db.expand_proc_attr_macros() {
                             self.def_map.diagnostics.push(DefDiagnostic::unresolved_proc_macro(
@@ -1484,6 +1503,7 @@ impl DefCollector<'_> {
                         ast_id.path.clone(),
                     ));
                 }
+                MacroDirectiveKind::InertAttr { .. } => {}
                 // These are diagnosed by `reseed_with_unresolved_attribute`, as that function consumes them
                 MacroDirectiveKind::Attr { .. } => {}
             }
@@ -2105,7 +2125,30 @@ impl ModCollector<'_, '_> {
             });
 
         for attr in iter {
-            if self.def_collector.def_map.is_builtin_or_registered_attr(&attr.path) {
+            if let Ok(maybe_inert) =
+                self.def_collector.def_map.is_builtin_or_registered_attr(&attr.path)
+            {
+                if let Some(inert_idx) = maybe_inert {
+                    if hir_expand::inert_attr_macro::INERT_ATTRIBUTES_FAKE_EXPANDER[inert_idx]
+                        .is_some()
+                    {
+                        let ast_id = AstIdWithPath::new(
+                            self.file_id(),
+                            mod_item.ast_id(self.item_tree),
+                            attr.path.as_ref().clone(),
+                        );
+                        self.def_collector.unresolved_macros.push(MacroDirective {
+                            module_id: self.module_id,
+                            depth: self.macro_depth + 1,
+                            kind: MacroDirectiveKind::InertAttr {
+                                inert_idx,
+                                ast_id,
+                                attr: attr.clone(),
+                            },
+                            container,
+                        });
+                    }
+                }
                 continue;
             }
             tracing::debug!(

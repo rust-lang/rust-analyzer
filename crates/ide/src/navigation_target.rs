@@ -801,10 +801,12 @@ fn orig_range_with_focus_r(
                         // def site, if the name is in the (possibly) upmapped def site range, show the
                         // def site
                         {
-                            let (def_site, _) = def_range().original_node_file_range(db);
-                            (def_site.file_id == focus_range.file_id
-                                && def_site.range.contains_range(focus_range.range))
-                            .then_some((def_site, Some(focus_range)))
+                            def_range().and_then(|def_range| {
+                                let (def_site, _) = def_range.original_node_file_range(db);
+                                (def_site.file_id == focus_range.file_id
+                                    && def_site.range.contains_range(focus_range.range))
+                                .then_some((def_site, Some(focus_range)))
+                            })
                         },
                     ),
                     // node is in macro def, just show the focus

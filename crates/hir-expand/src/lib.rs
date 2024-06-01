@@ -16,6 +16,7 @@ pub mod declarative;
 pub mod eager;
 pub mod files;
 pub mod hygiene;
+pub mod inert_attr_macro;
 pub mod mod_path;
 pub mod name;
 pub mod proc_macro;
@@ -185,12 +186,13 @@ pub struct MacroDefId {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MacroDefKind {
+    Inert(usize),
     Declarative(AstId<ast::Macro>),
-    BuiltIn(BuiltinFnLikeExpander, AstId<ast::Macro>),
-    BuiltInAttr(BuiltinAttrExpander, AstId<ast::Macro>),
-    BuiltInDerive(BuiltinDeriveExpander, AstId<ast::Macro>),
-    BuiltInEager(EagerExpander, AstId<ast::Macro>),
-    ProcMacro(CustomProcMacroExpander, ProcMacroKind, AstId<ast::Fn>),
+    BuiltIn(AstId<ast::Macro>, BuiltinFnLikeExpander),
+    BuiltInAttr(AstId<ast::Macro>, BuiltinAttrExpander),
+    BuiltInDerive(AstId<ast::Macro>, BuiltinDeriveExpander),
+    BuiltInEager(AstId<ast::Macro>, EagerExpander),
+    ProcMacro(AstId<ast::Fn>, CustomProcMacroExpander, ProcMacroKind),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -379,7 +381,7 @@ impl MacroFileIdExt for MacroFileId {
     fn is_custom_derive(&self, db: &dyn ExpandDatabase) -> bool {
         matches!(
             db.lookup_intern_macro_call(self.macro_call_id).def.kind,
-            MacroDefKind::ProcMacro(_, ProcMacroKind::CustomDerive, _)
+            MacroDefKind::ProcMacro(_, _, ProcMacroKind::CustomDerive)
         )
     }
 
@@ -437,29 +439,31 @@ impl MacroDefId {
         MacroCallLoc { def: self, krate, kind, ctxt }.intern(db)
     }
 
-    pub fn definition_range(&self, db: &dyn ExpandDatabase) -> InFile<TextRange> {
+    pub fn definition_range(&self, db: &dyn ExpandDatabase) -> Option<InFile<TextRange>> {
         match self.kind {
             MacroDefKind::Declarative(id)
-            | MacroDefKind::BuiltIn(_, id)
-            | MacroDefKind::BuiltInAttr(_, id)
-            | MacroDefKind::BuiltInDerive(_, id)
-            | MacroDefKind::BuiltInEager(_, id) => {
-                id.with_value(db.ast_id_map(id.file_id).get(id.value).text_range())
+            | MacroDefKind::BuiltIn(id, ..)
+            | MacroDefKind::BuiltInAttr(id, ..)
+            | MacroDefKind::BuiltInDerive(id, ..)
+            | MacroDefKind::BuiltInEager(id, ..) => {
+                Some(id.with_value(db.ast_id_map(id.file_id).get(id.value).text_range()))
             }
-            MacroDefKind::ProcMacro(_, _, id) => {
-                id.with_value(db.ast_id_map(id.file_id).get(id.value).text_range())
+            MacroDefKind::ProcMacro(id, ..) => {
+                Some(id.with_value(db.ast_id_map(id.file_id).get(id.value).text_range()))
             }
+            MacroDefKind::Inert(_) => None,
         }
     }
 
-    pub fn ast_id(&self) -> Either<AstId<ast::Macro>, AstId<ast::Fn>> {
+    pub fn ast_id(&self) -> Option<Either<AstId<ast::Macro>, AstId<ast::Fn>>> {
         match self.kind {
-            MacroDefKind::ProcMacro(.., id) => Either::Right(id),
+            MacroDefKind::ProcMacro(id, ..) => Some(Either::Right(id)),
             MacroDefKind::Declarative(id)
-            | MacroDefKind::BuiltIn(_, id)
-            | MacroDefKind::BuiltInAttr(_, id)
-            | MacroDefKind::BuiltInDerive(_, id)
-            | MacroDefKind::BuiltInEager(_, id) => Either::Left(id),
+            | MacroDefKind::BuiltIn(id, ..)
+            | MacroDefKind::BuiltInAttr(id, ..)
+            | MacroDefKind::BuiltInDerive(id, ..)
+            | MacroDefKind::BuiltInEager(id, ..) => Some(Either::Left(id)),
+            MacroDefKind::Inert(_) => None,
         }
     }
 
@@ -470,7 +474,7 @@ impl MacroDefId {
     pub fn is_attribute(&self) -> bool {
         matches!(
             self.kind,
-            MacroDefKind::BuiltInAttr(..) | MacroDefKind::ProcMacro(_, ProcMacroKind::Attr, _)
+            MacroDefKind::BuiltInAttr(..) | MacroDefKind::ProcMacro(_, _, ProcMacroKind::Attr)
         )
     }
 
@@ -478,7 +482,7 @@ impl MacroDefId {
         matches!(
             self.kind,
             MacroDefKind::BuiltInDerive(..)
-                | MacroDefKind::ProcMacro(_, ProcMacroKind::CustomDerive, _)
+                | MacroDefKind::ProcMacro(_, _, ProcMacroKind::CustomDerive)
         )
     }
 
@@ -486,26 +490,26 @@ impl MacroDefId {
         matches!(
             self.kind,
             MacroDefKind::BuiltIn(..)
-                | MacroDefKind::ProcMacro(_, ProcMacroKind::Bang, _)
+                | MacroDefKind::ProcMacro(_, _, ProcMacroKind::Bang)
                 | MacroDefKind::BuiltInEager(..)
                 | MacroDefKind::Declarative(..)
         )
     }
 
     pub fn is_attribute_derive(&self) -> bool {
-        matches!(self.kind, MacroDefKind::BuiltInAttr(expander, ..) if expander.is_derive())
+        matches!(self.kind, MacroDefKind::BuiltInAttr(_, expander) if expander.is_derive())
     }
 
     pub fn is_include(&self) -> bool {
-        matches!(self.kind, MacroDefKind::BuiltInEager(expander, ..) if expander.is_include())
+        matches!(self.kind, MacroDefKind::BuiltInEager(_, expander) if expander.is_include())
     }
 
     pub fn is_include_like(&self) -> bool {
-        matches!(self.kind, MacroDefKind::BuiltInEager(expander, ..) if expander.is_include_like())
+        matches!(self.kind, MacroDefKind::BuiltInEager(_, expander) if expander.is_include_like())
     }
 
     pub fn is_env_or_option_env(&self) -> bool {
-        matches!(self.kind, MacroDefKind::BuiltInEager(expander, ..) if expander.is_env_or_option_env())
+        matches!(self.kind, MacroDefKind::BuiltInEager(_, expander) if expander.is_env_or_option_env())
     }
 }
 
@@ -823,7 +827,7 @@ impl ExpansionInfo {
         let (macro_arg, _, _) =
             db.macro_arg_considering_derives(macro_file.macro_call_id, &loc.kind);
 
-        let def = loc.def.ast_id().left().and_then(|id| {
+        let def = loc.def.ast_id().and_then(Either::left).and_then(|id| {
             let def_tt = match id.to_node(db) {
                 ast::Macro::MacroRules(mac) => mac.token_tree()?,
                 ast::Macro::MacroDef(_) if matches!(macro_def, TokenExpander::BuiltInAttr(_)) => {

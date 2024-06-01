@@ -11,6 +11,9 @@
 use std::sync::OnceLock;
 
 use rustc_hash::FxHashMap;
+use span::{MacroCallId, Span};
+
+use crate::{db::ExpandDatabase, tt, ExpandResult, MacroCallKind};
 
 pub struct BuiltinAttribute {
     pub name: &'static str,
@@ -35,11 +38,6 @@ pub fn find_builtin_attr_idx(name: &str) -> Option<usize> {
         .get(name)
         .copied()
 }
-
-// impl AttributeTemplate {
-//     const DEFAULT: AttributeTemplate =
-//         AttributeTemplate { word: false, list: None, name_value_str: None };
-// }
 
 /// A convenience macro for constructing attribute templates.
 /// E.g., `template!(Word, List: "description")` means that the attribute
@@ -695,3 +693,89 @@ pub const INERT_ATTRIBUTES: &[BuiltinAttribute] = &[
         "the `#[omit_gdb_pretty_printer_section]` attribute is just used for the Rust test suite",
     ),
 ];
+
+// Expand to `use <crate>::<item>;` for each item in the `macro_use` attribute input
+fn macro_use_expand(
+    db: &dyn ExpandDatabase,
+    id: MacroCallId,
+    tt: &tt::Subtree,
+    call_site: Span,
+) -> ExpandResult<tt::Subtree> {
+    use tt::{Leaf, TokenTree};
+
+    let empty = || {
+        ExpandResult::ok(tt::Subtree::empty(tt::DelimSpan { open: call_site, close: call_site }))
+    };
+    let loc = db.lookup_intern_macro_call(id);
+    let MacroCallKind::Attr { attr_args: Some(args), .. } = &loc.kind else {
+        return empty();
+    };
+    // skip attributes
+    let first_ident = tt
+        .token_trees
+        .iter()
+        .position(|tt| matches!(tt, TokenTree::Leaf(Leaf::Ident(_))))
+        .unwrap_or(tt.token_trees.len());
+    // parse `extern crate` syntax and extract the crate name
+    let crate_name = match &tt.token_trees[first_ident..] {
+        [TokenTree::Leaf(tt::Leaf::Ident(_extern)), TokenTree::Leaf(Leaf::Ident(_crate)), TokenTree::Leaf(Leaf::Ident(krate)), rest @ ..]
+            if _extern.text == "extern" && _crate.text == "crate" =>
+        {
+            match rest {
+                [TokenTree::Leaf(Leaf::Ident(_as)), TokenTree::Leaf(Leaf::Ident(rename)), ..]
+                    if _as.text == "as" =>
+                {
+                    rename
+                }
+                _ => krate,
+            }
+        }
+        _ => return empty(),
+    };
+
+    let mut token_trees = Vec::new();
+    for tt in args
+        .token_trees
+        .split(|tt| matches!(tt, tt::TokenTree::Leaf(tt::Leaf::Punct(tt::Punct { char: ',', .. }))))
+    {
+        token_trees
+            .push(TokenTree::Leaf(Leaf::Ident(tt::Ident { text: "use".into(), span: call_site })));
+        token_trees.push(TokenTree::Leaf(Leaf::Ident(crate_name.clone())));
+        token_trees.push(TokenTree::Leaf(Leaf::Punct(tt::Punct {
+            char: ':',
+            spacing: tt::Spacing::Joint,
+            span: call_site,
+        })));
+        token_trees.push(TokenTree::Leaf(Leaf::Punct(tt::Punct {
+            char: ':',
+            spacing: tt::Spacing::Alone,
+            span: call_site,
+        })));
+        token_trees.extend(tt.iter().cloned());
+        token_trees.push(TokenTree::Leaf(Leaf::Punct(tt::Punct {
+            char: ';',
+            spacing: tt::Spacing::Alone,
+            span: call_site,
+        })));
+    }
+    ExpandResult::ok(tt::Subtree {
+        delimiter: args.delimiter,
+        token_trees: token_trees.into_boxed_slice(),
+    })
+}
+
+type InertAttrExpander =
+    Option<fn(&dyn ExpandDatabase, MacroCallId, &tt::Subtree, Span) -> ExpandResult<tt::Subtree>>;
+
+pub const INERT_ATTRIBUTES_FAKE_EXPANDER: [InertAttrExpander; INERT_ATTRIBUTES.len()] = {
+    let mut arr = [InertAttrExpander::None; INERT_ATTRIBUTES.len()];
+    let mut idx = 0;
+    while idx < INERT_ATTRIBUTES.len() {
+        arr[idx] = match INERT_ATTRIBUTES[idx].name.as_bytes() {
+            b"macro_use" => Some(macro_use_expand as _),
+            _ => None,
+        };
+        idx += 1;
+    }
+    arr
+};

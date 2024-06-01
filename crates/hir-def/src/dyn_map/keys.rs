@@ -40,6 +40,7 @@ pub const MACRO_RULES: Key<ast::MacroRules, MacroRulesId> = Key::new();
 pub const MACRO2: Key<ast::MacroDef, Macro2Id> = Key::new();
 pub const PROC_MACRO: Key<ast::Fn, ProcMacroId> = Key::new();
 pub const ATTR_MACRO_CALL: Key<ast::Item, MacroCallId> = Key::new();
+pub const INERT_ATTR_FAKE_MACRO_CALL: Key<ast::Attr, MacroCallId> = Key::new();
 pub const DERIVE_MACRO_CALL: Key<ast::Attr, (AttrId, MacroCallId, Box<[Option<MacroCallId>]>)> =
     Key::new();
 

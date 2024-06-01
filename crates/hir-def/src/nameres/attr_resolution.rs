@@ -3,6 +3,7 @@
 use base_db::CrateId;
 use hir_expand::{
     attrs::{Attr, AttrId, AttrInput},
+    inert_attr_macro::find_builtin_attr_idx,
     MacroCallId, MacroCallKind, MacroDefId,
 };
 use span::SyntaxContextId;
@@ -10,7 +11,6 @@ use syntax::{ast, SmolStr};
 use triomphe::Arc;
 
 use crate::{
-    attr::builtin::find_builtin_attr_idx,
     db::DefDatabase,
     item_scope::BuiltinShadowMode,
     nameres::path_resolution::ResolveMode,
@@ -37,7 +37,7 @@ impl DefMap {
     ) -> Result<ResolvedAttr, UnresolvedMacro> {
         // NB: does not currently work for derive helpers as they aren't recorded in the `DefMap`
 
-        if self.is_builtin_or_registered_attr(&ast_id.path) {
+        if self.is_builtin_or_registered_attr(&ast_id.path).is_ok() {
             return Ok(ResolvedAttr::Other);
         }
 
@@ -71,9 +71,12 @@ impl DefMap {
         )))
     }
 
-    pub(crate) fn is_builtin_or_registered_attr(&self, path: &ModPath) -> bool {
+    pub(crate) fn is_builtin_or_registered_attr(
+        &self,
+        path: &ModPath,
+    ) -> Result<Option<usize>, ()> {
         if path.kind != PathKind::Plain {
-            return false;
+            return Err(());
         }
 
         let segments = path.segments();
@@ -85,16 +88,19 @@ impl DefMap {
             let is_tool = self.data.registered_tools.iter().map(SmolStr::as_str).any(pred);
             // FIXME: tool modules can be shadowed by actual modules
             if is_tool {
-                return true;
+                return Ok(None);
             }
 
             if segments.len() == 1 {
-                let mut registered = self.data.registered_attrs.iter().map(SmolStr::as_str);
-                let is_inert = find_builtin_attr_idx(&name).is_some() || registered.any(pred);
-                return is_inert;
+                if let Some(attr) = find_builtin_attr_idx(&name) {
+                    return Ok(Some(attr));
+                }
+                if self.data.registered_attrs.iter().map(SmolStr::as_str).any(pred) {
+                    return Ok(None);
+                }
             }
         }
-        false
+        Err(())
     }
 }
 

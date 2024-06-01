@@ -274,6 +274,14 @@ impl SourceToDefCtx<'_, '_> {
         map[keys::ATTR_MACRO_CALL].get(&src.value).copied()
     }
 
+    pub(super) fn inert_fake_attr_to_macro_call(
+        &mut self,
+        src: InFile<ast::Attr>,
+    ) -> Option<MacroCallId> {
+        let map = self.dyn_map(src.as_ref())?;
+        map[keys::INERT_ATTR_FAKE_MACRO_CALL].get(&src.value).copied()
+    }
+
     /// (AttrId, derive attribute call id, derive call ids)
     pub(super) fn attr_to_derive_macro_call(
         &mut self,

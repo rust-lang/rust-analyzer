@@ -900,6 +900,24 @@ impl<'db> SemanticsImpl<'db> {
                             // attribute we failed expansion for earlier, this might be a derive invocation
                             // or derive helper attribute
                             let attr = meta.parent_attr()?;
+
+                            // this might be an inert attribute, do fake expansion for it if its supported
+                            if let Some(call_id) = self.with_ctx(|ctx| {
+                                // so try downmapping the token into the pseudo derive expansion
+                                // see [hir_expand::builtin_attr_macro] for how the pseudo derive expansion works
+                                ctx.inert_fake_attr_to_macro_call(InFile::new(
+                                    file_id,
+                                    attr.clone(),
+                                ))
+                            }) {
+                                let file_id = call_id.as_macro_file();
+                                let text_range = attr.syntax().text_range();
+                                // remove any other token in this macro input, all their mappings are the
+                                // same as this
+                                tokens.retain(|t| !text_range.contains_range(t.text_range()));
+                                return process_expansion_for_token(&mut stack, file_id);
+                            }
+
                             let adt = match attr.syntax().parent().and_then(ast::Adt::cast) {
                                 Some(adt) => {
                                     // this might be a derive on an ADT
@@ -1617,17 +1635,9 @@ fn macro_call_to_macro_id(
     macro_call_id: MacroCallId,
 ) -> Option<MacroId> {
     let loc = db.lookup_intern_macro_call(macro_call_id);
-    match loc.def.kind {
-        hir_expand::MacroDefKind::Declarative(it)
-        | hir_expand::MacroDefKind::BuiltIn(_, it)
-        | hir_expand::MacroDefKind::BuiltInAttr(_, it)
-        | hir_expand::MacroDefKind::BuiltInDerive(_, it)
-        | hir_expand::MacroDefKind::BuiltInEager(_, it) => {
-            ctx.macro_to_def(InFile::new(it.file_id, it.to_node(db)))
-        }
-        hir_expand::MacroDefKind::ProcMacro(_, _, it) => {
-            ctx.proc_macro_to_def(InFile::new(it.file_id, it.to_node(db)))
-        }
+    match loc.def.ast_id()? {
+        Either::Left(it) => ctx.macro_to_def(InFile::new(it.file_id, it.to_node(db))),
+        Either::Right(it) => ctx.proc_macro_to_def(InFile::new(it.file_id, it.to_node(db))),
     }
 }
 

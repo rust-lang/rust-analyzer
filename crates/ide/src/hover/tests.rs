@@ -6392,6 +6392,28 @@ struct Foo;
 }
 
 #[test]
+fn hover_macro_use_input() {
+    check(
+        r#"
+//- minicore:assert
+#[macro_use(assert$0)]
+extern crate core;
+"#,
+        expect![[r#"
+            *Copy*
+
+            ```rust
+            test
+            ```
+
+            ```rust
+            macro Copy
+            ```
+        "#]],
+    );
+}
+
+#[test]
 fn hover_range_math() {
     check_hover_range(
         r#"
