@@ -165,19 +165,19 @@ pub struct HighlightConfig {
 // |-----------|--------------------------------|
 // |async| Emitted for async functions and the `async` and `await` keywords.|
 // |attribute| Emitted for tokens inside attributes.|
-// |callable| Emitted for locals whose types implements one of the `Fn*` taits.|
+// |callable| Emitted for locals whose types implements one of the `Fn*` traits.|
 // |constant| Emitted for const.|
-// |consuming| Emitted for locals that are being consumed when use in a fuction call.|
+// |consuming| Emitted for locals that are being consumed when use in a function call.|
 // |controlFlow| Emitted for control-flow related tokens, this includes th `?` operator.|
 // |crateRoot| Emitted for crate names, like `serde` and `crate.|
 // |declaration| Emitted for names of definitions, like `foo` in `fn foo(){}`.|
 // |defaultLibrary| Emitted for items from built-in crates (std, core, allc, test and proc_macro).|
 // |documentation| Emitted for documentation comment.|
-// |injected| Emitted for doc-string injected highlighting like rust sourc blocks in documentation.|
+// |injected| Emitted for doc-string injected highlighting like rust source blocks in documentation.|
 // |intraDocLink| Emitted for intra doc links in doc-string.|
 // |library| Emitted for items that are defined outside of the current crae.|
 // |macro|  Emitted for tokens inside macro call.|
-// |mutable| Emitted for mutable locals and statics as well as functions tking `&mut self`.|
+// |mutable| Emitted for mutable locals and statics as well as functions taking `&mut self`.|
 // |public| Emitted for items that are from the current crate and are `pub.|
 // |reference| Emitted for locals behind a reference and functions taking self` by reference.|
 // |static| Emitted for "static" functions, also known as functions that d not take a `self` param, as well as statics and consts.|
