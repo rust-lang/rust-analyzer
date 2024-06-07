@@ -28,7 +28,7 @@ heading-split-level = 2
 limit-results = 20
 use-boolean-and = true
 
-[ouput.html.redirect]
+[output.html.redirect]
 "/manual.html" = "/index.html"
 
 [output.html.fold]
