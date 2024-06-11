@@ -6,25 +6,14 @@ import { type CommandFactory, Ctx, fetchWorkspace } from "./ctx";
 import * as diagnostics from "./diagnostics";
 import { activateTaskProvider } from "./tasks";
 import { setContextValue } from "./util";
-import type { JsonProject } from "./rust_project";
 
 const RUST_PROJECT_CONTEXT_NAME = "inRustProject";
-
-// This API is not stable and may break in between minor releases.
-export interface RustAnalyzerExtensionApi {
-    readonly client?: lc.LanguageClient;
-
-    setWorkspaces(workspaces: JsonProject[]): void;
-    notifyRustAnalyzer(): Promise<void>;
-}
 
 export async function deactivate() {
     await setContextValue(RUST_PROJECT_CONTEXT_NAME, undefined);
 }
 
-export async function activate(
-    context: vscode.ExtensionContext,
-): Promise<RustAnalyzerExtensionApi> {
+export async function activate(context: vscode.ExtensionContext): Promise<Ctx> {
     checkConflictingExtensions();
 
     const ctx = new Ctx(context, createCommands(), fetchWorkspace());
@@ -40,7 +29,7 @@ export async function activate(
     return api;
 }
 
-async function activateServer(ctx: Ctx): Promise<RustAnalyzerExtensionApi> {
+async function activateServer(ctx: Ctx): Promise<Ctx> {
     if (ctx.workspace.kind === "Workspace Folder") {
         ctx.pushExtCleanup(activateTaskProvider(ctx.config));
     }

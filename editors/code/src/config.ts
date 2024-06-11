@@ -5,7 +5,6 @@ import * as vscode from "vscode";
 import type { Env } from "./client";
 import { log } from "./util";
 import { expectNotUndefined, unwrapUndefinable } from "./undefinable";
-import type { JsonProject } from "./rust_project";
 
 export type RunnableEnvCfgItem = {
     mask?: string;
@@ -41,7 +40,6 @@ export class Config {
 
     constructor(ctx: vscode.ExtensionContext) {
         this.globalStorageUri = ctx.globalStorageUri;
-        this.discoveredWorkspaces = [];
         vscode.workspace.onDidChangeConfiguration(
             this.onDidChangeConfiguration,
             this,
@@ -62,8 +60,6 @@ export class Config {
         const cfg = Object.entries(this.cfg).filter(([_, val]) => !(val instanceof Function));
         log.info("Using configuration", Object.fromEntries(cfg));
     }
-
-    public discoveredWorkspaces: JsonProject[];
 
     private async onDidChangeConfiguration(event: vscode.ConfigurationChangeEvent) {
         this.refreshLogging();
@@ -357,18 +353,7 @@ export class Config {
     }
 }
 
-// the optional `cb?` parameter is meant to be used to add additional
-// key/value pairs to the VS Code configuration. This needed for, e.g.,
-// including a `rust-project.json` into the `linkedProjects` key as part
-// of the configuration/InitializationParams _without_ causing VS Code
-// configuration to be written out to workspace-level settings. This is
-// undesirable behavior because rust-project.json files can be tens of
-// thousands of lines of JSON, most of which is not meant for humans
-// to interact with.
-export function prepareVSCodeConfig<T>(
-    resp: T,
-    cb?: (key: Extract<keyof T, string>, res: { [key: string]: any }) => void,
-): T {
+export function prepareVSCodeConfig<T>(resp: T): T {
     if (Is.string(resp)) {
         return substituteVSCodeVariableInString(resp) as T;
     } else if (resp && Is.array<any>(resp)) {
@@ -380,9 +365,6 @@ export function prepareVSCodeConfig<T>(
         for (const key in resp) {
             const val = resp[key];
             res[key] = prepareVSCodeConfig(val);
-            if (cb) {
-                cb(key, res);
-            }
         }
         return res as T;
     }
