@@ -157,7 +157,7 @@ the environment should help.
 The `rust-analyzer` binary can be installed from the repos or AUR (Arch
 User Repository):
 
--   [`rust-analyzer`](https://www.archlinux.org/packages/community/x86_64/rust-analyzer/)
+-   [`rust-analyzer`](https://www.archlinux.org/packages/extra/x86_64/rust-analyzer/)
     (built from latest tagged source)
 
 -   [`rust-analyzer-git`](https://aur.archlinux.org/packages/rust-analyzer-git)
@@ -169,19 +169,7 @@ Install it with pacman, for example:
 
 ### Gentoo Linux
 
-`rust-analyzer` is available in the GURU repository:
-
--   [`dev-util/rust-analyzer`](https://gitweb.gentoo.org/repo/proj/guru.git/tree/dev-util/rust-analyzer?id=9895cea62602cfe599bd48e0fb02127411ca6e81)
-    builds from source
-
--   [`dev-util/rust-analyzer-bin`](https://gitweb.gentoo.org/repo/proj/guru.git/tree/dev-util/rust-analyzer-bin?id=9895cea62602cfe599bd48e0fb02127411ca6e81)
-    installs an official binary release
-
-If not already, GURU must be enabled (e.g. using
-`app-eselect/eselect-repository`) and sync’d before running `emerge`:
-
-    $ eselect repository enable guru && emaint sync -r guru
-    $ emerge rust-analyzer-bin
+`rust-analyzer` is installed when the `rust-analyzer` use flag is set for dev-lang/rust or dev-lang/rust-bin. You also need to set the `rust-src` use flag.
 
 ### macOS
 
@@ -201,8 +189,10 @@ to link to. Some compilers and libraries can be acquired as Flatpak
 SDKs, such as `org.freedesktop.Sdk.Extension.rust-stable` or
 `org.freedesktop.Sdk.Extension.llvm15`.
 
-If you use a Flatpak SDK for Rust, there should be no extra steps
-necessary.
+If you use a Flatpak SDK for Rust, it must be in your `PATH`:
+
+ * install the SDK extensions with `flatpak install org.freedesktop.Sdk.Extension.{llvm15,rust-stable}//23.08`
+ * enable SDK extensions in the editor with the environment variable `FLATPAK_ENABLE_SDK_EXT=llvm15,rust-stable` (this can be done using flatseal or `flatpak override`)
 
 If you want to use Flatpak in combination with `rustup`, the following
 steps might help:
@@ -363,14 +353,14 @@ Once `neovim/nvim-lspconfig` is installed, use
 You can also pass LSP settings to the server:
 
     lua << EOF
-    local nvim_lsp = require'lspconfig'
+    local lspconfig = require'lspconfig'
 
     local on_attach = function(client)
         require'completion'.on_attach(client)
     end
 
-    nvim_lsp.rust_analyzer.setup({
-        on_attach=on_attach,
+    lspconfig.rust_analyzer.setup({
+        on_attach = on_attach,
         settings = {
             ["rust-analyzer"] = {
                 imports = {
@@ -392,10 +382,23 @@ You can also pass LSP settings to the server:
     })
     EOF
 
+If you're running Neovim 0.10 or later, you can enable inlay hints via `on_attach`:
+
+```vim
+lspconfig.rust_analyzer.setup({
+    on_attach = function(client, bufnr)
+        vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
+    end
+})
+```
+
+Note that the hints are only visible after `rust-analyzer` has finished loading **and** you have to
+edit the file to trigger a re-render.
+
 See <https://sharksforarms.dev/posts/neovim-rust/> for more tips on
 getting started.
 
-Check out <https://github.com/simrat39/rust-tools.nvim> for a batteries
+Check out <https://github.com/mrcjkb/rustaceanvim> for a batteries
 included rust-analyzer setup for Neovim.
 
 ### vim-lsp
@@ -406,7 +409,7 @@ simple as adding this line to your `.vimrc`:
 
     Plug 'prabirshrestha/vim-lsp'
 
-Next you need to register the `rust-analyzer` binary. If it is available
+Next you need to register the `rust-analyzer` binary. If it is avim.lspvailable
 in `$PATH`, you may want to add this to your `.vimrc`:
 
     if executable('rust-analyzer')

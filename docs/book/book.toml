@@ -9,8 +9,8 @@ title = "rust-analyzer"
 edition = "2021"
 
 [output.html]
-edit-url-template = "https://github.com/rust-analyzer/rust-analyzer/edit/master/manual/{path}"
-git-repository-url = "https://github.com/rust-analyzer/rust-analyzer/tree/master/manual"
+edit-url-template = "https://github.com/rust-lang/rust-analyzer/edit/master/manual/{path}"
+git-repository-url = "https://github.com/rust-lang/rust-analyzer/tree/master/manual"
 mathjax-support = true
 site-url = "/rust-analyzer/"
 
