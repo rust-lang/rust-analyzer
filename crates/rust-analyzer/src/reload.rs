@@ -695,7 +695,7 @@ impl GlobalState {
         self.flycheck = match invocation_strategy {
             flycheck::InvocationStrategy::Once => vec![FlycheckHandle::spawn(
                 0,
-                Box::new(move |msg| sender.send(msg).unwrap()),
+                Box::new(move |msg| sender.send(msg).expect("flycheck channel should be connected during spawning")),
                 config,
                 None,
                 self.config.root_path().clone(),
@@ -733,7 +733,7 @@ impl GlobalState {
                         let sender = sender.clone();
                         FlycheckHandle::spawn(
                             id,
-                            Box::new(move |msg| sender.send(msg).unwrap()),
+                            Box::new(move |msg| sender.send(msg).expect("flycheck channel should be connected during per-workspace spawning")),
                             config.clone(),
                             sysroot_root,
                             root.to_path_buf(),

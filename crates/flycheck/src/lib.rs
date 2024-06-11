@@ -328,7 +328,8 @@ impl FlycheckActor {
                     tracing::debug!(flycheck_id = self.id, "flycheck finished");
 
                     // Watcher finished
-                    let command_handle = self.command_handle.take().unwrap();
+                    let command_handle =
+                        self.command_handle.take().expect("expected a flycheck command handle");
                     self.command_receiver.take();
                     let formatted_handle = format!("{command_handle:?}");
 
