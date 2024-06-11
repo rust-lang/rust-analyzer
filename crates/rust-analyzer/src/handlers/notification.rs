@@ -73,7 +73,9 @@ pub(crate) fn handle_did_open_text_document(
 
         tracing::info!("New file content set {:?}", params.text_document.text);
         state.vfs.write().0.set_file_contents(path, Some(params.text_document.text.into_bytes()));
-        if state.config.notifications().unindexed_project {
+        if state.config.discover_command().is_some()
+            || state.config.notifications().unindexed_project
+        {
             tracing::debug!("queuing task");
             let _ = state
                 .deferred_task_queue
@@ -152,13 +154,15 @@ pub(crate) fn handle_did_save_text_document(
         // Re-fetch workspaces if a workspace related file has changed
         if let Some(abs_path) = vfs_path.as_path() {
             if reload::should_refresh_for_change(abs_path, ChangeKind::Modify) {
-                state
-                    .fetch_workspaces_queue
-                    .request_op(format!("workspace vfs file change saved {abs_path}"), false);
+                state.fetch_workspaces_queue.request_op(
+                    format!("workspace vfs file change saved {abs_path}"),
+                    (Some(abs_path.to_owned()), false),
+                );
             } else if state.detached_files.contains(abs_path) {
-                state
-                    .fetch_workspaces_queue
-                    .request_op(format!("detached file saved {abs_path}"), false);
+                state.fetch_workspaces_queue.request_op(
+                    format!("detached file saved {abs_path}"),
+                    (Some(abs_path.to_owned()), false),
+                );
             }
         }
 
@@ -240,7 +244,9 @@ pub(crate) fn handle_did_change_workspace_folders(
 
     if !config.has_linked_projects() && config.detached_files().is_empty() {
         config.rediscover_workspaces();
-        state.fetch_workspaces_queue.request_op("client workspaces changed".to_owned(), false)
+        state
+            .fetch_workspaces_queue
+            .request_op("client workspaces changed".to_owned(), (None, false));
     }
 
     Ok(())

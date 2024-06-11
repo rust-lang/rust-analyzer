@@ -20,9 +20,9 @@ use parking_lot::{
 use proc_macro_api::ProcMacroServer;
 use project_model::{ManifestPath, ProjectWorkspace, ProjectWorkspaceKind, WorkspaceBuildScripts};
 use rustc_hash::{FxHashMap, FxHashSet};
-use tracing::{span, Level};
+use tracing::{span, trace, Level};
 use triomphe::Arc;
-use vfs::{AnchoredPathBuf, ChangeKind, Vfs};
+use vfs::{AbsPathBuf, AnchoredPathBuf, ChangeKind, Vfs};
 
 use crate::{
     config::{Config, ConfigChange, ConfigErrors},
@@ -95,6 +95,11 @@ pub(crate) struct GlobalState {
     pub(crate) test_run_receiver: Receiver<flycheck::CargoTestMessage>,
     pub(crate) test_run_remaining_jobs: usize,
 
+    // Project loading
+    pub(crate) discover_handle: Option<flycheck::JsonWorkspaceHandle>,
+    pub(crate) discover_sender: Sender<flycheck::DiscoverProjectMessage>,
+    pub(crate) discover_receiver: Receiver<flycheck::DiscoverProjectMessage>,
+
     // VFS
     pub(crate) loader: Handle<Box<dyn vfs::loader::Handle>, Receiver<vfs::loader::Message>>,
     pub(crate) vfs: Arc<RwLock<(vfs::Vfs, IntMap<FileId, LineEndings>)>>,
@@ -134,11 +139,12 @@ pub(crate) struct GlobalState {
 
     // op queues
     pub(crate) fetch_workspaces_queue:
-        OpQueue<bool, Option<(Vec<anyhow::Result<ProjectWorkspace>>, bool)>>,
+        OpQueue<(Option<AbsPathBuf>, bool), Option<(Vec<anyhow::Result<ProjectWorkspace>>, bool)>>,
     pub(crate) fetch_build_data_queue:
         OpQueue<(), (Arc<Vec<ProjectWorkspace>>, Vec<anyhow::Result<WorkspaceBuildScripts>>)>,
     pub(crate) fetch_proc_macros_queue: OpQueue<Vec<ProcMacroPaths>, bool>,
     pub(crate) prime_caches_queue: OpQueue,
+    pub(crate) discover_workspace_queue: OpQueue,
 
     /// A deferred task queue.
     ///
@@ -146,7 +152,7 @@ pub(crate) struct GlobalState {
     /// handlers, as accessing the database may block latency-sensitive
     /// interactions and should be moved away from the main thread.
     ///
-    /// For certain features, such as [`lsp_ext::UnindexedProjectParams`],
+    /// For certain features, such as [`GlobalState::handle_discover_msg`],
     /// this queue should run only *after* [`GlobalState::process_changes`] has
     /// been called.
     pub(crate) deferred_task_queue: TaskQueue,
@@ -202,6 +208,9 @@ impl GlobalState {
         }
         let (flycheck_sender, flycheck_receiver) = unbounded();
         let (test_run_sender, test_run_receiver) = unbounded();
+
+        let (discover_sender, discover_receiver) = unbounded();
+
         let mut this = GlobalState {
             sender,
             req_queue: ReqQueue::default(),
@@ -233,6 +242,10 @@ impl GlobalState {
             test_run_receiver,
             test_run_remaining_jobs: 0,
 
+            discover_handle: None,
+            discover_sender,
+            discover_receiver,
+
             vfs: Arc::new(RwLock::new((vfs::Vfs::default(), IntMap::default()))),
             vfs_config_version: 0,
             vfs_progress_config_version: 0,
@@ -247,6 +260,7 @@ impl GlobalState {
             fetch_proc_macros_queue: OpQueue::default(),
 
             prime_caches_queue: OpQueue::default(),
+            discover_workspace_queue: OpQueue::default(),
 
             deferred_task_queue: task_queue,
         };
@@ -301,6 +315,7 @@ impl GlobalState {
                         workspace_structure_change.get_or_insert((path, false)).1 |=
                             self.crate_graph_file_dependencies.contains(vfs_path);
                     } else if reload::should_refresh_for_change(&path, file.kind()) {
+                        trace!(?path, kind = ?file.kind(), "refreshing for a change");
                         workspace_structure_change.get_or_insert((path.clone(), false));
                     }
                 }
@@ -419,7 +434,7 @@ impl GlobalState {
 
                 self.fetch_workspaces_queue.request_op(
                     format!("workspace vfs file change: {path}"),
-                    force_crate_graph_reload,
+                    (Some(path.to_owned()), force_crate_graph_reload),
                 );
             }
         }

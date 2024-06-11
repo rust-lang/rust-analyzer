@@ -39,6 +39,7 @@ mimalloc = { version = "0.1.30", default-features = false, optional = true }
 lsp-server.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+pretty_assertions = "1.4"
 tracing-tree.workspace = true
 triomphe.workspace = true
 toml = "0.8.8"

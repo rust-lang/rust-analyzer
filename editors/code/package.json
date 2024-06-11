@@ -2541,6 +2541,22 @@
             {
                 "title": "workspace",
                 "properties": {
+                    "rust-analyzer.workspace.discoverCommand": {
+                        "markdownDescription": "Enables automatic discovery of projects using the discoverCommand.\n\nSetting this command will result in rust-analyzer starting indexing\nonly once a Rust file has been opened.",
+                        "default": null,
+                        "type": [
+                            "null",
+                            "array"
+                        ],
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            {
+                "title": "workspace",
+                "properties": {
                     "rust-analyzer.workspace.symbol.search.kind": {
                         "markdownDescription": "Workspace symbol search kind.",
                         "default": "only_types",

@@ -990,6 +990,14 @@ Show documentation.
 --
 Whether to insert closing angle brackets when typing an opening angle bracket of a generic argument list.
 --
+[[rust-analyzer.workspace.discoverCommand]]rust-analyzer.workspace.discoverCommand (default: `null`)::
++
+--
+Enables automatic discovery of projects using the discoverCommand.
+
+Setting this command will result in rust-analyzer starting indexing
+only once a Rust file has been opened.
+--
 [[rust-analyzer.workspace.symbol.search.kind]]rust-analyzer.workspace.symbol.search.kind (default: `"only_types"`)::
 +
 --
