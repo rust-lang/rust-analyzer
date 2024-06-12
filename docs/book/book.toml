@@ -12,7 +12,7 @@ edition = "2021"
 edit-url-template = "https://github.com/rust-lang/rust-analyzer/edit/master/manual/{path}"
 git-repository-url = "https://github.com/rust-lang/rust-analyzer/tree/master/manual"
 mathjax-support = true
-site-url = "/rust-analyzer/"
+site-url = "/manual/"
 
 [output.html.playground]
 editable = true
