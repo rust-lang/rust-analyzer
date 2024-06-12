@@ -1,5 +1,6 @@
 mod changelog;
 
+use std::path::Path;
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::Duration;
@@ -29,7 +30,7 @@ impl flags::Release {
             cmd!(sh, "git push --force").run()?;
         }
 
-        // Generates bits of manual.adoc.
+        // Generates bits of the book.
         codegen::diagnostics_docs::generate(false);
         codegen::assists_doc_tests::generate(false);
         codegen::feature_docs::generate(false);
@@ -54,29 +55,36 @@ impl flags::Release {
             .max()
             .unwrap_or_default();
 
-        for adoc in [
-            "manual.adoc",
-            "generated_assists.adoc",
-            "generated_config.adoc",
-            "generated_diagnostic.adoc",
-            "generated_features.adoc",
-        ] {
-            let src = project_root().join("./docs/user/").join(adoc);
-            let dst = website_root.join(adoc);
-
-            let contents = sh.read_file(src)?;
-            sh.write_file(dst, contents)?;
-        }
+        let book = project_root().join("./docs/book/");
+        let dst = website_root.join("manual");
+        copy_dir_all(sh, &book, &dst)?;
 
         let tags = cmd!(sh, "git tag --list").read()?;
         let prev_tag = tags.lines().filter(|line| is_release_tag(line)).last().unwrap();
 
-        let contents = changelog::get_changelog(sh, changelog_n, &commit, prev_tag, &today)?;
-        let path = changelog_dir.join(format!("{today}-changelog-{changelog_n}.adoc"));
-        sh.write_file(path, contents)?;
-
+        if let Some(contents) =
+            changelog::get_changelog(sh, changelog_n, &commit, prev_tag, &today)?
+        {
+            let path = changelog_dir.join(format!("{today}-changelog-{changelog_n}.adoc"));
+            sh.write_file(path, contents)?;
+        }
         Ok(())
     }
+}
+
+fn copy_dir_all(sh: &Shell, src: &Path, dst: &Path) -> xshell::Result<()> {
+    sh.create_dir(dst)?;
+    for path in sh.read_dir(src)? {
+        let ty = std::fs::metadata(&path).unwrap().file_type();
+        let Some(name) = path.file_name() else { continue };
+        let dst = &dst.join(name);
+        if ty.is_dir() {
+            copy_dir_all(sh, &path, dst)?;
+        } else {
+            sh.copy_file(path, dst)?;
+        }
+    }
+    Ok(())
 }
 
 // git sync implementation adapted from https://github.com/rust-lang/miri/blob/62039ac/miri-script/src/commands.rs

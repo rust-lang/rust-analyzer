@@ -1,7 +1,6 @@
 use std::fmt::Write;
 use std::{env, iter};
 
-use anyhow::bail;
 use xshell::{cmd, Shell};
 
 pub(crate) fn get_changelog(
@@ -10,10 +9,13 @@ pub(crate) fn get_changelog(
     commit: &str,
     prev_tag: &str,
     today: &str,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<Option<String>> {
     let token = match env::var("GITHUB_TOKEN") {
         Ok(token) => token,
-        Err(_) => bail!("Please obtain a personal access token from https://github.com/settings/tokens and set the `GITHUB_TOKEN` environment variable."),
+        Err(_) => {
+            eprintln!("GITHUB_TOKEN` not set, skipping changelog generation. Please obtain a personal access token from https://github.com/settings/tokens and set the `GITHUB_TOKEN` environment variable.");
+            return Ok(None);
+        }
     };
 
     let git_log = cmd!(sh, "git log {prev_tag}..HEAD --reverse").read()?;
@@ -106,7 +108,7 @@ Release: release:{today}[] (`TBD`)
 {others}
 "
     );
-    Ok(contents)
+    Ok(Some(contents))
 }
 
 #[derive(Clone, Copy)]
