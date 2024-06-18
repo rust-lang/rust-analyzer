@@ -2225,16 +2225,6 @@
                 }
             },
             {
-                "title": "notifications",
-                "properties": {
-                    "rust-analyzer.notifications.unindexedProject": {
-                        "markdownDescription": "Whether to send an UnindexedProject notification to the client.",
-                        "default": false,
-                        "type": "boolean"
-                    }
-                }
-            },
-            {
                 "title": "general",
                 "properties": {
                     "rust-analyzer.numThreads": {
@@ -2535,6 +2525,22 @@
                         "markdownDescription": "Whether to insert closing angle brackets when typing an opening angle bracket of a generic argument list.",
                         "default": false,
                         "type": "boolean"
+                    }
+                }
+            },
+            {
+                "title": "workspace",
+                "properties": {
+                    "rust-analyzer.workspace.discoverCommand": {
+                        "markdownDescription": "Enables automatic discovery of projects using the discoverCommand.\n\nSetting this command will result in rust-analyzer starting indexing\nonly once a Rust file has been opened.",
+                        "default": null,
+                        "type": [
+                            "null",
+                            "array"
+                        ],
+                        "items": {
+                            "type": "string"
+                        }
                     }
                 }
             },

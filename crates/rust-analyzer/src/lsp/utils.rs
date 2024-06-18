@@ -75,8 +75,7 @@ impl GlobalState {
     }
 
     /// Sends a notification to the client containing the error `message`.
-    /// If `additional_info` is [`Some`], appends a note to the notification telling to check the logs.
-    /// This will always log `message` + `additional_info` to the server's error log.
+    /// If `additional_info` is [`Some`], the details will be included in the server's logs.
     pub(crate) fn show_and_log_error(&mut self, message: String, additional_info: Option<String>) {
         match additional_info {
             Some(additional_info) => {

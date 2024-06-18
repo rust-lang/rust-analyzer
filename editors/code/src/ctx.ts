@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import * as lc from "vscode-languageclient/node";
+import type * as lc from "vscode-languageclient/node";
 import * as ra from "./lsp_ext";
 
 import { Config, prepareVSCodeConfig } from "./config";
@@ -22,8 +22,6 @@ import {
 import { execRevealDependency } from "./commands";
 import { PersistentState } from "./persistent_state";
 import { bootstrap } from "./bootstrap";
-import type { RustAnalyzerExtensionApi } from "./main";
-import type { JsonProject } from "./rust_project";
 import { prepareTestExplorer } from "./test_explorer";
 import { spawn } from "node:child_process";
 import { text } from "node:stream/consumers";
@@ -69,9 +67,9 @@ export type CtxInit = Ctx & {
     readonly client: lc.LanguageClient;
 };
 
-export class Ctx implements RustAnalyzerExtensionApi {
+export class Ctx {
     readonly statusBar: vscode.StatusBarItem;
-    config: Config;
+    readonly config: Config;
     readonly workspace: Workspace;
     readonly version: string;
 
@@ -224,15 +222,6 @@ export class Ctx implements RustAnalyzerExtensionApi {
             };
 
             let rawInitializationOptions = vscode.workspace.getConfiguration("rust-analyzer");
-            if (this.config.discoverProjectRunner) {
-                const command = `${this.config.discoverProjectRunner}.discoverWorkspaceCommand`;
-                log.info(`running command: ${command}`);
-                const uris = vscode.workspace.textDocuments
-                    .filter(isRustDocument)
-                    .map((document) => document.uri);
-                const projects: JsonProject[] = await vscode.commands.executeCommand(command, uris);
-                this.setWorkspaces(projects);
-            }
 
             if (this.workspace.kind === "Detached Files") {
                 rawInitializationOptions = {
@@ -241,16 +230,7 @@ export class Ctx implements RustAnalyzerExtensionApi {
                 };
             }
 
-            const initializationOptions = prepareVSCodeConfig(
-                rawInitializationOptions,
-                (key, obj) => {
-                    // we only want to set discovered workspaces on the right key
-                    // and if a workspace has been discovered.
-                    if (key === "linkedProjects" && this.config.discoveredWorkspaces.length > 0) {
-                        obj["linkedProjects"] = this.config.discoveredWorkspaces;
-                    }
-                },
-            );
+            const initializationOptions = prepareVSCodeConfig(rawInitializationOptions);
 
             this._client = await createClient(
                 this.traceOutputChannel,
@@ -268,23 +248,6 @@ export class Ctx implements RustAnalyzerExtensionApi {
             this.pushClientCleanup(
                 this._client.onNotification(ra.openServerLogs, () => {
                     this.outputChannel!.show();
-                }),
-            );
-            this.pushClientCleanup(
-                this._client.onNotification(ra.unindexedProject, async (params) => {
-                    if (this.config.discoverProjectRunner) {
-                        const command = `${this.config.discoverProjectRunner}.discoverWorkspaceCommand`;
-                        log.info(`running command: ${command}`);
-                        const uris = params.textDocuments.map((doc) =>
-                            vscode.Uri.parse(doc.uri, true),
-                        );
-                        const projects: JsonProject[] = await vscode.commands.executeCommand(
-                            command,
-                            uris,
-                        );
-                        this.setWorkspaces(projects);
-                        await this.notifyRustAnalyzer();
-                    }
                 }),
             );
         }
@@ -397,19 +360,6 @@ export class Ctx implements RustAnalyzerExtensionApi {
 
     get subscriptions(): Disposable[] {
         return this.extCtx.subscriptions;
-    }
-
-    setWorkspaces(workspaces: JsonProject[]) {
-        this.config.discoveredWorkspaces = workspaces;
-    }
-
-    async notifyRustAnalyzer(): Promise<void> {
-        // this is a workaround to avoid needing writing the `rust-project.json` into
-        // a workspace-level VS Code-specific settings folder. We'd like to keep the
-        // `rust-project.json` entirely in-memory.
-        await this.client?.sendNotification(lc.DidChangeConfigurationNotification.type, {
-            settings: "",
-        });
     }
 
     private updateCommands(forceDisable?: "disable") {

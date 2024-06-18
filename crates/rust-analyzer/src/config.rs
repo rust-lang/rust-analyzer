@@ -330,6 +330,12 @@ config_data! {
         /// `textDocument/rangeFormatting` request. The rustfmt option is unstable and only
         /// available on a nightly build.
         rustfmt_rangeFormatting_enable: bool = false,
+
+        /// Enables automatic discovery of projects using the discoverCommand.
+        ///
+        /// Setting this command will result in rust-analyzer starting indexing
+        /// only once a Rust file has been opened.
+        workspace_discoverCommand: Option<Vec<String>> = None,
     }
 }
 
@@ -578,9 +584,6 @@ config_data! {
 
         /// Whether to show `can't find Cargo.toml` error message.
         notifications_cargoTomlNotFound: bool      = true,
-
-        /// Whether to send an UnindexedProject notification to the client.
-        notifications_unindexedProject: bool      = false,
 
         /// How many worker threads in the main loop. The default `null` means to pick automatically.
         numThreads: Option<NumThreads> = None,
@@ -905,6 +908,21 @@ impl Config {
         );
         (config, e, should_update)
     }
+
+    pub fn add_linked_projects(&mut self, project: ProjectJsonData) {
+        let linked_projects = &mut self.client_config.0.global.linkedProjects;
+
+        let new_project = ManifestOrProjectJson::ProjectJson(project);
+        match linked_projects {
+            Some(projects) => {
+                match projects.iter_mut().find(|p| p.manifest() == new_project.manifest()) {
+                    Some(p) => *p = new_project,
+                    None => projects.push(new_project),
+                }
+            }
+            None => *linked_projects = Some(vec![new_project]),
+        }
+    }
 }
 
 #[derive(Default, Debug)]
@@ -1097,7 +1115,6 @@ pub enum FilesWatcher {
 #[derive(Debug, Clone)]
 pub struct NotificationsConfig {
     pub cargo_toml_not_found: bool,
-    pub unindexed_project: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -1532,6 +1549,7 @@ impl Config {
     pub fn has_linked_projects(&self) -> bool {
         !self.linkedProjects().is_empty()
     }
+
     pub fn linked_manifests(&self) -> impl Iterator<Item = &Utf8Path> + '_ {
         self.linkedProjects().iter().filter_map(|it| match it {
             ManifestOrProjectJson::Manifest(p) => Some(&**p),
@@ -1541,6 +1559,11 @@ impl Config {
     pub fn has_linked_project_jsons(&self) -> bool {
         self.linkedProjects().iter().any(|it| matches!(it, ManifestOrProjectJson::ProjectJson(_)))
     }
+
+    pub fn discover_command(&self) -> Option<Vec<String>> {
+        self.workspace_discoverCommand().clone()
+    }
+
     pub fn linked_or_discovered_projects(&self) -> Vec<LinkedProject> {
         match self.linkedProjects().as_slice() {
             [] => {
@@ -1801,12 +1824,11 @@ impl Config {
     pub fn notifications(&self) -> NotificationsConfig {
         NotificationsConfig {
             cargo_toml_not_found: self.notifications_cargoTomlNotFound().to_owned(),
-            unindexed_project: self.notifications_unindexedProject().to_owned(),
         }
     }
 
     pub fn cargo_autoreload_config(&self) -> bool {
-        self.cargo_autoreload().to_owned()
+        self.cargo_autoreload().to_owned() && self.workspace_discoverCommand().is_none()
     }
 
     pub fn run_build_scripts(&self) -> bool {
@@ -2284,11 +2306,20 @@ mod single_or_array {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(untagged)]
 enum ManifestOrProjectJson {
     Manifest(Utf8PathBuf),
     ProjectJson(ProjectJsonData),
+}
+
+impl ManifestOrProjectJson {
+    fn manifest(&self) -> Option<&Utf8Path> {
+        match self {
+            ManifestOrProjectJson::Manifest(manifest) => Some(manifest),
+            ManifestOrProjectJson::ProjectJson(data) => data.buildfile.as_deref(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -3526,6 +3557,35 @@ mod tests {
             matches!(config.flycheck(), FlycheckConfig::CargoCommand { options, .. } if options.target_dir == Some(Utf8PathBuf::from("target/rust-analyzer")))
         );
     }
+
+    // #[test]
+    // fn linked_targets_updates() {
+    //     let mut config = Config::new(
+    //         AbsPathBuf::try_from(project_root()).unwrap(),
+    //         Default::default(),
+    //         vec![],
+    //         None,
+
+    //     );
+    //     assert!(config.linkedProjects().is_empty());
+    //     let project_json = serde_json::json!({
+    //         "sysroot_src": null,
+    //         "crates": [
+    //             {
+    //                 "display_name": "hello_world",
+    //                 "root_module": "$ROOT$src/lib.rs",
+    //                 "edition": "2018",
+    //                 "deps": [],
+    //                 "is_workspace_member": true
+    //             }
+    //         ]
+    //     });
+
+    //     let project_json = serde_json::from_value(project_json).expect("unable to deserialize");
+    //     config.add_linked_projects(vec![project_json]);
+
+    //     assert!(!config.linkedProjects().is_empty());
+    // }
 
     #[test]
     fn cargo_target_dir_relative_dir() {

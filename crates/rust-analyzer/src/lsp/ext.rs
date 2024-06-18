@@ -535,7 +535,7 @@ pub struct ServerStatusParams {
     pub message: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum Health {
     Ok,
@@ -855,17 +855,4 @@ pub struct CompletionImport {
 #[derive(Debug, Deserialize, Default)]
 pub struct ClientCommandOptions {
     pub commands: Vec<String>,
-}
-
-pub enum UnindexedProject {}
-
-impl Notification for UnindexedProject {
-    type Params = UnindexedProjectParams;
-    const METHOD: &'static str = "rust-analyzer/unindexedProject";
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct UnindexedProjectParams {
-    pub text_documents: Vec<TextDocumentIdentifier>,
 }

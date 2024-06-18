@@ -282,9 +282,3 @@ export type RecursiveMemoryLayoutNode = {
 export type RecursiveMemoryLayout = {
     nodes: RecursiveMemoryLayoutNode[];
 };
-
-export const unindexedProject = new lc.NotificationType<UnindexedProjectParams>(
-    "rust-analyzer/unindexedProject",
-);
-
-export type UnindexedProjectParams = { textDocuments: lc.TextDocumentIdentifier[] };
