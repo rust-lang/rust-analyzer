@@ -217,20 +217,34 @@ pub(crate) fn handle_run_test(
             .unwrap_or_default(),
         None => "".to_owned(),
     };
-    let test_path = if lca.is_empty() {
-        None
-    } else if let Some((_, path)) = lca.split_once("::") {
-        Some(path)
+    let (package_name, test_path) = if lca.is_empty() {
+        (None, None)
+    } else if let Some((package_name, path)) = lca.split_once("::") {
+        (Some(package_name), Some(path))
     } else {
-        None
+        (None, None)
     };
     let mut handles = vec![];
     for ws in &*state.workspaces {
         if let ProjectWorkspaceKind::Cargo { cargo, .. } = &ws.kind {
+            // If possible, scope the test to a specific package otherwise run at the workspace level
+            let (is_workspace, test_root) = if let Some(package_name) = package_name {
+                if let Some(package) =
+                    cargo.packages().find(|p| cargo[*p].name.replace('-', "_") == package_name)
+                {
+                    (false, cargo[package].manifest.parent())
+                } else {
+                    (true, cargo.workspace_root())
+                }
+            } else {
+                (true, cargo.workspace_root())
+            };
+
             let handle = flycheck::CargoTestHandle::new(
                 test_path,
                 state.config.cargo_test_options(),
-                cargo.workspace_root(),
+                test_root,
+                is_workspace,
                 state.test_run_sender.clone(),
             )?;
             handles.push(handle);

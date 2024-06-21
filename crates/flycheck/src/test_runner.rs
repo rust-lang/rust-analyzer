@@ -66,12 +66,15 @@ impl CargoTestHandle {
         path: Option<&str>,
         options: CargoOptions,
         root: &AbsPath,
+        is_workspace: bool,
         sender: Sender<CargoTestMessage>,
     ) -> std::io::Result<Self> {
         let mut cmd = Command::new(Tool::Cargo.path());
         cmd.env("RUSTC_BOOTSTRAP", "1");
         cmd.arg("test");
-        cmd.arg("--workspace");
+        if is_workspace {
+            cmd.arg("--workspace");
+        }
         // --no-fail-fast is needed to ensure that all requested tests will run
         cmd.arg("--no-fail-fast");
         cmd.arg("--manifest-path");
