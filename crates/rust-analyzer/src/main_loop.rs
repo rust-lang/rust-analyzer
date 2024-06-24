@@ -3,7 +3,7 @@
 
 use std::{
     fmt,
-    ops::Div as _,
+    ops::{Div as _, Not},
     time::{Duration, Instant},
 };
 
@@ -13,11 +13,12 @@ use ide_db::base_db::{SourceDatabase, SourceDatabaseExt, VfsPath};
 use lsp_server::{Connection, Notification, Request};
 use lsp_types::{notification::Notification as _, TextDocumentIdentifier};
 use stdx::thread::ThreadIntent;
-use tracing::{span, Level};
+use tracing::{error, span, Level};
+use triomphe::Arc;
 use vfs::FileId;
 
 use crate::{
-    config::Config,
+    config::{Config, ConfigChange},
     diagnostics::{fetch_native_diagnostics, DiagnosticsGeneration},
     dispatch::{NotificationDispatcher, RequestDispatcher},
     global_state::{file_id_to_url, url_to_file_id, GlobalState},
@@ -145,6 +146,8 @@ impl GlobalState {
         if self.config.did_save_text_document_dynamic_registration() {
             self.register_did_save_capability();
         }
+
+        self.fetch_aux_files();
 
         self.fetch_workspaces_queue.request_op("startup".to_owned(), false);
         if let Some((cause, force_crate_graph_reload)) =
@@ -1037,5 +1040,44 @@ impl GlobalState {
             .on_sync_mut::<lsp_ext::AbortRunTest>(handlers::handle_abort_run_test)?
             .finish();
         Ok(())
+    }
+
+    fn fetch_aux_files(&mut self) {
+        let user_config_path = self.config.user_config_path();
+        let root_ratoml_path = self.config.root_ratoml_path();
+
+        {
+            let vfs = &mut self.vfs.write().0;
+            let loader = &mut self.loader;
+
+            if vfs.file_id(user_config_path).is_none() {
+                if let Some(user_cfg_abs) = user_config_path.as_path() {
+                    let contents = loader.handle.load_sync(user_cfg_abs);
+                    vfs.set_file_contents(user_config_path.clone(), contents);
+                } else {
+                    error!("Non-abs virtual path for user config.");
+                }
+            }
+
+            if vfs.file_id(root_ratoml_path).is_none() {
+                // FIXME @alibektas : Sometimes root_path_ratoml collide with a regular ratoml.
+                // Although this shouldn't be a problem because everything is mapped to a `FileId`.
+                // We may want to further think about this.
+                if let Some(root_ratoml_abs) = root_ratoml_path.as_path() {
+                    let contents = loader.handle.load_sync(root_ratoml_abs);
+                    vfs.set_file_contents(root_ratoml_path.clone(), contents);
+                } else {
+                    error!("Non-abs virtual path for user config.");
+                }
+            }
+        }
+
+        let mut config_change = ConfigChange::default();
+        config_change.change_source_root_parent_map(self.local_roots_parent_map.clone());
+
+        let (config, e, _) = self.config.apply_change(config_change);
+        self.config_errors = e.is_empty().not().then_some(e);
+
+        self.config = Arc::new(config);
     }
 }

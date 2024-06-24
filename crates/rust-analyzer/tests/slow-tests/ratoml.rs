@@ -30,8 +30,6 @@ impl RatomlTest {
     const EMIT_MUST_USE: &'static str = r#"assist.emitMustUse = true"#;
     const EMIT_MUST_NOT_USE: &'static str = r#"assist.emitMustUse = false"#;
 
-    const GLOBAL_TRAIT_ASSOC_ITEMS_ZERO: &'static str = r#"hover.show.traitAssocItems = 0"#;
-
     fn new(
         fixtures: Vec<&str>,
         roots: Vec<&str>,
@@ -180,25 +178,6 @@ impl RatomlTest {
     }
 }
 
-// /// Check if we are listening for changes in user's config file ( e.g on Linux `~/.config/rust-analyzer/.rust-analyzer.toml`)
-// #[test]
-// #[cfg(target_os = "windows")]
-// fn listen_to_user_config_scenario_windows() {
-//     todo!()
-// }
-
-// #[test]
-// #[cfg(target_os = "linux")]
-// fn listen_to_user_config_scenario_linux() {
-//     todo!()
-// }
-
-// #[test]
-// #[cfg(target_os = "macos")]
-// fn listen_to_user_config_scenario_macos() {
-//     todo!()
-// }
-
 /// Check if made changes have had any effect on
 /// the client config.
 #[test]
@@ -302,7 +281,6 @@ enum Value {
 //     }
 
 #[test]
-#[ignore = "the user config is currently not being watched on startup, fix this"]
 fn ratoml_user_config_detected() {
     let server = RatomlTest::new(
         vec![
@@ -331,7 +309,6 @@ enum Value {
 }
 
 #[test]
-#[ignore = "the user config is currently not being watched on startup, fix this"]
 fn ratoml_create_user_config() {
     let mut server = RatomlTest::new(
         vec![
@@ -362,7 +339,6 @@ enum Value {
 }
 
 #[test]
-#[ignore = "the user config is currently not being watched on startup, fix this"]
 fn ratoml_modify_user_config() {
     let mut server = RatomlTest::new(
         vec![
@@ -392,7 +368,6 @@ assist.emitMustUse = true"#,
 }
 
 #[test]
-#[ignore = "the user config is currently not being watched on startup, fix this"]
 fn ratoml_delete_user_config() {
     let mut server = RatomlTest::new(
         vec![
@@ -420,15 +395,6 @@ assist.emitMustUse = true"#,
     server.delete(2);
     assert!(!server.query(QueryType::Local, 1));
 }
-// #[test]
-// fn delete_user_config() {
-//     todo!()
-// }
-
-// #[test]
-// fn modify_client_config() {
-//     todo!()
-// }
 
 #[test]
 fn ratoml_inherit_config_from_ws_root() {
@@ -849,30 +815,22 @@ edition = "2021"
         "#,
             r#"
 //- /rust-analyzer.toml
-hover.show.traitAssocItems = 4
+rustfmt.rangeFormatting.enable = true
         "#,
             r#"
 //- /p1/src/lib.rs
-trait RandomTrait {
-    type B;
-    fn abc() -> i32;
-    fn def() -> i64;
-}
-
 fn main() {
-    let a = RandomTrait;
+    todo!()
 }"#,
         ],
         vec![],
         None,
     );
 
-    server.query(QueryType::Global, 2);
+    assert!(server.query(QueryType::Global, 2));
 }
 
-#[allow(unused)]
-// #[test]
-// FIXME: Re-enable this test when we have a global config we can check again
+#[test]
 fn ratoml_root_is_updateable() {
     let mut server = RatomlTest::new(
         vec![
@@ -885,18 +843,12 @@ edition = "2021"
         "#,
             r#"
 //- /rust-analyzer.toml
-hover.show.traitAssocItems = 4
-        "#,
+rustfmt.rangeFormatting.enable = true
+    "#,
             r#"
 //- /p1/src/lib.rs
-trait RandomTrait {
-    type B;
-    fn abc() -> i32;
-    fn def() -> i64;
-}
-
 fn main() {
-    let a = RandomTrait;
+   todo!()
 }"#,
         ],
         vec![],
@@ -904,13 +856,11 @@ fn main() {
     );
 
     assert!(server.query(QueryType::Global, 2));
-    server.edit(1, RatomlTest::GLOBAL_TRAIT_ASSOC_ITEMS_ZERO.to_owned());
+    server.edit(1, "rustfmt.rangeFormatting.enable = false".to_owned());
     assert!(!server.query(QueryType::Global, 2));
 }
 
-#[allow(unused)]
-// #[test]
-// FIXME: Re-enable this test when we have a global config we can check again
+#[test]
 fn ratoml_root_is_deletable() {
     let mut server = RatomlTest::new(
         vec![
@@ -923,18 +873,12 @@ edition = "2021"
         "#,
             r#"
 //- /rust-analyzer.toml
-hover.show.traitAssocItems = 4
-        "#,
+rustfmt.rangeFormatting.enable = true
+       "#,
             r#"
 //- /p1/src/lib.rs
-trait RandomTrait {
-    type B;
-    fn abc() -> i32;
-    fn def() -> i64;
-}
-
 fn main() {
-    let a = RandomTrait;
+    todo!()
 }"#,
         ],
         vec![],
