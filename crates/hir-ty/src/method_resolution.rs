@@ -210,9 +210,21 @@ impl TraitImpls {
                 map.entry(target_trait).or_default().entry(self_ty_fp).or_default().push(impl_id);
             }
 
-            // To better support custom derives, collect impls in all unnamed const items.
+            // To better support custom derives, collect impls in all named and unnamed const items.
+            // const FOO: () = { ... };
             // const _: () = { ... };
-            for konst in module_data.scope.unnamed_consts() {
+            for konst in module_data
+                .scope
+                .declarations()
+                .filter_map(|def| {
+                    if let hir_def::ModuleDefId::ConstId(konst) = def {
+                        Some(konst)
+                    } else {
+                        None
+                    }
+                })
+                .chain(module_data.scope.unnamed_consts())
+            {
                 let body = db.body(konst.into());
                 for (_, block_def_map) in body.blocks(db.upcast()) {
                     Self::collect_def_map(db, map, &block_def_map);
