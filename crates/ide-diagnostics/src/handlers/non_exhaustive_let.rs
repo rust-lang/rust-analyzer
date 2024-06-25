@@ -44,4 +44,28 @@ fn main() {
 "#,
         );
     }
+
+    #[test]
+    fn regression_issue_17031() {
+        check_diagnostics(
+            r#"
+pub trait Foo {
+    type Bar;
+    fn foo(bar: Self::Bar);
+}
+
+pub struct FooImpl;
+
+const FOO_IMPL: () = {
+    impl Foo for FooImpl {
+        type Bar = ();
+
+        fn foo(bar: Self::Bar) {
+            let () = bar;
+        }
+    }
+};
+"#,
+        );
+    }
 }
