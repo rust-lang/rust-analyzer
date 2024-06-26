@@ -1,7 +1,7 @@
 //! Various helper functions related to type resolution to work with TOST Nodes (VST Nodes)
-//! 
+//!
 //! Utilizes Rust-analyzer's type `hir` implementation
-//! 
+//!
 #![allow(dead_code)]
 use crate::AssistContext;
 use hir::Semantics;
@@ -15,7 +15,7 @@ impl<'a> AssistContext<'a> {
         dbg!("call type_of_expr");
         let hir_ty: Vec<hir::Type> =
             sema.type_of_expr(&expr)?.adjusted().autoderef(sema.db).collect::<Vec<_>>();
-            
+
         dbg!("end type_of_expr");
         let hir_ty = hir_ty.first()?;
         if let Some(t) = hir_ty.as_adt() {
@@ -76,7 +76,7 @@ impl<'a> AssistContext<'a> {
     }
 
     /// From a Type usage, get the definition of the enum
-    pub fn resolve_type_enum(&self, ty: &vst::Type) ->  Option<vst::Enum> {
+    pub fn resolve_type_enum(&self, ty: &vst::Type) -> Option<vst::Enum> {
         let sema: &Semantics<'_, ide_db::RootDatabase> = &self.sema;
         let hir_ty: Vec<hir::Type> =
             sema.resolve_type(&ty.cst()?)?.autoderef(sema.db).collect::<Vec<_>>();
@@ -88,7 +88,7 @@ impl<'a> AssistContext<'a> {
             if let vst::Adt::Enum(e) = typename {
                 return Some(*e.clone());
             }
-        } 
+        }
 
         if let Some(t) = hir_ty.as_builtin() {
             dbg!(t);
@@ -102,21 +102,20 @@ impl<'a> AssistContext<'a> {
             vst::Expr::PathExpr(path) => &path.path,
             _ => return None,
         };
-        let name_ref =  &path.segment.name_ref;
+        let name_ref = &path.segment.name_ref;
         Some(*name_ref.clone())
     }
 
     /// Get function definition from the callsite
     pub fn vst_find_fn(&self, call: &vst::CallExpr) -> Option<vst::Fn> {
         for item in self.source_file.items() {
-            let v_item: ast::generated::vst_nodes::Item = 
-                match item.try_into() {
-                    Ok(ii) => ii,
-                    Err(err_msg) => {
-                        dbg!("into_vst failed: {}", err_msg);
-                        continue;
-                    },
-                };
+            let v_item: ast::generated::vst_nodes::Item = match item.try_into() {
+                Ok(ii) => ii,
+                Err(err_msg) => {
+                    dbg!("into_vst failed: {}", err_msg);
+                    continue;
+                }
+            };
             match v_item {
                 ast::generated::vst_nodes::Item::Fn(f) => {
                     if call.expr.to_string().trim() == f.name.to_string().trim() {
@@ -138,5 +137,4 @@ impl<'a> AssistContext<'a> {
         }
         return false;
     }
-
 }

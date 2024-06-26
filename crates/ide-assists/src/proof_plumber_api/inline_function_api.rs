@@ -1,8 +1,8 @@
 //! ProofPlumber API for inline
-//! 
+//!
 //! Used for inlining a precondition at the callsite
 //! See `insert_failing_precondtion.rs` for usage.
-//! 
+//!
 //!
 
 use crate::AssistContext;
@@ -11,6 +11,7 @@ use syntax::{
     ast::{self, vst},
     AstNode,
 };
+use test_fixture::WithFixture;
 
 impl<'a> AssistContext<'a> {
     /// inline function call
@@ -20,8 +21,8 @@ impl<'a> AssistContext<'a> {
     // TODO: currently inline can panic when the inlining expr does not fully use all the parameters
     pub fn vst_inline_call(
         &self,
-        name_ref: vst::NameRef,     // the name of the function to inline **at the callsite**. from `name_ref`, we get its arguments
-        expr_to_inline: vst::Expr,  // the expression to inline --- this expression will replace the function body
+        name_ref: vst::NameRef, // the name of the function to inline **at the callsite**. from `name_ref`, we get its arguments
+        expr_to_inline: vst::Expr, // the expression to inline --- this expression will replace the function body
     ) -> Option<vst::Expr> {
         use crate::handlers::inline_call::*;
         dbg!("vst_inline_call");
@@ -59,9 +60,7 @@ impl<'a> AssistContext<'a> {
         let mut temp_fn_str = temp_fn.to_string();
         temp_fn_str.insert_str(0, "$0");
         let (mut db, file_with_caret_id, range_or_offset) =
-            <ide_db::RootDatabase as ide_db::base_db::fixture::WithFixture>::with_range_or_offset(
-                &temp_fn_str,
-            );
+            <ide_db::RootDatabase as test_fixture::WithFixture>::with_range_or_offset(&temp_fn_str);
         db.enable_proc_attr_macros();
         let frange = ide_db::base_db::FileRange {
             file_id: file_with_caret_id,

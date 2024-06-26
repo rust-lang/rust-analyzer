@@ -1,20 +1,27 @@
 //! ProofPlumber API for formatting
-//! 
+//!
 //! Uses verusfmt at <https://github.com/verus-lang/verusfmt>
-//! 
+//!
 //! Since TOST node (VST node) abstracts away whitespace, indentation, newline and stuff
 //! for easier manipulation, we need to restore those
 //! before we send the proof code back to the IDE user
-//! 
+//!
 //! It creates a temporary file for formatting at $TMPDIR
 //!
 
-
-use std::{process::Command, collections::hash_map::DefaultHasher, time::Instant, env, path::Path, hash::{Hasher, Hash}, fs::{read_to_string, File}, io::Write};
-use core::ops::Range;
 use crate::AssistContext;
+use core::ops::Range;
+use std::{
+    collections::hash_map::DefaultHasher,
+    env,
+    fs::{read_to_string, File},
+    hash::{Hash, Hasher},
+    io::Write,
+    path::Path,
+    process::Command,
+    time::Instant,
+};
 use syntax::{ast, AstNode};
-
 
 /*
 verus! {
@@ -53,15 +60,13 @@ impl<'a> AssistContext<'a> {
     ) -> Option<String> {
         let fn_range = func.syntax().text_range();
         let expr_range = sth_to_remove.syntax().text_range();
-        let expr_range_in_fn = expr_range.checked_sub(fn_range.start())?;    
+        let expr_range_in_fn = expr_range.checked_sub(fn_range.start())?;
         let range: core::ops::Range<usize> = expr_range_in_fn.into();
         let string_result = self.try_fmt(func.to_string(), range, text_to_replace)?;
         let joined_string = string_result.join("\n");
         let result = joined_string.trim_start(); // note the indentation at the inserted location
         Some(String::from(result))
     }
-
-
 
     // for now, format only a function
     // 1) print the function into a temporary file (ugly, but syntactically correct one)
@@ -70,14 +75,14 @@ impl<'a> AssistContext<'a> {
     //
     fn try_fmt(
         &self,
-        mut fn_as_text: String, 
+        mut fn_as_text: String,
         range_to_remove: Range<usize>,
         mut text_to_replace: String, // from vst
     ) -> Option<Vec<String>> {
         // let source_file = &self.source_file;
         // let fmt_path = &self.config.fmt_path;
-        let fmt_path = std::env::var("VERUS_FMT_BINARY_PATH").expect("please set VERUS_FMT_BINARY_PATH environment variable");
-
+        let fmt_path = std::env::var("VERUS_FMT_BINARY_PATH")
+            .expect("please set VERUS_FMT_BINARY_PATH environment variable");
 
         let start_marker = "/*marker fmt start*/";
         let end_marker = "/*marker fmt end*/";
@@ -91,17 +96,15 @@ impl<'a> AssistContext<'a> {
         fn_as_text.insert_str(0, "verus!{\n");
         fn_as_text.push_str("\n}");
         // dbg!("{}", &fn_as_text);
-        
 
         // #[cfg(test)] // We get verus path from config of editor. In test, we use a hardcoded path
         // let fmt_path = HARDCODED_VERUS_FMT_PATH_FOR_TEST.to_string(); // TODO: maybe move this to test config
-
 
         dbg!(&fmt_path);
         if fmt_path.len() == 0 {
             dbg!("verusfmt path not set");
         }
-        
+
         // REIVEW: instead of writing to a file in the tmp directory, consider using `memfd_create` for an anonymous file
         // refer to `man memfd_create` or `dev/shm`
         let mut hasher = DefaultHasher::new();
@@ -109,7 +112,8 @@ impl<'a> AssistContext<'a> {
         now.hash(&mut hasher);
         // in linux, set env TMPDIR to set the tmp directory. Otherwise, it fails
         let tmp_dir = env::temp_dir();
-        let tmp_name = format!("{}/_verus_assert_comment_{:?}_.rs", tmp_dir.display(), hasher.finish());
+        let tmp_name =
+            format!("{}/_verus_assert_comment_{:?}_.rs", tmp_dir.display(), hasher.finish());
         dbg!(&tmp_name);
         let path = Path::new(&tmp_name);
         let display = path.display();
@@ -132,10 +136,7 @@ impl<'a> AssistContext<'a> {
             Ok(_) => dbg!("successfully wrote to {}", display),
         };
 
-        let output = 
-            Command::new(fmt_path)
-                .arg(path)
-                .output();
+        let output = Command::new(fmt_path).arg(path).output();
 
         let output = output.ok()?;
         dbg!(&output);
@@ -144,7 +145,9 @@ impl<'a> AssistContext<'a> {
 
             let mut result = Vec::new();
             let mut is_line_target = false;
-            for line in read_to_string(path).expect("Should have been able to read the file").lines() {
+            for line in
+                read_to_string(path).expect("Should have been able to read the file").lines()
+            {
                 if line.contains(start_marker) {
                     is_line_target = true;
                     continue;
@@ -161,7 +164,6 @@ impl<'a> AssistContext<'a> {
                 if is_line_target {
                     result.push(line.to_string())
                 }
-                
             }
             return Some(result);
         } else {

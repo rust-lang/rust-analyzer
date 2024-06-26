@@ -1,7 +1,7 @@
 //! It can be cumbersom to generate a new TOST node using `new`
 //! Below are some helper functions in this case.
 //! We can generate commonly used TOST nodes from text using the following APIs.
-//! 
+//!
 
 use crate::AssistContext;
 use syntax::ast::{self, vst};
@@ -15,10 +15,14 @@ impl<'a> AssistContext<'a> {
     }
 
     /// Generate CallExpr from Text and ArgList
-    pub fn vst_call_expr_from_text(&self, fn_name: &str, arglist: vst::ArgList) -> Option<vst::CallExpr> {
+    pub fn vst_call_expr_from_text(
+        &self,
+        fn_name: &str,
+        arglist: vst::ArgList,
+    ) -> Option<vst::CallExpr> {
         let fn_name_as_path: vst::Path = self.vst_path_from_text(fn_name)?;
         let fn_name_as_pathexpr: vst::PathExpr = vst::PathExpr::new(fn_name_as_path);
-        let vst_call_expr = vst::CallExpr::new(fn_name_as_pathexpr, arglist);
+        let vst_call_expr = vst::CallExpr::new(arglist, fn_name_as_pathexpr);
         return Some(vst_call_expr);
     }
 
@@ -34,5 +38,4 @@ impl<'a> AssistContext<'a> {
         let ret: vst::Expr = vst::Literal::new(s.to_string()).into();
         Some(ret)
     }
-
 }

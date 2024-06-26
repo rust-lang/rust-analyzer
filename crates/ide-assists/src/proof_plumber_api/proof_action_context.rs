@@ -1,9 +1,9 @@
 //! various helper functions to interact with proof action cotext
-//! 
+//!
 
 #![allow(dead_code)]
 
-use crate::{AssistContext, proof_plumber_api::verus_error::*};
+use crate::{proof_plumber_api::verus_error::*, AssistContext};
 use syntax::{
     ast::{self, vst},
     AstNode, SyntaxKind,
@@ -83,7 +83,8 @@ impl<'a> AssistContext<'a> {
     /// Specify the syntax token to invoke a proof action
     pub fn at_this_token(&self, token: SyntaxKind) -> Option<()> {
         let the_keyword_of_interest = self.find_token_syntax_at_offset(token)?;
-        let cursor_in_range = the_keyword_of_interest.text_range().contains_range(self.selection_trimmed());
+        let cursor_in_range =
+            the_keyword_of_interest.text_range().contains_range(self.selection_trimmed());
         if !cursor_in_range {
             return None;
         }
@@ -91,42 +92,51 @@ impl<'a> AssistContext<'a> {
     }
 
     /// helper routine to replace statement
-    pub fn replace_statement<ST0, ST1>(&self, func: &vst::Fn, old: ST0, new: ST1) -> Option<vst::Fn> 
+    pub fn replace_statement<ST0, ST1>(&self, func: &vst::Fn, old: ST0, new: ST1) -> Option<vst::Fn>
     where
         ST0: Into<vst::Stmt> + std::clone::Clone,
         ST1: Into<vst::Stmt> + std::clone::Clone,
     {
-        let old:vst::Stmt = old.into();
-        let new:vst::Stmt = new.into();
-        let stmts = func.body.as_ref()?.stmt_list.statements.clone(); 
+        let old: vst::Stmt = old.into();
+        let new: vst::Stmt = new.into();
+        let stmts = func.body.as_ref()?.stmt_list.statements.clone();
         let mut func = func.clone();
         let replaced_stmts = self.replace_statement_rec(&stmts, old, new);
-        func.body.as_mut()?.stmt_list.statements = replaced_stmts;  
+        func.body.as_mut()?.stmt_list.statements = replaced_stmts;
         Some(func)
     }
 
-    fn replace_statement_rec(&self, stmts: &Vec<vst::Stmt>, old: vst::Stmt, new: vst::Stmt) -> Vec<vst::Stmt>
-    {
-        let replaced_stmts: Vec<vst::Stmt> = stmts.into_iter().map(|s| 
-            if s.to_string().trim() == old.to_string().trim() {
-                new.clone()
-            } 
-            else {
-                if let vst::Stmt::ExprStmt(exprstmt) = s {
-                    if let vst::Expr::BlockExpr(be) = &*exprstmt.expr {
-                        let inner_stmts = &be.stmt_list.statements;
-                        let changed_inner = self.replace_statement_rec(&inner_stmts, old.clone(), new.clone());
-                        let mut changed_stmts =vst::StmtList::new();
-                        changed_stmts.statements = changed_inner;
-                        let changed_exprstmt:vst::Stmt = vst::BlockExpr::new(changed_stmts).into();
-                        changed_exprstmt
+    fn replace_statement_rec(
+        &self,
+        stmts: &Vec<vst::Stmt>,
+        old: vst::Stmt,
+        new: vst::Stmt,
+    ) -> Vec<vst::Stmt> {
+        let replaced_stmts: Vec<vst::Stmt> = stmts
+            .into_iter()
+            .map(|s| {
+                if s.to_string().trim() == old.to_string().trim() {
+                    new.clone()
+                } else {
+                    if let vst::Stmt::ExprStmt(exprstmt) = s {
+                        if let vst::Expr::BlockExpr(be) = &*exprstmt.expr {
+                            let inner_stmts = &be.stmt_list.statements;
+                            let changed_inner =
+                                self.replace_statement_rec(&inner_stmts, old.clone(), new.clone());
+                            let mut changed_stmts = vst::StmtList::new();
+                            changed_stmts.statements = changed_inner;
+                            let changed_exprstmt: vst::Stmt =
+                                vst::BlockExpr::new(changed_stmts).into();
+                            changed_exprstmt
+                        } else {
+                            s.clone()
+                        }
                     } else {
                         s.clone()
                     }
-                } else {
-                    s.clone()
-                }                
-            }).collect();  
+                }
+            })
+            .collect();
         replaced_stmts
     }
 

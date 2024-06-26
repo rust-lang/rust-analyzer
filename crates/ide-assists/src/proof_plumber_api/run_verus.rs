@@ -1,14 +1,22 @@
 //! Run Verus and return the verification result
 
-
-use std::{process::Command, collections::hash_map::DefaultHasher, time::Instant, env, path::Path, hash::{Hasher, Hash}, fs::File, io::Write};
 use crate::AssistContext;
+use std::{
+    collections::hash_map::DefaultHasher,
+    env,
+    fs::File,
+    hash::{Hash, Hasher},
+    io::Write,
+    path::Path,
+    process::Command,
+    time::Instant,
+};
 use syntax::ast::{self, vst, HasModuleItem, HasName};
 
 impl<'a> AssistContext<'a> {
     // for now, assume one file only
     // 1) copy the file to a temporary file
-    // 2) replace out the function with this VST Fn 
+    // 2) replace out the function with this VST Fn
     // 3) run verus on the temporary file
     // run Verus on the `vst::Fn` node
     // assume running verus inside vs-code
@@ -20,11 +28,12 @@ impl<'a> AssistContext<'a> {
     /// Output None when Verus fails to start (e.g., compile error on the modified function)
     pub(crate) fn try_verus(
         &self,
-        vst_fn: &vst::Fn, // only replace this function and run 
+        vst_fn: &vst::Fn, // only replace this function and run
     ) -> Option<VerifResult> {
         let source_file = &self.source_file;
-        let verus_exec_path = std::env::var("VERUS_BINARY_PATH").expect("please set VERUS_BINARY_PATH environment variable");
-        let mut text_string  = String::new();
+        let verus_exec_path = std::env::var("VERUS_BINARY_PATH")
+            .expect("please set VERUS_BINARY_PATH environment variable");
+        let mut text_string = String::new();
         // in VST, we should also be able to "print" and verify
         // display for VST should be correct modulo whitespace
         for it in source_file.items() {
@@ -38,18 +47,18 @@ impl<'a> AssistContext<'a> {
                         text_string += &f.to_string();
                     }
                     text_string += "\n}\n";
-                },
+                }
                 ast::Item::Enum(e) => {
                     text_string += "\nverus!{\n";
                     text_string += &e.to_string();
                     text_string += "\n}\n";
-                },
+                }
                 ast::Item::Struct(e) => {
                     text_string += "\nverus!{\n";
                     // review: it.cst.to_string?  for now, No -- see is_failing
                     text_string += &e.to_string();
                     text_string += "\n}\n";
-                },
+                }
                 ast::Item::Impl(e) => {
                     text_string += "\nverus!{\n";
                     text_string += &e.to_string();
@@ -58,17 +67,14 @@ impl<'a> AssistContext<'a> {
                 _ => {
                     text_string += &it.to_string();
                     text_string += "\n";
-                 },
+                }
             }
         }
         dbg!(&text_string);
 
-        
         // let verify_func_flag = "--verify-function";
         // let verify_root_flag = "--verify-root"; // TODO: figure out the surrounding module of `token`
         // let func_name = vst_fn.name.to_string();
-
-
 
         // REIVEW: instead of writing to a file in the tmp directory, consider using `memfd_create` for an anonymous file
         // refer to `man memfd_create` or `dev/shm`
@@ -77,7 +83,8 @@ impl<'a> AssistContext<'a> {
         now.hash(&mut hasher);
         // in linux, set env TMPDIR to set the tmp directory. Otherwise, it fails
         let tmp_dir = env::temp_dir();
-        let tmp_name = format!("{}/_verus_assert_comment_{:?}_.rs", tmp_dir.display(), hasher.finish());
+        let tmp_name =
+            format!("{}/_verus_assert_comment_{:?}_.rs", tmp_dir.display(), hasher.finish());
         dbg!(&tmp_name);
         let path = Path::new(&tmp_name);
         let display = path.display();
@@ -101,14 +108,12 @@ impl<'a> AssistContext<'a> {
         };
 
         let now = Instant::now();
-        let output = 
-            Command::new(verus_exec_path)
-                .arg(path)
-                .arg("--multiple-errors")
-                .arg("10") // we want many errors as proof-action reads this. By default, Verus gives a couple of errors as a human reads those.
-                .output();
+        let output = Command::new(verus_exec_path)
+            .arg(path)
+            .arg("--multiple-errors")
+            .arg("10") // we want many errors as proof-action reads this. By default, Verus gives a couple of errors as a human reads those.
+            .output();
         let elapsed = now.elapsed().as_secs();
-
 
         let output = output.ok()?;
         // dbg!(&output);
@@ -126,8 +131,12 @@ impl<'a> AssistContext<'a> {
                         // verification failure
                         match std::str::from_utf8(&output.stderr) {
                             Ok(err_msg) => {
-                                return Some(VerifResult::mk_failure(out.into(), err_msg.into(), elapsed));
-                            },
+                                return Some(VerifResult::mk_failure(
+                                    out.into(),
+                                    err_msg.into(),
+                                    elapsed,
+                                ));
+                            }
                             Err(_) => return None,
                         }
                     }
@@ -141,25 +150,26 @@ impl<'a> AssistContext<'a> {
 #[derive(Debug)]
 pub(crate) struct VerifResult {
     pub(crate) is_success: bool,
-    // FIXME: properly parse json using serde and store the list of assertion/ensures/requires 
+    // FIXME: properly parse json using serde and store the list of assertion/ensures/requires
     #[allow(dead_code)]
-    pub(crate) stdout: String ,
+    pub(crate) stdout: String,
     pub(crate) stderr: String,
     pub(crate) time: u64,
 }
 
 impl VerifResult {
     pub fn mk_success(time: u64) -> Self {
-        VerifResult {is_success: true, stdout: String::new(), stderr: String::new(), time}
+        VerifResult { is_success: true, stdout: String::new(), stderr: String::new(), time }
     }
 
     pub fn mk_failure(stdout: String, stderr: String, time: u64) -> Self {
-        VerifResult {is_success: false, stdout, stderr, time}
+        VerifResult { is_success: false, stdout, stderr, time }
     }
 
     pub fn is_failing(&self, assertion: &vst::AssertExpr) -> bool {
-        if self.is_success {return false;}
+        if self.is_success {
+            return false;
+        }
         self.stderr.contains(&assertion.to_string())
     }
 }
-
