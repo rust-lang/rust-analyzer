@@ -9,7 +9,10 @@
 #![warn(rust_2018_idioms, unused_lifetimes)]
 
 use std::{
-    fmt, io, path::Path, process::{ChildStderr, ChildStdout, Command, Stdio}, time::Duration
+    fmt, io,
+    path::Path,
+    process::{Child, ChildStderr, ChildStdout, Command, Stdio},
+    time::Duration,
 };
 
 use crossbeam_channel::{never, select, unbounded, Receiver, Sender};
@@ -706,7 +709,8 @@ impl FlycheckActor {
                             if found_verus_settings {
                                 if line.contains("extra_args") {
                                     let start = "extra_args".len() + 1;
-                                    let mut arguments = line[start..line.len()-1].trim().to_string();
+                                    let mut arguments =
+                                        line[start..line.len() - 1].trim().to_string();
                                     if arguments.starts_with("=") {
                                         arguments.remove(0);
                                         arguments = arguments.trim().to_string();
@@ -715,10 +719,13 @@ impl FlycheckActor {
                                         arguments.remove(0);
                                     }
                                     if arguments.ends_with("\"") {
-                                        arguments.remove(arguments.len()-1);
+                                        arguments.remove(arguments.len() - 1);
                                     }
 
-                                    let arguments_vec = arguments.split(" ").map(|it| it.to_string()).collect::<Vec<_>>();
+                                    let arguments_vec = arguments
+                                        .split(" ")
+                                        .map(|it| it.to_string())
+                                        .collect::<Vec<_>>();
                                     extra_args_from_toml = Some(arguments_vec);
                                 }
                                 break;
@@ -730,17 +737,30 @@ impl FlycheckActor {
 
                         if ans.join("src/main.rs").exists() {
                             root = Some(ans.join("src/main.rs"));
-                            file_as_module = Some(file.strip_prefix(ans.join("src")).unwrap().to_str().unwrap().replace("/", "::").replace(".rs", ""));
+                            file_as_module = Some(
+                                file.strip_prefix(ans.join("src"))
+                                    .unwrap()
+                                    .to_str()
+                                    .unwrap()
+                                    .replace("/", "::")
+                                    .replace(".rs", ""),
+                            );
                         } else if ans.join("src/lib.rs").exists() {
                             root = Some(ans.join("src/lib.rs"));
-                            file_as_module = Some(file.strip_prefix(ans.join("src")).unwrap().to_str().unwrap().replace("/", "::").replace(".rs", ""));
+                            file_as_module = Some(
+                                file.strip_prefix(ans.join("src"))
+                                    .unwrap()
+                                    .to_str()
+                                    .unwrap()
+                                    .replace("/", "::")
+                                    .replace(".rs", ""),
+                            );
                         } else {
                             continue;
                         }
                         break;
                     }
                 }
-
 
                 let mut args = args.to_vec();
 
