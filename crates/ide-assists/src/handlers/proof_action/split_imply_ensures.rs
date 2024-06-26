@@ -1,12 +1,11 @@
 use crate::{
     assist_context::{AssistContext, Assists},
-    AssistId,
-    AssistKind,
+    AssistId, AssistKind,
 };
 use syntax::ast::{self, vst::*, AstNode, LogicOp};
 
 pub(crate) fn split_imply_ensures(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
-   // setup basic variables
+    // setup basic variables
     let func: ast::Fn = ctx.find_node_at_offset::<ast::Fn>()?;
     let ensures: ast::EnsuresClause = func.ensures_clause()?;
 
@@ -20,7 +19,7 @@ pub(crate) fn split_imply_ensures(acc: &mut Assists, ctx: &AssistContext<'_>) ->
 
     let v_func = Fn::try_from(func.clone()).ok()?;
     let result = vst_rewriter_split_imply_ensures(v_func)?;
-    let result = ctx.fmt(func.clone(),result.to_string())?;
+    let result = ctx.fmt(func.clone(), result.to_string())?;
 
     acc.add(
         AssistId("split_imply_ensures", AssistKind::RefactorRewrite),
@@ -36,12 +35,12 @@ pub(crate) fn vst_rewriter_split_imply_ensures(mut func: Fn) -> Option<String> {
     let ensures = *func.ensures_clause.clone()?;
     // check if the number of ensures clause if 1
     if ensures.exprs.len() != 1 {
-      return None;
+        return None;
     }
     let ensures_expr = ensures.exprs[0].clone();
 
     // if assertion's expression's top level is not implication, return None
-    
+
     let (new_req, new_ens) = match ensures_expr {
         Expr::BinExpr(b) => {
             if b.op != BinaryOp::LogicOp(LogicOp::Imply) {
@@ -50,13 +49,16 @@ pub(crate) fn vst_rewriter_split_imply_ensures(mut func: Fn) -> Option<String> {
             }
             (*b.lhs, *b.rhs)
         }
-        _ => {dbg!("not a binexpr"); return None;},
+        _ => {
+            dbg!("not a binexpr");
+            return None;
+        }
     };
     func.ensures_clause.as_mut()?.exprs = vec![new_ens];
     let mut req = RequiresClause::new();
     req.exprs.push(new_req);
     func.requires_clause = Some(Box::new(req));
-    Some(func.to_string())    
+    Some(func.to_string())
 }
 
 #[cfg(test)]
@@ -68,8 +70,8 @@ mod tests {
     #[test]
     fn test_split_imply_ensures_1() {
         check_assist(
-          split_imply_ensures,
-"
+            split_imply_ensures,
+            "
 fn test_split_imply_ensures(b: bool) -> (ret: u32)
     ens$0ures 
       b ==> ret == 2
@@ -81,7 +83,7 @@ fn test_split_imply_ensures(b: bool) -> (ret: u32)
     ret
 }  
 ",
-"
+            "
 fn test_split_imply_ensures(b: bool) -> (ret: u32)
     requires
         b,
@@ -96,22 +98,21 @@ fn test_split_imply_ensures(b: bool) -> (ret: u32)
 }
   
 ",
-
         )
     }
 
     #[test]
     fn test_split_imply_ensures_2() {
         check_assist(
-          split_imply_ensures,
-"
+            split_imply_ensures,
+            "
 proof fn lemma_mul_inequality(x: int, y: int, z: int) 
     by(nonlinear_arith)
     ensu$0res  x <= y && z > 0 ==> x * z <= y * z,
 {
 }
 ",
-"
+            "
 proof fn lemma_mul_inequality(x: int, y: int, z: int)
     by (nonlinear_arith)
     requires
@@ -122,9 +123,6 @@ proof fn lemma_mul_inequality(x: int, y: int, z: int)
 }
 
 ",
-
         )
     }
 }
-
-

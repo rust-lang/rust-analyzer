@@ -1,5 +1,11 @@
-use crate::{assist_context::{AssistContext, Assists}, AssistId, AssistKind};
-use syntax::{ast::{self, vst::*, AstNode},T,};
+use crate::{
+    assist_context::{AssistContext, Assists},
+    AssistId, AssistKind,
+};
+use syntax::{
+    ast::{self, vst::*, AstNode},
+    T,
+};
 
 pub(crate) fn by_assume_false(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     // trigger on "assert"
@@ -15,7 +21,7 @@ pub(crate) fn by_assume_false(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     let result = vst_rewriter_by_assume_false(ctx, assert.clone())?;
 
     // pretty-print
-    let result = ctx.fmt(expr.clone(),result.to_string())?;
+    let result = ctx.fmt(expr.clone(), result.to_string())?;
     acc.add(
         AssistId("by_assume_false", AssistKind::RefactorRewrite),
         "Insert assume false for this assert",
@@ -26,7 +32,10 @@ pub(crate) fn by_assume_false(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     )
 }
 
-pub(crate) fn vst_rewriter_by_assume_false(ctx: &AssistContext<'_>, mut assert: AssertExpr) -> Option<AssertExpr> {
+pub(crate) fn vst_rewriter_by_assume_false(
+    ctx: &AssistContext<'_>,
+    mut assert: AssertExpr,
+) -> Option<AssertExpr> {
     // if is already has a "by block", return None
     if assert.by_token {
         return None;
@@ -36,7 +45,7 @@ pub(crate) fn vst_rewriter_by_assume_false(ctx: &AssistContext<'_>, mut assert: 
     // generate empty proof block and put the "assume(false)" in it
     let mut stmt = StmtList::new();
     let false_: Expr = ctx.vst_expr_from_text("false")?;
-    let assume_false = AssumeExpr::new(false_,);
+    let assume_false = AssumeExpr::new(false_);
     stmt.statements.push(assume_false.into());
     let blk_expr: BlockExpr = BlockExpr::new(stmt);
     assert.block_expr = Some(Box::new(blk_expr));
@@ -72,8 +81,8 @@ proof fn f(x: int) {
     fn test_by_assume_false2() {
         check_assist(
             by_assume_false, // the proof action to be used
-// proof to be modified below
-// `$0` indicates the cursor location
+            // proof to be modified below
+            // `$0` indicates the cursor location
             "
 spec fn pow2(e: nat) -> nat 
     decreases(e),
@@ -88,7 +97,7 @@ proof fn lemma_pow2_unfold3(e: nat)
     asse$0rt(pow2(e) == pow2((e - 3) as nat) * 8);
 }
 ",
-// modified proof below
+            // modified proof below
             "
 spec fn pow2(e: nat) -> nat 
     decreases(e),

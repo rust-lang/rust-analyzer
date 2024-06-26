@@ -1,7 +1,7 @@
 use std::vec;
 
-use crate::{AssistContext, AssistId, AssistKind, Assists};
 use crate::proof_plumber_api::vst_ext::vst_walk_expr;
+use crate::{AssistContext, AssistId, AssistKind, Assists};
 
 use syntax::{
     ast::{self, vst::*},
@@ -20,7 +20,7 @@ pub(crate) fn intro_match(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
 
     let assert: AssertExpr = AssertExpr::try_from(assert_expr.clone()).ok()?;
     let result = vst_rewriter_intro_match(ctx, assert.clone())?;
-    let result = ctx.fmt(assert_expr.clone(),result.to_string())?;
+    let result = ctx.fmt(assert_expr.clone(), result.to_string())?;
 
     // register code change to `acc`
     acc.add(
@@ -49,7 +49,7 @@ pub(crate) fn vst_rewriter_intro_match(
     if v.len() == 0 {
         return None;
     }
-    let enum_expr_inside_assertion = &v[0]; // select first 
+    let enum_expr_inside_assertion = &v[0]; // select first
     let en = ctx.type_of_expr_enum(enum_expr_inside_assertion)?;
     let mut match_arms: Vec<MatchArm> = vec![];
     for variant in &en.variant_list.variants {
@@ -62,25 +62,31 @@ pub(crate) fn vst_rewriter_intro_match(
     // now run verifier and only present failing variants
     // Try each variant --- for the rest(`_`), use "assume false"
     let mut is_filtered = false;
-    let match_arms: Option<Vec<MatchArm>>= match_arms.into_iter().map(|arm| {
-        let this_fn = ctx.vst_find_node_at_offset::<Fn, ast::Fn>()?; 
-        let wild_card = Literal::new(format!("_"));
-        let wild_pat = LiteralPat::new(wild_card);
-        let assume_false = ctx.vst_expr_from_text("assume(false)")?;
-        let wild_arm = MatchArm::new(wild_pat.into(), assume_false);
-        let simple_arms = vec![arm.clone(), wild_arm];
-        let mut match_arm_lst = MatchArmList::new();
-        match_arm_lst.arms = simple_arms;
-        let simple_match_stmt = MatchExpr::new(enum_expr_inside_assertion.clone(), match_arm_lst);
-        let modified_fn = ctx.replace_statement(&this_fn, assert.clone(), simple_match_stmt.clone())?;
-        let verif_result = ctx.try_verus(&modified_fn)?;
-        if verif_result.is_failing(&assert) {
-            Some(arm.clone())
-        } else {
-            is_filtered= true;
-            None
-        }
-    }).filter(|x| x.is_some()).collect();
+    let match_arms: Option<Vec<MatchArm>> = match_arms
+        .into_iter()
+        .map(|arm| {
+            let this_fn = ctx.vst_find_node_at_offset::<Fn, ast::Fn>()?;
+            let wild_card = Literal::new(format!("_"));
+            let wild_pat = LiteralPat::new(wild_card);
+            let assume_false = ctx.vst_expr_from_text("assume(false)")?;
+            let wild_arm = MatchArm::new(wild_pat.into(), assume_false);
+            let simple_arms = vec![arm.clone(), wild_arm];
+            let mut match_arm_lst = MatchArmList::new();
+            match_arm_lst.arms = simple_arms;
+            let simple_match_stmt =
+                MatchExpr::new(enum_expr_inside_assertion.clone(), match_arm_lst);
+            let modified_fn =
+                ctx.replace_statement(&this_fn, assert.clone(), simple_match_stmt.clone())?;
+            let verif_result = ctx.try_verus(&modified_fn)?;
+            if verif_result.is_failing(&assert) {
+                Some(arm.clone())
+            } else {
+                is_filtered = true;
+                None
+            }
+        })
+        .filter(|x| x.is_some())
+        .collect();
 
     let mut match_arms = match_arms?;
     if is_filtered {
@@ -110,7 +116,7 @@ mod tests {
     fn intro_match1() {
         check_assist(
             intro_match,
-// before
+            // before
             r#"
 use vstd::prelude::*;
 enum Movement {
@@ -131,7 +137,7 @@ proof fn good_move(m: Movement)
 }
 fn main() {}
 "#,
-// after
+            // after
             r#"
 use vstd::prelude::*;
 enum Movement {
@@ -158,13 +164,12 @@ fn main() {}
         );
     }
 
-
     // TEST2
     #[test]
     fn intro_match2() {
         check_assist(
             intro_match,
-// Before
+            // Before
             r#"
 use vstd::prelude::*;
 enum Movement {
@@ -185,7 +190,7 @@ proof fn good_move(m: Movement)
 }
 fn main() {}
 "#,
-// After
+            // After
             r#"
 use vstd::prelude::*;
 enum Movement {
@@ -212,12 +217,11 @@ fn main() {}
         );
     }
 
-
     #[test]
     fn intro_match3() {
         check_assist(
             intro_match,
-r#"
+            r#"
 use vstd::prelude::*;
 #[derive(PartialEq, Eq, Clone)] 
 #[is_variant]
@@ -248,8 +252,7 @@ fn update_msg(msg: Message)
 }
 fn main() {}
 "#,
-
-r#"
+            r#"
 use vstd::prelude::*;
 #[derive(PartialEq, Eq, Clone)] 
 #[is_variant]
@@ -282,8 +285,7 @@ fn update_msg(msg: Message)
     };
 }
 fn main() {}
-"#
+"#,
         );
     }
-
 }

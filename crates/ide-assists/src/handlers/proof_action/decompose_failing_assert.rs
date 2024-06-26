@@ -64,7 +64,7 @@ pub(crate) fn localize_error(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opti
     let assertion = ctx.find_node_at_offset::<ast::AssertExpr>()?;
     let v_assertion = AssertExpr::try_from(assertion.clone()).ok()?;
     let result = vst_rewriter_localize_error_minimized(ctx, v_assertion.clone())?;
-    let result = ctx.fmt(assertion.clone(),result.to_string())?;
+    let result = ctx.fmt(assertion.clone(), result.to_string())?;
 
     acc.add(
         AssistId("localize_error", AssistKind::RefactorRewrite),
@@ -87,22 +87,26 @@ fn split_expr(ctx: &AssistContext<'_>, exp: &Expr) -> Option<Vec<Expr>> {
                 }
                 BinaryOp::LogicOp(LogicOp::Imply) => {
                     let split_exprs: Vec<Expr> = split_expr(ctx, be.lhs.as_ref())?;
-                    let implied_exprs: Vec<Expr> = split_exprs.into_iter().map(|e| {
-                        BinExpr::new(
-                            be.rhs.as_ref().clone(),
-                            BinaryOp::LogicOp(LogicOp::Imply),
-                            e,
-                        ).into()
-                    }).collect();
+                    let implied_exprs: Vec<Expr> = split_exprs
+                        .into_iter()
+                        .map(|e| {
+                            BinExpr::new(
+                                be.rhs.as_ref().clone(),
+                                BinaryOp::LogicOp(LogicOp::Imply),
+                                e,
+                            )
+                            .into()
+                        })
+                        .collect();
                     Some(implied_exprs)
                 }
                 _ => return None,
             }
-        },
+        }
         Expr::MatchExpr(_me) => {
             // Note: #[is_variant] is now deprecated in Verus
             return None;
-        },            
+        }
         Expr::CallExpr(call) => {
             dbg!("inline call for decomposing failing assertion");
             let name_ref = ctx.name_ref_from_call_expr(call)?;
@@ -140,7 +144,7 @@ pub(crate) fn vst_rewriter_localize_error_minimized(
     ctx: &AssistContext<'_>,
     assertion: AssertExpr,
 ) -> Option<BlockExpr> {
-    let this_fn = ctx.vst_find_node_at_offset::<Fn, ast::Fn>()?; 
+    let this_fn = ctx.vst_find_node_at_offset::<Fn, ast::Fn>()?;
     let exp = &assertion.expr;
     let split_exprs = split_expr(ctx, exp)?;
     for e in &split_exprs {
@@ -150,7 +154,8 @@ pub(crate) fn vst_rewriter_localize_error_minimized(
     for e in split_exprs {
         dbg!("{}", &e.to_string());
         let split_assert = AssertExpr::new(e);
-        let modified_fn = ctx.replace_statement(&this_fn, assertion.clone(), split_assert.clone())?;
+        let modified_fn =
+            ctx.replace_statement(&this_fn, assertion.clone(), split_assert.clone())?;
         let verif_result = ctx.try_verus(&modified_fn)?;
         if verif_result.is_failing(&split_assert) {
             dbg!(verif_result);
@@ -166,15 +171,15 @@ pub(crate) fn vst_rewriter_localize_error_minimized(
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::check_assist;
     use super::*;
+    use crate::tests::check_assist;
 
     // TEST: && (1)
     #[test]
     fn decompose_conjunct_failure() {
         check_assist(
             localize_error,
-// before
+            // before
             r#"
 use vstd::prelude::*;
 fn foo()
@@ -184,7 +189,7 @@ fn foo()
 }
 fn main() {}
 "#,
-// after
+            // after
             r#"
 use vstd::prelude::*;
 fn foo()
@@ -200,13 +205,12 @@ fn main() {}
         );
     }
 
-
     // TEST: && (2)
     #[test]
     fn decompose_conjunct_failure2() {
         check_assist(
             localize_error,
-// before
+            // before
             r#"
 use vstd::prelude::*;
 
@@ -228,7 +232,7 @@ proof fn lemma_mul_strict_upper_bound(x: int, xbound: int, y: int, ybound: int)
 
 fn main() {}
 "#,
-// after
+            // after
             r#"
 use vstd::prelude::*;
 
@@ -318,5 +322,4 @@ fn main() {}
 "#,
         );
     }
-
 }

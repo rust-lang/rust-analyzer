@@ -1,7 +1,10 @@
+use crate::proof_plumber_api::vst_ext::*;
 use crate::{AssistContext, Assists};
 use ide_db::assists::{AssistId, AssistKind};
-use crate::proof_plumber_api::vst_ext::*;
-use syntax::{ast::{self, vst::*}, AstNode, T};
+use syntax::{
+    ast::{self, vst::*},
+    AstNode, T,
+};
 
 /*
 "Weakest Precondition Step" a.k.a. "Move up assertion"
@@ -9,23 +12,23 @@ use syntax::{ast::{self, vst::*}, AstNode, T};
 This proof action allows users to step thourgh an assertion through statements, utilizing the rules below.
 
 Previous statement =
-    | Let-binding(simple expression -- i.e., does not have any function call with ensures clause) 
-    | Let-binding(expression with spec -- i.e., expression contains a function call with ensures clause) 
-    | If-else 
-    | Match-statement 
-    | Assert 
-    | Lemma-Call(i.e., function without return value) 
+    | Let-binding(simple expression -- i.e., does not have any function call with ensures clause)
+    | Let-binding(expression with spec -- i.e., expression contains a function call with ensures clause)
+    | If-else
+    | Match-statement
+    | Assert
+    | Lemma-Call(i.e., function without return value)
 
 
 For each statement, we use the following rules.
 
-Let-binding with simple expression:  
+Let-binding with simple expression:
 {let x = e; assert(Y);}
 rewrites to
-{assert(Y[e/x]); let x = e; assert(Y);} 
+{assert(Y[e/x]); let x = e; assert(Y);}
 
 
-Let-binding with Function-call:   
+Let-binding with Function-call:
 create a local scope and let-binds a free variable
 which stands for the return value of the function call
 inside forall, make implication "ensures ==> original pred".
@@ -38,11 +41,11 @@ Copy the assertion into each branch/match-arms.
 
 Assert: simple “==>”
 {assert(PREV); assert(P);}
-rewrites to 
+rewrites to
 {assert(PREV ==> P); assert(PREV); assert(P);}    ;(TODO: consider adding "Assume" in statement -- use the same rewrite rule here)
 
 
-Lemma-call 
+Lemma-call
 inline ensures clause and make implication
 
 */
@@ -51,13 +54,13 @@ pub(crate) fn wp_move_assertion(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
     // trigger on assert keyword
     let _ = ctx.at_this_token(T![assert])?;
 
-    // at high level, we 
+    // at high level, we
     // 1) locate the VST node we want to modify(flexible granularity), 2) apply the rewriter for it, and 3) replace the original node with the new node
     // in this case, let's modify statement_list that contains the assertion
     let stmt_list = ctx.find_node_at_offset::<ast::StmtList>()?;
     let v_stmt_list = StmtList::try_from(stmt_list.clone()).ok()?;
     let result = vst_rewriter_wp_move_assertion(ctx, v_stmt_list.clone())?;
-    let result = ctx.fmt(stmt_list.clone(),result.to_string())?;
+    let result = ctx.fmt(stmt_list.clone(), result.to_string())?;
 
     acc.add(
         AssistId("move_up_assertion", AssistKind::RefactorRewrite),
@@ -73,7 +76,8 @@ pub(crate) fn wp_move_assertion(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
 pub(crate) fn vst_rewriter_wp_move_assertion(
     ctx: &AssistContext<'_>,
     stmt_list: StmtList,
-) -> Option<StmtList> { // TODO: return VST Node instead of string, to make it easier to use in other places
+) -> Option<StmtList> {
+    // TODO: return VST Node instead of string, to make it easier to use in other places
     // find the assertion of interest
     let assertion = ctx.vst_find_node_at_offset::<AssertExpr, ast::AssertExpr>()?;
     // find the index of the assertion in the statement list
@@ -110,32 +114,46 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                     if func.ensures_clause.as_ref()?.ensures_token {
                         let mut new_assertion = assertion.clone();
                         let ret_var = func_ret_type.pat?;
-                        let ensures: Result<Vec<Expr>, String> = func.ensures_clause?.exprs.clone().iter().map(|e1|
-                            vst_map_expr_visitor(e1.clone(), &mut |e2| {
-                                if e2.to_string().trim() == ret_var.to_string().trim() {
-                                    // assume one arg for now
-                                    ctx.vst_expr_from_text(pat.to_string().as_str()).map_or(Err(String::new()), |e| Ok(e))
-                                } else if e2.to_string().trim() == first_formal_arg.to_string().trim(){
-                                    ctx.vst_expr_from_text(first_arg.to_string().as_str()).map_or(Err(String::new()), |e| Ok(e))
-                                }
-                                else {
-                                    Ok(e2.clone())
-                                }
+                        let ensures: Result<Vec<Expr>, String> = func
+                            .ensures_clause?
+                            .exprs
+                            .clone()
+                            .iter()
+                            .map(|e1| {
+                                vst_map_expr_visitor(e1.clone(), &mut |e2| {
+                                    if e2.to_string().trim() == ret_var.to_string().trim() {
+                                        // assume one arg for now
+                                        ctx.vst_expr_from_text(pat.to_string().as_str())
+                                            .map_or(Err(String::new()), |e| Ok(e))
+                                    } else if e2.to_string().trim()
+                                        == first_formal_arg.to_string().trim()
+                                    {
+                                        ctx.vst_expr_from_text(first_arg.to_string().as_str())
+                                            .map_or(Err(String::new()), |e| Ok(e))
+                                    } else {
+                                        Ok(e2.clone())
+                                    }
+                                })
                             })
-                        ).collect();
+                            .collect();
 
                         // reduce ensures clauses into one &&-ed expr
                         let ensures_anded: Expr = ctx.reduce_exprs(ensures.ok()?)?;
-                
+
                         // ensures ==> original predicate
                         let bin_expr: Expr = BinExpr::new(
                             ensures_anded.clone(),
                             BinaryOp::LogicOp(ast::LogicOp::Imply),
                             *assertion.expr.clone(),
-                        ).into();
+                        )
+                        .into();
                         new_assertion.expr = Box::new(bin_expr);
-                        let new_stmt:Stmt = new_assertion.into();
-                        let simple_let: Stmt = ctx.vst_expr_from_text(format!("let {} :{}", pat, func_ret_type.ty).as_ref())?.into();
+                        let new_stmt: Stmt = new_assertion.into();
+                        let simple_let: Stmt = ctx
+                            .vst_expr_from_text(
+                                format!("let {} :{}", pat, func_ret_type.ty).as_ref(),
+                            )?
+                            .into();
                         let mut stmt_list = StmtList::new();
                         stmt_list.statements = vec![simple_let, new_stmt];
                         Some(BlockExpr::new(stmt_list).into()) // is_insert = true
@@ -150,16 +168,17 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                 None => {
                     // when `prev` is let-binding, do subsitution (replace `pat` with `init`)
                     let new_assert = vst_map_expr_visitor(assertion.clone(), &mut |e| {
-                        // TODO: do proper usage check in semantic level instead of string match             
+                        // TODO: do proper usage check in semantic level instead of string match
                         // TODO: variable name shadowing
                         if e.to_string().trim() == pat.to_string().trim() {
                             Ok(init_expr.clone())
                         } else {
                             Ok(e.clone())
                         }
-                    }).ok()?;
+                    })
+                    .ok()?;
                     (new_assert.into(), true)
-                },
+                }
             }
         }
         Stmt::ExprStmt(exp_stmt) => {
@@ -173,7 +192,8 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                         *prev.expr.clone(),
                         BinaryOp::LogicOp(ast::LogicOp::Imply),
                         *e,
-                    ).into();
+                    )
+                    .into();
                     new_assertion.expr = Box::new(bin_expr);
                     (new_assertion.into(), true)
                 }
@@ -205,7 +225,7 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                             }
                             // when match arm is a single expression, convert it to a block and insert the assertion before it
                             _ => {
-                                // FIXME: let binding 
+                                // FIXME: let binding
                                 let mut new_blk = BlockExpr::new(StmtList::new());
                                 new_blk.stmt_list.statements = vec![adding_assert.clone()];
                                 new_blk.stmt_list.tail_expr = Some(existing_expr.clone());
@@ -225,7 +245,8 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                         }
                         let vst_name_ref: NameRef = *pp.path.segment.name_ref;
                         // inline every ensures clause
-                        let ensures: Option<Vec<Expr>> = func.ensures_clause?
+                        let ensures: Option<Vec<Expr>> = func
+                            .ensures_clause?
                             .clone()
                             .exprs
                             .into_iter()
@@ -292,11 +313,11 @@ fn foo()
     }
 
     // TEST: let-binding2
-        #[test]
-        fn wp_let_bind2() {
-            check_assist(
-                wp_move_assertion,
-                r#"
+    #[test]
+    fn wp_let_bind2() {
+        check_assist(
+            wp_move_assertion,
+            r#"
 fn foo(b: u32)
 {
     let a: u32 = b;
@@ -312,9 +333,9 @@ fn foo(b: u32)
 }
 
 "#,
-            );
-        }
-    
+        );
+    }
+
     // TEST: let-binding3
     #[test]
     fn wp_let_bind3() {
@@ -327,7 +348,7 @@ fn foo(b: u32, c: u32)
     ass$0ert(a > 10 && a < 100);
 }
 "#,
-        r#"
+            r#"
 fn foo(b: u32, c: u32)
 {
     assert(b + c > 10 && b + c < 100);
@@ -364,7 +385,6 @@ fn foo()
         );
     }
 
-
     // TEST: if-else
     #[test]
     fn wp_if_else() {
@@ -394,7 +414,6 @@ fn foo()
 "#,
         );
     }
-
 
     // TEST: nested if-else
     #[test]
@@ -500,7 +519,6 @@ fn use_octuple() {
     ass$0ert(num == 32);        
 }
 "#,
-
             r#"
 fn octuple(x1: i8) -> (x8: i8)
 requires
@@ -637,6 +655,4 @@ proof fn lemma_fibo_is_monotonic(i: nat, j: nat)
 "#,
         );
     }
-
 }
-

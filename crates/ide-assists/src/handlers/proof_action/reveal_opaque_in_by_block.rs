@@ -22,7 +22,7 @@ pub(crate) fn assert_by_reveal(acc: &mut Assists, ctx: &AssistContext<'_>) -> Op
     let result = vst_rewriter_assert_to_assert_by_reveal(ctx, &v_call, v_assert_expr.clone())?;
 
     // pretty print
-    let result = ctx.fmt(assert_expr.clone(),result.to_string())?;
+    let result = ctx.fmt(assert_expr.clone(), result.to_string())?;
 
     acc.add(
         AssistId("assert_by_reveal", AssistKind::RefactorRewrite),
@@ -38,8 +38,7 @@ pub(crate) fn vst_rewriter_assert_to_assert_by_reveal(
     ctx: &AssistContext<'_>,
     call: &CallExpr,
     mut assert: AssertExpr,
-) -> Option<String> 
-{
+) -> Option<String> {
     // if is already has a "by block", return None
     if assert.by_token {
         return None;
@@ -51,16 +50,16 @@ pub(crate) fn vst_rewriter_assert_to_assert_by_reveal(
     if ctx.is_opaque(&func) == false {
         return None;
     }
-    
-    // generate "reveal(foo)"   
+
+    // generate "reveal(foo)"
     let mut arglist = ArgList::new();
     arglist.args.push(*call.expr.clone());
-    let reveal_expr = ctx.vst_call_expr_from_text("reveal", arglist )?;
+    let reveal_expr = ctx.vst_call_expr_from_text("reveal", arglist)?;
 
     // generate empty stmtlist and put "reveal(foo) in it"
     let mut stmt = StmtList::new();
     stmt.statements.push(reveal_expr.into());
-    
+
     let blk_expr: BlockExpr = BlockExpr::new(stmt);
     assert.by_token = true;
     assert.block_expr = Some(Box::new(blk_expr));
@@ -91,8 +90,7 @@ proof fn test_opaque_fibo()
     assert(opaq$0ue_fibo(2) == 1);
 }
 ",
-
-"
+            "
 #[verifier::opaque]
 spec fn opaque_fibo(n: nat) -> nat
     decreases n
@@ -107,7 +105,7 @@ proof fn test_opaque_fibo()
         reveal(opaque_fibo);
     };
 }
-"
+",
         )
     }
 }

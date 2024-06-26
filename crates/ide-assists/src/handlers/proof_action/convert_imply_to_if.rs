@@ -21,10 +21,10 @@ pub(crate) fn imply_to_if(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<
     let assert: AssertExpr = AssertExpr::try_from(expr.clone()).ok()?;
 
     // modify TOST node
-    let result = vst_rewriter_imply_to_if(assert.clone())?; 
+    let result = vst_rewriter_imply_to_if(assert.clone())?;
 
     // pretty-print
-    let result = ctx.fmt(expr.clone(),result.to_string())?;
+    let result = ctx.fmt(expr.clone(), result.to_string())?;
 
     acc.add(
         AssistId("imply_to_if", AssistKind::RefactorRewrite),
@@ -49,9 +49,12 @@ pub(crate) fn vst_rewriter_imply_to_if(assert: AssertExpr) -> Option<IfExpr> {
             blockexpr.stmt_list.statements.push(rhs_as_assertion.into());
             IfExpr::new(*b.lhs, blockexpr)
         }
-        _ => {dbg!("not a binexpr"); return None;},
+        _ => {
+            dbg!("not a binexpr");
+            return None;
+        }
     };
-    Some(ifstmt)    
+    Some(ifstmt)
 }
 
 #[cfg(test)]
@@ -64,7 +67,7 @@ mod tests {
     fn test_imply_to_if() {
         check_assist(
             imply_to_if,
-"
+            "
 fn test_imply_to_if(b: bool) -> (ret: u32) 
     ensures 
       b ==> ret == 2 && !b ==> ret == 1,
@@ -77,7 +80,7 @@ fn test_imply_to_if(b: bool) -> (ret: u32)
     ret
 }  
 ",
-"
+            "
 fn test_imply_to_if(b: bool) -> (ret: u32) 
     ensures 
       b ==> ret == 2 && !b ==> ret == 1,
@@ -92,16 +95,14 @@ fn test_imply_to_if(b: bool) -> (ret: u32)
     ret
 }  
 ",
-
         )
     }
-    
-    
+
     #[test]
     fn test_imply_to_if_2() {
         check_assist(
             imply_to_if,
-"
+            "
 fn octuple(x1: i8) -> (x8: i8)
 requires
     -16 <= x1,
@@ -124,7 +125,7 @@ fn use_octuple() {
     assert(num == 32);
 }
 ",
-"
+            "
 fn octuple(x1: i8) -> (x8: i8)
 requires
     -16 <= x1,
@@ -149,7 +150,6 @@ fn use_octuple() {
     assert(num == 32);
 }
 ",
-
         )
     }
 
@@ -157,21 +157,18 @@ fn use_octuple() {
     fn test_imply_to_if_3() {
         check_assist(
             imply_to_if,
-"
+            "
 fn test_if(a: u32, b: u32) {
     ass$0ert(a == 0xffffffff ==> a & b == b);
 }
 ",
-"
+            "
 fn test_if(a: u32, b: u32) {
     if a == 0xffffffff {
         assert(a & b == b);
     };
 }
 ",
-
         )
     }
 }
-
-

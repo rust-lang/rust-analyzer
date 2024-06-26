@@ -1,10 +1,18 @@
 // use ide_db::syntax_helpers::node_ext::is_pattern_cond;
-use crate::{
-    assist_context::{AssistContext, Assists}, proof_plumber_api::run_verus::VerifResult, AssistId, AssistKind
-};
 use crate::proof_plumber_api::vst_ext::vst_map_expr_visitor;
-use syntax::{ast::{self, vst::{self, *}, AstNode},T,};
-
+use crate::{
+    assist_context::{AssistContext, Assists},
+    proof_plumber_api::run_verus::VerifResult,
+    AssistId, AssistKind,
+};
+use syntax::{
+    ast::{
+        self,
+        vst::{self, *},
+        AstNode,
+    },
+    T,
+};
 
 /// Proof action: remove redundant assertions
 /// This proof action deletes assertions that are not necessary for the proof succeeds.
@@ -12,7 +20,7 @@ use syntax::{ast::{self, vst::{self, *}, AstNode},T,};
 /// This proof action invokes Verus potentially a large number of times.
 /// Therefore, it delays invoking Verus to the point where an user explictly invokes this proof action.
 /// However, it initially invokes Verus once, to check if the proof succeeds
-/// 
+///
 /// As proof actions usually automatically adds a bunch of "redundant" assertions
 /// to dignose proof failures, this assertion supports the "clean up" process after debugging.
 pub(crate) fn remove_dead_assertions(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
@@ -21,7 +29,7 @@ pub(crate) fn remove_dead_assertions(acc: &mut Assists, ctx: &AssistContext<'_>)
 
     // retrieve the function to clean up
     let func: ast::Fn = ctx.find_node_at_offset::<ast::Fn>()?;
-    
+
     // lift CST into TOST node
     let v_func = vst::Fn::try_from(func.clone()).ok()?;
 
@@ -41,22 +49,29 @@ pub(crate) fn remove_dead_assertions(acc: &mut Assists, ctx: &AssistContext<'_>)
             // Run `vst_rewriter_remove_dead_assertions` only when the user explicitly wants it,
             // since it runs Verus multiple times.
             // if we run before user permission, it slows down the interaction significantly
-            let result = vst_rewriter_remove_dead_assertions(ctx, v_func, initial_verif_result).expect("vst_rewriter_remove_dead_assertions");
-            let result = ctx.fmt(func.clone(),result.to_string()).expect("fmt"); // pretty-print
-            edit.replace(func.syntax().text_range(),result);
+            let result = vst_rewriter_remove_dead_assertions(ctx, v_func, initial_verif_result)
+                .expect("vst_rewriter_remove_dead_assertions");
+            let result = ctx.fmt(func.clone(), result.to_string()).expect("fmt"); // pretty-print
+            edit.replace(func.syntax().text_range(), result);
         },
     )
 }
 
-pub(crate) fn vst_rewriter_remove_dead_assertions(ctx: &AssistContext<'_>, func: vst::Fn, initial_verif_result: VerifResult) -> Option<vst::Fn> {
+pub(crate) fn vst_rewriter_remove_dead_assertions(
+    ctx: &AssistContext<'_>,
+    func: vst::Fn,
+    initial_verif_result: VerifResult,
+) -> Option<vst::Fn> {
     let mut redundant_assertions: Vec<vst::Stmt> = vec![];
     let mut cb = |exp: &mut Expr| {
         match exp {
             Expr::AssertExpr(_) => {
                 let s: Stmt = exp.clone().into();
-                if redundant_assertions.iter().all(|r| r.to_string().trim() != s.to_string().trim()) {
+                if redundant_assertions.iter().all(|r| r.to_string().trim() != s.to_string().trim())
+                {
                     redundant_assertions.push(exp.clone().into());
-                    let modified_fn = rewriter_rm_assertions(&func, &redundant_assertions).ok_or("rewriter_rm_assertions")?;
+                    let modified_fn = rewriter_rm_assertions(&func, &redundant_assertions)
+                        .ok_or("rewriter_rm_assertions")?;
                     let verif_result = ctx.try_verus(&modified_fn).ok_or("try_verus")?;
                     if !verif_result.is_success {
                         // verification failed without this assertion
@@ -68,10 +83,10 @@ pub(crate) fn vst_rewriter_remove_dead_assertions(ctx: &AssistContext<'_>, func:
                             // however, verification time takes a lot longer without this assertion
                             // therefore this assertion is considered important
                             redundant_assertions.pop();
-                        } 
+                        }
                     }
                 }
-            },
+            }
             _ => (),
         };
         return Ok::<Expr, String>(exp.clone());
@@ -84,12 +99,25 @@ pub(crate) fn vst_rewriter_remove_dead_assertions(ctx: &AssistContext<'_>, func:
     rewriter_rm_assertions(&func, &redundant_assertions)
 }
 
-fn rewriter_rm_assertions(func: &vst::Fn, redundant_assertions: &Vec<vst::Stmt>) -> Option<vst::Fn> {
+fn rewriter_rm_assertions(
+    func: &vst::Fn,
+    redundant_assertions: &Vec<vst::Stmt>,
+) -> Option<vst::Fn> {
     let mut func = func.clone();
     let mut cb = |exp: &mut Expr| {
         match exp {
             Expr::BlockExpr(bb) => {
-                bb.stmt_list.statements = bb.clone().stmt_list.statements.into_iter().filter(|s| redundant_assertions.iter().all(|r| r.to_string().trim() != s.to_string().trim())).collect();
+                bb.stmt_list.statements = bb
+                    .clone()
+                    .stmt_list
+                    .statements
+                    .into_iter()
+                    .filter(|s| {
+                        redundant_assertions
+                            .iter()
+                            .all(|r| r.to_string().trim() != s.to_string().trim())
+                    })
+                    .collect();
             }
             _ => (),
         };
@@ -101,15 +129,13 @@ fn rewriter_rm_assertions(func: &vst::Fn, redundant_assertions: &Vec<vst::Stmt>)
     match new_body {
         Expr::BlockExpr(be) => {
             func.body = Some(be);
-        },
+        }
         _ => {
             return None;
         }
     }
     Some(func)
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -144,7 +170,6 @@ fn main() {}
 ",
         )
     }
-
 
     #[test]
     fn remove_multiple() {
@@ -243,7 +268,6 @@ proof fn proof_index(a: u16, offset: u16)
         );
     }
 
-
     #[test]
     fn remove_autogen_asserts_fibo() {
         check_assist(
@@ -281,7 +305,6 @@ pro$0of fn lemma_fibo_is_monotonic(i: nat, j: nat)
 
 fn main() {}
 ",
-
             "
 use vstd::prelude::*;
 pub open spec fn fibo(n: nat) -> nat
@@ -315,7 +338,6 @@ fn main() {}
 ",
         )
     }
-
 
     #[test]
     fn remove_autogen_asserts_fibo2() {
@@ -352,7 +374,6 @@ pro$0of fn lemma_fibo_is_monotonic(i: nat, j: nat)
 
 fn main() {}
 ",
-
             "
 use vstd::prelude::*;
 pub open spec fn fibo(n: nat) -> nat
@@ -386,7 +407,6 @@ fn main() {}
 ",
         )
     }
-
 
     #[test]
     fn remove_autogen_asserts_fibo3() {
@@ -434,7 +454,6 @@ p$0roof fn lemma_fibo_is_monotonic(i: nat, j: nat)
 
 fn main() {}
 ",
-
             "
 use vstd::prelude::*;
 pub open spec fn fibo(n: nat) -> nat

@@ -1,10 +1,10 @@
-use crate::{AssistContext, AssistId, AssistKind, Assists};
 use crate::proof_plumber_api::verus_error::*;
+use crate::{AssistContext, AssistId, AssistKind, Assists};
 
 use crate::proof_plumber_api::vst_ext;
 use syntax::{
-    ast::{self,  vst::*},
-     AstNode, 
+    ast::{self, vst::*},
+    AstNode,
 };
 
 pub(crate) fn intro_failing_ensures(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
@@ -23,7 +23,7 @@ pub(crate) fn intro_failing_ensures(acc: &mut Assists, ctx: &AssistContext<'_>) 
 
     let v_body = BlockExpr::try_from(body.clone()).ok()?;
     let result = vst_rewriter_intro_failing_ensures(ctx, v_body.clone())?;
-    let result = ctx.fmt(body.clone(),result.to_string())?;
+    let result = ctx.fmt(body.clone(), result.to_string())?;
 
     acc.add(
         AssistId("intro_failing_ensures", AssistKind::RefactorRewrite),
@@ -41,11 +41,11 @@ pub(crate) fn vst_rewriter_intro_failing_ensures(
 ) -> Option<BlockExpr> {
     let this_fn = ctx.vst_find_node_at_offset::<Fn, ast::Fn>()?;
     let post_fails = filter_post_failuires(&ctx.verus_errors_inside_fn(&this_fn)?);
-    let failed_exprs: Option<Vec<Expr>> = post_fails.into_iter().map(|p| ctx.expr_from_post_failure(p)).collect(); 
-    let asserts_failed_exprs = failed_exprs?.into_iter().map(|e| {
-        AssertExpr::new(e).into()
-    }).collect::<Vec<Stmt>>();
-    
+    let failed_exprs: Option<Vec<Expr>> =
+        post_fails.into_iter().map(|p| ctx.expr_from_post_failure(p)).collect();
+    let asserts_failed_exprs =
+        failed_exprs?.into_iter().map(|e| AssertExpr::new(e).into()).collect::<Vec<Stmt>>();
+
     let foo = ctx.vst_find_node_at_offset::<Fn, ast::Fn>()?;
     if foo.ret_type.is_some() {
         // need to map in-place for each tail expression
@@ -127,7 +127,7 @@ proof fn my_proof_fun(x: int, y: int)
         check_assist_with_verus_error(
             intro_failing_ensures,
             vec![mk_post_failure(119, 128, 168, 185)],
-            // `sum < 100` is at offset (119, 128)  
+            // `sum < 100` is at offset (119, 128)
             // note that `$0` is just a marker, and not included in the offset calculation
             r#"
 proof fn my_proof_fun(x: int, y: int) -> (sum: int)
@@ -164,7 +164,6 @@ proof fn my_proof_fun(x: int, y: int) -> (sum: int)
 "#,
         );
     }
-
 
     #[test]
     fn intro_ensure_multiple_ret_arg() {
@@ -212,7 +211,6 @@ proof fn my_proof_fun(x: int, y: int) -> (sum: int)
 "#,
         );
     }
-
 
     #[test]
     fn intro_ensure_fibo() {

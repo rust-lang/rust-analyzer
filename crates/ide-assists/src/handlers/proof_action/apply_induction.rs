@@ -1,8 +1,10 @@
 use crate::{AssistContext, Assists};
 use ide_db::assists::{AssistId, AssistKind};
 use itertools::Itertools;
-use syntax::{ast::{self, vst::*}, AstNode,};
-
+use syntax::{
+    ast::{self, vst::*},
+    AstNode,
+};
 
 pub(crate) fn apply_induction(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     let func: ast::Fn = ctx.find_node_at_offset::<ast::Fn>()?;
@@ -41,7 +43,8 @@ pub(crate) fn apply_induction(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
         let p = param_list[index].pat.as_ref()?.as_ref();
         if let Some(en) = ctx.type_of_pat_enum(p) {
             let bty = format!("Box<{}>", param_list[index].ty.as_ref()?.to_string().trim());
-            result = apply_induction_on_enum(ctx, func.name.to_string(), param_names, index, &en, bty)?;
+            result =
+                apply_induction_on_enum(ctx, func.name.to_string(), param_names, index, &en, bty)?;
         }
     }
 
@@ -51,8 +54,8 @@ pub(crate) fn apply_induction(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
     if !verif_result.is_success || verif_result.time > 10 {
         return None;
     }
-    
-    let result = ctx.fmt(body.clone(),result.to_string())?;
+
+    let result = ctx.fmt(body.clone(), result.to_string())?;
     return acc.add(
         AssistId("apply_induction", AssistKind::RefactorRewrite),
         "Apply Induction",
@@ -68,8 +71,8 @@ fn apply_induction_on_nat(
     index: usize,
 ) -> Option<BlockExpr> {
     let id = param_names[index].clone();
-    let cond = ctx.vst_expr_from_text(format!("{} == 0", id.clone()).as_ref())?;  
-    let sub = ctx.vst_expr_from_text(format!("({} - 1) as nat", id.clone()).as_ref())?;  
+    let cond = ctx.vst_expr_from_text(format!("{} == 0", id.clone()).as_ref())?;
+    let sub = ctx.vst_expr_from_text(format!("({} - 1) as nat", id.clone()).as_ref())?;
 
     // build arguments for recursive call
     let mut args = ArgList::new();
@@ -121,9 +124,7 @@ fn apply_induction_on_enum(
                     .as_ref()
                     .fields
                     .iter()
-                    .filter(|f| {
-                        f.ty.to_string().replace(" ", "") == bty
-                    })
+                    .filter(|f| f.ty.to_string().replace(" ", "") == bty)
                     .map(|f| {
                         let mut args = vec![];
                         param_names.iter().enumerate().for_each(|(i, name)| {
@@ -142,8 +143,8 @@ fn apply_induction_on_enum(
             }
             FieldList::TupleFieldList(_) => {
                 // not yet supported
-                return None 
-            },
+                return None;
+            }
         }
     }
     let m = format!("match {} {{\n{}\n}}", param_names[index], match_arms.join(",\n"));
@@ -222,13 +223,12 @@ fn main() {}
         );
     }
 
-
     #[test]
     // from https://github.com/verus-lang/verus/blob/0088380265ed6e10c5d8034e89ce807a728f98e3/source/rust_verify/example/summer_school/chapter-1-22.rs
     fn apply_induction_on_enum1() {
         check_assist(
             apply_induction,
-// before
+            // before
             r#"
 use vstd::prelude::*;
 
@@ -244,7 +244,7 @@ spec fn sequences_ordered_at_interface(seq1: Seq<int>, seq2: Seq<int>) -> bool {
     }
 }
 
-#[is_variant] #[derive(PartialEq, Eq)] 
+#[is_variant] #[derive(PartialEq, Eq)]
 enum Tree {
     Nil,
     Node { value: i64, left: Box<Tree>, right: Box<Tree> },
@@ -286,8 +286,7 @@ proof fn sorted_tree_means_sorted_sequence(tr$0ee: Tree)
 
 fn main() {}
 "#,
-
-// after
+            // after
             r#"
 use vstd::prelude::*;
 
@@ -303,7 +302,7 @@ spec fn sequences_ordered_at_interface(seq1: Seq<int>, seq2: Seq<int>) -> bool {
     }
 }
 
-#[is_variant] #[derive(PartialEq, Eq)] 
+#[is_variant] #[derive(PartialEq, Eq)]
 enum Tree {
     Nil,
     Node { value: i64, left: Box<Tree>, right: Box<Tree> },

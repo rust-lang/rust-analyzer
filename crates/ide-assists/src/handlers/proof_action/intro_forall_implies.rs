@@ -1,14 +1,13 @@
 use crate::{
     assist_context::{AssistContext, Assists},
-    AssistId,
-    AssistKind,
+    AssistId, AssistKind,
 };
 use syntax::{
     ast::{self, vst::*, AstNode, LogicOp},
     T,
 };
 
-/// Change `assert(forall || P ==> Q)` into 
+/// Change `assert(forall || P ==> Q)` into
 /// `assert forall || P implies Q`
 pub(crate) fn intro_forall_implies(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
     // if the function name is not inside an assertExpr, return None
@@ -25,7 +24,7 @@ pub(crate) fn intro_forall_implies(acc: &mut Assists, ctx: &AssistContext<'_>) -
     // now convert to vst nodes
     let assert = AssertExpr::try_from(assert_expr.clone()).ok()?;
     let result = vst_rewriter_intro_forall_implies(assert.clone())?;
-    let result = ctx.fmt(assert_expr.clone(),result.to_string())?;
+    let result = ctx.fmt(assert_expr.clone(), result.to_string())?;
 
     acc.add(
         AssistId("intro_forall_implies", AssistKind::RefactorRewrite),
@@ -78,13 +77,13 @@ mod tests {
     #[test]
     fn test_intro_forall_implies1() {
         check_assist(
-          intro_forall_implies,
-"
+            intro_forall_implies,
+            "
 #[verifier::opaque]
 spec fn twice(x: int) -> int
 {
   x * 2
-} 
+}
 
 proof fn test_intro_forall_implies() {
   assert(fo$0rall|x:int, y:int| x <= y ==> twice(x) <= twice(y)) by {
@@ -92,12 +91,12 @@ proof fn test_intro_forall_implies() {
   }
 }
 ",
-"
+            "
 #[verifier::opaque]
 spec fn twice(x: int) -> int
 {
   x * 2
-} 
+}
 
 proof fn test_intro_forall_implies() {
   assert forall|x: int, y: int| x <= y implies twice(x) <= twice(y) by {
@@ -105,43 +104,37 @@ proof fn test_intro_forall_implies() {
     }
 }
 ",
-
         )
     }
-
 
     #[test]
     fn test_intro_forall_implies2() {
         check_assist(
-          intro_forall_implies,
-"
+            intro_forall_implies,
+            "
 #[verifier::opaque]
 spec fn f1(x: int, y: int) -> bool
 {
   x * x * x  ==  y * y * y
-} 
+}
 
 proof fn test_intro_forall_implies() {
   assert(for$0all|i: int, j: int| i == j ==> f1(i, j) && f1(i, j));
 
 }
 ",
-"
+            "
 #[verifier::opaque]
 spec fn f1(x: int, y: int) -> bool
 {
   x * x * x  ==  y * y * y
-} 
+}
 
 proof fn test_intro_forall_implies() {
   assert forall|i: int, j: int| i == j implies f1(i, j) && f1(i, j) by {};
 
 }
 ",
-
         )
     }
 }
-
-
-

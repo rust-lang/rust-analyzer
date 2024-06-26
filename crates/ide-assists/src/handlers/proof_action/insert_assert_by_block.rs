@@ -1,5 +1,11 @@
-use crate::{assist_context::{AssistContext, Assists}, AssistId, AssistKind};
-use syntax::{ast::{self, vst::*, AstNode},T,};
+use crate::{
+    assist_context::{AssistContext, Assists},
+    AssistId, AssistKind,
+};
+use syntax::{
+    ast::{self, vst::*, AstNode},
+    T,
+};
 
 // return `None` when this proof action is not applicable
 pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
@@ -16,8 +22,8 @@ pub(crate) fn assert_by(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()
     let result = rewriter_assert_by(assert.clone())?;
 
     // pretty-print
-    let result = ctx.fmt(expr.clone(),result.to_string())?;
-    
+    let result = ctx.fmt(expr.clone(), result.to_string())?;
+
     // register proof action
     acc.add(
         AssistId("assert_by", AssistKind::RefactorRewrite),
@@ -36,7 +42,7 @@ pub(crate) fn rewriter_assert_by(mut assert: AssertExpr) -> Option<AssertExpr> {
     if assert.by_token {
         return None;
     }
-    
+
     // generate an empty proof block and put the same assertion in it
     let mut stmt = StmtList::new();
     stmt.statements.push(assert.clone().into());
@@ -44,7 +50,7 @@ pub(crate) fn rewriter_assert_by(mut assert: AssertExpr) -> Option<AssertExpr> {
 
     // register the above proof block as our assertion's proof block
     assert.block_expr = Some(Box::new(blk_expr));
-    assert.by_token = true; 
+    assert.by_token = true;
     Some(assert)
 }
 
@@ -58,14 +64,14 @@ mod tests {
     fn test_assert_by() {
         check_assist(
             assert_by, // the proof action to be used
-// proof to be modified below
-// `$0` indicates the cursor location
+            // proof to be modified below
+            // `$0` indicates the cursor location
             "
 proof fn f() { 
     ass$0ert(x == 3);
 }
             ",
-// modified proof below
+            // modified proof below
             "
 proof fn f() { 
     assert(x == 3) by {
@@ -80,8 +86,8 @@ proof fn f() {
     fn test_assert_by2() {
         check_assist(
             assert_by, // the proof action to be used
-// proof to be modified below
-// `$0` indicates the cursor location
+            // proof to be modified below
+            // `$0` indicates the cursor location
             "
 spec fn pow2(e: nat) -> nat 
     decreases(e),
@@ -96,7 +102,7 @@ proof fn lemma_pow2_unfold3(e: nat)
     asse$0rt(pow2(e) == pow2((e - 3) as nat) * 8);
 }
 ",
-// modified proof below
+            // modified proof below
             "
 spec fn pow2(e: nat) -> nat 
     decreases(e),

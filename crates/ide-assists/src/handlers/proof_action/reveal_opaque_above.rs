@@ -1,7 +1,6 @@
 use crate::{
     assist_context::{AssistContext, Assists},
-    AssistId,
-    AssistKind,
+    AssistId, AssistKind,
 };
 use syntax::ast::{self, vst::*, AstNode};
 
@@ -11,14 +10,13 @@ pub(crate) fn insert_reveal(acc: &mut Assists, ctx: &AssistContext<'_>) -> Optio
     // if the function name is not inside an assertExpr, return None
     let assert_expr: ast::AssertExpr = ctx.find_node_at_offset()?;
 
-    // now convert to vst nodes    
+    // now convert to vst nodes
     let v_call = CallExpr::try_from(call.clone()).ok()?;
     let v_assert_expr = AssertExpr::try_from(assert_expr.clone()).ok()?;
 
     // now do the rewrite
     let result = vst_rewriter_insert_reveal(ctx, &v_call, v_assert_expr.clone())?;
-    let result = ctx.fmt(assert_expr.clone(),result.to_string())?;
-
+    let result = ctx.fmt(assert_expr.clone(), result.to_string())?;
 
     acc.add(
         AssistId("insert_reveal", AssistKind::RefactorRewrite),
@@ -34,8 +32,7 @@ pub(crate) fn vst_rewriter_insert_reveal(
     ctx: &AssistContext<'_>,
     call: &CallExpr,
     assert: AssertExpr,
-) -> Option<BlockExpr> 
-{
+) -> Option<BlockExpr> {
     // backup original assert
     let original_assert = assert.clone();
 
@@ -50,11 +47,11 @@ pub(crate) fn vst_rewriter_insert_reveal(
     if ctx.is_opaque(&func) == false {
         return None;
     }
-    
-    // generate "reveal(foo)"   
+
+    // generate "reveal(foo)"
     let mut arglist = ArgList::new();
     arglist.args.push(*call.expr.clone());
-    let reveal_expr = ctx.vst_call_expr_from_text("reveal", arglist )?;
+    let reveal_expr = ctx.vst_call_expr_from_text("reveal", arglist)?;
 
     // generate empty stmtlist and put "reveal(foo) in it"
     let mut stmt = StmtList::new();
@@ -62,7 +59,7 @@ pub(crate) fn vst_rewriter_insert_reveal(
 
     // add original assertion to the stmtlist
     stmt.statements.push(original_assert.into());
-    
+
     let blk_expr: BlockExpr = BlockExpr::new(stmt);
     Some(blk_expr)
 }
@@ -90,8 +87,7 @@ proof fn test_opaque_fibo() {
   assert(opaq$0ue_fibo(2) == 1);
 }
 ",
-
-"
+            "
 #[verifier::opaque]
 spec fn opaque_fibo(n: nat) -> nat
   decreases n
@@ -106,7 +102,7 @@ proof fn test_opaque_fibo() {
         assert(opaque_fibo(2) == 1);
     };
 }
-"
+",
         )
     }
 }
