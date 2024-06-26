@@ -532,7 +532,7 @@ fn verus_walkthrough0() {
             x
         }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -560,7 +560,7 @@ fn verus_walkthrough1() {
                 assert(x + y < 200);
             }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -583,7 +583,7 @@ verus! {
         x
     }
     proof fn proof_index(a: u32, offset: u32)
-    requires    
+    requires
         offset < 1000,
     ensures
         offset < 1000,
@@ -595,7 +595,7 @@ verus! {
 }
 ";
 
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -625,7 +625,7 @@ fn verus_walkthrough2() {
                 sum < 200,
         {
             x + y
-        }    
+        }
         spec fn my_spec_fun(x: int, y: int) -> int
             recommends
                 x < 100,
@@ -647,7 +647,7 @@ fn verus_walkthrough2() {
         }
     }";
 
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -686,7 +686,7 @@ fn verus_walkthrough3() {
             assert(exists|x: int, y: int| my_spec_fun(x, y) == 30);
         }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -721,15 +721,15 @@ fn verus_walkthrough4() {
                 let x_witness = choose|x: int| f1(x) == 10;
                 assert(f1(x_witness) == 10);
             }
-        
+
             assume(exists|x: int, y: int| f1(x) + f1(y) == 30);
             proof {
                 let (x_witness, y_witness): (int, int) = choose|x: int, y: int| f1(x) + f1(y) == 30;
                 assert(f1(x_witness) + f1(y_witness) == 30);
             }
-        }        
+        }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -744,17 +744,17 @@ fn verus_walkthrough4() {
 #[test]
 fn verus_walkthrough5() {
     use ast::HasModuleItem;
-    let source_code = 
+    let source_code =
     "verus!{
         fn test_single_trigger1() {
             assume(forall|x: int, y: int| f1(x) < 100 && f1(y) < 100 ==> #[trigger] my_spec_fun(x, y) >= x);
         }
-        
+
         fn foo(x:int) -> int {
             if x>0 {1} else {-1}
         }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -787,7 +787,7 @@ fn verus_walkthrough6() {
             i + j
         }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -802,7 +802,7 @@ fn verus_walkthrough6() {
 #[test]
 fn verus_walkthrough7() {
     use ast::HasModuleItem;
-    let source_code = 
+    let source_code =
     "verus!{
         fn test_single_trigger2() {
             // Use [f1(x), f1(y)] as the trigger
@@ -818,7 +818,7 @@ fn verus_walkthrough7() {
             );
         }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -847,9 +847,9 @@ fn verus_walkthrough8() {
             let u = a + b; // u is a ghost variable
             my_proof_fun(u / 2, b as int); // my_proof_fun(x, y) takes ghost parameters x and y
         }
-    }     
+    }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -872,7 +872,7 @@ fn verus_walkthrough9_0() {
         };
     }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -894,10 +894,10 @@ fn verus_walkthrough9() {
         tracked y: int,
         z: int,
       ) -> tracked TrackedAndGhost<(int, int), int> {
-       
+
     }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -916,12 +916,12 @@ fn verus_walkthrough10_0() {
     pub(crate) proof fn binary_ops<A>(a: A, x: int) {
         assert(2 + 2 !== 3);
         assert(a === a);
-    
+
         assert(false <==> true && false);
     }
-    
+
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -947,7 +947,7 @@ fn verus_walkthrough10_1() {
         &&& true
     }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -974,9 +974,9 @@ fn verus_walkthrough10_2() {
             }
         &&& false ==> true
     }
-    
+
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -1001,9 +1001,9 @@ fn verus_walkthrough10() {
             assert(s[0] == 10);
             assert(s[1] == 20);
         }
-    }    
+    }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -1047,7 +1047,7 @@ fn binary_search(v: &Vec<u64>, k: u64) -> (r: usize)
     i1
 }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -1074,7 +1074,7 @@ assert(uninterp_fn(x));
 assert(forall|i: int| #![auto] 0 <= i < t.len() ==> uninterp_fn(t[i]));
 }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -1100,14 +1100,14 @@ fn verus_walkthrough13() {
             arith_sum_int_nonneg((i - 1) as nat);
         }
     }
-    
+
     spec fn arith_sum_int(i: int) -> int
     decreases i
 {
     if i <= 0 { 0 } else { i + arith_sum_int(i - 1) }
 }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -1133,7 +1133,7 @@ fn exec_with_decreases(n: u64) -> u64
     }
 }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -1148,7 +1148,7 @@ fn exec_with_decreases(n: u64) -> u64
 #[test]
 fn verus_walkthrough15() {
     use ast::HasModuleItem;
-    let source_code = 
+    let source_code =
     "verus!{
 spec(checked) fn my_spec_fun2(x: int, y: int) -> int
     recommends
@@ -1159,7 +1159,7 @@ spec(checked) fn my_spec_fun2(x: int, y: int) -> int
     my_spec_fun(x, y)
 }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -1187,7 +1187,7 @@ proof fn test_even_f()
     }
 }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -1229,7 +1229,7 @@ fn g(Tracked(t): Tracked<S>) -> u32 {
     f(5, Ghost(6), Tracked(t))
 }
     }";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -1276,7 +1276,7 @@ proof fn dec0_decreases(a: int) {
     // proof
 }
 } // verus!";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -1299,7 +1299,7 @@ tracked struct TrackedAndGhost<T, G>(
     ghost G,
 );
 } // verus!";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -1324,7 +1324,7 @@ proof fn lemma_mul_upper_bound(x: int, x_bound: int, y: int, y_bound: int)
 {
 }
 } // verus!";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -1355,7 +1355,7 @@ proof fn add0_recommends(a: nat, b: nat) {
 }
 
 } // verus!";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -1402,7 +1402,7 @@ proof fn dec0_decreases(a: int) {
     // proof
 }
 } // verus!";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -1439,7 +1439,7 @@ verus!{
         );
     }
 } // verus!";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -1469,7 +1469,7 @@ spec fn test_rec2(x: int, y: int) -> int
     }
 }
 } // verus!";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -1497,15 +1497,15 @@ verus!{
         let ghost goal = Seq::new(5, |i: int| i as u64);
         assert(v@ =~= goal);
         assert(v[2] == 2);
-    
+
         v.pop();
         v.push(4);
         assert(v@ =~= goal);
-    
+
         v
     }
 } // verus!";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -1521,14 +1521,14 @@ verus!{
 #[test]
 fn cst_to_vst1() {
     use ast::HasModuleItem;
-    let source_code = " 
+    let source_code = "
 verus!{
 spec fn sum(x: int, y: int) -> int
 {
     x + y
 }
 } // verus!";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
@@ -1544,7 +1544,7 @@ spec fn sum(x: int, y: int) -> int
 #[test]
 fn cst_to_vst2() {
     use ast::HasModuleItem;
-    let source_code = " 
+    let source_code = "
 verus!{
 spec fn test_rec2(x: int, y: int) -> int
     decreases x, y
@@ -1556,7 +1556,7 @@ spec fn test_rec2(x: int, y: int) -> int
     }
 }
 } // verus!";
-    let parse = SourceFile::parse(source_code);
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
     dbg!(&parse.errors);
     assert!(parse.errors().is_empty());
     let file: SourceFile = parse.tree();
