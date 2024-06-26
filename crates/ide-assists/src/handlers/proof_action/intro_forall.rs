@@ -40,15 +40,21 @@ pub(crate) fn vst_rewriter_intro_forall(assert: AssertExpr) -> Option<AssertFora
     // if assertion's expression's top level is not implication, return None
     let assert_forall_expr = match *assert.expr {
         Expr::ClosureExpr(c) => {
-          if !c.forall_token {
-            dbg!("not a forall");
-            return None;
-          }
-          AssertForallExpr::new(*c.clone(), *assert.block_expr.unwrap_or(Box::new(BlockExpr::new(StmtList::new()))))
+            if !c.forall_token {
+                dbg!("not a forall");
+                return None;
+            }
+            AssertForallExpr::new(
+                *assert.block_expr.unwrap_or(Box::new(BlockExpr::new(StmtList::new()))),
+                *c.clone(),
+            )
         }
-        _ => {dbg!("not a ClosureExpr"); return None;},
+        _ => {
+            dbg!("not a ClosureExpr");
+            return None;
+        }
     };
-    Some(assert_forall_expr) 
+    Some(assert_forall_expr)
 }
 
 #[cfg(test)]

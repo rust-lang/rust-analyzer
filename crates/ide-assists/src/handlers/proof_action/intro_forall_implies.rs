@@ -40,32 +40,41 @@ pub(crate) fn vst_rewriter_intro_forall_implies(assert: AssertExpr) -> Option<As
     // if assertion's expression's top level is not implication, return None
     let assert_forall_expr = match *assert.expr {
         Expr::ClosureExpr(c) => {
-          if !c.forall_token {
-            dbg!("not a forall");
-            return None;
-          }
-          let mut c_clone = *c.clone();
+            if !c.forall_token {
+                dbg!("not a forall");
+                return None;
+            }
+            let mut c_clone = *c.clone();
 
-          let (lhs, rhs) = match *c.body {
-            Expr::BinExpr(b) => {
-                if b.op != BinaryOp::LogicOp(LogicOp::Imply) {
-                    dbg!("not an implication");
+            let (lhs, rhs) = match *c.body {
+                Expr::BinExpr(b) => {
+                    if b.op != BinaryOp::LogicOp(LogicOp::Imply) {
+                        dbg!("not an implication");
+                        return None;
+                    }
+                    (*b.lhs, *b.rhs)
+                }
+                _ => {
+                    dbg!("not a binexpr");
                     return None;
                 }
-                (*b.lhs, *b.rhs)
-            }
-            _ => {dbg!("not a binexpr"); return None;},
-          };
+            };
 
-          c_clone.body = Box::new(lhs);
-          let mut assert_forall = AssertForallExpr::new(c_clone, *assert.block_expr.unwrap_or(Box::new(BlockExpr::new(StmtList::new()))));
-          assert_forall.implies_token = true;
-          assert_forall.expr = Some(Box::new(rhs));
-          assert_forall
+            c_clone.body = Box::new(lhs);
+            let mut assert_forall = AssertForallExpr::new(
+                *assert.block_expr.unwrap_or(Box::new(BlockExpr::new(StmtList::new()))),
+                c_clone,
+            );
+            assert_forall.implies_token = true;
+            assert_forall.expr = Some(Box::new(rhs));
+            assert_forall
         }
-        _ => {dbg!("not a ClosureExpr"); return None;},
+        _ => {
+            dbg!("not a ClosureExpr");
+            return None;
+        }
     };
-    Some(assert_forall_expr) 
+    Some(assert_forall_expr)
 }
 
 #[cfg(test)]

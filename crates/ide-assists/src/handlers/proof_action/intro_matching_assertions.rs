@@ -101,7 +101,6 @@ pub(crate) fn vst_rewriter_intro_match(
     match_arm_list.arms = match_arms;
     let match_stmt = MatchExpr::new(enum_expr_inside_assertion.clone(), match_arm_list);
 
-    
     Some(match_stmt)
 }
 

@@ -615,8 +615,8 @@ pub(crate) fn inline_simple(
             // not only the local if it is a simple binding
             match param.as_local(sema.db) {
                 Some(l) => usages_for_locals(l)
-                    .map(|FileReference { name, range, .. }| match name {
-                        ast::NameLike::NameRef(_) => body
+                    .map(|FileReference { range, name, .. }| match name {
+                        FileReferenceNode::NameRef(_) => body
                             .syntax()
                             .covering_element(range)
                             .ancestors()
@@ -636,7 +636,7 @@ pub(crate) fn inline_simple(
         if let Some(self_local) = params[0].2.as_local(sema.db) {
             usages_for_locals(self_local)
                 .filter_map(|FileReference { name, range, .. }| match name {
-                    ast::NameLike::NameRef(_) => Some(body.syntax().covering_element(range)),
+                    FileReferenceNode::NameRef(_) => Some(body.syntax().covering_element(range)),
                     _ => None,
                 })
                 .for_each(|it| {
@@ -732,7 +732,6 @@ pub(crate) fn inline_simple(
         },
     }
 }
-
 
 fn path_expr_as_record_field(usage: &PathExpr) -> Option<ast::RecordExprField> {
     let path = usage.path()?;
