@@ -57,6 +57,9 @@ fn struct_or_union(p: &mut Parser<'_>, m: Marker, is_struct: bool) {
 }
 
 pub(super) fn enum_(p: &mut Parser<'_>, m: Marker) {
+    if p.at(T![ghost]) || p.at(T![tracked]) {
+        verus::data_mode(p);
+    }
     p.bump(T![enum]);
     name_r(p, ITEM_RECOVERY_SET);
     generic_params::opt_generic_param_list(p);

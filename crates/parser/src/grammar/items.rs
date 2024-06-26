@@ -38,6 +38,7 @@ pub(super) const ITEM_RECOVERY_SET: TokenSet = TokenSet::new(&[
     T![crate],
     T![use],
     T![macro],
+    T![global],
     T![;],
 ]);
 
@@ -277,6 +278,8 @@ fn opt_item_without_modifiers(p: &mut Parser<'_>, m: Marker) -> Result<(), Marke
         T![struct] => adt::strukt(p, m),
         // verus
         T![tracked] | T![ghost] if p.nth(1) == T![struct] => adt::strukt(p, m),
+        T![tracked] | T![ghost] if p.nth(1) == T![enum] => adt::enum_(p, m),
+        // T![global] => verus::global_clause(p, m),
         T![enum] => adt::enum_(p, m),
         IDENT if p.at_contextual_kw(T![union]) && p.nth(1) == IDENT => adt::union(p, m),
 
@@ -476,23 +479,27 @@ fn fn_(p: &mut Parser<'_>, m: Marker) {
     generic_params::opt_where_clause(p);
 
     // Note: prover -> requires -> recommends -> ensures -> decreases
-    if p.eat(T![by]) {
+    if p.at(T![by]) {
         verus::prover(p);
     }
-    if p.eat(T![requires]) {
+    if p.at(T![requires]) {
         verus::requires(p);
     }
-    if p.eat(T![recommends]) {
+    if p.at(T![recommends]) {
         verus::recommends(p);
     }
-    if p.eat(T![ensures]) {
+    if p.at(T![ensures]) {
         verus::ensures(p);
     }
-    if p.eat(T![decreases]) {
+    if p.at(T![decreases]) {
         verus::signature_decreases(p);
     }
 
-    if !p.eat(T![;]) {
+    if p.at(T![;]) {
+        // test fn_decl
+        // trait T { fn foo(); }
+        p.bump(T![;]);
+    } else {
         expressions::block_expr(p);
     }
 
