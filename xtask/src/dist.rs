@@ -181,7 +181,13 @@ impl Target {
                 } else if cfg!(target_os = "windows") {
                     "x86_64-pc-windows-msvc".to_owned()
                 } else if cfg!(target_os = "macos") {
-                    "x86_64-apple-darwin".to_owned()
+                    if cfg!(target_arch = "x86_64") {
+                        "x86_64-apple-darwin".to_owned()
+                    } else if cfg!(target_arch = "aarch64") {
+                        "aarch64-apple-darwin".to_owned()
+                    } else {
+                        panic!("Unsupported architecture, maybe try setting RA_TARGET")
+                    }
                 } else {
                     panic!("Unsupported OS, maybe try setting RA_TARGET")
                 }
