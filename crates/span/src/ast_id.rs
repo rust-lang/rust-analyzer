@@ -90,6 +90,7 @@ register_ast_id_node! {
             Union,
         AssocItem,
             Const,
+            VerusGlobal,
             Fn,
             MacroCall,
             TypeAlias,

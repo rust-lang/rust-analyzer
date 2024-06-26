@@ -1030,6 +1030,9 @@ impl<'ctx> MirLowerCtx<'ctx> {
                     let value_to_short = match op {
                         syntax::ast::LogicOp::And => 0,
                         syntax::ast::LogicOp::Or => 1,
+                        syntax::ast::LogicOp::Imply => {
+                            todo!()
+                        }
                     };
                     let start_of_then = self.new_basic_block();
                     self.push_assignment(
