@@ -359,43 +359,7 @@ impl FlycheckActor {
                     let command = self.run_verus(filename.clone());
                     match CargoHandle::spawn(command) {
                         Ok(cargo_handle) => {
-                            tracing::error!(
-                                "did  restart Verus"
-                            );
-
-                            self.cargo_handle = Some(cargo_handle);
-                            self.report_progress(Progress::VerusResult(format!(
-                                "Started running the following Verus command: {:?}",
-                                self.run_verus(filename),
-                            )));
-                            self.report_progress(Progress::DidStart); // this is important -- otherewise, previous diagnostic does not disappear
-                        }
-                        Err(error) => {
-                            self.report_progress(Progress::VerusResult(format!(
-                                "Failed to run the following Verus command: {:?} error={}",
-                                self.run_verus(filename),
-                                error
-                            )));
-                        }
-                    }
-                }
-                Event::RequestStateChange(StateChange::RestartVerus(filename)) => {
-                    // verus: copied from above `Event::RequestStateChange(StateChange::Restart)`
-                    // Cancel the previously spawned process
-                    self.cancel_check_process();
-                    while let Ok(restart) = inbox.recv_timeout(Duration::from_millis(50)) {
-                        // restart chained with a stop, so just cancel
-                        if let StateChange::Cancel = restart {
-                            continue 'event;
-                        }
-                    }
-
-                    let command = self.run_verus(filename.clone());
-                    match CargoHandle::spawn(command) {
-                        Ok(cargo_handle) => {
-                            tracing::error!(
-                                "did restart Verus"
-                            );
+                            tracing::error!("did  restart Verus");
 
                             self.cargo_handle = Some(cargo_handle);
                             self.report_progress(Progress::VerusResult(format!(
@@ -583,112 +547,9 @@ impl FlycheckActor {
     // copied from above check_command
     fn run_verus(&self, file: String) -> Command {
         let (mut cmd, args) = match &self.config {
-            FlycheckConfig::CargoCommand {..} => panic!("verus: please set cargo override command"),
-            FlycheckConfig::CustomCommand {
-                command,
-                args,
-                extra_env,
-                invocation_strategy,
-                invocation_location,
-            } => {
-                tracing::error!(?command, ?args, ?extra_env, "run_verus");
-                let mut cmd = Command::new(command);
-
-                let file = Path::new(&file);
-                let mut file_as_module = None;
-                let mut root: Option<std::path::PathBuf> = None;
-                let mut extra_args_from_toml = None;
-                for ans in file.ancestors() {
-                    if ans.join("Cargo.toml").exists() {
-                        let toml = std::fs::read_to_string(ans.join("Cargo.toml")).unwrap();
-                        let mut found_verus_settings = false;
-                        for line in toml.lines() {
-                            if found_verus_settings {
-                                if line.contains("extra_args") {
-                                    let start = "extra_args".len() + 1;
-                                    let mut arguments = line[start..line.len()-1].trim().to_string();
-                                    if arguments.starts_with("=") {
-                                        arguments.remove(0);
-                                        arguments = arguments.trim().to_string();
-                                    }
-                                    if arguments.starts_with("\"") {
-                                        arguments.remove(0);
-                                    }
-                                    if arguments.ends_with("\"") {
-                                        arguments.remove(arguments.len()-1);
-                                    }
-
-                                    let arguments_vec = arguments.split(" ").map(|it| it.to_string()).collect::<Vec<_>>();
-                                    extra_args_from_toml = Some(arguments_vec);
-                                }
-                                break;
-                            }
-                            if line.contains("[package.metadata.verus.ide]") {
-                                found_verus_settings = true;
-                            }
-                        }
-
-                        if ans.join("src/main.rs").exists() {
-                            root = Some(ans.join("src/main.rs"));
-                            file_as_module = Some(file.strip_prefix(ans.join("src")).unwrap().to_str().unwrap().replace("/", "::").replace(".rs", ""));
-                        } else if ans.join("src/lib.rs").exists() {
-                            root = Some(ans.join("src/lib.rs"));
-                            file_as_module = Some(file.strip_prefix(ans.join("src")).unwrap().to_str().unwrap().replace("/", "::").replace(".rs", ""));
-                        } else {
-                            continue;
-                        }
-                        break;
-                    }
-                }
-
-
-                let mut args = args.to_vec();
-
-                let root = root.unwrap(); // FIXME
-                args.insert(0, root.to_str().unwrap().to_string());
-                if root == file {
-                    tracing::error!("root == file");
-                } else {
-                    tracing::error!(?root, "root");
-                    args.insert(1, "--verify-module".to_string());
-                    args.insert(2, file_as_module.unwrap().to_string());
-                }
-
-                args.append(&mut extra_args_from_toml.unwrap_or_default());
-                args.push("--".to_string());
-                args.push("--error-format=json".to_string());
-                cmd.envs(extra_env);
-
-                match invocation_location {
-                    InvocationLocation::Workspace => {
-                        match invocation_strategy {
-                            InvocationStrategy::Once => {
-                                cmd.current_dir(&self.root);
-                            }
-                            InvocationStrategy::PerWorkspace => {
-                                // FIXME: cmd.current_dir(&affected_workspace);
-                                cmd.current_dir(&self.root);
-                            }
-                        }
-                    }
-                    InvocationLocation::Root(root) => {
-                        cmd.current_dir(root);
-                    }
-                }
-
-                (cmd, args)
+            FlycheckConfig::CargoCommand { .. } => {
+                panic!("verus: please set cargo override command")
             }
-        };
-
-        cmd.args(args);
-        dbg!(&cmd);
-        cmd
-    }
-
-    // copied from above check_command
-    fn run_verus(&self, file: String) -> Command {
-        let (mut cmd, args) = match &self.config {
-            FlycheckConfig::CargoCommand {..} => panic!("verus: please set cargo override command"),
             FlycheckConfig::CustomCommand {
                 command,
                 args,
