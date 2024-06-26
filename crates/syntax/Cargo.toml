@@ -33,6 +33,7 @@ text-edit.workspace = true
 [dev-dependencies]
 rayon.workspace = true
 expect-test = "1.4.0"
+proc-macro2 = "1.0.47"
 
 test-utils.workspace = true
 
