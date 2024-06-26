@@ -1144,5 +1144,7 @@ impl From<ast::TupleField> for ast::AnyHasAttrs {
 }
 
 impl ast::AssertForallExpr {
-    pub fn exprs(&self) -> ast::AstChildren<ast::Expr> { support::children(&self.syntax) } 
+    pub fn exprs(&self) -> ast::AstChildren<ast::Expr> {
+        support::children(&self.syntax)
+    }
 }

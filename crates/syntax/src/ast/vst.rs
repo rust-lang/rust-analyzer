@@ -392,7 +392,6 @@ impl std::fmt::Display for AssertExpr {
     }
 }
 
-
 impl TryFrom<generated::nodes::AssertForallExpr> for AssertForallExpr {
     type Error = String;
     fn try_from(item: generated::nodes::AssertForallExpr) -> Result<Self, Self::Error> {
@@ -409,7 +408,8 @@ impl TryFrom<generated::nodes::AssertForallExpr> for AssertForallExpr {
                     .map(|it| ClosureExpr::try_from(it))??,
             ),
             implies_token: item.implies_token().is_some(),
-            expr: match item.exprs().nth(1) {      // TODO: bug in item.expr() it gives closure_expr
+            expr: match item.exprs().nth(1) {
+                // TODO: bug in item.expr() it gives closure_expr
                 Some(it) => {
                     dbg!(&it);
                     Some(Box::new(Expr::try_from(it)?))
@@ -502,7 +502,7 @@ impl IndexExpr {
 }
 
 impl MatchArm {
-    pub fn new<ET0>(pat:Pat, expr: ET0) -> Self
+    pub fn new<ET0>(pat: Pat, expr: ET0) -> Self
     where
         ET0: Into<Expr>,
     {
@@ -517,5 +517,3 @@ impl MatchArm {
         }
     }
 }
-
-
