@@ -707,12 +707,17 @@ impl Analysis {
             let ssr_assists = ssr::ssr_assists(db, &resolve, frange);
             dbg!("assist_with_fixes");
             dbg!(&verus_errors);
-            let assists =
-                if verus_errors.len() > 0 {
-                    ide_assists::assists_with_verus_error(db, assist_config, resolve, frange, verus_errors)
-                } else {
-                    ide_assists::assists(db, assist_config, resolve, frange)
-                };
+            let assists = if verus_errors.len() > 0 {
+                ide_assists::assists_with_verus_error(
+                    db,
+                    assist_config,
+                    resolve,
+                    frange,
+                    verus_errors,
+                )
+            } else {
+                ide_assists::assists(db, assist_config, resolve, frange)
+            };
 
             let mut res = diagnostic_assists;
             res.extend(ssr_assists);
