@@ -1998,6 +1998,7 @@ dependencies = [
  "itertools",
  "once_cell",
  "parser",
+ "proc-macro2",
  "ra-ap-rustc_lexer",
  "rayon",
  "rowan",
