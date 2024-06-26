@@ -459,9 +459,9 @@ impl FlycheckActor {
                         });
                         self.status = FlycheckStatus::DiagnosticSent;
                     }
-                    CargoMessage::VerusResult(res) => {
+                    CargoCheckMessage::VerusResult(res) => {
                         self.report_progress(Progress::VerusResult(res));
-                    },
+                    }
                 },
             }
         }
@@ -810,9 +810,9 @@ impl FlycheckActor {
     }
 }
 
-struct JodGroupChild(GroupChild);
+struct JodChild(Child);
 
-impl Drop for JodGroupChild {
+impl Drop for JodChild {
     fn drop(&mut self) {
         _ = self.0.kill();
         _ = self.0.wait();
@@ -823,24 +823,24 @@ impl Drop for JodGroupChild {
 struct CargoHandle {
     /// The handle to the actual cargo process. As we cannot cancel directly from with
     /// a read syscall dropping and therefore terminating the process is our best option.
-    child: JodGroupChild,
+    child: JodChild,
     thread: stdx::thread::JoinHandle<io::Result<(bool, String)>>,
-    receiver: Receiver<CargoMessage>,
+    receiver: Receiver<CargoCheckMessage>,
 }
 
 impl CargoHandle {
     fn spawn(mut command: Command) -> std::io::Result<CargoHandle> {
         dbg!("spawn from CargoHandle");
         command.stdout(Stdio::piped()).stderr(Stdio::piped()).stdin(Stdio::null());
-        let mut child = command.group_spawn().map(JodGroupChild)?;
+        let mut child = command.spawn().map(JodChild)?;
         dbg!("finished executing command");
 
-        let stdout = child.0.inner().stdout.take().unwrap();
-        let stderr = child.0.inner().stderr.take().unwrap();
+        let stdout = child.0.stdout.take().unwrap();
+        let stderr = child.0.stderr.take().unwrap();
 
         let (sender, receiver) = unbounded();
         let actor = CargoActor::new(sender, stdout, stderr);
-        let thread = stdx::thread::Builder::new(stdx::thread::QoSClass::Utility)
+        let thread = stdx::thread::Builder::new(stdx::thread::ThreadIntent::Worker)
             .name("CargoHandle".to_owned())
             .spawn(move || actor.run())
             .expect("failed to spawn thread");
@@ -867,13 +867,17 @@ impl CargoHandle {
 }
 
 struct CargoActor {
-    sender: Sender<CargoMessage>,
+    sender: Sender<CargoCheckMessage>,
     stdout: ChildStdout,
     stderr: ChildStderr,
 }
 
 impl CargoActor {
-    fn new(sender: Sender<CargoMessage>, stdout: ChildStdout, stderr: ChildStderr) -> CargoActor {
+    fn new(
+        sender: Sender<CargoCheckMessage>,
+        stdout: ChildStdout,
+        stderr: ChildStderr,
+    ) -> CargoActor {
         CargoActor { sender, stdout, stderr }
     }
 
@@ -900,15 +904,17 @@ impl CargoActor {
                     // Skip certain kinds of messages to only spend time on what's useful
                     JsonMessage::Cargo(message) => match message {
                         cargo_metadata::Message::CompilerArtifact(artifact) if !artifact.fresh => {
-                            self.sender.send(CargoMessage::CompilerArtifact(artifact)).unwrap();
+                            self.sender
+                                .send(CargoCheckMessage::CompilerArtifact(artifact))
+                                .unwrap();
                         }
                         cargo_metadata::Message::CompilerMessage(msg) => {
-                            self.sender.send(CargoMessage::Diagnostic(msg.message)).unwrap();
+                            self.sender.send(CargoCheckMessage::Diagnostic(msg.message)).unwrap();
                         }
                         _ => (),
                     },
                     JsonMessage::Rustc(message) => {
-                        self.sender.send(CargoMessage::Diagnostic(message)).unwrap();
+                        self.sender.send(CargoCheckMessage::Diagnostic(message)).unwrap();
                     }
                 }
                 return true;
@@ -917,7 +923,7 @@ impl CargoActor {
                 // forward verification result
                 tracing::error!("deserialize error: {:?}", line);
                 if line.contains("verification results::") {
-                    self.sender.send(CargoMessage::VerusResult(line.to_string())).unwrap();
+                    self.sender.send(CargoCheckMessage::VerusResult(line.to_string())).unwrap();
                 }
             }
 
@@ -925,7 +931,7 @@ impl CargoActor {
             error.push('\n');
             false
         };
-        let output = streaming_output(
+        let output = stdx::process::streaming_output(
             self.stdout,
             self.stderr,
             &mut |line| {
@@ -938,6 +944,7 @@ impl CargoActor {
                     read_at_least_one_stderr_message = true;
                 }
             },
+            &mut || {},
         );
 
         let read_at_least_one_message =
