@@ -160,12 +160,6 @@ impl FlycheckHandle {
         self.sender.send(StateChange::RestartVerus(file)).unwrap();
     }
 
-    /// Schedule a re-start of the cargo check worker.
-    pub fn restart_verus(&self, file: String) {
-        tracing::debug!("restart verus for {:?}", file);
-        self.sender.send(StateChange::RestartVerus(file)).unwrap();
-    }
-
     /// Stop this cargo check worker.
     pub fn cancel(&self) {
         self.sender.send(StateChange::Cancel).unwrap();
