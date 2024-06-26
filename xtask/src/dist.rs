@@ -38,8 +38,14 @@ impl flags::Dist {
                 // A hack to make VS Code prefer nightly over stable.
                 format!("{VERSION_NIGHTLY}.{patch_version}")
             };
-            dist_server(sh, &format!("{version}-standalone"), &target, allocator, self.proof_action)?;
-            let release_tag = if stable { date_iso(sh)? } else { "nightly".to_string() };
+            dist_server(
+                sh,
+                &format!("{version}-standalone"),
+                &target,
+                allocator,
+                self.proof_action,
+            )?;
+            let release_tag = if stable { date_iso(sh)? } else { "nightly".to_owned() };
             dist_client(sh, &version, &release_tag, &target)?;
         } else {
             dist_server(sh, "0.0.0-standalone", &target, allocator, self.proof_action)?;
@@ -98,12 +104,12 @@ fn dist_server(
     }
 
     let target_name = &target.name;
+    let features = allocator.to_features();
     if proof_action {
-        cmd!(sh, "cargo build --manifest-path ./crates/rust-analyzer/Cargo.toml --bin rust-analyzer --target {target_name} --release --features proof-action").run()?;
+        cmd!(sh, "cargo build --manifest-path ./crates/rust-analyzer/Cargo.toml --bin rust-analyzer --target {target_name} --release {features...} --features proof-action").run()?;
     } else {
-        cmd!(sh, "cargo build --manifest-path ./crates/rust-analyzer/Cargo.toml --bin rust-analyzer --target {target_name} --release").run()?;
+        cmd!(sh, "cargo build --manifest-path ./crates/rust-analyzer/Cargo.toml --bin rust-analyzer --target {target_name} {features...} --release").run()?;
     }
-
 
     let dst = Path::new("dist").join(&target.artifact_name);
     gzip(&target.server_path, &dst.with_extension("gz"))?;

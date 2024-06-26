@@ -22,6 +22,7 @@ use crate::{
 };
 
 mod ast_src;
+mod sourcegen_vst;
 use self::ast_src::{AstEnumSrc, AstNodeSrc, AstSrc, Cardinality, Field, KindsSrc, KINDS_SRC};
 
 pub(crate) fn generate(check: bool) {
@@ -33,7 +34,7 @@ pub(crate) fn generate(check: bool) {
         .unwrap()
         .parse()
         .unwrap();
-    let ast = lower(&grammar, true);
+    let ast = lower(&grammar, false);
 
     let ast_tokens = generate_tokens(&ast);
     let ast_tokens_file = project_root().join("crates/syntax/src/ast/generated/tokens.rs");
@@ -42,8 +43,13 @@ pub(crate) fn generate(check: bool) {
     let ast_nodes = generate_nodes(KINDS_SRC, &ast);
     let ast_nodes_file = project_root().join("crates/syntax/src/ast/generated/nodes.rs");
     ensure_file_contents(ast_nodes_file.as_path(), &ast_nodes, check);
-}
 
+    let ast = lower(&grammar, true);
+
+    let ast_nodes = sourcegen_vst::generate_vst(KINDS_SRC, &ast);
+    let ast_nodes_file = project_root().join("crates/syntax/src/ast/generated/vst_nodes.rs");
+    ensure_file_contents(ast_nodes_file.as_path(), &ast_nodes, check);
+}
 
 fn generate_tokens(grammar: &AstSrc) -> String {
     let tokens = grammar.tokens.iter().map(|token| {
@@ -605,10 +611,6 @@ pub(crate) fn lower(grammar: &Grammar, is_vst: bool) -> AstSrc {
             }
             None => {
                 let mut fields = Vec::new();
-                // dbg!(format!("lowering: {}", &name));
-                // if name == "Fn" {
-                //     dbg!(&grammar[node].rule);
-                // }
                 lower_rule(&mut fields, grammar, None, rule, is_vst, false, false);
                 res.nodes.push(AstNodeSrc { doc: Vec::new(), name, traits: Vec::new(), fields });
             }
@@ -617,10 +619,7 @@ pub(crate) fn lower(grammar: &Grammar, is_vst: bool) -> AstSrc {
 
     deduplicate_fields(&mut res);
     extract_enums(&mut res);
-    if !is_vst {
-        // CST omits some fields, but VST should have all the fields
-        extract_struct_traits(&mut res);
-    }
+    extract_struct_traits(&mut res, is_vst);
     extract_enum_traits(&mut res);
     res.nodes.sort_by_key(|it| it.name.clone());
     res.enums.sort_by_key(|it| it.name.clone());
@@ -667,21 +666,17 @@ fn lower_rule(
     if lower_separated_list(acc, grammar, label, rule) {
         return;
     }
-    // dbg!(rule);
 
     match rule {
         Rule::Node(node) => {
             let ty = grammar[*node].name.clone();
             let name = label.cloned().unwrap_or_else(|| to_lower_snake_case(&ty));
-            // dbg!("node");
-            // dbg!(&name);
-
             let cardinality = if is_vst
                 && !inside_opt
                 && !inside_alt
-                && (ty != "Pat".to_string())
-                && (ty != "PathType".to_string())
-                && (ty != "ParamList".to_string())
+                && (ty.as_str() != "Pat")
+                && (ty.as_str() != "PathType")
+                && (ty.as_str() != "ParamList")
             {
                 Cardinality::One
             } else {
@@ -792,7 +787,6 @@ fn deduplicate_fields(ast: &mut AstSrc) {
             for j in 0..i {
                 let f1 = &node.fields[i];
                 let f2 = &node.fields[j];
-
                 if f1 == f2 {
                     node.fields.remove(i);
                     continue 'outer;
@@ -833,15 +827,13 @@ fn extract_enums(ast: &mut AstSrc) {
                 node.remove_field(to_remove);
                 let ty = enm.name.clone();
                 let name = to_lower_snake_case(&ty);
-                // dbg!("to remove");
-                // dbg!(&name);
                 node.fields.push(Field::Node { name, ty, cardinality: Cardinality::Optional });
             }
         }
     }
 }
 
-fn extract_struct_traits(ast: &mut AstSrc) {
+fn extract_struct_traits(ast: &mut AstSrc, is_vst: bool) {
     let traits: &[(&str, &[&str])] = &[
         ("HasAttrs", &["attrs"]),
         ("HasName", &["name"]),
@@ -855,7 +847,7 @@ fn extract_struct_traits(ast: &mut AstSrc) {
 
     for node in &mut ast.nodes {
         for (name, methods) in traits {
-            extract_struct_trait(node, name, methods);
+            extract_struct_trait(node, name, methods, is_vst);
         }
     }
 
@@ -890,7 +882,7 @@ fn extract_struct_traits(ast: &mut AstSrc) {
     }
 }
 
-fn extract_struct_trait(node: &mut AstNodeSrc, trait_name: &str, methods: &[&str]) {
+fn extract_struct_trait(node: &mut AstNodeSrc, trait_name: &str, methods: &[&str], is_vst: bool) {
     let mut to_remove = Vec::new();
     for (i, field) in node.fields.iter().enumerate() {
         let method_name = field.method_name().to_string();
@@ -900,7 +892,9 @@ fn extract_struct_trait(node: &mut AstNodeSrc, trait_name: &str, methods: &[&str
     }
     if to_remove.len() == methods.len() {
         node.traits.push(trait_name.to_owned());
-        node.remove_field(to_remove);
+        if !is_vst {
+            node.remove_field(to_remove);
+        }
     }
 }
 
