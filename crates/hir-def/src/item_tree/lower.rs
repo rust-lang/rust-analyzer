@@ -21,7 +21,7 @@ use crate::{
         Impl, ImportAlias, Interned, ItemTree, ItemTreeData, ItemTreeNode, Macro2, MacroCall,
         MacroRules, Mod, ModItem, ModKind, ModPath, Mutability, Name, Param, ParamAstId, Path,
         Range, RawAttrs, RawIdx, RawVisibilityId, Static, Struct, StructKind, Trait, TraitAlias,
-        TypeAlias, Union, Use, UseTree, UseTreeKind, Variant,
+        TypeAlias, Union, Use, UseTree, UseTreeKind, Variant, VerusGlobal,
     },
     path::AssociatedTypeBinding,
     type_ref::{LifetimeRef, TraitBoundModifier, TraitRef, TypeBound, TypeRef},
@@ -150,6 +150,7 @@ impl<'a> Ctx<'a> {
             ast::Item::MacroRules(ast) => self.lower_macro_rules(ast)?.into(),
             ast::Item::MacroDef(ast) => self.lower_macro_def(ast)?.into(),
             ast::Item::ExternBlock(ast) => self.lower_extern_block(ast).into(),
+            ast::Item::VerusGlobal(ast) => self.lower_verus_global(ast).into(),
         };
         let attrs = RawAttrs::new(self.db.upcast(), item, self.span_map());
         self.add_attrs(mod_item.into(), attrs);
@@ -182,6 +183,7 @@ impl<'a> Ctx<'a> {
                 AssocItem::TypeAlias(it) => AttrOwner::ModItem(ModItem::TypeAlias(it)),
                 AssocItem::Const(it) => AttrOwner::ModItem(ModItem::Const(it)),
                 AssocItem::MacroCall(it) => AttrOwner::ModItem(ModItem::MacroCall(it)),
+                AssocItem::VerusGlobal(it) => AttrOwner::ModItem(ModItem::VerusGlobal(it)),
             },
             attrs,
         );
@@ -465,6 +467,12 @@ impl<'a> Ctx<'a> {
         let ast_id = self.source_ast_id_map.ast_id(konst);
         let res = Const { name, visibility, type_ref, ast_id, has_body: konst.body().is_some() };
         id(self.data().consts.alloc(res))
+    }
+
+    fn lower_verus_global(&mut self, global: &ast::VerusGlobal) -> FileItemTreeId<VerusGlobal> {
+        let ast_id = self.source_ast_id_map.ast_id(global);
+        let res = VerusGlobal { ast_id };
+        id(self.data().verus_globals.alloc(res))
     }
 
     fn lower_module(&mut self, module: &ast::Module) -> Option<FileItemTreeId<Mod>> {

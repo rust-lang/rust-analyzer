@@ -1830,6 +1830,9 @@ impl ModCollector<'_, '_> {
                         false,
                     );
                 }
+                ModItem::VerusGlobal(_id) => {
+                    print!("ModCollector::Collect -> VerusGlobal not handled");
+                }
             }
         };
 

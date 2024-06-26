@@ -760,6 +760,9 @@ impl<'a> AssocItemCollector<'a> {
                     }
                 }
             }
+            AssocItem::VerusGlobal(_id) => {
+                todo!()
+            }
         }
     }
 

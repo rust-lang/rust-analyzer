@@ -11,7 +11,7 @@ use crate::{
         FileItemTreeId, FnFlags, Function, GenericModItem, GenericParams, Impl, Interned, ItemTree,
         Macro2, MacroCall, MacroRules, Mod, ModItem, ModKind, Param, ParamAstId, Path, RawAttrs,
         RawVisibilityId, Static, Struct, Trait, TraitAlias, TypeAlias, TypeBound, TypeRef, Union,
-        Use, UseTree, UseTreeKind, Variant,
+        Use, UseTree, UseTreeKind, Variant, VerusGlobal,
     },
     pretty::{print_path, print_type_bounds, print_type_ref},
     visibility::RawVisibility,
@@ -507,6 +507,11 @@ impl Printer<'_> {
                 self.print_ast_id(ast_id.erase());
                 self.print_visibility(*visibility);
                 wln!(self, "macro {} {{ ... }}", name.display(self.db.upcast()));
+            }
+            ModItem::VerusGlobal(it) => {
+                // let VerusGlobal { ast_id } = &self.tree[it];
+                // self.print_ast_id(ast_id.erase());
+                wln!(self, "global ?? TODO!");
             }
         }
 
