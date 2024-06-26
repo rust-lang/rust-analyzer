@@ -241,6 +241,13 @@ struct FlycheckActor {
     command_receiver: Option<Receiver<CargoCheckMessage>>,
 
     status: FlycheckStatus,
+
+    /// CargoHandle exists to wrap around the communication needed to be able to
+    /// run `cargo check` without blocking. Currently the Rust standard library
+    /// doesn't provide a way to read sub-process output without blocking, so we
+    /// have to wrap sub-processes output handling in a thread and pass messages
+    /// back over a channel.
+    cargo_handle: Option<CargoHandle>,
 }
 
 enum Event {
@@ -277,6 +284,7 @@ impl FlycheckActor {
             command_handle: None,
             command_receiver: None,
             status: FlycheckStatus::Finished,
+            cargo_handle: None,
         }
     }
 
