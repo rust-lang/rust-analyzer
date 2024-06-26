@@ -1,8 +1,10 @@
+use ide_assists::proof_plumber_api::verus_error::{
+    AssertFailure, PostFailure, PreFailure, VerusError,
+};
 use syntax::{TextRange, TextSize};
-use ide_assists::proof_plumber_api::verus_error::{AssertFailure, PostFailure, PreFailure, VerusError};
 
 pub(crate) fn diagnostic_to_verus_err(
-    diagnostic: &cargo_metadata::diagnostic::Diagnostic,
+    diagnostic: &flycheck::Diagnostic,
 ) -> Option<VerusError> {
     if diagnostic.message.contains("precondition not satisfied") {
         if diagnostic.spans.len() == 2 {

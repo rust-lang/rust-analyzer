@@ -1261,7 +1261,7 @@ impl Config {
 
 impl Config {
     pub fn assist(&self, source_root: Option<SourceRootId>) -> AssistConfig {
-        let verus_path = match &self.data.check_overrideCommand {
+        let verus_path = match &self.check_overrideCommand() {
             Some(args) if !args.is_empty() => {
                 let mut args = args.clone();
                 let command = args.remove(0);
