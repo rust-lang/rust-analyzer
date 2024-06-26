@@ -59,7 +59,6 @@
 //! <https://rust-analyzer.github.io/blog/2020/09/28/how-to-make-a-light-bulb.html>
 
 #![warn(rust_2018_idioms, unused_lifetimes, semicolon_in_expressions_from_macros)]
-
 #![cfg_attr(not(feature = "proof-action"), allow(unused))]
 
 #[allow(unused)]
@@ -70,14 +69,14 @@ macro_rules! eprintln {
 pub(crate) mod assist_config;
 pub mod assist_context;
 // #[cfg(test)]
+pub mod proof_plumber_api;
 pub(crate) mod tests;
 pub mod utils;
-pub mod proof_plumber_api;
 
 use hir::Semantics;
 use ide_db::{base_db::FileRange, RootDatabase};
-use syntax::TextRange;
 use proof_plumber_api::verus_error::VerusError;
+use syntax::TextRange;
 
 pub(crate) use crate::assist_context::{AssistContext, Assists};
 

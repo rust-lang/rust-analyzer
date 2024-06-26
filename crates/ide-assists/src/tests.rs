@@ -17,12 +17,11 @@ use test_fixture::WithFixture;
 use test_utils::{assert_eq_text, extract_offset};
 
 use crate::{
-    assists, handlers::Handler, proof_plumber_api::verus_error::VerusError, Assist, AssistConfig, AssistContext, AssistKind, AssistResolveStrategy, Assists, SingleResolve
+    assists, handlers::Handler, Assist, AssistConfig, AssistContext, AssistKind,
+    AssistResolveStrategy, Assists, SingleResolve, VerusError,
 };
 
-
-
-pub const TEST_CONFIG: AssistConfig = AssistConfig {
+pub(crate) const TEST_CONFIG: AssistConfig = AssistConfig {
     snippet_cap: SnippetCap::new(true),
     allowed: None,
     insert_use: InsertUseConfig {
@@ -55,7 +54,7 @@ pub(crate) const TEST_CONFIG: AssistConfig = AssistConfig {
     assist_emit_must_use: false,
     term_search_fuel: 400,
     verus_path: String::new(), //verus
-    fmt_path: String::new(), // verusfmt
+    fmt_path: String::new(),   // verusfmt
 };
 
 pub(crate) fn with_single_file(text: &str) -> (RootDatabase, FileId) {
@@ -69,9 +68,20 @@ pub(crate) fn check_assist(assist: Handler, ra_fixture_before: &str, ra_fixture_
 }
 
 #[track_caller]
-pub(crate) fn check_assist_with_verus_error(assist: Handler, verus_errors: Vec<VerusError>, ra_fixture_before: &str, ra_fixture_after: &str) {
+pub(crate) fn check_assist_with_verus_error(
+    assist: Handler,
+    verus_errors: Vec<VerusError>,
+    ra_fixture_before: &str,
+    ra_fixture_after: &str,
+) {
     let ra_fixture_after = trim_indent(ra_fixture_after);
-    check_with_verus_error(assist, ra_fixture_before, ExpectedResult::After(&ra_fixture_after), None, verus_errors);
+    check_with_verus_error(
+        assist,
+        ra_fixture_before,
+        ExpectedResult::After(&ra_fixture_after),
+        None,
+        verus_errors,
+    );
 }
 
 #[track_caller]
@@ -208,7 +218,13 @@ fn check(handler: Handler, before: &str, expected: ExpectedResult<'_>, assist_la
 }
 
 #[track_caller]
-fn check_with_verus_error(handler: Handler, before: &str, expected: ExpectedResult<'_>, assist_label: Option<&str>, verus_errors: Vec<VerusError>) {
+fn check_with_verus_error(
+    handler: Handler,
+    before: &str,
+    expected: ExpectedResult<'_>,
+    assist_label: Option<&str>,
+    verus_errors: Vec<VerusError>,
+) {
     check_with_config(TEST_CONFIG, handler, before, expected, assist_label, verus_errors);
 }
 
@@ -228,7 +244,7 @@ fn check_with_config(
     let frange = FileRange { file_id: file_with_caret_id, range: range_or_offset.into() };
 
     let sema = Semantics::new(&db);
-    let ctx = AssistContext::new(sema, &config, frange, verus_errors); 
+    let ctx = AssistContext::new(sema, &config, frange, verus_errors);
     let resolve = match expected {
         ExpectedResult::Unresolved => AssistResolveStrategy::None,
         _ => AssistResolveStrategy::All,

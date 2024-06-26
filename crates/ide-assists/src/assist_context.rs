@@ -19,9 +19,9 @@ pub(crate) use ide_db::source_change::{SourceChangeBuilder, TreeMutator};
 ///
 /// Majority of Proof action APIs are associated with AssistContext as its `impl`,
 /// as those need broader information (e.g., info for the whole project)
-/// 
-/// 
-/// 
+///
+///
+///
 /// `AssistContext` allows to apply an assist or check if it could be applied.
 ///
 /// Assists use a somewhat over-engineered approach, given the current needs.
