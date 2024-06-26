@@ -36,11 +36,29 @@ pub(crate) const TEST_CONFIG: AssistConfig = AssistConfig {
     assist_emit_must_use: false,
     term_search_fuel: 400,
     verus_path: String::new(), //verus
-    fmt_path: String::new(), // verusfmt
+    fmt_path: String::new(),   // verusfmt
 };
 
-pub(crate) const TEST_CONFIG: AssistConfig = AssistConfig {
+pub(crate) const TEST_CONFIG_IMPORT_ONE: AssistConfig = AssistConfig {
     snippet_cap: SnippetCap::new(true),
+    allowed: None,
+    insert_use: InsertUseConfig {
+        granularity: ImportGranularity::One,
+        prefix_kind: hir::PrefixKind::Plain,
+        enforce_granularity: true,
+        group: true,
+        skip_glob_imports: true,
+    },
+    prefer_no_std: false,
+    prefer_prelude: true,
+    assist_emit_must_use: false,
+    term_search_fuel: 400,
+    verus_path: String::new(), //verus
+    fmt_path: String::new(),   // verusfmt
+};
+
+pub(crate) const TEST_CONFIG_NO_SNIPPET_CAP: AssistConfig = AssistConfig {
+    snippet_cap: None,
     allowed: None,
     insert_use: InsertUseConfig {
         granularity: ImportGranularity::Crate,
@@ -114,6 +132,7 @@ pub(crate) fn check_assist_import_one(
         ra_fixture_before,
         ExpectedResult::After(&ra_fixture_after),
         None,
+        vec![],
     );
 }
 
@@ -155,6 +174,7 @@ pub(crate) fn check_assist_not_applicable_for_import_one(assist: Handler, ra_fix
         ra_fixture,
         ExpectedResult::NotApplicable,
         None,
+        vec![],
     );
 }
 
