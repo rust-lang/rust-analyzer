@@ -109,6 +109,7 @@ Item =
 | TypeAlias
 | Union
 | Use
+| VerusGlobal // Verus
 
 MacroRules =
   Attr* Visibility?
@@ -215,7 +216,7 @@ FieldList =
 | TupleFieldList
 
 Enum =
-  Attr* Visibility?
+  Attr* Visibility? DataMode?
   'enum' Name GenericParamList? WhereClause?
   VariantList
 
@@ -723,11 +724,11 @@ ConstBlockPat =
 //        Verus           //
 //************************//
 
-Publish = 
+Publish =
   ('closed' | 'open' )
 
-FnMode = 
-  ('spec' | 'proof' | 'exec' | ModeSpecChecked )  
+FnMode =
+  ('spec' | 'proof' | 'exec' | ModeSpecChecked )
 
 DataMode =
   ('ghost' | 'tracked')
@@ -747,7 +748,7 @@ InvariantClause =
 RecommendsClause =
   'recommends' (Expr (',' Expr)* ','?) ('via' Expr)?
 
-DecreasesClause = 
+DecreasesClause =
   'decreases' (Expr (',' Expr)* ','?)
 
 SignatureDecreases =
@@ -759,8 +760,8 @@ ViewExpr =
 AssertExpr =
   Attr* 'assert' '(' Expr ')' 'by'? ( '(' Name ')' )?  RequiresClause? BlockExpr?
 
-AssumeExpr = 
-  Attr* 'assume' '(' Expr ')' 
+AssumeExpr =
+  Attr* 'assume' '(' Expr ')'
 
 AssertForallExpr =
   Attr* 'assert' ClosureExpr ('implies' Expr)? 'by' BlockExpr
@@ -770,4 +771,7 @@ Prover =
 
 TriggerAttribute =
  '#' '!' '[' 'trigger' (Expr (',' Expr)* ','?) ']'
- 
+
+VerusGlobal =
+  Attr*
+  'global' Name Type op:('==') value:('int_number') ';'
