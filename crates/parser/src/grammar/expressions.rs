@@ -249,51 +249,50 @@ fn current_op(p: &Parser<'_>) -> (u8, SyntaxKind, Associativity) {
     use Associativity::*;
     const NOT_AN_OP: (u8, SyntaxKind, Associativity) = (0, T![@], Left);
     match p.current() {
-        T![|] if p.at(T![|||]) => (1, T![|||]), // verus
-        T![|] if p.at(T![||])  => (3,  T![||]),
-        T![|] if p.at(T![|=])  => (1,  T![|=]),
-        T![|]                  => (6,  T![|]),
-        T![>] if p.at(T![>>=]) => (1,  T![>>=]),
-        T![>] if p.at(T![>>])  => (9,  T![>>]),
-        T![>] if p.at(T![>=])  => (5,  T![>=]),
-        T![>]                  => (5,  T![>]),
-        T![=] if p.at(T![=>])  => NOT_AN_OP,
-        T![=] if p.at(T![=~~=]) => (1, T![=~~=]), // verus
-        T![=] if p.at(T![=~=]) => (1, T![=~=]), // verus
-        T![=] if p.at(T![==>]) => (2, T![==>]), //verus
-        T![=] if p.at(T![===]) => (2, T![===]), //verus
-        T![=] if p.at(T![==])  => (5,  T![==]),
-        T![=]                  => (1,  T![=]),
-        T![<] if p.at(T![<==>]) => (2, T![<==>]), // verus
-        T![<] if p.at(T![<==]) => (2, T![<==]),   // verus
-        T![<] if p.at(T![<=])  => (5,  T![<=]),
-        T![<] if p.at(T![<<=]) => (1,  T![<<=]),
-        T![<] if p.at(T![<<])  => (9,  T![<<]),
-        T![<]                  => (5,  T![<]),
-        T![+] if p.at(T![+=])  => (1,  T![+=]),
-        T![+]                  => (10, T![+]),
-        T![^] if p.at(T![^=])  => (1,  T![^=]),
-        T![^]                  => (7,  T![^]),
-        T![%] if p.at(T![%=])  => (1,  T![%=]),
-        T![%]                  => (11, T![%]),
-        T![&] if p.at(T![&=])  => (1,  T![&=]),
-        T![&] if p.at(T![&&&]) => (1, T![&&&]), // verus
+        T![|] if p.at(T![|||]) => (1, T![|||], Left), // verus
+        T![|] if p.at(T![||])  => (3,  T![||],  Left),
+        T![|] if p.at(T![|=])  => (1,  T![|=],  Right),
+        T![|]                  => (6,  T![|],   Left),
+        T![>] if p.at(T![>>=]) => (1,  T![>>=], Right),
+        T![>] if p.at(T![>>])  => (9,  T![>>],  Left),
+        T![>] if p.at(T![>=])  => (5,  T![>=],  Left),
+        T![>]                  => (5,  T![>],   Left),
+        T![=] if p.at(T![=~~=]) => (1, T![=~~=], Left), // verus
+        T![=] if p.at(T![=~=]) => (1, T![=~=], Left), // verus
+        T![=] if p.at(T![==>]) => (2, T![==>], Left), //verus
+        T![=] if p.at(T![===]) => (2, T![===], Left), //verus
+        T![=] if p.at(T![==])  => (5,  T![==],  Left),
+        T![=] if !p.at(T![=>]) => (1,  T![=],   Right),
+        T![<] if p.at(T![<==>]) => (2, T![<==>], Left), // verus
+        T![<] if p.at(T![<==]) => (2, T![<==], Left),   // verus
+        T![<] if p.at(T![<=])  => (5,  T![<=],  Left),
+        T![<] if p.at(T![<<=]) => (1,  T![<<=], Right),
+        T![<] if p.at(T![<<])  => (9,  T![<<],  Left),
+        T![<]                  => (5,  T![<],   Left),
+        T![+] if p.at(T![+=])  => (1,  T![+=],  Right),
+        T![+]                  => (10, T![+],   Left),
+        T![^] if p.at(T![^=])  => (1,  T![^=],  Right),
+        T![^]                  => (7,  T![^],   Left),
+        T![%] if p.at(T![%=])  => (1,  T![%=],  Right),
+        T![%]                  => (11, T![%],   Left),
+        T![&] if p.at(T![&=])  => (1,  T![&=],  Right),
+        T![&] if p.at(T![&&&]) => (1, T![&&&], Left), // verus
         // If you update this, remember to update `expr_let()` too.
-        T![&] if p.at(T![&&])  => (4,  T![&&]),
-        T![&]                  => (8,  T![&]),
-        T![/] if p.at(T![/=])  => (1,  T![/=]),
-        T![/]                  => (11, T![/]),
-        T![*] if p.at(T![*=])  => (1,  T![*=]),
-        T![*]                  => (11, T![*]),
-        T![.] if p.at(T![..=]) => (2,  T![..=]),
-        T![.] if p.at(T![..])  => (2,  T![..]),
-        T![!] if p.at(T![!==]) => (5, T![!==]), // verus
-        T![!] if p.at(T![!~~=]) => (1, T![!~~=]), // verus
-        T![!] if p.at(T![!~=]) => (1, T![!~=]), // verus
-        T![!] if p.at(T![!=])  => (5,  T![!=]),
-        T![-] if p.at(T![-=])  => (1,  T![-=]),
-        T![-]                  => (10, T![-]),
-        T![as]                 => (12, T![as]),
+        T![&] if p.at(T![&&])  => (4,  T![&&],  Left),
+        T![&]                  => (8,  T![&],   Left),
+        T![/] if p.at(T![/=])  => (1,  T![/=],  Right),
+        T![/]                  => (11, T![/],   Left),
+        T![*] if p.at(T![*=])  => (1,  T![*=],  Right),
+        T![*]                  => (11, T![*],   Left),
+        T![.] if p.at(T![..=]) => (2,  T![..=], Left),
+        T![.] if p.at(T![..])  => (2,  T![..],  Left),
+        T![!] if p.at(T![!==]) => (5, T![!==], Left), // verus
+        T![!] if p.at(T![!~~=]) => (1, T![!~~=], Left), // verus
+        T![!] if p.at(T![!~=]) => (1, T![!~=], Left), // verus
+        T![!] if p.at(T![!=])  => (5,  T![!=],  Left),
+        T![-] if p.at(T![-=])  => (1,  T![-=],  Right),
+        T![-]                  => (10, T![-],   Left),
+        T![as]                 => (12, T![as],  Left),
 
         _                      => NOT_AN_OP
     }
