@@ -28,7 +28,7 @@ use crate::{
     },
     lsp_ext,
     reload::{BuildDataProgress, ProcMacroProgress, ProjectWorkspaceProgress},
-    Result, verus_interaction,
+    verus_interaction,
 };
 
 pub fn main_loop(config: Config, connection: Connection) -> anyhow::Result<()> {

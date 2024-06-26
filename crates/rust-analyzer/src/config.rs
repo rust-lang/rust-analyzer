@@ -1279,7 +1279,7 @@ impl Config {
             prefer_prelude: self.imports_preferPrelude(source_root).to_owned(),
             term_search_fuel: self.assist_termSearch_fuel(source_root).to_owned() as u64,
             verus_path,
-            fmt_path: String::from("/home/chanhee/verusfmt/target/debug/verusfmt"),  // TODO: get this from user config file
+            fmt_path: String::from("/home/chanhee/verusfmt/target/debug/verusfmt"), // TODO: get this from user config file
         }
     }
 

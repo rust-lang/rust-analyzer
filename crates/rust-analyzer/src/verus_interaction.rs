@@ -39,11 +39,9 @@ pub(crate) fn diagnostic_to_verus_err(
             );
             let verr;
             if diagnostic.spans[0].is_primary {
-                verr =
-                    VerusError::Post(PostFailure { failing_post: range1, func_body: range0 });
+                verr = VerusError::Post(PostFailure { failing_post: range1, func_body: range0 });
             } else {
-                verr =
-                    VerusError::Post(PostFailure { failing_post: range0, func_body: range1 });
+                verr = VerusError::Post(PostFailure { failing_post: range0, func_body: range1 });
             }
             Some(verr)
         } else {
