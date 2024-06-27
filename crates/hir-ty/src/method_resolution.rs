@@ -444,8 +444,10 @@ pub(crate) fn lookup_method(
     traits_in_scope: &FxHashSet<TraitId>,
     visible_from_module: VisibleFromModule,
     name: &Name,
+    heuristic: LookupHeuristic,
 ) -> Option<(ReceiverAdjustments, FunctionId, bool)> {
     let mut not_visible = None;
+    let mut autoderef_unresolved = None;
     let res = iterate_method_candidates(
         ty,
         db,
@@ -455,7 +457,18 @@ pub(crate) fn lookup_method(
         Some(name),
         LookupMode::MethodCall,
         |adjustments, f, visible| match f {
-            AssocItemId::FunctionId(f) if visible => Some((adjustments, f, true)),
+            AssocItemId::FunctionId(f) if visible => {
+                if heuristic == LookupHeuristic::PreferResolvedAutoderef
+                    && adjustments.autoderef_is_bound_var
+                {
+                    if autoderef_unresolved.is_none() {
+                        autoderef_unresolved = Some((adjustments, f, true));
+                    }
+                    None
+                } else {
+                    Some((adjustments, f, true))
+                }
+            },
             AssocItemId::FunctionId(f) if not_visible.is_none() => {
                 not_visible = Some((adjustments, f, false));
                 None
@@ -463,7 +476,7 @@ pub(crate) fn lookup_method(
             _ => None,
         },
     );
-    res.or(not_visible)
+    res.or(autoderef_unresolved).or(not_visible)
 }
 
 /// Whether we're looking up a dotted method call (like `v.len()`) or a path
@@ -476,6 +489,25 @@ pub enum LookupMode {
     /// Looking up a path like `Vec::new` or `Vec::default`: We consider all
     /// candidates including associated constants, but don't do autoderef.
     Path,
+}
+
+/// Whether we're happy to accept the first method the inference algorithm
+/// finds, or if we prefer to keep looking in the hope of finding a better
+/// match.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum LookupHeuristic {
+    /// Just return the first valid result.
+    Default,
+    /// Used to prevent trait methods from being returned when an impl method
+    /// would be a better match.
+    ///
+    /// This happens in cases where the trait autoderefs to a `self` that
+    /// is a [`TyKind::BoundVar`].
+    ///
+    /// By using this heuristic, the algorithm is made to carry on looking for
+    /// other matches. It may still end up returning the trait's method if it
+    /// doesn't find anything better.
+    PreferResolvedAutoderef,
 }
 
 #[derive(Clone, Copy)]
@@ -510,6 +542,7 @@ impl From<Option<BlockId>> for VisibleFromModule {
 pub struct ReceiverAdjustments {
     autoref: Option<Mutability>,
     autoderefs: usize,
+    autoderef_is_bound_var: bool,
     unsize_array: bool,
 }
 
@@ -1178,7 +1211,9 @@ fn iterate_trait_method_candidates(
                 }
             }
             known_implemented = true;
-            callback(receiver_adjustments.clone().unwrap_or_default(), item, visible)?;
+            let mut receiver_adjustments = receiver_adjustments.clone().unwrap_or_default();
+            receiver_adjustments.autoderef_is_bound_var = matches!(canonical_self_ty.value.kind(Interner), TyKind::BoundVar(..));
+            callback(receiver_adjustments, item, visible)?;
         }
     }
     ControlFlow::Continue(())
@@ -1642,7 +1677,7 @@ fn autoderef_method_receiver(
     while let Some((ty, derefs)) = autoderef.next() {
         deref_chain.push((
             autoderef.table.canonicalize(ty),
-            ReceiverAdjustments { autoref: None, autoderefs: derefs, unsize_array: false },
+            ReceiverAdjustments { autoref: None, autoderefs: derefs, autoderef_is_bound_var: false, unsize_array: false, },
         ));
     }
     // As a last step, we can do array unsizing (that's the only unsizing that rustc does for method receivers!)

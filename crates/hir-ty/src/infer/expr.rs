@@ -1574,6 +1574,7 @@ impl InferenceContext<'_> {
                     self.get_traits_in_scope().as_ref().left_or_else(|&it| it),
                     VisibleFromModule::Filter(self.resolver.module()),
                     name,
+                    method_resolution::LookupHeuristic::Default,
                 );
                 self.result.diagnostics.push(InferenceDiagnostic::UnresolvedField {
                     expr: tgt_expr,
@@ -1623,6 +1624,7 @@ impl InferenceContext<'_> {
             self.get_traits_in_scope().as_ref().left_or_else(|&it| it),
             VisibleFromModule::Filter(self.resolver.module()),
             method_name,
+            method_resolution::LookupHeuristic::PreferResolvedAutoderef,
         );
         let (receiver_ty, method_ty, substs) = match resolved {
             Some((adjust, func, visible)) => {
