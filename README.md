@@ -40,6 +40,12 @@ $ gunzip dist/verus-analyzer-x86_64-unknown-linux-gnu.gz
 $ chmod +x dist/verus-analyzer-x86_64-unknown-linux-gnu
 ```
 
+#### Windows:
+
+Locate the generated zip file `dist\verus-analyzer-x86_64-pc-windows-msvc.zip` and extract it (e.g.,
+through right-click + extract all). Then you should see the file `dist\verus-analyzer-x86_64-pc-windows-msvc\rust-analyzer.exe`
+that you are going to use as the verus-analyzer binary.
+
 ### 2. IDE Setup
 
 To use `verus-analyzer` in your IDE (e.g., VS Code, EMACS or VIM) you need to configure your IDE to use the compiled `verus-analyzer` binary instead of `rust-analyzer` for `*.rs` files.
