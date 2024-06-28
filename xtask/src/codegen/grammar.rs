@@ -677,6 +677,7 @@ fn lower_rule(
                 && (ty.as_str() != "Pat")
                 && (ty.as_str() != "PathType")
                 && (ty.as_str() != "ParamList")
+                && (ty.as_str() != "Type")
             {
                 Cardinality::One
             } else {
