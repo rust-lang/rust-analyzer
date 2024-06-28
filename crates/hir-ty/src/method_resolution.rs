@@ -437,6 +437,7 @@ pub fn def_crates(
 }
 
 /// Look up the method with the given name.
+#[inline]
 pub(crate) fn lookup_method(
     db: &dyn HirDatabase,
     ty: &Canonical<Ty>,
@@ -445,7 +446,29 @@ pub(crate) fn lookup_method(
     visible_from_module: VisibleFromModule,
     name: &Name,
 ) -> Option<(ReceiverAdjustments, FunctionId, bool)> {
+    lookup_method_using_heuristic(
+        db,
+        ty,
+        env,
+        traits_in_scope,
+        visible_from_module,
+        name,
+        |_, _| true,
+    )
+}
+
+/// Look up the method with the given name, using a callback to evaluate matches.
+pub(crate) fn lookup_method_using_heuristic(
+    db: &dyn HirDatabase,
+    ty: &Canonical<Ty>,
+    env: Arc<TraitEnvironment>,
+    traits_in_scope: &FxHashSet<TraitId>,
+    visible_from_module: VisibleFromModule,
+    name: &Name,
+    mut is_best_match: impl FnMut(&ReceiverAdjustments, FunctionId) -> bool,
+) -> Option<(ReceiverAdjustments, FunctionId, bool)> {
     let mut not_visible = None;
+    let mut not_best_match = None;
     let res = iterate_method_candidates(
         ty,
         db,
@@ -455,7 +478,16 @@ pub(crate) fn lookup_method(
         Some(name),
         LookupMode::MethodCall,
         |adjustments, f, visible| match f {
-            AssocItemId::FunctionId(f) if visible => Some((adjustments, f, true)),
+            AssocItemId::FunctionId(f) if visible => {
+                if is_best_match(&adjustments, f) {
+                    Some((adjustments, f, true))
+                } else {
+                    if not_best_match.is_none() {
+                        not_best_match = Some((adjustments, f, true));
+                    }
+                    None
+                }
+            }
             AssocItemId::FunctionId(f) if not_visible.is_none() => {
                 not_visible = Some((adjustments, f, false));
                 None
@@ -463,7 +495,7 @@ pub(crate) fn lookup_method(
             _ => None,
         },
     );
-    res.or(not_visible)
+    res.or(not_best_match).or(not_visible)
 }
 
 /// Whether we're looking up a dotted method call (like `v.len()`) or a path

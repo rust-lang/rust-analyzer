@@ -378,6 +378,7 @@ impl InferenceContext<'_> {
                     &param_tys,
                     &indices_to_skip,
                     is_varargs,
+                    false,
                 );
                 self.normalize_associated_types_in(ret_ty)
             }
@@ -1615,14 +1616,22 @@ impl InferenceContext<'_> {
     ) -> Ty {
         let receiver_ty = self.infer_expr_inner(receiver, &Expectation::none());
         let canonicalized_receiver = self.canonicalize(receiver_ty.clone());
+        let traits_in_scope = self.get_traits_in_scope().left_or_else(|it| it.clone());
 
-        let resolved = method_resolution::lookup_method(
+        let resolved = method_resolution::lookup_method_using_heuristic(
             self.db,
             &canonicalized_receiver,
             self.table.trait_env.clone(),
-            self.get_traits_in_scope().as_ref().left_or_else(|&it| it),
+            &traits_in_scope,
             VisibleFromModule::Filter(self.resolver.module()),
             method_name,
+            |adjust, func| {
+                let (receiver_ty, _) = adjust.apply(&mut self.table, receiver_ty.clone());
+                let generics = generics(self.db.upcast(), func.into());
+                let substs = self.substs_for_method_call(generics, generic_args);
+                let method_ty = self.db.value_ty(func.into()).unwrap();
+                self.try_method_call(tgt_expr, args, method_ty, substs, receiver_ty, expected)
+            },
         );
         let (receiver_ty, method_ty, substs) = match resolved {
             Some((adjust, func, visible)) => {
@@ -1684,6 +1693,21 @@ impl InferenceContext<'_> {
         self.check_method_call(tgt_expr, args, method_ty, substs, receiver_ty, expected)
     }
 
+    #[inline]
+    fn try_method_call(
+        &mut self,
+        tgt_expr: ExprId,
+        args: &[ExprId],
+        method_ty: Binders<Ty>,
+        substs: Substitution,
+        receiver_ty: Ty,
+        expected: &Expectation,
+    ) -> bool {
+        self.check_method_call_inner(tgt_expr, args, method_ty, substs, receiver_ty, expected, true)
+            .is_ok()
+    }
+
+    #[inline]
     fn check_method_call(
         &mut self,
         tgt_expr: ExprId,
@@ -1693,6 +1717,28 @@ impl InferenceContext<'_> {
         receiver_ty: Ty,
         expected: &Expectation,
     ) -> Ty {
+        self.check_method_call_inner(
+            tgt_expr,
+            args,
+            method_ty,
+            substs,
+            receiver_ty,
+            expected,
+            false,
+        )
+        .unwrap()
+    }
+
+    fn check_method_call_inner(
+        &mut self,
+        tgt_expr: ExprId,
+        args: &[ExprId],
+        method_ty: Binders<Ty>,
+        substs: Substitution,
+        receiver_ty: Ty,
+        expected: &Expectation,
+        is_dryrun: bool,
+    ) -> Result<Ty, ()> {
         let method_ty = method_ty.substitute(Interner, &substs);
         self.register_obligations_for_call(&method_ty);
         let ((formal_receiver_ty, param_tys), ret_ty, is_varargs) =
@@ -1713,8 +1759,19 @@ impl InferenceContext<'_> {
         let expected_inputs =
             self.expected_inputs_for_expected_output(expected, ret_ty.clone(), param_tys.clone());
 
-        self.check_call_arguments(tgt_expr, args, &expected_inputs, &param_tys, &[], is_varargs);
-        self.normalize_associated_types_in(ret_ty)
+        let is_ok = self.check_call_arguments(
+            tgt_expr,
+            args,
+            &expected_inputs,
+            &param_tys,
+            &[],
+            is_varargs,
+            is_dryrun,
+        );
+        if !is_ok && is_dryrun {
+            return Err(());
+        }
+        Ok(self.normalize_associated_types_in(ret_ty))
     }
 
     fn expected_inputs_for_expected_output(
@@ -1752,8 +1809,14 @@ impl InferenceContext<'_> {
         param_tys: &[Ty],
         skip_indices: &[u32],
         is_varargs: bool,
-    ) {
+        is_dryrun: bool,
+    ) -> bool {
+        let mut is_ok = true;
         if args.len() != param_tys.len() + skip_indices.len() && !is_varargs {
+            if is_dryrun {
+                return false; // Fail fast
+            }
+            is_ok = false;
             self.push_diagnostic(InferenceDiagnostic::MismatchedArgCount {
                 call_expr: expr,
                 expected: param_tys.len() + skip_indices.len(),
@@ -1814,6 +1877,10 @@ impl InferenceContext<'_> {
                 // type vars here to avoid type mismatch false positive.
                 let coercion_target = self.insert_type_vars(coercion_target);
                 if self.coerce(Some(arg), &ty, &coercion_target).is_err() {
+                    if is_dryrun {
+                        return false; // Fail fast
+                    }
+                    is_ok = false;
                     self.result.type_mismatches.insert(
                         arg.into(),
                         TypeMismatch { expected: coercion_target, actual: ty.clone() },
@@ -1821,6 +1888,7 @@ impl InferenceContext<'_> {
                 }
             }
         }
+        is_ok
     }
 
     fn substs_for_method_call(
