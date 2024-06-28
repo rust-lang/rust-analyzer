@@ -512,7 +512,7 @@ fn octuple(x1: i8) -> (x8: i8)
 requires
     -16 <= x1,
     x1  < 16,
-ensures                 
+ensures
     x8 == 8 * x1,
 {
     let x2 = x1 + x1;
@@ -523,7 +523,7 @@ ensures
 fn use_octuple() {
     let two = 2;
     let num = octuple(two);
-    ass$0ert(num == 32);        
+    ass$0ert(num == 32);
 }
 "#,
             r#"
@@ -531,7 +531,7 @@ fn octuple(x1: i8) -> (x8: i8)
 requires
     -16 <= x1,
     x1  < 16,
-ensures                 
+ensures
     x8 == 8 * x1,
 {
     let x2 = x1 + x1;

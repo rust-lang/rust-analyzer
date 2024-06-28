@@ -3,9 +3,7 @@ use ide_assists::proof_plumber_api::verus_error::{
 };
 use syntax::{TextRange, TextSize};
 
-pub(crate) fn diagnostic_to_verus_err(
-    diagnostic: &flycheck::Diagnostic,
-) -> Option<VerusError> {
+pub(crate) fn diagnostic_to_verus_err(diagnostic: &flycheck::Diagnostic) -> Option<VerusError> {
     if diagnostic.message.contains("precondition not satisfied") {
         if diagnostic.spans.len() == 2 {
             let range0 = TextRange::new(
