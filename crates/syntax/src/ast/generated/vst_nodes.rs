@@ -27,7 +27,7 @@ pub struct ArrayExpr {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayType {
     pub const_arg: Box<ConstArg>,
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub l_brack_token: bool,
     pub r_brack_token: bool,
     pub semicolon_token: bool,
@@ -83,7 +83,7 @@ pub struct AssocTypeArg {
     pub name_ref: Box<NameRef>,
     pub param_list: Option<Box<ParamList>>,
     pub ret_type: Option<Box<RetType>>,
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub type_bound_list: Box<TypeBoundList>,
     pub colon_token: bool,
     pub eq_token: bool,
@@ -158,7 +158,7 @@ pub struct CallExpr {
 pub struct CastExpr {
     pub attrs: Vec<Attr>,
     pub expr: Box<Expr>,
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub as_token: bool,
     pub cst: Option<super::nodes::CastExpr>,
 }
@@ -183,7 +183,7 @@ pub struct Const {
     pub attrs: Vec<Attr>,
     pub body: Option<Box<Expr>>,
     pub name: Option<Box<Name>>,
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub visibility: Option<Box<Visibility>>,
     pub colon_token: bool,
     pub semicolon_token: bool,
@@ -209,7 +209,7 @@ pub struct ConstParam {
     pub attrs: Vec<Attr>,
     pub default_val: Option<Box<ConstArg>>,
     pub name: Box<Name>,
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub colon_token: bool,
     pub eq_token: bool,
     pub const_token: bool,
@@ -357,7 +357,7 @@ pub struct ForExpr {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ForType {
     pub generic_param_list: Box<GenericParamList>,
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub for_token: bool,
     pub cst: Option<super::nodes::ForType>,
 }
@@ -674,7 +674,7 @@ pub struct NeverType {
 pub struct OffsetOfExpr {
     pub attrs: Vec<Attr>,
     pub fields: Vec<NameRef>,
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub pound_token: bool,
     pub l_paren_token: bool,
     pub r_paren_token: bool,
@@ -725,7 +725,7 @@ pub struct ParenPat {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParenType {
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub l_paren_token: bool,
     pub r_paren_token: bool,
     pub cst: Option<super::nodes::ParenType>,
@@ -755,7 +755,7 @@ pub struct PathSegment {
     pub param_list: Option<Box<ParamList>>,
     pub path_type: Option<Box<PathType>>,
     pub ret_type: Option<Box<RetType>>,
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub coloncolon_token: bool,
     pub l_angle_token: bool,
     pub r_angle_token: bool,
@@ -783,7 +783,7 @@ pub struct Prover {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PtrType {
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub star_token: bool,
     pub const_token: bool,
     pub mut_token: bool,
@@ -841,7 +841,7 @@ pub struct RecordField {
     pub attrs: Vec<Attr>,
     pub data_mode: Option<Box<DataMode>>,
     pub name: Box<Name>,
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub visibility: Option<Box<Visibility>>,
     pub colon_token: bool,
     pub cst: Option<super::nodes::RecordField>,
@@ -895,7 +895,7 @@ pub struct RefPat {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefType {
     pub lifetime: Option<Box<Lifetime>>,
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub amp_token: bool,
     pub mut_token: bool,
     pub cst: Option<super::nodes::RefType>,
@@ -922,7 +922,7 @@ pub struct RestPat {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RetType {
     pub pat: Option<Box<Pat>>,
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub l_paren_token: bool,
     pub r_paren_token: bool,
     pub thin_arrow_token: bool,
@@ -942,7 +942,7 @@ pub struct SelfParam {
     pub attrs: Vec<Attr>,
     pub lifetime: Option<Box<Lifetime>>,
     pub name: Box<Name>,
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub amp_token: bool,
     pub colon_token: bool,
     pub mut_token: bool,
@@ -965,7 +965,7 @@ pub struct SlicePat {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SliceType {
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub l_brack_token: bool,
     pub r_brack_token: bool,
     pub cst: Option<super::nodes::SliceType>,
@@ -982,7 +982,7 @@ pub struct Static {
     pub attrs: Vec<Attr>,
     pub body: Option<Box<Expr>>,
     pub name: Box<Name>,
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub visibility: Option<Box<Visibility>>,
     pub colon_token: bool,
     pub semicolon_token: bool,
@@ -1079,7 +1079,7 @@ pub struct TupleExpr {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleField {
     pub attrs: Vec<Attr>,
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub visibility: Option<Box<Visibility>>,
     pub cst: Option<super::nodes::TupleField>,
 }
@@ -1130,13 +1130,13 @@ pub struct TypeAlias {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeArg {
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub cst: Option<super::nodes::TypeArg>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeBound {
     pub lifetime: Option<Box<Lifetime>>,
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub question_mark_token: bool,
     pub async_token: bool,
     pub const_token: bool,
@@ -1221,7 +1221,7 @@ pub struct VariantList {
 pub struct VerusGlobal {
     pub attrs: Vec<Attr>,
     pub name: Box<Name>,
-    pub ty: Box<Type>,
+    pub ty: Option<Box<Type>>,
     pub semicolon_token: bool,
     pub global_token: bool,
     pub cst: Option<super::nodes::VerusGlobal>,
@@ -1488,9 +1488,10 @@ impl TryFrom<super::nodes::ArrayType> for ArrayType {
                     .ok_or(format!("{}", stringify!(const_arg)))
                     .map(|it| ConstArg::try_from(it))??,
             ),
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             l_brack_token: item.l_brack_token().is_some(),
             r_brack_token: item.r_brack_token().is_some(),
             semicolon_token: item.semicolon_token().is_some(),
@@ -1600,9 +1601,10 @@ impl TryFrom<super::nodes::AssocTypeArg> for AssocTypeArg {
                 Some(it) => Some(Box::new(RetType::try_from(it)?)),
                 None => None,
             },
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             type_bound_list: Box::new(
                 item.type_bound_list()
                     .ok_or(format!("{}", stringify!(type_bound_list)))
@@ -1789,9 +1791,10 @@ impl TryFrom<super::nodes::CastExpr> for CastExpr {
                     .ok_or(format!("{}", stringify!(expr)))
                     .map(|it| Expr::try_from(it))??,
             ),
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             as_token: item.as_token().is_some(),
             cst: Some(item.clone()),
         })
@@ -1851,9 +1854,10 @@ impl TryFrom<super::nodes::Const> for Const {
                 Some(it) => Some(Box::new(Name::try_from(it)?)),
                 None => None,
             },
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             visibility: match item.visibility() {
                 Some(it) => Some(Box::new(Visibility::try_from(it)?)),
                 None => None,
@@ -1913,9 +1917,10 @@ impl TryFrom<super::nodes::ConstParam> for ConstParam {
                     .ok_or(format!("{}", stringify!(name)))
                     .map(|it| Name::try_from(it))??,
             ),
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             colon_token: item.colon_token().is_some(),
             eq_token: item.eq_token().is_some(),
             const_token: item.const_token().is_some(),
@@ -2298,9 +2303,10 @@ impl TryFrom<super::nodes::ForType> for ForType {
                     .ok_or(format!("{}", stringify!(generic_param_list)))
                     .map(|it| GenericParamList::try_from(it))??,
             ),
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             for_token: item.for_token().is_some(),
             cst: Some(item.clone()),
         })
@@ -3062,9 +3068,10 @@ impl TryFrom<super::nodes::OffsetOfExpr> for OffsetOfExpr {
                 .into_iter()
                 .map(NameRef::try_from)
                 .collect::<Result<Vec<NameRef>, String>>()?,
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             pound_token: item.pound_token().is_some(),
             l_paren_token: item.l_paren_token().is_some(),
             r_paren_token: item.r_paren_token().is_some(),
@@ -3171,9 +3178,10 @@ impl TryFrom<super::nodes::ParenType> for ParenType {
     type Error = String;
     fn try_from(item: super::nodes::ParenType) -> Result<Self, Self::Error> {
         Ok(Self {
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             l_paren_token: item.l_paren_token().is_some(),
             r_paren_token: item.r_paren_token().is_some(),
             cst: Some(item.clone()),
@@ -3254,9 +3262,10 @@ impl TryFrom<super::nodes::PathSegment> for PathSegment {
                 Some(it) => Some(Box::new(RetType::try_from(it)?)),
                 None => None,
             },
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             coloncolon_token: item.coloncolon_token().is_some(),
             l_angle_token: item.l_angle_token().is_some(),
             r_angle_token: item.r_angle_token().is_some(),
@@ -3316,9 +3325,10 @@ impl TryFrom<super::nodes::PtrType> for PtrType {
     type Error = String;
     fn try_from(item: super::nodes::PtrType) -> Result<Self, Self::Error> {
         Ok(Self {
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             star_token: item.star_token().is_some(),
             const_token: item.const_token().is_some(),
             mut_token: item.mut_token().is_some(),
@@ -3458,9 +3468,10 @@ impl TryFrom<super::nodes::RecordField> for RecordField {
                     .ok_or(format!("{}", stringify!(name)))
                     .map(|it| Name::try_from(it))??,
             ),
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             visibility: match item.visibility() {
                 Some(it) => Some(Box::new(Visibility::try_from(it)?)),
                 None => None,
@@ -3588,9 +3599,10 @@ impl TryFrom<super::nodes::RefType> for RefType {
                 Some(it) => Some(Box::new(Lifetime::try_from(it)?)),
                 None => None,
             },
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             amp_token: item.amp_token().is_some(),
             mut_token: item.mut_token().is_some(),
             cst: Some(item.clone()),
@@ -3647,9 +3659,10 @@ impl TryFrom<super::nodes::RetType> for RetType {
                 Some(it) => Some(Box::new(Pat::try_from(it)?)),
                 None => None,
             },
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             l_paren_token: item.l_paren_token().is_some(),
             r_paren_token: item.r_paren_token().is_some(),
             thin_arrow_token: item.thin_arrow_token().is_some(),
@@ -3695,9 +3708,10 @@ impl TryFrom<super::nodes::SelfParam> for SelfParam {
                     .ok_or(format!("{}", stringify!(name)))
                     .map(|it| Name::try_from(it))??,
             ),
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             amp_token: item.amp_token().is_some(),
             colon_token: item.colon_token().is_some(),
             mut_token: item.mut_token().is_some(),
@@ -3743,9 +3757,10 @@ impl TryFrom<super::nodes::SliceType> for SliceType {
     type Error = String;
     fn try_from(item: super::nodes::SliceType) -> Result<Self, Self::Error> {
         Ok(Self {
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             l_brack_token: item.l_brack_token().is_some(),
             r_brack_token: item.r_brack_token().is_some(),
             cst: Some(item.clone()),
@@ -3789,9 +3804,10 @@ impl TryFrom<super::nodes::Static> for Static {
                     .ok_or(format!("{}", stringify!(name)))
                     .map(|it| Name::try_from(it))??,
             ),
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             visibility: match item.visibility() {
                 Some(it) => Some(Box::new(Visibility::try_from(it)?)),
                 None => None,
@@ -4029,9 +4045,10 @@ impl TryFrom<super::nodes::TupleField> for TupleField {
                 .into_iter()
                 .map(Attr::try_from)
                 .collect::<Result<Vec<Attr>, String>>()?,
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             visibility: match item.visibility() {
                 Some(it) => Some(Box::new(Visibility::try_from(it)?)),
                 None => None,
@@ -4152,9 +4169,10 @@ impl TryFrom<super::nodes::TypeArg> for TypeArg {
     type Error = String;
     fn try_from(item: super::nodes::TypeArg) -> Result<Self, Self::Error> {
         Ok(Self {
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             cst: Some(item.clone()),
         })
     }
@@ -4167,9 +4185,10 @@ impl TryFrom<super::nodes::TypeBound> for TypeBound {
                 Some(it) => Some(Box::new(Lifetime::try_from(it)?)),
                 None => None,
             },
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             question_mark_token: item.question_mark_token().is_some(),
             async_token: item.async_token().is_some(),
             const_token: item.const_token().is_some(),
@@ -4390,9 +4409,10 @@ impl TryFrom<super::nodes::VerusGlobal> for VerusGlobal {
                     .ok_or(format!("{}", stringify!(name)))
                     .map(|it| Name::try_from(it))??,
             ),
-            ty: Box::new(
-                item.ty().ok_or(format!("{}", stringify!(ty))).map(|it| Type::try_from(it))??,
-            ),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
             semicolon_token: item.semicolon_token().is_some(),
             global_token: item.global_token().is_some(),
             cst: Some(item.clone()),
@@ -4819,8 +4839,10 @@ impl std::fmt::Display for ArrayType {
         let mut s = String::new();
         s.push_str(&self.const_arg.to_string());
         s.push_str(" ");
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if self.l_brack_token {
             let mut tmp = stringify!(l_brack_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -4957,8 +4979,10 @@ impl std::fmt::Display for AssocTypeArg {
             s.push_str(&it.to_string());
             s.push_str(" ");
         }
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         s.push_str(&self.type_bound_list.to_string());
         s.push_str(" ");
         if self.colon_token {
@@ -5162,8 +5186,10 @@ impl std::fmt::Display for CastExpr {
         s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
         s.push_str(&self.expr.to_string());
         s.push_str(" ");
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if self.as_token {
             let mut tmp = stringify!(as_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -5248,8 +5274,10 @@ impl std::fmt::Display for Const {
             s.push_str(&it.to_string());
             s.push_str(" ");
         }
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if let Some(it) = &self.visibility {
             s.push_str(&it.to_string());
             s.push_str(" ");
@@ -5325,8 +5353,10 @@ impl std::fmt::Display for ConstParam {
         }
         s.push_str(&self.name.to_string());
         s.push_str(" ");
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if self.colon_token {
             let mut tmp = stringify!(colon_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -5766,8 +5796,10 @@ impl std::fmt::Display for ForType {
         let mut s = String::new();
         s.push_str(&self.generic_param_list.to_string());
         s.push_str(" ");
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if self.for_token {
             let mut tmp = stringify!(for_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -6645,8 +6677,10 @@ impl std::fmt::Display for OffsetOfExpr {
         let mut s = String::new();
         s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
         s.push_str(&self.fields.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if self.pound_token {
             let mut tmp = stringify!(pound_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -6772,8 +6806,10 @@ impl std::fmt::Display for ParenPat {
 impl std::fmt::Display for ParenType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = String::new();
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if self.l_paren_token {
             let mut tmp = stringify!(l_paren_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -6845,8 +6881,10 @@ impl std::fmt::Display for PathSegment {
             s.push_str(&it.to_string());
             s.push_str(" ");
         }
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if self.coloncolon_token {
             let mut tmp = stringify!(coloncolon_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -6920,8 +6958,10 @@ impl std::fmt::Display for Prover {
 impl std::fmt::Display for PtrType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = String::new();
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if self.star_token {
             let mut tmp = stringify!(star_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -7068,8 +7108,10 @@ impl std::fmt::Display for RecordField {
         }
         s.push_str(&self.name.to_string());
         s.push_str(" ");
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if let Some(it) = &self.visibility {
             s.push_str(&it.to_string());
             s.push_str(" ");
@@ -7222,8 +7264,10 @@ impl std::fmt::Display for RefType {
             s.push_str(&it.to_string());
             s.push_str(" ");
         }
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if self.amp_token {
             let mut tmp = stringify!(amp_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -7294,8 +7338,10 @@ impl std::fmt::Display for RetType {
             s.push_str(&it.to_string());
             s.push_str(" ");
         }
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if self.l_paren_token {
             let mut tmp = stringify!(l_paren_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -7356,8 +7402,10 @@ impl std::fmt::Display for SelfParam {
         }
         s.push_str(&self.name.to_string());
         s.push_str(" ");
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if self.amp_token {
             let mut tmp = stringify!(amp_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -7425,8 +7473,10 @@ impl std::fmt::Display for SlicePat {
 impl std::fmt::Display for SliceType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = String::new();
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if self.l_brack_token {
             let mut tmp = stringify!(l_brack_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -7466,8 +7516,10 @@ impl std::fmt::Display for Static {
         }
         s.push_str(&self.name.to_string());
         s.push_str(" ");
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if let Some(it) = &self.visibility {
             s.push_str(&it.to_string());
             s.push_str(" ");
@@ -7791,8 +7843,10 @@ impl std::fmt::Display for TupleField {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = String::new();
         s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if let Some(it) = &self.visibility {
             s.push_str(&it.to_string());
             s.push_str(" ");
@@ -7942,8 +7996,10 @@ impl std::fmt::Display for TypeAlias {
 impl std::fmt::Display for TypeArg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = String::new();
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         write!(f, "{s}")
     }
 }
@@ -7954,8 +8010,10 @@ impl std::fmt::Display for TypeBound {
             s.push_str(&it.to_string());
             s.push_str(" ");
         }
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if self.question_mark_token {
             let mut tmp = stringify!(question_mark_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -8191,8 +8249,10 @@ impl std::fmt::Display for VerusGlobal {
         s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
         s.push_str(&self.name.to_string());
         s.push_str(" ");
-        s.push_str(&self.ty.to_string());
-        s.push_str(" ");
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
         if self.semicolon_token {
             let mut tmp = stringify!(semicolon_token).to_string();
             tmp.truncate(tmp.len() - 6);
@@ -9153,10 +9213,10 @@ impl ArrayExpr {
     }
 }
 impl ArrayType {
-    pub fn new(const_arg: ConstArg, ty: Type) -> Self {
+    pub fn new(const_arg: ConstArg) -> Self {
         Self {
             const_arg: Box::new(const_arg),
-            ty: Box::new(ty),
+            ty: None,
             l_brack_token: true,
             r_brack_token: true,
             semicolon_token: true,
@@ -9226,14 +9286,14 @@ impl AssocItemList {
     }
 }
 impl AssocTypeArg {
-    pub fn new(name_ref: NameRef, ty: Type, type_bound_list: TypeBoundList) -> Self {
+    pub fn new(name_ref: NameRef, type_bound_list: TypeBoundList) -> Self {
         Self {
             const_arg: None,
             generic_arg_list: None,
             name_ref: Box::new(name_ref),
             param_list: None,
             ret_type: None,
-            ty: Box::new(ty),
+            ty: None,
             type_bound_list: Box::new(type_bound_list),
             colon_token: true,
             eq_token: true,
@@ -9321,17 +9381,11 @@ impl CallExpr {
     }
 }
 impl CastExpr {
-    pub fn new<ET0>(expr: ET0, ty: Type) -> Self
+    pub fn new<ET0>(expr: ET0) -> Self
     where
         ET0: Into<Expr>,
     {
-        Self {
-            attrs: vec![],
-            expr: Box::new(expr.into()),
-            ty: Box::new(ty),
-            as_token: true,
-            cst: None,
-        }
+        Self { attrs: vec![], expr: Box::new(expr.into()), ty: None, as_token: true, cst: None }
     }
 }
 impl ClosureExpr {
@@ -9357,12 +9411,12 @@ impl ClosureExpr {
     }
 }
 impl Const {
-    pub fn new(ty: Type) -> Self {
+    pub fn new() -> Self {
         Self {
             attrs: vec![],
             body: None,
             name: None,
-            ty: Box::new(ty),
+            ty: None,
             visibility: None,
             colon_token: true,
             semicolon_token: true,
@@ -9388,12 +9442,12 @@ impl ConstBlockPat {
     }
 }
 impl ConstParam {
-    pub fn new(name: Name, ty: Type) -> Self {
+    pub fn new(name: Name) -> Self {
         Self {
             attrs: vec![],
             default_val: None,
             name: Box::new(name),
-            ty: Box::new(ty),
+            ty: None,
             colon_token: true,
             eq_token: false,
             const_token: true,
@@ -9551,10 +9605,10 @@ impl ForExpr {
     }
 }
 impl ForType {
-    pub fn new(generic_param_list: GenericParamList, ty: Type) -> Self {
+    pub fn new(generic_param_list: GenericParamList) -> Self {
         Self {
             generic_param_list: Box::new(generic_param_list),
-            ty: Box::new(ty),
+            ty: None,
             for_token: true,
             cst: None,
         }
@@ -9897,11 +9951,11 @@ impl NeverType {
     pub fn new() -> Self { Self { excl_token: true, cst: None } }
 }
 impl OffsetOfExpr {
-    pub fn new(ty: Type) -> Self {
+    pub fn new() -> Self {
         Self {
             attrs: vec![],
             fields: vec![],
-            ty: Box::new(ty),
+            ty: None,
             pound_token: true,
             l_paren_token: true,
             r_paren_token: true,
@@ -9959,9 +10013,7 @@ impl ParenPat {
     pub fn new() -> Self { Self { pat: None, l_paren_token: true, r_paren_token: true, cst: None } }
 }
 impl ParenType {
-    pub fn new(ty: Type) -> Self {
-        Self { ty: Box::new(ty), l_paren_token: true, r_paren_token: true, cst: None }
-    }
+    pub fn new() -> Self { Self { ty: None, l_paren_token: true, r_paren_token: true, cst: None } }
 }
 impl Path {
     pub fn new(segment: PathSegment) -> Self {
@@ -9975,14 +10027,14 @@ impl PathPat {
     pub fn new(path: Path) -> Self { Self { path: Box::new(path), cst: None } }
 }
 impl PathSegment {
-    pub fn new(name_ref: NameRef, ty: Type) -> Self {
+    pub fn new(name_ref: NameRef) -> Self {
         Self {
             generic_arg_list: None,
             name_ref: Box::new(name_ref),
             param_list: None,
             path_type: None,
             ret_type: None,
-            ty: Box::new(ty),
+            ty: None,
             coloncolon_token: false,
             l_angle_token: true,
             r_angle_token: true,
@@ -10014,8 +10066,8 @@ impl Prover {
     }
 }
 impl PtrType {
-    pub fn new(ty: Type) -> Self {
-        Self { ty: Box::new(ty), star_token: true, const_token: false, mut_token: false, cst: None }
+    pub fn new() -> Self {
+        Self { ty: None, star_token: true, const_token: false, mut_token: false, cst: None }
     }
 }
 impl Publish {
@@ -10069,12 +10121,12 @@ impl RecordExprFieldList {
     }
 }
 impl RecordField {
-    pub fn new(name: Name, ty: Type) -> Self {
+    pub fn new(name: Name) -> Self {
         Self {
             attrs: vec![],
             data_mode: None,
             name: Box::new(name),
-            ty: Box::new(ty),
+            ty: None,
             visibility: None,
             colon_token: true,
             cst: None,
@@ -10125,8 +10177,8 @@ impl RefPat {
     pub fn new() -> Self { Self { pat: None, amp_token: true, mut_token: false, cst: None } }
 }
 impl RefType {
-    pub fn new(ty: Type) -> Self {
-        Self { lifetime: None, ty: Box::new(ty), amp_token: true, mut_token: false, cst: None }
+    pub fn new() -> Self {
+        Self { lifetime: None, ty: None, amp_token: true, mut_token: false, cst: None }
     }
 }
 impl Rename {
@@ -10139,10 +10191,10 @@ impl RestPat {
     pub fn new() -> Self { Self { attrs: vec![], dotdot_token: true, cst: None } }
 }
 impl RetType {
-    pub fn new(ty: Type) -> Self {
+    pub fn new() -> Self {
         Self {
             pat: None,
-            ty: Box::new(ty),
+            ty: None,
             l_paren_token: true,
             r_paren_token: true,
             thin_arrow_token: true,
@@ -10156,12 +10208,12 @@ impl ReturnExpr {
     pub fn new() -> Self { Self { attrs: vec![], expr: None, return_token: true, cst: None } }
 }
 impl SelfParam {
-    pub fn new(name: Name, ty: Type) -> Self {
+    pub fn new(name: Name) -> Self {
         Self {
             attrs: vec![],
             lifetime: None,
             name: Box::new(name),
-            ty: Box::new(ty),
+            ty: None,
             amp_token: false,
             colon_token: true,
             mut_token: false,
@@ -10186,20 +10238,18 @@ impl SlicePat {
     }
 }
 impl SliceType {
-    pub fn new(ty: Type) -> Self {
-        Self { ty: Box::new(ty), l_brack_token: true, r_brack_token: true, cst: None }
-    }
+    pub fn new() -> Self { Self { ty: None, l_brack_token: true, r_brack_token: true, cst: None } }
 }
 impl SourceFile {
     pub fn new() -> Self { Self { attrs: vec![], items: vec![], shebang_token: false, cst: None } }
 }
 impl Static {
-    pub fn new(name: Name, ty: Type) -> Self {
+    pub fn new(name: Name) -> Self {
         Self {
             attrs: vec![],
             body: None,
             name: Box::new(name),
-            ty: Box::new(ty),
+            ty: None,
             visibility: None,
             colon_token: true,
             semicolon_token: true,
@@ -10312,9 +10362,7 @@ impl TupleExpr {
     }
 }
 impl TupleField {
-    pub fn new(ty: Type) -> Self {
-        Self { attrs: vec![], ty: Box::new(ty), visibility: None, cst: None }
-    }
+    pub fn new() -> Self { Self { attrs: vec![], ty: None, visibility: None, cst: None } }
 }
 impl TupleFieldList {
     pub fn new() -> Self {
@@ -10362,13 +10410,13 @@ impl TypeAlias {
     }
 }
 impl TypeArg {
-    pub fn new(ty: Type) -> Self { Self { ty: Box::new(ty), cst: None } }
+    pub fn new() -> Self { Self { ty: None, cst: None } }
 }
 impl TypeBound {
-    pub fn new(ty: Type) -> Self {
+    pub fn new() -> Self {
         Self {
             lifetime: None,
-            ty: Box::new(ty),
+            ty: None,
             question_mark_token: false,
             async_token: false,
             const_token: false,
@@ -10458,11 +10506,11 @@ impl VariantList {
     }
 }
 impl VerusGlobal {
-    pub fn new(name: Name, ty: Type) -> Self {
+    pub fn new(name: Name) -> Self {
         Self {
             attrs: vec![],
             name: Box::new(name),
-            ty: Box::new(ty),
+            ty: None,
             semicolon_token: true,
             global_token: true,
             cst: None,
