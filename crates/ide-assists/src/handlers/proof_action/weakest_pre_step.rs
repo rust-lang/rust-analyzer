@@ -151,7 +151,14 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                         let new_stmt: Stmt = new_assertion.into();
                         let simple_let: Stmt = ctx
                             .vst_expr_from_text(
-                                format!("let {} :{}", pat, func_ret_type.ty).as_ref(),
+                                format!(
+                                    "let {} :{}",
+                                    pat,
+                                    func_ret_type
+                                        .ty
+                                        .map_or_else(|| "{unkonwn}".to_string(), |x| x.to_string())
+                                )
+                                .as_ref(),
                             )?
                             .into();
                         let mut stmt_list = StmtList::new();

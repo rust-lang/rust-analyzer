@@ -124,7 +124,12 @@ fn apply_induction_on_enum(
                     .as_ref()
                     .fields
                     .iter()
-                    .filter(|f| f.ty.to_string().replace(" ", "") == bty)
+                    .filter(|f| {
+                        f.ty.as_ref()
+                            .map_or_else(|| "{unkonwn}".to_string(), |x| x.to_string())
+                            .replace(" ", "")
+                            == bty
+                    })
                     .map(|f| {
                         let mut args = vec![];
                         param_names.iter().enumerate().for_each(|(i, name)| {
