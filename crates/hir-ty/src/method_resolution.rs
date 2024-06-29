@@ -1079,6 +1079,12 @@ fn iterate_method_candidates_by_receiver(
     table.run_in_snapshot(|table| {
         let mut autoderef = autoderef::Autoderef::new(table, receiver_ty.clone(), true);
         while let Some((self_ty, _)) = autoderef.next() {
+            let canonical_self_ty = autoderef.table.canonicalize(self_ty.clone());
+            if canonical_self_ty.value.is_general_var(Interner, &canonical_self_ty.binders) {
+                // don't try to resolve methods on unknown types
+                return ControlFlow::Continue(());
+            }
+
             iterate_trait_method_candidates(
                 &self_ty,
                 autoderef.table,
