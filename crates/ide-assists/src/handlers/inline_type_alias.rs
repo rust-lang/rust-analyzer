@@ -129,7 +129,7 @@ pub(crate) fn inline_type_alias(acc: &mut Assists, ctx: &AssistContext<'_>) -> O
         Some(nameref) if nameref.Self_token().is_some() => {
             match ctx.sema.resolve_path(&alias_instance.path()?)? {
                 PathResolution::SelfType(imp) => {
-                    concrete_type = imp.source(ctx.db())?.value.self_ty()?;
+                    concrete_type = imp.source(&ctx.sema)?.value.self_ty()?;
                 }
                 // FIXME: should also work in ADT definitions
                 _ => return None,

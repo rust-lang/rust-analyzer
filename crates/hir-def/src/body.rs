@@ -135,12 +135,12 @@ impl Body {
             match def {
                 DefWithBodyId::FunctionId(f) => {
                     let data = db.function_data(f);
-                    let f = f.lookup(db);
-                    let src = f.source(db);
+                    let loc = f.lookup(db);
+                    let src = f.source(db, &mut None);
                     params = src.value.param_list().map(move |param_list| {
-                        let item_tree = f.id.item_tree(db);
-                        let func = &item_tree[f.id.value];
-                        let krate = f.container.module(db).krate;
+                        let item_tree = loc.id.item_tree(db);
+                        let func = &item_tree[loc.id.value];
+                        let krate = loc.container.module(db).krate;
                         let crate_graph = db.crate_graph();
                         (
                             param_list,
@@ -150,7 +150,7 @@ impl Body {
                                         db,
                                         krate,
                                         AttrOwner::Param(
-                                            f.id.value,
+                                            loc.id.value,
                                             Idx::from_raw(RawIdx::from(idx as u32)),
                                         ),
                                     )
@@ -162,18 +162,15 @@ impl Body {
                     src.map(|it| it.body().map(ast::Expr::from))
                 }
                 DefWithBodyId::ConstId(c) => {
-                    let c = c.lookup(db);
-                    let src = c.source(db);
+                    let src = c.source(db, &mut None);
                     src.map(|it| it.body())
                 }
                 DefWithBodyId::StaticId(s) => {
-                    let s = s.lookup(db);
-                    let src = s.source(db);
+                    let src = s.source(db, &mut None);
                     src.map(|it| it.body())
                 }
                 DefWithBodyId::VariantId(v) => {
-                    let s = v.lookup(db);
-                    let src = s.source(db);
+                    let src = v.source(db, &mut None);
                     src.map(|it| it.expr())
                 }
                 DefWithBodyId::InTypeConstId(c) => c.lookup(db).id.map(|_| c.source(db).expr()),

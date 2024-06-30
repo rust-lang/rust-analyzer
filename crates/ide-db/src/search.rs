@@ -280,97 +280,97 @@ impl IntoIterator for SearchScope {
 }
 
 impl Definition {
-    fn search_scope(&self, db: &RootDatabase) -> SearchScope {
+    fn search_scope(&self, sema: &Semantics<'_, RootDatabase>) -> SearchScope {
         let _p = tracing::info_span!("search_scope").entered();
 
         if let Definition::BuiltinType(_) = self {
-            return SearchScope::crate_graph(db);
+            return SearchScope::crate_graph(sema.db);
         }
 
         // def is crate root
         if let &Definition::Module(module) = self {
             if module.is_crate_root() {
-                return SearchScope::reverse_dependencies(db, module.krate());
+                return SearchScope::reverse_dependencies(sema.db, module.krate());
             }
         }
 
-        let module = match self.module(db) {
+        let module = match self.module(sema.db) {
             Some(it) => it,
             None => return SearchScope::empty(),
         };
-        let InFile { file_id, value: module_source } = module.definition_source(db);
-        let file_id = file_id.original_file(db);
+        let InFile { file_id, value: module_source } = module.definition_source(sema.db);
+        let file_id = file_id.original_file(sema.db);
 
         if let Definition::Local(var) = self {
-            let def = match var.parent(db) {
-                DefWithBody::Function(f) => f.source(db).map(|src| src.syntax().cloned()),
-                DefWithBody::Const(c) => c.source(db).map(|src| src.syntax().cloned()),
-                DefWithBody::Static(s) => s.source(db).map(|src| src.syntax().cloned()),
-                DefWithBody::Variant(v) => v.source(db).map(|src| src.syntax().cloned()),
+            let def = match var.parent(sema.db) {
+                DefWithBody::Function(f) => f.source(sema).map(|src| src.syntax().cloned()),
+                DefWithBody::Const(c) => c.source(sema).map(|src| src.syntax().cloned()),
+                DefWithBody::Static(s) => s.source(sema).map(|src| src.syntax().cloned()),
+                DefWithBody::Variant(v) => v.source(sema).map(|src| src.syntax().cloned()),
                 // FIXME: implement
                 DefWithBody::InTypeConst(_) => return SearchScope::empty(),
             };
             return match def {
                 Some(def) => SearchScope::file_range(
-                    def.as_ref().original_file_range_with_macro_call_body(db),
+                    def.as_ref().original_file_range_with_macro_call_body(sema.db),
                 ),
                 None => SearchScope::single_file(file_id),
             };
         }
 
         if let Definition::SelfType(impl_) = self {
-            return match impl_.source(db).map(|src| src.syntax().cloned()) {
+            return match impl_.source(sema).map(|src| src.syntax().cloned()) {
                 Some(def) => SearchScope::file_range(
-                    def.as_ref().original_file_range_with_macro_call_body(db),
+                    def.as_ref().original_file_range_with_macro_call_body(sema.db),
                 ),
                 None => SearchScope::single_file(file_id),
             };
         }
 
         if let Definition::GenericParam(hir::GenericParam::LifetimeParam(param)) = self {
-            let def = match param.parent(db) {
-                hir::GenericDef::Function(it) => it.source(db).map(|src| src.syntax().cloned()),
-                hir::GenericDef::Adt(it) => it.source(db).map(|src| src.syntax().cloned()),
-                hir::GenericDef::Trait(it) => it.source(db).map(|src| src.syntax().cloned()),
-                hir::GenericDef::TraitAlias(it) => it.source(db).map(|src| src.syntax().cloned()),
-                hir::GenericDef::TypeAlias(it) => it.source(db).map(|src| src.syntax().cloned()),
-                hir::GenericDef::Impl(it) => it.source(db).map(|src| src.syntax().cloned()),
-                hir::GenericDef::Const(it) => it.source(db).map(|src| src.syntax().cloned()),
+            let def = match param.parent(sema.db) {
+                hir::GenericDef::Function(it) => it.source(sema).map(|src| src.syntax().cloned()),
+                hir::GenericDef::Adt(it) => it.source(sema).map(|src| src.syntax().cloned()),
+                hir::GenericDef::Trait(it) => it.source(sema).map(|src| src.syntax().cloned()),
+                hir::GenericDef::TraitAlias(it) => it.source(sema).map(|src| src.syntax().cloned()),
+                hir::GenericDef::TypeAlias(it) => it.source(sema).map(|src| src.syntax().cloned()),
+                hir::GenericDef::Impl(it) => it.source(sema).map(|src| src.syntax().cloned()),
+                hir::GenericDef::Const(it) => it.source(sema).map(|src| src.syntax().cloned()),
             };
             return match def {
                 Some(def) => SearchScope::file_range(
-                    def.as_ref().original_file_range_with_macro_call_body(db),
+                    def.as_ref().original_file_range_with_macro_call_body(sema.db),
                 ),
                 None => SearchScope::single_file(file_id),
             };
         }
 
         if let Definition::Macro(macro_def) = self {
-            return match macro_def.kind(db) {
+            return match macro_def.kind(sema.db) {
                 hir::MacroKind::Declarative => {
-                    if macro_def.attrs(db).by_key(&sym::macro_export).exists() {
-                        SearchScope::reverse_dependencies(db, module.krate())
+                    if macro_def.attrs(sema.db).by_key(&sym::macro_export).exists() {
+                        SearchScope::reverse_dependencies(sema.db, module.krate())
                     } else {
-                        SearchScope::krate(db, module.krate())
+                        SearchScope::krate(sema.db, module.krate())
                     }
                 }
-                hir::MacroKind::BuiltIn => SearchScope::crate_graph(db),
+                hir::MacroKind::BuiltIn => SearchScope::crate_graph(sema.db),
                 hir::MacroKind::Derive | hir::MacroKind::Attr | hir::MacroKind::ProcMacro => {
-                    SearchScope::reverse_dependencies(db, module.krate())
+                    SearchScope::reverse_dependencies(sema.db, module.krate())
                 }
             };
         }
 
         if let Definition::DeriveHelper(_) = self {
-            return SearchScope::reverse_dependencies(db, module.krate());
+            return SearchScope::reverse_dependencies(sema.db, module.krate());
         }
 
-        let vis = self.visibility(db);
+        let vis = self.visibility(sema.db);
         if let Some(Visibility::Public) = vis {
-            return SearchScope::reverse_dependencies(db, module.krate());
+            return SearchScope::reverse_dependencies(sema.db, module.krate());
         }
         if let Some(Visibility::Module(module, _)) = vis {
-            return SearchScope::module_and_children(db, module.into());
+            return SearchScope::module_and_children(sema.db, module.into());
         }
 
         let range = match module_source {
@@ -576,21 +576,21 @@ impl<'a> FindUsages<'a> {
             container: Adt,
         ) -> Option<(FxHashSet<SmolStr>, Vec<FileRangeWrapper<EditionedFileId>>)> {
             fn insert_type_alias(
-                db: &RootDatabase,
+                sema: &Semantics<'_, RootDatabase>,
                 to_process: &mut Vec<(SmolStr, SearchScope)>,
                 alias_name: &str,
                 def: Definition,
             ) {
                 let alias = alias_name.trim_start_matches("r#").to_smolstr();
                 tracing::debug!("found alias: {alias}");
-                to_process.push((alias, def.search_scope(db)));
+                to_process.push((alias, def.search_scope(sema)));
             }
 
             let _p = tracing::info_span!("collect_possible_aliases").entered();
 
             let db = sema.db;
             let container_name = container.name(db).unescaped().display(db).to_smolstr();
-            let search_scope = Definition::from(container).search_scope(db);
+            let search_scope = Definition::from(container).search_scope(sema);
             let mut seen = FxHashSet::default();
             let mut completed = FxHashSet::default();
             let mut to_process = vec![(container_name, search_scope)];
@@ -647,7 +647,7 @@ impl<'a> FindUsages<'a> {
                                         if let Some(def) = is_alias(&alias) {
                                             cov_mark::hit!(container_type_alias);
                                             insert_type_alias(
-                                                sema.db,
+                                                sema,
                                                 &mut to_process,
                                                 name.text().as_str(),
                                                 def.into(),
@@ -712,7 +712,7 @@ impl<'a> FindUsages<'a> {
                                         if let Some(def) = is_alias(&type_alias) {
                                             cov_mark::hit!(self_type_alias);
                                             insert_type_alias(
-                                                sema.db,
+                                                sema,
                                                 &mut to_process,
                                                 name.text().as_str(),
                                                 def.into(),
@@ -854,8 +854,7 @@ impl<'a> FindUsages<'a> {
 
         let search_scope = {
             // FIXME: Is the trait scope needed for trait impl assoc items?
-            let base =
-                as_trait_assoc_def(sema.db, self.def).unwrap_or(self.def).search_scope(sema.db);
+            let base = as_trait_assoc_def(sema.db, self.def).unwrap_or(self.def).search_scope(sema);
             match &self.scope {
                 None => base,
                 Some(scope) => base.intersection(scope),

@@ -22,8 +22,8 @@ use hir_def::{
     hir::{ExprId, Pat, PatId},
     item_scope::ItemScope,
     nameres::DefMap,
-    src::HasSource,
-    AssocItemId, DefWithBodyId, HasModule, LocalModuleId, Lookup, ModuleDefId,
+    src::{DefToSourceContext, HasSource},
+    AssocItemId, DefWithBodyId, HasModule, LocalModuleId, ModuleDefId,
 };
 use hir_expand::{db::ExpandDatabase, FileRange, InFile};
 use itertools::Itertools;
@@ -91,6 +91,8 @@ fn check(ra_fixture: &str) {
 fn check_impl(ra_fixture: &str, allow_none: bool, only_types: bool, display_source: bool) {
     let _tracing = setup_tracing();
     let (db, files) = TestDB::with_many_files(ra_fixture);
+    // let mut cache = DefToSourceCache {};
+    let mut ctx = DefToSourceContext { cache: &mut Default::default() };
 
     let mut had_annotations = false;
     let mut mismatches = FxHashMap::default();
@@ -130,20 +132,16 @@ fn check_impl(ra_fixture: &str, allow_none: bool, only_types: bool, display_sour
     }
     defs.sort_by_key(|def| match def {
         DefWithBodyId::FunctionId(it) => {
-            let loc = it.lookup(&db);
-            loc.source(&db).value.syntax().text_range().start()
+            it.source(&db, &mut Some(&mut ctx)).value.syntax().text_range().start()
         }
         DefWithBodyId::ConstId(it) => {
-            let loc = it.lookup(&db);
-            loc.source(&db).value.syntax().text_range().start()
+            it.source(&db, &mut Some(&mut ctx)).value.syntax().text_range().start()
         }
         DefWithBodyId::StaticId(it) => {
-            let loc = it.lookup(&db);
-            loc.source(&db).value.syntax().text_range().start()
+            it.source(&db, &mut Some(&mut ctx)).value.syntax().text_range().start()
         }
         DefWithBodyId::VariantId(it) => {
-            let loc = it.lookup(&db);
-            loc.source(&db).value.syntax().text_range().start()
+            it.source(&db, &mut Some(&mut ctx)).value.syntax().text_range().start()
         }
         DefWithBodyId::InTypeConstId(it) => it.source(&db).syntax().text_range().start(),
     });
@@ -377,20 +375,14 @@ fn infer_with_mismatches(content: &str, include_mismatches: bool) -> String {
     visit_module(&db, &def_map, module.local_id, &mut |it| defs.push(it));
     defs.sort_by_key(|def| match def {
         DefWithBodyId::FunctionId(it) => {
-            let loc = it.lookup(&db);
-            loc.source(&db).value.syntax().text_range().start()
+            it.source(&db, &mut None).value.syntax().text_range().start()
         }
-        DefWithBodyId::ConstId(it) => {
-            let loc = it.lookup(&db);
-            loc.source(&db).value.syntax().text_range().start()
-        }
+        DefWithBodyId::ConstId(it) => it.source(&db, &mut None).value.syntax().text_range().start(),
         DefWithBodyId::StaticId(it) => {
-            let loc = it.lookup(&db);
-            loc.source(&db).value.syntax().text_range().start()
+            it.source(&db, &mut None).value.syntax().text_range().start()
         }
         DefWithBodyId::VariantId(it) => {
-            let loc = it.lookup(&db);
-            loc.source(&db).value.syntax().text_range().start()
+            it.source(&db, &mut None).value.syntax().text_range().start()
         }
         DefWithBodyId::InTypeConstId(it) => it.source(&db).syntax().text_range().start(),
     });

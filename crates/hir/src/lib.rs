@@ -372,7 +372,11 @@ impl ModuleDef {
         Some(name)
     }
 
-    pub fn diagnostics(self, db: &dyn HirDatabase, style_lints: bool) -> Vec<AnyDiagnostic> {
+    pub fn diagnostics<DB: HirDatabase>(
+        self,
+        sema: &Semantics<'_, DB>,
+        style_lints: bool,
+    ) -> Vec<AnyDiagnostic> {
         let id = match self {
             ModuleDef::Adt(it) => match it {
                 Adt::Struct(it) => it.id.into(),
@@ -394,10 +398,12 @@ impl ModuleDef {
 
         match self.as_def_with_body() {
             Some(def) => {
-                def.diagnostics(db, &mut acc, style_lints);
+                def.diagnostics(sema, &mut acc, style_lints);
             }
             None => {
-                for diag in hir_ty::diagnostics::incorrect_case(db, id) {
+                for diag in sema.with_d2s_ctx(|ctx| {
+                    hir_ty::diagnostics::incorrect_case(sema.db, &mut Some(ctx), id)
+                }) {
                     acc.push(diag.into())
                 }
             }
@@ -548,128 +554,133 @@ impl Module {
     }
 
     /// Fills `acc` with the module's diagnostics.
-    pub fn diagnostics(
+    pub fn diagnostics<DB: HirDatabase>(
         self,
-        db: &dyn HirDatabase,
+        sema: &Semantics<'_, DB>,
         acc: &mut Vec<AnyDiagnostic>,
         style_lints: bool,
     ) {
-        let _p = tracing::info_span!("Module::diagnostics", name = ?self.name(db)).entered();
-        let edition = db.crate_graph()[self.id.krate()].edition;
-        let def_map = self.id.def_map(db.upcast());
+        let _p = tracing::info_span!("Module::diagnostics", name = ?self.name(sema.db)).entered();
+        let edition = sema.db.crate_graph()[self.id.krate()].edition;
+        let def_map = self.id.def_map(sema.db.upcast());
         for diag in def_map.diagnostics() {
             if diag.in_module != self.id.local_id {
                 // FIXME: This is accidentally quadratic.
                 continue;
             }
-            emit_def_diagnostic(db, acc, diag, edition);
+            emit_def_diagnostic(sema.db, acc, diag, edition);
         }
 
         if !self.id.is_block_module() {
             // These are reported by the body of block modules
             let scope = &def_map[self.id.local_id].scope;
-            scope.all_macro_calls().for_each(|it| macro_call_diagnostics(db, it, acc));
+            scope.all_macro_calls().for_each(|it| macro_call_diagnostics(sema.db, it, acc));
         }
 
-        for def in self.declarations(db) {
+        for def in self.declarations(sema.db) {
             match def {
                 ModuleDef::Module(m) => {
                     // Only add diagnostics from inline modules
                     if def_map[m.id.local_id].origin.is_inline() {
-                        m.diagnostics(db, acc, style_lints)
+                        m.diagnostics(sema, acc, style_lints)
                     }
-                    acc.extend(def.diagnostics(db, style_lints))
+                    acc.extend(def.diagnostics(sema, style_lints))
                 }
                 ModuleDef::Trait(t) => {
-                    for diag in db.trait_data_with_diagnostics(t.id).1.iter() {
-                        emit_def_diagnostic(db, acc, diag, edition);
+                    for diag in sema.db.trait_data_with_diagnostics(t.id).1.iter() {
+                        emit_def_diagnostic(sema.db, acc, diag, edition);
                     }
 
-                    for item in t.items(db) {
-                        item.diagnostics(db, acc, style_lints);
+                    for item in t.items(sema.db) {
+                        item.diagnostics(sema, acc, style_lints);
                     }
 
-                    t.all_macro_calls(db)
+                    t.all_macro_calls(sema.db)
                         .iter()
-                        .for_each(|&(_ast, call_id)| macro_call_diagnostics(db, call_id, acc));
+                        .for_each(|&(_ast, call_id)| macro_call_diagnostics(sema.db, call_id, acc));
 
-                    acc.extend(def.diagnostics(db, style_lints))
+                    acc.extend(def.diagnostics(sema, style_lints))
                 }
                 ModuleDef::Adt(adt) => {
                     match adt {
                         Adt::Struct(s) => {
-                            for diag in db.struct_data_with_diagnostics(s.id).1.iter() {
-                                emit_def_diagnostic(db, acc, diag, edition);
+                            for diag in sema.db.struct_data_with_diagnostics(s.id).1.iter() {
+                                emit_def_diagnostic(sema.db, acc, diag, edition);
                             }
                         }
                         Adt::Union(u) => {
-                            for diag in db.union_data_with_diagnostics(u.id).1.iter() {
-                                emit_def_diagnostic(db, acc, diag, edition);
+                            for diag in sema.db.union_data_with_diagnostics(u.id).1.iter() {
+                                emit_def_diagnostic(sema.db, acc, diag, edition);
                             }
                         }
                         Adt::Enum(e) => {
-                            for v in e.variants(db) {
-                                acc.extend(ModuleDef::Variant(v).diagnostics(db, style_lints));
-                                for diag in db.enum_variant_data_with_diagnostics(v.id).1.iter() {
-                                    emit_def_diagnostic(db, acc, diag, edition);
+                            for v in e.variants(sema.db) {
+                                acc.extend(ModuleDef::Variant(v).diagnostics(sema, style_lints));
+                                for diag in
+                                    sema.db.enum_variant_data_with_diagnostics(v.id).1.iter()
+                                {
+                                    emit_def_diagnostic(sema.db, acc, diag, edition);
                                 }
                             }
                         }
                     }
-                    acc.extend(def.diagnostics(db, style_lints))
+                    acc.extend(def.diagnostics(sema, style_lints))
                 }
-                ModuleDef::Macro(m) => emit_macro_def_diagnostics(db, acc, m),
-                _ => acc.extend(def.diagnostics(db, style_lints)),
+                ModuleDef::Macro(m) => emit_macro_def_diagnostics(sema.db, acc, m),
+                _ => acc.extend(def.diagnostics(sema, style_lints)),
             }
         }
-        self.legacy_macros(db).into_iter().for_each(|m| emit_macro_def_diagnostics(db, acc, m));
+        self.legacy_macros(sema.db)
+            .into_iter()
+            .for_each(|m| emit_macro_def_diagnostics(sema.db, acc, m));
 
-        let inherent_impls = db.inherent_impls_in_crate(self.id.krate());
+        let inherent_impls = sema.db.inherent_impls_in_crate(self.id.krate());
 
         let mut impl_assoc_items_scratch = vec![];
-        for impl_def in self.impl_defs(db) {
-            let loc = impl_def.id.lookup(db.upcast());
-            let tree = loc.id.item_tree(db.upcast());
+        for impl_def in self.impl_defs(sema.db) {
+            let loc = impl_def.id.lookup(sema.db.upcast());
+            let tree = loc.id.item_tree(sema.db.upcast());
             let node = &tree[loc.id.value];
             let file_id = loc.id.file_id();
-            if file_id.macro_file().map_or(false, |it| it.is_builtin_derive(db.upcast())) {
+            if file_id.macro_file().map_or(false, |it| it.is_builtin_derive(sema.db.upcast())) {
                 // these expansion come from us, diagnosing them is a waste of resources
                 // FIXME: Once we diagnose the inputs to builtin derives, we should at least extract those diagnostics somehow
                 continue;
             }
             impl_def
-                .all_macro_calls(db)
+                .all_macro_calls(sema.db)
                 .iter()
-                .for_each(|&(_ast, call_id)| macro_call_diagnostics(db, call_id, acc));
+                .for_each(|&(_ast, call_id)| macro_call_diagnostics(sema.db, call_id, acc));
 
-            let ast_id_map = db.ast_id_map(file_id);
+            let ast_id_map = sema.db.ast_id_map(file_id);
 
-            for diag in db.impl_data_with_diagnostics(impl_def.id).1.iter() {
-                emit_def_diagnostic(db, acc, diag, edition);
+            for diag in sema.db.impl_data_with_diagnostics(impl_def.id).1.iter() {
+                emit_def_diagnostic(sema.db, acc, diag, edition);
             }
 
             if inherent_impls.invalid_impls().contains(&impl_def.id) {
                 acc.push(IncoherentImpl { impl_: ast_id_map.get(node.ast_id()), file_id }.into())
             }
 
-            if !impl_def.check_orphan_rules(db) {
+            if !impl_def.check_orphan_rules(sema.db) {
                 acc.push(TraitImplOrphan { impl_: ast_id_map.get(node.ast_id()), file_id }.into())
             }
 
-            let trait_ = impl_def.trait_(db);
-            let trait_is_unsafe = trait_.map_or(false, |t| t.is_unsafe(db));
-            let impl_is_negative = impl_def.is_negative(db);
-            let impl_is_unsafe = impl_def.is_unsafe(db);
+            let trait_ = impl_def.trait_(sema.db);
+            let trait_is_unsafe = trait_.map_or(false, |t| t.is_unsafe(sema.db));
+            let impl_is_negative = impl_def.is_negative(sema.db);
+            let impl_is_unsafe = impl_def.is_unsafe(sema.db);
 
             let drop_maybe_dangle = (|| {
                 // FIXME: This can be simplified a lot by exposing hir-ty's utils.rs::Generics helper
                 let trait_ = trait_?;
-                let drop_trait = db.lang_item(self.krate().into(), LangItem::Drop)?.as_trait()?;
+                let drop_trait =
+                    sema.db.lang_item(self.krate().into(), LangItem::Drop)?.as_trait()?;
                 if drop_trait != trait_.into() {
                     return None;
                 }
                 let parent = impl_def.id.into();
-                let generic_params = db.generic_params(parent);
+                let generic_params = sema.db.generic_params(parent);
                 let lifetime_params = generic_params.iter_lt().map(|(local_id, _)| {
                     GenericParamId::LifetimeParamId(LifetimeParamId { parent, local_id })
                 });
@@ -682,7 +693,7 @@ impl Module {
                         ))
                     });
                 let res = type_params.chain(lifetime_params).any(|p| {
-                    db.attrs(AttrDefId::GenericParamId(p)).by_key(&sym::may_dangle).exists()
+                    sema.db.attrs(AttrDefId::GenericParamId(p)).by_key(&sym::may_dangle).exists()
                 });
                 Some(res)
             })()
@@ -702,26 +713,30 @@ impl Module {
 
             // Negative impls can't have items, don't emit missing items diagnostic for them
             if let (false, Some(trait_)) = (impl_is_negative, trait_) {
-                let items = &db.trait_data(trait_.into()).items;
+                let items = &sema.db.trait_data(trait_.into()).items;
                 let required_items = items.iter().filter(|&(_, assoc)| match *assoc {
-                    AssocItemId::FunctionId(it) => !db.function_data(it).has_body(),
-                    AssocItemId::ConstId(id) => !db.const_data(id).has_body,
-                    AssocItemId::TypeAliasId(it) => db.type_alias_data(it).type_ref.is_none(),
+                    AssocItemId::FunctionId(it) => !sema.db.function_data(it).has_body(),
+                    AssocItemId::ConstId(id) => !sema.db.const_data(id).has_body,
+                    AssocItemId::TypeAliasId(it) => sema.db.type_alias_data(it).type_ref.is_none(),
                 });
-                impl_assoc_items_scratch.extend(db.impl_data(impl_def.id).items.iter().filter_map(
-                    |&item| {
+                impl_assoc_items_scratch.extend(
+                    sema.db.impl_data(impl_def.id).items.iter().filter_map(|&item| {
                         Some((
                             item,
                             match item {
-                                AssocItemId::FunctionId(it) => db.function_data(it).name.clone(),
-                                AssocItemId::ConstId(it) => {
-                                    db.const_data(it).name.as_ref()?.clone()
+                                AssocItemId::FunctionId(it) => {
+                                    sema.db.function_data(it).name.clone()
                                 }
-                                AssocItemId::TypeAliasId(it) => db.type_alias_data(it).name.clone(),
+                                AssocItemId::ConstId(it) => {
+                                    sema.db.const_data(it).name.as_ref()?.clone()
+                                }
+                                AssocItemId::TypeAliasId(it) => {
+                                    sema.db.type_alias_data(it).name.clone()
+                                }
                             },
                         ))
-                    },
-                ));
+                    }),
+                );
 
                 let redundant = impl_assoc_items_scratch
                     .iter()
@@ -764,8 +779,8 @@ impl Module {
                 impl_assoc_items_scratch.clear();
             }
 
-            for &item in db.impl_data(impl_def.id).items.iter() {
-                AssocItem::from(item).diagnostics(db, acc, style_lints);
+            for &item in sema.db.impl_data(impl_def.id).items.iter() {
+                AssocItem::from(item).diagnostics(sema, acc, style_lints);
             }
         }
     }
@@ -1519,8 +1534,8 @@ impl Variant {
         db.enum_variant_data(self.id).variant_data.clone()
     }
 
-    pub fn value(self, db: &dyn HirDatabase) -> Option<ast::Expr> {
-        self.source(db)?.value.expr()
+    pub fn value<DB: HirDatabase>(self, sema: &Semantics<'_, DB>) -> Option<ast::Expr> {
+        self.source(sema)?.value.expr()
     }
 
     pub fn eval(self, db: &dyn HirDatabase) -> Result<i128, ConstEvalError> {
@@ -1785,23 +1800,23 @@ impl DefWithBody {
         }
     }
 
-    pub fn diagnostics(
+    pub fn diagnostics<DB: HirDatabase>(
         self,
-        db: &dyn HirDatabase,
+        sema: &Semantics<'_, DB>,
         acc: &mut Vec<AnyDiagnostic>,
         style_lints: bool,
     ) {
-        let krate = self.module(db).id.krate();
+        let krate = self.module(sema.db).id.krate();
 
-        let (body, source_map) = db.body_with_source_map(self.into());
+        let (body, source_map) = sema.db.body_with_source_map(self.into());
 
-        for (_, def_map) in body.blocks(db.upcast()) {
-            Module { id: def_map.module_id(DefMap::ROOT) }.diagnostics(db, acc, style_lints);
+        for (_, def_map) in body.blocks(sema.db.upcast()) {
+            Module { id: def_map.module_id(DefMap::ROOT) }.diagnostics(sema, acc, style_lints);
         }
 
-        source_map
-            .macro_calls()
-            .for_each(|(_ast_id, call_id)| macro_call_diagnostics(db, call_id.macro_call_id, acc));
+        source_map.macro_calls().for_each(|(_ast_id, call_id)| {
+            macro_call_diagnostics(sema.db, call_id.macro_call_id, acc)
+        });
 
         for diag in source_map.diagnostics() {
             acc.push(match diag {
@@ -1809,12 +1824,14 @@ impl DefWithBody {
                     InactiveCode { node: *node, cfg: cfg.clone(), opts: opts.clone() }.into()
                 }
                 BodyDiagnostic::MacroError { node, err } => {
-                    let (message, error) = err.render_to_string(db.upcast());
+                    let (message, error) = err.render_to_string(sema.db.upcast());
 
                     let precise_location = if err.span().anchor.file_id == node.file_id {
                         Some(
                             err.span().range
-                                + db.ast_id_map(err.span().anchor.file_id.into())
+                                + sema
+                                    .db
+                                    .ast_id_map(err.span().anchor.file_id.into())
                                     .get_erased(err.span().anchor.ast_id)
                                     .text_range()
                                     .start(),
@@ -1849,9 +1866,9 @@ impl DefWithBody {
             });
         }
 
-        let infer = db.infer(self.into());
+        let infer = sema.db.infer(self.into());
         for d in &infer.diagnostics {
-            acc.extend(AnyDiagnostic::inference_diagnostic(db, self.into(), d, &source_map));
+            acc.extend(AnyDiagnostic::inference_diagnostic(sema.db, self.into(), d, &source_map));
         }
 
         for (pat_or_expr, mismatch) in infer.type_mismatches() {
@@ -1874,14 +1891,18 @@ impl DefWithBody {
             acc.push(
                 TypeMismatch {
                     expr_or_pat,
-                    expected: Type::new(db, DefWithBodyId::from(self), mismatch.expected.clone()),
-                    actual: Type::new(db, DefWithBodyId::from(self), mismatch.actual.clone()),
+                    expected: Type::new(
+                        sema.db,
+                        DefWithBodyId::from(self),
+                        mismatch.expected.clone(),
+                    ),
+                    actual: Type::new(sema.db, DefWithBodyId::from(self), mismatch.actual.clone()),
                 }
                 .into(),
             );
         }
 
-        for expr in hir_ty::diagnostics::missing_unsafe(db, self.into()) {
+        for expr in hir_ty::diagnostics::missing_unsafe(sema.db, self.into()) {
             match source_map.expr_syntax(expr) {
                 Ok(expr) => acc.push(MissingUnsafe { expr }.into()),
                 Err(SyntheticSyntax) => {
@@ -1891,7 +1912,7 @@ impl DefWithBody {
             }
         }
 
-        if let Ok(borrowck_results) = db.borrowck(self.into()) {
+        if let Ok(borrowck_results) = sema.db.borrowck(self.into()) {
             for borrowck_result in borrowck_results.iter() {
                 let mir_body = &borrowck_result.mir_body;
                 for moof in &borrowck_result.moved_out_of_ref {
@@ -2004,8 +2025,8 @@ impl DefWithBody {
             }
         }
 
-        for diagnostic in BodyValidationDiagnostic::collect(db, self.into(), style_lints) {
-            acc.extend(AnyDiagnostic::body_validation_diagnostic(db, diagnostic, &source_map));
+        for diagnostic in BodyValidationDiagnostic::collect(sema.db, self.into(), style_lints) {
+            acc.extend(AnyDiagnostic::body_validation_diagnostic(sema.db, diagnostic, &source_map));
         }
 
         let def: ModuleDef = match self {
@@ -2016,7 +2037,9 @@ impl DefWithBody {
             // FIXME: don't ignore diagnostics for in type const
             DefWithBody::InTypeConst(_) => return,
         };
-        for diag in hir_ty::diagnostics::incorrect_case(db, def.into()) {
+        for diag in sema.with_d2s_ctx(|ctx| {
+            hir_ty::diagnostics::incorrect_case(sema.db, &mut Some(ctx), def.into())
+        }) {
             acc.push(diag.into())
         }
     }
@@ -2372,8 +2395,8 @@ impl Param {
         }
     }
 
-    pub fn pattern_source(self, db: &dyn HirDatabase) -> Option<ast::Pat> {
-        self.source(db).and_then(|p| p.value.right()?.pat())
+    pub fn pattern_source<DB: HirDatabase>(self, sema: &Semantics<'_, DB>) -> Option<ast::Pat> {
+        self.source(sema).and_then(|p| p.value.right()?.pat())
     }
 }
 
@@ -2513,8 +2536,8 @@ impl Const {
         db.const_data(self.id).name.clone()
     }
 
-    pub fn value(self, db: &dyn HirDatabase) -> Option<ast::Expr> {
-        self.source(db)?.value.body()
+    pub fn value<DB: HirDatabase>(self, sema: &Semantics<'_, DB>) -> Option<ast::Expr> {
+        self.source(sema)?.value.body()
     }
 
     pub fn ty(self, db: &dyn HirDatabase) -> Type {
@@ -2576,8 +2599,8 @@ impl Static {
         db.static_data(self.id).mutable
     }
 
-    pub fn value(self, db: &dyn HirDatabase) -> Option<ast::Expr> {
-        self.source(db)?.value.body()
+    pub fn value<DB: HirDatabase>(self, sema: Semantics<'_, DB>) -> Option<ast::Expr> {
+        self.source(&sema)?.value.body()
     }
 
     pub fn ty(self, db: &dyn HirDatabase) -> Type {
@@ -3202,21 +3225,27 @@ impl AssocItem {
         }
     }
 
-    pub fn diagnostics(
+    pub fn diagnostics<DB: HirDatabase>(
         self,
-        db: &dyn HirDatabase,
+        sema: &Semantics<'_, DB>,
         acc: &mut Vec<AnyDiagnostic>,
         style_lints: bool,
     ) {
         match self {
             AssocItem::Function(func) => {
-                DefWithBody::from(func).diagnostics(db, acc, style_lints);
+                DefWithBody::from(func).diagnostics(sema, acc, style_lints);
             }
             AssocItem::Const(const_) => {
-                DefWithBody::from(const_).diagnostics(db, acc, style_lints);
+                DefWithBody::from(const_).diagnostics(sema, acc, style_lints);
             }
             AssocItem::TypeAlias(type_alias) => {
-                for diag in hir_ty::diagnostics::incorrect_case(db, type_alias.id.into()) {
+                for diag in sema.with_d2s_ctx(|ctx| {
+                    hir_ty::diagnostics::incorrect_case(
+                        sema.db,
+                        &mut Some(ctx),
+                        type_alias.id.into(),
+                    )
+                }) {
                     acc.push(diag.into());
                 }
             }
@@ -3952,16 +3981,19 @@ impl Impl {
         self.id.lookup(db.upcast()).container.into()
     }
 
-    pub fn as_builtin_derive_path(self, db: &dyn HirDatabase) -> Option<InMacroFile<ast::Path>> {
-        let src = self.source(db)?;
+    pub fn as_builtin_derive_path<DB: HirDatabase>(
+        self,
+        sema: &Semantics<'_, DB>,
+    ) -> Option<InMacroFile<ast::Path>> {
+        let src = self.source(sema)?;
 
         let macro_file = src.file_id.macro_file()?;
-        let loc = macro_file.macro_call_id.lookup(db.upcast());
+        let loc = macro_file.macro_call_id.lookup(sema.db.upcast());
         let (derive_attr, derive_index) = match loc.kind {
             MacroCallKind::Derive { ast_id, derive_attr_index, derive_index, .. } => {
-                let module_id = self.id.lookup(db.upcast()).container;
+                let module_id = self.id.lookup(sema.db.upcast()).container;
                 (
-                    db.crate_def_map(module_id.krate())[module_id.local_id]
+                    sema.db.crate_def_map(module_id.krate())[module_id.local_id]
                         .scope
                         .derive_macro_invoc(ast_id, derive_attr_index)?,
                     derive_index,
@@ -3970,7 +4002,8 @@ impl Impl {
             _ => return None,
         };
         let file_id = MacroFileId { macro_call_id: derive_attr };
-        let path = db
+        let path = sema
+            .db
             .parse_macro_expansion(file_id)
             .value
             .0

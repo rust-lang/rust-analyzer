@@ -58,7 +58,7 @@ pub(crate) fn incoming_calls(
             // This target is the containing function
             let nav = sema.ancestors_with_macros(name.syntax().clone()).find_map(|node| {
                 let def = ast::Fn::cast(node).and_then(|fn_| sema.to_def(&fn_))?;
-                def.try_to_nav(sema.db)
+                def.try_to_nav(sema)
             });
             if let Some(nav) = nav {
                 let range = sema.original_range(name.syntax());
@@ -103,9 +103,9 @@ pub(crate) fn outgoing_calls(
                     let expr = call.expr()?;
                     let callable = sema.type_of_expr(&expr)?.original.as_callable(db)?;
                     match callable.kind() {
-                        hir::CallableKind::Function(it) => it.try_to_nav(db),
-                        hir::CallableKind::TupleEnumVariant(it) => it.try_to_nav(db),
-                        hir::CallableKind::TupleStruct(it) => it.try_to_nav(db),
+                        hir::CallableKind::Function(it) => it.try_to_nav(&sema),
+                        hir::CallableKind::TupleEnumVariant(it) => it.try_to_nav(&sema),
+                        hir::CallableKind::TupleStruct(it) => it.try_to_nav(&sema),
                         _ => None,
                     }
                     .zip(Some(sema.original_range(expr.syntax())))
@@ -113,7 +113,7 @@ pub(crate) fn outgoing_calls(
                 ast::CallableExpr::MethodCall(expr) => {
                     let function = sema.resolve_method_call(&expr)?;
                     function
-                        .try_to_nav(db)
+                        .try_to_nav(&sema)
                         .zip(Some(sema.original_range(expr.name_ref()?.syntax())))
                 }
             }?;

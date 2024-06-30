@@ -204,7 +204,7 @@ fn get_adt_source(
     adt: &hir::Adt,
     fn_name: &str,
 ) -> Option<(Option<ast::Impl>, FileId)> {
-    let range = adt.source(ctx.sema.db)?.syntax().original_file_range_rooted(ctx.sema.db);
+    let range = adt.source(&ctx.sema)?.syntax().original_file_range_rooted(ctx.sema.db);
     let file = ctx.sema.parse(range.file_id);
     let adt_source =
         ctx.sema.find_node_at_offset_with_macros(file.syntax(), range.range.start())?;
@@ -514,7 +514,7 @@ fn get_method_target(
 ) -> Option<GeneratedFunctionTarget> {
     let target = match impl_ {
         Some(impl_) => GeneratedFunctionTarget::InImpl(impl_.clone()),
-        None => GeneratedFunctionTarget::AfterItem(adt.source(ctx.sema.db)?.syntax().value.clone()),
+        None => GeneratedFunctionTarget::AfterItem(adt.source(&ctx.sema)?.syntax().value.clone()),
     };
     Some(target)
 }

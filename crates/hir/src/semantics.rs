@@ -15,13 +15,13 @@ use hir_def::{
     lower::LowerCtx,
     nameres::MacroSubNs,
     resolver::{self, HasResolver, Resolver, TypeNs},
+    src::{DefToSourceCache, DefToSourceContext},
     type_ref::Mutability,
     AsMacroCall, DefWithBodyId, FunctionId, MacroId, TraitId, VariantId,
 };
 use hir_expand::{
     attrs::collect_attrs,
     builtin::{BuiltinFnLikeExpander, EagerExpander},
-    db::ExpandDatabase,
     files::InRealFile,
     inert_attr_macro::find_builtin_attr_idx,
     name::AsName,
@@ -132,6 +132,7 @@ pub struct Semantics<'db, DB> {
 pub struct SemanticsImpl<'db> {
     pub db: &'db dyn HirDatabase,
     s2d_cache: RefCell<SourceToDefCache>,
+    d2s_cache: RefCell<DefToSourceCache>,
     /// Rootnode to HirFileId cache
     root_to_file_cache: RefCell<FxHashMap<SyntaxNode, HirFileId>>,
     /// MacroCall to its expansion's MacroFileId cache
@@ -288,6 +289,17 @@ impl<'db, DB: HirDatabase> Semantics<'db, DB> {
     pub fn to_union_def(&self, u: &ast::Union) -> Option<Union> {
         self.imp.to_def(u).map(Union::from)
     }
+
+    /// Search for a definition's source and cache its syntax tree
+    pub fn source<Def: HasSource>(&self, def: Def) -> Option<InFile<Def::Ast>>
+    where
+        Def::Ast: AstNode,
+    {
+        // FIXME: source call should go through the parse cache
+        let res = def.source(self)?;
+        self.cache(find_root(res.value.syntax()), res.file_id);
+        Some(res)
+    }
 }
 
 impl<'db> SemanticsImpl<'db> {
@@ -297,6 +309,7 @@ impl<'db> SemanticsImpl<'db> {
             s2d_cache: Default::default(),
             root_to_file_cache: Default::default(),
             macro_call_cache: Default::default(),
+            d2s_cache: Default::default(),
         }
     }
 
@@ -388,26 +401,31 @@ impl<'db> SemanticsImpl<'db> {
     /// If `item` has an attribute macro attached to it, expands it.
     pub fn expand_attr_macro(&self, item: &ast::Item) -> Option<SyntaxNode> {
         let src = self.wrap_node_infile(item.clone());
-        let macro_call_id = self.with_ctx(|ctx| ctx.item_to_macro_call(src.as_ref()))?;
+        let macro_call_id =
+            self.with_ctx(|s2d_ctx, d2s_ctx| s2d_ctx.item_to_macro_call(src.as_ref(), d2s_ctx))?;
         Some(self.parse_or_expand(macro_call_id.as_file()))
     }
 
     pub fn expand_derive_as_pseudo_attr_macro(&self, attr: &ast::Attr) -> Option<SyntaxNode> {
         let adt = attr.syntax().parent().and_then(ast::Adt::cast)?;
         let src = self.wrap_node_infile(attr.clone());
-        let call_id = self.with_ctx(|ctx| {
-            ctx.attr_to_derive_macro_call(src.with_value(&adt), src).map(|(_, it, _)| it)
+        let call_id = self.with_ctx(|s2d_ctx, d2s_ctx| {
+            s2d_ctx
+                .attr_to_derive_macro_call(src.with_value(&adt), src, d2s_ctx)
+                .map(|(_, it, _)| it)
         })?;
         Some(self.parse_or_expand(call_id.as_file()))
     }
 
     pub fn resolve_derive_macro(&self, attr: &ast::Attr) -> Option<Vec<Option<Macro>>> {
         let calls = self.derive_macro_calls(attr)?;
-        self.with_ctx(|ctx| {
+        self.with_ctx(|s2d_ctx, d2s_ctx| {
             Some(
                 calls
                     .into_iter()
-                    .map(|call| macro_call_to_macro_id(ctx, call?).map(|id| Macro { id }))
+                    .map(|call| {
+                        s2d_ctx.macro_call_to_macro_id(call?, d2s_ctx).map(|id| Macro { id })
+                    })
                     .collect(),
             )
         })
@@ -432,8 +450,8 @@ impl<'db> SemanticsImpl<'db> {
         let file_id = self.find_file(adt.syntax()).file_id;
         let adt = InFile::new(file_id, &adt);
         let src = InFile::new(file_id, attr.clone());
-        self.with_ctx(|ctx| {
-            let (.., res) = ctx.attr_to_derive_macro_call(adt, src)?;
+        self.with_ctx(|s2d_ctx, d2s_ctx| {
+            let (.., res) = s2d_ctx.attr_to_derive_macro_call(adt, src, d2s_ctx)?;
             Some(res.to_vec())
         })
     }
@@ -441,7 +459,7 @@ impl<'db> SemanticsImpl<'db> {
     pub fn is_derive_annotated(&self, adt: &ast::Adt) -> bool {
         let file_id = self.find_file(adt.syntax()).file_id;
         let adt = InFile::new(file_id, adt);
-        self.with_ctx(|ctx| ctx.has_derives(adt))
+        self.with_ctx(|s2d_ctx, d2s_ctx| s2d_ctx.has_derives(adt, d2s_ctx))
     }
 
     pub fn derive_helper(&self, attr: &ast::Attr) -> Option<Vec<(Macro, MacroFileId)>> {
@@ -468,7 +486,7 @@ impl<'db> SemanticsImpl<'db> {
     pub fn is_attr_macro_call(&self, item: &ast::Item) -> bool {
         let file_id = self.find_file(item.syntax()).file_id;
         let src = InFile::new(file_id, item);
-        self.with_ctx(|ctx| ctx.item_to_macro_call(src).is_some())
+        self.with_ctx(|s2d_ctx, d2s_ctx| s2d_ctx.item_to_macro_call(src, d2s_ctx).is_some())
     }
 
     /// Expand the macro call with a different token tree, mapping the `token_to_map` down into the
@@ -533,7 +551,9 @@ impl<'db> SemanticsImpl<'db> {
         token_to_map: SyntaxToken,
     ) -> Option<(SyntaxNode, SyntaxToken)> {
         let macro_call = self.wrap_node_infile(actual_macro_call.clone());
-        let macro_call_id = self.with_ctx(|ctx| ctx.item_to_macro_call(macro_call.as_ref()))?;
+        let macro_call_id = self.with_ctx(|s2d_ctx, d2s_ctx| {
+            s2d_ctx.item_to_macro_call(macro_call.as_ref(), d2s_ctx)
+        })?;
         hir_expand::db::expand_speculative(
             self.db.upcast(),
             macro_call_id,
@@ -550,8 +570,10 @@ impl<'db> SemanticsImpl<'db> {
     ) -> Option<(SyntaxNode, SyntaxToken)> {
         let attr = self.wrap_node_infile(actual_macro_call.clone());
         let adt = actual_macro_call.syntax().parent().and_then(ast::Adt::cast)?;
-        let macro_call_id = self.with_ctx(|ctx| {
-            ctx.attr_to_derive_macro_call(attr.with_value(&adt), attr).map(|(_, it, _)| it)
+        let macro_call_id = self.with_ctx(|s2d_ctx, d2s_ctx| {
+            s2d_ctx
+                .attr_to_derive_macro_call(attr.with_value(&adt), attr, d2s_ctx)
+                .map(|(_, it, _)| it)
         })?;
         hir_expand::db::expand_speculative(
             self.db.upcast(),
@@ -830,7 +852,7 @@ impl<'db> SemanticsImpl<'db> {
 
         // Process the expansion of a call, pushing all tokens with our span in the expansion back onto our stack
         let process_expansion_for_token = |stack: &mut Vec<_>, macro_file| {
-            let InMacroFile { file_id, value: mapped_tokens } = self.with_ctx(|ctx| {
+            let InMacroFile { file_id, value: mapped_tokens } = self.with_s2d_ctx(|ctx| {
                 Some(
                     ctx.cache
                         .expansion_info_cache
@@ -865,11 +887,15 @@ impl<'db> SemanticsImpl<'db> {
             while let Some(token) = tokens.pop() {
                 let was_not_remapped = (|| {
                     // First expand into attribute invocations
-                    let containing_attribute_macro_call = self.with_ctx(|ctx| {
+                    let containing_attribute_macro_call = self.with_ctx(|s2d_ctx, d2s_ctx| {
                         token.parent_ancestors().filter_map(ast::Item::cast).find_map(|item| {
                             // Don't force populate the dyn cache for items that don't have an attribute anyways
                             item.attrs().next()?;
-                            Some((ctx.item_to_macro_call(InFile::new(expansion, &item))?, item))
+                            Some((
+                                s2d_ctx
+                                    .item_to_macro_call(InFile::new(expansion, &item), d2s_ctx)?,
+                                item,
+                            ))
                         })
                     });
                     if let Some((call_id, item)) = containing_attribute_macro_call {
@@ -956,14 +982,16 @@ impl<'db> SemanticsImpl<'db> {
                             let adt = match attr.syntax().parent().and_then(ast::Adt::cast) {
                                 Some(adt) => {
                                     // this might be a derive on an ADT
-                                    let derive_call = self.with_ctx(|ctx| {
+                                    let derive_call = self.with_ctx(|s2d_ctx, d2s_ctx| {
                                         // so try downmapping the token into the pseudo derive expansion
                                         // see [hir_expand::builtin_attr_macro] for how the pseudo derive expansion works
-                                        ctx.attr_to_derive_macro_call(
-                                            InFile::new(expansion, &adt),
-                                            InFile::new(expansion, attr.clone()),
-                                        )
-                                        .map(|(_, call_id, _)| call_id)
+                                        s2d_ctx
+                                            .attr_to_derive_macro_call(
+                                                InFile::new(expansion, &adt),
+                                                InFile::new(expansion, attr.clone()),
+                                                d2s_ctx,
+                                            )
+                                            .map(|(_, call_id, _)| call_id)
                                     });
 
                                     match derive_call {
@@ -995,7 +1023,9 @@ impl<'db> SemanticsImpl<'db> {
                                     )
                                 }
                             }?;
-                            if !self.with_ctx(|ctx| ctx.has_derives(InFile::new(expansion, &adt))) {
+                            if !self.with_ctx(|s2d_ctx, d2s_ctx| {
+                                s2d_ctx.has_derives(InFile::new(expansion, &adt), d2s_ctx)
+                            }) {
                                 return None;
                             }
                             let attr_name =
@@ -1127,7 +1157,7 @@ impl<'db> SemanticsImpl<'db> {
                 None => {
                     let macro_file = file_id.macro_file()?;
 
-                    self.with_ctx(|ctx| {
+                    self.with_s2d_ctx(|ctx| {
                         let expansion_info = ctx
                             .cache
                             .expansion_info_cache
@@ -1346,9 +1376,10 @@ impl<'db> SemanticsImpl<'db> {
 
     pub fn resolve_macro_call(&self, macro_call: &ast::MacroCall) -> Option<Macro> {
         let macro_call = self.find_file(macro_call.syntax()).with_value(macro_call);
-        self.with_ctx(|ctx| {
-            ctx.macro_call_to_macro_call(macro_call)
-                .and_then(|call| macro_call_to_macro_id(ctx, call))
+        self.with_ctx(|s2d_ctx, d2s_ctx| {
+            s2d_ctx
+                .macro_call_to_macro_call(macro_call, d2s_ctx)
+                .and_then(|call| s2d_ctx.macro_call_to_macro_id(call, d2s_ctx))
                 .map(Into::into)
         })
         .or_else(|| {
@@ -1388,9 +1419,9 @@ impl<'db> SemanticsImpl<'db> {
 
     pub fn resolve_attr_macro_call(&self, item: &ast::Item) -> Option<Macro> {
         let item_in_file = self.wrap_node_infile(item.clone());
-        let id = self.with_ctx(|ctx| {
-            let macro_call_id = ctx.item_to_macro_call(item_in_file.as_ref())?;
-            macro_call_to_macro_id(ctx, macro_call_id)
+        let id = self.with_ctx(|s2d_ctx, d2s_ctx| {
+            let macro_call_id = s2d_ctx.item_to_macro_call(item_in_file.as_ref(), d2s_ctx)?;
+            s2d_ctx.macro_call_to_macro_id(macro_call_id, d2s_ctx)
         })?;
         Some(Macro { id })
     }
@@ -1419,8 +1450,22 @@ impl<'db> SemanticsImpl<'db> {
             .unwrap_or_default()
     }
 
-    fn with_ctx<F: FnOnce(&mut SourceToDefCtx<'_, '_>) -> T, T>(&self, f: F) -> T {
+    fn with_ctx<F: FnOnce(&mut SourceToDefCtx<'_, '_>, &mut DefToSourceContext<'_>) -> T, T>(
+        &self,
+        f: F,
+    ) -> T {
+        let mut s2d_ctx = SourceToDefCtx { db: self.db, cache: &mut self.s2d_cache.borrow_mut() };
+        let mut d2s_ctx = DefToSourceContext { cache: &mut self.d2s_cache.borrow_mut() };
+        f(&mut s2d_ctx, &mut d2s_ctx)
+    }
+
+    fn with_s2d_ctx<F: FnOnce(&mut SourceToDefCtx<'_, '_>) -> T, T>(&self, f: F) -> T {
         let mut ctx = SourceToDefCtx { db: self.db, cache: &mut self.s2d_cache.borrow_mut() };
+        f(&mut ctx)
+    }
+
+    pub fn with_d2s_ctx<T, F: FnOnce(&mut DefToSourceContext<'_>) -> T>(&'db self, f: F) -> T {
+        let mut ctx = DefToSourceContext { cache: &mut self.d2s_cache.borrow_mut() };
         f(&mut ctx)
     }
 
@@ -1430,7 +1475,7 @@ impl<'db> SemanticsImpl<'db> {
     }
 
     fn file_to_module_defs(&self, file: FileId) -> impl Iterator<Item = Module> {
-        self.with_ctx(|ctx| ctx.file_to_def(file).to_owned()).into_iter().map(Module::from)
+        self.with_s2d_ctx(|ctx| ctx.file_to_def(file).to_owned()).into_iter().map(Module::from)
     }
 
     pub fn scope(&self, node: &SyntaxNode) -> Option<SemanticsScope<'db>> {
@@ -1453,17 +1498,6 @@ impl<'db> SemanticsImpl<'db> {
                 resolver,
             },
         )
-    }
-
-    /// Search for a definition's source and cache its syntax tree
-    pub fn source<Def: HasSource>(&self, def: Def) -> Option<InFile<Def::Ast>>
-    where
-        Def::Ast: AstNode,
-    {
-        // FIXME: source call should go through the parse cache
-        let res = def.source(self.db)?;
-        self.cache(find_root(res.value.syntax()), res.file_id);
-        Some(res)
     }
 
     /// Returns none if the file of the node is not part of a crate.
@@ -1495,7 +1529,7 @@ impl<'db> SemanticsImpl<'db> {
     ) -> Option<SourceAnalyzer> {
         let _p = tracing::info_span!("SemanticsImpl::analyze_impl").entered();
 
-        let container = self.with_ctx(|ctx| ctx.find_container(node))?;
+        let container = self.with_ctx(|s2d_ctx, d2s_ctx| s2d_ctx.find_container(node, d2s_ctx))?;
 
         let resolver = match container {
             ChildContainer::DefWithBodyId(def) => {
@@ -1699,51 +1733,6 @@ impl<'db> SemanticsImpl<'db> {
     }
 }
 
-fn macro_call_to_macro_id(
-    ctx: &mut SourceToDefCtx<'_, '_>,
-    macro_call_id: MacroCallId,
-) -> Option<MacroId> {
-    use span::HirFileIdRepr;
-
-    let db: &dyn ExpandDatabase = ctx.db.upcast();
-    let loc = db.lookup_intern_macro_call(macro_call_id);
-
-    match loc.def.ast_id() {
-        Either::Left(it) => {
-            let node = match it.file_id.repr() {
-                HirFileIdRepr::FileId(file_id) => {
-                    it.to_ptr(db).to_node(&db.parse(file_id).syntax_node())
-                }
-                HirFileIdRepr::MacroFile(macro_file) => {
-                    let expansion_info = ctx
-                        .cache
-                        .expansion_info_cache
-                        .entry(macro_file)
-                        .or_insert_with(|| macro_file.expansion_info(ctx.db.upcast()));
-                    it.to_ptr(db).to_node(&expansion_info.expanded().value)
-                }
-            };
-            ctx.macro_to_def(InFile::new(it.file_id, &node))
-        }
-        Either::Right(it) => {
-            let node = match it.file_id.repr() {
-                HirFileIdRepr::FileId(file_id) => {
-                    it.to_ptr(db).to_node(&db.parse(file_id).syntax_node())
-                }
-                HirFileIdRepr::MacroFile(macro_file) => {
-                    let expansion_info = ctx
-                        .cache
-                        .expansion_info_cache
-                        .entry(macro_file)
-                        .or_insert_with(|| macro_file.expansion_info(ctx.db.upcast()));
-                    it.to_ptr(db).to_node(&expansion_info.expanded().value)
-                }
-            };
-            ctx.proc_macro_to_def(InFile::new(it.file_id, &node))
-        }
-    }
-}
-
 pub trait ToDef: AstNode + Clone {
     type Def;
     fn to_def(sema: &SemanticsImpl<'_>, src: InFile<&Self>) -> Option<Self::Def>;
@@ -1754,7 +1743,7 @@ macro_rules! to_def_impls {
         impl ToDef for $ast {
             type Def = $def;
             fn to_def(sema: &SemanticsImpl<'_>, src: InFile<&Self>) -> Option<Self::Def> {
-                sema.with_ctx(|ctx| ctx.$meth(src)).map(<$def>::from)
+                sema.with_ctx(|s2d_ctx, d2s_ctx| s2d_ctx.$meth(src, d2s_ctx)).map(<$def>::from)
             }
         }
     )*}

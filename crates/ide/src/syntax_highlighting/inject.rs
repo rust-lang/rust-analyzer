@@ -119,7 +119,7 @@ pub(super) fn doc_comment(
     let src_file_id: HirFileId = src_file_id.into();
 
     // Extract intra-doc links and emit highlights for them.
-    if let Some((docs, doc_mapping)) = docs_with_rangemap(sema.db, &attributes) {
+    if let Some((docs, doc_mapping)) = docs_with_rangemap(sema, &attributes) {
         extract_definitions_from_docs(&docs)
             .into_iter()
             .filter_map(|(range, link, ns)| {
@@ -146,7 +146,7 @@ pub(super) fn doc_comment(
     let mut inj = Injector::default();
     inj.add_unmapped("fn doctest() {\n");
 
-    let attrs_source_map = attributes.source_map(sema.db);
+    let attrs_source_map = sema.with_d2s_ctx(|ctx| attributes.source_map(sema.db, &mut Some(ctx)));
 
     let mut is_codeblock = false;
     let mut is_doctest = false;

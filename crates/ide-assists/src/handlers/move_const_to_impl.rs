@@ -65,7 +65,7 @@ pub(crate) fn move_const_to_impl(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
 
     let def = ctx.sema.to_def(&const_)?;
     let name = def.name(db)?;
-    let items = impl_.source(db)?.value.assoc_item_list()?;
+    let items = impl_.source(&ctx.sema)?.value.assoc_item_list()?;
 
     let ty = impl_.self_ty(db);
     // If there exists another associated item with the same name, skip the assist.

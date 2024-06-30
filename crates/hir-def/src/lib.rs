@@ -56,6 +56,7 @@ pub mod visibility;
 
 use intern::Interned;
 pub use rustc_abi as layout;
+use src::{DefToSourceContext, HasSource};
 use triomphe::Arc;
 
 #[cfg(test)]
@@ -938,28 +939,32 @@ impl GenericDefId {
     fn file_id_and_params_of(
         self,
         db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
     ) -> (HirFileId, Option<ast::GenericParamList>) {
-        fn file_id_and_params_of_item_loc<Loc>(
+        fn file_id_and_params_of_item_loc<Def, Value>(
             db: &dyn DefDatabase,
-            def: impl for<'db> Lookup<Database<'db> = dyn DefDatabase + 'db, Data = Loc>,
+            ctx: &mut Option<&mut DefToSourceContext<'_>>,
+            def: Def,
         ) -> (HirFileId, Option<ast::GenericParamList>)
         where
-            Loc: src::HasSource,
-            Loc::Value: ast::HasGenericParams,
+            Def: HasSource<Value = Value>,
+            <Def as hir_expand::Lookup>::Data: ItemTreeLoc,
+            <<Def as hir_expand::Lookup>::Data as ItemTreeLoc>::Id: ItemTreeNode<Source = Value>,
+            Value: ast::HasGenericParams,
         {
-            let src = def.lookup(db).source(db);
+            let src = def.source(db, ctx);
             (src.file_id, ast::HasGenericParams::generic_param_list(&src.value))
         }
 
         match self {
-            GenericDefId::FunctionId(it) => file_id_and_params_of_item_loc(db, it),
-            GenericDefId::TypeAliasId(it) => file_id_and_params_of_item_loc(db, it),
-            GenericDefId::AdtId(AdtId::StructId(it)) => file_id_and_params_of_item_loc(db, it),
-            GenericDefId::AdtId(AdtId::UnionId(it)) => file_id_and_params_of_item_loc(db, it),
-            GenericDefId::AdtId(AdtId::EnumId(it)) => file_id_and_params_of_item_loc(db, it),
-            GenericDefId::TraitId(it) => file_id_and_params_of_item_loc(db, it),
-            GenericDefId::TraitAliasId(it) => file_id_and_params_of_item_loc(db, it),
-            GenericDefId::ImplId(it) => file_id_and_params_of_item_loc(db, it),
+            GenericDefId::FunctionId(it) => file_id_and_params_of_item_loc(db, ctx, it),
+            GenericDefId::TypeAliasId(it) => file_id_and_params_of_item_loc(db, ctx, it),
+            GenericDefId::AdtId(AdtId::StructId(it)) => file_id_and_params_of_item_loc(db, ctx, it),
+            GenericDefId::AdtId(AdtId::UnionId(it)) => file_id_and_params_of_item_loc(db, ctx, it),
+            GenericDefId::AdtId(AdtId::EnumId(it)) => file_id_and_params_of_item_loc(db, ctx, it),
+            GenericDefId::TraitId(it) => file_id_and_params_of_item_loc(db, ctx, it),
+            GenericDefId::TraitAliasId(it) => file_id_and_params_of_item_loc(db, ctx, it),
+            GenericDefId::ImplId(it) => file_id_and_params_of_item_loc(db, ctx, it),
             GenericDefId::ConstId(it) => (it.lookup(db).id.file_id(), None),
         }
     }

@@ -143,7 +143,7 @@ pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable> {
                     Definition::Module(it) => {
                         it.declaration_source_range(db).map(|src| src.file_id)
                     }
-                    Definition::Function(it) => it.source(db).map(|src| src.file_id),
+                    Definition::Function(it) => it.source(&sema).map(|src| src.file_id),
                     _ => None,
                 };
                 if let Some(file_id) = file_id.filter(|file| file.macro_file().is_some()) {
@@ -163,7 +163,7 @@ pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable> {
         };
         add_opt(
             runnable
-                .or_else(|| module_def_doctest(sema.db, def))
+                .or_else(|| module_def_doctest(&sema, def))
                 // #[macro_export] mbe macros are declared in the root, while their definition may reside in a different module
                 .filter(|it| it.nav.file_id == file_id),
             Some(def),
@@ -172,10 +172,10 @@ pub(crate) fn runnables(db: &RootDatabase, file_id: FileId) -> Vec<Runnable> {
             impl_.items(db).into_iter().for_each(|assoc| {
                 let runnable = match assoc {
                     hir::AssocItem::Function(it) => {
-                        runnable_fn(&sema, it).or_else(|| module_def_doctest(sema.db, it.into()))
+                        runnable_fn(&sema, it).or_else(|| module_def_doctest(&sema, it.into()))
                     }
-                    hir::AssocItem::Const(it) => module_def_doctest(sema.db, it.into()),
-                    hir::AssocItem::TypeAlias(it) => module_def_doctest(sema.db, it.into()),
+                    hir::AssocItem::Const(it) => module_def_doctest(&sema, it.into()),
+                    hir::AssocItem::TypeAlias(it) => module_def_doctest(&sema, it.into()),
                 };
                 add_opt(runnable, Some(assoc.into()))
             });
@@ -349,7 +349,7 @@ pub(crate) fn runnable_fn(
 
     let nav = NavigationTarget::from_named(
         sema.db,
-        def.source(sema.db)?.as_ref().map(|it| it as &dyn ast::HasName),
+        def.source(sema)?.as_ref().map(|it| it as &dyn ast::HasName),
         SymbolKind::Function,
     )
     .call_site();
@@ -392,7 +392,7 @@ pub(crate) fn runnable_impl(
         return None;
     }
     let cfg = attrs.cfg();
-    let nav = def.try_to_nav(sema.db)?.call_site();
+    let nav = def.try_to_nav(sema)?.call_site();
     let ty = def.self_ty(sema.db);
     let adt_name = ty.as_adt()?.name(sema.db);
     let mut ty_args = ty.generic_parameters(sema.db, edition).peekable();
@@ -446,48 +446,48 @@ fn runnable_mod_outline_definition(
     }
 }
 
-fn module_def_doctest(db: &RootDatabase, def: Definition) -> Option<Runnable> {
+fn module_def_doctest(sema: &Semantics<'_, RootDatabase>, def: Definition) -> Option<Runnable> {
     let attrs = match def {
-        Definition::Module(it) => it.attrs(db),
-        Definition::Function(it) => it.attrs(db),
-        Definition::Adt(it) => it.attrs(db),
-        Definition::Variant(it) => it.attrs(db),
-        Definition::Const(it) => it.attrs(db),
-        Definition::Static(it) => it.attrs(db),
-        Definition::Trait(it) => it.attrs(db),
-        Definition::TraitAlias(it) => it.attrs(db),
-        Definition::TypeAlias(it) => it.attrs(db),
-        Definition::Macro(it) => it.attrs(db),
-        Definition::SelfType(it) => it.attrs(db),
+        Definition::Module(it) => it.attrs(sema.db),
+        Definition::Function(it) => it.attrs(sema.db),
+        Definition::Adt(it) => it.attrs(sema.db),
+        Definition::Variant(it) => it.attrs(sema.db),
+        Definition::Const(it) => it.attrs(sema.db),
+        Definition::Static(it) => it.attrs(sema.db),
+        Definition::Trait(it) => it.attrs(sema.db),
+        Definition::TraitAlias(it) => it.attrs(sema.db),
+        Definition::TypeAlias(it) => it.attrs(sema.db),
+        Definition::Macro(it) => it.attrs(sema.db),
+        Definition::SelfType(it) => it.attrs(sema.db),
         _ => return None,
     };
-    let edition = def.krate(db).map(|it| it.edition(db)).unwrap_or(Edition::CURRENT);
+    let edition = def.krate(sema.db).map(|it| it.edition(sema.db)).unwrap_or(Edition::CURRENT);
     if !has_runnable_doc_test(&attrs) {
         return None;
     }
-    let def_name = def.name(db)?;
+    let def_name = def.name(sema.db)?;
     let path = (|| {
         let mut path = String::new();
-        def.canonical_module_path(db)?
-            .flat_map(|it| it.name(db))
-            .for_each(|name| format_to!(path, "{}::", name.display(db, edition)));
+        def.canonical_module_path(sema.db)?
+            .flat_map(|it| it.name(sema.db))
+            .for_each(|name| format_to!(path, "{}::", name.display(sema.db, edition)));
         // This probably belongs to canonical_path?
-        if let Some(assoc_item) = def.as_assoc_item(db) {
-            if let Some(ty) = assoc_item.implementing_ty(db) {
+        if let Some(assoc_item) = def.as_assoc_item(sema.db) {
+            if let Some(ty) = assoc_item.implementing_ty(sema.db) {
                 if let Some(adt) = ty.as_adt() {
-                    let name = adt.name(db);
-                    let mut ty_args = ty.generic_parameters(db, edition).peekable();
-                    format_to!(path, "{}", name.display(db, edition));
+                    let name = adt.name(sema.db);
+                    let mut ty_args = ty.generic_parameters(sema.db, edition).peekable();
+                    format_to!(path, "{}", name.display(sema.db, edition));
                     if ty_args.peek().is_some() {
                         format_to!(path, "<{}>", ty_args.format_with(",", |ty, cb| cb(&ty)));
                     }
-                    format_to!(path, "::{}", def_name.display(db, edition));
+                    format_to!(path, "::{}", def_name.display(sema.db, edition));
                     path.retain(|c| c != ' ');
                     return Some(path);
                 }
             }
         }
-        format_to!(path, "{}", def_name.display(db, edition));
+        format_to!(path, "{}", def_name.display(sema.db, edition));
         Some(path)
     })();
 
@@ -495,8 +495,8 @@ fn module_def_doctest(db: &RootDatabase, def: Definition) -> Option<Runnable> {
         .map_or_else(|| TestId::Name(def_name.display_no_db(edition).to_smolstr()), TestId::Path);
 
     let mut nav = match def {
-        Definition::Module(def) => NavigationTarget::from_module_to_decl(db, def),
-        def => def.try_to_nav(db)?,
+        Definition::Module(def) => NavigationTarget::from_module_to_decl(sema.db, def),
+        def => def.try_to_nav(sema)?,
     }
     .call_site();
     nav.focus_range = None;

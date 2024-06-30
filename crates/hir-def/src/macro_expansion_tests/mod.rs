@@ -39,10 +39,10 @@ use crate::{
     db::DefDatabase,
     nameres::{DefMap, MacroSubNs, ModuleSource},
     resolver::HasResolver,
-    src::HasSource,
+    src::{DefToSourceCache, DefToSourceContext, HasSource},
     test_db::TestDB,
     tt::Subtree,
-    AdtId, AsMacroCall, Lookup, ModuleDefId,
+    AdtId, AsMacroCall, ModuleDefId,
 };
 
 #[track_caller]
@@ -63,6 +63,9 @@ pub fn identity_when_valid(_attr: TokenStream, item: TokenStream) -> TokenStream
         },
     )];
     let db = TestDB::with_files_extra_proc_macros(ra_fixture, extra_proc_macros);
+    let mut def_to_src_cache = DefToSourceCache::default();
+    let ctx = &mut DefToSourceContext { cache: &mut def_to_src_cache };
+    let ctx = &mut Some(ctx);
     let krate = db.crate_graph().iter().next().unwrap();
     let def_map = db.crate_def_map(krate);
     let local_id = DefMap::ROOT;
@@ -175,10 +178,10 @@ pub fn identity_when_valid(_attr: TokenStream, item: TokenStream) -> TokenStream
         // FIXME: I'm sure there's already better way to do this
         let src = match decl_id {
             ModuleDefId::AdtId(AdtId::StructId(struct_id)) => {
-                Some(struct_id.lookup(&db).source(&db).syntax().cloned())
+                Some(struct_id.source(&db, ctx).syntax().cloned())
             }
             ModuleDefId::FunctionId(function_id) => {
-                Some(function_id.lookup(&db).source(&db).syntax().cloned())
+                Some(function_id.source(&db, ctx).syntax().cloned())
             }
             _ => None,
         };
@@ -208,7 +211,7 @@ pub fn identity_when_valid(_attr: TokenStream, item: TokenStream) -> TokenStream
     }
 
     for impl_id in def_map[local_id].scope.impls() {
-        let src = impl_id.lookup(&db).source(&db);
+        let src = impl_id.source(&db, ctx);
         if let Some(macro_file) = src.file_id.macro_file() {
             if macro_file.is_builtin_derive(&db) {
                 let pp = pretty_print_macro_expansion(

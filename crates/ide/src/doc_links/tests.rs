@@ -62,7 +62,7 @@ fn check_doc_links(ra_fixture: &str) {
         .flat_map(|(_, link, ns)| {
             let def = resolve_doc_path_for_def(sema.db, cursor_def, &link, ns)
                 .unwrap_or_else(|| panic!("Failed to resolve {link}"));
-            def.try_to_nav(sema.db).unwrap().into_iter().zip(iter::repeat(link))
+            def.try_to_nav(sema).unwrap().into_iter().zip(iter::repeat(link))
         })
         .map(|(nav_target, link)| {
             let range =

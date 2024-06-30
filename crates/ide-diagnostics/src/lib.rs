@@ -381,7 +381,7 @@ pub fn semantic_diagnostics(
         // file, so we skip semantic diagnostics so we can show these faster.
         Some(m) => {
             if !db.parse_errors(file_id).as_deref().is_some_and(|es| es.len() >= 16) {
-                m.diagnostics(db, &mut diags, config.style_lints);
+                m.diagnostics(&ctx.sema, &mut diags, config.style_lints);
             }
         }
         None => handlers::unlinked_file::unlinked_file(&ctx, &mut res, file_id.file_id()),

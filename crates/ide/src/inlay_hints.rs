@@ -340,8 +340,9 @@ impl fmt::Write for InlayHintLabelBuilder<'_> {
 impl HirWrite for InlayHintLabelBuilder<'_> {
     fn start_location_link(&mut self, def: ModuleDefId) {
         never!(self.location.is_some(), "location link is already started");
+        let sema = Semantics::new(self.db);
         self.make_new_part();
-        let Some(location) = ModuleDef::from(def).try_to_nav(self.db) else { return };
+        let Some(location) = ModuleDef::from(def).try_to_nav(&sema) else { return };
         let location = location.call_site();
         let location =
             FileRange { file_id: location.file_id, range: location.focus_or_full_range() };

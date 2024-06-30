@@ -215,7 +215,7 @@ impl StaticIndex<'_> {
                         &hover_config,
                         edition,
                     )),
-                    definition: def.try_to_nav(self.db).map(UpmappingResult::call_site).map(|it| {
+                    definition: def.try_to_nav(&sema).map(UpmappingResult::call_site).map(|it| {
                         FileRange { file_id: it.file_id, range: it.focus_or_full_range() }
                     }),
                     references: vec![],
@@ -235,7 +235,7 @@ impl StaticIndex<'_> {
             let token = self.tokens.get_mut(id).unwrap();
             token.references.push(ReferenceData {
                 range: FileRange { range, file_id },
-                is_definition: match def.try_to_nav(self.db).map(UpmappingResult::call_site) {
+                is_definition: match def.try_to_nav(&sema).map(UpmappingResult::call_site) {
                     Some(it) => it.file_id == file_id && it.focus_or_full_range() == range,
                     None => false,
                 },

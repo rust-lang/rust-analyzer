@@ -51,14 +51,14 @@ pub enum AnnotationLocation {
 }
 
 pub(crate) fn annotations(
-    db: &RootDatabase,
+    sema: &Semantics<'_, RootDatabase>,
     config: &AnnotationConfig,
     file_id: FileId,
 ) -> Vec<Annotation> {
     let mut annotations = FxHashSet::default();
 
     if config.annotate_runnables {
-        for runnable in runnables(db, file_id) {
+        for runnable in runnables(sema.db, file_id) {
             if should_skip_runnable(&runnable.kind, config.binary_target) {
                 continue;
             }
@@ -79,22 +79,24 @@ pub(crate) fn annotations(
         (annotation_range, target_pos)
     };
 
-    visit_file_defs(&Semantics::new(db), file_id, &mut |def| {
+    visit_file_defs(sema, file_id, &mut |def| {
         let range = match def {
             Definition::Const(konst) if config.annotate_references => {
-                konst.source(db).and_then(|node| name_range(db, node, file_id))
+                konst.source(sema).and_then(|node| name_range(sema.db, node, file_id))
             }
             Definition::Trait(trait_) if config.annotate_references || config.annotate_impls => {
-                trait_.source(db).and_then(|node| name_range(db, node, file_id))
+                trait_.source(sema).and_then(|node| name_range(sema.db, node, file_id))
             }
             Definition::Adt(adt) => match adt {
                 hir::Adt::Enum(enum_) => {
                     if config.annotate_enum_variant_references {
                         enum_
-                            .variants(db)
+                            .variants(sema.db)
                             .into_iter()
                             .filter_map(|variant| {
-                                variant.source(db).and_then(|node| name_range(db, node, file_id))
+                                variant
+                                    .source(sema)
+                                    .and_then(|node| name_range(sema.db, node, file_id))
                             })
                             .for_each(|range| {
                                 let (annotation_range, target_position) = mk_ranges(range);
@@ -108,14 +110,14 @@ pub(crate) fn annotations(
                             })
                     }
                     if config.annotate_references || config.annotate_impls {
-                        enum_.source(db).and_then(|node| name_range(db, node, file_id))
+                        enum_.source(sema).and_then(|node| name_range(sema.db, node, file_id))
                     } else {
                         None
                     }
                 }
                 _ => {
                     if config.annotate_references || config.annotate_impls {
-                        adt.source(db).and_then(|node| name_range(db, node, file_id))
+                        adt.source(sema).and_then(|node| name_range(sema.db, node, file_id))
                     } else {
                         None
                     }
@@ -161,7 +163,7 @@ pub(crate) fn annotations(
     });
 
     if config.annotate_method_references {
-        annotations.extend(find_all_methods(db, file_id).into_iter().map(|range| {
+        annotations.extend(find_all_methods(sema.db, file_id).into_iter().map(|range| {
             let (annotation_range, target_range) = mk_ranges(range);
             Annotation {
                 range: annotation_range,

@@ -298,7 +298,7 @@ impl DocCommentToken {
             let abs_in_expansion_offset = token_start + relative_comment_offset + descended_prefix_len;
 
             let (attributes, def) = doc_attributes(sema, &node)?;
-            let (docs, doc_mapping) = docs_with_rangemap(sema.db, &attributes)?;
+            let (docs, doc_mapping) = docs_with_rangemap(sema, &attributes)?;
             let (in_expansion_range, link, ns) =
                 extract_definitions_from_docs(&docs).into_iter().find_map(|(range, link, ns)| {
                     let mapped = doc_mapping.map(range)?;

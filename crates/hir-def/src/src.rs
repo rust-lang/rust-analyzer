@@ -1,46 +1,300 @@
 //! Utilities for mapping between hir IDs and the surface syntax.
 
+use std::hash::Hash;
+
 use either::Either;
-use hir_expand::InFile;
+use hir_expand::{InFile, Lookup};
 use la_arena::ArenaMap;
-use syntax::{ast, AstNode, AstPtr};
+use span::AstIdNode;
+use syntax::{ast, AstPtr};
 
 use crate::{
     db::DefDatabase,
+    dyn_map::{
+        keys::def_to_src::{self, DefIdPolicy},
+        DynMap, Key,
+    },
     item_tree::{AttrOwner, FieldParent, ItemTreeNode},
-    GenericDefId, ItemTreeLoc, LocalFieldId, LocalLifetimeParamId, LocalTypeOrConstParamId, Lookup,
+    ConstId, EnumId, EnumVariantId, ExternBlockId, ExternCrateId, FunctionId, GenericDefId, ImplId,
+    ItemTreeLoc, LocalFieldId, LocalLifetimeParamId, LocalTypeOrConstParamId, Macro2Id,
+    MacroRulesId, ProcMacroId, StaticId, StructId, TraitAliasId, TraitId, TypeAliasId, UnionId,
     UseId, VariantId,
 };
 
-pub trait HasSource {
-    type Value: AstNode;
-    fn source(&self, db: &dyn DefDatabase) -> InFile<Self::Value> {
-        let InFile { file_id, value } = self.ast_ptr(db);
-        InFile::new(file_id, value.to_node(&db.parse_or_expand(file_id)))
-    }
-    fn ast_ptr(&self, db: &dyn DefDatabase) -> InFile<AstPtr<Self::Value>>;
+#[derive(Default)]
+pub struct DefToSourceCache {
+    pub dynmap_cache: DynMap,
 }
 
-impl<T> HasSource for T
+pub struct DefToSourceContext<'cache> {
+    pub cache: &'cache mut DefToSourceCache,
+}
+
+pub trait HasSource
 where
-    T: ItemTreeLoc,
-    T::Id: ItemTreeNode,
+    Self: Sized + Copy + Eq + Hash + 'static,
+    Self: for<'db> Lookup<Database<'db> = dyn DefDatabase + 'db>,
+    <Self as Lookup>::Data: ItemTreeLoc,
+    <<Self as Lookup>::Data as ItemTreeLoc>::Id: ItemTreeNode<Source = Self::Value>,
 {
-    type Value = <T::Id as ItemTreeNode>::Source;
-    fn ast_ptr(&self, db: &dyn DefDatabase) -> InFile<AstPtr<Self::Value>> {
-        let id = self.item_tree_id();
-        let file_id = id.file_id();
+    type Value: AstIdNode;
+
+    fn source(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<Self::Value> {
+        let InFile { file_id, value } = self.ast_ptr(db, ctx);
+        InFile::new(file_id, value.to_node(&db.parse_or_expand(file_id)))
+    }
+
+    fn ast_ptr(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<AstPtr<Self::Value>>;
+
+    fn ast_ptr_by_key(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+        map_key: Key<Self, AstPtr<Self::Value>, DefIdPolicy<Self, Self::Value>>,
+    ) -> InFile<AstPtr<Self::Value>> {
+        let file_id = self.lookup(db).item_tree_id().file_id();
+        ctx.as_mut()
+            .map(|ctx| {
+                let ast_ptr = *ctx.cache.dynmap_cache[map_key]
+                    .entry(*self)
+                    .or_insert_with(|| self.ast_ptr_without_cache(db).value);
+                InFile::new(file_id, ast_ptr)
+            })
+            .unwrap_or_else(|| self.ast_ptr_without_cache(db))
+    }
+
+    fn ast_ptr_without_cache(&self, db: &dyn DefDatabase) -> InFile<AstPtr<Self::Value>> {
+        let file_id = self.lookup(db).item_tree_id().file_id();
+        let loc = self.lookup(db);
+        let id = loc.item_tree_id();
         let tree = id.item_tree(db);
         let ast_id_map = db.ast_id_map(file_id);
         let node = &tree[id.value];
+        let ast_ptr = ast_id_map.get(node.ast_id());
 
-        InFile::new(file_id, ast_id_map.get(node.ast_id()))
+        InFile::new(file_id, ast_ptr)
+    }
+}
+
+impl HasSource for StructId {
+    type Value = ast::Struct;
+
+    fn ast_ptr(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<AstPtr<Self::Value>> {
+        self.ast_ptr_by_key(db, ctx, def_to_src::STRUCT)
+    }
+}
+
+impl HasSource for UnionId {
+    type Value = ast::Union;
+
+    fn ast_ptr(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<AstPtr<Self::Value>> {
+        self.ast_ptr_by_key(db, ctx, def_to_src::UNION)
+    }
+}
+
+impl HasSource for EnumId {
+    type Value = ast::Enum;
+
+    fn ast_ptr(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<AstPtr<Self::Value>> {
+        self.ast_ptr_by_key(db, ctx, def_to_src::ENUM)
+    }
+}
+
+impl HasSource for EnumVariantId {
+    type Value = ast::Variant;
+
+    fn ast_ptr(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<AstPtr<Self::Value>> {
+        self.ast_ptr_by_key(db, ctx, def_to_src::ENUM_VARIANT)
+    }
+}
+
+impl HasSource for FunctionId {
+    type Value = ast::Fn;
+
+    fn ast_ptr(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<AstPtr<Self::Value>> {
+        self.ast_ptr_by_key(db, ctx, def_to_src::FUNCTION)
+    }
+}
+
+impl HasSource for ConstId {
+    type Value = ast::Const;
+
+    fn ast_ptr(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<AstPtr<Self::Value>> {
+        self.ast_ptr_by_key(db, ctx, def_to_src::CONST)
+    }
+}
+
+impl HasSource for StaticId {
+    type Value = ast::Static;
+
+    fn ast_ptr(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<AstPtr<Self::Value>> {
+        self.ast_ptr_by_key(db, ctx, def_to_src::STATIC)
+    }
+}
+
+impl HasSource for TraitId {
+    type Value = ast::Trait;
+
+    fn ast_ptr(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<AstPtr<Self::Value>> {
+        self.ast_ptr_by_key(db, ctx, def_to_src::TRAIT)
+    }
+}
+
+impl HasSource for TraitAliasId {
+    type Value = ast::TraitAlias;
+
+    fn ast_ptr(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<AstPtr<Self::Value>> {
+        self.ast_ptr_by_key(db, ctx, def_to_src::TRAIT_ALIAS)
+    }
+}
+
+impl HasSource for TypeAliasId {
+    type Value = ast::TypeAlias;
+
+    fn ast_ptr(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<AstPtr<Self::Value>> {
+        self.ast_ptr_by_key(db, ctx, def_to_src::TYPE_ALIAS)
+    }
+}
+
+impl HasSource for Macro2Id {
+    type Value = ast::MacroDef;
+
+    fn ast_ptr(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<AstPtr<Self::Value>> {
+        self.ast_ptr_by_key(db, ctx, def_to_src::MACRO2)
+    }
+}
+
+impl HasSource for MacroRulesId {
+    type Value = ast::MacroRules;
+
+    fn ast_ptr(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<AstPtr<Self::Value>> {
+        self.ast_ptr_by_key(db, ctx, def_to_src::MACRO_RULES)
+    }
+}
+
+impl HasSource for ProcMacroId {
+    type Value = ast::Fn;
+
+    fn ast_ptr(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<AstPtr<Self::Value>> {
+        self.ast_ptr_by_key(db, ctx, def_to_src::PROC_MACRO)
+    }
+}
+
+impl HasSource for ImplId {
+    type Value = ast::Impl;
+
+    fn ast_ptr(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<AstPtr<Self::Value>> {
+        self.ast_ptr_by_key(db, ctx, def_to_src::IMPL)
+    }
+}
+
+impl HasSource for ExternCrateId {
+    type Value = ast::ExternCrate;
+
+    fn ast_ptr(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<AstPtr<Self::Value>> {
+        self.ast_ptr_by_key(db, ctx, def_to_src::EXTERN_CRATE)
+    }
+}
+
+impl HasSource for ExternBlockId {
+    type Value = ast::ExternBlock;
+
+    fn ast_ptr(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<AstPtr<Self::Value>> {
+        self.ast_ptr_by_key(db, ctx, def_to_src::EXTERN_BLOCK)
+    }
+}
+
+impl HasSource for UseId {
+    type Value = ast::Use;
+
+    fn ast_ptr(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<AstPtr<Self::Value>> {
+        self.ast_ptr_by_key(db, ctx, def_to_src::USE)
     }
 }
 
 pub trait HasChildSource<ChildId> {
     type Value;
-    fn child_source(&self, db: &dyn DefDatabase) -> InFile<ArenaMap<ChildId, Self::Value>>;
+    fn child_source(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<ArenaMap<ChildId, Self::Value>>;
 }
 
 impl HasChildSource<la_arena::Idx<ast::UseTree>> for UseId {
@@ -48,6 +302,7 @@ impl HasChildSource<la_arena::Idx<ast::UseTree>> for UseId {
     fn child_source(
         &self,
         db: &dyn DefDatabase,
+        _ctx: &mut Option<&mut DefToSourceContext<'_>>,
     ) -> InFile<ArenaMap<la_arena::Idx<ast::UseTree>, Self::Value>> {
         let loc = &self.lookup(db);
         let use_ = &loc.id.item_tree(db)[loc.id.value];
@@ -63,11 +318,12 @@ impl HasChildSource<LocalTypeOrConstParamId> for GenericDefId {
     fn child_source(
         &self,
         db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
     ) -> InFile<ArenaMap<LocalTypeOrConstParamId, Self::Value>> {
         let generic_params = db.generic_params(*self);
         let mut idx_iter = generic_params.iter_type_or_consts().map(|(idx, _)| idx);
 
-        let (file_id, generic_params_list) = self.file_id_and_params_of(db);
+        let (file_id, generic_params_list) = self.file_id_and_params_of(db, ctx);
 
         let mut params = ArenaMap::default();
 
@@ -75,12 +331,12 @@ impl HasChildSource<LocalTypeOrConstParamId> for GenericDefId {
         // the other params.
         match *self {
             GenericDefId::TraitId(id) => {
-                let trait_ref = id.lookup(db).source(db).value;
+                let trait_ref = id.source(db, ctx).value;
                 let idx = idx_iter.next().unwrap();
                 params.insert(idx, Either::Right(ast::TraitOrAlias::Trait(trait_ref)));
             }
             GenericDefId::TraitAliasId(id) => {
-                let alias = id.lookup(db).source(db).value;
+                let alias = id.source(db, ctx).value;
                 let idx = idx_iter.next().unwrap();
                 params.insert(idx, Either::Right(ast::TraitOrAlias::TraitAlias(alias)));
             }
@@ -102,11 +358,12 @@ impl HasChildSource<LocalLifetimeParamId> for GenericDefId {
     fn child_source(
         &self,
         db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
     ) -> InFile<ArenaMap<LocalLifetimeParamId, Self::Value>> {
         let generic_params = db.generic_params(*self);
         let idx_iter = generic_params.iter_lt().map(|(idx, _)| idx);
 
-        let (file_id, generic_params_list) = self.file_id_and_params_of(db);
+        let (file_id, generic_params_list) = self.file_id_and_params_of(db, ctx);
 
         let mut params = ArenaMap::default();
 
@@ -123,14 +380,18 @@ impl HasChildSource<LocalLifetimeParamId> for GenericDefId {
 impl HasChildSource<LocalFieldId> for VariantId {
     type Value = Either<ast::TupleField, ast::RecordField>;
 
-    fn child_source(&self, db: &dyn DefDatabase) -> InFile<ArenaMap<LocalFieldId, Self::Value>> {
+    fn child_source(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> InFile<ArenaMap<LocalFieldId, Self::Value>> {
         let item_tree;
         let (src, parent, container) = match *self {
             VariantId::EnumVariantId(it) => {
                 let lookup = it.lookup(db);
-                item_tree = lookup.id.item_tree(db);
+                item_tree = it.lookup(db).id.item_tree(db);
                 (
-                    lookup.source(db).map(|it| it.kind()),
+                    it.source(db, ctx).map(|it| it.kind()),
                     FieldParent::Variant(lookup.id.value),
                     lookup.parent.lookup(db).container,
                 )
@@ -139,7 +400,7 @@ impl HasChildSource<LocalFieldId> for VariantId {
                 let lookup = it.lookup(db);
                 item_tree = lookup.id.item_tree(db);
                 (
-                    lookup.source(db).map(|it| it.kind()),
+                    it.source(db, ctx).map(|it| it.kind()),
                     FieldParent::Struct(lookup.id.value),
                     lookup.container,
                 )
@@ -148,7 +409,7 @@ impl HasChildSource<LocalFieldId> for VariantId {
                 let lookup = it.lookup(db);
                 item_tree = lookup.id.item_tree(db);
                 (
-                    lookup.source(db).map(|it| it.kind()),
+                    it.source(db, ctx).map(|it| it.kind()),
                     FieldParent::Union(lookup.id.value),
                     lookup.container,
                 )
