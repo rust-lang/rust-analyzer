@@ -2541,6 +2541,40 @@
             {
                 "title": "workspace",
                 "properties": {
+                    "rust-analyzer.workspace.discoverConfig": {
+                        "markdownDescription": "Enables automatic discovery of projects using [`DiscoverWorkspaceConfig::command`].\n\n[`DiscoverWorkspaceConfig`] also requires setting `progress_label` and `files_to_watch`.\n`progress_label` is used for the title in progress indictators, whereas `files_to_watch`\nis used to determine which build system-specific files should be watched in order to\nreload rust-analyzer.",
+                        "default": null,
+                        "anyOf": [
+                            {
+                                "type": "null"
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "command": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "progressLabel": {
+                                        "type": "string"
+                                    },
+                                    "filesToWatch": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            },
+            {
+                "title": "workspace",
+                "properties": {
                     "rust-analyzer.workspace.symbol.search.kind": {
                         "markdownDescription": "Workspace symbol search kind.",
                         "default": "only_types",
