@@ -759,6 +759,7 @@ impl ast::HasAttrs for MatchExpr {}
 impl MatchExpr {
     pub fn expr(&self) -> Option<Expr> { support::child(&self.syntax) }
     pub fn match_arm_list(&self) -> Option<MatchArmList> { support::child(&self.syntax) }
+    pub fn dot_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![.]) }
     pub fn match_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![match]) }
 }
 

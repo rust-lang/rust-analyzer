@@ -514,7 +514,7 @@ RangeExpr =
   Attr* start:Expr? op:('..' | '..=') end:Expr?
 
 MatchExpr =
-  Attr* 'match' Expr MatchArmList
+  Attr* 'match' Expr MatchArmList |  Attr* Expr '.' 'match' MatchArmList
 
 MatchArmList =
   '{'

@@ -2,6 +2,8 @@ mod atom;
 
 use crate::grammar::attributes::ATTRIBUTE_FIRST;
 
+use self::atom::match_expr;
+
 use super::*;
 
 pub(crate) use atom::{block_expr, match_arm_list};
@@ -468,6 +470,15 @@ fn postfix_dot_expr<const FLOAT_RECOVERY: bool>(
         }
         p.bump(T![await]);
         return Ok(m.complete(p, AWAIT_EXPR));
+    }
+
+    // Post-fix match
+    if p.nth(nth1) == T![match] {
+        if !FLOAT_RECOVERY {
+            p.bump(T![.]);
+        }
+        let m = lhs.precede(p);
+        return Ok(match_expr(p, Some(m)));
     }
 
     if p.at(T![..=]) || p.at(T![..]) {

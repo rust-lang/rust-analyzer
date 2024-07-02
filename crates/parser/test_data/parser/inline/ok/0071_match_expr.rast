@@ -91,6 +91,167 @@ SOURCE_FILE
               L_CURLY "{"
               R_CURLY "}"
           SEMICOLON ";"
+        WHITESPACE "\n\n    "
+        EXPR_STMT
+          MATCH_EXPR
+            PATH_EXPR
+              PATH
+                PATH_SEGMENT
+                  NAME_REF
+                    IDENT "S"
+            DOT "."
+            MATCH_KW "match"
+            WHITESPACE " "
+            MATCH_ARM_LIST
+              L_CURLY "{"
+              WHITESPACE " "
+              MATCH_ARM
+                WILDCARD_PAT
+                  UNDERSCORE "_"
+                WHITESPACE " "
+                FAT_ARROW "=>"
+                WHITESPACE " "
+                TUPLE_EXPR
+                  L_PAREN "("
+                  R_PAREN ")"
+              WHITESPACE " "
+              R_CURLY "}"
+          SEMICOLON ";"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          MATCH_EXPR
+            MATCH_EXPR
+              PATH_EXPR
+                PATH
+                  PATH_SEGMENT
+                    NAME_REF
+                      IDENT "S"
+              DOT "."
+              MATCH_KW "match"
+              WHITESPACE " "
+              MATCH_ARM_LIST
+                L_CURLY "{"
+                WHITESPACE " "
+                R_CURLY "}"
+            DOT "."
+            MATCH_KW "match"
+            WHITESPACE " "
+            MATCH_ARM_LIST
+              L_CURLY "{"
+              WHITESPACE " "
+              R_CURLY "}"
+          SEMICOLON ";"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          MATCH_EXPR
+            LITERAL
+              INT_NUMBER "1"
+            DOT "."
+            MATCH_KW "match"
+            WHITESPACE " "
+            MATCH_ARM_LIST
+              L_CURLY "{"
+              WHITESPACE " "
+              R_CURLY "}"
+          SEMICOLON ";"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          MATCH_EXPR
+            FIELD_EXPR
+              PATH_EXPR
+                PATH
+                  PATH_SEGMENT
+                    NAME_REF
+                      IDENT "x"
+              DOT "."
+              NAME_REF
+                INT_NUMBER "0"
+            DOT "."
+            MATCH_KW "match"
+            WHITESPACE " "
+            MATCH_ARM_LIST
+              L_CURLY "{"
+              WHITESPACE " "
+              R_CURLY "}"
+          SEMICOLON ";"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          METHOD_CALL_EXPR
+            TRY_EXPR
+              MATCH_EXPR
+                CALL_EXPR
+                  FIELD_EXPR
+                    PATH_EXPR
+                      PATH
+                        PATH_SEGMENT
+                          NAME_REF
+                            IDENT "x"
+                    DOT "."
+                    NAME_REF
+                      INT_NUMBER "0"
+                  ARG_LIST
+                    L_PAREN "("
+                    R_PAREN ")"
+                DOT "."
+                MATCH_KW "match"
+                WHITESPACE " "
+                MATCH_ARM_LIST
+                  L_CURLY "{"
+                  WHITESPACE " "
+                  R_CURLY "}"
+              QUESTION "?"
+            DOT "."
+            NAME_REF
+              IDENT "hello"
+            ARG_LIST
+              L_PAREN "("
+              R_PAREN ")"
+          SEMICOLON ";"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          MATCH_EXPR
+            FIELD_EXPR
+              FIELD_EXPR
+                PATH_EXPR
+                  PATH
+                    PATH_SEGMENT
+                      NAME_REF
+                        IDENT "x"
+                DOT "."
+                NAME_REF
+                  INT_NUMBER "0"
+              DOT "."
+              NAME_REF
+                INT_NUMBER "0"
+            DOT "."
+            MATCH_KW "match"
+            WHITESPACE " "
+            MATCH_ARM_LIST
+              L_CURLY "{"
+              WHITESPACE " "
+              R_CURLY "}"
+          SEMICOLON ";"
+        WHITESPACE "\n    "
+        EXPR_STMT
+          MATCH_EXPR
+            FIELD_EXPR
+              PATH_EXPR
+                PATH
+                  PATH_SEGMENT
+                    NAME_REF
+                      IDENT "x"
+              DOT "."
+              NAME_REF
+                INT_NUMBER "0"
+            DOT "."
+            WHITESPACE " "
+            MATCH_KW "match"
+            WHITESPACE " "
+            MATCH_ARM_LIST
+              L_CURLY "{"
+              WHITESPACE " "
+              R_CURLY "}"
+          SEMICOLON ";"
         WHITESPACE "\n"
         R_CURLY "}"
   WHITESPACE "\n"
