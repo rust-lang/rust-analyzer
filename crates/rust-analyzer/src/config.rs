@@ -329,6 +329,14 @@ config_data! {
         /// `textDocument/rangeFormatting` request. The rustfmt option is unstable and only
         /// available on a nightly build.
         rustfmt_rangeFormatting_enable: bool = false,
+
+        /// Enables automatic discovery of projects using [`DiscoverWorkspaceConfig::command`].
+        ///
+        /// [`DiscoverWorkspaceConfig`] also requires setting `progress_label` and `files_to_watch`.
+        /// `progress_label` is used for the title in progress indictators, whereas `files_to_watch`
+        /// is used to determine which build system-specific files should be watched in order to
+        /// reload rust-analyzer.
+        workspace_discoverConfig: Option<DiscoverWorkspaceConfig> = None,
     }
 }
 
@@ -908,6 +916,21 @@ impl Config {
         );
         (config, e, should_update)
     }
+
+    pub fn add_linked_projects(&mut self, data: ProjectJsonData, buildfile: AbsPathBuf) {
+        let linked_projects = &mut self.client_config.0.global.linkedProjects;
+
+        let new_project = ManifestOrProjectJson::DiscoveredProjectJson { data, buildfile };
+        match linked_projects {
+            Some(projects) => {
+                match projects.iter_mut().find(|p| p.manifest() == new_project.manifest()) {
+                    Some(p) => *p = new_project,
+                    None => projects.push(new_project),
+                }
+            }
+            None => *linked_projects = Some(vec![new_project]),
+        }
+    }
 }
 
 #[derive(Default, Debug)]
@@ -987,6 +1010,14 @@ impl From<ProjectJson> for LinkedProject {
     fn from(v: ProjectJson) -> Self {
         LinkedProject::InlineJsonProject(v)
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoverWorkspaceConfig {
+    pub command: Vec<String>,
+    pub progress_label: String,
+    pub files_to_watch: Vec<String>,
 }
 
 pub struct CallInfoConfig {
@@ -1549,15 +1580,27 @@ impl Config {
     pub fn has_linked_projects(&self) -> bool {
         !self.linkedProjects().is_empty()
     }
-    pub fn linked_manifests(&self) -> impl Iterator<Item = &Utf8Path> + '_ {
+
+    pub fn linked_manifests(&self) -> impl Iterator<Item = &AbsPath> + '_ {
         self.linkedProjects().iter().filter_map(|it| match it {
             ManifestOrProjectJson::Manifest(p) => Some(&**p),
-            ManifestOrProjectJson::ProjectJson(_) => None,
+            // despite having a buildfile, using this variant as a manifest
+            // will fail.
+            ManifestOrProjectJson::DiscoveredProjectJson { .. } => None,
+            ManifestOrProjectJson::ProjectJson { .. } => None,
         })
     }
+
     pub fn has_linked_project_jsons(&self) -> bool {
-        self.linkedProjects().iter().any(|it| matches!(it, ManifestOrProjectJson::ProjectJson(_)))
+        self.linkedProjects()
+            .iter()
+            .any(|it| matches!(it, ManifestOrProjectJson::ProjectJson { .. }))
     }
+
+    pub fn discover_workspace_config(&self) -> Option<&DiscoverWorkspaceConfig> {
+        self.workspace_discoverConfig().as_ref()
+    }
+
     pub fn linked_or_discovered_projects(&self) -> Vec<LinkedProject> {
         match self.linkedProjects().as_slice() {
             [] => {
@@ -1581,6 +1624,12 @@ impl Config {
                             .map_err(|e| tracing::error!("failed to load linked project: {}", e))
                             .ok()
                             .map(Into::into)
+                    }
+                    ManifestOrProjectJson::DiscoveredProjectJson { data, buildfile } => {
+                        let root_path =
+                            buildfile.parent().expect("Unable to get parent of buildfile");
+
+                        Some(ProjectJson::new(None, root_path, data.clone()).into())
                     }
                     ManifestOrProjectJson::ProjectJson(it) => {
                         Some(ProjectJson::new(None, &self.root_path, it.clone()).into())
@@ -2301,11 +2350,49 @@ mod single_or_array {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(untagged)]
 enum ManifestOrProjectJson {
-    Manifest(Utf8PathBuf),
+    Manifest(
+        #[serde(serialize_with = "serialize_abs_pathbuf")]
+        #[serde(deserialize_with = "deserialize_abs_pathbuf")]
+        AbsPathBuf,
+    ),
     ProjectJson(ProjectJsonData),
+    DiscoveredProjectJson {
+        data: ProjectJsonData,
+        #[serde(serialize_with = "serialize_abs_pathbuf")]
+        #[serde(deserialize_with = "deserialize_abs_pathbuf")]
+        buildfile: AbsPathBuf,
+    },
+}
+
+fn deserialize_abs_pathbuf<'de, D>(de: D) -> std::result::Result<AbsPathBuf, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    let path = String::deserialize(de)?;
+
+    AbsPathBuf::try_from(path.as_ref())
+        .map_err(|err| serde::de::Error::custom(format!("invalid path name: {err:?}")))
+}
+
+fn serialize_abs_pathbuf<S>(path: &AbsPathBuf, se: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let path: &Utf8Path = path.as_ref();
+    se.serialize_str(path.as_str())
+}
+
+impl ManifestOrProjectJson {
+    fn manifest(&self) -> Option<&AbsPath> {
+        match self {
+            ManifestOrProjectJson::Manifest(manifest) => Some(manifest),
+            ManifestOrProjectJson::DiscoveredProjectJson { buildfile, .. } => Some(buildfile),
+            ManifestOrProjectJson::ProjectJson(_) => None,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -3283,6 +3370,29 @@ fn field_props(field: &str, ty: &str, doc: &[&str], default: &str) -> serde_json
                     ],
                 },
             ],
+        },
+        "Option<DiscoverWorkspaceConfig>" => set! {
+            "anyOf": [
+                {
+                    "type": "null"
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "command": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        },
+                        "progressLabel": {
+                            "type": "string"
+                        },
+                        "filesToWatch": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        },
+                    }
+                }
+            ]
         },
         _ => panic!("missing entry for {ty}: {default} (field {field})"),
     }
