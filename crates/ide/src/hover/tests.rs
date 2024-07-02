@@ -234,7 +234,6 @@ fn foo() {
             *local*
 
             ```rust
-            // size = 4, align = 4
             let local: i32
             ```
         "#]],
@@ -525,7 +524,6 @@ fn main() {
             *iter*
 
             ```rust
-            // size = 8, align = 4
             let mut iter: Iter<Scan<OtherStruct<OtherStruct<i32>>, impl Fn(&mut u32, &u32, &mut u32) -> Option<u32>, u32>>
             ```
         "#]],
@@ -1504,7 +1502,6 @@ fn main() {
             *zz*
 
             ```rust
-            // size = 8, align = 4
             let zz: Test<i32>
             ```
         "#]],
@@ -1556,7 +1553,6 @@ fn main() { let b$0ar = Some(12); }
             *bar*
 
             ```rust
-            // size = 4, align = 4
             let bar: Option<i32>
             ```
         "#]],
@@ -1626,7 +1622,6 @@ fn hover_for_local_variable() {
             *foo*
 
             ```rust
-            // size = 4, align = 4
             foo: i32
             ```
         "#]],
@@ -1641,7 +1636,6 @@ fn hover_for_local_variable_pat() {
             *foo*
 
             ```rust
-            // size = 4, align = 4
             foo: i32
             ```
         "#]],
@@ -1656,7 +1650,6 @@ fn hover_local_var_edge() {
             *foo*
 
             ```rust
-            // size = 4, align = 4
             foo: i32
             ```
         "#]],
@@ -1671,7 +1664,6 @@ fn hover_for_param_edge() {
             *foo*
 
             ```rust
-            // size = 4, align = 4
             foo: i32
             ```
         "#]],
@@ -1716,7 +1708,6 @@ fn main() { let foo_$0test = Thing::new(); }
             *foo_test*
 
             ```rust
-            // size = 4, align = 4
             let foo_test: Thing
             ```
         "#]],
@@ -1941,7 +1932,6 @@ fn y() {
             *x*
 
             ```rust
-            // size = 4, align = 4
             let x: i32
             ```
         "#]],
@@ -2072,7 +2062,6 @@ fn foo(bar:u32) { let a = id!(ba$0r); }
             *bar*
 
             ```rust
-            // size = 4, align = 4
             bar: u32
             ```
         "#]],
@@ -2091,7 +2080,6 @@ fn foo(bar:u32) { let a = id!(ba$0r); }
             *bar*
 
             ```rust
-            // size = 4, align = 4
             bar: u32
             ```
         "#]],
@@ -4089,7 +4077,6 @@ fn main() {
             *f*
 
             ```rust
-            // size = 8, align = 8, niches = 1
             let f: &i32
             ```
             ---
@@ -4187,7 +4174,6 @@ fn main() {
             *value*
 
             ```rust
-            // size = 0, align = 1
             let value: Const<1>
             ```
         "#]],
@@ -4208,7 +4194,6 @@ fn main() {
             *value*
 
             ```rust
-            // size = 0, align = 1
             let value: Const<0>
             ```
         "#]],
@@ -4229,7 +4214,6 @@ fn main() {
             *value*
 
             ```rust
-            // size = 0, align = 1
             let value: Const<-1>
             ```
         "#]],
@@ -4250,7 +4234,6 @@ fn main() {
             *value*
 
             ```rust
-            // size = 0, align = 1
             let value: Const<true>
             ```
         "#]],
@@ -4271,7 +4254,6 @@ fn main() {
             *value*
 
             ```rust
-            // size = 0, align = 1
             let value: Const<'🦀'>
             ```
         "#]],
@@ -4291,7 +4273,6 @@ impl Foo {
             *self*
 
             ```rust
-            // size = 8, align = 8, niches = 1
             self: &Foo
             ```
         "#]],
@@ -4312,7 +4293,6 @@ impl Foo {
             *self*
 
             ```rust
-            // size = 0, align = 1
             self: Arc<Foo>
             ```
         "#]],
@@ -5690,7 +5670,6 @@ fn main() {
             *tile4*
 
             ```rust
-            // size = 32 (0x20), align = 4
             let tile4: [u32; 8]
             ```
         "#]],
@@ -7646,7 +7625,6 @@ fn test() {
             *s*
 
             ```rust
-            // size = 0, align = 1
             let s: S
             ```
         "#]],
@@ -7667,7 +7645,6 @@ fn test() {
             *foo*
 
             ```rust
-            // size = 4, align = 4
             let foo: i32
             ```
         "#]],
@@ -7688,7 +7665,6 @@ format_args!("{aaaaa$0}");
             *aaaaa*
 
             ```rust
-            // size = 16 (0x10), align = 8, niches = 1
             let aaaaa: &str
             ```
         "#]],
@@ -7709,7 +7685,6 @@ format_args!("{$0aaaaa}");
             *aaaaa*
 
             ```rust
-            // size = 16 (0x10), align = 8, niches = 1
             let aaaaa: &str
             ```
         "#]],
@@ -7730,7 +7705,6 @@ format_args!(r"{$0aaaaa}");
             *aaaaa*
 
             ```rust
-            // size = 16 (0x10), align = 8, niches = 1
             let aaaaa: &str
             ```
         "#]],
@@ -7756,7 +7730,6 @@ foo!(r"{$0aaaaa}");
             *aaaaa*
 
             ```rust
-            // size = 16 (0x10), align = 8, niches = 1
             let aaaaa: &str
             ```
         "#]],
@@ -8197,7 +8170,6 @@ fn main(notable$0: u32) {}
 
             ```rust
             // Implements notable traits: Notable<Assoc = &str, Assoc2 = char>
-            // size = 4, align = 4
             notable: u32
             ```
         "#]],
@@ -8465,7 +8437,6 @@ fn main(a$0: T) {}
             *a*
 
             ```rust
-            // size = 0, align = 1
             a: T
             ```
         "#]],

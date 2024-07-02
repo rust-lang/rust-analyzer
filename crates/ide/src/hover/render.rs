@@ -499,9 +499,6 @@ pub(super) fn definition(
         Definition::TypeAlias(it) => {
             render_memory_layout(config.memory_layout, || it.ty(db).layout(db), |_| None, |_| None)
         }
-        Definition::Local(it) => {
-            render_memory_layout(config.memory_layout, || it.ty(db).layout(db), |_| None, |_| None)
-        }
         _ => None,
     };
 
