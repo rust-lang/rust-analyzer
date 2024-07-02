@@ -1,0 +1,1 @@
+searchState.loadedDescShard("sourcegen", 0, "rust-analyzer relies heavily on source code generation.\nChecks that the <code>file</code> has the specified <code>contents</code>. If that …\nReturns the argument unchanged.\nReturns the argument unchanged.\nCalls <code>U::from(self)</code>.\nCalls <code>U::from(self)</code>.")

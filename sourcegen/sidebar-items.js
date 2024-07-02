@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["add_preamble","ensure_file_contents","list_files","list_rust_files","project_root","reformat"],"struct":["CommentBlock","Location"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ImportCandidate","NameToImport"],"fn":["item_for_path_search"],"struct":["ImportAssets","LocatedImport","PathImportCandidate","TraitImportCandidate"]};

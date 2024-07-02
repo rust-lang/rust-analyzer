@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["block_as_lone_tail","expr_as_name_ref","for_each_break_and_continue_expr","for_each_tail_expr","full_path_of_name_ref","is_pattern_cond","macro_call_for_string_token","parse_tt_as_comma_sep_paths","preorder_expr","single_let","vis_eq","walk_expr","walk_pat","walk_patterns_in_expr","walk_ty"]};

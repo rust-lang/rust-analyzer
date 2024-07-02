@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CodegenType","Malloc","MeasurementType","XtaskCmd"],"struct":["Bb","Codegen","Dist","FuzzTests","Install","Metrics","PublishReleaseNotes","Release","RustcPull","RustcPush","Xtask"]};
