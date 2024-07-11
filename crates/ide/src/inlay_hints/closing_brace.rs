@@ -131,7 +131,7 @@ pub(super) fn hints(
 fn get_visibility(it: &impl HasVisibility) -> String {
     it.visibility()
         .and_then(|v| v.pub_token())
-        .map_or_else(|| String::new(), |token| token.to_string() + " ")
+        .map_or_else(String::new, |token| token.to_string() + " ")
 }
 
 #[cfg(test)]
