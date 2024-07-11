@@ -394,16 +394,16 @@ pub(crate) fn trigger_attribute(p: &mut Parser<'_>) -> CompletedMarker {
     m.complete(p, TRIGGER_ATTRIBUTE) // Review: just replace TRIGGER_ATTRIBUTE with ERROR  to avoid other parts of code indexing getting into trouble
 }
 
-pub(crate) fn global_clause(p: &mut Parser<'_>, m: Marker) {
-    println!("global_clause");
-    //global size_of usize == 8;
-    p.bump(T![global]);
-    // name(p);
-    // name(p);
-    p.expect(T![==]);
-    p.expect(INT_NUMBER);
-    p.expect(T![;]);
+// pub(crate) fn global_clause(p: &mut Parser<'_>, m: Marker) {
+//     println!("global_clause");
+//     //global size_of usize == 8;
+//     p.bump(T![global]);
+//     // name(p);
+//     // name(p);
+//     p.expect(T![==]);
+//     p.expect(INT_NUMBER);
+//     p.expect(T![;]);
 
-    m.complete(p, VERUS_GLOBAL);
-    todo!("are we ehre yet?")
-}
+//     m.complete(p, VERUS_GLOBAL);
+//     todo!("are we ehre yet?")
+// }

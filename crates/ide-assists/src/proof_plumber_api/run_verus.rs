@@ -158,15 +158,15 @@ pub(crate) struct VerifResult {
 }
 
 impl VerifResult {
-    pub fn mk_success(time: u64) -> Self {
+    pub(crate) fn mk_success(time: u64) -> Self {
         VerifResult { is_success: true, stdout: String::new(), stderr: String::new(), time }
     }
 
-    pub fn mk_failure(stdout: String, stderr: String, time: u64) -> Self {
+    pub(crate) fn mk_failure(stdout: String, stderr: String, time: u64) -> Self {
         VerifResult { is_success: false, stdout, stderr, time }
     }
 
-    pub fn is_failing(&self, assertion: &vst::AssertExpr) -> bool {
+    pub(crate) fn is_failing(&self, assertion: &vst::AssertExpr) -> bool {
         if self.is_success {
             return false;
         }

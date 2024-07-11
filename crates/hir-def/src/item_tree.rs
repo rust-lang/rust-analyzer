@@ -1114,7 +1114,7 @@ impl AssocItem {
             AssocItem::TypeAlias(id) => tree[id].ast_id.upcast(),
             AssocItem::Const(id) => tree[id].ast_id.upcast(),
             AssocItem::MacroCall(id) => tree[id].ast_id.upcast(),
-            AssocItem::VerusGlobal(id) => todo!(), // tree[id].ast_id.upcast(),
+            AssocItem::VerusGlobal(_id) => todo!(), // tree[id].ast_id.upcast(),
         }
     }
 }
