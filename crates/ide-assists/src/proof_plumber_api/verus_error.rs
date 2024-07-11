@@ -1,14 +1,14 @@
 //! Basic enum/struct/fn for Verus Errors
 //!
 //! These are used to represent various errors from the verifier
-//! There are three kinds: precondition Failure, postcondition failrue, assertion failure
+//! There are three kinds: precondition Failure, postcondition failure, assertion failure
 //!
 //! For further reference, see `crates/rust-analyzer/verus_interaction`
 //!
 
 use text_edit::TextRange;
 
-/// Verus Erros with three kinds: pre/post/assert
+/// Verus Errors with three kinds: pre/post/assert
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum VerusError {
     Pre(PreFailure),
@@ -16,7 +16,7 @@ pub enum VerusError {
     Assert(AssertFailure),
 }
 
-/// Precondition Failrue contains
+/// Precondition Failure contains
 /// (1) the exact precondition that is failing
 /// (2) the callsite that invoked this failure
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -25,7 +25,7 @@ pub struct PreFailure {
     pub callsite: TextRange,
 }
 
-/// Postcondition failrue contains
+/// Postcondition failure contains
 /// (1) the exact postcondition that is failing
 /// (2) the error span from Verus
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -34,7 +34,7 @@ pub struct PostFailure {
     pub func_body: TextRange,
 }
 
-/// Assertion failrue contains
+/// Assertion failure contains
 /// the asserted predicate
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct AssertFailure {

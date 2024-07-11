@@ -9,7 +9,7 @@ use syntax::{
 /*
 "Weakest Precondition Step" a.k.a. "Move up assertion"
 
-This proof action allows users to step thourgh an assertion through statements, utilizing the rules below.
+This proof action allows users to step through an assertion through statements, utilizing the rules below.
 
 Previous statement =
     | Let-binding(simple expression -- i.e., does not have any function call with ensures clause)
@@ -156,7 +156,7 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
                                     pat,
                                     func_ret_type
                                         .ty
-                                        .map_or_else(|| "{unkonwn}".to_string(), |x| x.to_string())
+                                        .map_or_else(|| "{unknown}".to_string(), |x| x.to_string())
                                 )
                                 .as_ref(),
                             )?
@@ -173,7 +173,7 @@ pub(crate) fn vst_rewriter_wp_move_assertion(
             match new_stmt {
                 Some(new_stmt) => (new_stmt, true),
                 None => {
-                    // when `prev` is let-binding, do subsitution (replace `pat` with `init`)
+                    // when `prev` is let-binding, do substitution (replace `pat` with `init`)
                     let new_assert = vst_map_expr_visitor(assertion.clone(), &mut |e| {
                         // TODO: do proper usage check in semantic level instead of string match
                         // TODO: variable name shadowing

@@ -1,7 +1,7 @@
 //! ProofPlumber API for inline
 //!
 //! Used for inlining a precondition at the callsite
-//! See `insert_failing_precondtion.rs` for usage.
+//! See `insert_failing_precondition.rs` for usage.
 //!
 //!
 

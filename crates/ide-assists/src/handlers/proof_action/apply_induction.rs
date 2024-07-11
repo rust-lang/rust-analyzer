@@ -48,7 +48,7 @@ pub(crate) fn apply_induction(acc: &mut Assists, ctx: &AssistContext<'_>) -> Opt
         }
     }
 
-    // now check if proof now goes thorugh, and make sure it is fast
+    // now check if proof now goes through, and make sure it is fast
     new_fn.body = Some(Box::new(result.clone()));
     let verif_result = ctx.try_verus(&new_fn)?;
     if !verif_result.is_success || verif_result.time > 10 {
@@ -126,7 +126,7 @@ fn apply_induction_on_enum(
                     .iter()
                     .filter(|f| {
                         f.ty.as_ref()
-                            .map_or_else(|| "{unkonwn}".to_string(), |x| x.to_string())
+                            .map_or_else(|| "{unknown}".to_string(), |x| x.to_string())
                             .replace(" ", "")
                             == bty
                     })

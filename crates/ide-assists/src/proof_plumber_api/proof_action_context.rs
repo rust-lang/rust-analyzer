@@ -65,17 +65,17 @@ impl<'a> AssistContext<'a> {
         filter_pre_failuires(&self.verus_errors)
     }
 
-    /// Gather every postcondition failrues
+    /// Gather every postcondition failure
     pub fn post_failures(&self) -> Vec<PostFailure> {
         filter_post_failuires(&self.verus_errors)
     }
 
-    /// From a Precondition Failure, retreive the TOST expression of the failing predicate
+    /// From a Precondition Failure, retrieve the TOST expression of the failing predicate
     pub fn expr_from_pre_failure(&self, pre: PreFailure) -> Option<vst::Expr> {
         self.find_node_at_given_range::<syntax::ast::Expr>(pre.failing_pre)?.try_into().ok()
     }
 
-    /// From a Postcondition Failure, retreive the TOST expression of the failing predicate
+    /// From a Postcondition Failure, retrieve the TOST expression of the failing predicate
     pub fn expr_from_post_failure(&self, post: PostFailure) -> Option<vst::Expr> {
         self.find_node_at_given_range::<syntax::ast::Expr>(post.failing_post)?.try_into().ok()
     }

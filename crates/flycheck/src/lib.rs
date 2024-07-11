@@ -11,7 +11,7 @@
 use std::{
     fmt, io,
     path::Path,
-    process::{Child, ChildStderr, ChildStdout, Command, Stdio},
+    process::Command,
     time::Duration,
 };
 
@@ -241,13 +241,6 @@ struct FlycheckActor {
     command_receiver: Option<Receiver<CargoCheckMessage>>,
 
     status: FlycheckStatus,
-
-    /// CargoHandle exists to wrap around the communication needed to be able to
-    /// run `cargo check` without blocking. Currently the Rust standard library
-    /// doesn't provide a way to read sub-process output without blocking, so we
-    /// have to wrap sub-processes output handling in a thread and pass messages
-    /// back over a channel.
-    cargo_handle: Option<CargoHandle>,
 }
 
 enum Event {
@@ -284,7 +277,6 @@ impl FlycheckActor {
             command_handle: None,
             command_receiver: None,
             status: FlycheckStatus::Finished,
-            cargo_handle: None,
         }
     }
 
@@ -357,23 +349,27 @@ impl FlycheckActor {
                     }
 
                     let command = self.run_verus(filename.clone());
-                    match CargoHandle::spawn(command) {
-                        Ok(cargo_handle) => {
+                    let formatted_command = format!("{command:?}");
+                    tracing::debug!(?command, "will restart flycheck");
+                    let (sender, receiver) = unbounded();
+                    match CommandHandle::spawn(command, sender) {
+                        Ok(command_handle) => {
                             tracing::error!("did  restart Verus");
+                            self.command_handle = Some(command_handle);
+                            self.command_receiver = Some(receiver);
 
-                            self.cargo_handle = Some(cargo_handle);
                             self.report_progress(Progress::VerusResult(format!(
                                 "Started running the following Verus command: {:?}",
                                 self.run_verus(filename),
                             )));
-                            self.report_progress(Progress::DidStart); // this is important -- otherewise, previous diagnostic does not disappear
+                            self.report_progress(Progress::DidStart); // this is important -- otherwise, previous diagnostic does not disappear
+                            self.status = FlycheckStatus::Started;
                         }
                         Err(error) => {
-                            self.report_progress(Progress::VerusResult(format!(
-                                "Failed to run the following Verus command: {:?} error={}",
-                                self.run_verus(filename),
-                                error
+                            self.report_progress(Progress::DidFailToRestart(format!(
+                                "Failed to run the following command: {formatted_command} error={error}"
                             )));
+                            self.status = FlycheckStatus::Finished;
                         }
                     }
                 }
@@ -673,153 +669,7 @@ impl FlycheckActor {
     }
 }
 
-struct JodChild(Child);
 
-impl Drop for JodChild {
-    fn drop(&mut self) {
-        _ = self.0.kill();
-        _ = self.0.wait();
-    }
-}
-
-/// A handle to a cargo process used for fly-checking.
-struct CargoHandle {
-    /// The handle to the actual cargo process. As we cannot cancel directly from with
-    /// a read syscall dropping and therefore terminating the process is our best option.
-    child: JodChild,
-    thread: stdx::thread::JoinHandle<io::Result<(bool, String)>>,
-    receiver: Receiver<CargoCheckMessage>,
-}
-
-impl CargoHandle {
-    fn spawn(mut command: Command) -> std::io::Result<CargoHandle> {
-        dbg!("spawn from CargoHandle");
-        command.stdout(Stdio::piped()).stderr(Stdio::piped()).stdin(Stdio::null());
-        let mut child = command.spawn().map(JodChild)?;
-        dbg!("finished executing command");
-
-        let stdout = child.0.stdout.take().unwrap();
-        let stderr = child.0.stderr.take().unwrap();
-
-        let (sender, receiver) = unbounded();
-        let actor = CargoActor::new(sender, stdout, stderr);
-        let thread = stdx::thread::Builder::new(stdx::thread::ThreadIntent::Worker)
-            .name("CargoHandle".to_owned())
-            .spawn(move || actor.run())
-            .expect("failed to spawn thread");
-        Ok(CargoHandle { child, thread, receiver })
-    }
-
-    fn cancel(mut self) {
-        let _ = self.child.0.kill();
-        let _ = self.child.0.wait();
-    }
-
-    fn join(mut self) -> io::Result<()> {
-        let _ = self.child.0.kill();
-        let exit_status = self.child.0.wait()?;
-        let (read_at_least_one_message, error) = self.thread.join()?;
-        if read_at_least_one_message || exit_status.success() {
-            Ok(())
-        } else {
-            Err(io::Error::new(io::ErrorKind::Other, format!(
-                "Cargo watcher failed, the command produced no valid metadata (exit code: {exit_status:?}):\n{error}"
-            )))
-        }
-    }
-}
-
-struct CargoActor {
-    sender: Sender<CargoCheckMessage>,
-    stdout: ChildStdout,
-    stderr: ChildStderr,
-}
-
-impl CargoActor {
-    fn new(
-        sender: Sender<CargoCheckMessage>,
-        stdout: ChildStdout,
-        stderr: ChildStderr,
-    ) -> CargoActor {
-        CargoActor { sender, stdout, stderr }
-    }
-
-    fn run(self) -> io::Result<(bool, String)> {
-        // We manually read a line at a time, instead of using serde's
-        // stream deserializers, because the deserializer cannot recover
-        // from an error, resulting in it getting stuck, because we try to
-        // be resilient against failures.
-        //
-        // Because cargo only outputs one JSON object per line, we can
-        // simply skip a line if it doesn't parse, which just ignores any
-        // erroneous output.
-
-        let mut stdout_errors = String::new();
-        let mut stderr_errors = String::new();
-        let mut read_at_least_one_stdout_message = false;
-        let mut read_at_least_one_stderr_message = false;
-        let process_line = |line: &str, error: &mut String| {
-            // Try to deserialize a message from Cargo or Rustc.
-            let mut deserializer = serde_json::Deserializer::from_str(line);
-            deserializer.disable_recursion_limit();
-            if let Ok(message) = JsonMessage::deserialize(&mut deserializer) {
-                match message {
-                    // Skip certain kinds of messages to only spend time on what's useful
-                    JsonMessage::Cargo(message) => match message {
-                        cargo_metadata::Message::CompilerArtifact(artifact) if !artifact.fresh => {
-                            self.sender
-                                .send(CargoCheckMessage::CompilerArtifact(artifact))
-                                .unwrap();
-                        }
-                        cargo_metadata::Message::CompilerMessage(msg) => {
-                            self.sender.send(CargoCheckMessage::Diagnostic(msg.message)).unwrap();
-                        }
-                        _ => (),
-                    },
-                    JsonMessage::Rustc(message) => {
-                        self.sender.send(CargoCheckMessage::Diagnostic(message)).unwrap();
-                    }
-                }
-                return true;
-            } else {
-                // verus
-                // forward verification result
-                tracing::error!("deserialize error: {:?}", line);
-                if line.contains("verification results::") {
-                    self.sender.send(CargoCheckMessage::VerusResult(line.to_string())).unwrap();
-                }
-            }
-
-            error.push_str(line);
-            error.push('\n');
-            false
-        };
-        let output = stdx::process::streaming_output(
-            self.stdout,
-            self.stderr,
-            &mut |line| {
-                if process_line(line, &mut stdout_errors) {
-                    read_at_least_one_stdout_message = true;
-                }
-            },
-            &mut |line| {
-                if process_line(line, &mut stderr_errors) {
-                    read_at_least_one_stderr_message = true;
-                }
-            },
-            &mut || {},
-        );
-
-        let read_at_least_one_message =
-            read_at_least_one_stdout_message || read_at_least_one_stderr_message;
-        let mut error: String = stdout_errors;
-        error.push_str(&stderr_errors);
-        match output {
-            Ok(_) => Ok((read_at_least_one_message, error)),
-            Err(e) => Err(io::Error::new(e.kind(), format!("{e:?}: {error}"))),
-        }
-    }
-}
 
 #[allow(clippy::large_enum_variant)]
 enum CargoCheckMessage {
@@ -846,6 +696,13 @@ impl ParseFromLine for CargoCheckMessage {
                 },
                 JsonMessage::Rustc(message) => Some(CargoCheckMessage::Diagnostic(message)),
             };
+        } else {
+            // verus
+            // forward verification result
+            tracing::error!("deserialize error: {:?}", line);
+            if line.contains("verification results::") {
+                Some(CargoCheckMessage::VerusResult(line.to_string()));
+            }
         }
 
         error.push_str(line);
