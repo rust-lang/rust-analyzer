@@ -6,7 +6,7 @@
 use hir::{HirDisplay, Semantics};
 use ide_db::{base_db::FileRange, RootDatabase};
 use syntax::{
-    ast::{self, AstNode, HasName},
+    ast::{self, AstNode, HasName, HasVisibility},
     match_ast, SyntaxKind, SyntaxNode, T,
 };
 
@@ -41,7 +41,8 @@ pub(super) fn hints(
                     (hint_text, None)
                 },
                 ast::Trait(tr) => {
-                    (format!("trait {}", tr.name()?), tr.name().map(name))
+                    let vis = get_visibility(&tr);
+                    (format!("{}trait {}", vis, tr.name()?), tr.name().map(name))
                 },
                 _ => return None,
             }
@@ -50,7 +51,8 @@ pub(super) fn hints(
         closing_token = list.r_curly_token()?;
 
         let module = ast::Module::cast(list.syntax().parent()?)?;
-        (format!("mod {}", module.name()?), module.name().map(name))
+        let vis = get_visibility(&module);
+        (format!("{}mod {}", vis, module.name()?), module.name().map(name))
     } else if let Some(block) = ast::BlockExpr::cast(node.clone()) {
         closing_token = block.stmt_list()?.r_curly_token()?;
 
@@ -60,14 +62,19 @@ pub(super) fn hints(
                 ast::Fn(it) => {
                     // FIXME: this could include parameters, but `HirDisplay` prints too much info
                     // and doesn't respect the max length either, so the hints end up way too long
-                    (format!("fn {}", it.name()?), it.name().map(name))
+                    let vis = get_visibility(&it);
+                    (format!("{}fn {}", vis,  it.name()?), it.name().map(name))
                 },
-                ast::Static(it) => (format!("static {}", it.name()?), it.name().map(name)),
+                ast::Static(it) => {
+                    let vis = get_visibility(&it);
+                    (format!("{}static {}", vis, it.name()?), it.name().map(name))
+                },
                 ast::Const(it) => {
+                    let vis = get_visibility(&it);
                     if it.underscore_token().is_some() {
-                        ("const _".into(), None)
+                        (format!("{}const _", vis), None)
                     } else {
-                        (format!("const {}", it.name()?), it.name().map(name))
+                        (format!("{}const {}", vis, it.name()?), it.name().map(name))
                     }
                 },
                 _ => return None,
@@ -119,6 +126,12 @@ pub(super) fn hints(
     });
 
     None
+}
+
+fn get_visibility(it: &impl HasVisibility) -> String {
+    it.visibility()
+        .and_then(|v| v.pub_token())
+        .map_or_else(|| String::new(), |token| token.to_string() + " ")
 }
 
 #[cfg(test)]
