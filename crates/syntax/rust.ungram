@@ -496,7 +496,7 @@ MethodCallExpr =
 FieldExpr =
   Attr* Expr '.' NameRef
 
-// verus: forall, exsits
+// verus: forall, exists
 ClosureExpr =
   Attr* ('for' GenericParamList)? 'const'? 'static'? 'async'? 'move'? 'forall'? 'exists'? ParamList RetType? Attr*
   body:Expr

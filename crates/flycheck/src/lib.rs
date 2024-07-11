@@ -362,7 +362,7 @@ impl FlycheckActor {
                                 "Started running the following Verus command: {:?}",
                                 self.run_verus(filename),
                             )));
-                            self.report_progress(Progress::DidStart); // this is important -- otherewise, previous diagnostic does not disappear
+                            self.report_progress(Progress::DidStart); // this is important -- otherwise, previous diagnostic does not disappear
                             self.status = FlycheckStatus::Started;
                         }
                         Err(error) => {

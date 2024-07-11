@@ -112,7 +112,7 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
         .collect_vec();
 
     // impl new for struct
-    // For Expr, we specify arguemtns with type bound using `into<Expr>`
+    // For Expr, we specify arguments with type bound using `into<Expr>`
     let impl_new_for_struct: Vec<_> = grammar
         .nodes
         .iter()

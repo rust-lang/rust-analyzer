@@ -24,7 +24,7 @@ fn attr(p: &mut Parser<'_>, inner: bool) {
     // However, the rust-analyzer parser does not have access to string's content.
     // Therefore, to make a new syntax kind (e.g. TriggerAttribute),
     // we need to register `trigger` as a reserved keyword.
-    // however, by registering `trigger` as a reserved keyworkd,
+    // however, by registering `trigger` as a reserved keyword,
     // single trigger attribute, which is `#[trigger]` becomes invalid syntax.
     // therefore, we just special-case `#[trigger]`
     if p.nth(1) == T![!] && p.nth(2) == T!['['] && p.nth(3) == T![trigger] {

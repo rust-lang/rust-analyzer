@@ -18,7 +18,7 @@ use syntax::{
 /// This proof action deletes assertions that are not necessary for the proof succeeds.
 /// It iterates the proof and collects assertions that are redundant
 /// This proof action invokes Verus potentially a large number of times.
-/// Therefore, it delays invoking Verus to the point where an user explictly invokes this proof action.
+/// Therefore, it delays invoking Verus to the point where an user explicitly invokes this proof action.
 /// However, it initially invokes Verus once, to check if the proof succeeds
 ///
 /// As proof actions usually automatically adds a bunch of "redundant" assertions
@@ -148,11 +148,11 @@ mod tests {
             remove_dead_assertions,
             "
 use vstd::prelude::*;
-pr$0oof fn foo(x: nat) 
-    ensures 
+pr$0oof fn foo(x: nat)
+    ensures
         x >= 0,
-{ 
-    assert(x >= 0); 
+{
+    assert(x >= 0);
 }
 
 fn main() {}
@@ -177,10 +177,10 @@ fn main() {}
             remove_dead_assertions,
             "
 use vstd::prelude::*;
-pr$0oof fn foo(x: nat) 
-    ensures 
+pr$0oof fn foo(x: nat)
+    ensures
         x >= 0,
-{ 
+{
     assert(x >= 0);
     assert(x + x >= 0);
     assert(x * x >= 0) by (nonlinear_arith);
@@ -242,7 +242,7 @@ use vstd::prelude::*;
 fn main() {}
 
 pr$0oof fn proof_index(a: u16, offset: u16)
-    requires    
+    requires
         offset < 16,
     ensures
         offset < 16,

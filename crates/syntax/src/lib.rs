@@ -1422,7 +1422,7 @@ proof fn dec0_decreases(a: int) {
 // However, the rust-analyzer parser does not have access to string's content.
 // Therefore, to make a new syntax kind (e.g. TriggerAttribute),
 // we need to register `trigger` as a reserved keyword.
-// however, by registering `trigger` as a reserved keyworkd,
+// however, by registering `trigger` as a reserved keyword,
 // single trigger attribute, which is `#[trigger]` becomes invalid syntax.
 // therefore, we just special-case `#[trigger]`
 #[test]

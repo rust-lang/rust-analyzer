@@ -374,7 +374,7 @@ impl std::fmt::Display for AssertExpr {
             s.push_str(token_ascii(&tmp));
             s.push_str(" ");
         }
-        // paranthesis around prover name
+        // parenthesis around prover name
         if let Some(it) = &self.name {
             s.push_str(" (");
             s.push_str(&it.to_string());
