@@ -204,4 +204,35 @@ fn f() {
 "#,
         );
     }
+
+    #[test]
+    fn hints_closing_brace_pub() {
+        check_with_config(
+            InlayHintsConfig { closing_brace_hints_min_lines: Some(2), ..DISABLED_CONFIG },
+            r#"
+pub fn g() {
+  }
+//^ pub fn g
+
+pub fn h<T>(with: T, arguments: u8, ...) {
+  }
+//^ pub fn h
+
+pub trait Tr {
+    fn f();
+    fn g() {
+    }
+  //^ fn g
+  }
+//^ pub trait Tr
+
+pub static S1: () = {
+ };
+//^ pub static S1
+pub const S2: () = {
+ };
+//^ pub const S2
+"#,
+        );
+    }
 }
