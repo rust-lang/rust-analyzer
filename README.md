@@ -119,7 +119,7 @@ Please set only one of `rust-analyzer.checkOnSave.overrideCommand` and `rust-ana
 ## Functionalities and Details
 
 ### 1.Syntax
-We extended rust-analyzer's grammar for Verus-specific syntax. This custom rust-analyzer highlights reserved Verus keywords (e.g., `spec`, `proof`, `requires`, `ensures`). If a user types `proof` instead of `proof`, a syntax error will be generated for it.
+We extended rust-analyzer's grammar for Verus-specific syntax. This custom rust-analyzer highlights reserved Verus keywords (e.g., `spec`, `proof`, `requires`, `ensures`). If a user types `prof` instead of `proof`, a syntax error will be generated for it.
 
 
 ### 2.IDE functionalities
