@@ -2,6 +2,7 @@ use crate::{
     assist_context::{AssistContext, Assists},
     AssistId, AssistKind,
 };
+use hir::db;
 use syntax::{
     ast::{self, vst::*, AstNode},
     T,

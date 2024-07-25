@@ -62,7 +62,7 @@ pub(crate) fn vst_rewriter_seq_index_inbound(
 
     // "s2.len()"
     let method_call =
-        MethodCallExpr::new(ArgList::new(), ctx.vst_nameref_from_text("len")?, seq_as_expr);
+        MethodCallExpr::new(seq_as_expr, ctx.vst_nameref_from_text("len")?, ArgList::new());
     // 0 <= i
     let first_binexpr = BinExpr::new(
         Literal::new(String::from("0")),

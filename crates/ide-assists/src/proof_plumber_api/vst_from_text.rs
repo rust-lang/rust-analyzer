@@ -22,7 +22,7 @@ impl<'a> AssistContext<'a> {
     ) -> Option<vst::CallExpr> {
         let fn_name_as_path: vst::Path = self.vst_path_from_text(fn_name)?;
         let fn_name_as_pathexpr: vst::PathExpr = vst::PathExpr::new(fn_name_as_path);
-        let vst_call_expr = vst::CallExpr::new(arglist, fn_name_as_pathexpr);
+        let vst_call_expr = vst::CallExpr::new(fn_name_as_pathexpr, arglist);
         return Some(vst_call_expr);
     }
 

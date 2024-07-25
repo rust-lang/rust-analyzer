@@ -80,9 +80,9 @@ pub(crate) fn vst_rewriter_split_smaller_or_equal_to(
         equal_closure.body = Box::new(equal_expr);
 
         let mut strictly_smaller_assert_forall =
-            AssertForallExpr::new(*assert_forall.block_expr.clone(), strictly_smaller_closure);
+            AssertForallExpr::new(strictly_smaller_closure, *assert_forall.block_expr.clone());
         let mut equal_assert_forall =
-            AssertForallExpr::new(*assert_forall.block_expr.clone(), equal_closure);
+            AssertForallExpr::new(equal_closure, *assert_forall.block_expr.clone());
         strictly_smaller_assert_forall.implies_token = true;
         equal_assert_forall.implies_token = true;
 

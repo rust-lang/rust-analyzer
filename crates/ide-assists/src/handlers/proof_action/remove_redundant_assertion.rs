@@ -475,8 +475,9 @@ proof fn lemma_fibo_is_monotonic(i: nat, j: nat)
     } else if i == j {
     } else if i == j - 1 {
         lemma_fibo_is_monotonic(i, (j - 1) as nat);
-        assert(fibo(j) == fibo((j - 1) as nat) + fibo((j - 2) as nat));
     } else {
+        assert(fibo(i) <= fibo((j - 1) as nat) ==> fibo(i) <= fibo((j - 2) as nat) ==> fibo(i)
+            <= fibo(j));
         lemma_fibo_is_monotonic(i, (j - 1) as nat);
         lemma_fibo_is_monotonic(i, (j - 2) as nat);
     };

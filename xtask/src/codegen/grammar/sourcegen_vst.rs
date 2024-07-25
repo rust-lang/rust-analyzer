@@ -326,7 +326,6 @@ pub(crate) fn generate_vst(_kinds: KindsSrc<'_>, grammar: &AstSrc) -> String {
             let name = format_ident!("{}", node.name);
             let fields = node.fields.iter().map(|field| {
                 let name = field.method_name();
-                // let ty = field.ty();
 
                 if field.is_many() {
                     let sep;

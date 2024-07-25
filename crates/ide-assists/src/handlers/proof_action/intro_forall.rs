@@ -45,8 +45,8 @@ pub(crate) fn vst_rewriter_intro_forall(assert: AssertExpr) -> Option<AssertFora
                 return None;
             }
             AssertForallExpr::new(
-                *assert.block_expr.unwrap_or(Box::new(BlockExpr::new(StmtList::new()))),
                 *c.clone(),
+                *assert.block_expr.unwrap_or(Box::new(BlockExpr::new(StmtList::new()))),
             )
         }
         _ => {

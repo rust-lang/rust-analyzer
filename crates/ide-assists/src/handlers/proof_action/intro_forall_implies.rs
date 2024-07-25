@@ -62,8 +62,8 @@ pub(crate) fn vst_rewriter_intro_forall_implies(assert: AssertExpr) -> Option<As
 
             c_clone.body = Box::new(lhs);
             let mut assert_forall = AssertForallExpr::new(
-                *assert.block_expr.unwrap_or(Box::new(BlockExpr::new(StmtList::new()))),
                 c_clone,
+                *assert.block_expr.unwrap_or(Box::new(BlockExpr::new(StmtList::new()))),
             );
             assert_forall.implies_token = true;
             assert_forall.expr = Some(Box::new(rhs));
@@ -94,7 +94,7 @@ spec fn twice(x: int) -> int
   x * 2
 }
 
-proof fn test_intro_forall_implies() {
+proof fn test_intro_forall_implies1() {
   assert(fo$0rall|x:int, y:int| x <= y ==> twice(x) <= twice(y)) by {
     reveal(twice);
   }
@@ -107,7 +107,7 @@ spec fn twice(x: int) -> int
   x * 2
 }
 
-proof fn test_intro_forall_implies() {
+proof fn test_intro_forall_implies1() {
   assert forall|x: int, y: int| x <= y implies twice(x) <= twice(y) by {
         reveal(twice);
     }
@@ -127,7 +127,7 @@ spec fn f1(x: int, y: int) -> bool
   x * x * x  ==  y * y * y
 }
 
-proof fn test_intro_forall_implies() {
+proof fn test_intro_forall_implies2() {
   assert(for$0all|i: int, j: int| i == j ==> f1(i, j) && f1(i, j));
 
 }
@@ -139,7 +139,7 @@ spec fn f1(x: int, y: int) -> bool
   x * x * x  ==  y * y * y
 }
 
-proof fn test_intro_forall_implies() {
+proof fn test_intro_forall_implies2() {
   assert forall|i: int, j: int| i == j implies f1(i, j) && f1(i, j) by {};
 
 }

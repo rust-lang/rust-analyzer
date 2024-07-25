@@ -88,7 +88,7 @@ fn apply_induction_on_nat(
     let then_branch = BlockExpr::new(StmtList::new());
     let mut ifexpr = IfExpr::new(cond, then_branch);
     let mut else_branch = BlockExpr::new(StmtList::new());
-    let call_stmt: Stmt = CallExpr::new(args, Literal::new(fn_name)).into();
+    let call_stmt: Stmt = CallExpr::new(Literal::new(fn_name), args).into();
     else_branch.stmt_list.statements.push(call_stmt);
     ifexpr.set_else_branch(ElseBranch::Block(Box::new(else_branch)));
 
