@@ -626,10 +626,12 @@ pub(crate) fn lower(grammar: &Grammar, is_vst: bool) -> AstSrc {
     res.tokens.sort();
     res.nodes.iter_mut().for_each(|it| {
         it.traits.sort();
-        it.fields.sort_by_key(|it| match it {
-            Field::Token { name, .. } => (true, name.clone()),
-            Field::Node { name, .. } => (false, name.clone()),
-        });
+        if !is_vst {
+            it.fields.sort_by_key(|it| match it {
+                Field::Token { name, .. } => (true, name.clone()),
+                Field::Node { name, .. } => (false, name.clone()),
+            });
+        }
     });
     res.enums.iter_mut().for_each(|it| {
         it.traits.sort();
