@@ -11,7 +11,6 @@ use syntax::{
     ast::{self, vst},
     AstNode,
 };
-use test_fixture::WithFixture;
 
 impl<'a> AssistContext<'a> {
     /// inline function call
