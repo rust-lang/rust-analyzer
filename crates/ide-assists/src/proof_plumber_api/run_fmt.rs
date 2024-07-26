@@ -22,6 +22,7 @@ use std::{
     time::Instant,
 };
 use syntax::{ast, AstNode};
+use verusfmt::RunOptions;
 
 /*
 verus! {
@@ -79,11 +80,6 @@ impl<'a> AssistContext<'a> {
         range_to_remove: Range<usize>,
         mut text_to_replace: String, // from vst
     ) -> Option<Vec<String>> {
-        // let source_file = &self.source_file;
-        // let fmt_path = &self.config.fmt_path;
-        let fmt_path = std::env::var("VERUS_FMT_BINARY_PATH")
-            .expect("please set VERUS_FMT_BINARY_PATH environment variable");
-
         let start_marker = "/*marker fmt start*/";
         let end_marker = "/*marker fmt end*/";
 
@@ -95,92 +91,34 @@ impl<'a> AssistContext<'a> {
 
         fn_as_text.insert_str(0, "verus!{\n");
         fn_as_text.push_str("\n}");
-        // dbg!("{}", &fn_as_text);
 
-        // #[cfg(test)] // We get verus path from config of editor. In test, we use a hardcoded path
-        // let fmt_path = HARDCODED_VERUS_FMT_PATH_FOR_TEST.to_string(); // TODO: maybe move this to test config
-
-        dbg!(&fmt_path);
-        if fmt_path.len() == 0 {
-            dbg!("verusfmt path not set");
-        }
-
-        // REIVEW: instead of writing to a file in the tmp directory, consider using `memfd_create` for an anonymous file
-        // refer to `man memfd_create` or `dev/shm`
-        let mut hasher = DefaultHasher::new();
-        let now = Instant::now();
-        now.hash(&mut hasher);
-        // in linux, set env TMPDIR to set the tmp directory. Otherwise, it fails
-        let tmp_dir = env::temp_dir();
-        let tmp_name =
-            format!("{}/_verus_assert_comment_{:?}_.rs", tmp_dir.display(), hasher.finish());
-        dbg!(&tmp_name);
-        let path = Path::new(&tmp_name);
-        let display = path.display();
-
-        // Open a file in write-only mode, returns `io::Result<File>`
-        let mut file = match File::create(&path) {
-            Err(why) => {
-                dbg!("couldn't create {}: {}", display, why);
-                return None;
-            }
-            Ok(file) => file,
-        };
-
-        // Write the modified verus program to `file`, returns `io::Result<()>`
-        match file.write_all(fn_as_text.as_bytes()) {
-            Err(why) => {
-                dbg!("couldn't write to {}: {}", display, why);
-                return None;
-            }
-            Ok(_) => dbg!("successfully wrote to {}", display),
-        };
-
-        let output = Command::new(fmt_path).arg(path).output();
-
-        let output = output.ok()?;
-        dbg!(&output);
-        if output.status.success() {
-            // let contents = std::fs::read_to_string(path).expect("Should have been able to read the file");
-
-            let mut result = Vec::new();
-            let mut is_line_target = false;
-            for line in
-                read_to_string(path).expect("Should have been able to read the file").lines()
-            {
-                if line.contains(start_marker) {
-                    is_line_target = true;
-                    continue;
-                }
-                if line.contains(end_marker) {
-                    // trailing comment
-                    let mut new_line = String::from(line);
-                    new_line = new_line.replace(end_marker, "");
-                    if new_line.len() > 0 {
-                        result.push(new_line.to_string());
+        let verusfmt_options = verusfmt::RunOptions { file_name: None, run_rustfmt: false, rustfmt_config: Default::default() };
+        let fmt_result = verusfmt::run(&fn_as_text, verusfmt_options);
+        match fmt_result {
+            Ok(formatted) => {
+                let mut result = Vec::new();
+                let mut is_line_target = false;
+                for line in formatted.lines() {
+                    if line.contains(start_marker) {
+                        is_line_target = true;
+                        continue;
                     }
-                    break;
+                    if line.contains(end_marker) {
+                        // trailing comment
+                        let mut new_line = String::from(line);
+                        new_line = new_line.replace(end_marker, "");
+                        if new_line.len() > 0 {
+                            result.push(new_line.to_string());
+                        }
+                        break;
+                    }
+                    if is_line_target {
+                        result.push(line.to_string())
+                    }
                 }
-                if is_line_target {
-                    result.push(line.to_string())
-                }
+                return Some(result);
             }
-            return Some(result);
-        } else {
-            // disambiguate verification failure     VS    compile error etc
-            // match std::str::from_utf8(&output.stdout) {
-            //     Ok(out) => {
-            //         if out.contains("verification results:: verified: 0 errors: 0") {
-            //             // failure from other errors. (e.g. compile error)
-            //             return None;
-            //         } else {
-            //             // verification failure
-            //             return Some(false);
-            //         }
-            //     }
-            //     Err(_) => return None,
-            // }
-            return None;
+            Err(_) => return None,
         }
     }
 }
