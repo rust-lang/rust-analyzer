@@ -14,7 +14,7 @@ In a separate tmux pane, run this with `cargo watch -- ./build_gunzip_chmod.sh`
 When it finishes, do `Developer: Reload Window` in VS Code to reload verus-analyzer.
 
 
-#### How to update verus-analyzer when Verus syntax changes
+# How to update verus-analyzer when Verus syntax changes
 
 #### Summary:
 1. Add a testcase to `crates/syntax/src/lib.rs`.
