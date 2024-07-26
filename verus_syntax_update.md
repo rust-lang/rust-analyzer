@@ -1,11 +1,15 @@
 #### How to update verus-analyzer when Verus syntax changes
 
 #### Summary:
-1. add testcase at `syntax/src/lib.rs`.
+1. Add a testcase at `syntax/src/lib.rs`.
 2. Update `syntax/rust.ungram` file and modify `syntax/src/ast/tests/ast_src.rs` if necessary.
-3. run `cargo test --package syntax --lib -- tests::sourcegen_ast --nocapture` to auto-generate `syntax/ast/generated/*` files.
+3. Run `cargo test --package syntax --lib -- tests::sourcegen_ast --nocapture` to auto-generate `syntax/ast/generated/*` files.
 4. Update `parser` crate to parse new syntax item.
-
+5. Test that proof actions still work by running:
+```
+cargo test --package ide-assists --lib -- handlers::proof_action
+```
+This currently requires setting `TMPDIR` and `VERUS_BINARY_PATH`
 
 #### Details:
 
@@ -34,6 +38,11 @@ Inside the `crates` directory, we need to modify several crates, but most change
     - For `struct`, there is  `grammar::items::adt::struckt` function to parse struct.
     - For major syntax items, refer to `grammar/item.rs` file.
 
+5. Test that proof actions still work by running:
+```
+cargo test --package ide-assists --lib -- handlers::proof_action
+```
+This currently requires setting the `TMPDIR` and `VERUS_BINARY_PATH` environment variables
 
 ##### Modifying the rest
 - Modify `hir-def` and `hit-ty` crates if necessary. The changes will be alerted by the compiler("missing enum case"), and they can be largely straight forward. These changes are needed for the IDE purposes(e.g. type inference, code scanning, etc).
