@@ -663,6 +663,24 @@ impl ExprCollector<'_> {
                 let condition = self.collect_expr_opt(e.expr());
                 self.alloc_expr(Expr::View { condition }, syntax_ptr)
             }
+            ast::Expr::IsExpr(e) => {
+                let expr = self.collect_expr_opt(e.expr());
+                let type_ref = Interned::new(TypeRef::from_ast_opt(&self.ctx(), e.ty()));
+                self.alloc_expr(Expr::IsExpr { expr, type_ref }, syntax_ptr)
+            }
+            ast::Expr::ArrowExpr(e) => {
+                let expr = self.collect_expr_opt(e.expr());
+                let name = match e.name_ref() {
+                    Some(kind) => kind.as_name(),
+                    _ => Name::missing(),
+                };
+                self.alloc_expr(Expr::ArrowExpr { expr, name }, syntax_ptr)
+            }
+            ast::Expr::MatchesExpr(e) => {
+                let expr = self.collect_expr_opt(e.expr());
+                let pat = self.collect_pat_top(e.pat());
+                self.alloc_expr(Expr::MatchesExpr { expr, pat }, syntax_ptr)
+            }
             ast::Expr::AssertExpr(e) => {
                 let body = e.block_expr().map(|e| self.collect_block(e));
                 let condition = self.collect_expr_opt(e.expr());

@@ -236,6 +236,8 @@ impl ItemTree {
                 macro_defs,
                 vis,
                 verus_globals,
+                broadcast_groups,
+                broadcast_uses,
             } = &mut **data;
 
             uses.shrink_to_fit();
@@ -259,6 +261,8 @@ impl ItemTree {
             macro_rules.shrink_to_fit();
             macro_defs.shrink_to_fit();
             verus_globals.shrink_to_fit();
+            broadcast_groups.shrink_to_fit();
+            broadcast_uses.shrink_to_fit();
 
             vis.arena.shrink_to_fit();
         }
@@ -315,6 +319,8 @@ struct ItemTreeData {
     macro_defs: Arena<Macro2>,
 
     verus_globals: Arena<VerusGlobal>,
+    broadcast_groups: Arena<BroadcastGroup>,
+    broadcast_uses: Arena<BroadcastUse>,
     vis: ItemVisibilities,
 }
 
@@ -598,6 +604,8 @@ mod_items! {
     MacroRules in macro_rules -> ast::MacroRules,
     Macro2 in macro_defs -> ast::MacroDef,
     VerusGlobal in verus_globals -> ast::VerusGlobal,
+    BroadcastGroup in broadcast_groups -> ast::BroadcastGroup,
+    BroadcastUse in broadcast_uses -> ast::BroadcastUse,
 }
 
 macro_rules! impl_index {
@@ -805,6 +813,23 @@ pub struct VerusGlobal {
     pub ast_id: FileAstId<ast::VerusGlobal>,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct BroadcastGroup {
+    /// `None` for `const _: () = ();`
+    // pub name: Option<Name>,
+    // pub visibility: RawVisibilityId,
+    // pub type_ref: Interned<TypeRef>,
+    pub ast_id: FileAstId<ast::BroadcastGroup>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct BroadcastUse {
+    /// `None` for `const _: () = ();`
+    // pub name: Option<Name>,
+    // pub visibility: RawVisibilityId,
+    // pub type_ref: Interned<TypeRef>,
+    pub ast_id: FileAstId<ast::BroadcastUse>,
+}
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Static {
     pub name: Name,
@@ -1045,11 +1070,13 @@ impl ModItem {
             | ModItem::Impl(_)
             | ModItem::Mod(_)
             | ModItem::MacroRules(_)
-            | ModItem::Macro2(_) => None,
+            | ModItem::Macro2(_)
+            | ModItem::BroadcastUse(_) => None,
             &ModItem::MacroCall(call) => Some(AssocItem::MacroCall(call)),
             &ModItem::Const(konst) => Some(AssocItem::Const(konst)),
             &ModItem::TypeAlias(alias) => Some(AssocItem::TypeAlias(alias)),
             &ModItem::VerusGlobal(global) => Some(AssocItem::VerusGlobal(global)),
+            &ModItem::BroadcastGroup(group) => Some(AssocItem::BroadcastGroup(group)),
             &ModItem::Function(func) => Some(AssocItem::Function(func)),
         }
     }
@@ -1074,6 +1101,8 @@ impl ModItem {
             ModItem::MacroRules(it) => tree[it.index()].ast_id().upcast(),
             ModItem::Macro2(it) => tree[it.index()].ast_id().upcast(),
             ModItem::VerusGlobal(it) => tree[it.index()].ast_id().upcast(),
+            ModItem::BroadcastGroup(it) => tree[it.index()].ast_id().upcast(),
+            ModItem::BroadcastUse(it) => tree[it.index()].ast_id().upcast(),
         }
     }
 }
@@ -1085,6 +1114,7 @@ pub enum AssocItem {
     Const(FileItemTreeId<Const>),
     MacroCall(FileItemTreeId<MacroCall>),
     VerusGlobal(FileItemTreeId<VerusGlobal>),
+    BroadcastGroup(FileItemTreeId<BroadcastGroup>),
 }
 
 impl_froms!(AssocItem {
@@ -1092,7 +1122,8 @@ impl_froms!(AssocItem {
     TypeAlias(FileItemTreeId<TypeAlias>),
     Const(FileItemTreeId<Const>),
     MacroCall(FileItemTreeId<MacroCall>),
-    VerusGlobal(FileItemTreeId<VerusGlobal>)
+    VerusGlobal(FileItemTreeId<VerusGlobal>),
+    BroadcastGroup(FileItemTreeId<BroadcastGroup>),
 });
 
 impl From<AssocItem> for ModItem {
@@ -1103,6 +1134,7 @@ impl From<AssocItem> for ModItem {
             AssocItem::Const(it) => it.into(),
             AssocItem::MacroCall(it) => it.into(),
             AssocItem::VerusGlobal(it) => it.into(),
+            AssocItem::BroadcastGroup(it) => it.into(),
         }
     }
 }
@@ -1115,6 +1147,7 @@ impl AssocItem {
             AssocItem::Const(id) => tree[id].ast_id.upcast(),
             AssocItem::MacroCall(id) => tree[id].ast_id.upcast(),
             AssocItem::VerusGlobal(_id) => todo!(), // tree[id].ast_id.upcast(),
+            AssocItem::BroadcastGroup(_id) => todo!(), // tree[id].ast_id.upcast(),
         }
     }
 }

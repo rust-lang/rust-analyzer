@@ -427,6 +427,21 @@ fn loop_expr(p: &mut Parser<'_>, m: Option<Marker>) -> CompletedMarker {
     assert!(p.at(T![loop]));
     let m = m.unwrap_or_else(|| p.start());
     p.bump(T![loop]);
+
+    // verus
+    if p.at(T![invariant_except_break]) {
+        verus::invariants_except_break(p);
+    }
+    if p.at(T![invariant]) {
+        verus::invariants(p);
+    }
+    if p.at(T![ensures]) {
+        verus::ensures(p);
+    }
+    if p.at(T![decreases]) {
+        verus::decreases(p);
+    }
+
     block_expr(p);
     m.complete(p, LOOP_EXPR)
 }
@@ -444,8 +459,14 @@ fn while_expr(p: &mut Parser<'_>, m: Option<Marker>) -> CompletedMarker {
     expr_no_struct(p);
 
     // verus
+    if p.at(T![invariant_except_break]) {
+        verus::invariants_except_break(p);
+    }
     if p.at(T![invariant]) {
         verus::invariants(p);
+    }
+    if p.at(T![ensures]) {
+        verus::ensures(p);
     }
     if p.at(T![decreases]) {
         verus::decreases(p);
@@ -465,7 +486,31 @@ fn for_expr(p: &mut Parser<'_>, m: Option<Marker>) -> CompletedMarker {
     p.bump(T![for]);
     patterns::pattern(p);
     p.expect(T![in]);
+    // verus allows us to (optionally) name the iterator
+    if p.at(IDENT) {
+        let m = p.start();
+        p.bump(IDENT);
+        m.complete(p, NAME);
+        p.expect(T![:]);
+    }
+    // end verus
+
     expr_no_struct(p);
+
+    // verus
+    if p.at(T![invariant_except_break]) {
+        verus::invariants_except_break(p);
+    }
+    if p.at(T![invariant]) {
+        verus::invariants(p);
+    }
+    if p.at(T![ensures]) {
+        verus::ensures(p);
+    }
+    if p.at(T![decreases]) {
+        verus::decreases(p);
+    }
+
     block_expr(p);
     m.complete(p, FOR_EXPR)
 }

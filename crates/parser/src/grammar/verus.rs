@@ -24,11 +24,11 @@ pub(crate) fn verus_ret_type(p: &mut Parser<'_>) -> () {
         if p.at(T![tracked]) {
             p.expect(T![tracked]);
         }
-        if p.at(T!['(']) {
+        if p.at(T!['(']) && p.nth_at(1, IDENT) && p.nth_at(2, T![:]) {
             // verus named param
-            p.expect(T!['(']);
+            p.bump(T!['(']);
             patterns::pattern(p);
-            p.expect(T![:]);
+            p.bump(T![:]);
             types::type_no_bounds(p);
             p.expect(T![')']);
         } else {
@@ -37,11 +37,43 @@ pub(crate) fn verus_ret_type(p: &mut Parser<'_>) -> () {
         m.complete(p, RET_TYPE);
     }
 }
+
 pub(crate) fn view_expr(p: &mut Parser<'_>, lhs: CompletedMarker) -> CompletedMarker {
     assert!(p.at(T![@]));
     let m = lhs.precede(p);
     p.bump(T![@]);
     m.complete(p, VIEW_EXPR)
+}
+
+pub(crate) fn is_expr(p: &mut Parser<'_>, lhs: CompletedMarker) -> CompletedMarker {
+    assert!(p.at(T![is]));
+    let m = lhs.precede(p);
+    p.bump(T![is]);
+    types::type_no_bounds(p);
+    m.complete(p, IS_EXPR)
+}
+
+pub(crate) fn matches_expr(p: &mut Parser<'_>, lhs: CompletedMarker) -> CompletedMarker {
+    assert!(p.at(T![matches]));
+    let m = lhs.precede(p);
+    p.bump(T![matches]);
+    patterns::pattern(p);
+    m.complete(p, MATCHES_EXPR)
+}
+
+pub(crate) fn arrow_expr(p: &mut Parser<'_>, lhs: CompletedMarker) -> CompletedMarker {
+    assert!(p.at(T![->]));
+    let m = lhs.precede(p);
+    p.bump(T![->]);
+    dbg!(p.current());
+    if p.at(IDENT) {
+        p.bump(IDENT);
+    } else if p.at(NAME_REF) {
+        p.bump(NAME_REF);
+    } else {
+        p.expect(INT_NUMBER);
+    }
+    m.complete(p, ARROW_EXPR)
 }
 
 pub(crate) fn publish(p: &mut Parser<'_>) -> CompletedMarker {
@@ -78,6 +110,45 @@ pub(crate) fn fn_mode(p: &mut Parser<'_>) -> CompletedMarker {
         p.error("Expected spec/spec(checked)/proof/exec.");
         m.complete(p, ERROR)
     }
+}
+
+pub(crate) fn broadcast_group(p: &mut Parser<'_>, m: Marker) -> CompletedMarker {
+    p.bump(T![group]);
+    p.bump(IDENT); // group name
+    p.expect(T!['{']);
+    while !p.at(EOF) && !p.at(T!['}']) {
+        attributes::inner_attrs(p);
+        paths::use_path(p);
+
+        if p.at(T!['}']) {
+            break;
+        }
+        if p.at(T![,]) {
+            p.bump(T![,]);
+        } else {
+            dbg!("broadcast_group at: {:?}", p.current());
+        }
+    }
+    p.expect(T!['}']);
+    m.complete(p, BROADCAST_GROUP)
+}
+
+pub(crate) fn broadcast_use_list(p: &mut Parser<'_>, m: Marker) -> CompletedMarker {
+    p.bump(T![use]);
+    while !p.at(EOF) && !p.at(T![;]) {
+        paths::use_path(p);
+
+        if p.at(T![;]) {
+            break;
+        }
+        if p.at(T![,]) {
+            p.bump(T![,]);
+        } else {
+            dbg!("broadcast_use_list at: {:?}", p.current());
+        }
+    }
+    p.expect(T![;]);
+    m.complete(p, BROADCAST_USE_LIST)
 }
 
 pub(crate) fn data_mode(p: &mut Parser<'_>) -> CompletedMarker {
@@ -280,6 +351,43 @@ pub(crate) fn ensures(p: &mut Parser<'_>) -> CompletedMarker {
         p.expect(T![,]);
     }
     m.complete(p, ENSURES_CLAUSE)
+}
+
+pub(crate) fn invariants_except_break(p: &mut Parser<'_>) -> CompletedMarker {
+    let m = p.start();
+    p.expect(T![invariant_except_break]);
+    expressions::expr_no_struct(p);
+
+    while !p.at(EOF) && !p.at(T![decreases]) && !p.at(T!['{']) && !p.at(T![;]) {
+        if p.at(T![invariant])
+            || p.at(T![recommends])
+            || p.at(T![ensures])
+            || p.at(T![decreases])
+            || p.at(T!['{'])
+        {
+            break;
+        }
+        if p.at(T![,]) {
+            if p.nth_at(1, T![recommends])
+                || p.nth_at(1, T![invariant])
+                || p.nth_at(1, T![ensures])
+                || p.nth_at(1, T![decreases])
+                || p.nth_at(1, T!['{'])
+            {
+                break;
+            } else {
+                comma_cond(p);
+            }
+        } else {
+            dbg!("invariant_except_breakss parse error");
+            p.error("TODO: please add COMMA after each invariant_except_break clause.");
+            return m.complete(p, ERROR);
+        }
+    }
+    if p.at(T![,]) {
+        p.expect(T![,]);
+    }
+    m.complete(p, INVARIANT_EXCEPT_BREAK_CLAUSE)
 }
 
 pub(crate) fn invariants(p: &mut Parser<'_>) -> CompletedMarker {

@@ -34,6 +34,14 @@ pub struct ArrayType {
     pub cst: Option<super::nodes::ArrayType>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ArrowExpr {
+    pub attrs: Vec<Attr>,
+    pub expr: Box<Expr>,
+    pub thin_arrow_token: bool,
+    pub name_ref: Option<Box<NameRef>>,
+    pub cst: Option<super::nodes::ArrowExpr>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AsmExpr {
     pub attrs: Vec<Attr>,
     pub builtin_token: bool,
@@ -146,6 +154,48 @@ pub struct BreakExpr {
     pub lifetime: Option<Box<Lifetime>>,
     pub expr: Option<Box<Expr>>,
     pub cst: Option<super::nodes::BreakExpr>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BroadcastGroup {
+    pub attrs: Vec<Attr>,
+    pub visibility: Option<Box<Visibility>>,
+    pub broadcast_token: bool,
+    pub group_token: bool,
+    pub broadcast_group_identifier: Box<BroadcastGroupIdentifier>,
+    pub broadcast_group_list: Box<BroadcastGroupList>,
+    pub cst: Option<super::nodes::BroadcastGroup>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BroadcastGroupIdentifier {
+    pub ident_token: Option<String>,
+    pub cst: Option<super::nodes::BroadcastGroupIdentifier>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BroadcastGroupList {
+    pub l_curly_token: bool,
+    pub broadcast_group_members: Vec<BroadcastGroupMember>,
+    pub r_curly_token: bool,
+    pub cst: Option<super::nodes::BroadcastGroupList>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BroadcastGroupMember {
+    pub attrs: Vec<Attr>,
+    pub path: Box<Path>,
+    pub cst: Option<super::nodes::BroadcastGroupMember>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BroadcastUse {
+    pub attrs: Vec<Attr>,
+    pub broadcast_token: bool,
+    pub use_token: bool,
+    pub broadcast_use_list: Box<BroadcastUseList>,
+    pub semicolon_token: bool,
+    pub cst: Option<super::nodes::BroadcastUse>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BroadcastUseList {
+    pub paths: Vec<Path>,
+    pub cst: Option<super::nodes::BroadcastUseList>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CallExpr {
@@ -309,6 +359,7 @@ pub struct Fn {
     pub async_token: bool,
     pub unsafe_token: bool,
     pub abi: Option<Box<Abi>>,
+    pub broadcast_token: bool,
     pub fn_mode: Option<Box<FnMode>>,
     pub fn_token: bool,
     pub name: Box<Name>,
@@ -351,6 +402,9 @@ pub struct ForExpr {
     pub for_token: bool,
     pub pat: Option<Box<Pat>>,
     pub in_token: bool,
+    pub iter_name: Option<Box<Name>>,
+    pub colon_token: bool,
+    pub loop_clauses: Vec<LoopClause>,
     pub loop_body: Box<BlockExpr>,
     pub cst: Option<super::nodes::ForExpr>,
 }
@@ -439,6 +493,20 @@ pub struct InvariantClause {
     pub cst: Option<super::nodes::InvariantClause>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct InvariantExceptBreakClause {
+    pub invariant_except_break_token: bool,
+    pub exprs: Vec<Expr>,
+    pub cst: Option<super::nodes::InvariantExceptBreakClause>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct IsExpr {
+    pub attrs: Vec<Attr>,
+    pub expr: Box<Expr>,
+    pub is_token: bool,
+    pub ty: Option<Box<Type>>,
+    pub cst: Option<super::nodes::IsExpr>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ItemList {
     pub l_curly_token: bool,
     pub attrs: Vec<Attr>,
@@ -511,6 +579,7 @@ pub struct LoopExpr {
     pub attrs: Vec<Attr>,
     pub label: Option<Box<Label>>,
     pub loop_token: bool,
+    pub loop_clauses: Vec<LoopClause>,
     pub loop_body: Box<BlockExpr>,
     pub cst: Option<super::nodes::LoopExpr>,
 }
@@ -610,6 +679,14 @@ pub struct MatchExpr {
 pub struct MatchGuard {
     pub if_token: bool,
     pub cst: Option<super::nodes::MatchGuard>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MatchesExpr {
+    pub attrs: Vec<Attr>,
+    pub expr: Box<Expr>,
+    pub matches_token: bool,
+    pub pat: Option<Box<Pat>>,
+    pub cst: Option<super::nodes::MatchesExpr>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Meta {
@@ -1263,8 +1340,7 @@ pub struct WhileExpr {
     pub attrs: Vec<Attr>,
     pub label: Option<Box<Label>>,
     pub while_token: bool,
-    pub invariant_clause: Option<Box<InvariantClause>>,
-    pub decreases_clause: Option<Box<DecreasesClause>>,
+    pub loop_clauses: Vec<LoopClause>,
     pub loop_body: Box<BlockExpr>,
     pub cst: Option<super::nodes::WhileExpr>,
 }
@@ -1296,6 +1372,7 @@ pub enum Adt {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AssocItem {
+    BroadcastGroup(Box<BroadcastGroup>),
     Const(Box<Const>),
     Fn(Box<Fn>),
     MacroCall(Box<MacroCall>),
@@ -1304,6 +1381,7 @@ pub enum AssocItem {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
     ArrayExpr(Box<ArrayExpr>),
+    ArrowExpr(Box<ArrowExpr>),
     AsmExpr(Box<AsmExpr>),
     AssertExpr(Box<AssertExpr>),
     AssertForallExpr(Box<AssertForallExpr>),
@@ -1322,11 +1400,13 @@ pub enum Expr {
     FormatArgsExpr(Box<FormatArgsExpr>),
     IfExpr(Box<IfExpr>),
     IndexExpr(Box<IndexExpr>),
+    IsExpr(Box<IsExpr>),
     LetExpr(Box<LetExpr>),
     Literal(Box<Literal>),
     LoopExpr(Box<LoopExpr>),
     MacroExpr(Box<MacroExpr>),
     MatchExpr(Box<MatchExpr>),
+    MatchesExpr(Box<MatchesExpr>),
     MethodCallExpr(Box<MethodCallExpr>),
     OffsetOfExpr(Box<OffsetOfExpr>),
     ParenExpr(Box<ParenExpr>),
@@ -1371,6 +1451,8 @@ pub enum GenericParam {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Item {
+    BroadcastGroup(Box<BroadcastGroup>),
+    BroadcastUse(Box<BroadcastUse>),
     Const(Box<Const>),
     Enum(Box<Enum>),
     ExternBlock(Box<ExternBlock>),
@@ -1389,6 +1471,13 @@ pub enum Item {
     Union(Box<Union>),
     Use(Box<Use>),
     VerusGlobal(Box<VerusGlobal>),
+}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum LoopClause {
+    DecreasesClause(Box<DecreasesClause>),
+    EnsuresClause(Box<EnsuresClause>),
+    InvariantClause(Box<InvariantClause>),
+    InvariantExceptBreakClause(Box<InvariantExceptBreakClause>),
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Pat {
@@ -1495,6 +1584,29 @@ impl TryFrom<super::nodes::ArrayType> for ArrayType {
                     .map(|it| ConstArg::try_from(it))??,
             ),
             r_brack_token: item.r_brack_token().is_some(),
+            cst: Some(item.clone()),
+        })
+    }
+}
+impl TryFrom<super::nodes::ArrowExpr> for ArrowExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::ArrowExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
+            thin_arrow_token: item.thin_arrow_token().is_some(),
+            name_ref: match item.name_ref() {
+                Some(it) => Some(Box::new(NameRef::try_from(it)?)),
+                None => None,
+            },
             cst: Some(item.clone()),
         })
     }
@@ -1750,6 +1862,111 @@ impl TryFrom<super::nodes::BreakExpr> for BreakExpr {
                 Some(it) => Some(Box::new(Expr::try_from(it)?)),
                 None => None,
             },
+            cst: Some(item.clone()),
+        })
+    }
+}
+impl TryFrom<super::nodes::BroadcastGroup> for BroadcastGroup {
+    type Error = String;
+    fn try_from(item: super::nodes::BroadcastGroup) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            visibility: match item.visibility() {
+                Some(it) => Some(Box::new(Visibility::try_from(it)?)),
+                None => None,
+            },
+            broadcast_token: item.broadcast_token().is_some(),
+            group_token: item.group_token().is_some(),
+            broadcast_group_identifier: Box::new(
+                item.broadcast_group_identifier()
+                    .ok_or(format!("{}", stringify!(broadcast_group_identifier)))
+                    .map(|it| BroadcastGroupIdentifier::try_from(it))??,
+            ),
+            broadcast_group_list: Box::new(
+                item.broadcast_group_list()
+                    .ok_or(format!("{}", stringify!(broadcast_group_list)))
+                    .map(|it| BroadcastGroupList::try_from(it))??,
+            ),
+            cst: Some(item.clone()),
+        })
+    }
+}
+impl TryFrom<super::nodes::BroadcastGroupIdentifier> for BroadcastGroupIdentifier {
+    type Error = String;
+    fn try_from(item: super::nodes::BroadcastGroupIdentifier) -> Result<Self, Self::Error> {
+        Ok(Self {
+            ident_token: item.ident_token().map(|it| it.text().to_string()),
+            cst: Some(item.clone()),
+        })
+    }
+}
+impl TryFrom<super::nodes::BroadcastGroupList> for BroadcastGroupList {
+    type Error = String;
+    fn try_from(item: super::nodes::BroadcastGroupList) -> Result<Self, Self::Error> {
+        Ok(Self {
+            l_curly_token: item.l_curly_token().is_some(),
+            broadcast_group_members: item
+                .broadcast_group_members()
+                .into_iter()
+                .map(BroadcastGroupMember::try_from)
+                .collect::<Result<Vec<BroadcastGroupMember>, String>>()?,
+            r_curly_token: item.r_curly_token().is_some(),
+            cst: Some(item.clone()),
+        })
+    }
+}
+impl TryFrom<super::nodes::BroadcastGroupMember> for BroadcastGroupMember {
+    type Error = String;
+    fn try_from(item: super::nodes::BroadcastGroupMember) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            path: Box::new(
+                item.path()
+                    .ok_or(format!("{}", stringify!(path)))
+                    .map(|it| Path::try_from(it))??,
+            ),
+            cst: Some(item.clone()),
+        })
+    }
+}
+impl TryFrom<super::nodes::BroadcastUse> for BroadcastUse {
+    type Error = String;
+    fn try_from(item: super::nodes::BroadcastUse) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            broadcast_token: item.broadcast_token().is_some(),
+            use_token: item.use_token().is_some(),
+            broadcast_use_list: Box::new(
+                item.broadcast_use_list()
+                    .ok_or(format!("{}", stringify!(broadcast_use_list)))
+                    .map(|it| BroadcastUseList::try_from(it))??,
+            ),
+            semicolon_token: item.semicolon_token().is_some(),
+            cst: Some(item.clone()),
+        })
+    }
+}
+impl TryFrom<super::nodes::BroadcastUseList> for BroadcastUseList {
+    type Error = String;
+    fn try_from(item: super::nodes::BroadcastUseList) -> Result<Self, Self::Error> {
+        Ok(Self {
+            paths: item
+                .paths()
+                .into_iter()
+                .map(Path::try_from)
+                .collect::<Result<Vec<Path>, String>>()?,
             cst: Some(item.clone()),
         })
     }
@@ -2172,6 +2389,7 @@ impl TryFrom<super::nodes::Fn> for Fn {
                 Some(it) => Some(Box::new(Abi::try_from(it)?)),
                 None => None,
             },
+            broadcast_token: item.broadcast_token().is_some(),
             fn_mode: match item.fn_mode() {
                 Some(it) => Some(Box::new(FnMode::try_from(it)?)),
                 None => None,
@@ -2285,6 +2503,16 @@ impl TryFrom<super::nodes::ForExpr> for ForExpr {
                 None => None,
             },
             in_token: item.in_token().is_some(),
+            iter_name: match item.iter_name() {
+                Some(it) => Some(Box::new(Name::try_from(it)?)),
+                None => None,
+            },
+            colon_token: item.colon_token().is_some(),
+            loop_clauses: item
+                .loop_clauses()
+                .into_iter()
+                .map(LoopClause::try_from)
+                .collect::<Result<Vec<LoopClause>, String>>()?,
             loop_body: Box::new(
                 item.loop_body()
                     .ok_or(format!("{}", stringify!(loop_body)))
@@ -2485,6 +2713,43 @@ impl TryFrom<super::nodes::InvariantClause> for InvariantClause {
         })
     }
 }
+impl TryFrom<super::nodes::InvariantExceptBreakClause> for InvariantExceptBreakClause {
+    type Error = String;
+    fn try_from(item: super::nodes::InvariantExceptBreakClause) -> Result<Self, Self::Error> {
+        Ok(Self {
+            invariant_except_break_token: item.invariant_except_break_token().is_some(),
+            exprs: item
+                .exprs()
+                .into_iter()
+                .map(Expr::try_from)
+                .collect::<Result<Vec<Expr>, String>>()?,
+            cst: Some(item.clone()),
+        })
+    }
+}
+impl TryFrom<super::nodes::IsExpr> for IsExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::IsExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
+            is_token: item.is_token().is_some(),
+            ty: match item.ty() {
+                Some(it) => Some(Box::new(Type::try_from(it)?)),
+                None => None,
+            },
+            cst: Some(item.clone()),
+        })
+    }
+}
 impl TryFrom<super::nodes::ItemList> for ItemList {
     type Error = String;
     fn try_from(item: super::nodes::ItemList) -> Result<Self, Self::Error> {
@@ -2666,6 +2931,11 @@ impl TryFrom<super::nodes::LoopExpr> for LoopExpr {
                 None => None,
             },
             loop_token: item.loop_token().is_some(),
+            loop_clauses: item
+                .loop_clauses()
+                .into_iter()
+                .map(LoopClause::try_from)
+                .collect::<Result<Vec<LoopClause>, String>>()?,
             loop_body: Box::new(
                 item.loop_body()
                     .ok_or(format!("{}", stringify!(loop_body)))
@@ -2925,6 +3195,29 @@ impl TryFrom<super::nodes::MatchGuard> for MatchGuard {
     type Error = String;
     fn try_from(item: super::nodes::MatchGuard) -> Result<Self, Self::Error> {
         Ok(Self { if_token: item.if_token().is_some(), cst: Some(item.clone()) })
+    }
+}
+impl TryFrom<super::nodes::MatchesExpr> for MatchesExpr {
+    type Error = String;
+    fn try_from(item: super::nodes::MatchesExpr) -> Result<Self, Self::Error> {
+        Ok(Self {
+            attrs: item
+                .attrs()
+                .into_iter()
+                .map(Attr::try_from)
+                .collect::<Result<Vec<Attr>, String>>()?,
+            expr: Box::new(
+                item.expr()
+                    .ok_or(format!("{}", stringify!(expr)))
+                    .map(|it| Expr::try_from(it))??,
+            ),
+            matches_token: item.matches_token().is_some(),
+            pat: match item.pat() {
+                Some(it) => Some(Box::new(Pat::try_from(it)?)),
+                None => None,
+            },
+            cst: Some(item.clone()),
+        })
     }
 }
 impl TryFrom<super::nodes::Meta> for Meta {
@@ -4508,14 +4801,11 @@ impl TryFrom<super::nodes::WhileExpr> for WhileExpr {
                 None => None,
             },
             while_token: item.while_token().is_some(),
-            invariant_clause: match item.invariant_clause() {
-                Some(it) => Some(Box::new(InvariantClause::try_from(it)?)),
-                None => None,
-            },
-            decreases_clause: match item.decreases_clause() {
-                Some(it) => Some(Box::new(DecreasesClause::try_from(it)?)),
-                None => None,
-            },
+            loop_clauses: item
+                .loop_clauses()
+                .into_iter()
+                .map(LoopClause::try_from)
+                .collect::<Result<Vec<LoopClause>, String>>()?,
             loop_body: Box::new(
                 item.loop_body()
                     .ok_or(format!("{}", stringify!(loop_body)))
@@ -4582,6 +4872,9 @@ impl TryFrom<super::nodes::AssocItem> for AssocItem {
     type Error = String;
     fn try_from(item: super::nodes::AssocItem) -> Result<Self, Self::Error> {
         match item {
+            super::nodes::AssocItem::BroadcastGroup(it) => {
+                Ok(Self::BroadcastGroup(Box::new(it.try_into()?)))
+            }
             super::nodes::AssocItem::Const(it) => Ok(Self::Const(Box::new(it.try_into()?))),
             super::nodes::AssocItem::Fn(it) => Ok(Self::Fn(Box::new(it.try_into()?))),
             super::nodes::AssocItem::MacroCall(it) => Ok(Self::MacroCall(Box::new(it.try_into()?))),
@@ -4594,6 +4887,7 @@ impl TryFrom<super::nodes::Expr> for Expr {
     fn try_from(item: super::nodes::Expr) -> Result<Self, Self::Error> {
         match item {
             super::nodes::Expr::ArrayExpr(it) => Ok(Self::ArrayExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::ArrowExpr(it) => Ok(Self::ArrowExpr(Box::new(it.try_into()?))),
             super::nodes::Expr::AsmExpr(it) => Ok(Self::AsmExpr(Box::new(it.try_into()?))),
             super::nodes::Expr::AssertExpr(it) => Ok(Self::AssertExpr(Box::new(it.try_into()?))),
             super::nodes::Expr::AssertForallExpr(it) => {
@@ -4618,11 +4912,13 @@ impl TryFrom<super::nodes::Expr> for Expr {
             }
             super::nodes::Expr::IfExpr(it) => Ok(Self::IfExpr(Box::new(it.try_into()?))),
             super::nodes::Expr::IndexExpr(it) => Ok(Self::IndexExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::IsExpr(it) => Ok(Self::IsExpr(Box::new(it.try_into()?))),
             super::nodes::Expr::LetExpr(it) => Ok(Self::LetExpr(Box::new(it.try_into()?))),
             super::nodes::Expr::Literal(it) => Ok(Self::Literal(Box::new(it.try_into()?))),
             super::nodes::Expr::LoopExpr(it) => Ok(Self::LoopExpr(Box::new(it.try_into()?))),
             super::nodes::Expr::MacroExpr(it) => Ok(Self::MacroExpr(Box::new(it.try_into()?))),
             super::nodes::Expr::MatchExpr(it) => Ok(Self::MatchExpr(Box::new(it.try_into()?))),
+            super::nodes::Expr::MatchesExpr(it) => Ok(Self::MatchesExpr(Box::new(it.try_into()?))),
             super::nodes::Expr::MethodCallExpr(it) => {
                 Ok(Self::MethodCallExpr(Box::new(it.try_into()?)))
             }
@@ -4711,6 +5007,12 @@ impl TryFrom<super::nodes::Item> for Item {
     type Error = String;
     fn try_from(item: super::nodes::Item) -> Result<Self, Self::Error> {
         match item {
+            super::nodes::Item::BroadcastGroup(it) => {
+                Ok(Self::BroadcastGroup(Box::new(it.try_into()?)))
+            }
+            super::nodes::Item::BroadcastUse(it) => {
+                Ok(Self::BroadcastUse(Box::new(it.try_into()?)))
+            }
             super::nodes::Item::Const(it) => Ok(Self::Const(Box::new(it.try_into()?))),
             super::nodes::Item::Enum(it) => Ok(Self::Enum(Box::new(it.try_into()?))),
             super::nodes::Item::ExternBlock(it) => Ok(Self::ExternBlock(Box::new(it.try_into()?))),
@@ -4729,6 +5031,25 @@ impl TryFrom<super::nodes::Item> for Item {
             super::nodes::Item::Union(it) => Ok(Self::Union(Box::new(it.try_into()?))),
             super::nodes::Item::Use(it) => Ok(Self::Use(Box::new(it.try_into()?))),
             super::nodes::Item::VerusGlobal(it) => Ok(Self::VerusGlobal(Box::new(it.try_into()?))),
+        }
+    }
+}
+impl TryFrom<super::nodes::LoopClause> for LoopClause {
+    type Error = String;
+    fn try_from(item: super::nodes::LoopClause) -> Result<Self, Self::Error> {
+        match item {
+            super::nodes::LoopClause::DecreasesClause(it) => {
+                Ok(Self::DecreasesClause(Box::new(it.try_into()?)))
+            }
+            super::nodes::LoopClause::EnsuresClause(it) => {
+                Ok(Self::EnsuresClause(Box::new(it.try_into()?)))
+            }
+            super::nodes::LoopClause::InvariantClause(it) => {
+                Ok(Self::InvariantClause(Box::new(it.try_into()?)))
+            }
+            super::nodes::LoopClause::InvariantExceptBreakClause(it) => {
+                Ok(Self::InvariantExceptBreakClause(Box::new(it.try_into()?)))
+            }
         }
     }
 }
@@ -4859,6 +5180,25 @@ impl std::fmt::Display for ArrayType {
             let mut tmp = stringify!(r_brack_token).to_string();
             tmp.truncate(tmp.len() - 6);
             s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for ArrowExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        if self.thin_arrow_token {
+            let mut tmp = stringify!(thin_arrow_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.name_ref {
+            s.push_str(&it.to_string());
             s.push_str(" ");
         }
         write!(f, "{s}")
@@ -5166,6 +5506,112 @@ impl std::fmt::Display for BreakExpr {
             s.push_str(&it.to_string());
             s.push_str(" ");
         }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for BroadcastGroup {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if let Some(it) = &self.visibility {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.broadcast_token {
+            let mut tmp = stringify!(broadcast_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.group_token {
+            let mut tmp = stringify!(group_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.broadcast_group_identifier.to_string());
+        s.push_str(" ");
+        s.push_str(&self.broadcast_group_list.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for BroadcastGroupIdentifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if let Some(it) = &self.ident_token {
+            s.push_str(&it);
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for BroadcastGroupList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.l_curly_token {
+            let mut tmp = stringify!(l_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(
+            &self
+                .broadcast_group_members
+                .iter()
+                .map(|it| it.to_string())
+                .collect::<Vec<String>>()
+                .join(" "),
+        );
+        if self.r_curly_token {
+            let mut tmp = stringify!(r_curly_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for BroadcastGroupMember {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.path.to_string());
+        s.push_str(" ");
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for BroadcastUse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        if self.broadcast_token {
+            let mut tmp = stringify!(broadcast_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if self.use_token {
+            let mut tmp = stringify!(use_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.broadcast_use_list.to_string());
+        s.push_str(" ");
+        if self.semicolon_token {
+            let mut tmp = stringify!(semicolon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for BroadcastUseList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.paths.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
         write!(f, "{s}")
     }
 }
@@ -5631,6 +6077,12 @@ impl std::fmt::Display for Fn {
             s.push_str(&it.to_string());
             s.push_str(" ");
         }
+        if self.broadcast_token {
+            let mut tmp = stringify!(broadcast_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
         if let Some(it) = &self.fn_mode {
             s.push_str(&it.to_string());
             s.push_str(" ");
@@ -5786,6 +6238,19 @@ impl std::fmt::Display for ForExpr {
             s.push_str(token_ascii(&tmp));
             s.push_str(" ");
         }
+        if let Some(it) = &self.iter_name {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        if self.colon_token {
+            let mut tmp = stringify!(colon_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(
+            &self.loop_clauses.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
+        );
         s.push_str(&self.loop_body.to_string());
         s.push_str(" ");
         write!(f, "{s}")
@@ -6048,6 +6513,38 @@ impl std::fmt::Display for InvariantClause {
         write!(f, "{s}")
     }
 }
+impl std::fmt::Display for InvariantExceptBreakClause {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        if self.invariant_except_break_token {
+            let mut tmp = stringify!(invariant_except_break_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        s.push_str(&self.exprs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for IsExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        if self.is_token {
+            let mut tmp = stringify!(is_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.ty {
+            s.push_str(&it.to_string());
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
 impl std::fmt::Display for ItemList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = String::new();
@@ -6243,6 +6740,9 @@ impl std::fmt::Display for LoopExpr {
             s.push_str(token_ascii(&tmp));
             s.push_str(" ");
         }
+        s.push_str(
+            &self.loop_clauses.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
+        );
         s.push_str(&self.loop_body.to_string());
         s.push_str(" ");
         write!(f, "{s}")
@@ -6483,6 +6983,25 @@ impl std::fmt::Display for MatchGuard {
             let mut tmp = stringify!(if_token).to_string();
             tmp.truncate(tmp.len() - 6);
             s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        write!(f, "{s}")
+    }
+}
+impl std::fmt::Display for MatchesExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = String::new();
+        s.push_str(&self.attrs.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "));
+        s.push_str(&self.expr.to_string());
+        s.push_str(" ");
+        if self.matches_token {
+            let mut tmp = stringify!(matches_token).to_string();
+            tmp.truncate(tmp.len() - 6);
+            s.push_str(token_ascii(&tmp));
+            s.push_str(" ");
+        }
+        if let Some(it) = &self.pat {
+            s.push_str(&it.to_string());
             s.push_str(" ");
         }
         write!(f, "{s}")
@@ -8380,14 +8899,9 @@ impl std::fmt::Display for WhileExpr {
             s.push_str(token_ascii(&tmp));
             s.push_str(" ");
         }
-        if let Some(it) = &self.invariant_clause {
-            s.push_str(&it.to_string());
-            s.push_str(" ");
-        }
-        if let Some(it) = &self.decreases_clause {
-            s.push_str(&it.to_string());
-            s.push_str(" ");
-        }
+        s.push_str(
+            &self.loop_clauses.iter().map(|it| it.to_string()).collect::<Vec<String>>().join(" "),
+        );
         s.push_str(&self.loop_body.to_string());
         s.push_str(" ");
         write!(f, "{s}")
@@ -8457,6 +8971,7 @@ impl std::fmt::Display for Adt {
 impl std::fmt::Display for AssocItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            AssocItem::BroadcastGroup(it) => write!(f, "{}", it.to_string()),
             AssocItem::Const(it) => write!(f, "{}", it.to_string()),
             AssocItem::Fn(it) => write!(f, "{}", it.to_string()),
             AssocItem::MacroCall(it) => write!(f, "{}", it.to_string()),
@@ -8468,6 +8983,7 @@ impl std::fmt::Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expr::ArrayExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::ArrowExpr(it) => write!(f, "{}", it.to_string()),
             Expr::AsmExpr(it) => write!(f, "{}", it.to_string()),
             Expr::AssertExpr(it) => write!(f, "{}", it.to_string()),
             Expr::AssertForallExpr(it) => write!(f, "{}", it.to_string()),
@@ -8486,11 +9002,13 @@ impl std::fmt::Display for Expr {
             Expr::FormatArgsExpr(it) => write!(f, "{}", it.to_string()),
             Expr::IfExpr(it) => write!(f, "{}", it.to_string()),
             Expr::IndexExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::IsExpr(it) => write!(f, "{}", it.to_string()),
             Expr::LetExpr(it) => write!(f, "{}", it.to_string()),
             Expr::Literal(it) => write!(f, "{}", it.to_string()),
             Expr::LoopExpr(it) => write!(f, "{}", it.to_string()),
             Expr::MacroExpr(it) => write!(f, "{}", it.to_string()),
             Expr::MatchExpr(it) => write!(f, "{}", it.to_string()),
+            Expr::MatchesExpr(it) => write!(f, "{}", it.to_string()),
             Expr::MethodCallExpr(it) => write!(f, "{}", it.to_string()),
             Expr::OffsetOfExpr(it) => write!(f, "{}", it.to_string()),
             Expr::ParenExpr(it) => write!(f, "{}", it.to_string()),
@@ -8550,6 +9068,8 @@ impl std::fmt::Display for GenericParam {
 impl std::fmt::Display for Item {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Item::BroadcastGroup(it) => write!(f, "{}", it.to_string()),
+            Item::BroadcastUse(it) => write!(f, "{}", it.to_string()),
             Item::Const(it) => write!(f, "{}", it.to_string()),
             Item::Enum(it) => write!(f, "{}", it.to_string()),
             Item::ExternBlock(it) => write!(f, "{}", it.to_string()),
@@ -8568,6 +9088,16 @@ impl std::fmt::Display for Item {
             Item::Union(it) => write!(f, "{}", it.to_string()),
             Item::Use(it) => write!(f, "{}", it.to_string()),
             Item::VerusGlobal(it) => write!(f, "{}", it.to_string()),
+        }
+    }
+}
+impl std::fmt::Display for LoopClause {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LoopClause::DecreasesClause(it) => write!(f, "{}", it.to_string()),
+            LoopClause::EnsuresClause(it) => write!(f, "{}", it.to_string()),
+            LoopClause::InvariantClause(it) => write!(f, "{}", it.to_string()),
+            LoopClause::InvariantExceptBreakClause(it) => write!(f, "{}", it.to_string()),
         }
     }
 }
@@ -8634,6 +9164,9 @@ impl Adt {
 impl AssocItem {
     pub fn cst(&self) -> Option<super::nodes::AssocItem> {
         match self {
+            AssocItem::BroadcastGroup(it) => {
+                Some(super::nodes::AssocItem::BroadcastGroup(it.cst.as_ref()?.clone()))
+            }
             AssocItem::Const(it) => Some(super::nodes::AssocItem::Const(it.cst.as_ref()?.clone())),
             AssocItem::Fn(it) => Some(super::nodes::AssocItem::Fn(it.cst.as_ref()?.clone())),
             AssocItem::MacroCall(it) => {
@@ -8649,6 +9182,7 @@ impl Expr {
     pub fn cst(&self) -> Option<super::nodes::Expr> {
         match self {
             Expr::ArrayExpr(it) => Some(super::nodes::Expr::ArrayExpr(it.cst.as_ref()?.clone())),
+            Expr::ArrowExpr(it) => Some(super::nodes::Expr::ArrowExpr(it.cst.as_ref()?.clone())),
             Expr::AsmExpr(it) => Some(super::nodes::Expr::AsmExpr(it.cst.as_ref()?.clone())),
             Expr::AssertExpr(it) => Some(super::nodes::Expr::AssertExpr(it.cst.as_ref()?.clone())),
             Expr::AssertForallExpr(it) => {
@@ -8675,11 +9209,15 @@ impl Expr {
             }
             Expr::IfExpr(it) => Some(super::nodes::Expr::IfExpr(it.cst.as_ref()?.clone())),
             Expr::IndexExpr(it) => Some(super::nodes::Expr::IndexExpr(it.cst.as_ref()?.clone())),
+            Expr::IsExpr(it) => Some(super::nodes::Expr::IsExpr(it.cst.as_ref()?.clone())),
             Expr::LetExpr(it) => Some(super::nodes::Expr::LetExpr(it.cst.as_ref()?.clone())),
             Expr::Literal(it) => Some(super::nodes::Expr::Literal(it.cst.as_ref()?.clone())),
             Expr::LoopExpr(it) => Some(super::nodes::Expr::LoopExpr(it.cst.as_ref()?.clone())),
             Expr::MacroExpr(it) => Some(super::nodes::Expr::MacroExpr(it.cst.as_ref()?.clone())),
             Expr::MatchExpr(it) => Some(super::nodes::Expr::MatchExpr(it.cst.as_ref()?.clone())),
+            Expr::MatchesExpr(it) => {
+                Some(super::nodes::Expr::MatchesExpr(it.cst.as_ref()?.clone()))
+            }
             Expr::MethodCallExpr(it) => {
                 Some(super::nodes::Expr::MethodCallExpr(it.cst.as_ref()?.clone()))
             }
@@ -8769,6 +9307,12 @@ impl GenericParam {
 impl Item {
     pub fn cst(&self) -> Option<super::nodes::Item> {
         match self {
+            Item::BroadcastGroup(it) => {
+                Some(super::nodes::Item::BroadcastGroup(it.cst.as_ref()?.clone()))
+            }
+            Item::BroadcastUse(it) => {
+                Some(super::nodes::Item::BroadcastUse(it.cst.as_ref()?.clone()))
+            }
             Item::Const(it) => Some(super::nodes::Item::Const(it.cst.as_ref()?.clone())),
             Item::Enum(it) => Some(super::nodes::Item::Enum(it.cst.as_ref()?.clone())),
             Item::ExternBlock(it) => {
@@ -8792,6 +9336,24 @@ impl Item {
             Item::Use(it) => Some(super::nodes::Item::Use(it.cst.as_ref()?.clone())),
             Item::VerusGlobal(it) => {
                 Some(super::nodes::Item::VerusGlobal(it.cst.as_ref()?.clone()))
+            }
+        }
+    }
+}
+impl LoopClause {
+    pub fn cst(&self) -> Option<super::nodes::LoopClause> {
+        match self {
+            LoopClause::DecreasesClause(it) => {
+                Some(super::nodes::LoopClause::DecreasesClause(it.cst.as_ref()?.clone()))
+            }
+            LoopClause::EnsuresClause(it) => {
+                Some(super::nodes::LoopClause::EnsuresClause(it.cst.as_ref()?.clone()))
+            }
+            LoopClause::InvariantClause(it) => {
+                Some(super::nodes::LoopClause::InvariantClause(it.cst.as_ref()?.clone()))
+            }
+            LoopClause::InvariantExceptBreakClause(it) => {
+                Some(super::nodes::LoopClause::InvariantExceptBreakClause(it.cst.as_ref()?.clone()))
             }
         }
     }
@@ -8864,6 +9426,9 @@ impl From<Struct> for Adt {
 impl From<Union> for Adt {
     fn from(item: Union) -> Self { Adt::Union(Box::new(item)) }
 }
+impl From<BroadcastGroup> for AssocItem {
+    fn from(item: BroadcastGroup) -> Self { AssocItem::BroadcastGroup(Box::new(item)) }
+}
 impl From<Const> for AssocItem {
     fn from(item: Const) -> Self { AssocItem::Const(Box::new(item)) }
 }
@@ -8878,6 +9443,9 @@ impl From<TypeAlias> for AssocItem {
 }
 impl From<ArrayExpr> for Expr {
     fn from(item: ArrayExpr) -> Self { Expr::ArrayExpr(Box::new(item)) }
+}
+impl From<ArrowExpr> for Expr {
+    fn from(item: ArrowExpr) -> Self { Expr::ArrowExpr(Box::new(item)) }
 }
 impl From<AsmExpr> for Expr {
     fn from(item: AsmExpr) -> Self { Expr::AsmExpr(Box::new(item)) }
@@ -8933,6 +9501,9 @@ impl From<IfExpr> for Expr {
 impl From<IndexExpr> for Expr {
     fn from(item: IndexExpr) -> Self { Expr::IndexExpr(Box::new(item)) }
 }
+impl From<IsExpr> for Expr {
+    fn from(item: IsExpr) -> Self { Expr::IsExpr(Box::new(item)) }
+}
 impl From<LetExpr> for Expr {
     fn from(item: LetExpr) -> Self { Expr::LetExpr(Box::new(item)) }
 }
@@ -8947,6 +9518,9 @@ impl From<MacroExpr> for Expr {
 }
 impl From<MatchExpr> for Expr {
     fn from(item: MatchExpr) -> Self { Expr::MatchExpr(Box::new(item)) }
+}
+impl From<MatchesExpr> for Expr {
+    fn from(item: MatchesExpr) -> Self { Expr::MatchesExpr(Box::new(item)) }
 }
 impl From<MethodCallExpr> for Expr {
     fn from(item: MethodCallExpr) -> Self { Expr::MethodCallExpr(Box::new(item)) }
@@ -9035,6 +9609,12 @@ impl From<LifetimeParam> for GenericParam {
 impl From<TypeParam> for GenericParam {
     fn from(item: TypeParam) -> Self { GenericParam::TypeParam(Box::new(item)) }
 }
+impl From<BroadcastGroup> for Item {
+    fn from(item: BroadcastGroup) -> Self { Item::BroadcastGroup(Box::new(item)) }
+}
+impl From<BroadcastUse> for Item {
+    fn from(item: BroadcastUse) -> Self { Item::BroadcastUse(Box::new(item)) }
+}
 impl From<Const> for Item {
     fn from(item: Const) -> Self { Item::Const(Box::new(item)) }
 }
@@ -9088,6 +9668,20 @@ impl From<Use> for Item {
 }
 impl From<VerusGlobal> for Item {
     fn from(item: VerusGlobal) -> Self { Item::VerusGlobal(Box::new(item)) }
+}
+impl From<DecreasesClause> for LoopClause {
+    fn from(item: DecreasesClause) -> Self { LoopClause::DecreasesClause(Box::new(item)) }
+}
+impl From<EnsuresClause> for LoopClause {
+    fn from(item: EnsuresClause) -> Self { LoopClause::EnsuresClause(Box::new(item)) }
+}
+impl From<InvariantClause> for LoopClause {
+    fn from(item: InvariantClause) -> Self { LoopClause::InvariantClause(Box::new(item)) }
+}
+impl From<InvariantExceptBreakClause> for LoopClause {
+    fn from(item: InvariantExceptBreakClause) -> Self {
+        LoopClause::InvariantExceptBreakClause(Box::new(item))
+    }
 }
 impl From<BoxPat> for Pat {
     fn from(item: BoxPat) -> Self { Pat::BoxPat(Box::new(item)) }
@@ -9220,6 +9814,20 @@ impl ArrayType {
             semicolon_token: true,
             const_arg: Box::new(const_arg),
             r_brack_token: true,
+            cst: None,
+        }
+    }
+}
+impl ArrowExpr {
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
+        Self {
+            attrs: vec![],
+            expr: Box::new(expr.into()),
+            thin_arrow_token: true,
+            name_ref: None,
             cst: None,
         }
     }
@@ -9371,6 +9979,53 @@ impl BreakExpr {
     pub fn new() -> Self {
         Self { attrs: vec![], break_token: true, lifetime: None, expr: None, cst: None }
     }
+}
+impl BroadcastGroup {
+    pub fn new(
+        broadcast_group_identifier: BroadcastGroupIdentifier,
+        broadcast_group_list: BroadcastGroupList,
+    ) -> Self {
+        Self {
+            attrs: vec![],
+            visibility: None,
+            broadcast_token: true,
+            group_token: true,
+            broadcast_group_identifier: Box::new(broadcast_group_identifier),
+            broadcast_group_list: Box::new(broadcast_group_list),
+            cst: None,
+        }
+    }
+}
+impl BroadcastGroupIdentifier {
+    pub fn new() -> Self { Self { ident_token: None, cst: None } }
+}
+impl BroadcastGroupList {
+    pub fn new() -> Self {
+        Self {
+            l_curly_token: true,
+            broadcast_group_members: vec![],
+            r_curly_token: true,
+            cst: None,
+        }
+    }
+}
+impl BroadcastGroupMember {
+    pub fn new(path: Path) -> Self { Self { attrs: vec![], path: Box::new(path), cst: None } }
+}
+impl BroadcastUse {
+    pub fn new(broadcast_use_list: BroadcastUseList) -> Self {
+        Self {
+            attrs: vec![],
+            broadcast_token: true,
+            use_token: true,
+            broadcast_use_list: Box::new(broadcast_use_list),
+            semicolon_token: true,
+            cst: None,
+        }
+    }
+}
+impl BroadcastUseList {
+    pub fn new() -> Self { Self { paths: vec![], cst: None } }
 }
 impl CallExpr {
     pub fn new<ET0>(expr: ET0, arg_list: ArgList) -> Self
@@ -9548,6 +10203,7 @@ impl Fn {
             async_token: false,
             unsafe_token: false,
             abi: None,
+            broadcast_token: false,
             fn_mode: None,
             fn_token: true,
             name: Box::new(name),
@@ -9599,6 +10255,9 @@ impl ForExpr {
             for_token: true,
             pat: None,
             in_token: true,
+            iter_name: None,
+            colon_token: false,
+            loop_clauses: vec![],
             loop_body: Box::new(loop_body),
             cst: None,
         }
@@ -9699,6 +10358,17 @@ impl InferType {
 impl InvariantClause {
     pub fn new() -> Self { Self { invariant_token: true, exprs: vec![], cst: None } }
 }
+impl InvariantExceptBreakClause {
+    pub fn new() -> Self { Self { invariant_except_break_token: true, exprs: vec![], cst: None } }
+}
+impl IsExpr {
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
+        Self { attrs: vec![], expr: Box::new(expr.into()), is_token: true, ty: None, cst: None }
+    }
+}
 impl ItemList {
     pub fn new() -> Self {
         Self { l_curly_token: true, attrs: vec![], items: vec![], r_curly_token: true, cst: None }
@@ -9778,6 +10448,7 @@ impl LoopExpr {
             attrs: vec![],
             label: None,
             loop_token: true,
+            loop_clauses: vec![],
             loop_body: Box::new(loop_body),
             cst: None,
         }
@@ -9877,6 +10548,20 @@ impl MatchExpr {
 }
 impl MatchGuard {
     pub fn new() -> Self { Self { if_token: true, cst: None } }
+}
+impl MatchesExpr {
+    pub fn new<ET0>(expr: ET0) -> Self
+    where
+        ET0: Into<Expr>,
+    {
+        Self {
+            attrs: vec![],
+            expr: Box::new(expr.into()),
+            matches_token: true,
+            pat: None,
+            cst: None,
+        }
+    }
 }
 impl Meta {
     pub fn new(path: Path) -> Self {
@@ -10559,8 +11244,7 @@ impl WhileExpr {
             attrs: vec![],
             label: None,
             while_token: true,
-            invariant_clause: None,
-            decreases_clause: None,
+            loop_clauses: vec![],
             loop_body: Box::new(loop_body),
             cst: None,
         }
@@ -10579,6 +11263,9 @@ impl YieldExpr {
 }
 impl From<ArrayExpr> for Stmt {
     fn from(item: ArrayExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<ArrowExpr> for Stmt {
+    fn from(item: ArrowExpr) -> Self { Stmt::from(Expr::from(item)) }
 }
 impl From<AsmExpr> for Stmt {
     fn from(item: AsmExpr) -> Self { Stmt::from(Expr::from(item)) }
@@ -10634,6 +11321,9 @@ impl From<IfExpr> for Stmt {
 impl From<IndexExpr> for Stmt {
     fn from(item: IndexExpr) -> Self { Stmt::from(Expr::from(item)) }
 }
+impl From<IsExpr> for Stmt {
+    fn from(item: IsExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
 impl From<LetExpr> for Stmt {
     fn from(item: LetExpr) -> Self { Stmt::from(Expr::from(item)) }
 }
@@ -10648,6 +11338,9 @@ impl From<MacroExpr> for Stmt {
 }
 impl From<MatchExpr> for Stmt {
     fn from(item: MatchExpr) -> Self { Stmt::from(Expr::from(item)) }
+}
+impl From<MatchesExpr> for Stmt {
+    fn from(item: MatchesExpr) -> Self { Stmt::from(Expr::from(item)) }
 }
 impl From<MethodCallExpr> for Stmt {
     fn from(item: MethodCallExpr) -> Self { Stmt::from(Expr::from(item)) }

@@ -926,6 +926,7 @@ impl<'ctx> MirLowerCtx<'ctx> {
                 Ok(Some(current))
             }
             Expr::Field { .. }
+            | Expr::ArrowExpr { .. }
             | Expr::Index { .. }
             | Expr::UnaryOp { op: hir_def::hir::UnaryOp::Deref, .. } => {
                 let Some((p, current)) =
@@ -1210,6 +1211,35 @@ impl<'ctx> MirLowerCtx<'ctx> {
                     values,
                 );
                 self.push_assignment(current, place, r, expr_id.into());
+                Ok(Some(current))
+            }
+            // verus
+            Expr::IsExpr { expr, type_ref: _ } => {
+                let Some((it, current)) = self.lower_expr_to_some_operand(*expr, current)? else {
+                    return Ok(None);
+                };
+                let source_ty = self.infer[*expr].clone();
+                let target_ty = self.infer[expr_id].clone();
+                self.push_assignment(
+                    current,
+                    place,
+                    Rvalue::Cast(cast_kind(&source_ty, &target_ty)?, it, target_ty),
+                    expr_id.into(),
+                );
+                Ok(Some(current))
+            }
+            Expr::MatchesExpr { expr, pat: _ } => {
+                let Some((it, current)) = self.lower_expr_to_some_operand(*expr, current)? else {
+                    return Ok(None);
+                };
+                let source_ty = self.infer[*expr].clone();
+                let target_ty = self.infer[expr_id].clone();
+                self.push_assignment(
+                    current,
+                    place,
+                    Rvalue::Cast(cast_kind(&source_ty, &target_ty)?, it, target_ty),
+                    expr_id.into(),
+                );
                 Ok(Some(current))
             }
             Expr::Array(l) => match l {

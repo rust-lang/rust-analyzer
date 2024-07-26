@@ -160,6 +160,7 @@ pub fn filter_assoc_items(
             ast::AssocItem::TypeAlias(def) => def.name(),
             ast::AssocItem::Const(def) => def.name(),
             ast::AssocItem::MacroCall(_) => None,
+            ast::AssocItem::BroadcastGroup(_) => None,
         }
         .is_some()
     }

@@ -30,8 +30,8 @@ This step is dependent on your operating system.
 
 #### MacOS:
 ```bash
-$ gunzip ./dist/verus-analyzer-x86_64-apple-darwin.gz
-$ chmod +x ./dist/verus-analyzer-x86_64-apple-darwin
+$ gunzip ./dist/verus-analyzer-aarch64-apple-darwin.gz
+$ chmod +x ./dist/verus-analyzer-aarch64-apple-darwin
 ```
 
 #### Linux:
@@ -130,9 +130,9 @@ You can find more documents for IDE functionalities on the following links.
 - [Hover](https://rust-analyzer.github.io/manual.html#hover)
 
 #### 2.1 TODOs for IDE functionalities
-- Code scanning is incomplete for Verus-specific items. To be specific, requires/ensures/decreases/invariant/assert-by-block/assert-forall-block are not fully scanned for IDE purposes.(e.g., might not be able to "goto definition" of the function used in requires/ensures, "find all references" might omit occurrences inside requires/ensures)
+- Code scanning is incomplete for Verus-specific items. To be specific, requires/ensures/decreases/invariant/assert-by-block/assert-forall-block are not fully scanned for IDE purposes (e.g., might not be able to "goto definition" of the function used in requires/ensures, "find all references" might omit occurrences inside requires/ensures).
 
-- Although Verus' custom operators are parsed, those are not registered for IDE purposes. For example, type inference around those operators might not work. (e.g., `A ==> B` is parsed as `implies(A, B)`, but the IDE might not be able to infer that `A` and `B` are boolean)
+- Although Verus' custom operators are parsed, thye are not registered for IDE purposes. For example, type inference around such operators might not work. (e.g., `A ==> B` is parsed as `implies(A, B)`, but the IDE might not be able to infer that `A` and `B` are Boolean).
 
 - `builtin` and `vstd` are not scanned. For example, the builtin types like `int` and `nat` could be shown as `unknown`. Auto completion for `vstd` might not work.
 
@@ -150,10 +150,10 @@ You can find more documents for IDE functionalities on the following links.
 - `rust-analyzer: Clear flycheck diagnostics` command can be used to clear the error messages in VS Code
 - `Developer: Reload Window` can be used to reload VS Code and the verus-analyzer server instead of closing and reopening VS Code
 - Setting `"rust-analyzer.diagnostics.disabled": ["syntax-error"]` in the workspace setting can disable the syntax error messages in VS Code. You could also add `unresolved-module` to the above list to disable the error message for unresolved modules.
-- There is no proper support for `buildin`/`vstd`. However, at `Cargo.toml` in your project, adding `vstd` in `dependencices` or `dev-dependencies` might make verus-analyzer scan `vstd` and `builtin`. For example,
+- There is no proper support for `buildin`/`vstd`. However, in your project's `Cargo.toml` file, you can add `vstd` in `dependencices` or `dev-dependencies`, which might make verus-analyzer scan `vstd` and `builtin`. For example,
 ```
 [dependencies]
-vstd = { path = "../verus/source/vstd"}  # assuming verus and the project are at the same directory
+vstd = { path = "../verus/source/vstd"}  # assuming verus and the project are in the same directory
 ```
 
 
@@ -171,8 +171,8 @@ of the extra flag used in step 3.
 1. Clone the repository: `git clone https://github.com/verus-lang/verus-analyzer.git`
 2. `cd verus-analyzer`
 3. Compile the rust-analyzer binary: `cargo xtask dist --proof-action`
-4. Unzip the generated file (e.g., `gunzip ./dist/verus-analyzer-x86_64-apple-darwin.gz`)
-5. Make it executable (e.g., `chmod +x ./dist/verus-analyzer-x86_64-apple-darwin`)
+4. Unzip the generated file (e.g., `gunzip ./dist/verus-analyzer-aarch64-apple-darwin.gz`)
+5. Make it executable (e.g., `chmod +x ./dist/verus-analyzer-aarch64-apple-darwin`)
 
 
 ### Prerequisites

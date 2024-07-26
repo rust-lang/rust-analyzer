@@ -630,6 +630,7 @@ fn process_assoc_item(
             None
         }
         AssocItem::TypeAlias(ta) => ty_assoc_item(ta, qual_path_ty),
+        AssocItem::BroadcastGroup(_) => None,
     };
     if let Some(assoc) = &assoc {
         attrs.for_each(|attr| {

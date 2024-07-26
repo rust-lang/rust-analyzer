@@ -315,9 +315,12 @@ pub fn for_each_tail_expr(expr: &ast::Expr, cb: &mut dyn FnMut(&ast::Expr)) {
         | ast::Expr::BreakExpr(_)
         | ast::Expr::CallExpr(_)
         | ast::Expr::CastExpr(_)
+        | ast::Expr::IsExpr(_) // verus
+        | ast::Expr::MatchesExpr(_) // verus
         | ast::Expr::ClosureExpr(_)
         | ast::Expr::ContinueExpr(_)
         | ast::Expr::FieldExpr(_)
+        | ast::Expr::ArrowExpr(_) // verus
         | ast::Expr::IndexExpr(_)
         | ast::Expr::Literal(_)
         | ast::Expr::MacroExpr(_)

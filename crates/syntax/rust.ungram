@@ -109,7 +109,10 @@ Item =
 | TypeAlias
 | Union
 | Use
-| VerusGlobal // Verus
+// Verus Items
+| VerusGlobal
+| BroadcastGroup
+| BroadcastUse
 
 MacroRules =
   Attr* Visibility?
@@ -151,7 +154,7 @@ UseTreeList =
 // Keep consistent with `verus/dependencies/syn/src/items.rs`, `impl parse for Signature`
 Fn =
  Attr* Visibility? Publish?
- 'default'? 'const'? 'async'? 'unsafe'? Abi? FnMode?
+ 'default'? 'const'? 'async'? 'unsafe'? Abi? 'broadcast'? FnMode?
  'fn' Name GenericParamList? ParamList RetType? WhereClause? Prover? RequiresClause? RecommendsClause? EnsuresClause? SignatureDecreases?
  (body:BlockExpr | ';')
 
@@ -269,6 +272,7 @@ AssocItem =
 | Fn
 | MacroCall
 | TypeAlias
+| BroadcastGroup // Verus
 
 Impl =
   Attr* Visibility?
@@ -322,7 +326,6 @@ Attr =
 Meta =
   'unsafe' '(' Path ('=' Expr | TokenTree)? ')'
 | Path ('=' Expr | TokenTree)?
-
 
 //****************************//
 // Statements and Expressions //
@@ -389,6 +392,9 @@ Expr =
 | AssertExpr
 | AssumeExpr
 | AssertForallExpr
+| IsExpr
+| ArrowExpr
+| MatchesExpr
 
 OffsetOfExpr =
   Attr* 'builtin' '#' 'offset_of' '(' Type ',' fields:(NameRef ('.' NameRef)* ) ')'
@@ -506,16 +512,16 @@ IfExpr =
   ('else' else_branch:(IfExpr | BlockExpr))?
 
 LoopExpr =
-  Attr* Label? 'loop'
+  Attr* Label? 'loop' LoopClause*
   loop_body:BlockExpr
 
 ForExpr =
-  Attr* Label? 'for' Pat 'in' iterable:Expr
+  Attr* Label? 'for' Pat 'in' (iter_name:Name ':')? iterable:Expr LoopClause*
   loop_body:BlockExpr
 
 // verus: invariantclause, decreasesclause
 WhileExpr =
-  Attr* Label? 'while' condition:Expr InvariantClause? DecreasesClause?
+  Attr* Label? 'while' condition:Expr LoopClause*
   loop_body:BlockExpr
 
 Label =
@@ -742,8 +748,14 @@ RequiresClause =
 EnsuresClause =
   'ensures' (Expr (',' Expr)* ','?)
 
+LoopClause =
+  InvariantExceptBreakClause | InvariantClause | EnsuresClause | DecreasesClause
+
 InvariantClause =
   'invariant' (Expr (',' Expr)* ','?)
+
+InvariantExceptBreakClause =
+  'invariant_except_break' (Expr (',' Expr)* ','?)
 
 RecommendsClause =
   'recommends' (Expr (',' Expr)* ','?) ('via' Expr)?
@@ -775,3 +787,30 @@ TriggerAttribute =
 VerusGlobal =
   Attr*
   'global' Name Type op:('==') value:('int_number') ';'
+
+BroadcastUseList =
+  Path (',' Path)* ','?
+  
+BroadcastUse =
+  Attr* 'broadcast' 'use' BroadcastUseList ';'
+
+BroadcastGroupIdentifier =
+  'ident'
+
+BroadcastGroupMember = 
+  Attr* Path
+
+BroadcastGroupList =
+  '{' (BroadcastGroupMember (',' BroadcastGroupMember)* ','?)? '}'
+
+BroadcastGroup = 
+  Attr* Visibility? 'broadcast' 'group' BroadcastGroupIdentifier BroadcastGroupList
+
+IsExpr = 
+  Attr* Expr 'is' Type
+
+ArrowExpr =
+  Attr* Expr '->' (NameRef | value:('int_number'))
+
+MatchesExpr =
+  Attr* Expr 'matches' Pat 

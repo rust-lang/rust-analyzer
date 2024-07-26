@@ -513,6 +513,16 @@ impl Printer<'_> {
                 // self.print_ast_id(ast_id.erase());
                 wln!(self, "global ?? TODO!");
             }
+            ModItem::BroadcastUse(_it) => {
+                // let BroadcastUse { ast_id } = &self.tree[it];
+                // self.print_ast_id(ast_id.erase());
+                wln!(self, "broadcast use ?? TODO!");
+            }
+            ModItem::BroadcastGroup(_it) => {
+                // let BroadcastGroup { ast_id } = &self.tree[it];
+                // self.print_ast_id(ast_id.erase());
+                wln!(self, "broadcast group ?? TODO!");
+            }
         }
 
         self.blank();

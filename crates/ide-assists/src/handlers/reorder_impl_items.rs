@@ -75,6 +75,7 @@ pub(crate) fn reorder_impl_items(acc: &mut Assists, ctx: &AssistContext<'_>) -> 
                 ast::AssocItem::Fn(f) => f.name(),
                 ast::AssocItem::TypeAlias(t) => t.name(),
                 ast::AssocItem::MacroCall(_) => None,
+                ast::AssocItem::BroadcastGroup(_) => None,
             };
 
             name.and_then(|n| ranks.get(&n.to_string()).copied()).unwrap_or(usize::MAX)

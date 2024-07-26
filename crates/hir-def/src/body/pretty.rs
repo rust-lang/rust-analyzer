@@ -494,6 +494,21 @@ impl Printer<'_> {
                 w!(self, "view ");
                 self.print_expr(*condition);
             }
+            Expr::IsExpr { expr, type_ref } => {
+                self.print_expr(*expr);
+                w!(self, " is ");
+                self.print_type_ref(type_ref);
+            }
+            Expr::ArrowExpr { expr, name } => {
+                self.print_expr(*expr);
+                w!(self, "->");
+                w!(self, "{}", name.display(self.db.upcast()));
+            }
+            Expr::MatchesExpr { expr, pat } => {
+                self.print_expr(*expr);
+                w!(self, " matches ");
+                self.print_pat(*pat);
+            }
         }
     }
 

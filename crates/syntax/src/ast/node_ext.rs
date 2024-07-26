@@ -135,6 +135,7 @@ impl From<ast::AssocItem> for ast::Item {
             ast::AssocItem::Fn(it) => ast::Item::Fn(it),
             ast::AssocItem::MacroCall(it) => ast::Item::MacroCall(it),
             ast::AssocItem::TypeAlias(it) => ast::Item::TypeAlias(it),
+            ast::AssocItem::BroadcastGroup(it) => ast::Item::BroadcastGroup(it),
         }
     }
 }

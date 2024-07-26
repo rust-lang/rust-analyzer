@@ -46,8 +46,8 @@ pub(crate) fn vst_rewriter_intro_failing_ensures(
     let asserts_failed_exprs =
         failed_exprs?.into_iter().map(|e| AssertExpr::new(e).into()).collect::<Vec<Stmt>>();
 
-    let foo = ctx.vst_find_node_at_offset::<Fn, ast::Fn>()?;
-    if foo.ret_type.is_some() {
+    let vst_node = ctx.vst_find_node_at_offset::<Fn, ast::Fn>()?;
+    if vst_node.ret_type.is_some() {
         // need to map in-place for each tail expression
         // when the function has a returning expression `e`
         // `e` into
@@ -56,8 +56,8 @@ pub(crate) fn vst_rewriter_intro_failing_ensures(
         // assert(failing_stuff);
         // ret
         // ```
-        let pat = foo.ret_type?.pat?.clone();
-        let tail = foo.body?.stmt_list.tail_expr?;
+        let pat = vst_node.ret_type?.pat?.clone();
+        let tail = vst_node.body?.stmt_list.tail_expr?;
         let cb = &mut |e: &mut Expr| {
             let mut new_binding = LetExpr::new(e.clone());
             new_binding.pat = Some(pat.clone());

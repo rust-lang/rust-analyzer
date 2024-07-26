@@ -163,6 +163,11 @@ pub(super) fn opt_item(p: &mut Parser<'_>, m: Marker) -> Result<(), Marker> {
         has_mods = true;
     }
 
+    if p.at(T![broadcast]) {
+        p.bump(T![broadcast]);
+        has_mods = true;
+    }
+
     if p.at(T![extern]) {
         has_extern = true;
         has_mods = true;
@@ -244,6 +249,14 @@ pub(super) fn opt_item(p: &mut Parser<'_>, m: Marker) -> Result<(), Marker> {
         T![impl] => traits::impl_(p, m),
 
         T![type] => type_alias(p, m),
+
+        T![group] => {
+            verus::broadcast_group(p, m);
+        }
+
+        T![use] => {
+            verus::broadcast_use_list(p, m);
+        }
 
         // test extern_block
         // unsafe extern "C" {}
@@ -450,7 +463,7 @@ Keep the parsing order consistent with the ungrammar file
 this `fn_` function parses from the `fn` keyword
 Fn =
     Attr* Visibility? Publish?
-    'default'? 'const'? 'async'? 'unsafe'? Abi? FnMode?
+    'default'? 'const'? 'async'? 'unsafe'? Abi? 'broadcast'? FnMode?
     'fn' Name GenericParamList? ParamList RetType? WhereClause? RequiresClause? EnsuresClause?
     (body:BlockExpr | ';')
 */

@@ -51,6 +51,17 @@ impl ArrayType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ArrowExpr {
+    pub(crate) syntax: SyntaxNode,
+}
+impl ast::HasAttrs for ArrowExpr {}
+impl ArrowExpr {
+    pub fn expr(&self) -> Option<Expr> { support::child(&self.syntax) }
+    pub fn name_ref(&self) -> Option<NameRef> { support::child(&self.syntax) }
+    pub fn thin_arrow_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![->]) }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AsmExpr {
     pub(crate) syntax: SyntaxNode,
 }
@@ -204,6 +215,76 @@ impl BreakExpr {
     pub fn expr(&self) -> Option<Expr> { support::child(&self.syntax) }
     pub fn lifetime(&self) -> Option<Lifetime> { support::child(&self.syntax) }
     pub fn break_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![break]) }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BroadcastGroup {
+    pub(crate) syntax: SyntaxNode,
+}
+impl ast::HasAttrs for BroadcastGroup {}
+impl ast::HasVisibility for BroadcastGroup {}
+impl BroadcastGroup {
+    pub fn broadcast_group_identifier(&self) -> Option<BroadcastGroupIdentifier> {
+        support::child(&self.syntax)
+    }
+    pub fn broadcast_group_list(&self) -> Option<BroadcastGroupList> {
+        support::child(&self.syntax)
+    }
+    pub fn broadcast_token(&self) -> Option<SyntaxToken> {
+        support::token(&self.syntax, T![broadcast])
+    }
+    pub fn group_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![group]) }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BroadcastGroupIdentifier {
+    pub(crate) syntax: SyntaxNode,
+}
+impl BroadcastGroupIdentifier {
+    pub fn ident_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![ident]) }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BroadcastGroupList {
+    pub(crate) syntax: SyntaxNode,
+}
+impl BroadcastGroupList {
+    pub fn broadcast_group_members(&self) -> AstChildren<BroadcastGroupMember> {
+        support::children(&self.syntax)
+    }
+    pub fn l_curly_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T!['{']) }
+    pub fn r_curly_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T!['}']) }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BroadcastGroupMember {
+    pub(crate) syntax: SyntaxNode,
+}
+impl ast::HasAttrs for BroadcastGroupMember {}
+impl BroadcastGroupMember {
+    pub fn path(&self) -> Option<Path> { support::child(&self.syntax) }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BroadcastUse {
+    pub(crate) syntax: SyntaxNode,
+}
+impl ast::HasAttrs for BroadcastUse {}
+impl BroadcastUse {
+    pub fn broadcast_use_list(&self) -> Option<BroadcastUseList> { support::child(&self.syntax) }
+    pub fn semicolon_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![;]) }
+    pub fn broadcast_token(&self) -> Option<SyntaxToken> {
+        support::token(&self.syntax, T![broadcast])
+    }
+    pub fn use_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![use]) }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BroadcastUseList {
+    pub(crate) syntax: SyntaxNode,
+}
+impl BroadcastUseList {
+    pub fn paths(&self) -> AstChildren<Path> { support::children(&self.syntax) }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -442,6 +523,9 @@ impl Fn {
     pub fn signature_decreases(&self) -> Option<SignatureDecreases> { support::child(&self.syntax) }
     pub fn semicolon_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![;]) }
     pub fn async_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![async]) }
+    pub fn broadcast_token(&self) -> Option<SyntaxToken> {
+        support::token(&self.syntax, T![broadcast])
+    }
     pub fn const_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![const]) }
     pub fn default_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![default]) }
     pub fn fn_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![fn]) }
@@ -479,7 +563,10 @@ pub struct ForExpr {
 }
 impl ast::HasAttrs for ForExpr {}
 impl ForExpr {
+    pub fn iter_name(&self) -> Option<Name> { support::child(&self.syntax) }
+    pub fn loop_clauses(&self) -> AstChildren<LoopClause> { support::children(&self.syntax) }
     pub fn pat(&self) -> Option<Pat> { support::child(&self.syntax) }
+    pub fn colon_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![:]) }
     pub fn for_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![for]) }
     pub fn in_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![in]) }
 }
@@ -623,6 +710,28 @@ impl InvariantClause {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct InvariantExceptBreakClause {
+    pub(crate) syntax: SyntaxNode,
+}
+impl InvariantExceptBreakClause {
+    pub fn exprs(&self) -> AstChildren<Expr> { support::children(&self.syntax) }
+    pub fn invariant_except_break_token(&self) -> Option<SyntaxToken> {
+        support::token(&self.syntax, T![invariant_except_break])
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct IsExpr {
+    pub(crate) syntax: SyntaxNode,
+}
+impl ast::HasAttrs for IsExpr {}
+impl IsExpr {
+    pub fn expr(&self) -> Option<Expr> { support::child(&self.syntax) }
+    pub fn ty(&self) -> Option<Type> { support::child(&self.syntax) }
+    pub fn is_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![is]) }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ItemList {
     pub(crate) syntax: SyntaxNode,
 }
@@ -732,6 +841,7 @@ pub struct LoopExpr {
 impl ast::HasAttrs for LoopExpr {}
 impl ast::HasLoopBody for LoopExpr {}
 impl LoopExpr {
+    pub fn loop_clauses(&self) -> AstChildren<LoopClause> { support::children(&self.syntax) }
     pub fn loop_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![loop]) }
 }
 
@@ -873,6 +983,17 @@ pub struct MatchGuard {
 }
 impl MatchGuard {
     pub fn if_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![if]) }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MatchesExpr {
+    pub(crate) syntax: SyntaxNode,
+}
+impl ast::HasAttrs for MatchesExpr {}
+impl MatchesExpr {
+    pub fn expr(&self) -> Option<Expr> { support::child(&self.syntax) }
+    pub fn pat(&self) -> Option<Pat> { support::child(&self.syntax) }
+    pub fn matches_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![matches]) }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1773,8 +1894,7 @@ pub struct WhileExpr {
 }
 impl ast::HasAttrs for WhileExpr {}
 impl WhileExpr {
-    pub fn decreases_clause(&self) -> Option<DecreasesClause> { support::child(&self.syntax) }
-    pub fn invariant_clause(&self) -> Option<InvariantClause> { support::child(&self.syntax) }
+    pub fn loop_clauses(&self) -> AstChildren<LoopClause> { support::children(&self.syntax) }
     pub fn while_token(&self) -> Option<SyntaxToken> { support::token(&self.syntax, T![while]) }
 }
 
@@ -1821,17 +1941,18 @@ impl ast::HasVisibility for Adt {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AssocItem {
+    BroadcastGroup(BroadcastGroup),
     Const(Const),
     Fn(Fn),
     MacroCall(MacroCall),
     TypeAlias(TypeAlias),
 }
 impl ast::HasAttrs for AssocItem {}
-impl ast::HasDocComments for AssocItem {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
     ArrayExpr(ArrayExpr),
+    ArrowExpr(ArrowExpr),
     AsmExpr(AsmExpr),
     AssertExpr(AssertExpr),
     AssertForallExpr(AssertForallExpr),
@@ -1850,11 +1971,13 @@ pub enum Expr {
     FormatArgsExpr(FormatArgsExpr),
     IfExpr(IfExpr),
     IndexExpr(IndexExpr),
+    IsExpr(IsExpr),
     LetExpr(LetExpr),
     Literal(Literal),
     LoopExpr(LoopExpr),
     MacroExpr(MacroExpr),
     MatchExpr(MatchExpr),
+    MatchesExpr(MatchesExpr),
     MethodCallExpr(MethodCallExpr),
     OffsetOfExpr(OffsetOfExpr),
     ParenExpr(ParenExpr),
@@ -1907,6 +2030,8 @@ impl ast::HasAttrs for GenericParam {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Item {
+    BroadcastGroup(BroadcastGroup),
+    BroadcastUse(BroadcastUse),
     Const(Const),
     Enum(Enum),
     ExternBlock(ExternBlock),
@@ -1927,6 +2052,14 @@ pub enum Item {
     VerusGlobal(VerusGlobal),
 }
 impl ast::HasAttrs for Item {}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum LoopClause {
+    DecreasesClause(DecreasesClause),
+    EnsuresClause(EnsuresClause),
+    InvariantClause(InvariantClause),
+    InvariantExceptBreakClause(InvariantExceptBreakClause),
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Pat {
@@ -2070,6 +2203,17 @@ impl AstNode for ArrayType {
     }
     fn syntax(&self) -> &SyntaxNode { &self.syntax }
 }
+impl AstNode for ArrowExpr {
+    fn can_cast(kind: SyntaxKind) -> bool { kind == ARROW_EXPR }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if Self::can_cast(syntax.kind()) {
+            Some(Self { syntax })
+        } else {
+            None
+        }
+    }
+    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+}
 impl AstNode for AsmExpr {
     fn can_cast(kind: SyntaxKind) -> bool { kind == ASM_EXPR }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
@@ -2204,6 +2348,72 @@ impl AstNode for BoxPat {
 }
 impl AstNode for BreakExpr {
     fn can_cast(kind: SyntaxKind) -> bool { kind == BREAK_EXPR }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if Self::can_cast(syntax.kind()) {
+            Some(Self { syntax })
+        } else {
+            None
+        }
+    }
+    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+}
+impl AstNode for BroadcastGroup {
+    fn can_cast(kind: SyntaxKind) -> bool { kind == BROADCAST_GROUP }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if Self::can_cast(syntax.kind()) {
+            Some(Self { syntax })
+        } else {
+            None
+        }
+    }
+    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+}
+impl AstNode for BroadcastGroupIdentifier {
+    fn can_cast(kind: SyntaxKind) -> bool { kind == BROADCAST_GROUP_IDENTIFIER }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if Self::can_cast(syntax.kind()) {
+            Some(Self { syntax })
+        } else {
+            None
+        }
+    }
+    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+}
+impl AstNode for BroadcastGroupList {
+    fn can_cast(kind: SyntaxKind) -> bool { kind == BROADCAST_GROUP_LIST }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if Self::can_cast(syntax.kind()) {
+            Some(Self { syntax })
+        } else {
+            None
+        }
+    }
+    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+}
+impl AstNode for BroadcastGroupMember {
+    fn can_cast(kind: SyntaxKind) -> bool { kind == BROADCAST_GROUP_MEMBER }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if Self::can_cast(syntax.kind()) {
+            Some(Self { syntax })
+        } else {
+            None
+        }
+    }
+    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+}
+impl AstNode for BroadcastUse {
+    fn can_cast(kind: SyntaxKind) -> bool { kind == BROADCAST_USE }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if Self::can_cast(syntax.kind()) {
+            Some(Self { syntax })
+        } else {
+            None
+        }
+    }
+    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+}
+impl AstNode for BroadcastUseList {
+    fn can_cast(kind: SyntaxKind) -> bool { kind == BROADCAST_USE_LIST }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
         if Self::can_cast(syntax.kind()) {
             Some(Self { syntax })
@@ -2587,6 +2797,28 @@ impl AstNode for InvariantClause {
     }
     fn syntax(&self) -> &SyntaxNode { &self.syntax }
 }
+impl AstNode for InvariantExceptBreakClause {
+    fn can_cast(kind: SyntaxKind) -> bool { kind == INVARIANT_EXCEPT_BREAK_CLAUSE }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if Self::can_cast(syntax.kind()) {
+            Some(Self { syntax })
+        } else {
+            None
+        }
+    }
+    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+}
+impl AstNode for IsExpr {
+    fn can_cast(kind: SyntaxKind) -> bool { kind == IS_EXPR }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if Self::can_cast(syntax.kind()) {
+            Some(Self { syntax })
+        } else {
+            None
+        }
+    }
+    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+}
 impl AstNode for ItemList {
     fn can_cast(kind: SyntaxKind) -> bool { kind == ITEM_LIST }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
@@ -2842,6 +3074,17 @@ impl AstNode for MatchExpr {
 }
 impl AstNode for MatchGuard {
     fn can_cast(kind: SyntaxKind) -> bool { kind == MATCH_GUARD }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        if Self::can_cast(syntax.kind()) {
+            Some(Self { syntax })
+        } else {
+            None
+        }
+    }
+    fn syntax(&self) -> &SyntaxNode { &self.syntax }
+}
+impl AstNode for MatchesExpr {
+    fn can_cast(kind: SyntaxKind) -> bool { kind == MATCHES_EXPR }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
         if Self::can_cast(syntax.kind()) {
             Some(Self { syntax })
@@ -3781,6 +4024,9 @@ impl AstNode for Adt {
         }
     }
 }
+impl From<BroadcastGroup> for AssocItem {
+    fn from(node: BroadcastGroup) -> AssocItem { AssocItem::BroadcastGroup(node) }
+}
 impl From<Const> for AssocItem {
     fn from(node: Const) -> AssocItem { AssocItem::Const(node) }
 }
@@ -3794,9 +4040,12 @@ impl From<TypeAlias> for AssocItem {
     fn from(node: TypeAlias) -> AssocItem { AssocItem::TypeAlias(node) }
 }
 impl AstNode for AssocItem {
-    fn can_cast(kind: SyntaxKind) -> bool { matches!(kind, CONST | FN | MACRO_CALL | TYPE_ALIAS) }
+    fn can_cast(kind: SyntaxKind) -> bool {
+        matches!(kind, BROADCAST_GROUP | CONST | FN | MACRO_CALL | TYPE_ALIAS)
+    }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
         let res = match syntax.kind() {
+            BROADCAST_GROUP => AssocItem::BroadcastGroup(BroadcastGroup { syntax }),
             CONST => AssocItem::Const(Const { syntax }),
             FN => AssocItem::Fn(Fn { syntax }),
             MACRO_CALL => AssocItem::MacroCall(MacroCall { syntax }),
@@ -3807,6 +4056,7 @@ impl AstNode for AssocItem {
     }
     fn syntax(&self) -> &SyntaxNode {
         match self {
+            AssocItem::BroadcastGroup(it) => &it.syntax,
             AssocItem::Const(it) => &it.syntax,
             AssocItem::Fn(it) => &it.syntax,
             AssocItem::MacroCall(it) => &it.syntax,
@@ -3816,6 +4066,9 @@ impl AstNode for AssocItem {
 }
 impl From<ArrayExpr> for Expr {
     fn from(node: ArrayExpr) -> Expr { Expr::ArrayExpr(node) }
+}
+impl From<ArrowExpr> for Expr {
+    fn from(node: ArrowExpr) -> Expr { Expr::ArrowExpr(node) }
 }
 impl From<AsmExpr> for Expr {
     fn from(node: AsmExpr) -> Expr { Expr::AsmExpr(node) }
@@ -3871,6 +4124,9 @@ impl From<IfExpr> for Expr {
 impl From<IndexExpr> for Expr {
     fn from(node: IndexExpr) -> Expr { Expr::IndexExpr(node) }
 }
+impl From<IsExpr> for Expr {
+    fn from(node: IsExpr) -> Expr { Expr::IsExpr(node) }
+}
 impl From<LetExpr> for Expr {
     fn from(node: LetExpr) -> Expr { Expr::LetExpr(node) }
 }
@@ -3885,6 +4141,9 @@ impl From<MacroExpr> for Expr {
 }
 impl From<MatchExpr> for Expr {
     fn from(node: MatchExpr) -> Expr { Expr::MatchExpr(node) }
+}
+impl From<MatchesExpr> for Expr {
+    fn from(node: MatchesExpr) -> Expr { Expr::MatchesExpr(node) }
 }
 impl From<MethodCallExpr> for Expr {
     fn from(node: MethodCallExpr) -> Expr { Expr::MethodCallExpr(node) }
@@ -3939,6 +4198,7 @@ impl AstNode for Expr {
         matches!(
             kind,
             ARRAY_EXPR
+                | ARROW_EXPR
                 | ASM_EXPR
                 | ASSERT_EXPR
                 | ASSERT_FORALL_EXPR
@@ -3957,11 +4217,13 @@ impl AstNode for Expr {
                 | FORMAT_ARGS_EXPR
                 | IF_EXPR
                 | INDEX_EXPR
+                | IS_EXPR
                 | LET_EXPR
                 | LITERAL
                 | LOOP_EXPR
                 | MACRO_EXPR
                 | MATCH_EXPR
+                | MATCHES_EXPR
                 | METHOD_CALL_EXPR
                 | OFFSET_OF_EXPR
                 | PAREN_EXPR
@@ -3983,6 +4245,7 @@ impl AstNode for Expr {
     fn cast(syntax: SyntaxNode) -> Option<Self> {
         let res = match syntax.kind() {
             ARRAY_EXPR => Expr::ArrayExpr(ArrayExpr { syntax }),
+            ARROW_EXPR => Expr::ArrowExpr(ArrowExpr { syntax }),
             ASM_EXPR => Expr::AsmExpr(AsmExpr { syntax }),
             ASSERT_EXPR => Expr::AssertExpr(AssertExpr { syntax }),
             ASSERT_FORALL_EXPR => Expr::AssertForallExpr(AssertForallExpr { syntax }),
@@ -4001,11 +4264,13 @@ impl AstNode for Expr {
             FORMAT_ARGS_EXPR => Expr::FormatArgsExpr(FormatArgsExpr { syntax }),
             IF_EXPR => Expr::IfExpr(IfExpr { syntax }),
             INDEX_EXPR => Expr::IndexExpr(IndexExpr { syntax }),
+            IS_EXPR => Expr::IsExpr(IsExpr { syntax }),
             LET_EXPR => Expr::LetExpr(LetExpr { syntax }),
             LITERAL => Expr::Literal(Literal { syntax }),
             LOOP_EXPR => Expr::LoopExpr(LoopExpr { syntax }),
             MACRO_EXPR => Expr::MacroExpr(MacroExpr { syntax }),
             MATCH_EXPR => Expr::MatchExpr(MatchExpr { syntax }),
+            MATCHES_EXPR => Expr::MatchesExpr(MatchesExpr { syntax }),
             METHOD_CALL_EXPR => Expr::MethodCallExpr(MethodCallExpr { syntax }),
             OFFSET_OF_EXPR => Expr::OffsetOfExpr(OffsetOfExpr { syntax }),
             PAREN_EXPR => Expr::ParenExpr(ParenExpr { syntax }),
@@ -4029,6 +4294,7 @@ impl AstNode for Expr {
     fn syntax(&self) -> &SyntaxNode {
         match self {
             Expr::ArrayExpr(it) => &it.syntax,
+            Expr::ArrowExpr(it) => &it.syntax,
             Expr::AsmExpr(it) => &it.syntax,
             Expr::AssertExpr(it) => &it.syntax,
             Expr::AssertForallExpr(it) => &it.syntax,
@@ -4047,11 +4313,13 @@ impl AstNode for Expr {
             Expr::FormatArgsExpr(it) => &it.syntax,
             Expr::IfExpr(it) => &it.syntax,
             Expr::IndexExpr(it) => &it.syntax,
+            Expr::IsExpr(it) => &it.syntax,
             Expr::LetExpr(it) => &it.syntax,
             Expr::Literal(it) => &it.syntax,
             Expr::LoopExpr(it) => &it.syntax,
             Expr::MacroExpr(it) => &it.syntax,
             Expr::MatchExpr(it) => &it.syntax,
+            Expr::MatchesExpr(it) => &it.syntax,
             Expr::MethodCallExpr(it) => &it.syntax,
             Expr::OffsetOfExpr(it) => &it.syntax,
             Expr::ParenExpr(it) => &it.syntax,
@@ -4192,6 +4460,12 @@ impl AstNode for GenericParam {
         }
     }
 }
+impl From<BroadcastGroup> for Item {
+    fn from(node: BroadcastGroup) -> Item { Item::BroadcastGroup(node) }
+}
+impl From<BroadcastUse> for Item {
+    fn from(node: BroadcastUse) -> Item { Item::BroadcastUse(node) }
+}
 impl From<Const> for Item {
     fn from(node: Const) -> Item { Item::Const(node) }
 }
@@ -4250,7 +4524,9 @@ impl AstNode for Item {
     fn can_cast(kind: SyntaxKind) -> bool {
         matches!(
             kind,
-            CONST
+            BROADCAST_GROUP
+                | BROADCAST_USE
+                | CONST
                 | ENUM
                 | EXTERN_BLOCK
                 | EXTERN_CRATE
@@ -4272,6 +4548,8 @@ impl AstNode for Item {
     }
     fn cast(syntax: SyntaxNode) -> Option<Self> {
         let res = match syntax.kind() {
+            BROADCAST_GROUP => Item::BroadcastGroup(BroadcastGroup { syntax }),
+            BROADCAST_USE => Item::BroadcastUse(BroadcastUse { syntax }),
             CONST => Item::Const(Const { syntax }),
             ENUM => Item::Enum(Enum { syntax }),
             EXTERN_BLOCK => Item::ExternBlock(ExternBlock { syntax }),
@@ -4296,6 +4574,8 @@ impl AstNode for Item {
     }
     fn syntax(&self) -> &SyntaxNode {
         match self {
+            Item::BroadcastGroup(it) => &it.syntax,
+            Item::BroadcastUse(it) => &it.syntax,
             Item::Const(it) => &it.syntax,
             Item::Enum(it) => &it.syntax,
             Item::ExternBlock(it) => &it.syntax,
@@ -4314,6 +4594,48 @@ impl AstNode for Item {
             Item::Union(it) => &it.syntax,
             Item::Use(it) => &it.syntax,
             Item::VerusGlobal(it) => &it.syntax,
+        }
+    }
+}
+impl From<DecreasesClause> for LoopClause {
+    fn from(node: DecreasesClause) -> LoopClause { LoopClause::DecreasesClause(node) }
+}
+impl From<EnsuresClause> for LoopClause {
+    fn from(node: EnsuresClause) -> LoopClause { LoopClause::EnsuresClause(node) }
+}
+impl From<InvariantClause> for LoopClause {
+    fn from(node: InvariantClause) -> LoopClause { LoopClause::InvariantClause(node) }
+}
+impl From<InvariantExceptBreakClause> for LoopClause {
+    fn from(node: InvariantExceptBreakClause) -> LoopClause {
+        LoopClause::InvariantExceptBreakClause(node)
+    }
+}
+impl AstNode for LoopClause {
+    fn can_cast(kind: SyntaxKind) -> bool {
+        matches!(
+            kind,
+            DECREASES_CLAUSE | ENSURES_CLAUSE | INVARIANT_CLAUSE | INVARIANT_EXCEPT_BREAK_CLAUSE
+        )
+    }
+    fn cast(syntax: SyntaxNode) -> Option<Self> {
+        let res = match syntax.kind() {
+            DECREASES_CLAUSE => LoopClause::DecreasesClause(DecreasesClause { syntax }),
+            ENSURES_CLAUSE => LoopClause::EnsuresClause(EnsuresClause { syntax }),
+            INVARIANT_CLAUSE => LoopClause::InvariantClause(InvariantClause { syntax }),
+            INVARIANT_EXCEPT_BREAK_CLAUSE => {
+                LoopClause::InvariantExceptBreakClause(InvariantExceptBreakClause { syntax })
+            }
+            _ => return None,
+        };
+        Some(res)
+    }
+    fn syntax(&self) -> &SyntaxNode {
+        match self {
+            LoopClause::DecreasesClause(it) => &it.syntax,
+            LoopClause::EnsuresClause(it) => &it.syntax,
+            LoopClause::InvariantClause(it) => &it.syntax,
+            LoopClause::InvariantExceptBreakClause(it) => &it.syntax,
         }
     }
 }
@@ -4564,6 +4886,7 @@ impl AstNode for AnyHasAttrs {
         matches!(
             kind,
             ARRAY_EXPR
+                | ARROW_EXPR
                 | ASM_EXPR
                 | ASSERT_EXPR
                 | ASSERT_FORALL_EXPR
@@ -4574,6 +4897,9 @@ impl AstNode for AnyHasAttrs {
                 | BIN_EXPR
                 | BLOCK_EXPR
                 | BREAK_EXPR
+                | BROADCAST_GROUP
+                | BROADCAST_GROUP_MEMBER
+                | BROADCAST_USE
                 | CALL_EXPR
                 | CAST_EXPR
                 | CLOSURE_EXPR
@@ -4592,6 +4918,7 @@ impl AstNode for AnyHasAttrs {
                 | IF_EXPR
                 | IMPL
                 | INDEX_EXPR
+                | IS_EXPR
                 | ITEM_LIST
                 | LET_EXPR
                 | LET_STMT
@@ -4604,6 +4931,7 @@ impl AstNode for AnyHasAttrs {
                 | MATCH_ARM
                 | MATCH_ARM_LIST
                 | MATCH_EXPR
+                | MATCHES_EXPR
                 | METHOD_CALL_EXPR
                 | MODULE
                 | OFFSET_OF_EXPR
@@ -4794,7 +5122,8 @@ impl AstNode for AnyHasVisibility {
     fn can_cast(kind: SyntaxKind) -> bool {
         matches!(
             kind,
-            CONST
+            BROADCAST_GROUP
+                | CONST
                 | ENUM
                 | EXTERN_CRATE
                 | FN
@@ -4859,6 +5188,11 @@ impl std::fmt::Display for Item {
         std::fmt::Display::fmt(self.syntax(), f)
     }
 }
+impl std::fmt::Display for LoopClause {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
 impl std::fmt::Display for Pat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self.syntax(), f)
@@ -4890,6 +5224,11 @@ impl std::fmt::Display for ArrayExpr {
     }
 }
 impl std::fmt::Display for ArrayType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl std::fmt::Display for ArrowExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self.syntax(), f)
     }
@@ -4955,6 +5294,36 @@ impl std::fmt::Display for BoxPat {
     }
 }
 impl std::fmt::Display for BreakExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl std::fmt::Display for BroadcastGroup {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl std::fmt::Display for BroadcastGroupIdentifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl std::fmt::Display for BroadcastGroupList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl std::fmt::Display for BroadcastGroupMember {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl std::fmt::Display for BroadcastUse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl std::fmt::Display for BroadcastUseList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self.syntax(), f)
     }
@@ -5129,6 +5498,16 @@ impl std::fmt::Display for InvariantClause {
         std::fmt::Display::fmt(self.syntax(), f)
     }
 }
+impl std::fmt::Display for InvariantExceptBreakClause {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl std::fmt::Display for IsExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
 impl std::fmt::Display for ItemList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self.syntax(), f)
@@ -5245,6 +5624,11 @@ impl std::fmt::Display for MatchExpr {
     }
 }
 impl std::fmt::Display for MatchGuard {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.syntax(), f)
+    }
+}
+impl std::fmt::Display for MatchesExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self.syntax(), f)
     }

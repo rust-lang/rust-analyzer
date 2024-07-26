@@ -924,6 +924,24 @@ impl InferenceContext<'_> {
             Expr::View { .. } => {
                 self.err_ty() // TODO
             }
+            Expr::IsExpr { expr, type_ref } => {
+                let ty = self.make_ty(type_ref);
+                let ty = self.insert_type_vars_shallow(ty);
+                self.infer_expr_coerce(*expr, &Expectation::HasType(ty.clone()));
+                self.result.standard_types.bool_.clone()
+            }
+            Expr::ArrowExpr { expr, .. } => {
+                let ty = self.infer_expr_inner(*expr, &Expectation::none());
+                let ty = self.resolve_ty_shallow(&ty);
+                let ty = self.insert_type_vars_shallow(ty);
+                self.write_expr_ty(tgt_expr, ty.clone());
+                ty
+            }
+            Expr::MatchesExpr { expr, pat } => {
+                let input_ty = self.infer_expr(*expr, &Expectation::none());
+                self.infer_top_pat(*pat, &input_ty);
+                self.result.standard_types.bool_.clone()
+            }
             Expr::Assume { condition } => {
                 let bool_ty = self.result.standard_types.bool_.clone();
                 self.infer_expr_coerce(*condition, &Expectation::HasType(bool_ty.clone()));

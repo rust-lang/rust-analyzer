@@ -11,18 +11,7 @@
 
 use crate::AssistContext;
 use core::ops::Range;
-use std::{
-    collections::hash_map::DefaultHasher,
-    env,
-    fs::{read_to_string, File},
-    hash::{Hash, Hasher},
-    io::Write,
-    path::Path,
-    process::Command,
-    time::Instant,
-};
 use syntax::{ast, AstNode};
-use verusfmt::RunOptions;
 
 /*
 verus! {

@@ -8,12 +8,7 @@
 
 #![warn(rust_2018_idioms, unused_lifetimes)]
 
-use std::{
-    fmt, io,
-    path::Path,
-    process::Command,
-    time::Duration,
-};
+use std::{fmt, io, path::Path, process::Command, time::Duration};
 
 use crossbeam_channel::{never, select, unbounded, Receiver, Sender};
 use paths::{AbsPath, AbsPathBuf, Utf8PathBuf};
@@ -668,8 +663,6 @@ impl FlycheckActor {
         (self.sender)(check_task);
     }
 }
-
-
 
 #[allow(clippy::large_enum_variant)]
 enum CargoCheckMessage {
