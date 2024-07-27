@@ -28,6 +28,7 @@
 mod handlers {
     pub(crate) mod break_outside_of_loop;
     pub(crate) mod expected_function;
+    pub(crate) mod function_missing_lifetime;
     pub(crate) mod inactive_code;
     pub(crate) mod incoherent_impl;
     pub(crate) mod incorrect_case;
@@ -405,6 +406,7 @@ pub fn diagnostics(
                 Some(it) => it,
                 None => continue,
             },
+            AnyDiagnostic::FunctionMissingLifetime(d) => handlers::function_missing_lifetime::function_missing_lifetime(&ctx, &d),
         };
         res.push(d)
     }

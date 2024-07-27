@@ -104,7 +104,6 @@ mod handlers {
     mod add_braces;
     mod add_explicit_type;
     mod add_label_to_loop;
-    mod add_lifetime_to_function;
     mod add_lifetime_to_type;
     mod add_missing_impl_members;
     mod add_missing_match_arms;
@@ -228,7 +227,6 @@ mod handlers {
             add_explicit_type::add_explicit_type,
             add_label_to_loop::add_label_to_loop,
             add_missing_match_arms::add_missing_match_arms,
-            add_lifetime_to_function::add_lifetime_to_function,
             add_lifetime_to_type::add_lifetime_to_type,
             add_return_type::add_return_type,
             add_turbo_fish::add_turbo_fish,

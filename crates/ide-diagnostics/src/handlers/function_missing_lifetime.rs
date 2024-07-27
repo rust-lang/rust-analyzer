@@ -1,11 +1,45 @@
-use ide_db::FxHashSet;
-use itertools::Itertools;
+use ide_db::{assists::Assist, FxHashSet};
+use stdx::format_to;
 use syntax::ast::{
-    self, AstNode, GenericArgList, GenericParamList, HasGenericParams, HasName, HasTypeBounds,
-    ParamList, TypeBoundList, WhereClause,
+    self, GenericArgList, GenericParamList, HasTypeBounds, ParamList, TypeBoundList, WhereClause,
 };
 
-use crate::{AssistContext, AssistId, AssistKind, Assists};
+use crate::{Diagnostic, DiagnosticCode, DiagnosticsContext};
+
+// use crate::{AssistContext, AssistId, AssistKind, Assists};
+
+// Diagnostic: function-missing-lifetime
+//
+// This diagnostic is triggered if a function mentions a lifetime that is undeclared.
+//
+// Example:
+//
+// ```rust
+// fn f(s: &'a str) {}
+// ```
+pub(crate) fn function_missing_lifetime(
+    ctx: &DiagnosticsContext<'_>,
+    d: &hir::FunctionMissingLifetime,
+) -> Diagnostic {
+    let mut message = format!("function missing lifetime:\n{}\n", d.missing_lifetime);
+    for field in &d.missed_fields {
+        format_to!(message, "- {}\n", field.display(ctx.sema.db));
+    }
+
+    let ptr = InFile::new(
+        d.file,
+        d.field_list_parent_path
+            .map(SyntaxNodePtr::from)
+            .unwrap_or_else(|| d.field_list_parent.into()),
+    );
+
+    Diagnostic::new_with_syntax_node_ptr(ctx, DiagnosticCode::RustcHardError("E0261"), message, ptr)
+        .with_fixes(fixes(ctx, d))
+}
+
+fn fixes(ctx: &DiagnosticsContext<'_>, d: &hir::FunctionMissingLifetime) -> Option<Vec<Assist>> {
+    todo!()
+}
 
 // Assist: add_lifetime_to_function
 //
@@ -22,7 +56,10 @@ use crate::{AssistContext, AssistId, AssistKind, Assists};
 //     println!("{s}");
 // }
 // ```
-pub(crate) fn add_lifetime_to_function(acc: &mut Assists, ctx: &AssistContext<'_>) -> Option<()> {
+fn add_lifetime_to_function(
+    ctx: &crate::DiagnosticsContext<'_>,
+    d: &hir::MissingLifetime,
+) -> Option<()> {
     let function = ctx.find_node_at_offset::<ast::Fn>()?;
     let target = function.syntax().text_range();
 

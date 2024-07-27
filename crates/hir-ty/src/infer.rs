@@ -252,6 +252,10 @@ pub enum InferenceDiagnostic {
         expr: ExprId,
         expected: Ty,
     },
+    FunctionMissingLifetime {
+        function: ExprId,
+        lifetime: LifetimeRef,
+    },
 }
 
 /// A mismatch between an expected and an inferred type.

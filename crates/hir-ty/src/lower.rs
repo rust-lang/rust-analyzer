@@ -117,7 +117,7 @@ impl ImplTraitLoweringState {
     }
 }
 
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct TyLoweringContext<'a> {
     pub db: &'a dyn HirDatabase,
     resolver: &'a Resolver,
@@ -134,6 +134,8 @@ pub struct TyLoweringContext<'a> {
     expander: RefCell<Option<Expander>>,
     /// Tracks types with explicit `?Sized` bounds.
     pub(crate) unsized_types: RefCell<FxHashSet<Ty>>,
+    /// Call this function to add a diagnostic to
+    missing_lifetime_callback: Option<RefCell<&'static mut dyn FnMut(LifetimeRef)>>,
 }
 
 impl<'a> TyLoweringContext<'a> {
@@ -158,6 +160,7 @@ impl<'a> TyLoweringContext<'a> {
             type_param_mode,
             expander: RefCell::new(None),
             unsized_types: RefCell::default(),
+            missing_lifetime_callback: None,
         }
     }
 
@@ -174,6 +177,7 @@ impl<'a> TyLoweringContext<'a> {
             impl_trait_mode,
             expander: RefCell::new(expander),
             unsized_types: RefCell::new(unsized_types),
+            missing_lifetime_callback: None,
             ..*self
         };
         let result = f(&new_ctx);
@@ -197,6 +201,10 @@ impl<'a> TyLoweringContext<'a> {
 
     pub fn with_type_param_mode(self, type_param_mode: ParamLoweringMode) -> Self {
         Self { type_param_mode, ..self }
+    }
+
+    pub fn with_lifetime_callback<F: Fn(LifetimeRef)>(self, callback: &'static mut F) -> Self {
+        Self { missing_lifetime_callback: Some(RefCell::new(callback)), ..self }
     }
 }
 
@@ -278,7 +286,7 @@ impl<'a> TyLoweringContext<'a> {
             }
             TypeRef::Reference(inner, lifetime, mutability) => {
                 let inner_ty = self.lower_ty(inner);
-                // FIXME: It should infer the eldided lifetimes instead of stubbing with static
+                // FIXME: It should infer the elided lifetimes instead of stubbing with static
                 let lifetime =
                     lifetime.as_ref().map_or_else(error_lifetime, |lr| self.lower_lifetime(lr));
                 TyKind::Ref(lower_to_chalk_mutability(*mutability), lifetime, inner_ty)
@@ -1377,7 +1385,12 @@ impl<'a> TyLoweringContext<'a> {
                 }
                 .intern(Interner),
             },
-            None => error_lifetime(),
+            None => {
+                if let Some(add_diagnostic) = self.missing_lifetime_callback.as_ref() {
+                    add_diagnostic.borrow_mut()(lifetime.clone());
+                }
+                error_lifetime()
+            }
         }
     }
 }

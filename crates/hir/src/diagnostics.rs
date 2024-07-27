@@ -62,6 +62,7 @@ diagnostics![
     MismatchedArgCount,
     MismatchedTupleStructPatArgCount,
     MissingFields,
+    FunctionMissingLifetime,
     MissingMatchArms,
     MissingUnsafe,
     MovedOutOfRef,
@@ -370,6 +371,13 @@ pub struct RemoveUnnecessaryElse {
     pub if_expr: InFile<AstPtr<ast::IfExpr>>,
 }
 
+#[derive(Debug)]
+pub struct FunctionMissingLifetime {
+    pub file: HirFileId,
+    pub function: AstPtr<ast::Fn>,
+    pub lifetime: InFile<AstPtr<ast::Lifetime>>,
+}
+
 impl AnyDiagnostic {
     pub(crate) fn body_validation_diagnostic(
         db: &dyn HirDatabase,
@@ -625,6 +633,10 @@ impl AnyDiagnostic {
                     }
                 };
                 MismatchedTupleStructPatArgCount { expr_or_pat, expected, found }.into()
+            }
+            InferenceDiagnostic::FunctionMissingLifetime { function, lifetime } => {
+                // let file_id = function.
+                FunctionMissingLifetime { file_id: todo!(), function, lifetime }.into()
             }
         })
     }
