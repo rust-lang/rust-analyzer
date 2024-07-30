@@ -65,7 +65,6 @@ pub(crate) fn arrow_expr(p: &mut Parser<'_>, lhs: CompletedMarker) -> CompletedM
     assert!(p.at(T![->]));
     let m = lhs.precede(p);
     p.bump(T![->]);
-    dbg!(p.current());
     if p.at(IDENT) {
         p.bump(IDENT);
     } else if p.at(NAME_REF) {
@@ -125,9 +124,7 @@ pub(crate) fn broadcast_group(p: &mut Parser<'_>, m: Marker) -> CompletedMarker 
         }
         if p.at(T![,]) {
             p.bump(T![,]);
-        } else {
-            dbg!("broadcast_group at: {:?}", p.current());
-        }
+        } 
     }
     p.expect(T!['}']);
     m.complete(p, BROADCAST_GROUP)
@@ -143,8 +140,6 @@ pub(crate) fn broadcast_use_list(p: &mut Parser<'_>, m: Marker) -> CompletedMark
         }
         if p.at(T![,]) {
             p.bump(T![,]);
-        } else {
-            dbg!("broadcast_use_list at: {:?}", p.current());
         }
     }
     p.expect(T![;]);

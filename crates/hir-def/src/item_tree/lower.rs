@@ -482,22 +482,20 @@ impl<'a> Ctx<'a> {
 
     fn lower_broadcast_group(
         &mut self,
-        _bg: &ast::BroadcastGroup,
+        bg: &ast::BroadcastGroup,
     ) -> Option<FileItemTreeId<BroadcastGroup>> {
-        panic!("'broadcast group' not implemented yet");
-        // let ast_id = self.source_ast_id_map.ast_id(global);
-        // let res = VerusGlobal { ast_id };
-        // id(self.data().verus_globals.alloc(res))
+        let ast_id = self.source_ast_id_map.ast_id(bg);
+        let res = BroadcastGroup { ast_id };
+        id(self.data().broadcast_groups.alloc(res)).into()
     }
 
     fn lower_broadcast_use(
         &mut self,
-        _broadcast: &ast::BroadcastUse,
+        bu: &ast::BroadcastUse,
     ) -> FileItemTreeId<BroadcastUse> {
-        panic!("'broadcast use' not implemented yet");
-        // let ast_id = self.source_ast_id_map.ast_id(broadcast);
-        // let res = VerusGlobal { ast_id };
-        // id(self.data().verus_globals.alloc(res))
+        let ast_id = self.source_ast_id_map.ast_id(bu);
+        let res = BroadcastUse { ast_id };
+        id(self.data().broadcast_uses.alloc(res)).into()
     }
 
     fn lower_module(&mut self, module: &ast::Module) -> Option<FileItemTreeId<Mod>> {
