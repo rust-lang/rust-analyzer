@@ -177,7 +177,13 @@ impl Target {
             Ok(target) => target,
             _ => {
                 if cfg!(target_os = "linux") {
-                    "x86_64-unknown-linux-gnu".to_owned()
+                    if cfg!(target_arch = "x86_64") {
+                        "x86_64-unknown-linux-gnu".to_owned()
+                    } else if cfg!(target_arch = "aarch64") {
+                        "aarch64-unknown-linux-gnu".to_owned()
+                    } else {
+                        panic!("Unsupported architecture, maybe try setting RA_TARGET")
+                    }
                 } else if cfg!(target_os = "windows") {
                     "x86_64-pc-windows-msvc".to_owned()
                 } else if cfg!(target_os = "macos") {
