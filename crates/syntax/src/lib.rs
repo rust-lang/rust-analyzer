@@ -1817,6 +1817,23 @@ mod m4 {
 }
 
 #[test]
+fn verus_broadcast_regression() {
+    use ast::HasModuleItem;
+    let source_code = "verus!{
+fn f() { let group = Group::new(Delimiter::Bracket, bracketed.build()); let mut group = crate::Group::_new_fallback(group); group.set_span(span); trees.push_token_from_parser(TokenTree::Group(group)); }
+}";
+    let parse = SourceFile::parse(source_code, Edition::Edition2024);
+    dbg!(&parse.errors);
+    assert!(parse.errors().is_empty());
+    let file: SourceFile = parse.tree();
+    dbg!(&file);
+    for item in file.items() {
+        dbg!(&item);
+    }
+}
+
+
+#[test]
 fn cst_to_vst1() {
     use ast::HasModuleItem;
     let source_code = "

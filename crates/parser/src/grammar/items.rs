@@ -128,6 +128,7 @@ pub(super) fn opt_item(p: &mut Parser<'_>, m: Marker) -> Result<(), Marker> {
 
     let mut has_mods = false;
     let mut has_extern = false;
+    let mut saw_broadcast = false;
 
     /*
     Verus
@@ -166,6 +167,7 @@ pub(super) fn opt_item(p: &mut Parser<'_>, m: Marker) -> Result<(), Marker> {
     if p.at(T![broadcast]) {
         p.bump(T![broadcast]);
         has_mods = true;
+        saw_broadcast = true;
     }
 
     if p.at(T![extern]) {
@@ -239,6 +241,12 @@ pub(super) fn opt_item(p: &mut Parser<'_>, m: Marker) -> Result<(), Marker> {
         has_mods = true;
     }
 
+    if saw_broadcast && p.at_contextual_kw(T![group]) {
+        p.bump_remap(T![group]);
+        verus::broadcast_group(p, m);
+        return Ok(());
+    }
+
     // items
     match p.current() {
         T![fn] => fn_(p, m),
@@ -250,11 +258,7 @@ pub(super) fn opt_item(p: &mut Parser<'_>, m: Marker) -> Result<(), Marker> {
 
         T![type] => type_alias(p, m),
 
-        T![group] => {
-            verus::broadcast_group(p, m);
-        }
-
-        T![use] => {
+        T![use] if saw_broadcast => {
             verus::broadcast_use_list(p, m);
         }
 
@@ -268,7 +272,7 @@ pub(super) fn opt_item(p: &mut Parser<'_>, m: Marker) -> Result<(), Marker> {
 
         _ if has_visibility || has_mods => {
             if has_mods {
-                p.error("expected existential, fn, trait or impl");
+                p.error(format!("expected existential, fn, trait or impl; saw {:?}", p.current()));
             } else {
                 p.error("expected an item");
             }

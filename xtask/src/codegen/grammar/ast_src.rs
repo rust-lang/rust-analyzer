@@ -156,7 +156,6 @@ pub(crate) const KINDS_SRC: KindsSrc<'_> = KindsSrc {
         "trigger",
         "global",
         "broadcast",
-        "group",
         "is",
         "matches",
     ],
@@ -172,6 +171,7 @@ pub(crate) const KINDS_SRC: KindsSrc<'_> = KindsSrc {
         "offset_of",
         "asm",
         "format_args",
+        "group",    // verus: Only a key word when it follows 'broadcast'
     ],
     literals: &["INT_NUMBER", "FLOAT_NUMBER", "CHAR", "BYTE", "STRING", "BYTE_STRING", "C_STRING"],
     tokens: &["ERROR", "IDENT", "WHITESPACE", "LIFETIME_IDENT", "COMMENT", "SHEBANG"],
