@@ -99,7 +99,7 @@ pub fn syntax_node_to_token_tree<Ctx, SpanMap>(
     map: SpanMap,
     span: SpanData<Ctx>,
     mode: DocCommentDesugarMode,
-) -> tt::Subtree<SpanData<Ctx>>
+) -> tt::TokenStream<SpanData<Ctx>>
 where
     SpanData<Ctx>: Copy + fmt::Debug,
     SpanMap: SpanMapper<SpanData<Ctx>>,
@@ -114,11 +114,11 @@ where
 pub fn syntax_node_to_token_tree_modified<Ctx, SpanMap>(
     node: &SyntaxNode,
     map: SpanMap,
-    append: FxHashMap<SyntaxElement, Vec<tt::Leaf<SpanData<Ctx>>>>,
+    append: FxHashMap<SyntaxElement, Vec<tt::Token<SpanData<Ctx>>>>,
     remove: FxHashSet<SyntaxElement>,
     call_site: SpanData<Ctx>,
     mode: DocCommentDesugarMode,
-) -> tt::Subtree<SpanData<Ctx>>
+) -> tt::TokenStream<SpanData<Ctx>>
 where
     SpanMap: SpanMapper<SpanData<Ctx>>,
     SpanData<Ctx>: Copy + fmt::Debug,
@@ -139,10 +139,10 @@ where
 // * AssocItems(SmallVec<[ast::AssocItem; 1]>)
 // * ForeignItems(SmallVec<[ast::ForeignItem; 1]>
 
-/// Converts a [`tt::Subtree`] back to a [`SyntaxNode`].
+/// Converts a [`tt::TokenStream`] back to a [`SyntaxNode`].
 /// The produced `SpanMap` contains a mapping from the syntax nodes offsets to the subtree's spans.
 pub fn token_tree_to_syntax_node<Ctx>(
-    tt: &tt::Subtree<SpanData<Ctx>>,
+    tt: &tt::TokenStream<SpanData<Ctx>>,
     entry_point: parser::TopEntryPoint,
     edition: parser::Edition,
 ) -> (Parse<SyntaxNode>, SpanMap<Ctx>)
