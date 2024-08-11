@@ -128,6 +128,7 @@ fn should_hide_param_name_hint(
     is_param_name_suffix_of_fn_name(param_name, callable, fn_name)
         || is_argument_expr_similar_to_param_name(argument, param_name)
         || param_name.starts_with("ra_fixture")
+        || param_name.starts_with("__internals__donotuse__rustc__rust_analyzer_extensions_approved_in_rfc_1488_fixture")
         || (callable.n_params() == 1 && is_obvious_param(param_name))
         || is_adt_constructor_similar_to_param_name(sema, argument, param_name)
 }
