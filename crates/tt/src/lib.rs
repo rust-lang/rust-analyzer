@@ -12,7 +12,7 @@ extern crate rustc_lexer;
 // pub mod buffer;
 // pub mod iter;
 
-use std::fmt;
+use std::{fmt, mem};
 
 use intern::Symbol;
 use stdx::itertools::Itertools as _;
@@ -20,16 +20,15 @@ use stdx::itertools::Itertools as _;
 pub use text_size::{TextRange, TextSize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Lit {
-    pub kind: LitKind,
-    pub symbol: Symbol,
-    pub suffix: Option<Symbol>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Token<Span> {
     pub kind: TokenKind,
     pub span: Span,
+}
+
+impl<Span> Token<Span> {
+    pub fn new(kind: TokenKind, span: Span) -> Self {
+        Token { kind, span }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -197,18 +196,12 @@ pub enum TokenKind {
 
     /* Literals */
     // The box shrinks this enum by 8 bytes
-    Literal(Box<Lit>),
+    Literal(Box<Literal>),
 
     /// Identifier token.
-    /// Do not forget about `NtIdent` when you want to match on identifiers.
-    /// It's recommended to use `Token::(ident,uninterpolate,uninterpolated_span)` to
-    /// treat regular and interpolated identifiers in the same way.
     Ident(Symbol, IdentIsRaw),
 
     /// Lifetime identifier token.
-    /// Do not forget about `NtLifetime` when you want to match on lifetime identifiers.
-    /// It's recommended to use `Token::(lifetime,uninterpolate,uninterpolated_span)` to
-    /// treat regular and interpolated lifetime identifiers in the same way.
     Lifetime(Symbol),
 
     /// A doc comment token.
@@ -221,7 +214,17 @@ pub enum TokenKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TokenStream<Span>(Box<[TokenTree<Span>]>);
+pub struct TokenStream<Span>(pub Box<[TokenTree<Span>]>);
+
+impl<S> TokenStream<S> {
+    pub fn trees(&self) -> RefTokenTreeCursor<'_, S> {
+        RefTokenTreeCursor::new(self)
+    }
+
+    pub fn into_trees(self) -> TokenTreeCursor<S> {
+        TokenTreeCursor::new(self)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TokenTree<Span> {
@@ -652,3 +655,208 @@ impl fmt::Display for Literal {
 //         })
 //         .0
 // }
+/// By-reference iterator over a [`TokenStream`], that produces `&TokenTree`
+/// items.
+#[derive(Clone, Debug)]
+pub struct RefTokenTreeCursor<'t, S> {
+    stream: &'t TokenStream<S>,
+    index: usize,
+}
+
+impl<'t, S> RefTokenTreeCursor<'t, S> {
+    fn new(stream: &'t TokenStream<S>) -> Self {
+        RefTokenTreeCursor { stream, index: 0 }
+    }
+
+    pub fn look_ahead(&self, n: usize) -> Option<&TokenTree<S>> {
+        self.stream.0.get(self.index + n)
+    }
+}
+
+impl<'t, S> Iterator for RefTokenTreeCursor<'t, S> {
+    type Item = &'t TokenTree<S>;
+
+    fn next(&mut self) -> Option<&'t TokenTree<S>> {
+        self.stream.0.get(self.index).inspect(|_| self.index += 1)
+    }
+}
+
+/// Owning by-value iterator over a [`TokenStream`], that produces `&TokenTree`
+/// items.
+///
+/// Doesn't impl `Iterator` because Rust doesn't permit an owning iterator to
+/// return `&T` from `next`; the need for an explicit lifetime in the `Item`
+/// associated type gets in the way. Instead, use `next_ref` (which doesn't
+/// involve associated types) for getting individual elements, or
+/// `RefTokenTreeCursor` if you really want an `Iterator`, e.g. in a `for`
+/// loop.
+#[derive(Clone, Debug)]
+pub struct TokenTreeCursor<S> {
+    pub stream: TokenStream<S>,
+    index: usize,
+}
+
+impl<S> TokenTreeCursor<S> {
+    fn new(stream: TokenStream<S>) -> Self {
+        TokenTreeCursor { stream, index: 0 }
+    }
+
+    #[inline]
+    pub fn next_ref(&mut self) -> Option<&TokenTree<S>> {
+        self.stream.0.get(self.index).inspect(|_| self.index += 1)
+    }
+
+    pub fn look_ahead(&self, n: usize) -> Option<&TokenTree<S>> {
+        self.stream.0.get(self.index + n)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct TokenCursor<S> {
+    // Cursor for the current (innermost) token stream. The delimiters for this
+    // token stream are found in `self.stack.last()`; when that is `None` then
+    // we are in the outermost token stream which never has delimiters.
+    tree_cursor: TokenTreeCursor<S>,
+
+    // Token streams surrounding the current one. The delimiters for stack[n]'s
+    // tokens are in `stack[n-1]`. `stack[0]` (when present) has no delimiters
+    // because it's the outermost token stream which never has delimiters.
+    stack: Vec<(TokenTreeCursor<S>, DelimSpan<S>, DelimSpacing, Delimiter)>,
+}
+
+impl<S: Copy> TokenCursor<S> {
+    pub fn new(stream: TokenStream<S>) -> Self {
+        TokenCursor { tree_cursor: TokenTreeCursor::new(stream), stack: Vec::new() }
+    }
+
+    #[allow(clippy::should_implement_trait)]
+    pub fn next(&mut self) -> Option<(Token<S>, Spacing)> {
+        self.inlined_next()
+    }
+
+    /// This always-inlined version should only be used on hot code paths.
+    #[inline(always)]
+    pub fn inlined_next(&mut self) -> Option<(Token<S>, Spacing)> {
+        loop {
+            // FIXME: we currently don't return `Delimiter::Invisible` open/close delims. To fix
+            // #67062 we will need to, whereupon the `delim != Delimiter::Invisible` conditions
+            // below can be removed.
+            if let Some(tree) = self.tree_cursor.next_ref() {
+                match *tree {
+                    TokenTree::Token(ref token, spacing) => {
+                        debug_assert!(!matches!(
+                            token.kind,
+                            TokenKind::OpenDelim(_) | TokenKind::CloseDelim(_)
+                        ));
+                        return Some((token.clone(), spacing));
+                    }
+                    TokenTree::Delimited(sp, spacing, delim, ref tts) => {
+                        let trees = tts.clone().into_trees();
+                        self.stack.push((
+                            mem::replace(&mut self.tree_cursor, trees),
+                            sp,
+                            spacing,
+                            delim,
+                        ));
+                        if delim != Delimiter::Invisible {
+                            return Some((
+                                Token::new(TokenKind::OpenDelim(delim), sp.open),
+                                spacing.open,
+                            ));
+                        }
+                        // No open delimiter to return; continue on to the next iteration.
+                    }
+                };
+            } else if let Some((tree_cursor, span, spacing, delim)) = self.stack.pop() {
+                // We have exhausted this token stream. Move back to its parent token stream.
+                self.tree_cursor = tree_cursor;
+                if delim != Delimiter::Invisible {
+                    return Some((
+                        Token::new(TokenKind::CloseDelim(delim), span.close),
+                        spacing.close,
+                    ));
+                }
+                // No close delimiter to return; continue on to the next iteration.
+            } else {
+                return None;
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct RefTokenCursor<'a, S> {
+    // Cursor for the current (innermost) token stream. The delimiters for this
+    // token stream are found in `self.stack.last()`; when that is `None` then
+    // we are in the outermost token stream which never has delimiters.
+    tree_cursor: RefTokenTreeCursor<'a, S>,
+
+    // Token streams surrounding the current one. The delimiters for stack[n]'s
+    // tokens are in `stack[n-1]`. `stack[0]` (when present) has no delimiters
+    // because it's the outermost token stream which never has delimiters.
+    stack: Vec<(RefTokenTreeCursor<'a, S>, DelimSpan<S>, DelimSpacing, Delimiter)>,
+}
+
+impl<'a, S: Copy> RefTokenCursor<'a, S> {
+    pub fn new(stream: &'a TokenStream<S>) -> Self {
+        RefTokenCursor { tree_cursor: RefTokenTreeCursor::new(stream), stack: Vec::new() }
+    }
+
+    #[allow(clippy::should_implement_trait)]
+    pub fn next(&mut self) -> Option<(Token<S>, Spacing)> {
+        self.inlined_next()
+    }
+
+    pub fn at_root(&self) -> bool {
+        self.stack.is_empty()
+    }
+
+    /// This always-inlined version should only be used on hot code paths.
+    #[inline(always)]
+    pub fn inlined_next(&mut self) -> Option<(Token<S>, Spacing)> {
+        loop {
+            // FIXME: we currently don't return `Delimiter::Invisible` open/close delims. To fix
+            // #67062 we will need to, whereupon the `delim != Delimiter::Invisible` conditions
+            // below can be removed.
+            if let Some(tree) = self.tree_cursor.next() {
+                match *tree {
+                    TokenTree::Token(ref token, spacing) => {
+                        debug_assert!(!matches!(
+                            token.kind,
+                            TokenKind::OpenDelim(_) | TokenKind::CloseDelim(_)
+                        ));
+                        return Some((token.clone(), spacing));
+                    }
+                    TokenTree::Delimited(sp, spacing, delim, ref tts) => {
+                        let trees = tts.trees();
+                        self.stack.push((
+                            mem::replace(&mut self.tree_cursor, trees),
+                            sp,
+                            spacing,
+                            delim,
+                        ));
+                        if delim != Delimiter::Invisible {
+                            return Some((
+                                Token::new(TokenKind::OpenDelim(delim), sp.open),
+                                spacing.open,
+                            ));
+                        }
+                        // No open delimiter to return; continue on to the next iteration.
+                    }
+                };
+            } else if let Some((tree_cursor, span, spacing, delim)) = self.stack.pop() {
+                // We have exhausted this token stream. Move back to its parent token stream.
+                self.tree_cursor = tree_cursor;
+                if delim != Delimiter::Invisible {
+                    return Some((
+                        Token::new(TokenKind::CloseDelim(delim), span.close),
+                        spacing.close,
+                    ));
+                }
+                // No close delimiter to return; continue on to the next iteration.
+            } else {
+                return None;
+            }
+        }
+    }
+}
