@@ -6,8 +6,11 @@ use std::io;
 use anyhow::Context;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{
-    filter::Targets, fmt::MakeWriter, layer::SubscriberExt, util::SubscriberInitExt, Layer,
-    Registry,
+    filter::Targets,
+    fmt::{time, MakeWriter},
+    layer::SubscriberExt,
+    util::SubscriberInitExt,
+    Layer, Registry,
 };
 use tracing_tree::HierarchicalLayer;
 
@@ -49,6 +52,10 @@ where
         let writer = self.writer;
 
         let ra_fmt_layer = tracing_subscriber::fmt::layer()
+            .with_timer(
+                time::OffsetTime::local_rfc_3339()
+                    .expect("Could not get local offset, make sure you're on the main thread"),
+            )
             .with_target(false)
             .with_ansi(false)
             .with_writer(writer)
