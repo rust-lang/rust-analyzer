@@ -549,8 +549,10 @@ impl GlobalState {
                 let subscriptions = subscriptions.clone();
                 // Do not fetch semantic diagnostics (and populate query results) if we haven't even
                 // loaded the initial workspace yet.
-                let fetch_semantic =
-                    self.vfs_done && self.fetch_workspaces_queue.last_op_result().is_some();
+                let fetch_semantic = self.vfs_done
+                    && self.fetch_workspaces_queue.last_op_result().is_some()
+                    && !self.fetch_build_data_queue.op_in_progress()
+                    && !self.fetch_proc_macros_queue.op_in_progress();
                 move |sender| {
                     let diags = fetch_native_diagnostics(
                         &snapshot,
