@@ -192,6 +192,7 @@ mod handlers {
     mod qualify_method_call;
     mod qualify_path;
     mod raw_string;
+    mod recursively_add_derive;
     mod remove_dbg;
     mod remove_mut;
     mod remove_parentheses;
@@ -324,6 +325,7 @@ mod handlers {
             raw_string::add_hash,
             raw_string::make_usual_string,
             raw_string::remove_hash,
+            recursively_add_derive::recursively_add_derive,
             remove_mut::remove_mut,
             remove_unused_imports::remove_unused_imports,
             remove_unused_param::remove_unused_param,
