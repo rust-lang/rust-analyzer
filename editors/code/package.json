@@ -723,8 +723,8 @@
                     "rust-analyzer.cargo.cfgs": {
                         "markdownDescription": "List of cfg options to enable with the given values.",
                         "default": {
-                            "debug_assertions": null,
-                            "miri": null
+                            "miri": null,
+                            "debug_assertions": null
                         },
                         "type": "object"
                     }
@@ -1117,18 +1117,10 @@
                     "rust-analyzer.completion.snippets.custom": {
                         "markdownDescription": "Custom completion snippets.",
                         "default": {
-                            "Arc::new": {
-                                "postfix": "arc",
-                                "body": "Arc::new(${receiver})",
-                                "requires": "std::sync::Arc",
-                                "description": "Put the expression into an `Arc`",
-                                "scope": "expr"
-                            },
-                            "Rc::new": {
-                                "postfix": "rc",
-                                "body": "Rc::new(${receiver})",
-                                "requires": "std::rc::Rc",
-                                "description": "Put the expression into an `Rc`",
+                            "Ok": {
+                                "postfix": "ok",
+                                "body": "Ok(${receiver})",
+                                "description": "Wrap the expression in a `Result::Ok`",
                                 "scope": "expr"
                             },
                             "Box::pin": {
@@ -1138,10 +1130,11 @@
                                 "description": "Put the expression into a pinned `Box`",
                                 "scope": "expr"
                             },
-                            "Err": {
-                                "postfix": "err",
-                                "body": "Err(${receiver})",
-                                "description": "Wrap the expression in a `Result::Err`",
+                            "Arc::new": {
+                                "postfix": "arc",
+                                "body": "Arc::new(${receiver})",
+                                "requires": "std::sync::Arc",
+                                "description": "Put the expression into an `Arc`",
                                 "scope": "expr"
                             },
                             "Some": {
@@ -1150,10 +1143,17 @@
                                 "description": "Wrap the expression in an `Option::Some`",
                                 "scope": "expr"
                             },
-                            "Ok": {
-                                "postfix": "ok",
-                                "body": "Ok(${receiver})",
-                                "description": "Wrap the expression in a `Result::Ok`",
+                            "Err": {
+                                "postfix": "err",
+                                "body": "Err(${receiver})",
+                                "description": "Wrap the expression in a `Result::Err`",
+                                "scope": "expr"
+                            },
+                            "Rc::new": {
+                                "postfix": "rc",
+                                "body": "Rc::new(${receiver})",
+                                "requires": "std::rc::Rc",
+                                "description": "Put the expression into an `Rc`",
                                 "scope": "expr"
                             }
                         },
