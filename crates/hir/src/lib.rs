@@ -450,6 +450,20 @@ impl ModuleDef {
         acc
     }
 
+    pub fn as_trait(self) -> Option<Trait> {
+        match self {
+            ModuleDef::Trait(it) => Some(it),
+            _ => None,
+        }
+    }
+
+    pub fn as_macro(self) -> Option<Macro> {
+        match self {
+            ModuleDef::Macro(it) => Some(it),
+            _ => None,
+        }
+    }
+
     pub fn as_def_with_body(self) -> Option<DefWithBody> {
         match self {
             ModuleDef::Function(it) => Some(it.into()),
@@ -3340,6 +3354,13 @@ impl ItemInNs {
         match self {
             ItemInNs::Types(id) | ItemInNs::Values(id) => id,
             ItemInNs::Macros(id) => ModuleDef::Macro(id),
+        }
+    }
+
+    pub fn as_macro(self) -> Option<Macro> {
+        match self {
+            ItemInNs::Types(_) | ItemInNs::Values(_) => None,
+            ItemInNs::Macros(id) => Some(id),
         }
     }
 

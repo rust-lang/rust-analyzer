@@ -99,6 +99,13 @@ impl PathResolution {
             PathResolution::SelfType(impl_def) => Some(TypeNs::SelfType((*impl_def).into())),
         }
     }
+
+    pub fn as_module_def(&self) -> Option<ModuleDef> {
+        match self {
+            PathResolution::Def(it) => Some(*it),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
