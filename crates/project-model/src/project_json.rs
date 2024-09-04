@@ -245,6 +245,10 @@ impl ProjectJson {
     pub fn runnables(&self) -> &[Runnable] {
         &self.runnables
     }
+
+    pub fn runnable_template(&self, kind: RunnableKind) -> Option<&Runnable> {
+        self.runnables().iter().find(|r| r.kind == kind)
+    }
 }
 
 /// A crate points to the root module of a crate and lists the dependencies of the crate. This is
@@ -346,6 +350,7 @@ pub struct Runnable {
 /// The kind of runnable.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RunnableKind {
+    /// `cargo check`, basically, with human-readable output.
     Check,
 
     /// Can run a binary.
@@ -353,6 +358,10 @@ pub enum RunnableKind {
 
     /// Run a single test.
     TestOne,
+
+    /// Template for checking a target, emitting rustc JSON diagnostics.
+    /// May include {label} which will get the label from the `build` section of a crate.
+    Flycheck,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
@@ -457,6 +466,7 @@ pub struct RunnableData {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RunnableKindData {
+    Flycheck,
     Check,
     Run,
     TestOne,
@@ -527,6 +537,7 @@ impl From<RunnableKindData> for RunnableKind {
             RunnableKindData::Check => RunnableKind::Check,
             RunnableKindData::Run => RunnableKind::Run,
             RunnableKindData::TestOne => RunnableKind::TestOne,
+            RunnableKindData::Flycheck => RunnableKind::Flycheck,
         }
     }
 }
