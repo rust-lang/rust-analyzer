@@ -941,6 +941,7 @@ impl GlobalState {
             }
         }
         .into();
+        self.flycheck_formatted_commands = vec![];
     }
 }
 
