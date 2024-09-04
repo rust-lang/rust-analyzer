@@ -23,7 +23,7 @@ use crate::{
     item_tree::{AttrOwner, FieldParent, ItemTreeNode},
     lang_item::LangItem,
     nameres::{ModuleOrigin, ModuleSource},
-    src::{HasChildSource, HasSource},
+    src::{DefToSourceContext, HasChildSource, HasSource},
     AdtId, AttrDefId, GenericParamId, HasModule, ItemTreeLoc, LocalFieldId, Lookup, MacroId,
     VariantId,
 };
@@ -378,7 +378,7 @@ impl AttrsWithOwner {
             AttrDefId::TypeAliasId(it) => attrs_from_item_tree_loc(db, it),
             AttrDefId::GenericParamId(it) => match it {
                 GenericParamId::ConstParamId(it) => {
-                    let src = it.parent().child_source(db);
+                    let src = it.parent().child_source(db, &mut None);
                     // FIXME: We should be never getting `None` here.
                     match src.value.get(it.local_id()) {
                         Some(val) => RawAttrs::from_attrs_owner(
@@ -390,7 +390,7 @@ impl AttrsWithOwner {
                     }
                 }
                 GenericParamId::TypeParamId(it) => {
-                    let src = it.parent().child_source(db);
+                    let src = it.parent().child_source(db, &mut None);
                     // FIXME: We should be never getting `None` here.
                     match src.value.get(it.local_id()) {
                         Some(val) => RawAttrs::from_attrs_owner(
@@ -402,7 +402,7 @@ impl AttrsWithOwner {
                     }
                 }
                 GenericParamId::LifetimeParamId(it) => {
-                    let src = it.parent.child_source(db);
+                    let src = it.parent.child_source(db, &mut None);
                     // FIXME: We should be never getting `None` here.
                     match src.value.get(it.local_id) {
                         Some(val) => RawAttrs::from_attrs_owner(
@@ -423,7 +423,11 @@ impl AttrsWithOwner {
         Attrs(attrs)
     }
 
-    pub fn source_map(&self, db: &dyn DefDatabase) -> AttrSourceMap {
+    pub fn source_map(
+        &self,
+        db: &dyn DefDatabase,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) -> AttrSourceMap {
         let owner = match self.owner {
             AttrDefId::ModuleId(module) => {
                 // Modules can have 2 attribute owners (the `mod x;` item, and the module file itself).
@@ -461,40 +465,40 @@ impl AttrsWithOwner {
                 InFile::new(file_id, owner)
             }
             AttrDefId::AdtId(adt) => match adt {
-                AdtId::StructId(id) => any_has_attrs(db, id),
-                AdtId::UnionId(id) => any_has_attrs(db, id),
-                AdtId::EnumId(id) => any_has_attrs(db, id),
+                AdtId::StructId(id) => any_has_attrs(db, ctx, id),
+                AdtId::UnionId(id) => any_has_attrs(db, ctx, id),
+                AdtId::EnumId(id) => any_has_attrs(db, ctx, id),
             },
-            AttrDefId::FunctionId(id) => any_has_attrs(db, id),
-            AttrDefId::EnumVariantId(id) => any_has_attrs(db, id),
-            AttrDefId::StaticId(id) => any_has_attrs(db, id),
-            AttrDefId::ConstId(id) => any_has_attrs(db, id),
-            AttrDefId::TraitId(id) => any_has_attrs(db, id),
-            AttrDefId::TraitAliasId(id) => any_has_attrs(db, id),
-            AttrDefId::TypeAliasId(id) => any_has_attrs(db, id),
+            AttrDefId::FunctionId(id) => any_has_attrs(db, ctx, id),
+            AttrDefId::EnumVariantId(id) => any_has_attrs(db, ctx, id),
+            AttrDefId::StaticId(id) => any_has_attrs(db, ctx, id),
+            AttrDefId::ConstId(id) => any_has_attrs(db, ctx, id),
+            AttrDefId::TraitId(id) => any_has_attrs(db, ctx, id),
+            AttrDefId::TraitAliasId(id) => any_has_attrs(db, ctx, id),
+            AttrDefId::TypeAliasId(id) => any_has_attrs(db, ctx, id),
             AttrDefId::MacroId(id) => match id {
-                MacroId::Macro2Id(id) => any_has_attrs(db, id),
-                MacroId::MacroRulesId(id) => any_has_attrs(db, id),
-                MacroId::ProcMacroId(id) => any_has_attrs(db, id),
+                MacroId::Macro2Id(id) => any_has_attrs(db, ctx, id),
+                MacroId::MacroRulesId(id) => any_has_attrs(db, ctx, id),
+                MacroId::ProcMacroId(id) => any_has_attrs(db, ctx, id),
             },
-            AttrDefId::ImplId(id) => any_has_attrs(db, id),
+            AttrDefId::ImplId(id) => any_has_attrs(db, ctx, id),
             AttrDefId::GenericParamId(id) => match id {
                 GenericParamId::ConstParamId(id) => id
                     .parent()
-                    .child_source(db)
+                    .child_source(db, ctx)
                     .map(|source| ast::AnyHasAttrs::new(source[id.local_id()].clone())),
                 GenericParamId::TypeParamId(id) => id
                     .parent()
-                    .child_source(db)
+                    .child_source(db, ctx)
                     .map(|source| ast::AnyHasAttrs::new(source[id.local_id()].clone())),
                 GenericParamId::LifetimeParamId(id) => id
                     .parent
-                    .child_source(db)
+                    .child_source(db, ctx)
                     .map(|source| ast::AnyHasAttrs::new(source[id.local_id].clone())),
             },
-            AttrDefId::ExternBlockId(id) => any_has_attrs(db, id),
-            AttrDefId::ExternCrateId(id) => any_has_attrs(db, id),
-            AttrDefId::UseId(id) => any_has_attrs(db, id),
+            AttrDefId::ExternBlockId(id) => any_has_attrs(db, ctx, id),
+            AttrDefId::ExternCrateId(id) => any_has_attrs(db, ctx, id),
+            AttrDefId::UseId(id) => any_has_attrs(db, ctx, id),
         };
 
         AttrSourceMap::new(owner.as_ref().map(|node| node as &dyn HasAttrs))
@@ -608,14 +612,18 @@ impl<'attr> AttrQuery<'attr> {
     }
 }
 
-fn any_has_attrs<'db>(
+fn any_has_attrs<'db, Def, Value>(
     db: &(dyn DefDatabase + 'db),
-    id: impl Lookup<
-        Database<'db> = dyn DefDatabase + 'db,
-        Data = impl HasSource<Value = impl ast::HasAttrs>,
-    >,
-) -> InFile<ast::AnyHasAttrs> {
-    id.lookup(db).source(db).map(ast::AnyHasAttrs::new)
+    ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    id: Def,
+) -> InFile<ast::AnyHasAttrs>
+where
+    Def: HasSource<Value = Value>,
+    <Def as hir_expand::Lookup>::Data: ItemTreeLoc,
+    <<Def as hir_expand::Lookup>::Data as ItemTreeLoc>::Id: ItemTreeNode<Source = Value>,
+    Value: ast::HasAttrs,
+{
+    id.source(db, ctx).map(ast::AnyHasAttrs::new)
 }
 
 fn attrs_from_item_tree_loc<'db, N: ItemTreeNode>(
@@ -633,7 +641,7 @@ pub(crate) fn fields_attrs_source_map(
     def: VariantId,
 ) -> Arc<ArenaMap<LocalFieldId, AstPtr<Either<ast::TupleField, ast::RecordField>>>> {
     let mut res = ArenaMap::default();
-    let child_source = def.child_source(db);
+    let child_source = def.child_source(db, &mut None);
 
     for (idx, variant) in child_source.value.iter() {
         res.insert(

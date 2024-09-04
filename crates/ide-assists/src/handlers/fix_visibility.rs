@@ -1,6 +1,4 @@
-use hir::{
-    db::HirDatabase, HasSource, HasVisibility, HirFileIdExt, ModuleDef, PathResolution, ScopeDef,
-};
+use hir::{HasSource, HasVisibility, HirFileIdExt, ModuleDef, PathResolution, ScopeDef};
 use ide_db::FileId;
 use syntax::{
     ast::{self, edit_in_place::HasVisibilityEdit, make, HasVisibility as _},
@@ -60,7 +58,7 @@ fn add_vis_to_referenced_module_def(acc: &mut Assists, ctx: &AssistContext<'_>) 
         return None;
     };
 
-    let (vis_owner, target, target_file, target_name) = target_data_for_def(ctx.db(), def)?;
+    let (vis_owner, target, target_file, target_name) = target_data_for_def(ctx, def)?;
 
     let missing_visibility = if current_module.krate() == target_module.krate() {
         make::visibility_pub_crate()
@@ -105,7 +103,7 @@ fn add_vis_to_referenced_record_field(acc: &mut Assists, ctx: &AssistContext<'_>
     let parent_name = parent.name(ctx.db());
     let target_module = parent.module(ctx.db());
 
-    let in_file_source = record_field_def.source(ctx.db())?;
+    let in_file_source = record_field_def.source(&ctx.sema)?;
     let (vis_owner, target) = match in_file_source.value {
         hir::FieldSource::Named(it) => {
             let range = it.syntax().text_range();
@@ -144,66 +142,66 @@ fn add_vis_to_referenced_record_field(acc: &mut Assists, ctx: &AssistContext<'_>
 }
 
 fn target_data_for_def(
-    db: &dyn HirDatabase,
+    ctx: &AssistContext<'_>,
     def: hir::ModuleDef,
 ) -> Option<(ast::AnyHasVisibility, TextRange, FileId, Option<hir::Name>)> {
     fn offset_target_and_file_id<S, Ast>(
-        db: &dyn HirDatabase,
+        ctx: &AssistContext<'_>,
         x: S,
     ) -> Option<(ast::AnyHasVisibility, TextRange, FileId)>
     where
         S: HasSource<Ast = Ast>,
         Ast: AstNode + ast::HasVisibility,
     {
-        let source = x.source(db)?;
+        let source = x.source(&ctx.sema)?;
         let in_file_syntax = source.syntax();
         let file_id = in_file_syntax.file_id;
         let range = in_file_syntax.value.text_range();
         Some((
             ast::AnyHasVisibility::new(source.value),
             range,
-            file_id.original_file(db.upcast()).file_id(),
+            file_id.original_file(ctx.db()).file_id(),
         ))
     }
 
     let target_name;
     let (offset, target, target_file) = match def {
         hir::ModuleDef::Function(f) => {
-            target_name = Some(f.name(db));
-            offset_target_and_file_id(db, f)?
+            target_name = Some(f.name(ctx.db()));
+            offset_target_and_file_id(ctx, f)?
         }
         hir::ModuleDef::Adt(adt) => {
-            target_name = Some(adt.name(db));
+            target_name = Some(adt.name(ctx.db()));
             match adt {
-                hir::Adt::Struct(s) => offset_target_and_file_id(db, s)?,
-                hir::Adt::Union(u) => offset_target_and_file_id(db, u)?,
-                hir::Adt::Enum(e) => offset_target_and_file_id(db, e)?,
+                hir::Adt::Struct(s) => offset_target_and_file_id(ctx, s)?,
+                hir::Adt::Union(u) => offset_target_and_file_id(ctx, u)?,
+                hir::Adt::Enum(e) => offset_target_and_file_id(ctx, e)?,
             }
         }
         hir::ModuleDef::Const(c) => {
-            target_name = c.name(db);
-            offset_target_and_file_id(db, c)?
+            target_name = c.name(ctx.db());
+            offset_target_and_file_id(ctx, c)?
         }
         hir::ModuleDef::Static(s) => {
-            target_name = Some(s.name(db));
-            offset_target_and_file_id(db, s)?
+            target_name = Some(s.name(ctx.db()));
+            offset_target_and_file_id(ctx, s)?
         }
         hir::ModuleDef::Trait(t) => {
-            target_name = Some(t.name(db));
-            offset_target_and_file_id(db, t)?
+            target_name = Some(t.name(ctx.db()));
+            offset_target_and_file_id(ctx, t)?
         }
         hir::ModuleDef::TraitAlias(t) => {
-            target_name = Some(t.name(db));
-            offset_target_and_file_id(db, t)?
+            target_name = Some(t.name(ctx.db()));
+            offset_target_and_file_id(ctx, t)?
         }
         hir::ModuleDef::TypeAlias(t) => {
-            target_name = Some(t.name(db));
-            offset_target_and_file_id(db, t)?
+            target_name = Some(t.name(ctx.db()));
+            offset_target_and_file_id(ctx, t)?
         }
         hir::ModuleDef::Module(m) => {
-            target_name = m.name(db);
-            let in_file_source = m.declaration_source(db)?;
-            let file_id = in_file_source.file_id.original_file(db.upcast());
+            target_name = m.name(ctx.db());
+            let in_file_source = m.declaration_source(ctx.db())?;
+            let file_id = in_file_source.file_id.original_file(ctx.db());
             let range = in_file_source.value.syntax().text_range();
             (ast::AnyHasVisibility::new(in_file_source.value), range, file_id.file_id())
         }

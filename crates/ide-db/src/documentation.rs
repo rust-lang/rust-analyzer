@@ -1,8 +1,8 @@
 //! Documentation attribute related utilities.
 use either::Either;
 use hir::{
-    db::{DefDatabase, HirDatabase},
-    resolve_doc_path_on, sym, AttrId, AttrSourceMap, AttrsWithOwner, HasAttrs, InFile,
+    db::HirDatabase, resolve_doc_path_on, sym, AttrId, AttrSourceMap, AttrsWithOwner, HasAttrs,
+    InFile, Semantics,
 };
 use itertools::Itertools;
 use syntax::{
@@ -87,8 +87,8 @@ impl DocsRangeMap {
     }
 }
 
-pub fn docs_with_rangemap(
-    db: &dyn DefDatabase,
+pub fn docs_with_rangemap<DB: HirDatabase>(
+    sema: &Semantics<'_, DB>,
     attrs: &AttrsWithOwner,
 ) -> Option<(Documentation, DocsRangeMap)> {
     let docs = attrs
@@ -129,7 +129,13 @@ pub fn docs_with_rangemap(
     if buf.is_empty() {
         None
     } else {
-        Some((Documentation(buf), DocsRangeMap { mapping, source_map: attrs.source_map(db) }))
+        Some((
+            Documentation(buf),
+            DocsRangeMap {
+                mapping,
+                source_map: sema.with_d2s_ctx(|ctx| attrs.source_map(sema.db, &mut Some(ctx))),
+            },
+        ))
     }
 }
 

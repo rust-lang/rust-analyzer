@@ -89,17 +89,19 @@ use either::Either;
 use hir_def::{
     child_by_source::ChildBySource,
     dyn_map::{
-        keys::{self, Key},
+        keys::src_to_def::{self, Key},
         DynMap,
     },
     hir::{BindingId, LabelId},
+    src::DefToSourceContext,
     AdtId, BlockId, ConstId, ConstParamId, DefWithBodyId, EnumId, EnumVariantId, ExternCrateId,
     FieldId, FunctionId, GenericDefId, GenericParamId, ImplId, LifetimeParamId, Lookup, MacroId,
     ModuleId, StaticId, StructId, TraitAliasId, TraitId, TypeAliasId, TypeParamId, UnionId, UseId,
     VariantId,
 };
 use hir_expand::{
-    attrs::AttrId, name::AsName, ExpansionInfo, HirFileId, HirFileIdExt, MacroCallId,
+    attrs::AttrId, db::ExpandDatabase, name::AsName, ExpansionInfo, HirFileId, HirFileIdExt,
+    MacroCallId, MacroFileIdExt,
 };
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
@@ -164,7 +166,11 @@ impl SourceToDefCtx<'_, '_> {
         })
     }
 
-    pub(super) fn module_to_def(&mut self, src: InFile<&ast::Module>) -> Option<ModuleId> {
+    pub(super) fn module_to_def(
+        &mut self,
+        src: InFile<&ast::Module>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<ModuleId> {
         let _p = tracing::info_span!("module_to_def").entered();
         let parent_declaration = self
             .ancestors_with_macros(src.syntax_ref(), |_, ancestor| {
@@ -174,10 +180,10 @@ impl SourceToDefCtx<'_, '_> {
 
         let parent_module = match parent_declaration {
             Some(Either::Right(parent_block)) => self
-                .block_to_def(parent_block.as_ref())
+                .block_to_def(parent_block.as_ref(), d2s_ctx)
                 .map(|block| self.db.block_def_map(block).root_module_id()),
             Some(Either::Left(parent_declaration)) => {
-                self.module_to_def(parent_declaration.as_ref())
+                self.module_to_def(parent_declaration.as_ref(), d2s_ctx)
             }
             None => {
                 let file_id = src.file_id.original_file(self.db.upcast());
@@ -191,93 +197,198 @@ impl SourceToDefCtx<'_, '_> {
         Some(def_map.module_id(child_id))
     }
 
-    pub(super) fn source_file_to_def(&mut self, src: InFile<&ast::SourceFile>) -> Option<ModuleId> {
+    pub(super) fn macro_call_to_macro_id(
+        &mut self,
+        macro_call_id: MacroCallId,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<MacroId> {
+        use span::HirFileIdRepr;
+
+        let db: &dyn ExpandDatabase = self.db.upcast();
+        let loc = db.lookup_intern_macro_call(macro_call_id);
+
+        match loc.def.ast_id() {
+            Either::Left(it) => {
+                let node = match it.file_id.repr() {
+                    HirFileIdRepr::FileId(file_id) => {
+                        it.to_ptr(db).to_node(&db.parse(file_id).syntax_node())
+                    }
+                    HirFileIdRepr::MacroFile(macro_file) => {
+                        let expansion_info = self
+                            .cache
+                            .expansion_info_cache
+                            .entry(macro_file)
+                            .or_insert_with(|| macro_file.expansion_info(self.db.upcast()));
+                        it.to_ptr(db).to_node(&expansion_info.expanded().value)
+                    }
+                };
+                self.macro_to_def(InFile::new(it.file_id, &node), d2s_ctx)
+            }
+            Either::Right(it) => {
+                let node = match it.file_id.repr() {
+                    HirFileIdRepr::FileId(file_id) => {
+                        it.to_ptr(db).to_node(&db.parse(file_id).syntax_node())
+                    }
+                    HirFileIdRepr::MacroFile(macro_file) => {
+                        let expansion_info = self
+                            .cache
+                            .expansion_info_cache
+                            .entry(macro_file)
+                            .or_insert_with(|| macro_file.expansion_info(self.db.upcast()));
+                        it.to_ptr(db).to_node(&expansion_info.expanded().value)
+                    }
+                };
+                self.proc_macro_to_def(InFile::new(it.file_id, &node), d2s_ctx)
+            }
+        }
+    }
+
+    pub(super) fn source_file_to_def(
+        &mut self,
+        src: InFile<&ast::SourceFile>,
+        _d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<ModuleId> {
         let _p = tracing::info_span!("source_file_to_def").entered();
         let file_id = src.file_id.original_file(self.db.upcast());
         self.file_to_def(file_id.file_id()).first().copied()
     }
 
-    pub(super) fn trait_to_def(&mut self, src: InFile<&ast::Trait>) -> Option<TraitId> {
-        self.to_def(src, keys::TRAIT)
+    pub(super) fn trait_to_def(
+        &mut self,
+        src: InFile<&ast::Trait>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<TraitId> {
+        self.to_def(src, src_to_def::TRAIT, d2s_ctx)
     }
     pub(super) fn trait_alias_to_def(
         &mut self,
         src: InFile<&ast::TraitAlias>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
     ) -> Option<TraitAliasId> {
-        self.to_def(src, keys::TRAIT_ALIAS)
+        self.to_def(src, src_to_def::TRAIT_ALIAS, d2s_ctx)
     }
-    pub(super) fn impl_to_def(&mut self, src: InFile<&ast::Impl>) -> Option<ImplId> {
-        self.to_def(src, keys::IMPL)
+    pub(super) fn impl_to_def(
+        &mut self,
+        src: InFile<&ast::Impl>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<ImplId> {
+        self.to_def(src, src_to_def::IMPL, d2s_ctx)
     }
-    pub(super) fn fn_to_def(&mut self, src: InFile<&ast::Fn>) -> Option<FunctionId> {
-        self.to_def(src, keys::FUNCTION)
+    pub(super) fn fn_to_def(
+        &mut self,
+        src: InFile<&ast::Fn>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<FunctionId> {
+        self.to_def(src, src_to_def::FUNCTION, d2s_ctx)
     }
-    pub(super) fn struct_to_def(&mut self, src: InFile<&ast::Struct>) -> Option<StructId> {
-        self.to_def(src, keys::STRUCT)
+    pub(super) fn struct_to_def(
+        &mut self,
+        src: InFile<&ast::Struct>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<StructId> {
+        self.to_def(src, src_to_def::STRUCT, d2s_ctx)
     }
-    pub(super) fn enum_to_def(&mut self, src: InFile<&ast::Enum>) -> Option<EnumId> {
-        self.to_def(src, keys::ENUM)
+    pub(super) fn enum_to_def(
+        &mut self,
+        src: InFile<&ast::Enum>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<EnumId> {
+        self.to_def(src, src_to_def::ENUM, d2s_ctx)
     }
-    pub(super) fn union_to_def(&mut self, src: InFile<&ast::Union>) -> Option<UnionId> {
-        self.to_def(src, keys::UNION)
+    pub(super) fn union_to_def(
+        &mut self,
+        src: InFile<&ast::Union>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<UnionId> {
+        self.to_def(src, src_to_def::UNION, d2s_ctx)
     }
-    pub(super) fn static_to_def(&mut self, src: InFile<&ast::Static>) -> Option<StaticId> {
-        self.to_def(src, keys::STATIC)
+    pub(super) fn static_to_def(
+        &mut self,
+        src: InFile<&ast::Static>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<StaticId> {
+        self.to_def(src, src_to_def::STATIC, d2s_ctx)
     }
-    pub(super) fn const_to_def(&mut self, src: InFile<&ast::Const>) -> Option<ConstId> {
-        self.to_def(src, keys::CONST)
+    pub(super) fn const_to_def(
+        &mut self,
+        src: InFile<&ast::Const>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<ConstId> {
+        self.to_def(src, src_to_def::CONST, d2s_ctx)
     }
     pub(super) fn type_alias_to_def(
         &mut self,
         src: InFile<&ast::TypeAlias>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
     ) -> Option<TypeAliasId> {
-        self.to_def(src, keys::TYPE_ALIAS)
+        self.to_def(src, src_to_def::TYPE_ALIAS, d2s_ctx)
     }
     pub(super) fn record_field_to_def(
         &mut self,
         src: InFile<&ast::RecordField>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
     ) -> Option<FieldId> {
-        self.to_def(src, keys::RECORD_FIELD)
+        self.to_def(src, src_to_def::RECORD_FIELD, d2s_ctx)
     }
-    pub(super) fn tuple_field_to_def(&mut self, src: InFile<&ast::TupleField>) -> Option<FieldId> {
-        self.to_def(src, keys::TUPLE_FIELD)
+    pub(super) fn tuple_field_to_def(
+        &mut self,
+        src: InFile<&ast::TupleField>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<FieldId> {
+        self.to_def(src, src_to_def::TUPLE_FIELD, d2s_ctx)
     }
-    pub(super) fn block_to_def(&mut self, src: InFile<&ast::BlockExpr>) -> Option<BlockId> {
-        self.to_def(src, keys::BLOCK)
+    pub(super) fn block_to_def(
+        &mut self,
+        src: InFile<&ast::BlockExpr>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<BlockId> {
+        self.to_def(src, src_to_def::BLOCK, d2s_ctx)
     }
     pub(super) fn enum_variant_to_def(
         &mut self,
         src: InFile<&ast::Variant>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
     ) -> Option<EnumVariantId> {
-        self.to_def(src, keys::ENUM_VARIANT)
+        self.to_def(src, src_to_def::ENUM_VARIANT, d2s_ctx)
     }
     pub(super) fn extern_crate_to_def(
         &mut self,
         src: InFile<&ast::ExternCrate>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
     ) -> Option<ExternCrateId> {
-        self.to_def(src, keys::EXTERN_CRATE)
+        self.to_def(src, src_to_def::EXTERN_CRATE, d2s_ctx)
     }
     #[allow(dead_code)]
-    pub(super) fn use_to_def(&mut self, src: InFile<&ast::Use>) -> Option<UseId> {
-        self.to_def(src, keys::USE)
+    pub(super) fn use_to_def(
+        &mut self,
+        src: InFile<&ast::Use>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<UseId> {
+        self.to_def(src, src_to_def::USE, d2s_ctx)
     }
     pub(super) fn adt_to_def(
         &mut self,
         InFile { file_id, value }: InFile<&ast::Adt>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
     ) -> Option<AdtId> {
         match value {
-            ast::Adt::Enum(it) => self.enum_to_def(InFile::new(file_id, it)).map(AdtId::EnumId),
-            ast::Adt::Struct(it) => {
-                self.struct_to_def(InFile::new(file_id, it)).map(AdtId::StructId)
+            ast::Adt::Enum(it) => {
+                self.enum_to_def(InFile::new(file_id, it), d2s_ctx).map(AdtId::EnumId)
             }
-            ast::Adt::Union(it) => self.union_to_def(InFile::new(file_id, it)).map(AdtId::UnionId),
+            ast::Adt::Struct(it) => {
+                self.struct_to_def(InFile::new(file_id, it), d2s_ctx).map(AdtId::StructId)
+            }
+            ast::Adt::Union(it) => {
+                self.union_to_def(InFile::new(file_id, it), d2s_ctx).map(AdtId::UnionId)
+            }
         }
     }
     pub(super) fn bind_pat_to_def(
         &mut self,
         src: InFile<&ast::IdentPat>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
     ) -> Option<(DefWithBodyId, BindingId)> {
-        let container = self.find_pat_or_label_container(src.syntax_ref())?;
+        let container = self.find_pat_or_label_container(src.syntax_ref(), d2s_ctx)?;
         let (body, source_map) = self.db.body_with_source_map(container);
         let src = src.cloned().map(ast::Pat::from);
         let pat_id = source_map.node_pat(src.as_ref())?;
@@ -291,32 +402,39 @@ impl SourceToDefCtx<'_, '_> {
     pub(super) fn self_param_to_def(
         &mut self,
         src: InFile<&ast::SelfParam>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
     ) -> Option<(DefWithBodyId, BindingId)> {
-        let container = self.find_pat_or_label_container(src.syntax_ref())?;
+        let container = self.find_pat_or_label_container(src.syntax_ref(), d2s_ctx)?;
         let body = self.db.body(container);
         Some((container, body.self_param?))
     }
     pub(super) fn label_to_def(
         &mut self,
         src: InFile<&ast::Label>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
     ) -> Option<(DefWithBodyId, LabelId)> {
-        let container = self.find_pat_or_label_container(src.syntax_ref())?;
+        let container = self.find_pat_or_label_container(src.syntax_ref(), d2s_ctx)?;
         let (_body, source_map) = self.db.body_with_source_map(container);
         let label_id = source_map.node_label(src)?;
         Some((container, label_id))
     }
 
-    pub(super) fn item_to_macro_call(&mut self, src: InFile<&ast::Item>) -> Option<MacroCallId> {
-        let map = self.dyn_map(src)?;
-        map[keys::ATTR_MACRO_CALL].get(&AstPtr::new(src.value)).copied()
+    pub(super) fn item_to_macro_call(
+        &mut self,
+        src: InFile<&ast::Item>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<MacroCallId> {
+        let map = self.dyn_map(src, d2s_ctx)?;
+        map[src_to_def::ATTR_MACRO_CALL].get(&AstPtr::new(src.value)).copied()
     }
 
     pub(super) fn macro_call_to_macro_call(
         &mut self,
         src: InFile<&ast::MacroCall>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
     ) -> Option<MacroCallId> {
-        let map = self.dyn_map(src)?;
-        map[keys::MACRO_CALL].get(&AstPtr::new(src.value)).copied()
+        let map = self.dyn_map(src, d2s_ctx)?;
+        map[src_to_def::MACRO_CALL].get(&AstPtr::new(src.value)).copied()
     }
 
     /// (AttrId, derive attribute call id, derive call ids)
@@ -324,45 +442,64 @@ impl SourceToDefCtx<'_, '_> {
         &mut self,
         item: InFile<&ast::Adt>,
         src: InFile<ast::Attr>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
     ) -> Option<(AttrId, MacroCallId, &[Option<MacroCallId>])> {
-        let map = self.dyn_map(item)?;
-        map[keys::DERIVE_MACRO_CALL]
+        let map = self.dyn_map(item, d2s_ctx)?;
+        map[src_to_def::DERIVE_MACRO_CALL]
             .get(&AstPtr::new(&src.value))
             .map(|&(attr_id, call_id, ref ids)| (attr_id, call_id, &**ids))
     }
 
-    pub(super) fn has_derives(&mut self, adt: InFile<&ast::Adt>) -> bool {
-        self.dyn_map(adt).as_ref().map_or(false, |map| !map[keys::DERIVE_MACRO_CALL].is_empty())
+    pub(super) fn has_derives(
+        &mut self,
+        adt: InFile<&ast::Adt>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> bool {
+        self.dyn_map(adt, d2s_ctx)
+            .as_ref()
+            .map_or(false, |map| !map[src_to_def::DERIVE_MACRO_CALL].is_empty())
     }
 
     fn to_def<Ast: AstNode + 'static, ID: Copy + 'static>(
         &mut self,
         src: InFile<&Ast>,
         key: Key<Ast, ID>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
     ) -> Option<ID> {
-        self.dyn_map(src)?[key].get(&AstPtr::new(src.value)).copied()
+        self.dyn_map(src, d2s_ctx)?[key].get(&AstPtr::new(src.value)).copied()
     }
 
-    fn dyn_map<Ast: AstNode + 'static>(&mut self, src: InFile<&Ast>) -> Option<&DynMap> {
-        let container = self.find_container(src.map(|it| it.syntax()))?;
-        Some(self.cache_for(container, src.file_id))
+    fn dyn_map<Ast: AstNode + 'static>(
+        &mut self,
+        src: InFile<&Ast>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<&DynMap> {
+        let container = self.find_container(src.map(|it| it.syntax()), d2s_ctx)?;
+        Some(self.cache_for(container, src.file_id, d2s_ctx))
     }
 
-    fn cache_for(&mut self, container: ChildContainer, file_id: HirFileId) -> &DynMap {
+    fn cache_for(
+        &mut self,
+        container: ChildContainer,
+        file_id: HirFileId,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> &DynMap {
         let db = self.db;
         self.cache
             .dynmap_cache
             .entry((container, file_id))
-            .or_insert_with(|| container.child_by_source(db, file_id))
+            .or_insert_with(|| container.child_by_source(db, d2s_ctx, file_id))
     }
 
     pub(super) fn type_param_to_def(
         &mut self,
         src: InFile<&ast::TypeParam>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
     ) -> Option<TypeParamId> {
-        let container: ChildContainer = self.find_generic_param_container(src.syntax_ref())?.into();
-        let dyn_map = self.cache_for(container, src.file_id);
-        dyn_map[keys::TYPE_PARAM]
+        let container: ChildContainer =
+            self.find_generic_param_container(src.syntax_ref(), d2s_ctx)?.into();
+        let dyn_map = self.cache_for(container, src.file_id, d2s_ctx);
+        dyn_map[src_to_def::TYPE_PARAM]
             .get(&AstPtr::new(src.value))
             .copied()
             .map(TypeParamId::from_unchecked)
@@ -371,19 +508,23 @@ impl SourceToDefCtx<'_, '_> {
     pub(super) fn lifetime_param_to_def(
         &mut self,
         src: InFile<&ast::LifetimeParam>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
     ) -> Option<LifetimeParamId> {
-        let container: ChildContainer = self.find_generic_param_container(src.syntax_ref())?.into();
-        let dyn_map = self.cache_for(container, src.file_id);
-        dyn_map[keys::LIFETIME_PARAM].get(&AstPtr::new(src.value)).copied()
+        let container: ChildContainer =
+            self.find_generic_param_container(src.syntax_ref(), d2s_ctx)?.into();
+        let dyn_map = self.cache_for(container, src.file_id, d2s_ctx);
+        dyn_map[src_to_def::LIFETIME_PARAM].get(&AstPtr::new(src.value)).copied()
     }
 
     pub(super) fn const_param_to_def(
         &mut self,
         src: InFile<&ast::ConstParam>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
     ) -> Option<ConstParamId> {
-        let container: ChildContainer = self.find_generic_param_container(src.syntax_ref())?.into();
-        let dyn_map = self.cache_for(container, src.file_id);
-        dyn_map[keys::CONST_PARAM]
+        let container: ChildContainer =
+            self.find_generic_param_container(src.syntax_ref(), d2s_ctx)?.into();
+        let dyn_map = self.cache_for(container, src.file_id, d2s_ctx);
+        dyn_map[src_to_def::CONST_PARAM]
             .get(&AstPtr::new(src.value))
             .copied()
             .map(ConstParamId::from_unchecked)
@@ -392,41 +533,55 @@ impl SourceToDefCtx<'_, '_> {
     pub(super) fn generic_param_to_def(
         &mut self,
         InFile { file_id, value }: InFile<&ast::GenericParam>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
     ) -> Option<GenericParamId> {
         match value {
-            ast::GenericParam::ConstParam(it) => {
-                self.const_param_to_def(InFile::new(file_id, it)).map(GenericParamId::ConstParamId)
-            }
+            ast::GenericParam::ConstParam(it) => self
+                .const_param_to_def(InFile::new(file_id, it), d2s_ctx)
+                .map(GenericParamId::ConstParamId),
             ast::GenericParam::LifetimeParam(it) => self
-                .lifetime_param_to_def(InFile::new(file_id, it))
+                .lifetime_param_to_def(InFile::new(file_id, it), d2s_ctx)
                 .map(GenericParamId::LifetimeParamId),
-            ast::GenericParam::TypeParam(it) => {
-                self.type_param_to_def(InFile::new(file_id, it)).map(GenericParamId::TypeParamId)
-            }
+            ast::GenericParam::TypeParam(it) => self
+                .type_param_to_def(InFile::new(file_id, it), d2s_ctx)
+                .map(GenericParamId::TypeParamId),
         }
     }
 
-    pub(super) fn macro_to_def(&mut self, src: InFile<&ast::Macro>) -> Option<MacroId> {
-        self.dyn_map(src).and_then(|it| match src.value {
+    pub(super) fn macro_to_def(
+        &mut self,
+        src: InFile<&ast::Macro>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<MacroId> {
+        self.dyn_map(src, d2s_ctx).and_then(|it| match src.value {
             ast::Macro::MacroRules(value) => {
-                it[keys::MACRO_RULES].get(&AstPtr::new(value)).copied().map(MacroId::from)
+                it[src_to_def::MACRO_RULES].get(&AstPtr::new(value)).copied().map(MacroId::from)
             }
             ast::Macro::MacroDef(value) => {
-                it[keys::MACRO2].get(&AstPtr::new(value)).copied().map(MacroId::from)
+                it[src_to_def::MACRO2].get(&AstPtr::new(value)).copied().map(MacroId::from)
             }
         })
     }
 
-    pub(super) fn proc_macro_to_def(&mut self, src: InFile<&ast::Fn>) -> Option<MacroId> {
-        self.dyn_map(src).and_then(|it| {
-            it[keys::PROC_MACRO].get(&AstPtr::new(src.value)).copied().map(MacroId::from)
+    pub(super) fn proc_macro_to_def(
+        &mut self,
+        src: InFile<&ast::Fn>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<MacroId> {
+        self.dyn_map(src, d2s_ctx).and_then(|it| {
+            it[src_to_def::PROC_MACRO].get(&AstPtr::new(src.value)).copied().map(MacroId::from)
         })
     }
 
-    pub(super) fn find_container(&mut self, src: InFile<&SyntaxNode>) -> Option<ChildContainer> {
+    pub(super) fn find_container(
+        &mut self,
+        src: InFile<&SyntaxNode>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<ChildContainer> {
         let _p = tracing::info_span!("find_container").entered();
-        let def =
-            self.ancestors_with_macros(src, |this, container| this.container_to_def(container));
+        let def = self.ancestors_with_macros(src, |this, container| {
+            this.container_to_def(container, d2s_ctx)
+        });
         if let Some(def) = def {
             return Some(def);
         }
@@ -469,88 +624,116 @@ impl SourceToDefCtx<'_, '_> {
         None
     }
 
-    fn find_generic_param_container(&mut self, src: InFile<&SyntaxNode>) -> Option<GenericDefId> {
+    fn find_generic_param_container(
+        &mut self,
+        src: InFile<&SyntaxNode>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<GenericDefId> {
         self.ancestors_with_macros(src, |this, InFile { file_id, value }| {
             let item = ast::Item::cast(value)?;
             match &item {
-                ast::Item::Fn(it) => this.fn_to_def(InFile::new(file_id, it)).map(Into::into),
-                ast::Item::Struct(it) => {
-                    this.struct_to_def(InFile::new(file_id, it)).map(Into::into)
+                ast::Item::Fn(it) => {
+                    this.fn_to_def(InFile::new(file_id, it), d2s_ctx).map(Into::into)
                 }
-                ast::Item::Enum(it) => this.enum_to_def(InFile::new(file_id, it)).map(Into::into),
-                ast::Item::Trait(it) => this.trait_to_def(InFile::new(file_id, it)).map(Into::into),
+                ast::Item::Struct(it) => {
+                    this.struct_to_def(InFile::new(file_id, it), d2s_ctx).map(Into::into)
+                }
+                ast::Item::Enum(it) => {
+                    this.enum_to_def(InFile::new(file_id, it), d2s_ctx).map(Into::into)
+                }
+                ast::Item::Trait(it) => {
+                    this.trait_to_def(InFile::new(file_id, it), d2s_ctx).map(Into::into)
+                }
                 ast::Item::TraitAlias(it) => {
-                    this.trait_alias_to_def(InFile::new(file_id, it)).map(Into::into)
+                    this.trait_alias_to_def(InFile::new(file_id, it), d2s_ctx).map(Into::into)
                 }
                 ast::Item::TypeAlias(it) => {
-                    this.type_alias_to_def(InFile::new(file_id, it)).map(Into::into)
+                    this.type_alias_to_def(InFile::new(file_id, it), d2s_ctx).map(Into::into)
                 }
-                ast::Item::Impl(it) => this.impl_to_def(InFile::new(file_id, it)).map(Into::into),
+                ast::Item::Impl(it) => {
+                    this.impl_to_def(InFile::new(file_id, it), d2s_ctx).map(Into::into)
+                }
                 _ => None,
             }
         })
     }
 
-    fn find_pat_or_label_container(&mut self, src: InFile<&SyntaxNode>) -> Option<DefWithBodyId> {
+    fn find_pat_or_label_container(
+        &mut self,
+        src: InFile<&SyntaxNode>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<DefWithBodyId> {
         self.ancestors_with_macros(src, |this, InFile { file_id, value }| {
             let item = match ast::Item::cast(value.clone()) {
                 Some(it) => it,
                 None => {
                     let variant = ast::Variant::cast(value.clone())?;
                     return this
-                        .enum_variant_to_def(InFile::new(file_id, &variant))
+                        .enum_variant_to_def(InFile::new(file_id, &variant), d2s_ctx)
                         .map(Into::into);
                 }
             };
             match &item {
-                ast::Item::Fn(it) => this.fn_to_def(InFile::new(file_id, it)).map(Into::into),
-                ast::Item::Const(it) => this.const_to_def(InFile::new(file_id, it)).map(Into::into),
+                ast::Item::Fn(it) => {
+                    this.fn_to_def(InFile::new(file_id, it), d2s_ctx).map(Into::into)
+                }
+                ast::Item::Const(it) => {
+                    this.const_to_def(InFile::new(file_id, it), d2s_ctx).map(Into::into)
+                }
                 ast::Item::Static(it) => {
-                    this.static_to_def(InFile::new(file_id, it)).map(Into::into)
+                    this.static_to_def(InFile::new(file_id, it), d2s_ctx).map(Into::into)
                 }
                 _ => None,
             }
         })
     }
 
-    fn container_to_def(&mut self, container: InFile<SyntaxNode>) -> Option<ChildContainer> {
+    fn container_to_def(
+        &mut self,
+        container: InFile<SyntaxNode>,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+    ) -> Option<ChildContainer> {
         let cont = if let Some(item) = ast::Item::cast(container.value.clone()) {
             match &item {
-                ast::Item::Module(it) => self.module_to_def(container.with_value(it))?.into(),
-                ast::Item::Trait(it) => self.trait_to_def(container.with_value(it))?.into(),
-                ast::Item::TraitAlias(it) => {
-                    self.trait_alias_to_def(container.with_value(it))?.into()
+                ast::Item::Module(it) => {
+                    self.module_to_def(container.with_value(it), d2s_ctx)?.into()
                 }
-                ast::Item::Impl(it) => self.impl_to_def(container.with_value(it))?.into(),
-                ast::Item::Enum(it) => self.enum_to_def(container.with_value(it))?.into(),
+                ast::Item::Trait(it) => {
+                    self.trait_to_def(container.with_value(it), d2s_ctx)?.into()
+                }
+                ast::Item::TraitAlias(it) => {
+                    self.trait_alias_to_def(container.with_value(it), d2s_ctx)?.into()
+                }
+                ast::Item::Impl(it) => self.impl_to_def(container.with_value(it), d2s_ctx)?.into(),
+                ast::Item::Enum(it) => self.enum_to_def(container.with_value(it), d2s_ctx)?.into(),
                 ast::Item::TypeAlias(it) => {
-                    self.type_alias_to_def(container.with_value(it))?.into()
+                    self.type_alias_to_def(container.with_value(it), d2s_ctx)?.into()
                 }
                 ast::Item::Struct(it) => {
-                    let def = self.struct_to_def(container.with_value(it))?;
+                    let def = self.struct_to_def(container.with_value(it), d2s_ctx)?;
                     VariantId::from(def).into()
                 }
                 ast::Item::Union(it) => {
-                    let def = self.union_to_def(container.with_value(it))?;
+                    let def = self.union_to_def(container.with_value(it), d2s_ctx)?;
                     VariantId::from(def).into()
                 }
                 ast::Item::Fn(it) => {
-                    let def = self.fn_to_def(container.with_value(it))?;
+                    let def = self.fn_to_def(container.with_value(it), d2s_ctx)?;
                     DefWithBodyId::from(def).into()
                 }
                 ast::Item::Static(it) => {
-                    let def = self.static_to_def(container.with_value(it))?;
+                    let def = self.static_to_def(container.with_value(it), d2s_ctx)?;
                     DefWithBodyId::from(def).into()
                 }
                 ast::Item::Const(it) => {
-                    let def = self.const_to_def(container.with_value(it))?;
+                    let def = self.const_to_def(container.with_value(it), d2s_ctx)?;
                     DefWithBodyId::from(def).into()
                 }
                 _ => return None,
             }
         } else {
             let it = ast::Variant::cast(container.value)?;
-            let def = self.enum_variant_to_def(InFile::new(container.file_id, &it))?;
+            let def = self.enum_variant_to_def(InFile::new(container.file_id, &it), d2s_ctx)?;
             DefWithBodyId::from(def).into()
         };
         Some(cont)
@@ -585,19 +768,26 @@ impl_from! {
 }
 
 impl ChildContainer {
-    fn child_by_source(self, db: &dyn HirDatabase, file_id: HirFileId) -> DynMap {
+    fn child_by_source(
+        self,
+        db: &dyn HirDatabase,
+        d2s_ctx: &mut DefToSourceContext<'_>,
+        file_id: HirFileId,
+    ) -> DynMap {
         let _p = tracing::info_span!("ChildContainer::child_by_source").entered();
         let db = db.upcast();
         match self {
-            ChildContainer::DefWithBodyId(it) => it.child_by_source(db, file_id),
-            ChildContainer::ModuleId(it) => it.child_by_source(db, file_id),
-            ChildContainer::TraitId(it) => it.child_by_source(db, file_id),
+            ChildContainer::DefWithBodyId(it) => {
+                it.child_by_source(db, &mut Some(d2s_ctx), file_id)
+            }
+            ChildContainer::ModuleId(it) => it.child_by_source(db, &mut Some(d2s_ctx), file_id),
+            ChildContainer::TraitId(it) => it.child_by_source(db, &mut Some(d2s_ctx), file_id),
             ChildContainer::TraitAliasId(_) => DynMap::default(),
-            ChildContainer::ImplId(it) => it.child_by_source(db, file_id),
-            ChildContainer::EnumId(it) => it.child_by_source(db, file_id),
-            ChildContainer::VariantId(it) => it.child_by_source(db, file_id),
+            ChildContainer::ImplId(it) => it.child_by_source(db, &mut Some(d2s_ctx), file_id),
+            ChildContainer::EnumId(it) => it.child_by_source(db, &mut Some(d2s_ctx), file_id),
+            ChildContainer::VariantId(it) => it.child_by_source(db, &mut Some(d2s_ctx), file_id),
             ChildContainer::TypeAliasId(_) => DynMap::default(),
-            ChildContainer::GenericDefId(it) => it.child_by_source(db, file_id),
+            ChildContainer::GenericDefId(it) => it.child_by_source(db, &mut Some(d2s_ctx), file_id),
         }
     }
 }

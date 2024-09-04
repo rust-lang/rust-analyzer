@@ -1,11 +1,11 @@
 //! File symbol extraction.
 
 use hir_def::{
-    db::DefDatabase,
     item_scope::ItemInNs,
+    item_tree::ItemTreeNode,
     src::{HasChildSource, HasSource},
-    AdtId, AssocItemId, DefWithBodyId, HasModule, ImplId, Lookup, MacroId, ModuleDefId, ModuleId,
-    TraitId,
+    AdtId, AssocItemId, DefWithBodyId, HasModule, ImplId, ItemTreeLoc, Lookup, MacroId,
+    ModuleDefId, ModuleId, TraitId,
 };
 use hir_expand::HirFileId;
 use hir_ty::{db::HirDatabase, display::HirDisplay};
@@ -151,7 +151,7 @@ impl<'a> SymbolCollector<'a> {
         // FIXME: In case it imports multiple items under different namespaces we just pick one arbitrarily
         // for now.
         for id in scope.imports() {
-            let source = id.import.child_source(self.db.upcast());
+            let source = id.import.child_source(self.db.upcast(), &mut None);
             let Some(use_tree_src) = source.value.get(id.idx) else { continue };
             let Some(rename) = use_tree_src.rename() else { continue };
             let Some(name) = rename.name() else { continue };
@@ -268,14 +268,14 @@ impl<'a> SymbolCollector<'a> {
         }
     }
 
-    fn push_decl<'db, L>(&mut self, id: L, is_assoc: bool)
+    fn push_decl<L, V>(&mut self, id: L, is_assoc: bool)
     where
-        L: Lookup<Database<'db> = dyn DefDatabase + 'db> + Into<ModuleDefId>,
-        <L as Lookup>::Data: HasSource,
-        <<L as Lookup>::Data as HasSource>::Value: HasName,
+        L: HasSource<Value = V> + Into<ModuleDefId> + Copy,
+        <L as Lookup>::Data: ItemTreeLoc,
+        <<L as Lookup>::Data as ItemTreeLoc>::Id: ItemTreeNode<Source = V>,
+        V: HasName,
     {
-        let loc = id.lookup(self.db.upcast());
-        let source = loc.source(self.db.upcast());
+        let source = id.source(self.db.upcast(), &mut None);
         let Some(name_node) = source.value.name() else { return };
         let def = ModuleDef::from(id.into());
         let dec_loc = DeclarationLocation {

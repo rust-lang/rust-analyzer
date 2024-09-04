@@ -462,7 +462,7 @@ impl Analysis {
         self.with_db(|db| {
             symbol_index::world_symbols(db, query)
                 .into_iter() // xx: should we make this a par iter?
-                .filter_map(|s| s.try_to_nav(db))
+                .filter_map(|s| s.try_to_nav(&Semantics::new(db)))
                 .take(limit)
                 .map(UpmappingResult::call_site)
                 .collect::<Vec<_>>()
@@ -784,7 +784,7 @@ impl Analysis {
         config: &AnnotationConfig,
         file_id: FileId,
     ) -> Cancellable<Vec<Annotation>> {
-        self.with_db(|db| annotations::annotations(db, config, file_id))
+        self.with_db(|db| annotations::annotations(&Semantics::new(db), config, file_id))
     }
 
     pub fn resolve_annotation(&self, annotation: Annotation) -> Cancellable<Annotation> {

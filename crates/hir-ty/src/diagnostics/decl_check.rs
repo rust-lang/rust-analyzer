@@ -16,9 +16,12 @@ mod case_conv;
 use std::fmt;
 
 use hir_def::{
-    data::adt::VariantData, db::DefDatabase, hir::Pat, src::HasSource, AdtId, AttrDefId, ConstId,
-    EnumId, EnumVariantId, FunctionId, HasModule, ItemContainerId, Lookup, ModuleDefId, ModuleId,
-    StaticId, StructId, TraitId, TypeAliasId,
+    data::adt::VariantData,
+    hir::Pat,
+    item_tree::ItemTreeNode,
+    src::{DefToSourceContext, HasSource},
+    AdtId, AttrDefId, ConstId, EnumId, EnumVariantId, FunctionId, HasModule, ItemContainerId,
+    ItemTreeLoc, Lookup, ModuleDefId, ModuleId, StaticId, StructId, TraitId, TypeAliasId,
 };
 use hir_expand::{
     name::{AsName, Name},
@@ -44,10 +47,14 @@ mod allow {
     pub(super) const NON_CAMEL_CASE_TYPES: &str = "non_camel_case_types";
 }
 
-pub fn incorrect_case(db: &dyn HirDatabase, owner: ModuleDefId) -> Vec<IncorrectCase> {
+pub fn incorrect_case(
+    db: &dyn HirDatabase,
+    ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    owner: ModuleDefId,
+) -> Vec<IncorrectCase> {
     let _p = tracing::info_span!("incorrect_case").entered();
     let mut validator = DeclValidator::new(db);
-    validator.validate_item(owner);
+    validator.validate_item(owner, ctx);
     validator.sink
 }
 
@@ -137,23 +144,27 @@ impl<'a> DeclValidator<'a> {
         DeclValidator { db, sink: Vec::new() }
     }
 
-    pub(super) fn validate_item(&mut self, item: ModuleDefId) {
+    pub(super) fn validate_item(
+        &mut self,
+        item: ModuleDefId,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) {
         match item {
             ModuleDefId::ModuleId(module_id) => self.validate_module(module_id),
-            ModuleDefId::TraitId(trait_id) => self.validate_trait(trait_id),
-            ModuleDefId::FunctionId(func) => self.validate_func(func),
-            ModuleDefId::AdtId(adt) => self.validate_adt(adt),
-            ModuleDefId::ConstId(const_id) => self.validate_const(const_id),
-            ModuleDefId::StaticId(static_id) => self.validate_static(static_id),
-            ModuleDefId::TypeAliasId(type_alias_id) => self.validate_type_alias(type_alias_id),
+            ModuleDefId::TraitId(trait_id) => self.validate_trait(trait_id, ctx),
+            ModuleDefId::FunctionId(func) => self.validate_func(func, ctx),
+            ModuleDefId::AdtId(adt) => self.validate_adt(adt, ctx),
+            ModuleDefId::ConstId(const_id) => self.validate_const(const_id, ctx),
+            ModuleDefId::StaticId(static_id) => self.validate_static(static_id, ctx),
+            ModuleDefId::TypeAliasId(type_alias_id) => self.validate_type_alias(type_alias_id, ctx),
             _ => (),
         }
     }
 
-    fn validate_adt(&mut self, adt: AdtId) {
+    fn validate_adt(&mut self, adt: AdtId, ctx: &mut Option<&mut DefToSourceContext<'_>>) {
         match adt {
-            AdtId::StructId(struct_id) => self.validate_struct(struct_id),
-            AdtId::EnumId(enum_id) => self.validate_enum(enum_id),
+            AdtId::StructId(struct_id) => self.validate_struct(struct_id, ctx),
+            AdtId::EnumId(enum_id) => self.validate_enum(enum_id, ctx),
             AdtId::UnionId(_) => {
                 // FIXME: Unions aren't yet supported by this validator.
             }
@@ -269,7 +280,7 @@ impl<'a> DeclValidator<'a> {
         );
     }
 
-    fn validate_trait(&mut self, trait_id: TraitId) {
+    fn validate_trait(&mut self, trait_id: TraitId, ctx: &mut Option<&mut DefToSourceContext<'_>>) {
         // Check whether non-snake case identifiers are allowed for this trait.
         if self.allowed(trait_id.into(), allow::NON_CAMEL_CASE_TYPES, false) {
             return;
@@ -282,10 +293,11 @@ impl<'a> DeclValidator<'a> {
             &data.name,
             CaseType::UpperCamelCase,
             IdentType::Trait,
+            ctx,
         );
     }
 
-    fn validate_func(&mut self, func: FunctionId) {
+    fn validate_func(&mut self, func: FunctionId, ctx: &mut Option<&mut DefToSourceContext<'_>>) {
         let container = func.lookup(self.db.upcast()).container;
         if matches!(container, ItemContainerId::ExternBlockId(_)) {
             cov_mark::hit!(extern_func_incorrect_case_ignored);
@@ -306,6 +318,7 @@ impl<'a> DeclValidator<'a> {
                 &data.name,
                 CaseType::LowerSnakeCase,
                 IdentType::Function,
+                ctx,
             );
         } else {
             cov_mark::hit!(trait_impl_assoc_func_name_incorrect_case_ignored);
@@ -387,7 +400,11 @@ impl<'a> DeclValidator<'a> {
         self.db.crate_graph()[krate].edition
     }
 
-    fn validate_struct(&mut self, struct_id: StructId) {
+    fn validate_struct(
+        &mut self,
+        struct_id: StructId,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) {
         // Check the structure name.
         let non_camel_case_allowed =
             self.allowed(struct_id.into(), allow::NON_CAMEL_CASE_TYPES, false);
@@ -398,15 +415,20 @@ impl<'a> DeclValidator<'a> {
                 &data.name,
                 CaseType::UpperCamelCase,
                 IdentType::Structure,
+                ctx,
             );
         }
 
         // Check the field names.
-        self.validate_struct_fields(struct_id);
+        self.validate_struct_fields(struct_id, ctx);
     }
 
     /// Check incorrect names for struct fields.
-    fn validate_struct_fields(&mut self, struct_id: StructId) {
+    fn validate_struct_fields(
+        &mut self,
+        struct_id: StructId,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) {
         if self.allowed(struct_id.into(), allow::NON_SNAKE_CASE, false) {
             return;
         }
@@ -434,8 +456,7 @@ impl<'a> DeclValidator<'a> {
             return;
         }
 
-        let struct_loc = struct_id.lookup(self.db.upcast());
-        let struct_src = struct_loc.source(self.db.upcast());
+        let struct_src = struct_id.source(self.db.upcast(), ctx);
 
         let Some(ast::FieldList::RecordFieldList(struct_fields_list)) =
             struct_src.value.field_list()
@@ -481,7 +502,7 @@ impl<'a> DeclValidator<'a> {
         }
     }
 
-    fn validate_enum(&mut self, enum_id: EnumId) {
+    fn validate_enum(&mut self, enum_id: EnumId, ctx: &mut Option<&mut DefToSourceContext<'_>>) {
         let data = self.db.enum_data(enum_id);
 
         // Check whether non-camel case names are allowed for this enum.
@@ -495,18 +516,23 @@ impl<'a> DeclValidator<'a> {
             &data.name,
             CaseType::UpperCamelCase,
             IdentType::Enum,
+            ctx,
         );
 
         // Check the variant names.
-        self.validate_enum_variants(enum_id)
+        self.validate_enum_variants(enum_id, ctx)
     }
 
     /// Check incorrect names for enum variants.
-    fn validate_enum_variants(&mut self, enum_id: EnumId) {
+    fn validate_enum_variants(
+        &mut self,
+        enum_id: EnumId,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) {
         let data = self.db.enum_data(enum_id);
 
         for (variant_id, _) in data.variants.iter() {
-            self.validate_enum_variant_fields(*variant_id);
+            self.validate_enum_variant_fields(*variant_id, ctx);
         }
 
         let edition = self.edition(enum_id);
@@ -529,8 +555,7 @@ impl<'a> DeclValidator<'a> {
             return;
         }
 
-        let enum_loc = enum_id.lookup(self.db.upcast());
-        let enum_src = enum_loc.source(self.db.upcast());
+        let enum_src = enum_id.source(self.db.upcast(), ctx);
 
         let Some(enum_variants_list) = enum_src.value.variant_list() else {
             always!(
@@ -575,7 +600,11 @@ impl<'a> DeclValidator<'a> {
     }
 
     /// Check incorrect names for fields of enum variant.
-    fn validate_enum_variant_fields(&mut self, variant_id: EnumVariantId) {
+    fn validate_enum_variant_fields(
+        &mut self,
+        variant_id: EnumVariantId,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) {
         let variant_data = self.db.enum_variant_data(variant_id);
         let VariantData::Record(fields) = variant_data.variant_data.as_ref() else {
             return;
@@ -599,8 +628,7 @@ impl<'a> DeclValidator<'a> {
             return;
         }
 
-        let variant_loc = variant_id.lookup(self.db.upcast());
-        let variant_src = variant_loc.source(self.db.upcast());
+        let variant_src = variant_id.source(self.db.upcast(), ctx);
 
         let Some(ast::FieldList::RecordFieldList(variant_fields_list)) =
             variant_src.value.field_list()
@@ -646,7 +674,7 @@ impl<'a> DeclValidator<'a> {
         }
     }
 
-    fn validate_const(&mut self, const_id: ConstId) {
+    fn validate_const(&mut self, const_id: ConstId, ctx: &mut Option<&mut DefToSourceContext<'_>>) {
         let container = const_id.lookup(self.db.upcast()).container;
         if self.is_trait_impl_container(container) {
             cov_mark::hit!(trait_impl_assoc_const_incorrect_case_ignored);
@@ -666,10 +694,15 @@ impl<'a> DeclValidator<'a> {
             name,
             CaseType::UpperSnakeCase,
             IdentType::Constant,
+            ctx,
         );
     }
 
-    fn validate_static(&mut self, static_id: StaticId) {
+    fn validate_static(
+        &mut self,
+        static_id: StaticId,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) {
         let data = self.db.static_data(static_id);
         if data.is_extern {
             cov_mark::hit!(extern_static_incorrect_case_ignored);
@@ -685,10 +718,15 @@ impl<'a> DeclValidator<'a> {
             &data.name,
             CaseType::UpperSnakeCase,
             IdentType::StaticVariable,
+            ctx,
         );
     }
 
-    fn validate_type_alias(&mut self, type_alias_id: TypeAliasId) {
+    fn validate_type_alias(
+        &mut self,
+        type_alias_id: TypeAliasId,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
+    ) {
         let container = type_alias_id.lookup(self.db.upcast()).container;
         if self.is_trait_impl_container(container) {
             cov_mark::hit!(trait_impl_assoc_type_incorrect_case_ignored);
@@ -707,19 +745,22 @@ impl<'a> DeclValidator<'a> {
             &data.name,
             CaseType::UpperCamelCase,
             IdentType::TypeAlias,
+            ctx,
         );
     }
 
-    fn create_incorrect_case_diagnostic_for_item_name<N, S, L>(
+    fn create_incorrect_case_diagnostic_for_item_name<N, I>(
         &mut self,
-        item_id: L,
+        item_id: I,
         name: &Name,
         expected_case: CaseType,
         ident_type: IdentType,
+        ctx: &mut Option<&mut DefToSourceContext<'_>>,
     ) where
         N: AstNode + HasName + fmt::Debug,
-        S: HasSource<Value = N>,
-        L: Lookup<Data = S, Database<'a> = dyn DefDatabase + 'a> + HasModule + Copy,
+        I: HasSource<Value = N> + HasModule + Copy,
+        <I as Lookup>::Data: ItemTreeLoc,
+        <<I as Lookup>::Data as ItemTreeLoc>::Id: ItemTreeNode<Source = N>,
     {
         let to_expected_case_type = match expected_case {
             CaseType::LowerSnakeCase => to_lower_snake_case,
@@ -738,8 +779,7 @@ impl<'a> DeclValidator<'a> {
             return;
         };
 
-        let item_loc = item_id.lookup(self.db.upcast());
-        let item_src = item_loc.source(self.db.upcast());
+        let item_src = item_id.source(self.db.upcast(), ctx);
         self.create_incorrect_case_diagnostic_for_ast_node(
             replacement,
             item_src.file_id,

@@ -65,7 +65,7 @@ pub(crate) fn generate_is_empty_from_len(acc: &mut Assists, ctx: &AssistContext<
         return None;
     }
 
-    let node = len_fn.source(ctx.sema.db)?;
+    let node = len_fn.source(&ctx.sema)?;
     let range = node.syntax().value.text_range();
 
     acc.add(

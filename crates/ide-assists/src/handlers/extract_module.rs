@@ -664,7 +664,7 @@ fn check_def_in_mod_and_out_sel(
 ) -> (bool, bool) {
     macro_rules! check_item {
         ($x:ident) => {
-            if let Some(source) = $x.source(ctx.db()) {
+            if let Some(source) = $x.source(&ctx.sema) {
                 let have_same_parent = if let Some(ast_module) = &curr_parent_module {
                     ctx.sema.to_module_def(ast_module).is_some_and(|it| it == $x.module(ctx.db()))
                 } else {

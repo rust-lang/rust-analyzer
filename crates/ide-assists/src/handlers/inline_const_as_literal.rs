@@ -38,7 +38,7 @@ pub(crate) fn inline_const_as_literal(acc: &mut Assists, ctx: &AssistContext<'_>
         // FIXME: Add support to handle type aliases for builtin scalar types.
         validate_type_recursively(ctx, Some(&konst_ty), false, fuel)?;
 
-        let expr = konst.value(ctx.sema.db)?;
+        let expr = konst.value(&ctx.sema)?;
 
         let value = match expr {
             ast::Expr::BlockExpr(_)

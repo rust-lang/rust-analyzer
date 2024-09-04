@@ -112,7 +112,7 @@ fn add_variant_to_union(
     suggested_type: Type,
     error_range: FileRange,
 ) -> Option<Assist> {
-    let adt_source = adt_union.source(ctx.sema.db)?;
+    let adt_source = adt_union.source(&ctx.sema)?;
     let adt_syntax = adt_source.syntax();
     let field_list = adt_source.value.record_field_list()?;
     let range = adt_syntax.original_file_range_rooted(ctx.sema.db);
@@ -140,7 +140,7 @@ fn add_field_to_struct_fix(
     suggested_type: Type,
     error_range: FileRange,
 ) -> Option<Assist> {
-    let struct_source = adt_struct.source(ctx.sema.db)?;
+    let struct_source = adt_struct.source(&ctx.sema)?;
     let struct_syntax = struct_source.syntax();
     let struct_range = struct_syntax.original_file_range_rooted(ctx.sema.db);
     let field_list = struct_source.value.field_list();

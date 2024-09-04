@@ -61,20 +61,20 @@ fn missing_record_expr_field_fixes(
     let record_fields = match def_id {
         hir::VariantDef::Struct(s) => {
             module = s.module(sema.db);
-            let source = s.source(sema.db)?;
+            let source = s.source(sema)?;
             def_file_id = source.file_id;
             let fields = source.value.field_list()?;
             record_field_list(fields)?
         }
         hir::VariantDef::Union(u) => {
             module = u.module(sema.db);
-            let source = u.source(sema.db)?;
+            let source = u.source(sema)?;
             def_file_id = source.file_id;
             source.value.record_field_list()?
         }
         hir::VariantDef::Variant(e) => {
             module = e.module(sema.db);
-            let source = e.source(sema.db)?;
+            let source = e.source(sema)?;
             def_file_id = source.file_id;
             let fields = source.value.field_list()?;
             record_field_list(fields)?
