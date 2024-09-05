@@ -193,7 +193,7 @@ impl CastCheck {
                     // under current chalk trait solver. (See #11847 and #18047)
                     // So, emit no diagnostic for casts like `&T as &dyn Trait` for now,
                     // to prevent false positive diagnositcs.
-                    // Direct cast without ref like `T as dyn Trait` is prohibitied by
+                    // Direct cast without ref like `T as dyn Trait` is prohibited by
                     // `InferenceDiagnostic::CastToUnsized`, so allowing this diagnostics bypass
                     // only to `&T as &dyn Trait` is sufficient
                     if let (TyKind::Ref(m_expr, _, _), TyKind::Ref(m_cast, _, t_cast)) =
