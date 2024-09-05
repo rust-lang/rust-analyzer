@@ -1,7 +1,7 @@
 name: release
 on:
   schedule:
-    - cron: "0 0 * * *" # midnight UTC
+    - cron: "0 0 1 1 *" # midnight UTC (once a year until we repair the workflow)
 
   workflow_dispatch:
 
