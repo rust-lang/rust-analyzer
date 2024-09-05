@@ -289,7 +289,7 @@ pub fn main() {
     fn dyn_tail_need_normalization() {
         check_diagnostics(
             r#"
-//- minicore: dispatch_from_dyn
+//- minicore: coerce_unsized, dispatch_from_dyn
 trait Trait {
     type Associated;
 }
@@ -370,7 +370,7 @@ fn main() {
     fn fat_ptr_cast() {
         check_diagnostics_with_disabled(
             r#"
-//- minicore: sized
+//- minicore: coerce_unsized, dispatch_from_dyn
 trait Foo {
     fn foo(&self) {} //~ WARN method `foo` is never used
 }
@@ -399,12 +399,12 @@ fn main() {
     let d = to_raw(a) as usize;
 }
 "#,
-            &["E0308"],
+            &["E0308", "unused_variables"],
         );
 
         check_diagnostics_with_disabled(
             r#"
-//- minicore: sized
+//- minicore: coerce_unsized, dispatch_from_dyn
 trait Trait {}
 
 struct Box<T: ?Sized>;
@@ -476,7 +476,7 @@ fn main() {
     fn ptr_to_ptr_different_regions() {
         check_diagnostics(
             r#"
-//- minicore: sized
+//- minicore: coerce_unsized, dispatch_from_dyn
 struct Foo<'a> { a: &'a () }
 
 fn extend_lifetime_very_very_safely<'a>(v: *const Foo<'a>) -> *const Foo<'static> {
@@ -503,7 +503,7 @@ fn main() {
     fn ptr_to_trait_obj_add_auto() {
         check_diagnostics(
             r#"
-//- minicore: pointee
+//- minicore: pointee, coerce_unsized, dispatch_from_dyn
 trait Trait<'a> {}
 
 fn add_auto<'a>(x: *mut dyn Trait<'a>) -> *mut (dyn Trait<'a> + Send) {
@@ -522,7 +522,7 @@ fn add_multiple_auto<'a>(x: *mut dyn Trait<'a>) -> *mut (dyn Trait<'a> + Send + 
     fn ptr_to_trait_obj_add_super_auto() {
         check_diagnostics(
             r#"
-//- minicore: pointee
+//- minicore: pointee, coerce_unsized, dispatch_from_dyn
 trait Trait: Send {}
 impl Trait for () {}
 
@@ -538,7 +538,7 @@ fn main() {
     fn ptr_to_trait_obj_ok() {
         check_diagnostics(
             r#"
-//- minicore: pointee
+//- minicore: pointee, coerce_unsized, dispatch_from_dyn
 trait Trait<'a> {}
 
 fn remove_auto<'a>(x: *mut (dyn Trait<'a> + Send)) -> *mut dyn Trait<'a> {
@@ -560,7 +560,7 @@ fn unprincipled<'a, 'b>(x: *mut (dyn Send + 'a)) -> *mut (dyn Sync + 'b) {
     fn ptr_to_trait_obj_wrap_upcast() {
         check_diagnostics(
             r#"
-//- minicore: sized
+//- minicore: pointee, coerce_unsized, dispatch_from_dyn
 trait Super {}
 trait Sub: Super {}
 
@@ -1003,5 +1003,17 @@ fn _slice(bar: &[i32]) -> bool {
 "#,
             &["E0308"],
         );
+    }
+
+    #[test]
+    fn cast_into_dst_with_integer_fallback() {
+        check_diagnostics(
+            r#"
+//- minicore: fmt, coerce_unsized, dispatch_from_dyn
+fn test() {
+    let _ = &42 as &dyn core::fmt::Debug;
+}
+"#,
+        )
     }
 }

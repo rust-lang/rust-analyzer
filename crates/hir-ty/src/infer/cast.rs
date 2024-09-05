@@ -188,7 +188,28 @@ impl CastCheck {
                     }
                     _ => return Err(CastError::NonScalar),
                 },
-                _ => return Err(CastError::NonScalar),
+                _ => {
+                    // We fail to coerce to dyn Trait sometimes due to lack of some functionalities
+                    // under current chalk trait solver. (See #11847 and #18047)
+                    // So, emit no diagnostic for casts like `&T as &dyn Trait` for now,
+                    // to prevent false positive diagnositcs.
+                    // Direct cast without ref like `T as dyn Trait` is prohibitied by
+                    // `InferenceDiagnostic::CastToUnsized`, so allowing this diagnostics bypass
+                    // only to `&T as &dyn Trait` is sufficient
+                    if let (TyKind::Ref(m_expr, _, _), TyKind::Ref(m_cast, _, t_cast)) =
+                        (self.expr_ty.kind(Interner), self.cast_ty.kind(Interner))
+                    {
+                        // Refuse casting `&T` into `&mut U`
+                        if m_expr > m_cast {
+                            return Err(CastError::IllegalCast);
+                        }
+                        if matches!(table.resolve_ty_shallow(t_cast).kind(Interner), TyKind::Dyn(_))
+                        {
+                            return Ok(());
+                        }
+                    }
+                    return Err(CastError::NonScalar);
+                }
             };
 
         // rustc checks whether the `expr_ty` is foreign adt with `non_exhaustive` sym
