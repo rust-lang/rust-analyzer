@@ -11,7 +11,7 @@ use hir_expand::{
     name::{AsName, Name},
     InFile,
 };
-use intern::{sym, Interned, Symbol};
+use intern::{sym, Symbol};
 use rustc_hash::FxHashMap;
 use span::AstIdMap;
 use stdx::never;
@@ -243,8 +243,8 @@ impl ExprCollector<'_> {
         (self.body, self.source_map)
     }
 
-    fn ctx(&self) -> LowerCtx<'_> {
-        self.expander.ctx(self.db)
+    fn ctx(&mut self) -> LowerCtx<'_> {
+        self.expander.ctx(self.db, &mut self.body.types, &mut self.source_map.types)
     }
 
     fn collect_expr(&mut self, expr: ast::Expr) -> ExprId {
@@ -400,7 +400,7 @@ impl ExprCollector<'_> {
             ast::Expr::PathExpr(e) => {
                 let path = e
                     .path()
-                    .and_then(|path| self.expander.parse_path(self.db, path))
+                    .and_then(|path| self.parse_path(path))
                     .map(Expr::Path)
                     .unwrap_or(Expr::Missing);
                 self.alloc_expr(path, syntax_ptr)
@@ -446,8 +446,7 @@ impl ExprCollector<'_> {
                 self.alloc_expr(Expr::Yeet { expr }, syntax_ptr)
             }
             ast::Expr::RecordExpr(e) => {
-                let path =
-                    e.path().and_then(|path| self.expander.parse_path(self.db, path)).map(Box::new);
+                let path = e.path().and_then(|path| self.parse_path(path)).map(Box::new);
                 let record_lit = if let Some(nfl) = e.record_expr_field_list() {
                     let fields = nfl
                         .fields()
@@ -494,7 +493,7 @@ impl ExprCollector<'_> {
             ast::Expr::TryExpr(e) => self.collect_try_operator(syntax_ptr, e),
             ast::Expr::CastExpr(e) => {
                 let expr = self.collect_expr_opt(e.expr());
-                let type_ref = Interned::new(TypeRef::from_ast_opt(&self.ctx(), e.ty()));
+                let type_ref = TypeRef::from_ast_opt(&self.ctx(), e.ty());
                 self.alloc_expr(Expr::Cast { expr, type_ref }, syntax_ptr)
             }
             ast::Expr::RefExpr(e) => {
@@ -533,16 +532,13 @@ impl ExprCollector<'_> {
                     arg_types.reserve_exact(num_params);
                     for param in pl.params() {
                         let pat = this.collect_pat_top(param.pat());
-                        let type_ref =
-                            param.ty().map(|it| Interned::new(TypeRef::from_ast(&this.ctx(), it)));
+                        let type_ref = param.ty().map(|it| TypeRef::from_ast(&this.ctx(), it));
                         args.push(pat);
                         arg_types.push(type_ref);
                     }
                 }
-                let ret_type = e
-                    .ret_type()
-                    .and_then(|r| r.ty())
-                    .map(|it| Interned::new(TypeRef::from_ast(&this.ctx(), it)));
+                let ret_type =
+                    e.ret_type().and_then(|r| r.ty()).map(|it| TypeRef::from_ast(&this.ctx(), it));
 
                 let prev_is_lowering_coroutine = mem::take(&mut this.is_lowering_coroutine);
                 let prev_try_block_label = this.current_try_block_label.take();
@@ -669,12 +665,16 @@ impl ExprCollector<'_> {
             ast::Expr::UnderscoreExpr(_) => self.alloc_expr(Expr::Underscore, syntax_ptr),
             ast::Expr::AsmExpr(e) => self.lower_inline_asm(e, syntax_ptr),
             ast::Expr::OffsetOfExpr(e) => {
-                let container = Interned::new(TypeRef::from_ast_opt(&self.ctx(), e.ty()));
+                let container = TypeRef::from_ast_opt(&self.ctx(), e.ty());
                 let fields = e.fields().map(|it| it.as_name()).collect();
                 self.alloc_expr(Expr::OffsetOf(OffsetOf { container, fields }), syntax_ptr)
             }
             ast::Expr::FormatArgsExpr(f) => self.collect_format_args(f, syntax_ptr),
         })
+    }
+
+    fn parse_path(&mut self, path: ast::Path) -> Option<Path> {
+        self.expander.parse_path(self.db, path, &mut self.body.types, &mut self.source_map.types)
     }
 
     fn collect_expr_as_pat_opt(&mut self, expr: Option<ast::Expr>) -> PatId {
@@ -732,15 +732,12 @@ impl ExprCollector<'_> {
             }
             ast::Expr::CallExpr(e) => {
                 let path = collect_path(self, e.expr()?)?;
-                let path = path
-                    .path()
-                    .and_then(|path| self.expander.parse_path(self.db, path))
-                    .map(Box::new);
+                let path = path.path().and_then(|path| self.parse_path(path)).map(Box::new);
                 let (ellipsis, args) = collect_tuple(self, e.arg_list()?.args());
                 self.alloc_pat_from_expr(Pat::TupleStruct { path, args, ellipsis }, syntax_ptr)
             }
             ast::Expr::PathExpr(e) => {
-                let path = Box::new(self.expander.parse_path(self.db, e.path()?)?);
+                let path = Box::new(self.parse_path(e.path()?)?);
                 self.alloc_pat_from_expr(Pat::Path(path), syntax_ptr)
             }
             ast::Expr::MacroExpr(e) => {
@@ -754,8 +751,7 @@ impl ExprCollector<'_> {
                 id
             }
             ast::Expr::RecordExpr(e) => {
-                let path =
-                    e.path().and_then(|path| self.expander.parse_path(self.db, path)).map(Box::new);
+                let path = e.path().and_then(|path| self.parse_path(path)).map(Box::new);
                 let record_field_list = e.record_expr_field_list()?;
                 let ellipsis = record_field_list.dotdot_token().is_some();
                 // FIXME: Report an error here if `record_field_list.spread().is_some()`.
@@ -1248,8 +1244,7 @@ impl ExprCollector<'_> {
                     return;
                 }
                 let pat = self.collect_pat_top(stmt.pat());
-                let type_ref =
-                    stmt.ty().map(|it| Interned::new(TypeRef::from_ast(&self.ctx(), it)));
+                let type_ref = stmt.ty().map(|it| TypeRef::from_ast(&self.ctx(), it));
                 let initializer = stmt.initializer().map(|e| self.collect_expr(e));
                 let else_branch = stmt
                     .let_else()
@@ -1431,8 +1426,7 @@ impl ExprCollector<'_> {
                 return pat;
             }
             ast::Pat::TupleStructPat(p) => {
-                let path =
-                    p.path().and_then(|path| self.expander.parse_path(self.db, path)).map(Box::new);
+                let path = p.path().and_then(|path| self.parse_path(path)).map(Box::new);
                 let (args, ellipsis) = self.collect_tuple_pat(
                     p.fields(),
                     comma_follows_token(p.l_paren_token()),
@@ -1446,8 +1440,7 @@ impl ExprCollector<'_> {
                 Pat::Ref { pat, mutability }
             }
             ast::Pat::PathPat(p) => {
-                let path =
-                    p.path().and_then(|path| self.expander.parse_path(self.db, path)).map(Box::new);
+                let path = p.path().and_then(|path| self.parse_path(path)).map(Box::new);
                 path.map(Pat::Path).unwrap_or(Pat::Missing)
             }
             ast::Pat::OrPat(p) => 'b: {
@@ -1490,8 +1483,7 @@ impl ExprCollector<'_> {
             }
             ast::Pat::WildcardPat(_) => Pat::Wild,
             ast::Pat::RecordPat(p) => {
-                let path =
-                    p.path().and_then(|path| self.expander.parse_path(self.db, path)).map(Box::new);
+                let path = p.path().and_then(|path| self.parse_path(path)).map(Box::new);
                 let record_pat_field_list =
                     &p.record_pat_field_list().expect("every struct should have a field list");
                 let args = record_pat_field_list
