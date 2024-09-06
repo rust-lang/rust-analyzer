@@ -208,7 +208,7 @@ impl InferenceContext<'_> {
                 // collect explicitly written argument types
                 for arg_type in arg_types.iter() {
                     let arg_ty = match arg_type {
-                        Some(type_ref) => self.make_ty(type_ref),
+                        Some(type_ref) => self.make_body_ty(*type_ref),
                         None => self.table.new_type_var(),
                     };
                     sig_tys.push(arg_ty);
@@ -216,7 +216,7 @@ impl InferenceContext<'_> {
 
                 // add return type
                 let ret_ty = match ret_type {
-                    Some(type_ref) => self.make_ty(type_ref),
+                    Some(type_ref) => self.make_body_ty(*type_ref),
                     None => self.table.new_type_var(),
                 };
                 if let ClosureKind::Async = closure_kind {
@@ -609,7 +609,7 @@ impl InferenceContext<'_> {
                 self.resolve_associated_type(inner_ty, self.resolve_future_future_output())
             }
             Expr::Cast { expr, type_ref } => {
-                let cast_ty = self.make_ty(type_ref);
+                let cast_ty = self.make_body_ty(*type_ref);
                 let expr_ty = self.infer_expr(*expr, &Expectation::Castable(cast_ty.clone()));
                 self.deferred_cast_checks.push(CastCheck::new(
                     tgt_expr,
@@ -1483,7 +1483,7 @@ impl InferenceContext<'_> {
                         Statement::Let { pat, type_ref, initializer, else_branch } => {
                             let decl_ty = type_ref
                                 .as_ref()
-                                .map(|tr| this.make_ty(tr))
+                                .map(|&tr| this.make_body_ty(tr))
                                 .unwrap_or_else(|| this.table.new_type_var());
 
                             let ty = if let Some(expr) = initializer {
@@ -1985,7 +1985,8 @@ impl InferenceContext<'_> {
                         kind_id,
                         args.next().unwrap(), // `peek()` is `Some(_)`, so guaranteed no panic
                         self,
-                        |this, type_ref| this.make_ty(type_ref),
+                        &self.body.types,
+                        |this, type_ref| this.make_body_ty(type_ref),
                         |this, c, ty| {
                             const_or_path_to_chalk(
                                 this.db,
