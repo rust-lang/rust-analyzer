@@ -593,7 +593,7 @@ mod CheckBadStyle {
 }
 
 mod F {
-  //^ 💡 warn: Module `F` should have snake_case name, e.g. `f`
+  //^ 💡 error: Module `F` should have snake_case name, e.g. `f`
     #![deny(non_snake_case)]
     fn CheckItWorksWithModAttr() {}
      //^^^^^^^^^^^^^^^^^^^^^^^ 💡 error: Function `CheckItWorksWithModAttr` should have snake_case name, e.g. `check_it_works_with_mod_attr`

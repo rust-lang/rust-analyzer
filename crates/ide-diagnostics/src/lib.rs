@@ -565,16 +565,38 @@ fn handle_lint_attributes(
     for ev in preorder {
         match ev {
             syntax::WalkEvent::Enter(node) => {
-                for attr in node.children().filter_map(ast::Attr::cast) {
-                    parse_lint_attribute(
-                        attr,
-                        rustc_stack,
-                        clippy_stack,
-                        |stack, severity| {
-                            stack.push(severity);
-                        },
-                        edition,
-                    );
+                for child in node.children() {
+                    if let Some(attr) = ast::Attr::cast(child.clone()) {
+                        if attr.excl_token().is_none()
+                            || matches!(node.kind(), syntax::SyntaxKind::SOURCE_FILE)
+                        {
+                            // outer attributes or inner at "crate" level
+                            parse_lint_attribute(
+                                attr,
+                                rustc_stack,
+                                clippy_stack,
+                                |stack, severity| {
+                                    stack.push(severity);
+                                },
+                                edition,
+                            );
+                        }
+                    } else if let Some(items) = ast::ItemList::cast(child) {
+                        for attr in items.syntax().children().filter_map(ast::Attr::cast) {
+                            if attr.excl_token().is_some() {
+                                // inner attributes
+                                parse_lint_attribute(
+                                    attr,
+                                    rustc_stack,
+                                    clippy_stack,
+                                    |stack, severity| {
+                                        stack.push(severity);
+                                    },
+                                    edition,
+                                );
+                            }
+                        }
+                    }
                 }
                 if let Some(it) =
                     diagnostics_of_range.get_mut(&InFile { file_id, value: node.clone() })
@@ -632,18 +654,42 @@ fn handle_lint_attributes(
                 }
             }
             syntax::WalkEvent::Leave(node) => {
-                for attr in node.children().filter_map(ast::Attr::cast) {
-                    parse_lint_attribute(
-                        attr,
-                        rustc_stack,
-                        clippy_stack,
-                        |stack, severity| {
-                            if stack.pop() != Some(severity) {
-                                never!("Mismatched serevity in walking lint attributes");
+                for child in node.children() {
+                    if let Some(attr) = ast::Attr::cast(child.clone()) {
+                        if attr.excl_token().is_none() {
+                            // outer attributes
+                            parse_lint_attribute(
+                                attr,
+                                rustc_stack,
+                                clippy_stack,
+                                |stack, severity| {
+                                    if stack.pop() != Some(severity) {
+                                        never!("Mismatched serevity in walking lint attributes");
+                                    }
+                                },
+                                edition,
+                            );
+                        }
+                    } else if let Some(items) = ast::ItemList::cast(child) {
+                        for attr in items.syntax().children().filter_map(ast::Attr::cast) {
+                            if attr.excl_token().is_some() {
+                                // inner attributes
+                                parse_lint_attribute(
+                                    attr,
+                                    rustc_stack,
+                                    clippy_stack,
+                                    |stack, severity| {
+                                        if stack.pop() != Some(severity) {
+                                            never!(
+                                                "Mismatched serevity in walking lint attributes"
+                                            );
+                                        }
+                                    },
+                                    edition,
+                                );
                             }
-                        },
-                        edition,
-                    );
+                        }
+                    }
                 }
             }
         }
