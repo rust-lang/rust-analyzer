@@ -661,7 +661,7 @@ fn parse_lint_attribute(
         return;
     };
     let severity = match tag.as_str() {
-        "allow" => Severity::Allow,
+        "allow" | "expect" => Severity::Allow,
         "warn" => Severity::Warning,
         "forbid" | "deny" => Severity::Error,
         _ => return,
