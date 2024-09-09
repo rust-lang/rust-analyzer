@@ -582,18 +582,24 @@ fn handle_lint_attributes(
                             );
                         }
                     } else if let Some(items) = ast::ItemList::cast(child) {
-                        for attr in items.syntax().children().filter_map(ast::Attr::cast) {
-                            if attr.excl_token().is_some() {
-                                // inner attributes
-                                parse_lint_attribute(
-                                    attr,
-                                    rustc_stack,
-                                    clippy_stack,
-                                    |stack, severity| {
-                                        stack.push(severity);
-                                    },
-                                    edition,
-                                );
+                        for item in items.syntax().children() {
+                            let item_kind = item.kind();
+                            if let Some(attr) = ast::Attr::cast(item) {
+                                if attr.excl_token().is_some() {
+                                    // inner attributes
+                                    parse_lint_attribute(
+                                        attr,
+                                        rustc_stack,
+                                        clippy_stack,
+                                        |stack, severity| {
+                                            stack.push(severity);
+                                        },
+                                        edition,
+                                    );
+                                }
+                            } else if !matches!(item_kind, syntax::SyntaxKind::COMMENT) {
+                                // inner attributes can only be the first items
+                                break;
                             }
                         }
                     }
@@ -656,7 +662,9 @@ fn handle_lint_attributes(
             syntax::WalkEvent::Leave(node) => {
                 for child in node.children() {
                     if let Some(attr) = ast::Attr::cast(child.clone()) {
-                        if attr.excl_token().is_none() {
+                        if attr.excl_token().is_none()
+                            || matches!(node.kind(), syntax::SyntaxKind::SOURCE_FILE)
+                        {
                             // outer attributes
                             parse_lint_attribute(
                                 attr,
@@ -671,22 +679,24 @@ fn handle_lint_attributes(
                             );
                         }
                     } else if let Some(items) = ast::ItemList::cast(child) {
-                        for attr in items.syntax().children().filter_map(ast::Attr::cast) {
-                            if attr.excl_token().is_some() {
-                                // inner attributes
-                                parse_lint_attribute(
-                                    attr,
-                                    rustc_stack,
-                                    clippy_stack,
-                                    |stack, severity| {
-                                        if stack.pop() != Some(severity) {
-                                            never!(
-                                                "Mismatched serevity in walking lint attributes"
-                                            );
-                                        }
-                                    },
-                                    edition,
-                                );
+                        for item in items.syntax().children() {
+                            let item_kind = item.kind();
+                            if let Some(attr) = ast::Attr::cast(item) {
+                                if attr.excl_token().is_some() {
+                                    // inner attributes
+                                    parse_lint_attribute(
+                                        attr,
+                                        rustc_stack,
+                                        clippy_stack,
+                                        |stack, severity| {
+                                            stack.push(severity);
+                                        },
+                                        edition,
+                                    );
+                                }
+                            } else if !matches!(item_kind, syntax::SyntaxKind::COMMENT) {
+                                // inner attributes can only be the first items
+                                break;
                             }
                         }
                     }
