@@ -561,6 +561,62 @@ trait BAD_TRAIT {
     }
 
     #[test]
+    fn expect_attributes() {
+        check_diagnostics(
+            r#"
+#[expect(non_snake_case)]
+fn NonSnakeCaseName(SOME_VAR: u8) -> u8{
+    // cov_flags generated output from elsewhere in this file
+    extern "C" {
+        #[no_mangle]
+        static lower_case: u8;
+    }
+
+    let OtherVar = SOME_VAR + 1;
+    OtherVar
+}
+
+#[expect(nonstandard_style)]
+mod CheckNonstandardStyle {
+    fn HiImABadFnName() {}
+}
+
+#[expect(bad_style)]
+mod CheckBadStyle {
+    struct fooo;
+}
+
+mod F {
+    #![expect(non_snake_case)]
+    fn CheckItWorksWithModAttr(BAD_NAME_HI: u8) {
+        _ = BAD_NAME_HI;
+    }
+}
+
+#[expect(non_snake_case, non_camel_case_types)]
+pub struct some_type {
+    SOME_FIELD: u8,
+    SomeField: u16,
+}
+
+#[expect(non_upper_case_globals)]
+pub const some_const: u8 = 10;
+
+#[expect(non_upper_case_globals)]
+pub static SomeStatic: u8 = 10;
+
+#[expect(non_snake_case, non_camel_case_types, non_upper_case_globals)]
+trait BAD_TRAIT {
+    const bad_const: u8;
+    type BAD_TYPE;
+    fn BAD_FUNCTION(BAD_PARAM: u8);
+    fn BadFunction();
+}
+    "#,
+        );
+    }
+
+    #[test]
     fn deny_attributes() {
         check_diagnostics(
             r#"

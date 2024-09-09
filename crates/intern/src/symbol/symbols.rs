@@ -207,6 +207,7 @@ define_symbols! {
     Err,
     exchange_malloc,
     exhaustive_patterns,
+    expect,
     export_name,
     f128,
     f16,

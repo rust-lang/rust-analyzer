@@ -166,12 +166,14 @@ impl<'a> DeclValidator<'a> {
             let attrs = self.db.attrs(def_id);
             // don't bug the user about directly no_mangle annotated stuff, they can't do anything about it
             (!recursing && attrs.by_key(&sym::no_mangle).exists())
-                || attrs.by_key(&sym::allow).tt_values().any(|tt| {
-                    let allows = tt.to_string();
-                    allows.contains(allow_name)
-                        || allows.contains(allow::BAD_STYLE)
-                        || allows.contains(allow::NONSTANDARD_STYLE)
-                })
+                || [&sym::allow, &sym::expect].iter().flat_map(|a| attrs.by_key(a).tt_values()).any(
+                    |tt| {
+                        let allows = tt.to_string();
+                        allows.contains(allow_name)
+                            || allows.contains(allow::BAD_STYLE)
+                            || allows.contains(allow::NONSTANDARD_STYLE)
+                    },
+                )
         };
         let db = self.db.upcast();
         let file_id_is_derive = || {
