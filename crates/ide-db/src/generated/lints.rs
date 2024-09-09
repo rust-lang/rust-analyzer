@@ -859,6 +859,13 @@ pub const DEFAULT_LINT_GROUPS: &[LintGroup] = &[
     },
     LintGroup {
         lint: Lint {
+            label: "bad_style",
+            description: r##"lint group for: non-camel-case-types, non-snake-case, non-upper-case-globals"##,
+        },
+        children: &["non_camel_case_types", "non_snake_case", "non_upper_case_globals"],
+    },
+    LintGroup {
+        lint: Lint {
             label: "refining_impl_trait",
             description: r##"lint group for: refining-impl-trait-reachable, refining-impl-trait-internal"##,
         },
