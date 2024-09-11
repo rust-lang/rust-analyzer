@@ -557,6 +557,7 @@ fn inlay_hint_label(
             let parts = label
                 .parts
                 .into_iter()
+                .filter(|part| !part.text.is_empty())
                 .map(|part| {
                     let tooltip = if needs_resolve && fields_to_resolve.resolve_label_tooltip {
                         *something_to_resolve |= part.tooltip.is_some();
