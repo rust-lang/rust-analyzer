@@ -627,6 +627,10 @@ impl<'a> DeclValidator<'a> {
     ) where
         T: AstNode + HasName + fmt::Debug,
     {
+        if file_id.is_macro() {
+            return;
+        }
+
         let Some(name_ast) = node.name() else {
             never!(
                 "Replacement ({:?}) was generated for a {:?} without a name: {:?}",
