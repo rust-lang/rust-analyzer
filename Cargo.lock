@@ -73,7 +73,7 @@ dependencies = [
  "intern",
  "la-arena 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "lz4_flex",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "salsa",
  "semver",
  "span",
@@ -158,7 +158,7 @@ dependencies = [
  "expect-test",
  "intern",
  "oorandom",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "syntax",
  "syntax-bridge",
  "tt",
@@ -213,7 +213,7 @@ dependencies = [
  "chalk-derive",
  "chalk-ir",
  "chalk-solve",
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "tracing",
 ]
 
@@ -229,7 +229,7 @@ dependencies = [
  "indexmap",
  "itertools",
  "petgraph",
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "tracing",
 ]
 
@@ -510,7 +510,7 @@ dependencies = [
  "hir-ty",
  "intern",
  "itertools",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "smallvec",
  "span",
  "stdx",
@@ -544,7 +544,7 @@ dependencies = [
  "mbe",
  "ra-ap-rustc_abi",
  "ra-ap-rustc_parse_format",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "rustc_apfloat",
  "smallvec",
  "span",
@@ -574,7 +574,7 @@ dependencies = [
  "limit",
  "mbe",
  "parser",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "smallvec",
  "span",
  "stdx",
@@ -613,7 +613,7 @@ dependencies = [
  "ra-ap-rustc_abi",
  "ra-ap-rustc_index",
  "ra-ap-rustc_pattern_analysis",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "rustc_apfloat",
  "scoped-tls",
  "smallvec",
@@ -734,7 +734,7 @@ dependencies = [
  "parser",
  "profile",
  "rayon",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "span",
  "stdx",
  "syntax",
@@ -831,7 +831,7 @@ version = "0.0.0"
 dependencies = [
  "dashmap",
  "hashbrown",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "sptr",
  "triomphe",
 ]
@@ -1047,7 +1047,7 @@ dependencies = [
  "expect-test",
  "intern",
  "parser",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "smallvec",
  "span",
  "stdx",
@@ -1332,7 +1332,7 @@ dependencies = [
  "indexmap",
  "intern",
  "paths",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "serde",
  "serde_json",
  "span",
@@ -1422,7 +1422,7 @@ dependencies = [
  "itertools",
  "la-arena 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "paths",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "semver",
  "serde",
  "serde_json",
@@ -1542,7 +1542,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1709080fdeb5db630e1c2644026c2962aaa32416cd92f0190c04b0c21e114b91"
 dependencies = [
  "ra-ap-rustc_index",
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "rustc_apfloat",
  "smallvec",
  "tracing",
@@ -1627,7 +1627,7 @@ dependencies = [
  "countme",
  "hashbrown",
  "memoffset",
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "text-size",
 ]
 
@@ -1667,7 +1667,7 @@ dependencies = [
  "profile",
  "project-model",
  "rayon",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "scip",
  "semver",
  "serde",
@@ -1705,6 +1705,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
+name = "rustc-hash"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "583034fd73374156e66797ed8e5b0d5690409c9226b22d87cb7f19821c05d152"
+
+[[package]]
 name = "rustc_apfloat"
 version = "0.2.1+llvm-462a31f5a5ab"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1733,7 +1739,7 @@ dependencies = [
  "oorandom",
  "parking_lot",
  "rand",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "salsa-macros",
  "smallvec",
  "tracing",
@@ -1879,7 +1885,7 @@ version = "0.0.0"
 dependencies = [
  "hashbrown",
  "la-arena 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "salsa",
  "stdx",
  "syntax",
@@ -1948,7 +1954,7 @@ dependencies = [
  "ra-ap-rustc_lexer",
  "rayon",
  "rowan",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "rustc_apfloat",
  "smol_str",
  "stdx",
@@ -1964,7 +1970,7 @@ version = "0.0.0"
 dependencies = [
  "intern",
  "parser",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "span",
  "stdx",
  "syntax",
@@ -1981,7 +1987,7 @@ dependencies = [
  "cfg",
  "hir-expand",
  "intern",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "span",
  "stdx",
  "test-utils",
@@ -1995,7 +2001,7 @@ dependencies = [
  "dissimilar",
  "paths",
  "profile",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "stdx",
  "text-size",
  "tracing",
@@ -2327,7 +2333,7 @@ dependencies = [
  "indexmap",
  "nohash-hasher",
  "paths",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "stdx",
  "tracing",
 ]
@@ -2340,7 +2346,7 @@ dependencies = [
  "notify",
  "paths",
  "rayon",
- "rustc-hash",
+ "rustc-hash 2.0.0",
  "stdx",
  "tracing",
  "vfs",
