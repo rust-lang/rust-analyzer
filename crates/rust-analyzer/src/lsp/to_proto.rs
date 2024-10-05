@@ -705,7 +705,7 @@ pub(crate) fn semantic_tokens(
         let token_index = semantic_tokens::type_index(ty);
         let modifier_bitset = mods.0;
 
-        for mut text_range in line_index.index.lines(highlight_range.range) {
+        for mut text_range in line_index.index.lines_in_range(highlight_range.range) {
             if text[text_range].ends_with('\n') {
                 text_range =
                     TextRange::new(text_range.start(), text_range.end() - TextSize::of('\n'));
