@@ -136,6 +136,22 @@ impl LineIndex {
         self.start_offset(line_col.line as usize).map(|start| start + TextSize::from(line_col.col))
     }
 
+    /// Transforms the `LineCol` into a `TextSize`. If the column exceeds the line length,
+    /// the line, it is clamped to that.
+    pub fn offset_clamped(&self, line_col: LineCol) -> Option<(TextSize, Option<TextSize>)> {
+        self.start_offset(line_col.line as usize).map(|start| {
+            let next_newline =
+                self.newlines.get(line_col.line as usize).copied().unwrap_or(self.len);
+            let line_length = next_newline - start;
+            let col = TextSize::from(line_col.col);
+            if col > line_length {
+                (start + line_length, Some(line_length))
+            } else {
+                (start + col, None)
+            }
+        })
+    }
+
     fn start_offset(&self, line: usize) -> Option<TextSize> {
         match line.checked_sub(1) {
             None => Some(TextSize::from(0)),
