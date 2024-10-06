@@ -1250,4 +1250,19 @@ pub unsafe fn foo(a: *mut A) {
 "#,
         );
     }
+
+    #[test]
+    fn destructuring_assignment_needs_mut() {
+        check_diagnostics(
+            r#"
+//- minicore: fn
+
+fn main() {
+	let mut var = 1;
+	let mut func = || (var,) = (2,);
+	func();
+}
+        "#,
+        );
+    }
 }
