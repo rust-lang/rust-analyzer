@@ -472,6 +472,11 @@ pub(crate) enum CompleteSemicolon {
 
 impl CompletionContext<'_> {
     /// The range of the identifier that is being completed.
+    pub(crate) fn is_inside_string(&self) -> bool {
+        // Implement logic to check if the cursor is inside a string token
+        // This is a placeholder implementation
+        self.token.kind()== SyntaxKind::STRING
+    }
     pub(crate) fn source_range(&self) -> TextRange {
         let kind = self.original_token.kind();
         match kind {
