@@ -99,6 +99,10 @@ impl Completions {
     }
 
     pub(crate) fn add_nameref_keywords(&mut self, ctx: &CompletionContext<'_>) {
+        // Check if the cursor is inside a string token
+        if ctx.is_inside_string() {
+            return; // Disable completion inside string tokens
+        }
         ["self", "crate"].into_iter().for_each(|kw| self.add_keyword(ctx, kw));
 
         if ctx.depth_from_crate_root > 0 {
@@ -111,6 +115,10 @@ impl Completions {
         ctx: &CompletionContext<'_>,
         super_chain_len: Option<usize>,
     ) {
+        // Check if the cursor is inside a string token
+        if ctx.is_inside_string() {
+            return; // Disable completion inside string tokens
+        }
         if let Some(len) = super_chain_len {
             if len > 0 && len < ctx.depth_from_crate_root {
                 self.add_keyword(ctx, "super::");
