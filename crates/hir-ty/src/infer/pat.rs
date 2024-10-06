@@ -285,7 +285,36 @@ impl InferenceContext<'_> {
                 let subs = fields.iter().map(|f| (f.name.clone(), f.pat));
                 self.infer_record_pat_like(p.as_deref(), &expected, default_bm, pat, subs)
             }
-            Pat::Path(path) => self.infer_path(path, pat.into()).unwrap_or_else(|| self.err_ty()),
+            Pat::Path(path) => {
+                let ty = self.infer_path(path, pat.into()).unwrap_or_else(|| self.err_ty());
+                let ty_inserted_vars = self.insert_type_vars_shallow(ty.clone());
+                match self.table.coerce(&expected, &ty_inserted_vars) {
+                    Ok((adjustments, coerced_ty)) => {
+                        if !adjustments.is_empty() {
+                            self.result
+                                .pat_adjustments
+                                .entry(pat)
+                                .or_default()
+                                .extend(adjustments.into_iter().map(|adjust| adjust.target));
+                        }
+                        self.write_pat_ty(pat, coerced_ty);
+                        return self.pat_ty_after_adjustment(pat);
+                    }
+                    Err(_) => {
+                        self.result.type_mismatches.insert(
+                            pat.into(),
+                            TypeMismatch {
+                                expected: expected.clone(),
+                                actual: ty_inserted_vars.clone(),
+                            },
+                        );
+                        self.write_pat_ty(pat, ty);
+                        // We return `expected` to prevent cascading errors. I guess an alternative is to
+                        // not emit type mismatches for error types and emit an error type here.
+                        return expected;
+                    }
+                }
+            }
             Pat::Bind { id, subpat } => {
                 return self.infer_bind_pat(pat, *id, default_bm, *subpat, &expected);
             }
